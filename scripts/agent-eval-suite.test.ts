@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -27,10 +28,17 @@ import {
   type AgentEvalSuiteShardOptions,
   type AgentEvalSuiteWorkload,
   agentEvalSuiteArtifactSchema,
+  agentEvalSuiteComparisonSchema,
+  buildSuiteComparison,
+  compareAgentEvalSuitesOffline,
   formatSuiteReport,
+  loadComparisonArtifact,
+  loadImportedSuite,
   loadSuiteManifest,
+  parseComparisonArtifact,
   parseSuiteArtifact,
   runAgentEvalSuite,
+  runAgentEvalSuitePair,
   selectSuiteWorkloads,
   validateSuiteManifest,
 } from "./agent-eval-suite.ts";
@@ -126,6 +134,48 @@ function createSuiteExecutionFixture(
     'export const GITHITS_GUIDANCE_BLOCK = "Target guidance";\n',
   );
   return { ...fixture, targetRoot, reportingPath, schemaPath };
+}
+
+function createPairExecutionFixture(
+  entries: AgentEvalSuiteWorkload[] = [
+    {
+      id: "stable-a",
+      path: "eval/agentic/workloads/stable-a.md",
+      safety: "stable",
+      suites: ["stable-full"],
+    },
+  ],
+): SuiteExecutionFixture {
+  const fixture = createSuiteFixture(entries);
+  const reportingPath = join(fixture.workloadsDir, "REPORTING.md");
+  const schemaPath = join(
+    fixture.root,
+    "eval",
+    "agentic",
+    "result.schema.json",
+  );
+  writeFileSync(reportingPath, "# Reporting contract\n");
+  writeFileSync(schemaPath, "{}\n");
+  mkdirSync(join(fixture.root, "skills", "githits-mcp"), {
+    recursive: true,
+  });
+  mkdirSync(join(fixture.root, "src", "commands", "init"), {
+    recursive: true,
+  });
+  writeFileSync(
+    join(fixture.root, "skills", "githits-mcp", "SKILL.md"),
+    "# Target skill\n",
+  );
+  writeFileSync(
+    join(fixture.root, "src", "commands", "init", "guidance-assets.ts"),
+    'export const GITHITS_GUIDANCE_BLOCK = "Target guidance";\n',
+  );
+  return {
+    ...fixture,
+    targetRoot: fixture.root,
+    reportingPath,
+    schemaPath,
+  };
 }
 
 function suiteRecord(
@@ -224,6 +274,45 @@ function writeShardArtifacts(
     join(options.outDir, "report.json"),
     buildRunReportFromMetadata(options.outDir, runMetadata),
   );
+}
+
+async function generatePairSuite(
+  fixture: SuiteExecutionFixture,
+  outDir: string,
+  mutateRecord: (
+    record: AgentEvalRecordInput,
+    options: AgentEvalSuiteShardOptions,
+  ) => AgentEvalRecordInput = (record) => record,
+  includeRecord: (
+    workload: AgentEvalSuiteWorkload,
+    options: AgentEvalSuiteShardOptions,
+  ) => boolean = () => true,
+): Promise<AgentEvalSuiteArtifact> {
+  return runAgentEvalSuite({
+    suite: "stable-full",
+    repoRoot: fixture.root,
+    targetRoot: fixture.root,
+    outDir,
+    manifestPath: fixture.manifestPath,
+    workloadsDir: fixture.workloadsDir,
+    reportingPath: fixture.reportingPath,
+    schemaPath: fixture.schemaPath,
+    dryRun: true,
+    shardExecutor: async (options) => {
+      writeShardArtifacts(
+        options,
+        options.workloads
+          .filter((workload) => includeRecord(workload, options))
+          .map((workload) =>
+            mutateRecord(
+              suiteRecord(workload.id, { guidanceProfile: options.profile }),
+              options,
+            ),
+          ),
+      );
+      return { runDir: options.outDir };
+    },
+  });
 }
 
 function copyEntries(): AgentEvalSuiteWorkload[] {
@@ -1122,6 +1211,9 @@ describe("agent eval suites", () => {
     expect(() =>
       agentEvalSuiteArtifactSchema.parse({ schemaVersion: 1 }),
     ).toThrow();
+    expect(() => parseComparisonArtifact({ schemaVersion: 1 })).toThrow(
+      "Invalid comparison artifact",
+    );
   });
 
   it("assigns each suite artifact a unique UUID execution ID", async () => {
@@ -1160,6 +1252,673 @@ describe("agent eval suites", () => {
       rmSync(fixture.root, { recursive: true, force: true });
       rmSync(firstOutDir, { recursive: true, force: true });
       rmSync(secondOutDir, { recursive: true, force: true });
+    }
+  });
+
+  it("runs a pair with both roots preflighted and target suites sequential", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-suite-pair-"));
+    const events: string[] = [];
+    try {
+      const result = await runAgentEvalSuitePair({
+        suite: "stable-full",
+        repoRoot: candidate.root,
+        baselineRoot: baseline.root,
+        outDir,
+        manifestPath: candidate.manifestPath,
+        workloadsDir: candidate.workloadsDir,
+        reportingPath: candidate.reportingPath,
+        schemaPath: candidate.schemaPath,
+        dryRun: true,
+        shardExecutor: async (options) => {
+          events.push(`start:${options.targetRoot}`);
+          writeShardArtifacts(
+            options,
+            options.workloads.map((workload) => suiteRecord(workload.id)),
+          );
+          events.push(`end:${options.targetRoot}`);
+          return { runDir: options.outDir };
+        },
+      });
+      const baselineEnds = events
+        .map((event, index) => (event === `end:${baseline.root}` ? index : -1))
+        .filter((index) => index >= 0);
+      const firstCandidateStart = events.indexOf(`start:${candidate.root}`);
+      expect(baselineEnds).toHaveLength(2);
+      expect(firstCandidateStart).toBeGreaterThan(Math.max(...baselineEnds));
+      expect(result.baselineSuitePath).toBe(
+        join(outDir, "baseline", "suite.json"),
+      );
+      expect(result.candidateSuitePath).toBe(
+        join(outDir, "candidate", "suite.json"),
+      );
+      expect(result.comparisonPath).toBe(
+        join(outDir, "comparison", "comparison.json"),
+      );
+      expect(result.comparison.mode).toBe("live-pair");
+      expect(loadComparisonArtifact(result.comparisonPath)).toEqual(
+        result.comparison,
+      );
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves both partial suite artifacts and produces pair comparison evidence", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-pair-partial-"));
+    try {
+      const result = await runAgentEvalSuitePair({
+        suite: "stable-full",
+        repoRoot: candidate.root,
+        baselineRoot: baseline.root,
+        outDir,
+        manifestPath: candidate.manifestPath,
+        workloadsDir: candidate.workloadsDir,
+        reportingPath: candidate.reportingPath,
+        schemaPath: candidate.schemaPath,
+        dryRun: true,
+        shardExecutor: async (options) => {
+          if (
+            options.targetRoot === baseline.root &&
+            options.profile === "full"
+          ) {
+            throw new Error("baseline full rejected");
+          }
+          writeShardArtifacts(
+            options,
+            options.workloads.map((workload) => suiteRecord(workload.id)),
+          );
+          return { runDir: options.outDir };
+        },
+      });
+      expect(result.baselineSuite.status).toBe("partial");
+      expect(result.candidateSuite.status).toBe("dry-run");
+      expect(existsSync(result.baselineSuitePath)).toBe(true);
+      expect(existsSync(result.candidateSuitePath)).toBe(true);
+      expect(result.comparison.cells).toHaveLength(2);
+      expect(result.comparison.cells).toContainEqual(
+        expect.objectContaining({
+          id: "full/stable-a",
+          beforeStatus: "missing",
+          afterStatus: "success",
+        }),
+      );
+      expect(existsSync(result.comparisonPath)).toBe(true);
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects pair target setup before starting either target suite", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-pair-preflight-"));
+    let executorCalls = 0;
+    try {
+      rmSync(join(baseline.root, "skills"), { recursive: true, force: true });
+      await expect(
+        runAgentEvalSuitePair({
+          suite: "stable-full",
+          repoRoot: candidate.root,
+          baselineRoot: baseline.root,
+          outDir,
+          manifestPath: candidate.manifestPath,
+          workloadsDir: candidate.workloadsDir,
+          reportingPath: candidate.reportingPath,
+          schemaPath: candidate.schemaPath,
+          dryRun: true,
+          shardExecutor: async () => {
+            executorCalls += 1;
+            return undefined;
+          },
+        }),
+      ).rejects.toThrow("Target GitHits skill directory not found");
+      expect(executorCalls).toBe(0);
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("compares imported suites offline through the same structured builder", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const baselineOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-suite-offline-base-"),
+    );
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-suite-offline-candidate-"),
+    );
+    const outputDir = mkdtempSync(join(tmpdir(), "agent-eval-comparison-"));
+    try {
+      await generatePairSuite(baseline, baselineOutDir);
+      await generatePairSuite(candidate, candidateOutDir);
+      const baselineImported = loadImportedSuite(
+        join(baselineOutDir, "suite.json"),
+      );
+      const candidateImported = loadImportedSuite(
+        join(candidateOutDir, "suite.json"),
+      );
+      const pure = buildSuiteComparison(baselineImported, candidateImported, {
+        mode: "offline",
+        comparisonId: "00000000-0000-4000-8000-000000000001",
+        startedAt: "2026-08-28T10:00:00.000Z",
+        completedAt: "2026-08-28T10:00:01.000Z",
+      });
+      const offline = compareAgentEvalSuitesOffline({
+        baselineSuitePath: join(baselineOutDir, "suite.json"),
+        candidateSuitePath: join(candidateOutDir, "suite.json"),
+        outputDir,
+      });
+      expect(agentEvalSuiteComparisonSchema.parse(offline)).toEqual(offline);
+      expect(offline.baselineSuite.sha256).toBe(baselineImported.sha256);
+      expect(offline.candidateSuite.sha256).toBe(candidateImported.sha256);
+      expect(offline.cells).toEqual(pure.cells);
+      expect(offline.aggregates).toEqual(pure.aggregates);
+      expect(offline.compatibility).toEqual(pure.compatibility);
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects unsafe or missing imported child references", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const baselineOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-import-base-"),
+    );
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-import-candidate-"),
+    );
+    const outputDir = mkdtempSync(join(tmpdir(), "agent-eval-import-output-"));
+    const outsideDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-import-outside-"),
+    );
+    try {
+      await generatePairSuite(baseline, baselineOutDir);
+      await generatePairSuite(candidate, candidateOutDir);
+      const candidateSuitePath = join(candidateOutDir, "suite.json");
+      const original = JSON.parse(readFileSync(candidateSuitePath, "utf8")) as {
+        shards: Array<{ runPath: string | null }>;
+      };
+      const cases = [
+        { reference: "../run.json", error: "safe relative path" },
+        { reference: "/tmp/run.json", error: "safe relative path" },
+        { reference: "shards/full/missing-run.json", error: "not found" },
+      ];
+      for (const testCase of cases) {
+        writeJson(candidateSuitePath, {
+          ...original,
+          shards: original.shards.map((shard, index) =>
+            index === 0 ? { ...shard, runPath: testCase.reference } : shard,
+          ),
+        });
+        expect(() =>
+          compareAgentEvalSuitesOffline({
+            baselineSuitePath: join(baselineOutDir, "suite.json"),
+            candidateSuitePath,
+            outputDir,
+          }),
+        ).toThrow(testCase.error);
+      }
+      const outsideRun = join(outsideDir, "run.json");
+      writeJson(outsideRun, { outside: true });
+      const escapedPath = join(candidateOutDir, "escaped-run.json");
+      symlinkSync(outsideRun, escapedPath);
+      writeJson(candidateSuitePath, {
+        ...original,
+        shards: original.shards.map((shard, index) =>
+          index === 0 ? { ...shard, runPath: "escaped-run.json" } : shard,
+        ),
+      });
+      expect(() =>
+        compareAgentEvalSuitesOffline({
+          baselineSuitePath: join(baselineOutDir, "suite.json"),
+          candidateSuitePath,
+          outputDir,
+        }),
+      ).toThrow("escapes suite directory");
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it("suppresses all deltas for reporting or schema identity mismatches", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const baselineOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-content-base-"),
+    );
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-content-candidate-"),
+    );
+    const outputDir = mkdtempSync(join(tmpdir(), "agent-eval-content-output-"));
+    try {
+      await generatePairSuite(baseline, baselineOutDir);
+      writeFileSync(
+        candidate.reportingPath,
+        "# Different reporting contract\n",
+      );
+      await generatePairSuite(candidate, candidateOutDir);
+      const comparison = compareAgentEvalSuitesOffline({
+        baselineSuitePath: join(baselineOutDir, "suite.json"),
+        candidateSuitePath: join(candidateOutDir, "suite.json"),
+        outputDir,
+      });
+      expect(comparison.compatibility.directDeltasSuppressed).toBe(true);
+      expect(comparison.aggregates.durationMs.delta).toBeNull();
+      expect(comparison.aggregates.durationMs.includedCellIds).toEqual([]);
+      expect(
+        comparison.cells.every((cell) => cell.beforeStatus === "success"),
+      ).toBe(true);
+      expect(comparison.warnings.join("\n")).toContain("reportingContract");
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("excludes only workload cells when a workload content hash changes", async () => {
+    const entries: AgentEvalSuiteWorkload[] = [
+      {
+        id: "stable-a",
+        path: "eval/agentic/workloads/stable-a.md",
+        safety: "stable",
+        suites: ["stable-full"],
+      },
+      {
+        id: "stable-b",
+        path: "eval/agentic/workloads/stable-b.md",
+        safety: "stable",
+        suites: ["stable-full"],
+      },
+    ];
+    const baseline = createPairExecutionFixture(entries);
+    const candidate = createPairExecutionFixture(entries);
+    const baselineOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-workload-base-"),
+    );
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-workload-candidate-"),
+    );
+    const outputDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-workload-output-"),
+    );
+    try {
+      await generatePairSuite(baseline, baselineOutDir);
+      writeFileSync(
+        join(candidate.root, "eval", "agentic", "workloads", "stable-a.md"),
+        "# Changed workload\n",
+      );
+      await generatePairSuite(candidate, candidateOutDir);
+      const comparison = compareAgentEvalSuitesOffline({
+        baselineSuitePath: join(baselineOutDir, "suite.json"),
+        candidateSuitePath: join(candidateOutDir, "suite.json"),
+        outputDir,
+      });
+      expect(comparison.compatibility.directDeltasSuppressed).toBe(false);
+      expect(comparison.aggregates.durationMs.includedCellIds).toEqual([
+        "descriptors/stable-b",
+        "full/stable-b",
+      ]);
+      expect(comparison.aggregates.durationMs.excludedCellIds).toEqual([
+        "descriptors/stable-a",
+        "full/stable-a",
+      ]);
+      expect(
+        comparison.cells
+          .filter((cell) => cell.workloadId === "stable-a")
+          .every((cell) => cell.compatibility === "incompatible"),
+      ).toBe(true);
+      expect(
+        comparison.cells
+          .filter((cell) => cell.workloadId === "stable-b")
+          .every((cell) => cell.compatibility === "compatible"),
+      ).toBe(true);
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps compatible deltas visible while warning on harness and Codex drift", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const baselineOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-drift-base-"),
+    );
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-drift-candidate-"),
+    );
+    const outputDir = mkdtempSync(join(tmpdir(), "agent-eval-drift-output-"));
+    try {
+      await generatePairSuite(baseline, baselineOutDir);
+      await generatePairSuite(candidate, candidateOutDir);
+      const candidateSuitePath = join(candidateOutDir, "suite.json");
+      const candidateArtifact = JSON.parse(
+        readFileSync(candidateSuitePath, "utf8"),
+      ) as AgentEvalSuiteArtifact & { measurementGit: unknown };
+      candidateArtifact.measurementGit = {
+        branch: "feature",
+        sha: "candidate-sha",
+        dirty: true,
+      };
+      candidateArtifact.codexVersions = ["codex-new"];
+      writeJson(candidateSuitePath, candidateArtifact);
+      const comparison = compareAgentEvalSuitesOffline({
+        baselineSuitePath: join(baselineOutDir, "suite.json"),
+        candidateSuitePath,
+        outputDir,
+      });
+      expect(comparison.repositoryOnly).toBe(false);
+      expect(comparison.compatibility.directDeltasSuppressed).toBe(false);
+      expect(comparison.aggregates.durationMs.delta).toBe(0);
+      expect(comparison.warnings.join("\n")).toContain("measurementGit");
+      expect(comparison.warnings.join("\n")).toContain("codexVersion");
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("treats target guidance changes as comparable repository dimensions", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const baselineOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-guidance-base-"),
+    );
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-guidance-candidate-"),
+    );
+    const outputDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-guidance-output-"),
+    );
+    try {
+      await generatePairSuite(baseline, baselineOutDir);
+      writeFileSync(
+        join(candidate.root, "src", "commands", "init", "guidance-assets.ts"),
+        'export const GITHITS_GUIDANCE_BLOCK = "Changed target guidance";\n',
+      );
+      await generatePairSuite(candidate, candidateOutDir);
+      const comparison = compareAgentEvalSuitesOffline({
+        baselineSuitePath: join(baselineOutDir, "suite.json"),
+        candidateSuitePath: join(candidateOutDir, "suite.json"),
+        outputDir,
+      });
+      expect(comparison.repositoryOnly).toBe(true);
+      expect(comparison.compatibility.directDeltasSuppressed).toBe(false);
+      expect(comparison.aggregates.durationMs.delta).toBe(0);
+      const beforeGuidance = loadImportedSuite(
+        join(baselineOutDir, "suite.json"),
+      ).artifact.targetGuidanceIdentity.guidanceBlock;
+      const afterGuidance = loadImportedSuite(
+        join(candidateOutDir, "suite.json"),
+      ).artifact.targetGuidanceIdentity.guidanceBlock;
+      expect(beforeGuidance).not.toEqual(afterGuidance);
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps full status cells while excluding one-sided and unknown metric cohorts", async () => {
+    const entries: AgentEvalSuiteWorkload[] = [
+      {
+        id: "stable-a",
+        path: "eval/agentic/workloads/stable-a.md",
+        safety: "stable",
+        suites: ["stable-full"],
+      },
+      {
+        id: "stable-b",
+        path: "eval/agentic/workloads/stable-b.md",
+        safety: "stable",
+        suites: ["stable-full"],
+      },
+    ];
+    const baseline = createPairExecutionFixture(entries);
+    const candidate = createPairExecutionFixture(entries);
+    const baselineOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-cohort-base-"),
+    );
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-cohort-candidate-"),
+    );
+    const outputDir = mkdtempSync(join(tmpdir(), "agent-eval-cohort-output-"));
+    try {
+      await generatePairSuite(baseline, baselineOutDir);
+      await generatePairSuite(
+        candidate,
+        candidateOutDir,
+        (record, options) =>
+          options.profile === "descriptors" && record.workloadId === "stable-a"
+            ? {
+                ...record,
+                usage: unknownAgentUsage("codex", LUNA_MODEL, "unknown"),
+              }
+            : record,
+        (workload, options) =>
+          !(options.profile === "full" && workload.id === "stable-b"),
+      );
+      const comparison = compareAgentEvalSuitesOffline({
+        baselineSuitePath: join(baselineOutDir, "suite.json"),
+        candidateSuitePath: join(candidateOutDir, "suite.json"),
+        outputDir,
+      });
+      const missingCell = comparison.cells.find(
+        (cell) => cell.id === "full/stable-b",
+      );
+      expect(missingCell).toMatchObject({
+        beforeStatus: "success",
+        afterStatus: "missing",
+        compatibility: "missing",
+      });
+      const unknownCell = comparison.cells.find(
+        (cell) => cell.id === "descriptors/stable-a",
+      );
+      expect(unknownCell?.tokens.uncachedInputTokens?.change).toBe("unknown");
+      expect(comparison.aggregates.durationMs.includedCellIds).toEqual([
+        "descriptors/stable-a",
+        "descriptors/stable-b",
+        "full/stable-a",
+      ]);
+      expect(
+        comparison.aggregates.tokens.uncachedInputTokens.excludedCellIds,
+      ).toEqual(["descriptors/stable-a", "full/stable-b"]);
+      expect(comparison.cells).toHaveLength(4);
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports per-tool additions, removals, status changes, surface moves, and sequence changes", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const baselineOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-tools-base-"),
+    );
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-tools-candidate-"),
+    );
+    const outputDir = mkdtempSync(join(tmpdir(), "agent-eval-tools-output-"));
+    try {
+      await generatePairSuite(baseline, baselineOutDir);
+      await generatePairSuite(candidate, candidateOutDir, (record) => ({
+        ...record,
+        toolCalls: [
+          { tool: "search", server: "githits", status: "failed" },
+          { tool: "search", server: "githits-cli", status: "completed" },
+          { tool: "new_tool", server: "githits", status: "failed" },
+        ],
+      }));
+      const comparison = compareAgentEvalSuitesOffline({
+        baselineSuitePath: join(baselineOutDir, "suite.json"),
+        candidateSuitePath: join(candidateOutDir, "suite.json"),
+        outputDir,
+      });
+      const cell = comparison.cells.find(
+        (candidateCell) => candidateCell.id === "descriptors/stable-a",
+      );
+      expect(cell?.toolSequence.changed).toBe(true);
+      const deltas = cell?.callsByTool?.deltas ?? [];
+      expect(deltas).toEqual([
+        {
+          surface: "cli",
+          tool: "search",
+          before: null,
+          after: {
+            surface: "cli",
+            tool: "search",
+            total: 1,
+            started: 0,
+            completed: 1,
+            failed: 0,
+            unknown: 0,
+          },
+          delta: {
+            total: 1,
+            started: 0,
+            completed: 1,
+            failed: 0,
+            unknown: 0,
+          },
+          percentChange: null,
+          change: "added",
+        },
+        {
+          surface: "mcp",
+          tool: "new_tool",
+          before: null,
+          after: {
+            surface: "mcp",
+            tool: "new_tool",
+            total: 1,
+            started: 0,
+            completed: 0,
+            failed: 1,
+            unknown: 0,
+          },
+          delta: {
+            total: 1,
+            started: 0,
+            completed: 0,
+            failed: 1,
+            unknown: 0,
+          },
+          percentChange: null,
+          change: "added",
+        },
+        {
+          surface: "mcp",
+          tool: "search",
+          before: {
+            surface: "mcp",
+            tool: "search",
+            total: 1,
+            started: 0,
+            completed: 1,
+            failed: 0,
+            unknown: 0,
+          },
+          after: {
+            surface: "mcp",
+            tool: "search",
+            total: 1,
+            started: 0,
+            completed: 0,
+            failed: 1,
+            unknown: 0,
+          },
+          delta: {
+            total: 0,
+            started: 0,
+            completed: -1,
+            failed: 1,
+            unknown: 0,
+          },
+          percentChange: 0,
+          change: "changed",
+        },
+      ]);
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("marks zero-baseline numeric changes added with no percentage", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const baselineOutDir = mkdtempSync(join(tmpdir(), "agent-eval-zero-base-"));
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-zero-candidate-"),
+    );
+    const outputDir = mkdtempSync(join(tmpdir(), "agent-eval-zero-output-"));
+    try {
+      await generatePairSuite(baseline, baselineOutDir, (record) => ({
+        ...record,
+        durationMs: 0,
+      }));
+      await generatePairSuite(candidate, candidateOutDir, (record) => ({
+        ...record,
+        durationMs: 10,
+      }));
+      const comparison = compareAgentEvalSuitesOffline({
+        baselineSuitePath: join(baselineOutDir, "suite.json"),
+        candidateSuitePath: join(candidateOutDir, "suite.json"),
+        outputDir,
+      });
+      expect(comparison.cells[0]?.durationMs).toMatchObject({
+        before: 0,
+        after: 10,
+        delta: 10,
+        percentChange: null,
+        change: "added",
+      });
+      expect(comparison.aggregates.durationMs.change).toBe("added");
+      expect(comparison.aggregates.durationMs.percentChange).toBeNull();
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
     }
   });
 });
