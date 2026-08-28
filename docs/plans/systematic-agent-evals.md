@@ -2,11 +2,13 @@
 
 ## Status
 
-- Overall: PLANNED
-- Current phase: Phase 1 — trustworthy local metrics (COMPLETE)
-- Next phase: Phase 2 — systematic local suites and paired comparison (PLANNED)
+- Overall: IN PROGRESS
+- Current phase: Phase 2 — systematic local suites and paired comparison (PLANNED)
+- Previous phase: Phase 1 — trustworthy local metrics (MERGED)
 - Owner: repository maintainers
 - Last verified: 2026-08-28
+- Deployment: Phase 1 merged to `main`; local maintainer tooling is available.
+  Scheduled execution and external persistence remain Phase 3 work.
 
 ## Problem And Expected Outcome
 
@@ -465,7 +467,8 @@ The following must be resolved before Phase 5:
 
 ### Status
 
-COMPLETE — implementation and validation complete; live canary passed
+MERGED — implementation and validation complete; live canary passed. PR #321
+merged as `e9ccdabec02cdc9c544ef9959c3a886d868e12a6` on 2026-08-28.
 
 ### Expected Outcome
 
@@ -595,8 +598,10 @@ None.
   `bun run build`: passed on 2026-08-28.
 - `bun test`: 3,338 tests passed with no failures, across 184 files, with
   10,762 expectations in 59.05 seconds on 2026-08-28.
-- The implementation increments are committed in repository history; this plan
-  records behavior and verification rather than immutable commit identifiers.
+- Pull request #321 merged to `main` as
+  `e9ccdabec02cdc9c544ef9959c3a886d868e12a6`. Its final pull-request workflow
+  run (`33167102840`) passed build and checks, Ubuntu and Windows tests, Bun
+  compatibility, and Node 20, 22, 24, and 26 compatibility.
 
 ### Luna Validation Canary
 
