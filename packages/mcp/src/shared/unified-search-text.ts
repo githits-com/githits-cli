@@ -791,13 +791,9 @@ function appendUnifiedSearchHits(
   hits: UnifiedSearchHitPayload[],
   options: NormalizedTextOptions,
 ): void {
-  const hitTargets = new Set(
-    hits.map((hit) => hit.requestedTarget ?? hit.target),
-  );
-  const showDocsTarget = hitTargets.size > 1;
   hits.forEach((hit, idx) => {
     if (idx > 0) lines.push("");
-    appendHit(lines, idx + 1, hit, showDocsTarget, options);
+    appendHit(lines, idx + 1, hit, options);
   });
 }
 
@@ -805,27 +801,11 @@ function appendHit(
   lines: string[],
   index: number,
   hit: UnifiedSearchHitPayload,
-  showDocsTarget: boolean,
   options: NormalizedTextOptions,
 ): void {
   lines.push(
-    `[${index}] ${highlight(formatHitHeader(hit, showDocsTarget), options.useColors)}`,
+    `[${index}] ${highlight(formatHitHeader(hit), options.useColors)}`,
   );
-
-  if (hit.type === "documentation_page") {
-    lines.push(
-      isHttpUrl(hit.locator.sourceUrl)
-        ? `  ${hit.locator.sourceUrl}`
-        : "  Source URL unavailable",
-    );
-  }
-
-  const titleIsInHeader = hit.type === "documentation_page";
-  if (hit.title && !titleIsInHeader) {
-    lines.push(
-      `  ${highlightRanges(hit.title, hit.highlights?.title, options.useColors)}`,
-    );
-  }
 
   const summary = prepareSummary(hit.summary, hit.title);
   if (summary) {
@@ -918,25 +898,32 @@ function highlightWrappedSegment(
   return highlightRanges(value, localRanges, true);
 }
 
-function formatHitHeader(
-  hit: UnifiedSearchHitPayload,
-  showDocsTarget: boolean,
-): string {
+function formatHitHeader(hit: UnifiedSearchHitPayload): string {
   const loc = hit.locator;
-  const type = shortType(hit.type);
   if (hit.type === "documentation_page") {
-    return [
-      type,
-      showDocsTarget ? (hit.requestedTarget ?? hit.target) : undefined,
-      hit.title ?? stripVersionFromTarget(hit.target),
-    ]
-      .filter(Boolean)
-      .join(SEP);
+    return `${loc.pageId ?? "page ID unavailable"} [docs page] ${formatDocumentationTarget(hit)} - ${formatDocumentationSourceUrl(loc.sourceUrl)} - ${hit.title ?? "title unavailable"}`;
   }
   const location = loc.filePath
     ? `${loc.filePath}${formatLineRange(loc.startLine, loc.endLine)}`
     : "location unavailable";
-  return [type, hit.target, location].filter(Boolean).join(SEP);
+  const type = shortType(hit.type);
+  return `${hit.target} ${location} [${type}]${hit.title ? ` - ${hit.title}` : ""}`;
+}
+
+function formatDocumentationTarget(hit: UnifiedSearchHitPayload): string {
+  const { registry, packageName } = hit.locator;
+  if (registry && packageName) {
+    return `${registry.toLowerCase()}:${packageName}`;
+  }
+  return (
+    stripVersionFromTarget(hit.requestedTarget ?? hit.target) ||
+    "target unavailable"
+  );
+}
+
+function formatDocumentationSourceUrl(value: string | undefined): string {
+  if (!value) return "source URL unavailable";
+  return value.replace(/^https?:\/\//, "");
 }
 
 function stripVersionFromTarget(value: string | undefined): string {
@@ -948,23 +935,14 @@ function stripVersionFromTarget(value: string | undefined): string {
 function shortType(type: string): string {
   switch (type) {
     case "repository_code":
-      return "code";
+      return "repo code";
     case "repository_symbol":
-      return "symbol";
-    case "documentation_page":
-      return "docs";
+      return "repo symbol";
     case "repository_doc":
       return "repo doc";
     default:
       return type;
   }
-}
-
-function isHttpUrl(value: string | undefined): value is string {
-  return (
-    value?.startsWith("http://") === true ||
-    value?.startsWith("https://") === true
-  );
 }
 
 interface PreparedSummary {

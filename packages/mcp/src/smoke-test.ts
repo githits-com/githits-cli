@@ -310,23 +310,31 @@ function assertSearchDefaultText(text: string, context: string): void {
 }
 
 function hasHumanSearchHitLocator(lines: string[]): boolean {
-  return lines.some((line, index) => {
-    const match = /^\[\d+\]\s+(repo doc|code|symbol|docs)\s+\|\s+(.+)$/.exec(
-      line,
-    );
-    if (!match) return false;
-    if (match[1] === "docs") {
-      return /^(?: {2}https?:\/\/\S+| {2}Source URL unavailable)$/.test(
-        lines[index + 1] ?? "",
+  return lines.some((line) => {
+    const docsMatch = /^\[\d+\]\s+(\S+)\s+\[docs page\]\s+(.+)$/.exec(line);
+    if (docsMatch) {
+      const docsDetails = docsMatch[2];
+      if (!docsDetails) return false;
+      const firstDivider = docsDetails.indexOf(" - ");
+      const secondDivider = docsDetails.indexOf(" - ", firstDivider + 3);
+      return (
+        firstDivider > 0 &&
+        secondDivider > firstDivider + 3 &&
+        docsDetails.slice(secondDivider + 3).trim().length > 0
       );
     }
-    const value = match[2];
-    if (!value) return false;
-    const parts = value.split(" | ");
-    const first = parts[0] ?? "";
-    const last = parts[parts.length - 1] ?? "";
+    const match =
+      /^\[\d+\]\s+(.+?)\s+\[(repo doc|repo code|repo symbol)\](?: - (.*))?$/.exec(
+        line,
+      );
+    if (!match) return false;
+    const locatorText = match[1];
+    if (!locatorText) return false;
+    const locator = locatorText.trim().split(/\s+/);
     return (
-      parts.length >= 2 && first.trim().length > 0 && last.trim().length > 0
+      locator.length >= 2 &&
+      !locatorText.trim().endsWith("location unavailable") &&
+      locator.every((part) => part.length > 0)
     );
   });
 }

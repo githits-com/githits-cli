@@ -313,7 +313,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result\n\n[1] code | npm:express@5.2.1 | index.js\n" +
+          "1 result\n\n[1] npm:express@5.2.1 index.js [repo code]\n" +
             "  Ready: payload text\n" +
             "  Waiting: payload text\n" +
             "  Available but not searched: payload text\n" +
@@ -339,7 +339,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result | 1 code\n\n[1] code | npm:express@5.2.1 | index.js\n" +
+          "1 result | 1 code\n\n[1] npm:express@5.2.1 index.js [repo code]\n" +
             "  First summary paragraph.\n\n" +
             "  status: payload text\n" +
             "  searchRef=payload text\n" +
@@ -357,7 +357,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result\n\n[1] code | npm:express@5.2.1 | index.js",
+          "1 result\n\n[1] npm:express@5.2.1 index.js [repo code]",
         );
       }
       return smokeResponse(name, args);
@@ -370,8 +370,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result\n\n[1] docs | README\n" +
-            "  https://docs.example.com/readme",
+          "1 result\n\n[1] page-1 [docs page] npm:express - docs.example.com/readme - README | API - section",
         );
       }
       return smokeResponse(name, args);
@@ -384,8 +383,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result | 1 docs page\n\n[1] docs | README\n" +
-            "  Source URL unavailable",
+          "1 result | 1 docs page\n\n[1] page-1 [docs page] npm:express - source URL unavailable - README",
         );
       }
       return smokeResponse(name, args);
@@ -396,16 +394,16 @@ describe("runMcpSmoke", () => {
 
   it.each([
     [
-      "1 result\n\n[1] code | npm:express@5.2.1\n" +
+      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
         "  This payload mentions code_read but has no locator",
     ],
     [
-      "1 result\n\n[1] code | npm:express@5.2.1\n" +
+      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
         '  code_read target="npm:express@5.2.1"',
     ],
-    ["1 result\n\n[1] docs | README\n" + "  documentation prose only"],
+    ["1 result\n\n[1] page-1 [docs page] npm:express - README"],
     [
-      "1 result\n\n[1] code | npm:express@5.2.1\n" +
+      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
         "  ordinary title\n" +
         '  code_read target="npm:express@5.2.1" path="index.js"',
     ],

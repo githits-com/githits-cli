@@ -352,29 +352,30 @@ The representative CLI n8n example is maintained in
 **Hit anatomy within unified search text-v1:**
 
 ```
-[1] repo doc | <target> | <path:line-range>
-  <title>
+[1] <target> <path:line-range> [repo doc] - <title>
   <summary line 1>
   <summary line 2 (wrapped at output width)>
 [blank]
-[2] docs | <title>
-  https://<source-url>
+[2] <page-id> [docs page] <target> - <host/path#anchor> - <title>
   <summary, when informative>
 ```
 
 Hit headers are numbered so ranked results can be referenced as `[1]` through
-`[N]`. Types compact to `repo doc`, `docs`, `code`, and `symbol`; repository
-and code hits include their target plus a non-empty file location when one is
-available. Documentation hits put a direct HTTP(S) source URL in the body.
-When the backend has no source URL, the body says `Source URL unavailable`
-without exposing the opaque page ID. Repository-backed hits without a file path
-end their header with `location unavailable` rather than fabricating a locator.
-Executable `docs_read` / `code_read` commands, opaque page IDs, qualified
-internal IDs, and kind/category tails are omitted from default text; JSON keeps
-the full locator and follow-up fields unchanged. A summary's first line is
-omitted when it repeats the title after removing Markdown heading markers, as
-is an immediately following setext underline. Source indentation is retained
-when summaries wrap, with a consistent two-space hit-body indent.
+`[N]`. Repository and code hits keep the exact target and file location needed
+for `code_read` before a bracketed type tag (`[repo doc]`, `[repo code]`, or
+`[repo symbol]`); their free-form title is the final header tail. Documentation
+hits keep the actual `page-id` needed for `docs_read`, a stable package target,
+human-readable source URL, and title in that order. The docs URL uses
+`host/path#anchor` without the protocol; unavailable fields are rendered as
+explicit `page ID unavailable`, `target unavailable`, `source URL unavailable`,
+or `title unavailable` values. Executable `docs_read` / `code_read` command
+lines, qualified non-follow-up internal result IDs, and kind/category tails are
+omitted from default text; the documentation page ID remains because it is the
+`docs_read` follow-up locator, and JSON keeps the full locator and follow-up
+fields unchanged. A summary's first line is omitted when it repeats the title
+after removing Markdown heading markers, as is an immediately following
+setext underline. Source indentation is retained when summaries wrap, with a
+consistent two-space hit-body indent.
 
 Result headlines combine count, type breakdown when completed, and pagination
 when known, for example `10 results | 5 repo docs, 5 docs pages | next_offset=10`.

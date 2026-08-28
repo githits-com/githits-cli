@@ -40,11 +40,10 @@ Next: githits search-status smoke-ref --wait 20`;
 Next: shorten or broaden query; use githits code grep.`;
   const completed = `1 result | 1 code | next_offset=10
 
-[1] code | npm:express@5.2.1 | lib/application.js`;
+[1] npm:express@5.2.1 lib/application.js [repo code]`;
   const completedDocs = `1 result | 1 docs page
 
-[1] docs | Getting started
-  https://docs.example.com/getting-started`;
+[1] page-1 [docs page] npm:express - docs.example.com/getting-started - Getting started | API - section`;
 
   it("accepts outcome-first text with CLI-native actions", () => {
     expect(valid.split("\n")[0]).toBe("Indexing - no results yet");
@@ -73,7 +72,7 @@ Next: shorten or broaden query; use githits code grep.`;
     [`Warning: indexing\n${valid}`, "non-outcome text"],
     [`${completed}\nstatus: indexing`, "lifecycle status"],
     [
-      completed.replace(" | lib/application.js", ""),
+      completed.replace(" lib/application.js [repo code]", ""),
       "missing result follow-up",
     ],
     ["1 result from npm:express@5.2.1", "missing result follow-up"],
@@ -94,7 +93,7 @@ Next: shorten or broaden query; use githits code grep.`;
   it("accepts documentation hits that disclose a missing source URL", () => {
     expect(() =>
       assertSearchTerminalText(
-        "1 result | 1 docs page\n\n[1] docs | README\n  Source URL unavailable",
+        "1 result | 1 docs page\n\n[1] page-1 [docs page] npm:express - source URL unavailable - README",
         "search",
       ),
     ).not.toThrow();
@@ -102,15 +101,18 @@ Next: shorten or broaden query; use githits code grep.`;
 
   it.each([
     [
-      "1 result\n\n[1] code | npm:express@5.2.1\n  This payload mentions githits code read but has no locator",
+      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n  This payload mentions githits code read but has no locator",
     ],
     [
-      "1 result\n\n[1] code | npm:express@5.2.1\n  githits code read 'npm:express@5.2.1' --lines 1-10",
+      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n  githits code read 'npm:express@5.2.1' --lines 1-10",
     ],
     [
-      "1 result\n\n[1] code | npm:express@5.2.1\n  ordinary title\n  githits code read 'npm:express@5.2.1' 'index.js'",
+      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n  ordinary title\n  githits code read 'npm:express@5.2.1' 'index.js'",
     ],
-    ["1 result\n\n[1] docs | README\n  githits docs read --lines 1-10"],
+    [
+      "1 result\n\n[1] page-1 [docs page] npm:express - README\n" +
+        "  githits docs read --lines 1-10",
+    ],
   ])("rejects incomplete or prose-only hit follow-ups", (text) => {
     expect(() => assertSearchTerminalText(text, "search")).toThrow(
       "missing result follow-up or next action",
@@ -218,7 +220,7 @@ Next: shorten or broaden query; use githits code grep.`;
   it("ignores formatter-like words and diagnostics in indented hit content", () => {
     const hitText = `1 result
 
-[1] code | npm:express@5.2.1 | lib/application.js
+[1] npm:express@5.2.1 lib/application.js [repo code]
   Ready: payload text
   Waiting: payload text
   Available but not searched: payload text
@@ -238,7 +240,7 @@ Next: shorten or broaden query; use githits code grep.`;
 
   it("keeps multiline hit-body diagnostics opaque after a blank line", () => {
     const hitText =
-      "1 result | 1 code\n\n[1] code | npm:express@5.2.1 | index.js\n" +
+      "1 result | 1 code\n\n[1] npm:express@5.2.1 index.js [repo code]\n" +
       "  First summary paragraph.\n\n" +
       "  status: payload text\n" +
       "  searchRef=payload text\n" +
