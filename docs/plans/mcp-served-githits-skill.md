@@ -191,12 +191,6 @@ Decisions retained for later phases:
 - Phase 2 remains gated on a runnable client with an official generalized
   Skills-over-MCP contract. Phase 3 remains a later hosted/client rollout.
 
-Commits:
-
-- `c5a208c` — `fix: make MCP skill self-contained`
-- `3992868` — `docs: define MCP skill parity lifecycle`
-- `b3965b8` — `docs: clarify MCP skill release exception`
-
 Deterministic evidence:
 
 - Targeted skill/instruction/local-server cohort:
@@ -213,21 +207,17 @@ Deterministic evidence:
 
 Qualitative evidence:
 
-- Isolated OpenCode descriptors
-  `.agent-eval/runs/2026-08-28T09-31-44-931Z` called `quick_start`;
-  success/high usefulness, no instruction issues.
-- Isolated OpenCode full
-  `.agent-eval/runs/2026-08-28T09-33-04-161Z` loaded the skill and skipped
+- Isolated OpenCode descriptors (local MCP, descriptors profile) called
   `quick_start`; success/high usefulness, no instruction issues.
-- OpenCode skills
-  `.agent-eval/runs/2026-08-28T09-34-09-494Z` and Codex skills
-  `.agent-eval/runs/2026-08-28T09-35-12-073Z` used the githits-cli fallback;
-  both succeeded with high usefulness and no instruction issues.
-- Codex descriptors
-  `.agent-eval/runs/2026-08-28T09-21-46-481Z` called `quick_start`;
-  Codex full `.agent-eval/runs/2026-08-28T09-22-51-854Z` and Claude full
-  `.agent-eval/runs/2026-08-28T09-26-24-284Z` skipped it. These are
-  diagnostic under the documented local guidance-isolation limitations.
+- Isolated OpenCode full (local MCP, full profile) loaded the skill and skipped
+  `quick_start`; success/high usefulness, no instruction issues.
+- OpenCode skills (local skills surface) and Codex skills using
+  `gpt-5.6-luna` (local skills surface) used the githits-cli fallback; both
+  succeeded with high usefulness and no instruction issues.
+- Codex `gpt-5.6-luna` descriptors (local MCP, descriptors profile) called
+  `quick_start`; Codex full (local MCP, full profile) and Claude full (local
+  MCP, full profile) skipped it. These are diagnostic under the documented
+  local guidance-isolation limitations.
 - The first OpenCode full run inherited local GitHits experimental
   configuration and correctly called `quick_start` under the
   `Experimental`/runtime-appendix exception. The first OpenCode skills run
