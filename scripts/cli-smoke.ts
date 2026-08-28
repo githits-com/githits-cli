@@ -1344,15 +1344,20 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     ]),
     "pkg upgrade-review terminal",
   );
+  const upgradeReviewFirstLine = upgradeReviewText.split("\n")[0]?.trim();
   assert(
-    upgradeReviewText.includes("pkg_upgrade_review") &&
-      upgradeReviewText.includes("vulnerabilities") &&
-      upgradeReviewText.includes("changes"),
-    "pkg upgrade-review terminal missing evidence sections",
+    upgradeReviewFirstLine === "Upgrade review - 1 package",
+    "pkg upgrade-review terminal missing outcome headline",
   );
   assert(
-    !upgradeReviewText.includes("recommendation") &&
-      !upgradeReviewText.includes("risk level"),
+    upgradeReviewText.includes("npm:express 5.0.0 -> 5.2.1") &&
+      upgradeReviewText.includes("\nSecurity\n") &&
+      upgradeReviewText.includes("\nChanges\n"),
+    "pkg upgrade-review terminal missing grouped evidence",
+  );
+  assert(
+    !upgradeReviewText.includes("pkg_upgrade_review") &&
+      !/\b(?:recommendation|risk level|assessment)\b/i.test(upgradeReviewText),
     "pkg upgrade-review terminal leaked assessment language",
   );
 

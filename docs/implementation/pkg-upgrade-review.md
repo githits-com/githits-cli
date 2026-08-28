@@ -46,7 +46,7 @@ pkg_upgrade_review({
   include_dependency_issues: true,
   min_severity: "low" | "medium" | "high" | "critical",
   format: "text-v1" | "json"
-})
+});
 ```
 
 Batch form:
@@ -70,7 +70,7 @@ pkg_upgrade_review({
   skip_transitive_security: false,
   include_dependency_issues: true,
   format: "text-v1"
-})
+});
 ```
 
 Validation rules:
@@ -115,7 +115,14 @@ interface UpgradeReview {
   currentVersion: string;
   targetVersion: string;
   latestVersion?: string;
-  versionDelta: "patch" | "minor" | "major" | "prerelease" | "downgrade" | "same" | "unknown";
+  versionDelta:
+    | "patch"
+    | "minor"
+    | "major"
+    | "prerelease"
+    | "downgrade"
+    | "same"
+    | "unknown";
   security: UpgradeSecurity;
   changelog: UpgradeChangelog;
   compatibility?: UpgradeCompatibility;
@@ -238,38 +245,98 @@ Dependency changes are backend-provided by the aggregate upgrade-review response
 
 ## Text Shape
 
-Default `text-v1` should be compact and evidence-first, but it must include concrete samples rather than only counters. Changelog text should show source/count/truncation and all keyword-hit entries in the reviewed range. If there are no keyword hits, show a small deterministic sample of ordinary entries. `--verbose` expands non-keyword rows from the current response, but changelog bodies still render filtered excerpts/headline paragraphs to avoid commit-list dumps.
+`text-v1` is an in-place, unstable text contract. It is a compact product
+surface for humans and agents, not a serialization of the JSON fields. The
+default output leads with the outcome and groups each package in this order:
+
+1. package identity and version relationship;
+2. `Security`, followed by non-empty advisory groups;
+3. `Deprecation` when target deprecation is known or target evidence is missing;
+4. `Changes`;
+5. `Compatibility` when it has evidence;
+6. `Dependencies` when the comparison object was returned;
+7. `Dependency issues` when that object was returned; and
+8. `Unknown evidence` last.
+
+A batch of more than one package adds one `Across packages:` summary after the
+headline. Zero and one package omit it. The summary and package sections report
+facts only; they never call an upgrade safe, risky, approved, or rejected.
+
+Representative output:
 
 ```text
-pkg_upgrade_review | 2 upgrades | unknowns=1 added-vulns=0 change-keywords=0 dependency-changes=1 transitive-vuln-additions=0
+Upgrade review - 2 packages
+Across packages: 1 with evidence gaps | 1 with added direct vulnerabilities | 1 with added transitive vulnerabilities | 1 with heuristic change signals | 1 with direct dependency changes
 
-npm:@modelcontextprotocol/sdk 1.26.0 -> 1.29.0 | minor
-vulnerabilities
-  direct package advisories: current version affected=0, target version affected=0, fixed by target=0, added in target=0, still affects target=0
-changes
-  source: releases
-  release entries: 3 total, 3 with release-note bodies
-  keyword hits: 1 entries (removed); heuristic text match
-  keyword hit entries:
-    - 1.29.0
-      [removed]: Removed deprecated transport helpers...
-dependencies
-  direct dependencies: added=1, removed=0, changed=2
-  direct changed:
-    - zod ^3.25.0 -> ^4.0.0
-    - eventsource ^3.0.0 -> ^4.0.0
+npm:zod 4.3.6 -> 4.4.3 (minor)
 
-npm:zod 4.3.6 -> 4.4.3 | patch
-vulnerabilities
-  direct package advisories: current version affected=0, target version affected=0, fixed by target=0, added in target=0, still affects target=0
-changes
-  source: package_versions
-  release entries: 2 total, 0 with release-note bodies
-unknowns:
-  - changelog source has no release-note bodies
+Security
+  Direct: 0 affected -> 1 affected | 0 fixed | 1 added | 0 still present
+  Added direct advisories
+    - GHSA-new HIGH(7.5): new advisory | fixed in 4.4.4
+  Transitive: 0 affected packages -> 1 | 0 fixed | 1 added | 0 still affected
+
+Deprecation
+  Target: deprecated: bad release
+
+Changes
+  Repository releases | 1 entry | 1 with release notes
+  Heuristic signals: breaking | 1 matching entry
+  Heuristic release entries
+    - 4.4.3
+      [breaking]: Breaking: removed an API.
+
+Dependencies
+  Direct: 1 added | 0 removed | 0 changed
+  Direct added
+    - npm:left-pad 1.0.0
+  Transitive: 0 added | 0 removed | 0 changed
+
+Dependency issues
+  none introduced | current total: 0 | target total: 0
+
+Unknown evidence
+  - changelog evidence incomplete
+
+npm:express 5.0.0 -> 5.2.1 (patch)
+
+Security
+  Direct: 0 affected -> 0 affected | 0 fixed | 0 added | 0 still present
+  Transitive: not checked
+
+Changes
+  Package versions (no release notes) | 2 entries | 0 with release notes
 ```
 
-The text renderer must not say an update is safe or risky. It reports evidence and explicit `unknowns:` only. For every non-empty count, the default text should include representative rows. `--verbose` expands row groups in place instead of forcing agents to reconstruct follow-up commands.
+The formatter preserves stable follow-up locators and backend facts while
+removing internal tool headers, repeated field labels, and dense key/value
+rows. Formatter-authored punctuation is ASCII; backend Unicode is preserved.
+Free prose wraps with hanging indentation at the supplied terminal width (80 by
+default, clamped to a minimum of 20); package coordinates, versions, advisory
+IDs, and URLs are not split. The CLI passes `process.stdout.columns` and enables
+ANSI only when supported. MCP passes no ANSI and uses the 80-column default.
+
+ANSI is semantic styling only: the outcome and section headings are bold, the
+package identity is bold cyan, and attention evidence is explicitly worded and
+yellow. Provenance may be dimmed; trust limits, unknowns, and follow-up guidance
+are not. Removing ANSI leaves the same words and hierarchy.
+
+Changelog source labels are exact: `releases` renders as `Repository releases`,
+`package_versions` fallback renders as `Package versions (no release notes)`,
+and any other non-empty normalized source is rendered verbatim without guessing
+a provider. A returned zero-valued `dependencyChanges` object remains visible as
+both `Direct: 0 added | 0 removed | 0 changed` and
+`Transitive: 0 added | 0 removed | 0 changed`; an undefined object is omitted.
+Likewise, zero-valued `dependencyIssues` says `none introduced` with current and
+target totals, while undefined evidence is omitted. Missing target security
+summary retains `Target: deprecation unknown`.
+
+Default samples remain bounded: direct advisories and transitive vulnerable
+package details show up to five rows, peer changes up to ten, and dependency
+change details use the existing compact/verbose limits. Changelog keyword hits
+remain visible; ordinary entries are sampled. `--verbose` expands the bounded
+row groups in place without changing the JSON response. Backend truncation and
+unknown evidence remain explicit rather than being presented as complete.
 
 ## Fact Reporting Rules
 
@@ -295,7 +362,7 @@ The CLI/MCP implementation has one active backend path:
 1. `buildPackageUpgradeReviewRequest` validates single-package vs batch mode, normalises registry values to backend enum casing, maps `min_severity` to CVSS thresholds, and keeps `low` unfiltered.
 2. `buildPackageUpgradeReview` calls `PackageIntelligenceService.packageUpgradeReview` exactly once with the full package batch.
 3. `PackageIntelligenceServiceImpl.packageUpgradeReview` posts the aggregate GraphQL query, validates the typed response with Zod, strips `null` fields to the existing JSON omission convention, and reuses standard package-intelligence transport/auth/error handling.
-4. The shared response module normalises backend enum strings to the existing CLI/MCP JSON/text casing (`NPM` -> `npm`, `MAJOR` -> `major`, `HIGH` -> `high`) and preserves the existing terminal formatter shape.
+4. The shared response module normalises backend enum strings to the existing CLI/MCP JSON/text casing (`NPM` -> `npm`, `MAJOR` -> `major`, `HIGH` -> `high`) and owns the grouped terminal/text-v1 formatter described above.
 
 There is deliberately no compatibility fallback to the old client-side fanout. Backend schema mismatch, missing resolver, or deployment skew should surface as the normal package-intelligence backend/protocol error. This prevents the CLI from silently making many backend calls after the aggregate tool exists.
 
