@@ -311,7 +311,7 @@ function assertSearchDefaultText(text: string, context: string): void {
 
 function hasHumanSearchHitLocator(lines: string[]): boolean {
   return lines.some((line, index) => {
-    const match = /^\[\d+\]\s+(repo doc|code|symbol|docs)\s+·\s+(.+)$/.exec(
+    const match = /^\[\d+\]\s+(repo doc|code|symbol|docs)\s+\|\s+(.+)$/.exec(
       line,
     );
     if (!match) return false;
@@ -322,7 +322,7 @@ function hasHumanSearchHitLocator(lines: string[]): boolean {
     }
     const value = match[2];
     if (!value) return false;
-    const parts = value.split(" · ");
+    const parts = value.split(" | ");
     const first = parts[0] ?? "";
     const last = parts[parts.length - 1] ?? "";
     return (

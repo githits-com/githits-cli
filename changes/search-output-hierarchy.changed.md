@@ -3,4 +3,4 @@
 "@githits/mcp": patch
 ---
 
-- **Clarify unified search output** - Add exact partial-result truth to JSON and route `githits` and `@githits/mcp` search/search-status through one outcome-first formatter with compact completed-result headlines, numbered human locators, source provenance, target-grouped readiness when trust facts require it, terminal-aware CLI wrapping, concise session/action rows, bounded provenance, ANSI hierarchy, and surface-native continuation guidance.
+- **Clarify unified search output** - Add exact partial-result truth to JSON and route `githits` and `@githits/mcp` search/search-status through one outcome-first formatter with compact completed-result headlines, numbered human locators, ASCII formatter-authored punctuation, source provenance, target-grouped readiness when trust facts require it, terminal-aware CLI wrapping, concise session/action rows, bounded provenance, ANSI hierarchy, and surface-native continuation guidance while preserving Unicode backend payload text.

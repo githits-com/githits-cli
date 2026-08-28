@@ -931,12 +931,12 @@ function formatHitHeader(
       hit.title ?? stripVersionFromTarget(hit.target),
     ]
       .filter(Boolean)
-      .join(" · ");
+      .join(SEP);
   }
   const location = loc.filePath
     ? `${loc.filePath}${formatLineRange(loc.startLine, loc.endLine)}`
     : "location unavailable";
-  return [type, hit.target, location].filter(Boolean).join(" · ");
+  return [type, hit.target, location].filter(Boolean).join(SEP);
 }
 
 function stripVersionFromTarget(value: string | undefined): string {

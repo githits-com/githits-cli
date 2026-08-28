@@ -297,7 +297,7 @@ The `hint` field is emitted only when the cap *actually truncated* the response 
 
 **In-place evolution.** `text-v1` names the compact line-oriented representation; it is not an exact-prose compatibility boundary. Search and `search_status` may tighten human/agent copy in place as long as their structural lifecycle, ordering, action, and hit-anatomy invariants remain covered by tests (`packages/mcp/src/shared/unified-search-text.test.ts`, `packages/mcp/src/tools/search-status.test.ts`). JSON is the stable structured boundary for programmatic callers. Other text-v1 renderers retain their own contracts and are not changed by the search presentation work.
 
-**Compact punctuation.** Separators are ` | ` and hit fields use ` · `; ellipsis is `...`; no box-drawing or decorative punctuation. Tokenizer behavior for multi-byte UTF-8 varies across BPE variants, and the format runs into Claude, Codex CLI, OpenCode, Cline, Cursor, etc. — the small fixed vocabulary keeps it predictable.
+**Compact punctuation.** Formatter-authored separators are ASCII ` | `; ellipsis is `...`; no box-drawing or decorative punctuation. Unicode in backend payloads (titles, summaries, paths, URLs, and notes) passes through unchanged. Tokenizer behavior for multi-byte UTF-8 varies across BPE variants, and the format runs into Claude, Codex CLI, OpenCode, Cline, Cursor, etc. — the small fixed vocabulary keeps it predictable.
 
 **Example-search anatomy.** `get_example` text mode returns markdown directly, followed by `solution_id: <id>` when the REST response includes an app URL. This avoids JSON-wrapped markdown while preserving the `feedback` workflow. `search_language` text mode returns one match per line as `name (Display Name) aliases: a, b`; agents should pass the `name` value to `get_example.language`.
 
@@ -352,12 +352,12 @@ The representative CLI n8n example is maintained in
 **Hit anatomy within unified search text-v1:**
 
 ```
-[1] repo doc · <target> · <path:line-range>
+[1] repo doc | <target> | <path:line-range>
   <title>
   <summary line 1>
   <summary line 2 (wrapped at output width)>
 [blank]
-[2] docs · <title>
+[2] docs | <title>
   https://<source-url>
   <summary, when informative>
 ```

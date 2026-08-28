@@ -58,7 +58,7 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(firstLine(text)).toBe(
       "Indexing continues - 1 interim result returned",
     );
-    expect(text).toContain("[1] docs · Routing");
+    expect(text).toContain("[1] docs | Routing");
     expect(text).toContain("Search search-ref-status | 0/1 target ready");
     expect(text).toContain(
       'Next: search_status search_ref="search-ref-status" wait_timeout_ms=20000',

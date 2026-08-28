@@ -257,10 +257,10 @@ describe("renderUnifiedSearchSuccess", () => {
       "Sources: expressjs.com; expressjs/express@dbac741a",
     );
     expect(text).toContain(
-      "[1] repo doc · npm:express@5.2.1 · History.md:169-179",
+      "[1] repo doc | npm:express@5.2.1 | History.md:169-179",
     );
     expect(text).toContain(
-      "[6] docs · router.use()\n  https://expressjs.com/en/api/router/0",
+      "[6] docs | router.use()\n  https://expressjs.com/en/api/router/0",
     );
     expect(text).toContain("    * remove:");
     expect(text).toContain("      - Remove Express 3.x middleware error stubs");
@@ -278,7 +278,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(firstLine(text)).toContain("1 result");
     expect(firstLine(text)).not.toContain("search |");
     expect(text).toContain(
-      "[1] code · cline/cline@v3.4.2 · src/integrations/diff/strategies/multi-search-replace.ts:142-156",
+      "[1] code | cline/cline@v3.4.2 | src/integrations/diff/strategies/multi-search-replace.ts:142-156",
     );
     expect(text).toContain("  applyEdit");
     expect(text).not.toContain("searchRef=");
@@ -302,10 +302,41 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(firstLine(docsText)).toBe("1 result | 1 docs page");
   });
 
+  it("uses ASCII separators without changing Unicode payload text", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          title: "Überprüfung",
+          summary: "Café — маршрутизация",
+        }),
+        {
+          type: "repository_doc",
+          target: "npm:express@5.2.1",
+          title: "Résumé",
+          summary: "naïve release notes",
+          locator: { filePath: "History.md", startLine: 1 },
+        },
+        docsHit({
+          title: "Документация",
+          summary: "Café — маршрутизация",
+        }),
+      ]),
+    );
+
+    expect(text).toContain("[1] code | cline/cline@v3.4.2 |");
+    expect(text).toContain("[2] repo doc | npm:express@5.2.1 | History.md:1");
+    expect(text).toContain("[3] docs | aider-AI/aider@v0.55.0 | Документация");
+    const middleDotSeparator = ` ${String.fromCodePoint(0x00b7)} `;
+    expect(text).not.toContain(middleDotSeparator);
+    expect(text).toContain("Überprüfung");
+    expect(text).toContain("Café — маршрутизация");
+    expect(text).toContain("Résumé");
+  });
+
   it("keeps documentation targets compact unless multiple targets need attribution", () => {
     const single = renderUnifiedSearchSuccess(completed([docsHit()]));
-    expect(single).toContain("[1] docs · Edit Formats");
-    expect(single).not.toContain("[1] docs · aider-AI/aider@v0.55.0");
+    expect(single).toContain("[1] docs | Edit Formats");
+    expect(single).not.toContain("[1] docs | aider-AI/aider@v0.55.0");
 
     const multiple = renderUnifiedSearchSuccess(
       completed([
@@ -318,9 +349,9 @@ describe("renderUnifiedSearchSuccess", () => {
       ]),
     );
     expect(multiple).toContain(
-      "[1] docs · aider-AI/aider@v0.55.0 · Edit Formats",
+      "[1] docs | aider-AI/aider@v0.55.0 | Edit Formats",
     );
-    expect(multiple).toContain("[2] docs · npm:express@5.2.1 · Routing");
+    expect(multiple).toContain("[2] docs | npm:express@5.2.1 | Routing");
   });
 
   it("states when a documentation source URL is unavailable without exposing its page ID", () => {
@@ -328,7 +359,7 @@ describe("renderUnifiedSearchSuccess", () => {
       completed([docsHit({ locator: { pageId: "internal-page-id" } })]),
     );
 
-    expect(text).toContain("[1] docs · Edit Formats\n  Source URL unavailable");
+    expect(text).toContain("[1] docs | Edit Formats\n  Source URL unavailable");
     expect(text).not.toContain("internal-page-id");
   });
 
@@ -338,7 +369,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "[1] code · cline/cline@v3.4.2 · location unavailable",
+      "[1] code | cline/cline@v3.4.2 | location unavailable",
     );
   });
 
@@ -446,7 +477,7 @@ describe("renderUnifiedSearchSuccess", () => {
       actionSyntax: "cli",
     });
     expect(code).toContain(
-      "[1] code · cline/cline@v3.4.2 · src/integrations/diff/strategies/multi-search-replace.ts:142-156",
+      "[1] code | cline/cline@v3.4.2 | src/integrations/diff/strategies/multi-search-replace.ts:142-156",
     );
 
     const repositoryCode = renderUnifiedSearchSuccess(
@@ -465,14 +496,14 @@ describe("renderUnifiedSearchSuccess", () => {
       { actionSyntax: "cli" },
     );
     expect(repositoryCode).toContain(
-      "[1] code · github:cline/cline#main · src/index.ts:10-20",
+      "[1] code | github:cline/cline#main | src/index.ts:10-20",
     );
 
     const docs = renderUnifiedSearchSuccess(completed([docsHit()]), {
       actionSyntax: "cli",
     });
     expect(docs).toContain(
-      "[1] docs · Edit Formats\n  https://aider.chat/docs/more/edit-formats.html",
+      "[1] docs | Edit Formats\n  https://aider.chat/docs/more/edit-formats.html",
     );
 
     const empty = renderUnifiedSearchSuccess(
@@ -1321,9 +1352,9 @@ describe("renderUnifiedSearchSuccess", () => {
       actionSyntax: "cli",
     });
     expect(text).toContain(
-      "[1] code · cline/cline@v3.4.2 · src/integrations/diff/strategies/multi-search-replace.ts:142-156",
+      "[1] code | cline/cline@v3.4.2 | src/integrations/diff/strategies/multi-search-replace.ts:142-156",
     );
-    expect(text).toContain("[2] docs · aider-AI/aider@v0.55.0 · Edit Formats");
+    expect(text).toContain("[2] docs | aider-AI/aider@v0.55.0 | Edit Formats");
     expect(text).toContain(
       "Available now: versions 5.2.1, 5.2.0, 5.1.0 +1, refs HEAD,\n  main, next +1",
     );
