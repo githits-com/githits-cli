@@ -58,7 +58,9 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("documentation-site names");
     expect(instructions).toContain("`site:<host[/path]>`");
     expect(instructions).toContain('`source:"docs"`');
-    expect(instructions).toContain("relevant `pageId` to `docs_read`");
+    expect(instructions).toContain('`format:"json"`');
+    expect(instructions).toContain("relevant `pageId` and returned line range");
+    expect(instructions).toContain("to `docs_read`");
     expect(instructions).toContain("EXACT/HIGH");
     expect(instructions).toContain("CLEAR or NOT_APPLICABLE");
     expect(instructions).toContain(
