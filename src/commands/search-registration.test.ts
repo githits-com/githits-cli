@@ -46,6 +46,22 @@ describe("registerUnifiedSearchCommands", () => {
     expect(statusHelp).toContain("unrecognized statuses are not polled");
   });
 
+  it("documents canonical target guidance for package and repository scope", () => {
+    const program = new Command();
+    registerSearchCommand(program);
+    const searchCommand = program.commands.find(
+      (command) => command.name() === "search",
+    );
+    const searchHelp =
+      searchCommand?.helpInformation().replace(/\s+/g, " ") ?? "";
+
+    expect(searchHelp).toContain("swift:github.com/<owner>/<repo>");
+    expect(searchHelp).toContain("zig:gh/<owner>/<repo>");
+    expect(searchHelp).toContain("artifact/manifest-root");
+    expect(searchHelp).toContain("public GitHub repository");
+    expect(searchHelp).toContain("full repositories or sibling packages");
+  });
+
   it("rejects repeated --source values instead of changing semantics silently", () => {
     const program = new Command();
     program.exitOverride();

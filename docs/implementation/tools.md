@@ -145,6 +145,8 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Standalone-site recovery.** `search` accepts exact documentation targets as `site:<host[/path]>`. Backend-owned `sourceStatus[].suggestedSiteTargets` labels are preserved in order for missing or ambiguous sites, together with the exact `suggestedSiteTargetsTruncated` Boolean. The compact source-status row becomes actionable even when it has no note or lifecycle warning, and MCP text-v1 renders replayable target labels plus an omitted-candidates notice when truncated. Suggestions are advisory rather than aliases: active known sessions keep polling their current `searchRef`, while completed or terminal recovery can expose one explicit site-retry action without selecting a label automatically. Terminal missing or ambiguous results can omit `searchRef` and instead expose recovery guidance.
 
+**Terminal target recovery.** A completed empty search with an exact `NOT_FOUND` or `UNRESOLVABLE` source state renders positive target-verification guidance in text-v1, with one line per affected package, repository, site, or unknown display family. Package guidance includes the public GitHub repository for full-repository or sibling-package scope. This action has no `searchRef` and does not emit `rerun search later`; existing site suggestions and indexed alternatives remain higher-information actions. Other terminal session statuses retain their conservative new-search behavior.
+
 **Documentation sources.** DOCS `sourceStatus` rows retain bounded physical
 `contributors` and coverage in JSON. Text places the user-meaningful readiness
 state under its target, using `Indexing`, `Searched`, `Available now`, `Unavailable`,
@@ -165,6 +167,12 @@ status and unknown-status handling remains conservative, while
 `search_status(includeResults: true)` uses the same result projection and
 formatter—contributors are never copied onto generic progress targets, and
 `allowPartialResults` retains its separate pair-omission meaning.
+
+Completed empty results distinguish the `code` and `symbols` readiness lanes. Text
+constraint and warning facts retain separate raw lane and target provenance, for
+example `Ignored filter (docs on npm:express): fileIntent`; known lanes are
+lowercased and unknown non-empty lanes pass through lowercased. JSON keeps the
+lossless `sourceStatus` and warning values unchanged.
 
 ### `pkg_info` response shape
 

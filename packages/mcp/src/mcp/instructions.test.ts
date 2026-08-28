@@ -20,6 +20,16 @@ function buildLocal(
 }
 
 describe("buildLocalMcpQuickStart", () => {
+  it("documents canonical target guidance for package and repository scope", () => {
+    const quickStart = buildMcpQuickStart();
+
+    expect(quickStart).toContain("swift:github.com/<owner>/<repo>");
+    expect(quickStart).toContain("zig:gh/<owner>/<repo>");
+    expect(quickStart).toContain("artifact/manifest root");
+    expect(quickStart).toContain("public GitHub repository");
+    expect(quickStart).toContain("full repositories or sibling packages");
+  });
+
   it("keeps deprecated instruction builders as exact compatibility aliases", () => {
     expect(buildMcpInstructions()).toBe(buildMcpQuickStart());
     expect(

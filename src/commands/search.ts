@@ -154,7 +154,11 @@ export async function searchStatusAction(
 const SEARCH_DESCRIPTION = `Search code, docs, and symbols across indexed dependencies, repositories, and documentation sites.
 
 Repeatable --in targets accept explicit package form (registry:name[@version],
-for example npm:express[@version]) or repo form (github:org/repo[#ref|@ref],
+for example npm:express[@version]). Package targets inspect an indexed
+artifact/manifest root, not a full repository. Swift packages use
+swift:github.com/<owner>/<repo>; Zig packages use zig:gh/<owner>/<repo>.
+Use public GitHub repository targets for full repositories or sibling packages.
+Repository targets use (github:org/repo[#ref|@ref],
 github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]),
 or an exact documentation site as site:<host[/path]>. Missing or
 ambiguous sites may return advisory site targets to retry explicitly.
@@ -201,7 +205,7 @@ export function registerSearchCommand(program: Command) {
     .argument("<query>", "Search query")
     .requiredOption(
       "--in <target>",
-      "Search target: registry:name[@version], github:org/repo[#ref|@ref], github.com/org/repo[#ref|@ref], https://github.com/org/repo[#ref|@ref], or site:<host[/path]>",
+      "Search target: registry:name[@version] (artifact/manifest-root scope; Swift: swift:github.com/<owner>/<repo>, Zig: zig:gh/<owner>/<repo>), public GitHub repo github:org/repo[#ref|@ref] for full/sibling-package scope, or site:<host[/path]>",
       collectRepeatable,
       [] as string[],
     )

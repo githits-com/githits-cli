@@ -3,6 +3,8 @@ import type {
   UnifiedSearchOutcome,
   UnifiedSearchParams,
 } from "@githits/core-internal";
+import { z } from "zod";
+import { getMcpToolDescriptors } from "../mcp/server.js";
 import {
   createMockCodeNavigationService,
   defaultUnifiedSearchOutcome,
@@ -11,6 +13,24 @@ import {
 import { createSearchTool } from "./search.js";
 
 describe("searchTool", () => {
+  it("documents canonical target guidance for package and repository scope", () => {
+    const descriptor = getMcpToolDescriptors().find(
+      (entry) => entry.name === "search",
+    );
+    expect(descriptor).toBeDefined();
+    const jsonSchema = z.toJSONSchema(z.object(descriptor?.schema ?? {}));
+    const targetSchema = JSON.stringify(jsonSchema.properties?.target);
+
+    expect(targetSchema).toContain("swift:github.com/<owner>/<repo>");
+    expect(targetSchema).toContain("zig:gh/<owner>/<repo>");
+    expect(targetSchema).toContain("artifact/manifest-root");
+    expect(targetSchema).toContain("public GitHub repository");
+    expect(targetSchema).toContain("sibling packages");
+    expect(descriptor?.description.slice(0, 80)).toBe(
+      "Discover relevant evidence in a known target before exact grep: docs, specs, cod",
+    );
+  });
+
   it("keeps the common path simple and delegates continuation details", () => {
     const tool = createSearchTool(createMockCodeNavigationService());
 

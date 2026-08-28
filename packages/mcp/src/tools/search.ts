@@ -112,7 +112,7 @@ const structuredSearchTargetSchema: z.ZodType<StructuredSearchTargetArg> =
       site: z.string().optional(),
     })
     .describe(
-      "Target: provide registry + package_name (package scope), repo_url with optional git_ref (repo scope; omitted ref means default branch intent), or site as site:<host[/path]> for an exact documentation site.",
+      "Target: provide registry + package_name (indexed artifact/manifest-root package scope), repo_url with optional git_ref (public GitHub repository scope for the full repository or sibling packages; omitted ref means default branch intent), or site as site:<host[/path]> for an exact documentation site. Swift package targets use swift:github.com/<owner>/<repo>; Zig package targets use zig:gh/<owner>/<repo>.",
     );
 
 const searchTargetSchema = z.union([
@@ -121,7 +121,7 @@ const searchTargetSchema = z.union([
     .string()
     .min(1)
     .describe(
-      "Compact discovery target string. Package with explicit registry: `npm:react@18.2.0` or `npm:react` for latest release. Repository: `github:facebook/react`, `github.com/facebook/react`, `https://github.com/facebook/react`, or any repo form with `#HEAD` / `@HEAD` for a git ref. Exact documentation site: `site:<host[/path]>`. Output uses canonical `github:owner/repo#ref` form.",
+      "Compact discovery target string. Package targets inspect an indexed artifact/manifest root: `npm:react@18.2.0` or `npm:react` for latest release; Swift uses `swift:github.com/<owner>/<repo>` and Zig uses `zig:gh/<owner>/<repo>`. Use a public GitHub repository target for the full repository or sibling packages: `github:facebook/react`, `github.com/facebook/react`, `https://github.com/facebook/react`, or any repo form with `#HEAD` / `@HEAD` for a git ref. Exact documentation site: `site:<host[/path]>`. Output uses canonical `github:owner/repo#ref` form.",
     ),
 ]);
 
