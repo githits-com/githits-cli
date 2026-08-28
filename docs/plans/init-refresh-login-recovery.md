@@ -2,7 +2,7 @@
 
 ## Overall plan
 
-- **Status:** Implemented and validated; code review pending
+- **Status:** Implemented and validated; final code review in progress
 - **Delivered outcome:** `npx githits@latest init` still reuses or refreshes valid
   stored authentication, but an unclassified/transient refresh failure after
   token expiry can no longer trap the user in a pre-login retry loop. Init
@@ -214,11 +214,11 @@ Do not merge these prefixes or add `-y` to interactive OAuth commands.
 
 | Phase | Status | Outcome |
 |---|---|---|
-| 1. Init recovery fix | Complete; review pending | One implementation increment prevents the refresh loop, normalizes init recovery commands, proves compatibility, and records the CLI patch. |
+| 1. Init recovery fix | Complete; final review in progress | One implementation increment prevents the refresh loop, normalizes init recovery commands, proves compatibility, and records the CLI patch. |
 
 ## Phase 1: Init recovery fix
 
-- **Status:** Complete; validation passed; code review pending
+- **Status:** Complete; validation passed; final code review in progress
 - **Delivered outcome:** Reinstalling with expired stale retained credentials
   either refreshes successfully or opens a fresh OAuth login. Retrying a failed
   OAuth attempt may recheck refresh first, but it reaches OAuth rather than being
@@ -353,8 +353,8 @@ Interface-level auth/storage/browser mocks cover the behavior without production
 network access. The completed validation is:
 
 - `bun test src/services/token-manager.test.ts src/container.test.ts src/commands/init/init.test.ts`:
-  276 passed, 0 failed.
-- `bun test`: 3,330 passed, 0 failed across 183 files.
+  277 passed, 0 failed.
+- `bun test`: 3,331 passed, 0 failed across 183 files.
 - `bun run typecheck`: passed.
 - `bun run lint`: passed across 435 files.
 - Changed-file `biome format` and `biome lint`: passed for all five changed
@@ -377,6 +377,28 @@ changed; the affected interactive init surface is covered by CLI unit/smoke
 tests. The public onboarding skill was reviewed and already uses the
 `npx -y githits@latest` contract, so it remains unchanged until the normal
 release lifecycle.
+
+### Review decisions
+
+The first external review on 2026-08-28 found no behavioral defect and produced
+the following bounded decisions:
+
+- **Accepted:** `CreateContainerOptions.refreshFailureMode` described only the
+  initial token probe even though the policy belongs to the container's shared
+  token manager. Its JSDoc now states that later service refreshes use the same
+  policy.
+- **Accepted:** the named init dependency factory's explicit policy mapping was
+  covered, but its default no-policy branch was only covered indirectly through
+  a mocked staged caller. A direct factory test now proves that no option maps
+  to ordinary `{}` container options.
+- **Rejected:** normalizing unrelated bare install/uninstall/init commands and
+  every generic command example in `docs/implementation/auth.md`. The finding is
+  outside this increment's explicit runnable init authentication/recovery
+  contract, and expanding it would conflict with the requested minimal fix.
+- **Retained intentionally:** the injected container factory is an internal,
+  typed unit-test seam. It does not expand the published CLI or MCP API, and the
+  production `InitDependencies` contract cannot pass an accidental second
+  argument.
 
 ### Phase acceptance criteria
 

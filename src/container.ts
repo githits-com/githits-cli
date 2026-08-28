@@ -293,7 +293,7 @@ export interface Dependencies {
 export interface CreateContainerOptions {
   /** Resolve stored OAuth immediately. Disable for MCP startup to avoid keychain prompts until first tool use. */
   resolveStoredToken?: boolean;
-  /** How stored OAuth refresh failures surface while resolving the initial token. */
+  /** How stored OAuth refresh failures surface for this container's token manager, including later service refreshes. */
   refreshFailureMode?: TokenManagerDeps["refreshFailureMode"];
   /** Client name for telemetry headers. Defaults to direct CLI mode. */
   clientName?: string;

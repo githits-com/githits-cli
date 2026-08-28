@@ -9503,6 +9503,25 @@ describe("registerInitCommand", () => {
     });
   });
 
+  it("preserves default container options when no init refresh policy is selected", async () => {
+    const deps = {
+      authService: createMockAuthService(),
+      authStorage: createMockAuthStorage(),
+      browserService: createMockBrowserService(),
+      mcpUrl: "https://mcp.githits.com",
+      hasValidToken: false,
+    };
+    const containerFactory = mock(() => Promise.resolve(deps));
+
+    const result = await createInitLoginDependencies(
+      undefined,
+      containerFactory,
+    );
+
+    expect(result).toBe(deps);
+    expect(containerFactory).toHaveBeenCalledWith({});
+  });
+
   it("registers staged agent-safe init options", () => {
     const program = new Command();
     registerInitCommand(program);
