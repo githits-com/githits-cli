@@ -416,6 +416,25 @@ linked repository without its popularity evidence. This remains a known
 release decision; the CLI does not fetch expensive `inspection` metadata to
 compensate for it.
 
+#### Standalone-site target kind
+
+`ResolveTargetKind` includes `SITE`, `--prefer-kind site` maps to it, and the
+terminal/JSON formatters render a `site` candidate whose canonical key parses
+straight back into `search --in`, closing the resolve-then-search loop for
+standalone documentation sites.
+
+`resolveTarget` returns `SITE` candidates for standalone documentation sites.
+Without `KNOWN_KIND_VALUES` carrying `site`, those candidates would render with
+the unknown-kind `target` label. Site candidates report `docsAvailable` true
+and `codeAvailable` false, so terminal output shows docs evidence without code,
+stars, or downloads. `--prefer-kind site` is a soft ranking preference rather
+than a filter, matching the package/repository kind contract.
+
+The config-gated CLI help, local `resolve_target` description/schema, and local
+experimental server instructions advertise the site kind. Cross-tool guidance
+routes a selected `site:` candidate to `search` with `source:"docs"`, then to
+`docs_read`; already-canonical `site:<host[/path]>` targets skip resolution.
+
 #### Release posture and next phase
 
 The command remains a dogfood surface. The initial 36-case production audit

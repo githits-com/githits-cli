@@ -219,9 +219,10 @@ export function formatResolveTargetTerminal(
       `Next after choosing: githits search ${shellQuote(query)} --in ${shellQuote("<target>")}`,
     );
   } else if (actionable) {
+    const sourceOption = result.best.kind === "SITE" ? " --source docs" : "";
     lines.push(
       "",
-      `Next: githits search ${shellQuote(query)} --in ${shellQuote(sanitizeTerminalText(result.best.canonicalKey))}`,
+      `Next: githits search ${shellQuote(query)} --in ${shellQuote(sanitizeTerminalText(result.best.canonicalKey))}${sourceOption}`,
     );
   } else if (hasBlockedReference) {
     lines.push(
@@ -241,7 +242,7 @@ export function formatResolveTargetTerminal(
 }
 
 const KNOWN_CONFIDENCE_VALUES = new Set(["exact", "high", "medium", "low"]);
-const KNOWN_KIND_VALUES = new Set(["package", "repository"]);
+const KNOWN_KIND_VALUES = new Set(["package", "repository", "site"]);
 
 function formatCandidate(
   target: ResolveTargetReference,

@@ -83,6 +83,9 @@ describe("resolve_target MCP adapter", () => {
       openWorldHint: false,
       destructiveHint: false,
     });
+    expect(DESCRIPTION.slice(0, 80)).toBe(
+      "Resolve package, repository, or documentation-site names into canonical targets.",
+    );
     expect(Object.keys(tool.schema)).toEqual([
       "name",
       "query",
@@ -119,6 +122,11 @@ describe("resolve_target MCP adapter", () => {
       "human-friendly",
       "registry:name",
       "github:owner/repo",
+      "site:<host[/path]>",
+      "standalone documentation-site",
+      'source: "docs"',
+      "pageId",
+      "docs_read",
       "credentials",
       "personal data",
       "private code",
@@ -206,6 +214,26 @@ describe("resolve_target MCP adapter", () => {
       expect(text).not.toContain("Warning:");
       expect(text).not.toContain("malicious");
     }
+  });
+
+  it("routes an actionable site through docs search and docs_read", () => {
+    const site = {
+      kind: "SITE" as const,
+      canonicalKey: "site:expressjs.com",
+      confidence: "EXACT" as const,
+      latestVersionMaliciousStatus: "NOT_APPLICABLE" as const,
+      docsAvailable: true,
+      codeAvailable: false,
+    };
+    const text = formatResolveTargetMcpText(
+      result({ best: site, candidates: [site], protectedMatches: [] }),
+      { name: "Express docs" },
+    );
+
+    expect(text).toContain(
+      'Next: call search with target "site:expressjs.com" and source "docs", then call docs_read for relevant results.',
+    );
+    expect(text).not.toContain("pass the canonical target");
   });
 
   it("fails closed for affected, unknown, and future malicious statuses", () => {
@@ -556,7 +584,8 @@ describe("resolve_target MCP adapter", () => {
     });
     expect(parseResult(preferredKind)).toEqual({
       code: "INVALID_ARGUMENT",
-      error: "Preferred kind expects package or repository. Got 'workspace'.",
+      error:
+        "Preferred kind expects package, repository, or site. Got 'workspace'.",
       retryable: false,
     });
   });

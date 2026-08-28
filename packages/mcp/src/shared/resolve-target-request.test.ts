@@ -58,6 +58,22 @@ describe("buildResolveTargetParams", () => {
     });
   });
 
+  it("accepts every resolver target kind", () => {
+    for (const [preferKind, expected] of [
+      ["package", "PACKAGE"],
+      ["repository", "REPOSITORY"],
+      ["site", "SITE"],
+    ] as const) {
+      expect(
+        buildResolveTargetParams({
+          name: "documentation",
+          preferKind,
+          includeDetailedFields: false,
+        }).preferredKinds,
+      ).toEqual([expected]);
+    }
+  });
+
   it("rejects empty names and unsupported enums", () => {
     expect(() =>
       buildResolveTargetParams({ name: " ", includeDetailedFields: false }),
@@ -79,10 +95,10 @@ describe("buildResolveTargetParams", () => {
     expect(() =>
       buildResolveTargetParams({
         name: "x",
-        preferKind: "site",
+        preferKind: "workspace",
         includeDetailedFields: false,
       }),
-    ).toThrow("Preferred kind expects package or repository");
+    ).toThrow("Preferred kind expects package, repository, or site");
   });
 
   it("rejects non-integer and out-of-range limits", () => {
@@ -122,6 +138,8 @@ describe("buildResolveTargetParams", () => {
     "github.com/facebook/react@main",
     "https://github.com/facebook/react",
     "http://github.com/facebook/react#main",
+    "site:expressjs.com",
+    "site:https://expressjs.com/en/guide/",
   ])("rejects already-canonical target %s", (name) => {
     expect(() =>
       buildResolveTargetParams({ name, includeDetailedFields: false }),

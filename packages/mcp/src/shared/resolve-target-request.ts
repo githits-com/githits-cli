@@ -7,11 +7,11 @@ import {
   type ResolveTargetParams,
   toPkgseerRegistry,
 } from "@githits/core-internal";
-import { parseCodeNavigationTargetSpec } from "./code-navigation-target.js";
 import {
   InvalidArgumentError,
   InvalidPackageSpecError,
 } from "./package-spec.js";
+import { parseUnifiedSearchTargetSpec } from "./unified-search-target.js";
 
 export const RESOLVE_TARGET_DEFAULT_LIMIT = 8;
 export const RESOLVE_TARGET_MAX_LIMIT = 20;
@@ -67,7 +67,7 @@ export function buildResolveTargetParams(
 /** Keep fuzzy resolution aligned with the target grammar used downstream. */
 function rejectCanonicalTarget(name: string): void {
   try {
-    parseCodeNavigationTargetSpec(name);
+    parseUnifiedSearchTargetSpec(name);
   } catch (error) {
     if (error instanceof InvalidArgumentError) return;
     throw error;
@@ -104,8 +104,9 @@ function parsePreferredKind(
   if (!kind) return undefined;
   if (kind === "package") return "PACKAGE";
   if (kind === "repository") return "REPOSITORY";
+  if (kind === "site") return "SITE";
   throw new InvalidPackageSpecError(
-    `Preferred kind expects package or repository. Got '${value}'.`,
+    `Preferred kind expects package, repository, or site. Got '${value}'.`,
   );
 }
 
