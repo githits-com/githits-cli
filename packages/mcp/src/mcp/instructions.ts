@@ -28,7 +28,7 @@ const CODE_FILES_BULLET =
   "- `code_files` — list/discover file paths; first choice for directory enumeration before `code_read` or scoped `code_grep`.";
 
 const DOCS_LIST_BULLET =
-  '- `docs_list` — browse documentation pages available for a package; for a docs topic, use `search` with `source:"docs"`, then pass its `pageId` to `docs_read`.';
+  '- `docs_list` — browse documentation pages available for a package, not standalone `site:` targets. For a package or site docs topic, use `search` with `source:"docs"`; request `format:"json"` when exact `pageId` and line locators are needed, then pass them to `docs_read`.';
 
 const DOCS_READ_BULLET =
   "- `docs_read` — read a documentation page by pageId from `docs_list` or docs `search` results; text reads return 150 lines by default or up to 300 with an explicit range.";

@@ -8,18 +8,14 @@ description: Use GitHits MCP as an OSS context layer when a task involves open-s
 Use GitHits when public OSS/package evidence would materially improve discovery, planning, research, implementation, debugging, or maintenance.
 
 When GitHits MCP tools are available, this skill already includes the stable
-quick-start guide below. Do not call `quick_start` on the normal path. Follow
-the guide and the selected tool descriptions for routing, scope, target syntax,
-output, safety, citations, and recovery.
+quick-start guide below. Follow the guide and the selected tool descriptions for
+routing, scope, target syntax, output, safety, citations, and recovery.
 
 Current tool descriptions are authoritative over a stale installed skill
-snapshot. Outside the experimental case below, call `quick_start` only when
-needed to resolve a material mismatch between the loaded guide and the current
-descriptors.
-
-If any GitHits tool description exposed to the agent is marked `Experimental`,
-call `quick_start` before the first GitHits evidence tool for runtime-specific
-guidance.
+snapshot. If any GitHits tool description exposed to the agent is marked
+`Experimental`, call `quick_start` before the first GitHits evidence tool to
+load runtime-specific guidance. Otherwise, call it only when needed to resolve a
+material mismatch between the loaded guide and the current descriptors.
 
 If GitHits MCP tools are unavailable but the `githits` CLI is installed, switch to the `githits-code` or `githits-package` skill and use its equivalent CLI commands. Do not treat missing MCP registration as evidence that GitHits lacks the requested content.
 
@@ -50,7 +46,7 @@ Indexed package/source tools inspect third-party dependency source, docs, and re
 - `code_files` — list/discover file paths; first choice for directory enumeration before `code_read` or scoped `code_grep`.
 - `code_grep` — deterministic text/regex grep when you already know the pattern; use matches as `code_read` follow-ups.
 - `code_read` — read one exact file path; never use it to list/probe directories. Read only the needed lines: 150 lines by default, or up to 300 with an explicit range.
-- `docs_list` — browse documentation pages available for a package; for a docs topic, use `search` with `source:"docs"`, then pass its `pageId` to `docs_read`.
+- `docs_list` — browse documentation pages available for a package, not standalone `site:` targets. For a package or site docs topic, use `search` with `source:"docs"`; request `format:"json"` when exact `pageId` and line locators are needed, then pass them to `docs_read`.
 - `docs_read` — read a documentation page by pageId from `docs_list` or docs `search` results; text reads return 150 lines by default or up to 300 with an explicit range.
 - `pkg_info` — latest package health/adoption overview: license, repo health, downloads, publish age, latest vulnerability status.
 - `pkg_vulns` — known vulnerabilities/advisories for a package or pinned version; use `pkg_upgrade_review` for current-vs-target upgrades.
