@@ -5,6 +5,70 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.11.2] - 2026-08-28
+
+Patch release: unifies search output across CLI and MCP, recognizes standalone
+documentation sites during target resolution, recovers init sign-in after
+stale refresh failures, and makes the packaged MCP skill self-contained.
+
+### Changed
+
+- **Agent eval metrics** - Maintainer-facing local eval runs now persist
+  normalized usage, cost, tool-surface, and report metrics; public package
+  artifacts are unchanged.
+- **Keep MCP release lockfiles aligned** - Coordinated release preparation now
+  updates the `@githits/mcp` workspace version in `bun.lock` alongside the
+  package manifest so later dependency changes do not inherit release-only
+  lockfile churn.
+- **Clarify unified search output** - Add exact partial-result truth to JSON and
+  route `githits` and `@githits/mcp` search/search-status through one
+  outcome-first formatter with compact completed-result headlines, numbered
+  locator-first human hits that retain docs page IDs for `docs_read`, ASCII
+  formatter-authored punctuation, source provenance, target-grouped readiness
+  when trust facts require it, terminal-aware CLI wrapping, concise
+  session/action rows, bounded provenance, ANSI hierarchy, and surface-native
+  continuation guidance while preserving Unicode backend payload text.
+- **Recognize standalone-site resolve candidates** - `resolve` labels backend
+  site candidates as `site` instead of the unknown-kind `target` fallback, and
+  a `site` preferred kind is accepted by both the CLI `--prefer-kind` option
+  and the experimental `resolve_target` tool. Experimental CLI/MCP guidance
+  advertises site resolution and routes selected site targets into docs search.
+  Stable MCP guidance now distinguishes package-only `docs_list` from the
+  standalone-site search and `docs_read` flow.
+
+### Fixed
+
+- **Recover init sign-in after stale refresh failures** - Interactive init now
+  proceeds to browser OAuth when retained expired credentials cannot refresh,
+  and its runnable authentication guidance consistently uses
+  `npx githits@latest`.
+- **Self-contained MCP skill** - The loaded `githits-mcp` skill now includes the
+  stable quick-start guidance without a redundant bootstrap call, while plain
+  MCP clients retain the `quick_start` fallback.
+
+## [@githits/mcp 0.11.2] - 2026-08-28
+
+Coordinated patch release: unifies search output and recognizes standalone
+documentation sites during target resolution.
+
+### Changed
+
+- **Clarify unified search output** - Add exact partial-result truth to JSON and
+  route `githits` and `@githits/mcp` search/search-status through one
+  outcome-first formatter with compact completed-result headlines, numbered
+  locator-first human hits that retain docs page IDs for `docs_read`, ASCII
+  formatter-authored punctuation, source provenance, target-grouped readiness
+  when trust facts require it, terminal-aware CLI wrapping, concise
+  session/action rows, bounded provenance, ANSI hierarchy, and surface-native
+  continuation guidance while preserving Unicode backend payload text.
+- **Recognize standalone-site resolve candidates** - `resolve` labels backend
+  site candidates as `site` instead of the unknown-kind `target` fallback, and
+  a `site` preferred kind is accepted by both the CLI `--prefer-kind` option
+  and the experimental `resolve_target` tool. Experimental CLI/MCP guidance
+  advertises site resolution and routes selected site targets into docs search.
+  Stable MCP guidance now distinguishes package-only `docs_list` from the
+  standalone-site search and `docs_read` flow.
+
 ## [githits 0.11.1] - 2026-08-27
 
 Patch release: reduces agent context round trips, improves package-tool
