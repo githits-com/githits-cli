@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   chmodSync,
   cpSync,
@@ -11,12 +12,28 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
+import {
+  delimiter,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+} from "node:path";
 import {
   GITHITS_GUIDANCE_BLOCK,
   GITHITS_GUIDANCE_MARKER,
 } from "../src/commands/init/guidance-assets.ts";
 import { mergeManagedBlock } from "../src/commands/init/setup-handlers.ts";
+import {
+  type AgentEvalFinalStatus,
+  type AgentEvalMetrics,
+  type AgentEvalRecordInput,
+  adaptAgentUsage,
+  buildAgentEvalMetrics,
+  type PersistedToolCall,
+  unknownAgentUsage,
+} from "./agent-eval-metrics.ts";
 import {
   assertUniqueWorkloadIds,
   buildRunReportFromMetadata,
@@ -98,6 +115,9 @@ interface WorkloadRunMetadata {
   exitCode?: number;
   durationMs?: number;
   timedOut?: boolean;
+  startedAt?: string;
+  completedAt?: string;
+  finalStatus?: AgentEvalFinalStatus;
   command: string[];
   workspaceDir: string;
   workloadDir: string;
@@ -105,6 +125,43 @@ interface WorkloadRunMetadata {
   experimentalTools: boolean;
   skillInstallation?: SkillInstallationMetadata;
   guidanceInstallation?: GuidanceInstallationMetadata;
+}
+
+export interface GitMetadata {
+  branch: string | null;
+  sha: string | null;
+  dirty: boolean | null;
+}
+
+export interface CommandProbeResult {
+  stdout: string;
+  exitCode: number;
+}
+
+export type CommandProbe = (
+  command: string,
+  args: string[],
+  cwd: string,
+) => Promise<CommandProbeResult | undefined>;
+
+interface WorkloadRunExecution {
+  metadata: WorkloadRunMetadata;
+  stdout?: string;
+  toolCalls: PersistedToolCall[];
+  artifacts: Record<string, string>;
+}
+
+export interface AgentEvalMetricsExecutionInput
+  extends Omit<AgentEvalRecordInput, "usage"> {
+  stdout?: string;
+  dryRun: boolean;
+}
+
+export interface AgentEvalMetricsRunInput {
+  runId: string;
+  startedAt: string;
+  completedAt: string;
+  records: AgentEvalMetricsExecutionInput[];
 }
 
 const MCP_CONFIG_ENV_KEYS = [
@@ -862,11 +919,11 @@ function redactValue(value: unknown, secretValues: string[]): unknown {
   return value;
 }
 
-async function commandOutput(
+async function commandProbe(
   command: string,
   args: string[],
   cwd: string,
-): Promise<string | undefined> {
+): Promise<CommandProbeResult | undefined> {
   try {
     const proc = Bun.spawn([command, ...args], {
       cwd,
@@ -877,23 +934,39 @@ async function commandOutput(
       new Response(proc.stdout).text(),
       proc.exited,
     ]);
-    if (exitCode !== 0) {
-      return undefined;
-    }
-    return stdout.trim() || undefined;
+    return { stdout, exitCode };
   } catch {
     return undefined;
   }
 }
 
-async function collectGitMetadata(
+async function commandOutput(
+  command: string,
+  args: string[],
+  cwd: string,
+): Promise<string | undefined> {
+  const result = await commandProbe(command, args, cwd);
+  if (result === undefined || result.exitCode !== 0) return undefined;
+  return result.stdout.trim() || undefined;
+}
+
+export async function collectGitMetadata(
   repoRoot: string,
-): Promise<Record<string, string | undefined>> {
-  const [branch, sha] = await Promise.all([
-    commandOutput("git", ["branch", "--show-current"], repoRoot),
-    commandOutput("git", ["rev-parse", "HEAD"], repoRoot),
+  probe: CommandProbe = commandProbe,
+): Promise<GitMetadata> {
+  const [branch, sha, status] = await Promise.all([
+    probe("git", ["branch", "--show-current"], repoRoot),
+    probe("git", ["rev-parse", "HEAD"], repoRoot),
+    probe("git", ["status", "--porcelain", "--untracked-files=all"], repoRoot),
   ]);
-  return { branch, sha };
+  return {
+    branch: branch?.exitCode === 0 ? branch.stdout.trim() || null : null,
+    sha: sha?.exitCode === 0 ? sha.stdout.trim() || null : null,
+    dirty:
+      status === undefined || status.exitCode !== 0
+        ? null
+        : status.stdout.trim().length > 0,
+  };
 }
 
 async function claudeVersion(): Promise<string | undefined> {
@@ -1592,6 +1665,59 @@ function buildAgentCommand(
   return buildOpenCodeCommand(prompt, workspaceDir, options);
 }
 
+export function buildAgentEvalMetricsArtifact(
+  input: AgentEvalMetricsRunInput,
+): AgentEvalMetrics {
+  const records: AgentEvalRecordInput[] = input.records.map(
+    ({ stdout, dryRun, ...record }) => {
+      const model = record.resolvedModel ?? record.requestedModel ?? undefined;
+      return {
+        ...record,
+        usage: dryRun
+          ? unknownAgentUsage(record.agent, model, "dry_run_no_telemetry")
+          : adaptAgentUsage(stdout ?? "", record.agent, model),
+      };
+    },
+  );
+  return buildAgentEvalMetrics({
+    runId: input.runId,
+    startedAt: input.startedAt,
+    completedAt: input.completedAt,
+    records,
+  });
+}
+
+const WORKLOAD_ARTIFACTS = [
+  ["prompt", "prompt.md"],
+  ["mcpConfig", "mcp.json"],
+  ["codexConfig", "codex-config.toml"],
+  ["codexFinal", "codex-final.txt"],
+  ["openCodeConfig", "opencode.json"],
+  ["stdout", "stdout.json"],
+  ["stderr", "stderr.txt"],
+  ["toolCalls", "tool-calls.json"],
+  ["discoveryEvents", "discovery-events.json"],
+  ["final", "final.json"],
+  ["invalidFinal", "invalid-final.json"],
+  ["dryRun", "dry-run.json"],
+  ["skillInstallation", "skill-installation.json"],
+  ["guidanceInstallation", "guidance-installation.json"],
+] as const;
+
+function existingWorkloadArtifacts(
+  runDir: string,
+  workloadDir: string,
+): Record<string, string> {
+  const artifacts: Record<string, string> = {};
+  for (const [key, name] of WORKLOAD_ARTIFACTS) {
+    const path = join(workloadDir, name);
+    if (existsSync(path) && lstatSync(path).isFile()) {
+      artifacts[key] = relative(runDir, path);
+    }
+  }
+  return artifacts;
+}
+
 async function runWorkload(
   options: AgentEvalOptions,
   workloadPath: string,
@@ -1599,7 +1725,7 @@ async function runWorkload(
   env: Record<string, string>,
   mcpConfig: McpServerConfig,
   secretValues: string[],
-): Promise<WorkloadRunMetadata> {
+): Promise<WorkloadRunExecution> {
   assert(existsSync(workloadPath), `Workload not found: ${workloadPath}`);
   assert(
     existsSync(options.reportingPath),
@@ -1686,9 +1812,14 @@ async function runWorkload(
         status: options.agent === "claude" ? "not_observed" : "not_exposed",
         events: [],
       });
-      return { ...metadataBase, status: "dry-run" };
+      return {
+        metadata: { ...metadataBase, status: "dry-run" },
+        toolCalls: [],
+        artifacts: existingWorkloadArtifacts(runDir, workloadDir),
+      };
     }
 
+    const startedAt = new Date().toISOString();
     const started = Date.now();
     const result = await runWithTimeout(
       command,
@@ -1697,6 +1828,7 @@ async function runWorkload(
       options.timeoutSeconds,
     );
     const durationMs = Date.now() - started;
+    const completedAt = new Date().toISOString();
 
     writeFileSync(
       join(workloadDir, "stdout.json"),
@@ -1758,13 +1890,36 @@ async function runWorkload(
         ? "success"
         : "failed";
 
+    const finalStatus =
+      validFinalJson &&
+      reportJson !== null &&
+      typeof reportJson === "object" &&
+      !Array.isArray(reportJson) &&
+      typeof (reportJson as Record<string, unknown>).status === "string"
+        ? ((reportJson as Record<string, unknown>)
+            .status as AgentEvalFinalStatus)
+        : undefined;
+
     return {
-      ...metadataBase,
-      status,
-      exitCode: result.exitCode,
-      durationMs,
-      timedOut: result.timedOut,
-      toolCallCount: toolCalls.length,
+      metadata: {
+        ...metadataBase,
+        status,
+        exitCode: result.exitCode,
+        durationMs,
+        timedOut: result.timedOut,
+        startedAt,
+        completedAt,
+        ...(finalStatus ? { finalStatus } : {}),
+        toolCallCount: toolCalls.length,
+      },
+      stdout: result.stdout,
+      toolCalls: toolCalls.map(({ tool, server, status, error }) => ({
+        tool,
+        server,
+        status,
+        error,
+      })),
+      artifacts: existingWorkloadArtifacts(runDir, workloadDir),
     };
   } finally {
     rmSync(workspaceDir, { recursive: true, force: true });
@@ -1780,6 +1935,8 @@ export async function runAgentEval(
     `Schema not found: ${options.schemaPath}`,
   );
   mkdirSync(options.outDir, { recursive: true });
+  const runId = randomUUID();
+  const startedAt = new Date().toISOString();
   assertUniqueWorkloadIds(options.workloads);
   if (options.surface === "mcp" && options.guidanceProfile === undefined) {
     options.guidanceProfile = "descriptors";
@@ -1809,9 +1966,9 @@ export async function runAgentEval(
     versionsPromise,
   ]);
 
-  const workloadResults: WorkloadRunMetadata[] = [];
+  const workloadExecutions: WorkloadRunExecution[] = [];
   for (const workload of options.workloads) {
-    workloadResults.push(
+    workloadExecutions.push(
       await runWorkload(
         options,
         workload,
@@ -1822,8 +1979,15 @@ export async function runAgentEval(
       ),
     );
   }
+  const completedAt = new Date().toISOString();
+  const workloadResults = workloadExecutions.map(
+    (execution) => execution.metadata,
+  );
 
   const runMetadata = {
+    runId,
+    startedAt,
+    completedAt,
     agent: options.agent,
     model: options.model,
     surface: options.surface,
@@ -1866,8 +2030,54 @@ export async function runAgentEval(
     ),
   });
 
-  const report = buildRunReportFromMetadata(options.outDir, runMetadata);
+  const report = buildRunReportFromMetadata(options.outDir, {
+    ...runMetadata,
+    git: {
+      branch: git.branch ?? undefined,
+      sha: git.sha ?? undefined,
+    },
+  });
   writeReportJson(options.outDir, report);
+  const agentVersion =
+    options.agent === "claude"
+      ? claude
+      : options.agent === "codex"
+        ? codex
+        : opencode;
+  const metrics = buildAgentEvalMetricsArtifact({
+    runId,
+    startedAt,
+    completedAt,
+    records: workloadExecutions.map(
+      ({ metadata, stdout, toolCalls, artifacts }) => ({
+        workloadId: metadata.id,
+        requestedModel: options.model ?? null,
+        resolvedModel: null,
+        agent: options.agent,
+        agentVersion: agentVersion ?? null,
+        reasoningEffort: options.reasoningEffort ?? null,
+        surface: options.surface,
+        server: options.server,
+        guidanceProfile: options.guidanceProfile ?? null,
+        experimentalTools: options.experimentalTools,
+        publishedPackage:
+          options.server === "local" ? null : options.publishedPackage,
+        targetGit: git,
+        startedAt: metadata.startedAt ?? null,
+        completedAt: metadata.completedAt ?? null,
+        durationMs: metadata.durationMs ?? null,
+        processStatus: metadata.status,
+        finalStatus: metadata.finalStatus ?? null,
+        exitCode: metadata.exitCode ?? null,
+        timedOut: metadata.timedOut ?? null,
+        toolCalls,
+        artifacts,
+        stdout,
+        dryRun: options.dryRun,
+      }),
+    ),
+  });
+  writeJson(join(options.outDir, "metrics.json"), metrics);
   console.log(formatRunReport(report).trimEnd());
 }
 

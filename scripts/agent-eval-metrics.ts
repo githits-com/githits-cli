@@ -269,6 +269,14 @@ function unknownMetrics(
   });
 }
 
+export function unknownAgentUsage(
+  agent: EvalAgent,
+  model?: string | null,
+  warning = "adapter_not_implemented",
+): AgentUsageMetrics {
+  return unknownMetrics(agent, model ?? undefined, [warning]);
+}
+
 function lastCodexTerminalUsage(stdout: string): {
   found: boolean;
   value: unknown;

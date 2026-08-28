@@ -16,6 +16,7 @@ import {
   GITHITS_GUIDANCE_MARKER,
 } from "../src/commands/init/guidance-assets.ts";
 import {
+  buildAgentEvalMetricsArtifact,
   buildClaudeCommand,
   buildCodexCommand,
   buildCodexConfig,
@@ -25,6 +26,9 @@ import {
   buildOpenCodeCommand,
   buildOpenCodeConfig,
   buildOpenCodeSkillsConfig,
+  type CommandProbe,
+  type CommandProbeResult,
+  collectGitMetadata,
   collectSecretValues,
   DEFAULT_CODEX_MODEL,
   DEFAULT_CODEX_REASONING_EFFORT,
@@ -40,6 +44,7 @@ import {
   runWithTimeout,
   sanitizedEnvSummary,
 } from "./agent-eval.ts";
+import { agentEvalMetricsSchema } from "./agent-eval-metrics.ts";
 import {
   assertUniqueWorkloadIds,
   buildRunReportFromMetadata,
@@ -1078,6 +1083,211 @@ describe("agent eval harness", () => {
     expect(() =>
       parseArgs(["--experimental-tools", "--surface", "skills"], repoRoot),
     ).toThrow("--experimental-tools requires --surface mcp --server local");
+  });
+
+  it("builds metrics through the runner seam without persisting tool arguments", () => {
+    const metrics = buildAgentEvalMetricsArtifact({
+      runId: "run-synthetic",
+      startedAt: "2026-08-28T10:00:00.000Z",
+      completedAt: "2026-08-28T10:00:03.000Z",
+      records: [
+        {
+          workloadId: "pkg-info",
+          requestedModel: DEFAULT_CODEX_MODEL,
+          resolvedModel: null,
+          agent: "codex",
+          agentVersion: "codex 0.150.1",
+          reasoningEffort: "low",
+          surface: "mcp",
+          server: "local",
+          guidanceProfile: "descriptors",
+          experimentalTools: false,
+          publishedPackage: null,
+          targetGit: { branch: "main", sha: "abc123", dirty: true },
+          startedAt: "2026-08-28T10:00:00.000Z",
+          completedAt: "2026-08-28T10:00:03.000Z",
+          durationMs: 3000,
+          processStatus: "success",
+          finalStatus: "success",
+          exitCode: 0,
+          timedOut: false,
+          toolCalls: [
+            { tool: "search", server: "githits-cli", status: "started" },
+            {
+              tool: "mcp__githits__pkg_info",
+              server: "githits",
+              status: "completed",
+            },
+          ],
+          artifacts: {
+            toolCalls: "workloads/pkg-info/tool-calls.json",
+            final: "workloads/pkg-info/final.json",
+          },
+          stdout: [
+            JSON.stringify({
+              type: "command_execution",
+              command: "githits search express --json --token secret-value",
+            }),
+            JSON.stringify({
+              type: "item.completed",
+              item: {
+                type: "mcp_tool_call",
+                server: "githits",
+                tool: "pkg_info",
+                status: "completed",
+              },
+            }),
+            JSON.stringify({
+              type: "turn.completed",
+              usage: {
+                input_tokens: 100,
+                cached_input_tokens: 40,
+                cache_write_input_tokens: 20,
+                output_tokens: 10,
+                reasoning_output_tokens: 4,
+              },
+            }),
+          ].join("\n"),
+          dryRun: false,
+        },
+      ],
+    });
+
+    expect(agentEvalMetricsSchema.parse(metrics)).toEqual(metrics);
+    expect(metrics.runId).toBe("run-synthetic");
+    expect(metrics.records[0]).toMatchObject({
+      agentVersion: "codex 0.150.1",
+      requestedModel: DEFAULT_CODEX_MODEL,
+      resolvedModel: null,
+      targetGit: { branch: "main", sha: "abc123", dirty: true },
+      processStatus: "success",
+      durationMs: 3000,
+      artifacts: {
+        toolCalls: "workloads/pkg-info/tool-calls.json",
+        final: "workloads/pkg-info/final.json",
+      },
+      usage: {
+        normalizedTokens: {
+          uncachedInputTokens: 40,
+          cachedInputTokens: 40,
+          cacheWriteInputTokens: 20,
+          outputTokens: 10,
+          reasoningOutputTokens: 4,
+        },
+      },
+    });
+    expect(metrics.records[0]?.tools.sequence).toEqual([
+      { tool: "search", surface: "cli", status: "started" },
+      { tool: "pkg_info", surface: "mcp", status: "completed" },
+    ]);
+    expect(metrics.aggregates).toMatchObject({
+      durationMs: 3000,
+      logicalToolCalls: 2,
+      uncachedInputTokens: 40,
+      cachedInputTokens: 40,
+      cacheWriteInputTokens: 20,
+      outputTokens: 10,
+      reasoningOutputTokens: 4,
+      baseRateEstimatedCostUsd: 0.0000258,
+    });
+    const serialized = JSON.stringify(metrics);
+    expect(serialized).not.toContain("githits search express");
+    expect(serialized).not.toContain("secret-value");
+  });
+
+  it("writes unknown Codex dry-run metrics without probing availability or versions", async () => {
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-codex-dry-run-"));
+    let availabilityProbeCalls = 0;
+    let versionProbeCalls = 0;
+    try {
+      const options = parseArgs(
+        [
+          "--agent",
+          "codex",
+          "--dry-run",
+          "--out",
+          outDir,
+          "--workload",
+          "eval/agentic/workloads/express-router.md",
+        ],
+        process.cwd(),
+      );
+      await runAgentEval(options, {
+        assertAgentAvailable: () => {
+          availabilityProbeCalls += 1;
+          return Promise.resolve();
+        },
+        collectAgentVersions: () => {
+          versionProbeCalls += 1;
+          return Promise.resolve([
+            "stub-claude-version",
+            "stub-codex-version",
+            "stub-opencode-version",
+          ]);
+        },
+      });
+
+      const run = JSON.parse(readFileSync(join(outDir, "run.json"), "utf8"));
+      const metrics = JSON.parse(
+        readFileSync(join(outDir, "metrics.json"), "utf8"),
+      );
+      expect(availabilityProbeCalls).toBe(0);
+      expect(versionProbeCalls).toBe(0);
+      expect(run.runId).toEqual(metrics.runId);
+      expect(run.startedAt).toEqual(metrics.startedAt);
+      expect(run.completedAt).toEqual(metrics.completedAt);
+      expect(metrics.records).toHaveLength(1);
+      expect(metrics.records[0]).toMatchObject({
+        agent: "codex",
+        requestedModel: DEFAULT_CODEX_MODEL,
+        resolvedModel: null,
+        agentVersion: null,
+        processStatus: "dry-run",
+        usage: {
+          normalizedTokens: {
+            uncachedInputTokens: null,
+            outputTokens: null,
+          },
+          cost: { kind: "unknown", usd: null },
+          warnings: ["dry_run_no_telemetry"],
+        },
+      });
+      expect(metrics.records[0]?.artifacts).toMatchObject({
+        dryRun: "workloads/express-router/dry-run.json",
+        discoveryEvents: "workloads/express-router/discovery-events.json",
+      });
+      expect(agentEvalMetricsSchema.parse(metrics)).toEqual(metrics);
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("distinguishes clean, dirty, and failed Git metadata probes", async () => {
+    const probe =
+      (status: CommandProbeResult): CommandProbe =>
+      async (_command, args) => {
+        if (args[0] === "status") return status;
+        return {
+          stdout: args[0] === "branch" ? "main\n" : "abc123\n",
+          exitCode: 0,
+        };
+      };
+
+    await expect(
+      collectGitMetadata("/repo", probe({ stdout: "", exitCode: 0 })),
+    ).resolves.toEqual({ branch: "main", sha: "abc123", dirty: false });
+    await expect(
+      collectGitMetadata(
+        "/repo",
+        probe({ stdout: "?? untracked.txt\n", exitCode: 0 }),
+      ),
+    ).resolves.toEqual({ branch: "main", sha: "abc123", dirty: true });
+    await expect(
+      collectGitMetadata(
+        "/repo",
+        probe({ stdout: "status details", exitCode: 1 }),
+      ),
+    ).resolves.toEqual({ branch: "main", sha: "abc123", dirty: null });
   });
 
   it("persists the enabled flag without probing agent versions during dry runs", async () => {
