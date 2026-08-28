@@ -1198,27 +1198,19 @@ export function extractToolCalls(
   guidanceProfile?: GuidanceProfile,
 ): ExtractedToolCall[] {
   const calls: ExtractedToolCall[] = [];
-  const includeCliCalls =
-    surface === "skills" || (surface === "mcp" && guidanceProfile === "full");
   for (const line of stdout.split("\n")) {
     if (line.trim().length === 0) continue;
     try {
       const event = JSON.parse(line) as Record<string, unknown>;
       if (agent === "claude") {
-        if (includeCliCalls) {
-          calls.push(...extractCliToolCalls(event, agent));
-        }
+        calls.push(...extractCliToolCalls(event, agent));
         calls.push(...extractClaudeToolCalls(event));
       } else if (agent === "codex") {
-        if (includeCliCalls) {
-          calls.push(...extractCliToolCalls(event, agent));
-        }
+        calls.push(...extractCliToolCalls(event, agent));
         const call = extractCodexToolCall(event);
         if (call) calls.push(call);
       } else {
-        if (includeCliCalls) {
-          calls.push(...extractCliToolCalls(event, agent));
-        }
+        calls.push(...extractCliToolCalls(event, agent));
         const call = extractOpenCodeToolCall(event);
         if (call) calls.push(call);
       }

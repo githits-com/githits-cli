@@ -1486,12 +1486,18 @@ describe("agent eval harness", () => {
     expect(calls[0]?.server).toBe("githits-cli");
   });
 
-  it("extracts CLI fallback from full MCP Codex runs only", () => {
+  it("extracts CLI fallback from MCP profiles and ignores unrelated shell commands", () => {
     const stdout = [
       JSON.stringify({
         item: {
           type: "command_execution",
           command: "githits search opencode",
+        },
+      }),
+      JSON.stringify({
+        item: {
+          type: "command_execution",
+          command: "git status --short",
         },
       }),
       JSON.stringify({
@@ -1504,31 +1510,28 @@ describe("agent eval harness", () => {
         },
       }),
     ].join("\n");
-    expect(extractToolCalls(stdout, "codex", "mcp", "full")).toEqual([
+    const expectedCalls = [
       {
-        agent: "codex",
+        agent: "codex" as const,
         server: "githits-cli",
         tool: "search",
         status: "started",
         arguments: { command: "githits search opencode" },
       },
       {
-        agent: "codex",
+        agent: "codex" as const,
         server: "githits",
         tool: "code_read",
         status: "completed",
         arguments: { path: "packages/opencode/src/session/compaction.ts" },
       },
-    ]);
-    expect(extractToolCalls(stdout, "codex", "mcp", "descriptors")).toEqual([
-      {
-        agent: "codex",
-        server: "githits",
-        tool: "code_read",
-        status: "completed",
-        arguments: { path: "packages/opencode/src/session/compaction.ts" },
-      },
-    ]);
+    ];
+    expect(extractToolCalls(stdout, "codex", "mcp", "full")).toEqual(
+      expectedCalls,
+    );
+    expect(extractToolCalls(stdout, "codex", "mcp", "descriptors")).toEqual(
+      expectedCalls,
+    );
   });
 
   it("ignores non-MCP Claude tool calls", () => {
