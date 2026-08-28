@@ -61,7 +61,9 @@ Use this skill for GitHits changelog maintenance, release work, version-bump PRs
 ## Agent Skills Lifecycle
 
 - User-facing skills under `skills/` are picked up by `skills.sh` from `main`, not from npm release artifacts.
-- Do not update `skills/` to describe unreleased CLI/MCP behavior. A merge to `main` can expose those skill instructions immediately.
+- Do not update `skills/` to describe unreleased CLI/MCP behavior, except for the bounded `githits-mcp` stable-guide rule below. A merge to `main` can expose those skill instructions immediately.
+- For the `githits-mcp` stable guide, exact parity is a bounded exception: when backing stable behavior or `buildMcpQuickStart()` changes, update the backing behavior, builder, and embedded terminal guide copy in the same PR, merge that PR to `main`, and ship it in the next applicable release cycle. This accepts the bounded main-to-release window for `skills.sh`; it does not create a deploy-first or two-PR flow. `buildLocalMcpQuickStart()` runtime appendices remain excluded from the public copy.
+- `githits-onboarding` keeps its separate release-branch rule: update the public skill only on the release branch after the corresponding CLI behavior is included, so `skills.sh` does not advertise unreleased onboarding behavior.
 - After the backing CLI/MCP behavior is released or part of the release being prepared, update `skills/` so skill descriptions, decision flows, examples, detailed references, and command-to-MCP mappings match the released surface.
 - When MCP instructions, tool descriptions, or guardrails change, review `skills/githits-code/SKILL.md`, `skills/githits-package/SKILL.md`, and their references for parity. Keep MCP instructions as the quality baseline; they are currently strong and should not be weakened casually.
 - After changing public skills or plugin-facing guidance, run `bun run plugins:generate` and `bun run plugins:check` so every host manifest remains aligned with the canonical root surface.

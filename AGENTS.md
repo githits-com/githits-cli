@@ -82,6 +82,7 @@ See `docs/guidelines/TESTING.md` for comprehensive patterns.
 - Root `skills/` and `AGENTS.md` are the only authored shared agent guidance. `CLAUDE.md` and `GEMINI.md` must remain symlinks to `AGENTS.md`.
 - Use the repository-internal `githits-plugin-maintenance` skill when changing skills, agent guidance, plugin/marketplace/extension manifests, MCP transport metadata, root release metadata, generator behavior, or agent-facing setup/auth behavior. It must remain under `.agents/skills/` and must not be published with the public root `skills/` tree.
 - Do not edit generated plugin assets directly. Change their canonical inputs, run `bun run plugins:generate`, inspect the diff, and run `bun run plugins:check`.
+- `packages/mcp/src/mcp/instructions.ts` owns the stable `buildMcpQuickStart()` guide. When it or the terminal guide section in `skills/githits-mcp/SKILL.md` changes, update both in the same PR; `src/skills-packaging.test.ts` exact-parity coverage is the contract. `buildLocalMcpQuickStart()` runtime appendices are excluded from the public skill copy. Behavior-dependent guide changes follow the public Agent Skill lifecycle.
 - `server.json` owns the canonical plugin keyword list used by generated manifests; keep `package.json` aligned with it.
 - All plugin and extension packages use hosted remote MCP. Direct `githits init` configuration retains local stdio except for Cursor, which is remote-only. Claude and Gemini direct setup remove legacy plugin or extension state before installing the user-scoped stdio server.
 

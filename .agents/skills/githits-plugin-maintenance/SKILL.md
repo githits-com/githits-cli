@@ -24,11 +24,18 @@ host MCP files as reviewable build artifacts, not authoring locations.
 2. Read `docs/implementation/plugin-packaging.md` before changing packaging or
    transport behavior.
 3. Edit canonical inputs only.
-4. Run `bun run plugins:generate`.
-5. Inspect every generated diff and confirm it follows from the canonical
+4. For the stable MCP quick-start guide, keep
+   `packages/mcp/src/mcp/instructions.ts` `buildMcpQuickStart()` and the
+   terminal `## Quick-start guide` section in `skills/githits-mcp/SKILL.md`
+   byte-for-byte aligned in the same PR. `src/skills-packaging.test.ts` is the
+   exact-parity contract; exclude `buildLocalMcpQuickStart()` runtime
+   appendices from the public copy. Route behavior-dependent guide changes
+   through the public Agent Skill lifecycle.
+5. Run `bun run plugins:generate`.
+6. Inspect every generated diff and confirm it follows from the canonical
    change.
-6. Run `bun run plugins:check`.
-7. Run targeted tests, then the required smoke or agent evaluations for the
+7. Run `bun run plugins:check`.
+8. Run targeted tests, then the required smoke or agent evaluations for the
    affected surface.
 
 ## Canonical Ownership
@@ -36,6 +43,8 @@ host MCP files as reviewable build artifacts, not authoring locations.
 - Author public skill content only under `skills/`.
 - Author shared agent guidance in `AGENTS.md`; keep `CLAUDE.md` and `GEMINI.md`
   as symlinks to it.
+- `packages/mcp/src/mcp/instructions.ts` owns the stable quick-start builder;
+  the terminal guide in `skills/githits-mcp/SKILL.md` is its exact public copy.
 - Use `package.json` for root version, identity, and shared package metadata.
 - Use `server.json` for registry transports and the hosted MCP endpoint.
 - Use `scripts/generate-plugin-assets.ts` for host rendering and validation.
