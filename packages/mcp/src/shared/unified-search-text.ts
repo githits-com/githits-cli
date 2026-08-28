@@ -214,7 +214,8 @@ function resultCountLabel(label: string, count: number): string {
   if (count !== 1) return label;
   if (label === "repo docs") return "repo doc";
   if (label === "docs pages") return "docs page";
-  if (label === "symbols") return "symbol";
+  if (label === "repo code hits") return "repo code hit";
+  if (label === "repo symbols") return "repo symbol";
   return label;
 }
 
@@ -225,9 +226,9 @@ function resultBreakdownLabel(type: string): string {
     case "documentation_page":
       return "docs pages";
     case "repository_symbol":
-      return "symbols";
+      return "repo symbols";
     case "repository_code":
-      return "code";
+      return "repo code hits";
     default:
       return type;
   }
@@ -803,9 +804,29 @@ function appendHit(
   hit: UnifiedSearchHitPayload,
   options: NormalizedTextOptions,
 ): void {
-  lines.push(
-    `[${index}] ${highlight(formatHitHeader(hit), options.useColors)}`,
-  );
+  const header = formatHitHeader(hit);
+  const rank = `[${index}] `;
+  const prefix = renderHitHeaderPrefix(header, options.useColors);
+  const title = header.title;
+  const titleFits =
+    title === undefined ||
+    (!title.includes("\n") &&
+      rank.length + header.prefix.length + 3 + title.length <= options.width);
+  if (titleFits) {
+    lines.push(
+      `${rank}${prefix}${title === undefined ? "" : ` - ${highlightRanges(title, header.titleHighlights, options.useColors)}`}`,
+    );
+  } else {
+    lines.push(`${rank}${prefix} -`);
+    lines.push(
+      ...wrapHighlightedText(
+        title,
+        header.titleHighlights,
+        Math.max(1, options.width - 2),
+        options.useColors,
+      ).map((line) => (line.length === 0 ? "" : `  ${line}`)),
+    );
+  }
 
   const summary = prepareSummary(hit.summary, hit.title);
   if (summary) {
@@ -898,16 +919,70 @@ function highlightWrappedSegment(
   return highlightRanges(value, localRanges, true);
 }
 
-function formatHitHeader(hit: UnifiedSearchHitPayload): string {
+interface HitHeaderSegment {
+  text: string;
+  style: "plain" | "locator" | "secondary";
+}
+
+interface FormattedHitHeader {
+  prefix: string;
+  segments: HitHeaderSegment[];
+  title?: string;
+  titleHighlights?: ReadonlyArray<readonly [number, number]>;
+}
+
+function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
   const loc = hit.locator;
   if (hit.type === "documentation_page") {
-    return `${loc.pageId ?? "page ID unavailable"} [docs page] ${formatDocumentationTarget(hit)} - ${formatDocumentationSourceUrl(loc.sourceUrl)} - ${hit.title ?? "title unavailable"}`;
+    const pageId = loc.pageId ?? "page ID unavailable";
+    const type = "[docs page]";
+    const target = formatDocumentationTarget(hit);
+    const sourceUrl = formatDocumentationSourceUrl(loc.sourceUrl);
+    return {
+      prefix: `${pageId} ${type} ${target} - ${sourceUrl}`,
+      segments: [
+        { text: pageId, style: "locator" },
+        { text: " ", style: "plain" },
+        { text: type, style: "secondary" },
+        { text: " ", style: "plain" },
+        { text: target, style: "secondary" },
+        { text: " - ", style: "plain" },
+        { text: sourceUrl, style: "secondary" },
+      ],
+      title: hit.title || "title unavailable",
+      titleHighlights: hit.highlights?.title,
+    };
   }
   const location = loc.filePath
     ? `${loc.filePath}${formatLineRange(loc.startLine, loc.endLine)}`
     : "location unavailable";
-  const type = shortType(hit.type);
-  return `${hit.target} ${location} [${type}]${hit.title ? ` - ${hit.title}` : ""}`;
+  const type = `[${shortType(hit.type)}]`;
+  return {
+    prefix: `${hit.target} ${location} ${type}`,
+    segments: [
+      { text: hit.target, style: "locator" },
+      { text: " ", style: "plain" },
+      { text: location, style: "locator" },
+      { text: " ", style: "plain" },
+      { text: type, style: "secondary" },
+    ],
+    title: hit.title || undefined,
+    titleHighlights: hit.highlights?.title,
+  };
+}
+
+function renderHitHeaderPrefix(
+  header: FormattedHitHeader,
+  useColors: boolean,
+): string {
+  return header.segments
+    .map((segment) => {
+      if (!useColors || segment.style === "plain") return segment.text;
+      return segment.style === "locator"
+        ? highlight(segment.text, true)
+        : dim(segment.text, true);
+    })
+    .join("");
 }
 
 function formatDocumentationTarget(hit: UnifiedSearchHitPayload): string {

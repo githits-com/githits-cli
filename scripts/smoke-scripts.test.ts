@@ -38,7 +38,7 @@ Next: githits search-status smoke-ref --wait 20`;
   Searched: repository docs
 
 Next: shorten or broaden query; use githits code grep.`;
-  const completed = `1 result | 1 code | next_offset=10
+  const completed = `1 result | 1 repo code hit | next_offset=10
 
 [1] npm:express@5.2.1 lib/application.js [repo code]`;
   const completedDocs = `1 result | 1 docs page
@@ -240,7 +240,7 @@ Next: shorten or broaden query; use githits code grep.`;
 
   it("keeps multiline hit-body diagnostics opaque after a blank line", () => {
     const hitText =
-      "1 result | 1 code\n\n[1] npm:express@5.2.1 index.js [repo code]\n" +
+      "1 result | 1 repo code hit\n\n[1] npm:express@5.2.1 index.js [repo code]\n" +
       "  First summary paragraph.\n\n" +
       "  status: payload text\n" +
       "  searchRef=payload text\n" +

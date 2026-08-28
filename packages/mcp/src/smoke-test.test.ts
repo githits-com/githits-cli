@@ -339,7 +339,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result | 1 code\n\n[1] npm:express@5.2.1 index.js [repo code]\n" +
+          "1 result | 1 repo code hit\n\n[1] npm:express@5.2.1 index.js [repo code]\n" +
             "  First summary paragraph.\n\n" +
             "  status: payload text\n" +
             "  searchRef=payload text\n" +

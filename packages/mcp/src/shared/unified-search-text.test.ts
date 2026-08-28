@@ -171,6 +171,11 @@ function firstLine(text: string): string {
   return text.split("\n")[0] ?? "";
 }
 
+const ANSI_SGR_PATTERN = new RegExp(
+  `${String.fromCharCode(0x1b)}\\[[0-9;]*m`,
+  "g",
+);
+
 describe("renderUnifiedSearchSuccess", () => {
   it("renders completed Express results as compact ranked source-backed hits", () => {
     const repoSummary =
@@ -260,7 +265,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01",
     );
     expect(text).toContain(
-      "[6] opaque-page-0 [docs page] npm:express - expressjs.com/en/api/router/0 - router.use()",
+      "[6] opaque-page-0 [docs page] npm:express - expressjs.com/en/api/router/0 -\n  router.use()",
     );
     expect(text).toContain("    * remove:");
     expect(text).toContain("      - Remove Express 3.x middleware error stubs");
@@ -278,7 +283,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(firstLine(text)).toContain("1 result");
     expect(firstLine(text)).not.toContain("search |");
     expect(text).toContain(
-      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] - applyEdit",
+      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n  applyEdit",
     );
     expect(text).toContain(
       "  Search/replace block parser with fuzzy fallback when exact match fails.",
@@ -302,6 +307,16 @@ describe("renderUnifiedSearchSuccess", () => {
 
     expect(firstLine(repoText)).toBe("1 result | 1 repo doc");
     expect(firstLine(docsText)).toBe("1 result | 1 docs page");
+    expect(firstLine(renderUnifiedSearchSuccess(completed([codeHit()])))).toBe(
+      "1 result | 1 repo code hit",
+    );
+    expect(
+      firstLine(
+        renderUnifiedSearchSuccess(
+          completed([codeHit({ type: "repository_symbol" })]),
+        ),
+      ),
+    ).toBe("1 result | 1 repo symbol");
   });
 
   it("uses ASCII separators without changing Unicode payload text", () => {
@@ -326,13 +341,13 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] - Überprüfung · human review",
+      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n  Überprüfung · human review",
     );
     expect(text).toContain(
       "[2] npm:express@5.2.1 History.md:1 [repo doc] - Résumé",
     );
     expect(text).toContain(
-      "[3] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html - Документация | API - section",
+      "[3] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -\n  Документация | API - section",
     );
     expect(text).toContain("Café — маршрутизация");
     expect(text).toContain("Résumé");
@@ -341,7 +356,7 @@ describe("renderUnifiedSearchSuccess", () => {
   it("keeps documentation targets compact unless multiple targets need attribution", () => {
     const single = renderUnifiedSearchSuccess(completed([docsHit()]));
     expect(single).toContain(
-      "[1] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html - Edit Formats",
+      "[1] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -\n  Edit Formats",
     );
 
     const multiple = renderUnifiedSearchSuccess(
@@ -358,10 +373,10 @@ describe("renderUnifiedSearchSuccess", () => {
       ]),
     );
     expect(multiple).toContain(
-      "[1] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html - Edit Formats",
+      "[1] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -\n  Edit Formats",
     );
     expect(multiple).toContain(
-      "[2] express/routing [docs page] npm:express - expressjs.com/en/guide/routing - Routing",
+      "[2] express/routing [docs page] npm:express - expressjs.com/en/guide/routing -\n  Routing",
     );
   });
 
@@ -371,7 +386,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "[1] internal-page-id [docs page] aider-AI/aider - source URL unavailable - Edit Formats",
+      "[1] internal-page-id [docs page] aider-AI/aider - source URL unavailable -\n  Edit Formats",
     );
   });
 
@@ -393,7 +408,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "[1] 386050 [docs page] npm:express - expressjs.com/en/4x/api/router/#routerroute - router.route() | API - section",
+      "[1] 386050 [docs page] npm:express - expressjs.com/en/4x/api/router/#routerroute -\n  router.route() | API - section",
     );
   });
 
@@ -409,7 +424,116 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "[1] cline/cline@v3.4.2 src/index.ts:10-12 [repo symbol] - parse | request - options",
+      "[1] cline/cline@v3.4.2 src/index.ts:10-12 [repo symbol] -\n  parse | request - options",
+    );
+  });
+
+  it("wraps long title tails without wrapping fixed locator prefixes", () => {
+    const repoTitle =
+      "Repository title that is deliberately long enough to wrap at terminal boundaries";
+    const docsTitle =
+      "Documentation title | API - deliberately long enough to wrap at terminal boundaries";
+    const payload = completed([
+      codeHit({ title: repoTitle, summary: undefined }),
+      docsHit({ title: docsTitle, summary: undefined }),
+    ]);
+    const repoPrefix =
+      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -";
+    const docsPrefix =
+      "[2] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -";
+
+    for (const width of [40, 80]) {
+      const text = renderUnifiedSearchSuccess(payload, {
+        width,
+        useColors: false,
+      });
+      const lines = text.split("\n");
+      const repoPrefixIndex = lines.indexOf(repoPrefix);
+      const docsPrefixIndex = lines.indexOf(docsPrefix);
+      expect(repoPrefixIndex).toBeGreaterThanOrEqual(0);
+      expect(docsPrefixIndex).toBeGreaterThanOrEqual(0);
+      expect(lines[repoPrefixIndex + 1]).toMatch(/^ {2}Repository title that/);
+      expect(lines[docsPrefixIndex + 1]).toMatch(
+        /^ {2}Documentation title \| API -/,
+      );
+      expect(lines[repoPrefixIndex]).not.toContain(repoTitle);
+      expect(lines[docsPrefixIndex]).not.toContain(docsTitle);
+      const normalizedTitle = (start: number, end: number) =>
+        lines
+          .slice(start + 1, end)
+          .filter((line) => line.startsWith("  "))
+          .map((line) => line.slice(2))
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim();
+      expect(normalizedTitle(repoPrefixIndex, docsPrefixIndex)).toBe(repoTitle);
+      expect(normalizedTitle(docsPrefixIndex, lines.length)).toBe(docsTitle);
+      expect(
+        lines
+          .slice(repoPrefixIndex + 1)
+          .filter((line) => line.startsWith("  "))
+          .every((line) => line.length <= width),
+      ).toBe(true);
+    }
+
+    expect(renderUnifiedSearchSuccess(payload)).toBe(
+      renderUnifiedSearchSuccess(payload, { width: 80, useColors: false }),
+    );
+
+    const multiline = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          title: "First title line\nSecond title line",
+          summary: undefined,
+        }),
+      ]),
+      { width: 200, useColors: false },
+    );
+    expect(multiline).toContain(
+      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n" +
+        "  First title line\n  Second title line",
+    );
+  });
+
+  it("keeps semantic ANSI styling and title match highlights in headers", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          title: "applyEdit",
+          highlights: { title: [[0, 5]] },
+        }),
+        docsHit({
+          title: "Edit Formats",
+          highlights: { title: [[0, 4]] },
+        }),
+      ]),
+      { useColors: true, width: 200 },
+    );
+    const reset = "\u001b[0m";
+    const locator = "\u001b[1m\u001b[36m";
+    const matched = "\u001b[1m\u001b[33m";
+    const secondary = "\u001b[2m";
+
+    expect(text).toContain(
+      `[1] ${locator}cline/cline@v3.4.2${reset} ${locator}src/integrations/diff/strategies/multi-search-replace.ts:142-156${reset} ${secondary}[repo code]${reset} - ${matched}apply${reset}Edit`,
+    );
+    expect(text).toContain(
+      `[2] ${locator}aider/edit-formats${reset} ${secondary}[docs page]${reset} ${secondary}aider-AI/aider${reset} - ${secondary}aider.chat/docs/more/edit-formats.html${reset} - ${matched}Edit${reset} Formats`,
+    );
+    expect(text.replace(ANSI_SGR_PATTERN, "")).toBe(
+      renderUnifiedSearchSuccess(
+        completed([
+          codeHit({
+            title: "applyEdit",
+            highlights: { title: [[0, 5]] },
+          }),
+          docsHit({
+            title: "Edit Formats",
+            highlights: { title: [[0, 4]] },
+          }),
+        ]),
+        { useColors: false, width: 200 },
+      ),
     );
   });
 
@@ -527,7 +651,7 @@ describe("renderUnifiedSearchSuccess", () => {
       actionSyntax: "cli",
     });
     expect(code).toContain(
-      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] - applyEdit",
+      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n  applyEdit",
     );
 
     const repositoryCode = renderUnifiedSearchSuccess(
@@ -553,7 +677,7 @@ describe("renderUnifiedSearchSuccess", () => {
       actionSyntax: "cli",
     });
     expect(docs).toContain(
-      "[1] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html - Edit Formats",
+      "[1] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -\n  Edit Formats",
     );
 
     const empty = renderUnifiedSearchSuccess(
@@ -968,7 +1092,7 @@ describe("renderUnifiedSearchSuccess", () => {
       ]),
     );
 
-    expect(firstLine(text)).toBe("2 results | 2 code");
+    expect(firstLine(text)).toBe("2 results | 2 repo code hits");
     expect(firstLine(text)).not.toContain(" from ");
   });
 
@@ -1113,7 +1237,7 @@ describe("renderUnifiedSearchSuccess", () => {
       ),
     );
 
-    expect(firstLine(text)).toBe("1 result | 1 code");
+    expect(firstLine(text)).toBe("1 result | 1 repo code hit");
     expect(text).toContain("- npm:express latest -> 5.2.1");
     expect(text.match(/Using:/g)).toHaveLength(1);
     expect(text).toContain("Using: 5.1.0 while 5.2.1 indexes");
@@ -1132,7 +1256,7 @@ describe("renderUnifiedSearchSuccess", () => {
       ]),
     );
 
-    expect(firstLine(text)).toBe("1 result | 1 code");
+    expect(firstLine(text)).toBe("1 result | 1 repo code hit");
     expect(text).toContain("- npm:express latest -> 5.2.1");
     expect(text.match(/Using:/g)).toHaveLength(1);
     expect(text).toContain("Using: 5.1.0 while 5.2.1 indexes");
@@ -1402,10 +1526,10 @@ describe("renderUnifiedSearchSuccess", () => {
       actionSyntax: "cli",
     });
     expect(text).toContain(
-      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] - applyEdit",
+      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n  applyEdit",
     );
     expect(text).toContain(
-      "[2] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html - Edit Formats",
+      "[2] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -\n  Edit Formats",
     );
     expect(text).toContain(
       "Available now: versions 5.2.1, 5.2.0, 5.1.0 +1, refs HEAD,\n  main, next +1",

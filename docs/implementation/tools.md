@@ -372,14 +372,19 @@ or `title unavailable` values. Executable `docs_read` / `code_read` command
 lines, qualified non-follow-up internal result IDs, and kind/category tails are
 omitted from default text; the documentation page ID remains because it is the
 `docs_read` follow-up locator, and JSON keeps the full locator and follow-up
-fields unchanged. A summary's first line is omitted when it repeats the title
+fields unchanged. Repository hits without a file path use the explicit
+`location unavailable` value and do not claim to be follow-up readable. A
+summary's first line is omitted when it repeats the title
 after removing Markdown heading markers, as is an immediately following
 setext underline. Source indentation is retained when summaries wrap, with a
-consistent two-space hit-body indent.
+consistent two-space hit-body indent. If a title does not fit on the header
+line, the fixed locator prefix stays unwrapped with a trailing ` -`, and only
+the title continues on two-space-indented lines.
 
 Result headlines combine count, type breakdown when completed, and pagination
 when known, for example `10 results | 5 repo docs, 5 docs pages | next_offset=10`.
-When more results exist without a next offset, the final field is
+Breakdowns use `repo code hit(s)` and `repo symbol(s)` alongside `repo doc(s)`
+and `docs page(s)`. When more results exist without a next offset, the final field is
 `more available`. Pagination is not repeated as a bottom paragraph.
 
 **Follow-up — crawled-doc section anchors.** Unified search can label a crawled documentation hit with a matching section title while returning only its page ID. Without a line anchor, `docs_read` must start at the beginning of the page. Carrying section ranges through search results requires backend/search-location support and is outside the CLI response-formatting slice.

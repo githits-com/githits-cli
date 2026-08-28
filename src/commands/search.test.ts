@@ -714,7 +714,7 @@ describe("searchAction", () => {
       "Searched: repository docs, expressjs.com/en/guide docs",
     );
     expect(output).toContain(
-      "[1] express/routing [docs page] npm:express - expressjs.com/en/guide/routing.html - Routing",
+      "[1] express/routing [docs page] npm:express - expressjs.com/en/guide/routing.html -\n  Routing",
     );
     expect(output).toContain("expressjs.com/en/guide/routing.html");
     expect(output).not.toContain("Documentation sources");
@@ -938,7 +938,7 @@ describe("searchAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output.split("\n")[0]).toBe("1 result | 1 code");
+    expect(output.split("\n")[0]).toBe("1 result | 1 repo code hit");
     expect(output).toContain(
       "[1] npm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware",
     );
@@ -1652,13 +1652,13 @@ describe("searchAction", () => {
 
       const output = String(consoleSpy.mock.calls[0]?.[0]);
       expect(output).toContain(
-        "\u001b[1m\u001b[36mnpm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware\u001b[0m",
+        "[1] \u001b[1m\u001b[36mnpm:express@4.18.2\u001b[0m \u001b[1m\u001b[36mlib/router/index.js:42-57\u001b[0m \u001b[2m[repo code]\u001b[0m - router \u001b[1m\u001b[33mmiddleware\u001b[0m",
       );
       expect(output).toContain(
         "function \u001b[1m\u001b[33mrouter\u001b[0m(req, res, next) { ... }",
       );
       expect(output).toContain(
-        "\u001b[1m\u001b[36mnpm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware\u001b[0m",
+        "[1] \u001b[1m\u001b[36mnpm:express@4.18.2\u001b[0m \u001b[1m\u001b[36mlib/router/index.js:42-57\u001b[0m \u001b[2m[repo code]\u001b[0m - router \u001b[1m\u001b[33mmiddleware\u001b[0m",
       );
     } finally {
       consoleSpy.mockRestore();
@@ -1821,7 +1821,7 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain(
-      "[1] docs-123 [docs page] npm:express - hexdocs.pm/express/getting-started.html - Using Express middleware",
+      "[1] docs-123 [docs page] npm:express - hexdocs.pm/express/getting-started.html -\n  Using Express middleware",
     );
     expect(output).toContain("hexdocs.pm/express/getting-started.html");
     expect(output).toContain("docs-123");
@@ -2602,7 +2602,7 @@ describe("searchStatusAction", () => {
         "function \u001b[1m\u001b[33mrouter\u001b[0m(req, res, next) { ... }",
       );
       expect(output).toContain(
-        "\u001b[1m\u001b[36mnpm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware\u001b[0m",
+        "[1] \u001b[1m\u001b[36mnpm:express@4.18.2\u001b[0m \u001b[1m\u001b[36mlib/router/index.js:42-57\u001b[0m \u001b[2m[repo code]\u001b[0m - router \u001b[1m\u001b[33mmiddleware\u001b[0m",
       );
     } finally {
       consoleSpy.mockRestore();
