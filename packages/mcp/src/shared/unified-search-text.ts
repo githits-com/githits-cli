@@ -761,7 +761,7 @@ function formatTargetVerification(
 ): string {
   switch (family) {
     case "package":
-      return "verify the package target; for repository-wide evidence, use its public GitHub repository";
+      return "verify the registry package coordinate and version; for repository-wide evidence, use its public GitHub repository";
     case "repository":
       return "verify the public GitHub repository target and ref";
     case "site":

@@ -670,7 +670,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "Next: verify the package target; for repository-wide evidence, use its public GitHub repository.",
+      "Next: verify the registry package coordinate and version; for repository-wide evidence, use its public GitHub repository.",
     );
     expect(text).toContain(
       "Next: verify the public GitHub repository target and ref.",
@@ -693,7 +693,7 @@ describe("renderUnifiedSearchSuccess", () => {
       { actionSyntax: "cli" },
     );
     expect(cliText).toContain(
-      "Next: verify the package target; for repository-wide evidence, use its public GitHub repository.",
+      "Next: verify the registry package coordinate and version; for repository-wide evidence, use its public GitHub repository.",
     );
     expect(cliText).not.toContain("search_status");
   });

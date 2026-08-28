@@ -158,9 +158,9 @@ for example npm:express[@version]). Package targets inspect an indexed
 artifact/manifest root, not a full repository. Swift packages use
 swift:github.com/<owner>/<repo>; Zig packages use zig:gh/<owner>/<repo>.
 Use public GitHub repository targets for full repositories or sibling packages.
-Repository targets use (github:org/repo[#ref|@ref],
-github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]),
-or an exact documentation site as site:<host[/path]>. Missing or
+Repository targets use github:org/repo[#ref|@ref],
+github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref].
+Exact documentation sites use site:<host[/path]>. Missing or
 ambiguous sites may return advisory site targets to retry explicitly.
 Output uses canonical github:org/repo#ref formatting. Structured flags are
 AND-combined with the query. Complete by default. Active PENDING, INDEXING, or
