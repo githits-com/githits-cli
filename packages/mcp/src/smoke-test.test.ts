@@ -220,7 +220,7 @@ describe("runMcpSmoke", () => {
       if (name === "search" && args.format !== "json") {
         return textResult(
           smokeSearchText().replace(
-            "- npm:express@5.2.1\n  Indexing: code | Ready now: versions 5.2.1",
+            "- npm:express@5.2.1\n  Indexing: code | Available now: versions 5.2.1",
             "  Using: 5.1.0 while 5.2.1 indexes",
           ),
         );
@@ -246,7 +246,7 @@ describe("runMcpSmoke", () => {
       if (name === "search" && args.format !== "json") {
         return textResult(
           smokeSearchText().replace(
-            "  Indexing: code | Ready now: versions 5.2.1",
+            "  Indexing: code | Available now: versions 5.2.1",
             `${section} 0/1 targets`,
           ),
         );
@@ -466,7 +466,7 @@ function smokeResponse(
       return textResult(
         "Indexing - no result snapshot yet\n\n" +
           "- npm:express@5.2.1\n" +
-          "  Indexing: code | Ready now: versions 5.2.1\n\n" +
+          "  Indexing: code | Available now: versions 5.2.1\n\n" +
           "Search smoke-ref | 0/1 target ready\n" +
           'Next: search_status search_ref="smoke-ref" wait_timeout_ms=20000',
       );

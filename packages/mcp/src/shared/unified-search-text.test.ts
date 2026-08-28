@@ -250,9 +250,8 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toBe(
       "Indexing - no results yet\n\n" +
         "- npm:n8n -> 2.36.7\n" +
-        "  Indexing: code, repository docs | Ready now: n8n.io docs (not searched;\n" +
-        "  1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD,\n" +
-        "  master\n\n" +
+        "  Indexing: code, repository docs | Available now: n8n.io docs (1,480 pages;\n" +
+        "  capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master\n\n" +
         "Search fabUr1S3MEVeSgD93pMoSQ | 0/1 target ready\n" +
         'Next: search_status search_ref="fabUr1S3MEVeSgD93pMoSQ" wait_timeout_ms=20000',
     );
@@ -261,7 +260,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("freshnessReason");
     expect(text).not.toContain("Opaque evidence notice");
     expect(text.match(/Indexing/g)).toHaveLength(2);
-    expect(text.match(/Ready now:/g)).toHaveLength(1);
+    expect(text.match(/Available now:/g)).toHaveLength(1);
     expect(text.match(/Next:/g)).toHaveLength(1);
   });
 
@@ -375,7 +374,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("Waiting:");
     expect(text).not.toContain("Searched:");
     expect(text).not.toContain("n8n.io");
-    expect(text).toContain("Status: indexing | Ready now: versions 2.26.9");
+    expect(text).toContain("Status: indexing | Available now: versions 2.26.9");
     expect(text).toContain("versions 2.26.9");
     expect(text).toContain(
       'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=20000',
@@ -498,9 +497,9 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "Searched: example.com/reference docs | Ready now: example.com/guide docs",
+      "Searched: example.com/reference docs | Available now: example.com/guide docs",
     );
-    expect(text).toContain("(not searched)");
+    expect(text).not.toContain("not searched");
     expect(text).not.toContain("for npm:example@1.0.0");
   });
 
@@ -716,7 +715,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
     expect(text).toContain("- npm:two@2.0.0\n  Searched: code");
     expect(text).toContain(
-      "- site:docs.one.example\n  Ready now: site:docs.one.example docs (not searched)",
+      "- site:docs.one.example\n  Available now: site:docs.one.example docs",
     );
     expect(text).not.toContain("for site:");
   });
@@ -1165,7 +1164,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("[1] cline/cline@v3.4.2");
     expect(text).toContain("[2] aider/edit-formats aider-AI/aider");
     expect(text).toContain(
-      "Ready now: versions 5.2.1, 5.2.0, 5.1.0 +1, refs HEAD,\n  main, next +1",
+      "Available now: versions 5.2.1, 5.2.0, 5.1.0 +1, refs HEAD,\n  main, next +1",
     );
     expect(text).toContain("More hits available. Pass offset=10");
     expect(cliText).toContain(
@@ -1228,10 +1227,10 @@ describe("renderUnifiedSearchSuccess", () => {
 
     const lines = text.split("\n");
     const summaryLines = lines.filter((line) =>
-      /^( {2})?(Indexing|Searched|Ready now|Suggested sites)/.test(line),
+      /^( {2})?(Indexing|Searched|Available now|Suggested sites)/.test(line),
     );
     expect(summaryLines.length).toBeGreaterThanOrEqual(3);
-    expect(summaryLines.every((line) => line.length <= 76)).toBe(true);
+    expect(summaryLines.every((line) => line.length <= 80)).toBe(true);
     expect(text).toContain(targetOne);
     expect(text).toContain(targetTwo);
     expect(text).toContain(longRef);
@@ -1240,9 +1239,23 @@ describe("renderUnifiedSearchSuccess", () => {
       "Next: search indexed version 1.0.0 for npm:one-long-package@1.0.0.",
     );
 
-    const overlongLines = lines.filter((line) => line.length > 76);
+    const overlongLines = lines.filter((line) => line.length > 80);
     expect(overlongLines).toHaveLength(1);
     expect(overlongLines[0]).toContain(longRef);
+  });
+
+  it("wraps target details at the caller-supplied full output width", () => {
+    const narrow = renderUnifiedSearchSuccess(n8nActiveEmpty(), { width: 60 });
+    const wide = renderUnifiedSearchSuccess(n8nActiveEmpty(), { width: 140 });
+    const detailLines = (text: string) =>
+      text.split("\n").filter((line) => line.startsWith("  "));
+
+    expect(detailLines(narrow).length).toBeGreaterThan(
+      detailLines(wide).length,
+    );
+    expect(detailLines(narrow).every((line) => line.length <= 60)).toBe(true);
+    expect(detailLines(wide).every((line) => line.length <= 140)).toBe(true);
+    expect(wide).toContain("n8n.io docs (1,480 pages; capped), versions");
   });
 
   it("shows capped searched coverage without repeating the trust limit", () => {

@@ -38,7 +38,7 @@ import type {
   UnifiedSearchIncompletePayload,
 } from "./unified-search-response.js";
 
-const SUMMARY_WRAP_WIDTH = 76;
+const DEFAULT_TEXT_WIDTH = 80;
 const SEP = " | ";
 
 type SearchSuccessPayload =
@@ -62,6 +62,8 @@ export interface UnifiedSearchTextOptions {
   useColors?: boolean;
   /** Surface-native syntax for the continuation action. */
   actionSyntax?: "mcp" | "cli";
+  /** Full output width, including indentation. Defaults to 80 columns. */
+  width?: number;
 }
 
 export interface UnifiedSearchTextResult {
@@ -130,6 +132,7 @@ function formatPaginationHint(
 interface NormalizedTextOptions {
   useColors: boolean;
   actionSyntax: "mcp" | "cli";
+  width: number;
 }
 
 function normalizeTextOptions(
@@ -138,6 +141,10 @@ function normalizeTextOptions(
   return {
     useColors: options.useColors ?? false,
     actionSyntax: options.actionSyntax ?? "mcp",
+    width:
+      typeof options.width === "number" && Number.isFinite(options.width)
+        ? Math.max(20, Math.floor(options.width))
+        : DEFAULT_TEXT_WIDTH,
   };
 }
 
@@ -330,7 +337,7 @@ function appendPresentationTargetGroup(
   }> = [
     { state: "waiting", label: "Indexing" },
     { state: "searched", label: "Searched" },
-    { state: "available_not_searched", label: "Ready now" },
+    { state: "available_not_searched", label: "Available now" },
     { state: "unavailable", label: "Unavailable" },
   ];
   for (const { state, label } of states) {
@@ -353,11 +360,11 @@ function appendPresentationTargetGroup(
   const ready = formatTargetAlternatives(group.alternatives);
   if (ready) {
     const readyIndex = details.findIndex((detail) =>
-      detail.startsWith("Ready now:"),
+      detail.startsWith("Available now:"),
     );
     if (readyIndex >= 0)
       details[readyIndex] = `${details[readyIndex]}, ${ready}`;
-    else details.push(`Ready now: ${ready}`);
+    else details.push(`Available now: ${ready}`);
   }
 
   const suggestions = [
@@ -371,7 +378,7 @@ function appendPresentationTargetGroup(
   }
 
   if (details.length > 0) {
-    lines.push(...wrapHangingText(details.join(" | "), "  "));
+    lines.push(...wrapHangingText(details.join(" | "), "  ", options.width));
   }
 }
 
@@ -413,7 +420,6 @@ function formatGroupedSource(
           ? `${formatDocumentationSourceIdentity(source, entry)} docs`
           : "docs";
   const qualifiers: string[] = [];
-  if (entry.state === "available_not_searched") qualifiers.push("not searched");
   if (coverageDetails) qualifiers.push(coverageDetails);
   return `${identity}${qualifiers.length > 0 ? ` (${qualifiers.join("; ")})` : ""}`;
 }
@@ -489,8 +495,12 @@ function formatTargetAlternatives(
   return categories.length > 0 ? categories.join(", ") : undefined;
 }
 
-function wrapHangingText(text: string, prefix: string): string[] {
-  return wrapText(text, SUMMARY_WRAP_WIDTH - prefix.length).map(
+function wrapHangingText(
+  text: string,
+  prefix: string,
+  width: number,
+): string[] {
+  return wrapText(text, Math.max(1, width - prefix.length)).map(
     (line) => `${prefix}${line}`,
   );
 }
@@ -685,7 +695,7 @@ function appendHit(
     for (const wrapped of wrapHighlightedText(
       hit.summary,
       hit.highlights?.summary,
-      SUMMARY_WRAP_WIDTH,
+      Math.max(1, options.width - 4),
       options.useColors,
     )) {
       lines.push(`    ${wrapped}`);
@@ -820,7 +830,7 @@ function formatDetailValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function wrapText(text: string, width = SUMMARY_WRAP_WIDTH): string[] {
+function wrapText(text: string, width = DEFAULT_TEXT_WIDTH): string[] {
   const lines: string[] = [];
   for (const paragraph of text.split(/\n/)) {
     if (paragraph.length === 0) {

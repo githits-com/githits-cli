@@ -238,8 +238,10 @@ test suite anchors the doc.
 CLI human `search` / `search-status` and MCP `search` / `search_status` default
 `text-v1` use one shared formatter. The presentation model owns target groups,
 readiness, trust limits, and action selection; the text renderer owns wording,
-wrapping, hit anatomy, and ordering. Callers provide only ANSI enablement and
-surface-native action syntax. The order is outcome headline, target blocks with
+wrapping, hit anatomy, and ordering. Callers provide ANSI enablement,
+surface-native action syntax, and an optional output width. CLI supplies its
+current terminal width; MCP uses the formatter's 80-column default. The order is
+outcome headline, target blocks with
 identity plus grouped readiness/usable alternatives, warnings and results, an
 optional session summary, and one positive next action.
 

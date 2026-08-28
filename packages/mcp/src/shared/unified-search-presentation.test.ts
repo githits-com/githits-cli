@@ -676,6 +676,35 @@ describe("projectUnifiedSearchPresentation", () => {
     ]);
   });
 
+  it("classifies versionless available-version entries as refs", () => {
+    const sha = "df0abc9333a3398b97b71f6ea7cd77d5ea3e9f97";
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.1.1",
+            targetResolution: {
+              availableVersions: [
+                { ref: sha },
+                { version: "4.0.0", ref: "v4.0.0" },
+              ],
+              availableRefs: [{ ref: "master" }],
+            },
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.alternatives[0]?.versions).toEqual([
+      { version: "4.0.0", ref: "v4.0.0" },
+    ]);
+    expect(presentation.alternatives[0]?.refs).toEqual([
+      { ref: sha },
+      { ref: "master" },
+    ]);
+  });
+
   it.each([
     ["resolvedRequested", "npm:express@5.2.1"],
     ["served", "npm:express@5.1.0"],

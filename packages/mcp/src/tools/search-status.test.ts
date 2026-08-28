@@ -656,7 +656,7 @@ describe("searchStatusTool", () => {
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("- npm:express@4.18.2");
     expect(text).toContain("Using: 4.18.2 (older snapshot)");
-    expect(text).toContain("Ready now: versions");
+    expect(text).toContain("Available now: versions");
     expect(text).toContain("4.18.2");
     expect(text).not.toContain("ref_resolution_deferred");
   });
@@ -807,7 +807,7 @@ describe("searchStatusTool", () => {
     const text = result.content[0]?.text ?? "";
 
     expect(text).toContain("- npm:express latest");
-    expect(text).toContain("Ready now: versions 4.18.2, refs main");
+    expect(text).toContain("Available now: versions 4.18.2, refs main");
     expect(text).toContain(
       'Next: search_status search_ref="ref-alternatives" wait_timeout_ms=20000',
     );

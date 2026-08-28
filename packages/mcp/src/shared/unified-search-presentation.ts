@@ -1094,8 +1094,13 @@ function boundedAlternatives(
     }
     return { values: display, remaining };
   };
-  const versionFacts = bounded(versions);
-  const refFacts = bounded(refs);
+  const versionFacts = bounded(
+    versions.filter((alternative) => alternative.version !== undefined),
+  );
+  const refFacts = bounded([
+    ...versions.filter((alternative) => alternative.version === undefined),
+    ...refs,
+  ]);
   const suggestedRefFacts = bounded(suggestedRefs);
   return {
     versions: versionFacts.values,

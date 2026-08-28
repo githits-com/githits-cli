@@ -422,5 +422,6 @@ function cliSearchTextOptions(): UnifiedSearchTextOptions {
   return {
     useColors: shouldUseColors(),
     actionSyntax: "cli",
+    width: process.stdout.columns,
   };
 }

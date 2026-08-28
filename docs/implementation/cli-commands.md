@@ -244,15 +244,14 @@ The representative CLI n8n active-empty output shape is:
 Indexing - no results yet
 
 - npm:n8n -> 2.36.7
-  Indexing: code, repository docs | Ready now: n8n.io docs (not searched;
-  <pages> pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD,
-  master
+  Indexing: code, repository docs | Available now: n8n.io docs (<pages> pages;
+  capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master
 
 Search <search-ref> | 0/1 target ready
 Next: githits search-status <search-ref> --wait 20
 ```
 
-**Highlighting.** The shared formatter applies backend-provided title and summary spans and uses a small semantic color hierarchy on CLI: active/degraded outcomes and warnings are yellow, failed outcomes are red, primary identities and exact actions receive emphasis, target details remain plain, and the optional session row is dim. Color never carries meaning and does not change wording or wrapping.
+**Highlighting and width.** The shared formatter applies backend-provided title and summary spans and uses a small semantic color hierarchy on CLI: active/degraded outcomes and warnings are yellow, failed outcomes are red, primary identities and exact actions receive emphasis, target details remain plain, and the optional session row is dim. Color never carries meaning or changes wording. CLI target details and hit summaries wrap to the current terminal width; MCP uses the shared 80-column fallback.
 
 **Trust signals.** The JSON `sourceStatus` block remains lossless. Shared text groups structured readiness and trust facts under each target, including searched, waiting, unavailable, stale, provisional, and capped coverage. Exact requested/fresh/served divergence appears once only when identities differ. Raw reason codes, indexing references, promoted duplicate warnings, opaque evidence prose, and the exact `evidenceNotice` remain in JSON. Empty output distinguishes a searched empty snapshot from no result snapshot and selects only an applicable next action.
 

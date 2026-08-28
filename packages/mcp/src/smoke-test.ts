@@ -243,7 +243,7 @@ function assertSearchDefaultText(text: string, context: string): void {
   );
 
   const hasReadinessText = lines.some((line) =>
-    /^ {2}(?! {2}).*(?:Indexing|Searched|Ready now|Unavailable|Using|Status):/.test(
+    /^ {2}(?! {2}).*(?:Indexing|Searched|Available now|Unavailable|Using|Status):/.test(
       line,
     ),
   );

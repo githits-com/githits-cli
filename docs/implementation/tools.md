@@ -144,7 +144,7 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Documentation sources.** DOCS `sourceStatus` rows retain bounded physical
 `contributors` and coverage in JSON. Text places the user-meaningful readiness
-state under its target, using `Indexing`, `Searched`, `Ready now`, `Unavailable`,
+state under its target, using `Indexing`, `Searched`, `Available now`, `Unavailable`,
 `Using`, or `Status` details as applicable. `Status` appears only when the
 backend supplies an explicit current, pending, indexing, provisional, or stale
 target state; session activity alone does not invent target state. Site identity,

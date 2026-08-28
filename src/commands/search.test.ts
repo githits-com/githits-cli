@@ -523,9 +523,9 @@ describe("searchAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("No results returned");
     expect(output).toContain("- npm:express@5.1.0");
-    expect(output).toMatch(/Searched:\s+repository docs/);
+    expect(output).toMatch(/Searched:\s+repository\s+docs/);
     expect(output).toMatch(
-      /Ready now: expressjs\.com\/en\/guide docs \(not searched;\s+120 pages; partial\)/,
+      /Available now: expressjs\.com\/en\/guide docs \(120 pages; partial\)/,
     );
     expect(output).not.toContain("Documentation sources:");
     expect(output).not.toContain("Documentation corpora");
@@ -564,8 +564,8 @@ describe("searchAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("No results returned");
     expect(output).toContain("- npm:express@5.1.0");
-    expect(output).toMatch(/Searched:\s+repository docs/);
-    expect(output).toContain("Ready now: expressjs.com/en/guide docs");
+    expect(output).toMatch(/Searched:\s+repository\s+docs/);
+    expect(output).toContain("Available now: expressjs.com/en/guide docs");
     expect(output).not.toContain("Do not repeat");
     consoleSpy.mockRestore();
   });
@@ -1086,9 +1086,8 @@ describe("searchAction", () => {
         "Indexing - no results yet",
         "",
         "- npm:n8n -> 2.36.7",
-        "  Indexing: code, repository docs | Ready now: n8n.io docs (not searched;",
-        "  1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD,",
-        "  master",
+        "  Indexing: code, repository docs | Available now: n8n.io docs (1,480 pages;",
+        "  capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master",
         "",
         "Search n8n-search-ref | 0/1 target ready",
         "Next: githits search-status n8n-search-ref --wait 20",
@@ -1128,9 +1127,9 @@ describe("searchAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("Indexing - no results yet");
     expect(output).toContain("- npm:express@5.1.0");
-    expect(output).toMatch(/Searched:\s+repository docs/);
+    expect(output).toMatch(/Searched:\s+repository\s+docs/);
     expect(output).toMatch(
-      /Ready now: expressjs\.com\/en\/guide docs \(not searched;\s+120 pages; partial\)/,
+      /Available now: expressjs\.com\/en\/guide docs \(120 pages; partial\)/,
     );
     expect(output).not.toContain("Evidence may change.");
     expect(output).toContain("githits search-status search-ref-docs");
@@ -1577,7 +1576,7 @@ describe("searchAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain("- github:expressjs/express#refs/heads/master");
     expect(output).toContain("Using: refs/heads/master (older snapshot)");
-    expect(output).toMatch(/Ready now:\s+refs master/);
+    expect(output).toMatch(/Available now:\s+refs master/);
     expect(output).not.toContain("Evidence:");
     expect(output).not.toContain("Indexed alternatives:");
     expect(output).not.toContain("Next: githits search-status");
@@ -2171,7 +2170,7 @@ describe("searchStatusAction", () => {
     expect(output).toContain(
       "- github:expressjs/express#refs/heads/master -> master",
     );
-    expect(output).toContain("Status: indexing | Ready now: refs master");
+    expect(output).toContain("Status: indexing | Available now: refs master");
     expect(output).toContain("Search search-ref-123 | 0/1 target ready");
     expect(output).toContain(
       "Next: githits search-status search-ref-123 --wait 20",
@@ -2426,9 +2425,9 @@ describe("searchStatusAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("No results returned");
     expect(output).toContain("- npm:express@5.1.0");
-    expect(output).toMatch(/Searched:\s+repository docs/);
+    expect(output).toMatch(/Searched:\s+repository\s+docs/);
     expect(output).toMatch(
-      /Ready now: expressjs\.com\/en\/guide docs \(not searched;\s+120 pages; partial\)/,
+      /Available now: expressjs\.com\/en\/guide docs \(120 pages; partial\)/,
     );
     expect(output).not.toContain("Evidence may change.");
     expect(
@@ -2466,7 +2465,7 @@ describe("searchStatusAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("No results returned");
     expect(output).toContain("- npm:express@5.1.0");
-    expect(output).toMatch(/Searched:\s+repository docs/);
+    expect(output).toMatch(/Searched:\s+repository\s+docs/);
     expect(output).toContain("Unavailable: expressjs.com/en/guide docs");
     consoleSpy.mockRestore();
   });
