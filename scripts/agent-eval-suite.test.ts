@@ -304,6 +304,7 @@ async function generatePairSuite(
     workload: AgentEvalSuiteWorkload,
     options: AgentEvalSuiteShardOptions,
   ) => boolean = () => true,
+  dryRun = true,
 ): Promise<AgentEvalSuiteArtifact> {
   return runAgentEvalSuite({
     suite: "stable-full",
@@ -314,7 +315,7 @@ async function generatePairSuite(
     workloadsDir: fixture.workloadsDir,
     reportingPath: fixture.reportingPath,
     schemaPath: fixture.schemaPath,
-    dryRun: true,
+    dryRun,
     shardExecutor: async (options) => {
       writeShardArtifacts(
         options,
@@ -2082,6 +2083,85 @@ describe("agent eval suites", () => {
         comparison.cells.every((cell) => cell.toolSequence.changed === null),
       ).toBe(true);
       expect(comparison.warnings.join("\n")).toContain("reportingContract");
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("suppresses all metric deltas between dry-run and live suite evidence", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const baselineOutDir = mkdtempSync(join(tmpdir(), "agent-eval-dry-base-"));
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-live-candidate-"),
+    );
+    const outputDir = mkdtempSync(join(tmpdir(), "agent-eval-dry-output-"));
+    try {
+      await generatePairSuite(
+        baseline,
+        baselineOutDir,
+        undefined,
+        undefined,
+        true,
+      );
+      await generatePairSuite(
+        candidate,
+        candidateOutDir,
+        undefined,
+        undefined,
+        false,
+      );
+      const comparison = compareAgentEvalSuitesOffline({
+        baselineSuitePath: join(baselineOutDir, "suite.json"),
+        candidateSuitePath: join(candidateOutDir, "suite.json"),
+        outputDir,
+      });
+      expect(comparison.compatibility.dimensions).toContainEqual(
+        expect.objectContaining({
+          name: "dryRun",
+          status: "incompatible",
+          before: true,
+          after: false,
+        }),
+      );
+      expect(comparison.compatibility.compatible).toBe(false);
+      expect(comparison.compatibility.directDeltasSuppressed).toBe(true);
+      expect(comparison.repositoryOnly).toBe(false);
+      expect(comparison.aggregates.durationMs.delta).toBeNull();
+      expect(comparison.aggregates.logicalToolCalls.delta).toBeNull();
+      expect(comparison.aggregates.tokens.uncachedInputTokens.delta).toBeNull();
+      expect(comparison.aggregates.tokens.cachedInputTokens.delta).toBeNull();
+      expect(
+        comparison.aggregates.tokens.cacheWriteInputTokens.delta,
+      ).toBeNull();
+      expect(comparison.aggregates.tokens.outputTokens.delta).toBeNull();
+      expect(
+        comparison.aggregates.tokens.reasoningOutputTokens.delta,
+      ).toBeNull();
+      expect(comparison.aggregates.costUsd.delta).toBeNull();
+      expect(comparison.aggregates.callsByTool.deltas).toBeNull();
+      expect(comparison.cells).toHaveLength(2);
+      for (const cell of comparison.cells) {
+        expect(cell.compatibility).toBe("suppressed");
+        expect(cell.durationMs).toBeNull();
+        expect(cell.logicalToolCalls).toBeNull();
+        expect(cell.tokens.uncachedInputTokens).toBeNull();
+        expect(cell.tokens.cachedInputTokens).toBeNull();
+        expect(cell.tokens.cacheWriteInputTokens).toBeNull();
+        expect(cell.tokens.outputTokens).toBeNull();
+        expect(cell.tokens.reasoningOutputTokens).toBeNull();
+        expect(cell.costUsd).toBeNull();
+        expect(cell.callsByTool).toBeNull();
+        expect(cell.toolSequence.changed).toBeNull();
+        expect(cell.processStatus.before).toBe("success");
+        expect(cell.processStatus.after).toBe("success");
+        expect(cell.finalStatus.before).toBe("success");
+        expect(cell.finalStatus.after).toBe("success");
+      }
     } finally {
       rmSync(baseline.root, { recursive: true, force: true });
       rmSync(candidate.root, { recursive: true, force: true });

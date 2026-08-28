@@ -2220,6 +2220,12 @@ function matrixDimensions(
       "suite names differ",
     ),
     comparisonDimension(
+      "dryRun",
+      before.dryRun,
+      after.dryRun,
+      "execution modes differ",
+    ),
+    comparisonDimension(
       "reportingContract",
       before.contentIdentity.reportingContract,
       after.contentIdentity.reportingContract,
@@ -2564,7 +2570,9 @@ export function buildSuiteComparison(
   const globalIncompatibility = dimensions.some(
     (dimension) =>
       dimension.status === "incompatible" &&
-      (dimension.name.startsWith("matrix.") || dimension.name === "suiteName"),
+      (dimension.name.startsWith("matrix.") ||
+        dimension.name === "suiteName" ||
+        dimension.name === "dryRun"),
   );
   const reportingMismatch = dimensions.some(
     (dimension) =>

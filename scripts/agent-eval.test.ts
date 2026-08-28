@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, join, resolve, win32 } from "node:path";
 import {
   GITHITS_GUIDANCE_BLOCK,
   GITHITS_GUIDANCE_MARKER,
@@ -2294,7 +2294,12 @@ describe("agent eval harness", () => {
     expect(isContainedRelativePath("workloads/pkg/tool-calls.json")).toBe(true);
     expect(isContainedRelativePath("../outside/tool-calls.json")).toBe(false);
     expect(isContainedRelativePath("/outside/tool-calls.json")).toBe(false);
-    expect(isContainedRelativePath("D:\\outside\\tool-calls.json")).toBe(false);
+    expect(
+      isContainedRelativePath(win32.join("D:\\", "outside", "tool-calls.json")),
+    ).toBe(false);
+    expect(
+      isContainedRelativePath(win32.join("..", "outside", "tool-calls.json")),
+    ).toBe(false);
   });
 
   it("summarizes raw tool calls without hiding duplicate status events", () => {
