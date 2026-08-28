@@ -17,7 +17,7 @@ snapshot. Outside the experimental case below, call `quick_start` only when
 needed to resolve a material mismatch between the loaded guide and the current
 descriptors.
 
-If any GitHits tool description exposed to the agent begins with `Experimental`,
+If any GitHits tool description exposed to the agent is marked `Experimental`,
 call `quick_start` before the first GitHits evidence tool for runtime-specific
 guidance.
 

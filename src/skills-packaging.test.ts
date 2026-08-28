@@ -250,7 +250,7 @@ describe("agent skills packaging", () => {
       "Do not call `quick_start` on the normal path",
       "Current tool descriptions are authoritative over a stale installed skill\nsnapshot",
       "Outside the experimental case below, call `quick_start` only when\nneeded to resolve a material mismatch between the loaded guide",
-      "If any GitHits tool description exposed to the agent begins with `Experimental`,",
+      "If any GitHits tool description exposed to the agent is marked `Experimental`,",
       "call `quick_start` before the first GitHits evidence tool",
       "for routing, scope, target syntax,\noutput, safety, citations, and recovery",
       "If GitHits MCP tools are unavailable",
