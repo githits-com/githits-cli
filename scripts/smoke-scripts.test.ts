@@ -99,6 +99,19 @@ Next: shorten or broaden query; use githits code grep.`;
     ).not.toThrow();
   });
 
+  it("accepts wrapped documentation and repository title tails", () => {
+    expect(() =>
+      assertSearchTerminalText(
+        "2 results | 1 repo code hit, 1 docs page\n\n" +
+          "[1] page-1 [docs page] npm:express - docs.example.com/getting-started -\n" +
+          "  A long documentation title\n\n" +
+          "[2] npm:express@5.2.1 lib/application.js [repo code] -\n" +
+          "  A long repository title",
+        "search",
+      ),
+    ).not.toThrow();
+  });
+
   it.each([
     [
       "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n  This payload mentions githits code read but has no locator",
@@ -113,6 +126,19 @@ Next: shorten or broaden query; use githits code grep.`;
       "1 result\n\n[1] page-1 [docs page] npm:express - README\n" +
         "  githits docs read --lines 1-10",
     ],
+    [
+      "1 result\n\n[1] page-1 [docs page] npm:express -\n" +
+        "  README without a source locator",
+    ],
+    [
+      "1 result\n\n[1] page ID unavailable [docs page] npm:express - docs.example.com/readme -\n" +
+        "  Wrapped title without a page locator",
+    ],
+    [
+      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code] -\n" +
+        "  Wrapped title without a locator",
+    ],
+    ["1 result\n\n[1] npm:express@5.2.1 lib/application.js [repo code] -"],
   ])("rejects incomplete or prose-only hit follow-ups", (text) => {
     expect(() => assertSearchTerminalText(text, "search")).toThrow(
       "missing result follow-up or next action",

@@ -392,6 +392,23 @@ describe("runMcpSmoke", () => {
     await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
   });
 
+  it("allows wrapped documentation and repository title tails", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(
+          "2 results | 1 repo code hit, 1 docs page\n\n" +
+            "[1] page-1 [docs page] npm:express - docs.example.com/readme -\n" +
+            "  A long documentation title\n\n" +
+            "[2] npm:express@5.2.1 lib/application.js [repo code] -\n" +
+            "  A long repository title",
+        );
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+  });
+
   it.each([
     [
       "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
@@ -403,10 +420,23 @@ describe("runMcpSmoke", () => {
     ],
     ["1 result\n\n[1] page-1 [docs page] npm:express - README"],
     [
+      "1 result\n\n[1] page-1 [docs page] npm:express -\n" +
+        "  README without a source locator",
+    ],
+    [
+      "1 result\n\n[1] page ID unavailable [docs page] npm:express - docs.example.com/readme -\n" +
+        "  Wrapped title without a page locator",
+    ],
+    [
       "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
         "  ordinary title\n" +
         '  code_read target="npm:express@5.2.1" path="index.js"',
     ],
+    [
+      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code] -\n" +
+        "  Wrapped title without a locator",
+    ],
+    ["1 result\n\n[1] npm:express@5.2.1 lib/application.js [repo code] -"],
   ])("rejects incomplete or prose-only hit follow-ups", async (searchText) => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {

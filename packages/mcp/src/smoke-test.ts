@@ -310,33 +310,55 @@ function assertSearchDefaultText(text: string, context: string): void {
 }
 
 function hasHumanSearchHitLocator(lines: string[]): boolean {
-  return lines.some((line) => {
+  return lines.some((line, index) => {
     const docsMatch = /^\[\d+\]\s+(\S+)\s+\[docs page\]\s+(.+)$/.exec(line);
     if (docsMatch) {
+      const pageId = docsMatch[1];
       const docsDetails = docsMatch[2];
-      if (!docsDetails) return false;
+      if (!pageId || pageId === "page ID unavailable" || !docsDetails) {
+        return false;
+      }
       const firstDivider = docsDetails.indexOf(" - ");
-      const secondDivider = docsDetails.indexOf(" - ", firstDivider + 3);
-      return (
-        firstDivider > 0 &&
-        secondDivider > firstDivider + 3 &&
-        docsDetails.slice(secondDivider + 3).trim().length > 0
-      );
+      if (firstDivider <= 0) return false;
+      const sourceAndTitle = docsDetails.slice(firstDivider + 3);
+      const secondDivider = sourceAndTitle.indexOf(" - ");
+      if (secondDivider > 0) {
+        const source = sourceAndTitle.slice(0, secondDivider).trim();
+        const title = sourceAndTitle.slice(secondDivider + 3).trim();
+        return (
+          source.length > 0 &&
+          (title.length > 0 || hasWrappedHitTitle(lines, index))
+        );
+      }
+      if (!sourceAndTitle.endsWith(" -")) return false;
+      const source = sourceAndTitle.slice(0, -2).trim();
+      return source.length > 0 && hasWrappedHitTitle(lines, index);
     }
     const match =
-      /^\[\d+\]\s+(.+?)\s+\[(repo doc|repo code|repo symbol)\](?: - (.*))?$/.exec(
+      /^\[\d+\]\s+(.+?)\s+\[(repo doc|repo code|repo symbol)\](?: -(?: (.*))?)?$/.exec(
         line,
       );
     if (!match) return false;
     const locatorText = match[1];
     if (!locatorText) return false;
     const locator = locatorText.trim().split(/\s+/);
-    return (
+    if (
       locator.length >= 2 &&
       !locatorText.trim().endsWith("location unavailable") &&
       locator.every((part) => part.length > 0)
-    );
+    ) {
+      const title = match[3];
+      return title === undefined
+        ? !line.endsWith(" -")
+        : title.trim().length > 0 || hasWrappedHitTitle(lines, index);
+    }
+    return false;
   });
+}
+
+function hasWrappedHitTitle(lines: string[], index: number): boolean {
+  const titleLine = lines[index + 1];
+  return titleLine?.startsWith("  ") === true && titleLine.trim().length > 0;
 }
 
 function searchFormatterLines(lines: string[]): string[] {
