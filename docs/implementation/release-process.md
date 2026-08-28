@@ -87,11 +87,11 @@ yet in the released CLI. A feature branch may review the public skill for stale
 or contradictory claims, but should leave it unchanged until that release
 boundary is reached.
 
-`githits-mcp` has a bounded exact-parity exception for stable behavior that is
-already released: update the backing behavior, `buildMcpQuickStart()` in
-`packages/mcp/src/mcp/instructions.ts`, and the terminal guide copy in
-`skills/githits-mcp/SKILL.md` in the same PR, merge that PR to `main`, and ship
-it in the next applicable release cycle. This accepts the bounded
+For the `githits-mcp` stable guide, exact parity is a bounded exception: when
+backing stable behavior or `buildMcpQuickStart()` changes, update the backing
+behavior, builder in `packages/mcp/src/mcp/instructions.ts`, and terminal guide
+copy in `skills/githits-mcp/SKILL.md` in the same PR, merge that PR to `main`, and
+ship it in the next applicable release cycle. This accepts the bounded
 main-to-release window for `skills.sh`; it does not require a deploy-first or
 two-PR flow. The local `buildLocalMcpQuickStart()` appendices are runtime-only
 and stay out of the public copy. This exception does not change the separate
