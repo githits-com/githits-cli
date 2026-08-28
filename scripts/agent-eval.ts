@@ -2077,7 +2077,10 @@ export async function runAgentEval(
       }),
     ),
   });
-  writeJson(join(options.outDir, "metrics.json"), metrics);
+  writeJson(
+    join(options.outDir, "metrics.json"),
+    redactValue(metrics, secretValues),
+  );
   console.log(formatRunReport(report).trimEnd());
 }
 

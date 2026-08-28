@@ -1145,6 +1145,7 @@ describe("agent eval harness", () => {
                 cache_write_input_tokens: 20,
                 output_tokens: 10,
                 reasoning_output_tokens: 4,
+                diagnostic: "secret-value",
               },
             }),
           ].join("\n"),
@@ -1192,6 +1193,7 @@ describe("agent eval harness", () => {
     });
     const serialized = JSON.stringify(metrics);
     expect(serialized).not.toContain("githits search express");
+    expect(serialized).not.toContain("diagnostic");
     expect(serialized).not.toContain("secret-value");
   });
 

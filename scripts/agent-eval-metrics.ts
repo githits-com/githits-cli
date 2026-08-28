@@ -16,15 +16,13 @@ const LUNA_RATES = {
 
 const nonNegativeInteger = z.number().int().nonnegative();
 
-export const codexProviderUsageSchema = z
-  .object({
-    input_tokens: nonNegativeInteger,
-    cached_input_tokens: nonNegativeInteger,
-    cache_write_input_tokens: nonNegativeInteger,
-    output_tokens: nonNegativeInteger,
-    reasoning_output_tokens: nonNegativeInteger,
-  })
-  .passthrough();
+export const codexProviderUsageSchema = z.object({
+  input_tokens: nonNegativeInteger,
+  cached_input_tokens: nonNegativeInteger,
+  cache_write_input_tokens: nonNegativeInteger,
+  output_tokens: nonNegativeInteger,
+  reasoning_output_tokens: nonNegativeInteger,
+});
 
 export type CodexProviderUsage = z.infer<typeof codexProviderUsageSchema>;
 
