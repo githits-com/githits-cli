@@ -61,6 +61,7 @@ import {
   normalizeToolName,
   normalizeToolStatus,
   parseReportArgs,
+  summarizeCallsByTool,
   summarizeFinalReport,
   summarizeToolCalls,
 } from "./agent-eval-report.ts";
@@ -2000,6 +2001,59 @@ describe("agent eval harness", () => {
     expect(summary.errors[0]).toContain("bad");
   });
 
+  it("reports calls by tool with status totals and surface separation", () => {
+    const sequence: Parameters<typeof summarizeCallsByTool>[0] = [
+      { tool: "mcp__githits__pkg_info", surface: "mcp", status: "started" },
+      {
+        tool: "mcp__githits__.pkg_info",
+        surface: "mcp",
+        status: "completed",
+      },
+      { tool: "pkg_info", surface: "mcp", status: "unknown" },
+      { tool: "githits.pkg_info", surface: "cli", status: "failed" },
+      { tool: "search", surface: "cli", status: "completed" },
+    ];
+
+    expect(summarizeCallsByTool(sequence, 5)).toEqual([
+      {
+        surface: "cli",
+        tool: "pkg_info",
+        total: 1,
+        started: 0,
+        completed: 0,
+        failed: 1,
+        unknown: 0,
+      },
+      {
+        surface: "cli",
+        tool: "search",
+        total: 1,
+        started: 0,
+        completed: 1,
+        failed: 0,
+        unknown: 0,
+      },
+      {
+        surface: "mcp",
+        tool: "pkg_info",
+        total: 3,
+        started: 1,
+        completed: 1,
+        failed: 0,
+        unknown: 1,
+      },
+    ]);
+  });
+
+  it("keeps calls by tool unknown when logical telemetry is unavailable", () => {
+    const sequence: Parameters<typeof summarizeCallsByTool>[0] = [
+      { tool: "pkg_info", surface: "mcp", status: "completed" },
+    ];
+    expect(summarizeCallsByTool(sequence, null)).toBeNull();
+    expect(summarizeCallsByTool(sequence, 0)).toBeNull();
+    expect(summarizeCallsByTool([], 0)).toEqual([]);
+  });
+
   it("summarizes final reports without treating expected tools as actual calls", () => {
     const summary = summarizeFinalReport({
       status: "success",
@@ -2176,6 +2230,276 @@ describe("agent eval harness", () => {
     );
     expect(formatRunReport(longContextReport)).toContain(
       "costUncertainty=long_context_pricing_not_attributable",
+    );
+  });
+
+  it("exposes calls by tool in workload JSON and terminal reports", () => {
+    const runDir = mkdtempSync(join(tmpdir(), "agent-eval-calls-by-tool-"));
+    const workloadDir = join(runDir, "workloads", "pkg-info");
+    mkdirSync(workloadDir, { recursive: true });
+    writeJson(join(workloadDir, "tool-calls.json"), []);
+    writeFileSync(join(workloadDir, "stderr.txt"), "");
+    writeMetricsFixture(runDir, [
+      createMetricsRecord("pkg-info", {
+        toolCalls: [
+          {
+            tool: "mcp__githits__pkg_info",
+            server: "githits",
+            status: "started",
+          },
+          {
+            tool: "mcp__githits__pkg_info",
+            server: "githits",
+            status: "completed",
+          },
+          { tool: "search", server: "githits-cli", status: "completed" },
+        ],
+      }),
+    ]);
+    const report = buildRunReportFromMetadata(runDir, {
+      agent: "codex",
+      surface: "mcp",
+      workloads: [{ id: "pkg-info", status: "success", workloadDir }],
+    });
+
+    expect(report.workloads[0]?.metrics.callsByTool).toEqual([
+      {
+        surface: "cli",
+        tool: "search",
+        total: 1,
+        started: 0,
+        completed: 1,
+        failed: 0,
+        unknown: 0,
+      },
+      {
+        surface: "mcp",
+        tool: "pkg_info",
+        total: 2,
+        started: 1,
+        completed: 1,
+        failed: 0,
+        unknown: 0,
+      },
+    ]);
+    expect(formatRunReport(report)).toContain(
+      "callsByTool=cli/search(total=1 started=0 completed=1 failed=0 unknown=0),mcp/pkg_info(total=2 started=1 completed=1 failed=0 unknown=0)",
+    );
+  });
+
+  it("reports calls by tool additions, removals, status changes, and surface moves", () => {
+    const buildReport = (toolCalls: AgentEvalRecordInput["toolCalls"]) => {
+      const runDir = mkdtempSync(join(tmpdir(), "agent-eval-tool-delta-"));
+      const workloadDir = join(runDir, "workloads", "pkg-info");
+      mkdirSync(workloadDir, { recursive: true });
+      writeJson(join(workloadDir, "tool-calls.json"), []);
+      writeFileSync(join(workloadDir, "stderr.txt"), "");
+      writeMetricsFixture(runDir, [
+        createMetricsRecord("pkg-info", { toolCalls }),
+      ]);
+      return buildRunReportFromMetadata(runDir, {
+        agent: "codex",
+        surface: "mcp",
+        workloads: [{ id: "pkg-info", status: "success", workloadDir }],
+      });
+    };
+    const before = buildReport([
+      { tool: "pkg_info", server: "githits", status: "completed" },
+      { tool: "pkg_vulns", server: "githits", status: "started" },
+    ]);
+    const after = buildReport([
+      { tool: "pkg_info", server: "githits", status: "failed" },
+      { tool: "pkg_vulns", server: "githits-cli", status: "completed" },
+      { tool: "docs_search", server: "githits", status: "completed" },
+    ]);
+
+    const comparison = compareReports(before, after);
+    const deltas = comparison.toolDeltas[0]?.deltas;
+    expect(deltas).toEqual([
+      {
+        surface: "cli",
+        tool: "pkg_vulns",
+        before: {
+          surface: "cli",
+          tool: "pkg_vulns",
+          total: 0,
+          started: 0,
+          completed: 0,
+          failed: 0,
+          unknown: 0,
+        },
+        after: {
+          surface: "cli",
+          tool: "pkg_vulns",
+          total: 1,
+          started: 0,
+          completed: 1,
+          failed: 0,
+          unknown: 0,
+        },
+        delta: {
+          total: 1,
+          started: 0,
+          completed: 1,
+          failed: 0,
+          unknown: 0,
+        },
+        change: "added",
+      },
+      {
+        surface: "mcp",
+        tool: "docs_search",
+        before: {
+          surface: "mcp",
+          tool: "docs_search",
+          total: 0,
+          started: 0,
+          completed: 0,
+          failed: 0,
+          unknown: 0,
+        },
+        after: {
+          surface: "mcp",
+          tool: "docs_search",
+          total: 1,
+          started: 0,
+          completed: 1,
+          failed: 0,
+          unknown: 0,
+        },
+        delta: {
+          total: 1,
+          started: 0,
+          completed: 1,
+          failed: 0,
+          unknown: 0,
+        },
+        change: "added",
+      },
+      {
+        surface: "mcp",
+        tool: "pkg_info",
+        before: {
+          surface: "mcp",
+          tool: "pkg_info",
+          total: 1,
+          started: 0,
+          completed: 1,
+          failed: 0,
+          unknown: 0,
+        },
+        after: {
+          surface: "mcp",
+          tool: "pkg_info",
+          total: 1,
+          started: 0,
+          completed: 0,
+          failed: 1,
+          unknown: 0,
+        },
+        delta: {
+          total: 0,
+          started: 0,
+          completed: -1,
+          failed: 1,
+          unknown: 0,
+        },
+        change: "changed",
+      },
+      {
+        surface: "mcp",
+        tool: "pkg_vulns",
+        before: {
+          surface: "mcp",
+          tool: "pkg_vulns",
+          total: 1,
+          started: 1,
+          completed: 0,
+          failed: 0,
+          unknown: 0,
+        },
+        after: {
+          surface: "mcp",
+          tool: "pkg_vulns",
+          total: 0,
+          started: 0,
+          completed: 0,
+          failed: 0,
+          unknown: 0,
+        },
+        delta: {
+          total: -1,
+          started: -1,
+          completed: 0,
+          failed: 0,
+          unknown: 0,
+        },
+        change: "removed",
+      },
+    ]);
+    const formatted = formatCompareReport(comparison);
+    expect(formatted).toContain(
+      "callsByTool cli/pkg_vulns: added before=total=0,started=0,completed=0,failed=0,unknown=0 after=total=1,started=0,completed=1,failed=0,unknown=0",
+    );
+    expect(formatted).toContain(
+      "callsByTool mcp/pkg_info: changed before=total=1,started=0,completed=1,failed=0,unknown=0 after=total=1,started=0,completed=0,failed=1,unknown=0",
+    );
+  });
+
+  it("keeps calls by tool comparison deltas unknown when one workload lacks logical telemetry", () => {
+    const buildReport = (
+      toolCalls: AgentEvalRecordInput["toolCalls"],
+      recordAgent: "codex" | "claude" = "codex",
+    ) => {
+      const runDir = mkdtempSync(join(tmpdir(), "agent-eval-tool-unknown-"));
+      const workloadDir = join(runDir, "workloads", "pkg-info");
+      mkdirSync(workloadDir, { recursive: true });
+      writeJson(join(workloadDir, "tool-calls.json"), []);
+      writeFileSync(join(workloadDir, "stderr.txt"), "");
+      writeMetricsFixture(runDir, [
+        createMetricsRecord("pkg-info", {
+          agent: recordAgent,
+          toolCalls,
+        }),
+      ]);
+      return buildRunReportFromMetadata(runDir, {
+        agent: "codex",
+        surface: "mcp",
+        workloads: [{ id: "pkg-info", status: "success", workloadDir }],
+      });
+    };
+    const before = buildReport([
+      { tool: "pkg_info", server: "githits", status: "completed" },
+    ]);
+    const after = buildReport([], "claude");
+    const comparison = compareReports(before, after);
+    expect(comparison.toolDeltas).toEqual([
+      {
+        workloadId: "pkg-info",
+        deltas: [
+          {
+            surface: "mcp",
+            tool: "pkg_info",
+            before: {
+              surface: "mcp",
+              tool: "pkg_info",
+              total: 1,
+              started: 0,
+              completed: 1,
+              failed: 0,
+              unknown: 0,
+            },
+            after: null,
+            delta: null,
+            change: "unknown",
+          },
+        ],
+      },
+    ]);
+    expect(before.workloads[0]?.metrics.callsByTool).not.toBeNull();
+    expect(after.workloads[0]?.metrics.callsByTool).toBeNull();
+    expect(after.workloads[0]?.metrics.telemetryWarnings).toContain(
+      "logical tool telemetry unavailable or inconsistent; callsByTool is unknown",
     );
   });
 

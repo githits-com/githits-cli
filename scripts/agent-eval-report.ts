@@ -77,12 +77,32 @@ export interface ToolCallSummary {
   errors: string[];
 }
 
+export interface CallsByToolEntry {
+  surface: "mcp" | "cli";
+  tool: string;
+  total: number;
+  started: number;
+  completed: number;
+  failed: number;
+  unknown: number;
+}
+
+export interface CallsByToolDelta {
+  surface: "mcp" | "cli";
+  tool: string;
+  before: CallsByToolEntry | null;
+  after: CallsByToolEntry | null;
+  delta: Omit<CallsByToolEntry, "surface" | "tool"> | null;
+  change: "added" | "removed" | "changed" | "unchanged" | "unknown";
+}
+
 export interface WorkloadMetricsReport {
   normalizedTokens: AgentUsageMetrics["normalizedTokens"];
   cost: Pick<AgentUsageMetrics["cost"], "kind" | "usd" | "uncertainty">;
   logicalToolCount: number | null;
   mcpCallCount: number | null;
   cliCallCount: number | null;
+  callsByTool: CallsByToolEntry[] | null;
   telemetryWarnings: string[];
 }
 
@@ -156,6 +176,10 @@ export interface AgentEvalCompareReport {
   sameAgent: boolean;
   warnings: string[];
   workloads: string[];
+  toolDeltas: Array<{
+    workloadId: string;
+    deltas: CallsByToolDelta[];
+  }>;
   lines: string[];
 }
 
@@ -250,13 +274,60 @@ function unknownWorkloadMetrics(warning: string): WorkloadMetricsReport {
     logicalToolCount: null,
     mcpCallCount: null,
     cliCallCount: null,
+    callsByTool: null,
     telemetryWarnings: [warning],
   };
+}
+
+function compareStrings(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+export function summarizeCallsByTool(
+  sequence: AgentEvalRecord["tools"]["sequence"],
+  logicalCallCount: number | null,
+): CallsByToolEntry[] | null {
+  if (logicalCallCount === null || logicalCallCount !== sequence.length) {
+    return null;
+  }
+
+  const entries = new Map<string, CallsByToolEntry>();
+  for (const call of sequence) {
+    const tool = normalizeToolName(call.tool);
+    const key = `${call.surface}\0${tool}`;
+    const entry = entries.get(key) ?? {
+      surface: call.surface,
+      tool,
+      total: 0,
+      started: 0,
+      completed: 0,
+      failed: 0,
+      unknown: 0,
+    };
+    entry.total += 1;
+    entry[call.status] += 1;
+    entries.set(key, entry);
+  }
+  return [...entries.values()].sort(
+    (left, right) =>
+      compareStrings(left.surface, right.surface) ||
+      compareStrings(left.tool, right.tool),
+  );
 }
 
 function workloadMetricsFromRecord(
   record: AgentEvalRecord,
 ): WorkloadMetricsReport {
+  const callsByTool = summarizeCallsByTool(
+    record.tools.sequence,
+    record.tools.logicalCallCount,
+  );
+  const telemetryWarnings = [...record.warnings];
+  if (callsByTool === null) {
+    telemetryWarnings.push(
+      "logical tool telemetry unavailable or inconsistent; callsByTool is unknown",
+    );
+  }
   return {
     normalizedTokens: record.usage.normalizedTokens,
     cost: {
@@ -269,7 +340,8 @@ function workloadMetricsFromRecord(
       .length,
     cliCallCount: record.tools.sequence.filter((call) => call.surface === "cli")
       .length,
-    telemetryWarnings: record.warnings,
+    callsByTool,
+    telemetryWarnings: [...new Set(telemetryWarnings)],
   };
 }
 
@@ -750,6 +822,17 @@ function formatMetricValue(value: number | null): string {
   return value === null ? "unknown" : String(value);
 }
 
+function formatCallsByTool(callsByTool: CallsByToolEntry[] | null): string {
+  if (callsByTool === null) return "unknown";
+  if (callsByTool.length === 0) return "none";
+  return callsByTool
+    .map(
+      (entry) =>
+        `${entry.surface}/${entry.tool}(total=${entry.total} started=${entry.started} completed=${entry.completed} failed=${entry.failed} unknown=${entry.unknown})`,
+    )
+    .join(",");
+}
+
 function formatWorkloadMetrics(metrics: WorkloadMetricsReport): string {
   const tokens = metrics.normalizedTokens;
   return [
@@ -764,6 +847,7 @@ function formatWorkloadMetrics(metrics: WorkloadMetricsReport): string {
     `logicalCalls=${formatMetricValue(metrics.logicalToolCount)}`,
     `mcpCalls=${formatMetricValue(metrics.mcpCallCount)}`,
     `cliCalls=${formatMetricValue(metrics.cliCallCount)}`,
+    `callsByTool=${formatCallsByTool(metrics.callsByTool)}`,
   ].join(" ");
 }
 
@@ -877,6 +961,105 @@ function formatRunLabel(
   return `${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.surface ?? "mcp"}/${report.server ?? "unknown"}`;
 }
 
+const CALLS_BY_TOOL_COUNT_FIELDS = [
+  "total",
+  "started",
+  "completed",
+  "failed",
+  "unknown",
+] as const;
+
+type CallsByToolCounts = Omit<CallsByToolEntry, "surface" | "tool">;
+
+function zeroCallsByToolEntry(
+  surface: CallsByToolEntry["surface"],
+  tool: string,
+): CallsByToolEntry {
+  return {
+    surface,
+    tool,
+    total: 0,
+    started: 0,
+    completed: 0,
+    failed: 0,
+    unknown: 0,
+  };
+}
+
+function formatCallsByToolEntry(entry: CallsByToolEntry | null): string {
+  if (entry === null) return "unknown";
+  return `total=${entry.total},started=${entry.started},completed=${entry.completed},failed=${entry.failed},unknown=${entry.unknown}`;
+}
+
+function compareCallsByTool(
+  before: CallsByToolEntry[] | null,
+  after: CallsByToolEntry[] | null,
+): CallsByToolDelta[] {
+  if (before === null && after === null) return [];
+  const beforeMap = new Map(
+    (before ?? []).map((entry) => [`${entry.surface}\0${entry.tool}`, entry]),
+  );
+  const afterMap = new Map(
+    (after ?? []).map((entry) => [`${entry.surface}\0${entry.tool}`, entry]),
+  );
+  const keys = [...new Set([...beforeMap.keys(), ...afterMap.keys()])].sort(
+    (left, right) => {
+      const [leftSurface = "", leftTool = ""] = left.split("\0");
+      const [rightSurface = "", rightTool = ""] = right.split("\0");
+      return (
+        compareStrings(leftSurface, rightSurface) ||
+        compareStrings(leftTool, rightTool)
+      );
+    },
+  );
+  return keys.map((key) => {
+    const [surface, tool] = key.split("\0") as [
+      CallsByToolEntry["surface"],
+      string,
+    ];
+    const beforeEntry =
+      beforeMap.get(key) ??
+      (before === null ? null : zeroCallsByToolEntry(surface, tool));
+    const afterEntry =
+      afterMap.get(key) ??
+      (after === null ? null : zeroCallsByToolEntry(surface, tool));
+    if (beforeEntry === null || afterEntry === null) {
+      return {
+        surface,
+        tool,
+        before: beforeEntry,
+        after: afterEntry,
+        delta: null,
+        change: "unknown" as const,
+      };
+    }
+    const delta: CallsByToolCounts = Object.fromEntries(
+      CALLS_BY_TOOL_COUNT_FIELDS.map((field) => [
+        field,
+        afterEntry[field] - beforeEntry[field],
+      ]),
+    ) as CallsByToolCounts;
+    const changed = CALLS_BY_TOOL_COUNT_FIELDS.some(
+      (field) => delta[field] !== 0,
+    );
+    return {
+      surface,
+      tool,
+      before: beforeEntry,
+      after: afterEntry,
+      delta,
+      change:
+        beforeEntry.total === 0 && afterEntry.total > 0
+          ? "added"
+          : beforeEntry.total > 0 && afterEntry.total === 0
+            ? "removed"
+            : changed
+              ? "changed"
+              : "unchanged",
+    };
+  });
+}
+
 function formatRunContext(report: AgentEvalReport): string {
   const profile =
     report.surface === "skills"
@@ -951,6 +1134,10 @@ export function compareReports(
     `Agent eval compare: before=${before.runDir} (${formatRunLabel(before)}) ${formatRunContext(before)} after=${after.runDir} (${formatRunLabel(after)}) ${formatRunContext(after)}`,
     ...warnings.map((warning) => `Warning: ${warning}`),
   ];
+  const toolDeltas: Array<{
+    workloadId: string;
+    deltas: CallsByToolDelta[];
+  }> = [];
   for (const id of ids) {
     const left = beforeMap.get(id);
     const right = afterMap.get(id);
@@ -967,6 +1154,18 @@ export function compareReports(
         ? `unchanged ${right.status}`
         : `${left.status} -> ${right.status}`;
     lines.push(`${id} status ${status}`);
+    if (sameAgent) {
+      const deltas = compareCallsByTool(
+        left.metrics.callsByTool,
+        right.metrics.callsByTool,
+      );
+      toolDeltas.push({ workloadId: id, deltas });
+      for (const delta of deltas) {
+        lines.push(
+          `  callsByTool ${delta.surface}/${delta.tool}: ${delta.change} before=${formatCallsByToolEntry(delta.before)} after=${formatCallsByToolEntry(delta.after)}${delta.delta ? ` delta=${formatCallsByToolEntry({ surface: delta.surface, tool: delta.tool, ...delta.delta })}` : " delta=unknown"}`,
+        );
+      }
+    }
     const toolDiff = diffStrings(
       left.toolCalls.uniqueTools,
       right.toolCalls.uniqueTools,
@@ -997,6 +1196,7 @@ export function compareReports(
     sameAgent,
     warnings,
     workloads: ids,
+    toolDeltas,
     lines,
   };
 }
