@@ -2,7 +2,7 @@ import type {
   PackageUpgradeReviewResponse as BackendPackageUpgradeReviewResponse,
   PackageIntelligenceService,
 } from "@githits/core-internal";
-import { colorize, highlight } from "./colors.js";
+import { colorize, colors, highlight } from "./colors.js";
 import type {
   PackageUpgradeReviewOptions,
   UpgradeReviewPackageRequest,
@@ -519,7 +519,7 @@ export function formatPackageUpgradeReviewTerminal(
 }
 
 function sectionTitle(text: string, useColors: boolean): string {
-  return colorize(text, "cyan", useColors);
+  return useColors ? `${colors.bold}${text}${colors.reset}` : text;
 }
 
 function normaliseTerminalWidth(width: number | undefined): number {
@@ -597,7 +597,14 @@ function formatDeprecationLine(
   const useColors = options.useColors === true;
   const hasCurrentDeprecation = current?.deprecated === true;
   const hasTargetDeprecation = target?.deprecated === true;
-  if (!hasCurrentDeprecation && !hasTargetDeprecation) return undefined;
+  const targetDeprecationUnknown =
+    target === undefined || target.deprecated === undefined;
+  if (
+    !hasCurrentDeprecation &&
+    !hasTargetDeprecation &&
+    !targetDeprecationUnknown
+  )
+    return undefined;
   const lines = [sectionTitle("Deprecation", useColors)];
   if (current?.deprecated === true)
     lines.push(attentionLine("  Current: deprecated", useColors));
@@ -614,6 +621,8 @@ function formatDeprecationLine(
       (line) => attentionLine(line, useColors),
     );
   }
+  if (targetDeprecationUnknown)
+    lines.push(attentionLine("  Target: deprecation unknown", useColors));
   return lines.length > 1 ? lines : undefined;
 }
 
@@ -1168,7 +1177,9 @@ function appendStringList(
   useColors: boolean,
 ): void {
   if (items.length === 0) return;
-  lines.push(attentionLine(`  ${label}: ${items.join(", ")}`, useColors));
+  lines.push(attentionLine(`  ${label}`, useColors));
+  for (const item of items)
+    lines.push(attentionLine(`    - ${item}`, useColors));
 }
 
 function attentionLine(text: string, useColors: boolean): string {

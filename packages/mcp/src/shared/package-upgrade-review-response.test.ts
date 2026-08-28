@@ -324,7 +324,7 @@ describe("package upgrade review response", () => {
     expect(text).toContain("Dependencies");
     expect(text).toContain("Direct: 1 added | 0 removed | 0 changed");
     expect(text).toContain("Dependency issues");
-    expect(text).toContain("Introduced deprecated: npm:left-pad@1.0.0");
+    expect(text).toContain("Introduced deprecated\n    - npm:left-pad@1.0.0");
     expect(text).toContain("Unknown evidence");
     expect(text).not.toContain("recommendation");
     expect(text).not.toContain("risk level");
@@ -432,6 +432,69 @@ describe("package upgrade review response", () => {
     expect(omitted).not.toContain("Dependency issues");
   });
 
+  it("keeps missing target deprecation evidence explicit", () => {
+    const base = formatterReview();
+    const missingTarget = formatPackageUpgradeReviewTerminal({
+      summary: backendResponse.summary,
+      reviews: [
+        {
+          ...base,
+          security: { ...base.security, target: undefined },
+        },
+      ],
+    });
+    expect(missingTarget).toContain(
+      "Deprecation\n  Target: deprecation unknown",
+    );
+
+    const knownNotDeprecated = formatPackageUpgradeReviewTerminal({
+      summary: backendResponse.summary,
+      reviews: [
+        {
+          ...base,
+          security: {
+            ...base.security,
+            target: { ...base.security.target!, deprecated: false },
+          },
+        },
+      ],
+    });
+    expect(knownNotDeprecated).not.toContain("Deprecation");
+  });
+
+  it("groups dependency issue locators as bounded bullets", () => {
+    const base = formatterReview();
+    const text = formatPackageUpgradeReviewTerminal(
+      {
+        summary: backendResponse.summary,
+        reviews: [
+          {
+            ...base,
+            dependencyIssues: {
+              currentTotal: 1,
+              targetTotal: 4,
+              introducedDeprecated: [
+                "npm:deprecated-one@1.0.0",
+                "npm:deprecated-two@1.0.0",
+              ],
+              introducedDuplicates: ["npm:duplicate-one@1.0.0"],
+              introducedConflicts: [],
+              introducedOutdated: [],
+            },
+          },
+        ],
+      },
+      { terminalWidth: 20 },
+    );
+    expect(text).toContain(
+      "Introduced deprecated\n    - npm:deprecated-one@1.0.0\n    - npm:deprecated-two@1.0.0",
+    );
+    expect(text).not.toContain("deprecated-one@1.0.0, npm:deprecated-two");
+    expect(text).toContain(
+      "Introduced duplicates\n    - npm:duplicate-one@1.0.0",
+    );
+  });
+
   it("wraps prose at the configured width without splitting locators", () => {
     const long = formatPackageUpgradeReviewTerminal(
       formatterResponse([
@@ -478,7 +541,13 @@ describe("package upgrade review response", () => {
     });
     expect(colored.replace(ANSI_SGR_PATTERN, "")).toBe(plain);
     expect(colored).toContain("\x1b[33m");
-    expect(colored).toContain("\x1b[36m");
+    expect(colored).toContain("\x1b[1mUpgrade review - 1 package\x1b[0m");
+    expect(colored).toContain("\x1b[1mSecurity\x1b[0m");
+    expect(colored).toContain(
+      "\x1b[1m\x1b[36mnpm:zod 4.3.6 -> 4.4.3 (minor)\x1b[0m",
+    );
+    expect(colored).not.toContain("\x1b[36mUpgrade review");
+    expect(colored).not.toContain("\x1b[36mSecurity");
     expect(plain).not.toContain("⚠");
   });
 
