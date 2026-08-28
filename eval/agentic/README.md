@@ -369,12 +369,14 @@ Each run writes:
 `metrics.json` is authoritative for normalized usage and cost. For Codex it
 uses the final `turn.completed.usage` aggregate. `input_tokens` is inclusive of
 cached and cache-write input, so uncached input is derived by subtraction;
-reasoning output is an output detail and is not added again. The current
-Codex adapter reports one logical call for each persisted extracted event;
-because Codex can emit both `item.started` and `item.completed` for one MCP
-call, treat logical counts as provisional and inspect the ordered raw sequence
-until that event pairing is reconciled. `server: "githits-cli"` is surfaced as
-`cli`, and other persisted GitHits calls as `mcp`.
+reasoning output is an output detail and is not added again. Raw observations
+retain their provider `item.id` for pairing: Codex logical counts collapse
+observations with the same surface, ID, and normalized tool, keep first-call
+order, and use the latest status. Started-only observations count once and
+separate IDs remain separate calls; observations without IDs are not paired by
+heuristics. The derived metrics sequence does not persist IDs or arguments.
+`server: "githits-cli"` is surfaced as `cli`, and other persisted GitHits calls
+as `mcp`.
 
 Luna cost is a reproducible base-rate estimate using the stored rate snapshot,
 not billed or exact cost. A turn aggregate above 272,000 inclusive input

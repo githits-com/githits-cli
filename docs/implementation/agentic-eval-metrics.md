@@ -60,7 +60,9 @@ status, exit code, timeout, and relative artifact paths.
 failed counts, sorted unique normalized tool names, ordered sequence entries,
 and result bytes when available. Sequence entries retain `mcp` or `cli`
 surface and normalized status (`started`, `completed`, `failed`, or `unknown`).
-The builder preserves duplicate events and order. A persisted call with
+The builder preserves duplicate raw observations and their order; Codex's
+derived sequence applies provider-ID pairing as described below. A persisted
+call with
 `server: "githits-cli"` is `cli`; other persisted GitHits calls are `mcp`.
 
 The run aggregates sum only known record values. Token and cost totals are
@@ -93,12 +95,16 @@ above 272,000, the artifact retains the base estimate and emits
 `long_context_pricing_not_attributable`, because the request that crossed the
 pricing boundary cannot be reconstructed.
 
-The current Codex extraction persists one event per extracted tool event, so
-its logical-call count is provisional: Codex can emit `item.started` and
-`item.completed` for one underlying MCP call. Use `sequence` and the raw
-`tool-calls.json` when exact call pairing matters; a later correction will
-reconcile provider event pairs. Claude and OpenCode currently remain runnable
-but report unknown usage/cost with `adapter_not_implemented`.
+Codex extraction carries the provider's non-sensitive `item.id` on each raw
+tool observation. The metrics builder preserves every observation in
+`rawEventCount`, then pairs only Codex observations with the same surface, ID,
+and normalized tool name. The first observation determines sequence order and
+the latest observation supplies status, so a started-only call counts once and
+separate IDs for the same tool remain separate calls. The derived sequence
+does not persist the provider ID or tool arguments. Observations without an ID
+are not paired heuristically. Claude and OpenCode remain runnable but report
+unknown usage/cost and logical tool count with `adapter_not_implemented` and
+`tool_logical_count_not_implemented`.
 
 ## Report and console fields
 

@@ -101,6 +101,7 @@ export type NormalizedToolStatus =
 export interface PersistedToolCall {
   tool: string;
   server?: string;
+  providerCallId?: string;
   status?: string;
   error?: unknown;
   resultBytes?: number | null;
@@ -457,22 +458,70 @@ function sumKnown(values: Array<number | null>): number | null {
     : known.reduce((sum, value) => sum + value, 0);
 }
 
+interface NormalizedToolObservation {
+  tool: string;
+  surface: "mcp" | "cli";
+  status: NormalizedToolStatus;
+  resultBytes: number | null;
+}
+
+function normalizeToolObservation(
+  call: PersistedToolCall,
+): NormalizedToolObservation {
+  return {
+    tool: normalizeToolName(call.tool),
+    surface: call.server === "githits-cli" ? "cli" : "mcp",
+    status: normalizeToolStatus(call.status, call.error),
+    resultBytes: call.resultBytes ?? null,
+  };
+}
+
+function normalizeLogicalToolObservations(
+  agent: EvalAgent,
+  calls: PersistedToolCall[],
+): NormalizedToolObservation[] {
+  const observations: NormalizedToolObservation[] = [];
+  if (agent !== "codex") {
+    return calls.map(normalizeToolObservation);
+  }
+
+  const indexesByIdentity: Map<string, number> = new Map();
+  for (const call of calls) {
+    const observation: NormalizedToolObservation =
+      normalizeToolObservation(call);
+    const providerCallId: string | undefined = call.providerCallId;
+    if (providerCallId === undefined || providerCallId.length === 0) {
+      observations.push(observation);
+      continue;
+    }
+
+    const identity: string = `${observation.surface}\0${providerCallId}\0${observation.tool}`;
+    const previousIndex: number | undefined = indexesByIdentity.get(identity);
+    if (previousIndex === undefined) {
+      indexesByIdentity.set(identity, observations.length);
+      observations.push(observation);
+    } else {
+      observations[previousIndex] = observation;
+    }
+  }
+  return observations;
+}
+
 function buildAgentEvalRecord(input: AgentEvalRecordInput): AgentEvalRecord {
   const usage = agentUsageMetricsSchema.parse(input.usage);
-  const sequence = input.toolCalls.map((call) => ({
-    tool: normalizeToolName(call.tool),
-    surface:
-      call.server === "githits-cli" ? ("cli" as const) : ("mcp" as const),
-    status: normalizeToolStatus(call.status, call.error),
+  const observations: NormalizedToolObservation[] =
+    normalizeLogicalToolObservations(input.agent, input.toolCalls);
+  const sequence = observations.map(({ tool, surface, status }) => ({
+    tool,
+    surface,
+    status,
   }));
   const warnings = [...usage.warnings];
   if (input.agent !== "codex") {
     warnings.push("tool_logical_count_not_implemented");
   }
 
-  const resultBytes = sumKnown(
-    input.toolCalls.map((call) => call.resultBytes ?? null),
-  );
+  const resultBytes = sumKnown(observations.map((call) => call.resultBytes));
   const record = {
     workloadId: input.workloadId,
     requestedModel: input.requestedModel ?? null,
@@ -500,7 +549,7 @@ function buildAgentEvalRecord(input: AgentEvalRecordInput): AgentEvalRecord {
     usage,
     tools: {
       rawEventCount: input.toolCalls.length,
-      logicalCallCount: input.agent === "codex" ? input.toolCalls.length : null,
+      logicalCallCount: input.agent === "codex" ? observations.length : null,
       completedCount: sequence.filter((call) => call.status === "completed")
         .length,
       failedCount: sequence.filter((call) => call.status === "failed").length,

@@ -211,16 +211,19 @@ describe("agent eval usage metrics", () => {
             {
               tool: "mcp__githits__pkg_info",
               server: "githits",
+              providerCallId: "mcp-1",
               status: "in_progress",
             },
             {
               tool: "githits.pkg_info",
               server: "githits",
+              providerCallId: "mcp-1",
               status: "completed",
             },
             {
               tool: "githits.pkg_info",
               server: "githits",
+              providerCallId: "mcp-2",
               status: "completed",
             },
             {
@@ -293,12 +296,11 @@ describe("agent eval usage metrics", () => {
     });
     expect(metrics.records[0]?.tools).toEqual({
       rawEventCount: 5,
-      logicalCallCount: 5,
+      logicalCallCount: 4,
       completedCount: 3,
       failedCount: 1,
       uniqueTools: ["pkg_info", "pkg_vulns", "search"],
       sequence: [
-        { tool: "pkg_info", surface: "mcp", status: "started" },
         { tool: "pkg_info", surface: "mcp", status: "completed" },
         { tool: "pkg_info", surface: "mcp", status: "completed" },
         { tool: "search", surface: "cli", status: "completed" },
@@ -312,7 +314,7 @@ describe("agent eval usage metrics", () => {
       failedCount: 0,
       timedOutCount: 1,
       durationMs: 3000,
-      logicalToolCalls: 6,
+      logicalToolCalls: 5,
       uncachedInputTokens: 120,
       cachedInputTokens: 140,
       cacheWriteInputTokens: 40,
@@ -371,5 +373,102 @@ describe("agent eval usage metrics", () => {
     expect(unknown.aggregates.reasoningOutputTokens).toBeNull();
     expect(unknown.aggregates.baseRateEstimatedCostUsd).toBeNull();
     expect(unknown.aggregates.logicalToolCalls).toBeNull();
+  });
+
+  it("pairs Codex observations by provider ID while preserving raw events", () => {
+    const metrics = buildAgentEvalMetrics({
+      runId: "run-paired-tools",
+      startedAt: "2026-08-28T10:00:00.000Z",
+      completedAt: "2026-08-28T10:00:01.000Z",
+      records: [
+        {
+          workloadId: "paired-tools",
+          requestedModel: LUNA_MODEL,
+          resolvedModel: null,
+          agent: "codex",
+          agentVersion: null,
+          reasoningEffort: "low",
+          surface: "mcp",
+          server: "local",
+          guidanceProfile: "descriptors",
+          experimentalTools: false,
+          publishedPackage: null,
+          targetGit: { branch: null, sha: null, dirty: null },
+          startedAt: null,
+          completedAt: null,
+          durationMs: 1000,
+          processStatus: "success",
+          finalStatus: "success",
+          exitCode: 0,
+          timedOut: false,
+          usage: adaptAgentUsage(
+            codexUsageEvent({
+              input_tokens: 1,
+              cached_input_tokens: 0,
+              cache_write_input_tokens: 0,
+              output_tokens: 1,
+              reasoning_output_tokens: 0,
+            }),
+            "codex",
+            LUNA_MODEL,
+          ),
+          toolCalls: [
+            {
+              tool: "search",
+              server: "githits-cli",
+              providerCallId: "command-1",
+              status: "started",
+            },
+            {
+              tool: "search",
+              server: "githits-cli",
+              providerCallId: "command-1",
+              status: "completed",
+            },
+            {
+              tool: "mcp__githits__search",
+              server: "githits",
+              providerCallId: "mcp-1",
+              status: "in_progress",
+            },
+            {
+              tool: "mcp__githits__search",
+              server: "githits",
+              providerCallId: "mcp-1",
+              status: "completed",
+            },
+            {
+              tool: "mcp__githits__search",
+              server: "githits",
+              providerCallId: "mcp-2",
+              status: "completed",
+            },
+            {
+              tool: "mcp__githits__search",
+              server: "githits",
+              providerCallId: "mcp-3",
+              status: "in_progress",
+            },
+          ],
+          artifacts: {},
+        },
+      ],
+    });
+
+    expect(metrics.records[0]?.tools).toEqual({
+      rawEventCount: 6,
+      logicalCallCount: 4,
+      completedCount: 3,
+      failedCount: 0,
+      uniqueTools: ["search"],
+      sequence: [
+        { tool: "search", surface: "cli", status: "completed" },
+        { tool: "search", surface: "mcp", status: "completed" },
+        { tool: "search", surface: "mcp", status: "completed" },
+        { tool: "search", surface: "mcp", status: "started" },
+      ],
+      resultBytes: null,
+    });
+    expect(JSON.stringify(metrics)).not.toContain("providerCallId");
   });
 });

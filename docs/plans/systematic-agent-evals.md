@@ -543,15 +543,21 @@ None.
 7. **Pending final validation/live canary:** Run deterministic tests, typecheck/format/lint as applicable, then rerun the
    two-workload canary once for Luna-low across both profiles. Compare emitted
    metrics manually to the raw terminal records and report actual duration/cost.
+   Deterministic coverage now includes provider-ID pairing for Codex MCP and
+   CLI start/completion observations, started-only calls, and repeated calls to
+   one tool under distinct IDs.
 
 ### Edge Cases And Boundaries
 
 - Reasoning output is a subset/detail of output unless the provider contract
   explicitly changes.
-- Tool start/completion events must not inflate logical call count. The current
-  Codex adapter still counts persisted extracted events, so a start/completion
-  pair can overcount one underlying call; logical-call correction remains a
-  final Phase 1 validation item. Preserve raw event count separately.
+- Tool start/completion events must not inflate logical call count. Codex raw
+  observations carry the provider `item.id`; metrics pair only observations
+  with the same surface, ID, and normalized tool, preserve first-call order,
+  and use the latest status. Started-only observations count once, distinct IDs
+  remain distinct calls, and observations without IDs are not paired by
+  heuristics. Preserve raw event count separately. Unsupported agents retain
+  an unknown logical count until their provider semantics are implemented.
 - CLI commands with `npx`, the local shim, or `bun run ... githits` normalize to
   the logical GitHits operation without persisting secret-bearing arguments.
 - Non-GitHits shell commands remain outside GitHits tool metrics.

@@ -1585,6 +1585,124 @@ describe("agent eval harness", () => {
     ]);
   });
 
+  it("preserves Codex provider IDs and statuses for paired MCP and CLI events", () => {
+    const events = [
+      {
+        type: "item.started",
+        item: {
+          type: "command_execution",
+          id: "command-1",
+          command: "githits search express",
+          status: "in_progress",
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          id: "command-1",
+          command: "githits search express",
+          status: "completed",
+        },
+      },
+      {
+        type: "item.started",
+        item: {
+          type: "mcp_tool_call",
+          id: "mcp-1",
+          server: "githits",
+          tool: "search",
+          status: "in_progress",
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "mcp_tool_call",
+          id: "mcp-1",
+          server: "githits",
+          tool: "search",
+          status: "completed",
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "mcp_tool_call",
+          id: "mcp-2",
+          server: "githits",
+          tool: "search",
+          status: "completed",
+        },
+      },
+      {
+        type: "item.started",
+        item: {
+          type: "mcp_tool_call",
+          id: "mcp-3",
+          server: "githits",
+          tool: "search",
+          status: "in_progress",
+        },
+      },
+    ].map((event) => JSON.stringify(event));
+
+    expect(extractToolCalls(events.join("\n"), "codex")).toEqual([
+      {
+        agent: "codex",
+        server: "githits-cli",
+        tool: "search",
+        providerCallId: "command-1",
+        status: "in_progress",
+        arguments: { command: "githits search express" },
+      },
+      {
+        agent: "codex",
+        server: "githits-cli",
+        tool: "search",
+        providerCallId: "command-1",
+        status: "completed",
+        arguments: { command: "githits search express" },
+      },
+      {
+        agent: "codex",
+        server: "githits",
+        tool: "search",
+        providerCallId: "mcp-1",
+        status: "in_progress",
+        arguments: undefined,
+        error: undefined,
+      },
+      {
+        agent: "codex",
+        server: "githits",
+        tool: "search",
+        providerCallId: "mcp-1",
+        status: "completed",
+        arguments: undefined,
+        error: undefined,
+      },
+      {
+        agent: "codex",
+        server: "githits",
+        tool: "search",
+        providerCallId: "mcp-2",
+        status: "completed",
+        arguments: undefined,
+        error: undefined,
+      },
+      {
+        agent: "codex",
+        server: "githits",
+        tool: "search",
+        providerCallId: "mcp-3",
+        status: "in_progress",
+        arguments: undefined,
+        error: undefined,
+      },
+    ]);
+  });
+
   it("extracts Claude MCP tool calls from verbose stream events", () => {
     const calls = extractToolCalls(
       `${JSON.stringify({

@@ -176,6 +176,7 @@ interface ExtractedToolCall {
   agent: AgentName;
   server?: string;
   tool: string;
+  providerCallId?: string;
   status?: string;
   arguments?: unknown;
   error?: unknown;
@@ -1128,10 +1129,15 @@ function extractCodexToolCall(
   if (record.type !== "mcp_tool_call" || typeof record.tool !== "string") {
     return undefined;
   }
+  const providerCallId =
+    typeof record.id === "string" && record.id.length > 0
+      ? record.id
+      : undefined;
   return {
     agent: "codex",
     server: typeof record.server === "string" ? record.server : undefined,
     tool: record.tool,
+    ...(providerCallId ? { providerCallId } : {}),
     status: typeof record.status === "string" ? record.status : undefined,
     arguments: record.arguments,
     error: record.error,
@@ -1245,6 +1251,22 @@ function extractCliToolCalls(
   agent: AgentName,
 ): ExtractedToolCall[] {
   const commands = collectCommandStrings(event);
+  const item = event.item;
+  const providerCallId =
+    agent === "codex" &&
+    item !== null &&
+    typeof item === "object" &&
+    typeof (item as Record<string, unknown>).id === "string" &&
+    ((item as Record<string, unknown>).id as string).length > 0
+      ? ((item as Record<string, unknown>).id as string)
+      : undefined;
+  const itemStatus =
+    agent === "codex" &&
+    item !== null &&
+    typeof item === "object" &&
+    typeof (item as Record<string, unknown>).status === "string"
+      ? ((item as Record<string, unknown>).status as string)
+      : undefined;
   const seen = new Set<string>();
   return commands.flatMap((command): ExtractedToolCall[] => {
     const tool = cliToolNameFromCommand(command);
@@ -1257,7 +1279,8 @@ function extractCliToolCalls(
         agent,
         server: "githits-cli",
         tool,
-        status: "started",
+        ...(providerCallId ? { providerCallId } : {}),
+        status: itemStatus ?? "started",
         arguments: { command },
       },
     ];
@@ -1913,12 +1936,15 @@ async function runWorkload(
         toolCallCount: toolCalls.length,
       },
       stdout: result.stdout,
-      toolCalls: toolCalls.map(({ tool, server, status, error }) => ({
-        tool,
-        server,
-        status,
-        error,
-      })),
+      toolCalls: toolCalls.map(
+        ({ tool, server, providerCallId, status, error }) => ({
+          tool,
+          server,
+          ...(providerCallId ? { providerCallId } : {}),
+          status,
+          error,
+        }),
+      ),
       artifacts: existingWorkloadArtifacts(runDir, workloadDir),
     };
   } finally {
