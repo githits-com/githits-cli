@@ -781,6 +781,7 @@ function formatTransitiveVulnerabilityDetails(
     transitive.introducedPackageDetailsTruncated,
     limit,
     width,
+    true,
     useColors,
   );
   appendTransitivePackageLines(
@@ -791,6 +792,7 @@ function formatTransitiveVulnerabilityDetails(
     transitive.stillAffectedPackageDetailsTruncated,
     limit,
     width,
+    true,
     useColors,
   );
   appendTransitivePackageLines(
@@ -801,6 +803,7 @@ function formatTransitiveVulnerabilityDetails(
     transitive.fixedPackageDetailsTruncated,
     limit,
     width,
+    false,
     useColors,
   );
   return lines;
@@ -814,14 +817,11 @@ function appendTransitivePackageLines(
   truncated: boolean,
   limit: number,
   width: number,
+  attention: boolean,
   useColors: boolean,
 ): void {
   if (totalCount === 0) return;
-  lines.push(
-    label.startsWith("Added") || label.startsWith("Still")
-      ? attentionLine(`  ${label}`, useColors)
-      : `  ${label}`,
-  );
+  lines.push(attention ? attentionLine(`  ${label}`, useColors) : `  ${label}`);
   const visible = packages.slice(0, limit);
   for (const pkg of visible)
     lines.push(...formatTransitivePackageLines(pkg, width));
@@ -831,7 +831,7 @@ function appendTransitivePackageLines(
   const backendRemaining = Math.max(0, totalCount - packages.length);
   if (truncated || backendRemaining > 0)
     lines.push(
-      label.startsWith("Added") || label.startsWith("Still")
+      attention
         ? attentionLine(
             `    - ... +${backendRemaining} more not returned by backend page`,
             useColors,
@@ -1156,6 +1156,7 @@ function formatDependencyIssuesSection(
     issues.introducedConflicts.length +
     issues.introducedOutdated.length;
   const useColors = options.useColors === true;
+  const limit = options.verbose ? Number.POSITIVE_INFINITY : 5;
   const lines = [sectionTitle("Dependency issues", useColors)];
   if (introduced === 0) {
     lines.push(
@@ -1173,24 +1174,28 @@ function formatDependencyIssuesSection(
     lines,
     "Introduced deprecated",
     issues.introducedDeprecated,
+    limit,
     useColors,
   );
   appendStringList(
     lines,
     "Introduced duplicates",
     issues.introducedDuplicates,
+    limit,
     useColors,
   );
   appendStringList(
     lines,
     "Introduced conflicts",
     issues.introducedConflicts,
+    limit,
     useColors,
   );
   appendStringList(
     lines,
     "Introduced outdated",
     issues.introducedOutdated,
+    limit,
     useColors,
   );
   return lines;
@@ -1200,12 +1205,21 @@ function appendStringList(
   lines: string[],
   label: string,
   items: string[],
+  limit: number,
   useColors: boolean,
 ): void {
   if (items.length === 0) return;
   lines.push(attentionLine(`  ${label}`, useColors));
-  for (const item of items)
+  for (const item of items.slice(0, limit))
     lines.push(attentionLine(`    - ${item}`, useColors));
+  const remaining = items.length - limit;
+  if (remaining > 0)
+    lines.push(
+      attentionLine(
+        `    - ... +${remaining} more with verbose output`,
+        useColors,
+      ),
+    );
 }
 
 function attentionLine(text: string, useColors: boolean): string {

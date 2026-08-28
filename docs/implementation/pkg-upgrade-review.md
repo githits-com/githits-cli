@@ -335,11 +335,12 @@ target totals, while undefined evidence is omitted. Missing target security
 summary retains `Target: deprecation unknown`.
 
 Default samples remain bounded: direct advisories and transitive vulnerable
-package details show up to five rows, peer changes up to ten, and dependency
-change details use the existing compact/verbose limits. Changelog keyword hits
-remain visible; ordinary entries are sampled. `--verbose` expands the bounded
-row groups in place without changing the JSON response. Backend truncation and
-unknown evidence remain explicit rather than being presented as complete.
+package details and dependency-issue locators show up to five rows per category,
+peer changes up to ten, and dependency change details use the existing
+compact/verbose limits. Changelog keyword hits remain visible; ordinary entries
+are sampled. `--verbose` expands the bounded row groups in place without
+changing the JSON response. Backend truncation and unknown evidence remain
+explicit rather than being presented as complete.
 
 ## Fact Reporting Rules
 

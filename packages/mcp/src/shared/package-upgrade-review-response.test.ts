@@ -528,35 +528,76 @@ describe("package upgrade review response", () => {
 
   it("groups dependency issue locators as bounded bullets", () => {
     const base = formatterReview();
+    const deprecated = Array.from(
+      { length: 12 },
+      (_, index) => `npm:deprecated-${index + 1}@1.0.0`,
+    );
+    const duplicates = Array.from(
+      { length: 12 },
+      (_, index) => `npm:duplicate-${index + 1}@1.0.0`,
+    );
+    const conflicts = Array.from(
+      { length: 12 },
+      (_, index) => `npm:conflict-${index + 1}@1.0.0`,
+    );
+    const outdated = Array.from(
+      { length: 12 },
+      (_, index) => `npm:outdated-${index + 1}@1.0.0`,
+    );
+    const dependencyIssues = {
+      currentTotal: 0,
+      targetTotal: 48,
+      introducedDeprecated: deprecated,
+      introducedDuplicates: duplicates,
+      introducedConflicts: conflicts,
+      introducedOutdated: outdated,
+    };
     const text = formatPackageUpgradeReviewTerminal(
       {
         summary: backendResponse.summary,
         reviews: [
           {
             ...base,
-            dependencyIssues: {
-              currentTotal: 1,
-              targetTotal: 4,
-              introducedDeprecated: [
-                "npm:deprecated-one@1.0.0",
-                "npm:deprecated-two@1.0.0",
-              ],
-              introducedDuplicates: ["npm:duplicate-one@1.0.0"],
-              introducedConflicts: [],
-              introducedOutdated: [],
-            },
+            dependencyIssues,
           },
         ],
       },
-      { terminalWidth: 20 },
+      { terminalWidth: 80 },
     );
-    expect(text).toContain(
-      "Introduced deprecated\n    - npm:deprecated-one@1.0.0\n    - npm:deprecated-two@1.0.0",
+    const compactSection = text.slice(text.indexOf("Dependency issues"));
+    expect(compactSection).toContain(
+      "  48 introduced | current total: 0 | target total: 48",
     );
-    expect(text).not.toContain("deprecated-one@1.0.0, npm:deprecated-two");
-    expect(text).toContain(
-      "Introduced duplicates\n    - npm:duplicate-one@1.0.0",
+    expect(compactSection).toContain(
+      "Introduced deprecated\n    - npm:deprecated-1@1.0.0",
     );
+    expect(compactSection).toContain("    - ... +7 more with verbose output");
+    expect(compactSection).not.toContain("npm:deprecated-6@1.0.0");
+    expect(compactSection).toContain(
+      "Introduced duplicates\n    - npm:duplicate-1@1.0.0",
+    );
+    expect(compactSection).toContain("    - ... +7 more with verbose output");
+    expect(compactSection).not.toContain("npm:duplicate-6@1.0.0");
+    expect(
+      compactSection.split("\n").filter((line) => line.startsWith("    - ")),
+    ).toHaveLength(24);
+
+    const verbose = formatPackageUpgradeReviewTerminal(
+      {
+        summary: backendResponse.summary,
+        reviews: [{ ...base, dependencyIssues }],
+      },
+      { terminalWidth: 80, verbose: true },
+    );
+    const verboseSection = verbose.slice(verbose.indexOf("Dependency issues"));
+    expect(verboseSection).not.toContain("more with verbose output");
+    expect(verboseSection).toContain("npm:deprecated-12@1.0.0");
+    expect(verboseSection).toContain("npm:duplicate-12@1.0.0");
+    expect(verboseSection).toContain("npm:conflict-12@1.0.0");
+    expect(verboseSection).toContain("npm:outdated-12@1.0.0");
+    expect(
+      verboseSection.split("\n").filter((line) => line.startsWith("    - ")),
+    ).toHaveLength(48);
   });
 
   it("wraps prose at the configured width without splitting locators", () => {
@@ -792,6 +833,77 @@ describe("package upgrade review response", () => {
     expect(colored).not.toContain("\x1b[36mUpgrade review");
     expect(colored).not.toContain("\x1b[36mSecurity");
     expect(plain).not.toContain("⚠");
+    expect(plain).toMatch(/^[\x20-\x7e\n]*$/);
+
+    const styledBase = formatterReview();
+    const styledTransitive = styledBase.security.transitive!;
+    const styledDetail = styledTransitive.introducedPackageDetails[0]!;
+    const styled = formatPackageUpgradeReviewTerminal(
+      formatterResponse([
+        formatterReview({
+          security: {
+            ...styledBase.security,
+            transitive: {
+              ...styledTransitive,
+              introducedPackageDetails: [styledDetail],
+              introducedPackageDetailsTotalCount: 1,
+              introducedPackageDetailsTruncated: false,
+              stillAffectedPackageDetails: [styledDetail],
+              stillAffectedPackageDetailsTotalCount: 1,
+              stillAffectedPackageDetailsTruncated: false,
+              fixedPackageDetails: [styledDetail],
+              fixedPackageDetailsTotalCount: 1,
+              fixedPackageDetailsTruncated: false,
+            },
+          },
+        }),
+      ]),
+      { useColors: true },
+    );
+    expect(styled).toContain("\x1b[33m  Added transitive vulnerable packages");
+    expect(styled).toContain("\x1b[33m  Still affected transitive packages");
+    expect(styled).toContain("  Fixed transitive vulnerable packages");
+    expect(styled).not.toContain(
+      "\x1b[33m  Fixed transitive vulnerable packages",
+    );
+
+    const unicodeSummary = "安全 review 🚀";
+    const unicodeExcerpt = "breaking: 修复 parser 🚀";
+    const unicodeBase = formatterReview();
+    const unicodeEntry = {
+      ...unicodeBase.changelog.entries[0]!,
+      body: unicodeExcerpt,
+      bodyPreview: unicodeExcerpt,
+      headline: unicodeExcerpt,
+      signals: ["breaking"],
+    };
+    const unicodeResponse = formatterResponse([
+      formatterReview({
+        security: {
+          ...unicodeBase.security,
+          added: [
+            {
+              ...unicodeBase.security.added[0]!,
+              summary: unicodeSummary,
+            },
+          ],
+        },
+        changelog: {
+          ...unicodeBase.changelog,
+          entries: [unicodeEntry],
+          keywordEntries: [unicodeEntry],
+        },
+      }),
+    ]);
+    const unicodePlain = formatPackageUpgradeReviewTerminal(unicodeResponse, {
+      useColors: false,
+    });
+    const unicodeColored = formatPackageUpgradeReviewTerminal(unicodeResponse, {
+      useColors: true,
+    });
+    expect(unicodePlain).toContain(unicodeSummary);
+    expect(unicodePlain).toContain(unicodeExcerpt);
+    expect(stripAnsi(unicodeColored)).toBe(unicodePlain);
   });
 
   it("preserves default samples and expands them only in verbose mode", () => {
