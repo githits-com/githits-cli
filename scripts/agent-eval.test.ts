@@ -36,6 +36,7 @@ import {
   extractToolCalls,
   isolateOpenCodeSkills,
   isValidAgentReport,
+  loadTargetGuidanceBlock,
   parseArgs,
   prepareFullGuidanceWorkspace,
   prepareSkillsWorkspace,
@@ -75,6 +76,23 @@ import {
 
 function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function createTargetFixture(guidanceBlock = "Target guidance"): string {
+  const targetRoot = mkdtempSync(join(tmpdir(), "agent-eval-target-"));
+  mkdirSync(join(targetRoot, "src", "commands", "init"), {
+    recursive: true,
+  });
+  mkdirSync(join(targetRoot, "skills", "githits-mcp"), { recursive: true });
+  writeFileSync(
+    join(targetRoot, "src", "commands", "init", "guidance-assets.ts"),
+    `export const GITHITS_GUIDANCE_BLOCK = ${JSON.stringify(guidanceBlock)};\n`,
+  );
+  writeFileSync(
+    join(targetRoot, "skills", "githits-mcp", "SKILL.md"),
+    "# Target skill\n",
+  );
+  return targetRoot;
 }
 
 function createRunFixture(status = "success"): string {
@@ -200,6 +218,302 @@ describe("agent eval harness", () => {
       command: "bun",
       args: ["run", "--cwd", "/repo/githits-cli", "dev", "mcp", "start"],
     });
+  });
+
+  it("keeps measurement and target roots separate with target root parsing", () => {
+    const defaults = parseArgs(["--dry-run"], "/repo/harness");
+    expect(defaults.repoRoot).toBe("/repo/harness");
+    expect(defaults.targetRoot).toBe("/repo/harness");
+    expect(defaults.schemaPath).toBe(
+      "/repo/harness/eval/agentic/result.schema.json",
+    );
+    expect(defaults.reportingPath).toBe(
+      "/repo/harness/eval/agentic/workloads/REPORTING.md",
+    );
+    expect(defaults.workloads).toEqual([
+      "/repo/harness/eval/agentic/workloads/express-router.md",
+    ]);
+
+    const explicit = parseArgs(
+      ["--target-root", "../target", "--out", "runs/local", "--dry-run"],
+      "/repo/harness",
+    );
+    expect(explicit.repoRoot).toBe("/repo/harness");
+    expect(explicit.targetRoot).toBe("/repo/target");
+    expect(explicit.outDir).toBe("/repo/harness/runs/local");
+    expect(explicit.schemaPath).toBe(
+      "/repo/harness/eval/agentic/result.schema.json",
+    );
+    expect(explicit.reportingPath).toBe(
+      "/repo/harness/eval/agentic/workloads/REPORTING.md",
+    );
+    expect(explicit.workloads).toEqual([
+      "/repo/harness/eval/agentic/workloads/express-router.md",
+    ]);
+  });
+
+  it("uses the target root for local launch vectors and skill installation", () => {
+    const targetRoot = createTargetFixture();
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-eval-target-work-"));
+    try {
+      const options = {
+        server: "local" as const,
+        repoRoot: "/repo/harness",
+        targetRoot,
+        publishedPackage: "githits@latest",
+        experimentalTools: true,
+      };
+      const expectedMcpArgs = [
+        "run",
+        "--cwd",
+        targetRoot,
+        "dev",
+        "mcp",
+        "start",
+        "--experimental-tools",
+      ];
+      expect(buildMcpConfig(options).mcpServers.githits.args).toEqual(
+        expectedMcpArgs,
+      );
+      expect(buildCodexConfig(options)).toContain(
+        JSON.stringify(expectedMcpArgs),
+      );
+      expect(buildCodexConfigArgs(options)).toContain(
+        `mcp_servers.githits.args=${JSON.stringify(expectedMcpArgs)}`,
+      );
+      expect(buildOpenCodeConfig(options).mcp?.githits?.command).toEqual([
+        "bun",
+        ...expectedMcpArgs,
+      ]);
+
+      const installation = prepareSkillsWorkspace(options, workspaceDir);
+      expect(installation.sourceDir).toBe(join(targetRoot, "skills"));
+      expect(
+        existsSync(join(workspaceDir, "skills", "githits-mcp", "SKILL.md")),
+      ).toBe(true);
+      expect(readFileSync(installation.cliShim, "utf8")).toContain(targetRoot);
+      expect(options.repoRoot).toBe("/repo/harness");
+    } finally {
+      rmSync(targetRoot, { recursive: true, force: true });
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("uses target root guidance and keeps descriptor roots harness-owned", async () => {
+    const targetRoot = createTargetFixture("Target guidance A");
+    const targetRootB = createTargetFixture("Target guidance B");
+    const descriptorTargetRoot = mkdtempSync(
+      join(tmpdir(), "agent-eval-target-descriptor-root-"),
+    );
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-eval-target-full-"));
+    const workspaceDirB = mkdtempSync(
+      join(tmpdir(), "agent-eval-target-full-b-"),
+    );
+    try {
+      const options = {
+        server: "local" as const,
+        repoRoot: "/repo/harness",
+        targetRoot,
+        publishedPackage: "githits@latest",
+      };
+      const block = await loadTargetGuidanceBlock(targetRoot);
+      const installation = prepareFullGuidanceWorkspace(
+        options,
+        workspaceDir,
+        block,
+      );
+      const content = readFileSync(join(workspaceDir, "AGENTS.md"), "utf8");
+      expect(content).toContain("Target guidance A");
+      expect(content).not.toContain(GITHITS_GUIDANCE_BLOCK);
+      expect(installation.skillInstallation.sourceDir).toBe(
+        join(targetRoot, "skills"),
+      );
+
+      const blockB = await loadTargetGuidanceBlock(targetRootB);
+      prepareFullGuidanceWorkspace(
+        { ...options, targetRoot: targetRootB },
+        workspaceDirB,
+        blockB,
+      );
+      expect(readFileSync(join(workspaceDirB, "AGENTS.md"), "utf8")).toContain(
+        "Target guidance B",
+      );
+
+      const outDir = mkdtempSync(
+        join(tmpdir(), "agent-eval-target-descriptor-"),
+      );
+      try {
+        const descriptorOptions = parseArgs(
+          [
+            "--guidance-profile",
+            "descriptors",
+            "--target-root",
+            descriptorTargetRoot,
+            "--out",
+            outDir,
+            "--dry-run",
+            "--workload",
+            "eval/agentic/workloads/express-router.md",
+          ],
+          process.cwd(),
+        );
+        await runAgentEval(descriptorOptions);
+        const workloadDir = join(outDir, "workloads", "express-router");
+        const run = JSON.parse(readFileSync(join(outDir, "run.json"), "utf8"));
+        const dryRun = JSON.parse(
+          readFileSync(join(workloadDir, "dry-run.json"), "utf8"),
+        );
+        expect(run.repoRoot).toBe(process.cwd());
+        expect(run.measurementRoot).toBe(process.cwd());
+        expect(run.targetRoot).toBe(descriptorTargetRoot);
+        expect(dryRun.measurementRoot).toBe(process.cwd());
+        expect(dryRun.targetRoot).toBe(descriptorTargetRoot);
+        expect(
+          existsSync(join(workloadDir, "guidance-installation.json")),
+        ).toBe(false);
+        expect(
+          JSON.parse(readFileSync(join(workloadDir, "mcp.json"), "utf8"))
+            .mcpServers.githits.args,
+        ).toContain(descriptorTargetRoot);
+      } finally {
+        rmSync(outDir, { recursive: true, force: true });
+      }
+    } finally {
+      rmSync(targetRoot, { recursive: true, force: true });
+      rmSync(targetRootB, { recursive: true, force: true });
+      rmSync(descriptorTargetRoot, { recursive: true, force: true });
+      rmSync(workspaceDir, { recursive: true, force: true });
+      rmSync(workspaceDirB, { recursive: true, force: true });
+    }
+  });
+
+  it("fails full target root guidance preflight before paid probes", async () => {
+    const missingRoot = mkdtempSync(
+      join(tmpdir(), "agent-eval-target-missing-"),
+    );
+    const invalidRoot = createTargetFixture();
+    const importFailureRoot = createTargetFixture();
+    writeFileSync(
+      join(invalidRoot, "src", "commands", "init", "guidance-assets.ts"),
+      "export const GITHITS_GUIDANCE_BLOCK = 42;\n",
+    );
+    writeFileSync(
+      join(importFailureRoot, "src", "commands", "init", "guidance-assets.ts"),
+      'throw new Error("target guidance import failed");\n',
+    );
+    const roots = [
+      {
+        targetRoot: missingRoot,
+        error: "Target guidance module not found",
+      },
+      {
+        targetRoot: invalidRoot,
+        error: "invalid GITHITS_GUIDANCE_BLOCK export",
+      },
+      {
+        targetRoot: importFailureRoot,
+        error: "Target guidance module failed to load",
+      },
+    ];
+    try {
+      for (const { targetRoot, error } of roots) {
+        const outDir = mkdtempSync(join(tmpdir(), "agent-eval-target-fail-"));
+        let availabilityCalls = 0;
+        let versionCalls = 0;
+        try {
+          const options = parseArgs(
+            [
+              "--guidance-profile",
+              "full",
+              "--target-root",
+              targetRoot,
+              "--out",
+              outDir,
+              "--workload",
+              "eval/agentic/workloads/express-router.md",
+            ],
+            process.cwd(),
+          );
+          await expect(
+            runAgentEval(options, {
+              assertAgentAvailable: async () => {
+                availabilityCalls += 1;
+              },
+              collectAgentVersions: async () => {
+                versionCalls += 1;
+                return ["claude", "codex", "opencode"];
+              },
+            }),
+          ).rejects.toThrow(error);
+          expect(availabilityCalls).toBe(0);
+          expect(versionCalls).toBe(0);
+        } finally {
+          rmSync(outDir, { recursive: true, force: true });
+        }
+      }
+    } finally {
+      for (const { targetRoot } of roots) {
+        rmSync(targetRoot, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it("probes target root Git metadata and records target Git in dry-run metadata", async () => {
+    const probedCwds: string[] = [];
+    const targetRoot = "/repo/target";
+    const git = await collectGitMetadata(
+      targetRoot,
+      async (_command, args, cwd) => {
+        probedCwds.push(cwd);
+        return {
+          stdout:
+            args[0] === "branch"
+              ? "target\n"
+              : args[0] === "status"
+                ? ""
+                : "target-sha\n",
+          exitCode: 0,
+        };
+      },
+    );
+    expect(probedCwds).toEqual([targetRoot, targetRoot, targetRoot]);
+    expect(git).toEqual({
+      branch: "target",
+      sha: "target-sha",
+      dirty: false,
+    });
+
+    const targetFixture = createTargetFixture();
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-target-git-"));
+    try {
+      const options = parseArgs(
+        [
+          "--target-root",
+          targetFixture,
+          "--out",
+          outDir,
+          "--dry-run",
+          "--workload",
+          "eval/agentic/workloads/express-router.md",
+        ],
+        process.cwd(),
+      );
+      await runAgentEval(options);
+      const run = JSON.parse(readFileSync(join(outDir, "run.json"), "utf8"));
+      const dryRun = JSON.parse(
+        readFileSync(
+          join(outDir, "workloads", "express-router", "dry-run.json"),
+          "utf8",
+        ),
+      );
+      expect(run.targetRoot).toBe(targetFixture);
+      expect(run.git).toEqual(dryRun.targetGit);
+      expect(dryRun.measurementRoot).toBe(process.cwd());
+      expect(dryRun.targetRoot).toBe(targetFixture);
+    } finally {
+      rmSync(targetFixture, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true });
+    }
   });
 
   it("keeps MCP server configuration identical across guidance profiles", () => {

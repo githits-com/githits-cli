@@ -20,6 +20,7 @@ import {
   relative,
   resolve,
 } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   GITHITS_GUIDANCE_BLOCK,
   GITHITS_GUIDANCE_MARKER,
@@ -72,6 +73,7 @@ export interface AgentEvalOptions {
   publishedPackage: string;
   dryRun: boolean;
   repoRoot: string;
+  targetRoot: string;
   schemaPath: string;
   reportingPath: string;
 }
@@ -275,6 +277,14 @@ function defaultOutDir(repoRoot: string): string {
   return join(repoRoot, ".agent-eval", "runs", timestamp());
 }
 
+type TargetRootOptions = Pick<AgentEvalOptions, "repoRoot"> & {
+  targetRoot?: string;
+};
+
+function effectiveTargetRoot(options: TargetRootOptions): string {
+  return options.targetRoot ?? options.repoRoot;
+}
+
 function parsePositiveInteger(value: string, flag: string): number {
   const parsed = Number(value);
   assert(
@@ -300,6 +310,7 @@ export function parseArgs(
     publishedPackage: "githits@latest",
     dryRun: false,
     repoRoot,
+    targetRoot: repoRoot,
     schemaPath: join(repoRoot, "eval", "agentic", "result.schema.json"),
     reportingPath: join(
       repoRoot,
@@ -382,6 +393,12 @@ export function parseArgs(
         const value = argv[++i];
         assert(value, "--out requires a path");
         options.outDir = resolve(repoRoot, value);
+        break;
+      }
+      case "--target-root": {
+        const value = argv[++i];
+        assert(value, "--target-root requires a path");
+        options.targetRoot = resolve(repoRoot, value);
         break;
       }
       case "--timeout": {
@@ -489,6 +506,7 @@ Options:
   --server local|published        GitHits source mode: local checkout or published package (default: local)
   --workload <path>               Workload markdown path, repeatable
   --out <dir>                     Output directory
+  --target-root <path>             Target checkout under test (default: measurement root)
   --timeout <seconds>             Per-workload timeout (default: 300)
   --published-package <spec>      Package for published mode (default: githits@latest)
   --experimental-tools            Enable local experimental MCP tools for this run
@@ -503,6 +521,7 @@ export function buildMcpConfig(
     AgentEvalOptions,
     "server" | "repoRoot" | "publishedPackage"
   > & {
+    targetRoot?: string;
     experimentalTools?: boolean;
     guidanceProfile?: GuidanceProfile;
   },
@@ -521,6 +540,7 @@ function buildMcpCommand(
     AgentEvalOptions,
     "server" | "repoRoot" | "publishedPackage"
   > & {
+    targetRoot?: string;
     experimentalTools?: boolean;
     guidanceProfile?: GuidanceProfile;
   },
@@ -528,12 +548,13 @@ function buildMcpCommand(
 ): McpServerConfig["mcpServers"]["githits"] {
   const env = buildMcpServerEnv(baseEnv);
   if (options.server === "local") {
+    const targetRoot = effectiveTargetRoot(options);
     return {
       command: "bun",
       args: [
         "run",
         "--cwd",
-        options.repoRoot,
+        targetRoot,
         "dev",
         "mcp",
         "start",
@@ -566,6 +587,7 @@ export function buildCodexConfig(
     AgentEvalOptions,
     "server" | "repoRoot" | "publishedPackage"
   > & {
+    targetRoot?: string;
     experimentalTools?: boolean;
     guidanceProfile?: GuidanceProfile;
     reasoningEffort?: CodexReasoningEffort;
@@ -599,6 +621,7 @@ export function buildCodexConfigArgs(
     AgentEvalOptions,
     "server" | "repoRoot" | "publishedPackage"
   > & {
+    targetRoot?: string;
     experimentalTools?: boolean;
     guidanceProfile?: GuidanceProfile;
     reasoningEffort?: CodexReasoningEffort;
@@ -634,6 +657,7 @@ export function buildOpenCodeConfig(
     AgentEvalOptions,
     "server" | "repoRoot" | "publishedPackage"
   > & {
+    targetRoot?: string;
     experimentalTools?: boolean;
     guidanceProfile?: GuidanceProfile;
   },
@@ -669,23 +693,27 @@ function shQuote(value: string): string {
 }
 
 function writeGitHitsShim(
-  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  options: Pick<
+    AgentEvalOptions,
+    "server" | "repoRoot" | "publishedPackage"
+  > & { targetRoot?: string },
   binDir: string,
 ): string {
   mkdirSync(binDir, { recursive: true });
   const isWindows = process.platform === "win32";
   const shimPath = join(binDir, isWindows ? "githits.cmd" : "githits");
+  const targetRoot = effectiveTargetRoot(options);
   if (isWindows) {
     const command =
       options.server === "local"
-        ? `bun run --cwd "${options.repoRoot}" dev %*`
+        ? `bun run --cwd "${targetRoot}" dev %*`
         : `npx -y "${options.publishedPackage}" %*`;
     writeFileSync(shimPath, `@echo off\r\n${command}\r\n`);
     return shimPath;
   }
   const command =
     options.server === "local"
-      ? `exec bun run --cwd ${shQuote(options.repoRoot)} dev "$@"`
+      ? `exec bun run --cwd ${shQuote(targetRoot)} dev "$@"`
       : `exec npx -y ${shQuote(options.publishedPackage)} "$@"`;
   writeFileSync(shimPath, `#!/bin/sh\n${command}\n`);
   chmodSync(shimPath, 0o755);
@@ -716,11 +744,14 @@ function assertMissing(path: string, description: string): void {
 }
 
 function planSkillsWorkspace(
-  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  options: Pick<
+    AgentEvalOptions,
+    "server" | "repoRoot" | "publishedPackage"
+  > & { targetRoot?: string },
   workspaceDir: string,
   requestedSourceChildren?: string[],
 ): SkillWorkspacePlan {
-  const sourceDir = join(options.repoRoot, "skills");
+  const sourceDir = join(effectiveTargetRoot(options), "skills");
   assert(existsSync(sourceDir), `Skills directory not found: ${sourceDir}`);
   const sourceChildren = requestedSourceChildren ?? readdirSync(sourceDir);
   if (requestedSourceChildren) {
@@ -761,7 +792,10 @@ function planSkillsWorkspace(
 }
 
 function applySkillWorkspacePlan(
-  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  options: Pick<
+    AgentEvalOptions,
+    "server" | "repoRoot" | "publishedPackage"
+  > & { targetRoot?: string },
   plan: SkillWorkspacePlan,
 ): SkillInstallationMetadata {
   for (const installedDir of plan.installedDirs) {
@@ -782,7 +816,10 @@ function applySkillWorkspacePlan(
 }
 
 export function prepareSkillsWorkspace(
-  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  options: Pick<
+    AgentEvalOptions,
+    "server" | "repoRoot" | "publishedPackage"
+  > & { targetRoot?: string },
   workspaceDir: string,
 ): SkillInstallationMetadata {
   return applySkillWorkspacePlan(
@@ -791,7 +828,10 @@ export function prepareSkillsWorkspace(
   );
 }
 
-function planProjectGuidance(workspaceDir: string): ProjectGuidancePlan {
+function planProjectGuidance(
+  workspaceDir: string,
+  guidanceBlock: string,
+): ProjectGuidancePlan {
   const instructionPaths = [
     join(workspaceDir, "CLAUDE.md"),
     join(workspaceDir, "AGENTS.md"),
@@ -809,13 +849,46 @@ function planProjectGuidance(workspaceDir: string): ProjectGuidancePlan {
     const merged = mergeManagedBlock(
       existing,
       GITHITS_GUIDANCE_MARKER,
-      GITHITS_GUIDANCE_BLOCK,
+      guidanceBlock,
     );
     if (merged.status !== "already_configured") {
       writes.push({ path: instructionPath, content: merged.content });
     }
   }
   return { instructionPaths, writes };
+}
+
+export async function loadTargetGuidanceBlock(
+  targetRoot: string,
+): Promise<string> {
+  const modulePath = resolve(
+    targetRoot,
+    "src",
+    "commands",
+    "init",
+    "guidance-assets.ts",
+  );
+  assert(
+    existsSync(modulePath),
+    `Target guidance module not found: ${modulePath}`,
+  );
+  let guidanceModule: unknown;
+  try {
+    guidanceModule = await import(pathToFileURL(modulePath).href);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Target guidance module failed to load: ${message}`);
+  }
+  const guidanceBlock =
+    guidanceModule !== null && typeof guidanceModule === "object"
+      ? (guidanceModule as { GITHITS_GUIDANCE_BLOCK?: unknown })
+          .GITHITS_GUIDANCE_BLOCK
+      : undefined;
+  assert(
+    typeof guidanceBlock === "string" && guidanceBlock.trim().length > 0,
+    `Target guidance module has invalid GITHITS_GUIDANCE_BLOCK export: ${modulePath}`,
+  );
+  return guidanceBlock;
 }
 
 function applyProjectGuidance(plan: ProjectGuidancePlan): void {
@@ -825,11 +898,16 @@ function applyProjectGuidance(plan: ProjectGuidancePlan): void {
 }
 
 export function prepareFullGuidanceWorkspace(
-  options: Pick<AgentEvalOptions, "server" | "repoRoot" | "publishedPackage">,
+  options: Pick<
+    AgentEvalOptions,
+    "server" | "repoRoot" | "publishedPackage"
+  > & { targetRoot?: string },
   workspaceDir: string,
+  guidanceBlock?: string,
 ): GuidanceInstallationMetadata {
+  const resolvedGuidanceBlock = guidanceBlock ?? GITHITS_GUIDANCE_BLOCK;
   const skillPlan = planSkillsWorkspace(options, workspaceDir, ["githits-mcp"]);
-  const guidancePlan = planProjectGuidance(workspaceDir);
+  const guidancePlan = planProjectGuidance(workspaceDir, resolvedGuidanceBlock);
   applyProjectGuidance(guidancePlan);
   return {
     instructionPaths: guidancePlan.instructionPaths,
@@ -1605,7 +1683,7 @@ export function buildCodexCommand(
     | "model"
     | "reasoningEffort"
     | "guidanceProfile"
-  > & { surface?: EvalSurface },
+  > & { surface?: EvalSurface; targetRoot?: string },
 ): string[] {
   const command = [
     "codex",
@@ -1746,6 +1824,8 @@ async function runWorkload(
   env: Record<string, string>,
   mcpConfig: McpServerConfig,
   secretValues: string[],
+  targetGit: GitMetadata,
+  guidanceBlock?: string,
 ): Promise<WorkloadRunExecution> {
   assert(existsSync(workloadPath), `Workload not found: ${workloadPath}`);
   assert(
@@ -1770,7 +1850,7 @@ async function runWorkload(
   writeFileSync(join(workloadDir, "prompt.md"), prompt);
   const guidanceInstallation =
     options.guidanceProfile === "full"
-      ? prepareFullGuidanceWorkspace(options, workspaceDir)
+      ? prepareFullGuidanceWorkspace(options, workspaceDir, guidanceBlock)
       : undefined;
   const skillInstallation =
     options.surface === "skills"
@@ -1821,6 +1901,9 @@ async function runWorkload(
     command,
     workspaceDir,
     workloadDir,
+    measurementRoot: options.repoRoot,
+    targetRoot: effectiveTargetRoot(options),
+    targetGit,
     experimentalTools: options.experimentalTools,
     ...(skillInstallation ? { skillInstallation } : {}),
     ...(guidanceInstallation ? { guidanceInstallation } : {}),
@@ -1969,6 +2052,10 @@ export async function runAgentEval(
   }
   const env = buildEvalEnv(process.env);
   const secretValues = collectSecretValues(env);
+  const guidanceBlock =
+    options.guidanceProfile === "full"
+      ? await loadTargetGuidanceBlock(effectiveTargetRoot(options))
+      : undefined;
   const mcpConfig = buildMcpConfig(options);
 
   if (!options.dryRun) {
@@ -1981,7 +2068,7 @@ export async function runAgentEval(
     ? Promise.resolve([undefined, undefined, undefined])
     : dependencies.collectAgentVersions();
   const [git, [claude, codex, opencode]] = await Promise.all([
-    collectGitMetadata(options.repoRoot),
+    collectGitMetadata(effectiveTargetRoot(options)),
     versionsPromise,
   ]);
 
@@ -1995,6 +2082,8 @@ export async function runAgentEval(
         env,
         mcpConfig,
         secretValues,
+        git,
+        guidanceBlock,
       ),
     );
   }
@@ -2018,6 +2107,8 @@ export async function runAgentEval(
     dryRun: options.dryRun,
     timeoutSeconds: options.timeoutSeconds,
     repoRoot: options.repoRoot,
+    measurementRoot: options.repoRoot,
+    targetRoot: effectiveTargetRoot(options),
     schemaPath: options.schemaPath,
     reportingPath: options.reportingPath,
     git,
