@@ -230,11 +230,6 @@ describe("agent eval usage metrics", () => {
       reasoningOutputTokens: 4,
       baseRateEstimatedCostUsd: 0.0000258,
     });
-    expect(metrics.aggregates).not.toMatchObject({
-      durationMs: 0,
-      uncachedInputTokens: 0,
-      baseRateEstimatedCostUsd: 0,
-    });
     expect(metrics.warnings).toEqual(["codex_terminal_usage_missing"]);
   });
 

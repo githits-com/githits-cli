@@ -374,7 +374,7 @@ that partition is verified by the upstream Codex parser fixture
 60, total tokens 110). The Luna canary had zero cache-write input, so it did
 not independently verify a nonzero cache-write case.
 
-reasoning output is an output detail and is not added again. Raw observations
+Reasoning output is an output detail and is not added again. Raw observations
 retain their provider `item.id` for pairing: Codex logical counts collapse
 observations with the same surface, ID, and normalized tool, keep first-call
 order, and use the latest status. Started-only observations count once and
