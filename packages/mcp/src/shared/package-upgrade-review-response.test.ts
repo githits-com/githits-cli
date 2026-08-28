@@ -752,8 +752,8 @@ describe("package upgrade review response", () => {
       ),
     ).toBeLessThanOrEqual(80);
 
-    const overlongUrl = "https://example.com/releases/" + "x".repeat(80);
-    const overlongCoordinate = "transitive-" + "x".repeat(80);
+    const overlongUrl = `https://example.com/releases/${"x".repeat(80)}`;
+    const overlongCoordinate = `transitive-${"x".repeat(80)}`;
     const overlong = stripAnsi(
       formatPackageUpgradeReviewTerminal(
         formatterResponse([
