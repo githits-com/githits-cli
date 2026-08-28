@@ -1290,8 +1290,8 @@ function extractCliToolCalls(
 export function extractToolCalls(
   stdout: string,
   agent: AgentName,
-  surface: EvalSurface = "mcp",
-  guidanceProfile?: GuidanceProfile,
+  _surface: EvalSurface = "mcp",
+  _guidanceProfile?: GuidanceProfile,
 ): ExtractedToolCall[] {
   const calls: ExtractedToolCall[] = [];
   for (const line of stdout.split("\n")) {
