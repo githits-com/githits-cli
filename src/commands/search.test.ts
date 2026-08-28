@@ -713,8 +713,10 @@ describe("searchAction", () => {
     expect(output).toContain(
       "Searched: repository docs, expressjs.com/en/guide docs",
     );
-    expect(output).toContain("[1] docs | Routing");
-    expect(output).toContain("https://expressjs.com/en/guide/routing.html");
+    expect(output).toContain(
+      "[1] express/routing [docs page] npm:express - expressjs.com/en/guide/routing.html - Routing",
+    );
+    expect(output).toContain("expressjs.com/en/guide/routing.html");
     expect(output).not.toContain("Documentation sources");
     expect(output).not.toContain("hits on this page");
     expect(output).not.toContain("124 pages");
@@ -938,7 +940,7 @@ describe("searchAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("1 result | 1 code");
     expect(output).toContain(
-      "[1] code | npm:express@4.18.2 | lib/router/index.js:42-57",
+      "[1] npm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware",
     );
     expect(output).not.toContain("githits code read");
     expect(output).toContain("router middleware");
@@ -1158,7 +1160,7 @@ describe("searchAction", () => {
     expect(output.split("\n")[0]).toBe("DEFERRED - 1 result returned");
     expect(output).toContain("- npm:express@4.18.2");
     expect(output).toContain(
-      "[1] code | npm:express@4.18.2 | lib/router/index.js:42-57",
+      "[1] npm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware",
     );
     expect(output).toContain("Search ref-deferred | 0/1 target ready");
     expect(output).toContain("Next: rerun search later.");
@@ -1197,7 +1199,7 @@ describe("searchAction", () => {
     );
     expect(output).toContain("- npm:express@4.18.2");
     expect(output).toContain(
-      "[1] code | npm:express@4.18.2 | lib/router/index.js:42-57",
+      "[1] npm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware",
     );
     expect(output).toContain("Search ref-future | 0/1 target ready");
     expect(output).toContain("Next: rerun search later.");
@@ -1649,12 +1651,14 @@ describe("searchAction", () => {
       );
 
       const output = String(consoleSpy.mock.calls[0]?.[0]);
-      expect(output).toContain("\u001b[1m\u001b[33mmiddleware\u001b[0m");
+      expect(output).toContain(
+        "\u001b[1m\u001b[36mnpm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware\u001b[0m",
+      );
       expect(output).toContain(
         "function \u001b[1m\u001b[33mrouter\u001b[0m(req, res, next) { ... }",
       );
       expect(output).toContain(
-        "\u001b[1m\u001b[36mcode | npm:express@4.18.2 | lib/router/index.js:42-57\u001b[0m",
+        "\u001b[1m\u001b[36mnpm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware\u001b[0m",
       );
     } finally {
       consoleSpy.mockRestore();
@@ -1775,7 +1779,7 @@ describe("searchAction", () => {
     }
   });
 
-  it("shows direct source URLs and hides page IDs for documentation pages", async () => {
+  it("shows direct source URLs and retains page IDs for documentation pages", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
     if (defaultUnifiedSearchOutcome.state !== "completed") {
@@ -1816,9 +1820,11 @@ describe("searchAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output).toContain("[1] docs | Using Express middleware");
-    expect(output).toContain("https://hexdocs.pm/express/getting-started.html");
-    expect(output).not.toContain("docs-123");
+    expect(output).toContain(
+      "[1] docs-123 [docs page] npm:express - hexdocs.pm/express/getting-started.html - Using Express middleware",
+    );
+    expect(output).toContain("hexdocs.pm/express/getting-started.html");
+    expect(output).toContain("docs-123");
     expect(output).toContain("Using Express middleware");
     expect(output).not.toContain("source:");
     expect(output).not.toContain("npm:express@4.18.2 [docs page]");
@@ -1865,8 +1871,10 @@ describe("searchAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output).toContain("[1] docs | Routing");
-    expect(output).toContain("https://docs.example/routing");
+    expect(output).toContain(
+      "[1] docs-routing [docs page] docs.example - docs.example/routing - Routing",
+    );
+    expect(output).toContain("docs.example/routing");
     expect(output).toContain("Routing");
     consoleSpy.mockRestore();
   });
@@ -2262,7 +2270,7 @@ describe("searchStatusAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("DEFERRED - 1 result returned");
     expect(output).toContain(
-      "[1] code | npm:express@4.18.2 | lib/router/index.js:42-57",
+      "[1] npm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware",
     );
     expect(output).toContain("Search ref-deferred | 1/2 targets ready");
     expect(output).toContain("Next: rerun search later.");
@@ -2301,7 +2309,7 @@ describe("searchStatusAction", () => {
       "FUTURE_SESSION_STATE - 1 result returned",
     );
     expect(output).toContain(
-      "[1] code | npm:express@4.18.2 | lib/router/index.js:42-57",
+      "[1] npm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware",
     );
     expect(output).toContain("Search ref-future | 0/1 target ready");
     expect(output).toContain("Next: rerun search later.");
@@ -2594,7 +2602,7 @@ describe("searchStatusAction", () => {
         "function \u001b[1m\u001b[33mrouter\u001b[0m(req, res, next) { ... }",
       );
       expect(output).toContain(
-        "\u001b[1m\u001b[36mcode | npm:express@4.18.2 | lib/router/index.js:42-57\u001b[0m",
+        "\u001b[1m\u001b[36mnpm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware\u001b[0m",
       );
     } finally {
       consoleSpy.mockRestore();
