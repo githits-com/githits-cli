@@ -225,6 +225,75 @@ describe("createContainer", () => {
     );
   });
 
+  it("passes the non-throwing stored refresh policy to the token manager", async () => {
+    const storageRoot = await mkdtemp(join(tmpdir(), "githits-init-auth-"));
+    const authDir = join(storageRoot, "githits", "auth");
+    const originalFetch = globalThis.fetch;
+    const fetchFn = mock(() =>
+      Promise.reject(new Error("network access was not expected")),
+    );
+    globalThis.fetch = fetchFn as unknown as typeof fetch;
+
+    try {
+      await mkdir(authDir, { recursive: true });
+      await writeFile(
+        join(authDir, "auth.json"),
+        JSON.stringify({
+          version: 1,
+          tokens: {
+            "https://mcp.githits.com": {
+              accessToken: "expired-access-token",
+              refreshToken: "retained-refresh-token",
+              expiresAt: new Date(Date.now() - 60_000).toISOString(),
+              createdAt: new Date(Date.now() - 7200_000).toISOString(),
+            },
+          },
+        }),
+      );
+
+      const configEnv =
+        process.platform === "win32"
+          ? {
+              APPDATA: storageRoot,
+              XDG_CONFIG_HOME: undefined,
+              USERPROFILE: storageRoot,
+              HOME: storageRoot,
+            }
+          : {
+              APPDATA: undefined,
+              XDG_CONFIG_HOME: storageRoot,
+              USERPROFILE: undefined,
+              HOME: storageRoot,
+            };
+
+      await withoutProxyEnv(async () =>
+        withEnvVars(
+          {
+            ...configEnv,
+            GITHITS_API_TOKEN: undefined,
+            GITHITS_AUTH_STORAGE: "file",
+            GITHITS_MCP_URL: undefined,
+          },
+          async () => {
+            await expect(createContainer()).rejects.toThrow(
+              "OAuth client registration is missing or unreadable",
+            );
+
+            const deps = await createContainer({
+              refreshFailureMode: "return-undefined",
+            });
+            expect(deps.hasValidToken).toBe(false);
+            expect(deps.apiToken).toBeUndefined();
+            expect(fetchFn).not.toHaveBeenCalled();
+          },
+        ),
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      await rm(storageRoot, { recursive: true, force: true });
+    }
+  });
+
   it("rejects insecure service URLs before constructing authenticated clients", async () => {
     await withEnvVars(
       {
