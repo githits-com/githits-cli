@@ -501,16 +501,11 @@ export function formatPackageUpgradeReviewTerminal(
         formatDependencyIssuesSection(review.dependencyIssues, options),
       );
     if (review.unknowns.length > 0) {
-      const unknownLines = [sectionTitle("Unknown evidence", useColors)];
+      const unknownLines = [
+        attentionSectionTitle("Unknown evidence", useColors),
+      ];
       for (const unknown of review.unknowns) {
-        appendWrappedText(
-          unknownLines,
-          "  - ",
-          unknown,
-          width,
-          "    ",
-          useColors ? (line) => colorize(line, "yellow", true) : undefined,
-        );
+        appendWrappedText(unknownLines, "  - ", unknown, width, "    ");
       }
       appendSection(lines, unknownLines);
     }
@@ -520,6 +515,12 @@ export function formatPackageUpgradeReviewTerminal(
 
 function sectionTitle(text: string, useColors: boolean): string {
   return useColors ? `${colors.bold}${text}${colors.reset}` : text;
+}
+
+function attentionSectionTitle(text: string, useColors: boolean): string {
+  return useColors
+    ? `${colors.bold}${colors.yellow}${text}${colors.reset}`
+    : text;
 }
 
 function normaliseTerminalWidth(width: number | undefined): number {
@@ -696,32 +697,14 @@ function appendAdvisoryLines(
     const prefix = `    - ${formatAdvisoryPrefix(advisory)}`;
     const prose = formatAdvisoryProse(advisory);
     if (prose) {
-      appendWrappedText(
-        lines,
-        `${prefix}: `,
-        prose,
-        width,
-        "      ",
-        attention && useColors
-          ? (line) => attentionLine(line, useColors)
-          : undefined,
-      );
+      appendWrappedText(lines, `${prefix}: `, prose, width, "      ");
     } else {
-      lines.push(
-        attention && useColors ? attentionLine(prefix, useColors) : prefix,
-      );
+      lines.push(prefix);
     }
   }
   const remaining = advisories.length - limit;
   if (remaining > 0)
-    lines.push(
-      attention && useColors
-        ? attentionLine(
-            `    - ... +${remaining} more with verbose output`,
-            useColors,
-          )
-        : `    - ... +${remaining} more with verbose output`,
-    );
+    lines.push(`    - ... +${remaining} more with verbose output`);
 }
 
 function formatAdvisoryPrefix(advisory: UpgradeAdvisorySummary): string {
@@ -831,12 +814,7 @@ function appendTransitivePackageLines(
   const backendRemaining = Math.max(0, totalCount - packages.length);
   if (truncated || backendRemaining > 0)
     lines.push(
-      attention
-        ? attentionLine(
-            `    - ... +${backendRemaining} more not returned by backend page`,
-            useColors,
-          )
-        : `    - ... +${backendRemaining} more not returned by backend page`,
+      `    - ... +${backendRemaining} more not returned by backend page`,
     );
 }
 
@@ -994,10 +972,15 @@ function formatKeywordChangelogEntry(
   const matched = formatMatchedExcerpts(entry, options.verbose === true);
   for (const excerpt of matched) {
     appendWrappedText(lines, "      ", excerpt, width, "      ", (line) =>
-      attentionLine(line, useColors),
+      colorizeSignalMarker(line, useColors),
     );
   }
   return lines;
+}
+
+function colorizeSignalMarker(line: string, useColors: boolean): string {
+  if (!useColors) return line;
+  return line.replace(/^(\s*\[[^\]]+\]:)/, `${colors.yellow}$1${colors.reset}`);
 }
 
 function formatPlainChangelogEntry(
@@ -1210,16 +1193,10 @@ function appendStringList(
 ): void {
   if (items.length === 0) return;
   lines.push(attentionLine(`  ${label}`, useColors));
-  for (const item of items.slice(0, limit))
-    lines.push(attentionLine(`    - ${item}`, useColors));
+  for (const item of items.slice(0, limit)) lines.push(`    - ${item}`);
   const remaining = items.length - limit;
   if (remaining > 0)
-    lines.push(
-      attentionLine(
-        `    - ... +${remaining} more with verbose output`,
-        useColors,
-      ),
-    );
+    lines.push(`    - ... +${remaining} more with verbose output`);
 }
 
 function attentionLine(text: string, useColors: boolean): string {

@@ -832,6 +832,18 @@ describe("package upgrade review response", () => {
     );
     expect(colored).not.toContain("\x1b[36mUpgrade review");
     expect(colored).not.toContain("\x1b[36mSecurity");
+    expect(colored).toContain(
+      "\x1b[33m  Added direct advisories\x1b[0m\n    - GHSA-new",
+    );
+    expect(colored).toContain(
+      "\x1b[33m  Introduced deprecated\x1b[0m\n    - npm:left-pad@1.0.0",
+    );
+    expect(colored).toContain(
+      "\x1b[1m\x1b[33mUnknown evidence\x1b[0m\n  - changelog evidence incomplete",
+    );
+    expect(colored).not.toContain("\x1b[33m    - GHSA-new");
+    expect(colored).not.toContain("\x1b[33m    - npm:left-pad@1.0.0");
+    expect(colored).not.toContain("\x1b[33m  - changelog evidence incomplete");
     expect(plain).not.toContain("⚠");
     expect(plain).toMatch(/^[\x20-\x7e\n]*$/);
 
@@ -904,6 +916,12 @@ describe("package upgrade review response", () => {
     expect(unicodePlain).toContain(unicodeSummary);
     expect(unicodePlain).toContain(unicodeExcerpt);
     expect(stripAnsi(unicodeColored)).toBe(unicodePlain);
+    expect(unicodeColored).toContain(
+      "\x1b[33m      [breaking]:\x1b[0m breaking: 修复 parser 🚀",
+    );
+    expect(unicodeColored).not.toContain(
+      "\x1b[33m      [breaking]: breaking: 修复 parser 🚀",
+    );
   });
 
   it("preserves default samples and expands them only in verbose mode", () => {

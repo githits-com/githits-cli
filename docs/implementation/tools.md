@@ -264,13 +264,15 @@ locators, truncation facts, and follow-up guidance.
 The formatter accepts ANSI and width as inputs. CLI supplies its current
 terminal width and enables ANSI when supported; MCP uses no ANSI and the
 80-column default. Outcome and section headings are bold-only, package identity
-is bold cyan, and attention facts are yellow; prose remains meaningful without
-color. Free prose uses hanging indentation and a minimum width of 20, while
-coordinates, versions, advisory IDs, and URLs remain unsplit. Changelog labels
-are exact (`Repository releases`, `Package versions (no release notes)`, or
-the normalized non-empty source verbatim). A defined zero-valued dependency
-comparison renders both direct and transitive zero counts; undefined evidence
-is omitted. Existing sample caps and `verbose` expansion remain unchanged except
+is bold cyan, and yellow is limited to compact attention summaries, labels, and
+matched signal markers. Evidence detail and locators remain plain, and prose
+remains meaningful without color. Free prose uses hanging indentation and a
+minimum width of 20, while coordinates, versions, advisory IDs, and URLs remain
+unsplit. Changelog labels are exact (`Repository releases`, `Package versions
+(no release notes)`, or the normalized non-empty source verbatim). A defined
+zero-valued dependency comparison renders both direct and transitive zero
+counts; undefined evidence is omitted. Existing sample caps and `verbose`
+expansion remain unchanged except
 that dependency-issue locators are capped at five rows per category in default
 text with an explicit remainder; `verbose` expands them fully.
 

@@ -630,12 +630,14 @@ it does not make an approval, safety, or risk claim.
 The shared formatter wraps free prose to the caller width (minimum 20 columns).
 The CLI passes `process.stdout.columns` and enables ANSI only when supported;
 MCP disables ANSI and uses the 80-column default. Outcome and section headings
-are bold, package identity is bold cyan, and attention evidence is yellow;
-color never carries information that is absent from the words. Formatter-authored
-punctuation stays ASCII while backend Unicode is preserved. `--verbose` expands
-the bounded evidence rows in place. `--json` remains the structured, lossless
-machine surface and is shared with MCP `format: "json"`; `text-v1` is an
-in-place evolving presentation, not a byte-stable prose contract.
+are bold, package identity is bold cyan, and yellow is limited to compact
+attention summaries, labels, and matched signal markers; detail prose and
+locators remain plain. Color never carries information that is absent from the
+words. Formatter-authored punctuation stays ASCII while backend Unicode is
+preserved. `--verbose` expands the bounded evidence rows in place. `--json`
+remains the structured, lossless machine surface and is shared with MCP
+`format: "json"`; `text-v1` is an in-place evolving presentation, not a
+byte-stable prose contract.
 
 **Troubleshooting.** Same debug areas as the rest of the `pkg` family.
 

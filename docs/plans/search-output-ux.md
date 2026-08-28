@@ -206,10 +206,11 @@ summaries, excerpts, and guidance wrap with hanging indentation.
 - Primary outcome: bold, first line, plain words without an internal tool name.
 - Package identity: emphasized and visually stronger than its evidence sections.
 - Section headings: bold, not the same cyan treatment as the package identity.
-- Attention evidence: explicit words plus yellow emphasis when ANSI is enabled;
-  this includes added/still-present vulnerabilities, target deprecation,
-  heuristic change signals, and unknown evidence. Yellow means “inspect this
-  fact,” not a risk rating.
+- Attention evidence: explicit words plus yellow emphasis on compact summaries,
+  labels, and matched signal markers when ANSI is enabled. Added/still-present
+  vulnerabilities, target deprecation, heuristic change signals, and unknown
+  evidence use that role, while their detail prose and locators remain plain.
+  Yellow means “inspect this fact,” not a risk rating.
 - Provenance: dates and source URLs may be dimmed when they are secondary to the
   evidence. Trust qualifiers and actions are never dimmed.
 - Positive factual changes such as fixed advisories remain plain; the formatter
@@ -312,7 +313,7 @@ order:
 7. `Dependency issues` whenever the backend returns that evidence: show the
    introduced issue details when non-empty, otherwise `none introduced` with
    the current and target totals; and
-8. `Unknown evidence` last, at full attention intensity.
+8. `Unknown evidence` last, with an attention heading and plain evidence detail.
 
 Zero facts remain explicit in the section summary where they answer the upgrade
 question, but empty detail headings are omitted. Changelog source labels use the
@@ -419,11 +420,11 @@ Tests use fixed fixtures and exact structural assertions.
    code untouched.
 4. Pass the CLI terminal width and verify that the MCP call still uses the same
    formatter with the 80-column default.
-5. Add ANSI-role and ANSI-stripped equality tests. Attention rows must include
-   words that carry the meaning before yellow is applied; provenance alone may
-   be dim; verbose/recovery guidance must not be dim. Apply attention color with
-   `colorize(..., "yellow", useColors)`; do not use `warning()`, which adds a
-   non-ASCII glyph and changes the no-color text.
+5. Add ANSI-role and ANSI-stripped equality tests. Attention summaries, labels,
+   and matched signal markers must include words that carry the meaning before
+   yellow is applied; evidence detail and locators remain plain. Provenance
+   alone may be dim; verbose/recovery guidance must not be dim. Do not use
+   `warning()`, which adds a non-ASCII glyph and changes the no-color text.
 6. Update structural live smoke assertions, permanent docs, canonical
    `AGENTS.md` tool-output guidance, and the independent two-package release
    fragment. Run plugin generation from canonical inputs and inspect its output;
@@ -523,9 +524,9 @@ remained clean.
 
 Deterministic and product verification completed as follows:
 
-- The focused four-file suite passed with 29 tests and 155 assertions. After
+- The focused four-file suite passed with 29 tests and 163 assertions. After
   the main merge, full `bun test` passed with 3,518 tests, 0 failures, and
-  11,401 assertions across 185 files; the test-only `process.stdout` descriptor
+  11,409 assertions across 185 files; the test-only `process.stdout` descriptor
   leak was fixed.
 - After the merge, typecheck, format, lint, plugin check, build, built CLI/MCP
   Node smokes, and public-package validation passed. Plugin generation remained
@@ -541,6 +542,9 @@ Deterministic and product verification completed as follows:
   same blocked authentication state.
 - Real Express default output was inspected. Normal 80-column free prose is
   bounded, while fixed locators remain intentionally unsplit.
+- Final screenshot review found that the broad attention role colored complete
+  evidence bodies. Yellow was narrowed to compact summaries, labels, and
+  matched markers; detail prose and locators remain plain.
 
 Review and evaluation truth is also recorded explicitly: Luna preflight
 findings were fixed; the single internal reviewer finding (parity process-state
