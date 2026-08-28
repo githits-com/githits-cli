@@ -3,7 +3,7 @@
 ## Status
 
 - Overall: IN PROGRESS
-- Current phase: Phase 2 — systematic local suites and paired comparison (PLANNED)
+- Current phase: Phase 2 — systematic local suites and paired comparison (READY)
 - Previous phase: Phase 1 — trustworthy local metrics (MERGED)
 - Owner: repository maintainers
 - Last verified: 2026-08-28
@@ -63,7 +63,7 @@ Out of scope for the initial phases:
 - OpenCode or the Agent Skills surface in the first scheduled matrix;
 - Claude Haiku metrics, suites, or pipeline execution before the Luna-only
   pipeline has validated the harness and selected third-party service;
-- the two experimental-tool workloads in the stable daily suite;
+- the three experimental-tool workloads in the stable daily suite;
 - an LLM judge, golden-answer corpus, or composite quality score before a
   workload rubric and judge policy are approved;
 - a repository-owned database, queue, cache, lock, or dashboard;
@@ -79,10 +79,11 @@ Out of scope for the initial phases:
   and git branch/SHA.
 - `scripts/agent-eval-report.ts` derives status, duration, unique tools, raw
   event count, errors, self-reported issues, and matched normalized metrics.
-  Comparison remains limited to status, tool names/counts, and self-reported
-  issue strings; token/cost deltas remain Phase 2 work.
-- There are 24 non-reporting workloads: 21 automation-safe stable workloads,
-  one stateful onboarding workload, and two explicitly experimental-tool
+  Comparison remains limited to status, tool-name presence, raw event/status
+  counts, and self-reported issue strings; logical per-tool frequency and
+  token/cost deltas remain Phase 2 work.
+- There are 25 non-reporting workloads: 21 automation-safe stable workloads,
+  one stateful onboarding workload, and three explicitly experimental-tool
   workloads.
 - `.agent-eval/` is gitignored. Each run now writes a normalized `metrics.json`
   artifact, but no durable history exists.
@@ -144,7 +145,7 @@ planning numbers, not a budget commitment:
 | Canary: 2 workloads × 1 agent × 2 profiles                     |          4 |                3.3 minutes measured | \$0.046 base estimate |
 | Smoke: 6 workloads × 1 agent × 2 profiles                      |         12 |                          10 minutes |               \$0.139 |
 | Stable full: 21 workloads × 1 agent × 2 profiles               |         42 |                          35 minutes |               \$0.485 |
-| All current workloads, including stateful/experimental: 24 × 2 |         48 |                          40 minutes |               \$0.554 |
+| All current workloads, including stateful/experimental: 25 × 2 |         50 |                          42 minutes |               \$0.577 |
 
 Workload mix and provider behavior can move these figures substantially. Phase
 2 must report actual canary, smoke, and stable-full measurements before Phase 3
@@ -187,11 +188,13 @@ need to own the harness.
 
 ```text
 suite manifest
-  -> existing agent runner (one agent/profile shard)
+  -> local suite orchestrator (two profile shards)
+  -> existing agent runner (one profile shard)
   -> immutable raw workload artifacts
   -> provider-specific usage/tool adapters
   -> versioned normalized metrics.json
-  -> local report + compatible baseline comparison
+  -> derived per-tool counts + local report
+  -> suite summary + compatible baseline comparison
   -> later: CI artifact retention + selected-service exporter
 ```
 
@@ -199,10 +202,12 @@ suite manifest
 
 1. **Suite manifest**
 
-   A repository-owned manifest defines stable workload IDs and membership in
-   `canary`, `smoke`, `stable-full`, `stateful-manual`, or `experimental`. It
-   defines execution inputs, not thresholds or vendor configuration. Workload
-   prompts remain guidance-free.
+   A repository-owned manifest defines every workload ID, path, safety class,
+   and membership in `canary`, `smoke`, `stable-full`, `stateful-manual`, or
+   `experimental`. Validation compares the manifest with every workload
+   Markdown file except `REPORTING.md`, so an added or removed workload cannot
+   remain silently unclassified. The manifest defines execution inputs, not
+   thresholds or vendor configuration. Workload prompts remain guidance-free.
 
 2. **Execution runner**
 
@@ -212,9 +217,13 @@ suite manifest
    captures the exact agent CLI version, resolved model, reasoning setting,
    profile, git SHA/dirty state, and timestamps needed to explain drift.
    Paired execution separates the measurement-harness checkout from the target
-   checkout: the candidate checkout owns suite prompts, reporting/schema,
-   adapters, and comparison for both sides, while an explicit target root owns
-   the local MCP server process and git identity under test.
+   checkout: the candidate checkout owns the suite manifest, workload prompts,
+   reporting/schema, adapters, comparison, and output for both sides. Each
+   explicit target root owns the local MCP/CLI implementation, full-profile
+   GitHits skill and project-guidance content, and git identity under test. The
+   installed Codex CLI/model/version is the ambient agent harness and is held
+   constant for a local pair. Existing one-off commands default the measurement
+   and target roots to the current checkout.
 
 3. **Provider adapters**
 
@@ -231,8 +240,8 @@ suite manifest
    workload/agent/profile execution. Each record includes:
 
    - stable run ID and workload ID;
-   - git SHA/dirty state, suite name, agent CLI/harness version, requested and
-     resolved model, reasoning effort, surface, server, and guidance profile;
+   - target git SHA/dirty state, agent CLI version, requested and resolved model,
+     reasoning effort, surface, server, and guidance profile;
    - start/end/duration, process/final status, timeout, turns when exposed;
    - raw tool events, logical call count, completed/failed count, unique tools,
      ordered tool sequence, MCP-versus-CLI surface, and tool-result byte counts
@@ -245,16 +254,27 @@ suite manifest
    - artifact-relative paths and warnings for missing/ambiguous telemetry.
 
    Missing telemetry is `unknown`, not zero. Raw artifacts remain authoritative.
+   The persisted logical `tools.sequence` remains the single source for tool
+   frequency. Reports derive deterministic `callsByTool` entries grouped by
+   normalized tool name and surface, with total and per-status counts. This
+   makes frequency directly visible without duplicating it in schema-version-1
+   metrics or requiring a migration of existing Phase 1 artifacts.
+
+   A versioned parent `suite.json` owns suite name, measurement-harness Git
+   identity, workload/content identity, matrix identity, child-run references,
+   and suite aggregates. A paired `comparison.json` links two compatible suite
+   artifacts. Suite context therefore stays with suite orchestration instead of
+   being threaded into the single-run metrics adapter.
 
 5. **Comparison**
 
    Local comparison accepts two run directories and compares only records with
    compatible workload, agent, model, reasoning, surface, server, profile,
    experimental-tool setting, and published-package spec when applicable. It
-   shows absolute and percentage token/cost/duration deltas, tool
-   additions/removals, surface changes, ordered tool-use changes, failures, and
-   harness-version changes. Incompatible dimensions are explicit warnings, not
-   silently merged results.
+   shows absolute and percentage token/cost/duration deltas, per-tool logical
+   call-count deltas, tool additions/removals, surface changes, ordered tool-use
+   changes, failures, and harness-version changes. Incompatible dimensions are
+   explicit warnings, not silently merged results.
 
 6. **Persistence/export**
 
@@ -283,14 +303,14 @@ The manifest starts with:
   unified search/status, documentation follow-up, and code navigation without
   duplicating every tool-specific edge case.
 - **Stable full (21):** every current non-reporting workload except
-  `githits-onboarding`, `experimental-resolution-follow-up`, and
-  `experimental-code-diff`.
+  `githits-onboarding`, `experimental-resolution-follow-up`,
+  `experimental-site-resolution-follow-up`, and `experimental-code-diff`.
 - **Stateful manual (1):** `githits-onboarding`. It is never included in a
   normal local or scheduled suite because the current harness inherits the real
   home/config roots and the workload can install or modify user-scoped agent/MCP
   state. Execution requires an explicit stateful acknowledgement and a verified
   disposable home/config environment.
-- **Experimental (2):** the two experimental-tool workloads, run manually and
+- **Experimental (3):** the three experimental-tool workloads, run manually and
   with their required server flag.
 
 Local policy:
@@ -379,6 +399,9 @@ The following must be resolved before Phase 5:
   and exporter field.
 - Store sanitized commands/configuration sufficient to identify the harness;
   never store token values or credential-bearing environment variables.
+- Resolve every imported suite/child artifact reference through the same
+  realpath containment rule as existing run reports; reject traversal and
+  symlink escape before reading referenced content.
 - Keep agent execution in an empty controlled workspace with non-interactive
   permissions limited to the existing eval workload scope.
 
@@ -407,8 +430,10 @@ The following must be resolved before Phase 5:
 
 ### Performance And Cost
 
-- Phase 2 establishes release-build-equivalent timing and cost baselines before
-  pipeline concurrency/timeouts are finalized.
+- Phase 2 establishes timing and cost baselines using the same local source
+  launch contract intended for the first daily pipeline before concurrency and
+  timeouts are finalized. These measurements size agent work; they are not CLI
+  performance benchmarks.
 - Reports expose per-workload and aggregate duration/cost so slow or expensive
   workloads can be identified rather than hidden in one suite total.
 - Mutable package/backend responses are a confounder for token trends. Preserve
@@ -434,8 +459,8 @@ The following must be resolved before Phase 5:
 
 - Update `eval/agentic/README.md` as commands, artifact contracts, suite policy,
   and isolation guidance change.
-- Add durable architecture/operations documentation under the distinct name
-  `docs/implementation/agentic-eval-metrics.md` before this plan is removed;
+- Keep the durable architecture/operations documentation in
+  `docs/implementation/agentic-eval-metrics.md` current before this plan is removed;
   `docs/implementation/EVAL_HARNESS.md` already documents a separate prompt
   injection guardrail harness.
 - Add an independent `changes/<slug>.changed.md` fragment with explicit
@@ -446,12 +471,13 @@ The following must be resolved before Phase 5:
 
 ## Phase Map
 
-1. **Phase 1 — trustworthy local metrics (COMPLETE):** every existing local run
+1. **Phase 1 — trustworthy local metrics (MERGED):** every existing local run
    produces auditable per-workload tool/token/cost metrics, including visible
    CLI fallback and explicit unknown telemetry.
-2. **Phase 2 — systematic local suites and paired comparison (PLANNED):**
+2. **Phase 2 — systematic local suites and paired comparison (READY):**
    maintainers can execute canary/smoke/full matrices locally, compare a
-   candidate to a compatible main baseline, and see measured time/cost totals.
+   candidate to a compatible main baseline, and see per-tool frequency plus
+   measured time/cost totals.
 3. **Phase 3 — daily main execution and persistent export (BLOCKED ON PRODUCT
    DECISIONS):** a clean runner executes the stable full matrix daily from
    `main`, retains raw evidence, and exports normalized records to the selected
@@ -640,23 +666,31 @@ calls through MCP.
 
 ### Status
 
-PLANNED; detailed now, implemented after Phase 1.
+READY FOR IMPLEMENTATION. This phase is local-only; deterministic coverage runs
+in normal CI, but paid agent execution remains Phase 3 work.
 
 ### Expected Outcome
 
-Maintainers can invoke a named suite for the requested model/profile matrix and
-can run a compatible main-versus-candidate comparison locally. Output shows
-per-workload and aggregate tool, token, duration, and cost drift, and records
-actual canary/smoke/full sizing evidence for the pipeline decision.
+Maintainers can run named canary, smoke, and stable-full suites locally with
+Luna-low across descriptor-only and full guidance, then compare a main target
+with a candidate target using one candidate-owned measurement harness. Reports
+show which GitHits tools were used, how many logical calls each tool received,
+which surface handled them, and how those counts changed alongside token,
+duration, cost, status, and harness identity. Measured suite evidence replaces
+the current linear timing and cost estimates before daily automation is
+designed.
 
 ### Assumptions
 
-- Phase 1's metrics schema is stable enough to serve as the suite result
-  contract.
+- Phase 1's `metrics.json` schema and logical `tools.sequence` semantics are
+  stable enough to serve as the source for suite aggregation. Per-tool counts
+  can be derived without changing or duplicating the schema.
 - Local profile comparisons remain diagnostic because of the documented global
   instruction isolation limits.
 - Baseline and candidate can use the same installed agent CLI versions during a
   paired run.
+- Two Luna profile shards can run concurrently without a verified backend quota
+  problem; workloads remain sequential inside each shard.
 
 ### Unknowns Or Product Decisions
 
@@ -666,120 +700,302 @@ None. The target service and automation budget remain later-phase decisions.
 
 - Phase 1 accepted and merged.
 - Current workload routing table in `eval/agentic/README.md`.
-- A clean main worktree or equivalent read-only baseline checkout available to
-  the local paired command; the implementation must not mutate or reset user
-  worktrees.
+- An explicit main worktree or equivalent read-only baseline checkout available
+  to the local paired command; the implementation must not mutate, reset, or
+  create user worktrees.
 - Dependencies installed in both target checkouts so the candidate-owned
   harness can start each checkout's local MCP server.
 
 ### Likely Affected Components
 
-- a typed manifest under `eval/agentic/`
-- `scripts/agent-eval.ts` or a thin suite orchestration script that calls its
-  existing execution API
+- `eval/agentic/suites.json`
+- `scripts/agent-eval-suite.ts` and focused tests
+- `scripts/agent-eval.ts` target-root handling
 - `scripts/agent-eval-report.ts` comparison logic
-- deterministic suite/compare tests under `scripts/`
+- existing agent-eval metrics/report tests
 - `package.json` scripts
 - `eval/agentic/README.md`
+- `docs/implementation/agentic-eval-metrics.md`
 - `changes/`
 
 ### Contracts And Failure Behavior
 
-- Named suites expand to explicit workload lists and reject unknown, duplicate,
-  missing, or profile-incompatible entries before invoking an agent.
-- The stateful-manual suite is excluded from all aggregate suites. It refuses a
-  live run without explicit acknowledgement and a verified disposable
-  home/config environment.
-- Matrix defaults are exactly Luna-low across descriptors/full; all dimensions
-  remain overridable for targeted local investigation.
-- A paired comparison records one pair ID and verifies compatible agent/model/
-  effort/surface/server/profile/workload, experimental-tool, and
-  published-package dimensions before calculating deltas.
-- The paired command runs from the candidate checkout. Candidate suite prompts,
-  reporting contract, result schema, usage adapters, and comparison code are
-  used for both sides. Separate explicit target roots select the main-baseline
-  and candidate MCP server checkouts and their git-under-test metadata. This
-  holds the measurement contract constant instead of comparing two different
-  harness implementations.
-- Harness version differences are prominent. A local paired command refuses to
-  label results as a repository-only comparison when versions differ.
-- Partial suite results remain reportable. Failed/missing workloads are listed
-  and excluded from aggregate percentage calculations rather than converted to
-  zero.
-- The command prints total execution count, wall time, cumulative agent time,
-  token buckets, cost, failures, and the paths to raw and normalized artifacts.
+1. **Manifest and suite selection**
+
+   `eval/agentic/suites.json` contains one entry for every workload Markdown
+   file other than `REPORTING.md`. Each entry has a stable ID, repository-
+   relative path, one safety class (`stable`, `stateful`, or `experimental`),
+   and its named-suite memberships. Validation rejects duplicate IDs or paths,
+   missing files, unclassified files, unknown suite names, a non-stable member
+   in canary/smoke/stable-full, and violations of canary ⊆ smoke ⊆ stable-full.
+   The verified starting inventory is 21 stable, one stateful, and three
+   experimental workloads.
+
+2. **Local commands and matrix**
+
+   Add one documented entrypoint with explicit modes:
+
+   - `bun run agent:e2e:suite run --suite <name>` runs one target checkout;
+   - `bun run agent:e2e:suite pair --suite <name> --baseline-root <path>` runs
+     the baseline target and then the current candidate checkout;
+   - `bun run agent:e2e:suite compare --baseline-suite <path>
+     --candidate-suite <path>` compares two existing suite artifacts without
+     invoking an agent.
+
+   Canary, smoke, and stable-full use exactly Codex `gpt-5.6-luna`, reasoning
+   `low`, local MCP, and the `descriptors` plus `full` profile shards. Other
+   agents and arbitrary matrices remain available through the existing
+   targeted `agent:e2e` command; the suite layer does not generalize ahead of
+   the planned Haiku phase. The two profile shards run concurrently, with
+   workloads sequential inside each shard. A paired comparison runs the
+   baseline suite and candidate suite sequentially so only two paid shards are
+   active at once. The pair command must run from the candidate checkout; that
+   checkout is both the measurement-harness root and candidate target, so a
+   separate candidate-root flag cannot point execution at a different tree.
+
+   The experimental suite is explicit intent and enables the required local
+   experimental-tool flag. `stateful-manual` is manifest-visible and supports
+   validation/dry-run only in Phase 2; a live suite invocation fails before
+   launching an agent because no disposable home/config contract has been
+   approved. It is never included in another suite.
+
+3. **Measurement harness versus target checkout**
+
+   Keep the current checkout as the measurement-harness root: it owns suite
+   definitions, workloads, reporting instructions, result schema, adapters,
+   normalization, comparison, and output. Add a target root that defaults to
+   the harness root for existing one-off commands. The target root owns the
+   local GitHits MCP/CLI launch, git-under-test identity, copied
+   `skills/githits-mcp` content, and the `GITHITS_GUIDANCE_BLOCK` exported by its
+   `src/commands/init/guidance-assets.ts`. The candidate harness continues to
+   own the mechanics that install those target-owned inputs into the isolated
+   workspace. This makes descriptor/runtime and full-guidance changes visible
+   without comparing two different measurement implementations.
+
+   Load the target guidance module through a file URL dynamic import and
+   runtime-validate its `GITHITS_GUIDANCE_BLOCK` string export. The module is
+   currently import-free; a missing module, import failure, or invalid export is
+   a pre-run target validation error. Target skill copying reads the target
+   root's `skills/githits-mcp` directory through the same explicit boundary.
+
+   Preserve the current one-off CLI and `run.json.git` behavior, with `git`
+   continuing to mean the target checkout. Suite artifacts record the
+   measurement-harness Git identity separately from every target Git and target
+   guidance identity. Absolute local roots are diagnostic run metadata and are
+   not part of the later service-neutral metrics export.
+
+4. **Per-tool frequency**
+
+   A pure aggregation function reads the persisted logical
+   `metrics.json.records[].tools.sequence` and emits deterministic
+   `callsByTool` entries grouped by `(surface, normalized tool name)`. Each entry
+   contains total logical calls plus `started`, `completed`, `failed`, and
+   `unknown` status counts. Workload reports and suite aggregates expose these
+   entries in stable surface/tool order. Raw provider event counts remain
+   separate audit evidence and are never presented as call frequency. Missing
+   or unsupported logical telemetry yields `callsByTool: null`, not an empty
+   list or zeros. Existing Phase 1 artifacts remain readable because counts are
+   derived from their persisted sequence.
+
+5. **Suite and comparison artifacts**
+
+   Each target execution writes a schema-validated `suite.json` containing a
+   suite ID/name, timestamps, harness Git identity, target Git identity, fixed
+   Luna matrix settings, workload/reporting/schema content hashes, shard
+   statuses and relative run-artifact references, wall and cumulative agent
+   time, workload/failure totals, normalized token/cost totals, aggregate
+   `callsByTool`, and warnings. Raw workload artifacts and child
+   `metrics.json` files remain authoritative.
+
+   Live paired mode and offline compare mode call the same pure comparison and
+   write a schema-validated `comparison.json` with one pair ID and references to
+   its baseline and candidate suite artifacts. Agent, model, effort, surface,
+   server, profile, workload, experimental-tool, published-package, and
+   measurement-content mismatches are checked before calculating direct deltas.
+   An agent CLI version mismatch remains reportable: it produces a prominent
+   warning and prevents the result from being labeled repository-only, but does
+   not suppress otherwise compatible deltas.
+
+   Measurement-content identity uses SHA-256 over exact file bytes and records
+   forward-slash repository-relative paths in stable sorted order. Target
+   guidance hashes are recorded separately as an intended repository-change
+   dimension, not as a compatibility failure. A measurement-harness Git
+   mismatch is an attribution warning and prevents a repository-only label.
+   Measurement-content mismatches have narrower behavior: a workload-file hash
+   mismatch excludes that workload's profile cells from direct metric deltas,
+   while a reporting-contract or result-schema mismatch suppresses direct
+   deltas for the entire suite. Identity and status differences remain visible
+   in both cases.
+
+   Offline comparison writes by default under the current harness checkout's
+   `.agent-eval/comparisons/<timestamp>/comparison.json`, with an explicit
+   output override available. It records each input suite ID, the SHA-256 hash
+   of that suite artifact, and its diagnostic absolute path. Each suite is
+   loaded independently, and its child references are resolved and contained
+   relative to that suite's own directory; the two suites need not share a
+   parent directory.
+
+   For each compatible workload, comparison reports show before/after/absolute
+   delta for logical calls grouped by tool and surface, additions/removals,
+   status-count changes, ordered sequence changes, token buckets, cost,
+   duration, and process/final status. Suite aggregate deltas are calculated per
+   metric over the intersection of compatible workload/profile cells where
+   that metric is known on both sides. The report lists the included and
+   excluded cell identities for each aggregate family; full-matrix
+   status/failure differences remain visible separately. Independently summing
+   different baseline and candidate cohorts is forbidden.
+
+   A zero baseline is labeled `added` or `removed`; it never produces an
+   infinite percentage. Missing or unknown values remain unknown. A tool moving
+   between MCP and CLI appears as separate removal/addition entries even when
+   its combined count is unchanged. A single-suite aggregate `callsByTool` is
+   `null` when any selected cell lacks logical tool telemetry, with the missing
+   cell IDs listed, so it cannot silently undercount the suite.
+
+6. **Partial failure and output**
+
+   Reject manifest, option, root, and compatibility errors before paid work
+   whenever they are knowable up front. Resolve referenced suite, child-run,
+   metrics, and report artifacts within their owning suite directory using
+   realpath containment; traversal or symlink escape is a validation error. A
+   workload failure does not stop its shard; a shard setup failure does not
+   erase a successful sibling shard. Partial suite artifacts list
+   missing/failed cells and use the matched-cohort rule above rather than
+   treating them as zero. Human output prints total execution count, wall time,
+   cumulative agent time, token buckets, cost, failures, per-tool counts/deltas,
+   and paths to raw and normalized artifacts.
+
+   Phase 2 adds no GitHub Actions workflow, scheduled paid run, service SDK,
+   exporter, repository database, queue, cache, lock, or retry mechanism.
 
 ### Ordered Implementation Steps
 
-1. Add and validate the initial suite manifest exactly as defined in the suite
-   policy. Keep experimental workload requirements explicit.
-2. Add named-suite execution that reuses the existing runner and produces one
-   parent suite summary over two Luna/profile run directories. Bound concurrency
-   to those two shards; workloads remain sequential within a shard for simple
-   artifact ownership and rate behavior.
-3. Separate measurement-harness root from target-repository root in the runner.
-   Add an explicit target-root option used only for the local MCP launch and
-   git-under-test identity; keep workloads, reporting/schema, normalization, and
-   output ownership in the candidate harness checkout.
-4. Extend comparison to token/cost/duration deltas, logical tool sequence and
-   surface changes, status/failure differences, and harness version changes.
-   Add compatible-dimension and partial-result tests.
-5. Add a local paired workflow that runs a main baseline and candidate with the
-   candidate-owned harness and suite settings. Require explicit target checkout
-   paths or verified worktrees; never reset or clean a user's working tree.
-6. Document canary/smoke/full selection and the difference between a paired
-   repository comparison and a daily harness-drift comparison.
-7. Run canary, smoke, and stable-full once in a controlled local environment.
-   Record actual wall time, per-workload cost, failures, and concurrency behavior
-   in the durable implementation documentation and use it to prepare the Phase
-   3 budget decision. Validate stateful-manual through deterministic guard tests
-   and a dry run; do not execute onboarding against a maintainer's real home.
+1. Write failing report tests for logical `callsByTool` aggregation and deltas:
+   repeated calls, the same name across MCP/CLI, started-only/failed calls,
+   missing telemetry, additions/removals, and zero baselines. Implement the
+   pure derivation from `tools.sequence`, then expose it in JSON and terminal
+   run reports without changing `metrics.json` schema version 1.
+2. Add the complete 25-workload manifest and pure validation/expansion. Tests
+   inventory the workload directory and prove exact classification, suite
+   nesting, stable-only aggregate suites, and explicit stateful/experimental
+   handling.
+3. Separate harness and target roots in the existing runner. Write command/git
+   identity and full-guidance source tests first, including Windows path
+   semantics and a guidance-only difference between two target fixtures.
+   Preserve current one-off defaults and artifact compatibility.
+4. Add single-target suite orchestration with an injected shard executor for
+   deterministic tests. Execute the two profile shards concurrently, preserve
+   sequential workloads inside each runner, and write a validated partial or
+   complete `suite.json` after both shards settle.
+5. Add live pair mode from the current candidate checkout with one explicit
+   baseline root, plus offline compare mode over two existing `suite.json`
+   artifacts. Route both through the same pure comparison, validate compatible
+   dimensions and content hashes, apply metric-specific matched cohorts,
+   enforce containment for imported artifact references, and write the
+   structured comparison plus readable per-tool, token, cost, duration, status,
+   and identity deltas.
+6. Update package scripts, agentic-eval documentation, and the existing durable
+   implementation document, then add a maintainer-facing change fragment with
+   `none` impact for both public artifacts.
+7. Run deterministic validation, then dry-run every named suite. Run the live
+   Luna-low canary, smoke, and stable-full suites once across both profiles, plus
+   a bounded no-change paired canary. Record actual wall time, cumulative agent
+   time, per-workload and total cost, failures, concurrency behavior, and
+   per-tool counts in durable documentation. Do not execute onboarding live.
 
 ### Edge Cases And Boundaries
 
-- Candidate and baseline workload/reporting content can differ. Record content
-  hashes and flag the comparison rather than pretending they are identical
-  tests. The default paired workflow avoids this by using the candidate-owned
-  workload/reporting contract for both targets.
+- Existing Phase 1 run directories have no suite parent but still derive
+  per-tool counts from their logical sequence.
+- Repeated start/completion provider events remain one logical call. Repeated
+  calls with distinct provider IDs remain distinct and contribute separately to
+  `callsByTool`.
+- A guidance-only difference between target roots changes the installed
+  full-profile skill/project guidance and its recorded target-guidance hashes;
+  descriptor-only installation remains unaffected.
+- Candidate and baseline workload/reporting content can differ only when
+  opening externally produced suite artifacts. A workload hash mismatch excludes
+  only that workload's cells; a reporting/schema mismatch suppresses all direct
+  suite deltas. Paired execution uses candidate-owned measurement content for
+  both targets by design.
+- Offline comparison performs no agent or target launch and produces the same
+  structured/readable deltas as the live pair for equivalent artifacts.
 - A dirty checkout is allowed for local exploration but must be labeled; the
   comparison cannot claim a reproducible git-only baseline.
 - A profile or model missing from one side is a missing matrix cell, not a zero.
 - Experimental suites require the experimental server flag and never merge into
   stable-full by default.
-- The onboarding workload requires the stateful-manual guard and never merges
+- The onboarding workload is dry-run-only in the suite layer and never merges
   into stable-full by default.
 - Concurrent shards must use distinct output and temporary workspace paths.
+- Target roots may use POSIX or Windows paths. Artifact references remain
+  portable forward-slash relative paths.
+- User-supplied baseline and candidate roots are inspected and launched but are
+  never reset, cleaned, checked out, created, or deleted.
 
 ### Verification
 
-- Deterministic tests for manifest validation, expansion, matrix identity,
-  partial failure, compatibility checks, and aggregate math.
-- Existing agent-eval tests plus `bun run typecheck`, `bun run format:check`, and
-  `bun run lint`.
+- Deterministic tests for per-tool aggregation/deltas, manifest inventory and
+  expansion, fixed Luna matrix identity, root separation, target-owned full
+  guidance, content identity, partial failure, matched-cohort aggregate math,
+  and traversal/symlink containment.
+- `bun test scripts/agent-eval*.test.ts`
+- `bun test`
+- `bun run typecheck`
+- `bun run format:check`
+- `bun run lint`
+- `bun run build`
 - Dry-run all named suites and inspect commands/output paths.
 - Live canary, smoke, and stable-full measurements using Luna-low and both
   profiles.
-- Run a no-change paired comparison; it should show stochastic metric variance
-  but no identity or content mismatch.
+- Run a no-change paired canary; it may show stochastic metric variance but no
+  identity, harness, or content mismatch.
 
 ### Acceptance Criteria
 
 - One documented command runs each named suite and the default two-cell Luna
   matrix.
-- Normal local/full execution cannot invoke the onboarding workload, and the
-  stateful-manual command refuses an unisolated live run.
-- One documented local workflow compares a main baseline to a candidate without
-  mutating either checkout.
+- The manifest classifies exactly all 25 current workloads: 21 stable, one
+  stateful, and three experimental. Adding an unclassified workload fails
+  deterministic validation.
+- Every workload and suite report directly shows each normalized tool/surface
+  pair and its logical call count; raw provider events cannot inflate it.
+- Comparison shows per-tool before/after counts and absolute deltas, including
+  additions, removals, status changes, and MCP/CLI surface movement. Unknown
+  telemetry remains unknown.
+- Normal canary/smoke/stable-full execution cannot invoke onboarding or an
+  experimental workload. `stateful-manual` refuses live execution in Phase 2.
+- One documented local pair workflow compares an explicit main baseline with
+  the current candidate checkout without mutating either checkout, and one
+  offline workflow compares two existing suite artifacts without paid work.
+- Offline comparison writes a standalone validated artifact that identifies
+  both input suites by ID/hash/path while containing each suite's child reads to
+  that suite directory.
 - The paired workflow uses one candidate-owned measurement harness for both
   targets and records measurement-harness identity separately from each target
   checkout identity.
-- Comparison exposes tool additions/removals and MCP/CLI surface changes, token
-  and cost deltas, duration, failures, content identity, and agent CLI versions.
+- Each target supplies its own MCP/CLI implementation and full-profile GitHits
+  skill/project guidance. A guidance-only target fixture produces different
+  installed full guidance and target-guidance identity while using the same
+  measurement harness.
+- Comparison exposes token and cost deltas, duration, failures, content
+  identity, and exact agent CLI versions alongside tool-count deltas.
+- Aggregate deltas use only matched compatible cells with that metric known on
+  both sides and list included/excluded cells; one-sided failures or unknown
+  telemetry cannot create unlike-cohort deltas.
+- Workload-content mismatches exclude only affected workload cells;
+  reporting/schema mismatches suppress all direct suite deltas; harness Git or
+  agent CLI version mismatches remain prominent attribution warnings.
+- Complete and partial `suite.json` and `comparison.json` artifacts validate
+  against their versioned schemas and reference the child raw/metrics evidence.
+- Imported child references cannot traverse or follow symlinks outside their
+  owning suite directory.
 - Canary, smoke, and stable-full have measured wall-time and cost summaries;
   Phase 3 no longer relies on the two-workload linear estimate.
 - Local profile evidence is labeled diagnostic unless the run manifest proves a
   clean instruction-isolated host.
 - Existing targeted `--workload` usage remains available.
+- No paid agent invocation is added to pull-request or `main` CI in this phase.
 
 ## Phase 3 — Daily Main Execution And Persistent Export
 
