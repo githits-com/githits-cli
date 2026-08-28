@@ -523,14 +523,22 @@ remained clean.
 
 Deterministic and product verification completed as follows:
 
-- The focused four-file suite passed with 29 tests and 155 assertions. The full
-  `bun test` passed with 3,486 tests, 0 failures, and 11,211 assertions after a
-  test-only `process.stdout` descriptor leak was fixed.
-- Typecheck, format, and lint checks passed. Plugin generation/checking passed
-  for 10 canonical assets with no generated diff.
-- Authenticated source CLI and MCP stable/experimental smokes passed; the build
-  passed; built CLI and MCP Node smokes passed; and public-package validation
-  passed.
+- The focused four-file suite passed with 29 tests and 155 assertions. After
+  the main merge, full `bun test` passed with 3,518 tests, 0 failures, and
+  11,401 assertions across 185 files; the test-only `process.stdout` descriptor
+  leak was fixed.
+- After the merge, typecheck, format, lint, plugin check, build, built CLI/MCP
+  Node smokes, and public-package validation passed. Plugin generation remained
+  clean for 10 canonical assets with no generated diff.
+- Authenticated source CLI and MCP stable/experimental smokes passed before the
+  main merge with the same Phase 2a production delta. A post-merge CLI
+  source-smoke rerun passed the unauthenticated matrix, then was externally
+  blocked for more than six minutes in macOS
+  `SecKeychainFindGenericPassword` on the first authenticated
+  `languages python --json` call. Process sampling verified a Keychain
+  decryption wait and no network request; the run was stopped without touching
+  credential state. Source MCP was not redundantly started because it uses the
+  same blocked authentication state.
 - Real Express default output was inspected. Normal 80-column free prose is
   bounded, while fixed locators remain intentionally unsplit.
 
