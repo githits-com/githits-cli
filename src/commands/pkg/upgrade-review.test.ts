@@ -7,9 +7,11 @@ import {
 } from "./upgrade-review.js";
 
 const originalStdoutWrite = process.stdout.write;
+const originalStdoutColumns = process.stdout.columns;
 
 afterEach(() => {
   process.stdout.write = originalStdoutWrite;
+  process.stdout.columns = originalStdoutColumns;
 });
 
 describe("parseUpgradeReviewPackageOption", () => {
@@ -69,5 +71,29 @@ describe("parseUpgradeReviewPackageOption", () => {
     expect(consoleLog).not.toHaveBeenCalled();
     expect(JSON.parse(output).summary.total).toBe(1);
     expect(output.endsWith("\n")).toBe(true);
+  });
+
+  it("passes the terminal width to the shared human-readable formatter", async () => {
+    let output = "";
+    process.stdout.columns = 30;
+    process.stdout.write = ((chunk: string | Uint8Array) => {
+      output += chunk.toString();
+      return true;
+    }) as typeof process.stdout.write;
+
+    await pkgUpgradeReviewAction(
+      "npm:express@5.0.0",
+      { to: "5.2.1", transitiveSecurity: false },
+      {
+        packageIntelligenceService: createMockPackageIntelligenceService(),
+        codeNavigationUrl: "https://pkgseer.dev",
+        hasValidToken: true,
+        mcpUrl: "https://mcp.githits.com",
+      },
+    );
+
+    expect(output).toStartWith("Upgrade review - 1 package");
+    expect(output).toContain("\n          affected | 0 fixed |");
+    expect(output).not.toContain("pkg_upgrade_review");
   });
 });

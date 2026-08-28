@@ -63,6 +63,25 @@ async function cliJson(
   }
 }
 
+async function cliText(
+  spec: string | undefined,
+  options: Parameters<typeof pkgUpgradeReviewAction>[1] = {},
+  deps: PkgUpgradeReviewCommandDependencies = cliDeps(),
+): Promise<string> {
+  const originalStdoutWrite = process.stdout.write;
+  let stdout = "";
+  process.stdout.write = ((chunk: string | Uint8Array) => {
+    stdout += chunk.toString();
+    return true;
+  }) as typeof process.stdout.write;
+  try {
+    await pkgUpgradeReviewAction(spec, { ...options, json: false }, deps);
+    return stdout;
+  } finally {
+    process.stdout.write = originalStdoutWrite;
+  }
+}
+
 interface McpUpgradeReviewArgs {
   registry?: string;
   package_name?: string;
@@ -91,7 +110,33 @@ async function mcpJson(
   return { json: JSON.parse(text), isError: result.isError };
 }
 
+async function mcpText(
+  args: McpUpgradeReviewArgs,
+  service: PackageIntelligenceService = createMockPackageIntelligenceService(),
+): Promise<string> {
+  const tool = createParityMcpTool("pkg_upgrade_review", {
+    packageIntelligenceService: service,
+  });
+  const result = await tool.handler({ ...args, format: "text-v1" }, {});
+  return result.content[0]?.text ?? "";
+}
+
 describe("package_upgrade_review parity", () => {
+  it("PARITY-TEXT-FORMATTER: CLI and MCP use the same no-color formatter", async () => {
+    const cli = await cliText("npm:express@4.18.0", { to: "5.0.0" });
+    const mcp = await mcpText({
+      registry: "npm",
+      package_name: "express",
+      current_version: "4.18.0",
+      target_version: "5.0.0",
+    });
+
+    expect(cli.endsWith("\n")).toBe(true);
+    expect(cli.trimEnd()).toBe(mcp);
+    expect(mcp).toStartWith("Upgrade review - 1 package");
+    expect(mcp).not.toContain("\x1b[");
+  });
+
   it("PARITY-JSON-KEYS: single-package CLI === MCP", async () => {
     const cli = await cliJson("npm:express@4.18.0", { to: "5.0.0" });
     const { json, isError } = await mcpJson({
