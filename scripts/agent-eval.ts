@@ -1733,7 +1733,7 @@ function existingWorkloadArtifacts(
   for (const [key, name] of WORKLOAD_ARTIFACTS) {
     const path = join(workloadDir, name);
     if (existsSync(path) && lstatSync(path).isFile()) {
-      artifacts[key] = relative(runDir, path);
+      artifacts[key] = relative(runDir, path).replaceAll("\\", "/");
     }
   }
   return artifacts;
