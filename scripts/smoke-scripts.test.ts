@@ -28,7 +28,7 @@ describe("CLI search smoke contract", () => {
   const valid = `Indexing - no results yet
 
 - npm:n8n -> 2.36.7
-  Indexing: code, repository docs | Ready now: n8n.io docs (not searched; 1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master
+  Indexing: code, repository docs | Available now: n8n.io docs (1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master
 
 Search smoke-ref | 0/1 target ready
 Next: githits search-status smoke-ref --wait 20`;
@@ -51,7 +51,9 @@ More hits available. Pass --offset 10 or --limit N to widen.`;
   it("accepts outcome-first text with CLI-native actions", () => {
     expect(valid.split("\n")[0]).toBe("Indexing - no results yet");
     expect(valid).toContain("- npm:n8n -> 2.36.7");
-    expect(valid).toContain("  Indexing: code, repository docs | Ready now:");
+    expect(valid).toContain(
+      "  Indexing: code, repository docs | Available now:",
+    );
     expect(valid).toContain("Search smoke-ref | 0/1 target ready");
     expect(valid).toContain("Next: githits search-status smoke-ref --wait 20");
     expect(() => assertSearchTerminalText(valid, "search")).not.toThrow();
@@ -117,7 +119,7 @@ More hits available. Pass --offset 10 or --limit N to widen.`;
     expect(() =>
       assertSearchTerminalText(
         valid.replace(
-          "- npm:n8n -> 2.36.7\n  Indexing: code, repository docs | Ready now: n8n.io docs (not searched; 1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master",
+          "- npm:n8n -> 2.36.7\n  Indexing: code, repository docs | Available now: n8n.io docs (1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master",
           "  Using: 2.26.9 while 2.36.7 indexes",
         ),
         "search",
@@ -176,8 +178,8 @@ More hits available. Pass --offset 10 or --limit N to widen.`;
     expect(() =>
       assertSearchTerminalText(
         valid.replace(
-          "  Indexing: code, repository docs | Ready now: n8n.io docs (not searched; 1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master",
-          "  Ready now: versions 2.36.7",
+          "  Indexing: code, repository docs | Available now: n8n.io docs (1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master",
+          "  Available now: versions 2.36.7",
         ),
         "search",
       ),
@@ -197,7 +199,7 @@ More hits available. Pass --offset 10 or --limit N to widen.`;
     ["search_ref=payload", "MCP search_ref syntax leaked into CLI output"],
   ])("rejects target-detail diagnostic %s", (diagnostic, message) => {
     const readinessLine =
-      "  Indexing: code, repository docs | Ready now: n8n.io docs (not searched; 1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master";
+      "  Indexing: code, repository docs | Available now: n8n.io docs (1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master";
     const targetDetail = valid.replace(readinessLine, `  ${diagnostic}`);
 
     expect(() => assertSearchTerminalText(targetDetail, "search")).toThrow(

@@ -678,6 +678,8 @@ describe("projectUnifiedSearchPresentation", () => {
 
   it("classifies versionless available-version entries as refs", () => {
     const sha = "df0abc9333a3398b97b71f6ea7cd77d5ea3e9f97";
+    const secondSha = "1b51edac7c5f2844e23602164a52643bb625993a";
+    const thirdSha = "4687d59a28ca41c4a9c06e69b68e8d3300000000";
     const presentation = projectUnifiedSearchPresentation(
       completed({
         results: [],
@@ -687,6 +689,8 @@ describe("projectUnifiedSearchPresentation", () => {
             targetResolution: {
               availableVersions: [
                 { ref: sha },
+                { ref: secondSha },
+                { ref: thirdSha },
                 { version: "4.0.0", ref: "v4.0.0" },
               ],
               availableRefs: [{ ref: "master" }],
@@ -700,9 +704,11 @@ describe("projectUnifiedSearchPresentation", () => {
       { version: "4.0.0", ref: "v4.0.0" },
     ]);
     expect(presentation.alternatives[0]?.refs).toEqual([
-      { ref: sha },
       { ref: "master" },
+      { ref: sha },
+      { ref: secondSha },
     ]);
+    expect(presentation.alternatives[0]?.refsRemaining).toBe(1);
   });
 
   it.each([

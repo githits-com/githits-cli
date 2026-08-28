@@ -1098,8 +1098,8 @@ function boundedAlternatives(
     versions.filter((alternative) => alternative.version !== undefined),
   );
   const refFacts = bounded([
-    ...versions.filter((alternative) => alternative.version === undefined),
     ...refs,
+    ...versions.filter((alternative) => alternative.version === undefined),
   ]);
   const suggestedRefFacts = bounded(suggestedRefs);
   return {

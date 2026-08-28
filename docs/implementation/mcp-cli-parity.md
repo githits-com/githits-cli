@@ -272,8 +272,9 @@ MCP renders `Next: search_status search_ref=... wait_timeout_ms=...`; CLI render
 action use the same reference when both are present; raw diagnostic fields are
 never rendered. Search-result follow-ups likewise use
 `code_read` / `docs_read` in MCP and `githits code read` / `githits docs read` in
-CLI. ANSI-stripped CLI output is structurally identical to no-color MCP text
-apart from those supplied command dialects.
+CLI. ANSI-stripped CLI output shares the same hierarchy and wording as no-color
+MCP text apart from those supplied command dialects; line breaks can differ
+because CLI uses the terminal width while MCP uses the 80-column default.
 
 CLI `--json` output and MCP `format: "json"` output remain the structured parity
 boundary: every
