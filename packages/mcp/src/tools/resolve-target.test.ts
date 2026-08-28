@@ -104,11 +104,17 @@ describe("resolve_target MCP adapter", () => {
         "rank retrieved candidates and does not expand candidate retrieval",
       ),
     });
-    expect(schema.properties?.registries).toMatchObject({
-      description: expect.stringContaining(
-        "constrains package candidates only",
-      ),
-    });
+    const registriesSchema = schema.properties?.registries;
+    if (typeof registriesSchema !== "object" || registriesSchema === null) {
+      throw new Error("registries schema is missing");
+    }
+    const registriesDescription = registriesSchema.description ?? "";
+    expect(registriesDescription).toContain(
+      "constrains package candidates only",
+    );
+    expect(registriesDescription).toContain(
+      "repository and site candidates remain eligible",
+    );
     expect(schema.properties?.intent_hints).toMatchObject({
       description: expect.stringContaining(
         "rank retrieved candidates and do not expand candidate retrieval",

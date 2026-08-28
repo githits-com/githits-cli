@@ -52,7 +52,7 @@ const schema: ZodRawShape = {
     .array(z.string())
     .optional()
     .describe(
-      `Optional registry filter that constrains package candidates only; repository candidates remain eligible. Accepted registries: ${PKGSEER_REGISTRY_LIST}. An empty list deliberately means no filter.`,
+      `Optional registry filter that constrains package candidates only; repository and site candidates remain eligible. Accepted registries: ${PKGSEER_REGISTRY_LIST}. An empty list deliberately means no filter.`,
     ),
   preferred_kind: z
     .string()
