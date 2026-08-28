@@ -46,7 +46,7 @@ pkg_upgrade_review({
   include_dependency_issues: true,
   min_severity: "low" | "medium" | "high" | "critical",
   format: "text-v1" | "json"
-});
+})
 ```
 
 Batch form:
@@ -70,7 +70,7 @@ pkg_upgrade_review({
   skip_transitive_security: false,
   include_dependency_issues: true,
   format: "text-v1"
-});
+})
 ```
 
 Validation rules:
@@ -115,14 +115,7 @@ interface UpgradeReview {
   currentVersion: string;
   targetVersion: string;
   latestVersion?: string;
-  versionDelta:
-    | "patch"
-    | "minor"
-    | "major"
-    | "prerelease"
-    | "downgrade"
-    | "same"
-    | "unknown";
+  versionDelta: "patch" | "minor" | "major" | "prerelease" | "downgrade" | "same" | "unknown";
   security: UpgradeSecurity;
   changelog: UpgradeChangelog;
   compatibility?: UpgradeCompatibility;
