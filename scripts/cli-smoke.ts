@@ -364,6 +364,195 @@ function assertTerminalOutput(result: CommandResult, context: string): string {
   return text;
 }
 
+export function assertSearchTerminalText(text: string, context: string): void {
+  const lines = text.split("\n");
+  const formatterLines = searchFormatterLines(lines);
+  const formatterText = formatterLines.join("\n");
+  const firstLine = lines[0]?.trim() ?? "";
+  assert(firstLine.length > 0, `${context}: missing outcome first line`);
+  assert(
+    !firstLine.startsWith("Warning:") &&
+      !firstLine.startsWith("search |") &&
+      !firstLine.startsWith("search_status |"),
+    `${context}: non-outcome text precedes search outcome`,
+  );
+  assert(
+    /^(?:Preparing|Indexing|Searching)\b|^No results returned\b|^\d+ results?\b|^[A-Z_]+ - /.test(
+      firstLine,
+    ),
+    `${context}: missing outcome headline`,
+  );
+  assert(
+    !formatterLines.some((line) => /^status\s*:/i.test(line.trim())),
+    `${context}: duplicated lifecycle status line`,
+  );
+  const lifecycleOutcomeLines = formatterLines.filter((line) =>
+    /^(?:Preparing|Indexing|Searching)\b/.test(line),
+  );
+  assert(
+    lifecycleOutcomeLines.length <= 1,
+    `${context}: duplicate lifecycle outcome lines`,
+  );
+  assert(
+    !formatterText.includes("searchRef:") &&
+      !formatterText.includes("searchRef="),
+    `${context}: leaked searchRef detail`,
+  );
+  assert(
+    !formatterText.includes("indexingRef"),
+    `${context}: leaked indexingRef`,
+  );
+  assert(
+    !formatterText.includes("freshnessReason"),
+    `${context}: leaked freshnessReason`,
+  );
+
+  const forbiddenSections = [
+    "Ready:",
+    "Waiting:",
+    "Available but not searched:",
+    "Indexed alternatives:",
+  ];
+  for (const section of forbiddenSections) {
+    assert(
+      !formatterLines.some((line) => line.startsWith(section)),
+      `${context}: legacy flat section ${section}`,
+    );
+  }
+  assert(
+    !formatterLines.some((line) => line === "Evidence may change."),
+    `${context}: vague evidence policy prose`,
+  );
+  assert(
+    !formatterLines.some((line) => line.startsWith("Do not repeat")),
+    `${context}: repeat policy prose`,
+  );
+  assert(
+    !formatterLines.some((line) => line.startsWith("Do not poll")),
+    `${context}: poll policy prose`,
+  );
+
+  const hasReadinessText = formatterLines.some((line) =>
+    /^ {2}(?! {2}).*(?:Indexing|Searched|Available now|Unavailable|Using|Status):/.test(
+      line,
+    ),
+  );
+  if (hasReadinessText) {
+    assert(
+      formatterLines.some((line) => /^-\s+\S/.test(line)),
+      `${context}: readiness details must be grouped under a target`,
+    );
+  }
+
+  const nextLines = formatterLines.filter((line) => line.startsWith("Next:"));
+  assert(
+    nextLines.length <= 1,
+    `${context}: multiple Next actions are not allowed`,
+  );
+  const statusActions = nextLines.filter((line) =>
+    line.startsWith("Next: githits search-status "),
+  );
+  assert(
+    statusActions.length <= 1,
+    `${context}: expected at most one search-status action`,
+  );
+  const summaryLines = formatterLines.filter((line) =>
+    /^Search\s+\S+\s+\|/.test(line),
+  );
+  assert(
+    summaryLines.length <= 1,
+    `${context}: expected at most one Search <ref> session summary`,
+  );
+  if (statusActions.length > 0) {
+    assert(
+      summaryLines.length === 1,
+      `${context}: expected one Search <ref> session summary`,
+    );
+  }
+  if (statusActions.length === 1) {
+    const searchRef = statusActions[0]?.match(
+      /^Next: githits search-status (\S+) /,
+    )?.[1];
+    assert(
+      searchRef !== undefined &&
+        summaryLines[0]?.startsWith(`Search ${searchRef} |`),
+      `${context}: session summary does not match search-status action`,
+    );
+  }
+  assert(
+    !formatterText.includes("search_ref="),
+    `${context}: MCP search_ref syntax leaked into CLI output`,
+  );
+  assert(
+    hasHumanSearchHitLocator(lines) || nextLines.length > 0,
+    `${context}: missing result follow-up or next action`,
+  );
+}
+
+function hasHumanSearchHitLocator(lines: string[]): boolean {
+  return lines.some((line, index) => {
+    const docsMatch = /^\[\d+\]\s+(\S+)\s+\[docs page\]\s+(.+)$/.exec(line);
+    if (docsMatch) {
+      const pageId = docsMatch[1];
+      const docsDetails = docsMatch[2];
+      if (!pageId || pageId === "page ID unavailable" || !docsDetails) {
+        return false;
+      }
+      const firstDivider = docsDetails.indexOf(" - ");
+      if (firstDivider <= 0) return false;
+      const sourceAndTitle = docsDetails.slice(firstDivider + 3);
+      const secondDivider = sourceAndTitle.indexOf(" - ");
+      if (secondDivider > 0) {
+        const source = sourceAndTitle.slice(0, secondDivider).trim();
+        const title = sourceAndTitle.slice(secondDivider + 3).trim();
+        return (
+          source.length > 0 &&
+          (title.length > 0 || hasWrappedHitTitle(lines, index))
+        );
+      }
+      if (!sourceAndTitle.endsWith(" -")) return false;
+      const source = sourceAndTitle.slice(0, -2).trim();
+      return source.length > 0 && hasWrappedHitTitle(lines, index);
+    }
+    const match =
+      /^\[\d+\]\s+(.+?)\s+\[(repo doc|repo code|repo symbol)\](?: -(?: (.*))?)?$/.exec(
+        line,
+      );
+    if (!match) return false;
+    const locatorText = match[1];
+    if (!locatorText) return false;
+    const locator = locatorText.trim().split(/\s+/);
+    if (
+      locator.length >= 2 &&
+      !locatorText.trim().endsWith("location unavailable") &&
+      locator.every((part) => part.length > 0)
+    ) {
+      const title = match[3];
+      return title === undefined
+        ? !line.endsWith(" -") || hasWrappedHitTitle(lines, index)
+        : title.trim().length > 0 || hasWrappedHitTitle(lines, index);
+    }
+    return false;
+  });
+}
+
+function hasWrappedHitTitle(lines: string[], index: number): boolean {
+  const titleLine = lines[index + 1];
+  return titleLine?.startsWith("  ") === true && titleLine.trim().length > 0;
+}
+
+function searchFormatterLines(lines: string[]): string[] {
+  let inHit = false;
+  return lines.filter((line) => {
+    if (/^\[\d+\]\s/.test(line)) {
+      inHit = true;
+      return true;
+    }
+    if (inHit && line.length > 0 && !line.startsWith("  ")) inHit = false;
+    return !inHit;
+  });
+}
+
 function assertJsonOutput(result: CommandResult, context: string): unknown {
   assert(
     result.exitCode === 0,
@@ -1409,10 +1598,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     ]),
     "search terminal",
   );
-  assert(
-    searchText.includes("search") || searchText.includes("result"),
-    "search terminal missing result context",
-  );
+  assertSearchTerminalText(searchText, "search terminal");
 
   const searchJson = assertJsonOutput(
     await runCli([

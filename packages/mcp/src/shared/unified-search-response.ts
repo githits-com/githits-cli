@@ -193,6 +193,7 @@ export interface LeanDocCoverage {
 export interface UnifiedSearchCompletedPayload {
   query: UnifiedSearchQueryEcho;
   completed: true;
+  partialResults: boolean;
   hasMore: boolean;
   nextOffset?: number;
   results: UnifiedSearchHitPayload[];
@@ -212,6 +213,8 @@ export interface UnifiedSearchCompletedPayload {
 export interface UnifiedSearchIncompletePayload {
   query: UnifiedSearchQueryEcho;
   completed: false;
+  /** Present only when the response includes a result snapshot. */
+  partialResults?: boolean;
   hasMore: boolean;
   nextOffset?: number;
   results: UnifiedSearchHitPayload[];
@@ -231,6 +234,7 @@ export interface UnifiedSearchErrorPayload {
 
 export interface UnifiedSearchStatusResultPayload {
   query?: UnifiedSearchQueryEcho;
+  partialResults: boolean;
   warnings?: string[];
   sources?: string[];
   hasMore: boolean;
@@ -278,6 +282,7 @@ export function buildUnifiedSearchSuccessPayload(
       results: result?.results.map(buildHitPayload) ?? [],
       searchRef: outcome.searchRef,
     };
+    if (result) payload.partialResults = result.partialResults;
     if (result?.page.hasMore === true) {
       payload.nextOffset = result.page.offset + result.page.returned;
     }
@@ -303,6 +308,7 @@ export function buildUnifiedSearchSuccessPayload(
   const completed: UnifiedSearchCompletedPayload = {
     query,
     completed: true,
+    partialResults: outcome.result.partialResults,
     hasMore: outcome.result.page.hasMore,
     results: outcome.result.results.map(buildHitPayload),
   };
@@ -415,6 +421,7 @@ function buildUnifiedSearchStatusResultPayload(
 ): UnifiedSearchStatusResultPayload {
   const payload: UnifiedSearchStatusResultPayload = {
     query: buildStatusQueryEcho(result),
+    partialResults: result.partialResults,
     hasMore: result.page.hasMore,
     results: result.results.map(buildHitPayload),
   };

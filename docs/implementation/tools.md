@@ -78,8 +78,10 @@ Use the tools in these roles:
   package or repository, use `search`, `docs_*`, or `code_*` instead.
 - **Conditional search continuation:** Call `search_status` only when the
   preceding `search` response explicitly supplies both a `searchRef` and a
-  `search_status` action. The initial `search` call can complete; do not
-  repeat it to poll. Terminal or unrecognized statuses are not polled again.
+  `search_status` action. The initial `search` call can complete, and reissuing
+  the same search is valid while it waits on the same underlying work. A
+  terminal or unrecognized status ends that reference; start a later search
+  when a fresh session is needed.
 - **Package intelligence:** Use `pkg_info` for a latest-version health and
   adoption overview, `pkg_vulns` for CVEs/advisories and affected or fixed
   versions, `pkg_deps` for dependency graphs, `pkg_changelog` for release and
@@ -100,7 +102,7 @@ Use the tools in these roles:
 | `search_language` | `query`, `format?` | Resolve a supported language name or alias for `get_example`; do not use it for source search. Defaults to one compact line per match; pass `format: "json"` for structured matches. |
 | `feedback` | `solution_id?`, `accepted`, `feedback_text?`, `tool_name?` | Submit feedback when a GitHits result or the overall experience was helpful, unhelpful, wrong, incomplete, slow, or confusing. Pass `solution_id` to rate an example or `tool_name` to identify a result. |
 | `search` | `query`, `target?`, `targets?`, `source?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Discover relevant evidence in a known target before exact grep: docs, specs, code, symbols, tests, and examples ranked by relevance. Open-ended “how does”, “where is”, “find”, “locate”, or loosely phrased “grep the source” questions start here; omit `source` for broad discovery. A `search` call can return complete results directly; use `search_status` only when the response explicitly supplies a `searchRef` and action. |
-| `search_status` | `search_ref`, `wait_timeout_ms?`, `format?` | Continue an explicit `search` reference only after that response supplies a `searchRef` and `search_status` action. Inspect progress or retrieve interim, partial, or final hits; terminal and unrecognized statuses are not polled again. |
+| `search_status` | `search_ref`, `wait_timeout_ms?`, `format?` | Continue an explicit `search` reference only after that response supplies a `searchRef` and `search_status` action. Inspect progress or retrieve interim, partial, or final hits; terminal and unrecognized statuses end that reference, so use a later `search` for a fresh session. |
 | `docs_list` | `registry`, `package_name`, `version?`, `limit?`, `after?`, `format?` | List package documentation pages and hand off to `docs_read`; use `search` for topic discovery. Repo-backed entries include exact source metadata for `code_read` when available. |
 | `docs_read` | `page_id`, `start_line?`, `end_line?`, `format?` | Read a package documentation page by ID; use `docs_list` to browse and `search` to find topics. Text output returns 150 lines by default or up to 300 with an explicit range; repo-backed pages include exact `code_read` metadata. |
 | `pkg_info` | `registry`, `package_name`, `verbose?`, `format?` | Assess latest package health and adoption through license, downloads, and activity. Use `pkg_vulns` for advisory detail, `pkg_deps` for dependency graphs, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison. |
@@ -134,13 +136,32 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Unified `search` query syntax.** The `search.query` field is the backend discovery query syntax, not a raw pass-through to a per-source search engine. It supports implicit `AND`, uppercase `OR`, parentheses, unary `-`, quoted phrases, semantic qualifiers (`kind:`, `category:`, `path:`, `lang:`, `name:`, `intent:`), and routing qualifiers (`registry:`, `package:`, `version:`, `repo:`). The backend parses the query once and compiles it per source. Structured `name` and `language` inputs are compiled into `name:` / `lang:` qualifiers and AND-ed with the query before sending. Per-source support, ignored features, and incompatibilities are reported in `sourceStatus`.
 
-**Promoted `warnings[]`.** Noteworthy `sourceStatus` entries — sources reporting `incompatibleQueryFeatures`, `ignoredQueryFeatures`, `incompatibleFilters`, `ignoredFilters`, lifecycle anomalies (`indexingStatus`, `codeIndexState`), or a free-form `note` — are also surfaced as a top-level `warnings: string[]` in the completed/incomplete payloads (and appended after parser warnings inside the `search_status` result block). The structured detail still lives in `sourceStatus`; `warnings[]` is the agent-visible signal that something about execution did not match the request. On completed empty results, healthy non-contributor source entries are also retained with zero `resultCount` and served identity; requested/fresh labels emit only when they materially differ from served. Contributor-bearing DOCS rows retain their physical contributors instead of duplicating healthy served/current resolution metadata. Healthy `INDEXED` / `CURRENT` / non-divergent `STALE` states never become warnings. `PROVISIONAL` is queryable but remains a visible non-healthy indexing signal, including on completed responses. Successful non-empty responses keep the prior compact projection. The text-v1 renderer prints backend warnings and source notes before empty-result advice. Implementation in `buildSourceStatusWarnings` and empty-result compaction (`packages/mcp/src/shared/unified-search-response.ts`).
+**Partial-result truth.** Every result-bearing initial `search` payload and stored `search_status.result` carries the backend's exact `partialResults: boolean`, including `false` for an atomic serveable interim snapshot and `true` for a subset of requested evidence. A progress-only response with no result snapshot omits the field. This additive field is retained unchanged in CLI `--json` and MCP `format: "json"`; text-v1 uses it only to label active results as interim or partial.
 
-**Standalone-site recovery.** `search` accepts exact documentation targets as `site:<host[/path]>`. Backend-owned `sourceStatus[].suggestedSiteTargets` labels are preserved in order for missing or ambiguous sites, together with the exact `suggestedSiteTargetsTruncated` Boolean. The compact source-status row becomes actionable even when it has no note or lifecycle warning, and text-v1 renders replayable target labels plus an omitted-candidates notice when truncated. Suggestions are advisory rather than aliases; neither `search` nor `search_status` rewrites or retries the target automatically. Active admitted-site crawls and repairs participate in ordinary discovery sessions: incomplete responses carry a `searchRef` and progress, while stale-but-serveable evidence can remain available during refresh. Terminal missing or ambiguous results can omit `searchRef` and instead expose recovery guidance.
+**Promoted `warnings[]`.** Noteworthy `sourceStatus` entries — sources reporting `incompatibleQueryFeatures`, `ignoredQueryFeatures`, `incompatibleFilters`, `ignoredFilters`, lifecycle anomalies (`indexingStatus`, `codeIndexState`), or a free-form `note` — are also surfaced as a top-level `warnings: string[]` in the completed/incomplete payloads (and appended after parser warnings inside the `search_status` result block). The structured detail still lives in `sourceStatus`; `warnings[]` is the agent-visible signal that something about execution did not match the request. On completed empty results, healthy non-contributor source entries are also retained with zero `resultCount` and served identity; requested/fresh labels emit only when they materially differ from served. Contributor-bearing DOCS rows retain their physical contributors instead of duplicating healthy served/current resolution metadata. Healthy `INDEXED` / `CURRENT` / non-divergent `STALE` states never become warnings. `PROVISIONAL` is queryable but remains a visible non-healthy indexing signal, including on completed responses. Successful non-empty responses keep the prior compact projection. JSON keeps promoted warnings and source-status detail lossless; MCP text classifies parser/query and structured constraint facts once below the outcome and does not repeat promoted lifecycle/freshness warning prose or opaque notes. Implementation in `buildSourceStatusWarnings` and empty-result compaction (`packages/mcp/src/shared/unified-search-response.ts`).
 
-**Documentation sources.** DOCS `sourceStatus` rows retain bounded physical `contributors` even when otherwise healthy. Repository contributors expose normalized `repositoryUrl`, full `commitSha`, freshness, and current-page `resultCount`; docpacks expose stable `siteKey`, canonical `siteUrl`, and selected published coverage. The JSON projection preserves meaningful zero/null values and every selected docpack coverage field, but omits duplicate pair-level count/coverage and incidental healthy resolution metadata. Text-v1 optimizes for interpretation instead of mirroring that structure: directly below the result count and before the hits, fully current searched sources collapse to `searched: site ...; repo ... @ <commit>`, with no repeated hit counts or coverage totals. Docpack labels come only from contributor `siteUrl`, retain a canonical path scope, and are therefore identical for empty and non-empty result pages; returned hit URLs are never used to infer which site was searched. The target label is omitted for one target and retained only when multiple targets need disambiguation. Stale, provisional, partial, capped, ready-but-unused, pending, unavailable, and coverage-undisclosed sources instead expand into a `documentation sources` block in the same pre-result position, explaining the exceptional state and whether the source was searched. A `SEARCHED` contributor with `PROVISIONAL` freshness explicitly says that a provisional index was searched while indexing continues. In mixed blocks, healthy contributors explicitly say `searched`; a searched docpack without coverage says that published coverage details are unavailable. When any disclosed contributor was not searched, an empty headline scopes the claim to searched evidence. Pending-evidence notices suppress query pivots; otherwise the ordinary empty-result guidance still applies to the evidence that was searched. If `siteUrl` is absent, text uses the generic `site documentation` identity; site sources are numbered only when their displayed identities collide. JSON remains the exact source for stable keys, canonical URLs, and all coverage fields. Partial/capped coverage is published evidence, not a progress or retry signal.
+**Standalone-site recovery.** `search` accepts exact documentation targets as `site:<host[/path]>`. Backend-owned `sourceStatus[].suggestedSiteTargets` labels are preserved in order for missing or ambiguous sites, together with the exact `suggestedSiteTargetsTruncated` Boolean. The compact source-status row becomes actionable even when it has no note or lifecycle warning, and MCP text-v1 renders replayable target labels plus an omitted-candidates notice when truncated. Suggestions are advisory rather than aliases: active known sessions keep polling their current `searchRef`, while completed or terminal recovery can expose one explicit site-retry action without selecting a label automatically. Terminal missing or ambiguous results can omit `searchRef` and instead expose recovery guidance.
 
-`evidenceNotice` is carried once on initial and stored result envelopes and rendered once in text. A `searchRef` is actionable only when rendered output supplies a `search_status` follow-up. Ordinary cases are known active progress (`PENDING`, `INDEXING`, or `SEARCHING`) and a completed result carrying an evidence notice. Terminal `DEFERRED` keeps `completed: false`, exact progress, and any stored result, but its `searchRef` no longer advances: callers use the disclosed evidence now and issue a new search later for a fresher snapshot. Terminal `DEFERRED`, `TIMEOUT`, and `FAILED` output never directs callers back to the same session. Session status is an open backend-owned string so adding an enum value does not invalidate the response. An unrecognized value is preserved in JSON and text with any disclosed evidence, but the client does not guess whether it is active or terminal and does not poll the same reference; it directs a later new search instead. Without a reference, the notice is the only retry-variability guidance. `search_status(includeResults: true)` uses the same result projection and formatter—contributors are never copied onto generic progress targets, and `allowPartialResults` retains its separate pair-omission meaning.
+**Documentation sources.** DOCS `sourceStatus` rows retain bounded physical
+`contributors` and coverage in JSON. Text places the user-meaningful readiness
+state under its target, using `Indexing`, `Searched`, `Available now`, `Unavailable`,
+`Using`, or `Status` details as applicable. `Status` appears only when the
+backend supplies an explicit current, pending, indexing, provisional, or stale
+target state; session activity alone does not invent target state. Site identity,
+stale/provisional qualifiers, and partial or capped coverage remain attached to
+that target; internal reason codes and indexing references stay in JSON.
+Partial/capped coverage is published evidence, not a progress or retry signal.
+
+`evidenceNotice` is carried once on initial and stored result envelopes. JSON
+retains that exact backend-owned notice; default text does not render it or replace
+it with a generic mutable-evidence slogan. Instead, concrete stale, provisional,
+pending, and coverage facts remain grouped under the affected target. A
+`searchRef` is actionable only when rendered output supplies a status follow-up.
+Reissuing the same search is valid and waits on the same underlying work. Terminal
+status and unknown-status handling remains conservative, while
+`search_status(includeResults: true)` uses the same result projection and
+formatter—contributors are never copied onto generic progress targets, and
+`allowPartialResults` retains its separate pair-omission meaning.
 
 ### `pkg_info` response shape
 
@@ -228,7 +249,7 @@ These three indexed tools share an addressing and lifecycle contract (documented
 
 **`code_grep` envelope**: `{registry?|name?|repoUrl?+gitRef?, pattern, patternType?, caseSensitive?, matches: [{filePath, line, matchStartByte, matchEndByte, lineContent, contextBefore?, contextAfter?, fileContentHash?, fileIntent?, symbol?}], nextCursor?, hasMore, truncatedReason?, filesScanned, filesInScope, binaryFilesSkipped?, filesTooLargeSkipped?, totalMatches, uniqueFilesMatched, indexedVersion?, resolution?, targetResolution?, filter?}`. Default-valued fields (`patternType: literal`, `caseSensitive: false`, zero skipped counters, `truncatedReason: none`) are omitted. `filter` echoes only explicit caller filters. Match entries carry `filePath` so grep output chains directly into `code_read`.
 
-`targetResolution` is additive provenance. It explains requested, resolved-requested, and served artifacts plus `freshness` (`current`, `fallback_recent`, `indexing`, `provisional`, or `unavailable`), `freshnessReason`, `indexingRef`, `availableVersions`, `availableRefs`, and `suggestedRefs`. A `provisional` / `exact_provisional` Discovery result is queryable while indexing continues; text uses the exact served identity and `indexingRef` and does not substitute a requested ref. `availableVersions` and `availableRefs` are already-indexed artifacts that can be queried immediately. `suggestedRefs` are fuzzy upstream candidates and may require indexing before use. Existing `indexedVersion`, `resolution`, and locator fields remain served-identity compatibility fields. Text mode renders actionable notes such as `Using recent indexed snapshot`, `Serving an older indexed snapshot; current target is still being indexed`, `Requested ref is being indexed`, `provisional (still indexing)`, `Fresh target is being indexed`, `Target unavailable`, `queryable now`, or `suggested refs`; an indexing note includes the exact `served=` identity whenever results came from a queryable snapshot. JSON mode carries the structured object. A `current` resolution is authoritative on every code-navigation surface and suppresses alternative-target remediation; waited search completion is one case where earlier candidates can remain in structured provenance without becoming warnings.
+`targetResolution` is additive provenance. It explains requested, resolved-requested, and served artifacts plus `freshness` (`current`, `fallback_recent`, `indexing`, `provisional`, or `unavailable`), `freshnessReason`, `indexingRef`, `availableVersions`, `availableRefs`, and `suggestedRefs`. A `provisional` / `exact_provisional` Discovery result is queryable while indexing continues; code-navigation text uses the exact served identity and `indexingRef` and does not substitute a requested ref. Unified search text-v1 instead keeps internal `indexingRef` and reason codes out of default text while retaining the user-meaningful served identity and bounded alternatives. `availableVersions` and `availableRefs` are already-indexed artifacts that can be queried immediately. `suggestedRefs` are fuzzy upstream candidates and may require indexing before use. Existing `indexedVersion`, `resolution`, and locator fields remain served-identity compatibility fields. Text mode renders actionable notes such as `Using recent indexed snapshot`, `Serving an older indexed snapshot; current target is still being indexed`, `Requested ref is being indexed`, `provisional (still indexing)`, `Fresh target is being indexed`, `Target unavailable`, `queryable now`, or `suggested refs`; a code-navigation indexing note includes the exact `served=` identity whenever results came from a queryable snapshot. JSON mode carries the structured object. A `current` resolution is authoritative on every code-navigation surface and suppresses alternative-target remediation; waited search completion is one case where earlier candidates can remain in structured provenance without becoming warnings.
 
 ### Indexing lifecycle (shared across `code_files`, `code_read`, `code_grep`)
 
@@ -274,35 +295,114 @@ The `hint` field is emitted only when the cap *actually truncated* the response 
 
 **Why text-v1 default.** A 10-hit `search` JSON envelope runs 5–7 KB after compaction; the same hits in `text-v1` land around 3–4 KB. The savings come from dropped quoting, dropped key repetition, and dropped fields that an agent does not need at the per-call decision point (highlights byte offsets, repeated locator scaffolding). The token budget belongs to the agent's reasoning, not to JSON structure.
 
-**Format stability.** The text format is a public contract, locked with snapshot-style tests (`packages/mcp/src/shared/unified-search-text.test.ts`, `packages/mcp/src/tools/search-status.test.ts`, `packages/mcp/src/shared/list-files-text.test.ts`, `packages/mcp/src/shared/grep-repo-text.test.ts`). The `text-v1` version tag exists so incompatible evolution can ship as `text-v2`.
+**In-place evolution.** `text-v1` names the compact line-oriented representation; it is not an exact-prose compatibility boundary. Search and `search_status` may tighten human/agent copy in place as long as their structural lifecycle, ordering, action, and hit-anatomy invariants remain covered by tests (`packages/mcp/src/shared/unified-search-text.test.ts`, `packages/mcp/src/tools/search-status.test.ts`). JSON is the stable structured boundary for programmatic callers. Other text-v1 renderers retain their own contracts and are not changed by the search presentation work.
 
-**ASCII-only.** Separators are ` | `; ellipsis is `...`; no box-drawing or Latin-1 punctuation. Tokenizer behavior for multi-byte UTF-8 varies across BPE variants, and the format runs into Claude, Codex CLI, OpenCode, Cline, Cursor, etc. — ASCII keeps it predictable.
+**Compact punctuation.** Formatter-authored punctuation is ASCII, including the ` | ` and ` - ` separators; ellipsis is `...`; no box-drawing or decorative punctuation. Unicode in backend payloads (titles, summaries, paths, URLs, and notes) passes through unchanged. Tokenizer behavior for multi-byte UTF-8 varies across BPE variants, and the format runs into Claude, Codex CLI, OpenCode, Cline, Cursor, etc. — the small fixed vocabulary keeps it predictable.
 
 **Example-search anatomy.** `get_example` text mode returns markdown directly, followed by `solution_id: <id>` when the REST response includes an app URL. This avoids JSON-wrapped markdown while preserving the `feedback` workflow. `search_language` text mode returns one match per line as `name (Display Name) aliases: a, b`; agents should pass the `name` value to `get_example.language`.
 
 **Package metadata anatomy.** `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, and `pkg_upgrade_review` text mode reuse the shared no-color terminal formatters but inject MCP-native hints. `pkg_deps` hides non-runtime groups by default and says `pass lifecycle="all"` when groups exist. `pkg_changelog` caps body previews and says `pass verbose=true`, `body_lines=<n>`, or `format="json"` when text omitted lines. Package tools keep JSON errors in all formats because agents can reliably branch on `{error, code, retryable, details?}`.
 
-**Hit anatomy** (`search` text-v1):
+**Unified search outcome-first anatomy** (CLI human search/search-status and MCP
+`search` / `search_status` text-v1). One shared presentation model owns target
+groups and trust facts; one shared text renderer owns wording, wrapping, hit
+anatomy, and ordering. Callers supply only ANSI enablement and surface-native
+action syntax. The order is:
+
+1. outcome headline;
+2. one compact `Sources:` row for ordinary completed current results, or target blocks with identity plus grouped readiness and usable alternatives when trust facts require them;
+3. warnings and results;
+4. an optional session summary; and
+5. one positive next action, when applicable.
+
+Active lifecycle labels remain `Preparing`, `Indexing`, and `Searching` for
+`PENDING`, `INDEXING`, and `SEARCHING`. The exact active empty wording is
+`Indexing - no results yet`; when no snapshot exists it is
+`Indexing - no result snapshot yet`, with the corresponding lifecycle label for
+other active states. Active hits are labelled `interim` when `partialResults` is
+false and `partial` when it is true. Progress-only responses show only derivable
+target readiness and alternatives; they never synthesize source or contributor
+facts.
+
+When session facts exist, text may include one optional session row composed from
+the facts available: `Search <ref>` when a reference exists, aggregate
+`<ready>/<total> target(s) ready` when progress exists, and a lifecycle summary
+when a reference has no progress. The combined form is
+`Search <ref> | <ready>/<total> target(s) ready`; completed output without
+session facts may omit the row. A reference appears once in that row when
+available and once in the follow-up action when the action carries it; raw
+diagnostic fields are not rendered. MCP renders
+`Next: search_status search_ref="..." wait_timeout_ms=20000`; CLI renders
+`Next: githits search-status ... --wait 20`. Text emits no negative repeat or poll
+policy directive: reissuing the same search is valid and waits on the same
+underlying work. Suggested site targets retain backend order and an omitted-
+candidates signal, but remain advisory labels rather than automatic retries.
+
+`evidenceNotice` stays exact in JSON and is not rendered in default text. The
+renderer keeps concrete stale, provisional, pending, and capped-coverage facts
+under their target, while raw reason codes, indexing references, promoted
+duplicate warnings, and opaque evidence prose remain in JSON. Query/filter and
+structured-constraint facts appear once below the outcome. Surface-native pivots
+name `source="symbol"` / `code_grep` in MCP and `--source symbol` /
+`githits code grep` in CLI.
+
+The representative CLI n8n example is maintained in
+`docs/implementation/cli-commands.md` as the output source of truth.
+
+**Hit anatomy within unified search text-v1:**
 
 ```
-search | <N> hits | query="..."
+[1] <target> <path:line-range> [repo doc] - <title>
+  <summary line 1>
+  <summary line 2 (wrapped at output width)>
 [blank]
-[1] <target>  <type>  <score>
-    <locator-line>
-    <title?>
-    <summary line 1>
-    <summary line 2 (wrapped at ~76 cols)>
-[blank]
-[2] ...
-[blank]
-More hits available. Pass offset=N for the next page or limit=N to widen.
+[2] <page-id> [docs page] <target> - <host/path#anchor> - <title>
+  <summary, when informative>
 ```
 
-`<type>` compacts to `code` / `symbol` / `docs` / `repo-docs`. `<locator-line>` is a ready-to-call follow-up when possible: `code_read target="npm:pkg@version" path="..." start_line=N end_line=M` for code/symbol hits and `docs_read page_id="..."` for documentation hits. If a code/symbol hit lacks a file path, text mode prints `follow-up unavailable: missing filePath` rather than fabricating a path.
+Hit headers are numbered so ranked results can be referenced as `[1]` through
+`[N]`. Repository and code hits keep the exact target and file location needed
+for `code_read` before a bracketed type tag (`[repo doc]`, `[repo code]`, or
+`[repo symbol]`); their free-form title is the final header tail. Documentation
+hits keep the actual `page-id` needed for `docs_read`, a stable package target,
+human-readable source URL, and title in that order. The docs URL uses
+`host/path#anchor` without the protocol; unavailable fields are rendered as
+explicit `page ID unavailable`, `target unavailable`, `source URL unavailable`,
+or `title unavailable` values. Executable `docs_read` / `code_read` command
+lines, qualified non-follow-up internal result IDs, and kind/category tails are
+omitted from default text; the documentation page ID remains because it is the
+`docs_read` follow-up locator, and JSON keeps the full locator and follow-up
+fields unchanged. Repository hits without a file path use the explicit
+`location unavailable` value and do not claim to be follow-up readable. A
+summary's first line is omitted when it repeats the title
+after removing Markdown heading markers, as is an immediately following
+setext underline. Source indentation is retained when summaries wrap, with a
+consistent two-space hit-body indent. If a title does not fit on the header
+line, the fixed locator prefix stays unwrapped with a trailing ` -`, and only
+the title continues on two-space-indented lines.
+
+Result headlines combine count, type breakdown when completed, and pagination
+when known, for example `10 results | 5 repo docs, 5 docs pages | next_offset=10`.
+Breakdowns use `repo code hit(s)` and `repo symbol(s)` alongside `repo doc(s)`
+and `docs page(s)`. When more results exist without a next offset, the final field is
+`more available`. Pagination is not repeated as a bottom paragraph.
 
 **Follow-up — crawled-doc section anchors.** Unified search can label a crawled documentation hit with a matching section title while returning only its page ID. Without a line anchor, `docs_read` must start at the beginning of the page. Carrying section ranges through search results requires backend/search-location support and is outside the CLI response-formatting slice.
 
-Completed empty search renders backend warnings/source notes first, then served target/freshness context and `Do not repeat this search unchanged.` Generic pivots are conditional: filter removal appears only when filters exist, symbol search is omitted when already selected, and standalone site searches do not suggest `code_grep`. If the completed source is still indexing, including `PROVISIONAL`, query rewriting is suppressed in favor of a larger `wait_timeout_ms` or an indexed alternative labelled `queryable now`. Active incomplete search reports ready/total counts, says `Do not repeat search.`, and gives the exact bounded continuation `next: call search_status with search_ref="..." and wait_timeout_ms=20000.` A completed result with both an evidence notice and `searchRef` emits the same explicit continuation. Terminal `DEFERRED` preserves available evidence, explains that lifecycle work continues outside the stopped session, prohibits further status calls, and directs a later new `search`; it never claims that no hits exist or that the session is indexing. Terminal `FAILED` and `TIMEOUT` sessions likewise prohibit further status calls and direct the caller to rerun `search` instead. The response never suggests changing `allow_partial_results` after an incomplete response.
+Completed empty search uses the model's applicable action: generic query pivots are
+suppressed for evidence-limited or unsearched sources, which instead direct the
+caller to rerun the search later. Indexing/provisional evidence prefers waiting
+or an indexed alternative, standalone site searches expose only a
+shorter/broader site query, and filter removal or symbol/code-grep pivots appear
+only when applicable. Surface-native pivots name
+`source="symbol"` / `code_grep` in MCP and `--source symbol` /
+`githits code grep` in CLI. A result with both an evidence notice and
+`searchRef` emits one status continuation. Terminal `DEFERRED`, `FAILED`, and
+`TIMEOUT` preserve disclosed evidence and their lifecycle state; unknown statuses
+preserve the raw value without inferred semantics. Promoted lifecycle/freshness
+warning prose, opaque evidence text, and the exact notice remain in JSON but are
+not repeated in default text; parser/query and structured constraint facts appear
+once below the outcome.
 
 **Listing anatomy** (`code_files` text-v1):
 

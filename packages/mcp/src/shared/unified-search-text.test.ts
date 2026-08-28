@@ -1,12 +1,15 @@
 import { describe, expect, it } from "bun:test";
+import { projectUnifiedSearchPresentation } from "./unified-search-presentation.js";
 import type {
   UnifiedSearchCompletedPayload,
   UnifiedSearchErrorPayload,
   UnifiedSearchHitPayload,
   UnifiedSearchIncompletePayload,
+  UnifiedSearchSourceStatusPayload,
 } from "./unified-search-response.js";
 import {
   renderUnifiedSearchError,
+  renderUnifiedSearchPresentationText,
   renderUnifiedSearchSuccess,
 } from "./unified-search-text.js";
 
@@ -49,24 +52,6 @@ function docsHit(
   };
 }
 
-function symbolHit(): UnifiedSearchHitPayload {
-  return {
-    type: "repository_symbol",
-    target: "continuedev/continue@v0.9.42",
-    title: "diffLines",
-    summary: "Myers diff core; line-level with O(ND) complexity.",
-    locator: {
-      filePath: "core/diff/myers.ts",
-      startLine: 48,
-      endLine: 112,
-      qualifiedPath: "core.diff.myers.diffLines",
-      kind: "function",
-      category: "callable",
-      language: "typescript",
-    },
-  };
-}
-
 function completed(
   results: UnifiedSearchHitPayload[],
   overrides: Partial<UnifiedSearchCompletedPayload> = {},
@@ -74,14 +59,495 @@ function completed(
   return {
     query: { raw: "diff myers" },
     completed: true,
+    partialResults: false,
     hasMore: false,
     results,
     ...overrides,
   };
 }
 
+function incomplete(
+  overrides: Partial<UnifiedSearchIncompletePayload> = {},
+): UnifiedSearchIncompletePayload {
+  return {
+    query: { raw: "router" },
+    completed: false,
+    hasMore: false,
+    results: [],
+    searchRef: "ref_abc-123",
+    progress: {
+      status: "INDEXING",
+      targetsReady: 0,
+      targetsTotal: 1,
+      elapsedMs: 8200,
+    },
+    ...overrides,
+  };
+}
+
+function source(
+  overrides: Partial<UnifiedSearchSourceStatusPayload> = {},
+): UnifiedSearchSourceStatusPayload {
+  return {
+    source: "code",
+    targetLabel: "npm:express@4.18.2",
+    ...overrides,
+  };
+}
+
+function n8nActiveEmpty(): UnifiedSearchIncompletePayload {
+  return incomplete({
+    query: { raw: "human review approval node output" },
+    searchRef: "fabUr1S3MEVeSgD93pMoSQ",
+    partialResults: false,
+    results: [],
+    progress: {
+      status: "INDEXING",
+      targetsReady: 0,
+      targetsTotal: 1,
+      elapsedMs: 8200,
+      targets: [
+        {
+          requested: "npm:n8n",
+          resolvedRequested: "npm:n8n@2.36.7",
+          freshness: "INDEXING",
+          availableVersions: [
+            { version: "2.26.9", ref: "v2.26.9" },
+            { version: "2.26.5", ref: "v2.26.5" },
+            { version: "2.23.2", ref: "v2.23.2" },
+            { version: "2.22.6", ref: "v2.22.6" },
+            { version: "2.21.7", ref: "v2.21.7" },
+          ],
+          availableRefs: [{ ref: "HEAD" }, { ref: "master" }],
+        },
+      ],
+    },
+    sourceStatus: [
+      source({
+        source: "code",
+        targetLabel: "npm:n8n@2.36.7",
+        indexingStatus: "INDEXING",
+        codeIndexState: "PENDING",
+        resultCount: 0,
+      }),
+      source({
+        source: "docs",
+        targetLabel: "npm:n8n@2.36.7",
+        targetResolution: {
+          freshness: "indexing",
+          freshnessReason: "latest_version_indexing",
+          indexingRef: "indexing-ref-hidden",
+          availableVersions: [
+            { version: "2.26.9", ref: "v2.26.9" },
+            { version: "2.26.5", ref: "v2.26.5" },
+            { version: "2.23.2", ref: "v2.23.2" },
+            { version: "2.22.6", ref: "v2.22.6" },
+          ],
+          availableRefs: [{ ref: "HEAD" }, { ref: "master" }],
+        },
+        contributors: [
+          {
+            kind: "DOCPACK",
+            state: "READY",
+            resultCount: 0,
+            siteKey: "n8n.io",
+            siteUrl: "https://n8n.io",
+            coverage: { coverageState: "CAPPED", pagesCrawled: 1480 },
+          },
+          {
+            kind: "REPOSITORY_DOCS",
+            state: "PENDING",
+            resultCount: 0,
+            repositoryUrl: "https://github.com/n8n-io/n8n",
+          },
+        ],
+      }),
+    ],
+    evidenceNotice: "Opaque evidence notice.",
+  });
+}
+
+function firstLine(text: string): string {
+  return text.split("\n")[0] ?? "";
+}
+
+const ANSI_SGR_PATTERN = new RegExp(
+  `${String.fromCharCode(0x1b)}\\[[0-9;]*m`,
+  "g",
+);
+
 describe("renderUnifiedSearchSuccess", () => {
-  it("renders an empty completed envelope with bounded anti-retry guidance", () => {
+  it("renders completed Express results as compact ranked source-backed hits", () => {
+    const repoSummary =
+      "5.0.0-alpha.4 / 2017-03-01\n" +
+      "==========================\n" +
+      "  * remove:\n" +
+      "    - Remove Express 3.x middleware error stubs\n" +
+      "  * deps: router@~1.3.0\n" +
+      '    - Add `next("router")` to exit from router';
+    const results: UnifiedSearchHitPayload[] = [
+      ...Array.from({ length: 5 }, (_, index) =>
+        index === 0
+          ? {
+              type: "repository_doc",
+              target: "npm:express@5.2.1",
+              title: "5.0.0-alpha.4 / 2017-03-01",
+              summary: repoSummary,
+              locator: {
+                registry: "npm",
+                packageName: "express",
+                version: "5.2.1",
+                filePath: "History.md",
+                startLine: 169,
+                endLine: 179,
+              },
+            }
+          : {
+              type: "repository_doc",
+              target: "npm:express@5.2.1",
+              title: `History entry ${index}`,
+              summary: `History entry ${index} details`,
+              locator: {
+                filePath: "History.md",
+                startLine: 180 + index,
+                endLine: 185 + index,
+              },
+            },
+      ),
+      ...Array.from({ length: 5 }, (_, index) => ({
+        type: "documentation_page",
+        target: "npm:express@5.2.1",
+        title: index === 0 ? "router.use()" : `Router docs ${index}`,
+        summary:
+          index === 0 ? "### router.use()" : `Router docs ${index} details`,
+        locator: {
+          pageId: `opaque-page-${index}`,
+          sourceUrl: `https://expressjs.com/en/api/router/${index}`,
+        },
+      })),
+    ];
+    const text = renderUnifiedSearchSuccess(
+      completed(results, {
+        hasMore: true,
+        nextOffset: 10,
+        sourceStatus: [
+          source({
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                resultCount: 5,
+                siteKey: "expressjs.com",
+                siteUrl: "https://expressjs.com",
+              },
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                resultCount: 5,
+                repositoryUrl: "https://github.com/expressjs/express",
+                commitSha: "dbac741a49a5a64336b70c06e85c2e2706e36336",
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(text.split("\n")[0]).toBe(
+      "10 results | 5 repo docs, 5 docs pages | next_offset=10",
+    );
+    expect(text).toContain(
+      "Sources: expressjs.com; expressjs/express@dbac741a",
+    );
+    expect(text).toContain(
+      "[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01",
+    );
+    expect(text).toContain(
+      "[6] opaque-page-0 [docs page] npm:express - expressjs.com/en/api/router/0 -\n  router.use()",
+    );
+    expect(text).toContain("    * remove:");
+    expect(text).toContain("      - Remove Express 3.x middleware error stubs");
+    expect(text).not.toContain("githits docs read");
+    expect(text).not.toContain("docs_read");
+    expect(text).toContain("opaque-page-0 [docs page]");
+    expect(text).not.toContain("### router.use()");
+    expect(text.match(/next_offset=10/g)).toHaveLength(1);
+    expect(text.length).toBeLessThan(3459);
+  });
+
+  it("starts completed hits with the outcome and preserves hit anatomy", () => {
+    const text = renderUnifiedSearchSuccess(completed([codeHit()]));
+
+    expect(firstLine(text)).toContain("1 result");
+    expect(firstLine(text)).not.toContain("search |");
+    expect(text).toContain(
+      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n  applyEdit",
+    );
+    expect(text).toContain(
+      "  Search/replace block parser with fuzzy fallback when exact match fails.",
+    );
+    expect(text).not.toContain("searchRef=");
+  });
+
+  it("uses singular labels for one repository doc and one docs page", () => {
+    const repoText = renderUnifiedSearchSuccess(
+      completed([
+        {
+          type: "repository_doc",
+          target: "npm:express@5.2.1",
+          title: "History.md",
+          summary: "Release history",
+          locator: { filePath: "History.md", startLine: 169, endLine: 179 },
+        },
+      ]),
+    );
+    const docsText = renderUnifiedSearchSuccess(completed([docsHit()]));
+
+    expect(firstLine(repoText)).toBe("1 result | 1 repo doc");
+    expect(firstLine(docsText)).toBe("1 result | 1 docs page");
+    expect(firstLine(renderUnifiedSearchSuccess(completed([codeHit()])))).toBe(
+      "1 result | 1 repo code hit",
+    );
+    expect(
+      firstLine(
+        renderUnifiedSearchSuccess(
+          completed([codeHit({ type: "repository_symbol" })]),
+        ),
+      ),
+    ).toBe("1 result | 1 repo symbol");
+  });
+
+  it("uses ASCII separators without changing Unicode payload text", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          title: "Überprüfung · human review",
+          summary: "Café — маршрутизация",
+        }),
+        {
+          type: "repository_doc",
+          target: "npm:express@5.2.1",
+          title: "Résumé",
+          summary: "naïve release notes",
+          locator: { filePath: "History.md", startLine: 1 },
+        },
+        docsHit({
+          title: "Документация | API - section",
+          summary: "Café — маршрутизация",
+        }),
+      ]),
+    );
+
+    expect(text).toContain(
+      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n  Überprüfung · human review",
+    );
+    expect(text).toContain(
+      "[2] npm:express@5.2.1 History.md:1 [repo doc] - Résumé",
+    );
+    expect(text).toContain(
+      "[3] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -\n  Документация | API - section",
+    );
+    expect(text).toContain("Café — маршрутизация");
+    expect(text).toContain("Résumé");
+  });
+
+  it("keeps documentation targets compact unless multiple targets need attribution", () => {
+    const single = renderUnifiedSearchSuccess(completed([docsHit()]));
+    expect(single).toContain(
+      "[1] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -\n  Edit Formats",
+    );
+
+    const multiple = renderUnifiedSearchSuccess(
+      completed([
+        docsHit(),
+        docsHit({
+          target: "npm:express@5.2.1",
+          title: "Routing",
+          locator: {
+            pageId: "express/routing",
+            sourceUrl: "https://expressjs.com/en/guide/routing",
+          },
+        }),
+      ]),
+    );
+    expect(multiple).toContain(
+      "[1] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -\n  Edit Formats",
+    );
+    expect(multiple).toContain(
+      "[2] express/routing [docs page] npm:express - expressjs.com/en/guide/routing -\n  Routing",
+    );
+  });
+
+  it("retains a documentation page ID when its source URL is unavailable", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([docsHit({ locator: { pageId: "internal-page-id" } })]),
+    );
+
+    expect(text).toContain(
+      "[1] internal-page-id [docs page] aider-AI/aider - source URL unavailable -\n  Edit Formats",
+    );
+  });
+
+  it("keeps docs follow-up locators before a free-form title tail", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        docsHit({
+          target: "npm:express@5.2.1",
+          title: "router.route() | API - section",
+          locator: {
+            pageId: "386050",
+            registry: "npm",
+            packageName: "express",
+            version: "5.2.1",
+            sourceUrl: "https://expressjs.com/en/4x/api/router/#routerroute",
+          },
+        }),
+      ]),
+    );
+
+    expect(text).toContain(
+      "[1] 386050 [docs page] npm:express - expressjs.com/en/4x/api/router/#routerroute -\n  router.route() | API - section",
+    );
+  });
+
+  it("keeps repository symbol locators before a free-form title tail", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          type: "repository_symbol",
+          title: "parse | request - options",
+          locator: { filePath: "src/index.ts", startLine: 10, endLine: 12 },
+        }),
+      ]),
+    );
+
+    expect(text).toContain(
+      "[1] cline/cline@v3.4.2 src/index.ts:10-12 [repo symbol] -\n  parse | request - options",
+    );
+  });
+
+  it("wraps long title tails without wrapping fixed locator prefixes", () => {
+    const repoTitle =
+      "Repository title that is deliberately long enough to wrap at terminal boundaries";
+    const docsTitle =
+      "Documentation title | API - deliberately long enough to wrap at terminal boundaries";
+    const payload = completed([
+      codeHit({ title: repoTitle, summary: undefined }),
+      docsHit({ title: docsTitle, summary: undefined }),
+    ]);
+    const repoPrefix =
+      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -";
+    const docsPrefix =
+      "[2] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -";
+
+    for (const width of [40, 80]) {
+      const text = renderUnifiedSearchSuccess(payload, {
+        width,
+        useColors: false,
+      });
+      const lines = text.split("\n");
+      const repoPrefixIndex = lines.indexOf(repoPrefix);
+      const docsPrefixIndex = lines.indexOf(docsPrefix);
+      expect(repoPrefixIndex).toBeGreaterThanOrEqual(0);
+      expect(docsPrefixIndex).toBeGreaterThanOrEqual(0);
+      expect(lines[repoPrefixIndex + 1]).toMatch(/^ {2}Repository title that/);
+      expect(lines[docsPrefixIndex + 1]).toMatch(
+        /^ {2}Documentation title \| API -/,
+      );
+      expect(lines[repoPrefixIndex]).not.toContain(repoTitle);
+      expect(lines[docsPrefixIndex]).not.toContain(docsTitle);
+      const normalizedTitle = (start: number, end: number) =>
+        lines
+          .slice(start + 1, end)
+          .filter((line) => line.startsWith("  "))
+          .map((line) => line.slice(2))
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim();
+      expect(normalizedTitle(repoPrefixIndex, docsPrefixIndex)).toBe(repoTitle);
+      expect(normalizedTitle(docsPrefixIndex, lines.length)).toBe(docsTitle);
+      expect(
+        lines
+          .slice(repoPrefixIndex + 1)
+          .filter((line) => line.startsWith("  "))
+          .every((line) => line.length <= width),
+      ).toBe(true);
+    }
+
+    expect(renderUnifiedSearchSuccess(payload)).toBe(
+      renderUnifiedSearchSuccess(payload, { width: 80, useColors: false }),
+    );
+
+    const multiline = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          title: "First title line\nSecond title line",
+          summary: undefined,
+        }),
+      ]),
+      { width: 200, useColors: false },
+    );
+    expect(multiline).toContain(
+      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n" +
+        "  First title line\n  Second title line",
+    );
+  });
+
+  it("keeps semantic ANSI styling and title match highlights in headers", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          title: "applyEdit",
+          highlights: { title: [[0, 5]] },
+        }),
+        docsHit({
+          title: "Edit Formats",
+          highlights: { title: [[0, 4]] },
+        }),
+      ]),
+      { useColors: true, width: 200 },
+    );
+    const reset = "\u001b[0m";
+    const locator = "\u001b[1m\u001b[36m";
+    const matched = "\u001b[1m\u001b[33m";
+    const secondary = "\u001b[2m";
+
+    expect(text).toContain(
+      `[1] ${locator}cline/cline@v3.4.2${reset} ${locator}src/integrations/diff/strategies/multi-search-replace.ts:142-156${reset} ${secondary}[repo code]${reset} - ${matched}apply${reset}Edit`,
+    );
+    expect(text).toContain(
+      `[2] ${locator}aider/edit-formats${reset} ${secondary}[docs page]${reset} ${secondary}aider-AI/aider${reset} - ${secondary}aider.chat/docs/more/edit-formats.html${reset} - ${matched}Edit${reset} Formats`,
+    );
+    expect(text.replace(ANSI_SGR_PATTERN, "")).toBe(
+      renderUnifiedSearchSuccess(
+        completed([
+          codeHit({
+            title: "applyEdit",
+            highlights: { title: [[0, 5]] },
+          }),
+          docsHit({
+            title: "Edit Formats",
+            highlights: { title: [[0, 4]] },
+          }),
+        ]),
+        { useColors: false, width: 200 },
+      ),
+    );
+  });
+
+  it("marks repository hits whose human location is unavailable", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([codeHit({ locator: {} })]),
+    );
+
+    expect(text).toContain(
+      "[1] cline/cline@v3.4.2 location unavailable [repo code] - applyEdit",
+    );
+  });
+
+  it("renders completed empty evidence once and uses model pivots", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
         query: {
@@ -89,146 +555,894 @@ describe("renderUnifiedSearchSuccess", () => {
           filters: { kind: "function" },
         },
         sourceStatus: [
-          {
+          source({
             source: "code",
             targetLabel: "npm:express@5.2.1",
-            requestedTarget: "npm:express latest",
-            servedTarget: "npm:express@5.2.1",
             codeIndexState: "CURRENT",
             resultCount: 0,
-          },
+          }),
         ],
       }),
     );
-    expect(text).toContain("0 hits");
-    expect(text).toContain('query="diff myers"');
+
+    expect(firstLine(text)).toContain("No results returned");
+    expect(text).toContain("\n- npm:express@5.2.1\n  Searched: code");
     expect(text).toContain(
-      "No hits for code on npm:express@5.2.1 (requested npm:express latest; current).",
+      'Next: shorten or broaden query; remove restrictive filters; use source="symbol"; use code_grep.',
     );
-    expect(text).toContain("Do not repeat this search unchanged.");
-    expect(text).toContain("shorten or broaden the query");
-    expect(text).toContain("remove restrictive filters");
-    expect(text).toContain('source="symbol"');
-    expect(text).toContain("known literal or regex");
+    expect(text).not.toContain('query="');
+    expect(text).not.toContain("Do not repeat");
   });
 
-  it("directs completed indexing results to wait or indexed alternatives", () => {
+  it("renders symbol source readiness as code", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        query: { raw: "router", sources: ["symbol"] },
+        sourceStatus: [
+          source({
+            source: "symbol",
+            codeIndexState: "CURRENT",
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain("Searched: code");
+    expect(text).not.toContain("repository docs");
+  });
+
+  it.each(["docs", "auto"] as const)(
+    "uses a neutral docs label for contributor-less %s sources",
+    (sourceName) => {
+      const text = renderUnifiedSearchSuccess(
+        completed([], {
+          sourceStatus: [source({ source: sourceName, resultCount: 0 })],
+        }),
+      );
+
+      expect(text).toContain("- npm:express@4.18.2\n  Searched: docs");
+      expect(text).not.toContain("repository docs");
+    },
+  );
+
+  it("renders the supplied n8n active empty snapshot with one concise readiness block", () => {
+    const text = renderUnifiedSearchSuccess(n8nActiveEmpty());
+
+    expect(text).toBe(
+      "Indexing - no results yet\n\n" +
+        "- npm:n8n -> 2.36.7\n" +
+        "  Indexing: code, repository docs | Available now: n8n.io docs (1,480 pages;\n" +
+        "  capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master\n\n" +
+        "Search fabUr1S3MEVeSgD93pMoSQ | 0/1 target ready\n" +
+        'Next: search_status search_ref="fabUr1S3MEVeSgD93pMoSQ" wait_timeout_ms=20000',
+    );
+    expect(text).not.toContain("Do not repeat");
+    expect(text).not.toContain("indexingRef");
+    expect(text).not.toContain("freshnessReason");
+    expect(text).not.toContain("Opaque evidence notice");
+    expect(text.match(/Indexing/g)).toHaveLength(2);
+    expect(text.match(/Available now:/g)).toHaveLength(1);
+    expect(text.match(/Next:/g)).toHaveLength(1);
+  });
+
+  it("keeps one layout while rendering surface-native commands", () => {
+    const payload = n8nActiveEmpty();
+    const mcp = renderUnifiedSearchSuccess(payload);
+    const cli = renderUnifiedSearchSuccess(payload, { actionSyntax: "cli" });
+
+    expect(cli).toContain(
+      "Next: githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 20",
+    );
+    expect(cli).not.toContain("search_status search_ref=");
+    expect(
+      cli.replace(
+        "Next: githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 20",
+        "Next: <status-action>",
+      ),
+    ).toBe(
+      mcp.replace(
+        'Next: search_status search_ref="fabUr1S3MEVeSgD93pMoSQ" wait_timeout_ms=20000',
+        "Next: <status-action>",
+      ),
+    );
+
+    const code = renderUnifiedSearchSuccess(completed([codeHit()]), {
+      actionSyntax: "cli",
+    });
+    expect(code).toContain(
+      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n  applyEdit",
+    );
+
+    const repositoryCode = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          target: "github:cline/cline#main",
+          locator: {
+            repoUrl: "https://github.com/cline/cline",
+            gitRef: "main",
+            filePath: "src/index.ts",
+            startLine: 10,
+            endLine: 20,
+          },
+        }),
+      ]),
+      { actionSyntax: "cli" },
+    );
+    expect(repositoryCode).toContain(
+      "[1] github:cline/cline#main src/index.ts:10-20 [repo code] - applyEdit",
+    );
+
+    const docs = renderUnifiedSearchSuccess(completed([docsHit()]), {
+      actionSyntax: "cli",
+    });
+    expect(docs).toContain(
+      "[1] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -\n  Edit Formats",
+    );
+
+    const empty = renderUnifiedSearchSuccess(
+      completed([], {
+        query: { raw: "router", filters: { kind: "function" } },
+        sourceStatus: [source({ codeIndexState: "CURRENT", resultCount: 0 })],
+      }),
+      { actionSyntax: "cli" },
+    );
+    expect(empty).toContain("use --source symbol");
+    expect(empty).toContain("use githits code grep");
+    expect(empty).not.toContain('source="symbol"');
+    expect(empty).not.toContain("code_grep");
+  });
+
+  it("omits a singular target for multiple active progress targets", () => {
+    const text = renderUnifiedSearchSuccess(
+      incomplete({
+        progress: {
+          status: "INDEXING",
+          targetsReady: 0,
+          targetsTotal: 2,
+          elapsedMs: 100,
+          targets: [
+            { requested: "npm:one@1.0.0", freshness: "INDEXING" },
+            { requested: "npm:two@2.0.0", freshness: "INDEXING" },
+          ],
+        },
+      }),
+    );
+
+    expect(firstLine(text)).toBe("Indexing - no result snapshot yet");
+    expect(text).toContain("Search ref_abc-123 | 0/2 targets ready");
+  });
+
+  it("does not invent source details for a true progress-only response", () => {
+    const text = renderUnifiedSearchSuccess(
+      incomplete({
+        progress: {
+          status: "INDEXING",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 100,
+          targets: [
+            {
+              requested: "npm:n8n",
+              resolvedRequested: "npm:n8n@2.36.7",
+              freshness: "INDEXING",
+              availableVersions: [{ version: "2.26.9", ref: "v2.26.9" }],
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(firstLine(text)).toBe("Indexing - no result snapshot yet");
+    expect(text).toContain("Search ref_abc-123 | 0/1 target ready");
+    expect(text).not.toContain("Waiting:");
+    expect(text).not.toContain("Searched:");
+    expect(text).not.toContain("n8n.io");
+    expect(text).toContain("Status: indexing | Available now: versions 2.26.9");
+    expect(text).toContain("versions 2.26.9");
+    expect(text).toContain(
+      'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=20000',
+    );
+  });
+
+  it("does not invent a target state when progress omits freshness", () => {
+    const text = renderUnifiedSearchSuccess(
+      incomplete({
+        progress: {
+          status: "INDEXING",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 100,
+          targets: [{ requested: "npm:express" }],
+        },
+      }),
+    );
+
+    expect(text).toContain("- npm:express");
+    expect(text).not.toContain("Status:");
+  });
+
+  it.each([
+    ["CURRENT", "Status: ready"],
+    ["INDEXED", "Status: ready"],
+    ["PENDING", "Status: pending"],
+    ["INDEXING", "Status: indexing"],
+    ["PROVISIONAL", "Status: provisional"],
+  ] as const)(
+    "renders explicit target freshness %s accurately",
+    (freshness, detail) => {
+      const text = renderUnifiedSearchSuccess(
+        incomplete({
+          progress: {
+            status: "SEARCHING",
+            targetsReady:
+              freshness === "CURRENT" || freshness === "INDEXED" ? 1 : 0,
+            targetsTotal: 1,
+            elapsedMs: 100,
+            targets: [{ requested: "npm:express@5.2.1", freshness }],
+          },
+        }),
+      );
+
+      expect(text).toContain(detail);
+    },
+  );
+
+  it("keeps shared served snapshots in distinct requested target blocks", () => {
+    const text = renderUnifiedSearchSuccess(
+      incomplete({
+        progress: {
+          status: "INDEXING",
+          targetsReady: 0,
+          targetsTotal: 2,
+          elapsedMs: 100,
+          targets: [
+            {
+              requested: "npm:express@5.1.0",
+              resolvedRequested: "npm:express@5.1.0",
+              served: "npm:express@5.1.0",
+            },
+            {
+              requested: "npm:express",
+              resolvedRequested: "npm:express@5.2.1",
+              served: "npm:express@5.1.0",
+              freshness: "INDEXING",
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(text).toContain("- npm:express@5.1.0");
+    expect(text).toContain("- npm:express -> 5.2.1");
+    expect(text.match(/^- npm:express/gm)).toHaveLength(2);
+    expect(text).toContain("Search ref_abc-123 | 0/2 targets ready");
+  });
+
+  it("renders an initial progress-only parser warning once below the outcome", () => {
+    const text = renderUnifiedSearchSuccess(
+      incomplete({
+        query: { raw: "router", warnings: ["unknown qualifier"] },
+      }),
+    );
+
+    expect(firstLine(text)).toBe("Indexing - no result snapshot yet");
+    expect(text).toContain("Warnings:\n  - unknown qualifier");
+    expect(text.match(/unknown qualifier/g)).toHaveLength(1);
+    expect(text.indexOf("Warnings:")).toBeGreaterThan(0);
+  });
+
+  it("uses the scoped site URL before the site key for searched and available docs", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
         sourceStatus: [
-          {
+          source({
+            source: "docs",
+            targetLabel: "npm:example@1.0.0",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                resultCount: 0,
+                siteKey: "example.com",
+                siteUrl: "https://example.com/reference",
+              },
+              {
+                kind: "DOCPACK",
+                state: "READY",
+                resultCount: 0,
+                siteKey: "example.com",
+                siteUrl: "https://example.com/guide",
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "Searched: example.com/reference docs | Available now: example.com/guide docs",
+    );
+    expect(text).not.toContain("not searched");
+    expect(text).not.toContain("for npm:example@1.0.0");
+  });
+
+  it("renders site suggestions once without selecting them during active polling", () => {
+    const sourceStatus = [
+      source({
+        source: "docs",
+        targetLabel: "site:example.com",
+        suggestedSiteTargets: ["site:docs.example.com", "site:api.example.com"],
+        suggestedSiteTargetsTruncated: true,
+      }),
+    ];
+    const text = renderUnifiedSearchSuccess(
+      incomplete({ partialResults: false, sourceStatus }),
+    );
+
+    expect(text).toContain(
+      "Suggested sites: site:docs.example.com,\n  site:api.example.com | More suggested sites omitted",
+    );
+    expect(text).toContain(
+      'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=20000',
+    );
+    expect(text).not.toContain("Next: retry one suggested site target");
+    expect(text.match(/Suggested sites:/g)).toHaveLength(1);
+    expect(text.match(/More suggested sites omitted/g)).toHaveLength(1);
+  });
+
+  it("does not suffix deduplicated site suggestions with a target", () => {
+    const sourceStatus = [
+      source({
+        source: "docs",
+        targetLabel: "site:example.com",
+        suggestedSiteTargets: ["site:docs.example.com"],
+      }),
+      source({
+        source: "docs",
+        targetLabel: "site:example.com",
+        suggestedSiteTargets: ["site:docs.example.com"],
+      }),
+    ];
+    const text = renderUnifiedSearchSuccess(
+      incomplete({ partialResults: false, sourceStatus }),
+    );
+
+    expect(text).toContain("Suggested sites: site:docs.example.com");
+    expect(text).not.toContain("Suggested sites for site:example.com:");
+  });
+
+  it("renders site retry guidance for completed and terminal site recovery", () => {
+    const sourceStatus = [
+      source({
+        source: "docs",
+        targetLabel: "site:example.com",
+        suggestedSiteTargets: ["site:docs.example.com"],
+        suggestedSiteTargetsTruncated: false,
+      }),
+    ];
+    const completedText = renderUnifiedSearchSuccess(
+      completed([], { sourceStatus }),
+    );
+    expect(completedText).toContain("Suggested sites: site:docs.example.com");
+    expect(completedText).toContain(
+      "Next: retry one suggested site target explicitly.",
+    );
+    expect(completedText).not.toContain("search_status");
+
+    const terminalText = renderUnifiedSearchSuccess(
+      incomplete({
+        partialResults: false,
+        sourceStatus,
+        progress: {
+          status: "DEFERRED",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 60_000,
+        },
+      }),
+    );
+    expect(terminalText).toContain("Suggested sites: site:docs.example.com");
+    expect(terminalText).toContain(
+      "Next: retry one suggested site target explicitly.",
+    );
+    expect(terminalText).not.toContain("Next: search_status");
+  });
+
+  it("disambiguates multi-target readiness and preserves docs provenance", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({
             source: "code",
-            targetLabel: "npm:express@5.2.1",
-            servedTarget: "npm:express@5.2.1",
-            indexingStatus: "INDEXING",
+            targetLabel: "npm:one@1.0.0",
             codeIndexState: "INDEXING",
-            resultCount: 0,
+          }),
+          source({
+            source: "code",
+            targetLabel: "npm:two@2.0.0",
+            codeIndexState: "INDEXING",
+          }),
+          source({
+            source: "docs",
+            targetLabel: "npm:one@1.0.0",
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                resultCount: 1,
+                repositoryUrl: "https://github.com/one/repo",
+                commitSha: "commit-one",
+              },
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                resultCount: 1,
+                siteKey: "docs.one.example",
+              },
+            ],
+          }),
+          source({
+            source: "docs",
+            targetLabel: "npm:two@2.0.0",
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                resultCount: 1,
+                repositoryUrl: "https://github.com/two/repo",
+                commitSha: "commit-two",
+              },
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                resultCount: 1,
+                siteKey: "docs.two.example",
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(firstLine(text)).toBe("No results returned");
+    expect(text).toContain(
+      "- npm:one@1.0.0\n  Indexing: code | Searched: repository docs, docs.one.example docs",
+    );
+    expect(text).toContain(
+      "- npm:two@2.0.0\n  Indexing: code | Searched: repository docs, docs.two.example docs",
+    );
+  });
+
+  it("does not repeat a standalone site target in its readiness identity", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({
+            source: "code",
+            targetLabel: "npm:one@1.0.0",
+            codeIndexState: "INDEXING",
+          }),
+          source({
+            source: "docs",
+            targetLabel: "site:docs.one.example",
             targetResolution: {
-              freshness: "indexing",
-              availableVersions: [{ version: "5.1.0", ref: "v5.1.0" }],
+              requested: { site: "site:docs.one.example" },
+              served: { site: "site:docs.one.example" },
+              freshness: "current",
+              availableVersions: [],
               availableRefs: [],
             },
-          },
+          }),
         ],
       }),
     );
 
-    expect(text).toContain("wait_timeout_ms");
-    expect(text).toContain("queryable now");
-    expect(text).not.toContain("shorten or broaden the query");
+    expect(text).toContain("- npm:one@1.0.0\n  Indexing: code");
+    expect(text).toContain(
+      "- site:docs.one.example\n  Searched: site:docs.one.example docs",
+    );
+    expect(text).not.toContain("for site:");
   });
 
-  it("renders provisional evidence as queryable while indexing continues", () => {
+  it("does not repeat exact identities for unavailable code or available sites", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
         sourceStatus: [
-          {
-            source: "code",
-            targetLabel: "github:foo/bar#main",
+          source({
+            targetLabel: "npm:one@1.0.0",
+            codeIndexState: "MISSING",
+          }),
+          source({
+            targetLabel: "npm:two@2.0.0",
+            codeIndexState: "CURRENT",
+          }),
+          source({
+            source: "docs",
+            targetLabel: "site:docs.one.example",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "READY",
+                resultCount: 0,
+                siteKey: "site:docs.one.example",
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain("- npm:one@1.0.0\n  Unavailable: code");
+    expect(text).not.toContain(
+      "Unavailable: code (npm:one@1.0.0) for npm:one@1.0.0",
+    );
+    expect(text).toContain("- npm:two@2.0.0\n  Searched: code");
+    expect(text).toContain(
+      "- site:docs.one.example\n  Available now: site:docs.one.example docs",
+    );
+    expect(text).not.toContain("for site:");
+  });
+
+  it("omits a singular outcome target when hits span multiple targets", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({ target: "npm:one@1.0.0" }),
+        codeHit({ target: "npm:two@2.0.0" }),
+      ]),
+    );
+
+    expect(firstLine(text)).toBe("2 results | 2 repo code hits");
+    expect(firstLine(text)).not.toContain(" from ");
+  });
+
+  it.each([
+    ["PENDING", "Preparing"],
+    ["INDEXING", "Indexing"],
+    ["SEARCHING", "Searching"],
+  ] as const)(
+    "keeps %s lifecycle distinct without a snapshot",
+    (status, label) => {
+      const text = renderUnifiedSearchSuccess(
+        incomplete({
+          progress: {
+            status,
+            targetsReady: 0,
+            targetsTotal: 1,
+            elapsedMs: 20,
+          },
+        }),
+      );
+      expect(firstLine(text)).toStartWith(label);
+      expect(firstLine(text)).toContain("no result snapshot yet");
+      expect(firstLine(text)).not.toContain("No results yet");
+    },
+  );
+
+  it.each([
+    [false, "interim"],
+    [true, "partial"],
+  ] as const)(
+    "distinguishes atomic interim from %s results",
+    (partial, label) => {
+      const text = renderUnifiedSearchSuccess(
+        incomplete({
+          partialResults: partial,
+          results: [codeHit()],
+          progress: {
+            status: "INDEXING",
+            targetsReady: 1,
+            targetsTotal: 1,
+            elapsedMs: 20,
+          },
+        }),
+      );
+      expect(firstLine(text)).toContain(`1 ${label} result`);
+      expect(firstLine(text)).not.toContain("final");
+    },
+  );
+
+  it.each(["DEFERRED", "TIMEOUT", "FAILED"] as const)(
+    "renders terminal %s exactly once and never polls",
+    (status) => {
+      const text = renderUnifiedSearchSuccess(
+        incomplete({
+          progress: {
+            status,
+            targetsReady: 0,
+            targetsTotal: 1,
+            elapsedMs: 60_000,
+          },
+        }),
+      );
+      expect(firstLine(text)).toStartWith(status);
+      expect(text).toContain("Next: rerun search later.");
+      expect(text).not.toContain("Do not poll");
+      expect(text).not.toContain("Next: search_status");
+    },
+  );
+
+  it("keeps an unknown lifecycle raw and conservative", () => {
+    const text = renderUnifiedSearchSuccess(
+      incomplete({
+        progress: {
+          status: "FUTURE_SESSION_STATE",
+          targetsReady: 1,
+          targetsTotal: 2,
+          elapsedMs: 60_000,
+        },
+      }),
+    );
+    expect(firstLine(text)).toBe(
+      "FUTURE_SESSION_STATE - no result snapshot returned",
+    );
+    expect(text).toContain("Next: rerun search later.");
+    expect(text).not.toContain("Do not poll");
+    expect(text).not.toContain("Next: search_status");
+    expect(text).not.toContain("indexing");
+  });
+
+  it("renders stale and provisional evidence as trust limits without raw diagnostics", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@5.2.1",
+            requestedTarget: "npm:express latest",
+            freshTarget: "npm:express@5.2.1",
+            servedTarget: "npm:express@5.1.0",
             codeIndexState: "PROVISIONAL",
             targetResolution: {
-              requested: {
-                repoUrl: "https://github.com/foo/bar",
-                gitRef: "main",
-              },
-              served: {
-                repoUrl: "https://github.com/foo/bar",
-                gitRef: "main",
-                commitSha: "abc123789def",
-              },
-              freshness: "provisional",
+              freshness: "fallback_recent",
               freshnessReason: "exact_provisional",
-              indexingRef: "idx_123",
+              indexingRef: "idx-hidden",
               availableVersions: [],
               availableRefs: [],
             },
-          },
+          }),
         ],
       }),
     );
-
-    expect(text).toContain("provisional (still indexing)");
-    expect(text).toContain("served=github:foo/bar#main@abc1237");
-    expect(text).toContain("indexingRef=idx_123");
-    expect(text).toContain(
-      "next: rerun with a larger wait_timeout_ms to wait for indexing.",
-    );
-    expect(text).not.toContain("shorten or broaden the query");
+    expect(text).toContain("- npm:express latest -> 5.2.1");
+    expect(text).toContain("Using: 5.1.0 while 5.2.1 indexes | Searched: code");
+    expect(text).not.toContain("Evidence:");
+    expect(text).not.toContain("idx-hidden");
+    expect(text).not.toContain("exact_provisional");
+    expect(text).not.toContain("shorten or broaden query");
   });
 
-  it("treats target-resolution-only provisional evidence as still indexing", () => {
+  it("deduplicates stale evidence for the same served target", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed(
+        [
+          codeHit({
+            target: "npm:express@5.1.0",
+            requestedTarget: "npm:express latest",
+            freshTarget: "npm:express@5.2.1",
+            servedTarget: "npm:express@5.1.0",
+            freshness: "STALE",
+          }),
+        ],
+        {
+          sourceStatus: [
+            source({
+              targetLabel: "npm:express@5.1.0",
+              requestedTarget: "npm:express latest",
+              freshTarget: "npm:express@5.2.1",
+              servedTarget: "npm:express@5.1.0",
+              codeIndexState: "STALE",
+            }),
+          ],
+        },
+      ),
+    );
+
+    expect(firstLine(text)).toBe("1 result | 1 repo code hit");
+    expect(text).toContain("- npm:express latest -> 5.2.1");
+    expect(text.match(/Using:/g)).toHaveLength(1);
+    expect(text).toContain("Using: 5.1.0 while 5.2.1 indexes");
+  });
+
+  it("treats indexing hit freshness as stale served evidence", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          target: "npm:express@5.1.0",
+          requestedTarget: "npm:express latest",
+          freshTarget: "npm:express@5.2.1",
+          servedTarget: "npm:express@5.1.0",
+          freshness: "INDEXING",
+        }),
+      ]),
+    );
+
+    expect(firstLine(text)).toBe("1 result | 1 repo code hit");
+    expect(text).toContain("- npm:express latest -> 5.2.1");
+    expect(text.match(/Using:/g)).toHaveLength(1);
+    expect(text).toContain("Using: 5.1.0 while 5.2.1 indexes");
+  });
+
+  it("shows a served older version from progress-only stale identity", () => {
+    const text = renderUnifiedSearchSuccess(
+      incomplete({
+        progress: {
+          status: "INDEXING",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 20,
+          targets: [
+            {
+              requested: "npm:express latest",
+              resolvedRequested: "npm:express@5.2.1",
+              served: "npm:express@5.1.0",
+              freshness: "INDEXING",
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(text).toContain("- npm:express latest -> 5.2.1");
+    expect(text.match(/Using:/g)).toHaveLength(1);
+    expect(text).toContain("Using: 5.1.0 while 5.2.1 indexes");
+    expect(text).not.toContain("(using");
+  });
+
+  it("keeps a stale served version in detail when no fresh target exists", () => {
+    const text = renderUnifiedSearchSuccess(
+      incomplete({
+        progress: {
+          status: "INDEXING",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 20,
+          targets: [
+            {
+              requested: "npm:express latest",
+              served: "npm:express@5.1.0",
+              freshness: "INDEXING",
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(text).toContain(
+      "- npm:express latest\n  Using: 5.1.0 (older snapshot)",
+    );
+    expect(text).not.toContain("- npm:express latest -> 5.1.0");
+  });
+
+  it("uses the searched package context for a lone docpack outcome", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
         sourceStatus: [
-          {
-            source: "code",
-            targetLabel: "github:foo/bar#main",
-            targetResolution: {
-              freshness: "provisional",
-              availableVersions: [],
-              availableRefs: [],
-            },
-          },
+          source({
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                resultCount: 0,
+                siteKey: "expressjs.com",
+                siteUrl: "https://expressjs.com/docs",
+              },
+            ],
+          }),
         ],
       }),
     );
 
+    expect(firstLine(text)).toBe("No results returned");
+  });
+
+  it.each([
+    [
+      "github:expressjs/express#main",
+      "github:expressjs/express#main",
+      "npm:express@5.2.1",
+      "npm:express@5.1.0",
+    ],
+    [
+      "npm:express@5.2.1",
+      "npm:express latest",
+      "npm:express@5.2.1",
+      "npm:express@5.1.0",
+    ],
+  ] as const)(
+    "uses the served package for a requested %s source",
+    (targetLabel, requestedTarget, freshTarget, servedTarget) => {
+      const text = renderUnifiedSearchSuccess(
+        completed([], {
+          sourceStatus: [
+            source({
+              targetLabel,
+              requestedTarget,
+              freshTarget,
+              servedTarget,
+              codeIndexState: "INDEXING",
+            }),
+          ],
+        }),
+      );
+
+      expect(firstLine(text)).toBe("No results returned");
+      expect(firstLine(text)).not.toContain(targetLabel);
+      expect(firstLine(text)).not.toContain(freshTarget);
+    },
+  );
+
+  it("turns an evidence notice into one concise mutable-evidence action", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        searchRef: "search-ref-evidence",
+        evidenceNotice: "Opaque backend prose must not be copied.",
+      }),
+    );
+    expect(firstLine(text)).toBe("No results returned");
+    expect(text).toContain("Search search-ref-evidence | completed");
     expect(text).toContain(
-      "next: rerun with a larger wait_timeout_ms to wait for indexing.",
+      'Next: search_status search_ref="search-ref-evidence" wait_timeout_ms=20000',
     );
-    expect(text).not.toContain("shorten or broaden the query");
+    expect(text).not.toContain("Opaque backend prose");
+    expect(text).not.toContain("Evidence may change.");
+    expect(text).not.toContain("Do not repeat");
   });
 
-  it("does not suggest symbol search when already using the symbol source", () => {
+  it("continues completed mutable evidence with hits through the exact reference", () => {
     const text = renderUnifiedSearchSuccess(
-      completed([], {
-        query: { raw: "Router", sources: ["symbol"] },
+      completed([codeHit()], {
+        searchRef: "search-ref-results",
+        evidenceNotice: "Opaque backend prose must not be copied.",
       }),
     );
-
-    expect(text).not.toContain('source="symbol"');
-    expect(text).not.toContain("remove restrictive filters");
+    expect(firstLine(text)).toContain("1 result");
+    expect(text).toContain("Search search-ref-results | completed");
+    expect(text).toContain(
+      'Next: search_status search_ref="search-ref-results" wait_timeout_ms=20000',
+    );
+    const lines = text.split("\n");
+    const actionLine = lines.findIndex((line) => line.startsWith("Next: "));
+    expect(actionLine).toBeGreaterThan(0);
+    expect(lines[actionLine - 1]).toBe("Search search-ref-results | completed");
+    expect(text).not.toContain("Evidence may change.");
+    expect(text).not.toContain("Do not repeat");
   });
 
-  it("does not call explicit public_only=false restrictive", () => {
+  it("prints query and structured constraint warnings once below the outcome", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
-        query: { raw: "Router", filters: { publicOnly: false } },
+        query: {
+          raw: "router kind:function",
+          warnings: ["kind was ignored by the selected source"],
+        },
+        warnings: ["duplicated promoted warning must not render"],
+        sourceStatus: [
+          source({
+            incompatibleQueryFeatures: ["kind"],
+            ignoredFilters: ["category"],
+          }),
+        ],
       }),
     );
-
-    expect(text).not.toContain("remove restrictive filters");
+    expect(firstLine(text)).toContain("No results returned");
+    expect(text).toContain("Warnings:");
+    expect(text).toContain("kind was ignored by the selected source");
+    expect(text).toContain("Incompatible query feature");
+    expect(text).toContain("Ignored filter");
+    expect(text).not.toContain("duplicated promoted warning");
+    expect(text.match(/Warnings:/g)).toHaveLength(1);
   });
 
-  it("keeps standalone docs site pivots within applicable sources", () => {
+  it("uses only the standalone-site query pivot", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
         query: { raw: "middleware", sources: ["docs"] },
         sourceStatus: [
-          {
+          source({
             source: "docs",
             targetLabel: "site:expressjs.com",
-            resultCount: 0,
             targetResolution: {
               requested: { site: "site:expressjs.com" },
               served: { site: "site:expressjs.com" },
@@ -236,1136 +1450,267 @@ describe("renderUnifiedSearchSuccess", () => {
               availableVersions: [],
               availableRefs: [],
             },
-          },
+          }),
         ],
       }),
     );
-
-    expect(text).not.toContain("code_grep");
+    expect(text).toContain("shorten or broaden site query");
     expect(text).not.toContain('source="symbol"');
-    expect(text).toContain("next: shorten or broaden the query.");
+    expect(text).not.toContain("code_grep");
   });
 
-  it("prefers a failed lifecycle state over a healthy sibling", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([], {
-        warnings: ["Source 'code' for npm:express@5.2.1: status FAILED"],
-        sourceStatus: [
-          {
-            source: "code",
-            targetLabel: "npm:express@5.2.1",
-            servedTarget: "npm:express@5.2.1",
-            indexingStatus: "FAILED",
-            codeIndexState: "CURRENT",
-            resultCount: 0,
-          },
-        ],
-      }),
-    );
-
-    expect(text).toContain("No hits for code on npm:express@5.2.1 (failed).");
-    expect(text).not.toContain(
-      "No hits for code on npm:express@5.2.1 (current).",
-    );
-  });
-
-  it("prefers a stale lifecycle state over a healthy sibling", () => {
+  it("prefers an indexed alternative while indexing instead of query rewrites", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
         sourceStatus: [
-          {
-            source: "code",
+          source({
             targetLabel: "npm:express@5.2.1",
-            servedTarget: "npm:express@5.2.1",
-            indexingStatus: "STALE",
-            codeIndexState: "CURRENT",
-            resultCount: 0,
-          },
+            indexingStatus: "INDEXING",
+            targetResolution: {
+              freshness: "indexing",
+              availableVersions: [{ version: "5.1.0", ref: "v5.1.0" }],
+              availableRefs: [],
+            },
+          }),
         ],
       }),
     );
+    expect(text).toContain("Next: search indexed version 5.1.0");
+    expect(text).not.toContain("shorten or broaden query");
+    expect(text).not.toContain("code_grep");
+  });
 
+  it("only includes applicable filter and symbol/code_grep pivots", () => {
+    const filtered = renderUnifiedSearchSuccess(
+      completed([], {
+        query: { raw: "router", filters: { kind: "function" } },
+      }),
+    );
+    expect(filtered).toContain("remove restrictive filters");
+    expect(filtered).toContain('source="symbol"');
+    expect(filtered).toContain("code_grep");
+
+    const symbol = renderUnifiedSearchSuccess(
+      completed([], { query: { raw: "Router", sources: ["symbol"] } }),
+    );
+    expect(symbol).not.toContain('source="symbol"');
+    expect(symbol).toContain("code_grep");
+  });
+
+  it("bounds alternatives and preserves pagination and result ordering", () => {
+    const payload = completed([codeHit(), docsHit()], {
+      hasMore: true,
+      nextOffset: 10,
+      sourceStatus: [
+        source({
+          targetLabel: "npm:express",
+          targetResolution: {
+            availableVersions: [
+              { version: "5.2.1", ref: "v5.2.1" },
+              { version: "5.2.0", ref: "v5.2.0" },
+              { version: "5.1.0", ref: "v5.1.0" },
+              { version: "5.0.0", ref: "v5.0.0" },
+            ],
+            availableRefs: [
+              { ref: "HEAD" },
+              { ref: "main" },
+              { ref: "next" },
+              { ref: "dev" },
+            ],
+          },
+        }),
+      ],
+    });
+    const text = renderUnifiedSearchSuccess(payload);
+    const cliText = renderUnifiedSearchSuccess(payload, {
+      actionSyntax: "cli",
+    });
     expect(text).toContain(
-      "No hits for code on npm:express@5.2.1 (previous-snapshot).",
+      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n  applyEdit",
     );
-    expect(text).not.toContain(
-      "No hits for code on npm:express@5.2.1 (current).",
-    );
-  });
-
-  it("renders a single code hit with locator, title, and summary", () => {
-    const text = renderUnifiedSearchSuccess(completed([codeHit()]));
-    expect(text).toContain("[1] cline/cline@v3.4.2  code");
-    expect(text).not.toContain("0.87");
     expect(text).toContain(
-      '    code_read target="npm:cline@v3.4.2" path="src/integrations/diff/strategies/multi-search-replace.ts" start_line=142 end_line=156  function',
+      "[2] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -\n  Edit Formats",
     );
-    expect(text).toContain("    applyEdit");
     expect(text).toContain(
-      "    Search/replace block parser with fuzzy fallback when exact match fails.",
+      "Available now: versions 5.2.1, 5.2.0, 5.1.0 +1, refs HEAD,\n  main, next +1",
     );
+    expect(text).toContain("next_offset=10");
+    expect(cliText).toContain("next_offset=10");
+    expect(cliText).not.toContain("More hits available");
+    expect(text).not.toContain("v5.0.0");
+    expect(text).not.toContain("dev");
   });
 
-  it("uses pageId for documentation hits", () => {
-    const text = renderUnifiedSearchSuccess(completed([docsHit()]));
-    expect(text).toContain("[1] aider/edit-formats aider-AI/aider  docs");
-    expect(text).toContain('    docs_read page_id="aider/edit-formats"');
-    expect(text).toContain("    Edit Formats");
+  it("uses the presentation pagination flag as the rendering authority", () => {
+    const payload = completed([], { hasMore: true, nextOffset: 10 });
+    const presentation = projectUnifiedSearchPresentation(payload);
+    const text = renderUnifiedSearchPresentationText(presentation, {
+      results: payload.results,
+      nextOffset: payload.nextOffset,
+    });
+
+    expect(presentation.hasMore).toBe(true);
+    expect(text).toContain("No results returned | next_offset=10");
   });
 
-  it("renders qualifiedPath alongside file location for symbol hits", () => {
-    const text = renderUnifiedSearchSuccess(completed([symbolHit()]));
-    expect(text).toContain("[1] continuedev/continue@v0.9.42  symbol");
-    expect(text).toContain(
-      "    follow-up unavailable: missing target  core.diff.myers.diffLines | function",
+  it("keeps pagination in active and terminal result headlines", () => {
+    const active = renderUnifiedSearchSuccess(
+      incomplete({
+        partialResults: false,
+        hasMore: true,
+        nextOffset: 10,
+        results: [codeHit()],
+      }),
     );
-    expect(text).toContain("    diffLines");
-  });
-
-  it("uses ASCII separators throughout (no multi-byte chars)", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([codeHit(), symbolHit()]),
-    );
-    // No common Unicode-Latin1 separator characters in the output.
-    expect(text).not.toMatch(/[·…—–]/);
-  });
-
-  it("emits a truncation hint with offset when hasMore", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([codeHit()], { hasMore: true, nextOffset: 10 }),
-    );
-    expect(text).toContain("More hits available. Pass offset=10");
-  });
-
-  it("falls back to a plain widen hint when nextOffset is missing", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([codeHit()], { hasMore: true }),
-    );
-    expect(text).toContain("More hits available. Pass limit=N to widen.");
-  });
-
-  it("renders incomplete payloads with searchRef and progress hint", () => {
-    const incomplete: UnifiedSearchIncompletePayload = {
-      query: { raw: "myers" },
-      completed: false,
-      hasMore: false,
-      results: [codeHit()],
-      searchRef: "ref_abc-123",
-      progress: {
-        status: "INDEXING",
-        targetsReady: 1,
-        targetsTotal: 2,
-        elapsedMs: 8200,
-      },
-    };
-    const text = renderUnifiedSearchSuccess(incomplete);
-    expect(text).toContain("1 partial");
-    expect(text).toContain("searchRef=ref_abc-123");
-    expect(text).toContain("Indexing in progress.\nDo not repeat search.");
-    expect(text).toContain(
-      'next: call search_status with search_ref="ref_abc-123" and wait_timeout_ms=20000.',
-    );
-    expect(text).not.toContain("searchRef=ref_abc-123 to follow up");
-  });
-
-  it.each(["FAILED", "TIMEOUT"] as const)(
-    "stops polling a terminal %s session",
-    (status) => {
-      const incomplete: UnifiedSearchIncompletePayload = {
-        query: { raw: "myers" },
+    const terminal = renderUnifiedSearchSuccess(
+      incomplete({
+        partialResults: false,
         completed: false,
-        hasMore: false,
-        results: [],
-        searchRef: `ref-${status.toLowerCase()}`,
+        hasMore: true,
+        nextOffset: 10,
+        results: [codeHit()],
         progress: {
-          status,
+          status: "DEFERRED",
           targetsReady: 0,
           targetsTotal: 1,
-          elapsedMs: 20_000,
+          elapsedMs: 1,
         },
-      };
-
-      const text = renderUnifiedSearchSuccess(incomplete);
-      expect(text).toContain(
-        "Do not call search_status again for this session.",
-      );
-      expect(text).toContain("next: rerun search");
-      expect(text).not.toContain("next: call search_status");
-    },
-  );
-
-  it("renders terminal deferred evidence without polling or active-state claims", () => {
-    const incomplete: UnifiedSearchIncompletePayload = {
-      query: { raw: "myers" },
-      completed: false,
-      hasMore: false,
-      results: [codeHit()],
-      searchRef: "ref-deferred",
-      evidenceNotice: "Stored evidence remains usable.",
-      progress: {
-        status: "DEFERRED",
-        targetsReady: 1,
-        targetsTotal: 2,
-        elapsedMs: 600_000,
-      },
-    };
-
-    const text = renderUnifiedSearchSuccess(incomplete);
-    expect(text).toContain("Search session deferred.");
-    expect(text).toContain(
-      "Background lifecycle work continues outside this search session.",
-    );
-    expect(text).toContain("Use any disclosed evidence now.");
-    expect(text).toContain("Stored evidence remains usable.");
-    expect(text).toContain("next: rerun search later for a fresher snapshot.");
-    expect(text).not.toContain("next: call search_status");
-    expect(text).not.toContain("No hits");
-    expect(text).not.toContain("Indexing in progress");
-  });
-
-  it("renders a deferred session without stored results as unknown evidence", () => {
-    const incomplete: UnifiedSearchIncompletePayload = {
-      query: { raw: "myers" },
-      completed: false,
-      hasMore: false,
-      results: [],
-      searchRef: "ref-deferred-empty",
-      progress: {
-        status: "DEFERRED",
-        targetsReady: 0,
-        targetsTotal: 1,
-        elapsedMs: 600_000,
-      },
-    };
-
-    const text = renderUnifiedSearchSuccess(incomplete);
-    expect(text).toContain(
-      "No result snapshot is available for this deferred session.",
-    );
-    expect(text).toContain("next: rerun search later for a fresher snapshot.");
-    expect(text).not.toContain("No hits");
-    expect(text).not.toContain("Indexing in progress");
-    expect(text).not.toContain("next: call search_status");
-  });
-
-  it("preserves evidence for an unrecognized status without interpreting it", () => {
-    const incomplete: UnifiedSearchIncompletePayload = {
-      query: { raw: "myers" },
-      completed: false,
-      hasMore: false,
-      results: [codeHit()],
-      searchRef: "ref-future",
-      evidenceNotice: "Stored evidence remains usable.",
-      progress: {
-        status: "FUTURE_SESSION_STATE",
-        targetsReady: 1,
-        targetsTotal: 2,
-        elapsedMs: 600_000,
-      },
-    };
-
-    const text = renderUnifiedSearchSuccess(incomplete);
-    expect(text).toContain("Search returned status FUTURE_SESSION_STATE.");
-    expect(text).toContain("This client does not recognize that status.");
-    expect(text).toContain("Use any disclosed evidence now.");
-    expect(text).toContain("Stored evidence remains usable.");
-    expect(text).toContain("next: rerun search later.");
-    expect(text).not.toContain("next: call search_status");
-    expect(text).not.toContain("No hits");
-    expect(text).not.toContain("Indexing in progress");
-    expect(text).not.toContain("terminal");
-  });
-
-  it("does not invent hits or indexing for an unrecognized status", () => {
-    const incomplete: UnifiedSearchIncompletePayload = {
-      query: { raw: "myers" },
-      completed: false,
-      hasMore: false,
-      results: [],
-      searchRef: "ref-future-empty",
-      progress: {
-        status: "FUTURE_SESSION_STATE",
-        targetsReady: 0,
-        targetsTotal: 1,
-        elapsedMs: 600_000,
-      },
-    };
-
-    const text = renderUnifiedSearchSuccess(incomplete);
-    expect(text).toContain(
-      "No result snapshot is available for search status FUTURE_SESSION_STATE.",
-    );
-    expect(text).toContain("next: rerun search later.");
-    expect(text).not.toContain("No hits");
-    expect(text).not.toContain("indexing");
-    expect(text).not.toContain("next: call search_status");
-    expect(text).not.toContain("terminal");
-  });
-
-  it("labels incomplete indexed alternatives as immediately queryable", () => {
-    const incomplete: UnifiedSearchIncompletePayload = {
-      query: { raw: "router" },
-      completed: false,
-      hasMore: false,
-      results: [],
-      searchRef: "ref-indexing",
-      progress: {
-        status: "INDEXING",
-        targetsReady: 0,
-        targetsTotal: 1,
-        elapsedMs: 100,
-        targets: [
-          {
-            requested: "npm:express latest",
-            availableVersions: [{ version: "4.18.2", ref: "v4.18.2" }],
-            availableRefs: [{ ref: "main" }],
-          },
-        ],
-      },
-    };
-
-    const text = renderUnifiedSearchSuccess(incomplete);
-    expect(text).toContain("0/1 targets");
-    expect(text).toContain(
-      "queryable now: versions=4.18.2@v4.18.2 | refs=main",
-    );
-    expect(text).not.toContain("allow_partial_results");
-  });
-
-  it("wraps long summaries at the configured width", () => {
-    const longSummary =
-      "This summary is intentionally long enough to force the wrap logic to break it across multiple lines so the renderer's wrap behaviour is verified.";
-    const text = renderUnifiedSearchSuccess(
-      completed([codeHit({ summary: longSummary })]),
-    );
-    const summaryLines = text
-      .split("\n")
-      .filter(
-        (line) => line.startsWith("    ") && line.includes("intentionally"),
-      );
-    expect(summaryLines.length).toBeGreaterThanOrEqual(1);
-    for (const line of text.split("\n")) {
-      if (line.includes("code_read ")) continue;
-      // 4-space indent + content; allow some slack for the wrap target.
-      expect(line.length).toBeLessThanOrEqual(82);
-    }
-  });
-
-  it("renders source-status notes when the backend reports them", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([codeHit()], {
-        sourceStatus: [
-          {
-            source: "code",
-            targetLabel: "npm/cline@v3.4.2",
-            ignoredFilters: ["fileIntent"],
-            note: "fileIntent unsupported on code source",
-          },
-        ],
       }),
     );
-    expect(text).toContain("source notes:");
-    expect(text).toContain("- code (npm/cline@v3.4.2)");
-    expect(text).toContain("ignored=fileIntent");
+
+    expect(firstLine(active)).toContain("next_offset=10");
+    expect(firstLine(terminal)).toContain("next_offset=10");
   });
 
-  it("renders structured site recovery guidance in backend order", () => {
+  it("wraps bounded summaries without splitting exact tokens", () => {
+    const targetOne = "npm:one-long-package@1.0.0";
+    const targetTwo = "npm:two-long-package@2.0.0";
+    const suggestions = [
+      "site:docs.example.com/guide/one",
+      "site:docs.example.com/guide/two",
+      "site:docs.example.com/guide/three",
+    ];
+    const longRef = `refs/${"x".repeat(90)}`;
     const text = renderUnifiedSearchSuccess(
       completed([], {
         sourceStatus: [
-          {
+          source({
+            targetLabel: targetOne,
+            codeIndexState: "INDEXING",
+            targetResolution: {
+              availableVersions: [{ version: "1.0.0", ref: "v1.0.0" }],
+              availableRefs: [{ ref: longRef }],
+            },
+          }),
+          source({
+            targetLabel: targetTwo,
+            codeIndexState: "INDEXING",
+            targetResolution: {
+              availableVersions: [{ version: "2.0.0", ref: "v2.0.0" }],
+              availableRefs: [{ ref: "main" }],
+            },
+          }),
+          source({
             source: "docs",
-            targetLabel: "site:example.com",
-            suggestedSiteTargets: [
-              "site:example.com/docs",
-              "site:example.com/guide",
-            ],
+            targetLabel: "site:docs.example.com",
+            suggestedSiteTargets: suggestions,
             suggestedSiteTargetsTruncated: true,
-          },
+          }),
         ],
       }),
     );
 
+    const lines = text.split("\n");
+    const summaryLines = lines.filter((line) =>
+      /^( {2})?(Indexing|Searched|Available now|Suggested sites)/.test(line),
+    );
+    expect(summaryLines.length).toBeGreaterThanOrEqual(3);
+    expect(summaryLines.every((line) => line.length <= 80)).toBe(true);
+    expect(text).toContain(targetOne);
+    expect(text).toContain(targetTwo);
+    expect(text).toContain(longRef);
+    expect(text).toContain("More suggested sites omitted");
     expect(text).toContain(
-      "Suggested site targets: site:example.com/docs, site:example.com/guide",
+      "Next: search indexed version 1.0.0 for npm:one-long-package@1.0.0.",
     );
-    expect(text).toContain("Additional site targets were omitted.");
-    expect(text.indexOf("site:example.com/docs")).toBeLessThan(
-      text.indexOf("site:example.com/guide"),
-    );
+
+    const overlongLines = lines.filter((line) => line.length > 80);
+    expect(overlongLines).toHaveLength(1);
+    expect(overlongLines[0]).toContain(longRef);
   });
 
-  it("renders a warnings preamble when payload-level warnings are populated", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([], {
-        warnings: [
-          "Source 'docs' for npm:zod@4.3.6: incompatible query features [kind]",
-        ],
-        sourceStatus: [
-          {
-            source: "docs",
-            targetLabel: "npm:zod@4.3.6",
-            incompatibleQueryFeatures: ["kind"],
-          },
-        ],
-      }),
+  it("wraps target details at the caller-supplied full output width", () => {
+    const narrow = renderUnifiedSearchSuccess(n8nActiveEmpty(), { width: 60 });
+    const wide = renderUnifiedSearchSuccess(n8nActiveEmpty(), { width: 140 });
+    const detailLines = (text: string) =>
+      text.split("\n").filter((line) => line.startsWith("  "));
+
+    expect(detailLines(narrow).length).toBeGreaterThan(
+      detailLines(wide).length,
     );
-    expect(text).toContain("warnings:");
-    expect(text).toContain(
-      "  - Source 'docs' for npm:zod@4.3.6: incompatible query features [kind]",
-    );
-    // Source notes block still rendered for structured detail.
-    expect(text).toContain("source notes:");
-    expect(text.indexOf("warnings:")).toBeLessThan(
-      text.indexOf("Do not repeat this search unchanged."),
-    );
+    expect(detailLines(narrow).every((line) => line.length <= 60)).toBe(true);
+    expect(detailLines(wide).every((line) => line.length <= 140)).toBe(true);
+    expect(wide).toContain("n8n.io docs (1,480 pages; capped), versions");
   });
 
-  it("uses a compact headline when every requested source is empty", () => {
+  it("shows capped searched coverage without repeating the trust limit", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
         sourceStatus: [
-          {
-            source: "code",
-            targetLabel: "npm:zod@4.3.6",
-            resultCount: 0,
-          },
-          {
+          source({
             source: "docs",
-            targetLabel: "npm:zod@4.3.6",
-            resultCount: 0,
-          },
+            targetLabel: "site:docs.example.com",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                freshness: "CURRENT",
+                resultCount: 0,
+                siteKey: "docs.example.com",
+                siteUrl: "https://docs.example.com",
+                coverage: {
+                  coverageState: "PARTIAL",
+                  pagesCrawled: 120,
+                },
+              },
+            ],
+          }),
         ],
       }),
     );
-
-    expect(text).toContain("No hits from any source (code, docs).");
-    expect(text).not.toContain("No hits across");
+    expect(text).toContain(
+      "Searched: docs.example.com docs (120 pages; partial)",
+    );
+    expect(text.match(/120 pages/g)).toHaveLength(1);
   });
 
-  it("uses requestedRef when repo follow-up lacks served gitRef", () => {
+  it("wraps long summaries", () => {
     const text = renderUnifiedSearchSuccess(
       completed([
         codeHit({
-          target: "https://github.com/expressjs/express default branch",
-          locator: {
-            repoUrl: "https://github.com/expressjs/express",
-            filePath: "lib/router/index.js",
-            requestedRef: "main",
-          },
+          summary:
+            "This summary is intentionally long enough to force wrapping across multiple lines without using a non-ASCII separator.",
         }),
       ]),
     );
-
-    expect(text).toContain(
-      'code_read target="github:expressjs/express#main" path="lib/router/index.js"',
-    );
-    expect(text).not.toContain("#HEAD");
-  });
-
-  it("renders terminal source status compactly without raw target-resolution details", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([], {
-        warnings: [
-          "Source 'code' for githits-com/no-such-repo: Repository ref cannot be resolved (UNRESOLVABLE)",
-        ],
-        sourceStatus: [
-          {
-            source: "code",
-            targetLabel: "githits-com/no-such-repo",
-            indexingStatus: "UNRESOLVABLE",
-            codeIndexState: "UNRESOLVABLE",
-            note: "Repository ref cannot be resolved",
-            targetResolution: {
-              requested: {
-                repoUrl: "https://github.com/githits-com/no-such-repo",
-              },
-              resolvedRequested: {
-                repoUrl: "https://github.com/githits-com/no-such-repo",
-                gitRef: "HEAD",
-              },
-              freshness: "indexing",
-              freshnessReason: "no_current_fallback",
-              availableVersions: [],
-              availableRefs: [],
-            },
-          },
-        ],
-      }),
-    );
-
-    expect(text).toContain(
-      "code (githits-com/no-such-repo) | Repository ref cannot be resolved (UNRESOLVABLE)",
-    );
-    expect(text).not.toContain("state=indexing");
-  });
-
-  it("omits the warnings preamble when no warnings are present", () => {
-    const text = renderUnifiedSearchSuccess(completed([codeHit()]));
-    expect(text).not.toContain("warnings:");
-    expect(text).not.toContain("Do not repeat this search unchanged.");
-    expect(text).not.toContain('source="symbol"');
-  });
-
-  it("separates multiple hits with a blank line", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([codeHit(), docsHit(), symbolHit()]),
-    );
-    const hitHeaders = text.split("\n").filter((line) => /^\[\d\]/.test(line));
-    expect(hitHeaders).toHaveLength(3);
-    expect(text).toContain("[1] cline/cline@v3.4.2");
-    expect(text).toContain("[2] aider/edit-formats aider-AI/aider");
-    expect(text).toContain("[3] continuedev/continue@v0.9.42");
-  });
-
-  it("lists healthy documentation references without repeating result metadata", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed(
-        [
-          docsHit({
-            target: "npm:express@5.2.1",
-            locator: {
-              pageId: "express/routing",
-              sourceUrl: "https://wrong.example.net/inferred-from-hit",
-              sourceKind: "hosted",
-            },
-          }),
-        ],
-        {
-          sourceStatus: [
-            {
-              source: "docs",
-              targetLabel: "npm:express@5.2.1",
-              contributors: [
-                {
-                  kind: "DOCPACK",
-                  state: "SEARCHED",
-                  freshness: "CURRENT",
-                  resultCount: 4,
-                  siteKey: "34150829eb8a7c57",
-                  siteUrl: "https://expressjs.com/en/guide/",
-                  coverage: {
-                    coverageState: "COMPLETE",
-                    pagesCrawled: 124,
-                    frontierRemaining: 0,
-                    artifactOverflowPageCount: 0,
-                  },
-                },
-                {
-                  kind: "REPOSITORY_DOCS",
-                  state: "SEARCHED",
-                  freshness: "CURRENT",
-                  resultCount: 1,
-                  repositoryUrl: "https://github.com/expressjs/express",
-                  commitSha: "0123456789abcdef0123456789abcdef01234567",
-                },
-              ],
-            },
-            {
-              source: "code",
-              targetLabel: "npm:express@5.2.1",
-              contributors: [],
-            },
-          ],
-        },
-      ),
-    );
-
-    const searchedLine = text
-      .split("\n")
-      .find((line) => line.startsWith("searched:"));
-    expect(searchedLine).toBe(
-      "searched: site expressjs.com/en/guide; repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567",
-    );
-    expect(text).not.toContain("wrong.example.net");
-    expect(text).toContain(
-      "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567\n\n[1]",
-    );
-    expect(text.indexOf("searched:")).toBeLessThan(text.indexOf("[1]"));
-    expect(text).not.toContain("documentation corpora");
-    expect(text).not.toContain("hits on this page");
-    expect(text).not.toContain("current");
-    expect(text).not.toContain("124");
-  });
-
-  it("labels searched provisional documentation as still indexing", () => {
-    const sourceStatus = [
-      {
-        source: "docs",
-        targetLabel: "npm:express@5.2.1",
-        contributors: [
-          {
-            kind: "REPOSITORY_DOCS" as const,
-            state: "SEARCHED" as const,
-            freshness: "PROVISIONAL" as const,
-            resultCount: 1,
-            repositoryUrl: "https://github.com/expressjs/express",
-            commitSha: "0123456789abcdef0123456789abcdef01234567",
-          },
-        ],
-      },
-    ];
-    const text = renderUnifiedSearchSuccess(
-      completed([docsHit()], { sourceStatus }),
-    );
-
-    expect(text).toContain(
-      "documentation sources:\n  npm:express@5.2.1:\n    - repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567 - searched provisional index; indexing continues",
-    );
-    expect(text).toContain("[1]");
-
-    const emptyText = renderUnifiedSearchSuccess(
-      completed([], { sourceStatus }),
-    );
-    expect(emptyText).toContain(
-      "next: rerun with a larger wait_timeout_ms to wait for indexing.",
-    );
-  });
-
-  it("labels documentation sources only when multiple targets need disambiguation", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([docsHit()], {
-        sourceStatus: [
-          {
-            source: "docs",
-            targetLabel: "npm:express@5.2.1",
-            contributors: [
-              {
-                kind: "REPOSITORY_DOCS",
-                state: "SEARCHED",
-                freshness: "CURRENT",
-                resultCount: 1,
-                repositoryUrl: "https://github.com/expressjs/express",
-                commitSha: "0123456789abcdef0123456789abcdef01234567",
-              },
-            ],
-          },
-          {
-            source: "docs",
-            targetLabel: "npm:koa@3.0.1",
-            contributors: [
-              {
-                kind: "REPOSITORY_DOCS",
-                state: "SEARCHED",
-                freshness: "CURRENT",
-                resultCount: 0,
-                repositoryUrl: "https://github.com/koajs/koa",
-                commitSha: "abcdef0123456789abcdef0123456789abcdef01",
-              },
-            ],
-          },
-        ],
-      }),
-    );
-
-    expect(text).toContain(
-      "searched:\n  npm:express@5.2.1: repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567\n  npm:koa@3.0.1: repo https://github.com/koajs/koa @ abcdef0123456789abcdef0123456789abcdef01",
-    );
-    expect(text.indexOf("searched:")).toBeLessThan(text.indexOf("[1]"));
-  });
-
-  it("renders a root docpack URL without a redundant trailing slash", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([], {
-        sourceStatus: [
-          {
-            source: "docs",
-            targetLabel: "npm:express@5.2.1",
-            contributors: [
-              {
-                kind: "DOCPACK",
-                state: "SEARCHED",
-                freshness: "CURRENT",
-                resultCount: 0,
-                siteKey: "34150829eb8a7c57",
-                siteUrl: "https://expressjs.com/",
-                coverage: { coverageState: "COMPLETE" },
-              },
-            ],
-          },
-        ],
-      }),
-    );
-
-    expect(text.split("\n").find((line) => line.startsWith("searched:"))).toBe(
-      "searched: site expressjs.com",
-    );
-  });
-
-  it("keeps malformed optional site metadata from failing text output", () => {
-    for (const siteUrl of [
-      "expressjs.com/en/guide",
-      "file:///opt/docs/index.html",
-    ]) {
-      const text = renderUnifiedSearchSuccess(
-        completed([], {
-          sourceStatus: [
-            {
-              source: "docs",
-              targetLabel: "npm:express@5.2.1",
-              contributors: [
-                {
-                  kind: "DOCPACK",
-                  state: "PENDING",
-                  resultCount: 0,
-                  siteKey: "34150829eb8a7c57",
-                  siteUrl,
-                },
-              ],
-            },
-          ],
-        }),
-      );
-
-      expect(text).toContain(
-        "site documentation - not ready, so it was not searched",
-      );
+    for (const line of text.split("\n")) {
+      if (!line.startsWith("[")) expect(line.length).toBeLessThanOrEqual(82);
     }
   });
 
-  it("numbers docpack labels only when their displayed identities collide", () => {
+  it("does not split unbreakable summary tokens", () => {
+    const token = `https://example.com/${"segment".repeat(20)}`;
     const text = renderUnifiedSearchSuccess(
-      completed([], {
-        sourceStatus: [
-          {
-            source: "docs",
-            targetLabel: "npm:express@5.2.1",
-            contributors: [
-              {
-                kind: "DOCPACK",
-                state: "PENDING",
-                resultCount: 0,
-                siteKey: "1111111111111111",
-                siteUrl: "https://docs.example.com/",
-              },
-              {
-                kind: "DOCPACK",
-                state: "READY",
-                freshness: "CURRENT",
-                resultCount: 0,
-                siteKey: "2222222222222222",
-                siteUrl: "https://other.example.com",
-                coverage: { coverageState: "COMPLETE" },
-              },
-              {
-                kind: "DOCPACK",
-                state: "UNAVAILABLE",
-                resultCount: 0,
-                siteKey: "3333333333333333",
-                siteUrl: "https://docs.example.com",
-              },
-            ],
-          },
-        ],
-      }),
+      completed([codeHit({ summary: `Reference ${token} after` })]),
+      { width: 40 },
     );
 
-    expect(text).toContain(
-      "site docs.example.com 1 - not ready, so it was not searched",
-    );
-    expect(text).toContain(
-      "site other.example.com - available, but not searched for this response",
-    );
-    expect(text).toContain(
-      "site docs.example.com 2 - unavailable and was not searched",
-    );
-  });
-
-  it("retains the source target when another response target has no contributors", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed(
-        [
-          codeHit({
-            target: "npm:express@5.2.1",
-          }),
-        ],
-        {
-          sourceStatus: [
-            {
-              source: "docs",
-              targetLabel: "npm:koa@3.0.1",
-              contributors: [
-                {
-                  kind: "DOCPACK",
-                  state: "PENDING",
-                  resultCount: 0,
-                  siteKey: "1111111111111111",
-                },
-              ],
-            },
-            {
-              source: "code",
-              targetLabel: "npm:express@5.2.1",
-              contributors: [],
-            },
-          ],
-        },
-      ),
-    );
-
-    expect(text).toContain(
-      "documentation sources:\n  npm:koa@3.0.1:\n    - site documentation - not ready, so it was not searched\n\n[1]",
-    );
-  });
-
-  it("groups mixed source health by target without repeating section labels", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([docsHit()], {
-        sourceStatus: [
-          {
-            source: "docs",
-            targetLabel: "npm:express@5.2.1",
-            contributors: [
-              {
-                kind: "REPOSITORY_DOCS",
-                state: "SEARCHED",
-                freshness: "CURRENT",
-                resultCount: 1,
-                repositoryUrl: "https://github.com/expressjs/express",
-                commitSha: "0123456789abcdef0123456789abcdef01234567",
-              },
-            ],
-          },
-          {
-            source: "docs",
-            targetLabel: "npm:koa@3.0.1",
-            contributors: [
-              {
-                kind: "DOCPACK",
-                state: "PENDING",
-                resultCount: 0,
-                siteKey: "1111111111111111",
-              },
-            ],
-          },
-          {
-            source: "docs",
-            targetLabel: "npm:react@19.1.1",
-            contributors: [
-              {
-                kind: "DOCPACK",
-                state: "UNAVAILABLE",
-                resultCount: 0,
-                siteKey: "2222222222222222",
-              },
-            ],
-          },
-        ],
-      }),
-    );
-
-    expect(text).toContain(
-      "searched:\n  npm:express@5.2.1: repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567\n\ndocumentation sources:\n  npm:koa@3.0.1:\n    - site documentation - not ready, so it was not searched\n  npm:react@19.1.1:\n    - site documentation - unavailable and was not searched",
-    );
-    expect(text.match(/documentation sources:/g)).toHaveLength(1);
-  });
-
-  it("states searched contributors and missing coverage inside an exception block", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed(
-        [
-          docsHit({
-            target: "npm:express@5.2.1",
-            locator: {
-              pageId: "express/routing",
-              sourceUrl: "https://expressjs.com/en/guide/routing.html",
-            },
-          }),
-        ],
-        {
-          sourceStatus: [
-            {
-              source: "docs",
-              targetLabel: "npm:express@5.2.1",
-              contributors: [
-                {
-                  kind: "REPOSITORY_DOCS",
-                  state: "SEARCHED",
-                  freshness: "CURRENT",
-                  resultCount: 1,
-                  repositoryUrl: "https://github.com/expressjs/express",
-                  commitSha: "0123456789abcdef0123456789abcdef01234567",
-                },
-                {
-                  kind: "DOCPACK",
-                  state: "SEARCHED",
-                  freshness: "CURRENT",
-                  resultCount: 0,
-                  siteKey: "34150829eb8a7c57",
-                },
-              ],
-            },
-          ],
-        },
-      ),
-    );
-
-    expect(text).toContain("documentation sources:");
-    expect(text).toContain(
-      "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567 - searched",
-    );
-    expect(text).toContain(
-      "site documentation - searched; published coverage details unavailable",
-    );
-    expect(text).not.toContain("searched: repo");
-  });
-
-  it("explains capped page coverage without repeating the limit reason", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([], {
-        sourceStatus: [
-          {
-            source: "docs",
-            targetLabel: "npm:express@5.2.1",
-            contributors: [
-              {
-                kind: "DOCPACK",
-                state: "SEARCHED",
-                freshness: "CURRENT",
-                resultCount: 0,
-                siteKey: "34150829eb8a7c57",
-                coverage: {
-                  coverageState: "CAPPED",
-                  coverageReason: "max_pages",
-                  pagesCrawled: 500,
-                  frontierRemaining: 24,
-                  artifactOverflowPageCount: 0,
-                },
-              },
-            ],
-          },
-        ],
-      }),
-    );
-
-    expect(text).toContain(
-      "site documentation - searched; published snapshot reached its page limit: 500 pages included, 24 discovered pages not included",
-    );
-    expect(text).not.toContain("limited by max pages");
-    expect(text).not.toContain("34150829eb8a7c57");
-  });
-
-  it("explains documentation source exceptions without implying progress from coverage", () => {
-    const notice =
-      "Results reflect disclosed snapshots; pending work may change hits and ordering.";
-    const text = renderUnifiedSearchSuccess(
-      completed([docsHit()], {
-        searchRef: "search-ref-docs",
-        evidenceNotice: notice,
-        sourceStatus: [
-          {
-            source: "docs",
-            targetLabel: "npm:express@5.1.0",
-            contributors: [
-              {
-                kind: "REPOSITORY_DOCS",
-                state: "SEARCHED",
-                freshness: "CURRENT",
-                resultCount: 1,
-                repositoryUrl: "https://github.com/expressjs/express",
-                commitSha: "0123456789abcdef0123456789abcdef01234567",
-              },
-              {
-                kind: "DOCPACK",
-                state: "SEARCHED",
-                freshness: "STALE",
-                resultCount: 2,
-                siteKey: "34150829eb8a7c57",
-                siteUrl: "https://expressjs.com/en/guide",
-                coverage: {
-                  coverageState: "CAPPED",
-                  coverageReason: "artifact_size",
-                  pagesCrawled: 480,
-                  frontierRemaining: null,
-                  artifactOverflowPageCount: 12,
-                  estimatedTotalPages: 700,
-                  note: "Indexing is still in progress.",
-                },
-              },
-              {
-                kind: "DOCPACK",
-                state: "READY",
-                freshness: "CURRENT",
-                resultCount: 0,
-                siteKey: "1111111111111111",
-                siteUrl: "https://koajs.com/docs",
-                coverage: {
-                  coverageState: "COMPLETE",
-                  pagesCrawled: 75,
-                  frontierRemaining: 0,
-                  artifactOverflowPageCount: 0,
-                },
-              },
-              {
-                kind: "DOCPACK",
-                state: "SEARCHED",
-                freshness: "STALE",
-                resultCount: 0,
-                siteKey: "2222222222222222",
-                siteUrl: "https://react.dev/reference",
-                coverage: {
-                  coverageState: "NONE",
-                  pagesCrawled: 69,
-                  frontierRemaining: null,
-                  artifactOverflowPageCount: 0,
-                  note: "Coverage has not been computed.",
-                },
-              },
-              {
-                kind: "DOCPACK",
-                state: "PENDING",
-                resultCount: 0,
-                siteKey: "3333333333333333",
-                siteUrl: "https://docs.example.com/pending",
-              },
-              {
-                kind: "DOCPACK",
-                state: "UNAVAILABLE",
-                resultCount: 0,
-                siteKey: "4444444444444444",
-                siteUrl: "https://docs.example.com/unavailable",
-              },
-              {
-                kind: "DOCPACK",
-                state: "SEARCHED",
-                freshness: "CURRENT",
-                resultCount: 0,
-                siteKey: "5555555555555555",
-                siteUrl: "https://docs.example.com/capped",
-                coverage: {
-                  coverageState: "CAPPED",
-                  coverageReason: "trap_suspected",
-                  pagesCrawled: 20,
-                  frontierRemaining: null,
-                  artifactOverflowPageCount: 0,
-                },
-              },
-            ],
-          },
-        ],
-      }),
-    );
-
-    expect(text).toContain("documentation sources:");
-    expect(text.indexOf("documentation sources:")).toBeLessThan(
-      text.indexOf("[1]"),
-    );
-    expect(text).not.toContain("source notes:");
-    expect(text).toContain(
-      "repo https://github.com/expressjs/express @ 0123456789abcdef0123456789abcdef01234567 - searched",
-    );
-    expect(text).toContain(
-      "site expressjs.com/en/guide - searched an older snapshot; published snapshot hit its size cap: 480 pages included, 12 pages omitted, about 700 estimated total",
-    );
-    expect(text).toContain(
-      "site koajs.com/docs - available, but not searched for this response",
-    );
-    expect(text).toContain(
-      "site react.dev/reference - searched an older snapshot; published coverage was not measured: 69 pages included",
-    );
-    expect(text).not.toContain("Coverage has not been computed");
-    expect(text).toContain(
-      "site docs.example.com/pending - not ready, so it was not searched",
-    );
-    expect(text).toContain(
-      "site docs.example.com/unavailable - unavailable and was not searched",
-    );
-    expect(text).toContain(
-      "site docs.example.com/capped - searched; published snapshot is capped: 20 pages included, limited by a suspected crawl trap",
-    );
-    expect(text).not.toContain("hits on this page");
-    expect(text).not.toContain("documentation corpora");
-    expect(text).not.toContain("34150829eb8a7c57");
-    expect(text).not.toContain("Indexing is still in progress");
-    expect(text.match(new RegExp(notice, "g"))).toHaveLength(1);
-    expect(text).toContain(
-      'next: call search_status with search_ref="search-ref-docs"',
-    );
-  });
-
-  it("does not give query-pivot advice for empty evidence-bearing results", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([], {
-        searchRef: "search-ref-docs",
-        evidenceNotice: "Pending work may change hits and ordering.",
-      }),
-    );
-
-    expect(text).toContain("No hits in the searched evidence on this page.");
-    expect(text).toContain("Do not repeat immediately.");
-    expect(text).not.toContain("Do not repeat this search unchanged.");
-    expect(text).not.toContain("shorten or broaden the query");
-    expect(text).toContain(
-      'next: call search_status with search_ref="search-ref-docs"',
-    );
-  });
-
-  it("scopes empty claims to searched evidence when a source was not searched", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([], {
-        sourceStatus: [
-          {
-            source: "docs",
-            targetLabel: "npm:express@5.2.1",
-            contributors: [
-              {
-                kind: "DOCPACK",
-                state: "READY",
-                freshness: "CURRENT",
-                resultCount: 0,
-                siteKey: "34150829eb8a7c57",
-              },
-            ],
-          },
-        ],
-      }),
-    );
-
-    expect(text).toContain("No hits in the searched evidence on this page.");
-    expect(text).not.toContain("No hits for docs");
-    expect(text).toContain("Do not repeat this search unchanged.");
-    expect(text).toContain("next: shorten or broaden the query");
-  });
-
-  it("keeps indexing guidance when documentation contributors were not searched", () => {
-    const text = renderUnifiedSearchSuccess(
-      completed([], {
-        sourceStatus: [
-          {
-            source: "docs",
-            targetLabel: "npm:express@5.2.1",
-            contributors: [
-              {
-                kind: "DOCPACK",
-                state: "READY",
-                freshness: "CURRENT",
-                resultCount: 0,
-                siteKey: "34150829eb8a7c57",
-              },
-            ],
-          },
-          {
-            source: "code",
-            targetLabel: "npm:express@5.2.1",
-            contributors: [],
-            indexingStatus: "INDEXING",
-          },
-        ],
-      }),
-    );
-
-    expect(text).toContain("No hits in the searched evidence on this page.");
-    expect(text).toContain("Do not repeat this search unchanged.");
-    expect(text).toContain("indexState=INDEXING\n\ndocumentation sources:");
-    expect(text).toContain(
-      "next: rerun with a larger wait_timeout_ms to wait for indexing.",
-    );
-    expect(text).not.toContain("shorten or broaden the query");
+    expect(text).toContain(`  ${token}`);
   });
 });
 
 describe("renderUnifiedSearchError", () => {
-  it("renders a basic error", () => {
+  it("renders an error without changing the envelope contract", () => {
     const error: UnifiedSearchErrorPayload = {
       error: "Target is indexing.",
       code: "INDEXING",
@@ -1384,8 +1729,9 @@ describe("renderUnifiedSearchError", () => {
       error: "Bad request.",
       code: "INVALID_ARGUMENT",
     };
-    const text = renderUnifiedSearchError(error);
-    expect(text).toBe("search | ERROR | code=INVALID_ARGUMENT\nBad request.");
+    expect(renderUnifiedSearchError(error)).toBe(
+      "search | ERROR | code=INVALID_ARGUMENT\nBad request.",
+    );
   });
 
   it("serialises object detail values via JSON", () => {
@@ -1393,13 +1739,9 @@ describe("renderUnifiedSearchError", () => {
       error: "Indexing.",
       code: "INDEXING",
       details: {
-        availableVersions: [
-          { version: "4.21.0", ref: "v4.21.0" },
-          { version: "4.20.0", ref: "v4.20.0" },
-        ],
+        availableVersions: [{ version: "4.21.0", ref: "v4.21.0" }],
       },
     };
-    const text = renderUnifiedSearchError(error);
-    expect(text).toContain('"version":"4.21.0"');
+    expect(renderUnifiedSearchError(error)).toContain('"version":"4.21.0"');
   });
 });

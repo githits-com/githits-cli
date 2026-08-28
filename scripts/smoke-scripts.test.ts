@@ -6,6 +6,7 @@ import { EXPECTED_MCP_TOOLS } from "@githits/mcp/smoke-test";
 import {
   assertExperimentalCliResolveText,
   assertRootHelpStructure,
+  assertSearchTerminalText,
   buildMcpParityCommand,
   EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS,
   EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
@@ -22,6 +23,270 @@ import {
   STABLE_MCP_SMOKE_CONFIG,
 } from "./mcp-smoke.ts";
 import { toStdioLaunch } from "./smoke-launch-target.ts";
+
+describe("CLI search smoke contract", () => {
+  const valid = `Indexing - no results yet
+
+- npm:n8n -> 2.36.7
+  Indexing: code, repository docs | Available now: n8n.io docs (1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master
+
+Search smoke-ref | 0/1 target ready
+Next: githits search-status smoke-ref --wait 20`;
+  const completedWithTargetReadiness = `No results returned from npm:express
+
+- npm:express@4.18.2
+  Searched: repository docs
+
+Next: shorten or broaden query; use githits code grep.`;
+  const completed = `1 result | 1 repo code hit | next_offset=10
+
+[1] npm:express@5.2.1 lib/application.js [repo code]`;
+  const completedDocs = `1 result | 1 docs page
+
+[1] page-1 [docs page] npm:express - docs.example.com/getting-started - Getting started | API - section`;
+
+  it("accepts outcome-first text with CLI-native actions", () => {
+    expect(valid.split("\n")[0]).toBe("Indexing - no results yet");
+    expect(valid).toContain("- npm:n8n -> 2.36.7");
+    expect(valid).toContain(
+      "  Indexing: code, repository docs | Available now:",
+    );
+    expect(valid).toContain("Search smoke-ref | 0/1 target ready");
+    expect(valid).toContain("Next: githits search-status smoke-ref --wait 20");
+    expect(() => assertSearchTerminalText(valid, "search")).not.toThrow();
+    expect(() =>
+      assertSearchTerminalText(
+        "No results returned from npm:express\nNext: shorten or broaden query; use githits code grep.",
+        "search",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertSearchTerminalText(
+        "FAILED - no results returned\nNext: rerun search later.",
+        "search",
+      ),
+    ).not.toThrow();
+  });
+
+  it.each([
+    [`Warning: indexing\n${valid}`, "non-outcome text"],
+    [`${completed}\nstatus: indexing`, "lifecycle status"],
+    [
+      completed.replace(" lib/application.js [repo code]", ""),
+      "missing result follow-up",
+    ],
+    ["1 result from npm:express@5.2.1", "missing result follow-up"],
+  ])("rejects invalid search text", (text, message) => {
+    expect(() => assertSearchTerminalText(text, "search")).toThrow(message);
+  });
+
+  it("accepts completed hit text without a target group", () => {
+    expect(() => assertSearchTerminalText(completed, "search")).not.toThrow();
+  });
+
+  it("accepts completed documentation hit text without a target group", () => {
+    expect(() =>
+      assertSearchTerminalText(completedDocs, "search"),
+    ).not.toThrow();
+  });
+
+  it("accepts documentation hits that disclose a missing source URL", () => {
+    expect(() =>
+      assertSearchTerminalText(
+        "1 result | 1 docs page\n\n[1] page-1 [docs page] npm:express - source URL unavailable - README",
+        "search",
+      ),
+    ).not.toThrow();
+  });
+
+  it("accepts wrapped documentation and repository title tails", () => {
+    expect(() =>
+      assertSearchTerminalText(
+        "2 results | 1 repo code hit, 1 docs page\n\n" +
+          "[1] page-1 [docs page] npm:express - docs.example.com/getting-started -\n" +
+          "  A long documentation title\n\n" +
+          "[2] npm:express@5.2.1 lib/application.js [repo code] -\n" +
+          "  A long repository title",
+        "search",
+      ),
+    ).not.toThrow();
+  });
+
+  it("accepts a wrapped repository title without a documentation hit", () => {
+    expect(() =>
+      assertSearchTerminalText(
+        "1 result | 1 repo code hit\n\n" +
+          "[1] npm:express@5.2.1 lib/application.js [repo code] -\n" +
+          "  A long repository title",
+        "search",
+      ),
+    ).not.toThrow();
+  });
+
+  it.each([
+    [
+      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n  This payload mentions githits code read but has no locator",
+    ],
+    [
+      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n  githits code read 'npm:express@5.2.1' --lines 1-10",
+    ],
+    [
+      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n  ordinary title\n  githits code read 'npm:express@5.2.1' 'index.js'",
+    ],
+    [
+      "1 result\n\n[1] page-1 [docs page] npm:express - README\n" +
+        "  githits docs read --lines 1-10",
+    ],
+    [
+      "1 result\n\n[1] page-1 [docs page] npm:express -\n" +
+        "  README without a source locator",
+    ],
+    [
+      "1 result\n\n[1] page ID unavailable [docs page] npm:express - docs.example.com/readme -\n" +
+        "  Wrapped title without a page locator",
+    ],
+    [
+      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code] -\n" +
+        "  Wrapped title without a locator",
+    ],
+    ["1 result\n\n[1] npm:express@5.2.1 lib/application.js [repo code] -"],
+  ])("rejects incomplete or prose-only hit follow-ups", (text) => {
+    expect(() => assertSearchTerminalText(text, "search")).toThrow(
+      "missing result follow-up or next action",
+    );
+  });
+
+  it("accepts completed target readiness without a search session", () => {
+    expect(() =>
+      assertSearchTerminalText(completedWithTargetReadiness, "search"),
+    ).not.toThrow();
+  });
+
+  it("requires Using details to remain grouped under a target", () => {
+    expect(() =>
+      assertSearchTerminalText(
+        valid.replace(
+          "- npm:n8n -> 2.36.7\n  Indexing: code, repository docs | Available now: n8n.io docs (1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master",
+          "  Using: 2.26.9 while 2.36.7 indexes",
+        ),
+        "search",
+      ),
+    ).toThrow("readiness details must be grouped under a target");
+  });
+
+  it("rejects duplicate search session summaries", () => {
+    expect(() =>
+      assertSearchTerminalText(
+        `${valid}\nSearch another-ref | 0/1 target ready`,
+        "search",
+      ),
+    ).toThrow("expected at most one Search <ref> session summary");
+  });
+
+  it.each([
+    ["Ready:", "legacy flat section Ready:"],
+    ["Waiting:", "legacy flat section Waiting:"],
+    [
+      "Available but not searched:",
+      "legacy flat section Available but not searched:",
+    ],
+    ["Indexed alternatives:", "legacy flat section Indexed alternatives:"],
+    ["Evidence may change.", "vague evidence policy prose"],
+    ["Do not repeat search.", "repeat policy prose"],
+    ["Do not poll this session.", "poll policy prose"],
+  ])("rejects superseded top-level search text %s", (line, message) => {
+    expect(() =>
+      assertSearchTerminalText(`${valid}\n${line}`, "search"),
+    ).toThrow(message);
+  });
+
+  it("rejects duplicate lifecycle, status, and Next lines", () => {
+    expect(() =>
+      assertSearchTerminalText(`${valid}\nIndexing - no results yet`, "search"),
+    ).toThrow("duplicate lifecycle outcome lines");
+    expect(() =>
+      assertSearchTerminalText(`${valid}\nstatus: indexing`, "search"),
+    ).toThrow("duplicated lifecycle status line");
+    expect(() =>
+      assertSearchTerminalText(
+        `${valid}\nNext: githits search-status other --wait 20`,
+        "search",
+      ),
+    ).toThrow("multiple Next actions");
+  });
+
+  it("rejects target diagnostics and missing target grouping", () => {
+    expect(() =>
+      assertSearchTerminalText(`${valid}\nsearchRef=leaked`, "search"),
+    ).toThrow("leaked searchRef detail");
+    expect(() =>
+      assertSearchTerminalText(`${valid}\nindexingRef=leaked`, "search"),
+    ).toThrow("leaked indexingRef");
+    expect(() =>
+      assertSearchTerminalText(
+        valid.replace(
+          "  Indexing: code, repository docs | Available now: n8n.io docs (1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master",
+          "  Available now: versions 2.36.7",
+        ),
+        "search",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertSearchTerminalText(
+        valid.replace("- npm:n8n -> 2.36.7\n", ""),
+        "search",
+      ),
+    ).toThrow("readiness details must be grouped under a target");
+  });
+
+  it.each([
+    ["status: payload", "duplicated lifecycle status line"],
+    ["searchRef=payload", "leaked searchRef detail"],
+    ["indexingRef payload", "leaked indexingRef"],
+    ["search_ref=payload", "MCP search_ref syntax leaked into CLI output"],
+  ])("rejects target-detail diagnostic %s", (diagnostic, message) => {
+    const readinessLine =
+      "  Indexing: code, repository docs | Available now: n8n.io docs (1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master";
+    const targetDetail = valid.replace(readinessLine, `  ${diagnostic}`);
+
+    expect(() => assertSearchTerminalText(targetDetail, "search")).toThrow(
+      message,
+    );
+  });
+
+  it("ignores formatter-like words and diagnostics in indented hit content", () => {
+    const hitText = `1 result
+
+[1] npm:express@5.2.1 lib/application.js [repo code]
+  Ready: payload text
+  Waiting: payload text
+  Available but not searched: payload text
+  Indexed alternatives: payload text
+  Evidence may change.
+  Do not repeat this payload.
+  Do not poll this payload.
+  Next: payload text
+  Indexing: payload text
+  status: payload text
+  searchRef=payload text
+  indexingRef payload text
+  search_ref=payload text`;
+
+    expect(() => assertSearchTerminalText(hitText, "search")).not.toThrow();
+  });
+
+  it("keeps multiline hit-body diagnostics opaque after a blank line", () => {
+    const hitText =
+      "1 result | 1 repo code hit\n\n[1] npm:express@5.2.1 index.js [repo code]\n" +
+      "  First summary paragraph.\n\n" +
+      "  status: payload text\n" +
+      "  searchRef=payload text\n" +
+      "  indexingRef payload text\n" +
+      "  search_ref=payload text";
+
+    expect(() => assertSearchTerminalText(hitText, "search")).not.toThrow();
+  });
+});
 
 describe("smoke script options", () => {
   const tempDirs: string[] = [];

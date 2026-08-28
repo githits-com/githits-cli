@@ -180,6 +180,199 @@ export function assertDefaultText(
   return text;
 }
 
+function assertSearchDefaultText(text: string, context: string): void {
+  const lines = text.split("\n");
+  const formatterLines = searchFormatterLines(lines);
+  const formatterText = formatterLines.join("\n");
+  const firstLine = lines[0]?.trim() ?? "";
+  assert(firstLine.length > 0, `${context}: missing outcome first line`);
+  assert(
+    /^(?:Preparing|Indexing|Searching)\b|^No results returned\b|^\d+ results?\b|^[A-Z_]+ - /.test(
+      firstLine,
+    ),
+    `${context}: missing outcome headline`,
+  );
+  assert(
+    !firstLine.startsWith("search |") &&
+      !firstLine.startsWith("search_status |"),
+    `${context}: legacy header precedes outcome`,
+  );
+  assert(
+    !formatterLines.some((line) => /^status\s*:/i.test(line.trim())),
+    `${context}: duplicated lifecycle status line`,
+  );
+  const lifecycleOutcomeLines = lines.filter((line) =>
+    /^(?:Preparing|Indexing|Searching)\b/.test(line),
+  );
+  assert(
+    lifecycleOutcomeLines.length <= 1,
+    `${context}: duplicate lifecycle outcome lines`,
+  );
+  assert(
+    !formatterText.includes("searchRef="),
+    `${context}: leaked searchRef=`,
+  );
+  assert(
+    !formatterText.includes("indexingRef"),
+    `${context}: leaked indexingRef`,
+  );
+
+  const forbiddenSections = [
+    "Ready:",
+    "Waiting:",
+    "Available but not searched:",
+    "Indexed alternatives:",
+  ];
+  for (const section of forbiddenSections) {
+    assert(
+      !lines.some((line) => line.startsWith(section)),
+      `${context}: legacy flat section ${section}`,
+    );
+  }
+  assert(
+    !lines.some((line) => line === "Evidence may change."),
+    `${context}: vague evidence policy prose`,
+  );
+  assert(
+    !lines.some((line) => line.startsWith("Do not repeat")),
+    `${context}: repeat policy prose`,
+  );
+  assert(
+    !lines.some((line) => line.startsWith("Do not poll")),
+    `${context}: poll policy prose`,
+  );
+
+  const hasReadinessText = formatterLines.some((line) =>
+    /^ {2}(?! {2}).*(?:Indexing|Searched|Available now|Unavailable|Using|Status):/.test(
+      line,
+    ),
+  );
+  if (hasReadinessText) {
+    assert(
+      formatterLines.some((line) => /^-\s+\S/.test(line)),
+      `${context}: readiness details must be grouped under a target`,
+    );
+  }
+
+  const nextLines = lines.filter((line) => line.startsWith("Next:"));
+  assert(
+    nextLines.length <= 1,
+    `${context}: multiple Next actions are not allowed`,
+  );
+
+  const searchRefOccurrences = formatterText.match(/search_ref=/g)?.length ?? 0;
+  assert(
+    searchRefOccurrences <= 1,
+    `${context}: search_ref= must appear at most once`,
+  );
+  if (searchRefOccurrences === 1) {
+    const refLine = formatterLines.find((line) => line.includes("search_ref="));
+    assert(
+      refLine?.trimStart().startsWith("Next:"),
+      `${context}: search_ref= must appear only on a Next line`,
+    );
+    assert(
+      refLine?.startsWith("Next: search_status "),
+      `${context}: search_ref= must use the MCP search_status action`,
+    );
+    assert(
+      refLine !== undefined,
+      `${context}: search_ref= must appear only on a Next line`,
+    );
+    const match = refLine.match(/search_ref=(?:"([^"]+)"|(\S+))/);
+    const searchRef = match?.[1] ?? match?.[2];
+    const summaryLines = lines.filter((line) =>
+      /^Search\s+\S+\s+\|/.test(line),
+    );
+    assert(
+      summaryLines.length === 1,
+      `${context}: expected one Search <ref> session summary`,
+    );
+    assert(
+      searchRef !== undefined &&
+        summaryLines[0]?.startsWith(`Search ${searchRef} |`),
+      `${context}: session summary does not match search_ref action`,
+    );
+  }
+  assert(
+    !formatterText.includes("githits search-status ") &&
+      !formatterText.includes("githits code read ") &&
+      !formatterText.includes("githits docs read ") &&
+      !formatterText.includes(" --wait ") &&
+      !formatterText.includes(" --offset "),
+    `${context}: CLI command syntax leaked into MCP output`,
+  );
+  assert(
+    hasHumanSearchHitLocator(lines) ||
+      lines.some((line) => line.startsWith("Next:")),
+    `${context}: missing usable result locator or status follow-up`,
+  );
+}
+
+function hasHumanSearchHitLocator(lines: string[]): boolean {
+  return lines.some((line, index) => {
+    const docsMatch = /^\[\d+\]\s+(\S+)\s+\[docs page\]\s+(.+)$/.exec(line);
+    if (docsMatch) {
+      const pageId = docsMatch[1];
+      const docsDetails = docsMatch[2];
+      if (!pageId || pageId === "page ID unavailable" || !docsDetails) {
+        return false;
+      }
+      const firstDivider = docsDetails.indexOf(" - ");
+      if (firstDivider <= 0) return false;
+      const sourceAndTitle = docsDetails.slice(firstDivider + 3);
+      const secondDivider = sourceAndTitle.indexOf(" - ");
+      if (secondDivider > 0) {
+        const source = sourceAndTitle.slice(0, secondDivider).trim();
+        const title = sourceAndTitle.slice(secondDivider + 3).trim();
+        return (
+          source.length > 0 &&
+          (title.length > 0 || hasWrappedHitTitle(lines, index))
+        );
+      }
+      if (!sourceAndTitle.endsWith(" -")) return false;
+      const source = sourceAndTitle.slice(0, -2).trim();
+      return source.length > 0 && hasWrappedHitTitle(lines, index);
+    }
+    const match =
+      /^\[\d+\]\s+(.+?)\s+\[(repo doc|repo code|repo symbol)\](?: -(?: (.*))?)?$/.exec(
+        line,
+      );
+    if (!match) return false;
+    const locatorText = match[1];
+    if (!locatorText) return false;
+    const locator = locatorText.trim().split(/\s+/);
+    if (
+      locator.length >= 2 &&
+      !locatorText.trim().endsWith("location unavailable") &&
+      locator.every((part) => part.length > 0)
+    ) {
+      const title = match[3];
+      return title === undefined
+        ? !line.endsWith(" -") || hasWrappedHitTitle(lines, index)
+        : title.trim().length > 0 || hasWrappedHitTitle(lines, index);
+    }
+    return false;
+  });
+}
+
+function hasWrappedHitTitle(lines: string[], index: number): boolean {
+  const titleLine = lines[index + 1];
+  return titleLine?.startsWith("  ") === true && titleLine.trim().length > 0;
+}
+
+function searchFormatterLines(lines: string[]): string[] {
+  let inHit = false;
+  return lines.filter((line) => {
+    if (/^\[\d+\]\s/.test(line)) {
+      inHit = true;
+      return true;
+    }
+    if (inHit && line.length > 0 && !line.startsWith("  ")) inHit = false;
+    return !inHit;
+  });
+}
+
 export function assertJsonResult(
   result: McpSmokeToolResult,
   context: string,
@@ -740,12 +933,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     }),
     "search default",
   );
-  assert(
-    searchText.includes("code_read") ||
-      searchText.includes("docs_read") ||
-      searchText.includes("search_status"),
-    "search default missing ready-to-call follow-up",
-  );
+  assertSearchDefaultText(searchText, "search default");
 
   const searchJson = assertJsonResult(
     await callTool(caller, "search", {

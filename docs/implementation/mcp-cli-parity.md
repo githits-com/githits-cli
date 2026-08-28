@@ -233,6 +233,59 @@ test suite anchors the doc.
   healthy source status remains suppressed for non-empty success. Text advice
   is renderer-only and never replaces structured JSON.
 
+### Search output parity
+
+CLI human `search` / `search-status` and MCP `search` / `search_status` default
+`text-v1` use one shared formatter. The presentation model owns target groups,
+readiness, trust limits, and action selection; the text renderer owns wording,
+wrapping, hit anatomy, and ordering. Callers provide ANSI enablement,
+surface-native action syntax, and an optional output width. CLI supplies its
+current terminal width; MCP uses the formatter's 80-column default. The order is
+outcome headline, target blocks with
+identity plus grouped readiness/usable alternatives, warnings and results, an
+optional session summary, and one positive next action.
+
+`PENDING`, `INDEXING`, and `SEARCHING` remain distinct. Active empty output uses
+`Indexing - no results yet`; an active response without a snapshot uses
+`Indexing - no result snapshot yet`, with corresponding lifecycle labels for
+other active states. Active result counts use `interim` when `partialResults` is
+false and `partial` when it is true. When session facts exist, the renderer may
+emit one optional session row composed from available facts: `Search <ref>` when
+a reference exists, aggregate `<ready>/<total> target(s) ready` when progress
+exists, and a lifecycle summary when a reference has no progress. The combined
+form is `Search <ref> | <ready>/<total> target(s) ready`; completed output
+without session facts may omit it. A reference appears once in that row when
+available and once in the follow-up action when the action carries it. Terminal
+and unknown statuses retain their exact status. Site suggestions remain ordered
+advisory labels and are never selected automatically.
+
+`evidenceNotice` remains exact in JSON and is not rendered as a generic
+mutable-evidence slogan. Concrete stale, provisional, pending, and coverage
+facts remain grouped under targets; parser/query and structured-constraint facts
+appear once below the outcome. Promoted lifecycle warning prose, raw reason
+codes, indexing references, and opaque evidence text stay out of default text.
+Reissuing the same search is valid and waits on the same underlying work; text
+does not emit negative repeat or poll policy directives.
+
+MCP renders `Next: search_status search_ref=... wait_timeout_ms=...`; CLI renders
+`Next: githits search-status ... --wait ...`. The session row and continuation
+action use the same reference when both are present; raw diagnostic fields are
+never rendered. Search-result follow-ups likewise use
+`code_read` / `docs_read` in MCP and `githits code read` / `githits docs read` in
+CLI. ANSI-stripped CLI output shares the same hierarchy and wording as no-color
+MCP text apart from those supplied command dialects; line breaks can differ
+because CLI uses the terminal width while MCP uses the 80-column default.
+
+CLI `--json` output and MCP `format: "json"` output remain the structured parity
+boundary: every
+result-bearing initial payload and stored `search_status.result` carries the
+backend's exact `partialResults: boolean`, including both `false` and `true`;
+payloads with no result snapshot omit that field. Full `warnings[]`, source
+diagnostics, evidence notices, reason codes, references, and alternative lists
+remain available in JSON even when MCP text classifies or bounds them for
+readability. The shared JSON parity tests compare these envelopes deeply; only
+surface-native follow-up and pagination syntax plus ANSI differ.
+
 ### `PARITY-ERROR-ENVELOPE`
 
 - Every error result, on both surfaces, carries
@@ -269,8 +322,9 @@ test suite anchors the doc.
 
 ### `PARITY-SHARED-TEXT-FORMATTER`
 
-- Terminal rendering and MCP text rendering may share formatter code when
-  the output is useful to both humans and agents.
+- Unified search terminal and MCP text rendering use one shared formatter;
+  other text surfaces may share formatter code when the output is useful to
+  both humans and agents.
 - Shared formatters must accept surface-specific hints so MCP never emits
   CLI-only instructions like `--verbose` or `--lifecycle all`.
 - Default MCP success output should be compact `text-v1`; programmatic
@@ -311,9 +365,9 @@ When a new tool lands with both MCP and CLI surfaces:
 
 ## Non-goals
 
-- **Forcing identical default prose.** CLI terminal output and MCP text
-  are related products, not identical products. Share formatters only
-  when the shape is useful on both surfaces and hints can be made
+- **Forcing identical default prose outside unified search.** Unified search
+  deliberately shares wording, hierarchy, and wrapping; other CLI terminal
+  output and MCP text remain related products whose hints can be
   surface-native.
 - **Shared MCP description copy.** Each tool's description targets a
   different decision the agent is making. Copy is not reusable.

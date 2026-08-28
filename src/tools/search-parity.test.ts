@@ -6,7 +6,17 @@ import {
 } from "../services/test-helpers.js";
 import { createParityMcpTool } from "./parity-test-helpers.js";
 
-async function cliJson(): Promise<unknown> {
+function outcomeWithPartial(partialResults: boolean) {
+  if (defaultUnifiedSearchOutcome.state !== "completed") {
+    throw new Error("expected completed outcome fixture");
+  }
+  return {
+    ...defaultUnifiedSearchOutcome,
+    result: { ...defaultUnifiedSearchOutcome.result, partialResults },
+  };
+}
+
+async function cliJson(partialResults: boolean): Promise<unknown> {
   const logSpy = spyOn(console, "log").mockImplementation(() => {});
   try {
     await searchAction(
@@ -14,7 +24,9 @@ async function cliJson(): Promise<unknown> {
       { in: ["npm:express"], json: true },
       {
         codeNavigationService: createMockCodeNavigationService({
-          search: mock(() => Promise.resolve(defaultUnifiedSearchOutcome)),
+          search: mock(() =>
+            Promise.resolve(outcomeWithPartial(partialResults)),
+          ),
         }),
         codeNavigationUrl: "https://pkgseer.dev",
         hasValidToken: true,
@@ -27,10 +39,10 @@ async function cliJson(): Promise<unknown> {
   }
 }
 
-async function mcpJson(): Promise<unknown> {
+async function mcpJson(partialResults: boolean): Promise<unknown> {
   const tool = createParityMcpTool("search", {
     codeNavigationService: createMockCodeNavigationService({
-      search: mock(() => Promise.resolve(defaultUnifiedSearchOutcome)),
+      search: mock(() => Promise.resolve(outcomeWithPartial(partialResults))),
     }),
   });
   const result = await tool.handler(
@@ -41,7 +53,12 @@ async function mcpJson(): Promise<unknown> {
 }
 
 describe("search parity", () => {
-  it("PARITY-JSON-KEYS: CLI === MCP", async () => {
-    expect(await cliJson()).toEqual(await mcpJson());
-  });
+  it.each([false, true] as const)(
+    "PARITY-JSON-KEYS: CLI === MCP with partialResults=%s",
+    async (partialResults) => {
+      expect(await cliJson(partialResults)).toEqual(
+        await mcpJson(partialResults),
+      );
+    },
+  );
 });
