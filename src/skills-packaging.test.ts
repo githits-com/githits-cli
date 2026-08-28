@@ -226,7 +226,7 @@ describe("agent skills packaging", () => {
       "this skill already includes the stable\nquick-start guide below",
       "Do not call `quick_start` on the normal path",
       "Current tool descriptions are authoritative over a stale installed skill\nsnapshot",
-      "Call `quick_start` only when needed to resolve a material mismatch\nbetween the loaded guide",
+      "Outside the experimental case below, call `quick_start` only when\nneeded to resolve a material mismatch between the loaded guide",
       "If any GitHits tool description exposed to the agent begins with `Experimental`,",
       "call `quick_start` before the first GitHits evidence tool",
       "for routing, scope, target syntax,\noutput, safety, citations, and recovery",

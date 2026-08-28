@@ -13,8 +13,9 @@ the guide and the selected tool descriptions for routing, scope, target syntax,
 output, safety, citations, and recovery.
 
 Current tool descriptions are authoritative over a stale installed skill
-snapshot. Call `quick_start` only when needed to resolve a material mismatch
-between the loaded guide and the current descriptors.
+snapshot. Outside the experimental case below, call `quick_start` only when
+needed to resolve a material mismatch between the loaded guide and the current
+descriptors.
 
 If any GitHits tool description exposed to the agent begins with `Experimental`,
 call `quick_start` before the first GitHits evidence tool for runtime-specific
