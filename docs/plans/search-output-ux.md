@@ -5,15 +5,16 @@
 - Overall: **IN PROGRESS**
 - Phase 1a: **COMPLETE**
 - Phase 1b: **COMPLETE**
-- Phase 2a (`pkg_upgrade_review`): **READY**
+- Phase 2a (`pkg_upgrade_review`): **COMPLETE**
 - Phase 2b+ (one formatter per increment): **PENDING**
 
 Phase 1 merged through PR #317 at `0585e925c9dcc090dbc56b12c8e153829248c15d`
 on 2026-08-28. Phase-boundary reorientation found that the same output problem
 exists outside search, but the formatter ownership is shared by CLI and MCP.
 The remaining work therefore proceeds as one shared formatter per increment.
-Phase 2a is the first such increment; later formatters are selected only after
-the preceding increment merges and `$next-steps` reorients this plan.
+Phase 2a is the first such increment and is complete. Later formatters remain
+unselected until this increment merges and post-merge `$next-steps` reorients
+the plan.
 
 ## Overall objective
 
@@ -122,8 +123,8 @@ current terminal width, while MCP emits ANSI-free `text-v1`. For
    normalized public response and all text anatomy.
 4. CLI `--json` and MCP `format: "json"` already have deep-equality parity tests.
 
-This is the correct ownership boundary. Phase 2a changes the shared formatter in
-place; it does not create a second human renderer or move rendering into either
+This is the correct ownership boundary. Phase 2a changed the shared formatter in
+place; it did not create a second human renderer or move rendering into either
 entrypoint.
 
 ### Representative output audit
@@ -148,25 +149,24 @@ and repeats the same dense anatomy. These measurements are descriptive UX
 baselines, not a performance benchmark or a target that justifies dropping
 evidence.
 
-The reproducible agent baseline is
+The saved agent baseline is
 `.agent-eval/runs/upgrade-review-output-baseline-claude-20260828`, produced by:
 
 ```bash
 bun run agent:e2e --agent claude --server local --guidance-profile descriptors --timeout 600 --out .agent-eval/runs/upgrade-review-output-baseline-claude-20260828 --workload eval/agentic/workloads/package-upgrade-safety.md
 ```
 
-The effective model was `claude-fable-5`. It called local MCP
-`pkg_upgrade_review` once for all seven packages without a `format` argument, so
-the captured 9,514-byte / 970-word / 133-line response is the current shared
-default text, not JSON. Its longest line was 289 characters. The workload
-completed successfully, rated GitHits helpful with high confidence, and exposed
-four package-level unknowns. The run also found a separate recovery gap: the
-unknown for package-version changelog fallback does not tell an agent that a
-repository-addressed changelog may contain release bodies. The current response
-does not carry the repository URL needed for an exact recovery action, so Phase
-2a preserves and highlights the unknown but does not invent a backend locator or
-add a service call. Other code/docs/search issues from the workload are outside
-this one-formatter increment.
+The baseline metadata does not establish a controlled model/mode pairing; its
+captured seven-package request omitted `format` and produced the shared default
+text: 9,513 bytes, 970 words, 133 lines, and a 289-character longest line. The
+workload completed successfully, rated GitHits helpful with high confidence,
+and exposed four package-level unknowns. The run also found a separate recovery
+gap: the unknown for package-version changelog fallback does not tell an agent
+that a repository-addressed changelog may contain release bodies. The current
+response does not carry the repository URL needed for an exact recovery action,
+so Phase 2a preserves and highlights the unknown but does not invent a backend
+locator or add a service call. Other code/docs/search issues from the workload
+are outside this one-formatter increment.
 
 ### Contradictions resolved at reorientation
 
@@ -177,7 +177,7 @@ this one-formatter increment.
   review rounds.
 - Existing permanent documentation calls `text-v1` compact and shared, while
   the upgrade-review example still documents the internal, dense shape. Phase
-  2a must update that documentation rather than preserving the stale example.
+  2a updated that documentation rather than preserving the stale example.
 
 ## Target architecture and cross-cutting contracts
 
@@ -254,23 +254,24 @@ summaries, excerpts, and guidance wrap with hanging indentation.
 
 ### Phase 2a — upgrade-review evidence becomes scannable
 
-- Status: **READY**
-- Expected outcome: humans and agents can scan an upgrade review from package
+- Status: **COMPLETE**
+- Delivered outcome: humans and agents can scan an upgrade review from package
   identity through security, change, dependency, and missing-evidence groups
   without decoding internal labels or dense `key=value` rows.
 - Assumptions: current normalized response fields are sufficient; no evidence is
   intentionally removed.
 - Unknowns or product decisions: none.
 - Dependencies: Phase 1 semantic roles and current shared upgrade-review response.
-- Acceptance: defined in the detailed plan below.
+- Acceptance: met; deterministic, smoke, build, package, review, and eval evidence
+  is recorded below.
 
 ### Phase 2b+ — remaining verified formatter violations are corrected one tool at a time
 
 - Status: **PENDING**
 - Expected outcome: each later increment corrects one currently verified
   hierarchy or action-visibility problem without absorbing adjacent tools.
-- Assumptions: `pkg_upgrade_review` will confirm whether the shared semantic roles
-  remain useful outside search without a general framework.
+- Assumptions: the verified shared semantic roles remain useful for future
+  increments outside search without requiring a general framework.
 - Unknowns or product decisions: exact next tool. Resolve after Phase 2a merges by
   running `$next-steps` against current output; do not select it during Phase 2a.
 - Dependencies: Phase 2a merged and reorientation complete.
@@ -278,6 +279,9 @@ summaries, excerpts, and guidance wrap with hanging indentation.
   and smoke behavior are independently reviewed; unrelated tools are unchanged.
 
 ## Phase 2a detailed implementation plan
+
+Phase 2a is implemented and verified. The sections below retain the intended
+behavior, implementation boundary, edge cases, and acceptance history.
 
 ### Exact behavioral outcome
 
@@ -314,8 +318,10 @@ Zero facts remain explicit in the section summary where they answer the upgrade
 question, but empty detail headings are omitted. Changelog source labels use the
 fixed mapping `releases` -> `Repository releases` and `package_versions` ->
 `Package versions (no release notes)`; any other non-empty normalized source is
-shown verbatim, without inferring a provider. Existing default sample limits and
-verbose expansion remain unchanged. “Fixed,” “added,” “still present,” “not
+shown verbatim, without inferring a provider. Existing sibling sample limits and
+verbose expansion remain unchanged. Dependency-issue locator categories
+intentionally show up to five rows each in default text with an exact remainder;
+`verbose` expands those categories fully. “Fixed,” “added,” “still present,” “not
 checked,” “not returned by backend,” and “heuristic” stay distinct. No line
 claims that an upgrade is safe, risky, approved, or rejected.
 
@@ -399,13 +405,15 @@ Tests use fixed fixtures and exact structural assertions.
   - Add one new fragment with `githits: patch` and `@githits/mcp: patch`; do not
     edit the existing search fragment or `CHANGELOG.md`.
 
-### Ordered implementation steps
+### Ordered implementation steps (completed)
 
 1. Strengthen fixed response fixtures so they cover clean evidence, added and
    fixed advisories, deprecation, transitive truncation, change signals,
    dependency changes/issues, unknowns, and a two-package batch.
 2. Lock the target ANSI-free anatomy and wrapping behavior in formatter tests,
-   including preservation of all evidence categories and existing sample caps.
+   including preservation of all evidence categories and sibling sample caps;
+   dependency-issue categories additionally use the verified five-row default
+   cap with an explicit remainder and complete verbose expansion.
 3. Refactor only `formatPackageUpgradeReviewTerminal` and its private formatting
    helpers to produce the grouped hierarchy; leave normalization and service
    code untouched.
@@ -445,7 +453,7 @@ Tests use fixed fixtures and exact structural assertions.
   width; adjacent free-form text wraps beneath its semantic parent.
 - JSON and mapped errors bypass the text formatter and therefore remain exact.
 
-### Verification commands
+### Verification commands (completed)
 
 ```bash
 bun test packages/mcp/src/shared/package-upgrade-review-response.test.ts packages/mcp/src/tools/package-upgrade-review.test.ts src/commands/pkg/upgrade-review.test.ts src/tools/package-upgrade-review-parity.test.ts
@@ -496,16 +504,66 @@ diff -u "$comparison_dir/upgrade-review-output-baseline-claude-20260828.txt" "$c
   selection, and errors are byte/structure compatible with the pre-change path.
 - Source and built smoke suites accept the new structure and continue rejecting
   assessment language.
-- The before/after agent eval uses the same Claude model/profile, calls local
-  `pkg_upgrade_review` default text, and compares the actual response plus all
-  tool/instruction issues; no claimed improvement relies only on harness status.
+- The after agent eval ran against local `pkg_upgrade_review` successfully, but
+  its Fable model and requested `verbose=true` mode were not controlled against
+  the baseline's unspecified model/default mode; the comparison is diagnostic,
+  not a controlled before/after improvement claim.
 - No production file outside the shared formatter and the CLI width call site is
   changed unless implementation evidence proves it necessary and the plan is
   updated before that expansion.
 
+### Phase 2a completion record
+
+The increment delivered one shared CLI/MCP `pkg_upgrade_review` formatter in
+place. ANSI enablement and terminal width are inputs; MCP remains ANSI-free at
+the 80-column default. JSON, service, GraphQL field selection, request
+construction, and mapped error paths are unchanged. The durable `AGENTS.md`
+tool-output UX contract was added, and canonical plugin generation/checking
+remained clean.
+
+Deterministic and product verification completed as follows:
+
+- The focused four-file suite passed with 29 tests and 155 assertions. The full
+  `bun test` passed with 3,486 tests, 0 failures, and 11,211 assertions after a
+  test-only `process.stdout` descriptor leak was fixed.
+- Typecheck, format, and lint checks passed. Plugin generation/checking passed
+  for 10 canonical assets with no generated diff.
+- Authenticated source CLI and MCP stable/experimental smokes passed; the build
+  passed; built CLI and MCP Node smokes passed; and public-package validation
+  passed.
+- Real Express default output was inspected. Normal 80-column free prose is
+  bounded, while fixed locators remain intentionally unsplit.
+
+Review and evaluation truth is also recorded explicitly: Luna preflight
+findings were fixed; the single internal reviewer finding (parity process-state
+leak) was fixed; and three actual Claude Opus review rounds finished clean.
+The retained terminal session is not a durable plan requirement.
+
+The after run at
+`.agent-eval/runs/upgrade-review-output-phase2a-after` succeeded in 363.4
+seconds, used 10 unique GitHits tools across 35 raw events, and rated GitHits
+`helped` with medium confidence. Its Fable run requested `verbose=true`, while
+the baseline used unspecified model/default mode, so that comparison is not
+mode- or model-controlled and is diagnostic only. A direct same-argument
+default batch measurement produced 236 lines / 1,122 words / 10,270 bytes,
+with a 135-character maximum caused by a long fixed locator; the saved legacy
+default measured 133 / 970 / 9,513 / 289. The new output is approximately 8%
+larger in bytes, but has dramatically shorter machine rows and a grouped scan
+hierarchy. This is not a token-reduction claim.
+
+The evaluation also surfaced material findings that require backend or
+tool-contract work outside this formatter-only increment: registry-mode empty
+changelog bodies can undercount release notes; a Biome changelog response can
+be oversized; repository-commit versus published-tarball target identity is
+ambiguous; and TypeScript release-note/docs evidence is weak. Transient
+indexing and search-quality observations are evaluation diagnostics as well.
+These findings are deferred and are not silently converted into Phase 2a
+requirements.
+
 ## Phase-boundary reorientation and completion
 
-After Phase 2a merges, run `$next-steps` against fresh `origin/main`. Record the
+After Phase 2a merges, run post-merge `$next-steps` against fresh `origin/main`.
+Record the
 actual CLI/MCP output, review findings, test/smoke/eval evidence, release state,
 and whether the semantic roles held without cross-tool infrastructure. Then
 select at most one next formatter from the verified candidates and add tactical
