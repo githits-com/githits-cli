@@ -51,6 +51,19 @@ function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function writeKnownSuiteGit(path: string, targetSha = "target-sha"): void {
+  const artifact = JSON.parse(
+    readFileSync(path, "utf8"),
+  ) as AgentEvalSuiteArtifact;
+  artifact.measurementGit = {
+    branch: "main",
+    sha: "harness-sha",
+    dirty: false,
+  };
+  artifact.targetGit = { branch: "main", sha: targetSha, dirty: false };
+  writeJson(path, artifact);
+}
+
 const BASE_FIXTURE_ENTRIES: AgentEvalSuiteWorkload[] = [
   {
     id: "stable-a",
@@ -1431,6 +1444,16 @@ describe("agent eval suites", () => {
                 : [{ tool: "search", server: "githits", status: "completed" }],
           });
           writeShardArtifacts(options, [record]);
+          if (options.profile === "descriptors") {
+            const metricsPath = join(options.outDir, "metrics.json");
+            const metrics = JSON.parse(readFileSync(metricsPath, "utf8")) as {
+              records: Array<{
+                tools: { sequence: Array<{ tool: string }> };
+              }>;
+            };
+            metrics.records[0]!.tools.sequence[0]!.tool = "githits_search";
+            writeJson(metricsPath, metrics);
+          }
           return { runDir: options.outDir, status: "success" };
         },
       });
@@ -1802,6 +1825,231 @@ describe("agent eval suites", () => {
     }
   });
 
+  it("rejects report references that permit secondary reads outside their verified parent", async () => {
+    const fixture = createPairExecutionFixture();
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-report-parent-"));
+    const outsideDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-report-outside-"),
+    );
+    try {
+      await generatePairSuite(fixture, outDir);
+      const suitePath = join(outDir, "suite.json");
+      const original = JSON.parse(readFileSync(suitePath, "utf8")) as {
+        shards: Array<{
+          runPath: string | null;
+          metricsPath: string | null;
+          reportPath: string | null;
+        }>;
+      };
+      const descriptorDir = join(outDir, "shards", "descriptors");
+      const reportDir = join(descriptorDir, "report-dir");
+      mkdirSync(reportDir, { recursive: true });
+      writeFileSync(
+        join(reportDir, "report.json"),
+        readFileSync(join(descriptorDir, "report.json")),
+      );
+      writeJson(suitePath, {
+        ...original,
+        shards: original.shards.map((shard, index) =>
+          index === 0
+            ? {
+                ...shard,
+                reportPath: "shards/descriptors/report-dir/report.json",
+              }
+            : shard,
+        ),
+      });
+      expect(() => loadImportedSuite(suitePath)).toThrow(
+        "must share one contained directory",
+      );
+
+      const outsideRun = join(outsideDir, "run.json");
+      const outsideMetrics = join(outsideDir, "metrics.json");
+      writeJson(outsideRun, { outside: true });
+      writeJson(outsideMetrics, { outside: true });
+      symlinkSync(outsideRun, join(reportDir, "run.json"));
+      symlinkSync(outsideMetrics, join(reportDir, "metrics.json"));
+      writeJson(suitePath, {
+        ...original,
+        shards: original.shards.map((shard, index) =>
+          index === 0
+            ? {
+                ...shard,
+                runPath: "shards/descriptors/report-dir/run.json",
+                metricsPath: "shards/descriptors/report-dir/metrics.json",
+                reportPath: "shards/descriptors/report-dir/report.json",
+              }
+            : shard,
+        ),
+      });
+      expect(() => loadImportedSuite(suitePath)).toThrow(
+        "escapes suite directory",
+      );
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true });
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects inconsistent imported suite workload, cell, and metrics identities", async () => {
+    const entries: AgentEvalSuiteWorkload[] = [
+      {
+        id: "stable-a",
+        path: "eval/agentic/workloads/stable-a.md",
+        safety: "stable",
+        suites: ["stable-full"],
+      },
+      {
+        id: "stable-b",
+        path: "eval/agentic/workloads/stable-b.md",
+        safety: "stable",
+        suites: ["stable-full"],
+      },
+    ];
+    const fixture = createPairExecutionFixture(entries);
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-import-invariants-"));
+    try {
+      await generatePairSuite(fixture, outDir);
+      const suitePath = join(outDir, "suite.json");
+      const original = JSON.parse(readFileSync(suitePath, "utf8")) as {
+        selectedWorkloads: AgentEvalSuiteWorkload[];
+        contentIdentity: { workloads: Array<Record<string, unknown>> };
+        cells: Array<Record<string, unknown>>;
+        shards: Array<{ metricsPath: string | null }>;
+      };
+      const descriptorMetricsPath = join(
+        outDir,
+        original.shards[0]!.metricsPath!,
+      );
+      const originalMetrics = JSON.parse(
+        readFileSync(descriptorMetricsPath, "utf8"),
+      ) as { records: Array<Record<string, unknown>> };
+      const suiteCases: Array<{
+        name: string;
+        artifact: Record<string, unknown>;
+        error: string;
+      }> = [
+        {
+          name: "duplicate selected ID",
+          artifact: {
+            ...original,
+            selectedWorkloads: [
+              ...original.selectedWorkloads,
+              original.selectedWorkloads[0],
+            ],
+          },
+          error: "duplicate selected workload ID",
+        },
+        {
+          name: "duplicate content identity",
+          artifact: {
+            ...original,
+            contentIdentity: {
+              ...original.contentIdentity,
+              workloads: original.contentIdentity.workloads.map(
+                (identity, index) =>
+                  index === 1
+                    ? {
+                        ...identity,
+                        path: original.contentIdentity.workloads[0]!.path,
+                      }
+                    : identity,
+              ),
+            },
+          },
+          error: "duplicate workload content identity",
+        },
+        {
+          name: "missing content identity",
+          artifact: {
+            ...original,
+            contentIdentity: {
+              ...original.contentIdentity,
+              workloads: original.contentIdentity.workloads.slice(0, 1),
+            },
+          },
+          error: "content identities must match selected workloads",
+        },
+        {
+          name: "duplicate cell",
+          artifact: {
+            ...original,
+            cells: original.cells.map((cell, index) =>
+              index === 1 ? { ...cell, id: original.cells[0]!.id } : cell,
+            ),
+          },
+          error: "duplicate cell",
+        },
+        {
+          name: "incorrect cell path",
+          artifact: {
+            ...original,
+            cells: original.cells.map((cell, index) =>
+              index === 0 ? { ...cell, workloadPath: "wrong.md" } : cell,
+            ),
+          },
+          error: "incorrect workload path",
+        },
+      ];
+      for (const testCase of suiteCases) {
+        writeJson(suitePath, testCase.artifact);
+        expect(() => loadImportedSuite(suitePath), testCase.name).toThrow(
+          testCase.error,
+        );
+      }
+
+      const metricsCases: Array<{
+        name: string;
+        records: Array<Record<string, unknown>>;
+        cells?: Array<Record<string, unknown>>;
+        error: string;
+      }> = [
+        {
+          name: "duplicate metrics workload ID",
+          records: [...originalMetrics.records, originalMetrics.records[0]!],
+          error: "duplicate descriptors metrics workload ID",
+        },
+        {
+          name: "unselected metrics workload ID",
+          records: originalMetrics.records.map((record, index) =>
+            index === 0 ? { ...record, workloadId: "not-selected" } : record,
+          ),
+          error: "metrics references unselected workload",
+        },
+        {
+          name: "success cell without metrics record",
+          records: [],
+          error: "cell status does not match descriptors child evidence",
+        },
+        {
+          name: "missing cell with metrics record",
+          records: originalMetrics.records,
+          cells: original.cells.map((cell, index) =>
+            index === 0 ? { ...cell, status: "missing" } : cell,
+          ),
+          error: "cell status does not match descriptors child evidence",
+        },
+      ];
+      for (const testCase of metricsCases) {
+        writeJson(suitePath, {
+          ...original,
+          ...(testCase.cells ? { cells: testCase.cells } : {}),
+        });
+        writeJson(descriptorMetricsPath, {
+          ...originalMetrics,
+          records: testCase.records,
+        });
+        expect(() => loadImportedSuite(suitePath), testCase.name).toThrow(
+          testCase.error,
+        );
+      }
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
   it("suppresses all deltas for reporting or schema identity mismatches", async () => {
     const baseline = createPairExecutionFixture();
     const candidate = createPairExecutionFixture();
@@ -2008,11 +2256,13 @@ describe("agent eval suites", () => {
     );
     try {
       await generatePairSuite(baseline, baselineOutDir);
+      writeKnownSuiteGit(join(baselineOutDir, "suite.json"));
       writeFileSync(
         join(candidate.root, "src", "commands", "init", "guidance-assets.ts"),
         'export const GITHITS_GUIDANCE_BLOCK = "Changed target guidance";\n',
       );
       await generatePairSuite(candidate, candidateOutDir);
+      writeKnownSuiteGit(join(candidateOutDir, "suite.json"));
       const comparison = compareAgentEvalSuitesOffline({
         baselineSuitePath: join(baselineOutDir, "suite.json"),
         candidateSuitePath: join(candidateOutDir, "suite.json"),
@@ -2028,6 +2278,118 @@ describe("agent eval suites", () => {
         join(candidateOutDir, "suite.json"),
       ).artifact.targetGuidanceIdentity.guidanceBlock;
       expect(beforeGuidance).not.toEqual(afterGuidance);
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("requires clean known Git attribution for repository-only comparisons", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const baselineOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-attribution-base-"),
+    );
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-attribution-candidate-"),
+    );
+    const outputDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-attribution-output-"),
+    );
+    try {
+      await generatePairSuite(baseline, baselineOutDir);
+      await generatePairSuite(candidate, candidateOutDir);
+      const baselinePath = join(baselineOutDir, "suite.json");
+      const candidatePath = join(candidateOutDir, "suite.json");
+      writeKnownSuiteGit(baselinePath, "baseline-target");
+      writeKnownSuiteGit(candidatePath, "candidate-target");
+      const baselineArtifact = JSON.parse(
+        readFileSync(baselinePath, "utf8"),
+      ) as AgentEvalSuiteArtifact;
+      const candidateArtifact = JSON.parse(
+        readFileSync(candidatePath, "utf8"),
+      ) as AgentEvalSuiteArtifact;
+      const cases: Array<{
+        label: string;
+        baselineGit?: Partial<AgentEvalSuiteArtifact["measurementGit"]>;
+        candidateGit?: Partial<AgentEvalSuiteArtifact["measurementGit"]>;
+        baselineTarget?: Partial<AgentEvalSuiteArtifact["targetGit"]>;
+        candidateTarget?: Partial<AgentEvalSuiteArtifact["targetGit"]>;
+      }> = [
+        {
+          label: "candidate target dirty",
+          candidateTarget: { dirty: true },
+        },
+        {
+          label: "both targets dirty",
+          baselineTarget: { dirty: true },
+          candidateTarget: { dirty: true },
+        },
+        {
+          label: "baseline harness dirty",
+          baselineGit: { dirty: true },
+        },
+        {
+          label: "candidate harness dirty state unknown",
+          candidateGit: { dirty: null },
+        },
+        {
+          label: "baseline target SHA unavailable",
+          baselineTarget: { sha: null },
+        },
+      ];
+      for (const testCase of cases) {
+        writeJson(baselinePath, {
+          ...baselineArtifact,
+          measurementGit: {
+            ...baselineArtifact.measurementGit,
+            ...testCase.baselineGit,
+          },
+          targetGit: {
+            ...baselineArtifact.targetGit,
+            ...testCase.baselineTarget,
+          },
+        });
+        writeJson(candidatePath, {
+          ...candidateArtifact,
+          measurementGit: {
+            ...candidateArtifact.measurementGit,
+            ...testCase.candidateGit,
+          },
+          targetGit: {
+            ...candidateArtifact.targetGit,
+            ...testCase.candidateTarget,
+          },
+        });
+        const comparison = compareAgentEvalSuitesOffline({
+          baselineSuitePath: baselinePath,
+          candidateSuitePath: candidatePath,
+          outputDir,
+        });
+        expect(comparison.repositoryOnly, testCase.label).toBe(false);
+        expect(comparison.warnings.join("\n"), testCase.label).toContain(
+          "repositoryOnly=false",
+        );
+      }
+
+      writeJson(baselinePath, {
+        ...baselineArtifact,
+        targetGit: { ...baselineArtifact.targetGit, sha: "target-a" },
+      });
+      writeJson(candidatePath, {
+        ...candidateArtifact,
+        targetGit: { ...candidateArtifact.targetGit, sha: "target-b" },
+      });
+      const cleanTargetComparison = compareAgentEvalSuitesOffline({
+        baselineSuitePath: baselinePath,
+        candidateSuitePath: candidatePath,
+        outputDir,
+      });
+      expect(cleanTargetComparison.repositoryOnly).toBe(true);
+      expect(cleanTargetComparison.warnings.join("\n")).toContain("targetGit");
     } finally {
       rmSync(baseline.root, { recursive: true, force: true });
       rmSync(candidate.root, { recursive: true, force: true });

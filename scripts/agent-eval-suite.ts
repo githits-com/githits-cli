@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import {
+  basename,
   dirname,
   extname,
   isAbsolute,
@@ -873,7 +874,9 @@ function aggregateCallsByTool(cells: SuiteCell[]): {
   }
   const entries = new Map<string, z.infer<typeof suiteCallsByToolSchema>>();
   for (const cell of cells) {
-    for (const call of cell.record?.tools.sequence ?? []) {
+    const calls = callsByToolForRecord(cell.record);
+    if (!calls) continue;
+    for (const call of calls) {
       const key = `${call.surface}\0${call.tool}`;
       const entry = entries.get(key) ?? {
         surface: call.surface,
@@ -884,8 +887,11 @@ function aggregateCallsByTool(cells: SuiteCell[]): {
         failed: 0,
         unknown: 0,
       };
-      entry.total += 1;
-      entry[call.status] += 1;
+      entry.total += call.total;
+      entry.started += call.started;
+      entry.completed += call.completed;
+      entry.failed += call.failed;
+      entry.unknown += call.unknown;
       entries.set(key, entry);
     }
   }
@@ -1521,6 +1527,180 @@ function readJsonObject(
   return value as Record<string, unknown>;
 }
 
+function validateImportedSuiteArtifact(artifact: AgentEvalSuiteArtifact): void {
+  const selectedIds = new Set<string>();
+  const selectedPaths = new Set<string>();
+  for (const workload of artifact.selectedWorkloads) {
+    assert(
+      !selectedIds.has(workload.id),
+      `Suite artifact has duplicate selected workload ID: ${workload.id}`,
+    );
+    assert(
+      !selectedPaths.has(workload.path),
+      `Suite artifact has duplicate selected workload path: ${workload.path}`,
+    );
+    selectedIds.add(workload.id);
+    selectedPaths.add(workload.path);
+  }
+
+  const identityPaths = new Set<string>();
+  assert(
+    artifact.contentIdentity.workloads.length ===
+      artifact.selectedWorkloads.length,
+    "Suite artifact workload content identities must match selected workloads",
+  );
+  for (const identity of artifact.contentIdentity.workloads) {
+    assert(
+      !identityPaths.has(identity.path),
+      `Suite artifact has duplicate workload content identity: ${identity.path}`,
+    );
+    assert(
+      selectedPaths.has(identity.path),
+      `Suite artifact has workload content identity not selected: ${identity.path}`,
+    );
+    identityPaths.add(identity.path);
+  }
+  for (const path of selectedPaths) {
+    assert(
+      identityPaths.has(path),
+      `Suite artifact is missing workload content identity: ${path}`,
+    );
+  }
+
+  const expectedCells = new Set(
+    AGENT_EVAL_SUITE_PROFILES.flatMap((profile) =>
+      [...selectedIds].map((workloadId) => suiteCellId(profile, workloadId)),
+    ),
+  );
+  assert(
+    artifact.cells.length === expectedCells.size,
+    "Suite artifact cells must contain exactly one cell per profile/workload",
+  );
+  const cellIds = new Set<string>();
+  for (const cell of artifact.cells) {
+    assert(
+      !cellIds.has(cell.id),
+      `Suite artifact has duplicate cell: ${cell.id}`,
+    );
+    assert(
+      selectedIds.has(cell.workloadId),
+      `Suite artifact cell references unselected workload: ${cell.workloadId}`,
+    );
+    const selected = artifact.selectedWorkloads.find(
+      (workload) => workload.id === cell.workloadId,
+    );
+    assert(
+      selected,
+      `Suite artifact cell workload is missing: ${cell.workloadId}`,
+    );
+    assert(
+      cell.id === suiteCellId(cell.profile, cell.workloadId),
+      `Suite artifact cell has incorrect ID: ${cell.id}`,
+    );
+    assert(
+      cell.workloadPath === selected.path,
+      `Suite artifact cell has incorrect workload path: ${cell.id}`,
+    );
+    cellIds.add(cell.id);
+  }
+  for (const cellId of expectedCells) {
+    assert(cellIds.has(cellId), `Suite artifact is missing cell: ${cellId}`);
+  }
+}
+
+function validateImportedMetricsRecords(
+  artifact: AgentEvalSuiteArtifact,
+  profile: AgentEvalSuiteProfile,
+  metrics: AgentEvalMetrics | undefined,
+  report: AgentEvalReport | undefined,
+): void {
+  const selectedIds = new Set(
+    artifact.selectedWorkloads.map((workload) => workload.id),
+  );
+  const recordIds = new Set<string>();
+  for (const record of metrics?.records ?? []) {
+    assert(
+      !recordIds.has(record.workloadId),
+      `Suite artifact has duplicate ${profile} metrics workload ID: ${record.workloadId}`,
+    );
+    assert(
+      selectedIds.has(record.workloadId),
+      `Suite artifact ${profile} metrics references unselected workload: ${record.workloadId}`,
+    );
+    recordIds.add(record.workloadId);
+  }
+  for (const cell of artifact.cells.filter(
+    (candidate) => candidate.profile === profile,
+  )) {
+    const record = metrics?.records.find(
+      (candidate) => candidate.workloadId === cell.workloadId,
+    );
+    const reportWorkload = report?.workloads.find(
+      (candidate) => candidate.id === cell.workloadId,
+    );
+    const expectedStatus: SuiteCellStatus = !metrics
+      ? "missing"
+      : !record
+        ? "missing"
+        : record.processStatus === "success" ||
+            record.processStatus === "dry-run"
+          ? reportWorkload?.status === "failed" ||
+            reportWorkload?.status === "timeout"
+            ? "failed"
+            : "success"
+          : record.processStatus === "failed" ||
+              record.processStatus === "timeout"
+            ? "failed"
+            : "unknown";
+    assert(
+      cell.status === expectedStatus,
+      `Suite artifact cell status does not match ${profile} child evidence: ${cell.id} expected=${expectedStatus} actual=${cell.status}`,
+    );
+  }
+}
+
+function resolveImportedReportReferences(
+  suitePath: string,
+  profile: AgentEvalSuiteProfile,
+  runReference: string | null,
+  metricsReference: string | null,
+  reportReference: string,
+): { runPath: string; metricsPath: string; reportPath: string } {
+  assert(
+    runReference !== null && metricsReference !== null,
+    `${profile} report.json requires run.json and metrics.json references`,
+  );
+  const runPath = resolveImportedChild(
+    suitePath,
+    runReference,
+    `${profile} run.json`,
+  );
+  const metricsPath = resolveImportedChild(
+    suitePath,
+    metricsReference,
+    `${profile} metrics.json`,
+  );
+  const reportPath = resolveImportedChild(
+    suitePath,
+    reportReference,
+    `${profile} report.json`,
+  );
+  assert(
+    basename(runPath) === "run.json" &&
+      basename(metricsPath) === "metrics.json" &&
+      basename(reportPath) === "report.json",
+    `${profile} child references must use canonical run.json, metrics.json, and report.json basenames`,
+  );
+  const runParent = realpathSync(dirname(runPath));
+  const metricsParent = realpathSync(dirname(metricsPath));
+  const reportParent = realpathSync(dirname(reportPath));
+  assert(
+    runParent === metricsParent && runParent === reportParent,
+    `${profile} run.json, metrics.json, and report.json must share one contained directory`,
+  );
+  return { runPath, metricsPath, reportPath };
+}
+
 export function loadImportedSuite(path: string): AgentEvalImportedSuite {
   const suitePath = resolve(path);
   assert(
@@ -1529,37 +1709,50 @@ export function loadImportedSuite(path: string): AgentEvalImportedSuite {
   );
   const suiteBytes = readFileSync(suitePath);
   const artifact = parseSuiteArtifact(JSON.parse(suiteBytes.toString("utf8")));
+  validateImportedSuiteArtifact(artifact);
   const shards = {} as Record<AgentEvalSuiteProfile, ImportedSuiteShard>;
   for (const profile of AGENT_EVAL_SUITE_PROFILES) {
     const shard = artifact.shards.find((item) => item.profile === profile);
     assert(shard, `Suite artifact is missing ${profile} shard`);
     const imported: ImportedSuiteShard = {};
+    const reportReferences = shard.reportPath
+      ? resolveImportedReportReferences(
+          suitePath,
+          profile,
+          shard.runPath,
+          shard.metricsPath,
+          shard.reportPath,
+        )
+      : null;
     if (shard.runPath) {
-      const runPath = resolveImportedChild(
-        suitePath,
-        shard.runPath,
-        `${profile} run.json`,
-      );
+      const runPath =
+        reportReferences?.runPath ??
+        resolveImportedChild(suitePath, shard.runPath, `${profile} run.json`);
       imported.runMetadata = readJsonObject(runPath, `${profile} run.json`);
     }
     if (shard.metricsPath) {
-      const metricsPath = resolveImportedChild(
-        suitePath,
-        shard.metricsPath,
-        `${profile} metrics.json`,
-      );
+      const metricsPath =
+        reportReferences?.metricsPath ??
+        resolveImportedChild(
+          suitePath,
+          shard.metricsPath,
+          `${profile} metrics.json`,
+        );
       imported.metrics = agentEvalMetricsSchema.parse(
         readJsonObject(metricsPath, `${profile} metrics.json`),
       );
     }
     if (shard.reportPath) {
-      const reportPath = resolveImportedChild(
-        suitePath,
-        shard.reportPath,
-        `${profile} report.json`,
-      );
+      assert(reportReferences, `Missing ${profile} report references`);
+      const reportPath = reportReferences.reportPath;
       imported.report = loadRunReport(dirname(reportPath));
     }
+    validateImportedMetricsRecords(
+      artifact,
+      profile,
+      imported.metrics,
+      imported.report,
+    );
     shards[profile] = imported;
   }
   return {
@@ -2109,8 +2302,8 @@ function workloadContentMismatch(
   const beforeIdentity = workloadIdentity(before, workloadId);
   const afterIdentity = workloadIdentity(after, workloadId);
   return (
-    beforeIdentity !== null &&
-    afterIdentity !== null &&
+    beforeIdentity === null ||
+    afterIdentity === null ||
     !equalValue(beforeIdentity, afterIdentity)
   );
 }
@@ -2132,6 +2325,28 @@ function comparisonWarnings(
     ),
   );
   return [...new Set(warnings)].sort(compareStrings);
+}
+
+function gitAttributionIssues(git: GitMetadata): string[] {
+  const issues: string[] = [];
+  if (git.dirty === true) issues.push("dirty checkout");
+  if (git.dirty === null) issues.push("dirty state unknown");
+  if (git.sha === null || git.sha.trim() === "")
+    issues.push("commit SHA unavailable");
+  return issues;
+}
+
+function gitAttributionWarnings(
+  side: "baseline" | "candidate",
+  kind: "measurementGit" | "targetGit",
+  git: GitMetadata,
+): string[] {
+  const issues = gitAttributionIssues(git);
+  return issues.length > 0
+    ? [
+        `repositoryOnly=false: ${side} ${kind} has ${issues.join(" and ")}; attribution is not clean`,
+      ]
+    : [];
 }
 
 function metricValue(
@@ -2450,6 +2665,29 @@ export function buildSuiteComparison(
     };
   }
   const warnings = comparisonWarnings(dimensions, [...workloadMismatches]);
+  const attributionWarnings = [
+    ...gitAttributionWarnings(
+      "baseline",
+      "measurementGit",
+      baseline.artifact.measurementGit,
+    ),
+    ...gitAttributionWarnings(
+      "candidate",
+      "measurementGit",
+      candidate.artifact.measurementGit,
+    ),
+    ...gitAttributionWarnings(
+      "baseline",
+      "targetGit",
+      baseline.artifact.targetGit,
+    ),
+    ...gitAttributionWarnings(
+      "candidate",
+      "targetGit",
+      candidate.artifact.targetGit,
+    ),
+  ];
+  warnings.push(...attributionWarnings);
   if (directDeltasSuppressed) {
     warnings.push(
       "direct metric deltas suppressed by incompatible suite identity",
@@ -2459,7 +2697,8 @@ export function buildSuiteComparison(
     !harnessGitMismatch &&
     !codexVersionMismatch &&
     !directDeltasSuppressed &&
-    workloadMismatches.size === 0;
+    workloadMismatches.size === 0 &&
+    attributionWarnings.length === 0;
   if (!repositoryOnly) {
     warnings.push(
       "comparison is not repository-only; harness, content, or target attribution differs",
