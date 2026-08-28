@@ -221,35 +221,46 @@ describe("agent eval harness", () => {
   });
 
   it("keeps measurement and target roots separate with target root parsing", () => {
-    const defaults = parseArgs(["--dry-run"], "/repo/harness");
-    expect(defaults.repoRoot).toBe("/repo/harness");
-    expect(defaults.targetRoot).toBe("/repo/harness");
-    expect(defaults.schemaPath).toBe(
-      "/repo/harness/eval/agentic/result.schema.json",
+    const harnessRoot = resolve("repo", "harness");
+    const targetRoot = resolve(harnessRoot, "..", "target");
+    const expectedSchemaPath = join(
+      harnessRoot,
+      "eval",
+      "agentic",
+      "result.schema.json",
     );
-    expect(defaults.reportingPath).toBe(
-      "/repo/harness/eval/agentic/workloads/REPORTING.md",
+    const expectedReportingPath = join(
+      harnessRoot,
+      "eval",
+      "agentic",
+      "workloads",
+      "REPORTING.md",
     );
-    expect(defaults.workloads).toEqual([
-      "/repo/harness/eval/agentic/workloads/express-router.md",
-    ]);
+    const expectedWorkload = join(
+      harnessRoot,
+      "eval",
+      "agentic",
+      "workloads",
+      "express-router.md",
+    );
+
+    const defaults = parseArgs(["--dry-run"], harnessRoot);
+    expect(defaults.repoRoot).toBe(harnessRoot);
+    expect(defaults.targetRoot).toBe(harnessRoot);
+    expect(defaults.schemaPath).toBe(expectedSchemaPath);
+    expect(defaults.reportingPath).toBe(expectedReportingPath);
+    expect(defaults.workloads).toEqual([expectedWorkload]);
 
     const explicit = parseArgs(
       ["--target-root", "../target", "--out", "runs/local", "--dry-run"],
-      "/repo/harness",
+      harnessRoot,
     );
-    expect(explicit.repoRoot).toBe("/repo/harness");
-    expect(explicit.targetRoot).toBe("/repo/target");
-    expect(explicit.outDir).toBe("/repo/harness/runs/local");
-    expect(explicit.schemaPath).toBe(
-      "/repo/harness/eval/agentic/result.schema.json",
-    );
-    expect(explicit.reportingPath).toBe(
-      "/repo/harness/eval/agentic/workloads/REPORTING.md",
-    );
-    expect(explicit.workloads).toEqual([
-      "/repo/harness/eval/agentic/workloads/express-router.md",
-    ]);
+    expect(explicit.repoRoot).toBe(harnessRoot);
+    expect(explicit.targetRoot).toBe(targetRoot);
+    expect(explicit.outDir).toBe(join(harnessRoot, "runs", "local"));
+    expect(explicit.schemaPath).toBe(expectedSchemaPath);
+    expect(explicit.reportingPath).toBe(expectedReportingPath);
+    expect(explicit.workloads).toEqual([expectedWorkload]);
   });
 
   it("uses the target root for local launch vectors and skill installation", () => {
