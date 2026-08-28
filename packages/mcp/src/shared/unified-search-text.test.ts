@@ -698,6 +698,32 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(cliText).not.toContain("search_status");
   });
 
+  it("terminal target recovery uses package guidance for a registry target with repo resolution", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "NOT_FOUND",
+            targetResolution: {
+              requested: { repoUrl: "https://github.com/expressjs/express" },
+              availableVersions: [],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "Next: verify the registry package coordinate and version; for repository-wide evidence, use its public GitHub repository.",
+    );
+    expect(text).not.toContain(
+      "Next: verify the public GitHub repository target and ref.",
+    );
+  });
+
   it.each(["docs", "auto"] as const)(
     "uses a neutral docs label for contributor-less %s sources",
     (sourceName) => {

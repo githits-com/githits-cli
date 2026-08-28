@@ -1186,6 +1186,8 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
   }
   const terminalFamilies = terminalTargetFamilies(input.snapshot.sourceStatus);
   if (terminalFamilies.length > 0) {
+    const alternative = firstAlternative(input.alternatives);
+    if (alternative) return alternative;
     return { kind: "verify_target", families: terminalFamilies };
   }
   if (hasIndexing) return { kind: "new_search" };
@@ -1246,6 +1248,10 @@ function classifyTargetFamily(
 ): UnifiedSearchTargetFamily {
   if (isSiteTarget(entry.targetLabel, entry)) return "site";
   const target = entry.targetLabel.trim().toLowerCase();
+  const separator = target.indexOf(":");
+  if (separator > 0 && isKnownRegistry(target.slice(0, separator))) {
+    return "package";
+  }
   if (
     target.startsWith("github:") ||
     entry.targetResolution?.requested?.repoUrl ||
@@ -1253,10 +1259,6 @@ function classifyTargetFamily(
     entry.targetResolution?.served?.repoUrl
   ) {
     return "repository";
-  }
-  const separator = target.indexOf(":");
-  if (separator > 0 && isKnownRegistry(target.slice(0, separator))) {
-    return "package";
   }
   return "unknown";
 }

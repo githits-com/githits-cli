@@ -367,6 +367,31 @@ describe("projectUnifiedSearchPresentation", () => {
     expect(presentation.action).not.toHaveProperty("searchRef");
   });
 
+  it("terminal target recovery keeps a registry target as package with repo resolution", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "NOT_FOUND",
+            targetResolution: {
+              requested: { repoUrl: "https://github.com/expressjs/express" },
+              availableVersions: [],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.action).toEqual({
+      kind: "verify_target",
+      families: ["package"],
+    });
+  });
+
   it("terminal target recovery preserves site suggestion precedence", () => {
     const presentation = projectUnifiedSearchPresentation(
       completed({
@@ -397,6 +422,32 @@ describe("projectUnifiedSearchPresentation", () => {
             targetResolution: {
               freshness: "indexing",
               freshnessReason: "no_current_fallback",
+              availableVersions: [{ version: "4.17.0", ref: "v4.17.0" }],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.action).toEqual({
+      kind: "indexed_alternative",
+      target: "npm:express@4.18.2",
+      category: "version",
+      value: "4.17.0",
+    });
+  });
+
+  it("terminal target recovery prefers indexed alternatives without freshness signals", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "NOT_FOUND",
+            targetResolution: {
               availableVersions: [{ version: "4.17.0", ref: "v4.17.0" }],
               availableRefs: [],
             },
