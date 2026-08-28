@@ -593,10 +593,8 @@ None.
   94 tests passed with no failures on 2026-08-28.
 - `bun run typecheck`, `bun run format:check`, `bun run lint`, and
   `bun run build`: passed on 2026-08-28.
-- The full test suite reported 3,335 passing tests and one failure in the
-  existing POSIX process-group timing test under full concurrency. The
-  complete `scripts/agent-eval.test.ts` file passed in isolation with 84/84;
-  the full suite is not considered green.
+- `bun test`: 3,338 tests passed with no failures, across 184 files, with
+  10,762 expectations in 59.05 seconds on 2026-08-28.
 - The implementation increments are committed in repository history; this plan
   records behavior and verification rather than immutable commit identifiers.
 
