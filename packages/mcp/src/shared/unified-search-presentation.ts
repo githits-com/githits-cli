@@ -1,3 +1,4 @@
+import { isKnownRegistry } from "./package-spec.js";
 import type {
   LeanDocCoverage,
   UnifiedSearchCompletedPayload,
@@ -40,6 +41,7 @@ export type UnifiedSearchLifecycle =
 
 export type UnifiedSearchSourceKind =
   | "code"
+  | "symbols"
   | "docs"
   | "repository_docs"
   | "site_docs";
@@ -170,6 +172,7 @@ export type UnifiedSearchTrustLimit =
       kind: "constraint";
       constraint: UnifiedSearchConstraintKind;
       source?: string;
+      target?: string;
       values: string[];
     }
   | { kind: "mutable_evidence" };
@@ -179,6 +182,7 @@ export type UnifiedSearchWarning =
   | {
       kind: UnifiedSearchConstraintKind;
       source?: string;
+      target?: string;
       values: string[];
     };
 
@@ -197,6 +201,7 @@ export type UnifiedSearchAction =
       kind: "query_rewrite";
       rewrites: UnifiedSearchRewriteKind[];
     }
+  | { kind: "verify_target"; families: UnifiedSearchTargetFamily[] }
   | { kind: "none" };
 
 export type UnifiedSearchRewriteKind =
@@ -205,6 +210,19 @@ export type UnifiedSearchRewriteKind =
   | "symbol"
   | "code_grep"
   | "site_shorter_or_broader";
+
+export type UnifiedSearchTargetFamily =
+  | "package"
+  | "repository"
+  | "site"
+  | "unknown";
+
+const TARGET_FAMILY_ORDER: UnifiedSearchTargetFamily[] = [
+  "package",
+  "repository",
+  "site",
+  "unknown",
+];
 
 export interface UnifiedSearchPresentation {
   availability: UnifiedSearchAvailability;
@@ -439,7 +457,8 @@ function sourceKind(
   entry: UnifiedSearchSourceStatusPayload,
 ): UnifiedSearchSourceKind {
   const source = entry.source.toLowerCase();
-  if (source === "code" || source === "symbol") return "code";
+  if (source === "code") return "code";
+  if (source === "symbol") return "symbols";
   if (isSiteTarget(entry.targetLabel, entry)) return "site_docs";
   return entry.targetResolution?.served?.repoUrl ? "repository_docs" : "docs";
 }
@@ -688,7 +707,13 @@ function addConstraints(
   const target = entry.targetLabel;
   for (const [constraint, values] of sourceConstraints(entry)) {
     if (values?.length)
-      add({ kind: "constraint", constraint, source: target, values });
+      add({
+        kind: "constraint",
+        constraint,
+        source: normalizeSourceLane(entry.source),
+        target: target || undefined,
+        values,
+      });
   }
 }
 
@@ -712,12 +737,18 @@ function projectWarnings(
     warnings.push({ kind: "query", message });
   }
   for (const entry of sourceStatus ?? []) {
-    const source = entry.targetLabel;
+    const source = normalizeSourceLane(entry.source);
+    const target = entry.targetLabel || undefined;
     for (const [kind, values] of sourceConstraints(entry)) {
-      if (values?.length) warnings.push({ kind, source, values });
+      if (values?.length) warnings.push({ kind, source, target, values });
     }
   }
   return warnings;
+}
+
+function normalizeSourceLane(source: string | undefined): string | undefined {
+  const normalized = source?.trim().toLowerCase();
+  return normalized || undefined;
 }
 
 function projectAlternatives(
@@ -1149,11 +1180,15 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
   if (hasIndexing) {
     const alternative = firstAlternative(input.alternatives);
     if (alternative) return alternative;
-    return { kind: "new_search" };
   }
   if (input.siteSuggestions.length > 0) {
     return { kind: "site_retry" };
   }
+  const terminalFamilies = terminalTargetFamilies(input.snapshot.sourceStatus);
+  if (terminalFamilies.length > 0) {
+    return { kind: "verify_target", families: terminalFamilies };
+  }
+  if (hasIndexing) return { kind: "new_search" };
   if (
     input.trustLimits.some(
       (limit) =>
@@ -1186,6 +1221,44 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
   if (!symbolSource) rewrites.push("symbol");
   rewrites.push("code_grep");
   return { kind: "query_rewrite", rewrites };
+}
+
+function terminalTargetFamilies(
+  sourceStatus: UnifiedSearchSourceStatusPayload[] | undefined,
+): UnifiedSearchTargetFamily[] {
+  const families = new Set<UnifiedSearchTargetFamily>();
+  for (const entry of sourceStatus ?? []) {
+    if (
+      entry.indexingStatus !== "NOT_FOUND" &&
+      entry.indexingStatus !== "UNRESOLVABLE" &&
+      entry.codeIndexState !== "NOT_FOUND" &&
+      entry.codeIndexState !== "UNRESOLVABLE"
+    ) {
+      continue;
+    }
+    families.add(classifyTargetFamily(entry));
+  }
+  return TARGET_FAMILY_ORDER.filter((family) => families.has(family));
+}
+
+function classifyTargetFamily(
+  entry: UnifiedSearchSourceStatusPayload,
+): UnifiedSearchTargetFamily {
+  if (isSiteTarget(entry.targetLabel, entry)) return "site";
+  const target = entry.targetLabel.trim().toLowerCase();
+  if (
+    target.startsWith("github:") ||
+    entry.targetResolution?.requested?.repoUrl ||
+    entry.targetResolution?.resolvedRequested?.repoUrl ||
+    entry.targetResolution?.served?.repoUrl
+  ) {
+    return "repository";
+  }
+  const separator = target.indexOf(":");
+  if (separator > 0 && isKnownRegistry(target.slice(0, separator))) {
+    return "package";
+  }
+  return "unknown";
 }
 
 function firstAlternative(

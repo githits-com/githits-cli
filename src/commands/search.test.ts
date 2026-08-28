@@ -1253,7 +1253,7 @@ describe("searchAction", () => {
     expect(output).toContain("- site:example.com");
     expect(output).toContain("Indexing: site:example.com docs");
     expect(output).toContain(
-      "Incompatible filter (site:example.com): language",
+      "Incompatible filter (docs on site:example.com): language",
     );
     expect(output).toContain("Suggested sites: site:docs.example.com");
     expect(output).toContain("More suggested sites omitted");
@@ -1306,7 +1306,9 @@ describe("searchAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output).toContain("Ignored filter (npm:express@4.18.2): fileIntent");
+    expect(output).toContain(
+      "Ignored filter (docs on npm:express@4.18.2): fileIntent",
+    );
     expect(output).not.toContain("Note: docs on npm:express@4.18.2");
     consoleSpy.mockRestore();
   });
@@ -1354,10 +1356,10 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain(
-      "Ignored query feature (npm:express@4.18.2): kind",
+      "Ignored query feature (docs on npm:express@4.18.2): kind",
     );
     expect(output).toContain(
-      "Incompatible query feature (npm:express@4.18.2): name",
+      "Incompatible query feature (docs on npm:express@4.18.2): name",
     );
     expect(output).not.toContain("Note: docs on npm:express@4.18.2");
     consoleSpy.mockRestore();

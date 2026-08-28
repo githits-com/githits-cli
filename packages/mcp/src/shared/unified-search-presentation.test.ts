@@ -237,7 +237,7 @@ describe("projectUnifiedSearchPresentation", () => {
     });
   });
 
-  it("groups symbol source readiness with code", () => {
+  it("preserves symbol source readiness as symbols", () => {
     const presentation = projectUnifiedSearchPresentation(
       completed({
         query: { raw: "router", sources: ["symbol"] },
@@ -254,7 +254,7 @@ describe("projectUnifiedSearchPresentation", () => {
 
     expect(presentation.sources).toEqual([
       {
-        kind: "code",
+        kind: "symbols",
         entries: [
           {
             state: "searched",
@@ -267,8 +267,25 @@ describe("projectUnifiedSearchPresentation", () => {
     ]);
   });
 
-  it.each(["MISSING", "UNRESOLVABLE", "FUTURE_STATE"] as const)(
-    "treats source state %s as unavailable and suppresses pivots",
+  it("source and warning provenance keeps code and symbols as separate lanes", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({ source: "CODE", codeIndexState: "CURRENT" }),
+          source({ source: "SYMBOL", codeIndexState: "CURRENT" }),
+        ],
+      }),
+    );
+
+    expect(presentation.sources.map((group) => group.kind)).toEqual([
+      "code",
+      "symbols",
+    ]);
+  });
+
+  it.each(["MISSING", "FUTURE_STATE"] as const)(
+    "terminal target recovery keeps source state %s unavailable with conservative pivots",
     (state) => {
       const presentation = projectUnifiedSearchPresentation(
         completed({
@@ -299,6 +316,103 @@ describe("projectUnifiedSearchPresentation", () => {
       expect(presentation.action).toEqual({ kind: "new_search" });
     },
   );
+
+  it("terminal target recovery selects exact unresolvable and missing states", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "NOT_FOUND",
+            resultCount: 0,
+          }),
+          source({
+            targetLabel: "github:owner/repo#main",
+            indexingStatus: "UNRESOLVABLE",
+            codeIndexState: "UNRESOLVABLE",
+            targetResolution: {
+              freshness: "indexing",
+              freshnessReason: "no_current_fallback",
+              requested: { repoUrl: "https://github.com/owner/repo" },
+              availableVersions: [],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+          source({
+            source: "docs",
+            targetLabel: "site:docs.example.com",
+            indexingStatus: "NOT_FOUND",
+            resultCount: 0,
+          }),
+          source({
+            targetLabel: "opaque:target",
+            indexingStatus: "UNRESOLVABLE",
+            resultCount: 0,
+          }),
+          source({
+            targetLabel: "npm:express@4.18.2",
+            indexingStatus: "UNRESOLVABLE",
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.action).toEqual({
+      kind: "verify_target",
+      families: ["package", "repository", "site", "unknown"],
+    });
+    expect(presentation.action).not.toHaveProperty("searchRef");
+  });
+
+  it("terminal target recovery preserves site suggestion precedence", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            source: "docs",
+            targetLabel: "site:docs.example.com",
+            indexingStatus: "UNRESOLVABLE",
+            suggestedSiteTargets: ["site:docs.example.com/guide"],
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.action).toEqual({ kind: "site_retry" });
+  });
+
+  it("terminal target recovery preserves indexed alternative precedence", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "UNRESOLVABLE",
+            targetResolution: {
+              freshness: "indexing",
+              freshnessReason: "no_current_fallback",
+              availableVersions: [{ version: "4.17.0", ref: "v4.17.0" }],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.action).toEqual({
+      kind: "indexed_alternative",
+      target: "npm:express@4.18.2",
+      category: "version",
+      value: "4.17.0",
+    });
+  });
 
   it.each(["docs", "auto"] as const)(
     "uses neutral docs provenance for contributor-less %s sources",
@@ -1485,12 +1599,14 @@ describe("projectUnifiedSearchPresentation", () => {
       { kind: "query", message: "unknown qualifier" },
       {
         kind: "ignored_filter",
-        source: "site:expressjs.com",
+        source: "docs",
+        target: "site:expressjs.com",
         values: ["category"],
       },
       {
         kind: "incompatible_query_feature",
-        source: "site:expressjs.com",
+        source: "docs",
+        target: "site:expressjs.com",
         values: ["exact_name"],
       },
     ]);
@@ -1503,6 +1619,106 @@ describe("projectUnifiedSearchPresentation", () => {
       "Source 'code' is indexing",
     );
     expect(presentation.action).toEqual({ kind: "new_search" });
+  });
+
+  it("source and warning provenance keeps normalized lanes and targets", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            source: "DOCS",
+            targetLabel: "npm:express",
+            ignoredFilters: ["fileIntent"],
+          }),
+          source({
+            source: "SYMBOL",
+            targetLabel: "npm:express",
+            incompatibleFilters: ["lang"],
+          }),
+          source({
+            source: "AUTO",
+            targetLabel: "site:docs.example.com",
+            ignoredQueryFeatures: ["name"],
+          }),
+          source({
+            source: "Future-Lane",
+            targetLabel: "opaque-target",
+            incompatibleQueryFeatures: ["kind"],
+          }),
+          source({
+            source: "",
+            targetLabel: "npm:empty",
+            ignoredFilters: ["category"],
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.warnings).toEqual([
+      {
+        kind: "ignored_filter",
+        source: "docs",
+        target: "npm:express",
+        values: ["fileIntent"],
+      },
+      {
+        kind: "incompatible_filter",
+        source: "symbol",
+        target: "npm:express",
+        values: ["lang"],
+      },
+      {
+        kind: "ignored_query_feature",
+        source: "auto",
+        target: "site:docs.example.com",
+        values: ["name"],
+      },
+      {
+        kind: "incompatible_query_feature",
+        source: "future-lane",
+        target: "opaque-target",
+        values: ["kind"],
+      },
+      {
+        kind: "ignored_filter",
+        source: undefined,
+        target: "npm:empty",
+        values: ["category"],
+      },
+    ]);
+    expect(presentation.trustLimits).toEqual(
+      expect.arrayContaining([
+        {
+          kind: "constraint",
+          constraint: "ignored_filter",
+          source: "docs",
+          target: "npm:express",
+          values: ["fileIntent"],
+        },
+        {
+          kind: "constraint",
+          constraint: "incompatible_filter",
+          source: "symbol",
+          target: "npm:express",
+          values: ["lang"],
+        },
+        {
+          kind: "constraint",
+          constraint: "ignored_query_feature",
+          source: "auto",
+          target: "site:docs.example.com",
+          values: ["name"],
+        },
+        {
+          kind: "constraint",
+          constraint: "incompatible_query_feature",
+          source: "future-lane",
+          target: "opaque-target",
+          values: ["kind"],
+        },
+      ]),
+    );
   });
 
   it("suppresses generic pivots for evidence limits and prefers indexed alternatives", () => {

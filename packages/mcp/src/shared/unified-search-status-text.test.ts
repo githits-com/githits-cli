@@ -134,6 +134,56 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(text).toContain("Search search-ref-empty | completed");
   });
 
+  it("terminal target recovery renders typed guidance for stored results", () => {
+    const payload: UnifiedSearchStatusCompletedPayload = {
+      completed: true,
+      searchRef: "search-ref-terminal",
+      result: result({
+        sourceStatus: [
+          {
+            source: "CODE",
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "NOT_FOUND",
+          },
+          {
+            source: "CODE",
+            targetLabel: "github:owner/repo#main",
+            indexingStatus: "UNRESOLVABLE",
+            targetResolution: {
+              freshness: "indexing",
+              freshnessReason: "no_current_fallback",
+              requested: { repoUrl: "https://github.com/owner/repo" },
+              availableVersions: [],
+              availableRefs: [],
+            },
+          },
+          {
+            source: "DOCS",
+            targetLabel: "site:docs.example.com",
+            codeIndexState: "UNRESOLVABLE",
+          },
+          {
+            source: "CODE",
+            targetLabel: "opaque:target",
+            indexingStatus: "NOT_FOUND",
+          },
+        ],
+      }),
+    };
+    const text = renderUnifiedSearchStatusText(payload);
+
+    expect(text).toContain(
+      "Next: verify the package target; for repository-wide evidence, use its public GitHub repository.",
+    );
+    expect(text).toContain(
+      "Next: verify the public GitHub repository target and ref.",
+    );
+    expect(text).toContain("Next: verify the standalone site target.");
+    expect(text).toContain("Next: verify or replace the unavailable target.");
+    expect(text).not.toContain("rerun search later");
+    expect(text).not.toContain("searchRef=");
+  });
+
   it("continues completed mutable evidence through one status action", () => {
     const payload: UnifiedSearchStatusCompletedPayload = {
       completed: true,

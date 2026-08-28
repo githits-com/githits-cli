@@ -376,6 +376,8 @@ function compactSourceRank(kind: UnifiedSearchSourceKind): number {
       return 2;
     case "code":
       return 3;
+    case "symbols":
+      return 4;
   }
 }
 
@@ -545,11 +547,13 @@ function formatGroupedSource(
   const identity =
     source.kind === "code"
       ? "code"
-      : source.kind === "repository_docs"
-        ? "repository docs"
-        : source.kind === "site_docs"
-          ? `${formatDocumentationSourceIdentity(source, entry)} docs`
-          : "docs";
+      : source.kind === "symbols"
+        ? "symbols"
+        : source.kind === "repository_docs"
+          ? "repository docs"
+          : source.kind === "site_docs"
+            ? `${formatDocumentationSourceIdentity(source, entry)} docs`
+            : "docs";
   const qualifiers: string[] = [];
   if (coverageDetails) qualifiers.push(coverageDetails);
   return `${identity}${qualifiers.length > 0 ? ` (${qualifiers.join("; ")})` : ""}`;
@@ -656,7 +660,10 @@ function appendPresentationWarnings(
       );
     else {
       const label = warning.kind.replaceAll("_", " ");
-      const source = warning.source ? ` (${warning.source})` : "";
+      const attribution = [warning.source, warning.target]
+        .filter((value): value is string => Boolean(value))
+        .join(" on ");
+      const source = attribution ? ` (${attribution})` : "";
       const value = `  - ${capitalize(label)}${source}: ${warning.values.join(", ")}`;
       lines.push(
         options.useColors ? `${colors.yellow}${value}${colors.reset}` : value,
@@ -731,12 +738,36 @@ function appendPresentationAction(
     lines.push("Next: retry one suggested site target explicitly.");
     return;
   }
+  if (action.kind === "verify_target") {
+    for (const family of action.families) {
+      lines.push(`Next: ${formatTargetVerification(family)}.`);
+    }
+    return;
+  }
   if (action.kind === "query_rewrite") {
     lines.push(
       `Next: ${action.rewrites
         .map((rewrite) => formatRewrite(rewrite, options.actionSyntax))
         .join("; ")}.`,
     );
+  }
+}
+
+function formatTargetVerification(
+  family: Extract<
+    UnifiedSearchAction,
+    { kind: "verify_target" }
+  >["families"][number],
+): string {
+  switch (family) {
+    case "package":
+      return "verify the package target; for repository-wide evidence, use its public GitHub repository";
+    case "repository":
+      return "verify the public GitHub repository target and ref";
+    case "site":
+      return "verify the standalone site target";
+    case "unknown":
+      return "verify or replace the unavailable target";
   }
 }
 

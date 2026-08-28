@@ -574,7 +574,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("Do not repeat");
   });
 
-  it("renders symbol source readiness as code", () => {
+  it("source and warning provenance renders symbol readiness separately", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
         query: { raw: "router", sources: ["symbol"] },
@@ -588,8 +588,114 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("Searched: code");
+    expect(text).toContain("Searched: symbols");
     expect(text).not.toContain("repository docs");
+  });
+
+  it("source and warning provenance renders mixed code and symbol readiness", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({ source: "CODE", codeIndexState: "CURRENT" }),
+          source({ source: "SYMBOL", codeIndexState: "CURRENT" }),
+        ],
+      }),
+    );
+
+    expect(text).toContain("Searched: code, symbols");
+  });
+
+  it("source and warning provenance renders lane and target attribution", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({
+            source: "DOCS",
+            targetLabel: "npm:express",
+            ignoredFilters: ["fileIntent"],
+          }),
+          source({
+            source: "SYMBOL",
+            targetLabel: "npm:express",
+            ignoredQueryFeatures: ["name"],
+          }),
+          source({
+            source: "Future-Lane",
+            targetLabel: "opaque-target",
+            incompatibleFilters: ["lang"],
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain("Ignored filter (docs on npm:express): fileIntent");
+    expect(text).toContain(
+      "Ignored query feature (symbol on npm:express): name",
+    );
+    expect(text).toContain(
+      "Incompatible filter (future-lane on opaque-target): lang",
+    );
+  });
+
+  it("terminal target recovery renders one positive line per target family", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "NOT_FOUND",
+          }),
+          source({
+            targetLabel: "github:owner/repo#main",
+            indexingStatus: "UNRESOLVABLE",
+            targetResolution: {
+              freshness: "indexing",
+              freshnessReason: "no_current_fallback",
+              requested: { repoUrl: "https://github.com/owner/repo" },
+              availableVersions: [],
+              availableRefs: [],
+            },
+          }),
+          source({
+            source: "docs",
+            targetLabel: "site:docs.example.com",
+            codeIndexState: "UNRESOLVABLE",
+          }),
+          source({
+            targetLabel: "opaque:target",
+            indexingStatus: "NOT_FOUND",
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "Next: verify the package target; for repository-wide evidence, use its public GitHub repository.",
+    );
+    expect(text).toContain(
+      "Next: verify the public GitHub repository target and ref.",
+    );
+    expect(text).toContain("Next: verify the standalone site target.");
+    expect(text).toContain("Next: verify or replace the unavailable target.");
+    expect(text).not.toContain("rerun search later");
+    expect(text).not.toContain("searchRef");
+    expect(text.match(/Next:/g)).toHaveLength(4);
+
+    const cliText = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "NOT_FOUND",
+          }),
+        ],
+      }),
+      { actionSyntax: "cli" },
+    );
+    expect(cliText).toContain(
+      "Next: verify the package target; for repository-wide evidence, use its public GitHub repository.",
+    );
+    expect(cliText).not.toContain("search_status");
   });
 
   it.each(["docs", "auto"] as const)(
