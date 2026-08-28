@@ -69,16 +69,52 @@ async function cliText(
   deps: PkgUpgradeReviewCommandDependencies = cliDeps(),
 ): Promise<string> {
   const originalStdoutWrite = process.stdout.write;
+  const stdoutColumnsDescriptor = Object.getOwnPropertyDescriptor(
+    process.stdout,
+    "columns",
+  );
+  const stdoutIsTTYDescriptor = Object.getOwnPropertyDescriptor(
+    process.stdout,
+    "isTTY",
+  );
+  const noColorDescriptor = Object.getOwnPropertyDescriptor(
+    process.env,
+    "NO_COLOR",
+  );
   let stdout = "";
-  process.stdout.write = ((chunk: string | Uint8Array) => {
-    stdout += chunk.toString();
-    return true;
-  }) as typeof process.stdout.write;
   try {
+    Object.defineProperty(process.stdout, "columns", {
+      value: 80,
+      configurable: true,
+    });
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: false,
+      configurable: true,
+    });
+    process.env.NO_COLOR = "1";
+    process.stdout.write = ((chunk: string | Uint8Array) => {
+      stdout += chunk.toString();
+      return true;
+    }) as typeof process.stdout.write;
     await pkgUpgradeReviewAction(spec, { ...options, json: false }, deps);
     return stdout;
   } finally {
     process.stdout.write = originalStdoutWrite;
+    restoreProperty(process.stdout, "columns", stdoutColumnsDescriptor);
+    restoreProperty(process.stdout, "isTTY", stdoutIsTTYDescriptor);
+    restoreProperty(process.env, "NO_COLOR", noColorDescriptor);
+  }
+}
+
+function restoreProperty(
+  target: object,
+  property: string,
+  descriptor: PropertyDescriptor | undefined,
+): void {
+  if (descriptor) {
+    Object.defineProperty(target, property, descriptor);
+  } else {
+    Reflect.deleteProperty(target, property);
   }
 }
 
@@ -123,18 +159,49 @@ async function mcpText(
 
 describe("package_upgrade_review parity", () => {
   it("PARITY-TEXT-FORMATTER: CLI and MCP use the same no-color formatter", async () => {
-    const cli = await cliText("npm:express@4.18.0", { to: "5.0.0" });
-    const mcp = await mcpText({
-      registry: "npm",
-      package_name: "express",
-      current_version: "4.18.0",
-      target_version: "5.0.0",
-    });
+    const stdoutColumnsDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      "columns",
+    );
+    const stdoutIsTTYDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      "isTTY",
+    );
+    const noColorDescriptor = Object.getOwnPropertyDescriptor(
+      process.env,
+      "NO_COLOR",
+    );
+    try {
+      Object.defineProperty(process.stdout, "columns", {
+        value: 132,
+        configurable: true,
+      });
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: true,
+        configurable: true,
+      });
+      delete process.env.NO_COLOR;
 
-    expect(cli.endsWith("\n")).toBe(true);
-    expect(cli.trimEnd()).toBe(mcp);
-    expect(mcp).toStartWith("Upgrade review - 1 package");
-    expect(mcp).not.toContain("\x1b[");
+      const cli = await cliText("npm:express@4.18.0", { to: "5.0.0" });
+      expect(process.stdout.columns).toBe(132);
+      expect(process.stdout.isTTY).toBe(true);
+      expect(process.env.NO_COLOR).toBeUndefined();
+      const mcp = await mcpText({
+        registry: "npm",
+        package_name: "express",
+        current_version: "4.18.0",
+        target_version: "5.0.0",
+      });
+
+      expect(cli.endsWith("\n")).toBe(true);
+      expect(cli.trimEnd()).toBe(mcp);
+      expect(mcp).toStartWith("Upgrade review - 1 package");
+      expect(mcp).not.toContain("\x1b[");
+    } finally {
+      restoreProperty(process.stdout, "columns", stdoutColumnsDescriptor);
+      restoreProperty(process.stdout, "isTTY", stdoutIsTTYDescriptor);
+      restoreProperty(process.env, "NO_COLOR", noColorDescriptor);
+    }
   });
 
   it("PARITY-JSON-KEYS: single-package CLI === MCP", async () => {
