@@ -322,7 +322,7 @@ describe("agent eval usage metrics", () => {
     });
   });
 
-  it("excludes unknown usage, cost, and duration from aggregate totals", () => {
+  it("builds unsupported-agent records without a requested model", () => {
     const unknown = buildAgentEvalMetrics({
       runId: "run-unknown",
       startedAt: "2026-08-28T10:00:00.000Z",
@@ -330,7 +330,6 @@ describe("agent eval usage metrics", () => {
       records: [
         {
           workloadId: "unknown",
-          requestedModel: "haiku",
           resolvedModel: null,
           agent: "claude",
           agentVersion: null,
@@ -355,6 +354,15 @@ describe("agent eval usage metrics", () => {
       ],
     });
 
+    expect(agentEvalMetricsSchema.parse(unknown)).toEqual(unknown);
+    expect(unknown.records[0]).toMatchObject({
+      agent: "claude",
+      requestedModel: null,
+      warnings: [
+        "adapter_not_implemented",
+        "tool_logical_count_not_implemented",
+      ],
+    });
     expect(unknown.aggregates.durationMs).toBeNull();
     expect(unknown.aggregates.uncachedInputTokens).toBeNull();
     expect(unknown.aggregates.cachedInputTokens).toBeNull();

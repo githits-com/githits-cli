@@ -110,7 +110,7 @@ export interface PersistedToolCall {
 
 export interface AgentEvalRecordInput {
   workloadId: string;
-  requestedModel: string;
+  requestedModel?: string | null;
   resolvedModel?: string | null;
   agent: EvalAgent;
   agentVersion?: string | null;
@@ -179,7 +179,7 @@ const toolsMetricsSchema = z.object({
 
 export const agentEvalRecordSchema = z.object({
   workloadId: z.string().min(1),
-  requestedModel: z.string().min(1),
+  requestedModel: z.string().nullable(),
   resolvedModel: z.string().nullable(),
   agent: z.enum(["claude", "codex", "opencode"]),
   agentVersion: z.string().nullable(),
@@ -469,7 +469,7 @@ function buildAgentEvalRecord(input: AgentEvalRecordInput): AgentEvalRecord {
   );
   const record = {
     workloadId: input.workloadId,
-    requestedModel: input.requestedModel,
+    requestedModel: input.requestedModel ?? null,
     resolvedModel: input.resolvedModel ?? null,
     agent: input.agent,
     agentVersion: input.agentVersion ?? null,
