@@ -381,13 +381,13 @@ export interface AgentEvalSuiteShardExecution {
   runPath?: string;
   metricsPath?: string;
   reportPath?: string;
-  status?: "success" | "failed";
+  status: "success" | "failed";
   error?: string;
 }
 
 export type AgentEvalSuiteShardExecutor = (
   options: AgentEvalSuiteShardOptions,
-) => Promise<AgentEvalSuiteShardExecution | undefined>;
+) => Promise<AgentEvalSuiteShardExecution>;
 
 const suiteProfileSchema = z.enum(AGENT_EVAL_SUITE_PROFILES);
 const suiteGitMetadataSchema = z.object({
@@ -1095,7 +1095,9 @@ async function suitePreflight(
     join(repoRoot, workload.path),
   );
   const contentIdentity = {
-    workloads: workloadPaths.map((path) => fileIdentity(repoRoot, path)),
+    workloads: workloadPaths
+      .map((path) => fileIdentity(repoRoot, path))
+      .toSorted((left, right) => compareStrings(left.path, right.path)),
     reportingContract: fileIdentity(repoRoot, reportingPath),
     resultSchema: fileIdentity(repoRoot, schemaPath),
   };
@@ -1161,6 +1163,14 @@ async function productionShardExecutor(
   return { runDir: options.outDir, status: "success" };
 }
 
+/**
+ * Runs one named suite with `repoRoot` as the measurement-harness root.
+ * `targetRoot` defaults to that root and supplies target launch and guidance
+ * content; the harness owns workloads, reporting, schemas, and output. The
+ * two profile shards run concurrently and always produce validated suite
+ * evidence, including partial or failed child execution. Production execution
+ * may invoke paid agents; dry runs and injected shard executors do not.
+ */
 export async function runAgentEvalSuite(
   options: AgentEvalSuiteRunOptions,
 ): Promise<AgentEvalSuiteArtifact> {
@@ -1186,9 +1196,13 @@ export async function runAgentEvalSuite(
   const promises = shardOptions.map((shard) =>
     Promise.resolve()
       .then(() => executor(shard))
-      .then(
-        (execution) =>
-          execution ?? { runDir: shard.outDir, status: "success" as const },
+      .then((execution) => {
+        if (!execution) {
+          throw new Error("shard executor must return an execution result");
+        }
+        return execution;
+      })
+      .catch(
         (error): AgentEvalSuiteShardExecution => ({
           status: "failed",
           error: errorMessage(error),
@@ -2321,6 +2335,11 @@ export interface AgentEvalSuiteComparisonBuildOptions {
   outputPath?: string | null;
 }
 
+/**
+ * Builds a comparison from two independently loaded suite artifacts without
+ * launching agents. It preserves full cell status evidence and applies
+ * compatibility and matched-cohort rules before calculating direct deltas.
+ */
 export function buildSuiteComparison(
   baseline: AgentEvalImportedSuite,
   candidate: AgentEvalImportedSuite,
@@ -2534,6 +2553,11 @@ function compareImportedSuites(
   return writeComparisonArtifact(artifact, { outputDir });
 }
 
+/**
+ * Loads two existing suite artifacts and writes an offline comparison. No
+ * agent or target executor runs; output defaults to the harness
+ * `.agent-eval/comparisons/<timestamp>` directory unless overridden.
+ */
 export function compareAgentEvalSuitesOffline(
   options: AgentEvalSuiteOfflineCompareOptions,
 ): AgentEvalSuiteComparison {
@@ -2576,6 +2600,13 @@ export interface AgentEvalSuitePairResult {
   comparisonPath: string;
 }
 
+/**
+ * Runs a baseline target suite followed by the candidate suite rooted at the
+ * measurement harness, then writes both suite artifacts and their comparison.
+ * `repoRoot` owns shared harness inputs and output; `baselineRoot` is the only
+ * alternate target. Dry runs and injected executors avoid paid agent work,
+ * while production execution may invoke the configured agent.
+ */
 export async function runAgentEvalSuitePair(
   options: AgentEvalSuitePairOptions,
 ): Promise<AgentEvalSuitePairResult> {
@@ -2661,26 +2692,141 @@ export function loadComparisonArtifact(path: string): AgentEvalSuiteComparison {
   }
 }
 
+function formatComparisonValue(value: unknown): string {
+  if (value === null || value === undefined) return "unknown";
+  if (typeof value === "string") return value;
+  return JSON.stringify(value) ?? "unknown";
+}
+
+function formatCellIds(ids: string[]): string {
+  return ids.length > 0 ? `${ids.length} [${ids.join(", ")}]` : "0";
+}
+
+function formatComparisonMetric(
+  metric: z.infer<typeof comparisonMetricSchema> | null,
+): string {
+  if (metric === null) return "unknown";
+  return `before=${formatComparisonValue(metric.before)} after=${formatComparisonValue(metric.after)} delta=${formatComparisonValue(metric.delta)} change=${metric.change} percent=${formatComparisonValue(metric.percentChange)}`;
+}
+
+function formatAggregateMetric(
+  name: string,
+  metric: z.infer<typeof comparisonAggregateMetricSchema>,
+): string {
+  return `${name}: ${formatComparisonMetric(metric)} included=${formatCellIds(metric.includedCellIds)} excluded=${formatCellIds(metric.excludedCellIds)}`;
+}
+
+function formatToolCounts(
+  entry: z.infer<typeof suiteCallsByToolSchema> | null,
+): string {
+  if (entry === null) return "unknown";
+  return `total=${entry.total} started=${entry.started} completed=${entry.completed} failed=${entry.failed} unknown=${entry.unknown}`;
+}
+
+function formatToolEntries(
+  entries: z.infer<typeof suiteCallsByToolSchema>[] | null,
+): string {
+  if (entries === null) return "unknown";
+  if (entries.length === 0) return "none";
+  return entries
+    .map((entry) => `${entry.surface}/${entry.tool} ${formatToolCounts(entry)}`)
+    .join("; ");
+}
+
+function formatComparisonSequence(sequence: string[] | null): string {
+  if (sequence === null) return "unknown";
+  return sequence.length > 0 ? sequence.join(" -> ") : "none";
+}
+
+function formatCellCallsByTool(
+  calls: z.infer<typeof comparisonCallsByToolSchema> | null,
+): string[] {
+  if (calls === null) return ["callsByTool: unknown"];
+  const lines = [
+    `callsByTool: before=${formatToolEntries(calls.before)} after=${formatToolEntries(calls.after)}`,
+  ];
+  if (calls.deltas === null) {
+    lines.push("  tool deltas: unknown");
+  } else {
+    for (const tool of calls.deltas) {
+      lines.push(
+        `  tool ${tool.surface}/${tool.tool}: before=${formatToolCounts(tool.before)} after=${formatToolCounts(tool.after)} delta=${tool.delta === null ? "unknown" : `total=${tool.delta.total} started=${tool.delta.started} completed=${tool.delta.completed} failed=${tool.delta.failed} unknown=${tool.delta.unknown}`} change=${tool.change} percent=${formatComparisonValue(tool.percentChange)}`,
+      );
+    }
+  }
+  return lines;
+}
+
+/**
+ * Formats comparison identity, compatibility, aggregate, and per-cell evidence
+ * without recomputing comparison data. Unknown and excluded metrics remain
+ * visibly unknown in the human-readable output.
+ */
 export function formatComparisonReport(
   artifact: AgentEvalSuiteComparison,
 ): string {
   const lines = [
     `Agent eval comparison: ${artifact.mode} repositoryOnly=${artifact.repositoryOnly}`,
-    `baseline=${artifact.baselineSuite.path} candidate=${artifact.candidateSuite.path}`,
-    `compatibility=${artifact.compatibility.compatible ? "compatible" : "incompatible"} suppressed=${artifact.compatibility.directDeltasSuppressed}`,
-    `cells=${artifact.cells.length} durationDelta=${artifact.aggregates.durationMs.delta ?? "unknown"} logicalToolDelta=${artifact.aggregates.logicalToolCalls.delta ?? "unknown"} costDelta=${artifact.aggregates.costUsd.delta ?? "unknown"}`,
+    `baseline=${artifact.baselineSuite.suiteName}/${artifact.baselineSuite.suiteId} path=${artifact.baselineSuite.path} sha256=${artifact.baselineSuite.sha256}`,
+    `candidate=${artifact.candidateSuite.suiteName}/${artifact.candidateSuite.suiteId} path=${artifact.candidateSuite.path} sha256=${artifact.candidateSuite.sha256}`,
+    `compatibility=${artifact.compatibility.compatible ? "compatible" : "incompatible"} suppressed=${artifact.compatibility.directDeltasSuppressed} dimensions=${artifact.compatibility.dimensions.length}`,
+    "dimensions:",
   ];
+  for (const dimension of artifact.compatibility.dimensions) {
+    lines.push(
+      `  ${dimension.name}: ${dimension.status} before=${formatComparisonValue(dimension.before)} after=${formatComparisonValue(dimension.after)}${dimension.reason ? ` reason=${dimension.reason}` : ""}`,
+    );
+  }
+  lines.push("aggregates:");
+  lines.push(
+    formatAggregateMetric("durationMs", artifact.aggregates.durationMs),
+  );
+  lines.push(
+    formatAggregateMetric(
+      "logicalToolCalls",
+      artifact.aggregates.logicalToolCalls,
+    ),
+  );
+  for (const [name, metric] of Object.entries(artifact.aggregates.tokens)) {
+    lines.push(formatAggregateMetric(`tokens.${name}`, metric));
+  }
+  lines.push(formatAggregateMetric("costUsd", artifact.aggregates.costUsd));
+  const aggregateCalls = artifact.aggregates.callsByTool;
+  lines.push(
+    `callsByTool: before=${formatToolEntries(aggregateCalls.before)} after=${formatToolEntries(aggregateCalls.after)} included=${formatCellIds(aggregateCalls.includedCellIds)} excluded=${formatCellIds(aggregateCalls.excludedCellIds)}`,
+  );
+  if (aggregateCalls.deltas === null) {
+    lines.push("  tool deltas: unknown");
+  } else {
+    for (const tool of aggregateCalls.deltas) {
+      lines.push(
+        `  tool ${tool.surface}/${tool.tool}: before=${formatToolCounts(tool.before)} after=${formatToolCounts(tool.after)} delta=${tool.delta === null ? "unknown" : `total=${tool.delta.total} started=${tool.delta.started} completed=${tool.delta.completed} failed=${tool.delta.failed} unknown=${tool.delta.unknown}`} change=${tool.change} percent=${formatComparisonValue(tool.percentChange)}`,
+      );
+    }
+  }
+  lines.push(`cells: ${artifact.cells.length}`);
   for (const cell of artifact.cells) {
     lines.push(
-      `cell ${cell.id} before=${cell.beforeStatus ?? "missing"} after=${cell.afterStatus ?? "missing"} compatibility=${cell.compatibility}`,
+      `cell ${cell.id}: before=${cell.beforeStatus ?? "missing"} after=${cell.afterStatus ?? "missing"} compatibility=${cell.compatibility}${cell.incompatibilityReason ? ` reason=${cell.incompatibilityReason}` : ""}`,
     );
-    if (cell.callsByTool?.deltas) {
-      for (const tool of cell.callsByTool.deltas) {
-        lines.push(
-          `  tool ${tool.surface}/${tool.tool} ${tool.change} delta=${tool.delta?.total ?? "unknown"}`,
-        );
-      }
+    lines.push(`  durationMs: ${formatComparisonMetric(cell.durationMs)}`);
+    lines.push(
+      `  logicalToolCalls: ${formatComparisonMetric(cell.logicalToolCalls)}`,
+    );
+    for (const [name, metric] of Object.entries(cell.tokens)) {
+      lines.push(`  tokens.${name}: ${formatComparisonMetric(metric)}`);
     }
+    lines.push(`  costUsd: ${formatComparisonMetric(cell.costUsd)}`);
+    lines.push(...formatCellCallsByTool(cell.callsByTool));
+    lines.push(
+      `  sequence: before=${formatComparisonSequence(cell.toolSequence.before)} after=${formatComparisonSequence(cell.toolSequence.after)} changed=${formatComparisonValue(cell.toolSequence.changed)}`,
+    );
+    lines.push(
+      `  processStatus: before=${formatComparisonValue(cell.processStatus.before)} after=${formatComparisonValue(cell.processStatus.after)} changed=${formatComparisonValue(cell.processStatus.changed)}`,
+    );
+    lines.push(
+      `  finalStatus: before=${formatComparisonValue(cell.finalStatus.before)} after=${formatComparisonValue(cell.finalStatus.after)} changed=${formatComparisonValue(cell.finalStatus.changed)}`,
+    );
   }
   for (const warning of artifact.warnings) lines.push(`Warning: ${warning}`);
   return `${lines.join("\n")}\n`;

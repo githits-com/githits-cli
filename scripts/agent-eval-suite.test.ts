@@ -25,12 +25,14 @@ import {
   AGENT_EVAL_SUITE_NAMES,
   type AgentEvalSuiteArtifact,
   type AgentEvalSuiteManifest,
+  type AgentEvalSuiteShardExecutor,
   type AgentEvalSuiteShardOptions,
   type AgentEvalSuiteWorkload,
   agentEvalSuiteArtifactSchema,
   agentEvalSuiteComparisonSchema,
   buildSuiteComparison,
   compareAgentEvalSuitesOffline,
+  formatComparisonReport,
   formatSuiteReport,
   loadComparisonArtifact,
   loadImportedSuite,
@@ -312,7 +314,7 @@ async function generatePairSuite(
             ),
           ),
       );
-      return { runDir: options.outDir };
+      return { runDir: options.outDir, status: "success" };
     },
   });
 }
@@ -507,14 +509,16 @@ describe("agent eval suites", () => {
     const explicitPairDir = join(candidate.root, "explicit-pair");
     const explicitCompareDir = join(candidate.root, "explicit-compare");
     let compareCalls = 0;
-    const shardExecutor = async (options: AgentEvalSuiteShardOptions) => {
+    const shardExecutor: AgentEvalSuiteShardExecutor = async (
+      options: AgentEvalSuiteShardOptions,
+    ) => {
       writeShardArtifacts(
         options,
         options.workloads.map((workload) =>
           suiteRecord(workload.id, { guidanceProfile: options.profile }),
         ),
       );
-      return { runDir: options.outDir };
+      return { runDir: options.outDir, status: "success" };
     };
     const runSuite = (options: Parameters<typeof runAgentEvalSuite>[0]) =>
       runAgentEvalSuite({
@@ -651,7 +655,7 @@ describe("agent eval suites", () => {
             shard,
             shard.workloads.map((workload) => suiteRecord(workload.id)),
           );
-          return { runDir: shard.outDir };
+          return { runDir: shard.outDir, status: "success" };
         },
       });
     try {
@@ -881,13 +885,13 @@ describe("agent eval suites", () => {
     const fixture = createSuiteExecutionFixture([
       {
         id: "stable-z",
-        path: "eval/agentic/workloads/stable-z.md",
+        path: "eval/agentic/workloads/package-changelog-range.md",
         safety: "stable",
         suites: ["stable-full"],
       },
       {
         id: "stable-a",
-        path: "eval/agentic/workloads/stable-a.md",
+        path: "eval/agentic/workloads/package-changelog.md",
         safety: "stable",
         suites: ["stable-full"],
       },
@@ -921,7 +925,7 @@ describe("agent eval suites", () => {
             options,
             options.workloads.map((workload) => suiteRecord(workload.id)),
           );
-          return { runDir: options.outDir };
+          return { runDir: options.outDir, status: "success" };
         },
       });
       await startsReady;
@@ -939,6 +943,47 @@ describe("agent eval suites", () => {
       expect(artifact.selectedWorkloads.map((workload) => workload.id)).toEqual(
         ["stable-a", "stable-z"],
       );
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("records an undefined shard executor result as failed evidence", async () => {
+    const fixture = createSuiteExecutionFixture();
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-suite-undefined-"));
+    try {
+      const artifact = await runAgentEvalSuite({
+        suite: "stable-full",
+        repoRoot: fixture.root,
+        targetRoot: fixture.targetRoot,
+        outDir,
+        manifestPath: fixture.manifestPath,
+        workloadsDir: fixture.workloadsDir,
+        reportingPath: fixture.reportingPath,
+        schemaPath: fixture.schemaPath,
+        dryRun: true,
+        shardExecutor: async () => undefined as never,
+      });
+      expect(artifact.shards).toEqual([
+        {
+          profile: "descriptors",
+          status: "failed",
+          error: "shard executor must return an execution result",
+          runPath: null,
+          metricsPath: null,
+          reportPath: null,
+        },
+        {
+          profile: "full",
+          status: "failed",
+          error: "shard executor must return an execution result",
+          runPath: null,
+          metricsPath: null,
+          reportPath: null,
+        },
+      ]);
+      expect(artifact.status).toBe("failed");
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
       rmSync(outDir, { recursive: true, force: true });
@@ -974,7 +1019,7 @@ describe("agent eval suites", () => {
           schemaPath: fixture.schemaPath,
           shardExecutor: async () => {
             executorCalls += 1;
-            return undefined;
+            return { status: "success" };
           },
         }),
       ).rejects.toThrow("dry-run-only");
@@ -995,7 +1040,7 @@ describe("agent eval suites", () => {
             options,
             options.workloads.map((workload) => suiteRecord(workload.id)),
           );
-          return { runDir: options.outDir };
+          return { runDir: options.outDir, status: "success" };
         },
       });
       expect(artifact.status).toBe("dry-run");
@@ -1036,7 +1081,7 @@ describe("agent eval suites", () => {
             options,
             options.workloads.map((workload) => suiteRecord(workload.id)),
           );
-          return { runDir: options.outDir };
+          return { runDir: options.outDir, status: "success" };
         },
       });
       expect(flags).toEqual([true, true]);
@@ -1096,7 +1141,7 @@ describe("agent eval suites", () => {
             schemaPath: fixture.schemaPath,
             shardExecutor: async () => {
               executorCalls += 1;
-              return undefined;
+              return { status: "success" };
             },
           }),
         ).rejects.toThrow(error);
@@ -1129,7 +1174,7 @@ describe("agent eval suites", () => {
               suiteRecord(workload.id, { guidanceProfile: options.profile }),
             ),
           );
-          return { runDir: options.outDir };
+          return { runDir: options.outDir, status: "success" };
         },
       });
       const loaded = parseSuiteArtifact(
@@ -1199,7 +1244,7 @@ describe("agent eval suites", () => {
             options,
             options.workloads.map((workload) => suiteRecord(workload.id)),
           );
-          return { runDir: options.outDir };
+          return { runDir: options.outDir, status: "success" };
         },
       });
       expect(artifact.status).toBe("partial");
@@ -1264,7 +1309,7 @@ describe("agent eval suites", () => {
               ? { "stable-a": "failed" }
               : undefined,
           );
-          return { runDir: options.outDir };
+          return { runDir: options.outDir, status: "success" };
         },
       });
       expect(artifact.totals.failedExecutions).toBe(1);
@@ -1287,13 +1332,13 @@ describe("agent eval suites", () => {
     const fixture = createSuiteExecutionFixture([
       {
         id: "stable-z",
-        path: "eval/agentic/workloads/stable-z.md",
+        path: "eval/agentic/workloads/package-changelog-range.md",
         safety: "stable",
         suites: ["stable-full"],
       },
       {
         id: "stable-a",
-        path: "eval/agentic/workloads/stable-a.md",
+        path: "eval/agentic/workloads/package-changelog.md",
         safety: "stable",
         suites: ["stable-full"],
       },
@@ -1329,7 +1374,7 @@ describe("agent eval suites", () => {
         reportingPath: fixture.reportingPath,
         schemaPath: fixture.schemaPath,
         dryRun: true,
-        shardExecutor: async () => undefined,
+        shardExecutor: async () => ({ status: "success" }),
       });
     try {
       const first = await executeWithoutChildren(
@@ -1338,11 +1383,11 @@ describe("agent eval suites", () => {
       );
       const second = await executeWithoutChildren(targetRootB, secondOutDir);
       expect(first.contentIdentity.workloads.map((item) => item.path)).toEqual([
-        "eval/agentic/workloads/stable-a.md",
-        "eval/agentic/workloads/stable-z.md",
+        "eval/agentic/workloads/package-changelog-range.md",
+        "eval/agentic/workloads/package-changelog.md",
       ]);
       const workloadBytes = readFileSync(
-        join(fixture.root, "eval/agentic/workloads/stable-a.md"),
+        join(fixture.root, "eval/agentic/workloads/package-changelog-range.md"),
       );
       expect(first.contentIdentity.workloads[0]?.sha256).toBe(
         createHash("sha256").update(workloadBytes).digest("hex"),
@@ -1386,7 +1431,7 @@ describe("agent eval suites", () => {
                 : [{ tool: "search", server: "githits", status: "completed" }],
           });
           writeShardArtifacts(options, [record]);
-          return { runDir: options.outDir };
+          return { runDir: options.outDir, status: "success" };
         },
       });
       expect(artifact.cumulativeAgentTimeMs).toBe(3000);
@@ -1448,7 +1493,7 @@ describe("agent eval suites", () => {
             metrics.aggregates.logicalToolCalls = null;
             writeJson(metricsPath, metrics);
           }
-          return { runDir: options.outDir };
+          return { runDir: options.outDir, status: "success" };
         },
       });
       expect(artifact.callsByTool).toBeNull();
@@ -1493,7 +1538,7 @@ describe("agent eval suites", () => {
             options,
             options.workloads.map((workload) => suiteRecord(workload.id)),
           );
-          return { runDir: options.outDir };
+          return { runDir: options.outDir, status: "success" };
         },
       });
     try {
@@ -1535,7 +1580,7 @@ describe("agent eval suites", () => {
             options.workloads.map((workload) => suiteRecord(workload.id)),
           );
           events.push(`end:${options.targetRoot}`);
-          return { runDir: options.outDir };
+          return { runDir: options.outDir, status: "success" };
         },
       });
       const baselineEnds = events
@@ -1590,7 +1635,7 @@ describe("agent eval suites", () => {
             options,
             options.workloads.map((workload) => suiteRecord(workload.id)),
           );
-          return { runDir: options.outDir };
+          return { runDir: options.outDir, status: "success" };
         },
       });
       expect(result.baselineSuite.status).toBe("partial");
@@ -1633,7 +1678,7 @@ describe("agent eval suites", () => {
           dryRun: true,
           shardExecutor: async () => {
             executorCalls += 1;
-            return undefined;
+            return { status: "success" };
           },
         }),
       ).rejects.toThrow("Target GitHits skill directory not found");
@@ -2184,6 +2229,50 @@ describe("agent eval suites", () => {
     }
   });
 
+  it("formats comparison identity, aggregates, and cell evidence readably", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const baselineOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-format-base-"),
+    );
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-format-candidate-"),
+    );
+    const outputDir = mkdtempSync(join(tmpdir(), "agent-eval-format-output-"));
+    try {
+      await generatePairSuite(baseline, baselineOutDir);
+      await generatePairSuite(candidate, candidateOutDir);
+      const comparison = compareAgentEvalSuitesOffline({
+        baselineSuitePath: join(baselineOutDir, "suite.json"),
+        candidateSuitePath: join(candidateOutDir, "suite.json"),
+        outputDir,
+      });
+      const formatted = formatComparisonReport(comparison);
+      expect(formatted).toContain("dimensions:");
+      expect(formatted).toContain("matrix.agent: compatible");
+      expect(formatted).toContain("aggregates:");
+      expect(formatted).toContain("durationMs: before=");
+      expect(formatted).toContain("logicalToolCalls: before=");
+      expect(formatted).toContain("tokens.uncachedInputTokens: before=");
+      expect(formatted).toContain("costUsd: before=");
+      expect(formatted).toContain("callsByTool: before=");
+      expect(formatted).toContain(
+        "included=2 [descriptors/stable-a, full/stable-a]",
+      );
+      expect(formatted).toContain("cell descriptors/stable-a:");
+      expect(formatted).toContain("sequence: before=");
+      expect(formatted).toContain(
+        "processStatus: before=success after=success changed=false",
+      );
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+
   it("treats inconsistent logical telemetry as unknown in suite and comparison cohorts", async () => {
     const baseline = createPairExecutionFixture();
     const candidate = createPairExecutionFixture();
@@ -2230,7 +2319,7 @@ describe("agent eval suites", () => {
             record.tools.logicalCallCount = 99;
             writeJson(metricsPath, metrics);
           }
-          return { runDir: options.outDir };
+          return { runDir: options.outDir, status: "success" };
         },
       });
       expect(candidateArtifact.callsByTool).toBeNull();
