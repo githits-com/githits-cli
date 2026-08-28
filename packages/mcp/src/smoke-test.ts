@@ -349,7 +349,7 @@ function hasHumanSearchHitLocator(lines: string[]): boolean {
     ) {
       const title = match[3];
       return title === undefined
-        ? !line.endsWith(" -")
+        ? !line.endsWith(" -") || hasWrappedHitTitle(lines, index)
         : title.trim().length > 0 || hasWrappedHitTitle(lines, index);
     }
     return false;

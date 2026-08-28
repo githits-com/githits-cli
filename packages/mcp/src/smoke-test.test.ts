@@ -409,6 +409,21 @@ describe("runMcpSmoke", () => {
     await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
   });
 
+  it("allows a wrapped repository title without a documentation hit", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(
+          "1 result | 1 repo code hit\n\n" +
+            "[1] npm:express@5.2.1 lib/application.js [repo code] -\n" +
+            "  A long repository title",
+        );
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+  });
+
   it.each([
     [
       "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +

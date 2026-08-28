@@ -112,6 +112,17 @@ Next: shorten or broaden query; use githits code grep.`;
     ).not.toThrow();
   });
 
+  it("accepts a wrapped repository title without a documentation hit", () => {
+    expect(() =>
+      assertSearchTerminalText(
+        "1 result | 1 repo code hit\n\n" +
+          "[1] npm:express@5.2.1 lib/application.js [repo code] -\n" +
+          "  A long repository title",
+        "search",
+      ),
+    ).not.toThrow();
+  });
+
   it.each([
     [
       "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n  This payload mentions githits code read but has no locator",
