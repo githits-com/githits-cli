@@ -105,6 +105,19 @@ function createSuiteFixture(
   const workloadsDir = join(root, "eval", "agentic", "workloads");
   mkdirSync(workloadsDir, { recursive: true });
   for (const entry of entries) {
+    if (
+      entry.path.includes("\\") ||
+      entry.path.startsWith("/") ||
+      /^[A-Za-z]:[\\/]/.test(entry.path) ||
+      entry.path
+        .split("/")
+        .some(
+          (segment) =>
+            segment.length === 0 || segment === "." || segment === "..",
+        )
+    ) {
+      continue;
+    }
     const path = join(root, entry.path);
     mkdirSync(join(path, ".."), { recursive: true });
     writeFileSync(path, `# ${entry.id}\n`);
@@ -558,7 +571,9 @@ describe("agent eval suites", () => {
       candidate.root,
       { runSuite },
     );
-    expect(defaultRunText).toContain(`${candidate.root}/.agent-eval/suites/`);
+    expect(defaultRunText).toContain(
+      join(candidate.root, ".agent-eval", "suites"),
+    );
 
     const runPair = (options: Parameters<typeof runAgentEvalSuitePair>[0]) =>
       runAgentEvalSuitePair({
@@ -604,7 +619,9 @@ describe("agent eval suites", () => {
       candidate.root,
       { runPair },
     );
-    expect(defaultPairText).toContain(`${candidate.root}/.agent-eval/pairs/`);
+    expect(defaultPairText).toContain(
+      join(candidate.root, ".agent-eval", "pairs"),
+    );
 
     const compareText = await runAgentEvalSuiteCli(
       [
@@ -641,7 +658,7 @@ describe("agent eval suites", () => {
       { compareOffline: compareAgentEvalSuitesOffline },
     );
     expect(defaultCompareText).toContain(
-      `${candidate.root}/.agent-eval/comparisons/`,
+      join(candidate.root, ".agent-eval", "comparisons"),
     );
   });
 
