@@ -382,6 +382,19 @@ Tests use fixed fixtures and exact structural assertions.
     `mcp-cli-parity.md` only with the upgrade-review-specific shared width,
     semantic roles, and in-place `text-v1` behavior; do not broaden unrelated
     cross-command guidance in this increment.
+- Canonical agent guidance
+  - Add a concise tool-output UX contract to `AGENTS.md`: human-readable text is
+    a deliberately optimized product surface, not a serialization of available
+    fields; preserve verified strengths before changing it; lead with the
+    outcome, group related evidence, remove repetition, retain stable follow-up
+    locators, wrap prose to the caller's width, keep authored punctuation ASCII,
+    and never make color carry meaning.
+  - Keep one shared CLI/MCP text formatter per tool when their information needs
+    match; pass color and width as rendering inputs. Keep JSON as the lossless
+    machine-readable surface.
+  - Follow the canonical plugin workflow: do not edit generated assets directly;
+    run generation and stale-output validation, then inspect whether the
+    `AGENTS.md`-only input produces any generated diff.
 - Release fragment
   - Add one new fragment with `githits: patch` and `@githits/mcp: patch`; do not
     edit the existing search fragment or `CHANGELOG.md`.
@@ -403,8 +416,10 @@ Tests use fixed fixtures and exact structural assertions.
    be dim; verbose/recovery guidance must not be dim. Apply attention color with
    `colorize(..., "yellow", useColors)`; do not use `warning()`, which adds a
    non-ASCII glyph and changes the no-color text.
-6. Update structural live smoke assertions, permanent docs, and the independent
-   two-package release fragment.
+6. Update structural live smoke assertions, permanent docs, canonical
+   `AGENTS.md` tool-output guidance, and the independent two-package release
+   fragment. Run plugin generation from canonical inputs and inspect its output;
+   do not hand-edit generated assets.
 7. Run focused tests, full tests, typecheck, lint/format checks, both source smoke
    suites, build, both built smoke suites, and public-package validation.
 8. Re-run the existing `package-upgrade-safety.md` Claude descriptor eval against
@@ -438,6 +453,8 @@ bun test
 bun run typecheck
 bun run format:check
 bun run lint
+bun run plugins:generate
+bun run plugins:check
 bun run smoke:cli
 bun run smoke:mcp
 bun run build
@@ -471,6 +488,8 @@ diff -u "$comparison_dir/upgrade-review-output-baseline-claude-20260828.txt" "$c
 - Attention meaning is explicit without ANSI; CLI yellow emphasis adds no new
   words or state. Actions and trust limits are never dim.
 - Formatter-authored punctuation is ASCII while backend Unicode survives.
+- `AGENTS.md` records the durable human-readable tool-output UX contract and
+  plugin generation/checking remains clean from canonical inputs.
 - With the same width and ANSI disabled, CLI terminal text and MCP `text-v1`
   are equivalent apart from the CLI's trailing newline transport convention.
 - CLI `--json`, MCP `format: "json"`, request/service behavior, GraphQL field
