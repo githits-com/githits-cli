@@ -104,12 +104,11 @@ The v4 live evidence covers MCP descriptor/full cells only. Skills-surface
 isolation and authentication have deterministic injected-command coverage in
 the test suite, but no live skills canary has run.
 
-The trusted MCP child receives the caller's HOME and USERPROFILE so
-keychain-backed GitHits authentication can resolve, while the acting agent
-retains disposable HOME, USERPROFILE, XDG_CONFIG_HOME, APPDATA, and temporary
-paths. Host XDG_CONFIG_HOME and APPDATA are not passed to the child. Runtime
-MCP configs are consumed with the actual child home and then redacted in the
-persisted artifact boundary.
+The trusted MCP child receives the caller's HOME, USERPROFILE, XDG_CONFIG_HOME,
+and APPDATA so keychain- or file-backed GitHits authentication can resolve,
+while the acting agent retains disposable HOME, USERPROFILE, XDG_CONFIG_HOME,
+APPDATA, and temporary paths. Runtime MCP configs are consumed with the actual
+child auth roots and then redacted in the persisted artifact boundary.
 
 The report loader accepts older run directories. It checks that `metrics.json`
 resolves inside the run directory and validates it with the shared Zod schema.

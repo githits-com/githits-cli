@@ -10,6 +10,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -181,6 +182,8 @@ const MCP_CONFIG_ENV_KEYS = [
   "GITHITS_AUTH_STORAGE",
   "HOME",
   "USERPROFILE",
+  "XDG_CONFIG_HOME",
+  "APPDATA",
 ] as const;
 
 interface ExtractedToolCall {
@@ -1044,7 +1047,7 @@ export function validateCodexEvalHome(
     `CODEX_HOME must be an absolute directory: ${codexHome}`,
   );
   assert(
-    existsSync(codexHome) && lstatSync(codexHome).isDirectory(),
+    existsSync(codexHome) && statSync(codexHome).isDirectory(),
     `CODEX_HOME must be an existing directory: ${codexHome}`,
   );
   const globalInstruction = findCodexHomeGlobalInstruction(codexHome);
@@ -1143,7 +1146,12 @@ export function collectSecretValues(env: Record<string, string>): string[] {
 
 export function collectHostHomeValues(env: Record<string, string>): string[] {
   const values = new Set<string>();
-  for (const key of ["HOME", "USERPROFILE"] as const) {
+  for (const key of [
+    "HOME",
+    "USERPROFILE",
+    "XDG_CONFIG_HOME",
+    "APPDATA",
+  ] as const) {
     const value = env[key];
     if (value !== undefined && value.length > 1) values.add(value);
   }
@@ -1662,7 +1670,7 @@ function externalGuidancePaths(value: string): string[] {
   const pattern =
     /(?:[A-Za-z]:[\\/]|\\\\|\/|~\/|\$[A-Za-z_][A-Za-z0-9_]*\/|\.\.?[\\/]|(?:[A-Za-z0-9_.-]+[\\/])+)[^"'`\s),;]*?(?:AGENTS|CLAUDE|GEMINI|SKILL)\.md|(?:^|[\s"'`(=])(?:AGENTS|CLAUDE|GEMINI|SKILL)\.md/gi;
   for (const match of value.matchAll(pattern)) {
-    const path = match[0];
+    const path = match[0]?.replace(/^[\s"'`(=]+/, "");
     if (path) paths.push(path);
   }
   return paths;

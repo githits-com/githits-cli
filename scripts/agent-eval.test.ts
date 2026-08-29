@@ -808,7 +808,7 @@ describe("agent eval harness", () => {
     );
   });
 
-  it("passes host homes only to the MCP child for both guidance profiles", () => {
+  it("passes host auth roots only to the MCP child for both guidance profiles", () => {
     const baseEnv = {
       HOME: "/host/home",
       USERPROFILE: "/host/profile",
@@ -837,6 +837,8 @@ describe("agent eval harness", () => {
       GITHITS_AUTH_STORAGE: "keychain",
       HOME: "/host/home",
       USERPROFILE: "/host/profile",
+      XDG_CONFIG_HOME: "/host/config",
+      APPDATA: "/host/appdata",
     });
     expect(full.mcpServers.githits.env).toEqual(
       descriptor.mcpServers.githits.env,
@@ -1555,6 +1557,36 @@ describe("agent eval harness", () => {
     }
   });
 
+  it("accepts directory symlinks for Codex homes while rejecting aliased root guidance", () => {
+    const realHome = mkdtempSync(join(tmpdir(), "agent-eval-codex-home-"));
+    const aliasRoot = mkdtempSync(join(tmpdir(), "agent-eval-codex-alias-"));
+    const aliasHome = join(aliasRoot, "codex-home");
+    const guidanceSource = join(aliasRoot, "guidance.md");
+    try {
+      try {
+        symlinkSync(realHome, aliasHome, "dir");
+        writeFileSync(guidanceSource, "root guidance\n");
+        symlinkSync(guidanceSource, join(realHome, "AGENTS.md"), "file");
+      } catch (error) {
+        if (process.platform === "win32") return;
+        throw error;
+      }
+
+      rmSync(join(realHome, "AGENTS.md"));
+      expect(() =>
+        validateCodexEvalHome({ CODEX_HOME: aliasHome }),
+      ).not.toThrow();
+
+      symlinkSync(guidanceSource, join(realHome, "AGENTS.md"), "file");
+      expect(() => validateCodexEvalHome({ CODEX_HOME: aliasHome })).toThrow(
+        "contains global instructions",
+      );
+    } finally {
+      rmSync(aliasRoot, { recursive: true, force: true });
+      rmSync(realHome, { recursive: true, force: true });
+    }
+  });
+
   it("rejects contaminated or missing Codex homes before every live Codex launch", async () => {
     const codexHome = mkdtempSync(join(tmpdir(), "agent-eval-codex-home-"));
     const outDir = mkdtempSync(join(tmpdir(), "agent-eval-live-reject-"));
@@ -1834,6 +1866,36 @@ describe("agent eval harness", () => {
             "<workspace>/" +
             join("skills", "githits-mcp", "SKILL.md").replaceAll("\\", "/"),
         },
+      ]);
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("normalizes delimiters from bare guidance references", () => {
+    const workspaceDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-bare-guidance-"),
+    );
+    try {
+      const stdout = JSON.stringify({
+        item: {
+          type: "command_execution",
+          command:
+            'cat "AGENTS.md" && cat (CLAUDE.md) && cat =GEMINI.md && cat `SKILL.md`',
+        },
+      });
+      expect(
+        extractEvalValidationViolations(
+          stdout,
+          { surface: "mcp", guidanceProfile: "descriptors" },
+          workspaceDir,
+          "codex",
+        ),
+      ).toEqual([
+        { category: "descriptor-guidance-read", path: "<workspace>/AGENTS.md" },
+        { category: "descriptor-guidance-read", path: "<workspace>/CLAUDE.md" },
+        { category: "descriptor-guidance-read", path: "<workspace>/GEMINI.md" },
+        { category: "descriptor-guidance-read", path: "<workspace>/SKILL.md" },
       ]);
     } finally {
       rmSync(workspaceDir, { recursive: true, force: true });
@@ -2405,6 +2467,8 @@ describe("agent eval harness", () => {
     );
     const hostHome = "/host/home";
     const hostProfile = "/host/profile";
+    const hostConfig = "/host/config";
+    const hostAppdata = "/host/appdata";
     try {
       await runAgentEval(
         parseArgs(
@@ -2424,8 +2488,8 @@ describe("agent eval harness", () => {
             PATH: "/bin",
             HOME: hostHome,
             USERPROFILE: hostProfile,
-            XDG_CONFIG_HOME: "/host/config",
-            APPDATA: "/host/appdata",
+            XDG_CONFIG_HOME: hostConfig,
+            APPDATA: hostAppdata,
             GITHITS_AUTH_STORAGE: "keychain",
           },
           assertAgentAvailable: async () => {},
@@ -2444,6 +2508,8 @@ describe("agent eval harness", () => {
         const content = readFileSync(path, "utf8");
         expect(content).not.toContain(hostHome);
         expect(content).not.toContain(hostProfile);
+        expect(content).not.toContain(hostConfig);
+        expect(content).not.toContain(hostAppdata);
       }
       const dryRun = JSON.parse(
         readFileSync(join(workloadDir, "dry-run.json"), "utf8"),
@@ -2464,10 +2530,17 @@ describe("agent eval harness", () => {
         GITHITS_AUTH_STORAGE: "keychain",
         HOME: "<redacted>",
         USERPROFILE: "<redacted>",
+        XDG_CONFIG_HOME: "<redacted>",
+        APPDATA: "<redacted>",
       });
       expect(
-        collectHostHomeValues({ HOME: hostHome, USERPROFILE: hostProfile }),
-      ).toEqual([hostProfile, hostHome]);
+        collectHostHomeValues({
+          HOME: hostHome,
+          USERPROFILE: hostProfile,
+          XDG_CONFIG_HOME: hostConfig,
+          APPDATA: hostAppdata,
+        }),
+      ).toEqual([hostProfile, hostAppdata, hostConfig, hostHome]);
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
@@ -2482,6 +2555,8 @@ describe("agent eval harness", () => {
     );
     const hostHome = "/host/live-home";
     const hostProfile = "/host/live-profile";
+    const hostConfig = "/host/live-config";
+    const hostAppdata = "/host/live-appdata";
     const apiToken = "secret-api-token";
     let observedAgentEnv: Record<string, string> | undefined;
     let observedCommand: string[] | undefined;
@@ -2507,8 +2582,8 @@ describe("agent eval harness", () => {
             PATH: "/bin",
             HOME: hostHome,
             USERPROFILE: hostProfile,
-            XDG_CONFIG_HOME: "/host/config",
-            APPDATA: "/host/appdata",
+            XDG_CONFIG_HOME: hostConfig,
+            APPDATA: hostAppdata,
             CODEX_HOME: codexHome,
             GITHITS_AUTH_STORAGE: "keychain",
             GITHITS_API_TOKEN: apiToken,
@@ -2537,6 +2612,8 @@ describe("agent eval harness", () => {
 
       expect(observedAgentEnv?.HOME).not.toBe(hostHome);
       expect(observedAgentEnv?.USERPROFILE).not.toBe(hostProfile);
+      expect(observedAgentEnv?.XDG_CONFIG_HOME).not.toBe(hostConfig);
+      expect(observedAgentEnv?.APPDATA).not.toBe(hostAppdata);
       expect(observedCommand?.join(" ")).toContain(hostHome);
       expect(observedCommand?.join(" ")).toContain(hostProfile);
 
@@ -2559,6 +2636,8 @@ describe("agent eval harness", () => {
         const content = readFileSync(path, "utf8");
         expect(content).not.toContain(hostHome);
         expect(content).not.toContain(hostProfile);
+        expect(content).not.toContain(hostConfig);
+        expect(content).not.toContain(hostAppdata);
       }
       const stdout = readFileSync(join(workloadDir, "stdout.json"), "utf8");
       const stderr = readFileSync(join(workloadDir, "stderr.txt"), "utf8");
@@ -3715,9 +3794,9 @@ describe("agent eval harness", () => {
       "workloads/discovery/discovery-events.json",
     );
     expect(formatRunReport(report)).toContain("discovery=not_observed");
-    expect(report.warnings).not.toContain(
-      expect.stringContaining("global CLAUDE.md"),
-    );
+    expect(
+      report.warnings.filter((warning) => warning.includes("global CLAUDE.md")),
+    ).toEqual([]);
   });
 
   it("does not claim profile comparisons are contaminated without evidence", () => {
@@ -3750,9 +3829,11 @@ describe("agent eval harness", () => {
       guidanceProfile: "descriptors",
       workloads: [],
     });
-    expect(before.warnings).not.toContain(
-      expect.stringContaining("global $CODEX_HOME/AGENTS.md"),
-    );
+    expect(
+      before.warnings.filter((warning) =>
+        warning.includes("global $CODEX_HOME/AGENTS.md"),
+      ),
+    ).toEqual([]);
     expect(compareReports(before, after).warnings).toEqual([]);
   });
 

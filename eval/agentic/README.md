@@ -81,10 +81,10 @@ CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface skills 
 
 The acting agent still receives only the disposable per-workload
 `HOME`/`USERPROFILE`/`XDG_CONFIG_HOME`/`APPDATA` and temporary paths. The MCP
-child receives the caller's `HOME` and `USERPROFILE` overrides so macOS
-keychain-backed GitHits authentication can resolve in the trusted child; host
-`XDG_CONFIG_HOME` and `APPDATA` are never passed through. Descriptors and full
-guidance use the same child authentication environment.
+child receives the caller's `HOME`/`USERPROFILE`/`XDG_CONFIG_HOME`/`APPDATA`
+overrides so keychain- or file-backed GitHits authentication can resolve in the
+trusted child. Descriptors and full guidance use the same child authentication
+environment.
 
 CI should create a clean `CODEX_HOME` and authenticate Codex with
 `OPENAI_API_KEY`. Set `GITHITS_API_TOKEN` for deterministic GitHits
