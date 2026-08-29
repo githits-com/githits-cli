@@ -29,7 +29,7 @@ import {
   type CommandProbe,
   type CommandProbeResult,
   collectGitMetadata,
-  collectRedactionValues,
+  collectHostHomeValues,
   collectSecretValues,
   createWorkloadIsolation,
   DEFAULT_CODEX_MODEL,
@@ -378,14 +378,10 @@ describe("agent eval harness", () => {
         const dryRun = JSON.parse(
           readFileSync(join(workloadDir, "dry-run.json"), "utf8"),
         );
-        const persistedRepoRoot = redactText(
-          process.cwd(),
-          collectRedactionValues(buildEvalEnv(process.env)),
-        );
-        expect(run.repoRoot).toBe(persistedRepoRoot);
-        expect(run.measurementRoot).toBe(persistedRepoRoot);
+        expect(run.repoRoot).toBe(process.cwd());
+        expect(run.measurementRoot).toBe(process.cwd());
         expect(run.targetRoot).toBe(descriptorTargetRoot);
-        expect(dryRun.measurementRoot).toBe(persistedRepoRoot);
+        expect(dryRun.measurementRoot).toBe(process.cwd());
         expect(dryRun.targetRoot).toBe(descriptorTargetRoot);
         expect(
           existsSync(join(workloadDir, "guidance-installation.json")),
@@ -527,12 +523,7 @@ describe("agent eval harness", () => {
       );
       expect(run.targetRoot).toBe(targetFixture);
       expect(run.git).toEqual(dryRun.targetGit);
-      expect(dryRun.measurementRoot).toBe(
-        redactText(
-          process.cwd(),
-          collectRedactionValues(buildEvalEnv(process.env)),
-        ),
-      );
+      expect(dryRun.measurementRoot).toBe(process.cwd());
       expect(dryRun.targetRoot).toBe(targetFixture);
     } finally {
       rmSync(targetFixture, { recursive: true, force: true });
@@ -2285,14 +2276,24 @@ describe("agent eval harness", () => {
         mcpConfigPath,
         join(workloadDir, "codex-config.toml"),
         join(workloadDir, "opencode.json"),
-        join(workloadDir, "dry-run.json"),
-        join(outDir, "run.json"),
       ];
       for (const path of persisted) {
         const content = readFileSync(path, "utf8");
         expect(content).not.toContain(hostHome);
         expect(content).not.toContain(hostProfile);
       }
+      const dryRun = JSON.parse(
+        readFileSync(join(workloadDir, "dry-run.json"), "utf8"),
+      ) as { command: string[] };
+      const run = JSON.parse(
+        readFileSync(join(outDir, "run.json"), "utf8"),
+      ) as {
+        workloads: Array<{ command: string[] }>;
+      };
+      expect(dryRun.command.join(" ")).not.toContain(hostHome);
+      expect(dryRun.command.join(" ")).not.toContain(hostProfile);
+      expect(run.workloads[0]?.command.join(" ")).not.toContain(hostHome);
+      expect(run.workloads[0]?.command.join(" ")).not.toContain(hostProfile);
       const mcp = JSON.parse(readFileSync(mcpConfigPath, "utf8")) as {
         mcpServers: { githits: { env?: Record<string, string> } };
       };
@@ -2302,7 +2303,7 @@ describe("agent eval harness", () => {
         USERPROFILE: "<redacted>",
       });
       expect(
-        collectRedactionValues({ HOME: hostHome, USERPROFILE: hostProfile }),
+        collectHostHomeValues({ HOME: hostHome, USERPROFILE: hostProfile }),
       ).toEqual([hostProfile, hostHome]);
     } finally {
       rmSync(outDir, { recursive: true, force: true });
@@ -2318,21 +2319,26 @@ describe("agent eval harness", () => {
     );
     const hostHome = "/host/live-home";
     const hostProfile = "/host/live-profile";
+    const apiToken = "secret-api-token";
     let observedAgentEnv: Record<string, string> | undefined;
     let observedCommand: string[] | undefined;
     try {
       await runAgentEval(
-        parseArgs(
-          [
-            "--agent",
-            "codex",
-            "--out",
-            outDir,
-            "--workload",
-            "eval/agentic/workloads/express-router.md",
-          ],
-          process.cwd(),
-        ),
+        (() => {
+          const options = parseArgs(
+            [
+              "--agent",
+              "codex",
+              "--out",
+              outDir,
+              "--workload",
+              "eval/agentic/workloads/express-router.md",
+            ],
+            process.cwd(),
+          );
+          options.targetRoot = hostHome;
+          return options;
+        })(),
         {
           baseEnv: {
             PATH: "/bin",
@@ -2342,6 +2348,7 @@ describe("agent eval harness", () => {
             APPDATA: "/host/appdata",
             CODEX_HOME: codexHome,
             GITHITS_AUTH_STORAGE: "keychain",
+            GITHITS_API_TOKEN: apiToken,
           },
           assertAgentAvailable: async () => {},
           collectAgentVersions: async () => [undefined, undefined, undefined],
@@ -2349,8 +2356,15 @@ describe("agent eval harness", () => {
             observedCommand = command;
             observedAgentEnv = env;
             return {
-              stdout: `HOME=${hostHome} PROFILE=${hostProfile}`,
-              stderr: `HOME=${hostHome} PROFILE=${hostProfile}`,
+              stdout: [
+                `HOME=${hostHome} PROFILE=${hostProfile} TOKEN=${apiToken}`,
+                JSON.stringify({
+                  status: "success",
+                  answer: `Source: ${hostHome}/source.ts`,
+                  confidence: "high",
+                }),
+              ].join("\n"),
+              stderr: `HOME=${hostHome} PROFILE=${hostProfile} TOKEN=${apiToken}`,
               exitCode: 1,
               timedOut: false,
             };
@@ -2364,25 +2378,37 @@ describe("agent eval harness", () => {
       expect(observedCommand?.join(" ")).toContain(hostProfile);
 
       const workloadDir = join(outDir, "workloads", "express-router");
+      const run = JSON.parse(
+        readFileSync(join(outDir, "run.json"), "utf8"),
+      ) as {
+        targetRoot: string;
+        workloads: Array<{ command: string[] }>;
+      };
+      expect(run.targetRoot).toBe(hostHome);
+      expect(run.workloads[0]?.command.join(" ")).not.toContain(hostHome);
+      expect(run.workloads[0]?.command.join(" ")).not.toContain(hostProfile);
       const persisted = [
         join(workloadDir, "mcp.json"),
         join(workloadDir, "codex-config.toml"),
         join(workloadDir, "opencode.json"),
-        join(workloadDir, "stdout.json"),
-        join(workloadDir, "stderr.txt"),
-        join(outDir, "run.json"),
       ];
       for (const path of persisted) {
         const content = readFileSync(path, "utf8");
         expect(content).not.toContain(hostHome);
         expect(content).not.toContain(hostProfile);
       }
-      expect(readFileSync(join(workloadDir, "stdout.json"), "utf8")).toContain(
-        "<redacted>",
-      );
-      expect(readFileSync(join(workloadDir, "stderr.txt"), "utf8")).toContain(
-        "<redacted>",
-      );
+      const stdout = readFileSync(join(workloadDir, "stdout.json"), "utf8");
+      const stderr = readFileSync(join(workloadDir, "stderr.txt"), "utf8");
+      const final = JSON.parse(
+        readFileSync(join(workloadDir, "final.json"), "utf8"),
+      ) as { answer: string };
+      expect(stdout).toContain(hostHome);
+      expect(stdout).toContain(hostProfile);
+      expect(stderr).toContain(hostHome);
+      expect(stderr).toContain(hostProfile);
+      expect(stdout).not.toContain(apiToken);
+      expect(stderr).not.toContain(apiToken);
+      expect(final.answer).toBe(`Source: ${hostHome}/source.ts`);
     } finally {
       rmSync(codexHome, { recursive: true, force: true });
       rmSync(outDir, { recursive: true, force: true });

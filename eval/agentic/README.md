@@ -482,9 +482,10 @@ Each run writes:
 - Full MCP runs additionally write `guidance-installation.json` with the
   canonical project instruction paths and copied skill metadata. Full MCP
   metadata has no CLI shim. Paths are persisted for inspection; credentials are
-  never persisted. Host home values in MCP child configs, command metadata,
-  run metadata, and echoed output are redacted after the child has consumed
-  runtime config.
+  never persisted. Host home values in MCP child configs and persisted command
+  metadata are redacted after the child has consumed runtime config. Other
+  paths and agent evidence remain attributable; credential secrets continue to
+  be redacted globally.
 - Each workload records relative isolation metadata. If trace validation finds
   an external/descriptor guidance read or MCP CLI fallback, it writes redacted
   `isolation-violations.json` and marks the workload failed.
@@ -540,5 +541,4 @@ the exec-only `--ignore-rules` flag.
 
 Malformed final JSON, schema mismatches, external guidance reads, MCP CLI
 fallbacks, Claude failures, and timeouts are harness failures. Raw stdout and
-stderr are preserved for diagnosis with known secret and host-home values
-redacted.
+stderr are preserved for diagnosis with known credential secrets redacted.

@@ -1140,13 +1140,17 @@ export function collectSecretValues(env: Record<string, string>): string[] {
   return [...values].sort((a, b) => b.length - a.length);
 }
 
-export function collectRedactionValues(env: Record<string, string>): string[] {
-  const values = new Set(collectSecretValues(env));
+export function collectHostHomeValues(env: Record<string, string>): string[] {
+  const values = new Set<string>();
   for (const key of ["HOME", "USERPROFILE"] as const) {
     const value = env[key];
     if (value !== undefined && value.length > 1) values.add(value);
   }
   return [...values].sort((a, b) => b.length - a.length);
+}
+
+function combineRedactionValues(...valueLists: string[][]): string[] {
+  return [...new Set(valueLists.flat())].sort((a, b) => b.length - a.length);
 }
 
 export function redactText(text: string, secretValues: string[]): string {
@@ -1199,6 +1203,10 @@ function redactValue(value: unknown, secretValues: string[]): unknown {
     return redacted;
   }
   return value;
+}
+
+function redactCommand(command: string[], redactionValues: string[]): string[] {
+  return command.map((argument) => redactText(argument, redactionValues));
 }
 
 async function commandProbe(
@@ -2149,7 +2157,8 @@ async function runWorkload(
   runDir: string,
   env: Record<string, string>,
   mcpConfig: McpServerConfig,
-  redactionValues: string[],
+  secretValues: string[],
+  hostHomeValues: string[],
   targetGit: GitMetadata,
   runCommand: typeof runWithTimeout,
   guidanceBlock?: string,
@@ -2166,6 +2175,10 @@ async function runWorkload(
   const mcpConfigPath = join(workloadDir, "mcp.json");
   const codexConfigPath = join(workloadDir, "codex-config.toml");
   const openCodeConfigPath = join(workloadDir, "opencode.json");
+  const runtimeConfigRedactionValues = combineRedactionValues(
+    secretValues,
+    hostHomeValues,
+  );
 
   try {
     mkdirSync(workloadDir, { recursive: true });
@@ -2259,11 +2272,18 @@ async function runWorkload(
           }
         : {}),
     };
+    const persistedMetadata = {
+      ...metadataBase,
+      command: redactCommand(
+        metadataBase.command,
+        runtimeConfigRedactionValues,
+      ),
+    };
 
     if (options.dryRun) {
       writeJson(
         join(workloadDir, "dry-run.json"),
-        redactValue(metadataBase, redactionValues),
+        redactValue(persistedMetadata, secretValues),
       );
       writeJson(join(workloadDir, "discovery-events.json"), {
         status: options.agent === "claude" ? "not_observed" : "not_exposed",
@@ -2289,23 +2309,23 @@ async function runWorkload(
 
     writeFileSync(
       join(workloadDir, "stdout.json"),
-      redactText(result.stdout, redactionValues),
+      redactText(result.stdout, secretValues),
     );
     writeFileSync(
       join(workloadDir, "stderr.txt"),
-      redactText(result.stderr, redactionValues),
+      redactText(result.stderr, secretValues),
     );
 
     const toolCalls = extractToolCalls(result.stdout, options.agent);
     writeJson(
       join(workloadDir, "tool-calls.json"),
-      redactValue(toolCalls, redactionValues),
+      redactValue(toolCalls, secretValues),
     );
     writeJson(
       join(workloadDir, "discovery-events.json"),
       redactValue(
         extractDiscoveryEvents(result.stdout, options.agent),
-        redactionValues,
+        secretValues,
       ),
     );
     const validationViolations = extractEvalValidationViolations(
@@ -2317,7 +2337,7 @@ async function runWorkload(
     if (validationViolations.length > 0) {
       writeJson(
         join(workloadDir, "isolation-violations.json"),
-        redactValue(validationViolations, redactionValues),
+        redactValue(validationViolations, secretValues),
       );
     }
 
@@ -2328,7 +2348,7 @@ async function runWorkload(
     if (codexFinalText !== undefined) {
       writeFileSync(
         join(workloadDir, "codex-final.txt"),
-        redactText(codexFinalText, redactionValues),
+        redactText(codexFinalText, secretValues),
       );
     }
     const reportJson =
@@ -2339,12 +2359,12 @@ async function runWorkload(
     if (validFinalJson) {
       writeJson(
         join(workloadDir, "final.json"),
-        redactValue(reportJson, redactionValues),
+        redactValue(reportJson, secretValues),
       );
     } else if (reportJson !== undefined) {
       writeJson(
         join(workloadDir, "invalid-final.json"),
-        redactValue(reportJson, redactionValues),
+        redactValue(reportJson, secretValues),
       );
     }
 
@@ -2394,7 +2414,7 @@ async function runWorkload(
   } finally {
     redactPersistedRuntimeConfigs(
       [mcpConfigPath, codexConfigPath, openCodeConfigPath],
-      redactionValues,
+      runtimeConfigRedactionValues,
     );
     rmSync(isolation.rootDir, { recursive: true, force: true });
   }
@@ -2430,7 +2450,12 @@ export async function runAgentEval(
   ) {
     validateCodexEvalHome(env);
   }
-  const redactionValues = collectRedactionValues(env);
+  const secretValues = collectSecretValues(env);
+  const hostHomeValues = collectHostHomeValues(env);
+  const runtimeConfigRedactionValues = combineRedactionValues(
+    secretValues,
+    hostHomeValues,
+  );
   const guidanceBlock =
     options.guidanceProfile === "full"
       ? await loadTargetGuidanceBlock(effectiveTargetRoot(options))
@@ -2460,7 +2485,8 @@ export async function runAgentEval(
         options.outDir,
         env,
         mcpConfig,
-        redactionValues,
+        secretValues,
+        hostHomeValues,
         git,
         dependencies.runCommand ?? runWithTimeout,
         guidanceBlock,
@@ -2499,9 +2525,16 @@ export async function runAgentEval(
     workloads: workloadResults,
   };
 
+  const persistedRunMetadata = {
+    ...runMetadata,
+    workloads: runMetadata.workloads.map((workload) => ({
+      ...workload,
+      command: redactCommand(workload.command, runtimeConfigRedactionValues),
+    })),
+  };
   writeJson(
     join(options.outDir, "run.json"),
-    redactValue(runMetadata, redactionValues),
+    redactValue(persistedRunMetadata, secretValues),
   );
 
   writeJson(join(options.outDir, "summary.json"), {
@@ -2564,7 +2597,7 @@ export async function runAgentEval(
   });
   writeJson(
     join(options.outDir, "metrics.json"),
-    redactValue(metrics, redactionValues),
+    redactValue(metrics, secretValues),
   );
   const report = buildRunReportFromMetadata(options.outDir, {
     ...runMetadata,
