@@ -1250,7 +1250,7 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
   if (
     (input.lifecycle.kind === "terminal" ||
       input.lifecycle.kind === "unknown") &&
-    (hasLocalRecovery || hasBareTerminalReason)
+    hasLocalRecovery
   ) {
     return { kind: "none" };
   }

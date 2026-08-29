@@ -2032,6 +2032,38 @@ describe("projectUnifiedSearchPresentation", () => {
     });
   });
 
+  it.each(["TIMEOUT", "FAILED"] as const)(
+    "reruns a terminal response with a bare terminal lane reason: %s",
+    (status) => {
+      const presentation = projectUnifiedSearchPresentation(
+        incomplete({
+          partialResults: false,
+          progress: {
+            status,
+            targetsReady: 0,
+            targetsTotal: 1,
+            elapsedMs: 60_000,
+          },
+          sourceStatus: [
+            source({
+              source: "code",
+              codeIndexState: "CURRENT",
+              resultCount: 0,
+            }),
+            source({
+              source: "symbol",
+              codeIndexState: "NOT_FOUND",
+              resultCount: 0,
+            }),
+          ],
+        }),
+      );
+
+      expect(presentation.targetGroups[0]?.recovery).toBeUndefined();
+      expect(presentation.action).toEqual({ kind: "new_search" });
+    },
+  );
+
   it("uses query rewrite for completed-empty evidence without a reference", () => {
     const presentation = projectUnifiedSearchPresentation(
       completed({ results: [], evidenceNotice: "mutable evidence" }),

@@ -55,6 +55,8 @@ export const EXPECTED_MCP_TOOLS = [
 ] as const;
 
 const DEFAULT_TEXT_LIMIT = 12_000;
+const TARGET_DETAIL_STATE_PATTERN =
+  /^ {2}(?:(?:indexing|searched|available|unavailable|using):|(?:ready|pending|provisional|older snapshot)$|(?:not found|unresolved|version unavailable|repository ref unresolved|(?:package|repository|site|target) (?:not found|unresolved)):)/;
 const SMOKE_PACKAGE_VERSION = "5.2.1";
 const SMOKE_PACKAGE_TARGET = {
   registry: "npm",
@@ -247,9 +249,7 @@ function assertSearchDefaultText(text: string, context: string): void {
   );
 
   const hasReadinessText = formatterLines.some((line) =>
-    /^ {2}(?! {2}).*(?:indexing|searched|available|unavailable|using|ready|pending|provisional|older snapshot):/.test(
-      line,
-    ),
+    TARGET_DETAIL_STATE_PATTERN.test(line),
   );
   if (hasReadinessText) {
     assert(

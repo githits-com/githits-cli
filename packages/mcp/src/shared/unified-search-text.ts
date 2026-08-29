@@ -94,8 +94,7 @@ export function renderUnifiedSearchPresentationText(
     appendUnifiedSearchHits(lines, result.results, settings);
   }
 
-  const hasPostResultBlock =
-    presentation.progress !== undefined || presentation.action.kind !== "none";
+  const hasPostResultBlock = presentation.action.kind !== "none";
   if (
     result.results.length > 0 &&
     hasPostResultBlock &&

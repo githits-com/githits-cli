@@ -62,6 +62,8 @@ interface JsonParityFixture {
 }
 
 const DEFAULT_TEXT_LIMIT = 20_000;
+const TARGET_DETAIL_STATE_PATTERN =
+  /^ {2}(?:(?:indexing|searched|available|unavailable|using):|(?:ready|pending|provisional|older snapshot)$|(?:not found|unresolved|version unavailable|repository ref unresolved|(?:package|repository|site|target) (?:not found|unresolved)):)/;
 const JSON_PARITY_CONCURRENCY = 2;
 const SMOKE_PACKAGE_SPEC = "npm:express@5.2.1";
 let cliLaunchTarget = SOURCE_CLI_LAUNCH_TARGET;
@@ -437,9 +439,7 @@ export function assertSearchTerminalText(text: string, context: string): void {
   );
 
   const hasReadinessText = formatterLines.some((line) =>
-    /^ {2}(?! {2}).*(?:indexing|searched|available|unavailable|using|ready|pending|provisional|older snapshot):/.test(
-      line,
-    ),
+    TARGET_DETAIL_STATE_PATTERN.test(line),
   );
   if (hasReadinessText) {
     assert(

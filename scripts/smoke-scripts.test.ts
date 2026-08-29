@@ -167,6 +167,33 @@ Next: shorten or broaden query; use githits code grep.`;
     },
   );
 
+  it("accepts terminal target rows with a global rerun action", () => {
+    expect(() =>
+      assertSearchTerminalText(
+        "No results | failed | 0/1 ready\n\n" +
+          "- npm:express@4.18.2\n" +
+          "  searched: code; not found: symbols\n\n" +
+          "Next: rerun search later.",
+        "search",
+      ),
+    ).not.toThrow();
+  });
+
+  it.each([
+    "ready",
+    "pending",
+    "provisional",
+    "older snapshot",
+    "package not found: code",
+  ])("recognizes grouped target state detail: %s", (detail) => {
+    expect(() =>
+      assertSearchTerminalText(
+        `No results\n\n- npm:express@4.18.2\n  ${detail}\n\nNext: rerun search later.`,
+        "search",
+      ),
+    ).not.toThrow();
+  });
+
   it("accepts completed target readiness without a search session", () => {
     expect(() =>
       assertSearchTerminalText(completedWithTargetReadiness, "search"),

@@ -289,6 +289,26 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("searchRef=");
   });
 
+  it("does not append a separator when progress is not rendered after hits", () => {
+    const payload = completed([codeHit()]);
+    const presentation = projectUnifiedSearchPresentation(payload);
+    const text = renderUnifiedSearchPresentationText(
+      {
+        ...presentation,
+        progress: { targetsReady: 1, targetsTotal: 1, elapsedMs: 20 },
+      },
+      { results: payload.results },
+    );
+
+    expect(text).toBe(
+      "1 result | 1 repo code hit\n\n" +
+        "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n" +
+        "  applyEdit\n" +
+        "  Search/replace block parser with fuzzy fallback when exact match fails.",
+    );
+    expect(text.endsWith("\n")).toBe(false);
+  });
+
   it("uses singular labels for one repository doc and one docs page", () => {
     const repoText = renderUnifiedSearchSuccess(
       completed([
@@ -1273,6 +1293,39 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("Fix:");
     expect(text).toContain(
       'Next: shorten or broaden query; use source="symbol"; use code_grep.',
+    );
+  });
+
+  it("keeps a bare terminal reason and rerun action for terminal mixed lanes", () => {
+    const text = renderUnifiedSearchSuccess(
+      incomplete({
+        partialResults: false,
+        progress: {
+          status: "FAILED",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 60_000,
+        },
+        sourceStatus: [
+          source({
+            source: "code",
+            codeIndexState: "CURRENT",
+            resultCount: 0,
+          }),
+          source({
+            source: "symbol",
+            codeIndexState: "NOT_FOUND",
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toBe(
+      "No results | failed | 0/1 ready\n\n" +
+        "- npm:express@4.18.2\n" +
+        "  searched: code; not found: symbols\n\n" +
+        "Next: rerun search later.",
     );
   });
 

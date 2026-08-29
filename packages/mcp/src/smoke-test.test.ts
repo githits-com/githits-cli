@@ -485,6 +485,41 @@ describe("runMcpSmoke", () => {
     },
   );
 
+  it("accepts terminal target rows with a global rerun action", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(
+          "No results | failed | 0/1 ready\n\n" +
+            "- npm:express@4.18.2\n" +
+            "  searched: code; not found: symbols\n\n" +
+            "Next: rerun search later.",
+        );
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+  });
+
+  it.each([
+    "ready",
+    "pending",
+    "provisional",
+    "older snapshot",
+    "package not found: code",
+  ])("recognizes grouped target state detail: %s", async (detail) => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(
+          `No results\n\n- npm:express@4.18.2\n  ${detail}\n\nNext: rerun search later.`,
+        );
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+  });
+
   it("rejects duplicate lifecycle outcome lines", async () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
