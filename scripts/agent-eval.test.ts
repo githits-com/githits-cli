@@ -46,7 +46,7 @@ import {
   runAgentEval,
   runWithTimeout,
   sanitizedEnvSummary,
-  validateCodexAuthHome,
+  validateCodexEvalHome,
 } from "./agent-eval.ts";
 import {
   type AgentEvalRecordInput,
@@ -1489,7 +1489,7 @@ describe("agent eval harness", () => {
         "nested cache data\n",
       );
       expect(() =>
-        validateCodexAuthHome({ CODEX_HOME: codexHome }),
+        validateCodexEvalHome({ CODEX_HOME: codexHome }),
       ).not.toThrow();
     } finally {
       rmSync(codexHome, { recursive: true, force: true });
@@ -1497,16 +1497,16 @@ describe("agent eval harness", () => {
   });
 
   it("rejects missing, relative, and root global-instruction Codex homes", () => {
-    expect(() => validateCodexAuthHome({})).toThrow("require CODEX_HOME");
+    expect(() => validateCodexEvalHome({})).toThrow("require CODEX_HOME");
     expect(() =>
-      validateCodexAuthHome({ CODEX_HOME: "relative/home" }),
+      validateCodexEvalHome({ CODEX_HOME: "relative/home" }),
     ).toThrow("absolute directory");
     const codexHome = mkdtempSync(join(tmpdir(), "agent-eval-codex-home-"));
     try {
       for (const invalidSurface of ["AGENTS.override.md", "AGENTS.md"]) {
         const path = join(codexHome, invalidSurface);
         writeFileSync(path, "");
-        expect(() => validateCodexAuthHome({ CODEX_HOME: codexHome })).toThrow(
+        expect(() => validateCodexEvalHome({ CODEX_HOME: codexHome })).toThrow(
           "contains global instructions",
         );
         rmSync(path, { recursive: true, force: true });

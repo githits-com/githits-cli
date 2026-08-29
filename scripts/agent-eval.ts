@@ -1027,7 +1027,7 @@ function findCodexHomeGlobalInstruction(directory: string): string | undefined {
   );
 }
 
-export function validateCodexAuthHome(
+export function validateCodexEvalHome(
   baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined>,
 ): void {
   const codexHome = baseEnv.CODEX_HOME;
@@ -2390,7 +2390,7 @@ export async function runAgentEval(
     options.surface === "mcp" &&
     !options.dryRun
   ) {
-    validateCodexAuthHome(env);
+    validateCodexEvalHome(env);
   }
   const secretValues = collectSecretValues(env);
   const guidanceBlock =
