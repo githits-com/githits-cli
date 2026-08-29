@@ -2,13 +2,20 @@
 
 ## Status
 
-- Overall: Phase 1 COMPLETE; Phase 1B READY; Phase 2 remains BLOCKED
-- Current phase: Phase 1B — unified target-state text UX ready for implementation
+- Overall: Phase 1 COMPLETE; Phase 1B COMPLETE; Phase 2 remains BLOCKED
+- Current phase: Phase 2 — terminal backend failure details (blocked)
 - Later phase: Phase 2 — terminal backend failure details (BLOCKED on private backend #2133)
-- Commits: implementation runtime `56f6003`; guidance/docs `e0057e6`; runtime/preflight
-  fixes `c88194b`, `80f93a2`; privacy/wording review closure `b6c0581`.
-- Final evidence: 3522 full tests pass; deterministic, build, package, and plugin
-  checks pass; all four smoke modes pass; six targeted agent evaluations pass.
+- Commits: Phase 1 runtime `56f6003`; Phase 1 guidance/docs `e0057e6`; runtime/preflight
+  fixes `c88194b`, `80f93a2`; privacy/wording review closure `b6c0581`; Phase 1B
+  plan baseline `28772a3`; Phase 1B runtime `9b3523e`.
+- Phase 1B worker evidence: 144 focused presentation/text/status tests pass; 218
+  consumer, parity, CLI/MCP, and smoke-helper tests pass; `bun run typecheck` and
+  the owned-file Biome check pass. One transient worker test-suite deletion mistake
+  was restored before verification. The original worker lost authentication and was
+  replaced; the replacement resumed the existing delta without discarding it.
+- Remaining validation: coordinator full-suite, build/package, live smoke, agent-eval,
+  and fresh external review evidence is still pending; this plan does not claim those
+  checks complete.
 - Last verified: 2026-08-29
 
 ## Problem and expected outcome
@@ -50,32 +57,21 @@ When this plan is complete:
 ### Client behavior
 
 - `packages/mcp/src/shared/unified-search-presentation.ts` owns the projection used by
-  both CLI and MCP text. Runtime commit `56f6003` maps `source === "symbol"` to
-  `symbols`, preserves separate lane and target provenance, and derives a typed
-  target-verification action for completed empty searches with any source-status entry
-  carrying an exact terminal state.
-- `packages/mcp/src/shared/unified-search-text.ts` renders target verification as
-  positive family-specific guidance without a retry-later directive or fabricated
-  `searchRef`; other terminal session statuses retain their existing new-search
-  behavior.
+  both CLI and MCP text. Phase 1B runtime commit `9b3523e` maps `source === "symbol"`
+  to `symbols`, retains target-grouped lane/provenance facts, derives exact terminal
+  reasons, and attaches at most one typed target-local recovery value per group.
+- `packages/mcp/src/shared/unified-search-text.ts` renders one outcome-first target
+  list. Healthy completed results collapse to one `Sources:` row; otherwise each
+  target carries its transient, terminal, trust, warning, alternative, and inline
+  `Fix:`/`Try:` facts. Only one session/query-wide `Next:` remains, with an active
+  `searchRef` appearing exactly once there; JSON remains unchanged.
 - `packages/mcp/src/shared/unified-search-response.ts` preserves source statuses and
   lane-aware warning information in JSON. The defect is confined to text projection;
   the success JSON envelope does not need a compatibility change in Phase 1.
-- Focused unit, CLI, MCP, and parity tests cover terminal target verification,
-  distinct symbol readiness, and lane-aware warning text. Full repository validation
-  and internal/external review are clean after the follow-up fixes.
-- The current presentation already assembles `targetGroups`, but also exposes parallel
-  top-level `targets`, `sources`, `siteSuggestions`, `trustLimits`, `warnings`, and
-  `alternatives`. The text renderer consequently emits target state, target warnings,
-  session facts, and target recovery in separate sections. This contradicts the
-  product decision to make each target the single readable unit and repeats target,
-  readiness, reference, and action context.
-- Current active output renders lifecycle in the headline, target readiness in target
-  blocks, and `Search <ref> | <ready>/<total> targets ready` in a later session row.
-  The same `searchRef` then appears again in `Next:`. Current terminal recovery is a
-  global action classified only by target family, so a multi-target caller cannot tell
-  which target failed or which source lane carried `NOT_FOUND` versus
-  `UNRESOLVABLE`.
+- Focused unit, CLI, MCP, parity, and smoke-helper tests cover terminal recovery,
+  distinct symbol readiness, lane-aware warnings, target grouping, compact sources,
+  lifecycle headlines, and exactly-once continuation. Full repository validation,
+  live smoke, agent evaluation, and fresh external review remain coordinator work.
 - `packages/mcp/src/shared/package-spec.ts` validates registry and syntax only. It
   deliberately does not own backend package identity conventions.
 
@@ -220,8 +216,10 @@ presentation, CLI, MCP tool, and parity layers.
 1. **Phase 1 (COMPLETE):** CLI and MCP text give deterministic terminal-target recovery,
    preserve symbol/warning provenance, and document canonical Swift/Zig and package
    scope.
-2. **Phase 1B (READY):** CLI and MCP text expose one token-efficient state list that
-   keeps every transient, terminal, trust, warning, and recovery fact with its target.
+2. **Phase 1B (COMPLETE):** CLI and MCP text expose one token-efficient state list
+   that keeps every transient, terminal, trust, warning, and recovery fact with its
+   target. Runtime commit `9b3523e` and this documentation/release closure record
+   the implemented contract; coordinator final validation remains pending.
 3. **Phase 2 (BLOCKED):** CLI and MCP expose an actionable typed cause for terminal
    `FAILED` sessions after private backend #2133 supplies the contract.
 
@@ -410,7 +408,7 @@ surfaces. Internal and external reviews are clean after runtime/preflight fixes
 
 ## Phase 1B: unified target-state text UX
 
-**Status:** READY
+**Status:** COMPLETE
 
 **Expected outcome:** CLI human output and MCP `text-v1` present one compact semantic
 list of requested targets. Each target's searched, indexing, terminal, stale or
@@ -804,11 +802,31 @@ make live checks pass.
 
 ### Documentation and release record
 
-Update the two implementation documents from the old five-section anatomy to the new
-single target-state contract and replace the representative n8n output. Keep the plan
-until Phase 2 completes; record Phase 1B commits and observed verification here after
-implementation. Expand the existing change fragment to mention unified target-state
-text and inline recovery. Versions and `CHANGELOG.md` remain untouched.
+Implemented in this closure slice. `docs/implementation/tools.md` and
+`docs/implementation/cli-commands.md` now describe the single target-state list,
+headline lifecycle/readiness, compact healthy `Sources:` output, inline terminal
+`Fix:`/`Try:` recovery, query-only global warnings, one global `Next:`, and the
+separate ranked hit list. The representative n8n output matches the runtime
+formatter. Both documents state that JSON remains the lossless stable boundary.
+
+The existing `changes/search-client-recovery.fixed.md` fragment remains the one
+dual-package patch record and now names both inline recovery and unified target-state
+text. Versions and `CHANGELOG.md` remain untouched. This plan stays active because
+Phase 2 is blocked.
+
+### Phase 1B implementation and verification record
+
+Runtime commit `9b3523e` implements the increment against plan baseline `28772a3`.
+The replacement worker verified 144 focused presentation/text/status tests and 218
+consumer, parity, CLI/MCP, and smoke-helper tests, plus `bun run typecheck` and
+Biome over all 14 owned runtime/test paths. During the interrupted worker handoff, one
+test-suite deletion occurred transiently and was restored before those checks passed;
+the original worker session also lost authentication and was replaced. No JSON,
+schema, backend, skill, instruction, generated asset, or dependency change was made.
+
+Coordinator-owned full repository/package/build checks, live smoke, targeted agent
+evaluation, and fresh external Opus review are not yet recorded as complete. They
+remain the final validation/review work for this branch.
 
 ### Plan review record
 
@@ -856,8 +874,9 @@ text and inline recovery. Versions and `CHANGELOG.md` remain untouched.
   unknown states remain conservative.
 - Healthy output collapses to one target-plus-lanes `Sources:` row; ranked hits and
   structured JSON remain unchanged.
-- Presentation, renderer, CLI/MCP/parity, smoke, full repository, package, and targeted
-  agent-eval validation pass with evidence recorded in this plan.
+- Presentation, renderer, CLI/MCP/parity, and smoke-helper validation pass with the
+  worker evidence recorded above. Full repository, package/build, live smoke, and
+  targeted agent-eval validation remain pending coordinator evidence.
 - Durable implementation docs and the existing dual-package patch fragment reflect the
   final behavior; package versions, released changelogs, descriptors, skills, generated
   assets, and backend requests remain unchanged.
@@ -934,11 +953,11 @@ build, package, smoke, and agent-eval verification appropriate to changed MCP be
 
 ## Phase boundary and completion
 
-Phase 1 is complete in the recorded commits above. Phase 1B is the current ready
-increment and stays within the existing client-owned text projection. After Phase 1B
-implementation and review, record its commits and observed evidence here before pushing
-the updated draft PR. Use a fresh `origin/main` comparison before beginning Phase 2, and
-do not mix speculative Phase 2 fields into the client UX increment.
+Phase 1 and Phase 1B are complete in the recorded commits above and stay within the
+existing client-owned text projection. Coordinator final validation and review remain
+pending before the updated draft PR is pushed. Use a fresh `origin/main` comparison
+before beginning Phase 2, and do not mix speculative Phase 2 fields into the client UX
+increment.
 
 This plan remains active while private backend #2133 blocks Phase 2. After both phases are implemented,
 transfer all lasting contracts to `docs/implementation/`, verify no unresolved work
