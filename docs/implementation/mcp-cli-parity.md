@@ -178,6 +178,11 @@ test suite anchors the doc.
   deeply equal. Invalid caller input keeps the stable classification and
   envelope shape; surface-native validation prose is allowed where the CLI
   names a command/flag and MCP names a tool/argument.
+- Resolve text uses the same backend-ordered target list and contiguous grouping
+  helper on both surfaces. JSON preserves that list without regrouping, marks
+  direct versus relation-only entries, and exposes backend relation truncation.
+  Related malicious-package warnings are member-local and do not block the
+  matched best target's otherwise safe continuation.
 - The shared resolve request boundary recognizes already-canonical package and
   GitHub repository strings through the same compact parser used by downstream
   tools. Both surfaces return the same `INVALID_ARGUMENT` guidance without a

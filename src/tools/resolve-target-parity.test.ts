@@ -122,6 +122,19 @@ describe("resolve_target parity", () => {
 
   it("PARITY-JSON-KEYS: shared success result is CLI JSON === MCP JSON", async () => {
     const result = structuredClone(defaultResolveTargetResult);
+    result.targets[0]!.groupKey = "github:expressjs/express";
+    result.targets[0]!.docsPageCount = 128;
+    result.targets[0]!.license = "MIT";
+    result.targets.push({
+      kind: "SITE",
+      canonicalKey: "site:expressjs.com",
+      latestVersionMaliciousStatus: "NOT_APPLICABLE",
+      docsAvailable: true,
+      codeAvailable: false,
+      groupKey: "github:expressjs/express",
+      docsPageCount: 128,
+    });
+    result.targetsTruncated = true;
     const cli = await cliJson(
       "express",
       {},
@@ -142,7 +155,26 @@ describe("resolve_target parity", () => {
     );
 
     expect(mcpResult.isError).toBeUndefined();
-    expect(cli).toEqual(JSON.parse(mcpResult.content[0]?.text ?? "{}"));
+    const mcp = JSON.parse(mcpResult.content[0]?.text ?? "{}");
+    expect(cli).toEqual(mcp);
+    expect(mcp).toMatchObject({
+      targetsTruncated: true,
+      candidates: [
+        {
+          target: "npm:express",
+          direct: true,
+          groupKey: "github:expressjs/express",
+          docsPageCount: 128,
+          license: "MIT",
+        },
+        {
+          target: "site:expressjs.com",
+          direct: false,
+          groupKey: "github:expressjs/express",
+          docsPageCount: 128,
+        },
+      ],
+    });
   });
 
   it("PARITY-ERROR-ENVELOPE: typed service error is CLI JSON === MCP JSON", async () => {

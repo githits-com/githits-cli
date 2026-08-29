@@ -316,19 +316,28 @@ githits resolve guava --registry maven --limit 3
 githits resolve "pi agent" --query "coding agent CLI" --json
 ```
 
-Resolves a human-provided package or GitHub repository name to ranked canonical
-targets such as `npm:express` or `github:openai/codex`. The default output is a
-compact numbered candidate list with ambiguity guidance when needed and
-protected exact-name matches annotated inline. It does not label any terminal
-candidate as best or top. Ranked candidates include their available normalized
-description, capped at 240 characters, and cheap trust evidence: repository
-stars, monthly or total package downloads, and docs/code availability. When a
-protected match falls outside the requested ranked limit, it is appended with
-the identity and confidence fields returned by the lightweight protected-match
-reference. When a ranked package has a repository URL but no package-level
-stars, the terminal shows its linked repository as compact
-`github:owner/repo` when possible and otherwise preserves the repository URL.
-Missing evidence is omitted rather than shown as zero.
+Resolves a human-provided package, GitHub repository, or standalone
+documentation-site name to canonical targets such as `npm:express`,
+`github:openai/codex`, or `site:expressjs.com`. The backend supplies one ordered
+presentation list containing direct ranked matches and bounded relation-only
+package, repository, and site context. The CLI preserves that order and groups
+only contiguous targets with the same non-null `groupKey`; null keys always
+remain singleton groups. Each group is numbered once, additional direct members
+appear under `Also matched:`, and relation-only members appear under `Related:`.
+Canonical keys stay copyable and every member is explicitly direct (with
+confidence) or related.
+
+Each target keeps its normalized description, capped at 240 characters, plus
+available popularity, repository, license, docs, and code evidence. Positive
+docs/code counts render when content is available; otherwise availability is
+stated without inventing a count. Available content with a zero count renders
+that zero; unavailable content with zero renders `no docs` / `no code`. Missing
+licenses/counts produce no placeholder, and structurally inapplicable negatives
+are omitted (`no docs` is not shown for repositories and `no code` is not shown
+for sites). A package's
+compact linked-repository fallback appears only when its group does not already
+contain the canonical repository target. `targetsTruncated` produces one note
+that additional related targets were omitted and direct matches are complete.
 
 The shared CLI/local-MCP request boundary rejects an already-canonical package
 or GitHub repository target before the resolver service is called. Recognition
@@ -342,12 +351,12 @@ input.
 Terminal and MCP compact text share one actionability rule. A best result is a
 copyable/direct canonical next action only when it is non-ambiguous and has
 `EXACT` or `HIGH` confidence. Non-ambiguous `MEDIUM` and `LOW` results are
-labeled as unconfirmed ranked candidates and require the caller to narrow the
-name or filters, or choose a canonical candidate explicitly. Ambiguous results
+labeled as unconfirmed ranked targets and require the caller to narrow the
+name or filters, or choose a canonical target explicitly. Ambiguous results
 retain their existing choose-or-narrow guidance and literal `<target>`
 placeholder. Empty results ask for corrected spelling or adjusted
 registry filters; query, preferred-kind, and intent hints are ranking-only and
-cannot create candidates. No candidates is a valid JSON/text result but exits 1
+cannot create targets. No targets is a valid JSON/text result but exits 1
 because the command did not resolve a target. The backend guarantees that
 `best` is absent only when there are no candidates, so the terminal no-result
 message and exit status key off `best`.
@@ -356,32 +365,32 @@ message and exit status key off `best`.
 candidates only, and leaves repository candidates eligible. The command help
 enumerates every accepted value.
 `--prefer-kind package|repository` is a soft preference, not a filter.
-`--intent-hint` is repeatable. `--limit` controls the ranked list from 1-20
-(default 8); protected exact-name matches can be additional. `--query` and
+`--intent-hint` is repeatable. `--limit` controls direct ranked matches from
+1-20 (default 8); protected exact-name and related targets can be additional.
+`--query` and
 `--intent-hint` are sent to the service as ranking context. They rank retrieved
 candidates and do not expand candidate retrieval, and must not contain
 credentials, personal data, private code, or proprietary content. Terminal
 errors sanitize untrusted service and option text while JSON errors preserve
 the structured value through JSON escaping.
 
-`--json` emits the stable compact diagnostic envelope
-`{best?, ambiguous, ambiguousReason?, candidates, protectedMatches}`. Candidate
-objects occur once; `best` and `protectedMatches` use canonical-key references.
-Reference-only best/protected targets outside the ranked list produce minimal
-candidate objects with `target`, `kind`, and `confidence`, because no redundant
-detail fields are requested for those lists. Detailed ranking fields are fetched
-only for JSON. The always-selected non-null
-`latestVersionMaliciousStatus` candidate field is preserved in JSON as lowercase
-`latestVersionMaliciousStatus`. Nullable `latestVersionMaliciousEvidence` is
-preserved for affected and uncertain candidates with exact `osvId` values,
-lowercase `classificationReasons`, `totalCount`, and `truncated`. Null fields are
-omitted and enum values are lowercase. Errors use the standard JSON envelope on
-stderr with clean stdout.
+`--json` keeps the stable compact diagnostic envelope
+`{best?, ambiguous, ambiguousReason?, candidates, protectedMatches}` and adds
+root `targetsTruncated`. The `candidates` array now contains the backend-ordered
+presentation targets once. Every entry has `direct`; grouped entries have
+`groupKey`; counts and license are included when present. Direct entries retain
+the existing flattened confidence, alias, tier, score, and reason fields from
+their non-null `match`; relation-only entries omit those fields. Array position
+is presentation-group order, not pure rank order. Optional nulls are omitted,
+zero counts are preserved, and enum values are lowercase. CLI JSON and MCP JSON
+use the same payload builder and remain deeply equal. Errors use the standard
+JSON envelope on stderr with clean stdout.
 
 Terminal and local MCP text omit `CLEAR` and `NOT_APPLICABLE` decisions. They
 render concise warnings only for affected, uncertain, unsupported, or blocking
-unavailable evidence; terminal warnings are red. Reference-only entries remain
-non-actionable when they are not backed by a full candidate.
+unavailable evidence; terminal warnings are red. Reference-only best/protected
+entries never synthesize or reorder presentation targets. A best reference
+missing its matching presentation target remains non-actionable.
 Affected and uncertain warnings link every returned status-relevant advisory at
 `https://osv.dev/vulnerability/<percent-encoded-osv-id>`. Uncertain warnings also
 summarize the backend classification reasons; truncated evidence reports the
@@ -392,40 +401,43 @@ latest version; it is not a vulnerability-free claim. `AFFECTED` means active
 malicious evidence affects that version. `UNKNOWN` means active malicious
 evidence exists but the displayed version or ranges cannot be classified
 reliably. `NOT_APPLICABLE` is the non-package state. Direct continuation requires
-the existing non-ambiguous `EXACT`/`HIGH` identity decision and a matching full
-candidate whose status is exactly `CLEAR` or `NOT_APPLICABLE`. Affected, unknown,
+the existing non-ambiguous `EXACT`/`HIGH` identity decision and a matching
+target, located by both kind and canonical key, whose status is exactly `CLEAR`
+or `NOT_APPLICABLE`. Affected, unknown,
 missing, and unrecognized future values fail closed and emit no normal cross-tool
-next action. Ranking and filtering remain backend-owned.
+next action. A relation-only affected or unknown package still renders its
+member-local warning but cannot block an otherwise actionable matched best
+target. Aggregate ambiguity checks consider direct targets only. Ranking,
+relations, presentation order, and filtering remain backend-owned.
 
 The command and local experimental MCP adapter use an internal service and do
-not change the public `@githits/mcp` service interface. Its GraphQL selection keeps `best` and
-`protectedMatches` to `kind`, `canonicalKey`, and `confidence`; full compact and
-conditional JSON fields are selected only for ranked `candidates`; the
-malicious-content decision is part of the compact candidate fields because every
-text surface consumes it. Its bounded advisory evidence is selected alongside the
-decision for the same reason. This keeps
+not change the public `@githits/mcp` service interface. Its GraphQL selection
+keeps `best` and `protectedMatches` to `kind`, `canonicalKey`, and `confidence`;
+one ordered `targets` selection always includes compact identity, presentation,
+security, grouping, count, and license fields, while JSON-only identity and
+detailed `match` fields remain conditional. The query does not select legacy
+`candidates`, and no per-target follow-up exists. The malicious-content decision
+and bounded evidence remain compact fields because every text surface consumes
+them. This keeps
 the operation below production's GraphQL complexity limit while preserving all
 fields consumed by each output mode. The CLI deliberately does not select
-expensive per-candidate `inspection` metadata. HTTP, transport, GraphQL, auth
+expensive per-target `inspection` metadata. HTTP, transport, GraphQL, auth
 refresh, and client-version error classification are shared with the package
-intelligence service.
-
-The current candidate contract does not propagate linked GitHub
-stars/forks/issues onto package candidates. A package can therefore show its
-linked repository without its popularity evidence. This remains a known
-release decision; the CLI does not fetch expensive `inspection` metadata to
-compensate for it.
+intelligence service. The shared GraphQL classifier treats the backend's
+documented `AUTHENTICATION_REQUIRED` code and the legacy `UNAUTHORIZED` code as
+server-auth failures, so both enter the normal token-refresh and `AUTH_REQUIRED`
+error path.
 
 #### Standalone-site target kind
 
 `ResolveTargetKind` includes `SITE`, `--prefer-kind site` maps to it, and the
-terminal/JSON formatters render a `site` candidate whose canonical key parses
+terminal/JSON formatters render a `site` target whose canonical key parses
 straight back into `search --in`, closing the resolve-then-search loop for
 standalone documentation sites.
 
-`resolveTarget` returns `SITE` candidates for standalone documentation sites.
-Without `KNOWN_KIND_VALUES` carrying `site`, those candidates would render with
-the unknown-kind `target` label. Site candidates report `docsAvailable` true
+`resolveTarget` returns `SITE` targets for standalone documentation sites.
+Without `KNOWN_KIND_VALUES` carrying `site`, those targets would render with
+the unknown-kind `target` label. Site targets report `docsAvailable` true
 and `codeAvailable` false, so terminal output shows docs evidence without code,
 stars, or downloads. `--prefer-kind site` is a soft ranking preference rather
 than a filter, matching the package/repository kind contract.

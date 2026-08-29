@@ -470,18 +470,20 @@ describe("MCP smoke cohorts", () => {
 });
 
 describe("resolve smoke guidance", () => {
-  const cliMixed = `Candidates:
+  const cliMixed = `Targets:
   1. npm:express [exact] · package
-  2. npm:express-lookalike [high] · package
-     Warning: Malicious content affects the latest version. Do not use this target.
+     Related:
+       npm:express-lookalike · related package
+         Warning: Malicious content affects the latest version. Do not use this target.
 
 Next: githits search '<query>' --in 'npm:express'
 `;
   const mcpMixed = `Best match: npm:express [exact; package].
-Candidates:
+Targets:
   1. npm:express [exact; package]
-  2. npm:express-lookalike [high; package]
-     Warning: Malicious content affects the latest version. Do not use this target.
+     Related:
+       npm:express-lookalike [related; package]
+         Warning: Malicious content affects the latest version. Do not use this target.
 Next: pass the canonical target "npm:express" to the next MCP tool.
 `;
 

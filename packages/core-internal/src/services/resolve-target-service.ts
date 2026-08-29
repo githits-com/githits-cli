@@ -75,7 +75,17 @@ export interface ResolveTargetReference {
   confidence: string;
 }
 
-export interface ResolveTargetCandidate extends ResolveTargetReference {
+export interface ResolveTargetMatch {
+  confidence: string;
+  matchedAliases?: string[];
+  matchTier?: number;
+  score?: number;
+  reason?: string;
+}
+
+export interface ResolveTargetTarget {
+  kind: string;
+  canonicalKey: string;
   displayName?: string;
   description?: string;
   registry?: string;
@@ -90,18 +100,20 @@ export interface ResolveTargetCandidate extends ResolveTargetReference {
   downloadsLastMonth?: number;
   downloadsTotal?: number;
   documentationUrl?: string;
-  matchedAliases?: string[];
   docsAvailable: boolean;
   codeAvailable: boolean;
-  matchTier?: number;
-  score?: number;
-  reason?: string;
+  groupKey?: string;
+  match?: ResolveTargetMatch;
+  docsPageCount?: number;
+  codeFileCount?: number;
+  license?: string;
 }
 
 export interface ResolveTargetResult {
   best?: ResolveTargetReference;
   protectedMatches: ResolveTargetReference[];
-  candidates: ResolveTargetCandidate[];
+  targets: ResolveTargetTarget[];
+  targetsTruncated: boolean;
   ambiguous: boolean;
   ambiguousReason: string;
 }
@@ -125,10 +137,20 @@ const latestVersionMaliciousEvidenceSchema = z
   })
   .nullable();
 
-const listCandidateSchema = z.object({
+const compactMatchSchema = z.object({
+  confidence: z.string(),
+});
+
+const detailedMatchSchema = compactMatchSchema.extend({
+  matchedAliases: z.array(z.string()),
+  matchTier: z.number().int(),
+  score: z.number(),
+  reason: z.string().nullable().optional(),
+});
+
+const listTargetSchema = z.object({
   kind: z.string(),
   canonicalKey: z.string(),
-  confidence: z.string(),
   latestVersionMaliciousStatus: z.string(),
   latestVersionMaliciousEvidence: latestVersionMaliciousEvidenceSchema,
   description: z.string().nullable().optional(),
@@ -138,15 +160,21 @@ const listCandidateSchema = z.object({
   downloadsTotal: z.number().int().nullable().optional(),
   docsAvailable: z.boolean(),
   codeAvailable: z.boolean(),
+  groupKey: z.string().nullable(),
+  match: compactMatchSchema.nullable(),
+  docsPageCount: z.number().int().nullable(),
+  codeFileCount: z.number().int().nullable(),
+  license: z.string().nullable(),
 });
 
-const targetReferenceSchema = listCandidateSchema.pick({
-  kind: true,
-  canonicalKey: true,
-  confidence: true,
+const targetReferenceSchema = z.object({
+  kind: z.string(),
+  canonicalKey: z.string(),
+  confidence: z.string(),
 });
 
-const detailedCandidateSchema = listCandidateSchema.extend({
+const detailedTargetSchema = listTargetSchema.omit({ match: true }).extend({
+  match: detailedMatchSchema.nullable(),
   displayName: z.string(),
   registry: z.string().nullable().optional(),
   packageName: z.string().nullable().optional(),
@@ -154,10 +182,6 @@ const detailedCandidateSchema = listCandidateSchema.extend({
   repositoryOwner: z.string().nullable().optional(),
   repositoryName: z.string().nullable().optional(),
   documentationUrl: z.string().nullable().optional(),
-  matchedAliases: z.array(z.string()),
-  matchTier: z.number().int(),
-  score: z.number(),
-  reason: z.string().nullable().optional(),
 });
 
 const graphQLErrorSchema = z.object({
@@ -165,13 +189,12 @@ const graphQLErrorSchema = z.object({
   extensions: z.record(z.string(), z.unknown()).optional(),
 });
 
-function responseSchema<Candidate extends z.ZodType>(
-  candidateSchema: Candidate,
-) {
+function responseSchema<Target extends z.ZodType>(targetSchema: Target) {
   const resultSchema = z.object({
     best: targetReferenceSchema.nullable(),
     protectedMatches: z.array(targetReferenceSchema),
-    candidates: z.array(candidateSchema),
+    targets: z.array(targetSchema),
+    targetsTruncated: z.boolean(),
     ambiguous: z.boolean(),
     ambiguousReason: z.string(),
   });
@@ -209,9 +232,14 @@ query ResolveTarget(
     protectedMatches {
       ...ResolveTargetReferenceFields
     }
-    candidates {
+    targetsTruncated
+    targets {
       ...ResolveTargetListFields
       ...ResolveTargetJsonFields @include(if: $includeDetailedFields)
+      match {
+        confidence
+        ...ResolveTargetMatchJsonFields @include(if: $includeDetailedFields)
+      }
     }
     ambiguous
     ambiguousReason
@@ -224,10 +252,9 @@ fragment ResolveTargetReferenceFields on TargetResolutionCandidate {
   confidence
 }
 
-fragment ResolveTargetListFields on TargetResolutionCandidate {
+fragment ResolveTargetListFields on TargetResolutionTarget {
   kind
   canonicalKey
-  confidence
   latestVersionMaliciousStatus
   latestVersionMaliciousEvidence {
     advisories {
@@ -244,9 +271,13 @@ fragment ResolveTargetListFields on TargetResolutionCandidate {
   downloadsTotal
   docsAvailable
   codeAvailable
+  groupKey
+  docsPageCount
+  codeFileCount
+  license
 }
 
-fragment ResolveTargetJsonFields on TargetResolutionCandidate {
+fragment ResolveTargetJsonFields on TargetResolutionTarget {
   displayName
   registry
   packageName
@@ -254,6 +285,9 @@ fragment ResolveTargetJsonFields on TargetResolutionCandidate {
   repositoryOwner
   repositoryName
   documentationUrl
+}
+
+fragment ResolveTargetMatchJsonFields on TargetResolutionMatch {
   matchedAliases
   matchTier
   score
@@ -318,8 +352,8 @@ export class ResolveTargetServiceImpl implements ResolveTargetService {
 
     const parsed = (
       params.includeDetailedFields
-        ? responseSchema(detailedCandidateSchema)
-        : responseSchema(listCandidateSchema)
+        ? responseSchema(detailedTargetSchema)
+        : responseSchema(listTargetSchema)
     ).safeParse(response.parsedBody);
     if (!parsed.success) {
       throw new MalformedPackageIntelligenceResponseError(
@@ -345,7 +379,8 @@ export class ResolveTargetServiceImpl implements ResolveTargetService {
     return {
       best: result.best ? normaliseReference(result.best) : undefined,
       protectedMatches: result.protectedMatches.map(normaliseReference),
-      candidates: result.candidates.map(normaliseCandidate),
+      targets: result.targets.map(normaliseTarget),
+      targetsTruncated: result.targetsTruncated,
       ambiguous: result.ambiguous,
       ambiguousReason: result.ambiguousReason,
     };
@@ -378,50 +413,59 @@ function buildVariables(params: ResolveTargetParams): Record<string, unknown> {
   return variables;
 }
 
-function normaliseCandidate(
-  candidate:
-    | z.infer<typeof listCandidateSchema>
-    | z.infer<typeof detailedCandidateSchema>,
-): ResolveTargetCandidate {
-  const result: ResolveTargetCandidate = {
-    kind: candidate.kind,
-    canonicalKey: candidate.canonicalKey,
-    confidence: candidate.confidence,
-    latestVersionMaliciousStatus: candidate.latestVersionMaliciousStatus,
-    docsAvailable: candidate.docsAvailable,
-    codeAvailable: candidate.codeAvailable,
+function normaliseTarget(
+  target:
+    | z.infer<typeof listTargetSchema>
+    | z.infer<typeof detailedTargetSchema>,
+): ResolveTargetTarget {
+  const result: ResolveTargetTarget = {
+    kind: target.kind,
+    canonicalKey: target.canonicalKey,
+    latestVersionMaliciousStatus: target.latestVersionMaliciousStatus,
+    docsAvailable: target.docsAvailable,
+    codeAvailable: target.codeAvailable,
   };
 
-  assignDefined(result, "description", candidate.description);
+  assignDefined(result, "description", target.description);
   assignDefined(
     result,
     "latestVersionMaliciousEvidence",
-    candidate.latestVersionMaliciousEvidence,
+    target.latestVersionMaliciousEvidence,
   );
-  assignDefined(result, "repositoryUrl", candidate.repositoryUrl);
-  assignDefined(result, "stars", candidate.stars);
-  assignDefined(result, "downloadsLastMonth", candidate.downloadsLastMonth);
-  assignDefined(result, "downloadsTotal", candidate.downloadsTotal);
-  if ("matchedAliases" in candidate) {
-    assignDefined(result, "displayName", candidate.displayName);
-    assignDefined(result, "registry", candidate.registry);
-    assignDefined(result, "packageName", candidate.packageName);
-    assignDefined(result, "latestVersion", candidate.latestVersion);
-    assignDefined(result, "repositoryOwner", candidate.repositoryOwner);
-    assignDefined(result, "repositoryName", candidate.repositoryName);
-    assignDefined(result, "documentationUrl", candidate.documentationUrl);
-    assignDefined(result, "matchedAliases", candidate.matchedAliases);
-    assignDefined(result, "matchTier", candidate.matchTier);
-    assignDefined(result, "score", candidate.score);
-    assignDefined(result, "reason", candidate.reason);
+  assignDefined(result, "repositoryUrl", target.repositoryUrl);
+  assignDefined(result, "stars", target.stars);
+  assignDefined(result, "downloadsLastMonth", target.downloadsLastMonth);
+  assignDefined(result, "downloadsTotal", target.downloadsTotal);
+  assignDefined(result, "groupKey", target.groupKey);
+  assignDefined(result, "docsPageCount", target.docsPageCount);
+  assignDefined(result, "codeFileCount", target.codeFileCount);
+  assignDefined(result, "license", target.license);
+  if (target.match) {
+    const match: ResolveTargetMatch = { confidence: target.match.confidence };
+    if ("matchedAliases" in target.match) {
+      assignDefined(match, "matchedAliases", target.match.matchedAliases);
+      assignDefined(match, "matchTier", target.match.matchTier);
+      assignDefined(match, "score", target.match.score);
+      assignDefined(match, "reason", target.match.reason);
+    }
+    result.match = match;
+  }
+  if ("displayName" in target) {
+    assignDefined(result, "displayName", target.displayName);
+    assignDefined(result, "registry", target.registry);
+    assignDefined(result, "packageName", target.packageName);
+    assignDefined(result, "latestVersion", target.latestVersion);
+    assignDefined(result, "repositoryOwner", target.repositoryOwner);
+    assignDefined(result, "repositoryName", target.repositoryName);
+    assignDefined(result, "documentationUrl", target.documentationUrl);
   }
   return result;
 }
 
-function assignDefined<Key extends keyof ResolveTargetCandidate>(
-  target: ResolveTargetCandidate,
+function assignDefined<Target extends object, Key extends keyof Target>(
+  target: Target,
   key: Key,
-  value: ResolveTargetCandidate[Key] | null | undefined,
+  value: Target[Key] | null | undefined,
 ): void {
   if (value !== null && value !== undefined) target[key] = value;
 }

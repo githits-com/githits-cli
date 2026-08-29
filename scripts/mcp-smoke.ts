@@ -372,11 +372,35 @@ async function runExperimentalLiveSmoke(
               arguments: { name: "express" },
             }),
         )) as McpSmokeToolResult;
+        if (resolveText.isError === true) {
+          const envelope = assertCleanErrorEnvelope(
+            resolveText,
+            "experimental resolve auth probe",
+          );
+          assert(
+            envelope.code === "AUTH_REQUIRED",
+            `experimental resolve auth probe returned ${envelope.code}`,
+          );
+          console.log("AUTH_REQUIRED: live MCP experimental smoke skipped");
+          return;
+        }
         const resolveTextBody = assertDefaultText(
           resolveText,
           "experimental resolve default text",
         );
         assertExperimentalMcpResolveText(resolveTextBody);
+        for (const expected of [
+          "Targets:",
+          "npm:express",
+          "github:expressjs/express",
+          "site:expressjs.com",
+          "Related:",
+        ]) {
+          assert(
+            resolveTextBody.includes(expected),
+            `experimental MCP express resolution missing ${expected}`,
+          );
+        }
 
         const resolveJson = (await trackSmokeStep(
           "mcp resolve_target JSON experimental live",
@@ -408,6 +432,10 @@ async function runExperimentalLiveSmoke(
                 typeof candidate.latestVersionMaliciousStatus === "string",
             ),
           "experimental resolve JSON should preserve malicious-content status for the full npm:express candidate",
+        );
+        assert(
+          typeof resolveRecord.targetsTruncated === "boolean",
+          "experimental resolve JSON should expose target truncation",
         );
 
         const diffText = (await trackSmokeStep(

@@ -1,4 +1,4 @@
-/** Verify that a direct resolve handoff names a listed, warning-free candidate. */
+/** Verify that a direct resolve handoff names a listed, warning-free target. */
 export function isResolveDirectTargetUnwarned(
   output: string,
   target: string,
@@ -13,6 +13,7 @@ export function isResolveDirectTargetUnwarned(
 
   for (let index = candidateIndex + 1; index < lines.length; index += 1) {
     const line = lines[index] ?? "";
+    if (line.trim() === "Also matched:" || line.trim() === "Related:") break;
     if (!line.startsWith("     ")) break;
     if (line.includes("Warning:")) return false;
   }

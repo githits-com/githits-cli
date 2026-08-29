@@ -18,7 +18,6 @@ const ENDPOINT = "https://pkgseer.dev";
 const LIST_CANDIDATE = {
   kind: "PACKAGE",
   canonicalKey: "npm:express",
-  confidence: "EXACT",
   latestVersionMaliciousStatus: "CLEAR",
 };
 
@@ -35,6 +34,11 @@ const COMPACT_CANDIDATE = {
   downloadsTotal: null,
   docsAvailable: true,
   codeAvailable: true,
+  groupKey: "g1",
+  match: { confidence: "EXACT" },
+  docsPageCount: 128,
+  codeFileCount: 1_200,
+  license: "MIT",
 };
 
 const DETAILED_CANDIDATE = {
@@ -43,10 +47,13 @@ const DETAILED_CANDIDATE = {
   repositoryOwner: "expressjs",
   repositoryName: "express",
   documentationUrl: "https://expressjs.com",
-  matchedAliases: ["express"],
-  matchTier: 0,
-  score: 100,
-  reason: "Exact package identity match",
+  match: {
+    confidence: "EXACT",
+    matchedAliases: ["express"],
+    matchTier: 0,
+    score: 100,
+    reason: "Exact package identity match",
+  },
 };
 
 const MALICIOUS_EVIDENCE = {
@@ -60,15 +67,30 @@ const MALICIOUS_EVIDENCE = {
   truncated: false,
 };
 
-function resultBody(candidate: Record<string, unknown>) {
+function resultBody(
+  candidate: Record<string, unknown>,
+  overrides: Record<string, unknown> = {},
+) {
   return {
     data: {
       resolveTarget: {
-        best: candidate,
-        protectedMatches: [candidate],
-        candidates: [candidate],
+        best: {
+          kind: "PACKAGE",
+          canonicalKey: "npm:express",
+          confidence: "EXACT",
+        },
+        protectedMatches: [
+          {
+            kind: "PACKAGE",
+            canonicalKey: "npm:express",
+            confidence: "EXACT",
+          },
+        ],
+        targets: [candidate],
+        targetsTruncated: false,
         ambiguous: false,
         ambiguousReason: "NOT_AMBIGUOUS",
+        ...overrides,
       },
     },
   };
@@ -112,16 +134,21 @@ describe("ResolveTargetServiceImpl", () => {
       limit: 8,
       includeDetailedFields: false,
     });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(request.query).toBe(RESOLVE_TARGET_QUERY);
+    expect(request.query).not.toContain("candidates");
     expect(request.query).toContain(`best {
       ...ResolveTargetReferenceFields
     }`);
     expect(request.query).toContain(`protectedMatches {
       ...ResolveTargetReferenceFields
     }`);
-    expect(request.query).toContain(`candidates {
+    expect(request.query).toContain(`targets {
       ...ResolveTargetListFields
-      ...ResolveTargetJsonFields @include(if: $includeDetailedFields)`);
+      ...ResolveTargetJsonFields @include(if: $includeDetailedFields)
+      match {
+        confidence
+        ...ResolveTargetMatchJsonFields @include(if: $includeDetailedFields)`);
     expect(
       request.query,
     ).toContain(`fragment ResolveTargetReferenceFields on TargetResolutionCandidate {
@@ -135,6 +162,9 @@ describe("ResolveTargetServiceImpl", () => {
     expect(request.query.match(/\.\.\.ResolveTargetListFields/g)).toHaveLength(
       1,
     );
+    expect(
+      request.query.match(/\.\.\.ResolveTargetMatchJsonFields/g),
+    ).toHaveLength(1);
     for (const field of [
       "kind",
       "canonicalKey",
@@ -147,6 +177,10 @@ describe("ResolveTargetServiceImpl", () => {
       "downloadsTotal",
       "docsAvailable",
       "codeAvailable",
+      "groupKey",
+      "docsPageCount",
+      "codeFileCount",
+      "license",
     ]) {
       expect(request.query).toContain(`  ${field}\n`);
       expect(request.query).not.toContain(`${field} @include`);
@@ -168,7 +202,6 @@ describe("ResolveTargetServiceImpl", () => {
     ]) {
       expect(request.query).toContain(`  ${field}\n`);
     }
-    expect(request.query).not.toContain("\n  protected\n");
     expect(request.query).not.toContain("inspection");
     expect(request.query).toContain(`latestVersionMaliciousEvidence {
     advisories {
@@ -186,6 +219,11 @@ describe("ResolveTargetServiceImpl", () => {
       downloadsLastMonth: 89_000_000,
       docsAvailable: true,
       codeAvailable: true,
+      groupKey: "g1",
+      match: { confidence: "EXACT" },
+      docsPageCount: 128,
+      codeFileCount: 1_200,
+      license: "MIT",
     };
     expect(result.best).toEqual({
       kind: "PACKAGE",
@@ -199,7 +237,8 @@ describe("ResolveTargetServiceImpl", () => {
         confidence: "EXACT",
       },
     ]);
-    expect(result.candidates).toEqual([compactResult]);
+    expect(result.targets).toEqual([compactResult]);
+    expect(result.targetsTruncated).toBe(false);
   });
 
   it("fetches and parses detailed fields for JSON output", async () => {
@@ -244,8 +283,8 @@ describe("ResolveTargetServiceImpl", () => {
       downloadsTotal: _downloadsTotal,
       ...detailedResult
     } = DETAILED_CANDIDATE;
-    expect(result.candidates[0]).toEqual(detailedResult);
-    expect(result.candidates[0]).not.toHaveProperty("downloadsTotal");
+    expect(result.targets[0]).toEqual(detailedResult);
+    expect(result.targets[0]).not.toHaveProperty("downloadsTotal");
   });
 
   it("parses bounded malicious advisory evidence in compact mode", async () => {
@@ -268,9 +307,62 @@ describe("ResolveTargetServiceImpl", () => {
       includeDetailedFields: false,
     });
 
-    expect(result.candidates[0]?.latestVersionMaliciousEvidence).toEqual(
+    expect(result.targets[0]?.latestVersionMaliciousEvidence).toEqual(
       MALICIOUS_EVIDENCE,
     );
+  });
+
+  it("parses relation-only targets, missing presentation signals, zero counts, and truncation", async () => {
+    const related = {
+      ...COMPACT_CANDIDATE,
+      kind: "SITE",
+      canonicalKey: "site:expressjs.com",
+      latestVersionMaliciousStatus: "NOT_APPLICABLE",
+      repositoryUrl: null,
+      stars: null,
+      downloadsLastMonth: null,
+      downloadsTotal: null,
+      codeAvailable: false,
+      match: null,
+      docsPageCount: 0,
+      codeFileCount: null,
+      license: null,
+    };
+    const service = new ResolveTargetServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(
+        mock(() =>
+          Promise.resolve(
+            jsonResponse(
+              resultBody(related, {
+                targetsTruncated: true,
+              }),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    const parsed = await service.resolveTarget({
+      name: "expressjs",
+      limit: 8,
+      includeDetailedFields: false,
+    });
+
+    expect(parsed.targetsTruncated).toBe(true);
+    expect(parsed.targets).toEqual([
+      {
+        kind: "SITE",
+        canonicalKey: "site:expressjs.com",
+        latestVersionMaliciousStatus: "NOT_APPLICABLE",
+        description: "Fast web framework",
+        docsAvailable: true,
+        codeAvailable: false,
+        groupKey: "g1",
+        docsPageCount: 0,
+      },
+    ]);
   });
 
   it("rejects malformed malicious advisory evidence", async () => {
@@ -337,7 +429,12 @@ describe("ResolveTargetServiceImpl", () => {
   });
 
   it("rejects compact responses missing always-selected fields", async () => {
-    const { confidence: _confidence, ...missingConfidence } = COMPACT_CANDIDATE;
+    const { confidence: _confidence, ...missingMatchConfidence } =
+      COMPACT_CANDIDATE.match;
+    const missingConfidence = {
+      ...COMPACT_CANDIDATE,
+      match: missingMatchConfidence,
+    };
     const {
       latestVersionMaliciousEvidence: _evidence,
       ...missingMaliciousEvidence
@@ -402,12 +499,12 @@ describe("ResolveTargetServiceImpl", () => {
       limit: 8,
       includeDetailedFields: false,
     });
-    expect(result.candidates[0]?.latestVersionMaliciousStatus).toBe(
+    expect(result.targets[0]?.latestVersionMaliciousStatus).toBe(
       "REVIEW_REQUIRED",
     );
   });
 
-  it("refreshes after a GraphQL authentication failure", async () => {
+  it("refreshes after the backend GraphQL authentication-required code", async () => {
     let calls = 0;
     const fetchFn = mock(() => {
       calls++;
@@ -415,7 +512,10 @@ describe("ResolveTargetServiceImpl", () => {
         return Promise.resolve(
           jsonResponse({
             errors: [
-              { message: "unauthorized", extensions: { code: "UNAUTHORIZED" } },
+              {
+                message: "Authentication required",
+                extensions: { code: "AUTHENTICATION_REQUIRED" },
+              },
             ],
           }),
         );

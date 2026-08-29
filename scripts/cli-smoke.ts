@@ -1001,13 +1001,13 @@ async function assertLiveOrAuthRequired(
 
 export function assertExperimentalCliResolveText(resolveText: string): void {
   assert(
-    (resolveText.includes("Candidates:") ||
-      resolveText.includes("Unconfirmed ranked candidates:")) &&
-      /\n\s+\d+\. (?:npm|github):\S+/.test(resolveText),
-    "experimental resolve text should include ranked canonical candidates",
+    (resolveText.includes("Targets:") ||
+      resolveText.includes("Unconfirmed ranked targets:")) &&
+      /\n\s+\d+\. (?:npm|github|site):\S+/.test(resolveText),
+    "experimental resolve text should include canonical target groups",
   );
   const directTarget = resolveText.match(
-    /Next: githits search .+ --in '((?:npm|github):[^']+)'/,
+    /Next: githits search .+ --in '((?:npm|github|site):[^']+)'/,
   )?.[1];
   if (directTarget) {
     assert(
@@ -1022,7 +1022,7 @@ export function assertExperimentalCliResolveText(resolveText: string): void {
         !resolveText.includes("Next after choosing:"),
       "experimental malicious-blocked resolve text should omit the normal next action",
     );
-  } else if (resolveText.includes("Unconfirmed ranked candidates:")) {
+  } else if (resolveText.includes("Unconfirmed ranked targets:")) {
     assert(
       resolveText.includes("explicitly choose a candidate") &&
         resolveText.includes("--in '<target>'"),
@@ -1046,6 +1046,32 @@ async function runExperimentalLiveSmoke(
     "experimental resolve terminal",
   );
   assertExperimentalCliResolveText(resolveText);
+  for (const expected of [
+    "npm:express",
+    "github:expressjs/express",
+    "site:expressjs.com",
+    "Related:",
+  ]) {
+    assert(
+      resolveText.includes(expected),
+      `experimental express resolution missing ${expected}`,
+    );
+  }
+
+  const siteResolveText = assertTerminalOutput(
+    await runCliWithEnv(["resolve", "expressjs"], env),
+    "experimental site resolve terminal",
+  );
+  assertExperimentalCliResolveText(siteResolveText);
+  assert(
+    /\n {2}1\. site:expressjs\.com \[(?:exact|high)\] · site/.test(
+      siteResolveText,
+    ) &&
+      siteResolveText.includes("Related:") &&
+      siteResolveText.includes("npm:express · related package") &&
+      siteResolveText.includes("github:expressjs/express · related repository"),
+    "experimental expressjs resolution should directly match the site and group related package/repository targets",
+  );
 
   const resolveJson = assertJsonOutput(
     await runCliWithEnv(
@@ -1080,7 +1106,8 @@ async function runExperimentalLiveSmoke(
           candidate.target === "npm:express" &&
           typeof candidate.latestVersionMaliciousStatus === "string",
       ) &&
-      Array.isArray(resolveJson.protectedMatches),
+      Array.isArray(resolveJson.protectedMatches) &&
+      typeof resolveJson.targetsTruncated === "boolean",
     "experimental resolve JSON missing structured candidate facts",
   );
 
