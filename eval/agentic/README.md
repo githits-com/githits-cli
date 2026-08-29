@@ -92,12 +92,12 @@ commands retain `--ignore-user-config` and explicitly disable Codex's `apps`,
 `plugins`, and `remote_plugin` features, so user customization and external
 app/plugin catalogs cannot alter the tested surface.
 
-The latest partial Luna-low canary evidence (2026-08-29) is not acceptance
-evidence: the clean descriptor cell completed in 31.2 seconds with zero tools,
-CLI calls, or isolation violations, while the clean full cell completed in
-35.0 seconds with two MCP calls and zero CLI calls but both GitHits calls
-returned AUTH_REQUIRED, so the agent fell back to web sources. The final
-two-cell canary requires successful GitHits MCP calls as well as clean
+An earlier partial Luna-low canary (2026-08-29) was not acceptance evidence:
+the clean descriptor cell completed in 31.2 seconds with zero tools, CLI calls,
+or isolation violations, while the clean full cell completed in 35.0 seconds
+with two MCP calls and zero CLI calls but both GitHits calls returned
+AUTH_REQUIRED, so the agent fell back to web sources. At that point, the final
+two-cell canary still required successful GitHits MCP calls as well as clean
 isolation.
 
 The v3 rerun completed the authenticated MCP path: the descriptor cell took
@@ -106,8 +106,25 @@ isolation violations; the full cell took 20.2 seconds at an estimated
 $0.00726356 with three successful MCP calls and zero CLI calls. The full cell
 was nevertheless marked failed because macOS `/var` and `/private/var` aliases
 made the validator report the workspace-installed skill as external. Canonical
-filesystem containment now addresses that false positive; the final canary
-remains pending.
+filesystem containment now addresses that false positive; this remains
+root-cause validation history rather than accepted canary evidence. At that
+point, the final canary was pending.
+
+The v4 clean canary is accepted isolation and causal baseline evidence. The
+descriptor cell succeeded in 27.8 seconds with 31,305 uncached input, 46,336
+cached input, 934 output, and 237 reasoning-detail tokens; its base-rate
+estimate was $0.00830852, with zero logical/MCP/CLI calls and no isolation
+violations. The full cell succeeded in 24.3 seconds with 28,661 uncached
+input, 67,584 cached input, 778 output, and 141 reasoning-detail tokens; its
+base-rate estimate was $0.00801748, with three successful logical MCP calls
+(`quick_start`, `pkg_info`, `pkg_vulns`), zero CLI calls, and no isolation
+violations. Persisted MCP child `HOME` is `<redacted>` in `mcp.json` and
+command metadata while `targetRoot` remains the real checkout for attribution.
+After per-run workspace/output paths are normalized away, the command surfaces
+are identical and both runs disable `apps`, `plugins`, and `remote_plugin`.
+Sequential wall time was approximately 52.1 seconds and estimated cost was
+$0.016326. This is the clean causal baseline seed; it does not replace the
+contaminated 42-cell stable-full capacity measurement.
 
 Trace validation fails an MCP workload if it observes an external
 `AGENTS.md`/`SKILL.md` read, a guidance read in the descriptor profile, or any

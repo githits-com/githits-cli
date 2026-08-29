@@ -3,8 +3,8 @@
 ## Status
 
 - Overall: IN PROGRESS
-- Current phase: Phase 2 — eval isolation correction (IN PROGRESS)
-- Previous phase: Phase 1 — trustworthy local metrics (MERGED)
+- Current phase: Phase 3 — daily main execution and persistent export (BLOCKED ON PRODUCT DECISIONS)
+- Previous phase: Phase 2 — systematic local suites and paired comparison (VALIDATED)
 - Owner: repository maintainers
 - Last verified: 2026-08-29
 - Deployment: Phase 1 merged to `main`; local maintainer tooling is available.
@@ -101,8 +101,8 @@ Out of scope for the initial phases:
   The isolation correction now requires a caller-supplied dedicated eval home
   containing authentication and Codex-managed runtime state, rejects only
   root-level global instruction files, and keeps fresh per-workload OS homes;
-  its clean canary is still required before local profile results are accepted
-  as causal evidence.
+  The clean v4 canary now accepts local profile results as causal evidence;
+  Phase 3 remains blocked on the service, runner, and budget decisions below.
 
 ### Bounded planning baseline
 
@@ -479,8 +479,7 @@ The following must be resolved before Phase 5:
 1. **Phase 1 — trustworthy local metrics (MERGED):** every existing local run
    produces auditable per-workload tool/token/cost metrics, including visible
    fallback telemetry and explicit unknown telemetry.
-2. **Phase 2 — systematic local suites and paired comparison (ISOLATION
-   CORRECTION IN PROGRESS):**
+2. **Phase 2 — systematic local suites and paired comparison (VALIDATED):**
    maintainers can execute canary/smoke/full matrices locally, compare a
    candidate to a compatible main baseline, and see per-tool frequency plus
    measured time/cost totals.
@@ -678,9 +677,8 @@ validation. The full profile used all 13 calls through MCP.
 
 ### Status
 
-The suite, metrics, and comparison mechanics are implemented, but the paid
-behavior comparison is not valid until the isolation correction below passes a
-clean Luna canary. This phase remains local-only; paid CI scheduling, service
+The suite, metrics, comparison mechanics, and isolation correction are
+validated locally. This phase remains local-only; paid CI scheduling, service
 persistence, Haiku, and quality judging remain later work.
 
 The previous 42-cell paid descriptor/full behavior comparison was contaminated:
@@ -1024,7 +1022,7 @@ None. The target service and automation budget remain later-phase decisions.
   owning suite directory.
 - [x] Canary, smoke, and stable-full have measured wall-time and cost summaries;
   Phase 3 no longer relies on the two-workload linear estimate.
-- [ ] Local profile evidence is accepted as causal only after the run manifest
+- [x] Local profile evidence is accepted as causal only after the run manifest
   and validation trace prove a clean instruction-isolated host.
 - [x] Existing targeted `--workload` usage remains available.
 - [x] No paid agent invocation is added to pull-request or `main` CI in this phase.
@@ -1033,11 +1031,11 @@ None. The target service and automation budget remain later-phase decisions.
 
 ### Status
 
-IN PROGRESS — the validator and Codex command isolation are corrected locally;
-the coordinator must run the clean authenticated Luna descriptor/full canary
-before this correction is accepted.
+VALIDATED — the v4 clean authenticated Luna descriptor/full canary confirms
+the isolation boundary, trusted MCP authentication, and the intended tool
+surface. This closes the Phase 2 isolation correction.
 
-### Partial canary evidence
+### Canary evidence and correction history
 
 On 2026-08-29, the corrected v2 canary used the dedicated local subscription
 `CODEX_HOME` and passed isolation. The descriptor cell completed in 31.2
@@ -1046,8 +1044,8 @@ completed in 35.0 seconds at an estimated $0.01069828 with two MCP calls and
 zero CLI calls, but both GitHits calls returned `AUTH_REQUIRED` and the agent
 fell back to web sources. The descriptor estimate was $0.00745976. This proves
 the isolation boundary but not successful GitHits authentication or useful MCP
-execution, so it is not acceptance evidence. The final two-cell canary remains
-pending.
+execution, so it was not acceptance evidence; at that point, the final
+two-cell canary was pending.
 
 The v3 rerun completed the authenticated MCP path: the descriptor cell took
 30.9 seconds at an estimated $0.01057352 with zero tool calls, CLI calls, or
@@ -1055,8 +1053,25 @@ isolation violations; the full cell took 20.2 seconds at an estimated
 $0.00726356 with three successful MCP calls and zero CLI calls. The full cell
 was nevertheless marked failed because macOS `/var` and `/private/var` aliases
 made the validator report the workspace-installed skill as external. Canonical
-filesystem containment now addresses that false positive; the final canary
-remains pending.
+filesystem containment now addresses that false positive; this remains
+root-cause validation history rather than accepted canary evidence. At that
+point, the final canary was pending.
+
+The v4 clean canary is accepted isolation and causal baseline evidence. The
+descriptor cell succeeded in 27.8 seconds with 31,305 uncached input, 46,336
+cached input, 934 output, and 237 reasoning-detail tokens; its base-rate
+estimate was $0.00830852, with zero logical/MCP/CLI calls and no isolation
+violations. The full cell succeeded in 24.3 seconds with 28,661 uncached
+input, 67,584 cached input, 778 output, and 141 reasoning-detail tokens; its
+base-rate estimate was $0.00801748, with three successful logical MCP calls
+(`quick_start`, `pkg_info`, `pkg_vulns`), zero CLI calls, and no isolation
+violations. Persisted MCP child `HOME` is `<redacted>` in `mcp.json` and
+command metadata while `targetRoot` remains the real checkout for attribution.
+After per-run workspace/output paths are normalized away, the command surfaces
+are identical and both runs disable `apps`, `plugins`, and `remote_plugin`.
+Sequential wall time was approximately 52.1 seconds and estimated cost was
+$0.016326. This is the clean causal baseline seed; it does not replace the
+contaminated 42-cell stable-full capacity measurement.
 
 The trusted MCP child receives the caller's `HOME` and `USERPROFILE` for
 keychain-backed GitHits authentication, while the acting agent keeps disposable
@@ -1079,12 +1094,15 @@ redacted in persisted artifacts.
 - [x] External guidance reads, descriptor-profile guidance reads, and MCP CLI
   calls are persisted as redacted validation violations and fail the affected
   workload.
-- [ ] Clean Luna MCP descriptor/full canary confirms zero external guidance
+- [x] Clean Luna MCP descriptor/full canary confirms zero external guidance
   reads, zero CLI fallback, equal executable surface, and successful MCP
   authentication/execution.
 
-Phase 3 scheduling remains conditional on this canary. No prior paid behavior
-comparison may be used as minimal-versus-full evidence.
+Phase 2 isolation is complete. Phase 3 remains blocked on the existing service,
+runner, and budget product decisions; it is not blocked on isolation. The prior
+42-cell behavior comparison remains contaminated and must not be reinterpreted;
+v4 seeds clean causal evidence but is not a replacement stable-full
+measurement.
 
 ## Phase 3 — Daily Main Execution And Persistent Export
 

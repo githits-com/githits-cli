@@ -62,7 +62,7 @@ allowed. The neutral acting result contract is `status`, `answer`, and
 `confidence`. Legacy final artifacts remain readable by the offline report
 loader.
 
-### Partial clean-canary evidence
+### Clean-canary evidence and correction history
 
 On 2026-08-29, the corrected v2 canary used the dedicated local subscription
 CODEX_HOME and passed isolation. The descriptor cell completed in 31.2 seconds
@@ -70,8 +70,8 @@ with zero tools, CLI calls, or isolation violations. The full cell completed in
 35.0 seconds with two MCP calls and zero CLI calls, but both GitHits calls
 returned AUTH_REQUIRED and the agent fell back to web sources. The result proves
 the isolation boundary but not successful GitHits authentication or useful MCP
-execution, so it is not acceptance evidence. The final two-cell canary remains
-pending.
+execution, so it was not acceptance evidence; at that point, the final
+two-cell canary was pending.
 
 The v3 rerun completed the authenticated MCP path: the descriptor cell took
 30.9 seconds at an estimated $0.01057352 with zero tool calls, CLI calls, or
@@ -79,8 +79,25 @@ isolation violations; the full cell took 20.2 seconds at an estimated
 $0.00726356 with three successful MCP calls and zero CLI calls. The full cell
 was nevertheless marked failed because macOS `/var` and `/private/var` aliases
 made the validator report the workspace-installed skill as external. Canonical
-filesystem containment now addresses that false positive; the final canary
-remains pending.
+filesystem containment now addresses that false positive; this remains
+root-cause validation history rather than accepted canary evidence. At that
+point, the final canary was pending.
+
+The v4 clean canary is accepted isolation and causal baseline evidence. The
+descriptor cell succeeded in 27.8 seconds with 31,305 uncached input, 46,336
+cached input, 934 output, and 237 reasoning-detail tokens; its base-rate
+estimate was $0.00830852, with zero logical/MCP/CLI calls and no isolation
+violations. The full cell succeeded in 24.3 seconds with 28,661 uncached
+input, 67,584 cached input, 778 output, and 141 reasoning-detail tokens; its
+base-rate estimate was $0.00801748, with three successful logical MCP calls
+(`quick_start`, `pkg_info`, `pkg_vulns`), zero CLI calls, and no isolation
+violations. Persisted MCP child `HOME` is `<redacted>` in `mcp.json` and
+command metadata while `targetRoot` remains the real checkout for attribution.
+After per-run workspace/output paths are normalized away, the command surfaces
+are identical and both runs disable `apps`, `plugins`, and `remote_plugin`.
+Sequential wall time was approximately 52.1 seconds and estimated cost was
+$0.016326. This is the clean causal baseline seed; it does not replace the
+contaminated 42-cell stable-full capacity measurement.
 
 The trusted MCP child receives the caller's HOME and USERPROFILE so
 keychain-backed GitHits authentication can resolve, while the acting agent
@@ -185,8 +202,9 @@ local MCP, and concurrent `descriptors` and `full` shards. Every descriptor
 workload was contaminated by global skill discovery: 12 loaded `githits-mcp`,
 8 loaded `githits-package`, and 1 loaded `githits-code`. The latter 9 used the
 CLI fallback, so the 42-cell descriptor/full behavior comparison is invalid and
-must not support minimal-versus-full conclusions. The timing and cost figures
-below are retained only as provisional capacity/cost evidence. Costs are
+must not support minimal-versus-full conclusions or be reinterpreted as clean
+behavior evidence. The timing and cost figures below are retained only as
+provisional capacity/cost evidence. Costs are
 base-rate estimates, not provider invoices; long-context pricing was not
 attributable for some workloads.
 
