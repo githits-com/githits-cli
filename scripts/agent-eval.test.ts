@@ -1925,7 +1925,8 @@ describe("agent eval harness", () => {
   it("uses canonical paths for guidance containment through filesystem aliases", () => {
     const workspaceDir = mkdtempSync(join(tmpdir(), "agent-eval-alias-"));
     const aliasRoot = mkdtempSync(join(tmpdir(), "agent-eval-alias-root-"));
-    const relativeGuidancePath = join(
+    const pathJoin = process.platform === "win32" ? win32.join : join;
+    const relativeGuidancePath = pathJoin(
       ".agents",
       "skills",
       "githits-mcp",
@@ -1948,7 +1949,7 @@ describe("agent eval harness", () => {
         throw error;
       }
 
-      const aliasedGuidance = join(aliasWorkspace, relativeGuidancePath);
+      const aliasedGuidance = pathJoin(aliasWorkspace, relativeGuidancePath);
       const fullProfile = extractEvalValidationViolations(
         JSON.stringify({
           item: {
@@ -2619,6 +2620,70 @@ describe("agent eval harness", () => {
           USERPROFILE: hostProfile,
         }),
       ).toContain(defaultConfigRoot);
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("redacts JSON-escaped Windows config roots from persisted configs", async () => {
+    const outDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-escaped-config-redaction-"),
+    );
+    const hostHome = win32.join("C:\\Users", "eval-host");
+    const hostProfile = win32.join("C:\\Users", "eval-profile");
+    const hostConfig = win32.join(hostHome, ".config");
+    const hostAppdata = win32.join(hostProfile, "AppData", "Roaming");
+    try {
+      await runAgentEval(
+        parseArgs(
+          [
+            "--agent",
+            "claude",
+            "--dry-run",
+            "--out",
+            outDir,
+            "--workload",
+            "eval/agentic/workloads/express-router.md",
+          ],
+          process.cwd(),
+        ),
+        {
+          baseEnv: {
+            PATH: "/bin",
+            HOME: hostHome,
+            USERPROFILE: hostProfile,
+            XDG_CONFIG_HOME: hostConfig,
+            APPDATA: hostAppdata,
+            GITHITS_AUTH_STORAGE: "keychain",
+          },
+          assertAgentAvailable: async () => {},
+          collectAgentVersions: async () => [undefined, undefined, undefined],
+        },
+      );
+
+      const workloadDir = join(outDir, "workloads", "express-router");
+      const mcpConfigPath = join(workloadDir, "mcp.json");
+      const mcp = JSON.parse(readFileSync(mcpConfigPath, "utf8")) as {
+        mcpServers: { githits: { env?: Record<string, string> } };
+      };
+      expect(mcp.mcpServers.githits.env).toEqual({
+        GITHITS_AUTH_STORAGE: "keychain",
+        HOME: "<redacted>",
+        USERPROFILE: "<redacted>",
+        XDG_CONFIG_HOME: "<redacted>",
+        APPDATA: "<redacted>",
+      });
+      for (const path of [
+        mcpConfigPath,
+        join(workloadDir, "codex-config.toml"),
+        join(workloadDir, "opencode.json"),
+      ]) {
+        const content = readFileSync(path, "utf8");
+        for (const value of [hostHome, hostProfile, hostConfig, hostAppdata]) {
+          expect(content).not.toContain(value);
+          expect(content).not.toContain(JSON.stringify(value).slice(1, -1));
+        }
+      }
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }

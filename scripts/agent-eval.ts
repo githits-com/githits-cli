@@ -1696,7 +1696,11 @@ function externalGuidancePaths(value: string): string[] {
 }
 
 function pathInsideDirectory(path: string, directory: string): boolean {
-  if (/^[A-Za-z]:[\\/]|^\\\\|^~[\\/]|^\$[A-Za-z_][A-Za-z0-9_]*[\\/]/.test(path))
+  const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]|^\\\\/.test(path);
+  if (
+    /^~[\\/]|^\$[A-Za-z_][A-Za-z0-9_]*[\\/]/.test(path) ||
+    (isWindowsAbsolutePath && process.platform !== "win32")
+  )
     return false;
   const { resolvedPath, resolvedDirectory } = resolveGuidancePaths(
     path,
@@ -2186,11 +2190,17 @@ function redactPersistedRuntimeConfigs(
   paths: string[],
   redactionValues: string[],
 ): void {
+  const serializedRedactionValues = [
+    ...redactionValues,
+    ...redactionValues
+      .map((value) => JSON.stringify(value).slice(1, -1))
+      .filter((value) => value.length > 0),
+  ];
   for (const path of paths) {
     if (existsSync(path) && lstatSync(path).isFile()) {
       writeFileSync(
         path,
-        redactText(readFileSync(path, "utf8"), redactionValues),
+        redactText(readFileSync(path, "utf8"), serializedRedactionValues),
       );
     }
   }
