@@ -98,9 +98,11 @@ Out of scope for the initial phases:
   supports a different policy.
 - The previous local Codex subscription runs could not prove descriptor/full
   instruction isolation because Codex loaded global `$CODEX_HOME/AGENTS.md`.
-  The isolation correction now requires a caller-supplied auth-only home and
-  fresh per-workload OS homes; its clean canary is still required before local
-  profile results are accepted as causal evidence.
+  The isolation correction now requires a caller-supplied dedicated eval home
+  containing authentication and Codex-managed runtime state, rejects only
+  root-level global instruction files, and keeps fresh per-workload OS homes;
+  its clean canary is still required before local profile results are accepted
+  as causal evidence.
 
 ### Bounded planning baseline
 
@@ -704,9 +706,13 @@ designed.
 - Phase 1's `metrics.json` schema and logical `tools.sequence` semantics are
   stable enough to serve as the source for suite aggregation. Per-tool counts
   can be derived without changing or duplicating the schema.
-- A clean auth-only `CODEX_HOME` is supplied by the caller for live Codex MCP
-  runs; dry-runs do not require it. Local subscription auth uses a dedicated
-  `CODEX_HOME`, while CI will use API-key authentication.
+- A dedicated eval `CODEX_HOME` is supplied by the caller for live Codex MCP
+  runs; dry-runs do not require it. The home contains subscription/API-key
+  authentication and Codex-managed runtime state, but no root-level
+  `AGENTS.override.md` or `AGENTS.md`. Local subscription auth uses a dedicated
+  `CODEX_HOME`, while CI will use API-key authentication. Every Codex eval
+  command disables `apps`, `plugins`, and `remote_plugin` while retaining
+  `--ignore-user-config`.
 - The bounded paid pair used the same installed agent CLI version on both sides;
   the comparison records this identity explicitly.
 - Two Luna profile shards ran concurrently without a quota failure in the
@@ -1027,17 +1033,30 @@ None. The target service and automation budget remain later-phase decisions.
 
 ### Status
 
-IN PROGRESS — implementation is complete locally; the coordinator must run the
-clean authenticated Luna descriptor/full canary before this correction is
-accepted.
+IN PROGRESS — the validator and Codex command isolation are corrected locally;
+the coordinator must run the clean authenticated Luna descriptor/full canary
+before this correction is accepted.
+
+### Partial canary evidence
+
+On 2026-08-29, a one-workload Luna descriptor run using the dedicated local
+subscription `CODEX_HOME` completed in 37.8 seconds with a valid result, zero
+logical/MCP/CLI calls, and no isolation violations. The same home had already
+accumulated normal Codex-managed state, including `config.toml`, bundled system
+skills, plugin caches, and runtime files. The first full-profile launch was
+rejected before Codex startup because the previous recursive validator treated
+a nested plugin-cache skill path as behavior-injecting configuration. That
+rejection is validator evidence, not an agent result. The final two-cell
+descriptor/full canary remains pending after this correction.
 
 ### Acceptance criteria
 
 - [x] Every workload gets fresh `HOME`, `USERPROFILE`, `XDG_CONFIG_HOME`,
   `APPDATA`, and temporary paths beneath a disposable root; persisted metadata
   contains only relative isolation labels.
-- [x] Live Codex MCP runs reject a missing, relative, or behavior-injecting
-  `CODEX_HOME` before agent startup without reading auth material.
+- [x] Live Codex MCP runs reject a missing or relative `CODEX_HOME`, and reject
+  root-level `AGENTS.override.md`/`AGENTS.md`, before agent startup without
+  reading auth material; Codex-managed nested state is allowed.
 - [x] Full MCP installs only project guidance and `githits-mcp`; it does not
   install or prepend a GitHits CLI shim. Skills runs retain the CLI surface.
 - [x] Acting prompts/results are product-neutral: `status`, `answer`, and

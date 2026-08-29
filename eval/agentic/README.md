@@ -59,10 +59,16 @@ the agent how to use GitHits.
 
 Each workload receives a fresh temporary isolation root containing its workspace,
 OS home, user profile, config directories, and temporary directory. Only the
-caller-supplied `CODEX_HOME` is retained outside that root, and it must be an
-auth-only directory. Live Codex MCP runs reject a missing, relative, or
-behavior-injecting `CODEX_HOME` before invoking the agent. The harness does not
-read auth material.
+caller-supplied `CODEX_HOME` is retained outside that root. It is a dedicated
+eval home containing Codex authentication state and Codex-managed runtime state;
+it is not an auth-only directory. Live Codex MCP runs reject a missing,
+relative, or root-level `AGENTS.override.md`/`AGENTS.md` before invoking the
+agent. The harness checks only those two names at the CODEX_HOME root and does
+not read auth material or guidance contents. Codex-managed `config.toml`,
+bundled system skills, plugin caches, logs, and other nested runtime files are
+allowed. A root global-instruction file is rejected even when empty; nested
+`AGENTS.md` files do not trigger this preflight because they are outside Codex's
+documented global discovery root.
 
 For local subscription authentication, log in once to a dedicated home and use
 that same home for evals:
@@ -74,7 +80,10 @@ CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface mcp --s
 
 CI should create a clean `CODEX_HOME` and authenticate Codex with
 `OPENAI_API_KEY`. Set `GITHITS_API_TOKEN` for deterministic GitHits
-authentication. Never copy a personal auth file into a run directory.
+authentication. Never copy a personal auth file into a run directory. The eval
+commands retain `--ignore-user-config` and explicitly disable Codex's `apps`,
+`plugins`, and `remote_plugin` features, so user customization and external
+app/plugin catalogs cannot alter the tested surface.
 
 Trace validation fails an MCP workload if it observes an external
 `AGENTS.md`/`SKILL.md` read, a guidance read in the descriptor profile, or any
@@ -500,9 +509,12 @@ also prevents user-level `CLAUDE.md` discovery.
 Skills runs do not use that flag because Claude Code treats it as disabling all
 skills; they instead use project-only settings plus an empty strict MCP config.
 Codex MCP runs use per-run `-c` MCP config overrides, `--ignore-rules`, and
-`--ignore-user-config`; the caller-supplied `CODEX_HOME` is validated as
-auth-only before launch. Skills runs omit the MCP and rule overrides while retaining `--ignore-user-config` so
-project skills can be discovered without user-configured MCP servers. Codex always uses
+`--ignore-user-config`; the caller-supplied dedicated eval `CODEX_HOME` is
+validated for root global instructions before launch. Skills runs omit the MCP
+and rule overrides while retaining `--ignore-user-config` so project skills can
+be discovered without user-configured MCP servers. Every Codex eval command
+also repeats `--disable apps`, `--disable plugins`, and `--disable
+remote_plugin` before its prompt. Codex always uses
 `--dangerously-bypass-approvals-and-sandbox` so non-interactive GitHits calls are
 not cancelled by the approval layer. Keep workloads controlled and run them from
 the harness's empty temporary workspace. These isolation flags belong to

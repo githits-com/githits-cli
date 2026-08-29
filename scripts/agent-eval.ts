@@ -1016,44 +1016,15 @@ export function buildEvalEnv(
   return env;
 }
 
-const CODEX_AUTH_HOME_FORBIDDEN_FILES = new Set([
+const CODEX_HOME_GLOBAL_INSTRUCTION_FILES = [
+  "AGENTS.override.md",
   "AGENTS.md",
-  "CLAUDE.md",
-  "GEMINI.md",
-  "config.toml",
-  ".mcp.json",
-  "mcp.json",
-]);
-const CODEX_AUTH_HOME_FORBIDDEN_DIRECTORIES = new Set([
-  "skills",
-  ".agents",
-  ".claude",
-  ".codex",
-]);
+] as const;
 
-function findCodexAuthHomeSurface(
-  directory: string,
-  relativeDirectory = "",
-): string | undefined {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const relativePath = relativeDirectory
-      ? join(relativeDirectory, entry.name)
-      : entry.name;
-    if (
-      CODEX_AUTH_HOME_FORBIDDEN_FILES.has(entry.name) ||
-      CODEX_AUTH_HOME_FORBIDDEN_DIRECTORIES.has(entry.name)
-    ) {
-      return relativePath;
-    }
-    if (entry.isDirectory() && !entry.isSymbolicLink()) {
-      const nested = findCodexAuthHomeSurface(
-        join(directory, entry.name),
-        relativePath,
-      );
-      if (nested) return nested;
-    }
-  }
-  return undefined;
+function findCodexHomeGlobalInstruction(directory: string): string | undefined {
+  return CODEX_HOME_GLOBAL_INSTRUCTION_FILES.find((name) =>
+    pathExists(join(directory, name)),
+  );
 }
 
 export function validateCodexAuthHome(
@@ -1062,7 +1033,7 @@ export function validateCodexAuthHome(
   const codexHome = baseEnv.CODEX_HOME;
   assert(
     codexHome !== undefined && codexHome.length > 0,
-    "Codex MCP evals require CODEX_HOME pointing to an auth-only directory",
+    "Codex MCP evals require CODEX_HOME pointing to a dedicated eval home",
   );
   assert(
     isAbsolute(codexHome),
@@ -1072,10 +1043,10 @@ export function validateCodexAuthHome(
     existsSync(codexHome) && lstatSync(codexHome).isDirectory(),
     `CODEX_HOME must be an existing directory: ${codexHome}`,
   );
-  const invalidSurface = findCodexAuthHomeSurface(codexHome);
+  const globalInstruction = findCodexHomeGlobalInstruction(codexHome);
   assert(
-    invalidSurface === undefined,
-    `CODEX_HOME contains behavior-injecting guidance/config: ${invalidSurface}`,
+    globalInstruction === undefined,
+    `CODEX_HOME contains global instructions: ${globalInstruction}`,
   );
 }
 
@@ -2021,6 +1992,9 @@ export function buildCodexCommand(
     schemaPath,
     "--dangerously-bypass-approvals-and-sandbox",
   ];
+  for (const feature of ["apps", "plugins", "remote_plugin"] as const) {
+    command.push("--disable", feature);
+  }
   if (options.surface !== "skills") {
     command.splice(2, 0, ...buildCodexConfigArgs(options));
     command.push("--ignore-rules");

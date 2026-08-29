@@ -30,8 +30,10 @@ For each run, `scripts/agent-eval.ts`:
 ## Isolation correction
 
 The runner now creates a fresh per-workload OS home/config root and retains only
-the caller-supplied, validated auth-only `CODEX_HOME`. Local subscription use
-requires a dedicated home, for example:
+the caller-supplied, validated dedicated eval `CODEX_HOME`. That home contains
+authentication state plus Codex-managed runtime state accumulated by normal
+use; it is not an auth-only directory. Local subscription use requires a
+dedicated home, for example:
 
 ```bash
 CODEX_HOME="$HOME/.codex-eval" codex login -c 'cli_auth_credentials_store="file"'
@@ -39,9 +41,19 @@ CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface mcp --s
 ```
 
 CI should provide a clean `CODEX_HOME` with `OPENAI_API_KEY` authentication. The
-harness does not read auth material and never copies it into artifacts. Full MCP
-guidance installs only the project guidance and `githits-mcp` skill; it does not
-install a CLI shim. Skills-surface runs retain their CLI shim.
+harness does not read auth material and never copies it into artifacts. The
+preflight rejects only root-level `AGENTS.override.md` and `AGENTS.md`; nested
+runtime/cache files, including Codex's `config.toml`, bundled system skills,
+plugin caches, and logs, are allowed. The stricter existence check rejects a
+root instruction file even when it is empty. Full MCP guidance installs only
+the project guidance and `githits-mcp` skill; it does not install a CLI shim.
+Skills-surface runs retain their CLI shim.
+
+Every non-interactive Codex eval command retains `--ignore-user-config` and
+repeats `--disable apps`, `--disable plugins`, and `--disable remote_plugin`.
+This keeps user customization and external app/plugin/remote catalogs out of
+the descriptor, full-guidance, and skills surfaces while preserving repository
+skill discovery for the latter two where intended.
 
 After live MCP execution, trace validation rejects external `AGENTS.md` or
 `SKILL.md` reads, guidance reads in the descriptor profile, and every GitHits
@@ -50,6 +62,19 @@ CLI call. It persists only the violation category and redacted path/tool in
 allowed. The neutral acting result contract is `status`, `answer`, and
 `confidence`. Legacy final artifacts remain readable by the offline report
 loader.
+
+### Partial clean-canary evidence
+
+On 2026-08-29, a one-workload Luna descriptor run using the dedicated local
+subscription `CODEX_HOME` completed in 37.8 seconds with a valid result, zero
+logical/MCP/CLI calls, and no isolation violations. The same Codex home had
+already accumulated normal managed state, including `config.toml`, bundled
+system skills, plugin caches, and runtime files. The first full-profile launch
+was rejected before Codex startup because the previous recursive validator
+treated a nested plugin-cache skill path as behavior-injecting configuration.
+That rejection is validator evidence, not an agent result. The root-only
+validator and explicit Codex feature disables in this correction address that
+false positive. The final two-cell descriptor/full canary remains pending.
 
 The report loader accepts older run directories. It checks that `metrics.json`
 resolves inside the run directory and validates it with the shared Zod schema.

@@ -862,7 +862,7 @@ describe("agent eval harness", () => {
     expect(command).toContain("/tmp/work");
   });
 
-  it("excludes Codex user config, rules, and plugin skills", () => {
+  it("excludes Codex user config and rules while disabling external surfaces", () => {
     const command = buildCodexCommand(
       "prompt",
       "/tmp/work",
@@ -879,6 +879,10 @@ describe("agent eval harness", () => {
     expect(command).toContain("--ignore-user-config");
     expect(command).toContain("--ignore-rules");
     expect(command.filter((arg) => arg === "--ignore-rules")).toHaveLength(1);
+    expect(command).toContain("--disable");
+    expect(command).toContain("apps");
+    expect(command).toContain("plugins");
+    expect(command).toContain("remote_plugin");
     expect(command).toContain('mcp_servers.githits.command="bun"');
   });
 
@@ -912,6 +916,64 @@ describe("agent eval harness", () => {
     expect(codex).not.toContain("--ignore-rules");
     expect(codex).toContain("--ignore-user-config");
     expect(codex).toContain('model_reasoning_effort="high"');
+  });
+
+  it("uses the same Codex external-surface disables for descriptors, full, and skills", () => {
+    const expected: string[] = ["apps", "plugins", "remote_plugin"];
+    const commands = [
+      buildCodexCommand(
+        "prompt",
+        "/tmp/work",
+        "/tmp/final.txt",
+        "/tmp/schema.json",
+        {
+          server: "local",
+          surface: "mcp",
+          guidanceProfile: "descriptors",
+          repoRoot: "/repo/githits-cli",
+          publishedPackage: "githits@latest",
+        },
+      ),
+      buildCodexCommand(
+        "prompt",
+        "/tmp/work",
+        "/tmp/final.txt",
+        "/tmp/schema.json",
+        {
+          server: "local",
+          surface: "mcp",
+          guidanceProfile: "full",
+          repoRoot: "/repo/githits-cli",
+          publishedPackage: "githits@latest",
+        },
+      ),
+      buildCodexCommand(
+        "prompt",
+        "/tmp/work",
+        "/tmp/final.txt",
+        "/tmp/schema.json",
+        {
+          server: "local",
+          surface: "skills",
+          repoRoot: "/repo/githits-cli",
+          publishedPackage: "githits@latest",
+        },
+      ),
+    ];
+
+    for (const command of commands) {
+      const disabled = command.flatMap((arg, index) =>
+        arg === "--disable" ? [command[index + 1] ?? ""] : [],
+      );
+      expect(disabled).toEqual(expected);
+      expect(command.indexOf("--disable")).toBeGreaterThan(
+        command.indexOf("exec"),
+      );
+      expect(command.indexOf("remote_plugin")).toBeLessThan(
+        command.lastIndexOf("prompt"),
+      );
+      expect(command).toContain("--ignore-user-config");
+    }
   });
 
   it("builds interactive Claude, Codex, and OpenCode session commands", () => {
@@ -1415,10 +1477,17 @@ describe("agent eval harness", () => {
     expect(env.RANDOM_SECRET).toBeUndefined();
   });
 
-  it("accepts an auth-only Codex home without reading auth material", () => {
+  it("accepts managed Codex state in a dedicated eval home without reading auth material", () => {
     const codexHome = mkdtempSync(join(tmpdir(), "agent-eval-codex-home-"));
     try {
       writeFileSync(join(codexHome, "auth.json"), "opaque auth material\n");
+      writeFileSync(join(codexHome, "config.toml"), "managed config\n");
+      mkdirSync(join(codexHome, "skills", ".system"), { recursive: true });
+      mkdirSync(join(codexHome, "plugins", "cache"), { recursive: true });
+      writeFileSync(
+        join(codexHome, "plugins", "cache", "AGENTS.md"),
+        "nested cache data\n",
+      );
       expect(() =>
         validateCodexAuthHome({ CODEX_HOME: codexHome }),
       ).not.toThrow();
@@ -1427,19 +1496,18 @@ describe("agent eval harness", () => {
     }
   });
 
-  it("rejects missing, relative, and behavior-injecting Codex homes", () => {
+  it("rejects missing, relative, and root global-instruction Codex homes", () => {
     expect(() => validateCodexAuthHome({})).toThrow("require CODEX_HOME");
     expect(() =>
       validateCodexAuthHome({ CODEX_HOME: "relative/home" }),
     ).toThrow("absolute directory");
     const codexHome = mkdtempSync(join(tmpdir(), "agent-eval-codex-home-"));
     try {
-      for (const invalidSurface of ["AGENTS.md", "skills", "config.toml"]) {
+      for (const invalidSurface of ["AGENTS.override.md", "AGENTS.md"]) {
         const path = join(codexHome, invalidSurface);
-        if (invalidSurface === "skills") mkdirSync(path);
-        else writeFileSync(path, "test\n");
+        writeFileSync(path, "");
         expect(() => validateCodexAuthHome({ CODEX_HOME: codexHome })).toThrow(
-          "behavior-injecting guidance/config",
+          "contains global instructions",
         );
         rmSync(path, { recursive: true, force: true });
       }
@@ -1482,7 +1550,7 @@ describe("agent eval harness", () => {
           ),
           dependencies,
         ),
-      ).rejects.toThrow("behavior-injecting guidance/config");
+      ).rejects.toThrow("contains global instructions");
       expect(availabilityCalls).toBe(0);
       expect(versionCalls).toBe(0);
 
@@ -1505,10 +1573,10 @@ describe("agent eval harness", () => {
     }
   });
 
-  it("creates disposable per-workload homes and preserves caller auth paths", () => {
+  it("creates disposable per-workload homes and preserves caller CODEX_HOME", () => {
     const isolation = createWorkloadIsolation({
       PATH: "/bin",
-      CODEX_HOME: "/private/auth-only",
+      CODEX_HOME: "/private/dedicated-eval-home",
     });
     try {
       for (const key of [
@@ -1522,7 +1590,7 @@ describe("agent eval harness", () => {
       ]) {
         expect(isolation.env[key]).toStartWith(isolation.rootDir);
       }
-      expect(isolation.env.CODEX_HOME).toBe("/private/auth-only");
+      expect(isolation.env.CODEX_HOME).toBe("/private/dedicated-eval-home");
       expect(isolation.metadata).toEqual({
         root: "<ephemeral>",
         workspace: "workspace",
