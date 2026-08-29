@@ -1342,10 +1342,6 @@ function projectTargetRecovery(
   }
   if (availability.kind !== "empty" || !snapshot) return undefined;
 
-  if (hasTerminalReason) {
-    if (hasBareTerminalReason) return undefined;
-    return candidate ?? fixRecovery(group);
-  }
   if (site) return site;
   return groupHasIndexing(group) ? alternative : undefined;
 }
