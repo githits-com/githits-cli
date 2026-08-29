@@ -8,6 +8,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -1670,13 +1671,11 @@ function externalGuidancePaths(value: string): string[] {
 function pathInsideDirectory(path: string, directory: string): boolean {
   if (/^[A-Za-z]:[\\/]|^\\\\|^~[\\/]|^\$[A-Za-z_][A-Za-z0-9_]*[\\/]/.test(path))
     return false;
-  const normalizedPath = path.replaceAll("\\", "/");
-  const relativePath = relative(
-    resolve(directory),
-    isAbsolute(normalizedPath)
-      ? resolve(normalizedPath)
-      : resolve(directory, normalizedPath),
+  const { resolvedPath, resolvedDirectory } = resolveGuidancePaths(
+    path,
+    directory,
   );
+  const relativePath = relative(resolvedDirectory, resolvedPath);
   return (
     relativePath !== "" &&
     !relativePath.startsWith("..") &&
@@ -1685,12 +1684,31 @@ function pathInsideDirectory(path: string, directory: string): boolean {
   );
 }
 
-function relativeGuidancePath(path: string, directory: string): string {
+function resolveGuidancePaths(
+  path: string,
+  directory: string,
+): { resolvedPath: string; resolvedDirectory: string } {
   const normalizedPath = path.replaceAll("\\", "/");
+  const resolvedDirectory = resolve(directory);
   const resolvedPath = isAbsolute(normalizedPath)
     ? resolve(normalizedPath)
     : resolve(directory, normalizedPath);
-  return relative(resolve(directory), resolvedPath)
+  try {
+    return {
+      resolvedDirectory: realpathSync(resolvedDirectory),
+      resolvedPath: realpathSync(resolvedPath),
+    };
+  } catch {
+    return { resolvedDirectory, resolvedPath };
+  }
+}
+
+function relativeGuidancePath(path: string, directory: string): string {
+  const { resolvedPath, resolvedDirectory } = resolveGuidancePaths(
+    path,
+    directory,
+  );
+  return relative(resolvedDirectory, resolvedPath)
     .replaceAll("\\", "/")
     .replace(/^\.\//, "");
 }

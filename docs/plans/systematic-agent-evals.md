@@ -1049,6 +1049,15 @@ the isolation boundary but not successful GitHits authentication or useful MCP
 execution, so it is not acceptance evidence. The final two-cell canary remains
 pending.
 
+The v3 rerun completed the authenticated MCP path: the descriptor cell took
+30.9 seconds at an estimated $0.01057352 with zero tool calls, CLI calls, or
+isolation violations; the full cell took 20.2 seconds at an estimated
+$0.00726356 with three successful MCP calls and zero CLI calls. The full cell
+was nevertheless marked failed because macOS `/var` and `/private/var` aliases
+made the validator report the workspace-installed skill as external. Canonical
+filesystem containment now addresses that false positive; the final canary
+remains pending.
+
 The trusted MCP child receives the caller's `HOME` and `USERPROFILE` for
 keychain-backed GitHits authentication, while the acting agent keeps disposable
 home/config paths. Host `XDG_CONFIG_HOME` and `APPDATA` are not passed to the

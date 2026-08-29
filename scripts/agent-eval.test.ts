@@ -1759,6 +1759,88 @@ describe("agent eval harness", () => {
     }
   });
 
+  it("uses canonical paths for guidance containment through filesystem aliases", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-eval-alias-"));
+    const aliasRoot = mkdtempSync(join(tmpdir(), "agent-eval-alias-root-"));
+    const relativeGuidancePath = join(
+      ".agents",
+      "skills",
+      "githits-mcp",
+      "SKILL.md",
+    );
+    const guidancePath = join(workspaceDir, relativeGuidancePath);
+    const aliasWorkspace = join(aliasRoot, "workspace-alias");
+    const outsideGuidancePath = join(aliasRoot, "outside", "SKILL.md");
+    mkdirSync(join(workspaceDir, ".agents", "skills", "githits-mcp"), {
+      recursive: true,
+    });
+    mkdirSync(join(aliasRoot, "outside"), { recursive: true });
+    writeFileSync(guidancePath, "workspace skill\n");
+    writeFileSync(outsideGuidancePath, "outside skill\n");
+    try {
+      try {
+        symlinkSync(workspaceDir, aliasWorkspace, "dir");
+      } catch (error) {
+        if (process.platform === "win32") return;
+        throw error;
+      }
+
+      const aliasedGuidance = join(aliasWorkspace, relativeGuidancePath);
+      const fullProfile = extractEvalValidationViolations(
+        JSON.stringify({
+          item: {
+            type: "command_execution",
+            command: `cat ${aliasedGuidance}`,
+          },
+        }),
+        { surface: "mcp", guidanceProfile: "full" },
+        workspaceDir,
+        "codex",
+      );
+      expect(fullProfile).toEqual([]);
+
+      const descriptorProfile = extractEvalValidationViolations(
+        JSON.stringify({
+          item: {
+            type: "command_execution",
+            command: `cat ${aliasedGuidance}`,
+          },
+        }),
+        { surface: "mcp", guidanceProfile: "descriptors" },
+        workspaceDir,
+        "codex",
+      );
+      expect(descriptorProfile).toEqual([
+        {
+          category: "descriptor-guidance-read",
+          path: `<workspace>/${relativeGuidancePath.replaceAll("\\", "/")}`,
+        },
+      ]);
+
+      expect(
+        extractEvalValidationViolations(
+          JSON.stringify({
+            item: {
+              type: "command_execution",
+              command: `cat ${outsideGuidancePath}`,
+            },
+          }),
+          { surface: "mcp", guidanceProfile: "full" },
+          workspaceDir,
+          "codex",
+        ),
+      ).toEqual([
+        {
+          category: "external-guidance-read",
+          path: "<external>/.../SKILL.md",
+        },
+      ]);
+    } finally {
+      rmSync(aliasRoot, { recursive: true, force: true });
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
   it("keeps the acting prompt product-neutral", () => {
     const reporting = readFileSync(
       resolve("eval/agentic/workloads/REPORTING.md"),
