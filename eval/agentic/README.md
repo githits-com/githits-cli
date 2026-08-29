@@ -61,10 +61,10 @@ Each workload receives a fresh temporary isolation root containing its workspace
 OS home, user profile, config directories, and temporary directory. Only the
 caller-supplied `CODEX_HOME` is retained outside that root. It is a dedicated
 eval home containing Codex authentication state and Codex-managed runtime state;
-it is not an auth-only directory. Live Codex MCP runs reject a missing,
-relative, or root-level `AGENTS.override.md`/`AGENTS.md` before invoking the
-agent. The harness checks only those two names at the CODEX_HOME root and does
-not read auth material or guidance contents. Codex-managed `config.toml`,
+it may accumulate managed state across runs. Live Codex MCP runs reject a
+missing, relative, or root-level `AGENTS.override.md`/`AGENTS.md` before
+invoking the agent. The harness checks only those two names at the CODEX_HOME
+root and does not read auth material or guidance contents. Codex-managed `config.toml`,
 bundled system skills, plugin caches, logs, and other nested runtime files are
 allowed. A root global-instruction file is rejected even when empty; nested
 `AGENTS.md` files do not trigger this preflight because they are outside Codex's
@@ -78,12 +78,27 @@ CODEX_HOME="$HOME/.codex-eval" codex login -c 'cli_auth_credentials_store="file"
 CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface mcp --server local --workload eval/agentic/workloads/package-overview-vulnerabilities.md
 ```
 
+The acting agent still receives only the disposable per-workload
+`HOME`/`USERPROFILE`/`XDG_CONFIG_HOME`/`APPDATA` and temporary paths. The MCP
+child receives the caller's `HOME` and `USERPROFILE` overrides so macOS
+keychain-backed GitHits authentication can resolve in the trusted child; host
+`XDG_CONFIG_HOME` and `APPDATA` are never passed through. Descriptors and full
+guidance use the same child authentication environment.
+
 CI should create a clean `CODEX_HOME` and authenticate Codex with
 `OPENAI_API_KEY`. Set `GITHITS_API_TOKEN` for deterministic GitHits
 authentication. Never copy a personal auth file into a run directory. The eval
 commands retain `--ignore-user-config` and explicitly disable Codex's `apps`,
 `plugins`, and `remote_plugin` features, so user customization and external
 app/plugin catalogs cannot alter the tested surface.
+
+The latest partial Luna-low canary evidence (2026-08-29) is not acceptance
+evidence: the clean descriptor cell completed in 31.2 seconds with zero tools,
+CLI calls, or isolation violations, while the clean full cell completed in
+35.0 seconds with two MCP calls and zero CLI calls but both GitHits calls
+returned AUTH_REQUIRED, so the agent fell back to web sources. The final
+two-cell canary requires successful GitHits MCP calls as well as clean
+isolation.
 
 Trace validation fails an MCP workload if it observes an external
 `AGENTS.md`/`SKILL.md` read, a guidance read in the descriptor profile, or any
@@ -467,7 +482,9 @@ Each run writes:
 - Full MCP runs additionally write `guidance-installation.json` with the
   canonical project instruction paths and copied skill metadata. Full MCP
   metadata has no CLI shim. Paths are persisted for inspection; credentials are
-  never persisted.
+  never persisted. Host home values in MCP child configs, command metadata,
+  run metadata, and echoed output are redacted after the child has consumed
+  runtime config.
 - Each workload records relative isolation metadata. If trace validation finds
   an external/descriptor guidance read or MCP CLI fallback, it writes redacted
   `isolation-violations.json` and marks the workload failed.
@@ -523,4 +540,5 @@ the exec-only `--ignore-rules` flag.
 
 Malformed final JSON, schema mismatches, external guidance reads, MCP CLI
 fallbacks, Claude failures, and timeouts are harness failures. Raw stdout and
-stderr are preserved for diagnosis with known secret values redacted.
+stderr are preserved for diagnosis with known secret and host-home values
+redacted.

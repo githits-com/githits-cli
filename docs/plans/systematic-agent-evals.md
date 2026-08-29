@@ -1039,15 +1039,21 @@ before this correction is accepted.
 
 ### Partial canary evidence
 
-On 2026-08-29, a one-workload Luna descriptor run using the dedicated local
-subscription `CODEX_HOME` completed in 37.8 seconds with a valid result, zero
-logical/MCP/CLI calls, and no isolation violations. The same home had already
-accumulated normal Codex-managed state, including `config.toml`, bundled system
-skills, plugin caches, and runtime files. The first full-profile launch was
-rejected before Codex startup because the previous recursive validator treated
-a nested plugin-cache skill path as behavior-injecting configuration. That
-rejection is validator evidence, not an agent result. The final two-cell
-descriptor/full canary remains pending after this correction.
+On 2026-08-29, the corrected v2 canary used the dedicated local subscription
+`CODEX_HOME` and passed isolation. The descriptor cell completed in 31.2
+seconds with zero tools, CLI calls, or isolation violations. The full cell
+completed in 35.0 seconds at an estimated $0.01069828 with two MCP calls and
+zero CLI calls, but both GitHits calls returned `AUTH_REQUIRED` and the agent
+fell back to web sources. The descriptor estimate was $0.00745976. This proves
+the isolation boundary but not successful GitHits authentication or useful MCP
+execution, so it is not acceptance evidence. The final two-cell canary remains
+pending.
+
+The trusted MCP child receives the caller's `HOME` and `USERPROFILE` for
+keychain-backed GitHits authentication, while the acting agent keeps disposable
+home/config paths. Host `XDG_CONFIG_HOME` and `APPDATA` are not passed to the
+child. Runtime MCP configs are consumed with the actual child home and then
+redacted in persisted artifacts.
 
 ### Acceptance criteria
 
@@ -1065,8 +1071,8 @@ descriptor/full canary remains pending after this correction.
   calls are persisted as redacted validation violations and fail the affected
   workload.
 - [ ] Clean Luna MCP descriptor/full canary confirms zero external guidance
-  reads, zero CLI fallback, equal executable surface, and successful isolated
-  execution.
+  reads, zero CLI fallback, equal executable surface, and successful MCP
+  authentication/execution.
 
 Phase 3 scheduling remains conditional on this canary. No prior paid behavior
 comparison may be used as minimal-versus-full evidence.

@@ -29,6 +29,7 @@ import {
   type CommandProbe,
   type CommandProbeResult,
   collectGitMetadata,
+  collectRedactionValues,
   collectSecretValues,
   createWorkloadIsolation,
   DEFAULT_CODEX_MODEL,
@@ -377,10 +378,14 @@ describe("agent eval harness", () => {
         const dryRun = JSON.parse(
           readFileSync(join(workloadDir, "dry-run.json"), "utf8"),
         );
-        expect(run.repoRoot).toBe(process.cwd());
-        expect(run.measurementRoot).toBe(process.cwd());
+        const persistedRepoRoot = redactText(
+          process.cwd(),
+          collectRedactionValues(buildEvalEnv(process.env)),
+        );
+        expect(run.repoRoot).toBe(persistedRepoRoot);
+        expect(run.measurementRoot).toBe(persistedRepoRoot);
         expect(run.targetRoot).toBe(descriptorTargetRoot);
-        expect(dryRun.measurementRoot).toBe(process.cwd());
+        expect(dryRun.measurementRoot).toBe(persistedRepoRoot);
         expect(dryRun.targetRoot).toBe(descriptorTargetRoot);
         expect(
           existsSync(join(workloadDir, "guidance-installation.json")),
@@ -522,7 +527,12 @@ describe("agent eval harness", () => {
       );
       expect(run.targetRoot).toBe(targetFixture);
       expect(run.git).toEqual(dryRun.targetGit);
-      expect(dryRun.measurementRoot).toBe(process.cwd());
+      expect(dryRun.measurementRoot).toBe(
+        redactText(
+          process.cwd(),
+          collectRedactionValues(buildEvalEnv(process.env)),
+        ),
+      );
       expect(dryRun.targetRoot).toBe(targetFixture);
     } finally {
       rmSync(targetFixture, { recursive: true, force: true });
@@ -804,6 +814,44 @@ describe("agent eval harness", () => {
       ),
     ).toContain(
       'mcp_servers.githits.env.PKGSEER_URL="https://pkgseer-backend-dev.fly.dev"',
+    );
+  });
+
+  it("passes host homes only to the MCP child for both guidance profiles", () => {
+    const baseEnv = {
+      HOME: "/host/home",
+      USERPROFILE: "/host/profile",
+      XDG_CONFIG_HOME: "/host/config",
+      APPDATA: "/host/appdata",
+      GITHITS_AUTH_STORAGE: "keychain",
+    };
+    const descriptor = buildMcpConfig(
+      { ...localOptions, guidanceProfile: "descriptors" },
+      baseEnv,
+    );
+    const full = buildMcpConfig(
+      { ...localOptions, guidanceProfile: "full" },
+      baseEnv,
+    );
+    const published = buildMcpConfig(
+      {
+        server: "published",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      },
+      baseEnv,
+    );
+
+    expect(descriptor.mcpServers.githits.env).toEqual({
+      GITHITS_AUTH_STORAGE: "keychain",
+      HOME: "/host/home",
+      USERPROFILE: "/host/profile",
+    });
+    expect(full.mcpServers.githits.env).toEqual(
+      descriptor.mcpServers.githits.env,
+    );
+    expect(published.mcpServers.githits.env).toEqual(
+      descriptor.mcpServers.githits.env,
     );
   });
 
@@ -1576,6 +1624,10 @@ describe("agent eval harness", () => {
   it("creates disposable per-workload homes and preserves caller CODEX_HOME", () => {
     const isolation = createWorkloadIsolation({
       PATH: "/bin",
+      HOME: "/host/home",
+      USERPROFILE: "/host/profile",
+      XDG_CONFIG_HOME: "/host/config",
+      APPDATA: "/host/appdata",
       CODEX_HOME: "/private/dedicated-eval-home",
     });
     try {
@@ -1590,6 +1642,10 @@ describe("agent eval harness", () => {
       ]) {
         expect(isolation.env[key]).toStartWith(isolation.rootDir);
       }
+      expect(isolation.env.HOME).not.toBe("/host/home");
+      expect(isolation.env.USERPROFILE).not.toBe("/host/profile");
+      expect(isolation.env.XDG_CONFIG_HOME).not.toBe("/host/config");
+      expect(isolation.env.APPDATA).not.toBe("/host/appdata");
       expect(isolation.env.CODEX_HOME).toBe("/private/dedicated-eval-home");
       expect(isolation.metadata).toEqual({
         root: "<ephemeral>",
@@ -2187,6 +2243,150 @@ describe("agent eval harness", () => {
         secrets,
       ),
     ).toBe("token=<redacted> key=<redacted>");
+  });
+
+  it("redacts host homes from persisted dry-run configs and metadata", async () => {
+    const outDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-host-home-redaction-"),
+    );
+    const hostHome = "/host/home";
+    const hostProfile = "/host/profile";
+    try {
+      await runAgentEval(
+        parseArgs(
+          [
+            "--agent",
+            "codex",
+            "--dry-run",
+            "--out",
+            outDir,
+            "--workload",
+            "eval/agentic/workloads/express-router.md",
+          ],
+          process.cwd(),
+        ),
+        {
+          baseEnv: {
+            PATH: "/bin",
+            HOME: hostHome,
+            USERPROFILE: hostProfile,
+            XDG_CONFIG_HOME: "/host/config",
+            APPDATA: "/host/appdata",
+            GITHITS_AUTH_STORAGE: "keychain",
+          },
+          assertAgentAvailable: async () => {},
+          collectAgentVersions: async () => [undefined, undefined, undefined],
+        },
+      );
+
+      const workloadDir = join(outDir, "workloads", "express-router");
+      const mcpConfigPath = join(workloadDir, "mcp.json");
+      const persisted = [
+        mcpConfigPath,
+        join(workloadDir, "codex-config.toml"),
+        join(workloadDir, "opencode.json"),
+        join(workloadDir, "dry-run.json"),
+        join(outDir, "run.json"),
+      ];
+      for (const path of persisted) {
+        const content = readFileSync(path, "utf8");
+        expect(content).not.toContain(hostHome);
+        expect(content).not.toContain(hostProfile);
+      }
+      const mcp = JSON.parse(readFileSync(mcpConfigPath, "utf8")) as {
+        mcpServers: { githits: { env?: Record<string, string> } };
+      };
+      expect(mcp.mcpServers.githits.env).toEqual({
+        GITHITS_AUTH_STORAGE: "keychain",
+        HOME: "<redacted>",
+        USERPROFILE: "<redacted>",
+      });
+      expect(
+        collectRedactionValues({ HOME: hostHome, USERPROFILE: hostProfile }),
+      ).toEqual([hostProfile, hostHome]);
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("redacts host homes from persisted live configs, metadata, and output", async () => {
+    const outDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-live-home-redaction-"),
+    );
+    const codexHome = mkdtempSync(
+      join(tmpdir(), "agent-eval-live-codex-home-"),
+    );
+    const hostHome = "/host/live-home";
+    const hostProfile = "/host/live-profile";
+    let observedAgentEnv: Record<string, string> | undefined;
+    let observedCommand: string[] | undefined;
+    try {
+      await runAgentEval(
+        parseArgs(
+          [
+            "--agent",
+            "codex",
+            "--out",
+            outDir,
+            "--workload",
+            "eval/agentic/workloads/express-router.md",
+          ],
+          process.cwd(),
+        ),
+        {
+          baseEnv: {
+            PATH: "/bin",
+            HOME: hostHome,
+            USERPROFILE: hostProfile,
+            XDG_CONFIG_HOME: "/host/config",
+            APPDATA: "/host/appdata",
+            CODEX_HOME: codexHome,
+            GITHITS_AUTH_STORAGE: "keychain",
+          },
+          assertAgentAvailable: async () => {},
+          collectAgentVersions: async () => [undefined, undefined, undefined],
+          runCommand: async (command, _cwd, env) => {
+            observedCommand = command;
+            observedAgentEnv = env;
+            return {
+              stdout: `HOME=${hostHome} PROFILE=${hostProfile}`,
+              stderr: `HOME=${hostHome} PROFILE=${hostProfile}`,
+              exitCode: 1,
+              timedOut: false,
+            };
+          },
+        },
+      );
+
+      expect(observedAgentEnv?.HOME).not.toBe(hostHome);
+      expect(observedAgentEnv?.USERPROFILE).not.toBe(hostProfile);
+      expect(observedCommand?.join(" ")).toContain(hostHome);
+      expect(observedCommand?.join(" ")).toContain(hostProfile);
+
+      const workloadDir = join(outDir, "workloads", "express-router");
+      const persisted = [
+        join(workloadDir, "mcp.json"),
+        join(workloadDir, "codex-config.toml"),
+        join(workloadDir, "opencode.json"),
+        join(workloadDir, "stdout.json"),
+        join(workloadDir, "stderr.txt"),
+        join(outDir, "run.json"),
+      ];
+      for (const path of persisted) {
+        const content = readFileSync(path, "utf8");
+        expect(content).not.toContain(hostHome);
+        expect(content).not.toContain(hostProfile);
+      }
+      expect(readFileSync(join(workloadDir, "stdout.json"), "utf8")).toContain(
+        "<redacted>",
+      );
+      expect(readFileSync(join(workloadDir, "stderr.txt"), "utf8")).toContain(
+        "<redacted>",
+      );
+    } finally {
+      rmSync(codexHome, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true });
+    }
   });
 
   it("validates final agent report shape", () => {

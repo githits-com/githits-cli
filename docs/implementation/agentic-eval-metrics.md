@@ -32,8 +32,7 @@ For each run, `scripts/agent-eval.ts`:
 The runner now creates a fresh per-workload OS home/config root and retains only
 the caller-supplied, validated dedicated eval `CODEX_HOME`. That home contains
 authentication state plus Codex-managed runtime state accumulated by normal
-use; it is not an auth-only directory. Local subscription use requires a
-dedicated home, for example:
+use. Local subscription use requires a dedicated home, for example:
 
 ```bash
 CODEX_HOME="$HOME/.codex-eval" codex login -c 'cli_auth_credentials_store="file"'
@@ -65,16 +64,21 @@ loader.
 
 ### Partial clean-canary evidence
 
-On 2026-08-29, a one-workload Luna descriptor run using the dedicated local
-subscription `CODEX_HOME` completed in 37.8 seconds with a valid result, zero
-logical/MCP/CLI calls, and no isolation violations. The same Codex home had
-already accumulated normal managed state, including `config.toml`, bundled
-system skills, plugin caches, and runtime files. The first full-profile launch
-was rejected before Codex startup because the previous recursive validator
-treated a nested plugin-cache skill path as behavior-injecting configuration.
-That rejection is validator evidence, not an agent result. The root-only
-validator and explicit Codex feature disables in this correction address that
-false positive. The final two-cell descriptor/full canary remains pending.
+On 2026-08-29, the corrected v2 canary used the dedicated local subscription
+CODEX_HOME and passed isolation. The descriptor cell completed in 31.2 seconds
+with zero tools, CLI calls, or isolation violations. The full cell completed in
+35.0 seconds with two MCP calls and zero CLI calls, but both GitHits calls
+returned AUTH_REQUIRED and the agent fell back to web sources. The result proves
+the isolation boundary but not successful GitHits authentication or useful MCP
+execution, so it is not acceptance evidence. The final two-cell canary remains
+pending.
+
+The trusted MCP child receives the caller's HOME and USERPROFILE so
+keychain-backed GitHits authentication can resolve, while the acting agent
+retains disposable HOME, USERPROFILE, XDG_CONFIG_HOME, APPDATA, and temporary
+paths. Host XDG_CONFIG_HOME and APPDATA are not passed to the child. Runtime
+MCP configs are consumed with the actual child home and then redacted in the
+persisted artifact boundary.
 
 The report loader accepts older run directories. It checks that `metrics.json`
 resolves inside the run directory and validates it with the shared Zod schema.

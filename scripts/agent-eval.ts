@@ -80,6 +80,7 @@ export interface AgentEvalOptions {
 
 interface AgentEvalDependencies {
   baseEnv?: NodeJS.ProcessEnv;
+  runCommand?: typeof runWithTimeout;
   assertAgentAvailable(agent: AgentName): Promise<void>;
   collectAgentVersions(): Promise<
     [string | undefined, string | undefined, string | undefined]
@@ -177,6 +178,8 @@ const MCP_CONFIG_ENV_KEYS = [
   "GITHITS_CODE_NAV_URL",
   "PKGSEER_URL",
   "GITHITS_AUTH_STORAGE",
+  "HOME",
+  "USERPROFILE",
 ] as const;
 
 interface ExtractedToolCall {
@@ -1137,6 +1140,15 @@ export function collectSecretValues(env: Record<string, string>): string[] {
   return [...values].sort((a, b) => b.length - a.length);
 }
 
+export function collectRedactionValues(env: Record<string, string>): string[] {
+  const values = new Set(collectSecretValues(env));
+  for (const key of ["HOME", "USERPROFILE"] as const) {
+    const value = env[key];
+    if (value !== undefined && value.length > 1) values.add(value);
+  }
+  return [...values].sort((a, b) => b.length - a.length);
+}
+
 export function redactText(text: string, secretValues: string[]): string {
   let redacted = text;
   for (const secret of secretValues) {
@@ -1977,6 +1989,7 @@ export function buildCodexCommand(
     | "reasoningEffort"
     | "guidanceProfile"
   > & { surface?: EvalSurface; targetRoot?: string },
+  baseEnv: NodeJS.ProcessEnv = process.env,
 ): string[] {
   const command = [
     "codex",
@@ -1996,7 +2009,7 @@ export function buildCodexCommand(
     command.push("--disable", feature);
   }
   if (options.surface !== "skills") {
-    command.splice(2, 0, ...buildCodexConfigArgs(options));
+    command.splice(2, 0, ...buildCodexConfigArgs(options, baseEnv));
     command.push("--ignore-rules");
     command.push("--ignore-user-config");
   } else {
@@ -2038,6 +2051,7 @@ function buildAgentCommand(
   workspaceDir: string,
   mcpConfigPath: string,
   codexFinalPath: string,
+  baseEnv: NodeJS.ProcessEnv,
 ): string[] {
   if (options.agent === "claude") {
     return buildClaudeCommand(
@@ -2055,6 +2069,7 @@ function buildAgentCommand(
       codexFinalPath,
       options.schemaPath,
       options,
+      baseEnv,
     );
   }
   return buildOpenCodeCommand(prompt, workspaceDir, options);
@@ -2114,14 +2129,29 @@ function existingWorkloadArtifacts(
   return artifacts;
 }
 
+function redactPersistedRuntimeConfigs(
+  paths: string[],
+  redactionValues: string[],
+): void {
+  for (const path of paths) {
+    if (existsSync(path) && lstatSync(path).isFile()) {
+      writeFileSync(
+        path,
+        redactText(readFileSync(path, "utf8"), redactionValues),
+      );
+    }
+  }
+}
+
 async function runWorkload(
   options: AgentEvalOptions,
   workloadPath: string,
   runDir: string,
   env: Record<string, string>,
   mcpConfig: McpServerConfig,
-  secretValues: string[],
+  redactionValues: string[],
   targetGit: GitMetadata,
+  runCommand: typeof runWithTimeout,
   guidanceBlock?: string,
 ): Promise<WorkloadRunExecution> {
   assert(existsSync(workloadPath), `Workload not found: ${workloadPath}`);
@@ -2133,16 +2163,16 @@ async function runWorkload(
   const workloadDir = join(runDir, "workloads", id);
   const isolation = createWorkloadIsolation(env);
   const workspaceDir = isolation.workspaceDir;
+  const mcpConfigPath = join(workloadDir, "mcp.json");
+  const codexConfigPath = join(workloadDir, "codex-config.toml");
+  const openCodeConfigPath = join(workloadDir, "opencode.json");
 
   try {
     mkdirSync(workloadDir, { recursive: true });
     const workloadPrompt = readFileSync(workloadPath, "utf8").trimEnd();
     const reportingPrompt = readFileSync(options.reportingPath, "utf8").trim();
     const prompt = `${workloadPrompt}\n\n${reportingPrompt}\n`;
-    const mcpConfigPath = join(workloadDir, "mcp.json");
-    const codexConfigPath = join(workloadDir, "codex-config.toml");
     const codexFinalPath = join(workloadDir, "codex-final.txt");
-    const openCodeConfigPath = join(workloadDir, "opencode.json");
     const workspaceOpenCodeConfigPath = join(workspaceDir, "opencode.json");
     writeFileSync(join(workloadDir, "prompt.md"), prompt);
     const guidanceInstallation =
@@ -2160,8 +2190,8 @@ async function runWorkload(
         : guidanceInstallation?.skillInstallation;
     if (options.surface === "mcp") {
       writeJson(mcpConfigPath, mcpConfig);
-      writeFileSync(codexConfigPath, buildCodexConfig(options));
-      const openCodeConfig = buildOpenCodeConfig(options);
+      writeFileSync(codexConfigPath, buildCodexConfig(options, env));
+      const openCodeConfig = buildOpenCodeConfig(options, env);
       writeJson(openCodeConfigPath, openCodeConfig);
       writeJson(workspaceOpenCodeConfigPath, openCodeConfig);
     } else {
@@ -2189,6 +2219,7 @@ async function runWorkload(
       workspaceDir,
       mcpConfigPath,
       codexFinalPath,
+      env,
     );
     const workloadEnv = { ...isolation.env };
     if (options.agent === "opencode") {
@@ -2230,7 +2261,10 @@ async function runWorkload(
     };
 
     if (options.dryRun) {
-      writeJson(join(workloadDir, "dry-run.json"), metadataBase);
+      writeJson(
+        join(workloadDir, "dry-run.json"),
+        redactValue(metadataBase, redactionValues),
+      );
       writeJson(join(workloadDir, "discovery-events.json"), {
         status: options.agent === "claude" ? "not_observed" : "not_exposed",
         events: [],
@@ -2244,7 +2278,7 @@ async function runWorkload(
 
     const startedAt = new Date().toISOString();
     const started = Date.now();
-    const result = await runWithTimeout(
+    const result = await runCommand(
       command,
       workspaceDir,
       workloadEnv,
@@ -2255,23 +2289,23 @@ async function runWorkload(
 
     writeFileSync(
       join(workloadDir, "stdout.json"),
-      redactText(result.stdout, secretValues),
+      redactText(result.stdout, redactionValues),
     );
     writeFileSync(
       join(workloadDir, "stderr.txt"),
-      redactText(result.stderr, secretValues),
+      redactText(result.stderr, redactionValues),
     );
 
     const toolCalls = extractToolCalls(result.stdout, options.agent);
     writeJson(
       join(workloadDir, "tool-calls.json"),
-      redactValue(toolCalls, secretValues),
+      redactValue(toolCalls, redactionValues),
     );
     writeJson(
       join(workloadDir, "discovery-events.json"),
       redactValue(
         extractDiscoveryEvents(result.stdout, options.agent),
-        secretValues,
+        redactionValues,
       ),
     );
     const validationViolations = extractEvalValidationViolations(
@@ -2283,7 +2317,7 @@ async function runWorkload(
     if (validationViolations.length > 0) {
       writeJson(
         join(workloadDir, "isolation-violations.json"),
-        redactValue(validationViolations, secretValues),
+        redactValue(validationViolations, redactionValues),
       );
     }
 
@@ -2294,7 +2328,7 @@ async function runWorkload(
     if (codexFinalText !== undefined) {
       writeFileSync(
         join(workloadDir, "codex-final.txt"),
-        redactText(codexFinalText, secretValues),
+        redactText(codexFinalText, redactionValues),
       );
     }
     const reportJson =
@@ -2305,12 +2339,12 @@ async function runWorkload(
     if (validFinalJson) {
       writeJson(
         join(workloadDir, "final.json"),
-        redactValue(reportJson, secretValues),
+        redactValue(reportJson, redactionValues),
       );
     } else if (reportJson !== undefined) {
       writeJson(
         join(workloadDir, "invalid-final.json"),
-        redactValue(reportJson, secretValues),
+        redactValue(reportJson, redactionValues),
       );
     }
 
@@ -2358,6 +2392,10 @@ async function runWorkload(
       artifacts: existingWorkloadArtifacts(runDir, workloadDir),
     };
   } finally {
+    redactPersistedRuntimeConfigs(
+      [mcpConfigPath, codexConfigPath, openCodeConfigPath],
+      redactionValues,
+    );
     rmSync(isolation.rootDir, { recursive: true, force: true });
   }
 }
@@ -2392,12 +2430,12 @@ export async function runAgentEval(
   ) {
     validateCodexEvalHome(env);
   }
-  const secretValues = collectSecretValues(env);
+  const redactionValues = collectRedactionValues(env);
   const guidanceBlock =
     options.guidanceProfile === "full"
       ? await loadTargetGuidanceBlock(effectiveTargetRoot(options))
       : undefined;
-  const mcpConfig = buildMcpConfig(options);
+  const mcpConfig = buildMcpConfig(options, env);
 
   if (!options.dryRun) {
     await dependencies.assertAgentAvailable(options.agent);
@@ -2422,8 +2460,9 @@ export async function runAgentEval(
         options.outDir,
         env,
         mcpConfig,
-        secretValues,
+        redactionValues,
         git,
+        dependencies.runCommand ?? runWithTimeout,
         guidanceBlock,
       ),
     );
@@ -2460,7 +2499,10 @@ export async function runAgentEval(
     workloads: workloadResults,
   };
 
-  writeJson(join(options.outDir, "run.json"), runMetadata);
+  writeJson(
+    join(options.outDir, "run.json"),
+    redactValue(runMetadata, redactionValues),
+  );
 
   writeJson(join(options.outDir, "summary.json"), {
     status: workloadResults.some(
@@ -2522,7 +2564,7 @@ export async function runAgentEval(
   });
   writeJson(
     join(options.outDir, "metrics.json"),
-    redactValue(metrics, secretValues),
+    redactValue(metrics, redactionValues),
   );
   const report = buildRunReportFromMetadata(options.outDir, {
     ...runMetadata,
