@@ -2,48 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "status",
-    "answer",
-    "toolIssues",
-    "expectedToolUse",
-    "unexpectedToolUse",
-    "instructionIssues",
-    "githitsUsefulness",
-    "githitsUsefulnessReason",
-    "confidence"
-  ],
+  "required": ["status", "answer", "confidence"],
   "properties": {
     "status": {
       "type": "string",
       "enum": ["success", "failure", "inconclusive"]
     },
     "answer": {
-      "type": "string"
-    },
-    "toolIssues": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "expectedToolUse": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "unexpectedToolUse": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "instructionIssues": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "githitsUsefulness": {
-      "type": "string",
-      "enum": ["helped", "hurt", "unused", "unclear"]
-    },
-    "githitsUsefulnessReason": {
       "type": "string"
     },
     "confidence": {

@@ -27,6 +27,30 @@ For each run, `scripts/agent-eval.ts`:
 4. Derives `report.json` and the console output from the persisted metrics and
    raw artifacts.
 
+## Isolation correction
+
+The runner now creates a fresh per-workload OS home/config root and retains only
+the caller-supplied, validated auth-only `CODEX_HOME`. Local subscription use
+requires a dedicated home, for example:
+
+```bash
+CODEX_HOME="$HOME/.codex-eval" codex login -c 'cli_auth_credentials_store="file"'
+CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface mcp --server local --workload eval/agentic/workloads/package-overview-vulnerabilities.md
+```
+
+CI should provide a clean `CODEX_HOME` with `OPENAI_API_KEY` authentication. The
+harness does not read auth material and never copies it into artifacts. Full MCP
+guidance installs only the project guidance and `githits-mcp` skill; it does not
+install a CLI shim. Skills-surface runs retain their CLI shim.
+
+After live MCP execution, trace validation rejects external `AGENTS.md` or
+`SKILL.md` reads, guidance reads in the descriptor profile, and every GitHits
+CLI call. It persists only the violation category and redacted path/tool in
+`isolation-violations.json`; workspace-local full-profile skill reads are
+allowed. The neutral acting result contract is `status`, `answer`, and
+`confidence`. Legacy final artifacts remain readable by the offline report
+loader.
+
 The report loader accepts older run directories. It checks that `metrics.json`
 resolves inside the run directory and validates it with the shared Zod schema.
 When `run.json` includes a `runId`, the validated metrics artifact must carry
@@ -115,15 +139,18 @@ Raw child artifacts remain authoritative and partial shards preserve successful
 siblings. These commands perform no retries, service export, persistence,
 scheduled CI execution, Haiku runs, or quality judging.
 
-## Phase 2 paid validation evidence
+## Previous paid comparison: contaminated; capacity evidence only
 
-The local suite and paired-comparison implementation was validated on
+The local suite and paired-comparison implementation was measured on
 2026-08-28 with Codex CLI `0.150.1`, model `gpt-5.6-luna`, reasoning `low`,
-local MCP, and concurrent `descriptors` and `full` shards. All 66 expected
-paid cells succeeded: 4 in canary, 12 in smoke, 42 in stable-full, and 4 in
-each side of the bounded no-change pair. Costs below are base-rate estimates,
-not provider invoices; long-context pricing was not attributable for some
-workloads.
+local MCP, and concurrent `descriptors` and `full` shards. Every descriptor
+workload was contaminated by global skill discovery: 12 loaded `githits-mcp`,
+8 loaded `githits-package`, and 1 loaded `githits-code`. The latter 9 used the
+CLI fallback, so the 42-cell descriptor/full behavior comparison is invalid and
+must not support minimal-versus-full conclusions. The timing and cost figures
+below are retained only as provisional capacity/cost evidence. Costs are
+base-rate estimates, not provider invoices; long-context pricing was not
+attributable for some workloads.
 
 | Suite | Successful cells | Wall time | Cumulative agent time | Logical calls | Estimated cost |
 |---|---:|---:|---:|---:|---:|
@@ -193,19 +220,20 @@ base-rate estimate.
 The two profile shards run concurrently, so wall time is lower than cumulative
 agent time; the latter is the sum of workload durations. The descriptors shard
 accumulated 36 CLI calls (many failed fallback attempts) and 87 MCP calls,
-while full guidance accumulated 6 CLI calls and 114 MCP calls. The missing
-`githits` PATH / stalled `npx` fallback made descriptors materially slower,
-and package-oriented descriptors workloads form the long wall-time tail.
-Several final reports rated GitHits usefulness as hurt or unclear even though
-their process and final statuses were successful. This is qualitative evidence
-for future workload review, not a new quality score or a claim that the run
-failed.
+while full guidance accumulated 6 CLI calls and 114 MCP calls. These CLI calls
+are contamination evidence, not legitimate descriptor behavior. The missing
+`githits` PATH / stalled `npx` fallback explains part of the provisional timing
+variance.
 
-The bounded no-change canary pair also completed all four cells on each side.
+The bounded no-change canary pair also completed all four cells on each side,
+but its profile comparison is likewise invalid because it used the contaminated
+runner. Its timings and spend remain provisional capacity measurements only.
 The baseline used 218.842 s wall time, 297.390 s cumulative agent time, and
 $0.05240004 estimated cost; the candidate used 235.969 s, 308.227 s, and
-$0.04048996. The comparison was compatible, unsuppressed, repository-only,
-and included all four cells. Its observed changes were duration +3.64%,
+$0.04048996. The comparison machinery was compatible, unsuppressed,
+repository-only, and included all four cells, but the behavioral result is
+invalid because both sides used contaminated guidance. Its observed changes
+were duration +3.64%,
 logical calls -6.45%, uncached input -32.09%, cached input -12.20%, output
 -5.58%, and cost -22.73% (reasoning-detail output changed -11.65%). This is
 evidence that a single sample has substantial natural variance; it does not
@@ -213,8 +241,8 @@ justify alert thresholds.
 
 The five paid artifacts together consumed 3,342.525 s of wall time (about
 55m43s), 5,272.645 s of cumulative agent time (about 87m53s), and an
-estimated $0.78084672. These measurements establish a local cost and timing
-baseline for the later runner decision. They do not add a paid CI schedule,
+estimated $0.78084672. These measurements provide provisional local cost and
+timing evidence for the later runner decision. They do not add a paid CI schedule,
 persistent service history, Haiku execution, or quality judging.
 
 ## Metrics contract
@@ -309,9 +337,9 @@ final-report issues, and comparison behavior remain available.
 
 The console prints the same compact per-workload values and one aggregate line.
 Null values print as `unknown`; reasoning is labelled as a detail. MCP CLI
-fallback warnings identify the effective `descriptors` or `full` profile.
-Skills runs use the CLI surface by design and do not receive the MCP fallback
-warning.
+fallback warnings identify the effective `descriptors` or `full` profile and
+indicate a validation failure. Skills runs use the CLI surface by design and do
+not receive the MCP fallback warning.
 
 ## Local Luna-low inspection
 
@@ -333,8 +361,9 @@ bun run agent:e2e:report --json .agent-eval/runs/<run>
 Inspect `metrics.json` for normalized values and warnings, then use
 `tool-calls.json` and redacted `stdout.json` to explain the underlying event
 sequence. Do not interpret a missing metric as zero usage, or a Luna estimate
-as provider billing. Local Codex and Claude profile comparisons also remain
-diagnostic where user-level guidance can leak into the session.
+as provider billing. Historical local profile comparisons remain diagnostic;
+current profile evidence is causal only when the isolation metadata and trace
+validation show a clean run.
 
 ## Security and evidence boundary
 

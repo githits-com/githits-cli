@@ -9,18 +9,6 @@ import {
 
 export type AgentEvalReportMode = "report" | "json" | "compare";
 
-const CLAUDE_PROFILE_ISOLATION_WARNING =
-  "Claude subscription runs may auto-discover global CLAUDE.md; descriptors/full profile evidence is diagnostic, not instruction-isolated";
-const CODEX_PROFILE_ISOLATION_WARNING =
-  "Codex loads global $CODEX_HOME/AGENTS.md when present; descriptors/full profile evidence is diagnostic, not instruction-isolated";
-
-function profileIsolationWarning(
-  agent: string | undefined,
-): string | undefined {
-  if (agent === "claude") return CLAUDE_PROFILE_ISOLATION_WARNING;
-  if (agent === "codex") return CODEX_PROFILE_ISOLATION_WARNING;
-  return undefined;
-}
 export type NormalizedToolStatus =
   | "started"
   | "completed"
@@ -54,6 +42,12 @@ export interface AgentEvalRunMetadata {
   workloads?: WorkloadRunMetadata[];
 }
 
+export interface EvalValidationViolationSummary {
+  category: string;
+  path?: string;
+  tool?: string;
+}
+
 export interface WorkloadRunMetadata {
   id: string;
   status: string;
@@ -61,6 +55,7 @@ export interface WorkloadRunMetadata {
   exitCode?: number;
   timedOut?: boolean;
   workloadDir?: string;
+  validationViolations?: EvalValidationViolationSummary[];
 }
 
 export interface ExtractedToolCallForReport {
@@ -128,13 +123,13 @@ export interface DiscoverySummary {
 
 export interface FinalReportSummary {
   status: string;
-  usefulness: string;
-  usefulnessReason: string;
   confidence: string;
-  expectedToolUse: string[];
-  unexpectedToolUse: string[];
-  toolIssues: string[];
-  instructionIssues: string[];
+  usefulness?: string;
+  usefulnessReason?: string;
+  expectedToolUse?: string[];
+  unexpectedToolUse?: string[];
+  toolIssues?: string[];
+  instructionIssues?: string[];
 }
 
 export interface WorkloadReport {
@@ -149,6 +144,7 @@ export interface WorkloadReport {
   metrics: WorkloadMetricsReport;
   discovery?: DiscoverySummary;
   finalReport?: FinalReportSummary;
+  validationViolations: EvalValidationViolationSummary[];
   warnings: string[];
 }
 
@@ -508,25 +504,28 @@ export function summarizeFinalReport(
 ): FinalReportSummary | undefined {
   const record = asRecord(report);
   if (!record) return undefined;
-  return {
+  const summary: FinalReportSummary = {
     status: typeof record.status === "string" ? record.status : "unknown",
-    usefulness:
-      typeof record.githitsUsefulness === "string"
-        ? record.githitsUsefulness
-        : "unknown",
-    usefulnessReason:
-      typeof record.githitsUsefulnessReason === "string"
-        ? record.githitsUsefulnessReason
-        : "",
     confidence:
       typeof record.confidence === "string" ? record.confidence : "unknown",
-    expectedToolUse: stringArray(record.expectedToolUse).map(normalizeToolName),
-    unexpectedToolUse: stringArray(record.unexpectedToolUse).map(
-      normalizeToolName,
-    ),
-    toolIssues: toolIssueArray(record.toolIssues),
-    instructionIssues: stringArray(record.instructionIssues),
   };
+  if (typeof record.githitsUsefulness === "string")
+    summary.usefulness = record.githitsUsefulness;
+  if (typeof record.githitsUsefulnessReason === "string")
+    summary.usefulnessReason = record.githitsUsefulnessReason;
+  if (record.expectedToolUse !== undefined)
+    summary.expectedToolUse = stringArray(record.expectedToolUse).map(
+      normalizeToolName,
+    );
+  if (record.unexpectedToolUse !== undefined)
+    summary.unexpectedToolUse = stringArray(record.unexpectedToolUse).map(
+      normalizeToolName,
+    );
+  if (record.toolIssues !== undefined)
+    summary.toolIssues = toolIssueArray(record.toolIssues);
+  if (record.instructionIssues !== undefined)
+    summary.instructionIssues = stringArray(record.instructionIssues);
+  return summary;
 }
 
 export function workloadIdFromPath(workloadPath: string): string {
@@ -575,6 +574,24 @@ function readToolCalls(path: string): ExtractedToolCallForReport[] | undefined {
   });
 }
 
+function readValidationViolations(
+  path: string,
+): EvalValidationViolationSummary[] {
+  const value = readJson(path);
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item): EvalValidationViolationSummary[] => {
+    const record = asRecord(item);
+    if (!record || typeof record.category !== "string") return [];
+    return [
+      {
+        category: record.category,
+        ...(typeof record.path === "string" ? { path: record.path } : {}),
+        ...(typeof record.tool === "string" ? { tool: record.tool } : {}),
+      },
+    ];
+  });
+}
+
 function readDiscovery(path: string): DiscoverySummary | undefined {
   const record = asRecord(readJson(path));
   if (!record) return undefined;
@@ -607,6 +624,7 @@ function buildWorkloadReport(
     stderr: join(workloadDir, "stderr.txt"),
     skillInstallation: join(workloadDir, "skill-installation.json"),
     guidanceInstallation: join(workloadDir, "guidance-installation.json"),
+    isolationViolations: join(workloadDir, "isolation-violations.json"),
     discoveryEvents: join(workloadDir, "discovery-events.json"),
   };
   const artifacts: Record<string, string> = {};
@@ -637,6 +655,9 @@ function buildWorkloadReport(
   const discovery = safePaths.discoveryEvents
     ? readDiscovery(safePaths.discoveryEvents)
     : undefined;
+  const validationViolations = safePaths.isolationViolations
+    ? readValidationViolations(safePaths.isolationViolations)
+    : (workload.validationViolations ?? []);
   const warnings: string[] = [];
   if (!isSafeWorkloadId(workload.id)) {
     warnings.push(
@@ -665,6 +686,27 @@ function buildWorkloadReport(
       );
     }
   }
+  for (const violation of validationViolations) {
+    if (
+      violation.category === "mcp-cli-fallback" &&
+      violation.tool &&
+      !warnings.some((warning) => warning.includes("CLI fallback"))
+    ) {
+      warnings.push(
+        `MCP ${fallbackGuidanceProfile ?? "unknown"} guidance run used GitHits CLI fallback: ${violation.tool}`,
+      );
+    }
+    if (violation.category === "external-guidance-read") {
+      warnings.push(
+        `external guidance read outside isolated workspace: ${violation.path ?? "unknown"}`,
+      );
+    }
+    if (violation.category === "descriptor-guidance-read") {
+      warnings.push(
+        `descriptor profile read guidance: ${violation.path ?? "unknown"}`,
+      );
+    }
+  }
   const metrics = metricsRecord
     ? workloadMetricsFromRecord(metricsRecord)
     : unknownWorkloadMetrics(
@@ -673,7 +715,7 @@ function buildWorkloadReport(
       );
   if (finalReport) {
     const rawTools = new Set(toolCalls.uniqueTools);
-    const drift = finalReport.unexpectedToolUse.filter(
+    const drift = (finalReport.unexpectedToolUse ?? []).filter(
       (tool) => looksLikeToolName(tool) && !rawTools.has(tool),
     );
     if (drift.length > 0) {
@@ -685,7 +727,7 @@ function buildWorkloadReport(
 
   return {
     id: workload.id,
-    status: workload.status,
+    status: validationViolations.length > 0 ? "failed" : workload.status,
     durationMs: workload.durationMs,
     exitCode: workload.exitCode,
     timedOut: workload.timedOut,
@@ -695,6 +737,7 @@ function buildWorkloadReport(
     metrics,
     discovery,
     finalReport,
+    validationViolations,
     warnings,
   };
 }
@@ -754,14 +797,6 @@ export function buildRunReportFromMetadata(
     ...metricsMatchingWarnings,
   ];
   warnings.push(...metricWarnings);
-  const isolationWarning = profileIsolationWarning(metadata.agent);
-  if (
-    isolationWarning &&
-    metadata.surface === "mcp" &&
-    ["descriptors", "full"].includes(metadata.guidanceProfile ?? "descriptors")
-  ) {
-    warnings.push(isolationWarning);
-  }
   const reports = workloads.map((workload) =>
     buildWorkloadReport(
       runDir,
@@ -883,7 +918,7 @@ export function formatRunReport(report: AgentEvalReport): string {
   for (const workload of report.workloads) {
     const final = workload.finalReport;
     const details = final
-      ? ` usefulness=${final.usefulness} confidence=${final.confidence}`
+      ? ` confidence=${final.confidence}${final.usefulness ? ` usefulness=${final.usefulness}` : ""}`
       : "";
     lines.push(
       `${workload.id} ${workload.status} ${formatDuration(workload.durationMs)} uniqueTools=${workload.toolCalls.uniqueTools.length} rawEvents=${workload.toolCalls.rawCount} ${formatWorkloadMetrics(workload.metrics)}${workload.discovery ? ` discovery=${workload.discovery.status}` : ""}${details}`,
@@ -895,6 +930,7 @@ export function formatRunReport(report: AgentEvalReport): string {
       workload.artifacts.skillInstallation,
       workload.artifacts.guidanceInstallation,
       workload.artifacts.discoveryEvents,
+      workload.artifacts.isolationViolations,
     ].filter(Boolean);
     if (artifacts.length > 0)
       lines.push(`  artifacts: ${artifacts.join(", ")}`);
@@ -909,8 +945,10 @@ export function formatRunReport(report: AgentEvalReport): string {
     const final = workload.finalReport;
     if (!final) return [];
     return [
-      ...final.toolIssues.map((issue) => `${workload.id} tool: ${issue}`),
-      ...final.instructionIssues.map(
+      ...(final.toolIssues ?? []).map(
+        (issue) => `${workload.id} tool: ${issue}`,
+      ),
+      ...(final.instructionIssues ?? []).map(
         (issue) => `${workload.id} instruction: ${issue}`,
       ),
     ];
@@ -1095,19 +1133,6 @@ function compareMetadataWarnings(
     warnings.push(
       `reasoning effort differs: ${before.reasoningEffort ?? "unspecified"} -> ${after.reasoningEffort ?? "unspecified"}`,
     );
-  }
-  const isolationWarning = profileIsolationWarning(before.agent);
-  if (
-    isolationWarning &&
-    [before, after].some(
-      (report) =>
-        report.surface === "mcp" &&
-        ["descriptors", "full"].includes(
-          report.guidanceProfile ?? "descriptors",
-        ),
-    )
-  ) {
-    warnings.push(isolationWarning);
   }
   return warnings;
 }

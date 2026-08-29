@@ -13,7 +13,7 @@ behavior. Do not treat a live agent pass/fail result as a deterministic
 regression test: model behavior, backend indexing state, auth state, network
 conditions, and package data can all change. The useful output is the artifact
 set, especially `tool-calls.json`, `final.json`, `metrics.json`, `report.json`,
-`toolIssues`, `instructionIssues`, and the agent's usefulness assessment.
+and `isolation-violations.json`.
 
 The repository-local named-suite commands below are the Phase 2 measurement
 workflow. They run the fixed Luna matrix and produce validated suite and
@@ -35,9 +35,9 @@ a service, or judge answer quality.
   MCP tools, including `quick_start`, with no MCP server instructions and no
   installed skills or project pointer. This approximates a remote connector
   that exposes tool definitions only. OpenCode can isolate this profile
-  locally; Codex and Claude runs retain the diagnostic limitations documented
-  below. The `full` profile uses the same MCP server and additionally installs
-  only the `githits-mcp` skill plus project `CLAUDE.md`/`AGENTS.md` guidance.
+  locally. The `full` profile uses the same MCP server and additionally installs
+  only the `githits-mcp` skill plus project `CLAUDE.md`/`AGENTS.md` guidance;
+  it does not install a CLI shim.
   `full` requires
   `--server local`; `descriptors` also supports published MCP runs.
 - To evaluate `quick_start` or MCP description changes, change branch/source
@@ -57,29 +57,39 @@ the agent how to use GitHits.
 
 ## Isolation
 
-Runs execute agents from an empty temporary workspace so repository-local files
-such as `AGENTS.md`, `.mcp.json`, commands, skills, and plugin payloads do not
-contaminate results. The harness keeps normal agent and GitHits authentication
-so human-driven keychain/OAuth sessions continue to work. OpenCode can exclude
-user guidance under that constraint. Codex always reads global
-`$CODEX_HOME/AGENTS.md` when present; `--ignore-user-config` excludes
-`config.toml`, not agent guidance. Claude Code's `--bare` mode suppresses global
-`CLAUDE.md` auto-discovery but disables subscription/OAuth in favor of
-API-key-style auth. Therefore local Codex and Claude descriptor/full runs may
-observe user-level guidance and are diagnostic only, not causal evidence for a
-guidance-profile comparison. Use an authenticated remote connector or another
-verified instruction-isolated host for acceptance; do not treat a local Codex
-or Claude profile label as proof of instruction isolation.
+Each workload receives a fresh temporary isolation root containing its workspace,
+OS home, user profile, config directories, and temporary directory. Only the
+caller-supplied `CODEX_HOME` is retained outside that root, and it must be an
+auth-only directory. Live Codex MCP runs reject a missing, relative, or
+behavior-injecting `CODEX_HOME` before invoking the agent. The harness does not
+read auth material.
+
+For local subscription authentication, log in once to a dedicated home and use
+that same home for evals:
+
+```bash
+CODEX_HOME="$HOME/.codex-eval" codex login -c 'cli_auth_credentials_store="file"'
+CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface mcp --server local --workload eval/agentic/workloads/package-overview-vulnerabilities.md
+```
+
+CI should create a clean `CODEX_HOME` and authenticate Codex with
+`OPENAI_API_KEY`. Set `GITHITS_API_TOKEN` for deterministic GitHits
+authentication. Never copy a personal auth file into a run directory.
+
+Trace validation fails an MCP workload if it observes an external
+`AGENTS.md`/`SKILL.md` read, a guidance read in the descriptor profile, or any
+GitHits CLI call. The failure is preserved as redacted
+`isolation-violations.json`; workspace-installed full-profile skills are
+allowed. Skills-surface CLI calls remain valid.
 
 OpenCode eval and session processes set `OPENCODE_DISABLE_EXTERNAL_SKILLS=1`
 and `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` to exclude global and
 Claude-compatible skills. Full MCP runs retain the intended local
 `.opencode/skills` installation. Generated OpenCode config denies task
 delegation (`permission.task: "deny"`) so GitHits calls stay in the observable
-session. MCP reports identify any GitHits CLI fallback in both the
-`descriptors` and `full` profiles rather than counting it as equivalent MCP
-usage. Skills runs intentionally use the CLI surface and do not receive that
-MCP fallback warning.
+session. MCP reports identify any GitHits CLI fallback as an eval validation
+failure rather than counting it as equivalent MCP usage. Skills runs
+intentionally use the CLI surface and remain valid.
 
 GitHits authentication follows normal local behavior. Keychain-backed human
 login should work by default. Automation can use `GITHITS_API_TOKEN`.
@@ -257,10 +267,10 @@ available. The harness stores the effective model and reasoning effort in
 `run.json` and `report.json`, and includes them in the console summary.
 
 After each run, the harness prints a concise summary with the run directory,
-per-workload status and duration, unique GitHits tool count, raw tool event
-count, normalized token buckets, cost kind/USD/uncertainty, logical call count,
-MCP/CLI call counts, usefulness/confidence when available, key artifact paths,
-and reported tool/instruction issues. Null metrics are printed as `unknown`.
+per-workload status and duration, unique tool count, raw tool event count,
+normalized token buckets, cost kind/USD/uncertainty, logical call count,
+MCP/CLI call counts, confidence when available, key artifact paths, and any
+validation warnings. Null metrics are printed as `unknown`.
 It also prints a `Next:` block with the exact report, compare, and raw-call
 inspection commands an agent should use for follow-up. The same summary can be
 regenerated later from persisted artifacts:
@@ -350,8 +360,8 @@ bun run agent:e2e --agent opencode --surface skills --server local --workload ev
 ```
 
 For tool-specific edits, add the workload from the table. Compare
-`tool-calls.json` plus the final JSON's `toolIssues`, `instructionIssues`, and
-`githitsUsefulnessReason` across branches or against a published run.
+`tool-calls.json`, `metrics.json`, and the final JSON's answer/confidence across
+branches or against a published run.
 
 For local experimental tool changes, run both new workloads and the
 `express-router.md` regression cohort with Claude and Codex:
@@ -367,9 +377,9 @@ bun run agent:e2e --agent claude --server local --experimental-tools --workload 
 bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/express-router.md
 ```
 
-The eval override forces issue reporting off. Inspect raw `tool-calls.json`
-for the actual tool sequence and arguments, then inspect `final.json` for
-`toolIssues`, `instructionIssues`, usefulness, and confidence. For
+The eval override keeps the acting result contract product-neutral. Inspect raw
+`tool-calls.json` for the actual tool sequence and arguments, then inspect
+`final.json` for status, answer, and confidence. For
 resolution, check that ambiguity is retained when warranted and source
 follow-up uses the selected identity; for source diffs, check exact
 changed-file evidence and bounded summaries without compatibility claims.
@@ -412,8 +422,9 @@ Notable findings to keep in mind when evaluating future changes:
   `code_files` is unavailable even when earlier runs used it; treat raw calls as
   the source of truth and fix concrete validation/error issues rather than
   overfitting instructions to one noisy run.
-- `tool-calls.json` is the source of truth for tool usage. The final JSON is for
-  the agent's assessment of clarity, issues, and usefulness.
+- `tool-calls.json` is the source of truth for tool usage. The final JSON records
+  only the agent's result status, answer, and confidence; quality assessment is
+  a later review concern.
 - `report.json` and `agent:e2e:report` are derived review aids. They normalize
   tool names/statuses for readability but do not replace raw artifacts.
 
@@ -427,7 +438,8 @@ Each run writes:
   usage, cost, tool-surface, identity, timing, and warning fields.
 - `report.json` with derived review fields, normalized tool summaries, matched
   metrics fields, relative artifact paths, and warnings for missing or
-  ambiguous metrics, missing artifacts, CLI fallback, or self-report drift.
+  ambiguous metrics, missing artifacts, validation violations, or legacy
+  self-report drift.
 - One workload directory per workload with `prompt.md`, `stdout.json`,
   `stderr.txt`, `tool-calls.json`, and `final.json` when parsing succeeds.
 - Each live or dry-run workload also records `discovery-events.json`. For Claude
@@ -441,11 +453,15 @@ Each run writes:
   dry-run metadata, and `.agent-session/session.json` persist
   `experimentalTools: true`; the Claude, Codex, and OpenCode local launch
   vectors contain the same `--experimental-tools` flag.
-- Skills runs also write `skill-installation.json` with the copied skill path
-  and CLI shim path.
+- Skills runs also write `skill-installation.json` with relative copied-skill
+  paths and the CLI shim path.
 - Full MCP runs additionally write `guidance-installation.json` with the
-  canonical project instruction paths and copied skill metadata. Paths are
-  persisted for inspection; credentials are never persisted.
+  canonical project instruction paths and copied skill metadata. Full MCP
+  metadata has no CLI shim. Paths are persisted for inspection; credentials are
+  never persisted.
+- Each workload records relative isolation metadata. If trace validation finds
+  an external/descriptor guidance read or MCP CLI fallback, it writes redacted
+  `isolation-violations.json` and marks the workload failed.
 
 `metrics.json` is authoritative for normalized usage and cost. For Codex it
 uses the final `turn.completed.usage` aggregate. `input_tokens` is inclusive of
@@ -479,14 +495,13 @@ the nullable field supports later provider adapters.
 
 Claude is launched with `--permission-mode bypassPermissions` so non-interactive
 evals can exercise GitHits without a human approval prompt. Non-full MCP runs
-add `--disable-slash-commands` to disable skills, but this does not disable
-global `CLAUDE.md` discovery; the isolation limitation above still applies.
+add `--disable-slash-commands` to disable skills. The fresh per-workload home
+also prevents user-level `CLAUDE.md` discovery.
 Skills runs do not use that flag because Claude Code treats it as disabling all
 skills; they instead use project-only settings plus an empty strict MCP config.
 Codex MCP runs use per-run `-c` MCP config overrides, `--ignore-rules`, and
-`--ignore-user-config`; these exclude user config, execution-policy rules, and
-configured MCP/plugin skills, but not global `$CODEX_HOME/AGENTS.md`. Skills
-runs omit the MCP and rule overrides while retaining `--ignore-user-config` so
+`--ignore-user-config`; the caller-supplied `CODEX_HOME` is validated as
+auth-only before launch. Skills runs omit the MCP and rule overrides while retaining `--ignore-user-config` so
 project skills can be discovered without user-configured MCP servers. Codex always uses
 `--dangerously-bypass-approvals-and-sandbox` so non-interactive GitHits calls are
 not cancelled by the approval layer. Keep workloads controlled and run them from
@@ -494,6 +509,6 @@ the harness's empty temporary workspace. These isolation flags belong to
 non-interactive `codex exec`; interactive `agent:session` launches must not pass
 the exec-only `--ignore-rules` flag.
 
-Malformed final JSON, schema mismatches, Claude failures, and timeouts are
-harness failures. Raw stdout and stderr are preserved for diagnosis with known
-secret values redacted.
+Malformed final JSON, schema mismatches, external guidance reads, MCP CLI
+fallbacks, Claude failures, and timeouts are harness failures. Raw stdout and
+stderr are preserved for diagnosis with known secret values redacted.

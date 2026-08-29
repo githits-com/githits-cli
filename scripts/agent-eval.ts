@@ -79,6 +79,7 @@ export interface AgentEvalOptions {
 }
 
 interface AgentEvalDependencies {
+  baseEnv?: NodeJS.ProcessEnv;
   assertAgentAvailable(agent: AgentName): Promise<void>;
   collectAgentVersions(): Promise<
     [string | undefined, string | undefined, string | undefined]
@@ -124,9 +125,13 @@ interface WorkloadRunMetadata {
   workspaceDir: string;
   workloadDir: string;
   toolCallCount?: number;
+  isolation?: WorkloadIsolationMetadata;
+  validationViolations?: EvalValidationViolation[];
   experimentalTools: boolean;
-  skillInstallation?: SkillInstallationMetadata;
-  guidanceInstallation?: GuidanceInstallationMetadata;
+  skillInstallation?: SkillInstallationMetadata | EvalSkillInstallationMetadata;
+  guidanceInstallation?:
+    | GuidanceInstallationMetadata
+    | EvalGuidanceInstallationMetadata;
 }
 
 export interface GitMetadata {
@@ -199,20 +204,56 @@ export interface DiscoveryArtifact {
   events: DiscoveryEvent[];
 }
 
-export interface SkillInstallationMetadata {
+interface SkillInstallationMetadataBase {
   sourceDir: string;
   installedDirs: string[];
+  cliShim?: string;
+  cliMode?: ServerMode;
+}
+
+export interface SkillInstallationMetadata
+  extends SkillInstallationMetadataBase {
   cliShim: string;
   cliMode: ServerMode;
 }
+
+export interface EvalSkillInstallationMetadata
+  extends SkillInstallationMetadataBase {}
 
 export interface GuidanceInstallationMetadata {
   instructionPaths: string[];
   skillInstallation: SkillInstallationMetadata;
 }
 
-interface SkillWorkspacePlan extends SkillInstallationMetadata {
+export interface EvalGuidanceInstallationMetadata {
+  instructionPaths: string[];
+  skillInstallation: EvalSkillInstallationMetadata;
+}
+
+interface SkillWorkspacePlan extends SkillInstallationMetadataBase {
   sourceChildren: string[];
+}
+
+export interface WorkloadIsolationMetadata {
+  root: "<ephemeral>";
+  workspace: "workspace";
+  home: "home";
+  userprofile: "home";
+  xdgConfigHome: "config";
+  appdata: "appdata";
+  temp: "tmp";
+}
+
+export type EvalValidationViolation =
+  | { category: "external-guidance-read"; path: string }
+  | { category: "descriptor-guidance-read"; path: string }
+  | { category: "mcp-cli-fallback"; tool: string };
+
+interface WorkloadIsolation {
+  rootDir: string;
+  workspaceDir: string;
+  env: Record<string, string>;
+  metadata: WorkloadIsolationMetadata;
 }
 
 interface ProjectGuidancePlan {
@@ -235,6 +276,7 @@ const BASE_ENV_KEYS = [
   "USERPROFILE",
   "XDG_CONFIG_HOME",
   "APPDATA",
+  "CODEX_HOME",
   "USER",
   "LOGNAME",
   "USERNAME",
@@ -251,6 +293,7 @@ const BASE_ENV_KEYS = [
   "XPC_FLAGS",
   "XPC_SERVICE_NAME",
   "__CF_USER_TEXT_ENCODING",
+  "OPENAI_API_KEY",
   "ANTHROPIC_API_KEY",
   "CLAUDE_CODE_OAUTH_TOKEN",
   "CLAUDE_CODE_USE_BEDROCK",
@@ -750,6 +793,7 @@ function planSkillsWorkspace(
   > & { targetRoot?: string },
   workspaceDir: string,
   requestedSourceChildren?: string[],
+  includeCliShim = true,
 ): SkillWorkspacePlan {
   const sourceDir = join(effectiveTargetRoot(options), "skills");
   assert(existsSync(sourceDir), `Skills directory not found: ${sourceDir}`);
@@ -775,18 +819,22 @@ function planSkillsWorkspace(
       assertMissing(join(installedDir, child), "existing GitHits skill path");
     }
   }
-  const cliShim = join(
-    workspaceDir,
-    ".agent-eval-bin",
-    process.platform === "win32" ? "githits.cmd" : "githits",
-  );
-  assertDirectoryOrAbsent(dirname(cliShim), "CLI shim directory");
-  assertMissing(cliShim, "existing GitHits CLI shim");
+  const cliShim = includeCliShim
+    ? join(
+        workspaceDir,
+        ".agent-eval-bin",
+        process.platform === "win32" ? "githits.cmd" : "githits",
+      )
+    : undefined;
+  if (cliShim) {
+    assertDirectoryOrAbsent(dirname(cliShim), "CLI shim directory");
+    assertMissing(cliShim, "existing GitHits CLI shim");
+  }
   return {
     sourceDir,
     installedDirs,
-    cliShim,
-    cliMode: options.server,
+    ...(cliShim ? { cliShim } : {}),
+    ...(includeCliShim ? { cliMode: options.server } : {}),
     sourceChildren,
   };
 }
@@ -797,7 +845,7 @@ function applySkillWorkspacePlan(
     "server" | "repoRoot" | "publishedPackage"
   > & { targetRoot?: string },
   plan: SkillWorkspacePlan,
-): SkillInstallationMetadata {
+): SkillInstallationMetadataBase {
   for (const installedDir of plan.installedDirs) {
     mkdirSync(installedDir, { recursive: true });
     for (const child of plan.sourceChildren) {
@@ -806,12 +854,14 @@ function applySkillWorkspacePlan(
       });
     }
   }
-  const cliShim = writeGitHitsShim(options, dirname(plan.cliShim));
+  const cliShim = plan.cliShim
+    ? writeGitHitsShim(options, dirname(plan.cliShim))
+    : undefined;
   return {
     sourceDir: plan.sourceDir,
     installedDirs: plan.installedDirs,
-    cliShim,
-    cliMode: plan.cliMode,
+    ...(cliShim ? { cliShim } : {}),
+    ...(plan.cliMode ? { cliMode: plan.cliMode } : {}),
   };
 }
 
@@ -822,10 +872,15 @@ export function prepareSkillsWorkspace(
   > & { targetRoot?: string },
   workspaceDir: string,
 ): SkillInstallationMetadata {
-  return applySkillWorkspacePlan(
+  const installation = applySkillWorkspacePlan(
     options,
     planSkillsWorkspace(options, workspaceDir),
   );
+  assert(
+    installation.cliShim !== undefined && installation.cliMode !== undefined,
+    "Skills workspace plan unexpectedly omitted its CLI shim",
+  );
+  return installation as SkillInstallationMetadata;
 }
 
 function planProjectGuidance(
@@ -904,15 +959,41 @@ export function prepareFullGuidanceWorkspace(
   > & { targetRoot?: string },
   workspaceDir: string,
   guidanceBlock?: string,
-): GuidanceInstallationMetadata {
+): GuidanceInstallationMetadata;
+export function prepareFullGuidanceWorkspace(
+  options: Pick<
+    AgentEvalOptions,
+    "server" | "repoRoot" | "publishedPackage"
+  > & { targetRoot?: string },
+  workspaceDir: string,
+  guidanceBlock: string | undefined,
+  includeCliShim: false,
+): EvalGuidanceInstallationMetadata;
+export function prepareFullGuidanceWorkspace(
+  options: Pick<
+    AgentEvalOptions,
+    "server" | "repoRoot" | "publishedPackage"
+  > & { targetRoot?: string },
+  workspaceDir: string,
+  guidanceBlock?: string,
+  includeCliShim = true,
+): GuidanceInstallationMetadata | EvalGuidanceInstallationMetadata {
   const resolvedGuidanceBlock = guidanceBlock ?? GITHITS_GUIDANCE_BLOCK;
-  const skillPlan = planSkillsWorkspace(options, workspaceDir, ["githits-mcp"]);
+  const skillPlan = planSkillsWorkspace(
+    options,
+    workspaceDir,
+    ["githits-mcp"],
+    includeCliShim,
+  );
   const guidancePlan = planProjectGuidance(workspaceDir, resolvedGuidanceBlock);
   applyProjectGuidance(guidancePlan);
-  return {
+  const installation = {
     instructionPaths: guidancePlan.instructionPaths,
     skillInstallation: applySkillWorkspacePlan(options, skillPlan),
   };
+  return installation as
+    | GuidanceInstallationMetadata
+    | EvalGuidanceInstallationMetadata;
 }
 
 export function buildEvalEnv(
@@ -929,6 +1010,141 @@ export function buildEvalEnv(
 
   env.NO_COLOR = "1";
   return env;
+}
+
+const CODEX_AUTH_HOME_FORBIDDEN_FILES = new Set([
+  "AGENTS.md",
+  "CLAUDE.md",
+  "GEMINI.md",
+  "config.toml",
+  ".mcp.json",
+  "mcp.json",
+]);
+const CODEX_AUTH_HOME_FORBIDDEN_DIRECTORIES = new Set([
+  "skills",
+  ".agents",
+  ".claude",
+  ".codex",
+]);
+
+function findCodexAuthHomeSurface(
+  directory: string,
+  relativeDirectory = "",
+): string | undefined {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const relativePath = relativeDirectory
+      ? join(relativeDirectory, entry.name)
+      : entry.name;
+    if (
+      CODEX_AUTH_HOME_FORBIDDEN_FILES.has(entry.name) ||
+      CODEX_AUTH_HOME_FORBIDDEN_DIRECTORIES.has(entry.name)
+    ) {
+      return relativePath;
+    }
+    if (entry.isDirectory() && !entry.isSymbolicLink()) {
+      const nested = findCodexAuthHomeSurface(
+        join(directory, entry.name),
+        relativePath,
+      );
+      if (nested) return nested;
+    }
+  }
+  return undefined;
+}
+
+export function validateCodexAuthHome(
+  baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined>,
+): void {
+  const codexHome = baseEnv.CODEX_HOME;
+  assert(
+    codexHome !== undefined && codexHome.length > 0,
+    "Codex MCP evals require CODEX_HOME pointing to an auth-only directory",
+  );
+  assert(
+    isAbsolute(codexHome),
+    `CODEX_HOME must be an absolute directory: ${codexHome}`,
+  );
+  assert(
+    existsSync(codexHome) && lstatSync(codexHome).isDirectory(),
+    `CODEX_HOME must be an existing directory: ${codexHome}`,
+  );
+  const invalidSurface = findCodexAuthHomeSurface(codexHome);
+  assert(
+    invalidSurface === undefined,
+    `CODEX_HOME contains behavior-injecting guidance/config: ${invalidSurface}`,
+  );
+}
+
+export function createWorkloadIsolation(
+  baseEnv: Record<string, string>,
+): WorkloadIsolation {
+  const rootDir = mkdtempSync(join(tmpdir(), "githits-agent-eval-isolation-"));
+  const workspaceDir = join(rootDir, "workspace");
+  const home = join(rootDir, "home");
+  const config = join(rootDir, "config");
+  const appdata = join(rootDir, "appdata");
+  const temp = join(rootDir, "tmp");
+  for (const path of [workspaceDir, home, config, appdata, temp]) {
+    mkdirSync(path, { recursive: true });
+  }
+  return {
+    rootDir,
+    workspaceDir,
+    env: {
+      ...baseEnv,
+      HOME: home,
+      USERPROFILE: home,
+      XDG_CONFIG_HOME: config,
+      APPDATA: appdata,
+      TMPDIR: temp,
+      TMP: temp,
+      TEMP: temp,
+    },
+    metadata: {
+      root: "<ephemeral>",
+      workspace: "workspace",
+      home: "home",
+      userprofile: "home",
+      xdgConfigHome: "config",
+      appdata: "appdata",
+      temp: "tmp",
+    },
+  };
+}
+
+function relativeWorkspacePath(workspaceDir: string, path: string): string {
+  return relative(workspaceDir, path).replaceAll("\\", "/") || ".";
+}
+
+function persistSkillInstallationMetadata(
+  installation: SkillInstallationMetadataBase,
+  workspaceDir: string,
+): SkillInstallationMetadataBase {
+  return {
+    sourceDir: "<target>/skills",
+    installedDirs: installation.installedDirs.map((path) =>
+      relativeWorkspacePath(workspaceDir, path),
+    ),
+    ...(installation.cliShim
+      ? { cliShim: relativeWorkspacePath(workspaceDir, installation.cliShim) }
+      : {}),
+    ...(installation.cliMode ? { cliMode: installation.cliMode } : {}),
+  };
+}
+
+function persistGuidanceInstallationMetadata(
+  installation: GuidanceInstallationMetadata | EvalGuidanceInstallationMetadata,
+  workspaceDir: string,
+): EvalGuidanceInstallationMetadata {
+  return {
+    instructionPaths: installation.instructionPaths.map((path) =>
+      relativeWorkspacePath(workspaceDir, path),
+    ),
+    skillInstallation: persistSkillInstallationMetadata(
+      installation.skillInstallation,
+      workspaceDir,
+    ),
+  };
 }
 
 export function isolateOpenCodeSkills(env: Record<string, string>): void {
@@ -1142,7 +1358,7 @@ function extractFinalJson(stdout: string): unknown | undefined {
           }
         }
       }
-      if (event.status || event.answer || event.githitsToolsUsed) {
+      if (event.status || event.answer) {
         return event;
       }
     } catch {
@@ -1393,6 +1609,151 @@ export function extractToolCalls(
   return calls;
 }
 
+const GUIDANCE_REFERENCE_KEYS = new Set([
+  "command",
+  "cmd",
+  "shell_command",
+  "argv",
+  "args",
+  "path",
+  "file",
+  "file_path",
+  "filename",
+  "target",
+]);
+
+function collectGuidanceReferenceStrings(
+  value: unknown,
+  key?: string,
+): string[] {
+  if (typeof value === "string") {
+    return key !== undefined && GUIDANCE_REFERENCE_KEYS.has(key) ? [value] : [];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectGuidanceReferenceStrings(item, key));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value).flatMap(([entryKey, item]) =>
+      collectGuidanceReferenceStrings(item, entryKey),
+    );
+  }
+  return [];
+}
+
+function redactExternalGuidancePath(path: string): string {
+  const normalized = path.replaceAll("\\", "/");
+  const segments = normalized
+    .split("/")
+    .filter(
+      (segment) => segment.length > 0 && segment !== "." && segment !== "..",
+    );
+  const guidanceRootIndex = segments.findIndex(
+    (segment) =>
+      segment === "skills" ||
+      segment === ".agents" ||
+      segment === ".claude" ||
+      segment === ".codex",
+  );
+  const suffix =
+    guidanceRootIndex >= 0
+      ? segments.slice(guidanceRootIndex).join("/")
+      : segments.at(-1);
+  return suffix ? `<external>/.../${suffix}` : "<external>/unknown";
+}
+
+function externalGuidancePaths(value: string): string[] {
+  const paths: string[] = [];
+  const pattern =
+    /(?:[A-Za-z]:[\\/]|\\\\|\/|~\/|\$[A-Za-z_][A-Za-z0-9_]*\/|\.\.?[\\/]|(?:[A-Za-z0-9_.-]+[\\/])+)[^"'`\s),;]*?(?:AGENTS|CLAUDE|GEMINI|SKILL)\.md|(?:^|[\s"'`(=])(?:AGENTS|CLAUDE|GEMINI|SKILL)\.md/gi;
+  for (const match of value.matchAll(pattern)) {
+    const path = match[0];
+    if (path) paths.push(path);
+  }
+  return paths;
+}
+
+function pathInsideDirectory(path: string, directory: string): boolean {
+  if (/^[A-Za-z]:[\\/]|^\\\\|^~[\\/]|^\$[A-Za-z_][A-Za-z0-9_]*[\\/]/.test(path))
+    return false;
+  const normalizedPath = path.replaceAll("\\", "/");
+  const relativePath = relative(
+    resolve(directory),
+    isAbsolute(normalizedPath)
+      ? resolve(normalizedPath)
+      : resolve(directory, normalizedPath),
+  );
+  return (
+    relativePath !== "" &&
+    !relativePath.startsWith("..") &&
+    !isAbsolute(relativePath) &&
+    !/^[A-Za-z]:[\\/]/.test(relativePath)
+  );
+}
+
+function relativeGuidancePath(path: string, directory: string): string {
+  const normalizedPath = path.replaceAll("\\", "/");
+  const resolvedPath = isAbsolute(normalizedPath)
+    ? resolve(normalizedPath)
+    : resolve(directory, normalizedPath);
+  return relative(resolve(directory), resolvedPath)
+    .replaceAll("\\", "/")
+    .replace(/^\.\//, "");
+}
+
+export function extractEvalValidationViolations(
+  stdout: string,
+  options: Pick<AgentEvalOptions, "surface" | "guidanceProfile">,
+  workspaceDir: string,
+  agent: AgentName,
+): EvalValidationViolation[] {
+  const violations: EvalValidationViolation[] = [];
+  const externalPaths = new Set<string>();
+  const descriptorPaths = new Set<string>();
+  for (const line of stdout.split("\n")) {
+    if (line.trim().length === 0) continue;
+    let event: unknown;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    for (const value of collectGuidanceReferenceStrings(event)) {
+      for (const path of externalGuidancePaths(value)) {
+        if (!pathInsideDirectory(path, workspaceDir)) {
+          externalPaths.add(path);
+        } else if (
+          options.surface === "mcp" &&
+          (options.guidanceProfile ?? "descriptors") === "descriptors"
+        ) {
+          descriptorPaths.add(path);
+        }
+      }
+    }
+  }
+  for (const path of [...externalPaths].sort()) {
+    violations.push({
+      category: "external-guidance-read",
+      path: redactExternalGuidancePath(path),
+    });
+  }
+  for (const path of [...descriptorPaths].sort()) {
+    violations.push({
+      category: "descriptor-guidance-read",
+      path: `<workspace>/${relativeGuidancePath(path, workspaceDir)}`,
+    });
+  }
+  if (options.surface === "mcp") {
+    const cliTools = new Set<string>();
+    for (const call of extractToolCalls(stdout, agent)) {
+      if (call.server === "githits-cli") cliTools.add(call.tool);
+    }
+    for (const tool of [...cliTools].sort()) {
+      violations.push({ category: "mcp-cli-fallback", tool });
+    }
+  }
+  return violations;
+}
+
 function claudeMessageContent(event: Record<string, unknown>): unknown[] {
   const message = event.message;
   if (message === null || typeof message !== "object") return [];
@@ -1471,46 +1832,12 @@ function parseJsonFromText(text: string): unknown | undefined {
   }
 }
 
-function isStringArray(value: unknown): value is string[] {
-  return (
-    Array.isArray(value) && value.every((item) => typeof item === "string")
-  );
-}
-
-function isToolIssueArray(value: unknown): boolean {
-  return (
-    Array.isArray(value) &&
-    value.every(
-      (item) =>
-        typeof item === "string" ||
-        (item !== null &&
-          typeof item === "object" &&
-          typeof (item as Record<string, unknown>).tool === "string" &&
-          typeof (item as Record<string, unknown>).issue === "string"),
-    )
-  );
-}
-
-function isOptionalStringArray(value: unknown): boolean {
-  return value === undefined || isStringArray(value);
-}
-
 export function isValidAgentReport(value: unknown): boolean {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return false;
   }
   const report = value as Record<string, unknown>;
-  const allowedKeys = new Set([
-    "status",
-    "answer",
-    "toolIssues",
-    "instructionIssues",
-    "githitsUsefulness",
-    "githitsUsefulnessReason",
-    "confidence",
-    "expectedToolUse",
-    "unexpectedToolUse",
-  ]);
+  const allowedKeys = new Set(["status", "answer", "confidence"]);
   if (Object.keys(report).some((key) => !allowedKeys.has(key))) {
     return false;
   }
@@ -1519,15 +1846,6 @@ export function isValidAgentReport(value: unknown): boolean {
       report.status === "failure" ||
       report.status === "inconclusive") &&
     typeof report.answer === "string" &&
-    isToolIssueArray(report.toolIssues) &&
-    isStringArray(report.instructionIssues) &&
-    isOptionalStringArray(report.expectedToolUse) &&
-    isOptionalStringArray(report.unexpectedToolUse) &&
-    (report.githitsUsefulness === "helped" ||
-      report.githitsUsefulness === "hurt" ||
-      report.githitsUsefulness === "unused" ||
-      report.githitsUsefulness === "unclear") &&
-    typeof report.githitsUsefulnessReason === "string" &&
     (report.confidence === "high" ||
       report.confidence === "medium" ||
       report.confidence === "low")
@@ -1801,6 +2119,7 @@ const WORKLOAD_ARTIFACTS = [
   ["dryRun", "dry-run.json"],
   ["skillInstallation", "skill-installation.json"],
   ["guidanceInstallation", "guidance-installation.json"],
+  ["isolationViolations", "isolation-violations.json"],
 ] as const;
 
 function existingWorkloadArtifacts(
@@ -1834,82 +2153,104 @@ async function runWorkload(
   );
   const id = workloadId(workloadPath);
   const workloadDir = join(runDir, "workloads", id);
-  const workspaceDir = mkdtempSync(
-    join(tmpdir(), "githits-agent-eval-workspace-"),
-  );
-  mkdirSync(workloadDir, { recursive: true });
-
-  const workloadPrompt = readFileSync(workloadPath, "utf8").trimEnd();
-  const reportingPrompt = readFileSync(options.reportingPath, "utf8").trim();
-  const prompt = `${workloadPrompt}\n\n${reportingPrompt}\n`;
-  const mcpConfigPath = join(workloadDir, "mcp.json");
-  const codexConfigPath = join(workloadDir, "codex-config.toml");
-  const codexFinalPath = join(workloadDir, "codex-final.txt");
-  const openCodeConfigPath = join(workloadDir, "opencode.json");
-  const workspaceOpenCodeConfigPath = join(workspaceDir, "opencode.json");
-  writeFileSync(join(workloadDir, "prompt.md"), prompt);
-  const guidanceInstallation =
-    options.guidanceProfile === "full"
-      ? prepareFullGuidanceWorkspace(options, workspaceDir, guidanceBlock)
-      : undefined;
-  const skillInstallation =
-    options.surface === "skills"
-      ? prepareSkillsWorkspace(options, workspaceDir)
-      : guidanceInstallation?.skillInstallation;
-  if (options.surface === "mcp") {
-    writeJson(mcpConfigPath, mcpConfig);
-    writeFileSync(codexConfigPath, buildCodexConfig(options));
-    const openCodeConfig = buildOpenCodeConfig(options);
-    writeJson(openCodeConfigPath, openCodeConfig);
-    writeJson(workspaceOpenCodeConfigPath, openCodeConfig);
-  } else {
-    writeJson(mcpConfigPath, { mcpServers: {} });
-    const openCodeConfig = buildOpenCodeSkillsConfig();
-    writeJson(openCodeConfigPath, openCodeConfig);
-    writeJson(workspaceOpenCodeConfigPath, openCodeConfig);
-  }
-  if (skillInstallation) {
-    writeJson(join(workloadDir, "skill-installation.json"), skillInstallation);
-  }
-  if (guidanceInstallation) {
-    writeJson(
-      join(workloadDir, "guidance-installation.json"),
-      guidanceInstallation,
-    );
-  }
-
-  const command = buildAgentCommand(
-    options,
-    prompt,
-    workspaceDir,
-    mcpConfigPath,
-    codexFinalPath,
-  );
-  const workloadEnv = { ...env };
-  if (options.agent === "opencode") {
-    isolateOpenCodeSkills(workloadEnv);
-  }
-  if (skillInstallation) {
-    workloadEnv.PATH = `${dirname(skillInstallation.cliShim)}${workloadEnv.PATH ? `${delimiter}${workloadEnv.PATH}` : ""}`;
-  }
-  const metadataBase = {
-    id,
-    path: workloadPath,
-    guidanceProfile: options.guidanceProfile,
-    model: options.model,
-    reasoningEffort: options.reasoningEffort,
-    command,
-    workspaceDir,
-    workloadDir,
-    measurementRoot: options.repoRoot,
-    targetRoot: effectiveTargetRoot(options),
-    targetGit,
-    experimentalTools: options.experimentalTools,
-    ...(skillInstallation ? { skillInstallation } : {}),
-    ...(guidanceInstallation ? { guidanceInstallation } : {}),
-  };
+  const isolation = createWorkloadIsolation(env);
+  const workspaceDir = isolation.workspaceDir;
 
   try {
+    mkdirSync(workloadDir, { recursive: true });
+    const workloadPrompt = readFileSync(workloadPath, "utf8").trimEnd();
+    const reportingPrompt = readFileSync(options.reportingPath, "utf8").trim();
+    const prompt = `${workloadPrompt}\n\n${reportingPrompt}\n`;
+    const mcpConfigPath = join(workloadDir, "mcp.json");
+    const codexConfigPath = join(workloadDir, "codex-config.toml");
+    const codexFinalPath = join(workloadDir, "codex-final.txt");
+    const openCodeConfigPath = join(workloadDir, "opencode.json");
+    const workspaceOpenCodeConfigPath = join(workspaceDir, "opencode.json");
+    writeFileSync(join(workloadDir, "prompt.md"), prompt);
+    const guidanceInstallation =
+      options.guidanceProfile === "full"
+        ? prepareFullGuidanceWorkspace(
+            options,
+            workspaceDir,
+            guidanceBlock,
+            false,
+          )
+        : undefined;
+    const skillInstallation =
+      options.surface === "skills"
+        ? prepareSkillsWorkspace(options, workspaceDir)
+        : guidanceInstallation?.skillInstallation;
+    if (options.surface === "mcp") {
+      writeJson(mcpConfigPath, mcpConfig);
+      writeFileSync(codexConfigPath, buildCodexConfig(options));
+      const openCodeConfig = buildOpenCodeConfig(options);
+      writeJson(openCodeConfigPath, openCodeConfig);
+      writeJson(workspaceOpenCodeConfigPath, openCodeConfig);
+    } else {
+      writeJson(mcpConfigPath, { mcpServers: {} });
+      const openCodeConfig = buildOpenCodeSkillsConfig();
+      writeJson(openCodeConfigPath, openCodeConfig);
+      writeJson(workspaceOpenCodeConfigPath, openCodeConfig);
+    }
+    if (skillInstallation) {
+      writeJson(
+        join(workloadDir, "skill-installation.json"),
+        persistSkillInstallationMetadata(skillInstallation, workspaceDir),
+      );
+    }
+    if (guidanceInstallation) {
+      writeJson(
+        join(workloadDir, "guidance-installation.json"),
+        persistGuidanceInstallationMetadata(guidanceInstallation, workspaceDir),
+      );
+    }
+
+    const command = buildAgentCommand(
+      options,
+      prompt,
+      workspaceDir,
+      mcpConfigPath,
+      codexFinalPath,
+    );
+    const workloadEnv = { ...isolation.env };
+    if (options.agent === "opencode") {
+      isolateOpenCodeSkills(workloadEnv);
+    }
+    if (skillInstallation?.cliShim) {
+      workloadEnv.PATH = `${dirname(skillInstallation.cliShim)}${workloadEnv.PATH ? `${delimiter}${workloadEnv.PATH}` : ""}`;
+    }
+    const metadataBase = {
+      id,
+      path: workloadPath,
+      guidanceProfile: options.guidanceProfile,
+      model: options.model,
+      reasoningEffort: options.reasoningEffort,
+      command,
+      workspaceDir: "<ephemeral>",
+      isolation: isolation.metadata,
+      workloadDir,
+      measurementRoot: options.repoRoot,
+      targetRoot: effectiveTargetRoot(options),
+      targetGit,
+      experimentalTools: options.experimentalTools,
+      ...(skillInstallation
+        ? {
+            skillInstallation: persistSkillInstallationMetadata(
+              skillInstallation,
+              workspaceDir,
+            ),
+          }
+        : {}),
+      ...(guidanceInstallation
+        ? {
+            guidanceInstallation: persistGuidanceInstallationMetadata(
+              guidanceInstallation,
+              workspaceDir,
+            ),
+          }
+        : {}),
+    };
+
     if (options.dryRun) {
       writeJson(join(workloadDir, "dry-run.json"), metadataBase);
       writeJson(join(workloadDir, "discovery-events.json"), {
@@ -1955,6 +2296,18 @@ async function runWorkload(
         secretValues,
       ),
     );
+    const validationViolations = extractEvalValidationViolations(
+      result.stdout,
+      options,
+      workspaceDir,
+      options.agent,
+    );
+    if (validationViolations.length > 0) {
+      writeJson(
+        join(workloadDir, "isolation-violations.json"),
+        redactValue(validationViolations, secretValues),
+      );
+    }
 
     const finalJson = extractFinalJson(result.stdout);
     const codexFinalText = existsSync(codexFinalPath)
@@ -1985,7 +2338,9 @@ async function runWorkload(
 
     const status: RunStatus = result.timedOut
       ? "timeout"
-      : result.exitCode === 0 && validFinalJson
+      : result.exitCode === 0 &&
+          validFinalJson &&
+          validationViolations.length === 0
         ? "success"
         : "failed";
 
@@ -2010,6 +2365,7 @@ async function runWorkload(
         completedAt,
         ...(finalStatus ? { finalStatus } : {}),
         toolCallCount: toolCalls.length,
+        ...(validationViolations.length > 0 ? { validationViolations } : {}),
       },
       stdout: result.stdout,
       toolCalls: toolCalls.map(
@@ -2024,7 +2380,7 @@ async function runWorkload(
       artifacts: existingWorkloadArtifacts(runDir, workloadDir),
     };
   } finally {
-    rmSync(workspaceDir, { recursive: true, force: true });
+    rmSync(isolation.rootDir, { recursive: true, force: true });
   }
 }
 
@@ -2050,7 +2406,14 @@ export async function runAgentEval(
       "reasoning effort is only supported for Codex evals",
     );
   }
-  const env = buildEvalEnv(process.env);
+  const env = buildEvalEnv(dependencies.baseEnv ?? process.env);
+  if (
+    options.agent === "codex" &&
+    options.surface === "mcp" &&
+    !options.dryRun
+  ) {
+    validateCodexAuthHome(env);
+  }
   const secretValues = collectSecretValues(env);
   const guidanceBlock =
     options.guidanceProfile === "full"

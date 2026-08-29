@@ -3,10 +3,10 @@
 ## Status
 
 - Overall: IN PROGRESS
-- Current phase: Phase 2 — systematic local suites and paired comparison (VALIDATED)
+- Current phase: Phase 2 — eval isolation correction (IN PROGRESS)
 - Previous phase: Phase 1 — trustworthy local metrics (MERGED)
 - Owner: repository maintainers
-- Last verified: 2026-08-28
+- Last verified: 2026-08-29
 - Deployment: Phase 1 merged to `main`; local maintainer tooling is available.
   Scheduled execution and external persistence remain Phase 3 work.
 
@@ -96,11 +96,11 @@ Out of scope for the initial phases:
   The resolution is to keep deterministic smoke tests as merge gates and make
   scheduled live-agent evals observational/advisory until measured evidence
   supports a different policy.
-- Local Codex and Claude subscription runs cannot prove descriptor/full
-  instruction isolation: Codex can load global `$CODEX_HOME/AGENTS.md`, and
-  Claude bare mode disables subscription authentication. Local comparisons are
-  diagnostic. Acceptance-quality profile comparisons require a clean,
-  authenticated runner whose home and instruction sources are controlled.
+- The previous local Codex subscription runs could not prove descriptor/full
+  instruction isolation because Codex loaded global `$CODEX_HOME/AGENTS.md`.
+  The isolation correction now requires a caller-supplied auth-only home and
+  fresh per-workload OS homes; its clean canary is still required before local
+  profile results are accepted as causal evidence.
 
 ### Bounded planning baseline
 
@@ -157,10 +157,11 @@ sets a daily budget or timeout.
 The Codex descriptor-only package workload used a GitHits CLI fallback through
 `npx -y githits@latest`, but `tool-calls.json` and the report recorded zero
 calls. `extractToolCalls()` previously included CLI calls only for the Skills
-surface or the full MCP profile. Phase 1 now records the fallback in both MCP
-profiles and reports the effective profile, so a change from MCP use to CLI
-fallback cannot look like no GitHits use at all. Skills runs continue to use the
-CLI surface by design and do not receive the MCP fallback warning.
+surface or the full MCP profile. Phase 1 records the fallback in both MCP
+profiles, and the isolation correction now makes any such MCP fallback a failed
+validation. This keeps an accidental surface change visible rather than
+mistaking it for successful MCP use. Skills runs continue to use the CLI
+surface by design and remain valid.
 
 ### Usage-source observations
 
@@ -233,7 +234,8 @@ suite manifest
    preserve the provider payload needed for audit and map it into common
    non-overlapping fields. Tool extraction records both the logical GitHits
    operation and its surface (`mcp` or `cli`) in every profile. CLI fallback is
-   visible but never counted as successful MCP use.
+   visible and invalidates an MCP workload; it is never counted as successful
+   MCP use.
 
 4. **Normalized metrics contract**
 
@@ -450,7 +452,7 @@ The following must be resolved before Phase 5:
 - Test adapters independently from process execution.
 - Cover repeated events, terminal aggregate selection, inclusive cached-token
   semantics, reasoning-token non-double-counting, absent/partial telemetry,
-  CLI fallback in both profiles, failed calls, and secret redaction.
+   CLI-fallback traces in both MCP profiles, failed calls, and secret redaction.
 - Test suite expansion and compatible/incompatible comparison behavior without
   invoking paid agents.
 - Run targeted live canary execution only after deterministic tests pass; paid
@@ -474,8 +476,9 @@ The following must be resolved before Phase 5:
 
 1. **Phase 1 — trustworthy local metrics (MERGED):** every existing local run
    produces auditable per-workload tool/token/cost metrics, including visible
-   CLI fallback and explicit unknown telemetry.
-2. **Phase 2 — systematic local suites and paired comparison (VALIDATED):**
+   fallback telemetry and explicit unknown telemetry.
+2. **Phase 2 — systematic local suites and paired comparison (ISOLATION
+   CORRECTION IN PROGRESS):**
    maintainers can execute canary/smoke/full matrices locally, compare a
    candidate to a compatible main baseline, and see per-tool frequency plus
    measured time/cost totals.
@@ -495,15 +498,17 @@ The following must be resolved before Phase 5:
 ### Status
 
 MERGED — implementation and validation complete. The durable behavior is
-schema-validated local metrics, visible MCP-to-CLI fallback, explicit unknown
-telemetry, and compatibility with existing raw run artifacts.
+schema-validated local metrics, visible fallback telemetry, explicit unknown
+telemetry, and compatibility with existing raw run artifacts. MCP fallback is
+now rejected by the Phase 2 isolation correction.
 
 ### Expected Outcome
 
 Every Luna-low workload run writes a versioned metrics artifact whose token,
 cost, duration, and GitHits tool-use fields can be traced back to raw Codex
-events. MCP-to-CLI fallback is visible in every guidance profile, and missing
-telemetry cannot silently appear as zero.
+events. Fallback telemetry is visible in every guidance profile; an MCP
+fallback is a validation failure, and missing telemetry cannot silently appear
+as zero.
 
 ### Assumptions
 
@@ -564,14 +569,15 @@ None.
 ### Ordered Implementation Steps
 
 1. **Completed:** Add minimal redacted fixtures for the verified Codex terminal usage, MCP
-   calls, descriptor-profile CLI fallback, failed tool calls, and absent
-   telemetry. Write failing adapter/extraction tests first.
+   calls, historical descriptor-profile CLI fallback, failed tool calls, and
+   absent telemetry. Write failing adapter/extraction tests first.
 2. **Completed:** Extract pure provider usage adapters and a common metrics schema. Document
    field semantics at the interface and validate written artifacts at runtime
    using the repository's existing Zod convention.
 3. **Completed:** Correct CLI extraction so every GitHits fallback is recorded regardless of
    guidance profile, and update report warnings to identify the intended MCP
-   surface versus observed CLI surface.
+   surface versus observed CLI surface. The isolation correction rejects MCP
+   fallback traces.
 4. **Completed:** Generate `metrics.json` from completed raw artifacts and enrich the console
    and JSON report with per-workload and aggregate duration, tokens, tool calls,
    and cost.
@@ -615,8 +621,8 @@ None.
 - `bun run lint`
 - Targeted two-shard canary: both workloads and both Luna guidance profiles.
 - Inspect each `metrics.json` against its raw terminal aggregate and tool events;
-  specifically verify the descriptor-profile Codex CLI fallback is non-zero and
-  tagged `cli`.
+  historical fallback fixtures must remain non-zero and tagged `cli`; any live
+  MCP fallback must fail validation.
 
 ### Deterministic Implementation Evidence
 
@@ -632,8 +638,10 @@ None.
 
 ### Luna Validation Canary
 
-The Luna-low two-workload canary completed successfully in all four executions
-(2 workloads × 2 MCP guidance profiles) on 2026-08-28. Metrics aggregates were:
+The historical Luna-low two-workload canary completed successfully in all four
+executions (2 workloads × 2 MCP guidance profiles) on 2026-08-28, but its
+descriptor behavior was contaminated and is not acceptance evidence. Metrics
+aggregates were:
 
 | Guidance profile | Workloads | Summed workload duration | Logical calls | Uncached input | Cached input | Output | Reasoning detail | Base-rate estimate |
 | ---------------- | --------: | -----------------------: | ------------: | -------------: | -----------: | -----: | ---------------: | -----------------: |
@@ -642,9 +650,9 @@ The Luna-low two-workload canary completed successfully in all four executions
 
 Raw terminal usage matched metrics for all four executions. Raw tool
 observations paired 2:1 by provider ID into logical calls. The descriptors
-express workload used 10 MCP calls and the package workload used 4 CLI calls
-with the expected MCP-to-CLI fallback warning. The full profile used all 13
-calls through MCP.
+express workload used 10 MCP calls and the package workload used 4 CLI calls;
+that fallback is contamination evidence and would now fail isolation
+validation. The full profile used all 13 calls through MCP.
 
 ### Acceptance Criteria
 
@@ -656,8 +664,9 @@ calls through MCP.
   rate snapshot makes the base calculation reproducible, and request-level
   long-context uncertainty remains visible. A future provider-reported cost
   kind requires a schema revision.
-- [x] Descriptor-profile CLI fallback is visible and cannot be mistaken for MCP
-  success or zero GitHits use.
+- [x] Descriptor-profile CLI fallback telemetry is visible and cannot be
+  mistaken for MCP success or zero GitHits use; live MCP fallback now fails
+  isolation validation.
 - [x] Missing usage or cost is represented as unknown with a warning.
 - [x] No credential value appears in committed fixtures or generated artifacts.
 - [x] Existing local eval commands and raw artifacts continue to work.
@@ -667,14 +676,17 @@ calls through MCP.
 
 ### Status
 
-VALIDATED — implementation and paid Luna validation completed on 2026-08-28.
-This phase remains local-only; paid CI scheduling, service persistence, Haiku,
-and quality judging remain later work.
+The suite, metrics, and comparison mechanics are implemented, but the paid
+behavior comparison is not valid until the isolation correction below passes a
+clean Luna canary. This phase remains local-only; paid CI scheduling, service
+persistence, Haiku, and quality judging remain later work.
 
-The canary, smoke, and stable-full artifacts plus the bounded pair contain
-66/66 successful paid cells, with estimated spend of $0.78084672 across all
-artifacts. Exact per-tool counts, workload costs, timing, and observed natural
-variance are recorded in `docs/implementation/agentic-eval-metrics.md`.
+The previous 42-cell paid descriptor/full behavior comparison was contaminated:
+global skills were loaded in every descriptor workload and nine descriptor
+workloads attempted the CLI fallback. Its measured timing and cost remain
+provisional capacity/cost evidence only; it cannot support minimal-versus-full
+conclusions. Exact findings are recorded in
+`docs/implementation/agentic-eval-metrics.md`.
 
 ### Expected Outcome
 
@@ -692,8 +704,9 @@ designed.
 - Phase 1's `metrics.json` schema and logical `tools.sequence` semantics are
   stable enough to serve as the source for suite aggregation. Per-tool counts
   can be derived without changing or duplicating the schema.
-- Local profile comparisons remain diagnostic because of the documented global
-  instruction isolation limits.
+- A clean auth-only `CODEX_HOME` is supplied by the caller for live Codex MCP
+  runs; dry-runs do not require it. Local subscription auth uses a dedicated
+  `CODEX_HOME`, while CI will use API-key authentication.
 - The bounded paid pair used the same installed agent CLI version on both sides;
   the comparison records this identity explicitly.
 - Two Luna profile shards ran concurrently without a quota failure in the
@@ -1005,10 +1018,39 @@ None. The target service and automation budget remain later-phase decisions.
   owning suite directory.
 - [x] Canary, smoke, and stable-full have measured wall-time and cost summaries;
   Phase 3 no longer relies on the two-workload linear estimate.
-- [x] Local profile evidence is labeled diagnostic unless the run manifest proves a
-  clean instruction-isolated host.
+- [ ] Local profile evidence is accepted as causal only after the run manifest
+  and validation trace prove a clean instruction-isolated host.
 - [x] Existing targeted `--workload` usage remains available.
 - [x] No paid agent invocation is added to pull-request or `main` CI in this phase.
+
+## Phase 2 isolation correction
+
+### Status
+
+IN PROGRESS — implementation is complete locally; the coordinator must run the
+clean authenticated Luna descriptor/full canary before this correction is
+accepted.
+
+### Acceptance criteria
+
+- [x] Every workload gets fresh `HOME`, `USERPROFILE`, `XDG_CONFIG_HOME`,
+  `APPDATA`, and temporary paths beneath a disposable root; persisted metadata
+  contains only relative isolation labels.
+- [x] Live Codex MCP runs reject a missing, relative, or behavior-injecting
+  `CODEX_HOME` before agent startup without reading auth material.
+- [x] Full MCP installs only project guidance and `githits-mcp`; it does not
+  install or prepend a GitHits CLI shim. Skills runs retain the CLI surface.
+- [x] Acting prompts/results are product-neutral: `status`, `answer`, and
+  `confidence`; offline reports remain compatible with legacy final artifacts.
+- [x] External guidance reads, descriptor-profile guidance reads, and MCP CLI
+  calls are persisted as redacted validation violations and fail the affected
+  workload.
+- [ ] Clean Luna MCP descriptor/full canary confirms zero external guidance
+  reads, zero CLI fallback, equal executable surface, and successful isolated
+  execution.
+
+Phase 3 scheduling remains conditional on this canary. No prior paid behavior
+comparison may be used as minimal-versus-full evidence.
 
 ## Phase 3 — Daily Main Execution And Persistent Export
 
