@@ -537,7 +537,33 @@ Next: pass the canonical target "github:owner/project" to the next MCP tool.
         "       github:owner/project [related; repository]",
       );
     expect(() => assertExperimentalMcpResolveText(relatedMcpAction)).toThrow(
-      "without a warning",
+      "listed direct candidate without a warning",
+    );
+
+    const relatedCliLead = relatedCliAction
+      .replace(
+        "  1. npm:project [exact] · package",
+        "  1. github:owner/project · related repository",
+      )
+      .replace(
+        "\n     Related:\n       github:owner/project · related repository",
+        "",
+      );
+    expect(() => assertExperimentalCliResolveText(relatedCliLead)).toThrow(
+      "listed direct candidate without a warning",
+    );
+
+    const relatedMcpLead = relatedMcpAction
+      .replace(
+        "  1. npm:express [exact; package]",
+        "  1. github:owner/project [related; repository]\n  2. npm:express [exact; package]",
+      )
+      .replace(
+        "\n     Related:\n       github:owner/project [related; repository]",
+        "",
+      );
+    expect(() => assertExperimentalMcpResolveText(relatedMcpLead)).toThrow(
+      "listed direct candidate without a warning",
     );
   });
 

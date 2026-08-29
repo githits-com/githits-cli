@@ -330,13 +330,14 @@ confidence) or related.
 Each target keeps its normalized description, capped at 240 characters, plus
 available popularity, repository, license, docs, and code evidence. Positive
 docs/code counts render when content is available; otherwise availability is
-stated without inventing a count. Available content with a zero count renders
-that zero; unavailable content with zero renders `no docs` / `no code`. Missing
-licenses/counts produce no placeholder, and structurally inapplicable negatives
-are omitted (`no docs` is not shown for repositories and `no code` is not shown
-for sites). If availability is false despite a positive recorded count, output
-keeps both facts as `docs unavailable (<n> pages recorded)` or
-`code unavailable (<n> files recorded)`. A package's
+stated without inventing a count unless the backend supplies a contradictory
+positive recorded count. Available content with a zero count renders that zero;
+unavailable content with zero renders `no docs` / `no code`. Missing
+licenses/counts produce no placeholder. Structurally inapplicable evidence
+dimensions are omitted entirely: repositories show no docs field and sites show
+no code field. If availability is false despite a positive recorded count,
+output keeps both facts as `docs unavailable (<n> pages recorded)` or `code
+unavailable (<n> files recorded)`. A package's
 compact linked-repository fallback appears only when its group does not already
 contain the canonical repository target. `targetsTruncated` produces one note
 that additional related targets were omitted and direct matches are complete.

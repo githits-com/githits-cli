@@ -308,7 +308,7 @@ export function assertExperimentalMcpResolveText(
   if (directTarget) {
     assert(
       isResolveDirectTargetUnwarned(resolveTextBody, directTarget),
-      "experimental direct resolve action should target a listed candidate without a warning",
+      "experimental direct resolve action should target a listed direct candidate without a warning",
     );
     return;
   }

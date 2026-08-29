@@ -1012,7 +1012,7 @@ export function assertExperimentalCliResolveText(resolveText: string): void {
   if (directTarget) {
     assert(
       isResolveDirectTargetUnwarned(resolveText, directTarget),
-      "experimental direct resolve action should target a listed candidate without a warning",
+      "experimental direct resolve action should target a listed direct candidate without a warning",
     );
     return;
   }

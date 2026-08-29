@@ -15,9 +15,8 @@ export function isResolveDirectTargetUnwarned(
   const candidateLine = lines[candidateIndex] ?? "";
   const nested = candidateLine.startsWith("       ");
   if (
-    nested &&
-    (candidateLine.includes(" · related ") ||
-      candidateLine.includes("[related;"))
+    candidateLine.includes(" · related ") ||
+    candidateLine.includes("[related;")
   ) {
     return false;
   }
