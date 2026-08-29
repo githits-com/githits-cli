@@ -94,15 +94,6 @@ export function renderUnifiedSearchPresentationText(
     appendUnifiedSearchHits(lines, result.results, settings);
   }
 
-  const hasPostResultBlock = presentation.action.kind !== "none";
-  if (
-    result.results.length > 0 &&
-    hasPostResultBlock &&
-    lines[lines.length - 1] !== ""
-  ) {
-    lines.push("");
-  }
-
   appendPresentationAction(lines, presentation, settings);
   return lines.join("\n");
 }

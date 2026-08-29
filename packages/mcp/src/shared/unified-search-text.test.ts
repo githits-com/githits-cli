@@ -1329,6 +1329,79 @@ describe("renderUnifiedSearchSuccess", () => {
     );
   });
 
+  it("prefers rerun when a completed-empty peer target is still indexing", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({
+            targetLabel: "npm:one@1.0.0",
+            source: "code",
+            codeIndexState: "CURRENT",
+            resultCount: 0,
+          }),
+          source({
+            targetLabel: "npm:one@1.0.0",
+            source: "symbol",
+            codeIndexState: "UNRESOLVABLE",
+            resultCount: 0,
+          }),
+          source({
+            targetLabel: "npm:two@2.0.0",
+            source: "code",
+            codeIndexState: "INDEXING",
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toBe(
+      "No results\n\n" +
+        "- npm:one@1.0.0\n" +
+        "  searched: code; unresolved: symbols\n\n" +
+        "- npm:two@2.0.0\n" +
+        "  indexing: code\n\n" +
+        "Next: rerun search later.",
+    );
+  });
+
+  it("keeps terminal alternatives informational beside a bare lane reason", () => {
+    const text = renderUnifiedSearchSuccess(
+      incomplete({
+        partialResults: false,
+        progress: {
+          status: "FAILED",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 60_000,
+        },
+        sourceStatus: [
+          source({
+            source: "code",
+            codeIndexState: "CURRENT",
+            resultCount: 0,
+          }),
+          source({
+            source: "symbol",
+            codeIndexState: "UNRESOLVABLE",
+            targetResolution: {
+              availableVersions: [{ version: "4.17.0", ref: "v4.17.0" }],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toBe(
+      "No results | failed | 0/1 ready\n\n" +
+        "- npm:express@4.18.2\n" +
+        "  searched: code; unresolved: symbols; indexed: versions 4.17.0\n\n" +
+        "Next: rerun search later.",
+    );
+  });
+
   it("omits a singular outcome target when hits span multiple targets", () => {
     const text = renderUnifiedSearchSuccess(
       completed([

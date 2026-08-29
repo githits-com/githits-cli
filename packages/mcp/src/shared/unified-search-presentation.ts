@@ -1265,13 +1265,13 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
   }
 
   if (hasLocalRecovery) return { kind: "none" };
-  if (hasBareTerminalReason) {
-    return projectQueryRewrite(input.snapshot.query);
-  }
   const hasIndexing = input.targetGroups.some((group) =>
     groupHasIndexing(group),
   );
   if (hasIndexing) return { kind: "new_search" };
+  if (hasBareTerminalReason) {
+    return projectQueryRewrite(input.snapshot.query);
+  }
   if (
     input.targetGroups.some((group) =>
       group.trustLimits.some(
@@ -1331,10 +1331,9 @@ function projectTargetRecovery(
       : undefined;
   }
   if (lifecycle.kind === "terminal" || lifecycle.kind === "unknown") {
+    if (hasBareTerminalReason) return undefined;
     if (candidate) return candidate;
-    return hasTerminalReason && !hasBareTerminalReason
-      ? fixRecovery(group)
-      : undefined;
+    return hasTerminalReason ? fixRecovery(group) : undefined;
   }
   if (lifecycle.kind === "completed" && hasTerminalReason) {
     return hasBareTerminalReason

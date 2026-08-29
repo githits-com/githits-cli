@@ -194,6 +194,21 @@ Next: shorten or broaden query; use githits code grep.`;
     ).not.toThrow();
   });
 
+  it.each([
+    "ready",
+    "pending",
+    "provisional",
+    "older snapshot",
+    "package not found: code",
+  ])("rejects ungrouped target state detail: %s", (detail) => {
+    expect(() =>
+      assertSearchTerminalText(
+        `No results\n  ${detail}\n\nNext: rerun search later.`,
+        "search",
+      ),
+    ).toThrow("readiness details must be grouped under a target");
+  });
+
   it("accepts completed target readiness without a search session", () => {
     expect(() =>
       assertSearchTerminalText(completedWithTargetReadiness, "search"),

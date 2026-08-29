@@ -520,6 +520,27 @@ describe("runMcpSmoke", () => {
     await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
   });
 
+  it.each([
+    "ready",
+    "pending",
+    "provisional",
+    "older snapshot",
+    "package not found: code",
+  ])("rejects ungrouped target state detail: %s", async (detail) => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(
+          `No results\n  ${detail}\n\nNext: rerun search later.`,
+        );
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).rejects.toThrow(
+      "search default: readiness details must be grouped under a target",
+    );
+  });
+
   it("rejects duplicate lifecycle outcome lines", async () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {

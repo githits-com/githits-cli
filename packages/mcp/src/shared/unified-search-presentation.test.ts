@@ -2064,6 +2064,78 @@ describe("projectUnifiedSearchPresentation", () => {
     },
   );
 
+  it("prefers a new search when another completed-empty target is indexing", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            targetLabel: "npm:one@1.0.0",
+            source: "code",
+            codeIndexState: "CURRENT",
+            resultCount: 0,
+          }),
+          source({
+            targetLabel: "npm:one@1.0.0",
+            source: "symbol",
+            codeIndexState: "UNRESOLVABLE",
+            resultCount: 0,
+          }),
+          source({
+            targetLabel: "npm:two@2.0.0",
+            source: "code",
+            codeIndexState: "INDEXING",
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.targetGroups.map((group) => group.recovery)).toEqual([
+      undefined,
+      undefined,
+    ]);
+    expect(presentation.action).toEqual({ kind: "new_search" });
+  });
+
+  it("keeps terminal alternatives informational beside a bare lane reason", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      incomplete({
+        partialResults: false,
+        progress: {
+          status: "FAILED",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 60_000,
+        },
+        sourceStatus: [
+          source({
+            source: "code",
+            codeIndexState: "CURRENT",
+            resultCount: 0,
+          }),
+          source({
+            source: "symbol",
+            codeIndexState: "UNRESOLVABLE",
+            targetResolution: {
+              availableVersions: [{ version: "4.17.0", ref: "v4.17.0" }],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.targetGroups[0]?.recovery).toBeUndefined();
+    expect(presentation.targetGroups[0]?.alternatives).toEqual(
+      expect.objectContaining({
+        versions: [{ version: "4.17.0", ref: "v4.17.0" }],
+      }),
+    );
+    expect(presentation.action).toEqual({ kind: "new_search" });
+  });
+
   it("uses query rewrite for completed-empty evidence without a reference", () => {
     const presentation = projectUnifiedSearchPresentation(
       completed({ results: [], evidenceNotice: "mutable evidence" }),
