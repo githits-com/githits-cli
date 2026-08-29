@@ -1555,12 +1555,13 @@ describe("agent eval harness", () => {
     }
   });
 
-  it("rejects contaminated or missing Codex homes before a live MCP launch", async () => {
+  it("rejects contaminated or missing Codex homes before every live Codex launch", async () => {
     const codexHome = mkdtempSync(join(tmpdir(), "agent-eval-codex-home-"));
     const outDir = mkdtempSync(join(tmpdir(), "agent-eval-live-reject-"));
     const workload = resolve("eval/agentic/workloads/express-router.md");
     let availabilityCalls = 0;
     let versionCalls = 0;
+    let commandCalls = 0;
     const baseEnv: NodeJS.ProcessEnv = {
       PATH: "/bin",
       CODEX_HOME: codexHome,
@@ -1578,34 +1579,114 @@ describe("agent eval harness", () => {
           string | undefined,
         ];
       },
+      runCommand: async () => {
+        commandCalls += 1;
+        return { stdout: "", stderr: "", exitCode: 0, timedOut: false };
+      },
     };
     try {
-      writeFileSync(join(codexHome, "AGENTS.md"), "test guidance\n");
-      await expect(
-        runAgentEval(
-          parseArgs(
-            ["--agent", "codex", "--out", outDir, "--workload", workload],
-            process.cwd(),
+      for (const surface of ["mcp", "skills"] as const) {
+        writeFileSync(join(codexHome, "AGENTS.md"), "test guidance\n");
+        await expect(
+          runAgentEval(
+            parseArgs(
+              [
+                "--agent",
+                "codex",
+                "--surface",
+                surface,
+                "--out",
+                outDir,
+                "--workload",
+                workload,
+              ],
+              process.cwd(),
+            ),
+            dependencies,
           ),
-          dependencies,
-        ),
-      ).rejects.toThrow("contains global instructions");
-      expect(availabilityCalls).toBe(0);
-      expect(versionCalls).toBe(0);
+        ).rejects.toThrow("contains global instructions");
+        expect(availabilityCalls).toBe(0);
+        expect(versionCalls).toBe(0);
+        expect(commandCalls).toBe(0);
 
-      rmSync(join(codexHome, "AGENTS.md"));
-      baseEnv.CODEX_HOME = undefined;
-      await expect(
-        runAgentEval(
-          parseArgs(
-            ["--agent", "codex", "--out", outDir, "--workload", workload],
-            process.cwd(),
+        rmSync(join(codexHome, "AGENTS.md"));
+        baseEnv.CODEX_HOME = undefined;
+        await expect(
+          runAgentEval(
+            parseArgs(
+              [
+                "--agent",
+                "codex",
+                "--surface",
+                surface,
+                "--out",
+                outDir,
+                "--workload",
+                workload,
+              ],
+              process.cwd(),
+            ),
+            dependencies,
           ),
-          dependencies,
-        ),
-      ).rejects.toThrow("require CODEX_HOME");
-      expect(availabilityCalls).toBe(0);
-      expect(versionCalls).toBe(0);
+        ).rejects.toThrow("require CODEX_HOME");
+        expect(availabilityCalls).toBe(0);
+        expect(versionCalls).toBe(0);
+        expect(commandCalls).toBe(0);
+        baseEnv.CODEX_HOME = codexHome;
+      }
+    } finally {
+      rmSync(codexHome, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("runs a Codex skills eval with a valid managed home and injected command", async () => {
+    const codexHome = mkdtempSync(join(tmpdir(), "agent-eval-codex-home-"));
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-skills-live-"));
+    const workload = resolve("eval/agentic/workloads/express-router.md");
+    let observedCommand: string[] | undefined;
+    let observedEnv: Record<string, string> | undefined;
+    try {
+      const options = parseArgs(
+        [
+          "--agent",
+          "codex",
+          "--surface",
+          "skills",
+          "--server",
+          "local",
+          "--out",
+          outDir,
+          "--workload",
+          workload,
+        ],
+        process.cwd(),
+      );
+      await runAgentEval(options, {
+        baseEnv: { PATH: "/bin", CODEX_HOME: codexHome },
+        assertAgentAvailable: async () => {},
+        collectAgentVersions: async () => [undefined, "codex-test", undefined],
+        runCommand: async (command, _cwd, env) => {
+          observedCommand = command;
+          observedEnv = env;
+          return {
+            stdout: JSON.stringify({
+              status: "success",
+              answer: "Used the injected skills command.",
+              confidence: "high",
+            }),
+            stderr: "",
+            exitCode: 0,
+            timedOut: false,
+          };
+        },
+      });
+
+      expect(observedCommand?.[0]).toBe("codex");
+      expect(observedCommand).toContain("--ignore-user-config");
+      expect(observedEnv?.PATH).toContain(".agent-eval-bin");
+      const run = JSON.parse(readFileSync(join(outDir, "run.json"), "utf8"));
+      expect(run.workloads[0].status).toBe("success");
     } finally {
       rmSync(codexHome, { recursive: true, force: true });
       rmSync(outDir, { recursive: true, force: true });

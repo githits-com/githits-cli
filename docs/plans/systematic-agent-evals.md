@@ -704,8 +704,8 @@ designed.
 - Phase 1's `metrics.json` schema and logical `tools.sequence` semantics are
   stable enough to serve as the source for suite aggregation. Per-tool counts
   can be derived without changing or duplicating the schema.
-- A dedicated eval `CODEX_HOME` is supplied by the caller for live Codex MCP
-  runs; dry-runs do not require it. The home contains subscription/API-key
+- A dedicated eval `CODEX_HOME` is supplied by the caller for every live Codex
+  surface; dry-runs do not require it. The home contains subscription/API-key
   authentication and Codex-managed runtime state, but no root-level
   `AGENTS.override.md` or `AGENTS.md`. Local subscription auth uses a dedicated
   `CODEX_HOME`, while CI will use API-key authentication. Every Codex eval
@@ -1073,6 +1073,11 @@ Sequential wall time was approximately 52.1 seconds and estimated cost was
 $0.016326. This is the clean causal baseline seed; it does not replace the
 contaminated 42-cell stable-full capacity measurement.
 
+The v4 live evidence covers MCP descriptor/full cells only. Skills-surface
+isolation and authentication have deterministic injected-command coverage in
+the test suite, but no live skills canary has run; Phase 2 acceptance does not
+require one.
+
 The trusted MCP child receives the caller's `HOME` and `USERPROFILE` for
 keychain-backed GitHits authentication, while the acting agent keeps disposable
 home/config paths. Host `XDG_CONFIG_HOME` and `APPDATA` are not passed to the
@@ -1084,7 +1089,7 @@ redacted in persisted artifacts.
 - [x] Every workload gets fresh `HOME`, `USERPROFILE`, `XDG_CONFIG_HOME`,
   `APPDATA`, and temporary paths beneath a disposable root; persisted metadata
   contains only relative isolation labels.
-- [x] Live Codex MCP runs reject a missing or relative `CODEX_HOME`, and reject
+- [x] Live Codex runs reject a missing or relative `CODEX_HOME`, and reject
   root-level `AGENTS.override.md`/`AGENTS.md`, before agent startup without
   reading auth material; Codex-managed nested state is allowed.
 - [x] Full MCP installs only project guidance and `githits-mcp`; it does not

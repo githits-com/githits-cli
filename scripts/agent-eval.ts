@@ -1037,7 +1037,7 @@ export function validateCodexEvalHome(
   const codexHome = baseEnv.CODEX_HOME;
   assert(
     codexHome !== undefined && codexHome.length > 0,
-    "Codex MCP evals require CODEX_HOME pointing to a dedicated eval home",
+    "Codex evals require CODEX_HOME pointing to a dedicated eval home",
   );
   assert(
     isAbsolute(codexHome),
@@ -2461,11 +2461,7 @@ export async function runAgentEval(
     );
   }
   const env = buildEvalEnv(dependencies.baseEnv ?? process.env);
-  if (
-    options.agent === "codex" &&
-    options.surface === "mcp" &&
-    !options.dryRun
-  ) {
+  if (options.agent === "codex" && !options.dryRun) {
     validateCodexEvalHome(env);
   }
   const secretValues = collectSecretValues(env);

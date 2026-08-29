@@ -61,7 +61,7 @@ Each workload receives a fresh temporary isolation root containing its workspace
 OS home, user profile, config directories, and temporary directory. Only the
 caller-supplied `CODEX_HOME` is retained outside that root. It is a dedicated
 eval home containing Codex authentication state and Codex-managed runtime state;
-it may accumulate managed state across runs. Live Codex MCP runs reject a
+it may accumulate managed state across runs. Live Codex evals reject a
 missing, relative, or root-level `AGENTS.override.md`/`AGENTS.md` before
 invoking the agent. The harness checks only those two names at the CODEX_HOME
 root and does not read auth material or guidance contents. Codex-managed `config.toml`,
@@ -76,6 +76,7 @@ that same home for evals:
 ```bash
 CODEX_HOME="$HOME/.codex-eval" codex login -c 'cli_auth_credentials_store="file"'
 CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface mcp --server local --workload eval/agentic/workloads/package-overview-vulnerabilities.md
+CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface skills --server local --workload eval/agentic/workloads/package-overview-vulnerabilities.md
 ```
 
 The acting agent still receives only the disposable per-workload
@@ -125,6 +126,10 @@ are identical and both runs disable `apps`, `plugins`, and `remote_plugin`.
 Sequential wall time was approximately 52.1 seconds and estimated cost was
 $0.016326. This is the clean causal baseline seed; it does not replace the
 contaminated 42-cell stable-full capacity measurement.
+
+The v4 live evidence covers MCP descriptor/full cells only. Skills-surface
+isolation and authentication have deterministic injected-command coverage in
+the test suite, but no live skills canary has run.
 
 Trace validation fails an MCP workload if it observes an external
 `AGENTS.md`/`SKILL.md` read, a guidance read in the descriptor profile, or any
@@ -245,7 +250,7 @@ For ad hoc interactive testing with the same MCP/skills setup logic:
 ```bash
 bun run agent:session --agent claude --surface mcp --server local
 bun run agent:session --agent claude --surface skills --server local --model haiku
-bun run agent:session --agent codex --surface skills --server local --prompt "Evaluate npm:express"
+CODEX_HOME="$HOME/.codex-eval" bun run agent:session --agent codex --surface skills --server local --prompt "Evaluate npm:express"
 bun run agent:session --agent codex --surface mcp --server local --dry-run
 bun run agent:session --agent claude --surface mcp --server local --guidance-profile full --dry-run
 bun run agent:session --agent opencode --surface mcp --server local --prompt "Evaluate npm:express" --dry-run
@@ -405,7 +410,7 @@ For broad skill edits, run at least:
 
 ```bash
 bun run agent:e2e --agent claude --surface skills --server local --workload eval/agentic/workloads/express-router.md
-bun run agent:e2e --agent codex --surface skills --server local --workload eval/agentic/workloads/express-router.md
+CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface skills --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent opencode --surface skills --server local --workload eval/agentic/workloads/express-router.md
 ```
 
@@ -553,12 +558,13 @@ also prevents user-level `CLAUDE.md` discovery.
 Skills runs do not use that flag because Claude Code treats it as disabling all
 skills; they instead use project-only settings plus an empty strict MCP config.
 Codex MCP runs use per-run `-c` MCP config overrides, `--ignore-rules`, and
-`--ignore-user-config`; the caller-supplied dedicated eval `CODEX_HOME` is
-validated for root global instructions before launch. Skills runs omit the MCP
-and rule overrides while retaining `--ignore-user-config` so project skills can
-be discovered without user-configured MCP servers. Every Codex eval command
-also repeats `--disable apps`, `--disable plugins`, and `--disable
-remote_plugin` before its prompt. Codex always uses
+`--ignore-user-config`; every live Codex eval requires the caller-supplied
+dedicated eval `CODEX_HOME`, which is validated for root global instructions
+before launch. Skills runs omit the MCP and rule overrides while retaining
+`--ignore-user-config` so project skills can be discovered without
+user-configured MCP servers. Every Codex eval command also repeats `--disable
+apps`, `--disable plugins`, and `--disable remote_plugin` before its prompt.
+Codex always uses
 `--dangerously-bypass-approvals-and-sandbox` so non-interactive GitHits calls are
 not cancelled by the approval layer. Keep workloads controlled and run them from
 the harness's empty temporary workspace. These isolation flags belong to

@@ -37,6 +37,7 @@ use. Local subscription use requires a dedicated home, for example:
 ```bash
 CODEX_HOME="$HOME/.codex-eval" codex login -c 'cli_auth_credentials_store="file"'
 CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface mcp --server local --workload eval/agentic/workloads/package-overview-vulnerabilities.md
+CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface skills --server local --workload eval/agentic/workloads/package-overview-vulnerabilities.md
 ```
 
 CI should provide a clean `CODEX_HOME` with `OPENAI_API_KEY` authentication. The
@@ -98,6 +99,10 @@ are identical and both runs disable `apps`, `plugins`, and `remote_plugin`.
 Sequential wall time was approximately 52.1 seconds and estimated cost was
 $0.016326. This is the clean causal baseline seed; it does not replace the
 contaminated 42-cell stable-full capacity measurement.
+
+The v4 live evidence covers MCP descriptor/full cells only. Skills-surface
+isolation and authentication have deterministic injected-command coverage in
+the test suite, but no live skills canary has run.
 
 The trusted MCP child receives the caller's HOME and USERPROFILE so
 keychain-backed GitHits authentication can resolve, while the acting agent
