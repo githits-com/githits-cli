@@ -7,15 +7,22 @@
 - Later phase: Phase 2 — terminal backend failure details (BLOCKED on private backend #2133)
 - Commits: Phase 1 runtime `56f6003`; Phase 1 guidance/docs `e0057e6`; runtime/preflight
   fixes `c88194b`, `80f93a2`; privacy/wording review closure `b6c0581`; Phase 1B
-  plan baseline `28772a3`; Phase 1B runtime `9b3523e`.
+  plan baseline `28772a3`; Phase 1B runtime `9b3523e` and runtime closure commits
+  `6b4a2d2`, `c268cba`, `e4cb960`.
 - Phase 1B worker evidence: 144 focused presentation/text/status tests pass; 218
   consumer, parity, CLI/MCP, and smoke-helper tests pass; `bun run typecheck` and
   the owned-file Biome check pass. One transient worker test-suite deletion mistake
   was restored before verification. The original worker lost authentication and was
   replaced; the replacement resumed the existing delta without discarding it.
-- Remaining validation: coordinator full-suite, build/package, live smoke, agent-eval,
-  and fresh external review evidence is still pending; this plan does not claim those
-  checks complete.
+- Final-head validation is complete: the full suite passed 3,550 tests with 11,360
+  expectations across 185 files; typecheck, format/lint, root and MCP builds, both
+  package validators, and all four smoke modes passed. The MCP publish dry-run was
+  skipped only because version 0.11.2 is already published. Targeted Claude and Codex
+  agent evaluation passed 4/4 with high confidence and no futile `search_status`
+  polling; it ran before the final runtime closure commits, whose deterministic shapes
+  are covered by final-head tests and smoke suites.
+- Fresh Opus follow-up review remains pending; round 1 findings are closed, but this
+  plan does not claim a clean final external review.
 - Last verified: 2026-08-29
 
 ## Problem and expected outcome
@@ -70,8 +77,9 @@ When this plan is complete:
   the success JSON envelope does not need a compatibility change in Phase 1.
 - Focused unit, CLI, MCP, parity, and smoke-helper tests cover terminal recovery,
   distinct symbol readiness, lane-aware warnings, target grouping, compact sources,
-  lifecycle headlines, and exactly-once continuation. Full repository validation,
-  live smoke, agent evaluation, and fresh external review remain coordinator work.
+  lifecycle headlines, and exactly-once continuation. Final-head full-suite, build,
+  smoke, package, and targeted agent-evaluation evidence is recorded in the Phase 1B
+  verification record; fresh Opus follow-up remains pending.
 - `packages/mcp/src/shared/package-spec.ts` validates registry and syntax only. It
   deliberately does not own backend package identity conventions.
 
@@ -219,7 +227,8 @@ presentation, CLI, MCP tool, and parity layers.
 2. **Phase 1B (COMPLETE):** CLI and MCP text expose one token-efficient state list
    that keeps every transient, terminal, trust, warning, and recovery fact with its
    target. Runtime commit `9b3523e` and this documentation/release closure record
-   the implemented contract; coordinator final validation remains pending.
+   the implemented contract; final-head validation is recorded, with fresh Opus
+   follow-up review still pending.
 3. **Phase 2 (BLOCKED):** CLI and MCP expose an actionable typed cause for terminal
    `FAILED` sessions after private backend #2133 supplies the contract.
 
@@ -685,13 +694,15 @@ Recovery/action gating is deterministic:
 | completed empty | searched empty with no target recovery | none | query rewrite |
 | completed empty | other unavailable/stale/indexing trust without replayable recovery | none | new search |
 | terminal/unknown session | any target-local recovery, including suggestion-only site recovery | `Try:`/`Fix:` | none |
-| terminal/unknown session | exact terminal reason on a target with any searched/indexing lane | none; keep bare reason on affected lane | none; this row takes precedence over generic new search |
+| terminal/unknown session | exact terminal reason on a target with any searched/indexing lane | none; keep bare reason on affected lane | new search |
 | terminal/unknown session | no target-local recovery or exact lane reason | none | new search |
 
 Any target-local recovery suppresses global `new_search` and `query_rewrite`, but never
-suppresses an active `poll` or completed evidence `status`. This permits a mixed active
-response to tell the caller how to repair one terminal target while polling remaining
-indexing targets exactly once.
+suppresses an active `poll` or completed evidence `status`. Bare terminal reasons are
+not local recovery: terminal/unknown sessions therefore use `new_search`, while
+completed-empty searched evidence retains its query rewrite. This permits a mixed
+active response to tell the caller how to repair one terminal target while polling
+remaining indexing targets exactly once.
 
 Ownership check: target state belongs to `UnifiedSearchTargetGroup`; lifecycle and
 continuation belong to `UnifiedSearchPresentation`. The earlier friction came from the
@@ -824,9 +835,29 @@ test-suite deletion occurred transiently and was restored before those checks pa
 the original worker session also lost authentication and was replaced. No JSON,
 schema, backend, skill, instruction, generated asset, or dependency change was made.
 
-Coordinator-owned full repository/package/build checks, live smoke, targeted agent
-evaluation, and fresh external Opus review are not yet recorded as complete. They
-remain the final validation/review work for this branch.
+Coordinator-owned full repository/package/build checks, live smoke, and targeted
+agent evaluation are recorded below. The final Opus follow-up remains pending, so
+review closure is not yet clean.
+
+Runtime closure commits completed the remaining deterministic corrections:
+
+- `6b4a2d2` corrected the presentation alias return type and reused the computed
+  terminal reason in source projection.
+- `c268cba` normalized `latest` package replay targets, retained terminal recovery
+  beside healthy peer hits, and made target-local `Fix:`/`Try:` output actionable in
+  both smoke validators.
+- `e4cb960` restored terminal `new_search` for bare lane reasons, removed phantom
+  post-hit separators, and aligned smoke recognition with bare readiness states and
+  terminal reason labels.
+
+At the final head, `bun test` passed 3,550 tests with 11,360 expectations across 185
+files. Typecheck, format/lint, root and MCP builds, both package validators, and all
+four smoke modes passed: CLI live (89 steps), MCP live (46), built CLI (18), and built
+MCP (7). The MCP publish dry-run was skipped only because version 0.11.2 was already
+published. Targeted Claude and Codex agent evaluation passed 4/4 with high confidence
+and no futile `search_status` polling; that qualitative workload ran before `c268cba`
+and `e4cb960`, so those final shapes are covered by deterministic final-head tests and
+smoke suites rather than by a rerun of the qualitative workload.
 
 The final preflight sibling scan found one stale optional session-row and duplicate
 `searchRef` description in `docs/implementation/mcp-cli-parity.md`; this closure
@@ -865,6 +896,15 @@ test behavior changed.
   precedence distinguishes a bare exact lane reason from generic terminal rerun; the
   terminal no-snapshot example includes readiness; and coordinate recovery requires no
   searched or indexing lane. No unresolved major finding or product decision remains.
+- Internal code review accepted three implementation findings: latest package replay
+  target normalization, target-local recovery beside healthy peer hits, and smoke
+  actionability for target-local recovery. `c268cba` closes all three.
+- Fresh Opus round 1 accepted F1 (terminal bare-lane dead end), N1 (trailing post-hit
+  separator), and N4 (smoke recognition of emitted readiness and terminal states).
+  `e4cb960` closes those findings. The empty-target guard was rejected as unverified,
+  and the active-site `available:` relabel was rejected because it contradicts the
+  explicit Phase 1B product decision. Opus follow-up review remains pending; this is
+  not a clean final review claim.
 
 ### Phase 1B acceptance criteria
 
@@ -880,8 +920,10 @@ test behavior changed.
 - Healthy output collapses to one target-plus-lanes `Sources:` row; ranked hits and
   structured JSON remain unchanged.
 - Presentation, renderer, CLI/MCP/parity, and smoke-helper validation pass with the
-  worker evidence recorded above. Full repository, package/build, live smoke, and
-  targeted agent-eval validation remain pending coordinator evidence.
+  final-head evidence recorded above. Full repository, package/build, live smoke, and
+  targeted Claude/Codex agent-eval validation are complete; the qualitative evaluation
+  predates the final runtime closure and those shapes are covered by deterministic
+  tests/smokes. Fresh Opus follow-up review remains pending.
 - Durable implementation docs and the existing dual-package patch fragment reflect the
   final behavior; package versions, released changelogs, descriptors, skills, generated
   assets, and backend requests remain unchanged.
@@ -959,10 +1001,10 @@ build, package, smoke, and agent-eval verification appropriate to changed MCP be
 ## Phase boundary and completion
 
 Phase 1 and Phase 1B are complete in the recorded commits above and stay within the
-existing client-owned text projection. Coordinator final validation and review remain
-pending before the updated draft PR is pushed. Use a fresh `origin/main` comparison
-before beginning Phase 2, and do not mix speculative Phase 2 fields into the client UX
-increment.
+existing client-owned text projection. Final-head validation is recorded, while fresh
+Opus follow-up review remains pending before the updated draft PR is pushed. Use a
+fresh `origin/main` comparison before beginning Phase 2, and do not mix speculative
+Phase 2 fields into the client UX increment.
 
 This plan remains active while private backend #2133 blocks Phase 2. After both phases are implemented,
 transfer all lasting contracts to `docs/implementation/`, verify no unresolved work
