@@ -224,6 +224,11 @@ function classifyCodeDiffError(error: CodeDiffError): MappedError {
   if (source?.publishedVersionsTruncated !== undefined) {
     details.publishedVersionsTruncated = source.publishedVersionsTruncated;
   }
+  if (source?.availableVersions !== undefined) {
+    details.availableVersions = source.availableVersions.map((entry) => ({
+      ...entry,
+    }));
+  }
   if (source?.registry !== undefined) details.registry = source.registry;
   if (source?.retryAfterMs !== undefined) {
     details.retryAfterMs = source.retryAfterMs;

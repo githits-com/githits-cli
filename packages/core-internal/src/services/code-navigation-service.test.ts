@@ -3125,6 +3125,7 @@ describe("CodeNavigationServiceImpl", () => {
                   registry: "NPM",
                   repo_url: "https://github.com/expressjs/express",
                   git_ref: "v4.18.1",
+                  available_versions: [],
                   available_refs: [{ ref: "main", version: null }],
                   suggested_refs: [{ ref: "v4.18.2" }],
                   ref_kinds: ["TAG", "BRANCH"],
@@ -3161,6 +3162,7 @@ describe("CodeNavigationServiceImpl", () => {
         registry: "NPM",
         repoUrl: "https://github.com/expressjs/express",
         gitRef: "v4.18.1",
+        availableVersions: [],
         availableRefs: [{ ref: "main", version: undefined }],
         suggestedRefs: [{ ref: "v4.18.2", version: undefined }],
         refKinds: ["TAG", "BRANCH"],
@@ -3256,6 +3258,14 @@ describe("CodeNavigationServiceImpl", () => {
               registry: "NPM",
               published_versions: [],
               published_versions_truncated: true,
+              available_versions: [
+                { version: "2.1.1", ref: "2.1.1", ignored: "discard-me" },
+                { version: "4.0.0", ref: "4.0.0" },
+                {
+                  version: null,
+                  ref: "0123456789abcdef0123456789abcdef01234567",
+                },
+              ],
               retry_after_ms: 1200,
               secret: "must-not-survive",
             }),
@@ -3290,6 +3300,14 @@ describe("CodeNavigationServiceImpl", () => {
       side: "from",
       publishedVersions: [],
       publishedVersionsTruncated: true,
+      availableVersions: [
+        { version: "2.1.1", ref: "2.1.1" },
+        { version: "4.0.0", ref: "4.0.0" },
+        {
+          version: undefined,
+          ref: "0123456789abcdef0123456789abcdef01234567",
+        },
+      ],
       registry: "NPM",
       retryAfterMs: 1200,
     });
@@ -3361,6 +3379,10 @@ describe("CodeNavigationServiceImpl", () => {
               code: "AMBIGUOUS_REF",
               retryable: false,
               published_versions: ["1.0.0", 2],
+              available_versions: [
+                { version: "1.0.0", ref: "v1.0.0" },
+                { version: "2.0.0", ref: 2 },
+              ],
               ref_kinds: ["TAG", 3],
               available_refs: [{ ref: "main" }, null],
               suggested_refs: [{ ref: "release", version: 4 }],
