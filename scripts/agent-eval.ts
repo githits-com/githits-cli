@@ -1178,7 +1178,13 @@ export function collectHostHomeValues(env: Record<string, string>): string[] {
 }
 
 function combineRedactionValues(...valueLists: string[][]): string[] {
-  return [...new Set(valueLists.flat())].sort((a, b) => b.length - a.length);
+  const values = [...new Set(valueLists.flat())];
+  const escapedValues = values
+    .map((value) => JSON.stringify(value).slice(1, -1))
+    .filter((value) => value.length > 0);
+  return [...new Set([...values, ...escapedValues])].sort(
+    (a, b) => b.length - a.length,
+  );
 }
 
 export function redactText(text: string, secretValues: string[]): string {
@@ -2190,17 +2196,11 @@ function redactPersistedRuntimeConfigs(
   paths: string[],
   redactionValues: string[],
 ): void {
-  const serializedRedactionValues = [
-    ...redactionValues,
-    ...redactionValues
-      .map((value) => JSON.stringify(value).slice(1, -1))
-      .filter((value) => value.length > 0),
-  ];
   for (const path of paths) {
     if (existsSync(path) && lstatSync(path).isFile()) {
       writeFileSync(
         path,
-        redactText(readFileSync(path, "utf8"), serializedRedactionValues),
+        redactText(readFileSync(path, "utf8"), redactionValues),
       );
     }
   }

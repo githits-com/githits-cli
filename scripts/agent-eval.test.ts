@@ -2638,7 +2638,7 @@ describe("agent eval harness", () => {
         parseArgs(
           [
             "--agent",
-            "claude",
+            "codex",
             "--dry-run",
             "--out",
             outDir,
@@ -2682,6 +2682,22 @@ describe("agent eval harness", () => {
         for (const value of [hostHome, hostProfile, hostConfig, hostAppdata]) {
           expect(content).not.toContain(value);
           expect(content).not.toContain(JSON.stringify(value).slice(1, -1));
+        }
+      }
+      const dryRun = JSON.parse(
+        readFileSync(join(workloadDir, "dry-run.json"), "utf8"),
+      ) as { command: string[] };
+      const run = JSON.parse(
+        readFileSync(join(outDir, "run.json"), "utf8"),
+      ) as {
+        workloads: Array<{ command: string[] }>;
+      };
+      for (const command of [dryRun.command, run.workloads[0]?.command ?? []]) {
+        for (const value of [hostHome, hostProfile, hostConfig, hostAppdata]) {
+          expect(command.join(" ")).not.toContain(value);
+          expect(command.join(" ")).not.toContain(
+            JSON.stringify(value).slice(1, -1),
+          );
         }
       }
     } finally {
