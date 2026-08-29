@@ -8,21 +8,23 @@
 - Commits: Phase 1 runtime `56f6003`; Phase 1 guidance/docs `e0057e6`; runtime/preflight
   fixes `c88194b`, `80f93a2`; privacy/wording review closure `b6c0581`; Phase 1B
   plan baseline `28772a3`; Phase 1B runtime `9b3523e` and runtime closure commits
-  `6b4a2d2`, `c268cba`, `e4cb960`.
+  `6b4a2d2`, `c268cba`, `e4cb960`, `49a6f23`.
 - Phase 1B worker evidence: 144 focused presentation/text/status tests pass; 218
   consumer, parity, CLI/MCP, and smoke-helper tests pass; `bun run typecheck` and
   the owned-file Biome check pass. One transient worker test-suite deletion mistake
   was restored before verification. The original worker lost authentication and was
   replaced; the replacement resumed the existing delta without discarding it.
-- Final-head validation is complete: the full suite passed 3,550 tests with 11,360
-  expectations across 185 files; typecheck, format/lint, root and MCP builds, both
-  package validators, and all four smoke modes passed. The MCP publish dry-run was
-  skipped only because version 0.11.2 is already published. Targeted Claude and Codex
-  agent evaluation passed 4/4 with high confidence and no futile `search_status`
-  polling; it ran before the final runtime closure commits, whose deterministic shapes
-  are covered by final-head tests and smoke suites.
-- Fresh Opus follow-up review remains pending; round 1 findings are closed, but this
-  plan does not claim a clean final external review.
+- Final-head validation after runtime closure commit `49a6f23` is complete: `bun test`
+  passed 3,564 tests with 11,377 expectations and 0 failures across 185 files;
+  typecheck, format/lint, root and MCP builds, and both package validations passed.
+  All four smoke modes passed: CLI live (89 steps), MCP live (46), built CLI (18),
+  and built MCP (7). The MCP publish dry-run was skipped only because version 0.11.2
+  is already published. Targeted Claude and Codex agent evaluation passed 4/4 with
+  high confidence and no futile `search_status` polling; it ran before the final
+  runtime closure commits, whose deterministic shapes are covered by final-head tests
+  and smoke suites.
+- The third/final Opus closure round remains pending; rounds 1 and 2 findings are
+  closed, but this plan does not claim a clean final external review.
 - Last verified: 2026-08-29
 
 ## Problem and expected outcome
@@ -79,7 +81,7 @@ When this plan is complete:
   distinct symbol readiness, lane-aware warnings, target grouping, compact sources,
   lifecycle headlines, and exactly-once continuation. Final-head full-suite, build,
   smoke, package, and targeted agent-evaluation evidence is recorded in the Phase 1B
-  verification record; fresh Opus follow-up remains pending.
+  verification record; the third/final Opus closure round remains pending.
 - `packages/mcp/src/shared/package-spec.ts` validates registry and syntax only. It
   deliberately does not own backend package identity conventions.
 
@@ -227,8 +229,8 @@ presentation, CLI, MCP tool, and parity layers.
 2. **Phase 1B (COMPLETE):** CLI and MCP text expose one token-efficient state list
    that keeps every transient, terminal, trust, warning, and recovery fact with its
    target. Runtime commit `9b3523e` and this documentation/release closure record
-   the implemented contract; final-head validation is recorded, with fresh Opus
-   follow-up review still pending.
+   the implemented contract; final-head validation is recorded, with the third/final
+   Opus closure round still pending.
 3. **Phase 2 (BLOCKED):** CLI and MCP expose an actionable typed cause for terminal
    `FAILED` sessions after private backend #2133 supplies the contract.
 
@@ -697,6 +699,12 @@ Recovery/action gating is deterministic:
 | terminal/unknown session | exact terminal reason on a target with any searched/indexing lane | none; keep bare reason on affected lane | new search |
 | terminal/unknown session | no target-local recovery or exact lane reason | none | new search |
 
+Within completed-empty multi-target output, after target-local recovery has taken
+precedence, any indexing or pending target forces the global `new search` action
+before a bare searched-empty terminal reason on another target can select query
+rewrite. For a single target, that bare searched-empty terminal reason still selects
+query rewrite.
+
 Any target-local recovery suppresses global `new_search` and `query_rewrite`, but never
 suppresses an active `poll` or completed evidence `status`. Bare terminal reasons are
 not local recovery: terminal/unknown sessions therefore use `new_search`, while
@@ -836,8 +844,8 @@ the original worker session also lost authentication and was replaced. No JSON,
 schema, backend, skill, instruction, generated asset, or dependency change was made.
 
 Coordinator-owned full repository/package/build checks, live smoke, and targeted
-agent evaluation are recorded below. The final Opus follow-up remains pending, so
-review closure is not yet clean.
+agent evaluation are recorded below. The third/final Opus closure round remains
+pending, so review closure is not yet clean.
 
 Runtime closure commits completed the remaining deterministic corrections:
 
@@ -849,15 +857,19 @@ Runtime closure commits completed the remaining deterministic corrections:
 - `e4cb960` restored terminal `new_search` for bare lane reasons, removed phantom
   post-hit separators, and aligned smoke recognition with bare readiness states and
   terminal reason labels.
+- `49a6f23` prioritized indexing peers over bare-lane query rewrites, gated terminal
+  candidate recovery behind bare reasons, and made the smoke readiness fixtures
+  discriminate grouped state details.
 
-At the final head, `bun test` passed 3,550 tests with 11,360 expectations across 185
-files. Typecheck, format/lint, root and MCP builds, both package validators, and all
-four smoke modes passed: CLI live (89 steps), MCP live (46), built CLI (18), and built
-MCP (7). The MCP publish dry-run was skipped only because version 0.11.2 was already
-published. Targeted Claude and Codex agent evaluation passed 4/4 with high confidence
-and no futile `search_status` polling; that qualitative workload ran before `c268cba`
-and `e4cb960`, so those final shapes are covered by deterministic final-head tests and
-smoke suites rather than by a rerun of the qualitative workload.
+At the final head after `49a6f23`, `bun test` passed 3,564 tests with 11,377
+expectations and 0 failures across 185 files. Typecheck, format/lint, root and MCP
+builds, both package validations, and all four smoke modes passed: CLI live (89
+steps), MCP live (46), built CLI (18), and built MCP (7). The MCP publish dry-run was
+skipped only because version 0.11.2 was already published. Targeted Claude and Codex
+agent evaluation passed 4/4 with high confidence and no futile `search_status`
+polling; that qualitative workload ran before `c268cba`, `e4cb960`, and `49a6f23`, so
+those final shapes are covered by deterministic final-head tests and smoke suites
+rather than by a rerun of the qualitative workload.
 
 The final preflight sibling scan found one stale optional session-row and duplicate
 `searchRef` description in `docs/implementation/mcp-cli-parity.md`; this closure
@@ -903,8 +915,15 @@ test behavior changed.
   separator), and N4 (smoke recognition of emitted readiness and terminal states).
   `e4cb960` closes those findings. The empty-target guard was rejected as unverified,
   and the active-site `available:` relabel was rejected because it contradicts the
-  explicit Phase 1B product decision. Opus follow-up review remains pending; this is
-  not a clean final review claim.
+  explicit Phase 1B product decision. These remain rejected as N2 and N3; the
+  third/final Opus closure round remains pending, so this is not a clean final review
+  claim.
+- Opus round 2 verified all round-1 closures. A permitted fresh-context subreview
+  surfaced R2-1 (completed-empty indexing-peer precedence) and R2-2
+  (terminal/unknown bare-reason candidate gating); Opus independently reproduced and
+  adjudicated both as accepted. Commit `49a6f23` closes R2-1 and R2-2 plus the
+  immediate unreachable-branch, redundant-separator, and discriminating smoke-fixture
+  fixes. The third/final Opus closure round remains pending.
 
 ### Phase 1B acceptance criteria
 
@@ -923,7 +942,7 @@ test behavior changed.
   final-head evidence recorded above. Full repository, package/build, live smoke, and
   targeted Claude/Codex agent-eval validation are complete; the qualitative evaluation
   predates the final runtime closure and those shapes are covered by deterministic
-  tests/smokes. Fresh Opus follow-up review remains pending.
+  tests/smokes. The third/final Opus closure round remains pending.
 - Durable implementation docs and the existing dual-package patch fragment reflect the
   final behavior; package versions, released changelogs, descriptors, skills, generated
   assets, and backend requests remain unchanged.
@@ -1001,8 +1020,9 @@ build, package, smoke, and agent-eval verification appropriate to changed MCP be
 ## Phase boundary and completion
 
 Phase 1 and Phase 1B are complete in the recorded commits above and stay within the
-existing client-owned text projection. Final-head validation is recorded, while fresh
-Opus follow-up review remains pending before the updated draft PR is pushed. Use a
+existing client-owned text projection. Final-head validation is recorded, while the
+third/final Opus closure round remains pending before the updated draft PR is pushed.
+Use a
 fresh `origin/main` comparison before beginning Phase 2, and do not mix speculative
 Phase 2 fields into the client UX increment.
 
