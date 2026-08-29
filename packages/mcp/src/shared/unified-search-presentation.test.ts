@@ -478,6 +478,67 @@ describe("projectUnifiedSearchPresentation", () => {
     });
   });
 
+  it("normalizes latest package display identities for recovery targets", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express latest",
+            requestedTarget: "npm:express latest",
+            codeIndexState: "UNRESOLVABLE",
+            targetResolution: {
+              availableVersions: [{ version: "5.1.0", ref: "v5.1.0" }],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.targetGroups[0]?.recovery).toEqual({
+      kind: "try",
+      category: "version",
+      target: "npm:express@5.1.0",
+      additionalTargets: [],
+      truncated: false,
+    });
+  });
+
+  it("keeps terminal recovery for a failed peer beside healthy hits", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "CURRENT",
+            resultCount: 1,
+          }),
+          source({
+            targetLabel: "npm:missing@1.0.0",
+            codeIndexState: "NOT_FOUND",
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(
+      presentation.targetGroups.map((group) => ({
+        target: group.identity.requested,
+        recovery: group.recovery,
+      })),
+    ).toEqual([
+      { target: "npm:express@4.18.2", recovery: undefined },
+      {
+        target: "npm:missing@1.0.0",
+        recovery: { kind: "fix", family: "package" },
+      },
+    ]);
+    expect(presentation.action).toEqual({ kind: "none" });
+  });
+
   it("terminal target recovery prefers indexed alternatives without freshness signals", () => {
     const presentation = projectUnifiedSearchPresentation(
       completed({

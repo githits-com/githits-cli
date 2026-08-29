@@ -471,9 +471,29 @@ export function assertSearchTerminalText(text: string, context: string): void {
     `${context}: MCP search_ref syntax leaked into CLI output`,
   );
   assert(
-    hasHumanSearchHitLocator(lines) || nextLines.length > 0,
+    hasHumanSearchHitLocator(lines) ||
+      hasTargetRecovery(formatterLines) ||
+      nextLines.length > 0,
     `${context}: missing result follow-up or next action`,
   );
+}
+
+function hasTargetRecovery(lines: string[]): boolean {
+  return lines.some((line, index) => {
+    if (!/^ {2}(?:Fix|Try):\s+\S/.test(line)) return false;
+    for (
+      let previousIndex = index - 1;
+      previousIndex >= 0;
+      previousIndex -= 1
+    ) {
+      const previous = lines[previousIndex];
+      if (!previous || previous.trim() === "") continue;
+      if (/^-\s+\S/.test(previous)) return true;
+      if (previous.startsWith("  ")) continue;
+      return false;
+    }
+    return false;
+  });
 }
 
 function hasHumanSearchHitLocator(lines: string[]): boolean {

@@ -1336,6 +1336,11 @@ function projectTargetRecovery(
       ? fixRecovery(group)
       : undefined;
   }
+  if (lifecycle.kind === "completed" && hasTerminalReason) {
+    return hasBareTerminalReason
+      ? undefined
+      : (candidate ?? fixRecovery(group));
+  }
   if (availability.kind !== "empty" || !snapshot) return undefined;
 
   if (hasTerminalReason) {
@@ -1502,7 +1507,7 @@ function composePackageTarget(
 ): string | undefined {
   if (!version) return undefined;
   try {
-    const parsed = parsePackageSpec(identity);
+    const parsed = parsePackageSpec(identity.trim().replace(/\s+latest$/, ""));
     return `${parsed.registry}:${parsed.name}@${version}`;
   } catch {
     return undefined;

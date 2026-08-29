@@ -297,9 +297,28 @@ function assertSearchDefaultText(text: string, context: string): void {
   );
   assert(
     hasHumanSearchHitLocator(lines) ||
+      hasTargetRecovery(formatterLines) ||
       lines.some((line) => line.startsWith("Next:")),
     `${context}: missing usable result locator or status follow-up`,
   );
+}
+
+function hasTargetRecovery(lines: string[]): boolean {
+  return lines.some((line, index) => {
+    if (!/^ {2}(?:Fix|Try):\s+\S/.test(line)) return false;
+    for (
+      let previousIndex = index - 1;
+      previousIndex >= 0;
+      previousIndex -= 1
+    ) {
+      const previous = lines[previousIndex];
+      if (!previous || previous.trim() === "") continue;
+      if (/^-\s+\S/.test(previous)) return true;
+      if (previous.startsWith("  ")) continue;
+      return false;
+    }
+    return false;
+  });
 }
 
 function hasHumanSearchHitLocator(lines: string[]): boolean {

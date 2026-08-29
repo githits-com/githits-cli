@@ -465,6 +465,26 @@ describe("runMcpSmoke", () => {
     );
   });
 
+  it.each([
+    [
+      "Fix",
+      "No results\n\n- npm:missing@1.0.0\n  Fix: verify the package coordinate.",
+    ],
+    ["Try", "No results\n\n- npm:missing latest\n  Try: npm:missing@1.0.0"],
+  ])(
+    "accepts target-local %s recovery without a hit or Next",
+    async (_kind, searchText) => {
+      const caller = createCaller(async (name, args) => {
+        if (name === "search" && args.format !== "json") {
+          return textResult(searchText);
+        }
+        return smokeResponse(name, args);
+      });
+
+      await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+    },
+  );
+
   it("rejects duplicate lifecycle outcome lines", async () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {

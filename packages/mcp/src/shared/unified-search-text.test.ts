@@ -716,6 +716,56 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("Fix: verify public GitHub repository/ref.");
   });
 
+  it("renders a canonical recovery target for a latest package display identity", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([], {
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express latest",
+            requestedTarget: "npm:express latest",
+            codeIndexState: "UNRESOLVABLE",
+            targetResolution: {
+              availableVersions: [{ version: "5.1.0", ref: "v5.1.0" }],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toBe(
+      "No results\n\n" +
+        "- npm:express latest\n" +
+        "  package unresolved: code\n" +
+        "  Try: npm:express@5.1.0",
+    );
+    expect(text).not.toContain("npm:express latest@5.1.0");
+  });
+
+  it("renders terminal peer recovery beside healthy hits without a global Next", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([codeHit({ target: "npm:express@4.18.2" })], {
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "CURRENT",
+            resultCount: 1,
+          }),
+          source({
+            targetLabel: "npm:missing@1.0.0",
+            codeIndexState: "NOT_FOUND",
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain("- npm:missing@1.0.0");
+    expect(text).toContain("Fix: verify registry coordinate/version");
+    expect(text).not.toContain("Next:");
+  });
+
   it.each(["docs", "auto"] as const)(
     "uses a neutral docs label for contributor-less %s sources",
     (sourceName) => {

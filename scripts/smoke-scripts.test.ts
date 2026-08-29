@@ -154,6 +154,19 @@ Next: shorten or broaden query; use githits code grep.`;
     );
   });
 
+  it.each([
+    [
+      "Fix",
+      "No results\n\n- npm:missing@1.0.0\n  Fix: verify the package coordinate.",
+    ],
+    ["Try", "No results\n\n- npm:missing latest\n  Try: npm:missing@1.0.0"],
+  ])(
+    "accepts target-local %s recovery without a hit or Next",
+    (_kind, text) => {
+      expect(() => assertSearchTerminalText(text, "search")).not.toThrow();
+    },
+  );
+
   it("accepts completed target readiness without a search session", () => {
     expect(() =>
       assertSearchTerminalText(completedWithTargetReadiness, "search"),
