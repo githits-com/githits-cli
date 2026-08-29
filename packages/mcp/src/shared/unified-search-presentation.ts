@@ -421,13 +421,12 @@ function projectSources(
     }
 
     const kind = sourceKind(entry);
+    const terminalReason = sourceTerminalReason(entry);
     appendSourceEntry(groups, kind, {
       state: sourceState(entry),
       ...sourceIdentity(entry, kind),
       resultCount: entry.resultCount,
-      ...(sourceTerminalReason(entry)
-        ? { terminalReason: sourceTerminalReason(entry) }
-        : {}),
+      ...(terminalReason ? { terminalReason } : {}),
     });
   }
   return groups;
@@ -518,7 +517,10 @@ function sourceIdentity(
 
 function sourceTargetAliases(
   entry: UnifiedSearchSourceStatusPayload,
-): Pick<UnifiedSearchSourceEntry, "targetAliases" | "requestedTarget"> {
+): Pick<
+  UnifiedSearchSourceEntry,
+  "targetAliases" | "requestedTarget" | "freshTarget" | "servedTarget"
+> {
   const aliases = uniqueAliases([
     entry.targetLabel,
     entry.requestedTarget,
