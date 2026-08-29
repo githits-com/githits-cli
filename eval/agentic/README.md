@@ -84,7 +84,9 @@ The acting agent still receives only the disposable per-workload
 child receives the caller's `HOME`/`USERPROFILE`/`XDG_CONFIG_HOME`/`APPDATA`
 overrides so keychain- or file-backed GitHits authentication can resolve in the
 trusted child. Descriptors and full guidance use the same child authentication
-environment.
+environment. When an optional config root is unset, the harness uses the
+platform default: `HOME/.config` on POSIX or `USERPROFILE/AppData/Roaming` on
+Windows.
 
 CI should create a clean `CODEX_HOME` and authenticate Codex with
 `OPENAI_API_KEY`. Set `GITHITS_API_TOKEN` for deterministic GitHits

@@ -108,7 +108,9 @@ The trusted MCP child receives the caller's HOME, USERPROFILE, XDG_CONFIG_HOME,
 and APPDATA so keychain- or file-backed GitHits authentication can resolve,
 while the acting agent retains disposable HOME, USERPROFILE, XDG_CONFIG_HOME,
 APPDATA, and temporary paths. Runtime MCP configs are consumed with the actual
-child auth roots and then redacted in the persisted artifact boundary.
+child auth roots and then redacted in the persisted artifact boundary. When an
+optional config root is unset, the harness uses the platform default:
+`HOME/.config` on POSIX or `USERPROFILE/AppData/Roaming` on Windows.
 
 The report loader accepts older run directories. It checks that `metrics.json`
 resolves inside the run directory and validates it with the shared Zod schema.

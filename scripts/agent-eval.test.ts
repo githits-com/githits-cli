@@ -846,6 +846,26 @@ describe("agent eval harness", () => {
     expect(published.mcpServers.githits.env).toEqual(
       descriptor.mcpServers.githits.env,
     );
+
+    const defaults = buildMcpConfig(
+      { ...localOptions, guidanceProfile: "descriptors" },
+      {
+        HOME: "/host/home",
+        USERPROFILE: "/host/profile",
+        GITHITS_AUTH_STORAGE: "keychain",
+      },
+    ).mcpServers.githits.env;
+    if (process.platform === "win32") {
+      expect(defaults).toMatchObject({
+        APPDATA: join("/host/profile", "AppData", "Roaming"),
+      });
+      expect(defaults?.XDG_CONFIG_HOME).toBeUndefined();
+    } else {
+      expect(defaults).toMatchObject({
+        XDG_CONFIG_HOME: join("/host/home", ".config"),
+      });
+      expect(defaults?.APPDATA).toBeUndefined();
+    }
   });
 
   it("passes selected models to agent commands", () => {
@@ -2541,6 +2561,64 @@ describe("agent eval harness", () => {
           APPDATA: hostAppdata,
         }),
       ).toEqual([hostProfile, hostAppdata, hostConfig, hostHome]);
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("redacts the platform-default host config root from persisted configs", async () => {
+    const outDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-default-config-redaction-"),
+    );
+    const hostHome = "/host/home";
+    const hostProfile = "/host/profile";
+    const defaultConfigRoot =
+      process.platform === "win32"
+        ? join(hostProfile, "AppData", "Roaming")
+        : join(hostHome, ".config");
+    const defaultConfigKey =
+      process.platform === "win32" ? "APPDATA" : "XDG_CONFIG_HOME";
+    try {
+      await runAgentEval(
+        parseArgs(
+          [
+            "--agent",
+            "claude",
+            "--dry-run",
+            "--out",
+            outDir,
+            "--workload",
+            "eval/agentic/workloads/express-router.md",
+          ],
+          process.cwd(),
+        ),
+        {
+          baseEnv: {
+            PATH: "/bin",
+            HOME: hostHome,
+            USERPROFILE: hostProfile,
+            GITHITS_AUTH_STORAGE: "keychain",
+          },
+          assertAgentAvailable: async () => {},
+          collectAgentVersions: async () => [undefined, undefined, undefined],
+        },
+      );
+
+      const workloadDir = join(outDir, "workloads", "express-router");
+      const mcpConfigPath = join(workloadDir, "mcp.json");
+      const mcp = JSON.parse(readFileSync(mcpConfigPath, "utf8")) as {
+        mcpServers: { githits: { env?: Record<string, string> } };
+      };
+      expect(mcp.mcpServers.githits.env?.[defaultConfigKey]).toBe("<redacted>");
+      expect(readFileSync(mcpConfigPath, "utf8")).not.toContain(
+        defaultConfigRoot,
+      );
+      expect(
+        collectHostHomeValues({
+          HOME: hostHome,
+          USERPROFILE: hostProfile,
+        }),
+      ).toContain(defaultConfigRoot);
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }

@@ -633,7 +633,28 @@ function buildMcpServerEnv(
     const value = baseEnv[key];
     if (value !== undefined) env[key] = value;
   }
+  Object.assign(env, effectiveMcpConfigRoots(baseEnv));
   return Object.keys(env).length > 0 ? env : undefined;
+}
+
+function effectiveMcpConfigRoots(
+  baseEnv: Record<string, string | undefined>,
+): Record<string, string> {
+  const roots: Record<string, string> = {};
+  const xdgConfigHome =
+    baseEnv.XDG_CONFIG_HOME ??
+    (process.platform === "win32" || baseEnv.HOME === undefined
+      ? undefined
+      : join(baseEnv.HOME, ".config"));
+  if (xdgConfigHome !== undefined) roots.XDG_CONFIG_HOME = xdgConfigHome;
+
+  const appdata =
+    baseEnv.APPDATA ??
+    (process.platform !== "win32" || baseEnv.USERPROFILE === undefined
+      ? undefined
+      : join(baseEnv.USERPROFILE, "AppData", "Roaming"));
+  if (appdata !== undefined) roots.APPDATA = appdata;
+  return roots;
 }
 
 export function buildCodexConfig(
@@ -1146,14 +1167,12 @@ export function collectSecretValues(env: Record<string, string>): string[] {
 
 export function collectHostHomeValues(env: Record<string, string>): string[] {
   const values = new Set<string>();
-  for (const key of [
-    "HOME",
-    "USERPROFILE",
-    "XDG_CONFIG_HOME",
-    "APPDATA",
-  ] as const) {
+  for (const key of ["HOME", "USERPROFILE"] as const) {
     const value = env[key];
     if (value !== undefined && value.length > 1) values.add(value);
+  }
+  for (const value of Object.values(effectiveMcpConfigRoots(env))) {
+    if (value.length > 1) values.add(value);
   }
   return [...values].sort((a, b) => b.length - a.length);
 }
