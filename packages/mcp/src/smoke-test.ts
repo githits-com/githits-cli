@@ -187,7 +187,7 @@ function assertSearchDefaultText(text: string, context: string): void {
   const firstLine = lines[0]?.trim() ?? "";
   assert(firstLine.length > 0, `${context}: missing outcome first line`);
   assert(
-    /^(?:Preparing|Indexing|Searching)\b|^No results returned\b|^\d+ results?\b|^[A-Z_]+ - /.test(
+    /^(?:No result snapshot yet|No results yet|No result snapshot|No results)\b|^\d+ (?:partial |interim )?results?\b/.test(
       firstLine,
     ),
     `${context}: missing outcome headline`,
@@ -201,8 +201,12 @@ function assertSearchDefaultText(text: string, context: string): void {
     !formatterLines.some((line) => /^status\s*:/i.test(line.trim())),
     `${context}: duplicated lifecycle status line`,
   );
+  assert(
+    !formatterLines.some((line) => /^Search\s+\S+\s+\|/.test(line)),
+    `${context}: separate Search <ref> session summary`,
+  );
   const lifecycleOutcomeLines = lines.filter((line) =>
-    /^(?:Preparing|Indexing|Searching)\b/.test(line),
+    /\|\s+(?:preparing|indexing|searching)(?:\s*\||$)/.test(line),
   );
   assert(
     lifecycleOutcomeLines.length <= 1,
@@ -243,7 +247,7 @@ function assertSearchDefaultText(text: string, context: string): void {
   );
 
   const hasReadinessText = formatterLines.some((line) =>
-    /^ {2}(?! {2}).*(?:Indexing|Searched|Available now|Unavailable|Using|Status):/.test(
+    /^ {2}(?! {2}).*(?:indexing|searched|available|unavailable|using|ready|pending|provisional|older snapshot):/.test(
       line,
     ),
   );
@@ -281,18 +285,7 @@ function assertSearchDefaultText(text: string, context: string): void {
     );
     const match = refLine.match(/search_ref=(?:"([^"]+)"|(\S+))/);
     const searchRef = match?.[1] ?? match?.[2];
-    const summaryLines = lines.filter((line) =>
-      /^Search\s+\S+\s+\|/.test(line),
-    );
-    assert(
-      summaryLines.length === 1,
-      `${context}: expected one Search <ref> session summary`,
-    );
-    assert(
-      searchRef !== undefined &&
-        summaryLines[0]?.startsWith(`Search ${searchRef} |`),
-      `${context}: session summary does not match search_ref action`,
-    );
+    assert(searchRef !== undefined, `${context}: missing search_ref value`);
   }
   assert(
     !formatterText.includes("githits search-status ") &&

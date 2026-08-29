@@ -162,7 +162,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          'Indexing - no result snapshot returned yet\nNext: search_status search_ref="smoke-ref" wait_timeout_ms=20000\nsearch_ref=leaked',
+          'No result snapshot yet | indexing | 0/1 ready\nNext: search_status search_ref="smoke-ref" wait_timeout_ms=20000\nsearch_ref=leaked',
         );
       }
       return smokeResponse(name, args);
@@ -220,8 +220,8 @@ describe("runMcpSmoke", () => {
       if (name === "search" && args.format !== "json") {
         return textResult(
           smokeSearchText().replace(
-            "- npm:express@5.2.1\n  Indexing: code | Available now: versions 5.2.1",
-            "  Using: 5.1.0 while 5.2.1 indexes",
+            "- npm:express@5.2.1\n  indexing: code; available: versions 5.2.1",
+            "  using: 5.1.0 while 5.2.1 indexes",
           ),
         );
       }
@@ -246,7 +246,7 @@ describe("runMcpSmoke", () => {
       if (name === "search" && args.format !== "json") {
         return textResult(
           smokeSearchText().replace(
-            "  Indexing: code | Available now: versions 5.2.1",
+            "  indexing: code; available: versions 5.2.1",
             `${section} 0/1 targets`,
           ),
         );
@@ -296,7 +296,7 @@ describe("runMcpSmoke", () => {
       if (name === "search" && args.format !== "json") {
         return textResult(
           smokeSearchText().replace(
-            "Indexing - no result snapshot yet",
+            "No result snapshot yet | indexing | 0/1 ready",
             "Warnings:",
           ),
         );
@@ -469,7 +469,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          `${smokeSearchText()}\nIndexing - no result snapshot yet`,
+          `${smokeSearchText()}\nNo result snapshot yet | indexing | 0/1 ready`,
         );
       }
       return smokeResponse(name, args);
@@ -534,10 +534,9 @@ function smokeResponse(
       return textResult("package.json: express");
     case "search":
       return textResult(
-        "Indexing - no result snapshot yet\n\n" +
+        "No result snapshot yet | indexing | 0/1 ready\n\n" +
           "- npm:express@5.2.1\n" +
-          "  Indexing: code | Available now: versions 5.2.1\n\n" +
-          "Search smoke-ref | 0/1 target ready\n" +
+          "  indexing: code; available: versions 5.2.1\n\n" +
           'Next: search_status search_ref="smoke-ref" wait_timeout_ms=20000',
       );
     case "search_status":

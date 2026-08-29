@@ -1,4 +1,8 @@
-import { isKnownRegistry } from "./package-spec.js";
+import { isKnownRegistry, parsePackageSpec } from "./package-spec.js";
+import {
+  formatRepositoryTarget,
+  parseRepositoryTargetSpec,
+} from "./repository-target.js";
 import type {
   LeanDocCoverage,
   UnifiedSearchCompletedPayload,
@@ -51,6 +55,21 @@ export type UnifiedSearchSourceReadiness =
   | "available_not_searched"
   | "unavailable";
 
+export type UnifiedSearchTargetFamily =
+  | "package"
+  | "repository"
+  | "site"
+  | "unknown";
+
+export type UnifiedSearchTerminalReasonKind = "not_found" | "unresolvable";
+export type UnifiedSearchTerminalSpecificity = "version" | "ref";
+
+export interface UnifiedSearchTerminalReason {
+  kind: UnifiedSearchTerminalReasonKind;
+  family: UnifiedSearchTargetFamily;
+  specificity?: UnifiedSearchTerminalSpecificity;
+}
+
 export type UnifiedSearchFreshnessKind =
   | "current"
   | "stale"
@@ -64,11 +83,14 @@ export interface UnifiedSearchSourceEntry {
   searchTarget: string;
   targetAliases?: string[];
   requestedTarget?: string;
+  freshTarget?: string;
+  servedTarget?: string;
   resultCount?: number;
   repositoryUrl?: string;
   commitSha?: string;
   siteKey?: string;
   siteUrl?: string;
+  terminalReason?: UnifiedSearchTerminalReason;
 }
 
 type SourceIdentity = Pick<
@@ -77,6 +99,8 @@ type SourceIdentity = Pick<
   | "searchTarget"
   | "targetAliases"
   | "requestedTarget"
+  | "freshTarget"
+  | "servedTarget"
   | "repositoryUrl"
   | "commitSha"
   | "siteKey"
@@ -134,7 +158,18 @@ export interface UnifiedSearchTargetGroup {
   alternatives?: UnifiedSearchAlternativeFacts;
   siteSuggestions: UnifiedSearchSiteSuggestionFacts[];
   trustLimits: UnifiedSearchTrustLimit[];
+  recovery?: UnifiedSearchTargetRecovery;
 }
+
+export type UnifiedSearchTargetRecovery =
+  | {
+      kind: "try";
+      category: "version" | "ref" | "site";
+      target: string;
+      additionalTargets: string[];
+      truncated: boolean;
+    }
+  | { kind: "fix"; family: UnifiedSearchTargetFamily };
 
 export type UnifiedSearchConstraintKind =
   | "ignored_filter"
@@ -190,18 +225,10 @@ export type UnifiedSearchAction =
   | { kind: "poll"; searchRef: string }
   | { kind: "status"; searchRef: string }
   | { kind: "new_search" }
-  | { kind: "site_retry" }
-  | {
-      kind: "indexed_alternative";
-      target?: string;
-      category: "version" | "ref";
-      value: string;
-    }
   | {
       kind: "query_rewrite";
       rewrites: UnifiedSearchRewriteKind[];
     }
-  | { kind: "verify_target"; families: UnifiedSearchTargetFamily[] }
   | { kind: "none" };
 
 export type UnifiedSearchRewriteKind =
@@ -211,33 +238,14 @@ export type UnifiedSearchRewriteKind =
   | "code_grep"
   | "site_shorter_or_broader";
 
-export type UnifiedSearchTargetFamily =
-  | "package"
-  | "repository"
-  | "site"
-  | "unknown";
-
-const TARGET_FAMILY_ORDER: UnifiedSearchTargetFamily[] = [
-  "package",
-  "repository",
-  "site",
-  "unknown",
-];
-
 export interface UnifiedSearchPresentation {
   availability: UnifiedSearchAvailability;
   lifecycle: UnifiedSearchLifecycle;
   query?: UnifiedSearchQueryEcho;
-  searchRef?: string;
   progress?: UnifiedSearchProgressPresentation;
-  targets: UnifiedSearchTargetPresentation[];
   targetGroups: UnifiedSearchTargetGroup[];
   hasMore: boolean;
-  sources: UnifiedSearchSourceGroup[];
-  siteSuggestions: UnifiedSearchSiteSuggestionFacts[];
-  trustLimits: UnifiedSearchTrustLimit[];
   warnings: UnifiedSearchWarning[];
-  alternatives: UnifiedSearchAlternativeFacts[];
   action: UnifiedSearchAction;
 }
 
@@ -274,7 +282,6 @@ export function projectUnifiedSearchPresentation(
   const trustLimits = projectTrustLimits(snapshot, sources, sourceStatus);
   const query =
     snapshot?.query ?? ("query" in payload ? payload.query : undefined);
-  const warnings = projectWarnings(query, sourceStatus);
   const alternatives = projectAlternatives(progress, sourceStatus);
   const searchRef = "searchRef" in payload ? payload.searchRef : undefined;
   const targets = projectTargets(progress);
@@ -284,30 +291,26 @@ export function projectUnifiedSearchPresentation(
     alternatives,
     siteSuggestions,
     trustLimits,
+    lifecycle,
+    availability,
+    snapshot,
   });
+  const warnings = projectWarnings(query, sourceStatus, targetGroups);
 
   return {
     availability,
     lifecycle,
     query,
-    searchRef,
     progress: projectProgress(progress),
-    targets,
     targetGroups,
     hasMore: snapshot?.hasMore ?? false,
-    sources,
-    siteSuggestions,
-    trustLimits,
     warnings,
-    alternatives,
     action: projectAction({
       searchRef,
       snapshot,
       lifecycle,
       availability,
-      siteSuggestions,
-      trustLimits,
-      alternatives,
+      targetGroups,
     }),
   };
 }
@@ -422,6 +425,9 @@ function projectSources(
       state: sourceState(entry),
       ...sourceIdentity(entry, kind),
       resultCount: entry.resultCount,
+      ...(sourceTerminalReason(entry)
+        ? { terminalReason: sourceTerminalReason(entry) }
+        : {}),
     });
   }
   return groups;
@@ -524,6 +530,8 @@ function sourceTargetAliases(
     ...(entry.requestedTarget
       ? { requestedTarget: entry.requestedTarget }
       : {}),
+    ...(entry.freshTarget ? { freshTarget: entry.freshTarget } : {}),
+    ...(entry.servedTarget ? { servedTarget: entry.servedTarget } : {}),
   };
 }
 
@@ -546,6 +554,41 @@ function sourceState(
   )
     ? "searched"
     : "unavailable";
+}
+
+function sourceTerminalReason(
+  entry: UnifiedSearchSourceStatusPayload,
+): UnifiedSearchTerminalReason | undefined {
+  const kind = [entry.indexingStatus, entry.codeIndexState].find(
+    (state): state is UnifiedSearchTerminalReasonKind =>
+      state === "NOT_FOUND" || state === "UNRESOLVABLE",
+  );
+  if (!kind) return undefined;
+  const family = classifyTargetFamily(entry);
+  const requestedTarget = entry.requestedTarget ?? entry.targetLabel;
+  const specificity = terminalSpecificity(family, requestedTarget);
+  return {
+    kind: kind.toLowerCase() as UnifiedSearchTerminalReasonKind,
+    family,
+    ...(specificity ? { specificity } : {}),
+  };
+}
+
+function terminalSpecificity(
+  family: UnifiedSearchTargetFamily,
+  target: string,
+): UnifiedSearchTerminalSpecificity | undefined {
+  try {
+    if (family === "package" && parsePackageSpec(target).version) {
+      return "version";
+    }
+    if (family === "repository" && parseRepositoryTargetSpec(target).gitRef) {
+      return "ref";
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 function contributorState(
@@ -731,6 +774,7 @@ function sourceConstraints(
 function projectWarnings(
   query: UnifiedSearchQueryEcho | undefined,
   sourceStatus: UnifiedSearchSourceStatusPayload[] | undefined,
+  targetGroups: UnifiedSearchTargetGroup[],
 ): UnifiedSearchWarning[] {
   const warnings: UnifiedSearchWarning[] = [];
   for (const message of query?.warnings ?? []) {
@@ -739,8 +783,20 @@ function projectWarnings(
   for (const entry of sourceStatus ?? []) {
     const source = normalizeSourceLane(entry.source);
     const target = entry.targetLabel || undefined;
+    const aliases = uniqueAliases([
+      entry.targetLabel,
+      entry.requestedTarget,
+      entry.freshTarget,
+      entry.servedTarget,
+    ]);
+    const hasTargetOwner =
+      findMatchingTargetGroup(targetGroups, aliases, entry.requestedTarget) !==
+        undefined ||
+      (targetGroups.length === 1 && target === undefined);
     for (const [kind, values] of sourceConstraints(entry)) {
-      if (values?.length) warnings.push({ kind, source, target, values });
+      if (values?.length && !hasTargetOwner) {
+        warnings.push({ kind, source, target, values });
+      }
     }
   }
   return warnings;
@@ -818,6 +874,9 @@ interface TargetGroupInput {
   alternatives: UnifiedSearchAlternativeFacts[];
   siteSuggestions: UnifiedSearchSiteSuggestionFacts[];
   trustLimits: UnifiedSearchTrustLimit[];
+  lifecycle: UnifiedSearchLifecycle;
+  availability: UnifiedSearchAvailability;
+  snapshot: SnapshotFacts | undefined;
 }
 
 function projectTargetGroups(
@@ -902,6 +961,11 @@ function projectTargetGroups(
           entry.searchTarget,
           entry.requestedTarget,
         );
+      if (entry.requestedTarget) {
+        group.identity.requested ??= entry.requestedTarget;
+      }
+      if (entry.freshTarget) group.identity.fresh ??= entry.freshTarget;
+      if (entry.servedTarget) group.identity.served ??= entry.servedTarget;
       const existingSource = group.sources.find(
         (candidate) => candidate.kind === sourceGroup.kind,
       );
@@ -921,7 +985,7 @@ function projectTargetGroups(
     findOrCreate(suggestion.target).siteSuggestions.push(suggestion);
   }
   for (const limit of input.trustLimits) {
-    if (limit.kind === "constraint" || limit.kind === "mutable_evidence") {
+    if (limit.kind === "mutable_evidence") {
       continue;
     }
     const target = "target" in limit ? limit.target : undefined;
@@ -953,13 +1017,23 @@ function projectTargetGroups(
     }
     group.trustLimits.push(limit);
   }
+  for (const group of groups) {
+    const recovery = projectTargetRecovery(
+      group,
+      input.lifecycle,
+      input.availability,
+      input.snapshot,
+    );
+    if (recovery) group.recovery = recovery;
+  }
   return groups.filter(
     (group) =>
       targetIdentityValues(group.identity).length > 0 ||
       group.sources.length > 0 ||
       group.alternatives !== undefined ||
       group.siteSuggestions.length > 0 ||
-      group.trustLimits.length > 0,
+      group.trustLimits.length > 0 ||
+      group.recovery !== undefined,
   );
 }
 
@@ -1148,9 +1222,7 @@ interface ActionInput {
   snapshot: SnapshotFacts | undefined;
   lifecycle: UnifiedSearchLifecycle;
   availability: UnifiedSearchAvailability;
-  siteSuggestions: UnifiedSearchSiteSuggestionFacts[];
-  trustLimits: UnifiedSearchTrustLimit[];
-  alternatives: UnifiedSearchAlternativeFacts[];
+  targetGroups: UnifiedSearchTargetGroup[];
 }
 
 function projectAction(input: ActionInput): UnifiedSearchAction {
@@ -1160,44 +1232,53 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
       : { kind: "none" };
   }
   if (
+    input.lifecycle.kind === "completed" &&
+    input.snapshot?.evidenceNotice !== undefined &&
+    input.searchRef
+  ) {
+    return { kind: "status", searchRef: input.searchRef };
+  }
+
+  const hasLocalRecovery = input.targetGroups.some(
+    (group) => group.recovery !== undefined,
+  );
+  const hasBareTerminalReason = input.targetGroups.some(
+    hasBareTerminalReasonForGroup,
+  );
+  if (
+    (input.lifecycle.kind === "terminal" ||
+      input.lifecycle.kind === "unknown") &&
+    (hasLocalRecovery || hasBareTerminalReason)
+  ) {
+    return { kind: "none" };
+  }
+  if (
     input.lifecycle.kind === "terminal" ||
     input.lifecycle.kind === "unknown"
   ) {
-    return input.siteSuggestions.length > 0
-      ? { kind: "site_retry" }
-      : { kind: "new_search" };
+    return { kind: "new_search" };
   }
-  if (
-    input.lifecycle.kind === "completed" &&
-    input.snapshot?.evidenceNotice !== undefined
-  ) {
-    if (input.searchRef) return { kind: "status", searchRef: input.searchRef };
-  }
-  if (!input.snapshot || input.availability.kind !== "empty")
+  if (!input.snapshot || input.availability.kind !== "empty") {
     return { kind: "none" };
+  }
 
-  const hasIndexing = hasIndexingTrustSignal(input.snapshot.sourceStatus);
-  if (hasIndexing) {
-    const alternative = firstAlternative(input.alternatives);
-    if (alternative) return alternative;
+  if (hasLocalRecovery) return { kind: "none" };
+  if (hasBareTerminalReason) {
+    return projectQueryRewrite(input.snapshot.query);
   }
-  if (input.siteSuggestions.length > 0) {
-    return { kind: "site_retry" };
-  }
-  const terminalFamilies = terminalTargetFamilies(input.snapshot.sourceStatus);
-  if (terminalFamilies.length > 0) {
-    const alternative = firstAlternative(input.alternatives);
-    if (alternative) return alternative;
-    return { kind: "verify_target", families: terminalFamilies };
-  }
+  const hasIndexing = input.targetGroups.some((group) =>
+    groupHasIndexing(group),
+  );
   if (hasIndexing) return { kind: "new_search" };
   if (
-    input.trustLimits.some(
-      (limit) =>
-        limit.kind === "source" ||
-        limit.kind === "coverage" ||
-        limit.kind === "mutable_evidence" ||
-        limit.kind === "stale",
+    input.targetGroups.some((group) =>
+      group.trustLimits.some(
+        (limit) =>
+          limit.kind === "source" ||
+          limit.kind === "coverage" ||
+          limit.kind === "mutable_evidence" ||
+          limit.kind === "stale",
+      ),
     )
   ) {
     return { kind: "new_search" };
@@ -1214,7 +1295,12 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
       rewrites: ["site_shorter_or_broader"],
     };
   }
-  const query = input.snapshot.query;
+  return projectQueryRewrite(input.snapshot.query);
+}
+
+function projectQueryRewrite(
+  query: UnifiedSearchQueryEcho | undefined,
+): Extract<UnifiedSearchAction, { kind: "query_rewrite" }> {
   const rewrites: UnifiedSearchRewriteKind[] = ["shorter_or_broader"];
   if (hasRestrictiveFilters(query)) rewrites.push("remove_filters");
   const symbolSource = query?.sources?.some(
@@ -1225,22 +1311,213 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
   return { kind: "query_rewrite", rewrites };
 }
 
-function terminalTargetFamilies(
-  sourceStatus: UnifiedSearchSourceStatusPayload[] | undefined,
-): UnifiedSearchTargetFamily[] {
-  const families = new Set<UnifiedSearchTargetFamily>();
-  for (const entry of sourceStatus ?? []) {
-    if (
-      entry.indexingStatus !== "NOT_FOUND" &&
-      entry.indexingStatus !== "UNRESOLVABLE" &&
-      entry.codeIndexState !== "NOT_FOUND" &&
-      entry.codeIndexState !== "UNRESOLVABLE"
-    ) {
-      continue;
-    }
-    families.add(classifyTargetFamily(entry));
+function projectTargetRecovery(
+  group: UnifiedSearchTargetGroup,
+  lifecycle: UnifiedSearchLifecycle,
+  availability: UnifiedSearchAvailability,
+  snapshot: SnapshotFacts | undefined,
+): UnifiedSearchTargetRecovery | undefined {
+  const hasTerminalReason = groupHasTerminalReason(group);
+  const hasBareTerminalReason = hasBareTerminalReasonForGroup(group);
+  const alternative = projectAlternativeRecovery(group);
+  const site = projectSiteRecovery(group);
+  const candidate = site ?? alternative;
+
+  if (lifecycle.kind === "active") {
+    return hasTerminalReason && !hasBareTerminalReason
+      ? (candidate ?? fixRecovery(group))
+      : undefined;
   }
-  return TARGET_FAMILY_ORDER.filter((family) => families.has(family));
+  if (lifecycle.kind === "terminal" || lifecycle.kind === "unknown") {
+    if (candidate) return candidate;
+    return hasTerminalReason && !hasBareTerminalReason
+      ? fixRecovery(group)
+      : undefined;
+  }
+  if (availability.kind !== "empty" || !snapshot) return undefined;
+
+  if (hasTerminalReason) {
+    if (hasBareTerminalReason) return undefined;
+    return candidate ?? fixRecovery(group);
+  }
+  if (site) return site;
+  return groupHasIndexing(group) ? alternative : undefined;
+}
+
+function projectAlternativeRecovery(
+  group: UnifiedSearchTargetGroup,
+): UnifiedSearchTargetRecovery | undefined {
+  const alternatives = group.alternatives;
+  if (!alternatives) return undefined;
+  const identity = primaryTargetIdentity(group);
+  if (!identity) return undefined;
+  const family = groupTerminalFamily(group) ?? familyForTarget(identity);
+  if (family === "package") {
+    const versions = alternatives.versions
+      .map((alternative) => composePackageTarget(identity, alternative.version))
+      .filter((target): target is string => target !== undefined);
+    const target = versions[0];
+    if (!target) return undefined;
+    return {
+      kind: "try",
+      category: "version",
+      target,
+      additionalTargets: versions.slice(1),
+      truncated: alternatives.versionsRemaining > 0,
+    };
+  }
+  if (family === "repository") {
+    const refs = [...alternatives.refs, ...alternatives.suggestedRefs]
+      .map((alternative) => composeRepositoryTarget(identity, alternative.ref))
+      .filter((target): target is string => target !== undefined);
+    const unique = [...new Set(refs)];
+    const target = unique[0];
+    if (!target) return undefined;
+    return {
+      kind: "try",
+      category: "ref",
+      target,
+      additionalTargets: unique.slice(1),
+      truncated:
+        alternatives.refsRemaining > 0 ||
+        alternatives.suggestedRefsRemaining > 0,
+    };
+  }
+  return undefined;
+}
+
+function projectSiteRecovery(
+  group: UnifiedSearchTargetGroup,
+): UnifiedSearchTargetRecovery | undefined {
+  const suggestions = [
+    ...new Set(
+      group.siteSuggestions.flatMap((suggestion) => suggestion.suggestions),
+    ),
+  ];
+  const target = suggestions[0];
+  if (!target) return undefined;
+  return {
+    kind: "try",
+    category: "site",
+    target,
+    additionalTargets: suggestions.slice(1),
+    truncated: group.siteSuggestions.some((suggestion) => suggestion.truncated),
+  };
+}
+
+function fixRecovery(
+  group: UnifiedSearchTargetGroup,
+): UnifiedSearchTargetRecovery {
+  return {
+    kind: "fix",
+    family:
+      groupTerminalFamily(group) ??
+      familyForTarget(primaryTargetIdentity(group)),
+  };
+}
+
+function primaryTargetIdentity(
+  group: UnifiedSearchTargetGroup,
+): string | undefined {
+  return (
+    group.identity.requested ??
+    group.identity.fresh ??
+    group.identity.served ??
+    group.alternatives?.target
+  );
+}
+
+function groupTerminalReason(
+  group: UnifiedSearchTargetGroup,
+): UnifiedSearchTerminalReason | undefined {
+  for (const source of group.sources) {
+    for (const entry of source.entries) {
+      if (entry.terminalReason) return entry.terminalReason;
+    }
+  }
+  return undefined;
+}
+
+function groupTerminalFamily(
+  group: UnifiedSearchTargetGroup,
+): UnifiedSearchTargetFamily | undefined {
+  return groupTerminalReason(group)?.family;
+}
+
+function groupHasTerminalReason(group: UnifiedSearchTargetGroup): boolean {
+  return groupTerminalReason(group) !== undefined;
+}
+
+function groupHasIndexing(group: UnifiedSearchTargetGroup): boolean {
+  return (
+    group.freshnessKind === "indexing" ||
+    group.freshnessKind === "pending" ||
+    group.sources.some((source) =>
+      source.entries.some((entry) => entry.state === "waiting"),
+    )
+  );
+}
+
+function hasBareTerminalReasonForGroup(
+  group: UnifiedSearchTargetGroup,
+): boolean {
+  return (
+    groupHasTerminalReason(group) &&
+    group.sources.some((source) =>
+      source.entries.some(
+        (entry) => entry.state === "searched" || entry.state === "waiting",
+      ),
+    )
+  );
+}
+
+function familyForTarget(
+  target: string | undefined,
+): UnifiedSearchTargetFamily {
+  if (!target) return "unknown";
+  if (isSiteTarget(target, { targetLabel: target, source: "docs" })) {
+    return "site";
+  }
+  const packageSeparator = target.indexOf(":");
+  if (
+    packageSeparator > 0 &&
+    isKnownRegistry(target.slice(0, packageSeparator))
+  ) {
+    return "package";
+  }
+  if (target.startsWith("github:")) return "repository";
+  try {
+    parseRepositoryTargetSpec(target);
+    return "repository";
+  } catch {
+    return "unknown";
+  }
+}
+
+function composePackageTarget(
+  identity: string,
+  version: string | undefined,
+): string | undefined {
+  if (!version) return undefined;
+  try {
+    const parsed = parsePackageSpec(identity);
+    return `${parsed.registry}:${parsed.name}@${version}`;
+  } catch {
+    return undefined;
+  }
+}
+
+function composeRepositoryTarget(
+  identity: string,
+  ref: string,
+): string | undefined {
+  try {
+    const parsed = parseRepositoryTargetSpec(identity);
+    if (!parsed.repoUrl) return undefined;
+    return formatRepositoryTarget(parsed.repoUrl, ref);
+  } catch {
+    return undefined;
+  }
 }
 
 function classifyTargetFamily(
@@ -1261,50 +1538,6 @@ function classifyTargetFamily(
     return "repository";
   }
   return "unknown";
-}
-
-function firstAlternative(
-  alternatives: UnifiedSearchAlternativeFacts[],
-): UnifiedSearchAction | undefined {
-  for (const alternative of alternatives) {
-    const version = alternative.versions[0];
-    if (version) {
-      return {
-        kind: "indexed_alternative",
-        target: alternative.target,
-        category: "version",
-        value: version.version ?? version.ref,
-      };
-    }
-    const ref = alternative.refs[0];
-    if (ref) {
-      return {
-        kind: "indexed_alternative",
-        target: alternative.target,
-        category: "ref",
-        value: ref.ref,
-      };
-    }
-  }
-  return undefined;
-}
-
-function hasIndexingTrustSignal(
-  sourceStatus: UnifiedSearchSourceStatusPayload[] | undefined,
-): boolean {
-  return Boolean(
-    sourceStatus?.some(
-      (entry) =>
-        entry.indexingStatus === "INDEXING" ||
-        entry.codeIndexState === "INDEXING" ||
-        entry.codeIndexState === "PROVISIONAL" ||
-        entry.targetResolution?.freshness === "indexing" ||
-        entry.targetResolution?.freshness === "provisional" ||
-        entry.contributors?.some(
-          (contributor) => contributor.freshness === "PROVISIONAL",
-        ),
-    ),
-  );
 }
 
 function hasRestrictiveFilters(

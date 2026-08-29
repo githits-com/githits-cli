@@ -25,17 +25,17 @@ import {
 import { toStdioLaunch } from "./smoke-launch-target.ts";
 
 describe("CLI search smoke contract", () => {
-  const valid = `Indexing - no results yet
+  const valid = `No results yet | indexing | 0/1 ready
 
-- npm:n8n -> 2.36.7
-  Indexing: code, repository docs | Available now: n8n.io docs (1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master
+- npm:n8n
+  indexing: code, repository docs; available: n8n.io docs (1,480 pages; capped);
+  indexed: versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master
 
-Search smoke-ref | 0/1 target ready
 Next: githits search-status smoke-ref --wait 20`;
-  const completedWithTargetReadiness = `No results returned from npm:express
+  const completedWithTargetReadiness = `No results
 
 - npm:express@4.18.2
-  Searched: repository docs
+  searched: repository docs
 
 Next: shorten or broaden query; use githits code grep.`;
   const completed = `1 result | 1 repo code hit | next_offset=10
@@ -46,23 +46,21 @@ Next: shorten or broaden query; use githits code grep.`;
 [1] page-1 [docs page] npm:express - docs.example.com/getting-started - Getting started | API - section`;
 
   it("accepts outcome-first text with CLI-native actions", () => {
-    expect(valid.split("\n")[0]).toBe("Indexing - no results yet");
-    expect(valid).toContain("- npm:n8n -> 2.36.7");
-    expect(valid).toContain(
-      "  Indexing: code, repository docs | Available now:",
-    );
-    expect(valid).toContain("Search smoke-ref | 0/1 target ready");
+    expect(valid.split("\n")[0]).toBe("No results yet | indexing | 0/1 ready");
+    expect(valid).toContain("- npm:n8n");
+    expect(valid).toContain("  indexing: code, repository docs; available:");
+    expect(valid).not.toContain("Search smoke-ref");
     expect(valid).toContain("Next: githits search-status smoke-ref --wait 20");
     expect(() => assertSearchTerminalText(valid, "search")).not.toThrow();
     expect(() =>
       assertSearchTerminalText(
-        "No results returned from npm:express\nNext: shorten or broaden query; use githits code grep.",
+        "No results\nNext: shorten or broaden query; use githits code grep.",
         "search",
       ),
     ).not.toThrow();
     expect(() =>
       assertSearchTerminalText(
-        "FAILED - no results returned\nNext: rerun search later.",
+        "No result snapshot | failed | 0/1 ready\nNext: rerun search later.",
         "search",
       ),
     ).not.toThrow();
@@ -162,25 +160,25 @@ Next: shorten or broaden query; use githits code grep.`;
     ).not.toThrow();
   });
 
-  it("requires Using details to remain grouped under a target", () => {
+  it("requires using details to remain grouped under a target", () => {
     expect(() =>
       assertSearchTerminalText(
         valid.replace(
-          "- npm:n8n -> 2.36.7\n  Indexing: code, repository docs | Available now: n8n.io docs (1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master",
-          "  Using: 2.26.9 while 2.36.7 indexes",
+          "- npm:n8n\n  indexing: code, repository docs; available: n8n.io docs (1,480 pages;",
+          "  using: 2.26.9 while 2.36.7 indexes",
         ),
         "search",
       ),
     ).toThrow("readiness details must be grouped under a target");
   });
 
-  it("rejects duplicate search session summaries", () => {
+  it("rejects a separate search session summary", () => {
     expect(() =>
       assertSearchTerminalText(
         `${valid}\nSearch another-ref | 0/1 target ready`,
         "search",
       ),
-    ).toThrow("expected at most one Search <ref> session summary");
+    ).toThrow("separate Search <ref> session summary");
   });
 
   it.each([
@@ -202,7 +200,10 @@ Next: shorten or broaden query; use githits code grep.`;
 
   it("rejects duplicate lifecycle, status, and Next lines", () => {
     expect(() =>
-      assertSearchTerminalText(`${valid}\nIndexing - no results yet`, "search"),
+      assertSearchTerminalText(
+        `${valid}\nNo results yet | indexing | 0/1 ready`,
+        "search",
+      ),
     ).toThrow("duplicate lifecycle outcome lines");
     expect(() =>
       assertSearchTerminalText(`${valid}\nstatus: indexing`, "search"),
@@ -225,17 +226,14 @@ Next: shorten or broaden query; use githits code grep.`;
     expect(() =>
       assertSearchTerminalText(
         valid.replace(
-          "  Indexing: code, repository docs | Available now: n8n.io docs (1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master",
-          "  Available now: versions 2.36.7",
+          "  indexing: code, repository docs; available: n8n.io docs (1,480 pages;",
+          "  available: versions 2.36.7",
         ),
         "search",
       ),
     ).not.toThrow();
     expect(() =>
-      assertSearchTerminalText(
-        valid.replace("- npm:n8n -> 2.36.7\n", ""),
-        "search",
-      ),
+      assertSearchTerminalText(valid.replace("- npm:n8n\n", ""), "search"),
     ).toThrow("readiness details must be grouped under a target");
   });
 
@@ -246,7 +244,7 @@ Next: shorten or broaden query; use githits code grep.`;
     ["search_ref=payload", "MCP search_ref syntax leaked into CLI output"],
   ])("rejects target-detail diagnostic %s", (diagnostic, message) => {
     const readinessLine =
-      "  Indexing: code, repository docs | Available now: n8n.io docs (1,480 pages; capped), versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master";
+      "  indexing: code, repository docs; available: n8n.io docs (1,480 pages;";
     const targetDetail = valid.replace(readinessLine, `  ${diagnostic}`);
 
     expect(() => assertSearchTerminalText(targetDetail, "search")).toThrow(

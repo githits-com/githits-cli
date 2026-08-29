@@ -169,9 +169,9 @@ describe("searchTool", () => {
       {},
     );
     expect(text.content[0]?.text).toContain(
-      "Indexing: expressjs.com/en/guide docs",
+      "indexing: expressjs.com/en/guide docs",
     );
-    expect(text.content[0]?.text).toContain("Searched: repository docs");
+    expect(text.content[0]?.text).toContain("searched: repository docs");
   });
 
   it("passes compiled request through to code navigation service", async () => {
