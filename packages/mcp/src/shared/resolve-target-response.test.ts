@@ -614,6 +614,23 @@ describe("formatResolveTargetTerminal", () => {
     expect(output).toContain("     Google core libraries for Java");
   });
 
+  it("explains positive recorded counts when availability is false", () => {
+    const unavailable = candidate({
+      docsAvailable: false,
+      codeAvailable: false,
+      docsPageCount: 12,
+      codeFileCount: 3,
+    });
+    const output = formatResolveTargetTerminal(
+      result({ best: unavailable, targets: [unavailable] }),
+      { name: "express", useColors: false },
+    );
+
+    expect(output).toContain(
+      "docs unavailable (12 pages recorded) · code unavailable (3 files recorded)",
+    );
+  });
+
   it("renders specific ambiguity guidance and a generic follow-up target", () => {
     const messages = {
       DUPLICATE_EXACT_NAME:

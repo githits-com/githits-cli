@@ -492,6 +492,55 @@ Next: pass the canonical target "npm:express" to the next MCP tool.
     expect(() => assertExperimentalMcpResolveText(mcpMixed)).not.toThrow();
   });
 
+  it("accepts a warning-free direct best nested under Also matched", () => {
+    const nestedBest = `Targets:
+  1. npm:project [exact] · package
+     Also matched:
+       github:owner/project [high] · repository
+
+Next: githits search '<query>' --in 'github:owner/project'
+`;
+
+    expect(() => assertExperimentalCliResolveText(nestedBest)).not.toThrow();
+    expect(() =>
+      assertExperimentalCliResolveText(
+        nestedBest.replace(
+          "       github:owner/project [high] · repository\n",
+          "       github:owner/project [high] · repository\n         Warning: Malicious content affects this target.\n",
+        ),
+      ),
+    ).toThrow("without a warning");
+
+    const nestedMcpBest = `Best match: github:owner/project [high; repository].
+Targets:
+  1. npm:express [exact; package]
+     Also matched:
+       github:owner/project [high; repository]
+Next: pass the canonical target "github:owner/project" to the next MCP tool.
+`;
+    expect(() => assertExperimentalMcpResolveText(nestedMcpBest)).not.toThrow();
+
+    const relatedCliAction = nestedBest
+      .replace("Also matched:", "Related:")
+      .replace(
+        "github:owner/project [high] · repository",
+        "github:owner/project · related repository",
+      );
+    expect(() => assertExperimentalCliResolveText(relatedCliAction)).toThrow(
+      "without a warning",
+    );
+
+    const relatedMcpAction = nestedMcpBest
+      .replace("Also matched:", "Related:")
+      .replace(
+        "       github:owner/project [high; repository]",
+        "       github:owner/project [related; repository]",
+      );
+    expect(() => assertExperimentalMcpResolveText(relatedMcpAction)).toThrow(
+      "without a warning",
+    );
+  });
+
   it("accepts a warning-only blocked result with no normal action", () => {
     const cliBlocked = cliMixed.replace(/\nNext: githits search[^\n]+\n/, "\n");
     const mcpBlocked = mcpMixed.replace(

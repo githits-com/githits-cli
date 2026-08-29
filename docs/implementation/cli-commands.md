@@ -334,10 +334,16 @@ stated without inventing a count. Available content with a zero count renders
 that zero; unavailable content with zero renders `no docs` / `no code`. Missing
 licenses/counts produce no placeholder, and structurally inapplicable negatives
 are omitted (`no docs` is not shown for repositories and `no code` is not shown
-for sites). A package's
+for sites). If availability is false despite a positive recorded count, output
+keeps both facts as `docs unavailable (<n> pages recorded)` or
+`code unavailable (<n> files recorded)`. A package's
 compact linked-repository fallback appears only when its group does not already
 contain the canonical repository target. `targetsTruncated` produces one note
 that additional related targets were omitted and direct matches are complete.
+The backend bounds the complete presentation list to 40 entries: up to 20 ranked
+direct matches, 12 additional protected matches, and 8 related targets. CLI and
+MCP text render that complete bounded list; only backend `targetsTruncated`
+signals omitted relations.
 
 The shared CLI/local-MCP request boundary rejects an already-canonical package
 or GitHub repository target before the resolver service is called. Recognition
@@ -391,6 +397,9 @@ render concise warnings only for affected, uncertain, unsupported, or blocking
 unavailable evidence; terminal warnings are red. Reference-only best/protected
 entries never synthesize or reorder presentation targets. A best reference
 missing its matching presentation target remains non-actionable.
+The backend contract guarantees every direct ranked and protected match is in
+`targets`; GitHits relies on that superset so text, JSON, and MCP all consume the
+same ordered list rather than reconstructing missing references client-side.
 Affected and uncertain warnings link every returned status-relevant advisory at
 `https://osv.dev/vulnerability/<percent-encoded-osv-id>`. Uncertain warnings also
 summarize the backend classification reasons; truncated evidence reports the
