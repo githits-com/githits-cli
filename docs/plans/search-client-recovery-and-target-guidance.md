@@ -828,6 +828,11 @@ Coordinator-owned full repository/package/build checks, live smoke, targeted age
 evaluation, and fresh external Opus review are not yet recorded as complete. They
 remain the final validation/review work for this branch.
 
+The final preflight sibling scan found one stale optional session-row and duplicate
+`searchRef` description in `docs/implementation/mcp-cli-parity.md`; this closure
+updates that parity section to the implemented single-list contract. No runtime or
+test behavior changed.
+
 ### Plan review record
 
 - Internal technical review accepted two findings: target-local recovery suppresses

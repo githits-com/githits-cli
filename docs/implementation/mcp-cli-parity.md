@@ -241,23 +241,23 @@ readiness, trust limits, and action selection; the text renderer owns wording,
 wrapping, hit anatomy, and ordering. Callers provide ANSI enablement,
 surface-native action syntax, and an optional output width. CLI supplies its
 current terminal width; MCP uses the formatter's 80-column default. The order is
-outcome headline, target blocks with
-identity plus grouped readiness/usable alternatives, warnings and results, an
-optional session summary, and one positive next action.
+an outcome headline carrying count/breakdown, lifecycle, readiness, and
+pagination when applicable; one compact `Sources: <target> - <lanes>` row for
+ordinary completed current results or one detailed target block per requested
+target; target-local state/recovery and global warnings; the separate ranked hit
+list; and at most one final `Next:` action.
 
 `PENDING`, `INDEXING`, and `SEARCHING` remain distinct. Active empty output uses
-`Indexing - no results yet`; an active response without a snapshot uses
-`Indexing - no result snapshot yet`, with corresponding lifecycle labels for
-other active states. Active result counts use `interim` when `partialResults` is
-false and `partial` when it is true. When session facts exist, the renderer may
-emit one optional session row composed from available facts: `Search <ref>` when
-a reference exists, aggregate `<ready>/<total> target(s) ready` when progress
-exists, and a lifecycle summary when a reference has no progress. The combined
-form is `Search <ref> | <ready>/<total> target(s) ready`; completed output
-without session facts may omit it. A reference appears once in that row when
-available and once in the follow-up action when the action carries it. Terminal
-and unknown statuses retain their exact status. Site suggestions remain ordered
-advisory labels and are never selected automatically.
+`No results yet | indexing | 0/1 ready`; an active response without a snapshot
+uses `No result snapshot yet | indexing | 0/1 ready`, with corresponding
+lower-case lifecycle labels for other active states. Active result counts use
+`interim` when `partialResults` is false and `partial` when it is true. Terminal
+or unknown progress retains lifecycle/readiness in the headline, while completed
+output omits them. Target rows keep deterministic `using`, `searched`,
+`indexing`, terminal/unavailable, `available`, `indexed`, and constraint segments;
+exact terminal reasons remain lane-readable, and a target gets at most one
+inline `Fix:` or replayable `Try:` line. Site suggestions and indexed alternatives
+remain attached to their target and are never selected automatically.
 
 `evidenceNotice` remains exact in JSON and is not rendered as a generic
 mutable-evidence slogan. Concrete stale, provisional, pending, and coverage
@@ -268,9 +268,10 @@ Reissuing the same search is valid and waits on the same underlying work; text
 does not emit negative repeat or poll policy directives.
 
 MCP renders `Next: search_status search_ref=... wait_timeout_ms=...`; CLI renders
-`Next: githits search-status ... --wait ...`. The session row and continuation
-action use the same reference when both are present; raw diagnostic fields are
-never rendered. Search-result follow-ups likewise use
+`Next: githits search-status ... --wait ...`. An active continuation reference
+appears exactly once, in that surface-native final `Next:` action; stopped terminal
+references are not rendered. Raw diagnostic fields are never rendered.
+Search-result follow-ups likewise use
 `code_read` / `docs_read` in MCP and `githits code read` / `githits docs read` in
 CLI. ANSI-stripped CLI output shares the same hierarchy and wording as no-color
 MCP text apart from those supplied command dialects; line breaks can differ
