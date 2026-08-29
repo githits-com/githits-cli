@@ -145,7 +145,12 @@ Static tests protect the skill contract by checking that onboarding files exist,
 
 Agentic evals exercise whether real agents discover and follow the skill. The onboarding workload asks the agent to set up GitHits without giving command instructions, so command choice should come from the skill itself.
 
-Agentic eval results are qualitative. Review `tool-calls.json`, `final.json`, `report.json`, `toolIssues`, and `instructionIssues` rather than treating a live-agent pass/fail as deterministic CI evidence.
+Agentic eval results are qualitative. Review `tool-calls.json` for actual tool
+use, `final.json` for the neutral answer and confidence, `report.json` and
+`metrics.json` for derived usage, and `isolation-violations.json` for trace
+validation failures rather than treating a live-agent pass/fail as deterministic
+CI evidence. Treat usefulness or quality as reportable only when a later grading
+stage provides it.
 
 ## Deferred product feedback
 

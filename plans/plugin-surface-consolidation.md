@@ -407,9 +407,10 @@ temporary directories only for the filesystem command-edge tests.
 - Real Cursor plugin installation, OAuth, tool listing, and marketplace review
 - Real Gemini extension install/update and legacy `migratedTo` migration
 
-Inspect agent-eval tool calls and final reports for actual tool use,
-`toolIssues`, `instructionIssues`, and usefulness; harness completion alone is
-not sufficient.
+Inspect agent-eval tool calls for actual tool use, neutral final
+answer/confidence, derived metrics, and any `isolation-violations.json` trace
+failures; harness completion alone is not sufficient. Treat usefulness or
+quality as reportable only when a later grading stage provides it.
 
 ## Documentation Updates
 

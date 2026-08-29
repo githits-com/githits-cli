@@ -249,7 +249,11 @@ export type EvalValidationViolation =
   | { category: "descriptor-guidance-read"; path: string }
   | { category: "mcp-cli-fallback"; tool: string };
 
-interface WorkloadIsolation {
+/**
+ * Per-workload disposable execution roots. The creator owns directory setup;
+ * the caller owns cleanup of `rootDir` after the workload exits.
+ */
+export interface WorkloadIsolation {
   rootDir: string;
   workspaceDir: string;
   env: Record<string, string>;
