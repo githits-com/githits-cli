@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import {
@@ -9,6 +15,7 @@ import {
   buildOpenCodeConfig,
   buildOpenCodeSkillsConfig,
   type CodexReasoningEffort,
+  createWorkloadIsolation,
   type EvalSurface,
   type GuidanceInstallationMetadata,
   type GuidanceProfile,
@@ -17,8 +24,11 @@ import {
   prepareSkillsWorkspace,
   type ServerMode,
   type SkillInstallationMetadata,
+  validateCodexEvalHome,
   validateExperimentalToolsScope,
   validateGuidanceProfileScope,
+  type WorkloadIsolation,
+  type WorkloadIsolationMetadata,
 } from "./agent-eval.ts";
 
 export interface AgentSessionOptions {
@@ -35,6 +45,11 @@ export interface AgentSessionOptions {
   publishedPackage: string;
   dryRun: boolean;
   bypassPermissions: boolean;
+}
+
+export interface AgentSessionDependencies {
+  baseEnv?: NodeJS.ProcessEnv;
+  spawn?: typeof Bun.spawn;
 }
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -225,12 +240,22 @@ export function buildClaudeSessionCommand(
 
 export function buildCodexSessionCommand(
   options: AgentSessionOptions,
+  baseEnv: NodeJS.ProcessEnv = process.env,
 ): string[] {
   const command = ["codex", "-C", options.workspaceDir];
+  command.push(
+    "--ignore-user-config",
+    "--disable",
+    "apps",
+    "--disable",
+    "plugins",
+    "--disable",
+    "remote_plugin",
+    "-c",
+    "mcp_servers={}",
+  );
   if (options.surface === "mcp") {
-    command.push("-c", "mcp_servers={}", ...buildCodexConfigArgs(options));
-  } else {
-    command.push("--ignore-user-config", "-c", "mcp_servers={}");
+    command.push(...buildCodexConfigArgs(options, baseEnv));
   }
   if (options.bypassPermissions) {
     command.push("--dangerously-bypass-approvals-and-sandbox");
@@ -258,7 +283,11 @@ export function buildOpenCodeSessionCommand(
   return command;
 }
 
-export function prepareAgentSession(options: AgentSessionOptions): {
+export function prepareAgentSession(
+  options: AgentSessionOptions,
+  baseEnv: NodeJS.ProcessEnv = process.env,
+  isolationMetadata?: WorkloadIsolationMetadata,
+): {
   command: string[];
   mcpConfigPath: string;
   skillInstallation?: SkillInstallationMetadata;
@@ -290,7 +319,9 @@ export function prepareAgentSession(options: AgentSessionOptions): {
 
   writeJson(
     mcpConfigPath,
-    options.surface === "mcp" ? buildMcpConfig(options) : { mcpServers: {} },
+    options.surface === "mcp"
+      ? buildMcpConfig(options, baseEnv)
+      : { mcpServers: {} },
   );
   if (options.agent === "opencode") {
     writeJson(
@@ -305,7 +336,7 @@ export function prepareAgentSession(options: AgentSessionOptions): {
     options.agent === "claude"
       ? buildClaudeSessionCommand(options, mcpConfigPath)
       : options.agent === "codex"
-        ? buildCodexSessionCommand(options)
+        ? buildCodexSessionCommand(options, baseEnv)
         : buildOpenCodeSessionCommand(options);
 
   writeJson(join(sessionDir, "session.json"), {
@@ -320,6 +351,7 @@ export function prepareAgentSession(options: AgentSessionOptions): {
     mcpConfigPath,
     openCodeConfigPath,
     command,
+    ...(isolationMetadata ? { isolation: isolationMetadata } : {}),
     skillInstallation,
     guidanceInstallation,
   });
@@ -334,40 +366,52 @@ export function prepareAgentSession(options: AgentSessionOptions): {
 
 export async function runAgentSession(
   options: AgentSessionOptions,
+  dependencies: AgentSessionDependencies = {},
 ): Promise<number> {
   assert(
     existsSync(options.repoRoot),
     `Repo root not found: ${options.repoRoot}`,
   );
-  const prepared = prepareAgentSession(options);
-  const env = buildEvalEnv(process.env);
-  if (options.agent === "opencode") {
-    isolateOpenCodeSkills(env);
+  const baseEnv = dependencies.baseEnv ?? process.env;
+  const evalEnv = buildEvalEnv(baseEnv);
+  let isolation: WorkloadIsolation | undefined;
+  if (options.agent === "codex") {
+    if (!options.dryRun) validateCodexEvalHome(evalEnv);
+    isolation = createWorkloadIsolation(evalEnv);
   }
-  if (prepared.skillInstallation) {
-    env.PATH = `${dirname(prepared.skillInstallation.cliShim)}${env.PATH ? `${delimiter}${env.PATH}` : ""}`;
-  }
+  try {
+    const prepared = prepareAgentSession(options, baseEnv, isolation?.metadata);
+    const env = isolation?.env ?? evalEnv;
+    if (options.agent === "opencode") {
+      isolateOpenCodeSkills(env);
+    }
+    if (prepared.skillInstallation) {
+      env.PATH = `${dirname(prepared.skillInstallation.cliShim)}${env.PATH ? `${delimiter}${env.PATH}` : ""}`;
+    }
 
-  console.log(`Workspace: ${options.workspaceDir}`);
-  console.log(`Surface: ${options.surface}`);
-  console.log(
-    `Command: ${prepared.command.map((part) => JSON.stringify(part)).join(" ")}`,
-  );
-  if (prepared.skillInstallation) {
+    console.log(`Workspace: ${options.workspaceDir}`);
+    console.log(`Surface: ${options.surface}`);
     console.log(
-      `Skills: ${prepared.skillInstallation.installedDirs.join(", ")}`,
+      `Command: ${prepared.command.map((part) => JSON.stringify(part)).join(" ")}`,
     );
-  }
-  if (options.dryRun) return 0;
+    if (prepared.skillInstallation) {
+      console.log(
+        `Skills: ${prepared.skillInstallation.installedDirs.join(", ")}`,
+      );
+    }
+    if (options.dryRun) return 0;
 
-  const proc = Bun.spawn(prepared.command, {
-    cwd: options.workspaceDir,
-    env,
-    stdin: "inherit",
-    stdout: "inherit",
-    stderr: "inherit",
-  });
-  return await proc.exited;
+    const proc = (dependencies.spawn ?? Bun.spawn)(prepared.command, {
+      cwd: options.workspaceDir,
+      env,
+      stdin: "inherit",
+      stdout: "inherit",
+      stderr: "inherit",
+    });
+    return await proc.exited;
+  } finally {
+    if (isolation) rmSync(isolation.rootDir, { recursive: true, force: true });
+  }
 }
 
 async function main(): Promise<void> {

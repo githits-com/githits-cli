@@ -79,6 +79,7 @@ import {
   buildOpenCodeSessionCommand,
   parseSessionArgs,
   prepareAgentSession,
+  runAgentSession,
 } from "./agent-session.ts";
 
 function writeJson(path: string, value: unknown): void {
@@ -1208,6 +1209,29 @@ describe("agent eval harness", () => {
     expect(openCodeCommand).toContain("hello");
   });
 
+  it("suppresses Codex interactive global inputs on both surfaces", () => {
+    for (const surface of ["mcp", "skills"] as const) {
+      const options = parseSessionArgs(
+        ["--agent", "codex", "--surface", surface, "--reasoning-effort", "low"],
+        "/repo/githits-cli",
+      );
+      const command = buildCodexSessionCommand(options);
+      const disabled = command.flatMap((arg, index) =>
+        arg === "--disable" ? [command[index + 1] ?? ""] : [],
+      );
+      expect(disabled).toEqual(["apps", "plugins", "remote_plugin"]);
+      expect(command).toContain("--ignore-user-config");
+      expect(command).not.toContain("--ignore-rules");
+      expect(command).toContain("mcp_servers={}");
+      expect(command).toContain('model_reasoning_effort="low"');
+      if (surface === "mcp") {
+        expect(command).toContain('mcp_servers.githits.command="bun"');
+      } else {
+        expect(command).not.toContain("mcp_servers.githits.command");
+      }
+    }
+  });
+
   it("keeps guidance profiles out of skills sessions and preserves explicit session effort", () => {
     const skillsOptions = parseSessionArgs(
       ["--agent", "codex", "--surface", "skills", "--reasoning-effort", "low"],
@@ -1348,6 +1372,142 @@ describe("agent eval harness", () => {
       );
     } finally {
       rmSync(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("isolates interactive Codex environment and keeps host MCP roots trusted", async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-codex-"));
+    const codexHome = mkdtempSync(join(tmpdir(), "agent-session-codex-home-"));
+    let observedCommand: string[] | undefined;
+    let observedEnv: Record<string, string> | undefined;
+    try {
+      const exitCode = await runAgentSession(
+        {
+          agent: "codex",
+          surface: "mcp",
+          server: "local",
+          experimentalTools: false,
+          workspaceDir,
+          repoRoot: process.cwd(),
+          publishedPackage: "githits@latest",
+          dryRun: false,
+          bypassPermissions: false,
+        },
+        {
+          baseEnv: {
+            PATH: "/bin",
+            HOME: "/host/home",
+            USERPROFILE: "/host/profile",
+            XDG_CONFIG_HOME: "/host/config",
+            APPDATA: "/host/appdata",
+            CODEX_HOME: codexHome,
+            GITHITS_AUTH_STORAGE: "/host/auth-root",
+            RANDOM_SECRET: "must-not-pass",
+          },
+          spawn: ((command, spawnOptions) => {
+            observedCommand = command;
+            observedEnv = (spawnOptions?.env ?? {}) as Record<string, string>;
+            return { exited: Promise.resolve(0) } as ReturnType<
+              typeof Bun.spawn
+            >;
+          }) as typeof Bun.spawn,
+        },
+      );
+      expect(exitCode).toBe(0);
+      expect(observedCommand).toContain(
+        'mcp_servers.githits.env.HOME="/host/home"',
+      );
+      expect(observedEnv?.CODEX_HOME).toBe(codexHome);
+      for (const [key, hostValue] of Object.entries({
+        HOME: "/host/home",
+        USERPROFILE: "/host/profile",
+        XDG_CONFIG_HOME: "/host/config",
+        APPDATA: "/host/appdata",
+      })) {
+        expect(observedEnv?.[key]).not.toBe(hostValue);
+        expect(observedEnv?.[key]).toStartWith(
+          observedEnv?.TMPDIR?.replace(/\/tmp$/, "") ?? "never",
+        );
+      }
+      expect(observedEnv?.RANDOM_SECRET).toBeUndefined();
+      const session = JSON.parse(
+        readFileSync(
+          join(workspaceDir, ".agent-session", "session.json"),
+          "utf8",
+        ),
+      );
+      expect(session.workspaceDir).toBe(workspaceDir);
+      expect(session.isolation).toEqual({
+        root: "<ephemeral>",
+        workspace: "workspace",
+        home: "home",
+        userprofile: "home",
+        xdgConfigHome: "config",
+        appdata: "appdata",
+        temp: "tmp",
+      });
+      expect(JSON.stringify(session.isolation)).not.toContain("/host/");
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+      rmSync(codexHome, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects invalid live Codex homes before spawn while allowing dry runs", async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-codex-"));
+    const contaminatedHome = mkdtempSync(
+      join(tmpdir(), "agent-session-codex-home-"),
+    );
+    writeFileSync(join(contaminatedHome, "AGENTS.md"), "global guidance\n");
+    let spawnCalls = 0;
+    const options = {
+      agent: "codex" as const,
+      surface: "skills" as const,
+      server: "local" as const,
+      experimentalTools: false,
+      workspaceDir,
+      repoRoot: process.cwd(),
+      publishedPackage: "githits@latest",
+      dryRun: false,
+      bypassPermissions: false,
+    };
+    try {
+      for (const baseEnv of [
+        { PATH: "/bin" },
+        { PATH: "/bin", CODEX_HOME: "relative/home" },
+        { PATH: "/bin", CODEX_HOME: contaminatedHome },
+      ]) {
+        await expect(
+          runAgentSession(options, {
+            baseEnv,
+            spawn: (() => {
+              spawnCalls += 1;
+              return { exited: Promise.resolve(0) } as ReturnType<
+                typeof Bun.spawn
+              >;
+            }) as typeof Bun.spawn,
+          }),
+        ).rejects.toThrow();
+        expect(spawnCalls).toBe(0);
+        expect(existsSync(join(workspaceDir, ".agent-session"))).toBe(false);
+      }
+
+      expect(
+        await runAgentSession(
+          { ...options, dryRun: true },
+          { baseEnv: { PATH: "/bin" } },
+        ),
+      ).toBe(0);
+      const session = JSON.parse(
+        readFileSync(
+          join(workspaceDir, ".agent-session", "session.json"),
+          "utf8",
+        ),
+      );
+      expect(session.isolation.root).toBe("<ephemeral>");
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+      rmSync(contaminatedHome, { recursive: true, force: true });
     }
   });
 
