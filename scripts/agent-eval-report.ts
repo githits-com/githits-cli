@@ -4,7 +4,8 @@ import {
   type AgentEvalMetrics,
   type AgentEvalRecord,
   type AgentUsageMetrics,
-  agentEvalMetricsSchema,
+  deriveEvalScenario,
+  parseAgentEvalMetrics,
 } from "./agent-eval-metrics.ts";
 
 export type AgentEvalReportMode = "report" | "json" | "compare";
@@ -37,6 +38,9 @@ export interface AgentEvalRunMetadata {
   surface?: string;
   server?: string;
   guidanceProfile?: string;
+  scenario?: string | null;
+  intentProfile?: string;
+  intentFragmentHash?: string | null;
   dryRun?: boolean;
   git?: AgentEvalGitMetadata;
   workloads?: WorkloadRunMetadata[];
@@ -157,6 +161,9 @@ export interface AgentEvalReport {
   surface?: string;
   server?: string;
   guidanceProfile?: string;
+  scenario?: string | null;
+  intentProfile?: string;
+  intentFragmentHash?: string | null;
   dryRun?: boolean;
   git?: AgentEvalGitMetadata;
   runDir: string;
@@ -400,22 +407,24 @@ function loadRunMetrics(runDir: string, expectedRunId?: string): LoadedMetrics {
       ],
     };
   }
-  const parsed = agentEvalMetricsSchema.safeParse(value);
-  if (!parsed.success) {
+  let parsed: AgentEvalMetrics;
+  try {
+    parsed = parseAgentEvalMetrics(value);
+  } catch {
     return {
       warnings: [
         "metrics.json invalid; normalized usage, cost, and logical tool metrics are unknown",
       ],
     };
   }
-  if (expectedRunId !== undefined && parsed.data.runId !== expectedRunId) {
+  if (expectedRunId !== undefined && parsed.runId !== expectedRunId) {
     return {
       warnings: [
         "metrics.json runId mismatch; normalized usage, cost, and logical tool metrics are unknown",
       ],
     };
   }
-  return { value: parsed.data, warnings: [] };
+  return { value: parsed, warnings: [] };
 }
 
 export function parseReportArgs(argv: string[]): AgentEvalReportOptions {
@@ -742,6 +751,41 @@ function buildWorkloadReport(
   };
 }
 
+function reportIdentity(metadata: AgentEvalRunMetadata): {
+  scenario: string | null;
+  intentProfile: string;
+  intentFragmentHash: string | null;
+} {
+  const intentProfile =
+    metadata.intentProfile === "githits" ? "githits" : "neutral";
+  const intentFragmentHash =
+    intentProfile === "githits" ? (metadata.intentFragmentHash ?? null) : null;
+  if (metadata.scenario !== undefined) {
+    return {
+      scenario: metadata.scenario,
+      intentProfile,
+      intentFragmentHash,
+    };
+  }
+  if (metadata.surface !== "mcp") {
+    return { scenario: null, intentProfile, intentFragmentHash };
+  }
+  const guidanceProfile =
+    metadata.guidanceProfile === "full" ||
+    metadata.guidanceProfile === "descriptors"
+      ? metadata.guidanceProfile
+      : "descriptors";
+  return {
+    scenario: deriveEvalScenario(
+      "mcp",
+      guidanceProfile,
+      intentProfile === "githits" ? "githits" : "neutral",
+    ),
+    intentProfile,
+    intentFragmentHash,
+  };
+}
+
 export function buildRunReportFromMetadata(
   runDir: string,
   metadata: AgentEvalRunMetadata,
@@ -759,6 +803,7 @@ export function buildRunReportFromMetadata(
   }
   const loadedMetrics = loadRunMetrics(runDir, metadata.runId);
   const metrics = loadedMetrics.value;
+  const identity = reportIdentity(metadata);
   const metricsByWorkloadId = new Map<string, AgentEvalRecord>();
   const duplicateMetricIds = new Set<string>();
   const metricsMatchingWarnings: string[] = [];
@@ -832,6 +877,9 @@ export function buildRunReportFromMetadata(
     surface: metadata.surface,
     server: metadata.server,
     guidanceProfile: metadata.guidanceProfile,
+    scenario: identity.scenario,
+    intentProfile: identity.intentProfile,
+    intentFragmentHash: identity.intentFragmentHash,
     dryRun: metadata.dryRun,
     git: metadata.git,
     runDir,
@@ -913,7 +961,7 @@ export function formatRunReport(report: AgentEvalReport): string {
       ? "n/a"
       : (report.guidanceProfile ?? "descriptors");
   const lines = [
-    `Agent eval: ${report.status} (${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.surface ?? "mcp"}/${report.server ?? "unknown"}) profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""} ${report.runDir}`,
+    `Agent eval: ${report.status} (${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.surface ?? "mcp"}/${report.server ?? "unknown"}) profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""} intent=${report.intentProfile ?? "neutral"} scenario=${report.scenario ?? "n/a"} intentHash=${report.intentFragmentHash ?? "null"} ${report.runDir}`,
   ];
   for (const workload of report.workloads) {
     const final = workload.finalReport;
@@ -1102,7 +1150,7 @@ function formatRunContext(report: AgentEvalReport): string {
     report.surface === "skills"
       ? "n/a"
       : (report.guidanceProfile ?? "descriptors");
-  return `profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""}`;
+  return `profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""} intent=${report.intentProfile ?? "neutral"} scenario=${report.scenario ?? "n/a"} intentHash=${report.intentFragmentHash ?? "null"}`;
 }
 
 function effectiveGuidanceProfile(report: AgentEvalReport): string | undefined {

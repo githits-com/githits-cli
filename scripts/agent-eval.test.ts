@@ -22,6 +22,7 @@ import {
   buildCodexConfig,
   buildCodexConfigArgs,
   buildEvalEnv,
+  buildEvalPrompt,
   buildMcpConfig,
   buildOpenCodeCommand,
   buildOpenCodeConfig,
@@ -37,6 +38,8 @@ import {
   extractDiscoveryEvents,
   extractEvalValidationViolations,
   extractToolCalls,
+  GITHITS_INTENT_FRAGMENT,
+  GITHITS_INTENT_FRAGMENT_HASH,
   isolateOpenCodeSkills,
   isValidAgentReport,
   loadTargetGuidanceBlock,
@@ -547,6 +550,121 @@ describe("agent eval harness", () => {
     expect(options.model).toBe(DEFAULT_CODEX_MODEL);
     expect(options.reasoningEffort).toBe(DEFAULT_CODEX_REASONING_EFFORT);
     expect(options.guidanceProfile).toBe("descriptors");
+    expect(options.intentProfile).toBe("neutral");
+  });
+
+  it("accepts the closed MCP scenario set and rejects unsupported intent combinations", () => {
+    expect(
+      parseArgs(["--guidance-profile", "descriptors", "--dry-run"], "/repo"),
+    ).toMatchObject({
+      guidanceProfile: "descriptors",
+      intentProfile: "neutral",
+    });
+    expect(
+      parseArgs(
+        [
+          "--guidance-profile",
+          "descriptors",
+          "--intent-profile",
+          "githits",
+          "--dry-run",
+        ],
+        "/repo",
+      ),
+    ).toMatchObject({
+      guidanceProfile: "descriptors",
+      intentProfile: "githits",
+    });
+    expect(
+      parseArgs(["--guidance-profile", "full", "--dry-run"], "/repo"),
+    ).toMatchObject({ guidanceProfile: "full", intentProfile: "neutral" });
+
+    expect(() =>
+      parseArgs(
+        [
+          "--guidance-profile",
+          "full",
+          "--intent-profile",
+          "githits",
+          "--dry-run",
+        ],
+        "/repo",
+      ),
+    ).toThrow("cannot be combined with full guidance");
+    expect(() =>
+      parseArgs(
+        ["--surface", "skills", "--intent-profile", "githits", "--dry-run"],
+        "/repo",
+      ),
+    ).toThrow("requires the MCP surface");
+    expect(() => parseArgs(["--intent-profile"], "/repo")).toThrow(
+      "must be neutral or githits",
+    );
+    expect(() => parseArgs(["--intent-profile", "unknown"], "/repo")).toThrow(
+      "must be neutral or githits",
+    );
+  });
+
+  it("places the exact intent fragment between workload and reporting prompts", () => {
+    const workload = "# Workload\n\nTask text\n";
+    const reporting = "# Reporting\n\nReturn JSON.\n";
+    expect(buildEvalPrompt(workload, reporting, "neutral")).toBe(
+      "# Workload\n\nTask text\n\n# Reporting\n\nReturn JSON.\n",
+    );
+    expect(buildEvalPrompt(workload, reporting, "githits")).toBe(
+      "# Workload\n\nTask text\n\nUse GitHits for this task.\n\n# Reporting\n\nReturn JSON.\n",
+    );
+  });
+
+  it("persists scenario and intent identity in dry-run artifacts", async () => {
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-intent-"));
+    try {
+      const options = parseArgs(
+        [
+          "--intent-profile",
+          "githits",
+          "--dry-run",
+          "--out",
+          outDir,
+          "--workload",
+          "eval/agentic/workloads/express-router.md",
+        ],
+        process.cwd(),
+      );
+      await runAgentEval(options);
+      const run = JSON.parse(readFileSync(join(outDir, "run.json"), "utf8"));
+      const workloadDir = join(outDir, "workloads", "express-router");
+      const dryRun = JSON.parse(
+        readFileSync(join(workloadDir, "dry-run.json"), "utf8"),
+      );
+      const metrics = JSON.parse(
+        readFileSync(join(outDir, "metrics.json"), "utf8"),
+      );
+      const prompt = readFileSync(join(workloadDir, "prompt.md"), "utf8");
+      expect(run).toMatchObject({
+        scenario: "intent",
+        intentProfile: "githits",
+        intentFragmentHash: GITHITS_INTENT_FRAGMENT_HASH,
+      });
+      expect(dryRun).toMatchObject({
+        scenario: "intent",
+        intentProfile: "githits",
+        intentFragmentHash: GITHITS_INTENT_FRAGMENT_HASH,
+      });
+      expect(metrics).toMatchObject({
+        schemaVersion: 2,
+        records: [
+          {
+            scenario: "intent",
+            intentProfile: "githits",
+            intentFragmentHash: GITHITS_INTENT_FRAGMENT_HASH,
+          },
+        ],
+      });
+      expect(prompt).toContain(`\n\n${GITHITS_INTENT_FRAGMENT}\n\n`);
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
   });
 
   it("preserves explicit Codex model and reasoning overrides", () => {
@@ -3372,6 +3490,47 @@ describe("agent eval harness", () => {
     expect(formatted).toContain(
       "Inspect raw calls: workloads/pkg-vulns/tool-calls.json",
     );
+  });
+
+  it("normalizes schema-v1 metrics when loading a run report", () => {
+    const runDir = mkdtempSync(join(tmpdir(), "agent-eval-v1-report-"));
+    const workloadDir = join(runDir, "workloads", "pkg-info");
+    mkdirSync(workloadDir, { recursive: true });
+    writeJson(join(workloadDir, "tool-calls.json"), []);
+    writeFileSync(join(workloadDir, "stderr.txt"), "");
+    const current = buildAgentEvalMetrics({
+      runId: "run-v1",
+      startedAt: "2026-08-28T10:00:00.000Z",
+      completedAt: "2026-08-28T10:00:01.000Z",
+      records: [createMetricsRecord("pkg-info")],
+    });
+    writeJson(join(runDir, "metrics.json"), {
+      ...current,
+      schemaVersion: 1,
+      records: current.records.map(
+        ({ scenario, intentProfile, intentFragmentHash, ...record }) => record,
+      ),
+    });
+    try {
+      const report = buildRunReportFromMetadata(runDir, {
+        runId: "run-v1",
+        agent: "codex",
+        surface: "mcp",
+        guidanceProfile: "descriptors",
+        workloads: [{ id: "pkg-info", status: "success", workloadDir }],
+      });
+      expect(report).toMatchObject({
+        scenario: "discovery",
+        intentProfile: "neutral",
+        intentFragmentHash: null,
+      });
+      expect(report.metrics.logicalToolCalls).toBe(2);
+      expect(formatRunReport(report)).toContain(
+        "intent=neutral scenario=discovery intentHash=null",
+      );
+    } finally {
+      rmSync(runDir, { recursive: true, force: true });
+    }
   });
 
   it("attaches per-workload and aggregate usage metrics to the report", () => {

@@ -34,6 +34,11 @@ import {
   type AgentEvalRecordInput,
   adaptAgentUsage,
   buildAgentEvalMetrics,
+  deriveEvalScenario,
+  type EvalScenario,
+  GITHITS_INTENT_FRAGMENT,
+  GITHITS_INTENT_FRAGMENT_HASH,
+  type IntentProfile,
   type PersistedToolCall,
   unknownAgentUsage,
 } from "./agent-eval-metrics.ts";
@@ -49,6 +54,11 @@ export type AgentName = "claude" | "codex" | "opencode";
 export type ServerMode = "local" | "published";
 export type EvalSurface = "mcp" | "skills";
 export type GuidanceProfile = "descriptors" | "full";
+export type { EvalScenario, IntentProfile } from "./agent-eval-metrics.ts";
+export {
+  GITHITS_INTENT_FRAGMENT,
+  GITHITS_INTENT_FRAGMENT_HASH,
+} from "./agent-eval-metrics.ts";
 export type CodexReasoningEffort =
   | "minimal"
   | "low"
@@ -67,6 +77,7 @@ export interface AgentEvalOptions {
   surface: EvalSurface;
   server: ServerMode;
   guidanceProfile?: GuidanceProfile;
+  intentProfile: IntentProfile;
   reasoningEffort?: CodexReasoningEffort;
   experimentalTools: boolean;
   workloads: string[];
@@ -124,6 +135,9 @@ interface WorkloadRunMetadata {
   startedAt?: string;
   completedAt?: string;
   finalStatus?: AgentEvalFinalStatus;
+  scenario?: EvalScenario | null;
+  intentProfile: IntentProfile;
+  intentFragmentHash: string | null;
   command: string[];
   workspaceDir: string;
   workloadDir: string;
@@ -357,6 +371,7 @@ export function parseArgs(
     surface: "mcp",
     server: "local",
     guidanceProfile: undefined,
+    intentProfile: "neutral",
     experimentalTools: false,
     workloads: [],
     outDir: defaultOutDir(repoRoot),
@@ -420,6 +435,15 @@ export function parseArgs(
         );
         options.guidanceProfile = value;
         guidanceProfileExplicit = true;
+        break;
+      }
+      case "--intent-profile": {
+        const value = argv[++i];
+        assert(
+          value === "neutral" || value === "githits",
+          "--intent-profile must be neutral or githits",
+        );
+        options.intentProfile = value;
         break;
       }
       case "--reasoning-effort": {
@@ -505,6 +529,7 @@ export function parseArgs(
     options.guidanceProfile = "descriptors";
   }
   validateGuidanceProfileScope(options, guidanceProfileExplicit);
+  validateScenarioScope(options);
   if (options.agent === "codex") {
     options.model ??= DEFAULT_CODEX_MODEL;
     options.reasoningEffort ??= DEFAULT_CODEX_REASONING_EFFORT;
@@ -548,6 +573,19 @@ export function validateGuidanceProfileScope(
   );
 }
 
+export function validateScenarioScope(options: {
+  surface: EvalSurface;
+  guidanceProfile?: GuidanceProfile;
+  intentProfile?: IntentProfile | null;
+}): EvalScenario | null {
+  const intentProfile = options.intentProfile ?? "neutral";
+  return deriveEvalScenario(
+    options.surface,
+    options.guidanceProfile,
+    intentProfile,
+  );
+}
+
 function printHelp(): void {
   console.log(`Usage: bun run agent:e2e [options]
 
@@ -555,6 +593,7 @@ Options:
   --agent claude|codex|opencode   Agent to run (default: claude)
   --model <name>                  Agent model name or alias, e.g. sonnet, haiku, gpt-5.4-mini
   --guidance-profile descriptors|full  MCP guidance profile (default: descriptors)
+  --intent-profile neutral|githits  Prompt intent profile (default: neutral)
   --reasoning-effort minimal|low|medium|high|xhigh|max|ultra  Codex reasoning effort
   --surface mcp|skills            GitHits access surface under test (default: mcp)
   --server local|published        GitHits source mode: local checkout or published package (default: local)
@@ -2206,6 +2245,18 @@ function redactPersistedRuntimeConfigs(
   }
 }
 
+export function buildEvalPrompt(
+  workloadText: string,
+  reportingText: string,
+  intentProfile: IntentProfile = "neutral",
+): string {
+  const workloadPrompt = workloadText.trimEnd();
+  const reportingPrompt = reportingText.trim();
+  const intentPrompt =
+    intentProfile === "githits" ? `\n\n${GITHITS_INTENT_FRAGMENT}` : "";
+  return `${workloadPrompt}${intentPrompt}\n\n${reportingPrompt}\n`;
+}
+
 async function runWorkload(
   options: AgentEvalOptions,
   workloadPath: string,
@@ -2237,9 +2288,11 @@ async function runWorkload(
 
   try {
     mkdirSync(workloadDir, { recursive: true });
-    const workloadPrompt = readFileSync(workloadPath, "utf8").trimEnd();
-    const reportingPrompt = readFileSync(options.reportingPath, "utf8").trim();
-    const prompt = `${workloadPrompt}\n\n${reportingPrompt}\n`;
+    const prompt = buildEvalPrompt(
+      readFileSync(workloadPath, "utf8"),
+      readFileSync(options.reportingPath, "utf8"),
+      options.intentProfile,
+    );
     const codexFinalPath = join(workloadDir, "codex-final.txt");
     const workspaceOpenCodeConfigPath = join(workspaceDir, "opencode.json");
     writeFileSync(join(workloadDir, "prompt.md"), prompt);
@@ -2300,6 +2353,12 @@ async function runWorkload(
       id,
       path: workloadPath,
       guidanceProfile: options.guidanceProfile,
+      scenario: validateScenarioScope(options),
+      intentProfile: options.intentProfile,
+      intentFragmentHash:
+        options.intentProfile === "githits"
+          ? GITHITS_INTENT_FRAGMENT_HASH
+          : null,
       model: options.model,
       reasoningEffort: options.reasoningEffort,
       command,
@@ -2479,6 +2538,8 @@ export async function runAgentEval(
   options: AgentEvalOptions,
   dependencies: AgentEvalDependencies = DEFAULT_AGENT_EVAL_DEPENDENCIES,
 ): Promise<void> {
+  options.intentProfile ??= "neutral";
+  validateScenarioScope(options);
   assert(
     existsSync(options.schemaPath),
     `Schema not found: ${options.schemaPath}`,
@@ -2558,6 +2619,10 @@ export async function runAgentEval(
     surface: options.surface,
     server: options.server,
     guidanceProfile: options.guidanceProfile,
+    scenario: validateScenarioScope(options),
+    intentProfile: options.intentProfile,
+    intentFragmentHash:
+      options.intentProfile === "githits" ? GITHITS_INTENT_FRAGMENT_HASH : null,
     reasoningEffort: options.reasoningEffort,
     experimentalTools: options.experimentalTools,
     publishedPackage: options.publishedPackage,
@@ -2628,6 +2693,12 @@ export async function runAgentEval(
         surface: options.surface,
         server: options.server,
         guidanceProfile: options.guidanceProfile ?? null,
+        scenario: validateScenarioScope(options),
+        intentProfile: options.intentProfile,
+        intentFragmentHash:
+          options.intentProfile === "githits"
+            ? GITHITS_INTENT_FRAGMENT_HASH
+            : null,
         experimentalTools: options.experimentalTools,
         publishedPackage:
           options.server === "local" ? null : options.publishedPackage,
