@@ -1189,7 +1189,7 @@ describe("agent eval harness", () => {
       "/repo/githits-cli",
     );
     const codexSkillsCommand = buildCodexSessionCommand(codexSkillsOptions);
-    expect(codexSkillsCommand).toContain("--ignore-user-config");
+    expect(codexSkillsCommand).not.toContain("--ignore-user-config");
 
     const openCodeOptions = parseSessionArgs(
       [
@@ -1220,7 +1220,7 @@ describe("agent eval harness", () => {
         arg === "--disable" ? [command[index + 1] ?? ""] : [],
       );
       expect(disabled).toEqual(["apps", "plugins", "remote_plugin"]);
-      expect(command).toContain("--ignore-user-config");
+      expect(command).not.toContain("--ignore-user-config");
       expect(command).not.toContain("--ignore-rules");
       expect(command).toContain("mcp_servers={}");
       expect(command).toContain('model_reasoning_effort="low"');
@@ -1509,6 +1509,90 @@ describe("agent eval harness", () => {
       rmSync(workspaceDir, { recursive: true, force: true });
       rmSync(contaminatedHome, { recursive: true, force: true });
     }
+  });
+
+  it("validates interactive Codex skills and config before workspace preparation", async () => {
+    const runSession = async (
+      setup: (codexHome: string) => void,
+      expectedError?: string,
+    ): Promise<void> => {
+      const workspaceDir = mkdtempSync(
+        join(tmpdir(), "agent-session-codex-workspace-"),
+      );
+      const codexHome = mkdtempSync(
+        join(tmpdir(), "agent-session-codex-home-"),
+      );
+      setup(codexHome);
+      let spawnCalls = 0;
+      const options = {
+        agent: "codex" as const,
+        surface: "skills" as const,
+        server: "local" as const,
+        experimentalTools: false,
+        workspaceDir,
+        repoRoot: process.cwd(),
+        publishedPackage: "githits@latest",
+        dryRun: false,
+        bypassPermissions: false,
+      };
+      try {
+        let caught: unknown;
+        try {
+          await runAgentSession(options, {
+            baseEnv: { PATH: "/bin", CODEX_HOME: codexHome },
+            spawn: (() => {
+              spawnCalls += 1;
+              return { exited: Promise.resolve(0) } as ReturnType<
+                typeof Bun.spawn
+              >;
+            }) as typeof Bun.spawn,
+          });
+        } catch (error) {
+          caught = error;
+        }
+        if (expectedError === undefined) {
+          expect(caught).toBeUndefined();
+          expect(spawnCalls).toBe(1);
+        } else {
+          expect(caught).toBeInstanceOf(Error);
+          const message = (caught as Error).message;
+          expect(message).toContain(expectedError);
+          expect(message).not.toContain("fixture-secret");
+          expect(spawnCalls).toBe(0);
+          expect(existsSync(join(workspaceDir, ".agent-session"))).toBe(false);
+        }
+      } finally {
+        rmSync(workspaceDir, { recursive: true, force: true });
+        rmSync(codexHome, { recursive: true, force: true });
+      }
+    };
+
+    await runSession(() => {});
+    await runSession((codexHome) => {
+      mkdirSync(join(codexHome, "skills", ".system"), { recursive: true });
+      writeFileSync(
+        join(codexHome, "config.toml"),
+        'model = "gpt-5.6-luna"\nmodel_reasoning_effort = "low"\n[projects.eval]\ntrust_level = "trusted"\n',
+      );
+    });
+    await runSession((codexHome) => {
+      mkdirSync(join(codexHome, "skills", "personal"), { recursive: true });
+    }, "skills contains unsupported entry: personal");
+    await runSession((codexHome) => {
+      writeFileSync(
+        join(codexHome, "config.toml"),
+        'fixture_secret_key = "fixture-secret"\n',
+      );
+    }, "config.toml contains unsupported key: fixture_secret_key");
+    await runSession((codexHome) => {
+      writeFileSync(
+        join(codexHome, "config.toml"),
+        '[projects.eval]\ntrust_level = "trusted"\nfixture_secret_key = "fixture-secret"\n',
+      );
+    }, "config.toml contains unsupported key: fixture_secret_key");
+    await runSession((codexHome) => {
+      writeFileSync(join(codexHome, "config.toml"), "model = [\n");
+    }, "config.toml is not valid TOML");
   });
 
   it("accepts the experimental flag only for local MCP sessions", () => {

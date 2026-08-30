@@ -2,11 +2,14 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
+import { parse as parseToml } from "smol-toml";
 import {
   type AgentName,
   buildCodexConfigArgs,
@@ -58,6 +61,86 @@ function assert(condition: unknown, message: string): asserts condition {
 
 function defaultWorkspaceDir(): string {
   return mkdtempSync(join(tmpdir(), "githits-agent-session-"));
+}
+
+const CODEX_INTERACTIVE_CONFIG_KEYS = new Set([
+  "model",
+  "model_reasoning_effort",
+  "projects",
+]);
+
+function isTable(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function validateCodexInteractiveConfig(codexHome: string): void {
+  const skillsDir = join(codexHome, "skills");
+  if (existsSync(skillsDir)) {
+    let entries: string[];
+    try {
+      entries = readdirSync(skillsDir);
+    } catch {
+      throw new Error("CODEX_HOME skills directory could not be read");
+    }
+    const unsupportedEntry = entries.find((entry) => entry !== ".system");
+    assert(
+      unsupportedEntry === undefined,
+      `CODEX_HOME skills contains unsupported entry: ${unsupportedEntry}`,
+    );
+  }
+
+  const configPath = join(codexHome, "config.toml");
+  if (!existsSync(configPath)) return;
+
+  let configText: string;
+  try {
+    configText = readFileSync(configPath, "utf8");
+  } catch {
+    throw new Error("CODEX_HOME config.toml could not be read");
+  }
+
+  let config: unknown;
+  try {
+    config = parseToml(configText);
+  } catch {
+    throw new Error("CODEX_HOME config.toml is not valid TOML");
+  }
+  assert(isTable(config), "CODEX_HOME config.toml must be a table");
+
+  for (const key of Object.keys(config)) {
+    assert(
+      CODEX_INTERACTIVE_CONFIG_KEYS.has(key),
+      `CODEX_HOME config.toml contains unsupported key: ${key}`,
+    );
+  }
+
+  if ("projects" in config) {
+    assert(
+      isTable(config.projects),
+      "CODEX_HOME config.toml projects must be a table",
+    );
+    for (const project of Object.values(config.projects)) {
+      assert(
+        isTable(project),
+        "CODEX_HOME config.toml project entries must be tables",
+      );
+      for (const key of Object.keys(project)) {
+        assert(
+          key === "trust_level",
+          `CODEX_HOME config.toml contains unsupported key: ${key}`,
+        );
+      }
+    }
+  }
+}
+
+export function validateCodexInteractiveEvalHome(
+  baseEnv: NodeJS.ProcessEnv,
+): void {
+  validateCodexEvalHome(baseEnv);
+  const codexHome = baseEnv.CODEX_HOME;
+  assert(codexHome !== undefined, "CODEX_HOME is required");
+  validateCodexInteractiveConfig(codexHome);
 }
 
 export function parseSessionArgs(
@@ -244,7 +327,6 @@ export function buildCodexSessionCommand(
 ): string[] {
   const command = ["codex", "-C", options.workspaceDir];
   command.push(
-    "--ignore-user-config",
     "--disable",
     "apps",
     "--disable",
@@ -376,7 +458,7 @@ export async function runAgentSession(
   const evalEnv = buildEvalEnv(baseEnv);
   let isolation: WorkloadIsolation | undefined;
   if (options.agent === "codex") {
-    if (!options.dryRun) validateCodexEvalHome(evalEnv);
+    if (!options.dryRun) validateCodexInteractiveEvalHome(evalEnv);
     isolation = createWorkloadIsolation(evalEnv);
   }
   try {
