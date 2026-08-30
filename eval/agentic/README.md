@@ -28,18 +28,17 @@ a service, or judge answer quality.
   by default.
 - Skills mode copies this checkout's `skills/` directory into the isolated
   workspace at `skills/`, `.agents/skills`, `.claude/skills`, and
-  `.codex/skills`, creates a `githits` CLI shim on `PATH`, and runs Claude with
-  an empty strict MCP config so global/plugin MCP servers do not contaminate the
-  run.
-- MCP runs use the `descriptors` guidance profile by default. It exposes the
-  MCP tools, including `quick_start`, with no MCP server instructions and no
-  installed skills or project pointer. This approximates a remote connector
-  that exposes tool definitions only. OpenCode can isolate this profile
-  locally. The `full` profile uses the same MCP server and additionally installs
-  only the `githits-mcp` skill plus project `CLAUDE.md`/`AGENTS.md` guidance;
-  it does not install a CLI shim.
-  `full` requires
-  `--server local`; `descriptors` also supports published MCP runs.
+  `.codex/skills`, creates a `githits` CLI shim on `PATH`, and gives Claude an
+  empty strict MCP config so global/plugin MCP servers do not contaminate the
+  run. Codex and OpenCode use their corresponding isolated command/config
+  paths.
+- One-off MCP runs use the `descriptors` guidance profile by default. The
+  closed scenario set is described below; `descriptors` plus `neutral` is
+  discovery, while `descriptors` plus `githits` is intent. The `full` profile
+  uses the same MCP server and additionally installs only the `githits-mcp`
+  skill plus project `CLAUDE.md`/`AGENTS.md` guidance; it does not install a
+  CLI shim. `full` requires `--server local`; descriptor-only runs also support
+  published MCP runs.
 - To evaluate `quick_start` or MCP description changes, change branch/source
   and run local mode.
 - To evaluate skill instruction changes, use `--surface skills --server local`.
@@ -48,12 +47,27 @@ Smoke tests are the right fit for CI gating. Agentic evals are the right fit for
 qualitative review before/after instruction, tool-description, and agent-facing
 UX changes.
 
-The harness must not add GitHits usage guidance through agent system prompts,
-append prompts, or plugin commands. The `descriptors` profile does not install
-project guidance; `full` deliberately exercises the same
-canonical project guidance and skills that a guided local installation provides.
-Workload prompts may ask the agent to report what happened, but must not tell
-the agent how to use GitHits.
+Workload prompts remain neutral and must not tell the agent how to use GitHits.
+The harness-owned `githits` intent profile is the one explicit exception: it
+appends exactly `Use GitHits for this task.` between the workload and the
+unchanged reporting prompt. It is an identity-bearing test condition, not a
+workload edit or an agent system prompt.
+
+## Closed scenarios
+
+One-off and named-suite runs use this closed MCP scenario set:
+
+| Scenario    | Guidance      | Intent    | Meaning                                                |
+| ----------- | ------------- | --------- | ------------------------------------------------------ |
+| `discovery` | `descriptors` | `neutral` | Descriptor-only autonomous tool discovery              |
+| `intent`    | `descriptors` | `githits` | Descriptor-only discovery with the exact harness nudge |
+| `full`      | `full`        | `neutral` | Repository guidance and skills, with no nudge          |
+
+Discovery is autonomous tool discovery from MCP descriptors; it is not a
+Claude Desktop or claude.ai simulation. `full` plus `githits`, Skills plus
+`githits`, non-MCP `githits`, and unnamed or other values are rejected before an
+agent launches. `--intent-profile` defaults to `neutral`, and its value is
+recorded with the scenario and exact fragment hash.
 
 ## Isolation
 
@@ -126,12 +140,16 @@ command metadata while `targetRoot` remains the real checkout for attribution.
 After per-run workspace/output paths are normalized away, the command surfaces
 are identical and both runs disable `apps`, `plugins`, and `remote_plugin`.
 Sequential wall time was approximately 52.1 seconds and estimated cost was
-$0.016326. This is the clean causal baseline seed; it does not replace the
+\$0.016326. This is the clean causal baseline seed; it does not replace the
 contaminated 42-cell stable-full capacity measurement.
 
 The v4 live evidence covers MCP descriptor/full cells only. Skills-surface
 isolation and authentication have deterministic injected-command coverage in
 the test suite, but no live skills canary has run.
+
+The v2, v3, and v4 measurements above, including the contaminated 42-cell
+stable-full run, remain historical descriptor/full and capacity evidence. None
+is relabeled as `intent` evidence under the current contract.
 
 Trace validation fails an MCP workload if it observes an external
 `AGENTS.md`/`SKILL.md` read, a guidance read in the descriptor profile, or any
@@ -205,12 +223,25 @@ subset of smoke, smoke is a subset of stable-full, and stateful or experimental
 workloads never enter those stable suites.
 
 Every named suite uses exactly Codex `gpt-5.6-luna`, reasoning `low`, local MCP,
-and two profile shards: `descriptors` and `full`. The shards run concurrently;
-workloads are sequential within each shard. The experimental suite passes the
-explicit experimental-tools option. The pair command runs the baseline target
-fully before the current checkout, while the current checkout owns the
-measurement harness for both sides. A pair has no candidate-root option: run it
-from the candidate checkout and use `--baseline-root` for the other target.
+and scenario-keyed shards. Shards may run concurrently; workloads remain
+sequential within each shard. By default, `canary` runs `discovery` and
+`intent`; `smoke`, `stable-full`, `stateful-manual`, and `experimental` run
+`intent` only. Repeatable `--scenario discovery|intent|full` explicitly selects
+the scenario cells and replaces the default selection, so `full` is a local or
+manual opt-in. The experimental suite passes the explicit experimental-tools
+option. The pair command runs the baseline target fully before the current
+checkout, while the current checkout owns the measurement harness for both
+sides. A pair has no candidate-root option: run it from the candidate checkout
+and use `--baseline-root` for the other target.
+
+Each scenario cell carries the fixed agent/model/reasoning identity and its
+guidance/intent identity:
+
+| Scenario    | Guidance      | Intent    | Fragment hash                                                      |
+| ----------- | ------------- | --------- | ------------------------------------------------------------------ |
+| `discovery` | `descriptors` | `neutral` | `null`                                                             |
+| `intent`    | `descriptors` | `githits` | `b04b96acfd7a89516ab1742d9df914bb6779e952c7df96ac9858785ed40f10d0` |
+| `full`      | `full`        | `neutral` | `null`                                                             |
 
 For `run`, the current checkout owns workloads, the manifest, reporting
 contract, result schema, adapters, output, and comparison code. `--target-root`
@@ -230,18 +261,27 @@ paths; imported references cannot traverse or follow symlinks outside their
 owning suite directory.
 
 Suite and comparison output includes normalized token buckets, cost estimates,
-duration, process/final status, full-cell failures, and logical tool counts
-grouped by `(surface, normalized tool)` with separate MCP and CLI rows. Raw
-provider event counts remain separate audit evidence. `callsByTool: null`,
-unknown token/cost/duration values, and missing cell IDs mean telemetry was not
-available or was inconsistent; they are never silently converted to zero.
-Partial shards preserve their successful sibling and the full status matrix.
-Comparison aggregate deltas use only compatible cells where that metric is
-known on both sides and list included/excluded cells. Reporting-contract or
-result-schema changes suppress direct deltas; a workload-content change excludes
-only that workload's cells. Harness Git or Codex CLI drift is warned about and
-prevents a repository-only attribution label, while target Git/guidance changes
-remain intentional comparison dimensions.
+duration, process/final status, scenario/workload cell IDs, full-cell failures,
+and logical tool counts grouped by `(surface, normalized tool)` with separate
+MCP and CLI rows. Raw provider event counts remain separate audit evidence.
+`callsByTool: null`, unknown token/cost/duration values, and missing cell IDs
+mean telemetry was not available or was inconsistent; they are never silently
+converted to zero. Partial shards preserve their successful sibling and the
+full status matrix. Suite and comparison artifacts are schema version 2.
+
+Pair/offline comparison matches cells by scenario and workload. Agent, model,
+reasoning, guidance profile, intent profile, and intent-fragment hash must also
+match; a mismatch is incompatible, so historical discovery/full cells are
+never compared as intent. Aggregate deltas use only compatible cells where
+that metric is known on both sides and list included/excluded cells.
+Reporting-contract or result-schema changes suppress direct deltas; a
+workload-content change excludes only that workload's cells. Harness Git or
+Codex CLI version drift remains a prominent warning and does not suppress
+otherwise compatible deltas, but it prevents a repository-only attribution
+label. Target Git/guidance differences remain intentional comparison
+dimensions. Valid schema-v1 suite artifacts normalize descriptor shards/cells
+to `discovery`, full to `full`, and missing/other profiles to `intent`; legacy
+child `metrics.json` files use the one-off v1 metrics normalizer.
 
 These local commands are diagnostic measurement tools. Paid CI scheduling,
 persistent result history, service export, Haiku coverage, and quality judging
@@ -260,7 +300,20 @@ bun run agent:session --agent codex --surface mcp --server local --experimental-
 ```
 
 `agent:session` creates an isolated temp workspace by default and leaves it in
-place for inspection. Skills mode installs this checkout's skills into
+place for inspection. Codex sessions additionally use the workload runner's
+disposable acting-agent `HOME`, `USERPROFILE`, `XDG_CONFIG_HOME`, `APPDATA`,
+and `TMPDIR`/`TMP`/`TEMP` roots. A live Codex session requires an existing,
+absolute dedicated `CODEX_HOME` without a root `AGENTS.md` or
+`AGENTS.override.md`; the caller-supplied absolute path is preserved for Codex
+authentication and is not copied into the disposable roots. Dry-run Codex
+sessions do not require `CODEX_HOME`. The local MCP child is built from the
+host auth roots before acting-agent isolation, so trusted GitHits auth remains
+available without persisting credential paths. Session metadata records only
+safe relative isolation labels.
+
+Claude and OpenCode sessions retain workspace isolation only. They are not
+causal evidence for instruction isolation until agent-specific subscription
+auth isolation exists. Skills mode installs this checkout's skills into
 `skills/`, `.opencode/skills`, `.agents/skills`, `.claude/skills`, and
 `.codex/skills`, and adds a local `githits` CLI shim to `PATH`. MCP mode writes
 the same local/published GitHits MCP config used by the eval harness. Claude gets
@@ -280,6 +333,8 @@ Useful options:
 --surface <mcp|skills>          GitHits access surface under test, default `mcp`
 --guidance-profile <descriptors|full>
                                 MCP guidance profile; MCP defaults to `descriptors`
+--intent-profile <neutral|githits>
+                                One-off prompt intent; defaults to `neutral`
 --reasoning-effort <minimal|low|medium|high|xhigh|max|ultra>
                                 Codex reasoning effort; automated Codex defaults to `high`
 --dry-run                       Generate artifacts without invoking the agent
@@ -347,10 +402,10 @@ bun run agent:e2e:report --compare .agent-eval/runs/published-baseline .agent-ev
 ```
 
 Same-agent comparisons include normalized aggregate status counts and label the
-guidance profile, model, and reasoning effort. They warn when any of those
-comparison dimensions differ. Cross-agent comparisons intentionally degrade to
-tool-name presence with a warning because Claude and Codex expose different
-tool-call status events.
+scenario, workload, guidance/intent identity, model, and reasoning effort. They
+warn when any identity dimension differs. Cross-agent comparisons intentionally
+degrade to tool-name presence with a warning because Claude and Codex expose
+different tool-call status events.
 
 ## Workloads
 
@@ -372,29 +427,29 @@ Use targeted workloads when a change affects a specific tool family. Use both
 Claude and Codex for instruction/tool-description/skill changes when practical;
 use at least one agent for quick iteration.
 
-| Affected Area | Workload |
-|---|---|
-| Agent-driven GitHits onboarding and setup UX | `githits-onboarding.md` |
-| Core global examples, `get_example`, `search_language`, `feedback` | `global-example.md` |
-| Unified `search` / `search_status` behavior | `unified-search-investigation.md`; use `search-source-ergonomics.md` when changing `search` source-selection arguments or minimal-call guidance; use `opencode-compaction.md` for the remote-MCP routing regression |
-| Explicit standalone site targets in unified `search` | `site-search-explicit.md` |
-| Package overview or vulnerability UX, `pkg_info`, `pkg_vulns` | `package-overview-vulnerabilities.md`; use `package-vulnerability-filter.md` for severity/version filtering behavior, `package-vulnerability-history.md` for historical/non-affecting advisory scope behavior, and `package-vulnerability-rubygems.md` for non-npm descriptor routing |
-| Dependency graph UX, `pkg_deps` | `package-dependencies.md` |
-| Release notes UX, `pkg_changelog` | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior |
-| Upgrade evidence UX, `pkg_upgrade_review` | `package-upgrade-safety.md` |
-| Documentation browsing, `docs_list`, `docs_read` | `docs-discovery.md`; use `docs-search-followup.md` for search-to-read handoff and `docs-search-noise.md` for noisy docs-result recovery |
-| File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md`; use `code-files-listing.md` for focused listing behavior; use `code-read-window.md` for focused source-window behavior |
-| Deterministic source search UX, `code_grep` | `code-grep-investigation.md` |
-| Multi-tool code navigation strategy and MCP/skill guidance | `express-router.md`; `opencode-compaction.md` is the remote-MCP routing regression derived from the connector transcript |
-| Experimental target resolution | `experimental-resolution-follow-up.md`; use `experimental-site-resolution-follow-up.md` for site resolution into docs search |
-| Experimental exact source diff | `experimental-code-diff.md` |
+| Affected Area                                                      | Workload                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent-driven GitHits onboarding and setup UX                       | `githits-onboarding.md`                                                                                                                                                                                                                                                               |
+| Core global examples, `get_example`, `search_language`, `feedback` | `global-example.md`                                                                                                                                                                                                                                                                   |
+| Unified `search` / `search_status` behavior                        | `unified-search-investigation.md`; use `search-source-ergonomics.md` when changing `search` source-selection arguments or minimal-call guidance; use `opencode-compaction.md` for the remote-MCP routing regression                                                                   |
+| Explicit standalone site targets in unified `search`               | `site-search-explicit.md`                                                                                                                                                                                                                                                             |
+| Package overview or vulnerability UX, `pkg_info`, `pkg_vulns`      | `package-overview-vulnerabilities.md`; use `package-vulnerability-filter.md` for severity/version filtering behavior, `package-vulnerability-history.md` for historical/non-affecting advisory scope behavior, and `package-vulnerability-rubygems.md` for non-npm descriptor routing |
+| Dependency graph UX, `pkg_deps`                                    | `package-dependencies.md`                                                                                                                                                                                                                                                             |
+| Release notes UX, `pkg_changelog`                                  | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior                                                                                                                                                                                              |
+| Upgrade evidence UX, `pkg_upgrade_review`                          | `package-upgrade-safety.md`                                                                                                                                                                                                                                                           |
+| Documentation browsing, `docs_list`, `docs_read`                   | `docs-discovery.md`; use `docs-search-followup.md` for search-to-read handoff and `docs-search-noise.md` for noisy docs-result recovery                                                                                                                                               |
+| File listing / file read UX, `code_files`, `code_read`             | `code-file-navigation.md`; use `code-files-listing.md` for focused listing behavior; use `code-read-window.md` for focused source-window behavior                                                                                                                                     |
+| Deterministic source search UX, `code_grep`                        | `code-grep-investigation.md`                                                                                                                                                                                                                                                          |
+| Multi-tool code navigation strategy and MCP/skill guidance         | `express-router.md`; `opencode-compaction.md` is the remote-MCP routing regression derived from the connector transcript                                                                                                                                                              |
+| Experimental target resolution                                     | `experimental-resolution-follow-up.md`; use `experimental-site-resolution-follow-up.md` for site resolution into docs search                                                                                                                                                          |
+| Experimental exact source diff                                     | `experimental-code-diff.md`                                                                                                                                                                                                                                                           |
 
 For broad MCP quick-start or description edits, start with the cheap Luna-low
-canary in both guidance profiles:
+canary's `discovery` and `intent` scenarios:
 
 ```bash
 bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile descriptors --workload eval/agentic/workloads/express-router.md
-bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile full --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile descriptors --intent-profile githits --workload eval/agentic/workloads/express-router.md
 ```
 
 These two commands are the smallest local Luna-low metrics pair. Each run
@@ -405,8 +460,10 @@ bun run agent:e2e:report --json .agent-eval/runs/<run>
 bun run agent:e2e:report .agent-eval/runs/<run>
 ```
 
-Named suites are now available through `agent:e2e:suite`; daily pipeline
-execution, persistent result history, and quality judging remain later phases.
+Named suites are available through `agent:e2e:suite`. Use
+`--scenario full` for a local/manual full-guidance run; daily pipeline
+execution, persistent result history, service export, and quality judging
+remain later phases.
 
 For broad skill edits, run at least:
 
@@ -523,6 +580,15 @@ Each run writes:
   an external/descriptor guidance read or MCP CLI fallback, it writes redacted
   `isolation-violations.json` and marks the workload failed.
 
+Current one-off metrics are schema version 2. Run metadata and normalized
+records expose `scenario`, `intentProfile`, and `intentFragmentHash`; the latter
+is the SHA-256 hash of the exact intent fragment (`null` for `neutral`). The
+one-off report and human summary expose the same identity. Valid schema-v1
+metrics remain readable through deterministic normalization: historical MCP
+`descriptors` maps to neutral `discovery`, `full` maps to neutral `full`, and
+neither maps to `intent`; no historical descriptor/full record is inferred to
+have used the intent fragment.
+
 `metrics.json` is authoritative for normalized usage and cost. For Codex it
 uses the final `turn.completed.usage` aggregate. `input_tokens` is inclusive of
 cached and cache-write input, so uncached input is derived by subtraction;
@@ -564,8 +630,7 @@ Codex MCP runs use per-run `-c` MCP config overrides, `--ignore-rules`, and
 dedicated eval `CODEX_HOME`, which is validated for root global instructions
 before launch. Skills runs omit the MCP and rule overrides while retaining
 `--ignore-user-config` so project skills can be discovered without
-user-configured MCP servers. Every Codex eval command also repeats `--disable
-apps`, `--disable plugins`, and `--disable remote_plugin` before its prompt.
+user-configured MCP servers. Every Codex eval command also repeats `--disable apps`, `--disable plugins`, and `--disable remote_plugin` before its prompt.
 Codex always uses
 `--dangerously-bypass-approvals-and-sandbox` so non-interactive GitHits calls are
 not cancelled by the approval layer. Keep workloads controlled and run them from
