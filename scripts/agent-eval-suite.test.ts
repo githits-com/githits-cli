@@ -274,6 +274,9 @@ function writeShardArtifacts(
     surface: "mcp",
     server: "local",
     guidanceProfile: options.profile,
+    scenario: options.scenario,
+    intentProfile: options.intentProfile,
+    intentFragmentHash: options.intentFragmentHash,
     dryRun: options.dryRun,
     git: { branch: "main", sha: "target-sha", dirty: false },
     codexVersion: "codex-test",
@@ -291,13 +294,20 @@ function writeShardArtifacts(
     }),
   };
   writeJson(join(options.outDir, "run.json"), runMetadata);
+  const normalizedRecords = records.map((record) => ({
+    ...record,
+    scenario: options.scenario,
+    guidanceProfile: options.guidanceProfile,
+    intentProfile: options.intentProfile,
+    intentFragmentHash: options.intentFragmentHash,
+  }));
   writeJson(
     join(options.outDir, "metrics.json"),
     buildAgentEvalMetrics({
       runId: runMetadata.runId,
       startedAt: runMetadata.startedAt,
       completedAt: runMetadata.completedAt,
-      records,
+      records: normalizedRecords,
     }),
   );
   writeJson(
@@ -318,6 +328,10 @@ async function generatePairSuite(
     options: AgentEvalSuiteShardOptions,
   ) => boolean = () => true,
   dryRun = true,
+  scenarios: readonly ("discovery" | "intent" | "full")[] = [
+    "discovery",
+    "full",
+  ],
 ): Promise<AgentEvalSuiteArtifact> {
   return runAgentEvalSuite({
     suite: "stable-full",
@@ -329,6 +343,7 @@ async function generatePairSuite(
     reportingPath: fixture.reportingPath,
     schemaPath: fixture.schemaPath,
     dryRun,
+    scenarios,
     shardExecutor: async (options) => {
       writeShardArtifacts(
         options,
@@ -455,6 +470,10 @@ describe("agent eval suites", () => {
         "run",
         "--suite",
         "canary",
+        "--scenario",
+        "discovery",
+        "--scenario",
+        "intent",
         "--dry-run",
         "--out",
         "runs",
@@ -464,6 +483,7 @@ describe("agent eval suites", () => {
     ).toMatchObject({
       mode: "run",
       suite: "canary",
+      scenarios: ["discovery", "intent"],
       dryRun: true,
       outDir: "runs",
       targetRoot: "../target",
@@ -522,6 +542,17 @@ describe("agent eval suites", () => {
       ],
       ["compare", "--baseline-suite", "before.json"],
       ["run", "--suite", "not-a-suite"],
+      ["run", "--suite", "canary", "--scenario", "bogus"],
+      ["run", "--suite", "canary", "--scenario"],
+      [
+        "run",
+        "--suite",
+        "canary",
+        "--scenario",
+        "intent",
+        "--scenario",
+        "intent",
+      ],
       ["run", "--suite", "canary", "--unknown"],
       ["--help", "--help"],
     ]) {
@@ -662,6 +693,235 @@ describe("agent eval suites", () => {
     );
   });
 
+  it("expands the scenario defaults and explicit full override", async () => {
+    const fixture = createSuiteExecutionFixture([
+      {
+        id: "canary-a",
+        path: "eval/agentic/workloads/canary-a.md",
+        safety: "stable",
+        suites: ["canary", "smoke", "stable-full"],
+      },
+    ]);
+    const capture = async (
+      suite: AgentEvalSuiteArtifact["suiteName"],
+      scenarios?: readonly ("discovery" | "intent" | "full")[],
+    ): Promise<AgentEvalSuiteShardOptions["scenario"][]> => {
+      const seen: AgentEvalSuiteShardOptions["scenario"][] = [];
+      const outDir = mkdtempSync(
+        join(tmpdir(), "agent-eval-scenario-default-"),
+      );
+      try {
+        await runAgentEvalSuite({
+          suite,
+          repoRoot: fixture.root,
+          targetRoot: fixture.targetRoot,
+          outDir,
+          manifestPath: fixture.manifestPath,
+          workloadsDir: fixture.workloadsDir,
+          reportingPath: fixture.reportingPath,
+          schemaPath: fixture.schemaPath,
+          dryRun: true,
+          scenarios,
+          shardExecutor: async (options) => {
+            seen.push(options.scenario);
+            writeShardArtifacts(
+              options,
+              options.workloads.map((workload) => suiteRecord(workload.id)),
+            );
+            return { runDir: options.outDir, status: "success" };
+          },
+        });
+      } finally {
+        rmSync(outDir, { recursive: true, force: true });
+      }
+      return seen;
+    };
+    try {
+      expect(await capture("canary")).toEqual(["discovery", "intent"]);
+      for (const suite of ["smoke", "stable-full"] as const) {
+        expect(await capture(suite)).toEqual(["intent"]);
+      }
+      expect(await capture("stateful-manual")).toEqual(["intent"]);
+      expect(await capture("experimental")).toEqual(["intent"]);
+      expect(await capture("stable-full", ["full"])).toEqual(["full"]);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("normalizes v1 suite and child metrics identity without inventing intent", async () => {
+    const fixture = createPairExecutionFixture();
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-suite-v1-"));
+    try {
+      await generatePairSuite(fixture, outDir);
+      const suitePath = join(outDir, "suite.json");
+      const current = JSON.parse(readFileSync(suitePath, "utf8")) as {
+        [key: string]: unknown;
+        matrix: Record<string, unknown>;
+        shards: Array<Record<string, unknown>>;
+        cells: Array<Record<string, unknown>>;
+      };
+      const v1 = {
+        ...current,
+        schemaVersion: 1,
+        matrix: {
+          agent: current.matrix.agent,
+          model: current.matrix.model,
+          reasoningEffort: current.matrix.reasoningEffort,
+          surface: current.matrix.surface,
+          server: current.matrix.server,
+          profiles: ["descriptors", "full"],
+        },
+        shards: current.shards.map(
+          ({
+            scenario: _scenario,
+            guidanceProfile: _guidance,
+            intentProfile: _intent,
+            intentFragmentHash: _hash,
+            agent: _agent,
+            model: _model,
+            reasoningEffort: _effort,
+            ...shard
+          }) => shard,
+        ),
+        cells: current.cells.map(
+          ({
+            scenario: _scenario,
+            guidanceProfile: _guidance,
+            intentProfile: _intent,
+            intentFragmentHash: _hash,
+            agent: _agent,
+            model: _model,
+            reasoningEffort: _effort,
+            ...cell
+          }) => ({
+            ...cell,
+            id: `${cell.profile}/${cell.workloadId}`,
+          }),
+        ),
+      };
+      writeJson(suitePath, v1);
+      const childMetricsPaths = current.shards.map((shard) =>
+        join(outDir, shard.metricsPath as string),
+      );
+      for (const metricsPath of childMetricsPaths) {
+        const metrics = JSON.parse(readFileSync(metricsPath, "utf8")) as {
+          schemaVersion: number;
+          records: Array<Record<string, unknown>>;
+        };
+        writeJson(metricsPath, {
+          ...metrics,
+          schemaVersion: 1,
+          records: metrics.records.map(
+            ({
+              scenario: _scenario,
+              intentProfile: _intent,
+              intentFragmentHash: _hash,
+              ...record
+            }) => record,
+          ),
+        });
+      }
+      const parsed = parseSuiteArtifact(v1);
+      expect(parsed.schemaVersion).toBe(2);
+      expect(parsed.matrix.scenarios).toEqual(["discovery", "full"]);
+      expect(parsed.cells.map((cell) => cell.scenario)).toEqual([
+        "discovery",
+        "full",
+      ]);
+      expect(
+        parsed.cells.every((cell) => cell.intentProfile === "neutral"),
+      ).toBe(true);
+      const imported = loadImportedSuite(suitePath);
+      expect(imported.shards.discovery.metrics?.schemaVersion).toBe(2);
+      expect(imported.shards.full.metrics?.schemaVersion).toBe(2);
+
+      const intentOnly = {
+        ...v1,
+        shards: [
+          {
+            ...(v1.shards[0] as Record<string, unknown>),
+            profile: null,
+          },
+        ],
+        cells: [
+          {
+            ...(v1.cells[0] as Record<string, unknown>),
+            profile: null,
+          },
+        ],
+      };
+      expect(parseSuiteArtifact(intentOnly).matrix.scenarios).toEqual([
+        "intent",
+      ]);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("emits v2 scenario identities and excludes intent hash mismatches from cohorts", async () => {
+    const baseline = createPairExecutionFixture();
+    const candidate = createPairExecutionFixture();
+    const baselineOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-intent-base-"),
+    );
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-intent-candidate-"),
+    );
+    const outputDir = mkdtempSync(join(tmpdir(), "agent-eval-intent-output-"));
+    try {
+      await generatePairSuite(
+        baseline,
+        baselineOutDir,
+        undefined,
+        undefined,
+        true,
+        ["intent"],
+      );
+      await generatePairSuite(
+        candidate,
+        candidateOutDir,
+        undefined,
+        undefined,
+        true,
+        ["intent"],
+      );
+      const candidatePath = join(candidateOutDir, "suite.json");
+      const candidateArtifact = JSON.parse(
+        readFileSync(candidatePath, "utf8"),
+      ) as {
+        cells: Array<Record<string, unknown>>;
+      };
+      writeJson(candidatePath, {
+        ...candidateArtifact,
+        cells: candidateArtifact.cells.map((cell) => ({
+          ...cell,
+          intentFragmentHash: "0".repeat(64),
+        })),
+      });
+      const comparison = compareAgentEvalSuitesOffline({
+        baselineSuitePath: join(baselineOutDir, "suite.json"),
+        candidateSuitePath: candidatePath,
+        outputDir,
+      });
+      expect(comparison.schemaVersion).toBe(2);
+      expect(comparison.cells[0]?.scenario).toBe("intent");
+      expect(comparison.cells[0]?.intentProfile).toBe("githits");
+      expect(comparison.cells[0]?.compatibility).toBe("incompatible");
+      expect(comparison.cells[0]?.incompatibilityReason).toBe(
+        "intentFragmentHash",
+      );
+      expect(comparison.aggregates.durationMs.includedCellIds).toEqual([]);
+    } finally {
+      rmSync(baseline.root, { recursive: true, force: true });
+      rmSync(candidate.root, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+
   it("refuses live stateful CLI runs before execution but routes dry runs", async () => {
     const fixture = createSuiteExecutionFixture([
       {
@@ -703,7 +963,7 @@ describe("agent eval suites", () => {
         fixture.root,
         { runSuite },
       );
-      expect(executorCalls).toBe(2);
+      expect(executorCalls).toBe(1);
       expect(output).toContain("Agent eval suite: dry-run stateful-manual");
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
@@ -912,7 +1172,7 @@ describe("agent eval suites", () => {
     }
   });
 
-  it("runs the fixed two-profile matrix concurrently with workloads in order", async () => {
+  it("runs configured scenario shards concurrently with workloads in order", async () => {
     const fixture = createSuiteExecutionFixture([
       {
         id: "stable-z",
@@ -948,8 +1208,9 @@ describe("agent eval suites", () => {
         reportingPath: fixture.reportingPath,
         schemaPath: fixture.schemaPath,
         dryRun: true,
+        scenarios: ["discovery", "intent"],
         shardExecutor: async (options) => {
-          starts.push(options.profile);
+          starts.push(options.scenario);
           if (starts.length === 2) notifyStarts();
           await barrier;
           writeShardArtifacts(
@@ -960,7 +1221,7 @@ describe("agent eval suites", () => {
         },
       });
       await startsReady;
-      expect(starts).toEqual(["descriptors", "full"]);
+      expect(starts).toEqual(["discovery", "intent"]);
       release();
       const artifact = await artifactPromise;
       expect(artifact.matrix.agent).toBe(AGENT_EVAL_SUITE_MATRIX.agent);
@@ -968,9 +1229,7 @@ describe("agent eval suites", () => {
       expect(artifact.matrix.reasoningEffort).toBe(
         AGENT_EVAL_SUITE_MATRIX.reasoningEffort,
       );
-      expect([...artifact.matrix.profiles]).toEqual([
-        ...AGENT_EVAL_SUITE_MATRIX.profiles,
-      ]);
+      expect([...artifact.matrix.scenarios]).toEqual(["discovery", "intent"]);
       expect(artifact.selectedWorkloads.map((workload) => workload.id)).toEqual(
         ["stable-a", "stable-z"],
       );
@@ -998,15 +1257,15 @@ describe("agent eval suites", () => {
       });
       expect(artifact.shards).toEqual([
         {
+          scenario: "intent",
           profile: "descriptors",
-          status: "failed",
-          error: "shard executor must return an execution result",
-          runPath: null,
-          metricsPath: null,
-          reportPath: null,
-        },
-        {
-          profile: "full",
+          guidanceProfile: "descriptors",
+          intentProfile: "githits",
+          intentFragmentHash:
+            "b04b96acfd7a89516ab1742d9df914bb6779e952c7df96ac9858785ed40f10d0",
+          agent: "codex",
+          model: LUNA_MODEL,
+          reasoningEffort: "low",
           status: "failed",
           error: "shard executor must return an execution result",
           runPath: null,
@@ -1115,7 +1374,7 @@ describe("agent eval suites", () => {
           return { runDir: options.outDir, status: "success" };
         },
       });
-      expect(flags).toEqual([true, true]);
+      expect(flags).toEqual([true]);
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
       rmSync(outDir, { recursive: true, force: true });
@@ -1215,26 +1474,26 @@ describe("agent eval suites", () => {
       expect(artifact.status).toBe("dry-run");
       expect(artifact.shards).toEqual([
         {
+          scenario: "intent",
           profile: "descriptors",
+          guidanceProfile: "descriptors",
+          intentProfile: "githits",
+          intentFragmentHash:
+            "b04b96acfd7a89516ab1742d9df914bb6779e952c7df96ac9858785ed40f10d0",
+          agent: "codex",
+          model: LUNA_MODEL,
+          reasoningEffort: "low",
           status: "success",
           error: null,
-          runPath: "shards/descriptors/run.json",
-          metricsPath: "shards/descriptors/metrics.json",
-          reportPath: "shards/descriptors/report.json",
-        },
-        {
-          profile: "full",
-          status: "success",
-          error: null,
-          runPath: "shards/full/run.json",
-          metricsPath: "shards/full/metrics.json",
-          reportPath: "shards/full/report.json",
+          runPath: "shards/intent/run.json",
+          metricsPath: "shards/intent/metrics.json",
+          reportPath: "shards/intent/report.json",
         },
       ]);
       expect(() =>
         agentEvalSuiteArtifactSchema.parse({
           ...artifact,
-          matrix: { ...artifact.matrix, profiles: ["full", "descriptors"] },
+          matrix: { ...artifact.matrix, scenarios: ["bogus"] },
         }),
       ).toThrow();
       expect(() =>
@@ -1242,13 +1501,13 @@ describe("agent eval suites", () => {
           ...artifact,
           shards: [artifact.shards[0]],
         }),
-      ).toThrow();
+      ).not.toThrow();
       expect(() =>
         agentEvalSuiteArtifactSchema.parse({
           ...artifact,
           shards: [artifact.shards[0], artifact.shards[0]],
         }),
-      ).toThrow();
+      ).not.toThrow();
       expect(formatSuiteReport(artifact)).toContain("callsByTool=");
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
@@ -1256,7 +1515,7 @@ describe("agent eval suites", () => {
     }
   });
 
-  it("keeps a successful sibling when one profile shard is rejected", async () => {
+  it("keeps a successful sibling when one scenario shard is rejected", async () => {
     const fixture = createSuiteExecutionFixture();
     const outDir = mkdtempSync(join(tmpdir(), "agent-eval-suite-partial-"));
     try {
@@ -1269,6 +1528,7 @@ describe("agent eval suites", () => {
         workloadsDir: fixture.workloadsDir,
         reportingPath: fixture.reportingPath,
         schemaPath: fixture.schemaPath,
+        scenarios: ["discovery", "full"],
         shardExecutor: async (options) => {
           if (options.profile === "full") throw new Error("full setup failed");
           writeShardArtifacts(
@@ -1319,6 +1579,7 @@ describe("agent eval suites", () => {
         workloadsDir: fixture.workloadsDir,
         reportingPath: fixture.reportingPath,
         schemaPath: fixture.schemaPath,
+        scenarios: ["discovery", "full"],
         shardExecutor: async (options) => {
           const records = options.workloads
             .filter(
@@ -1351,7 +1612,7 @@ describe("agent eval suites", () => {
       expect(artifact.shards[0]).toMatchObject({
         status: "failed",
         error: "one or more child workloads failed",
-        runPath: "shards/descriptors/run.json",
+        runPath: "shards/discovery/run.json",
       });
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
@@ -1450,6 +1711,7 @@ describe("agent eval suites", () => {
         workloadsDir: fixture.workloadsDir,
         reportingPath: fixture.reportingPath,
         schemaPath: fixture.schemaPath,
+        scenarios: ["discovery", "full"],
         shardExecutor: async (options) => {
           const record = suiteRecord(options.workloads[0]!.id, {
             durationMs: options.profile === "descriptors" ? 1000 : 2000,
@@ -1515,6 +1777,7 @@ describe("agent eval suites", () => {
         workloadsDir: fixture.workloadsDir,
         reportingPath: fixture.reportingPath,
         schemaPath: fixture.schemaPath,
+        scenarios: ["discovery", "full"],
         dryRun: true,
         shardExecutor: async (options) => {
           const record = suiteRecord(options.workloads[0]!.id, {
@@ -1539,7 +1802,7 @@ describe("agent eval suites", () => {
       });
       expect(artifact.callsByTool).toBeNull();
       expect(artifact.missingToolTelemetryCellIds).toEqual([
-        "descriptors/stable-a",
+        "discovery/stable-a",
       ]);
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
@@ -1614,6 +1877,7 @@ describe("agent eval suites", () => {
         reportingPath: candidate.reportingPath,
         schemaPath: candidate.schemaPath,
         dryRun: true,
+        scenarios: ["discovery", "full"],
         shardExecutor: async (options) => {
           events.push(`start:${options.targetRoot}`);
           writeShardArtifacts(
@@ -1665,6 +1929,7 @@ describe("agent eval suites", () => {
         reportingPath: candidate.reportingPath,
         schemaPath: candidate.schemaPath,
         dryRun: true,
+        scenarios: ["discovery", "full"],
         shardExecutor: async (options) => {
           if (
             options.targetRoot === baseline.root &&
@@ -1859,7 +2124,7 @@ describe("agent eval suites", () => {
           reportPath: string | null;
         }>;
       };
-      const descriptorDir = join(outDir, "shards", "descriptors");
+      const descriptorDir = join(outDir, "shards", "discovery");
       const reportDir = join(descriptorDir, "report-dir");
       mkdirSync(reportDir, { recursive: true });
       writeFileSync(
@@ -1872,7 +2137,7 @@ describe("agent eval suites", () => {
           index === 0
             ? {
                 ...shard,
-                reportPath: "shards/descriptors/report-dir/report.json",
+                reportPath: "shards/discovery/report-dir/report.json",
               }
             : shard,
         ),
@@ -1893,9 +2158,9 @@ describe("agent eval suites", () => {
           index === 0
             ? {
                 ...shard,
-                runPath: "shards/descriptors/report-dir/run.json",
-                metricsPath: "shards/descriptors/report-dir/metrics.json",
-                reportPath: "shards/descriptors/report-dir/report.json",
+                runPath: "shards/discovery/report-dir/run.json",
+                metricsPath: "shards/discovery/report-dir/metrics.json",
+                reportPath: "shards/discovery/report-dir/report.json",
               }
             : shard,
         ),
@@ -2026,7 +2291,7 @@ describe("agent eval suites", () => {
         {
           name: "duplicate metrics workload ID",
           records: [...originalMetrics.records, originalMetrics.records[0]!],
-          error: "duplicate descriptors metrics workload ID",
+          error: "duplicate discovery metrics workload ID",
         },
         {
           name: "unselected metrics workload ID",
@@ -2038,7 +2303,7 @@ describe("agent eval suites", () => {
         {
           name: "success cell without metrics record",
           records: [],
-          error: "cell status does not match descriptors child evidence",
+          error: "cell status does not match discovery child evidence",
         },
         {
           name: "missing cell with metrics record",
@@ -2046,7 +2311,7 @@ describe("agent eval suites", () => {
           cells: original.cells.map((cell, index) =>
             index === 0 ? { ...cell, status: "missing" } : cell,
           ),
-          error: "cell status does not match descriptors child evidence",
+          error: "cell status does not match discovery child evidence",
         },
       ];
       for (const testCase of metricsCases) {
@@ -2228,11 +2493,11 @@ describe("agent eval suites", () => {
       });
       expect(comparison.compatibility.directDeltasSuppressed).toBe(false);
       expect(comparison.aggregates.durationMs.includedCellIds).toEqual([
-        "descriptors/stable-b",
+        "discovery/stable-b",
         "full/stable-b",
       ]);
       expect(comparison.aggregates.durationMs.excludedCellIds).toEqual([
-        "descriptors/stable-a",
+        "discovery/stable-a",
         "full/stable-a",
       ]);
       expect(
@@ -2549,17 +2814,17 @@ describe("agent eval suites", () => {
         compatibility: "missing",
       });
       const unknownCell = comparison.cells.find(
-        (cell) => cell.id === "descriptors/stable-a",
+        (cell) => cell.id === "discovery/stable-a",
       );
       expect(unknownCell?.tokens.uncachedInputTokens?.change).toBe("unknown");
       expect(comparison.aggregates.durationMs.includedCellIds).toEqual([
-        "descriptors/stable-a",
-        "descriptors/stable-b",
+        "discovery/stable-a",
+        "discovery/stable-b",
         "full/stable-a",
       ]);
       expect(
         comparison.aggregates.tokens.uncachedInputTokens.excludedCellIds,
-      ).toEqual(["descriptors/stable-a", "full/stable-b"]);
+      ).toEqual(["discovery/stable-a", "full/stable-b"]);
       expect(comparison.cells).toHaveLength(4);
     } finally {
       rmSync(baseline.root, { recursive: true, force: true });
@@ -2596,7 +2861,7 @@ describe("agent eval suites", () => {
         outputDir,
       });
       const cell = comparison.cells.find(
-        (candidateCell) => candidateCell.id === "descriptors/stable-a",
+        (candidateCell) => candidateCell.id === "discovery/stable-a",
       );
       expect(cell?.toolSequence.changed).toBe(true);
       const deltas = cell?.callsByTool?.deltas ?? [];
@@ -2716,9 +2981,9 @@ describe("agent eval suites", () => {
       expect(formatted).toContain("costUsd: before=");
       expect(formatted).toContain("callsByTool: before=");
       expect(formatted).toContain(
-        "included=2 [descriptors/stable-a, full/stable-a]",
+        "included=2 [discovery/stable-a, full/stable-a]",
       );
-      expect(formatted).toContain("cell descriptors/stable-a:");
+      expect(formatted).toContain("cell discovery/stable-a:");
       expect(formatted).toContain("sequence: before=");
       expect(formatted).toContain(
         "processStatus: before=success after=success changed=false",
@@ -2756,6 +3021,7 @@ describe("agent eval suites", () => {
         reportingPath: candidate.reportingPath,
         schemaPath: candidate.schemaPath,
         dryRun: true,
+        scenarios: ["discovery", "full"],
         shardExecutor: async (options) => {
           writeShardArtifacts(
             options,
@@ -2783,7 +3049,7 @@ describe("agent eval suites", () => {
       });
       expect(candidateArtifact.callsByTool).toBeNull();
       expect(candidateArtifact.missingToolTelemetryCellIds).toEqual([
-        "descriptors/stable-a",
+        "discovery/stable-a",
       ]);
 
       const comparison = compareAgentEvalSuitesOffline({
@@ -2792,7 +3058,7 @@ describe("agent eval suites", () => {
         outputDir,
       });
       const descriptorCell = comparison.cells.find(
-        (cell) => cell.id === "descriptors/stable-a",
+        (cell) => cell.id === "discovery/stable-a",
       );
       expect(descriptorCell?.callsByTool).toMatchObject({
         before: expect.any(Array),
@@ -2803,7 +3069,7 @@ describe("agent eval suites", () => {
         "full/stable-a",
       ]);
       expect(comparison.aggregates.callsByTool.excludedCellIds).toEqual([
-        "descriptors/stable-a",
+        "discovery/stable-a",
       ]);
     } finally {
       rmSync(baseline.root, { recursive: true, force: true });

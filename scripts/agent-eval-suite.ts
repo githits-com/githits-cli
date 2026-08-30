@@ -28,8 +28,11 @@ import {
 import {
   type AgentEvalMetrics,
   type AgentEvalRecord,
-  agentEvalMetricsSchema,
+  type EvalScenario,
+  GITHITS_INTENT_FRAGMENT_HASH,
+  type IntentProfile,
   LUNA_MODEL,
+  parseAgentEvalMetrics,
 } from "./agent-eval-metrics.ts";
 import {
   type AgentEvalReport,
@@ -332,13 +335,64 @@ export function selectSuiteWorkloads(
 export const AGENT_EVAL_SUITE_PROFILES = ["descriptors", "full"] as const;
 export type AgentEvalSuiteProfile = (typeof AGENT_EVAL_SUITE_PROFILES)[number];
 
+export const AGENT_EVAL_SUITE_SCENARIOS = [
+  "discovery",
+  "intent",
+  "full",
+] as const satisfies readonly EvalScenario[];
+export type AgentEvalSuiteScenario =
+  (typeof AGENT_EVAL_SUITE_SCENARIOS)[number];
+
+export interface AgentEvalSuiteScenarioDefinition {
+  scenario: AgentEvalSuiteScenario;
+  guidanceProfile: AgentEvalSuiteProfile;
+  intentProfile: IntentProfile;
+  intentFragmentHash: string | null;
+}
+
+export const AGENT_EVAL_SUITE_SCENARIO_DEFINITIONS = [
+  {
+    scenario: "discovery",
+    guidanceProfile: "descriptors",
+    intentProfile: "neutral",
+    intentFragmentHash: null,
+  },
+  {
+    scenario: "intent",
+    guidanceProfile: "descriptors",
+    intentProfile: "githits",
+    intentFragmentHash: GITHITS_INTENT_FRAGMENT_HASH,
+  },
+  {
+    scenario: "full",
+    guidanceProfile: "full",
+    intentProfile: "neutral",
+    intentFragmentHash: null,
+  },
+] as const satisfies readonly AgentEvalSuiteScenarioDefinition[];
+
+const scenarioDefinition = (
+  scenario: AgentEvalSuiteScenario,
+): AgentEvalSuiteScenarioDefinition => {
+  const definition = AGENT_EVAL_SUITE_SCENARIO_DEFINITIONS.find(
+    (candidate) => candidate.scenario === scenario,
+  );
+  assert(definition, `unknown suite scenario: ${scenario}`);
+  return definition;
+};
+
+const defaultSuiteScenarios = (
+  suite: AgentEvalSuiteName,
+): readonly AgentEvalSuiteScenario[] =>
+  suite === "canary" ? ["discovery", "intent"] : ["intent"];
+
 export const AGENT_EVAL_SUITE_MATRIX = {
   agent: "codex",
   model: LUNA_MODEL,
   reasoningEffort: "low",
   surface: "mcp",
   server: "local",
-  profiles: AGENT_EVAL_SUITE_PROFILES,
+  scenarios: AGENT_EVAL_SUITE_SCENARIOS,
 } as const;
 
 export const SUITE_MATRIX = AGENT_EVAL_SUITE_MATRIX;
@@ -359,12 +413,17 @@ export interface AgentEvalSuiteRunOptions {
   reportingPath?: string;
   schemaPath?: string;
   dryRun?: boolean;
+  scenarios?: readonly AgentEvalSuiteScenario[];
   shardExecutor?: AgentEvalSuiteShardExecutor;
 }
 
 export interface AgentEvalSuiteShardOptions {
   suite: AgentEvalSuiteName;
+  scenario: AgentEvalSuiteScenario;
   profile: AgentEvalSuiteProfile;
+  guidanceProfile: AgentEvalSuiteProfile;
+  intentProfile: IntentProfile;
+  intentFragmentHash: string | null;
   repoRoot: string;
   targetRoot: string;
   outDir: string;
@@ -391,6 +450,7 @@ export type AgentEvalSuiteShardExecutor = (
 ) => Promise<AgentEvalSuiteShardExecution>;
 
 const suiteProfileSchema = z.enum(AGENT_EVAL_SUITE_PROFILES);
+const suiteScenarioSchema = z.enum(AGENT_EVAL_SUITE_SCENARIOS);
 const suiteGitMetadataSchema = z.object({
   branch: z.string().nullable(),
   sha: z.string().nullable(),
@@ -444,22 +504,36 @@ const suiteSelectedWorkloadSchema = z.object({
   safety: safetyClassSchema,
 });
 const suiteShardSchema = z.object({
+  scenario: suiteScenarioSchema,
   profile: suiteProfileSchema,
+  guidanceProfile: suiteProfileSchema,
+  intentProfile: z.enum(["neutral", "githits"]),
+  intentFragmentHash: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .nullable(),
+  agent: z.literal("codex"),
+  model: z.literal(LUNA_MODEL),
+  reasoningEffort: z.literal("low"),
   status: z.enum(["success", "failed"]),
   error: z.string().nullable(),
   runPath: z.string().nullable(),
   metricsPath: z.string().nullable(),
   reportPath: z.string().nullable(),
 });
-const descriptorShardSchema = suiteShardSchema.extend({
-  profile: z.literal("descriptors"),
-});
-const fullShardSchema = suiteShardSchema.extend({
-  profile: z.literal("full"),
-});
 const suiteCellSchema = z.object({
   id: z.string().min(1),
+  scenario: suiteScenarioSchema,
   profile: suiteProfileSchema,
+  guidanceProfile: suiteProfileSchema,
+  intentProfile: z.enum(["neutral", "githits"]),
+  intentFragmentHash: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .nullable(),
+  agent: z.literal("codex"),
+  model: z.literal(LUNA_MODEL),
+  reasoningEffort: z.literal("low"),
   workloadId: workloadIdSchema,
   workloadPath: z.string().min(1),
   status: z.enum(["success", "failed", "missing", "unknown"]),
@@ -478,7 +552,7 @@ const suiteTotalsSchema = z.object({
 });
 
 export const agentEvalSuiteArtifactSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   suiteId: z.string().uuid(),
   suiteName: suiteNameSchema,
   status: z.enum(["success", "partial", "failed", "dry-run"]),
@@ -495,12 +569,12 @@ export const agentEvalSuiteArtifactSchema = z.object({
     reasoningEffort: z.literal("low"),
     surface: z.literal("mcp"),
     server: z.literal("local"),
-    profiles: z.tuple([z.literal("descriptors"), z.literal("full")]),
+    scenarios: z.array(suiteScenarioSchema).min(1),
   }),
   selectedWorkloads: z.array(suiteSelectedWorkloadSchema),
   contentIdentity: suiteContentIdentitySchema,
   targetGuidanceIdentity: targetGuidanceIdentitySchema,
-  shards: z.tuple([descriptorShardSchema, fullShardSchema]),
+  shards: z.array(suiteShardSchema),
   cells: z.array(suiteCellSchema),
   wallTimeMs: z.number().int().nonnegative(),
   cumulativeAgentTimeMs: z.number().int().nonnegative().nullable(),
@@ -518,12 +592,130 @@ export type AgentEvalSuiteArtifact = z.infer<
   typeof agentEvalSuiteArtifactSchema
 >;
 
+const suiteV1ShardSchema = z.object({
+  profile: suiteProfileSchema.optional().nullable(),
+  status: z.enum(["success", "failed"]),
+  error: z.string().nullable(),
+  runPath: z.string().nullable(),
+  metricsPath: z.string().nullable(),
+  reportPath: z.string().nullable(),
+});
+const suiteV1CellSchema = z.object({
+  id: z.string().min(1),
+  profile: suiteProfileSchema.optional().nullable(),
+  workloadId: workloadIdSchema,
+  workloadPath: z.string().min(1),
+  status: z.enum(["success", "failed", "missing", "unknown"]),
+  durationMs: z.number().int().nonnegative().nullable(),
+});
+const suiteV1ArtifactSchema = z.object({
+  schemaVersion: z.literal(1),
+  suiteId: z.string().uuid(),
+  suiteName: suiteNameSchema,
+  status: z.enum(["success", "partial", "failed", "dry-run"]),
+  dryRun: z.boolean(),
+  startedAt: z.string().min(1),
+  completedAt: z.string().min(1),
+  measurementRoot: z.string().min(1),
+  measurementGit: suiteGitMetadataSchema,
+  targetRoot: z.string().min(1),
+  targetGit: suiteGitMetadataSchema,
+  matrix: z.object({
+    agent: z.literal("codex"),
+    model: z.literal(LUNA_MODEL),
+    reasoningEffort: z.literal("low"),
+    surface: z.literal("mcp"),
+    server: z.literal("local"),
+    profiles: z.tuple([z.literal("descriptors"), z.literal("full")]).optional(),
+  }),
+  selectedWorkloads: z.array(suiteSelectedWorkloadSchema),
+  contentIdentity: suiteContentIdentitySchema,
+  targetGuidanceIdentity: targetGuidanceIdentitySchema,
+  shards: z.array(suiteV1ShardSchema).min(1),
+  cells: z.array(suiteV1CellSchema),
+  wallTimeMs: z.number().int().nonnegative(),
+  cumulativeAgentTimeMs: z.number().int().nonnegative().nullable(),
+  totals: suiteTotalsSchema,
+  logicalToolCalls: z.number().int().nonnegative().nullable(),
+  tokens: suiteTokenTotalsSchema,
+  cost: suiteCostSchema,
+  callsByTool: z.array(suiteCallsByToolSchema).nullable(),
+  missingToolTelemetryCellIds: z.array(z.string().min(1)),
+  codexVersions: z.array(z.string().min(1)),
+  warnings: z.array(z.string()),
+});
+
+function normalizeV1SuiteArtifact(
+  value: z.infer<typeof suiteV1ArtifactSchema>,
+): AgentEvalSuiteArtifact {
+  const scenarioForProfile = (
+    profile: AgentEvalSuiteProfile | null | undefined,
+  ): AgentEvalSuiteScenario =>
+    profile === "descriptors"
+      ? "discovery"
+      : profile === "full"
+        ? "full"
+        : "intent";
+  const definitionForProfile = (
+    profile: AgentEvalSuiteProfile | null | undefined,
+  ) => scenarioDefinition(scenarioForProfile(profile));
+  const scenarios = [
+    ...new Set(value.shards.map((shard) => scenarioForProfile(shard.profile))),
+  ];
+  const shards = value.shards.map((shard) => {
+    const definition = definitionForProfile(shard.profile);
+    return {
+      ...shard,
+      profile: definition.guidanceProfile,
+      scenario: definition.scenario,
+      guidanceProfile: definition.guidanceProfile,
+      intentProfile: definition.intentProfile,
+      intentFragmentHash: definition.intentFragmentHash,
+      agent: value.matrix.agent,
+      model: value.matrix.model,
+      reasoningEffort: value.matrix.reasoningEffort,
+    };
+  });
+  const cells = value.cells.map((cell) => {
+    const definition = definitionForProfile(cell.profile);
+    return {
+      ...cell,
+      profile: definition.guidanceProfile,
+      scenario: definition.scenario,
+      id: suiteCellId(definition.scenario, cell.workloadId),
+      guidanceProfile: definition.guidanceProfile,
+      intentProfile: definition.intentProfile,
+      intentFragmentHash: definition.intentFragmentHash,
+      agent: value.matrix.agent,
+      model: value.matrix.model,
+      reasoningEffort: value.matrix.reasoningEffort,
+    };
+  });
+  return agentEvalSuiteArtifactSchema.parse({
+    ...value,
+    schemaVersion: 2,
+    matrix: {
+      ...value.matrix,
+      scenarios,
+    },
+    shards,
+    cells,
+    missingToolTelemetryCellIds: value.missingToolTelemetryCellIds.map((id) => {
+      const [profile, ...rest] = id.split("/");
+      const scenario = scenarioForProfile(
+        profile === "descriptors" || profile === "full" ? profile : null,
+      );
+      return [scenario, ...rest].join("/");
+    }),
+  });
+}
+
 export function parseSuiteArtifact(value: unknown): AgentEvalSuiteArtifact {
-  const parsed = agentEvalSuiteArtifactSchema.safeParse(value);
-  if (!parsed.success) {
-    throw new Error(`Invalid suite artifact: ${formatZodIssues(parsed.error)}`);
-  }
-  return parsed.data;
+  const current = agentEvalSuiteArtifactSchema.safeParse(value);
+  if (current.success) return current.data;
+  const legacy = suiteV1ArtifactSchema.safeParse(value);
+  if (legacy.success) return normalizeV1SuiteArtifact(legacy.data);
+  throw new Error(`Invalid suite artifact: ${formatZodIssues(current.error)}`);
 }
 
 export function loadSuiteArtifact(path: string): AgentEvalSuiteArtifact {
@@ -607,16 +799,23 @@ function skillFileIdentities(
 }
 
 function suiteCellId(
-  profile: AgentEvalSuiteProfile,
+  scenario: AgentEvalSuiteScenario,
   workloadId: string,
 ): string {
-  return `${profile}/${workloadId}`;
+  return `${scenario}/${workloadId}`;
 }
 
 type SuiteCellStatus = "success" | "failed" | "missing" | "unknown";
 interface SuiteCell {
   id: string;
+  scenario: AgentEvalSuiteScenario;
   profile: AgentEvalSuiteProfile;
+  guidanceProfile: AgentEvalSuiteProfile;
+  intentProfile: IntentProfile;
+  intentFragmentHash: string | null;
+  agent: "codex";
+  model: typeof LUNA_MODEL;
+  reasoningEffort: "low";
   workloadId: string;
   workloadPath: string;
   status: SuiteCellStatus;
@@ -698,11 +897,11 @@ function hasChildWorkloadFailure(
 
 function readShardEvidence(
   suiteRoot: string,
-  profile: AgentEvalSuiteProfile,
+  scenario: AgentEvalSuiteScenario,
   execution: AgentEvalSuiteShardExecution | undefined,
   error: string | null,
 ): ShardEvidence {
-  const defaultRunDir = join(suiteRoot, "shards", profile);
+  const defaultRunDir = join(suiteRoot, "shards", scenario);
   const runDir = resolve(suiteRoot, execution?.runDir ?? defaultRunDir);
   if (error) {
     return {
@@ -724,15 +923,13 @@ function readShardEvidence(
     const resolvedMetricsPath = pathReference(suiteRoot, metricsPath);
     const resolvedReportPath = pathReference(suiteRoot, reportPath);
     if (!resolvedRunPath)
-      throw new Error(`Missing child run.json for ${profile}`);
+      throw new Error(`Missing child run.json for ${scenario}`);
     const runValue = JSON.parse(readFileSync(runPath, "utf8")) as Record<
       string,
       unknown
     >;
     const metrics = resolvedMetricsPath
-      ? agentEvalMetricsSchema.parse(
-          JSON.parse(readFileSync(metricsPath, "utf8")),
-        )
+      ? parseAgentEvalMetrics(JSON.parse(readFileSync(metricsPath, "utf8")))
       : undefined;
     const report = resolvedReportPath ? loadRunReport(runDir) : undefined;
     const childWorkloadFailure = hasChildWorkloadFailure(
@@ -768,12 +965,13 @@ function readShardEvidence(
 }
 
 function buildSuiteCells(
-  profiles: readonly AgentEvalSuiteProfile[],
+  scenarios: readonly AgentEvalSuiteScenario[],
   workloads: AgentEvalSuiteWorkload[],
-  evidence: Map<AgentEvalSuiteProfile, ShardEvidence>,
+  evidence: Map<AgentEvalSuiteScenario, ShardEvidence>,
 ): SuiteCell[] {
-  return profiles.flatMap((profile) => {
-    const shard = evidence.get(profile);
+  return scenarios.flatMap((scenario) => {
+    const definition = scenarioDefinition(scenario);
+    const shard = evidence.get(scenario);
     const records = new Map(
       shard?.metrics?.records.map((record) => [record.workloadId, record]),
     );
@@ -796,8 +994,15 @@ function buildSuiteCells(
               ? "failed"
               : "unknown";
       return {
-        id: suiteCellId(profile, workload.id),
-        profile,
+        id: suiteCellId(scenario, workload.id),
+        scenario,
+        profile: definition.guidanceProfile,
+        guidanceProfile: definition.guidanceProfile,
+        intentProfile: definition.intentProfile,
+        intentFragmentHash: definition.intentFragmentHash,
+        agent: AGENT_EVAL_SUITE_MATRIX.agent,
+        model: AGENT_EVAL_SUITE_MATRIX.model,
+        reasoningEffort: AGENT_EVAL_SUITE_MATRIX.reasoningEffort,
         workloadId: workload.id,
         workloadPath: workload.path,
         status,
@@ -909,18 +1114,15 @@ function buildSuiteArtifact(
   preflight: SuitePreflight,
   startedAt: string,
   completedAt: string,
-  evidence: Map<AgentEvalSuiteProfile, ShardEvidence>,
+  scenarios: readonly AgentEvalSuiteScenario[],
+  evidence: Map<AgentEvalSuiteScenario, ShardEvidence>,
   shardExecutions: Map<
-    AgentEvalSuiteProfile,
+    AgentEvalSuiteScenario,
     AgentEvalSuiteShardExecution | undefined
   >,
   wallTimeMs: number,
 ): AgentEvalSuiteArtifact {
-  const cells = buildSuiteCells(
-    AGENT_EVAL_SUITE_PROFILES,
-    preflight.workloads,
-    evidence,
-  );
+  const cells = buildSuiteCells(scenarios, preflight.workloads, evidence);
   const successfulExecutions = cells.filter(
     (cell) => cell.status === "success",
   ).length;
@@ -947,15 +1149,15 @@ function buildSuiteArtifact(
   );
   const calls = aggregateCallsByTool(cells);
   const warnings = new Set<string>();
-  for (const [profile, shard] of evidence) {
+  for (const [scenario, shard] of evidence) {
     if (shard.status === "failed" && shard.error) {
-      warnings.add(`${profile} shard failed: ${shard.error}`);
+      warnings.add(`${scenario} shard failed: ${shard.error}`);
     }
     for (const warning of shard.metrics?.warnings ?? []) {
-      warnings.add(`${profile} metrics warning: ${warning}`);
+      warnings.add(`${scenario} metrics warning: ${warning}`);
     }
     for (const warning of shard.report?.warnings ?? []) {
-      warnings.add(`${profile} report warning: ${warning}`);
+      warnings.add(`${scenario} report warning: ${warning}`);
     }
   }
   if (calls.missingCellIds.length > 0) {
@@ -975,11 +1177,19 @@ function buildSuiteArtifact(
     if (typeof version === "string" && version.length > 0)
       codexVersions.add(version);
   }
-  const shards = AGENT_EVAL_SUITE_PROFILES.map((profile) => {
-    const shard = evidence.get(profile);
-    const execution = shardExecutions.get(profile);
+  const shards = scenarios.map((scenario) => {
+    const definition = scenarioDefinition(scenario);
+    const shard = evidence.get(scenario);
+    const execution = shardExecutions.get(scenario);
     return {
-      profile,
+      scenario,
+      profile: definition.guidanceProfile,
+      guidanceProfile: definition.guidanceProfile,
+      intentProfile: definition.intentProfile,
+      intentFragmentHash: definition.intentFragmentHash,
+      agent: AGENT_EVAL_SUITE_MATRIX.agent,
+      model: AGENT_EVAL_SUITE_MATRIX.model,
+      reasoningEffort: AGENT_EVAL_SUITE_MATRIX.reasoningEffort,
       status: shard?.status ?? "failed",
       error: shard?.error ?? execution?.error ?? null,
       runPath: shard?.runPath ?? null,
@@ -999,7 +1209,7 @@ function buildSuiteArtifact(
         ? "dry-run"
         : "success";
   return parseSuiteArtifact({
-    schemaVersion: 1,
+    schemaVersion: 2,
     suiteId: randomUUID(),
     suiteName: preflight.suite,
     status,
@@ -1012,19 +1222,37 @@ function buildSuiteArtifact(
     targetGit: preflight.targetGit,
     matrix: {
       ...AGENT_EVAL_SUITE_MATRIX,
-      profiles: [...AGENT_EVAL_SUITE_PROFILES] as [
-        AgentEvalSuiteProfile,
-        AgentEvalSuiteProfile,
-      ],
+      scenarios: [...scenarios],
     },
     selectedWorkloads: preflight.workloads,
     contentIdentity: preflight.contentIdentity,
     targetGuidanceIdentity: preflight.targetGuidanceIdentity,
     shards,
     cells: cells.map(
-      ({ id, profile, workloadId, workloadPath, status, durationMs }) => ({
+      ({
         id,
+        scenario,
         profile,
+        guidanceProfile,
+        intentProfile,
+        intentFragmentHash,
+        agent,
+        model,
+        reasoningEffort,
+        workloadId,
+        workloadPath,
+        status,
+        durationMs,
+      }) => ({
+        id,
+        scenario,
+        profile,
+        guidanceProfile,
+        intentProfile,
+        intentFragmentHash,
+        agent,
+        model,
+        reasoningEffort,
         workloadId,
         workloadPath,
         status,
@@ -1151,7 +1379,9 @@ async function productionShardExecutor(
     "--server",
     AGENT_EVAL_SUITE_MATRIX.server,
     "--guidance-profile",
-    options.profile,
+    options.guidanceProfile,
+    "--intent-profile",
+    options.intentProfile,
     "--target-root",
     options.targetRoot,
     "--out",
@@ -1173,7 +1403,7 @@ async function productionShardExecutor(
  * Runs one named suite with `repoRoot` as the measurement-harness root.
  * `targetRoot` defaults to that root and supplies target launch and guidance
  * content; the harness owns workloads, reporting, schemas, and output. The
- * two profile shards run concurrently and always produce validated suite
+ * Configured scenario shards run concurrently and always produce validated suite
  * evidence, including partial or failed child execution. Production execution
  * may invoke paid agents; dry runs and injected shard executors do not.
  */
@@ -1185,20 +1415,31 @@ export async function runAgentEvalSuite(
   const startedAt = new Date().toISOString();
   const started = Date.now();
   const executor = options.shardExecutor ?? productionShardExecutor;
-  const shardOptions = AGENT_EVAL_SUITE_PROFILES.map((profile) => ({
-    suite: preflight.suite,
-    profile,
-    repoRoot: preflight.repoRoot,
-    targetRoot: preflight.targetRoot,
-    outDir: join(preflight.outDir, "shards", profile),
-    reportingPath: preflight.reportingPath,
-    schemaPath: preflight.schemaPath,
-    dryRun: preflight.dryRun,
-    experimentalTools: preflight.suite === "experimental",
-    workloads: preflight.workloads,
-    workloadPaths: preflight.workloadPaths,
-    matrix: AGENT_EVAL_SUITE_MATRIX,
-  }));
+  const scenarios = options.scenarios
+    ? [...new Set(options.scenarios)]
+    : [...defaultSuiteScenarios(preflight.suite)];
+  assert(scenarios.length > 0, "at least one suite scenario is required");
+  const shardOptions = scenarios.map((scenario) => {
+    const definition = scenarioDefinition(scenario);
+    return {
+      suite: preflight.suite,
+      scenario,
+      profile: definition.guidanceProfile,
+      guidanceProfile: definition.guidanceProfile,
+      intentProfile: definition.intentProfile,
+      intentFragmentHash: definition.intentFragmentHash,
+      repoRoot: preflight.repoRoot,
+      targetRoot: preflight.targetRoot,
+      outDir: join(preflight.outDir, "shards", scenario),
+      reportingPath: preflight.reportingPath,
+      schemaPath: preflight.schemaPath,
+      dryRun: preflight.dryRun,
+      experimentalTools: preflight.suite === "experimental",
+      workloads: preflight.workloads,
+      workloadPaths: preflight.workloadPaths,
+      matrix: AGENT_EVAL_SUITE_MATRIX,
+    };
+  });
   const promises = shardOptions.map((shard) =>
     Promise.resolve()
       .then(() => executor(shard))
@@ -1216,21 +1457,21 @@ export async function runAgentEvalSuite(
       ),
   );
   const executions = await Promise.all(promises);
-  const evidence = new Map<AgentEvalSuiteProfile, ShardEvidence>();
+  const evidence = new Map<AgentEvalSuiteScenario, ShardEvidence>();
   const executionMap = new Map<
-    AgentEvalSuiteProfile,
+    AgentEvalSuiteScenario,
     AgentEvalSuiteShardExecution | undefined
   >();
-  for (let index = 0; index < AGENT_EVAL_SUITE_PROFILES.length; index += 1) {
-    const profile = AGENT_EVAL_SUITE_PROFILES[index];
-    assert(profile, "missing suite profile");
+  for (let index = 0; index < scenarios.length; index += 1) {
+    const scenario = scenarios[index];
+    assert(scenario, "missing suite scenario");
     const execution = executions[index];
-    executionMap.set(profile, execution);
+    executionMap.set(scenario, execution);
     evidence.set(
-      profile,
+      scenario,
       readShardEvidence(
         preflight.outDir,
-        profile,
+        scenario,
         execution,
         execution?.error ?? null,
       ),
@@ -1241,6 +1482,7 @@ export async function runAgentEvalSuite(
     preflight,
     startedAt,
     completedAt,
+    scenarios,
     evidence,
     executionMap,
     Date.now() - started,
@@ -1255,7 +1497,8 @@ export async function runAgentEvalSuite(
 export function formatSuiteReport(artifact: AgentEvalSuiteArtifact): string {
   const lines = [
     `Agent eval suite: ${artifact.status} ${artifact.suiteName} ${artifact.measurementRoot}`,
-    `matrix=${artifact.matrix.agent}:${artifact.matrix.model}/${artifact.matrix.reasoningEffort} profiles=${artifact.matrix.profiles.join(",")} workloads=${artifact.selectedWorkloads.length}`,
+    `matrix=${artifact.matrix.agent}:${artifact.matrix.model}/${artifact.matrix.reasoningEffort} scenarios=${artifact.matrix.scenarios.join(",")} workloads=${artifact.selectedWorkloads.length}`,
+    `agentCliVersions=${artifact.codexVersions.length > 0 ? artifact.codexVersions.join(",") : "unknown"}`,
     `totals executions=${artifact.totals.expectedExecutions} observed=${artifact.totals.observedExecutions} succeeded=${artifact.totals.successfulExecutions} failed=${artifact.totals.failedExecutions} missing=${artifact.totals.missingExecutions} wallTimeMs=${artifact.wallTimeMs} cumulativeAgentTimeMs=${artifact.cumulativeAgentTimeMs ?? "unknown"}`,
     `tokens uncachedInput=${artifact.tokens.uncachedInputTokens ?? "unknown"} cachedInput=${artifact.tokens.cachedInputTokens ?? "unknown"} cacheWriteInput=${artifact.tokens.cacheWriteInputTokens ?? "unknown"} output=${artifact.tokens.outputTokens ?? "unknown"} reasoning=${artifact.tokens.reasoningOutputTokens ?? "unknown"}`,
     `cost=${artifact.cost.kind} costUsd=${artifact.cost.usd ?? "unknown"}`,
@@ -1271,7 +1514,7 @@ export function formatSuiteReport(artifact: AgentEvalSuiteArtifact): string {
   }
   for (const shard of artifact.shards) {
     lines.push(
-      `shard ${shard.profile} ${shard.status}${shard.error ? ` error=${shard.error}` : ""} run=${shard.runPath ?? "missing"} metrics=${shard.metricsPath ?? "missing"} report=${shard.reportPath ?? "missing"}`,
+      `shard ${shard.scenario} guidance=${shard.guidanceProfile} intent=${shard.intentProfile} ${shard.status}${shard.error ? ` error=${shard.error}` : ""} run=${shard.runPath ?? "missing"} metrics=${shard.metricsPath ?? "missing"} report=${shard.reportPath ?? "missing"}`,
     );
   }
   for (const warning of artifact.warnings) lines.push(`Warning: ${warning}`);
@@ -1356,9 +1599,19 @@ const comparisonAggregateCallsByToolSchema = comparisonCallsByToolSchema
 const comparisonCellSchema = z
   .object({
     id: z.string().min(1),
+    scenario: suiteScenarioSchema,
     workloadId: workloadIdSchema,
     workloadPath: z.string().min(1),
     profile: suiteProfileSchema,
+    guidanceProfile: suiteProfileSchema,
+    intentProfile: z.enum(["neutral", "githits"]),
+    intentFragmentHash: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .nullable(),
+    agent: z.literal("codex"),
+    model: z.literal(LUNA_MODEL),
+    reasoningEffort: z.literal("low"),
     beforeStatus: comparisonCellStatusSchema.nullable(),
     afterStatus: comparisonCellStatusSchema.nullable(),
     compatibility: z.enum([
@@ -1431,7 +1684,7 @@ const comparisonAggregateSchema = z
 
 export const agentEvalSuiteComparisonSchema = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     comparisonId: z.string().uuid(),
     mode: z.enum(["live-pair", "offline"]),
     startedAt: z.string().min(1),
@@ -1463,7 +1716,7 @@ export interface AgentEvalImportedSuite {
   suitePath: string;
   suiteDir: string;
   sha256: string;
-  shards: Record<AgentEvalSuiteProfile, ImportedSuiteShard>;
+  shards: Record<AgentEvalSuiteScenario, ImportedSuiteShard>;
 }
 
 function isSafeImportedReference(reference: string): boolean {
@@ -1528,6 +1781,33 @@ function readJsonObject(
 }
 
 function validateImportedSuiteArtifact(artifact: AgentEvalSuiteArtifact): void {
+  assert(
+    new Set(artifact.matrix.scenarios).size ===
+      artifact.matrix.scenarios.length,
+    "Suite artifact matrix scenarios must be unique",
+  );
+  assert(
+    artifact.shards.length === artifact.matrix.scenarios.length,
+    "Suite artifact must contain exactly one shard per scenario",
+  );
+  const shardScenarios = new Set<AgentEvalSuiteScenario>();
+  for (const shard of artifact.shards) {
+    assert(
+      !shardScenarios.has(shard.scenario),
+      `Suite artifact has duplicate scenario shard: ${shard.scenario}`,
+    );
+    assert(
+      artifact.matrix.scenarios.includes(shard.scenario),
+      `Suite artifact shard references unselected scenario: ${shard.scenario}`,
+    );
+    shardScenarios.add(shard.scenario);
+  }
+  for (const scenario of artifact.matrix.scenarios) {
+    assert(
+      shardScenarios.has(scenario),
+      `Suite artifact is missing scenario shard: ${scenario}`,
+    );
+  }
   const selectedIds = new Set<string>();
   const selectedPaths = new Set<string>();
   for (const workload of artifact.selectedWorkloads) {
@@ -1568,13 +1848,13 @@ function validateImportedSuiteArtifact(artifact: AgentEvalSuiteArtifact): void {
   }
 
   const expectedCells = new Set(
-    AGENT_EVAL_SUITE_PROFILES.flatMap((profile) =>
-      [...selectedIds].map((workloadId) => suiteCellId(profile, workloadId)),
+    artifact.matrix.scenarios.flatMap((scenario) =>
+      [...selectedIds].map((workloadId) => suiteCellId(scenario, workloadId)),
     ),
   );
   assert(
     artifact.cells.length === expectedCells.size,
-    "Suite artifact cells must contain exactly one cell per profile/workload",
+    "Suite artifact cells must contain exactly one cell per scenario/workload",
   );
   const cellIds = new Set<string>();
   for (const cell of artifact.cells) {
@@ -1594,12 +1874,16 @@ function validateImportedSuiteArtifact(artifact: AgentEvalSuiteArtifact): void {
       `Suite artifact cell workload is missing: ${cell.workloadId}`,
     );
     assert(
-      cell.id === suiteCellId(cell.profile, cell.workloadId),
+      cell.id === suiteCellId(cell.scenario, cell.workloadId),
       `Suite artifact cell has incorrect ID: ${cell.id}`,
     );
     assert(
       cell.workloadPath === selected.path,
       `Suite artifact cell has incorrect workload path: ${cell.id}`,
+    );
+    assert(
+      artifact.matrix.scenarios.includes(cell.scenario),
+      `Suite artifact cell references unselected scenario: ${cell.scenario}`,
     );
     cellIds.add(cell.id);
   }
@@ -1610,7 +1894,7 @@ function validateImportedSuiteArtifact(artifact: AgentEvalSuiteArtifact): void {
 
 function validateImportedMetricsRecords(
   artifact: AgentEvalSuiteArtifact,
-  profile: AgentEvalSuiteProfile,
+  scenario: AgentEvalSuiteScenario,
   metrics: AgentEvalMetrics | undefined,
   report: AgentEvalReport | undefined,
 ): void {
@@ -1621,16 +1905,16 @@ function validateImportedMetricsRecords(
   for (const record of metrics?.records ?? []) {
     assert(
       !recordIds.has(record.workloadId),
-      `Suite artifact has duplicate ${profile} metrics workload ID: ${record.workloadId}`,
+      `Suite artifact has duplicate ${scenario} metrics workload ID: ${record.workloadId}`,
     );
     assert(
       selectedIds.has(record.workloadId),
-      `Suite artifact ${profile} metrics references unselected workload: ${record.workloadId}`,
+      `Suite artifact ${scenario} metrics references unselected workload: ${record.workloadId}`,
     );
     recordIds.add(record.workloadId);
   }
   for (const cell of artifact.cells.filter(
-    (candidate) => candidate.profile === profile,
+    (candidate) => candidate.scenario === scenario,
   )) {
     const record = metrics?.records.find(
       (candidate) => candidate.workloadId === cell.workloadId,
@@ -1654,49 +1938,49 @@ function validateImportedMetricsRecords(
             : "unknown";
     assert(
       cell.status === expectedStatus,
-      `Suite artifact cell status does not match ${profile} child evidence: ${cell.id} expected=${expectedStatus} actual=${cell.status}`,
+      `Suite artifact cell status does not match ${scenario} child evidence: ${cell.id} expected=${expectedStatus} actual=${cell.status}`,
     );
   }
 }
 
 function resolveImportedReportReferences(
   suitePath: string,
-  profile: AgentEvalSuiteProfile,
+  scenario: AgentEvalSuiteScenario,
   runReference: string | null,
   metricsReference: string | null,
   reportReference: string,
 ): { runPath: string; metricsPath: string; reportPath: string } {
   assert(
     runReference !== null && metricsReference !== null,
-    `${profile} report.json requires run.json and metrics.json references`,
+    `${scenario} report.json requires run.json and metrics.json references`,
   );
   const runPath = resolveImportedChild(
     suitePath,
     runReference,
-    `${profile} run.json`,
+    `${scenario} run.json`,
   );
   const metricsPath = resolveImportedChild(
     suitePath,
     metricsReference,
-    `${profile} metrics.json`,
+    `${scenario} metrics.json`,
   );
   const reportPath = resolveImportedChild(
     suitePath,
     reportReference,
-    `${profile} report.json`,
+    `${scenario} report.json`,
   );
   assert(
     basename(runPath) === "run.json" &&
       basename(metricsPath) === "metrics.json" &&
       basename(reportPath) === "report.json",
-    `${profile} child references must use canonical run.json, metrics.json, and report.json basenames`,
+    `${scenario} child references must use canonical run.json, metrics.json, and report.json basenames`,
   );
   const runParent = realpathSync(dirname(runPath));
   const metricsParent = realpathSync(dirname(metricsPath));
   const reportParent = realpathSync(dirname(reportPath));
   assert(
     runParent === metricsParent && runParent === reportParent,
-    `${profile} run.json, metrics.json, and report.json must share one contained directory`,
+    `${scenario} run.json, metrics.json, and report.json must share one contained directory`,
   );
   return { runPath, metricsPath, reportPath };
 }
@@ -1710,15 +1994,15 @@ export function loadImportedSuite(path: string): AgentEvalImportedSuite {
   const suiteBytes = readFileSync(suitePath);
   const artifact = parseSuiteArtifact(JSON.parse(suiteBytes.toString("utf8")));
   validateImportedSuiteArtifact(artifact);
-  const shards = {} as Record<AgentEvalSuiteProfile, ImportedSuiteShard>;
-  for (const profile of AGENT_EVAL_SUITE_PROFILES) {
-    const shard = artifact.shards.find((item) => item.profile === profile);
-    assert(shard, `Suite artifact is missing ${profile} shard`);
+  const shards = {} as Record<AgentEvalSuiteScenario, ImportedSuiteShard>;
+  for (const scenario of artifact.matrix.scenarios) {
+    const shard = artifact.shards.find((item) => item.scenario === scenario);
+    assert(shard, `Suite artifact is missing ${scenario} shard`);
     const imported: ImportedSuiteShard = {};
     const reportReferences = shard.reportPath
       ? resolveImportedReportReferences(
           suitePath,
-          profile,
+          scenario,
           shard.runPath,
           shard.metricsPath,
           shard.reportPath,
@@ -1727,8 +2011,8 @@ export function loadImportedSuite(path: string): AgentEvalImportedSuite {
     if (shard.runPath) {
       const runPath =
         reportReferences?.runPath ??
-        resolveImportedChild(suitePath, shard.runPath, `${profile} run.json`);
-      imported.runMetadata = readJsonObject(runPath, `${profile} run.json`);
+        resolveImportedChild(suitePath, shard.runPath, `${scenario} run.json`);
+      imported.runMetadata = readJsonObject(runPath, `${scenario} run.json`);
     }
     if (shard.metricsPath) {
       const metricsPath =
@@ -1736,24 +2020,24 @@ export function loadImportedSuite(path: string): AgentEvalImportedSuite {
         resolveImportedChild(
           suitePath,
           shard.metricsPath,
-          `${profile} metrics.json`,
+          `${scenario} metrics.json`,
         );
-      imported.metrics = agentEvalMetricsSchema.parse(
-        readJsonObject(metricsPath, `${profile} metrics.json`),
+      imported.metrics = parseAgentEvalMetrics(
+        readJsonObject(metricsPath, `${scenario} metrics.json`),
       );
     }
     if (shard.reportPath) {
-      assert(reportReferences, `Missing ${profile} report references`);
+      assert(reportReferences, `Missing ${scenario} report references`);
       const reportPath = reportReferences.reportPath;
       imported.report = loadRunReport(dirname(reportPath));
     }
     validateImportedMetricsRecords(
       artifact,
-      profile,
+      scenario,
       imported.metrics,
       imported.report,
     );
-    shards[profile] = imported;
+    shards[scenario] = imported;
   }
   return {
     artifact,
@@ -1773,16 +2057,16 @@ interface ComparisonCellSource {
 
 function suiteCellSource(
   suite: AgentEvalImportedSuite,
-  profile: AgentEvalSuiteProfile,
+  scenario: AgentEvalSuiteScenario,
   workloadId: string,
 ): ComparisonCellSource {
-  const child = suite.shards[profile];
+  const child = suite.shards[scenario];
   return {
     cell: suite.artifact.cells.find(
       (candidate) =>
-        candidate.profile === profile && candidate.workloadId === workloadId,
+        candidate.scenario === scenario && candidate.workloadId === workloadId,
     ),
-    record: child.metrics?.records.find(
+    record: child?.metrics?.records.find(
       (candidate) => candidate.workloadId === workloadId,
     ),
   };
@@ -1976,7 +2260,7 @@ function callsComparison(
 function recordDimensionMismatch(
   before: AgentEvalRecord,
   after: AgentEvalRecord,
-  profile: AgentEvalSuiteProfile,
+  scenario: AgentEvalSuiteScenario,
 ): string | null {
   const dimensions: Array<[string, unknown, unknown]> = [
     ["agent", before.agent, after.agent],
@@ -1988,12 +2272,15 @@ function recordDimensionMismatch(
     ["experimentalTools", before.experimentalTools, after.experimentalTools],
     ["publishedPackage", before.publishedPackage, after.publishedPackage],
     ["guidanceProfile", before.guidanceProfile, after.guidanceProfile],
+    ["scenario", before.scenario, after.scenario],
+    ["intentProfile", before.intentProfile, after.intentProfile],
+    ["intentFragmentHash", before.intentFragmentHash, after.intentFragmentHash],
   ];
   for (const [name, beforeValue, afterValue] of dimensions) {
     if (!equalValue(beforeValue, afterValue)) return name;
   }
-  if (before.guidanceProfile !== profile || after.guidanceProfile !== profile) {
-    return "profile";
+  if (before.scenario !== scenario || after.scenario !== scenario) {
+    return "scenario";
   }
   return null;
 }
@@ -2029,18 +2316,37 @@ function workloadPath(
 function allCellKeys(
   before: AgentEvalImportedSuite,
   after: AgentEvalImportedSuite,
-): Array<{ profile: AgentEvalSuiteProfile; workloadId: string }> {
-  const workloadIds = new Set<string>();
+): Array<{ scenario: AgentEvalSuiteScenario; workloadId: string }> {
+  const keys = new Set<string>();
   for (const suite of [before, after]) {
-    for (const workload of suite.artifact.selectedWorkloads) {
-      workloadIds.add(workload.id);
+    for (const cell of suite.artifact.cells) {
+      keys.add(`${cell.scenario}\0${cell.workloadId}`);
     }
   }
-  return AGENT_EVAL_SUITE_PROFILES.flatMap((profile) =>
-    [...workloadIds]
-      .sort(compareStrings)
-      .map((workloadId) => ({ profile, workloadId })),
+  const scenarioOrder = new Map(
+    AGENT_EVAL_SUITE_SCENARIOS.map((scenario, index) => [scenario, index]),
   );
+  return [...keys]
+    .sort((left, right) => {
+      const leftScenario = left.split("\0")[0] as AgentEvalSuiteScenario;
+      const rightScenario = right.split("\0")[0] as AgentEvalSuiteScenario;
+      return (
+        (scenarioOrder.get(leftScenario) ?? Number.MAX_SAFE_INTEGER) -
+          (scenarioOrder.get(rightScenario) ?? Number.MAX_SAFE_INTEGER) ||
+        compareStrings(left, right)
+      );
+    })
+    .map((key) => {
+      const [scenario, workloadId] = key.split("\0");
+      assert(
+        scenario !== undefined && workloadId !== undefined,
+        `invalid suite cell key: ${key}`,
+      );
+      return {
+        scenario: scenario as AgentEvalSuiteScenario,
+        workloadId,
+      };
+    });
 }
 
 function compatibleCellMetric(
@@ -2048,6 +2354,7 @@ function compatibleCellMetric(
   after: ComparisonCellSource,
   globalSuppressed: boolean,
   workloadMismatch: boolean,
+  scenario: AgentEvalSuiteScenario,
 ): boolean {
   return (
     !globalSuppressed &&
@@ -2060,11 +2367,7 @@ function compatibleCellMetric(
       before.record.processStatus === "dry-run") &&
     (after.record.processStatus === "success" ||
       after.record.processStatus === "dry-run") &&
-    recordDimensionMismatch(
-      before.record,
-      after.record,
-      before.cell.profile,
-    ) === null
+    recordDimensionMismatch(before.record, after.record, scenario) === null
   );
 }
 
@@ -2213,6 +2516,12 @@ function matrixDimensions(
     );
   }
   dimensions.push(
+    comparisonDimension(
+      "matrix.scenarios",
+      before.matrix.scenarios,
+      after.matrix.scenarios,
+      "matrix scenarios differ",
+    ),
     comparisonDimension(
       "suiteName",
       before.suiteName,
@@ -2376,7 +2685,7 @@ function costValue(record: AgentEvalRecord | undefined): number | null {
 function cellCompatibilityReason(
   before: ComparisonCellSource,
   after: ComparisonCellSource,
-  profile: AgentEvalSuiteProfile,
+  scenario: AgentEvalSuiteScenario,
   globalSuppressed: boolean,
   workloadMismatch: boolean,
 ): {
@@ -2399,10 +2708,34 @@ function cellCompatibilityReason(
       reason: "workload_content_mismatch",
     };
   }
+  const cellIdentity = [
+    ["scenario", before.cell.scenario, after.cell.scenario],
+    [
+      "guidanceProfile",
+      before.cell.guidanceProfile,
+      after.cell.guidanceProfile,
+    ],
+    ["intentProfile", before.cell.intentProfile, after.cell.intentProfile],
+    [
+      "intentFragmentHash",
+      before.cell.intentFragmentHash,
+      after.cell.intentFragmentHash,
+    ],
+    ["agent", before.cell.agent, after.cell.agent],
+    ["model", before.cell.model, after.cell.model],
+    [
+      "reasoningEffort",
+      before.cell.reasoningEffort,
+      after.cell.reasoningEffort,
+    ],
+  ].find(([, beforeValue, afterValue]) => !equalValue(beforeValue, afterValue));
+  if (cellIdentity) {
+    return { compatibility: "incompatible", reason: cellIdentity[0] as string };
+  }
   const identityMismatch = recordDimensionMismatch(
     before.record,
     after.record,
-    profile,
+    scenario,
   );
   return identityMismatch
     ? { compatibility: "incompatible", reason: identityMismatch }
@@ -2412,33 +2745,54 @@ function cellCompatibilityReason(
 function buildComparisonCell(
   before: AgentEvalImportedSuite,
   after: AgentEvalImportedSuite,
-  profile: AgentEvalSuiteProfile,
+  scenario: AgentEvalSuiteScenario,
   workloadId: string,
   globalSuppressed: boolean,
 ): z.infer<typeof comparisonCellSchema> {
-  const beforeSource = suiteCellSource(before, profile, workloadId);
-  const afterSource = suiteCellSource(after, profile, workloadId);
+  const beforeSource = suiteCellSource(before, scenario, workloadId);
+  const afterSource = suiteCellSource(after, scenario, workloadId);
   const workloadMismatch = workloadContentMismatch(before, after, workloadId);
   const compatibility = cellCompatibilityReason(
     beforeSource,
     afterSource,
-    profile,
+    scenario,
     globalSuppressed,
     workloadMismatch,
   );
-  const eligible = compatibleCellMetric(
-    beforeSource,
-    afterSource,
-    globalSuppressed,
-    workloadMismatch,
-  );
+  const eligible =
+    compatibleCellMetric(
+      beforeSource,
+      afterSource,
+      globalSuppressed,
+      workloadMismatch,
+      scenario,
+    ) && compatibility.compatibility === "compatible";
   const beforeRecord = beforeSource.record;
   const afterRecord = afterSource.record;
   return {
-    id: suiteCellId(profile, workloadId),
+    id: suiteCellId(scenario, workloadId),
+    scenario,
     workloadId,
     workloadPath: workloadPath(before, after, workloadId),
-    profile,
+    profile:
+      beforeSource.cell?.profile ??
+      afterSource.cell?.profile ??
+      scenarioDefinition(scenario).guidanceProfile,
+    guidanceProfile:
+      beforeSource.cell?.guidanceProfile ??
+      afterSource.cell?.guidanceProfile ??
+      scenarioDefinition(scenario).guidanceProfile,
+    intentProfile:
+      beforeSource.cell?.intentProfile ??
+      afterSource.cell?.intentProfile ??
+      scenarioDefinition(scenario).intentProfile,
+    intentFragmentHash:
+      beforeSource.cell?.intentFragmentHash ??
+      afterSource.cell?.intentFragmentHash ??
+      scenarioDefinition(scenario).intentFragmentHash,
+    agent: AGENT_EVAL_SUITE_MATRIX.agent,
+    model: AGENT_EVAL_SUITE_MATRIX.model,
+    reasoningEffort: AGENT_EVAL_SUITE_MATRIX.reasoningEffort,
     beforeStatus: beforeSource.cell?.status ?? null,
     afterStatus: afterSource.cell?.status ?? null,
     compatibility: compatibility.compatibility,
@@ -2570,7 +2924,8 @@ export function buildSuiteComparison(
   const globalIncompatibility = dimensions.some(
     (dimension) =>
       dimension.status === "incompatible" &&
-      (dimension.name.startsWith("matrix.") ||
+      ((dimension.name.startsWith("matrix.") &&
+        dimension.name !== "matrix.scenarios") ||
         dimension.name === "suiteName" ||
         dimension.name === "dryRun"),
   );
@@ -2603,11 +2958,11 @@ export function buildSuiteComparison(
     }
   }
   const cells = allCellKeys(baseline, candidate).map(
-    ({ profile, workloadId }) =>
+    ({ scenario, workloadId }) =>
       buildComparisonCell(
         baseline,
         candidate,
-        profile,
+        scenario,
         workloadId,
         directDeltasSuppressed,
       ),
@@ -2713,7 +3068,7 @@ export function buildSuiteComparison(
     );
   }
   return parseComparisonArtifact({
-    schemaVersion: 1,
+    schemaVersion: 2,
     comparisonId: options.comparisonId,
     mode: options.mode,
     startedAt: options.startedAt,
@@ -2834,6 +3189,7 @@ export interface AgentEvalSuitePairOptions {
   reportingPath?: string;
   schemaPath?: string;
   dryRun?: boolean;
+  scenarios?: readonly AgentEvalSuiteScenario[];
   shardExecutor?: AgentEvalSuiteShardExecutor;
 }
 
@@ -2870,6 +3226,7 @@ export async function runAgentEvalSuitePair(
     reportingPath: options.reportingPath,
     schemaPath: options.schemaPath,
     dryRun: options.dryRun,
+    scenarios: options.scenarios,
     shardExecutor: options.shardExecutor,
   };
   const baselineRoot = resolve(repoRoot, options.baselineRoot);
@@ -3054,7 +3411,7 @@ export function formatComparisonReport(
   lines.push(`cells: ${artifact.cells.length}`);
   for (const cell of artifact.cells) {
     lines.push(
-      `cell ${cell.id}: before=${cell.beforeStatus ?? "missing"} after=${cell.afterStatus ?? "missing"} compatibility=${cell.compatibility}${cell.incompatibilityReason ? ` reason=${cell.incompatibilityReason}` : ""}`,
+      `cell ${cell.id}: scenario=${cell.scenario} guidance=${cell.guidanceProfile} intent=${cell.intentProfile} before=${cell.beforeStatus ?? "missing"} after=${cell.afterStatus ?? "missing"} compatibility=${cell.compatibility}${cell.incompatibilityReason ? ` reason=${cell.incompatibilityReason}` : ""}`,
     );
     lines.push(`  durationMs: ${formatComparisonMetric(cell.durationMs)}`);
     lines.push(
@@ -3087,6 +3444,7 @@ export type AgentEvalSuiteCliCommand =
   | {
       mode: "run";
       suite: AgentEvalSuiteName;
+      scenarios?: AgentEvalSuiteScenario[];
       outDir?: string;
       targetRoot?: string;
       dryRun: boolean;
@@ -3094,6 +3452,7 @@ export type AgentEvalSuiteCliCommand =
   | {
       mode: "pair";
       suite: AgentEvalSuiteName;
+      scenarios?: AgentEvalSuiteScenario[];
       baselineRoot: string;
       outDir?: string;
       dryRun: boolean;
@@ -3106,17 +3465,17 @@ export type AgentEvalSuiteCliCommand =
     };
 
 export const AGENT_EVAL_SUITE_USAGE = `Usage:
-  bun run agent:e2e:suite run --suite <name> [--dry-run] [--out <dir>] [--target-root <path>]
-  bun run agent:e2e:suite pair --suite <name> --baseline-root <path> [--dry-run] [--out <dir>]
+  bun run agent:e2e:suite run --suite <name> [--scenario <discovery|intent|full>]... [--dry-run] [--out <dir>] [--target-root <path>]
+  bun run agent:e2e:suite pair --suite <name> --baseline-root <path> [--scenario <discovery|intent|full>]... [--dry-run] [--out <dir>]
   bun run agent:e2e:suite compare --baseline-suite <path> --candidate-suite <path> [--out <dir>]
 
 Suites: ${AGENT_EVAL_SUITE_NAMES.join(", ")}
-Matrix: Codex ${LUNA_MODEL}, reasoning low, local MCP, descriptors + full profiles
+Matrix: Codex ${LUNA_MODEL}, reasoning low, local MCP, discovery + intent + full scenarios
 `;
 
 const CLI_OPTIONS_BY_MODE: Record<AgentEvalSuiteCliMode, readonly string[]> = {
-  run: ["--suite", "--out", "--target-root", "--dry-run"],
-  pair: ["--suite", "--baseline-root", "--out", "--dry-run"],
+  run: ["--suite", "--scenario", "--out", "--target-root", "--dry-run"],
+  pair: ["--suite", "--baseline-root", "--scenario", "--out", "--dry-run"],
   compare: ["--baseline-suite", "--candidate-suite", "--out"],
 };
 
@@ -3162,12 +3521,31 @@ export function parseAgentEvalSuiteCliArgs(
     `unknown mode: ${rawMode}`,
   );
   const values = new Map<string, string | true>();
+  const scenarios: AgentEvalSuiteScenario[] = [];
   const allowed = new Set(CLI_OPTIONS_BY_MODE[rawMode]);
   for (let index = 0; index < tokens.length; index += 1) {
     const flag = tokens[index];
     assert(flag !== undefined, `unexpected argument: ${flag}`);
     assert(flag.startsWith("--"), `unexpected argument: ${flag}`);
     assert(allowed.has(flag), `${flag} is not valid for ${rawMode}`);
+    if (flag === "--scenario") {
+      const value = tokens[index + 1];
+      assert(
+        value !== undefined && !value.startsWith("--"),
+        `${flag} requires a value`,
+      );
+      assert(
+        AGENT_EVAL_SUITE_SCENARIOS.includes(value as AgentEvalSuiteScenario),
+        `unknown suite scenario: ${value}`,
+      );
+      assert(
+        !scenarios.includes(value as AgentEvalSuiteScenario),
+        `duplicate argument: ${flag} ${value}`,
+      );
+      scenarios.push(value as AgentEvalSuiteScenario);
+      index += 1;
+      continue;
+    }
     assert(!values.has(flag), `duplicate argument: ${flag}`);
     if (flag === "--dry-run") {
       values.set(flag, true);
@@ -3190,6 +3568,7 @@ export function parseAgentEvalSuiteCliArgs(
     return {
       mode: rawMode,
       suite: assertSuiteName(assertCliValue(getValue("--suite"), "--suite")),
+      scenarios: scenarios.length > 0 ? scenarios : undefined,
       outDir: getValue("--out"),
       targetRoot: getValue("--target-root"),
       dryRun,
@@ -3199,6 +3578,7 @@ export function parseAgentEvalSuiteCliArgs(
     return {
       mode: rawMode,
       suite: assertSuiteName(assertCliValue(getValue("--suite"), "--suite")),
+      scenarios: scenarios.length > 0 ? scenarios : undefined,
       baselineRoot: assertCliValue(
         getValue("--baseline-root"),
         "--baseline-root",
@@ -3253,6 +3633,7 @@ export async function runAgentEvalSuiteCli(
       targetRoot: command.targetRoot,
       outDir,
       dryRun: command.dryRun,
+      scenarios: command.scenarios,
     });
     return `${formatSuiteReport(artifact)}suite artifact: ${join(outDir, "suite.json")}\n`;
   }
@@ -3264,6 +3645,7 @@ export async function runAgentEvalSuiteCli(
       baselineRoot: command.baselineRoot,
       outDir,
       dryRun: command.dryRun,
+      scenarios: command.scenarios,
     });
     return `${formatSuiteReport(result.baselineSuite)}${formatSuiteReport(result.candidateSuite)}${formatComparisonReport(result.comparison)}artifacts:\n  baseline suite: ${result.baselineSuitePath}\n  candidate suite: ${result.candidateSuitePath}\n  comparison: ${result.comparisonPath}\n`;
   }
