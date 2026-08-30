@@ -749,7 +749,7 @@ describe("agent eval suites", () => {
     }
   });
 
-  it("normalizes v1 suite and child metrics identity without inventing intent", async () => {
+  it("normalizes v1 suite identity without inventing intent", async () => {
     const fixture = createPairExecutionFixture();
     const outDir = mkdtempSync(join(tmpdir(), "agent-eval-suite-v1-"));
     try {
@@ -836,24 +836,40 @@ describe("agent eval suites", () => {
       expect(imported.shards.discovery.metrics?.schemaVersion).toBe(2);
       expect(imported.shards.full.metrics?.schemaVersion).toBe(2);
 
-      const intentOnly = {
+      const nullProfile = {
         ...v1,
-        shards: [
-          {
-            ...(v1.shards[0] as Record<string, unknown>),
-            profile: null,
-          },
-        ],
-        cells: [
-          {
-            ...(v1.cells[0] as Record<string, unknown>),
-            profile: null,
-          },
-        ],
+        shards: v1.shards.map((shard, index) =>
+          index === 0 ? { ...shard, profile: null } : shard,
+        ),
+        cells: v1.cells.map((cell, index) =>
+          index === 0
+            ? { ...(cell as Record<string, unknown>), profile: null }
+            : cell,
+        ),
       };
-      expect(parseSuiteArtifact(intentOnly).matrix.scenarios).toEqual([
-        "intent",
-      ]);
+      expect(() => parseSuiteArtifact(nullProfile)).toThrow(
+        "Invalid suite artifact",
+      );
+
+      const missingProfile = {
+        ...v1,
+        shards: v1.shards.map((shard, index) => {
+          if (index !== 0) return shard;
+          const { profile: _profile, ...withoutProfile } = shard;
+          return withoutProfile;
+        }),
+        cells: v1.cells.map((cell, index) => {
+          if (index !== 0) return cell;
+          const { profile: _profile, ...withoutProfile } = cell as Record<
+            string,
+            unknown
+          >;
+          return withoutProfile;
+        }),
+      };
+      expect(() => parseSuiteArtifact(missingProfile)).toThrow(
+        "Invalid suite artifact",
+      );
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
       rmSync(outDir, { recursive: true, force: true });

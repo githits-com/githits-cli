@@ -593,16 +593,22 @@ export type AgentEvalSuiteArtifact = z.infer<
 >;
 
 const suiteV1ShardSchema = z.object({
-  profile: suiteProfileSchema.optional().nullable(),
+  profile: suiteProfileSchema,
   status: z.enum(["success", "failed"]),
   error: z.string().nullable(),
   runPath: z.string().nullable(),
   metricsPath: z.string().nullable(),
   reportPath: z.string().nullable(),
 });
+const suiteV1DescriptorShardSchema = suiteV1ShardSchema.extend({
+  profile: z.literal("descriptors"),
+});
+const suiteV1FullShardSchema = suiteV1ShardSchema.extend({
+  profile: z.literal("full"),
+});
 const suiteV1CellSchema = z.object({
   id: z.string().min(1),
-  profile: suiteProfileSchema.optional().nullable(),
+  profile: suiteProfileSchema,
   workloadId: workloadIdSchema,
   workloadPath: z.string().min(1),
   status: z.enum(["success", "failed", "missing", "unknown"]),
@@ -626,12 +632,12 @@ const suiteV1ArtifactSchema = z.object({
     reasoningEffort: z.literal("low"),
     surface: z.literal("mcp"),
     server: z.literal("local"),
-    profiles: z.tuple([z.literal("descriptors"), z.literal("full")]).optional(),
+    profiles: z.tuple([z.literal("descriptors"), z.literal("full")]),
   }),
   selectedWorkloads: z.array(suiteSelectedWorkloadSchema),
   contentIdentity: suiteContentIdentitySchema,
   targetGuidanceIdentity: targetGuidanceIdentitySchema,
-  shards: z.array(suiteV1ShardSchema).min(1),
+  shards: z.tuple([suiteV1DescriptorShardSchema, suiteV1FullShardSchema]),
   cells: z.array(suiteV1CellSchema),
   wallTimeMs: z.number().int().nonnegative(),
   cumulativeAgentTimeMs: z.number().int().nonnegative().nullable(),
@@ -649,16 +655,11 @@ function normalizeV1SuiteArtifact(
   value: z.infer<typeof suiteV1ArtifactSchema>,
 ): AgentEvalSuiteArtifact {
   const scenarioForProfile = (
-    profile: AgentEvalSuiteProfile | null | undefined,
+    profile: AgentEvalSuiteProfile,
   ): AgentEvalSuiteScenario =>
-    profile === "descriptors"
-      ? "discovery"
-      : profile === "full"
-        ? "full"
-        : "intent";
-  const definitionForProfile = (
-    profile: AgentEvalSuiteProfile | null | undefined,
-  ) => scenarioDefinition(scenarioForProfile(profile));
+    profile === "descriptors" ? "discovery" : "full";
+  const definitionForProfile = (profile: AgentEvalSuiteProfile) =>
+    scenarioDefinition(scenarioForProfile(profile));
   const scenarios = [
     ...new Set(value.shards.map((shard) => scenarioForProfile(shard.profile))),
   ];
@@ -702,9 +703,11 @@ function normalizeV1SuiteArtifact(
     cells,
     missingToolTelemetryCellIds: value.missingToolTelemetryCellIds.map((id) => {
       const [profile, ...rest] = id.split("/");
-      const scenario = scenarioForProfile(
-        profile === "descriptors" || profile === "full" ? profile : null,
+      assert(
+        profile === "descriptors" || profile === "full",
+        "schema-v1 missing telemetry IDs must use descriptors or full profiles",
       );
+      const scenario = scenarioForProfile(profile);
       return [scenario, ...rest].join("/");
     }),
   });
