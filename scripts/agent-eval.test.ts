@@ -3977,6 +3977,7 @@ describe("agent eval harness", () => {
   it("summarizes final reports without treating expected tools as actual calls", () => {
     const summary = summarizeFinalReport({
       status: "success",
+      answer: "The package has no active vulnerabilities.",
       githitsUsefulness: "helped",
       githitsUsefulnessReason: "useful",
       confidence: "high",
@@ -3989,10 +3990,22 @@ describe("agent eval harness", () => {
     expect(summary?.expectedToolUse).toEqual(["pkg_vulns"]);
     expect(summary?.unexpectedToolUse).toEqual(["pkg_info"]);
     expect(summary?.toolIssues).toEqual(["issue", "pkg_vulns: unclear range"]);
+    expect(summary?.answer).toBe("The package has no active vulnerabilities.");
+    expect(
+      summarizeFinalReport({ status: "success", confidence: "low", answer: 42 })
+        ?.answer,
+    ).toBeUndefined();
+    expect(
+      summarizeFinalReport({ status: "success", confidence: "low" })?.answer,
+    ).toBeUndefined();
   });
 
   it("builds a portable run report from persisted artifacts", () => {
     const runDir = createRunFixture();
+    writeFileSync(
+      join(runDir, "workloads", "pkg-vulns", "prompt.md"),
+      "Check this package for active vulnerabilities.\n",
+    );
     const run = JSON.parse(readFileSync(join(runDir, "run.json"), "utf8"));
     const report = buildRunReportFromMetadata(runDir, run);
 
@@ -4000,10 +4013,16 @@ describe("agent eval harness", () => {
     expect(report.workloads[0]?.artifacts.toolCalls).toBe(
       "workloads/pkg-vulns/tool-calls.json",
     );
+    expect(report.workloads[0]?.artifacts.prompt).toBe(
+      "workloads/pkg-vulns/prompt.md",
+    );
     expect(report.workloads[0]?.toolCalls.rawCount).toBe(2);
     expect(report.workloads[0]?.finalReport?.instructionIssues).toEqual([
       "Package aliases were unclear",
     ]);
+    expect(report.workloads[0]?.finalReport?.answer).toBe(
+      "No active vulnerabilities.",
+    );
     const formatted = formatRunReport(report);
     expect(formatted).toContain(
       "pkg-vulns success 1.2s uniqueTools=1 rawEvents=2",
@@ -4014,6 +4033,14 @@ describe("agent eval harness", () => {
     expect(formatted).toContain(
       "Inspect raw calls: workloads/pkg-vulns/tool-calls.json",
     );
+  });
+
+  it("omits the optional prompt artifact when it is absent", () => {
+    const runDir = createRunFixture();
+    const run = JSON.parse(readFileSync(join(runDir, "run.json"), "utf8"));
+    const report = buildRunReportFromMetadata(runDir, run);
+
+    expect(report.workloads[0]?.artifacts.prompt).toBeUndefined();
   });
 
   it("reports only the selected agent CLI version", () => {
@@ -4810,6 +4837,31 @@ describe("agent eval harness", () => {
     expect(report.workloads[0]?.toolCalls.rawCount).toBe(0);
     expect(report.workloads[0]?.warnings[0]).toContain(
       "artifact path outside run directory ignored",
+    );
+  });
+
+  it("does not expose a prompt symlink outside the run directory", () => {
+    const runDir = mkdtempSync(join(tmpdir(), "agent-eval-prompt-symlink-"));
+    const workloadDir = join(runDir, "workloads", "unsafe-prompt");
+    const outsideDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-prompt-outside-"),
+    );
+    mkdirSync(workloadDir, { recursive: true });
+    writeJson(join(workloadDir, "tool-calls.json"), []);
+    writeFileSync(join(workloadDir, "stderr.txt"), "");
+    writeFileSync(join(outsideDir, "prompt.md"), "outside prompt\n");
+    symlinkSync(join(outsideDir, "prompt.md"), join(workloadDir, "prompt.md"));
+
+    const report = buildRunReportFromMetadata(runDir, {
+      workloads: [{ id: "unsafe-prompt", status: "success", workloadDir }],
+    });
+
+    expect(report.workloads[0]?.artifacts.prompt).toBeUndefined();
+    expect(report.workloads[0]?.warnings).toContain(
+      `artifact path outside run directory ignored: prompt: ${join(
+        workloadDir,
+        "prompt.md",
+      )}`,
     );
   });
 

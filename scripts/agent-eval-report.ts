@@ -131,6 +131,7 @@ export interface DiscoverySummary {
 export interface FinalReportSummary {
   status: string;
   confidence: string;
+  answer?: string;
   usefulness?: string;
   usefulnessReason?: string;
   expectedToolUse?: string[];
@@ -522,6 +523,7 @@ export function summarizeFinalReport(
     confidence:
       typeof record.confidence === "string" ? record.confidence : "unknown",
   };
+  if (typeof record.answer === "string") summary.answer = record.answer;
   if (typeof record.githitsUsefulness === "string")
     summary.usefulness = record.githitsUsefulness;
   if (typeof record.githitsUsefulnessReason === "string")
@@ -633,6 +635,7 @@ function buildWorkloadReport(
   const paths = {
     toolCalls: join(workloadDir, "tool-calls.json"),
     final: join(workloadDir, "final.json"),
+    prompt: join(workloadDir, "prompt.md"),
     invalidFinal: join(workloadDir, "invalid-final.json"),
     stderr: join(workloadDir, "stderr.txt"),
     skillInstallation: join(workloadDir, "skill-installation.json"),
