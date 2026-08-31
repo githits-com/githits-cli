@@ -412,8 +412,11 @@ Automated Codex runs default to `gpt-5.6-luna` with `high` reasoning. Use
 `--model` and `--reasoning-effort` to evaluate another Codex configuration;
 explicit values always win. Claude accepts aliases such as `sonnet` and
 `haiku`; explicit Codex examples include `gpt-5.4-mini` or `gpt-5.4-nano` when
-available. The harness stores the effective model and reasoning effort in
-`run.json` and `report.json`, and includes them in the console summary.
+available. The harness stores the effective model, reasoning effort, and exact
+selected agent CLI version in `run.json` and `report.json`, and includes them
+in the console summary. The report's generic `agentVersion` is selected only
+from the matching agent-specific run field; legacy, dry-run, or missing version
+data is shown as `unknown` rather than inferred from another agent.
 
 After each run, the harness prints a concise summary with the run directory,
 per-workload status and duration, unique tool count, raw tool event count,
@@ -620,8 +623,9 @@ Each run writes:
 Current one-off metrics are schema version 2. Run metadata and normalized
 records expose `scenario`, `intentProfile`, and `intentFragmentHash`; the latter
 is the SHA-256 hash of the exact intent fragment (`null` for `neutral`). The
-one-off report and human summary expose the same identity. Valid schema-v1
-metrics remain readable through deterministic normalization: historical MCP
+one-off report and human summary expose the same identity plus the exact
+selected agent CLI version, or `unknown` for legacy, dry-run, or missing data.
+Valid schema-v1 metrics remain readable through deterministic normalization: historical MCP
 `descriptors` maps to neutral `discovery`, and `full` maps to neutral `full`;
 missing, null, or other profiles are rejected rather than mapped to `intent`.
 No historical descriptor/full record is inferred to have used the intent

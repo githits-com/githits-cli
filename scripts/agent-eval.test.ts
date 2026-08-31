@@ -3736,6 +3736,63 @@ describe("agent eval harness", () => {
     );
   });
 
+  it("reports only the selected agent CLI version", () => {
+    const versionCases = [
+      {
+        agent: "claude",
+        expected: "claude 1.0.0",
+        claudeVersion: "claude 1.0.0",
+        codexVersion: "wrong-codex-version",
+        opencodeVersion: "wrong-opencode-version",
+      },
+      {
+        agent: "codex",
+        expected: "codex 0.151.0",
+        claudeVersion: "wrong-claude-version",
+        codexVersion: "codex 0.151.0",
+        opencodeVersion: "wrong-opencode-version",
+      },
+      {
+        agent: "opencode",
+        expected: "opencode 1.2.3",
+        claudeVersion: "wrong-claude-version",
+        codexVersion: "wrong-codex-version",
+        opencodeVersion: "opencode 1.2.3",
+      },
+    ] as const;
+
+    for (const { expected, ...metadata } of versionCases) {
+      const report = buildRunReportFromMetadata("/run", {
+        ...metadata,
+        workloads: [],
+      });
+      expect(report.agentVersion).toBe(expected);
+    }
+
+    const codexReport = buildRunReportFromMetadata("/codex", {
+      agent: "codex",
+      claudeVersion: "claude 9.9.9",
+      codexVersion: "codex 0.151.0",
+      opencodeVersion: "opencode 9.9.9",
+      workloads: [],
+    });
+    expect(JSON.stringify(codexReport, null, 2)).toContain(
+      '"agentVersion": "codex 0.151.0"',
+    );
+    expect(formatRunReport(codexReport)).toContain(
+      "agentVersion=codex 0.151.0",
+    );
+
+    const missingVersion = buildRunReportFromMetadata("/missing", {
+      agent: "codex",
+      claudeVersion: "claude 9.9.9",
+      opencodeVersion: "opencode 9.9.9",
+      workloads: [],
+    });
+    expect(missingVersion.agentVersion).toBeUndefined();
+    expect(formatRunReport(missingVersion)).toContain("agentVersion=unknown");
+  });
+
   it("normalizes schema-v1 metrics when loading a run report", () => {
     const runDir = mkdtempSync(join(tmpdir(), "agent-eval-v1-report-"));
     const workloadDir = join(runDir, "workloads", "pkg-info");
@@ -4578,6 +4635,7 @@ describe("agent eval harness", () => {
     const before = buildRunReportFromMetadata("/before", {
       agent: "codex",
       model: "gpt-5.6-luna",
+      codexVersion: "codex 0.150.1",
       reasoningEffort: "high",
       surface: "mcp",
       guidanceProfile: "descriptors",
@@ -4586,6 +4644,7 @@ describe("agent eval harness", () => {
     const after = buildRunReportFromMetadata("/after", {
       agent: "codex",
       model: "gpt-custom",
+      codexVersion: "codex 0.151.0",
       reasoningEffort: "low",
       surface: "mcp",
       guidanceProfile: "full",
@@ -4593,6 +4652,7 @@ describe("agent eval harness", () => {
     });
     const comparison = compareReports(before, after);
     expect(comparison.warnings).toEqual([
+      "agent CLI version differs: codex 0.150.1 -> codex 0.151.0",
       "guidance profile differs: descriptors -> full",
       "model differs: gpt-5.6-luna -> gpt-custom",
       "reasoning effort differs: high -> low",
@@ -4601,7 +4661,13 @@ describe("agent eval harness", () => {
       "profile=descriptors effort=high",
     );
     expect(formatCompareReport(comparison)).toContain(
+      "agentVersion=codex 0.150.1",
+    );
+    expect(formatCompareReport(comparison)).toContain(
       "profile=full effort=low",
+    );
+    expect(formatCompareReport(comparison)).toContain(
+      "agentVersion=codex 0.151.0",
     );
   });
 

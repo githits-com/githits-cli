@@ -33,6 +33,9 @@ export interface AgentEvalGitMetadata {
 export interface AgentEvalRunMetadata {
   runId?: string;
   agent?: string;
+  claudeVersion?: string | null;
+  codexVersion?: string | null;
+  opencodeVersion?: string | null;
   model?: string;
   reasoningEffort?: string;
   surface?: string;
@@ -156,6 +159,7 @@ export interface AgentEvalReport {
   schemaVersion: 1;
   status: string;
   agent?: string;
+  agentVersion?: string | null;
   model?: string;
   reasoningEffort?: string;
   surface?: string;
@@ -786,6 +790,21 @@ function reportIdentity(metadata: AgentEvalRunMetadata): {
   };
 }
 
+function selectedAgentVersion(
+  metadata: AgentEvalRunMetadata,
+): string | null | undefined {
+  switch (metadata.agent) {
+    case "claude":
+      return metadata.claudeVersion;
+    case "codex":
+      return metadata.codexVersion;
+    case "opencode":
+      return metadata.opencodeVersion;
+    default:
+      return undefined;
+  }
+}
+
 export function buildRunReportFromMetadata(
   runDir: string,
   metadata: AgentEvalRunMetadata,
@@ -868,10 +887,12 @@ export function buildRunReportFromMetadata(
     : metadata.dryRun
       ? "dry-run"
       : "success";
+  const agentVersion = selectedAgentVersion(metadata);
   return {
     schemaVersion: 1,
     status,
     agent: metadata.agent,
+    ...(agentVersion === undefined ? {} : { agentVersion }),
     model: metadata.model,
     reasoningEffort: metadata.reasoningEffort,
     surface: metadata.surface,
@@ -961,7 +982,7 @@ export function formatRunReport(report: AgentEvalReport): string {
       ? "n/a"
       : (report.guidanceProfile ?? "descriptors");
   const lines = [
-    `Agent eval: ${report.status} (${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.surface ?? "mcp"}/${report.server ?? "unknown"}) profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""} intent=${report.intentProfile ?? "neutral"} scenario=${report.scenario ?? "n/a"} intentHash=${report.intentFragmentHash ?? "null"} ${report.runDir}`,
+    `Agent eval: ${report.status} (${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.surface ?? "mcp"}/${report.server ?? "unknown"}) agentVersion=${report.agentVersion ?? "unknown"} profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""} intent=${report.intentProfile ?? "neutral"} scenario=${report.scenario ?? "n/a"} intentHash=${report.intentFragmentHash ?? "null"} ${report.runDir}`,
   ];
   for (const workload of report.workloads) {
     const final = workload.finalReport;
@@ -1150,7 +1171,7 @@ function formatRunContext(report: AgentEvalReport): string {
     report.surface === "skills"
       ? "n/a"
       : (report.guidanceProfile ?? "descriptors");
-  return `profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""} intent=${report.intentProfile ?? "neutral"} scenario=${report.scenario ?? "n/a"} intentHash=${report.intentFragmentHash ?? "null"}`;
+  return `agentVersion=${report.agentVersion ?? "unknown"} profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""} intent=${report.intentProfile ?? "neutral"} scenario=${report.scenario ?? "n/a"} intentHash=${report.intentFragmentHash ?? "null"}`;
 }
 
 function effectiveGuidanceProfile(report: AgentEvalReport): string | undefined {
@@ -1165,6 +1186,13 @@ function compareMetadataWarnings(
 ): string[] {
   if (before.agent !== after.agent) return [];
   const warnings: string[] = [];
+  const beforeAgentVersion = before.agentVersion ?? "unknown";
+  const afterAgentVersion = after.agentVersion ?? "unknown";
+  if (beforeAgentVersion !== afterAgentVersion) {
+    warnings.push(
+      `agent CLI version differs: ${beforeAgentVersion} -> ${afterAgentVersion}`,
+    );
+  }
   const beforeProfile = effectiveGuidanceProfile(before);
   const afterProfile = effectiveGuidanceProfile(after);
   if (beforeProfile !== afterProfile) {

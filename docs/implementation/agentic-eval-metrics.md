@@ -518,16 +518,24 @@ For a matched metrics record, each `WorkloadReport.metrics` contains normalized
 token buckets, cost kind/USD/uncertainty, logical tool count, MCP and CLI
 sequence counts, and record telemetry warnings. `AgentEvalReport.metrics`
 contains the run aggregates, while run metadata/report fields expose scenario,
-intent profile, and intent-fragment hash. `metricsWarnings` contains
-metrics-load, schema, and workload-record warnings. Existing raw tool summaries,
-artifacts, final-report issues, and comparison behavior remain available.
+intent profile, intent-fragment hash, and the exact selected agent CLI version
+as `agentVersion`. The version is selected from the matching raw run metadata
+field (`claudeVersion`, `codexVersion`, or `opencodeVersion`); legacy, dry-run,
+unknown-agent, and missing-version reports expose `unknown` in human output.
+The optional JSON field is omitted when the matching metadata field is absent
+and preserves an explicit `null` when one is recorded. `metricsWarnings`
+contains metrics-load, schema, and workload-record warnings. Existing raw tool
+summaries, artifacts, final-report issues, and comparison behavior remain
+available.
 
 The console prints the same compact per-workload values and one aggregate line,
-including scenario, intent profile, and intent-fragment hash. Null values print
-as `unknown`; reasoning is labelled as a detail. MCP CLI fallback warnings
-identify the effective `descriptors` or `full` profile and indicate a
-validation failure. Skills runs use the CLI surface by design and do not
-receive the MCP fallback warning.
+including exact `agentVersion`, scenario, intent profile, and intent-fragment
+hash. Null values print as `unknown`; reasoning is labelled as a detail. Same-
+agent comparisons include both sides' version identity and warn when versions
+differ, while preserving otherwise compatible deltas. MCP CLI fallback warnings
+identify the effective `descriptors` or `full` profile and indicate a validation
+failure. Skills runs use the CLI surface by design and do not receive the MCP
+fallback warning.
 
 ## Local Luna-low inspection
 
