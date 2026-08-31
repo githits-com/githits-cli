@@ -47,21 +47,22 @@ export interface BraintrustRowOutput {
 
 export interface BraintrustRowMetrics {
   [key: string]: unknown;
-  agent_duration_ms?: number;
-  logical_tool_calls?: number;
+  duration?: number;
+  tool_calls?: number;
+  tool_errors?: number;
   mcp_tool_calls?: number;
   cli_tool_calls?: number;
   tool_calls_started?: number;
   tool_calls_completed?: number;
-  tool_calls_failed?: number;
   tool_calls_unknown?: number;
   raw_tool_events?: number;
-  uncached_input_tokens?: number;
-  cached_input_tokens?: number;
-  cache_write_input_tokens?: number;
-  output_tokens?: number;
-  reasoning_output_tokens?: number;
-  estimated_cost_usd?: number;
+  prompt_tokens?: number;
+  prompt_cached_tokens?: number;
+  prompt_cache_creation_tokens?: number;
+  completion_tokens?: number;
+  completion_reasoning_tokens?: number;
+  tokens?: number;
+  estimated_cost?: number;
 }
 
 export interface BraintrustGitIdentity {
@@ -118,6 +119,7 @@ export interface BraintrustRowMetadata {
   intentProfile: string;
   intentFragmentHash: string | null;
   agent: string;
+  model: string | null;
   requestedModel: string | null;
   resolvedModel: string | null;
   reasoningEffort: string | null;
@@ -147,6 +149,8 @@ export interface BraintrustRow {
   metrics: BraintrustRowMetrics;
   metadata: BraintrustRowMetadata;
   tags: string[];
+  startTime?: number;
+  endTime?: number;
   error?: string;
 }
 
@@ -218,10 +222,15 @@ export interface BraintrustStartSpanArgs {
   name: string;
   type: "eval";
   event: BraintrustRowEvent;
+  startTime?: number;
+}
+
+export interface BraintrustEndSpanArgs {
+  endTime?: number;
 }
 
 export interface BraintrustSpan {
-  end(): void | Promise<void>;
+  end(args?: BraintrustEndSpanArgs): void | Promise<void>;
 }
 
 export interface BraintrustPublisher {
@@ -266,7 +275,7 @@ export type BraintrustPublisherFactory = (
 ) => BraintrustPublisher | Promise<BraintrustPublisher>;
 
 export interface BraintrustSdkSpan {
-  end(): number;
+  end(args?: BraintrustEndSpanArgs): number;
 }
 
 export interface BraintrustSdkExperiment {
@@ -533,21 +542,41 @@ function rowMetrics(
   telemetry: ReturnType<typeof toolTelemetry>,
 ): BraintrustRowMetrics {
   const metrics: BraintrustRowMetrics = {};
-  knownMetric(metrics, "agent_duration_ms", record.durationMs);
-  knownMetric(metrics, "raw_tool_events", record.tools.rawEventCount);
-  const tokens = record.usage.normalizedTokens;
-  knownMetric(metrics, "uncached_input_tokens", tokens.uncachedInputTokens);
-  knownMetric(metrics, "cached_input_tokens", tokens.cachedInputTokens);
   knownMetric(
     metrics,
-    "cache_write_input_tokens",
-    tokens.cacheWriteInputTokens,
+    "duration",
+    record.durationMs === null ? null : record.durationMs / 1000,
   );
-  knownMetric(metrics, "output_tokens", tokens.outputTokens);
-  knownMetric(metrics, "reasoning_output_tokens", tokens.reasoningOutputTokens);
-  knownMetric(metrics, "estimated_cost_usd", record.usage.cost.usd);
+  knownMetric(metrics, "raw_tool_events", record.tools.rawEventCount);
+  const providerUsage = record.usage.providerUsage;
+  if (providerUsage) {
+    knownMetric(metrics, "prompt_tokens", providerUsage.input_tokens);
+    knownMetric(
+      metrics,
+      "prompt_cached_tokens",
+      providerUsage.cached_input_tokens,
+    );
+    knownMetric(
+      metrics,
+      "prompt_cache_creation_tokens",
+      providerUsage.cache_write_input_tokens,
+    );
+    knownMetric(metrics, "completion_tokens", providerUsage.output_tokens);
+    knownMetric(
+      metrics,
+      "completion_reasoning_tokens",
+      providerUsage.reasoning_output_tokens,
+    );
+    knownMetric(
+      metrics,
+      "tokens",
+      providerUsage.input_tokens + providerUsage.output_tokens,
+    );
+  }
+  knownMetric(metrics, "estimated_cost", record.usage.cost.usd);
   if (telemetry.known) {
-    knownMetric(metrics, "logical_tool_calls", record.tools.logicalCallCount);
+    knownMetric(metrics, "tool_calls", record.tools.logicalCallCount);
+    knownMetric(metrics, "tool_errors", telemetry.statusCounts.failed);
     knownMetric(metrics, "mcp_tool_calls", telemetry.mcpCalls);
     knownMetric(metrics, "cli_tool_calls", telemetry.cliCalls);
     knownMetric(metrics, "tool_calls_started", telemetry.statusCounts.started);
@@ -556,10 +585,26 @@ function rowMetrics(
       "tool_calls_completed",
       telemetry.statusCounts.completed,
     );
-    knownMetric(metrics, "tool_calls_failed", telemetry.statusCounts.failed);
     knownMetric(metrics, "tool_calls_unknown", telemetry.statusCounts.unknown);
   }
   return metrics;
+}
+
+function recordedSpanTimes(record: AgentEvalRecord): {
+  startTime?: number;
+  endTime?: number;
+} {
+  if (record.startedAt === null || record.completedAt === null) return {};
+  const startTime = Date.parse(record.startedAt) / 1000;
+  const endTime = Date.parse(record.completedAt) / 1000;
+  if (
+    !Number.isFinite(startTime) ||
+    !Number.isFinite(endTime) ||
+    endTime < startTime
+  ) {
+    return {};
+  }
+  return { startTime, endTime };
 }
 
 function rowMetadata(
@@ -603,6 +648,7 @@ function rowMetadata(
     intentProfile: record.intentProfile,
     intentFragmentHash: record.intentFragmentHash,
     agent: record.agent,
+    model: record.resolvedModel ?? record.requestedModel,
     requestedModel: record.requestedModel,
     resolvedModel: record.resolvedModel,
     reasoningEffort: record.reasoningEffort,
@@ -664,6 +710,7 @@ function mapCell(
   );
   const prompt = readPromptArtifact(report, workload);
   const telemetry = toolTelemetry(record, workload);
+  const spanTimes = recordedSpanTimes(record);
   const final = workload.finalReport;
   const finalStatus = record.finalStatus ?? final?.status;
   const output: BraintrustRowOutput = {
@@ -710,6 +757,7 @@ function mapCell(
       telemetry,
     ),
     tags: telemetry.tags,
+    ...spanTimes,
     ...(status ? { error: `eval_status:${status}` } : {}),
   };
 }
@@ -857,8 +905,8 @@ export async function createBraintrustPublisher(
     startSpan(args): BraintrustSpan {
       const span = experiment.startSpan(args);
       return {
-        end: () => {
-          span.end();
+        end: (endArgs) => {
+          span.end(endArgs);
         },
       };
     },
@@ -880,8 +928,11 @@ export async function publishBraintrustRows(
       name: row.metadata.cellId,
       type: "eval",
       event: rowEvent(row),
+      ...(row.startTime !== undefined ? { startTime: row.startTime } : {}),
     });
-    await span.end();
+    await span.end(
+      row.endTime !== undefined ? { endTime: row.endTime } : undefined,
+    );
   }
   await publisher.flush();
   const url = await publisher.permalink();

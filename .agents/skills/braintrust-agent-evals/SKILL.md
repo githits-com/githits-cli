@@ -39,8 +39,9 @@ bt sql --json --non-interactive "SELECT input, output, metrics, metadata, tags F
 ```
 
 The query is the verified path for prompts, neutral answers, hashes, statuses,
-token/cost/duration metrics, and tool telemetry. Open an experiment permalink
-when row-level UI inspection is useful.
+native token/cost/duration metrics, and tool telemetry. Native-first UI and
+comparison behavior still require a fresh export/readback. Open an experiment
+permalink when row-level UI inspection is useful.
 
 The exercised comparison syntax is:
 
@@ -48,10 +49,11 @@ The exercised comparison syntax is:
 bt experiments --json --project githits-cli-agent-evals compare <experiment-a> <experiment-b>
 ```
 
-It currently succeeds but reports only generic Braintrust trace metrics, which
-are zero for this exporter and do not expose the custom eval telemetry. Do not
-use that output as the eval comparison; use bounded SQL and the experiment UI
-until the comparison behavior is investigated.
+The prior custom-only experiments succeeded but reported only generic
+Braintrust trace metrics, which were zero and did not expose their custom eval
+telemetry. Do not treat that historical result as native-first comparison
+evidence; use bounded SQL and the experiment UI until a fresh native export is
+read back and the comparison behavior is investigated.
 
 ## Validate or explicitly export
 

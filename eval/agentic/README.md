@@ -348,6 +348,16 @@ stdout, stderr, provider events, environment/configuration, or arbitrary
 artifacts. No quality score is fabricated; self-reported confidence remains
 diagnostic metadata.
 
+The row mapper uses Braintrust-native metrics for duration (`duration`, in
+seconds), tool totals/errors (`tool_calls`, `tool_errors`), token totals and
+breakdowns (`tokens`, `prompt_tokens`, `prompt_cached_tokens`,
+`prompt_cache_creation_tokens`, `completion_tokens`, and
+`completion_reasoning_tokens`), and rate-based cost (`estimated_cost`). It
+retains only the GitHits-specific `mcp_tool_calls`, `cli_tool_calls`,
+`tool_calls_started`, `tool_calls_completed`, `tool_calls_unknown`, and
+`raw_tool_events` metrics. Native-root local proof and a fresh CI export/readback
+remain acceptance work.
+
 Validate downloaded or local suites without credentials or network access:
 
 ```bash
@@ -402,10 +412,11 @@ The exercised comparison command is:
 bt experiments --json --project githits-cli-agent-evals compare <experiment-a> <experiment-b>
 ```
 
-It currently reports only generic Braintrust trace metrics, all zero for these
-rows, and does not surface the custom eval telemetry. Use bounded SQL and the
-experiment UI for current metrics inspection; comparison behavior is a
-follow-up investigation, not a validated trend signal.
+The prior custom-only rows produced only generic Braintrust trace metrics, all
+zero, and did not surface their custom eval telemetry. That is a historical
+observation pending a native-first export/readback; native-root UI and
+comparison behavior are not yet proven. Use bounded SQL and the experiment UI
+while comparison behavior remains a follow-up investigation.
 
 ## Daily CI workflow
 

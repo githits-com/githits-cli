@@ -1685,14 +1685,16 @@ None.
 
 ### Status
 
-IMPLEMENTED LOCALLY; CI VALIDATION BLOCKED. Phase 3 is merged and its
-same-repository label path has clean runner evidence. The exact-pinned
-Braintrust exporter, post-report CI wiring, local persistence/readback proof,
-and internal operations skill are implemented. A real labeled or manually
-dispatched CI run must still export and read back 23 rows before Phase 4 is
-accepted as complete; that validation cannot begin until the repository
-`BRAINTRUST_API_KEY` secret is visible/effective in Actions. SDK tracing was
-deliberately not added.
+IMPLEMENTED LOCALLY; NATIVE-FIRST PROOF PENDING; CI VALIDATION BLOCKED. Phase 3
+is merged and its same-repository label path has clean runner evidence. The
+exact-pinned Braintrust exporter, post-report CI wiring, local persistence/
+readback proof, and internal operations skill are implemented. A real labeled
+or manually dispatched CI run must still export and read back 23 rows before
+Phase 4 is accepted as complete; that validation cannot begin until the
+repository `BRAINTRUST_API_KEY` secret is visible/effective in Actions. The
+native-first mapper is implemented locally, but native-root readback and a
+fresh CI export/readback remain acceptance work. SDK tracing was deliberately
+not added.
 
 ### Expected Outcome
 
@@ -1718,6 +1720,12 @@ the harness execution path.
   explicit `flush()`, and `summarize({ summarizeScores: false })` permalink
   retrieval. `update: true` continues an existing experiment, but the PoC does
   not use it.
+- The native-first mapper uses the pinned SDK's verified `duration`,
+  `tool_calls`, `tool_errors`, `prompt_tokens`, `prompt_cached_tokens`,
+  `prompt_cache_creation_tokens`, `completion_tokens`,
+  `completion_reasoning_tokens`, `tokens`, and `estimated_cost` keys. Native
+  UI and comparison behavior remains unproven until a native-root export is
+  read back.
 - One CI run attempt is one immutable experiment. GitHub `run_id` plus
   `run_attempt` gives reruns distinct names, so no event-ID scheme, upsert,
   retry, or duplicate-repair mechanism is required.
@@ -1759,11 +1767,12 @@ No product choice blocks the implementation. The selected policy is:
   remain; push-to-main behavior is reconsidered only after Braintrust evidence
   is available.
 
-The built-in experiment comparison behavior is a known technical limitation,
-not a selected policy: its exercised output contains only generic all-zero trace
-metrics and omits the custom eval telemetry. Its investigation is deferred to a
-Phase 5 / PoC follow-up; bounded SQL and row/UI inspection remain the verified
-metrics path.
+The built-in experiment comparison behavior observed on prior custom-only rows
+is a known historical limitation, not a native-first result: its exercised
+output contained only generic all-zero trace metrics and omitted the custom eval
+telemetry. Native UI and comparison behavior remains unproven pending a fresh
+native export/readback. Its investigation is deferred to a Phase 5 / PoC
+follow-up; bounded SQL and row/UI inspection remain the current metrics path.
 
 ### Dependencies
 
@@ -1799,13 +1808,14 @@ metrics path.
 - Braintrust [SQL](https://www.braintrust.dev/docs/reference/sql) and the
   `bt experiments`/`bt sql` commands can inspect and compare the persisted fields.
   The repository skill records only commands exercised against the PoC
-  experiment. The built-in compare command currently returns only generic,
-  all-zero trace metrics rather than this custom telemetry; bounded SQL/query
-  and experiment UI inspection are the verified metrics path.
+  experiment. The built-in compare command previously returned only generic,
+  all-zero trace metrics rather than the custom-only telemetry; native-first UI
+  and comparison behavior remains unproven pending a fresh export/readback.
+  Bounded SQL/query and experiment UI inspection remain the current metrics path.
 
 ### Verified PoC evidence
 
-The accepted GitHub run `33381601980` at SHA
+The accepted pre-native GitHub run `33381601980` at SHA
 `dc63675d7c0ee95a9594eac272982943dceef521` validated and exported the discovery
 and intent suites as exactly 23 rows. The experiments
 `poc-33381601980-top-level-spans` and `poc-33381601980-repeat` each read back
@@ -1815,13 +1825,14 @@ artifacts. The first experiment permalink is:
 
 <https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/poc-33381601980-top-level-spans>
 
-The exercised command
+The exercised custom-only command
 `bt experiments --json --project githits-cli-agent-evals compare
 poc-33381601980-top-level-spans poc-33381601980-repeat` succeeds but exposes
 only generic Braintrust trace metrics, all zero, and not the custom eval
-telemetry. This limitation does not invalidate persistence. It is a Phase 5 /
-PoC follow-up requiring investigation. CI acceptance remains pending until a
-real labeled or manually dispatched workflow exports and reads back 23 rows.
+telemetry. This prior observation does not invalidate persistence, but it is not
+native-first proof. Native-root readback and a fresh CI export/readback remain
+acceptance work. The labeled run `33413090610` is the current pre-native
+baseline; it is not native-first evidence.
 
 ### Affected Components
 
@@ -1890,16 +1901,17 @@ real labeled or manually dispatched workflow exports and reads back 23 rows.
    Failed cells use a generated status-only `error` label; raw error/stderr text
    is not uploaded. `scores` is omitted.
 
-   Known numeric values map to custom metrics with stable names:
-   `agent_duration_ms`, `logical_tool_calls`, `mcp_tool_calls`,
-   `cli_tool_calls`, `tool_calls_started`, `tool_calls_completed`,
-   `tool_calls_failed`, `tool_calls_unknown`, `raw_tool_events`,
-   `uncached_input_tokens`, `cached_input_tokens`,
-   `cache_write_input_tokens`, `output_tokens`,
-   `reasoning_output_tokens`, and `estimated_cost_usd`. Known zero is logged as
-   zero. Unknown values are absent rather than coerced to zero. Custom names
-   avoid Braintrust reinterpreting the repository's rate estimate as
-   provider-reported billing.
+   Native numeric values use Braintrust's verified standard names: `duration`
+   (seconds from recorded milliseconds), `tool_calls`, `tool_errors`,
+   `prompt_tokens`, `prompt_cached_tokens`, `prompt_cache_creation_tokens`,
+   `completion_tokens`, `completion_reasoning_tokens`, `tokens`, and
+   `estimated_cost`. The provider input total includes cached reads and cache
+   creation; `tokens` is that total plus provider output tokens. The remaining
+   GitHits-specific metrics are `mcp_tool_calls`, `cli_tool_calls`,
+   `tool_calls_started`, `tool_calls_completed`, `tool_calls_unknown`, and
+   `raw_tool_events`. Known zero is logged as zero, and unknown values are
+   absent rather than coerced to zero. Cost kind/uncertainty/rate metadata stays
+   explicit because `estimated_cost` is still a rate-based estimate.
 
    Structured metadata contains cell/suite/run IDs, guidance/intent identity,
    agent/model/reasoning/CLI identity, cost kind/uncertainty/rate snapshot,
@@ -1971,11 +1983,11 @@ real labeled or manually dispatched workflow exports and reads back 23 rows.
    validate-only output, explicit flush, and nonsecret result file. Verify
    credential-free `--validate-only` mapping against complete Phase 3 artifacts
    without running an agent.
-3. **Local persistence/readback proven:** Use the authenticated local `bt`
+3. **Local pre-native persistence/readback proven:** Use the authenticated local `bt`
    profile to export the accepted 23-cell evidence into
    `githits-cli-agent-evals` under clearly named `poc-...` experiments. Read it
    back with `bt experiments` and bounded `bt sql`; reconcile row count,
-   zero-tool discovery, tool-using cells, token buckets, duration, cost,
+   zero-tool discovery, tool-using cells, native token buckets, duration, cost,
    prompt, answer, exact Codex version, SHA, and permalink against source
    artifacts. The built-in compare limitation is recorded for follow-up.
 4. **Implemented locally; CI validation pending:** Add the CI export/final-status
@@ -2006,10 +2018,11 @@ real labeled or manually dispatched workflow exports and reads back 23 rows.
 - Every row is filterable by workload, scenario, agent, exact CLI/model,
   reasoning, guidance, intent, target SHA, and used-tool tags. Structured
   metadata exposes ordered tools and per-tool/per-status counts.
-- Prompt, neutral answer, process/final status, self-reported confidence, token
-  buckets, agent duration, estimated cost/uncertainty, and logical tool counts
-  reconcile to contained source artifacts. Unknown telemetry is absent/unknown;
-  a verified zero-tool discovery cell remains numeric zero.
+- Prompt, neutral answer, process/final status, self-reported confidence, native
+  token buckets/duration/cost, and GitHits-specific tool counts reconcile to
+  contained source artifacts. Unknown telemetry is absent/unknown; a verified
+  zero-tool discovery cell remains numeric zero. Native-root local readback and
+  a fresh CI export/readback remain pending acceptance work.
 - The exporter keeps unchanged scenario/workload/prompt inputs stable across
   workflow attempts, and no baseline is selected automatically or metric
   movement fails the workflow. PENDING: the exercised `bt experiments compare`

@@ -47,18 +47,22 @@ execution is not traced or instrumented by this boundary.
 | `metadata` | Suite/cell/run, guidance/intent, agent/model/reasoning/CLI, target/measurement Git, schema/contract, cost/rate, warning/validation, and reconciled tool telemetry identity. |
 | `tags` | `tool:<surface>:<tool>` only for tools with known positive usage. |
 
-The metric names are `agent_duration_ms`, `logical_tool_calls`,
-`mcp_tool_calls`, `cli_tool_calls`, `tool_calls_started`,
-`tool_calls_completed`, `tool_calls_failed`, `tool_calls_unknown`,
-`raw_tool_events`, `uncached_input_tokens`, `cached_input_tokens`,
-`cache_write_input_tokens`, `output_tokens`, `reasoning_output_tokens`, and
-`estimated_cost_usd`. When tool telemetry reconciles, metadata also preserves
-the ordered normalized sequence and nested per-tool/status counts, including
-known zero status counts. When it does not reconcile, `toolTelemetryKnown` is
-false, tool-count/status metrics and per-tool counts/tags are omitted, and only
-known raw event count remains. Prompt bytes and SHA-256 are read only from the
-contained `prompt.md` referenced by the rebuilt report; no other raw artifact
-content is newly read.
+The mapper uses Braintrust-native metric names for values with a standard
+meaning: `duration` (seconds from recorded milliseconds), `tool_calls`,
+`tool_errors`, `prompt_tokens`, `prompt_cached_tokens`,
+`prompt_cache_creation_tokens`, `completion_tokens`,
+`completion_reasoning_tokens`, `tokens`, and `estimated_cost`. The input token
+total comes from Codex `providerUsage.input_tokens`, which includes cached reads
+and cache creation; `tokens` is that total plus provider output tokens. The
+remaining non-native metrics are `mcp_tool_calls`, `cli_tool_calls`,
+`tool_calls_started`, `tool_calls_completed`, `tool_calls_unknown`, and
+`raw_tool_events`. Known zeroes are preserved and unknown values are omitted.
+When tool telemetry reconciles, metadata also preserves the ordered normalized
+sequence and nested per-tool/status counts, including known zero status counts.
+When it does not reconcile, `toolTelemetryKnown` is false, tool-count/status
+metrics and per-tool counts/tags are omitted, and only known raw event count
+remains. Prompt bytes and SHA-256 are read only from the contained `prompt.md`
+referenced by the rebuilt report; no other raw artifact content is newly read.
 
 The CLI accepts repeated `--suite <label>=<suite.json>` inputs, strict local or
 GitHub identity, and `--validate-only`. Validation and result JSON are safe to
@@ -104,12 +108,12 @@ the source artifacts. The first experiment permalink is
 
 The exercised comparison command,
 `bt experiments --json --project githits-cli-agent-evals compare
-poc-33381601980-top-level-spans poc-33381601980-repeat`, succeeds but reports
-only generic Braintrust trace metrics, all zero; it does not expose the custom
-eval telemetry. Built-in comparison is therefore not a validated trend path.
-The current verified path is bounded `bt sql`/row inspection plus the
-experiment UI. Investigating a comparison that understands custom eval metrics
-is a Phase 5/PoC follow-up.
+poc-33381601980-top-level-spans poc-33381601980-repeat`, was run against the
+prior custom-only rows. It succeeded but reported only generic Braintrust trace
+metrics, all zero, and did not expose that custom eval telemetry. This is a
+historical custom-only observation; native-first UI and comparison behavior is
+unproven until a native-root export is read back. Investigating that comparison
+path remains a Phase 5/PoC follow-up.
 
 ## Scenario and intent identity
 

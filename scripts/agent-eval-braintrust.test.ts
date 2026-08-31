@@ -304,6 +304,52 @@ describe("Braintrust eval row mapping", () => {
     expect(row.output.discovery).toBeUndefined();
   });
 
+  it("uses the resolved model with a requested-model fallback", async () => {
+    const fixture = await createSuite();
+    mutateMetrics(fixture, (metrics) => {
+      firstMetricsRecord(metrics).resolvedModel = null;
+    });
+    const row = preflightAndMapBraintrustRows([
+      suiteInput("model", fixture.suitePath),
+    ]).rows[0]!;
+
+    expect(row.metadata.model).toBe(LUNA_MODEL);
+    expect(row.metadata.requestedModel).toBe(LUNA_MODEL);
+    expect(row.metadata.resolvedModel).toBeNull();
+  });
+
+  it("carries valid recorded span times without fabricating invalid ones", async () => {
+    const fixture = await createSuite();
+    const expectedStart = Date.parse("2026-08-28T10:00:00.000Z") / 1000;
+    const expectedEnd = Date.parse("2026-08-28T10:00:01.000Z") / 1000;
+    const validRow = preflightAndMapBraintrustRows([
+      suiteInput("valid-times", fixture.suitePath),
+    ]).rows[0]!;
+    expect(validRow.startTime).toBe(expectedStart);
+    expect(validRow.endTime).toBe(expectedEnd);
+
+    mutateMetrics(fixture, (metrics) => {
+      const record = firstMetricsRecord(metrics);
+      record.startedAt = "not-a-timestamp";
+    });
+    const invalidRow = preflightAndMapBraintrustRows([
+      suiteInput("invalid-times", fixture.suitePath),
+    ]).rows[0]!;
+    expect(invalidRow.startTime).toBeUndefined();
+    expect(invalidRow.endTime).toBeUndefined();
+
+    mutateMetrics(fixture, (metrics) => {
+      const record = firstMetricsRecord(metrics);
+      record.startedAt = "2026-08-28T10:00:02.000Z";
+      record.completedAt = "2026-08-28T10:00:01.000Z";
+    });
+    const reversedRow = preflightAndMapBraintrustRows([
+      suiteInput("reversed-times", fixture.suitePath),
+    ]).rows[0]!;
+    expect(reversedRow.startTime).toBeUndefined();
+    expect(reversedRow.endTime).toBeUndefined();
+  });
+
   it("orders rows by suite label, scenario, and workload", async () => {
     const zeta = await createSuite({ scenarios: ["full", "discovery"] });
     const alpha = await createSuite({
@@ -335,31 +381,48 @@ describe("Braintrust eval row mapping", () => {
     ]);
     const metrics = result.rows[0]!.metrics;
     expect(metrics).toMatchObject({
-      agent_duration_ms: 1000,
-      logical_tool_calls: 2,
+      duration: 1,
+      tool_calls: 2,
+      tool_errors: 0,
       mcp_tool_calls: 1,
       cli_tool_calls: 1,
       tool_calls_started: 1,
       tool_calls_completed: 1,
-      tool_calls_failed: 0,
       tool_calls_unknown: 0,
       raw_tool_events: 2,
-      uncached_input_tokens: 70,
-      cached_input_tokens: 20,
-      cache_write_input_tokens: 10,
-      output_tokens: 30,
-      reasoning_output_tokens: 4,
+      prompt_tokens: 100,
+      prompt_cached_tokens: 20,
+      prompt_cache_creation_tokens: 10,
+      completion_tokens: 30,
+      completion_reasoning_tokens: 4,
+      tokens: 130,
     });
-    expect(metrics.estimated_cost_usd).toBeGreaterThan(0);
+    expect(metrics.estimated_cost).toBeGreaterThan(0);
+    for (const removedMetric of [
+      "agent_duration_ms",
+      "logical_tool_calls",
+      "tool_calls_failed",
+      "uncached_input_tokens",
+      "cached_input_tokens",
+      "cache_write_input_tokens",
+      "output_tokens",
+      "reasoning_output_tokens",
+      "estimated_cost_usd",
+    ]) {
+      expect(Object.keys(metrics)).not.toContain(removedMetric);
+    }
 
     const zero = await createSuite({ toolCalls: [] });
     const zeroRow = preflightAndMapBraintrustRows([
       suiteInput("zero", zero.suitePath),
     ]).rows[0]!;
-    expect(zeroRow.metrics.logical_tool_calls).toBe(0);
+    expect(zeroRow.metrics.tool_calls).toBe(0);
+    expect(zeroRow.metrics.tool_errors).toBe(0);
     expect(zeroRow.metrics.mcp_tool_calls).toBe(0);
     expect(zeroRow.metrics.cli_tool_calls).toBe(0);
     expect(zeroRow.metrics.tool_calls_started).toBe(0);
+    expect(zeroRow.metrics.tool_calls_completed).toBe(0);
+    expect(zeroRow.metrics.tool_calls_unknown).toBe(0);
     expect(zeroRow.metadata.toolCounts).toEqual([]);
     expect(zeroRow.tags).toEqual([]);
   });
@@ -369,6 +432,7 @@ describe("Braintrust eval row mapping", () => {
     mutateMetrics(fixture, (metrics) => {
       const record = firstMetricsRecord(metrics);
       record.tools.logicalCallCount = null;
+      record.usage.providerUsage = null;
       record.usage.normalizedTokens.uncachedInputTokens = null;
       record.usage.normalizedTokens.cachedInputTokens = null;
       record.usage.normalizedTokens.cacheWriteInputTokens = null;
@@ -387,7 +451,7 @@ describe("Braintrust eval row mapping", () => {
     ]).rows[0]!;
 
     expect(row.metrics).toEqual({
-      agent_duration_ms: 1000,
+      duration: 1,
       raw_tool_events: 2,
     });
     expect(row.metadata.toolTelemetryKnown).toBe(false);
@@ -741,6 +805,8 @@ describe("Braintrust publisher boundary", () => {
     ]);
     const calls: string[] = [];
     const events: unknown[] = [];
+    const startTimes: Array<number | undefined> = [];
+    const endTimes: Array<number | undefined> = [];
     const result = await publishBraintrustRows(
       mapping,
       {
@@ -754,10 +820,17 @@ describe("Braintrust publisher boundary", () => {
           startSpan(args) {
             calls.push(`start:${args.name}`);
             events.push(args.event);
+            startTimes.push(args.startTime);
             expect(args.type).toBe("eval");
-            expect(Object.keys(args).sort()).toEqual(["event", "name", "type"]);
+            expect(Object.keys(args).sort()).toEqual([
+              "event",
+              "name",
+              "startTime",
+              "type",
+            ]);
             return {
-              end() {
+              end(endArgs) {
+                endTimes.push(endArgs?.endTime);
                 calls.push(`end:${args.name}`);
               },
             };
@@ -782,6 +855,10 @@ describe("Braintrust publisher boundary", () => {
       "flush",
       "permalink",
     ]);
+    const expectedStart = Date.parse("2026-08-28T10:00:00.000Z") / 1000;
+    const expectedEnd = Date.parse("2026-08-28T10:00:01.000Z") / 1000;
+    expect(startTimes).toEqual([expectedStart, expectedStart]);
+    expect(endTimes).toEqual([expectedEnd, expectedEnd]);
     expect(
       (events as Array<Record<string, unknown>>).map((event) =>
         Object.keys(event).sort(),
@@ -831,6 +908,9 @@ describe("Braintrust publisher boundary", () => {
           startSpan(args) {
             calls.push(`start:${args.name}`);
             expect(args.type).toBe("eval");
+            expect(args.startTime).toBe(
+              Date.parse("2026-08-28T10:00:00.000Z") / 1000,
+            );
             expect(Object.keys(args.event).sort()).toEqual([
               "input",
               "metadata",
@@ -839,7 +919,10 @@ describe("Braintrust publisher boundary", () => {
               "tags",
             ]);
             return {
-              end() {
+              end(endArgs) {
+                expect(endArgs).toEqual({
+                  endTime: Date.parse("2026-08-28T10:00:01.000Z") / 1000,
+                });
                 calls.push(`end:${args.name}`);
                 return 0;
               },
