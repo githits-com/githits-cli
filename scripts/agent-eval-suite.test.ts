@@ -467,6 +467,34 @@ describe("agent eval suites", () => {
     ]);
   });
 
+  it("rejects an empty suite selection before spawning a child", async () => {
+    const fixture = createSuiteExecutionFixture();
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-suite-empty-"));
+    let executorCalls = 0;
+    try {
+      await expect(
+        runAgentEvalSuite({
+          suite: "canary",
+          repoRoot: fixture.root,
+          targetRoot: fixture.targetRoot,
+          outDir,
+          manifestPath: fixture.manifestPath,
+          workloadsDir: fixture.workloadsDir,
+          reportingPath: fixture.reportingPath,
+          schemaPath: fixture.schemaPath,
+          shardExecutor: async () => {
+            executorCalls += 1;
+            return { status: "success" };
+          },
+        }),
+      ).rejects.toThrow("suite canary has no selected workloads");
+      expect(executorCalls).toBe(0);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
   it("parses strict run, pair, compare, and help CLI forms", () => {
     expect(
       parseAgentEvalSuiteCliArgs([
@@ -720,6 +748,18 @@ describe("agent eval suites", () => {
         path: "eval/agentic/workloads/canary-a.md",
         safety: "stable",
         suites: ["canary", "smoke", "stable-full"],
+      },
+      {
+        id: "stateful-a",
+        path: "eval/agentic/workloads/stateful-a.md",
+        safety: "stateful",
+        suites: ["stateful-manual"],
+      },
+      {
+        id: "experimental-a",
+        path: "eval/agentic/workloads/experimental-a.md",
+        safety: "experimental",
+        suites: ["experimental"],
       },
     ]);
     const capture = async (

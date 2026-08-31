@@ -222,6 +222,28 @@ describe("agent eval CI report", () => {
     expect(result.markdown).toContain("dry_run_no_telemetry");
   });
 
+  it("fails suite evidence with no expected executions", () => {
+    const base = suiteArtifact();
+    const artifact = suiteArtifact({
+      selectedWorkloads: [],
+      contentIdentity: { ...base.contentIdentity, workloads: [] },
+      cells: [],
+      totals: {
+        ...base.totals,
+        expectedExecutions: 0,
+        observedExecutions: 0,
+        successfulExecutions: 0,
+        workloadCount: 0,
+      },
+    });
+    const result = formatAgentEvalCiReport({
+      suites: [{ label: "empty", artifact }],
+    });
+    expect(result.failed).toBe(true);
+    expect(result.markdown).toContain("| empty | FAIL | 0/0 |");
+    expect(result.markdown).toContain("suite has no expected executions");
+  });
+
   it("renders unknown tool and token telemetry without failing", () => {
     const result = formatAgentEvalCiReport({
       suites: [

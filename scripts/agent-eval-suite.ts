@@ -323,13 +323,15 @@ export function selectSuiteWorkloads(
   if (!AGENT_EVAL_SUITE_NAMES.includes(suite)) {
     throw new Error(`unknown suite name: ${suite}`);
   }
-  return manifest.workloads
+  const workloads = manifest.workloads
     .filter((workload) => workload.suites.includes(suite))
     .toSorted(
       (left, right) =>
         compareStrings(left.id, right.id) ||
         compareStrings(left.path, right.path),
     );
+  assert(workloads.length > 0, `suite ${suite} has no selected workloads`);
+  return workloads;
 }
 
 export const AGENT_EVAL_SUITE_PROFILES = ["descriptors", "full"] as const;

@@ -116,6 +116,9 @@ function assessSuite(input: AgentEvalCiSuiteInput): AgentEvalCiSuiteAssessment {
   if (artifact.status === "partial" || artifact.status === "failed") {
     reasons.push(`suite status is ${artifact.status}`);
   }
+  if (artifact.totals.expectedExecutions === 0) {
+    reasons.push("suite has no expected executions");
+  }
   const failedShards = artifact.shards.filter(
     (shard) => shard.status === "failed",
   );

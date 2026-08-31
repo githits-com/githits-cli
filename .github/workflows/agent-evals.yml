@@ -22,7 +22,7 @@ jobs:
       (github.event.label.name == 'agent-eval' &&
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:

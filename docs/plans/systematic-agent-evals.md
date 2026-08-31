@@ -1559,7 +1559,7 @@ None.
 
    Run discovery as `canary --scenario discovery --concurrency 2` and intent as
    `stable-full --scenario intent --concurrency 4` in two matrix entries/jobs.
-   Each job has a 30-minute timeout, uploads its complete suite directory even
+   Each job has a 40-minute timeout, uploads its complete suite directory even
    after a recorded failure, and retains it for 14 days. Full, experimental,
    stateful, neutral non-canary, Claude, and baseline/candidate cells are absent.
 
