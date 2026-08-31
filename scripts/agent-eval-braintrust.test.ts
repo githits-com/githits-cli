@@ -2155,7 +2155,7 @@ interface WorkflowStepContract {
 }
 
 interface WorkflowContract {
-  jobs: Record<string, { steps: WorkflowStepContract[] }>;
+  jobs: Record<string, { if?: string; steps: WorkflowStepContract[] }>;
 }
 
 function readAgentEvalWorkflow(): WorkflowContract {
@@ -2181,9 +2181,11 @@ function githubExpression(name: string): string {
 }
 
 describe("Agent eval workflow Braintrust integration", () => {
-  it("exports after reporting and aggregates final stage failures", () => {
+  it("routes stable Braintrust identity and guards non-main manual dispatch", () => {
     const workflow = readAgentEvalWorkflow();
+    const scenario = workflow.jobs.scenario;
     const summarySteps = readSummarySteps(workflow);
+    const summary = workflow.jobs.summary;
     const reportIndex = summarySteps.findIndex((step) => step.id === "report");
     const braintrustIndex = summarySteps.findIndex(
       (step) => step.id === "braintrust",
@@ -2194,6 +2196,17 @@ describe("Agent eval workflow Braintrust integration", () => {
     const report = summarySteps[reportIndex];
     const braintrust = summarySteps[braintrustIndex];
     const finalize = summarySteps[finalIndex];
+
+    expect(scenario?.if).toContain(
+      "github.event_name != 'workflow_dispatch' || github.ref_name == 'main'",
+    );
+    expect(summary?.if).toContain(
+      "github.event_name != 'workflow_dispatch' || github.ref_name == 'main'",
+    );
+    expect(scenario?.if).toContain("github.event.label.name == 'agent-eval'");
+    expect(scenario?.if).toContain(
+      "github.event.pull_request.head.repo.full_name == github.repository",
+    );
 
     expect(reportIndex).toBeGreaterThanOrEqual(0);
     expect(braintrustIndex).toBeGreaterThan(reportIndex);
@@ -2214,9 +2227,24 @@ describe("Agent eval workflow Braintrust integration", () => {
     expect(finalize?.run).toContain("report=");
     expect(finalize?.run).toContain("braintrust=");
     expect(finalize?.run).toContain("exit 1");
+
+    const run = braintrust?.run ?? "";
+    expect(run).toContain("BRAINTRUST_EVENT_NAME");
+    expect(run).toContain("BRAINTRUST_CHANNEL");
+    expect(run).toContain("BRAINTRUST_BRANCH");
+    expect(run).toContain("BRAINTRUST_PR_NUMBER");
+    expect(run).toContain("braintrust_args+=(--pr-number");
+    expect(run).toContain('"${braintrust_args[@]}"');
+    expect(run).toContain("--source github");
+    expect(run).toContain('--channel "$BRAINTRUST_CHANNEL"');
+    expect(run).toContain('--branch "$BRAINTRUST_BRANCH"');
+    expect(run).not.toContain("--experiment");
+    expect(run).not.toContain("github.head_ref");
+    expect(braintrust?.env?.BRAINTRUST_BRANCH).toContain("github.head_ref");
+    expect(braintrust?.env?.BRAINTRUST_CHANNEL).toContain("'pr'");
   });
 
-  it("uses the direct exporter command with one narrowly scoped secret", () => {
+  it("keeps Braintrust secret scope and reports actual base linkage", () => {
     const workflow = readAgentEvalWorkflow();
     const summarySteps = readSummarySteps(workflow);
     const braintrust = summarySteps.find((step) => step.id === "braintrust");
@@ -2224,27 +2252,26 @@ describe("Agent eval workflow Braintrust integration", () => {
 
     expect(run).toContain("bun run agent:e2e:braintrust");
     expect(run).toContain(
-      '--suite discovery="$RUNNER_TEMP/agent-eval-artifacts/discovery/suite.json"',
+      '--suite "discovery=$RUNNER_TEMP/agent-eval-artifacts/discovery/suite.json"',
     );
     expect(run).toContain(
-      '--suite intent="$RUNNER_TEMP/agent-eval-artifacts/intent/suite.json"',
+      '--suite "intent=$RUNNER_TEMP/agent-eval-artifacts/intent/suite.json"',
     );
     expect(run).toContain('--project "githits-cli-agent-evals"');
-    const githubRunId = githubExpression("github.run_id");
-    const githubRunAttempt = githubExpression("github.run_attempt");
-    const githubRepository = githubExpression("github.repository");
-    expect(run).toContain(
-      `--experiment "github-${githubRunId}-${githubRunAttempt}"`,
-    );
     expect(run).toContain("--source github");
-    expect(run).toContain(`--run-id "${githubRunId}"`);
-    expect(run).toContain(`--run-attempt "${githubRunAttempt}"`);
-    expect(run).toContain(
-      `--run-url "https://github.com/${githubRepository}/actions/runs/${githubRunId}"`,
-    );
+    expect(run).toContain('--run-id "$BRAINTRUST_RUN_ID"');
+    expect(run).toContain('--run-attempt "$BRAINTRUST_RUN_ATTEMPT"');
+    expect(run).toContain('--run-url "$BRAINTRUST_RUN_URL"');
     expect(run).toContain('--result-out "$RESULT_OUT"');
+    expect(run).toContain("result.experiment");
+    expect(run).toContain("result.baseExperiment");
     expect(run).toContain("result.url");
     expect(run).toContain("GITHUB_STEP_SUMMARY");
+    expect(run).toContain("bootstrap/no base");
+    expect(run).not.toContain("result.rows");
+    expect(run).not.toContain("result.prompt");
+    expect(run).not.toContain("result.answer");
+    expect(run).not.toContain("BRAINTRUST_API_KEY");
     expect(run).not.toContain("bt eval");
 
     const allSteps = Object.values(workflow.jobs).flatMap((job) => job.steps);
@@ -2259,6 +2286,13 @@ describe("Agent eval workflow Braintrust integration", () => {
     expect(braintrust?.env).toEqual({
       BRAINTRUST_API_KEY: braintrustApiKey,
       RESULT_OUT: `${runnerTemp}/agent-eval-braintrust-result.json`,
+      BRAINTRUST_EVENT_NAME: githubExpression("github.event_name"),
+      BRAINTRUST_CHANNEL: `${githubExpression("github.event_name == 'pull_request' && 'pr' || 'main'")}`,
+      BRAINTRUST_BRANCH: `${githubExpression("github.event_name == 'pull_request' && github.head_ref || github.ref_name")}`,
+      BRAINTRUST_PR_NUMBER: `${githubExpression("github.event_name == 'pull_request' && github.event.pull_request.number || ''")}`,
+      BRAINTRUST_RUN_ID: githubExpression("github.run_id"),
+      BRAINTRUST_RUN_ATTEMPT: githubExpression("github.run_attempt"),
+      BRAINTRUST_RUN_URL: `https://github.com/${githubExpression("github.repository")}/actions/runs/${githubExpression("github.run_id")}`,
     });
 
     const finalize = summarySteps.find(
