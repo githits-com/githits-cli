@@ -574,6 +574,24 @@ Next: pass the canonical target "github:owner/project" to the next MCP tool.
     expect(() => assertExperimentalMcpResolveText(mcpBlocked)).not.toThrow();
   });
 
+  it("requires explicit-choice guidance for unconfirmed targets", () => {
+    const cli = `Targets:\n  1. npm:express [medium] · package\n\nNext: narrow the name or filters, or explicitly choose a candidate before running githits search '<query>' --in '<target>'\n`;
+    const mcp = `Targets:\n  1. npm:express [medium; package]\nNext: narrow the name or filters, or explicitly choose a candidate that matches the user's intent; do not pass the best result automatically.\n`;
+
+    expect(() => assertExperimentalCliResolveText(cli)).not.toThrow();
+    expect(() => assertExperimentalMcpResolveText(mcp)).not.toThrow();
+    expect(() =>
+      assertExperimentalCliResolveText(
+        cli.replace("explicitly choose a candidate", "choose a candidate"),
+      ),
+    ).toThrow("require an explicit choice");
+    expect(() =>
+      assertExperimentalMcpResolveText(
+        mcp.replace("do not pass the best result automatically", "choose one"),
+      ),
+    ).toThrow("require an explicit choice");
+  });
+
   it("rejects a direct action for the warned candidate", () => {
     const cliWarnedBest = cliMixed.replace(
       "  1. npm:express [exact] · package\n",
