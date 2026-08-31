@@ -235,8 +235,9 @@ present.
 
 The suite layer emits schema-v3 `suite.json` around child run artifacts.
 The fixed execution matrix is Codex `gpt-5.6-luna`, reasoning `low`, local MCP;
-its scenario-keyed shards may run concurrently while workloads remain
-sequential within each shard. The closed scenarios are `discovery`
+its scenario-keyed shards may run concurrently, and each shard runs workloads
+through a bounded pool selected by `workloadConcurrency` (default `1`). Results
+remain in manifest order. The closed scenarios are `discovery`
 (`descriptors` + `neutral`), `intent` (`descriptors` + `githits`), and `full`
 (`full` + `neutral`). Canary defaults to `discovery` plus `intent`; smoke,
 stable-full, stateful-manual, and experimental default to `intent` only. The

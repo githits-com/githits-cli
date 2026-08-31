@@ -909,9 +909,9 @@ model matrix for Phase 5.
    initial paid behavior cell is Codex `gpt-5.6-luna`, reasoning `low`, local
    MCP. Scenario cells are explicit records rather than an unconditional
    guidance-profile Cartesian product, so the canary can later include approved
-   agent/model cells without applying them to all 21 workloads. Workloads remain
-   sequential inside each cell; configured cells may run concurrently within
-   the approved bound.
+   agent/model cells without applying them to all 21 workloads. Configured
+   scenario shards may run concurrently; each shard uses the explicit bounded
+   `workloadConcurrency` pool (default `1`) and preserves manifest order.
 
    The one-off runner accepts the same intent profile so targeted and suite
    evidence have identical prompt construction. It appends the exact harness-
@@ -1083,9 +1083,10 @@ model matrix for Phase 5.
    semantics and a guidance-only difference between two target fixtures.
    Preserve current one-off defaults and artifact compatibility.
 4. Add single-target suite orchestration with an injected shard executor for
-   deterministic tests. Execute the two profile shards concurrently, preserve
-   sequential workloads inside each runner, and write a validated partial or
-   complete `suite.json` after both shards settle.
+   deterministic tests. Execute the two profile shards concurrently, run each
+   shard's workloads through its explicit bounded pool while preserving
+   manifest order, and write a validated partial or complete `suite.json` after
+   both shards settle.
 5. Add live pair mode from the current candidate checkout with one explicit
    baseline root, plus offline compare mode over two existing `suite.json`
    artifacts. Route both through the same pure comparison, validate compatible
@@ -1569,8 +1570,9 @@ None.
    reports suite status, successful/expected cells, wall and cumulative agent
    time, logical MCP/CLI calls, token buckets, estimated cost/uncertainty,
    Codex CLI version, isolation/telemetry warnings, and deterministic per-tool
-   logical call counts. It links to the workflow artifacts but does not load a
-   baseline, calculate deltas, or write PR comments.
+   logical call counts. The workflow supplies a run URL, which the reporter
+   renders as the evidence link to the workflow run containing the artifacts;
+   it does not load a baseline, calculate deltas, or write PR comments.
 
    The summary job runs with `if: always()` so missing and failed scenario jobs
    remain visible. Missing/unparseable suite evidence, isolation violations,

@@ -263,12 +263,13 @@ subset of smoke, smoke is a subset of stable-full, and stateful or experimental
 workloads never enter those stable suites.
 
 Every named suite uses exactly Codex `gpt-5.6-luna`, reasoning `low`, local MCP,
-and scenario-keyed shards. Shards may run concurrently; workloads remain
-sequential within each shard. Workload concurrency defaults to `1` locally and
-is recorded in `run.json` and schema-v3 `suite.json`; set it explicitly when
-you want a bounded local pool. CI runs `discovery` with concurrency `2` and
-`intent` with concurrency `4`. By default, `canary` runs `discovery` and
-`intent`; `smoke`, `stable-full`, `stateful-manual`, and `experimental` run
+and scenario-keyed shards. Shards may run concurrently; each shard runs its
+workloads through a bounded pool selected by `workloadConcurrency`, which
+defaults to `1` locally. Results remain in manifest order and the value is
+recorded in `run.json` and schema-v3 `suite.json`. CI runs `discovery` with
+concurrency `2` and `intent` with concurrency `4`. By default, `canary` runs
+`discovery` and `intent`; `smoke`, `stable-full`, `stateful-manual`, and
+`experimental` run
 `intent` only. Repeatable `--scenario discovery|intent|full` explicitly selects
 the scenario cells and replaces the default selection, so `full` is a local or
 manual opt-in. The experimental suite passes the explicit experimental-tools
