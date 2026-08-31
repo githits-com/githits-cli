@@ -660,6 +660,7 @@ export interface CodeDiffErrorDetails {
   side?: string;
   publishedVersions?: string[];
   publishedVersionsTruncated?: boolean;
+  availableVersions?: AvailableVersion[];
   registry?: string;
   retryAfterMs?: number;
   stage?: string;
@@ -3706,6 +3707,10 @@ function parseCodeDiffErrorDetails(
     details.publishedVersionsTruncated =
       extensions.published_versions_truncated;
   }
+  const availableVersions = parseCodeDiffErrorRefs(
+    extensions.available_versions,
+  );
+  if (availableVersions) details.availableVersions = availableVersions;
   if (typeof extensions.registry === "string") {
     details.registry = extensions.registry;
   }

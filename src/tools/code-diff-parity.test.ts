@@ -254,6 +254,59 @@ describe("code_diff parity", () => {
     });
   });
 
+  it("PARITY-ERROR-ENVELOPE: version alternatives retain backend order and refs", async () => {
+    const availableVersions = [
+      { version: "2.1.1", ref: "2.1.1" },
+      { version: "4.0.0", ref: "4.0.0" },
+      { ref: "0123456789abcdef0123456789abcdef01234567" },
+    ];
+    const error = new CodeDiffError(
+      "The published package version has no resolvable source ref",
+      {
+        code: "VERSION_NOT_FOUND",
+        retryable: false,
+        side: "from",
+        availableVersions,
+      },
+    );
+    const cli = await cliJson(
+      "npm:express",
+      "3.21.2..4.15.5",
+      undefined,
+      { nameStatus: true },
+      cliDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          codeDiff: mock(() => Promise.reject(error)),
+        }),
+      }),
+    );
+    const mcpTool = createParityExperimentalMcpTool("code_diff", {
+      codeNavigationService: createMockCodeNavigationService({
+        codeDiff: mock(() => Promise.reject(error)),
+      }),
+    });
+    const mcpResult = await mcpTool.handler(
+      {
+        target: "npm:express",
+        from: "3.21.2",
+        to: "4.15.5",
+        view: "name-status",
+        format: "json",
+      },
+      {},
+    );
+    const mcp = JSON.parse(mcpResult.content[0]?.text ?? "{}");
+
+    expect(mcpResult.isError).toBe(true);
+    expect(cli).toEqual(mcp);
+    expect(cli).toEqual({
+      error: "The published package version has no resolvable source ref",
+      code: "VERSION_NOT_FOUND",
+      retryable: false,
+      details: { side: "from", availableVersions },
+    });
+  });
+
   it("PARITY-ERROR-ENVELOPE: invalid view/budget shares classification and envelope shape", async () => {
     const cli = await cliJson(
       "npm:express",

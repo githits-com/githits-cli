@@ -73,6 +73,10 @@ describe("mapCodeNavigationError", () => {
       registry: "NPM",
       publishedVersions: ["2.0.0", "1.0.0"],
       publishedVersionsTruncated: true,
+      availableVersions: [
+        { version: "2.1.1", ref: "2.1.1" },
+        { ref: "0123456789abcdef0123456789abcdef01234567" },
+      ],
     });
 
     expect(mapCodeNavigationError(error)).toEqual({
@@ -84,6 +88,10 @@ describe("mapCodeNavigationError", () => {
         registry: "NPM",
         publishedVersions: ["2.0.0", "1.0.0"],
         publishedVersionsTruncated: true,
+        availableVersions: [
+          { version: "2.1.1", ref: "2.1.1" },
+          { ref: "0123456789abcdef0123456789abcdef01234567" },
+        ],
       },
     });
   });

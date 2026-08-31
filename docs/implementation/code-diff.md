@@ -65,10 +65,16 @@ transport failure. Current successful results use `REPOSITORY`; `PACKAGE` and
 Raw field-local GraphQL failures are represented by `CodeDiffError`. Its
 `details` object retains only the bounded backend extension fields needed for
 recovery:
-the error code/retryability, side, published-version hints, registry, retry
-delay, raw stage/limit, repository/ref hints, available/suggested refs, and
-ambiguous ref kinds. Arbitrary GraphQL extensions are discarded. When the
-backend returned valid `fromResolution` and `toResolution` data alongside a
+the error code/retryability, side, published-version hints, ordered available
+version/ref alternatives, registry, retry delay, raw stage/limit,
+repository/ref hints, available/suggested refs, and ambiguous ref kinds.
+CodeDiff `availableVersions` entries are backend-ranked recovery alternatives;
+when a package version is supplied, it remains paired with its proven source
+ref. GitHits preserves their order and values but does not rank, invent,
+resolve, or claim they are already present in the separate code index. An entry
+without `version` remains a ref alternative and is not presented as a package
+version. Arbitrary GraphQL extensions are discarded. When the backend returned
+valid `fromResolution` and `toResolution` data alongside a
 field-local `raw` error, `partial` preserves that root identity (and any raw
 data that was actually returned). A root error with no root data has no
 fabricated result. Root authentication/access, client-update, and
