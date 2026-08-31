@@ -1521,7 +1521,8 @@ None.
 
    Ordinary workload failures already return persisted failure evidence; they
    do not prevent unscheduled siblings from running. An unexpected executor
-   exception rejects the run as today. Do not add retries, provider backoff,
+   exception rejects the run as today. An empty suite selection fails during
+   preflight before child execution. Do not add retries, provider backoff,
    locks, a queue, or a scheduler. Concurrent workloads continue to receive
    separate disposable acting-agent homes/workspaces and share only the
    caller-supplied clean `CODEX_HOME`, as current concurrent scenario shards do.
@@ -1576,9 +1577,10 @@ None.
 
    The summary job runs with `if: always()` so missing and failed scenario jobs
    remain visible. Missing/unparseable suite evidence, isolation violations,
-   CLI fallback in an MCP run, timeouts, and failed/missing workload cells make
-   the workflow fail after the summary is written. A successful discovery cell
-   with zero GitHits calls remains a valid observed result. Metric movement
+   CLI fallback in an MCP run, timeouts, zero selected workloads or zero
+   expected executions, and failed/missing workload cells make the workflow
+   fail after the summary is written. A successful discovery cell with zero
+   GitHits calls remains a valid observed result. Metric movement
    alone cannot fail because this phase performs no comparison or thresholding.
 
 ### Ordered Implementation Steps

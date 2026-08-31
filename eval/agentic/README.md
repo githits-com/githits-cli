@@ -270,7 +270,8 @@ recorded in `run.json` and schema-v3 `suite.json`. CI runs `discovery` with
 concurrency `2` and `intent` with concurrency `4`. By default, `canary` runs
 `discovery` and `intent`; `smoke`, `stable-full`, `stateful-manual`, and
 `experimental` run
-`intent` only. Repeatable `--scenario discovery|intent|full` explicitly selects
+`intent` only. An empty suite selection fails during preflight before child
+execution. Repeatable `--scenario discovery|intent|full` explicitly selects
 the scenario cells and replaces the default selection, so `full` is a local or
 manual opt-in. The experimental suite passes the explicit experimental-tools
 option. The pair command runs the baseline target fully before the current
@@ -382,11 +383,12 @@ The report is absolute: it links to the workflow run, shows schema/harness and
 Codex identity, successful/expected cells, wall and cumulative time, logical
 MCP/CLI calls, deterministic per-tool counts, token buckets, cost uncertainty,
 concurrency, and warnings. It never loads a baseline or calculates deltas.
-Missing or malformed suite evidence, partial/failed/timeout execution, unknown
-or missing workload cells, CLI fallback, and isolation violations make the
-workflow fail only after the report is rendered. A successful discovery run
-with zero GitHits calls and ordinary telemetry warnings remain advisory. The
-initial healthy two-job path is expected to take about 5–6 minutes and costs
+Missing or malformed suite evidence, zero selected workloads or zero expected
+executions, partial/failed/timeout execution, unknown or missing workload cells,
+CLI fallback, and isolation violations make the workflow fail only after the
+report is rendered. A successful discovery run with zero GitHits calls and
+ordinary telemetry warnings remain advisory. The initial healthy two-job path
+is expected to take about 5–6 minutes and costs
 about $0.23 as a base-rate estimate, not a billing guarantee. The workflow
 does not judge answer quality or provide persistent history; those are later
 service work.

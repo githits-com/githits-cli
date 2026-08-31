@@ -274,8 +274,9 @@ target Git identity, and full-profile `skills/githits-mcp` plus
 One-off and suite workload concurrency defaults to `1`. The runner uses an
 in-process bounded pool and keeps results in input/manifest order while
 continuing ordinary workload failures; unexpected executor exceptions still
-reject the run. CI selects `2` for discovery and `4` for intent. The selected
-value is recorded in one-off `run.json` and suite `suite.json` metadata.
+reject the run. An empty suite selection fails during preflight before child
+execution. CI selects `2` for discovery and `4` for intent. The selected value
+is recorded in one-off `run.json` and suite `suite.json` metadata.
 
 `suite.json` is schema version 3 and records the suite execution ID, matrix,
 selected scenarios/workloads, measurement-harness and target Git identities,
@@ -370,15 +371,16 @@ outputs are uploaded as `agent-eval-discovery` and `agent-eval-intent` with
 The unconditional summary job downloads those artifacts into separate,
 non-flattened directories, checks out the same SHA, installs dependencies with
 no secrets, and runs `agent:e2e:ci-report`. It appends the generated Markdown
-to `GITHUB_STEP_SUMMARY` before returning a failure for malformed or missing
-suite evidence. The report is absolute and links to the workflow run; it shows
-schema/harness and Codex identity, status, cells, timing, logical MCP/CLI
+to `GITHUB_STEP_SUMMARY` before returning a failure for malformed, empty, or
+missing suite evidence. The report is absolute and links to the workflow run;
+it shows schema/harness and Codex identity, status, cells, timing, logical MCP/CLI
 calls, deterministic per-tool counts, tokens, cost uncertainty, concurrency,
 and warnings. It never reads a baseline, calculates deltas, writes PR comments,
 or judges answer quality. Partial/failed/timeout execution, unknown or missing
-cells, CLI fallback, isolation violations, and missing evidence fail after the
-summary is rendered. Zero-call discovery and ordinary telemetry warnings stay
-advisory. The measured healthy path is expected to take 5–6 minutes and cost
+cells, zero selected workloads or zero expected executions, CLI fallback,
+isolation violations, and missing evidence fail after the summary is rendered.
+Zero-call discovery and ordinary telemetry warnings stay advisory. The measured
+healthy path is expected to take 5–6 minutes and cost
 about $0.23 as a base-rate estimate, not a billing guarantee. No cross-run
 concurrency group is configured, so independent schedule, dispatch, and label
 runs may overlap.
