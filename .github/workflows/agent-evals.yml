@@ -39,7 +39,11 @@ jobs:
             workload-concurrency: 4
     steps:
       - name: Prepare scenario output
-        run: mkdir -p "$RUNNER_TEMP/agent-eval-${{ matrix.id }}"
+        run: |
+          set -euo pipefail
+          scenario_out="$RUNNER_TEMP/agent-eval-${{ matrix.id }}"
+          mkdir -p "$scenario_out"
+          printf 'scenario=%s\n' '${{ matrix.id }}' > "$scenario_out/execution-started.txt"
 
       - name: Checkout evaluated SHA
         uses: actions/checkout@v7
