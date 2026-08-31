@@ -3,7 +3,7 @@
 ## Purpose
 
 The agentic eval runner preserves raw workload evidence and now derives a
-schema-versioned `metrics.json` artifact for local inspection. `report.json`
+schema-v3 `metrics.json` artifact for local inspection. `report.json`
 and the console summary are review aids built from that artifact; they do not
 replace the raw terminal output or `tool-calls.json`.
 
@@ -24,7 +24,8 @@ input must contribute at least one workload cell. Duplicate scenario/workload
 cells, mixed target or measurement Git identity, mixed
 agent/model/reasoning/surface/server identity, and incompatible reporting or
 result schemas are preflight errors. Failed or partial cells are retained when
-their child evidence is complete.
+their child evidence is complete; tool-bearing legacy cells upgraded with null
+timing are rejected because accurate structural spans cannot be created.
 
 The exact-pinned `braintrust` SDK is `3.29.0`. The earlier design assumption
 that `Experiment.log()` could accept a scoreless eval row was disproved by the
@@ -35,6 +36,9 @@ automatic Git collection disabled, then starts one top-level `type: "eval"`
 span named by `cellId` for each row, ends it immediately, calls `flush()`, and
 then calls `summarize({ summarizeScores: false })` for the permalink. Agent
 execution is not traced or instrumented by this boundary.
+The exporter metadata contract is schema/version 2; both values are retained
+in experiment metadata for regression attribution. The safe CLI result keeps
+its separate result-file schema version.
 
 ### Row and field mapping
 
@@ -48,8 +52,8 @@ execution is not traced or instrumented by this boundary.
 | `tags` | `tool:<surface>:<tool>` only for tools with known positive usage. |
 
 The mapper uses Braintrust-native metric names for values with a standard
-meaning: `duration` (seconds from recorded milliseconds), `tool_calls`,
-`tool_errors`, `prompt_tokens`, `prompt_cached_tokens`,
+meaning: `duration` (seconds from recorded milliseconds), `prompt_tokens`,
+`prompt_cached_tokens`,
 `prompt_cache_creation_tokens`, `completion_tokens`,
 `completion_reasoning_tokens`, `tokens`, and `estimated_cost`. The input token
 total comes from Codex `providerUsage.input_tokens`, which includes cached reads
@@ -59,10 +63,24 @@ remaining non-native metrics are `mcp_tool_calls`, `cli_tool_calls`,
 `raw_tool_events`. Known zeroes are preserved and unknown values are omitted.
 When tool telemetry reconciles, metadata also preserves the ordered normalized
 sequence and nested per-tool/status counts, including known zero status counts.
-When it does not reconcile, `toolTelemetryKnown` is false, tool-count/status
-metrics and per-tool counts/tags are omitted, and only known raw event count
-remains. Prompt bytes and SHA-256 are read only from the contained `prompt.md`
+When it does not reconcile, the exporter rejects a tool-bearing row rather than
+uploading incomplete native tool telemetry; a zero-tool row remains valid.
+Prompt bytes and SHA-256 are read only from the contained `prompt.md`
 referenced by the rebuilt report; no other raw artifact content is newly read.
+Raw `tool-calls.json` lifecycle events may retain their optional ISO
+`observedAt`; normalized timing is derived only from those harness receipt
+observations.
+
+Known logical tool calls are also represented structurally as Braintrust `tool`
+children under their top-level eval row. A completed or failed child uses the
+normalized tool name, exact harness-observed start/end seconds, and
+`event.metrics.duration` computed from those boundaries. A started-only child
+is left open and omits duration. Child event data contains only tool, surface,
+status, the `harness_stdout_observed` timing-source marker, and the generated
+`tool_status:failed` error for failed calls. Root `tool_calls` and
+`tool_errors` are intentionally absent because Braintrust derives those native
+metrics from structural children. The exporter rejects missing, invalid,
+reverse, or out-of-parent observed timing; it never fabricates a boundary.
 
 The CLI accepts repeated `--suite <label>=<suite.json>` inputs, strict local or
 GitHub identity, and `--validate-only`. Validation and result JSON are safe to
@@ -81,8 +99,13 @@ for the bounded SQL query:
 ```bash
 bt experiments --json --project githits-cli-agent-evals list
 bt experiments --json --project githits-cli-agent-evals view <experiment-name>
-bt sql --json --non-interactive "SELECT input, output, metrics, metadata, tags FROM experiment('<experiment-id>') LIMIT 23"
+bt sql --json --non-interactive "SELECT input, output, metrics, metadata, tags FROM experiment('<experiment-id>') WHERE span_attributes.type = 'eval' LIMIT 23"
+bt sql --json --non-interactive "SELECT name, span_attributes.type, metrics, metadata FROM experiment('<experiment-id>') WHERE span_attributes.type = 'tool' LIMIT 100"
 ```
+
+The exporter experiment contains one eval root per workload cell plus one
+structural tool child per normalized logical call. Filter `span_attributes.type`
+to count rows: an unfiltered `count(*)` includes both kinds of span.
 
 ### CI sequencing and failure visibility
 
@@ -94,7 +117,7 @@ nonzero with each failed stage. Thus raw evidence and the concise report remain
 available during exporter outages, while persistence failure cannot pass
 silently. The workflow does not select a baseline or fail on metric movement.
 
-### Verified PoC and comparison limitation
+### Verified PoC and historical migration evidence
 
 The accepted GitHub run `33381601980` at SHA
 `dc63675d7c0ee95a9594eac272982943dceef521` supplied the discovery and intent
@@ -106,8 +129,8 @@ answers, prompt hashes, token buckets, duration, cost, and tool telemetry to
 the source artifacts. The first experiment permalink is
 <https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/poc-33381601980-top-level-spans>.
 
-The native-first exporter was subsequently exercised locally against those
-accepted artifacts as experiment `poc-33381601980-native-root` (ID
+The superseded pre-structural exporter was subsequently exercised locally
+against those accepted artifacts as experiment `poc-33381601980-native-root` (ID
 `dfa37c74-0b31-4b48-aeb1-a2698a03cecc`) with exactly 23 rows. Native
 comparison/readback populated `duration`, prompt/completion/cache/reasoning
 token buckets, total `tokens`, and `estimated_cost`. Across the 23 rows,
@@ -117,18 +140,32 @@ bounded SQL totals were `prompt_tokens=2,861,042`,
 seconds. The export and readback were local operations over the accepted
 artifacts, not CI proof.
 
-The native-root rows contain `tool_calls=119` and `tool_errors=2`, but the
-exercised comparison command,
-`bt experiments --json --project githits-cli-agent-evals compare
-poc-33381601980-top-level-spans poc-33381601980-repeat`, was run against the
-prior custom-only rows and is therefore only a historical custom-only
-observation. A native-root comparison reports standard `tool_calls` and
-`tool_errors` as zero because Braintrust derives those metrics from structural
-tool child spans, not root-row numeric fields. The exporter currently lacks
-per-call timestamps and does not fabricate child timing; native structural tool
-views remain unresolved while GitHits-specific/custom telemetry remains
-accurate. Investigating that structural comparison path remains a Phase 5/PoC
-follow-up.
+The native-root rows contain `tool_calls=119` and `tool_errors=2` as root
+numeric fields. That experiment predates structural child export and is
+superseded for current native tool behavior: its standard comparison reported
+zero because Braintrust derives those metrics from structural tool children.
+The preceding custom-only comparison observation is likewise historical; keep
+both experiments only as provenance for the migration.
+
+The current local native structural proof used suite
+`.agent-eval/suites/native-tool-smoke-2` at target and measurement commit
+`4850299`. Its Luna-low intent canary ran with workload concurrency 2: 2/2
+workloads succeeded, with 10 logical MCP calls, zero CLI calls and failures,
+and complete harness-observed intervals for all 10 calls. Wall time was
+43.447 seconds, cumulative agent time 71.855 seconds, and estimated cost
+`$0.02070904`.
+
+The resulting experiment `poc-native-tool-spans-v2-20260831` (ID
+`e8480301-6622-4a06-a37b-0ebd0e42bb64`,
+<https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/poc-native-tool-spans-v2-20260831>)
+read back two eval roots and 10 structural tool children. Native comparison
+reported `tool_calls` average `5.0` and `tool_errors` `0`. Child SQL showed
+exact start/end observations and computed duration totaling 30.970 seconds,
+with individual durations from 0.006 to 10.400 seconds; eval duration totaled
+71.855 seconds. Native token and cost fields remain populated. This is local
+proof, not CI proof. The preceding
+`poc-native-tool-spans-20260831` experiment proved counts and timestamps but
+had null child duration and is superseded by the v2 experiment.
 
 ## Scenario and intent identity
 
@@ -639,7 +676,7 @@ persistent service history, Haiku execution, or quality judging.
 
 ## Metrics contract
 
-The current top-level artifact has `schemaVersion: 2`, `runId`, `startedAt`,
+The current top-level artifact has `schemaVersion: 3`, `runId`, `startedAt`,
 `completedAt`, `records`, `aggregates`, and de-duplicated `warnings`. Historical
 schema-v1 metrics remain readable through deterministic normalization at the
 loader boundary. For a valid v1 record, `descriptors` guidance becomes neutral
@@ -672,10 +709,13 @@ current Codex CLI does not expose a provider-resolved model, so Phase 1 writes
 `tools` contains raw event count, the current logical-call count, completed and
 failed counts, sorted unique normalized tool names, and ordered sequence
 entries. Sequence entries retain `mcp` or `cli`
-surface and normalized status (`started`, `completed`, `failed`, or `unknown`).
-The builder preserves duplicate raw observations and their order; Codex's
-derived sequence applies provider-ID pairing as described below. A persisted
-call with
+surface, normalized status (`started`, `completed`, `failed`, or `unknown`),
+and nullable harness-observed `startedAt`/`completedAt` ISO timestamps. These
+are receipt times for complete stdout JSONL lifecycle lines, not provider
+execution times. Existing schema-v1 and schema-v2 artifacts remain readable;
+their missing timing is upgraded to `null`. The builder preserves duplicate
+raw observations and their order; Codex's derived sequence applies provider-ID
+pairing as described below. A persisted call with
 `server: "githits-cli"` is `cli`; other persisted GitHits calls are `mcp`.
 
 The run aggregates sum only known record values. Token and cost totals are

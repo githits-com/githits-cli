@@ -1685,29 +1685,28 @@ None.
 
 ### Status
 
-IMPLEMENTED LOCALLY; NATIVE-FIRST METRIC PROOF PARTIAL; CI VALIDATION BLOCKED. Phase 3
-is merged and its same-repository label path has clean runner evidence. The
-exact-pinned Braintrust exporter, post-report CI wiring, local persistence/
-readback proof, and internal operations skill are implemented. A local
-native-root experiment now verifies native duration, token, and cost
-readback/comparison. A real labeled or manually dispatched CI run must still
-export and read back 23 rows before Phase 4 is accepted as complete; that
-validation cannot begin until the repository `BRAINTRUST_API_KEY` secret is
-visible/effective in Actions. Native structural tool views remain unresolved,
-and fresh CI export/readback remain acceptance work. SDK tracing was
-deliberately not added.
+IMPLEMENTED LOCALLY; NATIVE STRUCTURAL PROOF COMPLETE LOCALLY; CI VALIDATION
+PENDING. Phase 3 is merged and its same-repository label path has clean runner
+evidence. The exact-pinned Braintrust exporter, post-report CI wiring, local
+persistence/readback proof, and internal operations skill are implemented. The
+fresh local native structural proof below verifies tool counts, exact observed
+boundaries, child duration, tokens, and cost. A fresh labeled or manually
+dispatched CI run must still export and read back the expected cells before
+Phase 4 is accepted as complete; default-branch scheduled/manual activation
+also remains pending after merge. SDK tracing was deliberately not added.
 
 ### Expected Outcome
 
 Each completed Luna workflow attempt creates one immutable experiment in the
-Braintrust project `githits-cli-agent-evals`, with one top-level experiment row
-per scenario/workload cell. Braintrust exposes the exact effective prompt,
-answer/status evidence, tool-call frequencies and ordered sequence, token
-buckets, agent duration, estimated cost, repository/harness identity, exact
-Codex CLI/model identity, and a link to the GitHub workflow evidence. Local and
-GitHub suite generation and concise reporting remain independent of
-Braintrust. No SDK tracing is inserted into Codex, the GitHits MCP server, or
-the harness execution path.
+Braintrust project `githits-cli-agent-evals`, with one top-level `type: "eval"`
+span per scenario/workload cell. Known logical calls also create safe
+structural `type: "tool"` children beneath their eval root. Braintrust exposes
+the exact effective prompt, answer/status evidence, native tool counts/errors,
+ordered GitHits tool sequence, token buckets, agent duration, estimated cost,
+repository/harness identity, exact Codex CLI/model identity, and a link to the
+GitHub workflow evidence. Local and GitHub suite generation and concise
+reporting remain independent of Braintrust. No SDK tracing is inserted into
+Codex, the GitHits MCP server, or the harness execution path.
 
 ### Assumptions
 
@@ -1722,13 +1721,15 @@ the harness execution path.
   retrieval. `update: true` continues an existing experiment, but the PoC does
   not use it.
 - The native-first mapper uses the pinned SDK's verified `duration`,
-  `tool_calls`, `tool_errors`, `prompt_tokens`, `prompt_cached_tokens`,
-  `prompt_cache_creation_tokens`, `completion_tokens`,
-  `completion_reasoning_tokens`, `tokens`, and `estimated_cost` keys. A local
-  native-root readback verifies duration, token, and cost fields in Braintrust
-  comparison/readback. Native structural tool views remain unresolved because
-  Braintrust derives standard tool metrics from structural tool child spans,
-  which this scoreless post-run exporter does not fabricate.
+  `prompt_tokens`, `prompt_cached_tokens`, `prompt_cache_creation_tokens`,
+  `completion_tokens`, `completion_reasoning_tokens`, `tokens`, and
+  `estimated_cost` keys on eval roots. Standard `tool_calls` and `tool_errors`
+  are derived from structural `tool` children; root rows intentionally omit
+  those keys. Completed/failed children use exact harness-observed lifecycle
+  boundaries and computed duration, while started-only children remain open and
+  omit duration. Missing, invalid, reverse, or out-of-parent boundaries reject
+  the tool-bearing row. Exporter schema/version is 2, and schema-v1/v2 metrics
+  remain readable with missing timing normalized to null.
 - One CI run attempt is one immutable experiment. GitHub `run_id` plus
   `run_attempt` gives reruns distinct names, so no event-ID scheme, upsert,
   retry, or duplicate-repair mechanism is required.
@@ -1773,13 +1774,12 @@ No product choice blocks the implementation. The selected policy is:
 The built-in experiment comparison behavior observed on prior custom-only rows
 is a historical limitation, not a native-first result: its exercised output
 contained only generic all-zero trace metrics and omitted the custom eval
-telemetry. The native-root readback now verifies native duration, token, and
-cost metrics, but standard `tool_calls` and `tool_errors` still compare as zero
-because Braintrust derives them from structural tool child spans. The exporter
-lacks per-call timestamps and must not fabricate child timing, so native
-structural tool views remain unresolved. GitHits-specific/custom telemetry is
-still accurate; investigate structural tool support as a Phase 5/PoC follow-up
-while bounded SQL and row/UI inspection remain the complete metrics path.
+telemetry. The current exporter records one structural `tool` child per known
+logical call, using exact harness-observed boundaries and computed duration for
+completed/failed calls. Native comparison now reports those child-derived
+`tool_calls` and `tool_errors`; bounded SQL remains the path for the exact
+GitHits-specific sequence and status counts. A fresh labeled CI export/readback
+and default-branch scheduled/manual activation remain pending.
 
 ### Dependencies
 
@@ -1815,13 +1815,12 @@ while bounded SQL and row/UI inspection remain the complete metrics path.
 - Braintrust [SQL](https://www.braintrust.dev/docs/reference/sql) and the
   `bt experiments`/`bt sql` commands can inspect and compare the persisted fields.
   The repository skill records only commands exercised against the PoC
-  experiment. The native-root readback verifies native duration, token, and
-  cost fields in comparison/readback. Its root `tool_calls` and `tool_errors`
-  are accurate in the rows but compare as zero because Braintrust derives those
-  standard metrics from structural tool child spans; per-call timestamps are
-  unavailable, so child timing is not fabricated. Bounded SQL/query and
-  experiment UI inspection remain the current complete metrics path for the
-  GitHits-specific/custom telemetry.
+  experiment. The current native structural readback verifies exact observed
+  child timing, computed duration, native tool counts/errors, and native token
+  and cost fields. Eval-root SQL must filter `span_attributes.type = 'eval'`;
+  tool-child SQL must filter `span_attributes.type = 'tool'`, because an
+  unfiltered count includes both span types. GitHits-specific sequence/status
+  metadata remains available through the bounded child/root queries.
 
 ### Verified PoC evidence
 
@@ -1835,8 +1834,8 @@ artifacts. The first experiment permalink is:
 
 <https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/poc-33381601980-top-level-spans>
 
-The native-first exporter was subsequently exercised locally against those
-accepted artifacts as experiment `poc-33381601980-native-root` (ID
+The superseded pre-structural exporter was subsequently exercised locally
+against those accepted artifacts as experiment `poc-33381601980-native-root` (ID
 `dfa37c74-0b31-4b48-aeb1-a2698a03cecc`) with exactly 23 rows. Native
 comparison/readback populated `duration`, prompt/completion/cache/reasoning
 token buckets, total `tokens`, and `estimated_cost`. Across the 23 rows,
@@ -1844,11 +1843,10 @@ bounded SQL totals were `prompt_tokens=2,861,042`,
 `completion_tokens=20,942`, `tokens=2,881,984`, and
 `estimated_cost=0.23660003`; recorded duration ranged from 8.53 to 207.317
 seconds. This was a local export/readback over the accepted artifacts, not CI
-proof. The native-root rows contain `tool_calls=119` and `tool_errors=2`, but
-the standard tool comparison reports both as zero because Braintrust derives
-them from structural tool child spans. The exporter lacks per-call timestamps
-and does not fabricate child timing; native structural tool views remain
-unresolved while GitHits-specific/custom telemetry remains accurate.
+proof. This native-root experiment is superseded historical evidence: its rows
+contain root `tool_calls=119` and `tool_errors=2`, and the standard comparison
+reports both as zero because structural tool children were not yet exported.
+Its lack of child timing is not the current exporter contract.
 
 The exercised custom-only command
 `bt experiments --json --project githits-cli-agent-evals compare
@@ -1858,6 +1856,26 @@ telemetry. This remains a historical observation about the prior custom-only
 rows; it does not describe the native-root experiment above. The labeled run
 `33413090610` is the current pre-native baseline; it is not native-first
 evidence.
+
+The current local native structural proof used suite
+`.agent-eval/suites/native-tool-smoke-2` at target and measurement commit
+`4850299`. Its Luna-low intent canary ran with workload concurrency 2: 2/2
+workloads succeeded, with 10 logical MCP calls, zero CLI calls and failures,
+and complete harness-observed intervals for all 10 calls. Wall time was
+43.447 seconds, cumulative agent time 71.855 seconds, and estimated cost
+`$0.02070904`.
+
+The resulting experiment `poc-native-tool-spans-v2-20260831` (ID
+`e8480301-6622-4a06-a37b-0ebd0e42bb64`,
+<https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/poc-native-tool-spans-v2-20260831>)
+read back two eval roots and 10 structural tool children. Native comparison
+reported `tool_calls` average `5.0` and `tool_errors` `0`. Child SQL showed
+exact observed start/end values and computed durations totaling 30.970 seconds,
+with individual durations from 0.006 to 10.400 seconds; eval duration totaled
+71.855 seconds. Native token and cost fields remain populated. This is local
+proof, not CI proof. The preceding `poc-native-tool-spans-20260831` experiment
+proved counts and timestamps but had null child duration and is superseded by
+the v2 experiment.
 
 ### Affected Components
 
@@ -1919,16 +1937,16 @@ evidence.
    collection is disabled, preventing the summary checkout or local dirty tree
    from replacing artifact identity.
 
-3. **One allowlisted row per workload/scenario**
+3. **One allowlisted eval root plus structural tool children per workload/scenario**
 
    `output` contains process/cell/final status, neutral answer when present,
    self-reported confidence, and discovery observation when available.
    Failed cells use a generated status-only `error` label; raw error/stderr text
    is not uploaded. `scores` is omitted.
 
-   Native numeric values use Braintrust's verified standard names: `duration`
-   (seconds from recorded milliseconds), `tool_calls`, `tool_errors`,
-   `prompt_tokens`, `prompt_cached_tokens`, `prompt_cache_creation_tokens`,
+   Native numeric values on the eval root use Braintrust's verified standard
+   names: `duration` (seconds from recorded milliseconds), `prompt_tokens`,
+   `prompt_cached_tokens`, `prompt_cache_creation_tokens`,
    `completion_tokens`, `completion_reasoning_tokens`, `tokens`, and
    `estimated_cost`. The provider input total includes cached reads and cache
    creation; `tokens` is that total plus provider output tokens. The remaining
@@ -1938,22 +1956,35 @@ evidence.
    absent rather than coerced to zero. Cost kind/uncertainty/rate metadata stays
    explicit because `estimated_cost` is still a rate-based estimate.
 
+   Known logical calls are represented as safe structural `type: "tool"` child
+   spans under the eval root. Completed/failed children use the normalized tool
+   name, exact harness-observed start/end times, and computed duration;
+   started-only children remain open and omit duration. Their event data is
+   limited to tool, surface, status, the `harness_stdout_observed` timing-source
+   marker, and a generated failure marker for failed calls. Root `tool_calls`
+   and `tool_errors` are omitted because Braintrust derives those native metrics
+   from the children. Missing, invalid, reverse, or out-of-parent boundaries
+   reject tool-bearing rows rather than fabricating an interval.
+
    Structured metadata contains cell/suite/run IDs, guidance/intent identity,
    agent/model/reasoning/CLI identity, cost kind/uncertainty/rate snapshot,
    normalized warnings/validation categories, `toolTelemetryKnown`, ordered
    normalized tool sequence, and per-surface/per-tool total and status counts.
    Each known used tool also adds a filter tag such as `tool:mcp:search`; the
-   nested counts remain authoritative. Tool telemetry that cannot reconcile is
-   `toolTelemetryKnown: false` with no tool-count metrics or fabricated empty
-   counts.
+   nested counts remain authoritative. A zero-tool row remains valid when
+   telemetry is known; tool-bearing rows whose telemetry or observed boundaries
+   cannot reconcile are rejected rather than uploaded with missing counts or
+   fabricated empty timing.
 
 4. **Thin SDK boundary and local authentication**
 
    Keep record construction pure and inject only the minimal SDK publisher
    needed by tests. Production initializes the exact project/experiment, starts
-   and immediately ends one top-level `type: "eval"` span per row in
-   deterministic suite/scenario/workload order, calls `flush()`, and writes a
-   small nonsecret result JSON containing project, experiment, URL, and
+   one top-level `type: "eval"` span per row in deterministic
+   suite/scenario/workload order, creates its validated structural `tool`
+   children, ends completed/failed children at their observed boundaries, leaves
+   started-only children open, ends each eval root, calls `flush()`, and writes
+   a small nonsecret result JSON containing project, experiment, URL, and
    exported-row count. There is no agent execution, tracing wrapper, dataset,
    scorer, queue, retry, lock, cache, or repository database.
 
@@ -2008,26 +2039,22 @@ evidence.
    validate-only output, explicit flush, and nonsecret result file. Verify
    credential-free `--validate-only` mapping against complete Phase 3 artifacts
    without running an agent.
-3. **Local native metric persistence/readback partially proven:** Use the authenticated local `bt`
-   profile to export the accepted 23-cell evidence into
+3. **Local native structural persistence/readback proven:** Use the authenticated
+   local `bt` profile to export the accepted evidence into
    `githits-cli-agent-evals` under clearly named `poc-...` experiments. Read it
-   back with `bt experiments` and bounded `bt sql`; reconcile row count,
-   zero-tool discovery, tool-using cells, native token buckets, duration, cost,
-   prompt, answer, exact Codex version, SHA, and permalink against source
-   artifacts. The native-root experiment has 23 rows and verifies duration,
-   token, and cost readback/comparison, with bounded totals of
-   `prompt_tokens=2,861,042`, `completion_tokens=20,942`,
-   `tokens=2,881,984`, `estimated_cost=0.23660003`, and duration from 8.53 to
-   207.317 seconds. Its root `tool_calls=119` and `tool_errors=2` compare as
-   zero because Braintrust expects structural tool child spans; per-call
-   timestamps are unavailable, so child timing is not fabricated. The
-   structural-tool limitation remains a follow-up.
+   back with `bt experiments` and bounded `bt sql`; reconcile eval-root count,
+   structural child count, zero-tool discovery, tool-using cells, native token
+   buckets, duration, cost, prompt, answer, exact Codex version, SHA, and
+   permalink against source artifacts. The current proof is recorded below for
+   `.agent-eval/suites/native-tool-smoke-2`; the earlier native-root experiment
+   remains superseded historical evidence.
 4. **Implemented locally; CI validation pending:** Add the CI export/final-status
    steps and document the repository Actions visibility/effectiveness of the
    `BRAINTRUST_API_KEY` secret.
    Unit-test the workflow contract, validate YAML/action references, and use
    direct SDK execution in CI so the workflow does not install `bt`. A real
-   labeled or manual run must still export/read back 23 rows.
+   labeled or manual run must still export/read back the expected eval roots and
+   structural children.
 5. **Implemented locally:** Update durable eval operations documentation and
    create the internal `braintrust-agent-evals` skill from the commands and
    field semantics proven in step 3. Validate it with the skill validator. Run
@@ -2042,27 +2069,29 @@ evidence.
 
 ### Acceptance Criteria
 
-- MET locally: PoC experiments in `githits-cli-agent-evals` have exactly 23
-  rows for the current two discovery plus 21 intent cells. PENDING for CI:
-  one real labeled or manually dispatched workflow experiment must be
-  exported/read back with the same 23-row reconciliation, including failed
-  cells when a run fails.
+- MET locally: the current native structural PoC has two eval roots and 10 tool
+  children for its two-cell canary, with native comparison showing
+  `tool_calls` average `5.0` and `tool_errors` `0`. PENDING for CI: one real
+  labeled or manually dispatched workflow experiment must be exported/read back
+  with its expected eval-root and child reconciliation, including failed cells
+  when a run fails.
 - Every row is filterable by workload, scenario, agent, exact CLI/model,
   reasoning, guidance, intent, target SHA, and used-tool tags. Structured
   metadata exposes ordered tools and per-tool/per-status counts.
 - Prompt, neutral answer, process/final status, self-reported confidence, native
   token buckets/duration/cost, and GitHits-specific tool counts reconcile to
   contained source artifacts. Unknown telemetry is absent/unknown; a verified
-  zero-tool discovery cell remains numeric zero. Native-root local readback is
-  verified for duration, token, and cost fields; structural native tool views
-  and a fresh CI export/readback remain pending acceptance work.
+  zero-tool discovery cell remains numeric zero. The local native structural
+  proof verifies exact observed child boundaries, computed duration, native tool
+  counts/errors, token, and cost fields; a fresh CI export/readback remains
+  pending acceptance work.
 - The exporter keeps unchanged scenario/workload/prompt inputs stable across
   workflow attempts, and no baseline is selected automatically or metric
-  movement fails the workflow. PENDING: native root `tool_calls` and
-  `tool_errors` compare as zero because Braintrust derives them from structural
-  tool child spans; per-call timestamps are unavailable, so structural child
-  timing is not fabricated. GitHits-specific/custom telemetry remains accurate
-  through bounded SQL/UI inspection.
+  movement fails the workflow. Root `tool_calls` and `tool_errors` are omitted;
+  Braintrust derives them from exact-timed structural tool children. The local
+  v2 readback verifies those native metrics and bounded SQL verifies the
+  GitHits-specific/custom sequence and status metadata. A fresh CI
+  export/readback remains pending.
 - The existing GitHub concise report and 14-day raw artifact upload complete
   even when export fails; the final workflow is red and names export as the
   failed stage. Local suite/report generation works without Braintrust or its

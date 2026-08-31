@@ -7,8 +7,8 @@ description: Inspect, query, compare, or explicitly export GitHits agent-eval hi
 
 Use this skill for read-only inspection of the GitHits agent-eval history in the
 Braintrust project `githits-cli-agent-evals`, or when the user explicitly asks
-to export a validated local suite. The normalized exporter stores one row per
-scenario/workload cell; see
+to export a validated local suite. The normalized exporter stores one top-level
+eval span per scenario/workload cell plus structural tool children; see
 [`docs/implementation/agentic-eval-metrics.md`](../../../docs/implementation/agentic-eval-metrics.md)
 for the field contract.
 
@@ -35,23 +35,23 @@ bt experiments --json --project githits-cli-agent-evals view <experiment-name>
 Use the experiment ID returned by the view result for a bounded field query:
 
 ```bash
-bt sql --json --non-interactive "SELECT input, output, metrics, metadata, tags FROM experiment('<experiment-id>') LIMIT 23"
+bt sql --json --non-interactive "SELECT input, output, metrics, metadata, tags FROM experiment('<experiment-id>') WHERE span_attributes.type = 'eval' LIMIT 23"
+bt sql --json --non-interactive "SELECT name, span_attributes.type, metrics, metadata FROM experiment('<experiment-id>') WHERE span_attributes.type = 'tool' LIMIT 100"
 ```
 
-The query is the verified path for prompts, neutral answers, hashes, statuses,
-native token/cost/duration metrics, and tool telemetry. A local export from the
-accepted discovery/intent artifacts produced experiment
-`poc-33381601980-native-root` (ID
-`dfa37c74-0b31-4b48-aeb1-a2698a03cecc`) read back 23 rows with native duration,
-prompt/completion/cache/reasoning token buckets, total `tokens`, and
-`estimated_cost`; bounded totals were `prompt_tokens=2,861,042`,
-`completion_tokens=20,942`, `tokens=2,881,984`, and
-`estimated_cost=0.23660003`, with duration from 8.53 to 207.317 seconds.
-Native structural tool views remain unresolved: root `tool_calls=119` and
-`tool_errors=2` compare as zero because Braintrust derives them from structural
-tool child spans. Per-call timestamps are unavailable, so do not fabricate
-child timing; GitHits-specific/custom telemetry remains accurate. Open an
-experiment permalink when row-level UI inspection is useful.
+The eval-root query is the verified path for prompts, neutral answers, hashes,
+statuses, native token/cost/duration metrics, and root metadata. Query tool
+children separately for native tool counts/errors and exact lifecycle timing.
+An unfiltered `count(*)` includes both eval roots and tool children, so it is not
+the workload-row count. A local proof experiment
+`poc-native-tool-spans-v2-20260831` (ID
+`e8480301-6622-4a06-a37b-0ebd0e42bb64`,
+<https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/poc-native-tool-spans-v2-20260831>)
+read back two eval roots and 10 tool children. Native comparison reported
+`tool_calls` average `5.0` and
+`tool_errors` `0`; child durations totaled 30.970 seconds and ranged from
+0.006 to 10.400 seconds. Native token and cost fields remain populated. Open
+the experiment permalink when row-level UI inspection is useful.
 
 The exercised comparison syntax is:
 
@@ -62,10 +62,11 @@ bt experiments --json --project githits-cli-agent-evals compare <experiment-a> <
 The prior custom-only experiments succeeded but reported only generic
 Braintrust trace metrics, which were zero and did not expose their custom eval
 telemetry. Treat that only as historical evidence about the older rows. The
-native-root readback verifies native duration, token, and cost fields, while
-standard tool comparison remains unresolved for the structural-span reason
-above. Use bounded SQL and the experiment UI for GitHits-specific/custom
-telemetry; do not fabricate child timing.
+preceding native-root experiment is also historical: it set root
+`tool_calls=119` and `tool_errors=2`, so comparison reported zero before
+structural children were implemented. Use bounded SQL and the experiment UI for
+GitHits-specific/custom telemetry; the current exporter uses exact
+harness-observed lifecycle boundaries and never fabricates timing.
 
 ## Validate or explicitly export
 
@@ -98,8 +99,12 @@ The suite preflight rejects dry-run suites, suites with no workload cells,
 duplicate cells, mixed identity or schema contracts, and missing/unsafe child
 evidence before network setup. It does not reject a failed cell that retains
 complete report, metrics, workload, and contained prompt evidence. The result
-file is nonsecret and contains only schema version, mode, project, experiment,
-row count, suite summaries, and an export URL when applicable; it never contains
-row bodies, prompts, answers,
-artifact paths, or credentials. Do not create or upload a new experiment unless
-the user explicitly requests that export.
+file is nonsecret and contains only its result-file schema version, mode,
+project, experiment, row count, suite summaries, and an export URL when
+applicable; experiment metadata records exporter schema/version 2. It never
+contains row bodies, prompts, answers, artifact paths, or credentials.
+Terminal tool-bearing rows lacking complete/valid observed lifecycle timing are
+rejected because they cannot produce accurate structural children; an observed
+started-only call remains an open child. Zero-tool legacy rows remain
+exportable. Do not create or upload a new experiment unless the user explicitly
+requests that export.
