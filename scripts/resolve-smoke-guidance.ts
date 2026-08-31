@@ -24,7 +24,7 @@ export function isResolveDirectTargetUnwarned(
 
   for (let index = candidateIndex + 1; index < lines.length; index += 1) {
     const line = lines[index] ?? "";
-    if (line.trim() === "Also matched:" || line.trim() === "Related:") break;
+    if (line.trim() === "Related targets:") break;
     if (!line.startsWith(detailIndent)) break;
     if (line.includes("Warning:")) return false;
   }

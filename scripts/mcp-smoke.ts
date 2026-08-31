@@ -394,7 +394,7 @@ async function runExperimentalLiveSmoke(
           "npm:express",
           "github:expressjs/express",
           "site:expressjs.com",
-          "Related:",
+          "Related targets:",
         ]) {
           assert(
             resolveTextBody.includes(expected),

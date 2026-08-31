@@ -472,7 +472,7 @@ describe("MCP smoke cohorts", () => {
 describe("resolve smoke guidance", () => {
   const cliMixed = `Targets:
   1. npm:express [exact] · package
-     Related:
+     Related targets:
        npm:express-lookalike · related package
          Warning: Malicious content affects the latest version. Do not use this target.
 
@@ -481,7 +481,7 @@ Next: githits search '<query>' --in 'npm:express'
   const mcpMixed = `Best match: npm:express [exact; package].
 Targets:
   1. npm:express [exact; package]
-     Related:
+     Related targets:
        npm:express-lookalike [related; package]
          Warning: Malicious content affects the latest version. Do not use this target.
 Next: pass the canonical target "npm:express" to the next MCP tool.
@@ -492,10 +492,10 @@ Next: pass the canonical target "npm:express" to the next MCP tool.
     expect(() => assertExperimentalMcpResolveText(mcpMixed)).not.toThrow();
   });
 
-  it("accepts a warning-free direct best nested under Also matched", () => {
+  it("accepts a warning-free direct best nested under Related targets", () => {
     const nestedBest = `Targets:
   1. npm:project [exact] · package
-     Also matched:
+     Related targets:
        github:owner/project [high] · repository
 
 Next: githits search '<query>' --in 'github:owner/project'
@@ -514,28 +514,24 @@ Next: githits search '<query>' --in 'github:owner/project'
     const nestedMcpBest = `Best match: github:owner/project [high; repository].
 Targets:
   1. npm:express [exact; package]
-     Also matched:
+     Related targets:
        github:owner/project [high; repository]
 Next: pass the canonical target "github:owner/project" to the next MCP tool.
 `;
     expect(() => assertExperimentalMcpResolveText(nestedMcpBest)).not.toThrow();
 
-    const relatedCliAction = nestedBest
-      .replace("Also matched:", "Related:")
-      .replace(
-        "github:owner/project [high] · repository",
-        "github:owner/project · related repository",
-      );
+    const relatedCliAction = nestedBest.replace(
+      "github:owner/project [high] · repository",
+      "github:owner/project · related repository",
+    );
     expect(() => assertExperimentalCliResolveText(relatedCliAction)).toThrow(
       "without a warning",
     );
 
-    const relatedMcpAction = nestedMcpBest
-      .replace("Also matched:", "Related:")
-      .replace(
-        "       github:owner/project [high; repository]",
-        "       github:owner/project [related; repository]",
-      );
+    const relatedMcpAction = nestedMcpBest.replace(
+      "       github:owner/project [high; repository]",
+      "       github:owner/project [related; repository]",
+    );
     expect(() => assertExperimentalMcpResolveText(relatedMcpAction)).toThrow(
       "listed direct candidate without a warning",
     );
@@ -546,7 +542,7 @@ Next: pass the canonical target "github:owner/project" to the next MCP tool.
         "  1. github:owner/project · related repository",
       )
       .replace(
-        "\n     Related:\n       github:owner/project · related repository",
+        "\n     Related targets:\n       github:owner/project · related repository",
         "",
       );
     expect(() => assertExperimentalCliResolveText(relatedCliLead)).toThrow(
@@ -559,7 +555,7 @@ Next: pass the canonical target "github:owner/project" to the next MCP tool.
         "  1. github:owner/project [related; repository]\n  2. npm:express [exact; package]",
       )
       .replace(
-        "\n     Related:\n       github:owner/project [related; repository]",
+        "\n     Related targets:\n       github:owner/project [related; repository]",
         "",
       );
     expect(() => assertExperimentalMcpResolveText(relatedMcpLead)).toThrow(

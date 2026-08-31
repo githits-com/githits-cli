@@ -269,6 +269,15 @@ describe("buildResolveTargetSuccessPayload", () => {
       targetsTruncated: false,
     });
   });
+
+  it("keeps backend license spelling lossless in JSON", () => {
+    const raw = candidate({ license: "mit" });
+
+    expect(
+      buildResolveTargetSuccessPayload(result({ best: raw, targets: [raw] }))
+        .candidates[0]?.license,
+    ).toBe("mit");
+  });
 });
 
 describe("isResolveTargetActionable", () => {
@@ -403,6 +412,7 @@ describe("formatResolveTargetTerminal", () => {
       downloadsLastMonth: undefined,
       docsAvailable: false,
       codeFileCount: 1_234,
+      license: "mit",
       latestVersionMaliciousStatus: "NOT_APPLICABLE",
     });
     const site = candidate({
@@ -422,20 +432,128 @@ describe("formatResolveTargetTerminal", () => {
     );
 
     expect(output).toContain(
-      "  1. npm:express [exact] · package · protected exact-name match",
-    );
-    expect(output).toContain(
-      "     66k stars · 89M downloads/mo · license MIT · docs 128 pages · code 1.2k files",
+      "  1. npm:express [exact] · package · protected exact-name match · 89M downloads/mo · license MIT",
     );
     expect(output).not.toContain("repo github:expressjs/express");
     expect(output).toContain(
-      "     Related:\n       github:expressjs/express · related repository",
+      "     Related targets:\n       github:expressjs/express · related repository · 66k stars · code 1.2k files",
     );
     expect(output).toContain(
-      "       site:expressjs.com · related site\n         Fast web framework\n         docs 128 pages",
+      "       site:expressjs.com · related site · docs 128 pages\n         Fast web framework",
     );
+    expect(output).not.toContain("license mit");
+    expect(output.match(/license MIT/g)).toHaveLength(1);
     expect(output).not.toContain("no docs");
     expect(output).not.toContain("no code");
+  });
+
+  it("keeps metrics in semantic lanes and lifts absent relation evidence to packages", () => {
+    const packageTarget = candidate({
+      groupKey: "github:expressjs/express",
+      docsPageCount: 128,
+      codeFileCount: 1_234,
+      license: "MIT",
+      repositoryUrl: "https://github.com/expressjs/express",
+    });
+    const repository = candidate({
+      kind: "REPOSITORY",
+      canonicalKey: "github:expressjs/express",
+      groupKey: "github:expressjs/express",
+      match: undefined,
+      downloadsLastMonth: undefined,
+      docsAvailable: false,
+      codeFileCount: 1_234,
+      license: "mit",
+      latestVersionMaliciousStatus: "NOT_APPLICABLE",
+    });
+    const site = candidate({
+      kind: "SITE",
+      canonicalKey: "site:expressjs.com",
+      groupKey: "github:expressjs/express",
+      match: undefined,
+      stars: undefined,
+      downloadsLastMonth: undefined,
+      docsPageCount: 96,
+      codeAvailable: false,
+      latestVersionMaliciousStatus: "NOT_APPLICABLE",
+    });
+
+    const withoutSite = formatResolveTargetTerminal(
+      result({ targets: [packageTarget, repository] }),
+      { name: "express", useColors: false },
+    );
+    expect(withoutSite).toContain(
+      "npm:express [exact] · package · protected exact-name match · 89M downloads/mo · license MIT · docs 128 pages",
+    );
+    expect(withoutSite).toContain(
+      "github:expressjs/express · related repository · 66k stars · code 1.2k files",
+    );
+    expect(withoutSite).not.toContain("repo github:expressjs/express");
+
+    const repositoryWithoutStars = formatResolveTargetTerminal(
+      result({
+        targets: [packageTarget, { ...repository, stars: undefined }],
+      }),
+      { name: "express", useColors: false },
+    );
+    expect(repositoryWithoutStars).not.toContain("66k stars");
+
+    const withoutRepository = formatResolveTargetTerminal(
+      result({ targets: [packageTarget, site] }),
+      { name: "express", useColors: false },
+    );
+    expect(withoutRepository).toContain(
+      "npm:express [exact] · package · protected exact-name match · 66k stars · 89M downloads/mo · repo github:expressjs/express · license MIT · code 1.2k files",
+    );
+    expect(withoutRepository).toContain(
+      "site:expressjs.com · related site · docs 96 pages",
+    );
+    expect(withoutRepository).not.toContain("docs 128 pages");
+
+    const solo = formatResolveTargetTerminal(
+      result({ targets: [packageTarget] }),
+      { name: "express", useColors: false },
+    );
+    expect(solo).toContain(
+      "66k stars · 89M downloads/mo · repo github:expressjs/express · license MIT · docs 128 pages · code 1.2k files",
+    );
+  });
+
+  it("canonicalizes the verified MIT spelling for a standalone repository", () => {
+    const repository = candidate({
+      kind: "REPOSITORY",
+      canonicalKey: "github:expressjs/express",
+      downloadsLastMonth: undefined,
+      docsAvailable: false,
+      codeFileCount: 1_234,
+      license: "mit",
+      latestVersionMaliciousStatus: "NOT_APPLICABLE",
+    });
+    const output = formatResolveTargetTerminal(
+      result({ best: repository, targets: [repository], protectedMatches: [] }),
+      { name: "express repository", useColors: false },
+    );
+
+    expect(output).toContain(
+      "github:expressjs/express [exact] · repository · 66k stars · license MIT · code 1.2k files",
+    );
+    expect(output).not.toContain("license mit");
+  });
+
+  it("preserves unverified mixed-case license spellings", () => {
+    const repository = candidate({
+      kind: "REPOSITORY",
+      canonicalKey: "github:expressjs/express",
+      downloadsLastMonth: undefined,
+      license: "Mit",
+      latestVersionMaliciousStatus: "NOT_APPLICABLE",
+    });
+    const output = formatResolveTargetTerminal(
+      result({ best: repository, targets: [repository], protectedMatches: [] }),
+      { name: "express repository", useColors: false },
+    );
+
+    expect(output).toContain("license Mit");
   });
 
   it("keeps a related malicious warning local without blocking a safe best target", () => {
@@ -466,7 +584,13 @@ describe("formatResolveTargetTerminal", () => {
     );
 
     expect(output).toContain("npm:express · related package");
-    expect(output).toContain("no docs · no code");
+    expect(output).toContain(
+      "site:expressjs.com [exact] · site · docs available",
+    );
+    expect(output).toContain(
+      "npm:express · related package · 66k stars · 89M downloads/mo · no code",
+    );
+    expect(output).not.toContain("no docs");
     expect(output).not.toContain("license ");
     expect(output).toContain(
       "Warning: Malicious-content status is uncertain. Verify the advisory details before using this version.",
@@ -488,7 +612,7 @@ describe("formatResolveTargetTerminal", () => {
     });
 
     expect(output).toContain(
-      "Targets:\n  1. npm:express [exact] · package · protected exact-name match\n     Fast web framework\n     66k stars · 89M downloads/mo · docs available · code available",
+      "Targets:\n  1. npm:express [exact] · package · protected exact-name match · 66k stars · 89M downloads/mo · docs available · code available\n     Fast web framework",
     );
     expect(output).not.toContain("Warning:");
     expect(output).not.toContain("malicious");
@@ -548,7 +672,7 @@ describe("formatResolveTargetTerminal", () => {
     );
 
     expect(output).toContain(
-      "site:developer.apple.com/design/human-interface-guidelines [exact] · site\n     Fast web framework\n     docs available",
+      "site:developer.apple.com/design/human-interface-guidelines [exact] · site · docs available\n     Fast web framework",
     );
     expect(output).toContain(
       "Next: githits search '<query>' --in 'site:developer.apple.com/design/human-interface-guidelines' --source docs",
@@ -606,10 +730,10 @@ describe("formatResolveTargetTerminal", () => {
     );
 
     expect(output).toContain(
-      "crates:serde [exact] · package\n     Fast web framework\n     500M downloads · repo github:serde-rs/serde · docs available · code available",
+      "crates:serde [exact] · package · 500M downloads · repo github:serde-rs/serde · docs available · code available\n     Fast web framework",
     );
     expect(output).toContain(
-      "maven:com.google.guava:guava [exact] · package\n     Google core libraries for Java\n     repo github:google/guava · docs available · code available",
+      "maven:com.google.guava:guava [exact] · package · repo github:google/guava · docs available · code available\n     Google core libraries for Java",
     );
     expect(output).toContain("     Google core libraries for Java");
   });

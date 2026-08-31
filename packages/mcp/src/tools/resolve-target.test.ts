@@ -237,13 +237,15 @@ describe("resolve_target MCP adapter", () => {
     );
 
     expect(text).toContain(
-      "Targets:\n  1. site:expressjs.com [exact; site]\n     docs 128 pages\n     Related:",
+      "Targets:\n  1. site:expressjs.com [exact; site] · docs 128 pages\n     Related targets:",
     );
     expect(text).toContain("npm:express [related; package]");
     expect(text).toContain(
       "Warning: Malicious-content status is uncertain. Verify the advisory details before using this version.",
     );
-    expect(text).toContain("github:expressjs/express [related; repository]");
+    expect(text).toContain(
+      "github:expressjs/express [related; repository] · code 1.2k files",
+    );
     expect(text).toContain(
       "Note: Additional related targets were omitted; direct matches are complete.",
     );

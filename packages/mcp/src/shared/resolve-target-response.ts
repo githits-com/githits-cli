@@ -143,6 +143,15 @@ export interface ResolveTargetGroup {
   targets: ResolveTargetTarget[];
 }
 
+export interface ResolveTargetEvidenceOptions {
+  stars: boolean;
+  downloads: boolean;
+  repository: boolean;
+  license: boolean;
+  docs: boolean;
+  code: boolean;
+}
+
 /** Preserve backend order while combining only contiguous equal non-null keys. */
 export function groupResolveTargets(
   targets: readonly ResolveTargetTarget[],
@@ -163,6 +172,66 @@ export function groupResolveTargets(
     }
   }
   return groups;
+}
+
+/**
+ * Assign each evidence dimension to its clearest target lane. Package targets
+ * retain projected repository/site evidence only when the corresponding target
+ * is absent, so partial and singleton groups remain informative without
+ * repeating complete-group metrics.
+ */
+export function buildResolveTargetEvidencePlan(
+  targets: readonly ResolveTargetTarget[],
+): ResolveTargetEvidenceOptions[] {
+  const hasRepositoryTarget = targets.some(
+    (target) => target.kind === "REPOSITORY",
+  );
+  const hasSiteTarget = targets.some((target) => target.kind === "SITE");
+  const hasPackageLicense = targets.some(
+    (target) =>
+      target.kind === "PACKAGE" && formatLicense(target.license) !== undefined,
+  );
+
+  return targets.map((target) => {
+    switch (target.kind) {
+      case "PACKAGE":
+        return {
+          stars: !hasRepositoryTarget,
+          downloads: true,
+          repository: !hasRepositoryTarget,
+          license: true,
+          docs: !hasSiteTarget,
+          code: !hasRepositoryTarget,
+        };
+      case "REPOSITORY":
+        return {
+          stars: true,
+          downloads: false,
+          repository: false,
+          license: !hasPackageLicense,
+          docs: false,
+          code: true,
+        };
+      case "SITE":
+        return {
+          stars: false,
+          downloads: false,
+          repository: false,
+          license: false,
+          docs: true,
+          code: false,
+        };
+      default:
+        return {
+          stars: true,
+          downloads: true,
+          repository: true,
+          license: true,
+          docs: true,
+          code: true,
+        };
+    }
+  });
 }
 
 /**
@@ -299,38 +368,32 @@ function formatTerminalGroup(
 ): string[] {
   const [lead, ...members] = group.targets;
   if (!lead) return [];
-  const hasRepositoryTarget = group.targets.some(
-    (target) => target.kind === "REPOSITORY",
-  );
+  const evidencePlan = buildResolveTargetEvidencePlan(group.targets);
   const lines = [
-    `  ${groupNumber}. ${formatTerminalTarget(lead, useColors)}${formatProtectedMarker(lead, protectedKeys)}`,
-    ...formatTerminalTargetDetails(
-      lead,
-      "     ",
-      hasRepositoryTarget,
-      useColors,
-    ),
+    `  ${groupNumber}. ${formatTerminalTargetLine(lead, evidencePlan[0], protectedKeys, useColors)}`,
+    ...formatTerminalTargetDetails(lead, "     ", useColors),
   ];
-  let section: "direct" | "related" | undefined;
-  for (const member of members) {
-    const nextSection = member.match ? "direct" : "related";
-    if (nextSection !== section) {
-      lines.push(
-        nextSection === "direct" ? "     Also matched:" : "     Related:",
-      );
-      section = nextSection;
-    }
+  if (members.length > 0) lines.push("     Related targets:");
+  for (const [index, member] of members.entries()) {
     lines.push(
-      `       ${formatTerminalTarget(member, useColors)}${formatProtectedMarker(member, protectedKeys)}`,
-      ...formatTerminalTargetDetails(
-        member,
-        "         ",
-        hasRepositoryTarget,
-        useColors,
-      ),
+      `       ${formatTerminalTargetLine(member, evidencePlan[index + 1], protectedKeys, useColors)}`,
+      ...formatTerminalTargetDetails(member, "         ", useColors),
     );
   }
   return lines;
+}
+
+function formatTerminalTargetLine(
+  target: ResolveTargetTarget,
+  evidenceOptions: ResolveTargetEvidenceOptions | undefined,
+  protectedKeys: ReadonlySet<string>,
+  useColors: boolean,
+): string {
+  const evidence = formatResolveTargetEvidence(
+    target,
+    evidenceOptions ?? allResolveTargetEvidence(),
+  );
+  return `${formatTerminalTarget(target, useColors)}${formatProtectedMarker(target, protectedKeys)}${evidence ? ` · ${evidence}` : ""}`;
 }
 
 function formatProtectedMarker(
@@ -345,14 +408,11 @@ function formatProtectedMarker(
 function formatTerminalTargetDetails(
   target: ResolveTargetTarget,
   indent: string,
-  hasRepositoryTarget: boolean,
   useColors: boolean,
 ): string[] {
   const lines: string[] = [];
   const description = compactDescription(target.description);
   if (description) lines.push(`${indent}${dim(description, useColors)}`);
-  const evidence = formatResolveTargetEvidence(target, hasRepositoryTarget);
-  if (evidence) lines.push(`${indent}${evidence}`);
   const maliciousWarning = formatLatestVersionMaliciousStatus(
     target.latestVersionMaliciousStatus,
     target.latestVersionMaliciousEvidence,
@@ -372,36 +432,30 @@ function formatConfidence(value: string): string {
 
 export function formatResolveTargetEvidence(
   target: ResolveTargetTarget,
-  hasRepositoryTarget: boolean,
+  options: ResolveTargetEvidenceOptions,
 ): string {
   const fields: string[] = [];
-  if (target.stars !== undefined) {
+  if (options.stars && target.stars !== undefined) {
     fields.push(`${formatCompactNumber(target.stars)} stars`);
   }
-  if (target.downloadsLastMonth !== undefined) {
+  if (options.downloads && target.downloadsLastMonth !== undefined) {
     fields.push(
       `${formatCompactNumber(target.downloadsLastMonth)} downloads/mo`,
     );
-  } else if (target.downloadsTotal !== undefined) {
+  } else if (options.downloads && target.downloadsTotal !== undefined) {
     fields.push(`${formatCompactNumber(target.downloadsTotal)} downloads`);
   }
-  if (
-    target.kind === "PACKAGE" &&
-    target.repositoryUrl &&
-    !hasRepositoryTarget
-  ) {
+  if (options.repository && target.kind === "PACKAGE" && target.repositoryUrl) {
     fields.push(`repo ${compactRepositoryUrl(target.repositoryUrl)}`);
   }
-  if (target.license !== undefined) {
-    const license = sanitizeTerminalText(target.license).trim();
-    if (license) fields.push(`license ${license}`);
-  }
+  const license = options.license ? formatLicense(target.license) : undefined;
+  if (license) fields.push(`license ${license}`);
   const docs = formatAvailability(
     "docs",
     "pages",
     target.docsAvailable,
     target.docsPageCount,
-    target.kind !== "REPOSITORY",
+    options.docs && target.kind !== "REPOSITORY",
   );
   if (docs) fields.push(docs);
   const code = formatAvailability(
@@ -409,10 +463,27 @@ export function formatResolveTargetEvidence(
     "files",
     target.codeAvailable,
     target.codeFileCount,
-    target.kind !== "SITE",
+    options.code && target.kind !== "SITE",
   );
   if (code) fields.push(code);
   return fields.map(sanitizeTerminalText).join(" · ");
+}
+
+function allResolveTargetEvidence(): ResolveTargetEvidenceOptions {
+  return {
+    stars: true,
+    downloads: true,
+    repository: true,
+    license: true,
+    docs: true,
+    code: true,
+  };
+}
+
+function formatLicense(value: string | undefined): string | undefined {
+  const license = sanitizeTerminalText(value ?? "").trim();
+  if (!license) return undefined;
+  return license === "mit" ? "MIT" : license;
 }
 
 function formatAvailability(

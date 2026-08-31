@@ -1050,7 +1050,7 @@ async function runExperimentalLiveSmoke(
     "npm:express",
     "github:expressjs/express",
     "site:expressjs.com",
-    "Related:",
+    "Related targets:",
   ]) {
     assert(
       resolveText.includes(expected),
@@ -1067,7 +1067,7 @@ async function runExperimentalLiveSmoke(
     /\n {2}1\. site:expressjs\.com \[(?:exact|high)\] · site/.test(
       siteResolveText,
     ) &&
-      siteResolveText.includes("Related:") &&
+      siteResolveText.includes("Related targets:") &&
       siteResolveText.includes("npm:express · related package") &&
       siteResolveText.includes("github:expressjs/express · related repository"),
     "experimental expressjs resolution should directly match the site and group related package/repository targets",

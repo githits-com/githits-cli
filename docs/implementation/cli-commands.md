@@ -322,13 +322,20 @@ documentation-site name to canonical targets such as `npm:express`,
 presentation list containing direct ranked matches and bounded relation-only
 package, repository, and site context. The CLI preserves that order and groups
 only contiguous targets with the same non-null `groupKey`; null keys always
-remain singleton groups. Each group is numbered once, additional direct members
-appear under `Also matched:`, and relation-only members appear under `Related:`.
-Canonical keys stay copyable and every member is explicitly direct (with
-confidence) or related.
+remain singleton groups. Each group is numbered once and every additional
+identity appears under one `Related targets:` heading. Canonical keys stay
+copyable and every member is explicitly direct (with confidence) or related.
 
-Each target keeps its normalized description, capped at 240 characters, plus
-available popularity, repository, license, docs, and code evidence. Positive
+Each target keeps its normalized description, capped at 240 characters. Compact
+text puts evidence on the same line as the target identity. Packages own
+downloads and license, repositories own stars and code evidence, and sites own
+documentation evidence. When a group has no repository or site target, its
+package line retains the corresponding projected stars/code or documentation
+fallback, including the compact linked-repository identity when applicable.
+Repository license appears only when no package supplies one. The verified
+lowercase `mit` spelling renders canonically as `MIT`; other license strings are
+preserved. JSON remains lossless and does not apply presentation ownership.
+Positive
 docs/code counts render when content is available; otherwise availability is
 stated without inventing a count unless the backend supplies a contradictory
 positive recorded count. Available content with a zero count renders that zero;
@@ -337,9 +344,7 @@ licenses/counts produce no placeholder. Structurally inapplicable evidence
 dimensions are omitted entirely: repositories show no docs field and sites show
 no code field. If availability is false despite a positive recorded count,
 output keeps both facts as `docs unavailable (<n> pages recorded)` or `code
-unavailable (<n> files recorded)`. A package's
-compact linked-repository fallback appears only when its group does not already
-contain the canonical repository target. `targetsTruncated` produces one note
+unavailable (<n> files recorded)`. `targetsTruncated` produces one note
 that additional related targets were omitted and direct matches are complete.
 The backend bounds the complete presentation list to 40 entries: up to 20 ranked
 direct matches, 12 additional protected matches, and 8 related targets. CLI and

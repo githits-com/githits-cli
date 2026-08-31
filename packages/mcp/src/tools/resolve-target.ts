@@ -9,6 +9,7 @@ import { z } from "zod";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { buildResolveTargetParams } from "../shared/resolve-target-request.js";
 import {
+  buildResolveTargetEvidencePlan,
   buildResolveTargetSuccessPayload,
   findResolveTargetBestTarget,
   formatLatestVersionMaliciousStatus,
@@ -17,6 +18,7 @@ import {
   isLatestVersionMaliciousStatusActionable,
   isResolveTargetActionable,
   isResolveTargetIdentityActionable,
+  type ResolveTargetEvidenceOptions,
   sanitizeTerminalText,
 } from "../shared/resolve-target-response.js";
 import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
@@ -238,28 +240,30 @@ function formatMcpGroup(
 ): string[] {
   const [lead, ...members] = targets;
   if (!lead) return [];
-  const hasRepositoryTarget = targets.some(
-    (target) => target.kind === "REPOSITORY",
-  );
+  const evidencePlan = buildResolveTargetEvidencePlan(targets);
   const lines = [
-    `  ${groupNumber}. ${formatMcpTarget(lead)}${formatProtectedMarker(lead, protectedKeys)}`,
-    ...formatMcpTargetDetails(lead, "     ", hasRepositoryTarget),
+    `  ${groupNumber}. ${formatMcpTargetLine(lead, evidencePlan[0], protectedKeys)}`,
+    ...formatMcpTargetDetails(lead, "     "),
   ];
-  let section: "direct" | "related" | undefined;
-  for (const member of members) {
-    const nextSection = member.match ? "direct" : "related";
-    if (nextSection !== section) {
-      lines.push(
-        nextSection === "direct" ? "     Also matched:" : "     Related:",
-      );
-      section = nextSection;
-    }
+  if (members.length > 0) lines.push("     Related targets:");
+  for (const [index, member] of members.entries()) {
     lines.push(
-      `       ${formatMcpTarget(member)}${formatProtectedMarker(member, protectedKeys)}`,
-      ...formatMcpTargetDetails(member, "         ", hasRepositoryTarget),
+      `       ${formatMcpTargetLine(member, evidencePlan[index + 1], protectedKeys)}`,
+      ...formatMcpTargetDetails(member, "         "),
     );
   }
   return lines;
+}
+
+function formatMcpTargetLine(
+  target: ResolveTargetTarget,
+  evidenceOptions: ResolveTargetEvidenceOptions | undefined,
+  protectedKeys: ReadonlySet<string>,
+): string {
+  const evidence = evidenceOptions
+    ? formatResolveTargetEvidence(target, evidenceOptions)
+    : "";
+  return `${formatMcpTarget(target)}${formatProtectedMarker(target, protectedKeys)}${evidence ? ` · ${evidence}` : ""}`;
 }
 
 function formatMcpTarget(target: ResolveTargetTarget): string {
@@ -282,13 +286,10 @@ function formatProtectedMarker(
 function formatMcpTargetDetails(
   target: ResolveTargetTarget,
   indent: string,
-  hasRepositoryTarget: boolean,
 ): string[] {
   const lines: string[] = [];
   const description = compactDescription(target.description);
   if (description) lines.push(`${indent}${description}`);
-  const evidence = formatResolveTargetEvidence(target, hasRepositoryTarget);
-  if (evidence) lines.push(`${indent}${evidence}`);
   const maliciousWarning = formatLatestVersionMaliciousStatus(
     target.latestVersionMaliciousStatus,
     target.latestVersionMaliciousEvidence,

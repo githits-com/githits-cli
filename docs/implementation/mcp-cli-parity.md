@@ -181,6 +181,10 @@ test suite anchors the doc.
 - Resolve text uses the same backend-ordered target list and contiguous grouping
   helper on both surfaces. JSON preserves that list without regrouping, marks
   direct versus relation-only entries, and exposes backend relation truncation.
+  A shared group evidence plan keeps metrics on each target line: packages own
+  downloads/license, repositories own stars/code, sites own docs, and package
+  rows retain projected fallbacks when the corresponding related target is
+  absent. All additional identities use one `Related targets:` heading.
   Related malicious-package warnings are member-local and do not block the
   matched best target's otherwise safe continuation.
 - The shared resolve request boundary recognizes already-canonical package and
