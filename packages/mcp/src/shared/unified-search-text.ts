@@ -357,7 +357,7 @@ function appendCompactSources(
     if (distinctSources.length === 0) return [identity];
     if (
       uniqueSources.length === 1 &&
-      distinctSources.length === 1 &&
+      !identity.includes("#") &&
       targetDisplayFamilyKey(distinctSources[0]) ===
         targetDisplayFamilyKey(identity)
     ) {

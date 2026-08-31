@@ -246,9 +246,11 @@ pagination when applicable; one compact `Sources: <target> - <sources>` row for
 ordinary completed current results, with canonical site locators and compact
 GitHub revision locators; a source identical to its standalone target is written once.
 A sole pinned repository source replaces its less-specific repository target.
-Documentation without concrete provenance uses one detailed target block instead. Other
-non-compact results likewise use one block per requested target; target-local state/recovery
-and global warnings; the separate ranked hit list; and at most one final `Next:` action.
+An already-pinned repository target remains beside its resolved commit. Compact repository
+provenance requires both its URL and commit; documentation without concrete provenance uses
+one detailed target block instead. Other non-compact results likewise use one block per
+requested target; target-local state/recovery and global warnings; the separate ranked hit
+list; and at most one final `Next:` action.
 
 `PENDING`, `INDEXING`, and `SEARCHING` remain distinct. Active empty output uses
 `No results yet | indexing | 0/1 ready`; an active response without a snapshot

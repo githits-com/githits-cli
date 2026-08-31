@@ -345,6 +345,32 @@ describe("renderUnifiedSearchSuccess", () => {
     );
   });
 
+  it("keeps a pinned repository target beside its resolved commit", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([docsHit({ target: "github:axios/axios#v1.7.9" })], {
+        sourceStatus: [
+          source({
+            source: "docs",
+            targetLabel: "github:axios/axios#v1.7.9",
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                resultCount: 1,
+                repositoryUrl: "https://github.com/axios/axios",
+                commitSha: "b2cb45d500000000000000000000000000000000",
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "Sources: github:axios/axios#v1.7.9 - github:axios/axios#b2cb45d5",
+    );
+  });
+
   it("keeps repository docs without a commit in detailed target state", () => {
     const text = renderUnifiedSearchSuccess(
       completed([docsHit({ target: "github:axios/axios#main" })], {
