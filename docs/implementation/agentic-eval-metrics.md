@@ -106,14 +106,29 @@ answers, prompt hashes, token buckets, duration, cost, and tool telemetry to
 the source artifacts. The first experiment permalink is
 <https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/poc-33381601980-top-level-spans>.
 
-The exercised comparison command,
+The native-first exporter was subsequently exercised locally against those
+accepted artifacts as experiment `poc-33381601980-native-root` (ID
+`dfa37c74-0b31-4b48-aeb1-a2698a03cecc`) with exactly 23 rows. Native
+comparison/readback populated `duration`, prompt/completion/cache/reasoning
+token buckets, total `tokens`, and `estimated_cost`. Across the 23 rows,
+bounded SQL totals were `prompt_tokens=2,861,042`,
+`completion_tokens=20,942`, `tokens=2,881,984`, and
+`estimated_cost=0.23660003`; recorded duration ranged from 8.53 to 207.317
+seconds. The export and readback were local operations over the accepted
+artifacts, not CI proof.
+
+The native-root rows contain `tool_calls=119` and `tool_errors=2`, but the
+exercised comparison command,
 `bt experiments --json --project githits-cli-agent-evals compare
 poc-33381601980-top-level-spans poc-33381601980-repeat`, was run against the
-prior custom-only rows. It succeeded but reported only generic Braintrust trace
-metrics, all zero, and did not expose that custom eval telemetry. This is a
-historical custom-only observation; native-first UI and comparison behavior is
-unproven until a native-root export is read back. Investigating that comparison
-path remains a Phase 5/PoC follow-up.
+prior custom-only rows and is therefore only a historical custom-only
+observation. A native-root comparison reports standard `tool_calls` and
+`tool_errors` as zero because Braintrust derives those metrics from structural
+tool child spans, not root-row numeric fields. The exporter currently lacks
+per-call timestamps and does not fabricate child timing; native structural tool
+views remain unresolved while GitHits-specific/custom telemetry remains
+accurate. Investigating that structural comparison path remains a Phase 5/PoC
+follow-up.
 
 ## Scenario and intent identity
 

@@ -355,8 +355,19 @@ breakdowns (`tokens`, `prompt_tokens`, `prompt_cached_tokens`,
 `completion_reasoning_tokens`), and rate-based cost (`estimated_cost`). It
 retains only the GitHits-specific `mcp_tool_calls`, `cli_tool_calls`,
 `tool_calls_started`, `tool_calls_completed`, `tool_calls_unknown`, and
-`raw_tool_events` metrics. Native-root local proof and a fresh CI export/readback
-remain acceptance work.
+`raw_tool_events` metrics. A native-root local export from the accepted
+artifacts (`poc-33381601980-native-root`, Braintrust ID
+`dfa37c74-0b31-4b48-aeb1-a2698a03cecc`, 23 rows) populated native duration,
+prompt/completion/cache/reasoning token buckets, total `tokens`, and estimated
+cost in readback/comparison. Bounded SQL totals were
+`prompt_tokens=2,861,042`, `completion_tokens=20,942`,
+`tokens=2,881,984`, and `estimated_cost=0.23660003`; duration ranged from 8.53
+to 207.317 seconds. This is local evidence, not CI proof. Native structural
+tool views remain unresolved: root rows contain `tool_calls=119` and
+`tool_errors=2`, while comparison reports both as zero because Braintrust
+derives those metrics from structural tool child spans. Per-call timestamps are
+not available, so the exporter does not fabricate child timing; GitHits-specific
+custom telemetry remains accurate. A fresh CI export/readback remains pending.
 
 Validate downloaded or local suites without credentials or network access:
 
@@ -413,10 +424,14 @@ bt experiments --json --project githits-cli-agent-evals compare <experiment-a> <
 ```
 
 The prior custom-only rows produced only generic Braintrust trace metrics, all
-zero, and did not surface their custom eval telemetry. That is a historical
-observation pending a native-first export/readback; native-root UI and
-comparison behavior are not yet proven. Use bounded SQL and the experiment UI
-while comparison behavior remains a follow-up investigation.
+zero, and did not surface their custom eval telemetry; that remains a historical
+observation about those older rows. The native-root readback verifies native
+duration, token, and cost fields, but its standard `tool_calls` and
+`tool_errors` compare as zero because Braintrust derives them from structural
+tool child spans. Per-call timestamps are unavailable, so child timing is not
+fabricated and native structural tool views remain unresolved. Use bounded SQL
+and the experiment UI for the accurate GitHits-specific/custom telemetry while
+that structural comparison behavior remains a follow-up investigation.
 
 ## Daily CI workflow
 

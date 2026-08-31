@@ -39,9 +39,19 @@ bt sql --json --non-interactive "SELECT input, output, metrics, metadata, tags F
 ```
 
 The query is the verified path for prompts, neutral answers, hashes, statuses,
-native token/cost/duration metrics, and tool telemetry. Native-first UI and
-comparison behavior still require a fresh export/readback. Open an experiment
-permalink when row-level UI inspection is useful.
+native token/cost/duration metrics, and tool telemetry. A local export from the
+accepted discovery/intent artifacts produced experiment
+`poc-33381601980-native-root` (ID
+`dfa37c74-0b31-4b48-aeb1-a2698a03cecc`) read back 23 rows with native duration,
+prompt/completion/cache/reasoning token buckets, total `tokens`, and
+`estimated_cost`; bounded totals were `prompt_tokens=2,861,042`,
+`completion_tokens=20,942`, `tokens=2,881,984`, and
+`estimated_cost=0.23660003`, with duration from 8.53 to 207.317 seconds.
+Native structural tool views remain unresolved: root `tool_calls=119` and
+`tool_errors=2` compare as zero because Braintrust derives them from structural
+tool child spans. Per-call timestamps are unavailable, so do not fabricate
+child timing; GitHits-specific/custom telemetry remains accurate. Open an
+experiment permalink when row-level UI inspection is useful.
 
 The exercised comparison syntax is:
 
@@ -51,9 +61,11 @@ bt experiments --json --project githits-cli-agent-evals compare <experiment-a> <
 
 The prior custom-only experiments succeeded but reported only generic
 Braintrust trace metrics, which were zero and did not expose their custom eval
-telemetry. Do not treat that historical result as native-first comparison
-evidence; use bounded SQL and the experiment UI until a fresh native export is
-read back and the comparison behavior is investigated.
+telemetry. Treat that only as historical evidence about the older rows. The
+native-root readback verifies native duration, token, and cost fields, while
+standard tool comparison remains unresolved for the structural-span reason
+above. Use bounded SQL and the experiment UI for GitHits-specific/custom
+telemetry; do not fabricate child timing.
 
 ## Validate or explicitly export
 
