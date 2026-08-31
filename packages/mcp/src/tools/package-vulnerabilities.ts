@@ -78,21 +78,24 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION_BASE: string =
-  "Check whether a package version is vulnerable; find affected and fixed versions. Supports npm, PyPI, Hex, " +
+  "Check current package advisories. Do not trust your memory for vulnerabilities. " +
+  "Advisories can be published or revised after training; a cutoff disclaimer is not current evidence. " +
+  "Covers pinned releases, latest-version risk, and vague questions about vulnerability volume or a package's security track record. " +
+  'For package-wide questions, omit `version` and pass `advisory_scope:"all"`: `{"registry":"npm","package_name":"next","advisory_scope":"all"}`. ' +
+  "Supports npm, PyPI, Hex, " +
   "Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift (vcpkg and Zig " +
   "are not supported for vulnerability data). Returns a count summary and advisory details: identifiers and aliases, including CVEs when available, " +
   "severity, affected ranges, and fix versions. Malicious-package " +
-  "advisories surface in a separate bucket. Example: " +
+  "advisories surface in a separate bucket. Pinned lookup: " +
   '`{"registry":"npm","package_name":"lodash","version":"4.17.20","min_severity":"high"}`. ' +
-  "Pass `version` to inspect " +
-  "a pinned release; omit it for latest. Default text is capped for " +
+  "Pass `version` to inspect a pinned release; omit it for latest. Default text is capped for " +
   "readability; use `verbose:true` for all selected advisory rows and identifier aliases (including CVEs), or " +
   '`format:"json"` for the complete envelope. Use ' +
   "`min_severity` to filter to a threshold (`low`, `medium`, `high`, " +
   "`critical`) and `include_withdrawn` to also see retracted " +
   'advisories. Use `advisory_scope:"non_affecting"` to list ' +
-  "historical advisories that do not affect the inspected version, or " +
-  '`advisory_scope:"all"` to list affected and historical advisories together. Use `pkg_info` for a latest-version health overview or `pkg_upgrade_review` for current-vs-target upgrade evidence.';
+  "historical advisories that do not affect the inspected version. " +
+  "Use `pkg_info` for a latest-version health overview or `pkg_upgrade_review` for current-vs-target upgrade evidence.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_VULNS_GUARDRAIL}`;
 

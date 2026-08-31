@@ -565,6 +565,18 @@ Notable findings to keep in mind when evaluating future changes:
   ToolSearch for all four, then incorrectly treated the discovered deferred
   tools as uncallable in two runs; keep discovery selection separate from
   post-selection invocation failures.
+- The 2026-08-31 `pkg_vulns` description comparison ran the overview, pinned
+  severity, qualitative history, and RubyGems workloads against clean
+  `origin/main` and the candidate with Luna-low descriptor-only intent. All
+  candidate calls completed successfully with no CLI fallback. Overview and
+  pinned-filter tool counts were unchanged; history kept three calls while
+  replacing `pkg_info` with a second `pkg_vulns` scope; RubyGems improved from
+  seven unrelated `search` / `search_status` / `code_grep` calls to direct
+  `quick_start` + `pkg_vulns`. The matching neutral discovery cells exposed no
+  tools and made zero calls, so they are host-discovery evidence rather than
+  descriptor-selection evidence. This single Luna-low sample found no harmful
+  routing regression; it is not a deterministic quality guarantee or a
+  claude.ai reproduction.
 - `package-vulnerability-rubygems.md` guards non-npm routing without naming
   RubyGems in the `pkg_vulns` prefix. Haiku called the intended package tools;
   Luna-low browsed instead on one run but called `pkg_vulns` and

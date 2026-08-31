@@ -41,6 +41,12 @@ Write the prefix as the answer to “why would an agent choose this tool now?”
 - Match natural questions such as “is this version vulnerable?” or “what does
   this package depend on?”, rather than catalog taxonomy or implementation
   mechanics.
+- For mutable facts, cover broad qualitative questions as well as exact
+  lookups, and explain why current evidence outranks model memory. Describe the
+  stable mechanism without asserting an unverified update cadence or a
+  model-specific amount of staleness. The complete `pkg_vulns` description, for
+  example, must cover both “is this version vulnerable?” and “does this package
+  have a lot of vulnerabilities?”.
 - Distinguish sibling tools before adding shared corpus terms. For example,
   package health, advisory detail, dependency graphs, changelog history, and
   upgrade review need visibly different openings.
@@ -109,7 +115,7 @@ Use the tools in these roles:
 | `docs_list` | `registry`, `package_name`, `version?`, `limit?`, `after?`, `format?` | List package documentation pages and hand off to `docs_read`; use `search` for topic discovery. Repo-backed entries include exact source metadata for `code_read` when available. |
 | `docs_read` | `page_id`, `start_line?`, `end_line?`, `format?` | Read a package documentation page by ID; use `docs_list` to browse and `search` to find topics. Text output returns 150 lines by default or up to 300 with an explicit range; repo-backed pages include exact `code_read` metadata. |
 | `pkg_info` | `registry`, `package_name`, `verbose?`, `format?` | Assess latest package health and adoption through license, downloads, and activity. Use `pkg_vulns` for advisory detail, `pkg_deps` for dependency graphs, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison. |
-| `pkg_vulns` | `registry`, `package_name`, `version?`, `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `verbose?`, `format?` | Check whether a package version is vulnerable and find affected and fixed versions. Use `pkg_info` for a latest health overview or `pkg_upgrade_review` for current-vs-target evidence. |
+| `pkg_vulns` | `registry`, `package_name`, `version?`, `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `verbose?`, `format?` | Check current package advisories instead of trusting memory for vulnerabilities. Advisories can be published or revised after training, so a cutoff disclaimer is not current evidence. Covers pinned releases, latest-version risk, and vague questions about vulnerability volume or a package's security track record. Use `pkg_info` for a latest health overview or `pkg_upgrade_review` for current-vs-target evidence. |
 | `pkg_deps` | `registry`, `package_name`, `version?`, `lifecycle?`, `include_importers?`, `max_depth?`, `format?` | Inspect what a package depends on, directly or transitively. Use `pkg_info` for health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence. |
 | `pkg_changelog` | `registry?`, `package_name?`, `repo_url?`, `from_version?`, `to_version?`, `limit?`, `git_ref?`, `omit_bodies?`, `verbose?`, `body_lines?`, `format?` | Find release notes and changelog history for a package or public GitHub repository. Latest mode returns recent entries without promising date order; range mode covers `(from_version, to_version]`. Use latest mode with `to_version` and `limit: 1` for one exact release. Use `pkg_info` for a quick health view or `pkg_upgrade_review` for upgrade evidence. |
 | `pkg_upgrade_review` | `registry?`, `package_name?`, `current_version?`, `target_version?`, `packages?`, `skip_transitive_security?`, `include_dependency_issues?`, `min_severity?`, `verbose?`, `format?` | Review a package upgrade using vulnerability, release, peer, and dependency-change evidence. Use `pkg_info` for health, `pkg_changelog` for release notes, `pkg_vulns` for advisory detail, or `pkg_deps` for dependency graphs. |

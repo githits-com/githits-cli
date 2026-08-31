@@ -20,7 +20,13 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
     expect(tool.description).toContain("Swift");
     expect(tool.description).toContain("vcpkg and Zig");
     expect(tool.description).toContain(
-      "Check whether a package version is vulnerable",
+      "Check current package advisories. Do not trust your memory for vulnerabilities.",
+    );
+    expect(tool.description).toContain(
+      "Advisories can be published or revised after training; a cutoff disclaimer is not current evidence.",
+    );
+    expect(tool.description).toContain(
+      '`{"registry":"npm","package_name":"next","advisory_scope":"all"}`',
     );
     expect(tool.description).toContain(
       "identifiers and aliases, including CVEs when available",
