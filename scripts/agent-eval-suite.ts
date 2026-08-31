@@ -412,6 +412,7 @@ export interface AgentEvalSuiteRunOptions {
   reportingPath?: string;
   schemaPath?: string;
   dryRun?: boolean;
+  workloadConcurrency?: number;
   scenarios?: readonly AgentEvalSuiteScenario[];
   shardExecutor?: AgentEvalSuiteShardExecutor;
 }
@@ -429,6 +430,7 @@ export interface AgentEvalSuiteShardOptions {
   reportingPath: string;
   schemaPath: string;
   dryRun: boolean;
+  workloadConcurrency: number;
   experimentalTools: boolean;
   workloads: AgentEvalSuiteWorkload[];
   workloadPaths: string[];
@@ -551,7 +553,7 @@ const suiteTotalsSchema = z.object({
 });
 
 export const agentEvalSuiteArtifactSchema = z.object({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   suiteId: z.string().uuid(),
   suiteName: suiteNameSchema,
   status: z.enum(["success", "partial", "failed", "dry-run"]),
@@ -577,6 +579,7 @@ export const agentEvalSuiteArtifactSchema = z.object({
   cells: z.array(suiteCellSchema),
   wallTimeMs: z.number().int().nonnegative(),
   cumulativeAgentTimeMs: z.number().int().nonnegative().nullable(),
+  workloadConcurrency: z.number().int().positive(),
   totals: suiteTotalsSchema,
   logicalToolCalls: z.number().int().nonnegative().nullable(),
   tokens: suiteTokenTotalsSchema,
@@ -590,6 +593,13 @@ export const agentEvalSuiteArtifactSchema = z.object({
 export type AgentEvalSuiteArtifact = z.infer<
   typeof agentEvalSuiteArtifactSchema
 >;
+
+const suiteV2ArtifactSchema = agentEvalSuiteArtifactSchema
+  .omit({ schemaVersion: true, workloadConcurrency: true })
+  .extend({
+    schemaVersion: z.literal(2),
+    workloadConcurrency: z.number().int().positive().optional(),
+  });
 
 const suiteV1ShardSchema = z.object({
   profile: suiteProfileSchema,
@@ -693,7 +703,8 @@ function normalizeV1SuiteArtifact(
   });
   return agentEvalSuiteArtifactSchema.parse({
     ...value,
-    schemaVersion: 2,
+    schemaVersion: 3,
+    workloadConcurrency: 1,
     matrix: {
       ...value.matrix,
       scenarios,
@@ -712,9 +723,21 @@ function normalizeV1SuiteArtifact(
   });
 }
 
+function normalizeV2SuiteArtifact(
+  value: z.infer<typeof suiteV2ArtifactSchema>,
+): AgentEvalSuiteArtifact {
+  return agentEvalSuiteArtifactSchema.parse({
+    ...value,
+    schemaVersion: 3,
+    workloadConcurrency: value.workloadConcurrency ?? 1,
+  });
+}
+
 export function parseSuiteArtifact(value: unknown): AgentEvalSuiteArtifact {
   const current = agentEvalSuiteArtifactSchema.safeParse(value);
   if (current.success) return current.data;
+  const v2 = suiteV2ArtifactSchema.safeParse(value);
+  if (v2.success) return normalizeV2SuiteArtifact(v2.data);
   const legacy = suiteV1ArtifactSchema.safeParse(value);
   if (legacy.success) return normalizeV1SuiteArtifact(legacy.data);
   throw new Error(`Invalid suite artifact: ${formatZodIssues(current.error)}`);
@@ -847,6 +870,7 @@ interface SuitePreflight {
   workloadPaths: string[];
   reportingPath: string;
   schemaPath: string;
+  workloadConcurrency: number;
   measurementGit: GitMetadata;
   targetGit: GitMetadata;
   contentIdentity: z.infer<typeof suiteContentIdentitySchema>;
@@ -1211,7 +1235,7 @@ function buildSuiteArtifact(
         ? "dry-run"
         : "success";
   return parseSuiteArtifact({
-    schemaVersion: 2,
+    schemaVersion: 3,
     suiteId: randomUUID(),
     suiteName: preflight.suite,
     status,
@@ -1263,6 +1287,7 @@ function buildSuiteArtifact(
     ),
     wallTimeMs,
     cumulativeAgentTimeMs: executionDurations,
+    workloadConcurrency: preflight.workloadConcurrency,
     totals: {
       expectedExecutions: cells.length,
       observedExecutions,
@@ -1290,6 +1315,11 @@ function buildSuiteArtifact(
 async function suitePreflight(
   options: AgentEvalSuiteRunOptions,
 ): Promise<SuitePreflight> {
+  const workloadConcurrency = options.workloadConcurrency ?? 1;
+  assert(
+    Number.isInteger(workloadConcurrency) && workloadConcurrency > 0,
+    "workloadConcurrency must be a positive integer",
+  );
   const repoRoot = resolve(options.repoRoot);
   const targetRoot = resolve(repoRoot, options.targetRoot ?? repoRoot);
   const outDir = resolve(repoRoot, options.outDir);
@@ -1359,6 +1389,7 @@ async function suitePreflight(
     workloadPaths,
     reportingPath,
     schemaPath,
+    workloadConcurrency,
     measurementGit,
     targetGit,
     contentIdentity,
@@ -1392,6 +1423,8 @@ async function productionShardExecutor(
     options.reportingPath,
     "--schema",
     options.schemaPath,
+    "--concurrency",
+    String(options.workloadConcurrency),
   ];
   if (options.experimentalTools) args.push("--experimental-tools");
   if (options.dryRun) args.push("--dry-run");
@@ -1439,6 +1472,7 @@ export async function runAgentEvalSuite(
       experimentalTools: preflight.suite === "experimental",
       workloads: preflight.workloads,
       workloadPaths: preflight.workloadPaths,
+      workloadConcurrency: preflight.workloadConcurrency,
       matrix: AGENT_EVAL_SUITE_MATRIX,
     };
   });
@@ -1500,6 +1534,7 @@ export function formatSuiteReport(artifact: AgentEvalSuiteArtifact): string {
   const lines = [
     `Agent eval suite: ${artifact.status} ${artifact.suiteName} ${artifact.measurementRoot}`,
     `matrix=${artifact.matrix.agent}:${artifact.matrix.model}/${artifact.matrix.reasoningEffort} scenarios=${artifact.matrix.scenarios.join(",")} workloads=${artifact.selectedWorkloads.length}`,
+    `workloadConcurrency=${artifact.workloadConcurrency}`,
     `agentCliVersions=${artifact.codexVersions.length > 0 ? artifact.codexVersions.join(",") : "unknown"}`,
     `totals executions=${artifact.totals.expectedExecutions} observed=${artifact.totals.observedExecutions} succeeded=${artifact.totals.successfulExecutions} failed=${artifact.totals.failedExecutions} missing=${artifact.totals.missingExecutions} wallTimeMs=${artifact.wallTimeMs} cumulativeAgentTimeMs=${artifact.cumulativeAgentTimeMs ?? "unknown"}`,
     `tokens uncachedInput=${artifact.tokens.uncachedInputTokens ?? "unknown"} cachedInput=${artifact.tokens.cachedInputTokens ?? "unknown"} cacheWriteInput=${artifact.tokens.cacheWriteInputTokens ?? "unknown"} output=${artifact.tokens.outputTokens ?? "unknown"} reasoning=${artifact.tokens.reasoningOutputTokens ?? "unknown"}`,
@@ -3191,6 +3226,7 @@ export interface AgentEvalSuitePairOptions {
   reportingPath?: string;
   schemaPath?: string;
   dryRun?: boolean;
+  workloadConcurrency?: number;
   scenarios?: readonly AgentEvalSuiteScenario[];
   shardExecutor?: AgentEvalSuiteShardExecutor;
 }
@@ -3228,6 +3264,7 @@ export async function runAgentEvalSuitePair(
     reportingPath: options.reportingPath,
     schemaPath: options.schemaPath,
     dryRun: options.dryRun,
+    workloadConcurrency: options.workloadConcurrency,
     scenarios: options.scenarios,
     shardExecutor: options.shardExecutor,
   };
@@ -3450,6 +3487,7 @@ export type AgentEvalSuiteCliCommand =
       outDir?: string;
       targetRoot?: string;
       dryRun: boolean;
+      workloadConcurrency: number;
     }
   | {
       mode: "pair";
@@ -3458,6 +3496,7 @@ export type AgentEvalSuiteCliCommand =
       baselineRoot: string;
       outDir?: string;
       dryRun: boolean;
+      workloadConcurrency: number;
     }
   | {
       mode: "compare";
@@ -3467,8 +3506,8 @@ export type AgentEvalSuiteCliCommand =
     };
 
 export const AGENT_EVAL_SUITE_USAGE = `Usage:
-  bun run agent:e2e:suite run --suite <name> [--scenario <discovery|intent|full>]... [--dry-run] [--out <dir>] [--target-root <path>]
-  bun run agent:e2e:suite pair --suite <name> --baseline-root <path> [--scenario <discovery|intent|full>]... [--dry-run] [--out <dir>]
+  bun run agent:e2e:suite run --suite <name> [--scenario <discovery|intent|full>]... [--concurrency <positive integer>] [--dry-run] [--out <dir>] [--target-root <path>]
+  bun run agent:e2e:suite pair --suite <name> --baseline-root <path> [--scenario <discovery|intent|full>]... [--concurrency <positive integer>] [--dry-run] [--out <dir>]
   bun run agent:e2e:suite compare --baseline-suite <path> --candidate-suite <path> [--out <dir>]
 
 Suites: ${AGENT_EVAL_SUITE_NAMES.join(", ")}
@@ -3477,8 +3516,22 @@ Defaults: canary discovery + intent; other suites intent only. Explicit --scenar
 `;
 
 const CLI_OPTIONS_BY_MODE: Record<AgentEvalSuiteCliMode, readonly string[]> = {
-  run: ["--suite", "--scenario", "--out", "--target-root", "--dry-run"],
-  pair: ["--suite", "--baseline-root", "--scenario", "--out", "--dry-run"],
+  run: [
+    "--suite",
+    "--scenario",
+    "--concurrency",
+    "--out",
+    "--target-root",
+    "--dry-run",
+  ],
+  pair: [
+    "--suite",
+    "--baseline-root",
+    "--scenario",
+    "--concurrency",
+    "--out",
+    "--dry-run",
+  ],
   compare: ["--baseline-suite", "--candidate-suite", "--out"],
 };
 
@@ -3489,6 +3542,15 @@ function isCliMode(value: string): value is AgentEvalSuiteCliMode {
 function assertCliValue(value: string | undefined, flag: string): string {
   assert(value !== undefined && value.length > 0, `${flag} requires a value`);
   return value;
+}
+
+function parsePositiveInteger(value: string, flag: string): number {
+  const parsed = Number(value);
+  assert(
+    Number.isInteger(parsed) && parsed > 0,
+    `${flag} must be a positive integer`,
+  );
+  return parsed;
 }
 
 function assertSuiteName(value: string): AgentEvalSuiteName {
@@ -3567,6 +3629,10 @@ export function parseAgentEvalSuiteCliArgs(
     return typeof value === "string" ? value : undefined;
   };
   const dryRun = values.has("--dry-run");
+  const workloadConcurrency = parsePositiveInteger(
+    getValue("--concurrency") ?? "1",
+    "--concurrency",
+  );
   if (rawMode === "run") {
     return {
       mode: rawMode,
@@ -3575,6 +3641,7 @@ export function parseAgentEvalSuiteCliArgs(
       outDir: getValue("--out"),
       targetRoot: getValue("--target-root"),
       dryRun,
+      workloadConcurrency,
     };
   }
   if (rawMode === "pair") {
@@ -3588,6 +3655,7 @@ export function parseAgentEvalSuiteCliArgs(
       ),
       outDir: getValue("--out"),
       dryRun,
+      workloadConcurrency,
     };
   }
   assert(!dryRun, "--dry-run is not valid for compare");
@@ -3636,6 +3704,7 @@ export async function runAgentEvalSuiteCli(
       targetRoot: command.targetRoot,
       outDir,
       dryRun: command.dryRun,
+      workloadConcurrency: command.workloadConcurrency,
       scenarios: command.scenarios,
     });
     return `${formatSuiteReport(artifact)}suite artifact: ${join(outDir, "suite.json")}\n`;
@@ -3648,6 +3717,7 @@ export async function runAgentEvalSuiteCli(
       baselineRoot: command.baselineRoot,
       outDir,
       dryRun: command.dryRun,
+      workloadConcurrency: command.workloadConcurrency,
       scenarios: command.scenarios,
     });
     return `${formatSuiteReport(result.baselineSuite)}${formatSuiteReport(result.candidateSuite)}${formatComparisonReport(result.comparison)}artifacts:\n  baseline suite: ${result.baselineSuitePath}\n  candidate suite: ${result.candidateSuitePath}\n  comparison: ${result.comparisonPath}\n`;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -333,6 +333,7 @@ async function generatePairSuite(
     "discovery",
     "full",
   ],
+  workloadConcurrency = 1,
 ): Promise<AgentEvalSuiteArtifact> {
   return runAgentEvalSuite({
     suite: "stable-full",
@@ -344,6 +345,7 @@ async function generatePairSuite(
     reportingPath: fixture.reportingPath,
     schemaPath: fixture.schemaPath,
     dryRun,
+    workloadConcurrency,
     scenarios,
     shardExecutor: async (options) => {
       writeShardArtifacts(
@@ -475,6 +477,8 @@ describe("agent eval suites", () => {
         "discovery",
         "--scenario",
         "intent",
+        "--concurrency",
+        "3",
         "--dry-run",
         "--out",
         "runs",
@@ -485,6 +489,7 @@ describe("agent eval suites", () => {
       mode: "run",
       suite: "canary",
       scenarios: ["discovery", "intent"],
+      workloadConcurrency: 3,
       dryRun: true,
       outDir: "runs",
       targetRoot: "../target",
@@ -520,6 +525,9 @@ describe("agent eval suites", () => {
       outDir: "comparison",
     });
     expect(parseAgentEvalSuiteCliArgs(["--help"])).toEqual({ mode: "help" });
+    expect(
+      parseAgentEvalSuiteCliArgs(["run", "--suite", "canary"]),
+    ).toMatchObject({ workloadConcurrency: 1 });
     expect(AGENT_EVAL_SUITE_USAGE).toContain(
       "Defaults: canary discovery + intent; other suites intent only.",
     );
@@ -560,6 +568,11 @@ describe("agent eval suites", () => {
         "--scenario",
         "intent",
       ],
+      ["run", "--suite", "canary", "--concurrency", "0"],
+      ["run", "--suite", "canary", "--concurrency", "-1"],
+      ["run", "--suite", "canary", "--concurrency", "1.5"],
+      ["run", "--suite", "canary", "--concurrency", "not-a-number"],
+      ["run", "--suite", "canary", "--concurrency"],
       ["run", "--suite", "canary", "--unknown"],
       ["--help", "--help"],
     ]) {
@@ -767,9 +780,12 @@ describe("agent eval suites", () => {
         matrix: Record<string, unknown>;
         shards: Array<Record<string, unknown>>;
         cells: Array<Record<string, unknown>>;
+        workloadConcurrency?: unknown;
       };
+      const currentV1 = { ...current };
+      delete currentV1.workloadConcurrency;
       const v1 = {
-        ...current,
+        ...currentV1,
         schemaVersion: 1,
         matrix: {
           agent: current.matrix.agent,
@@ -830,7 +846,8 @@ describe("agent eval suites", () => {
         });
       }
       const parsed = parseSuiteArtifact(v1);
-      expect(parsed.schemaVersion).toBe(2);
+      expect(parsed.schemaVersion).toBe(3);
+      expect(parsed.workloadConcurrency).toBe(1);
       expect(parsed.matrix.scenarios).toEqual(["discovery", "full"]);
       expect(parsed.cells.map((cell) => cell.scenario)).toEqual([
         "discovery",
@@ -883,7 +900,7 @@ describe("agent eval suites", () => {
     }
   });
 
-  it("emits v2 scenario identities and excludes intent hash mismatches from cohorts", async () => {
+  it("emits v3 scenario identities and excludes intent hash mismatches from cohorts", async () => {
     const baseline = createPairExecutionFixture();
     const candidate = createPairExecutionFixture();
     const baselineOutDir = mkdtempSync(
@@ -942,6 +959,71 @@ describe("agent eval suites", () => {
       rmSync(baselineOutDir, { recursive: true, force: true });
       rmSync(candidateOutDir, { recursive: true, force: true });
       rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("normalizes v2 workload concurrency and keeps it out of comparison identity", async () => {
+    const fixture = createPairExecutionFixture();
+    const v2OutDir = mkdtempSync(join(tmpdir(), "agent-eval-suite-v2-"));
+    const baselineOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-suite-concurrency-base-"),
+    );
+    const candidateOutDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-suite-concurrency-candidate-"),
+    );
+    try {
+      await generatePairSuite(fixture, v2OutDir);
+      const v2Path = join(v2OutDir, "suite.json");
+      const v2 = JSON.parse(readFileSync(v2Path, "utf8")) as Record<
+        string,
+        unknown
+      >;
+      delete v2.workloadConcurrency;
+      v2.schemaVersion = 2;
+      const parsedV2 = parseSuiteArtifact(v2);
+      expect(parsedV2.schemaVersion).toBe(3);
+      expect(parsedV2.workloadConcurrency).toBe(1);
+
+      await generatePairSuite(
+        fixture,
+        baselineOutDir,
+        (record) => ({ ...record, durationMs: 1000 }),
+        () => true,
+        true,
+        ["intent"],
+        1,
+      );
+      await generatePairSuite(
+        fixture,
+        candidateOutDir,
+        (record) => ({ ...record, durationMs: 2000 }),
+        () => true,
+        true,
+        ["intent"],
+        2,
+      );
+      const comparison = buildSuiteComparison(
+        loadImportedSuite(join(baselineOutDir, "suite.json")),
+        loadImportedSuite(join(candidateOutDir, "suite.json")),
+        {
+          mode: "offline",
+          comparisonId: randomUUID(),
+          startedAt: "2026-08-28T10:00:00.000Z",
+          completedAt: "2026-08-28T10:00:01.000Z",
+        },
+      );
+      expect(comparison.compatibility.directDeltasSuppressed).toBe(false);
+      expect(comparison.aggregates.durationMs.delta).toBe(1000);
+      expect(
+        comparison.compatibility.dimensions.some(
+          (dimension) => dimension.name === "workloadConcurrency",
+        ),
+      ).toBe(false);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+      rmSync(v2OutDir, { recursive: true, force: true });
+      rmSync(baselineOutDir, { recursive: true, force: true });
+      rmSync(candidateOutDir, { recursive: true, force: true });
     }
   });
 
@@ -1231,8 +1313,10 @@ describe("agent eval suites", () => {
         reportingPath: fixture.reportingPath,
         schemaPath: fixture.schemaPath,
         dryRun: true,
+        workloadConcurrency: 2,
         scenarios: ["discovery", "intent"],
         shardExecutor: async (options) => {
+          expect(options.workloadConcurrency).toBe(2);
           starts.push(options.scenario);
           if (starts.length === 2) notifyStarts();
           await barrier;
@@ -1253,6 +1337,7 @@ describe("agent eval suites", () => {
         AGENT_EVAL_SUITE_MATRIX.reasoningEffort,
       );
       expect([...artifact.matrix.scenarios]).toEqual(["discovery", "intent"]);
+      expect(artifact.workloadConcurrency).toBe(2);
       expect(artifact.selectedWorkloads.map((workload) => workload.id)).toEqual(
         ["stable-a", "stable-z"],
       );
