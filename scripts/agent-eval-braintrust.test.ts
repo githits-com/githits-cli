@@ -11,12 +11,16 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  type BraintrustCliResult,
   type BraintrustRowEvent,
   type BraintrustSuiteInput,
+  btEvalMain,
   buildBraintrustExperimentInit,
   createBraintrustPublisher,
+  parseBraintrustArgs,
   preflightAndMapBraintrustRows,
   publishBraintrustRows,
+  runBraintrustCli,
 } from "./agent-eval-braintrust.ts";
 import {
   type AgentEvalRecordInput,
@@ -899,5 +903,317 @@ describe("Braintrust publisher boundary", () => {
       "start:discovery/workload-a",
       "end:discovery/workload-a",
     ]);
+  });
+});
+
+describe("Braintrust CLI wrapper", () => {
+  it("parses local defaults and a stable injected timestamp", () => {
+    const options = parseBraintrustArgs(
+      ["--suite", "canary=out/suite.json"],
+      new Date("2026-08-31T12:34:56.000Z"),
+    );
+
+    expect(options).toEqual({
+      suites: [{ label: "canary", suitePath: "out/suite.json" }],
+      project: "githits-cli-agent-evals",
+      experiment: "local-20260831T123456000Z",
+      source: "local",
+      validateOnly: false,
+    });
+  });
+
+  it("parses explicit GitHub identity and result options", () => {
+    const options = parseBraintrustArgs([
+      "--suite",
+      "daily=out/suite.json",
+      "--project",
+      "custom-project",
+      "--experiment",
+      "github-123-2",
+      "--source",
+      "github",
+      "--run-id",
+      "123",
+      "--run-attempt",
+      "2",
+      "--run-url",
+      "https://github.com/githits-com/githits-cli/actions/runs/123",
+      "--result-out",
+      "out/result.json",
+      "--validate-only",
+    ]);
+
+    expect(options).toEqual({
+      suites: [{ label: "daily", suitePath: "out/suite.json" }],
+      project: "custom-project",
+      experiment: "github-123-2",
+      source: "github",
+      githubRunId: "123",
+      githubRunAttempt: "2",
+      githubRunUrl:
+        "https://github.com/githits-com/githits-cli/actions/runs/123",
+      resultOut: "out/result.json",
+      validateOnly: true,
+    });
+  });
+
+  it("rejects malformed, duplicate, unknown, and incoherent options", () => {
+    const invalidArguments: readonly (readonly string[])[] = [
+      [],
+      ["--suite", "missing-separator"],
+      ["--suite", "=out/suite.json"],
+      ["--suite", "missing-path="],
+      ["--suite", "same=one.json", "--suite", "same=two.json"],
+      ["--suite", "one=one.json", "--unknown"],
+      ["--suite", "one=one.json", "--project"],
+      ["--suite", "one=one.json", "--project", "one", "--project", "two"],
+      ["--suite", "one=one.json", "--source", "other"],
+      ["--suite", "one=one.json", "--run-id", "123"],
+      [
+        "--suite",
+        "one=one.json",
+        "--source",
+        "github",
+        "--run-id",
+        "123",
+        "--run-attempt",
+        "1",
+        "--run-url",
+        "not-a-url",
+        "--experiment",
+        "github-123-1",
+      ],
+      [
+        "--suite",
+        "one=one.json",
+        "--source",
+        "github",
+        "--run-id",
+        "123",
+        "--run-attempt",
+        "1",
+        "--run-url",
+        "https://github.com/example/repo/actions/runs/123",
+      ],
+      [
+        "--suite",
+        "one=one.json",
+        "--source",
+        "github",
+        "--experiment",
+        "github-123-1",
+        "--run-id",
+        "123",
+        "--run-attempt",
+        "1",
+      ],
+    ];
+    for (const args of invalidArguments) {
+      expect(() => parseBraintrustArgs(args)).toThrow();
+    }
+  });
+
+  it("maps and reports validate-only without credentials or a publisher", async () => {
+    const fixture = await createSuite();
+    const resultPath = join(fixture.root, "validate-result.json");
+    let publisherCalled = false;
+    const printed: string[] = [];
+    const result = await runBraintrustCli(
+      [
+        "--suite",
+        `canary=${fixture.suitePath}`,
+        "--result-out",
+        resultPath,
+        "--validate-only",
+      ],
+      {
+        env: {},
+        publisherFactory: () => {
+          publisherCalled = true;
+          throw new Error("publisher must not be called");
+        },
+        print: (line) => printed.push(line),
+      },
+    );
+
+    expect(publisherCalled).toBe(false);
+    expect(result).toMatchObject({
+      schemaVersion: 1,
+      mode: "validate-only",
+      project: "githits-cli-agent-evals",
+      rowCount: 1,
+    });
+    expect(result.url).toBeUndefined();
+    expect(JSON.parse(printed[0]!) as BraintrustCliResult).toEqual(result);
+    const resultText = readFileSync(resultPath, "utf8");
+    expect(JSON.parse(resultText) as BraintrustCliResult).toEqual(result);
+    expect(resultText).not.toContain(fixture.root);
+    expect(resultText).not.toContain("Prompt for");
+    expect(resultText).not.toContain("Answer for");
+  });
+
+  it("completes all preflight before checking the API key or publisher", async () => {
+    let keyRead = false;
+    let publisherCalled = false;
+    const environment: Readonly<Record<string, string | undefined>> = {
+      get BRAINTRUST_API_KEY() {
+        keyRead = true;
+        return "dummy-secret";
+      },
+    };
+    let failure: unknown;
+    try {
+      await runBraintrustCli(
+        ["--suite", "missing=/does/not/exist/suite.json"],
+        {
+          env: environment,
+          publisherFactory: () => {
+            publisherCalled = true;
+            throw new Error("publisher must not be called");
+          },
+        },
+      );
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(keyRead).toBe(false);
+    expect(publisherCalled).toBe(false);
+  });
+
+  it("rejects network mode without a key without exposing credential text", async () => {
+    const fixture = await createSuite();
+    const resultPath = join(fixture.root, "missing-key-result.json");
+    const printed: string[] = [];
+    let failure: unknown;
+    try {
+      await runBraintrustCli(
+        ["--suite", `canary=${fixture.suitePath}`, "--result-out", resultPath],
+        {
+          env: { BRAINTRUST_API_KEY: undefined },
+          publisherFactory: () => {
+            throw new Error("publisher must not be called");
+          },
+          print: (line) => printed.push(line),
+        },
+      );
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(String(failure)).toContain("BRAINTRUST_API_KEY is required");
+    expect(String(failure)).not.toContain("dummy-secret");
+    expect(printed).toEqual([]);
+    expect(existsSync(resultPath)).toBe(false);
+  });
+
+  it("delegates network export and writes only the safe result", async () => {
+    const fixture = await createSuite();
+    const resultPath = join(fixture.root, "export-result.json");
+    const calls: string[] = [];
+    const printed: string[] = [];
+    const result = await runBraintrustCli(
+      [
+        "--suite",
+        `canary=${fixture.suitePath}`,
+        "--experiment",
+        "local-export",
+        "--result-out",
+        resultPath,
+      ],
+      {
+        env: { BRAINTRUST_API_KEY: "dummy-secret" },
+        publisherFactory: async (init) => {
+          calls.push(`init:${init.project}/${init.experiment}`);
+          return {
+            startSpan(args) {
+              calls.push(`start:${args.name}`);
+              return {
+                end() {
+                  calls.push(`end:${args.name}`);
+                },
+              };
+            },
+            async flush() {
+              calls.push("flush");
+            },
+            async permalink() {
+              calls.push("permalink");
+              return "https://braintrust.dev/experiment/local-export";
+            },
+          };
+        },
+        print: (line) => printed.push(line),
+      },
+    );
+
+    expect(calls).toEqual([
+      "init:githits-cli-agent-evals/local-export",
+      "start:discovery/workload-a",
+      "end:discovery/workload-a",
+      "flush",
+      "permalink",
+    ]);
+    expect(result).toEqual({
+      schemaVersion: 1,
+      mode: "export",
+      project: "githits-cli-agent-evals",
+      experiment: "local-export",
+      rowCount: 1,
+      suites: result.suites,
+      url: "https://braintrust.dev/experiment/local-export",
+    });
+    expect(JSON.parse(printed[0]!) as BraintrustCliResult).toEqual(result);
+    const resultText = readFileSync(resultPath, "utf8");
+    expect(JSON.parse(resultText) as BraintrustCliResult).toEqual(result);
+    expect(resultText).not.toContain("dummy-secret");
+    expect(resultText).not.toContain(fixture.root);
+    expect(resultText).not.toContain("Prompt for");
+    expect(resultText).not.toContain("Answer for");
+  });
+
+  it("propagates export failures without writing a success result or retrying", async () => {
+    const fixture = await createSuite();
+    const resultPath = join(fixture.root, "failed-result.json");
+    const calls: string[] = [];
+    await expect(
+      runBraintrustCli(
+        ["--suite", `canary=${fixture.suitePath}`, "--result-out", resultPath],
+        {
+          env: { BRAINTRUST_API_KEY: "dummy-secret" },
+          publisherFactory: () => ({
+            startSpan(args) {
+              calls.push(`start:${args.name}`);
+              return {
+                end() {
+                  calls.push(`end:${args.name}`);
+                  throw new Error("network export failed");
+                },
+              };
+            },
+            async flush() {
+              calls.push("flush");
+            },
+            async permalink() {
+              calls.push("permalink");
+              return "https://braintrust.dev/should-not-be-used";
+            },
+          }),
+        },
+      ),
+    ).rejects.toThrow("network export failed");
+    expect(calls).toEqual([
+      "start:discovery/workload-a",
+      "end:discovery/workload-a",
+    ]);
+    expect(existsSync(resultPath)).toBe(false);
+  });
+
+  it("exposes the official no-argument btEvalMain entrypoint", () => {
+    expect(typeof btEvalMain).toBe("function");
+    expect(btEvalMain.length).toBe(0);
+    expect(typeof runBraintrustCli).toBe("function");
   });
 });

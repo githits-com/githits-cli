@@ -1,5 +1,11 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { relative, resolve } from "node:path";
 import type { AgentEvalRecord } from "./agent-eval-metrics.ts";
 import {
@@ -226,6 +232,34 @@ export interface BraintrustExportResult {
   url?: string;
   exportedRowCount: number;
 }
+
+export interface BraintrustCliOptions extends BraintrustExportOptions {
+  suites: BraintrustSuiteInput[];
+  resultOut?: string;
+  validateOnly: boolean;
+}
+
+export interface BraintrustCliResult {
+  schemaVersion: 1;
+  mode: "validate-only" | "export";
+  project: string;
+  experiment: string;
+  rowCount: number;
+  suites: BraintrustSuiteSummary[];
+  url?: string;
+}
+
+export interface BraintrustCliRuntime {
+  now?: () => Date;
+  env?: Readonly<Record<string, string | undefined>>;
+  publisherFactory?: BraintrustPublisherFactory;
+  writeFile?: (path: string, contents: string) => void;
+  print?: (line: string) => void;
+}
+
+export type BraintrustPublisherFactory = (
+  init: BraintrustExperimentInit,
+) => BraintrustPublisher | Promise<BraintrustPublisher>;
 
 export interface BraintrustSdkSpan {
   end(): void | number;
@@ -822,11 +856,7 @@ export async function createBraintrustPublisher(
 export async function publishBraintrustRows(
   mapping: BraintrustMappingResult,
   options: BraintrustExportOptions,
-  publisherFactory: (
-    init: BraintrustExperimentInit,
-  ) =>
-    | BraintrustPublisher
-    | Promise<BraintrustPublisher> = createBraintrustPublisher,
+  publisherFactory: BraintrustPublisherFactory = createBraintrustPublisher,
 ): Promise<BraintrustExportResult> {
   const init = buildBraintrustExperimentInit(mapping, options);
   const publisher = await publisherFactory(init);
@@ -846,4 +876,257 @@ export async function publishBraintrustRows(
     ...(url !== undefined ? { url } : {}),
     exportedRowCount: mapping.rows.length,
   };
+}
+
+const DEFAULT_BRAINTRUST_PROJECT = "githits-cli-agent-evals";
+
+function cliAssert(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new Error(`Braintrust CLI: ${message}`);
+}
+
+function readCliValue(
+  argv: readonly string[],
+  index: number,
+  flag: string,
+): { value: string; nextIndex: number } {
+  const value = argv[index + 1];
+  cliAssert(
+    value !== undefined && value.trim().length > 0 && !value.startsWith("--"),
+    `${flag} requires a value`,
+  );
+  return { value, nextIndex: index + 1 };
+}
+
+function parseSuiteInput(value: string): BraintrustSuiteInput {
+  const separator = value.indexOf("=");
+  cliAssert(
+    separator > 0 && separator < value.length - 1,
+    "--suite requires <label>=<suite.json>",
+  );
+  const label = value.slice(0, separator);
+  const suitePath = value.slice(separator + 1);
+  cliAssert(label.trim().length > 0, "suite label must not be empty");
+  cliAssert(suitePath.trim().length > 0, "suite path must not be empty");
+  return { label, suitePath };
+}
+
+function localExperimentName(now: Date): string {
+  cliAssert(!Number.isNaN(now.getTime()), "current time is invalid");
+  return `local-${now.toISOString().replace(/[^0-9A-Za-z]/g, "")}`;
+}
+
+function validateRunUrl(value: string): void {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("Braintrust CLI: --run-url must be an HTTP(S) URL");
+  }
+  cliAssert(
+    url.protocol === "http:" || url.protocol === "https:",
+    "--run-url must be an HTTP(S) URL",
+  );
+}
+
+export function parseBraintrustArgs(
+  argv: readonly string[],
+  now: Date = new Date(),
+): BraintrustCliOptions {
+  const suites: BraintrustSuiteInput[] = [];
+  const seenSuiteLabels = new Set<string>();
+  const seenFlags = new Set<string>();
+  let project = DEFAULT_BRAINTRUST_PROJECT;
+  let experiment: string | undefined;
+  let source: BraintrustExportOptions["source"] = "local";
+  let githubRunId: string | undefined;
+  let githubRunAttempt: string | undefined;
+  let githubRunUrl: string | undefined;
+  let resultOut: string | undefined;
+  let validateOnly = false;
+  let experimentWasExplicit = false;
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const flag = argv[index];
+    cliAssert(
+      flag !== undefined && flag.startsWith("--"),
+      `unknown argument: ${flag ?? ""}`,
+    );
+    if (flag === "--validate-only") {
+      cliAssert(!seenFlags.has(flag), `duplicate argument: ${flag}`);
+      seenFlags.add(flag);
+      validateOnly = true;
+      continue;
+    }
+
+    cliAssert(
+      flag === "--suite" ||
+        flag === "--project" ||
+        flag === "--experiment" ||
+        flag === "--source" ||
+        flag === "--run-id" ||
+        flag === "--run-attempt" ||
+        flag === "--run-url" ||
+        flag === "--result-out",
+      `unknown flag: ${flag}`,
+    );
+    const parsed = readCliValue(argv, index, flag);
+    index = parsed.nextIndex;
+
+    if (flag === "--suite") {
+      const suite = parseSuiteInput(parsed.value);
+      cliAssert(
+        !seenSuiteLabels.has(suite.label),
+        `duplicate suite label: ${suite.label}`,
+      );
+      seenSuiteLabels.add(suite.label);
+      suites.push(suite);
+      continue;
+    }
+
+    cliAssert(!seenFlags.has(flag), `duplicate argument: ${flag}`);
+    seenFlags.add(flag);
+    switch (flag) {
+      case "--project":
+        project = parsed.value;
+        break;
+      case "--experiment":
+        experiment = parsed.value;
+        experimentWasExplicit = true;
+        break;
+      case "--source":
+        cliAssert(
+          parsed.value === "local" || parsed.value === "github",
+          "--source must be local or github",
+        );
+        source = parsed.value;
+        break;
+      case "--run-id":
+        githubRunId = parsed.value;
+        break;
+      case "--run-attempt":
+        githubRunAttempt = parsed.value;
+        break;
+      case "--run-url":
+        githubRunUrl = parsed.value;
+        validateRunUrl(parsed.value);
+        break;
+      case "--result-out":
+        resultOut = parsed.value;
+        break;
+    }
+  }
+
+  cliAssert(suites.length > 0, "at least one --suite is required");
+  const hasGithubMetadata =
+    githubRunId !== undefined ||
+    githubRunAttempt !== undefined ||
+    githubRunUrl !== undefined;
+  if (source === "local") {
+    cliAssert(!hasGithubMetadata, "GitHub run fields require --source github");
+  } else {
+    cliAssert(
+      githubRunId !== undefined &&
+        githubRunAttempt !== undefined &&
+        githubRunUrl !== undefined,
+      "--source github requires --run-id, --run-attempt, and --run-url",
+    );
+    cliAssert(
+      experimentWasExplicit,
+      "--source github requires an explicit --experiment",
+    );
+    cliAssert(
+      experiment === `github-${githubRunId}-${githubRunAttempt}`,
+      "GitHub experiment must be github-<run-id>-<run-attempt>",
+    );
+  }
+
+  return {
+    suites,
+    project,
+    experiment: experiment ?? localExperimentName(now),
+    source,
+    ...(githubRunId !== undefined ? { githubRunId } : {}),
+    ...(githubRunAttempt !== undefined ? { githubRunAttempt } : {}),
+    ...(githubRunUrl !== undefined ? { githubRunUrl } : {}),
+    ...(resultOut !== undefined ? { resultOut } : {}),
+    validateOnly,
+  };
+}
+
+function hasBraintrustApiKey(runtime: BraintrustCliRuntime): boolean {
+  const environment = runtime.env ?? process.env;
+  return (
+    typeof environment.BRAINTRUST_API_KEY === "string" &&
+    environment.BRAINTRUST_API_KEY.length > 0
+  );
+}
+
+function buildCliResult(
+  mode: BraintrustCliResult["mode"],
+  options: BraintrustCliOptions,
+  mapping: BraintrustMappingResult,
+  url: string | undefined,
+): BraintrustCliResult {
+  return {
+    schemaVersion: 1,
+    mode,
+    project: options.project,
+    experiment: options.experiment,
+    rowCount: mapping.rows.length,
+    suites: mapping.suites,
+    ...(url !== undefined ? { url } : {}),
+  };
+}
+
+function writeCliResult(
+  path: string,
+  result: BraintrustCliResult,
+  writeFile: (path: string, contents: string) => void,
+): void {
+  writeFile(path, `${JSON.stringify(result, null, 2)}\n`);
+}
+
+export async function runBraintrustCli(
+  argv: readonly string[],
+  runtime: BraintrustCliRuntime = {},
+): Promise<BraintrustCliResult> {
+  const options = parseBraintrustArgs(argv, runtime.now?.() ?? new Date());
+  const mapping = preflightAndMapBraintrustRows(options.suites);
+  let result: BraintrustCliResult;
+  if (options.validateOnly) {
+    result = buildCliResult("validate-only", options, mapping, undefined);
+  } else {
+    cliAssert(
+      hasBraintrustApiKey(runtime),
+      "BRAINTRUST_API_KEY is required for network export",
+    );
+    const exported = await publishBraintrustRows(
+      mapping,
+      options,
+      runtime.publisherFactory,
+    );
+    result = buildCliResult("export", options, mapping, exported.url);
+  }
+  if (options.resultOut !== undefined) {
+    writeCliResult(
+      options.resultOut,
+      result,
+      runtime.writeFile ?? ((path, contents) => writeFileSync(path, contents)),
+    );
+  }
+  (runtime.print ?? ((line) => process.stdout.write(`${line}\n`)))(
+    JSON.stringify(result),
+  );
+  return result;
+}
+
+export async function btEvalMain(): Promise<void> {
+  await runBraintrustCli(process.argv.slice(2));
+}
+
+if (import.meta.main) {
+  btEvalMain().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
 }
