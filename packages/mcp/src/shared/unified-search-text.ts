@@ -926,6 +926,13 @@ function appendHit(
   hit: UnifiedSearchHitPayload,
   options: NormalizedTextOptions,
 ): void {
+  if (
+    (hit.type === "repository_code" || hit.type === "repository_symbol") &&
+    hit.locator.symbolContext?.relation === "encloses_match"
+  ) {
+    appendDefinitionFirstHit(lines, index, hit, options);
+    return;
+  }
   const header = formatHitHeader(hit);
   const rank = `[${index}] `;
   const prefix = renderHitHeaderPrefix(header, options.useColors);
@@ -949,6 +956,59 @@ function appendHit(
       ).map((line) => (line.length === 0 ? "" : `  ${line}`)),
     );
   }
+
+  const summary = prepareSummary(hit.summary, hit.title);
+  if (summary) {
+    lines.push(
+      ...wrapHighlightedText(
+        summary.text,
+        shiftHighlightRanges(hit.highlights?.summary, summary.offset),
+        Math.max(1, options.width - 2),
+        options.useColors,
+      ).map((line) => (line.length === 0 ? "" : `  ${line}`)),
+    );
+  }
+}
+
+function appendDefinitionFirstHit(
+  lines: string[],
+  index: number,
+  hit: UnifiedSearchHitPayload,
+  options: NormalizedTextOptions,
+): void {
+  const context = hit.locator.symbolContext;
+  if (context?.relation !== "encloses_match") return;
+  const definition = context.definitionRange;
+  const identity = context.qualifiedPath ?? context.name;
+  const kind = context.kind ? `${context.kind} ` : "";
+  const location = `${definition.filePath}${formatLineRange(
+    definition.startLine,
+    definition.endLine,
+  )}`;
+  lines.push(
+    `[${index}] ${highlight(identity, options.useColors)} - ${kind}defined at ${highlight(
+      location,
+      options.useColors,
+    )}`,
+  );
+
+  const evidence = hit.locator.evidenceRange ?? {
+    startLine: hit.locator.startLine,
+    endLine: hit.locator.endLine,
+  };
+  const sameRange =
+    definition.filePath === hit.locator.filePath &&
+    definition.startLine === evidence.startLine &&
+    definition.endLine === evidence.endLine;
+  const evidenceLocation = sameRange
+    ? "evidence matches definition"
+    : `evidence at ${formatBareLineRange(evidence.startLine, evidence.endLine)}`;
+  lines.push(
+    `  ${highlight(hit.target, options.useColors)} ${evidenceLocation} ${dim(
+      `[${shortType(hit.type)}]`,
+      options.useColors,
+    )}`,
+  );
 
   const summary = prepareSummary(hit.summary, hit.title);
   if (summary) {
@@ -1195,6 +1255,15 @@ function formatLineRange(start?: number, end?: number): string {
   if (typeof start !== "number") return "";
   if (typeof end !== "number" || end === start) return `:${start}`;
   return `:${start}-${end}`;
+}
+
+function formatBareLineRange(
+  start: number | undefined,
+  end: number | undefined,
+): string {
+  if (typeof start !== "number") return "an unavailable range";
+  if (typeof end !== "number" || end === start) return `${start}`;
+  return `${start}-${end}`;
 }
 
 function formatDocumentationSiteIdentity(

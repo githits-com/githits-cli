@@ -1,6 +1,10 @@
 import type { CodeNavigationService } from "@githits/core-internal";
 import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { z } from "zod";
+import {
+  MCP_READ_DEFAULT_SPAN,
+  MCP_READ_MAX_SPAN,
+} from "../shared/code-navigation-defaults.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { withReadFileRecovery } from "../shared/read-file-error.js";
 import { buildReadFileParams } from "../shared/read-file-request.js";
@@ -34,8 +38,7 @@ import {
  * CLI command `githits code read` bypasses both bounds so humans piping a
  * whole file to disk still work.
  */
-export const MCP_READ_DEFAULT_SPAN = 150;
-export const MCP_READ_MAX_SPAN = 300;
+export { MCP_READ_DEFAULT_SPAN, MCP_READ_MAX_SPAN };
 
 export interface ReadFileArgs {
   target: CodeTargetArg;

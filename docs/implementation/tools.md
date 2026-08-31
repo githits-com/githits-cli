@@ -147,6 +147,31 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Partial-result truth.** Every result-bearing initial `search` payload and stored `search_status.result` carries the backend's exact `partialResults: boolean`, including `false` for an atomic serveable interim snapshot and `true` for a subset of requested evidence. A progress-only response with no result snapshot omits the field. This additive field is retained unchanged in CLI `--json` and MCP `format: "json"`; text-v1 uses it only to label active results as interim or partial.
 
+**Repository search evidence locators.** Repository code and symbol hits keep the
+legacy target-relative `locator.filePath` and evidence `startLine` / `endLine`
+while also exposing the repository-root `repositoryFilePath`, exact served
+`commitSha`, explicit `evidenceRange`, original `indexedRange`, and optional
+`symbolContext`. Evidence includes `matchLine`, backend `rangeKind`, and
+`matchSpansTruncated`; symbol context keeps backend identity/kind plus the fixed
+lowercase relation `encloses_match` or `associated_with_indexed_chunk`. A proven
+enclosing relation always has one complete `definitionRange` containing both
+target-relative and repository-root paths. Associated or identity-only context
+may omit that range. Malformed partial definition locators invalidate the search
+response instead of being repaired or dropped.
+
+JSON retains all ranges even when their coordinates are equal. Compact text
+leads with the qualified symbol identity (falling back to its name) and complete
+definition only for `encloses_match`, then labels the focused evidence below it;
+associated and absent-symbol hits retain the evidence-first card. The single
+`followUp` uses the definition only for proven enclosure and otherwise uses the
+evidence range. Repository reads pair `repoUrl` with `commitSha`, falling back
+only to the exact served `gitRef`, and always use `repositoryFilePath`; they never
+combine a repository target with a package-relative path or substitute
+`requestedRef`. A definition wider than the MCP `code_read` 300-line cap keeps
+its true structured range while the generated action requests only the first
+bounded window. This client contract requires the deployed Phase 1A GraphQL
+schema; no legacy retry query or schema probe is attempted.
+
 **Promoted `warnings[]`.** Noteworthy `sourceStatus` entries — sources reporting `incompatibleQueryFeatures`, `ignoredQueryFeatures`, `incompatibleFilters`, `ignoredFilters`, lifecycle anomalies (`indexingStatus`, `codeIndexState`), or a free-form `note` — are also surfaced as a top-level `warnings: string[]` in the completed/incomplete payloads (and appended after parser warnings inside the `search_status` result block). The structured detail still lives in `sourceStatus`; `warnings[]` is the agent-visible signal that something about execution did not match the request. On completed empty results, healthy non-contributor source entries are also retained with zero `resultCount` and served identity; requested/fresh labels emit only when they materially differ from served. Contributor-bearing DOCS rows retain their physical contributors instead of duplicating healthy served/current resolution metadata. Healthy `INDEXED` / `CURRENT` / non-divergent `STALE` states never become warnings. `PROVISIONAL` is queryable but remains a visible non-healthy indexing signal, including on completed responses. Successful non-empty responses keep the prior compact projection. JSON keeps promoted warnings and source-status detail lossless; MCP text classifies parser/query and structured constraint facts once below the outcome and does not repeat promoted lifecycle/freshness warning prose or opaque notes. Implementation in `buildSourceStatusWarnings` and empty-result compaction (`packages/mcp/src/shared/unified-search-response.ts`).
 
 **Standalone-site recovery.** `search` accepts exact documentation targets as
@@ -356,7 +381,7 @@ Backend GraphQL errors preserve the backend message verbatim and carry its `hint
 
 **Exact-path authority errors**: `code_read` / `code_grep` distinguish a missing path (`FILE_NOT_FOUND`) from a path deliberately omitted from the index (`FILE_PATH_EXCLUDED`) and an index whose source-file inventory cannot authoritatively answer the path query (`SOURCE_FILE_INVENTORY_UNKNOWN`). The latter two become stable top-level CLI/MCP codes and preserve `filePath`, optional `exclusionReason`, retryability, and target-resolution metadata. All three preserve the backend message and add surface-native `details.action` guidance for inspecting indexed paths. MCP names `code_files`, `path_prefix`, `code_read`, and `code_grep`; CLI JSON names `githits code files`, a path-prefix positional, `githits code read`, and `githits code grep --path`. CLI terminal output names `code files`. `code_read` still supports generic `NOT_FOUND` from older/backend paths, and its structured recovery is likewise rendered with MCP or CLI-native names without classifying unrelated target misses as file errors.
 
-**`code_read` span bounds (MCP-only)**: real session traces showed agents requesting 300-600 line windows (and occasional unbounded full-file reads) which dominated context cost, while a later Claude Desktop session showed that a fixed 150-line ceiling can waste context by forcing pagination for a known 248-line file. Calls without `end_line` therefore remain bounded to `MCP_READ_DEFAULT_SPAN` (150 lines), while deliberate explicit ranges may request up to `MCP_READ_MAX_SPAN` (300 lines). Both are defined in `packages/mcp/src/tools/read-file.ts` and enforced before the backend call.
+**`code_read` span bounds (MCP-only)**: real session traces showed agents requesting 300-600 line windows (and occasional unbounded full-file reads) which dominated context cost, while a later Claude Desktop session showed that a fixed 150-line ceiling can waste context by forcing pagination for a known 248-line file. Calls without `end_line` therefore remain bounded to `MCP_READ_DEFAULT_SPAN` (150 lines), while deliberate explicit ranges may request up to `MCP_READ_MAX_SPAN` (300 lines). Both are defined in `packages/mcp/src/shared/code-navigation-defaults.ts` and enforced before the backend call.
 
 The `hint` field is emitted only when the cap *actually truncated* the response — i.e., the returned range comes up short of available content. `shouldEmitCappedHint` (in `packages/mcp/src/tools/read-file.ts`) suppresses the hint in three cases the agent doesn't need it: (a) the cap clamp didn't fire (caller's range was already within the cap); (b) the file fits within the cap, so the response is the whole file even though the request was clamped; (c) the returned range reaches end of file. Binary files always skip the hint. When emitted, the hint reads from `payload.startLine` / `endLine` / `totalLines` (the actual returned range, not the pre-clamp request) and includes the original request for the agent to learn from. The CLI command `githits code read` does not apply the cap; humans piping whole files to disk continue to work.
 

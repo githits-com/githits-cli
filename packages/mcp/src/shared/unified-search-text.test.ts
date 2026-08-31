@@ -277,6 +277,190 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text.length).toBeLessThan(3459);
   });
 
+  it("renders the pi-mono definition before its focused evidence", () => {
+    const filePath = "packages/coding-agent/src/core/compaction/compaction.ts";
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          target: "github:badlogic/pi-mono#853a80d",
+          title: "compact",
+          summary:
+            "// Merge into single summary\nawait generateSummaryWithUsage();",
+          locator: {
+            repoUrl: "https://github.com/badlogic/pi-mono",
+            gitRef: "853a80d",
+            filePath,
+            repositoryFilePath: filePath,
+            startLine: 920,
+            endLine: 930,
+            evidenceRange: {
+              startLine: 920,
+              endLine: 930,
+              matchLine: 924,
+              rangeKind: "match_window",
+              matchSpansTruncated: false,
+            },
+            indexedRange: { startLine: 900, endLine: 940 },
+            symbolContext: {
+              name: "compact",
+              kind: "function",
+              relation: "encloses_match",
+              definitionRange: {
+                filePath,
+                repositoryFilePath: filePath,
+                startLine: 858,
+                endLine: 964,
+              },
+            },
+          },
+        }),
+      ]),
+    );
+
+    const definition = `[1] compact - function defined at ${filePath}:858-964`;
+    const evidence =
+      "github:badlogic/pi-mono#853a80d evidence at 920-930 [repo code]";
+    expect(text).toContain(definition);
+    expect(text).toContain(evidence);
+    expect(text.indexOf(definition)).toBeLessThan(text.indexOf(evidence));
+    expect(text.indexOf(evidence)).toBeLessThan(
+      text.indexOf("// Merge into single summary"),
+    );
+    expect(text).not.toContain("indexedRange");
+  });
+
+  it("keeps associated, truncated, identity-only, and absent-symbol hits evidence-first", () => {
+    const associated = codeHit({
+      title: "associated",
+      locator: {
+        filePath: "src/associated.ts",
+        startLine: 10,
+        endLine: 12,
+        evidenceRange: {
+          startLine: 10,
+          endLine: 12,
+          matchSpansTruncated: true,
+        },
+        symbolContext: {
+          name: "associated",
+          relation: "associated_with_indexed_chunk",
+          definitionRange: {
+            filePath: "src/associated.ts",
+            repositoryFilePath: "packages/pkg/src/associated.ts",
+            startLine: 1,
+            endLine: 50,
+          },
+        },
+      },
+    });
+    const identityOnly = codeHit({
+      title: "identityOnly",
+      locator: {
+        filePath: "src/identity.ts",
+        startLine: 20,
+        endLine: 21,
+        symbolContext: {
+          name: "identityOnly",
+          relation: "associated_with_indexed_chunk",
+        },
+      },
+    });
+    const absent = codeHit({
+      title: "top-level evidence",
+      locator: {
+        filePath: "src/top-level.ts",
+        startLine: 1,
+        endLine: 1,
+      },
+    });
+
+    const text = renderUnifiedSearchSuccess(
+      completed([associated, identityOnly, absent]),
+    );
+
+    expect(text).toContain(
+      "[1] cline/cline@v3.4.2 src/associated.ts:10-12 [repo code] - associated",
+    );
+    expect(text).toContain(
+      "[2] cline/cline@v3.4.2 src/identity.ts:20-21 [repo code] - identityOnly",
+    );
+    expect(text).toContain(
+      "[3] cline/cline@v3.4.2 src/top-level.ts:1 [repo code] - top-level evidence",
+    );
+    expect(text).not.toContain("defined at");
+  });
+
+  it("collapses equal definition and evidence ranges only in text", () => {
+    const filePath = "src/router.ts";
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          title: "router",
+          locator: {
+            filePath,
+            repositoryFilePath: filePath,
+            startLine: 42,
+            endLine: 57,
+            evidenceRange: {
+              startLine: 42,
+              endLine: 57,
+              matchSpansTruncated: false,
+            },
+            symbolContext: {
+              name: "router",
+              kind: "function",
+              relation: "encloses_match",
+              definitionRange: {
+                filePath,
+                repositoryFilePath: filePath,
+                startLine: 42,
+                endLine: 57,
+              },
+            },
+          },
+        }),
+      ]),
+    );
+
+    expect(text.match(/42-57/g)).toHaveLength(1);
+    expect(text).toContain("evidence matches definition");
+  });
+
+  it("does not promote repository documentation with associated symbol metadata", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        {
+          type: "repository_doc",
+          target: "npm:express@5.2.1",
+          title: "5.0.0-alpha.4 / 2017-03-01",
+          summary: "Release notes",
+          locator: {
+            pageId: "history-release",
+            filePath: "History.md",
+            startLine: 169,
+            endLine: 179,
+            symbolContext: {
+              name: "5.0.0-alpha.4 / 2017-03-01",
+              kind: "module",
+              relation: "encloses_match",
+              definitionRange: {
+                filePath: "History.md",
+                repositoryFilePath: "History.md",
+                startLine: 166,
+                endLine: 182,
+              },
+            },
+          },
+        },
+      ]),
+    );
+
+    expect(text).toContain(
+      "[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01",
+    );
+    expect(text).not.toContain("defined at");
+  });
+
   it("keeps contributor-less documentation in detailed target state", () => {
     const text = renderUnifiedSearchSuccess(
       completed([docsHit({ target: "npm:express@5.2.1" })], {

@@ -1,11 +1,14 @@
 import type {
   DocCoverage,
   UnifiedSearchCompleted,
+  UnifiedSearchEvidenceRange,
   UnifiedSearchHit,
+  UnifiedSearchIndexedRange,
   UnifiedSearchOutcome,
   UnifiedSearchParams,
   UnifiedSearchProgress,
   UnifiedSearchSourceStatus,
+  UnifiedSearchSymbolContext,
 } from "@githits/core-internal";
 import { MalformedCodeNavigationResponseError } from "@githits/core-internal";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
@@ -86,10 +89,15 @@ export interface UnifiedSearchHitPayload {
     sourceUrl?: string;
     repoUrl?: string;
     gitRef?: string;
+    commitSha?: string;
     requestedRef?: string;
     filePath?: string;
+    repositoryFilePath?: string;
     startLine?: number;
     endLine?: number;
+    evidenceRange?: UnifiedSearchEvidenceRange;
+    indexedRange?: UnifiedSearchIndexedRange;
+    symbolContext?: UnifiedSearchSymbolContext;
     qualifiedPath?: string;
     kind?: string;
     category?: string;
@@ -555,10 +563,24 @@ function buildLocatorPayload(
   if (src.sourceUrl) locator.sourceUrl = src.sourceUrl;
   if (src.repoUrl) locator.repoUrl = src.repoUrl;
   if (src.gitRef) locator.gitRef = src.gitRef;
+  if (src.commitSha) locator.commitSha = src.commitSha;
   if (src.requestedRef) locator.requestedRef = src.requestedRef;
   if (src.filePath) locator.filePath = src.filePath;
+  if (src.repositoryFilePath) {
+    locator.repositoryFilePath = src.repositoryFilePath;
+  }
   if (typeof src.startLine === "number") locator.startLine = src.startLine;
   if (typeof src.endLine === "number") locator.endLine = src.endLine;
+  if (src.evidenceRange) locator.evidenceRange = { ...src.evidenceRange };
+  if (src.indexedRange) locator.indexedRange = { ...src.indexedRange };
+  if (src.symbolContext) {
+    locator.symbolContext = {
+      ...src.symbolContext,
+      ...(src.symbolContext.definitionRange
+        ? { definitionRange: { ...src.symbolContext.definitionRange } }
+        : {}),
+    };
+  }
   // Top-level symbols often have qualifiedPath identical to title;
   // skip the duplicate. Nested members (e.g. `MyClass.method`) still
   // carry the disambiguating path.
