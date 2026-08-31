@@ -730,7 +730,11 @@ function mergeCodexToolObservation(
     previous.startedAt ?? undefined,
   );
   if (current.status === "started") {
-    if (previous.status === "completed" || previous.status === "failed") {
+    if (
+      previous.status === "completed" ||
+      previous.status === "failed" ||
+      merged.completedAt !== null
+    ) {
       return rejectToolTiming(merged);
     }
     if (currentObservedAt !== undefined && merged.startedAt === null) {
