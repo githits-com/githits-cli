@@ -13,7 +13,9 @@ import { join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import {
   type BraintrustCliResult,
+  type BraintrustEndSpanArgs,
   type BraintrustRowEvent,
+  type BraintrustSpan,
   type BraintrustSuiteInput,
   btEvalMain,
   buildBraintrustExperimentInit,
@@ -101,8 +103,27 @@ function createRecord(
       LUNA_MODEL,
     ),
     toolCalls: suiteOptions.toolCalls ?? [
-      { tool: "search", server: "githits", status: "completed" },
-      { tool: "pkg-info", server: "githits-cli", status: "started" },
+      {
+        tool: "search",
+        server: "githits",
+        providerCallId: "search-1",
+        status: "started",
+        observedAt: "2026-08-28T10:00:00.100Z",
+      },
+      {
+        tool: "search",
+        server: "githits",
+        providerCallId: "search-1",
+        status: "completed",
+        observedAt: "2026-08-28T10:00:00.200Z",
+      },
+      {
+        tool: "pkg-info",
+        server: "githits-cli",
+        providerCallId: "pkg-info-1",
+        status: "started",
+        observedAt: "2026-08-28T10:00:00.500Z",
+      },
     ],
     artifacts: {},
   };
@@ -265,6 +286,17 @@ function firstMetricsRecord(
   return record;
 }
 
+function leafSpan(
+  end: (args?: BraintrustEndSpanArgs) => void = () => {},
+): BraintrustSpan {
+  return {
+    startSpan() {
+      throw new Error("test leaf spans cannot have children");
+    },
+    end,
+  };
+}
+
 describe("Braintrust eval row mapping", () => {
   it("keeps stable input identity separate from process identity", async () => {
     const fixture = await createSuite({ scenarios: ["full", "discovery"] });
@@ -332,22 +364,22 @@ describe("Braintrust eval row mapping", () => {
       const record = firstMetricsRecord(metrics);
       record.startedAt = "not-a-timestamp";
     });
-    const invalidRow = preflightAndMapBraintrustRows([
-      suiteInput("invalid-times", fixture.suitePath),
-    ]).rows[0]!;
-    expect(invalidRow.startTime).toBeUndefined();
-    expect(invalidRow.endTime).toBeUndefined();
+    expect(() =>
+      preflightAndMapBraintrustRows([
+        suiteInput("invalid-times", fixture.suitePath),
+      ]),
+    ).toThrow("no valid parent span interval");
 
     mutateMetrics(fixture, (metrics) => {
       const record = firstMetricsRecord(metrics);
       record.startedAt = "2026-08-28T10:00:02.000Z";
       record.completedAt = "2026-08-28T10:00:01.000Z";
     });
-    const reversedRow = preflightAndMapBraintrustRows([
-      suiteInput("reversed-times", fixture.suitePath),
-    ]).rows[0]!;
-    expect(reversedRow.startTime).toBeUndefined();
-    expect(reversedRow.endTime).toBeUndefined();
+    expect(() =>
+      preflightAndMapBraintrustRows([
+        suiteInput("reversed-times", fixture.suitePath),
+      ]),
+    ).toThrow("no valid parent span interval");
   });
 
   it("orders rows by suite label, scenario, and workload", async () => {
@@ -382,14 +414,12 @@ describe("Braintrust eval row mapping", () => {
     const metrics = result.rows[0]!.metrics;
     expect(metrics).toMatchObject({
       duration: 1,
-      tool_calls: 2,
-      tool_errors: 0,
       mcp_tool_calls: 1,
       cli_tool_calls: 1,
       tool_calls_started: 1,
       tool_calls_completed: 1,
       tool_calls_unknown: 0,
-      raw_tool_events: 2,
+      raw_tool_events: 3,
       prompt_tokens: 100,
       prompt_cached_tokens: 20,
       prompt_cache_creation_tokens: 10,
@@ -398,6 +428,8 @@ describe("Braintrust eval row mapping", () => {
       tokens: 130,
     });
     expect(metrics.estimated_cost).toBeGreaterThan(0);
+    expect(metrics).not.toHaveProperty("tool_calls");
+    expect(metrics).not.toHaveProperty("tool_errors");
     for (const removedMetric of [
       "agent_duration_ms",
       "logical_tool_calls",
@@ -416,8 +448,7 @@ describe("Braintrust eval row mapping", () => {
     const zeroRow = preflightAndMapBraintrustRows([
       suiteInput("zero", zero.suitePath),
     ]).rows[0]!;
-    expect(zeroRow.metrics.tool_calls).toBe(0);
-    expect(zeroRow.metrics.tool_errors).toBe(0);
+    expect(zeroRow.toolSpans).toEqual([]);
     expect(zeroRow.metrics.mcp_tool_calls).toBe(0);
     expect(zeroRow.metrics.cli_tool_calls).toBe(0);
     expect(zeroRow.metrics.tool_calls_started).toBe(0);
@@ -427,7 +458,7 @@ describe("Braintrust eval row mapping", () => {
     expect(zeroRow.tags).toEqual([]);
   });
 
-  it("omits unknown values while retaining raw events", async () => {
+  it("rejects tool-bearing rows with unknown logical telemetry", async () => {
     const fixture = await createSuite();
     mutateMetrics(fixture, (metrics) => {
       const record = firstMetricsRecord(metrics);
@@ -446,19 +477,9 @@ describe("Braintrust eval row mapping", () => {
       };
       metrics.aggregates.logicalToolCalls = null;
     });
-    const row = preflightAndMapBraintrustRows([
-      suiteInput("unknown", fixture.suitePath),
-    ]).rows[0]!;
-
-    expect(row.metrics).toEqual({
-      duration: 1,
-      raw_tool_events: 2,
-    });
-    expect(row.metadata.toolTelemetryKnown).toBe(false);
-    expect(row.metadata.toolSequence).toBeUndefined();
-    expect(row.metadata.toolCounts).toBeUndefined();
-    expect(row.tags).toEqual([]);
-    expect(row.metadata.costKind).toBe("unknown");
+    expect(() =>
+      preflightAndMapBraintrustRows([suiteInput("unknown", fixture.suitePath)]),
+    ).toThrow("tool-bearing row has unknown logical telemetry");
   });
 
   it("maps ordered tool sequence, per-tool counts, and tags", async () => {
@@ -468,8 +489,20 @@ describe("Braintrust eval row mapping", () => {
     ]).rows[0]!;
 
     expect(row.metadata.toolSequence).toEqual([
-      { tool: "search", surface: "mcp", status: "completed" },
-      { tool: "pkg-info", surface: "cli", status: "started" },
+      {
+        tool: "search",
+        surface: "mcp",
+        status: "completed",
+        startedAt: "2026-08-28T10:00:00.100Z",
+        completedAt: "2026-08-28T10:00:00.200Z",
+      },
+      {
+        tool: "pkg-info",
+        surface: "cli",
+        status: "started",
+        startedAt: "2026-08-28T10:00:00.500Z",
+        completedAt: null,
+      },
     ]);
     expect(row.metadata.toolCounts).toEqual([
       {
@@ -485,7 +518,250 @@ describe("Braintrust eval row mapping", () => {
         statusCounts: { started: 0, completed: 1, failed: 0, unknown: 0 },
       },
     ]);
+    expect(row.toolSpans).toEqual([
+      {
+        name: "search",
+        type: "tool",
+        event: {
+          input: { tool: "search", surface: "mcp" },
+          output: { status: "completed" },
+          metadata: {
+            tool: "search",
+            surface: "mcp",
+            timingSource: "harness_stdout_observed",
+          },
+        },
+        startTime: Date.parse("2026-08-28T10:00:00.100Z") / 1000,
+        endTime: Date.parse("2026-08-28T10:00:00.200Z") / 1000,
+      },
+      {
+        name: "pkg-info",
+        type: "tool",
+        event: {
+          input: { tool: "pkg-info", surface: "cli" },
+          output: { status: "started" },
+          metadata: {
+            tool: "pkg-info",
+            surface: "cli",
+            timingSource: "harness_stdout_observed",
+          },
+        },
+        startTime: Date.parse("2026-08-28T10:00:00.500Z") / 1000,
+      },
+    ]);
     expect(row.tags).toEqual(["tool:cli:pkg-info", "tool:mcp:search"]);
+  });
+
+  it("maps failed tools to native child errors without raw payloads", async () => {
+    const fixture = await createSuite({
+      toolCalls: [
+        {
+          tool: "search",
+          server: "githits",
+          providerCallId: "failed-search",
+          status: "started",
+          observedAt: "2026-08-28T10:00:00.200Z",
+        },
+        {
+          tool: "search",
+          server: "githits",
+          providerCallId: "failed-search",
+          status: "failed",
+          observedAt: "2026-08-28T10:00:00.400Z",
+          error: { message: "provider details" },
+        },
+      ],
+    });
+    const row = preflightAndMapBraintrustRows([
+      suiteInput("failed-tool", fixture.suitePath),
+    ]).rows[0]!;
+
+    expect(row.toolSpans).toEqual([
+      {
+        name: "search",
+        type: "tool",
+        event: {
+          input: { tool: "search", surface: "mcp" },
+          output: { status: "failed" },
+          metadata: {
+            tool: "search",
+            surface: "mcp",
+            timingSource: "harness_stdout_observed",
+          },
+          error: "tool_status:failed",
+        },
+        startTime: Date.parse("2026-08-28T10:00:00.200Z") / 1000,
+        endTime: Date.parse("2026-08-28T10:00:00.400Z") / 1000,
+      },
+    ]);
+    expect(JSON.stringify(row.toolSpans)).not.toContain("provider details");
+  });
+
+  it("rejects incomplete, invalid, reverse, and outside-parent tool intervals", async () => {
+    const cases: ReadonlyArray<{
+      name: string;
+      toolCalls: AgentEvalRecordInput["toolCalls"];
+      message: string;
+    }> = [
+      {
+        name: "missing-start",
+        toolCalls: [
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "missing-start",
+            status: "completed",
+            observedAt: "2026-08-28T10:00:00.200Z",
+          },
+        ],
+        message: "no valid observed start time",
+      },
+      {
+        name: "missing-completion",
+        toolCalls: [
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "missing-completion",
+            status: "started",
+            observedAt: "2026-08-28T10:00:00.200Z",
+          },
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "missing-completion",
+            status: "completed",
+          },
+        ],
+        message: "no valid observed completion time",
+      },
+      {
+        name: "reverse",
+        toolCalls: [
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "reverse",
+            status: "started",
+            observedAt: "2026-08-28T10:00:00.400Z",
+          },
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "reverse",
+            status: "completed",
+            observedAt: "2026-08-28T10:00:00.200Z",
+          },
+        ],
+        message: "no valid observed start time",
+      },
+      {
+        name: "outside-start",
+        toolCalls: [
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "outside-start",
+            status: "started",
+            observedAt: "2026-08-28T09:59:59.900Z",
+          },
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "outside-start",
+            status: "completed",
+            observedAt: "2026-08-28T10:00:00.200Z",
+          },
+        ],
+        message: "starts outside the parent span interval",
+      },
+      {
+        name: "outside-end",
+        toolCalls: [
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "outside-end",
+            status: "started",
+            observedAt: "2026-08-28T10:00:00.200Z",
+          },
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "outside-end",
+            status: "completed",
+            observedAt: "2026-08-28T10:00:01.100Z",
+          },
+        ],
+        message: "ends outside the parent span interval",
+      },
+      {
+        name: "unknown-status",
+        toolCalls: [
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "unknown-status",
+            status: "unknown",
+            observedAt: "2026-08-28T10:00:00.200Z",
+          },
+        ],
+        message: "has unknown status",
+      },
+    ];
+
+    for (const testCase of cases) {
+      const fixture = await createSuite({ toolCalls: testCase.toolCalls });
+      expect(() =>
+        preflightAndMapBraintrustRows([
+          suiteInput(testCase.name, fixture.suitePath),
+        ]),
+      ).toThrow(testCase.message);
+    }
+
+    const invalid = await createSuite();
+    mutateMetrics(invalid, (metrics) => {
+      const sequence = firstMetricsRecord(metrics).tools.sequence;
+      sequence[0]!.startedAt = "not-a-timestamp";
+    });
+    expect(() =>
+      preflightAndMapBraintrustRows([suiteInput("invalid", invalid.suitePath)]),
+    ).toThrow();
+  });
+
+  it("accepts legacy zero-tool suites and rejects legacy tool timing gaps", async () => {
+    const downgrade = (fixture: SuiteFixture, version: 1 | 2): void => {
+      mutateJson<Record<string, unknown>>(
+        join(fixture.shardPath, "metrics.json"),
+        (metrics) => {
+          metrics.schemaVersion = version;
+          const records = metrics.records as Array<Record<string, unknown>>;
+          for (const record of records) {
+            const tools = record.tools as Record<string, unknown>;
+            tools.sequence = (
+              tools.sequence as Array<Record<string, unknown>>
+            ).map(({ tool, surface, status }) => ({ tool, surface, status }));
+          }
+        },
+      );
+    };
+
+    for (const version of [1, 2] as const) {
+      const zero = await createSuite({ toolCalls: [] });
+      downgrade(zero, version);
+      const zeroRow = preflightAndMapBraintrustRows([
+        suiteInput(`legacy-zero-${version}`, zero.suitePath),
+      ]).rows[0]!;
+      expect(zeroRow.toolSpans).toEqual([]);
+
+      const toolBearing = await createSuite();
+      downgrade(toolBearing, version);
+      expect(() =>
+        preflightAndMapBraintrustRows([
+          suiteInput(`legacy-tools-${version}`, toolBearing.suitePath),
+        ]),
+      ).toThrow("no valid observed start time");
+    }
   });
 
   it("adds a status-only error for failed cells", async () => {
@@ -807,6 +1083,7 @@ describe("Braintrust publisher boundary", () => {
     const events: unknown[] = [];
     const startTimes: Array<number | undefined> = [];
     const endTimes: Array<number | undefined> = [];
+    const toolEndTimes: Array<number | undefined> = [];
     const result = await publishBraintrustRows(
       mapping,
       {
@@ -829,6 +1106,13 @@ describe("Braintrust publisher boundary", () => {
               "type",
             ]);
             return {
+              startSpan(childArgs) {
+                calls.push(`tool-start:${childArgs.name}`);
+                return leafSpan((endArgs) => {
+                  toolEndTimes.push(endArgs?.endTime);
+                  calls.push(`tool-end:${childArgs.name}`);
+                });
+              },
               end(endArgs) {
                 endTimes.push(endArgs?.endTime);
                 calls.push(`end:${args.name}`);
@@ -849,16 +1133,24 @@ describe("Braintrust publisher boundary", () => {
     expect(calls).toEqual([
       "init:githits-cli-agent-evals/local-test",
       "start:discovery/workload-a",
+      "tool-start:search",
+      "tool-end:search",
+      "tool-start:pkg-info",
       "end:discovery/workload-a",
       "start:full/workload-a",
+      "tool-start:search",
+      "tool-end:search",
+      "tool-start:pkg-info",
       "end:full/workload-a",
       "flush",
       "permalink",
     ]);
     const expectedStart = Date.parse("2026-08-28T10:00:00.000Z") / 1000;
     const expectedEnd = Date.parse("2026-08-28T10:00:01.000Z") / 1000;
+    const expectedSearchEnd = Date.parse("2026-08-28T10:00:00.200Z") / 1000;
     expect(startTimes).toEqual([expectedStart, expectedStart]);
     expect(endTimes).toEqual([expectedEnd, expectedEnd]);
+    expect(toolEndTimes).toEqual([expectedSearchEnd, expectedSearchEnd]);
     expect(
       (events as Array<Record<string, unknown>>).map((event) =>
         Object.keys(event).sort(),
@@ -919,6 +1211,18 @@ describe("Braintrust publisher boundary", () => {
               "tags",
             ]);
             return {
+              startSpan(childArgs) {
+                calls.push(`tool-start:${childArgs.name}`);
+                return {
+                  startSpan() {
+                    throw new Error("test leaf spans cannot have children");
+                  },
+                  end() {
+                    calls.push(`tool-end:${childArgs.name}`);
+                    return 0;
+                  },
+                };
+              },
               end(endArgs) {
                 expect(endArgs).toEqual({
                   endTime: Date.parse("2026-08-28T10:00:01.000Z") / 1000,
@@ -951,6 +1255,9 @@ describe("Braintrust publisher boundary", () => {
     expect(calls).toEqual([
       "init:githits-cli-agent-evals",
       "start:discovery/workload-a",
+      "tool-start:search",
+      "tool-end:search",
+      "tool-start:pkg-info",
       "end:discovery/workload-a",
       "flush",
       "summary:false",
@@ -974,7 +1281,12 @@ describe("Braintrust publisher boundary", () => {
       () => ({
         startSpan(args) {
           event = args.event;
-          return { end() {} };
+          return {
+            startSpan() {
+              return leafSpan();
+            },
+            end() {},
+          };
         },
         async flush() {},
         async permalink() {
@@ -1016,6 +1328,10 @@ describe("Braintrust publisher boundary", () => {
           startSpan(args) {
             calls.push(`start:${args.name}`);
             return {
+              startSpan(childArgs) {
+                calls.push(`tool-start:${childArgs.name}`);
+                return leafSpan(() => calls.push(`tool-end:${childArgs.name}`));
+              },
               end() {
                 calls.push(`end:${args.name}`);
                 throw new Error("publisher failure");
@@ -1034,6 +1350,9 @@ describe("Braintrust publisher boundary", () => {
     ).rejects.toThrow("publisher failure");
     expect(calls).toEqual([
       "start:discovery/workload-a",
+      "tool-start:search",
+      "tool-end:search",
+      "tool-start:pkg-info",
       "end:discovery/workload-a",
     ]);
   });
@@ -1264,6 +1583,12 @@ describe("Braintrust CLI wrapper", () => {
             startSpan(args) {
               calls.push(`start:${args.name}`);
               return {
+                startSpan(childArgs) {
+                  calls.push(`tool-start:${childArgs.name}`);
+                  return leafSpan(() =>
+                    calls.push(`tool-end:${childArgs.name}`),
+                  );
+                },
                 end() {
                   calls.push(`end:${args.name}`);
                 },
@@ -1285,6 +1610,9 @@ describe("Braintrust CLI wrapper", () => {
     expect(calls).toEqual([
       "init:githits-cli-agent-evals/local-export",
       "start:discovery/workload-a",
+      "tool-start:search",
+      "tool-end:search",
+      "tool-start:pkg-info",
       "end:discovery/workload-a",
       "flush",
       "permalink",
@@ -1320,6 +1648,12 @@ describe("Braintrust CLI wrapper", () => {
             startSpan(args) {
               calls.push(`start:${args.name}`);
               return {
+                startSpan(childArgs) {
+                  calls.push(`tool-start:${childArgs.name}`);
+                  return leafSpan(() =>
+                    calls.push(`tool-end:${childArgs.name}`),
+                  );
+                },
                 end() {
                   calls.push(`end:${args.name}`);
                   throw new Error("network export failed");
@@ -1339,6 +1673,9 @@ describe("Braintrust CLI wrapper", () => {
     ).rejects.toThrow("network export failed");
     expect(calls).toEqual([
       "start:discovery/workload-a",
+      "tool-start:search",
+      "tool-end:search",
+      "tool-start:pkg-info",
       "end:discovery/workload-a",
     ]);
     expect(existsSync(resultPath)).toBe(false);

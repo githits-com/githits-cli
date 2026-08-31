@@ -48,8 +48,6 @@ export interface BraintrustRowOutput {
 export interface BraintrustRowMetrics {
   [key: string]: unknown;
   duration?: number;
-  tool_calls?: number;
-  tool_errors?: number;
   mcp_tool_calls?: number;
   cli_tool_calls?: number;
   tool_calls_started?: number;
@@ -103,6 +101,36 @@ export interface BraintrustToolSequenceEntry {
   tool: string;
   surface: "mcp" | "cli";
   status: "started" | "completed" | "failed" | "unknown";
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface BraintrustToolSpanEvent {
+  input: {
+    tool: string;
+    surface: "mcp" | "cli";
+  };
+  output: {
+    status: "started" | "completed" | "failed";
+  };
+  metadata: {
+    tool: string;
+    surface: "mcp" | "cli";
+    timingSource: "harness_stdout_observed";
+  };
+  error?: "tool_status:failed";
+}
+
+export interface BraintrustToolSpanStartArgs {
+  name: string;
+  type: "tool";
+  event: BraintrustToolSpanEvent;
+  startTime: number;
+}
+
+export interface BraintrustToolSpanDescriptor
+  extends BraintrustToolSpanStartArgs {
+  endTime?: number;
 }
 
 export interface BraintrustRowMetadata {
@@ -149,6 +177,7 @@ export interface BraintrustRow {
   metrics: BraintrustRowMetrics;
   metadata: BraintrustRowMetadata;
   tags: string[];
+  toolSpans: BraintrustToolSpanDescriptor[];
   startTime?: number;
   endTime?: number;
   error?: string;
@@ -230,6 +259,7 @@ export interface BraintrustEndSpanArgs {
 }
 
 export interface BraintrustSpan {
+  startSpan(args: BraintrustToolSpanStartArgs): BraintrustSpan;
   end(args?: BraintrustEndSpanArgs): void | Promise<void>;
 }
 
@@ -275,6 +305,7 @@ export type BraintrustPublisherFactory = (
 ) => BraintrustPublisher | Promise<BraintrustPublisher>;
 
 export interface BraintrustSdkSpan {
+  startSpan(args: BraintrustToolSpanStartArgs): BraintrustSdkSpan;
   end(args?: BraintrustEndSpanArgs): number;
 }
 
@@ -520,6 +551,8 @@ function toolTelemetry(
       tool: call.tool,
       surface: call.surface,
       status: call.status,
+      startedAt: call.startedAt,
+      completedAt: call.completedAt,
     })),
     counts,
     tags: counts.map((entry) => `tool:${entry.surface}:${entry.tool}`),
@@ -575,8 +608,6 @@ function rowMetrics(
   }
   knownMetric(metrics, "estimated_cost", record.usage.cost.usd);
   if (telemetry.known) {
-    knownMetric(metrics, "tool_calls", record.tools.logicalCallCount);
-    knownMetric(metrics, "tool_errors", telemetry.statusCounts.failed);
     knownMetric(metrics, "mcp_tool_calls", telemetry.mcpCalls);
     knownMetric(metrics, "cli_tool_calls", telemetry.cliCalls);
     knownMetric(metrics, "tool_calls_started", telemetry.statusCounts.started);
@@ -605,6 +636,86 @@ function recordedSpanTimes(record: AgentEvalRecord): {
     return {};
   }
   return { startTime, endTime };
+}
+
+function observedUnixSeconds(value: string | null): number | undefined {
+  if (value === null) return undefined;
+  const milliseconds = Date.parse(value);
+  if (!Number.isFinite(milliseconds)) return undefined;
+  return milliseconds / 1000;
+}
+
+function buildToolSpanDescriptors(
+  record: AgentEvalRecord,
+  telemetry: ReturnType<typeof toolTelemetry>,
+  parentTimes: { startTime?: number; endTime?: number },
+): BraintrustToolSpanDescriptor[] {
+  const toolBearing =
+    record.tools.rawEventCount > 0 || telemetry.sequence.length > 0;
+  if (!telemetry.known) {
+    assert(!toolBearing, "tool-bearing row has unknown logical telemetry");
+    return [];
+  }
+  if (telemetry.sequence.length === 0) return [];
+  assert(
+    parentTimes.startTime !== undefined && parentTimes.endTime !== undefined,
+    "tool-bearing row has no valid parent span interval",
+  );
+  const parentStart = parentTimes.startTime;
+  const parentEnd = parentTimes.endTime;
+
+  return telemetry.sequence.map((call, index) => {
+    const startTime = observedUnixSeconds(call.startedAt);
+    const endTime = observedUnixSeconds(call.completedAt);
+    assert(
+      call.status !== "unknown",
+      `tool call ${index + 1} has unknown status`,
+    );
+    assert(
+      startTime !== undefined,
+      `tool call ${index + 1} has no valid observed start time`,
+    );
+    assert(
+      startTime >= parentStart && startTime <= parentEnd,
+      `tool call ${index + 1} starts outside the parent span interval`,
+    );
+    if (call.status === "started") {
+      assert(
+        call.completedAt === null,
+        `started tool call ${index + 1} has a terminal observed time`,
+      );
+    } else {
+      assert(
+        endTime !== undefined,
+        `terminal tool call ${index + 1} has no valid observed completion time`,
+      );
+      assert(
+        endTime >= startTime,
+        `tool call ${index + 1} has a reverse observed interval`,
+      );
+      assert(
+        endTime >= parentStart && endTime <= parentEnd,
+        `tool call ${index + 1} ends outside the parent span interval`,
+      );
+    }
+    const event: BraintrustToolSpanEvent = {
+      input: { tool: call.tool, surface: call.surface },
+      output: { status: call.status },
+      metadata: {
+        tool: call.tool,
+        surface: call.surface,
+        timingSource: "harness_stdout_observed",
+      },
+      ...(call.status === "failed" ? { error: "tool_status:failed" } : {}),
+    };
+    return {
+      name: call.tool,
+      type: "tool",
+      event,
+      startTime,
+      ...(endTime !== undefined ? { endTime } : {}),
+    };
+  });
 }
 
 function rowMetadata(
@@ -711,6 +822,7 @@ function mapCell(
   const prompt = readPromptArtifact(report, workload);
   const telemetry = toolTelemetry(record, workload);
   const spanTimes = recordedSpanTimes(record);
+  const toolSpans = buildToolSpanDescriptors(record, telemetry, spanTimes);
   const final = workload.finalReport;
   const finalStatus = record.finalStatus ?? final?.status;
   const output: BraintrustRowOutput = {
@@ -757,6 +869,7 @@ function mapCell(
       telemetry,
     ),
     tags: telemetry.tags,
+    toolSpans,
     ...spanTimes,
     ...(status ? { error: `eval_status:${status}` } : {}),
   };
@@ -901,14 +1014,15 @@ export async function createBraintrustPublisher(
     const braintrust = await import("braintrust");
     experiment = braintrust.initExperiment(init.project, sdkOptions);
   }
+  const wrapSpan = (span: BraintrustSdkSpan): BraintrustSpan => ({
+    startSpan: (args) => wrapSpan(span.startSpan(args)),
+    end: (endArgs) => {
+      span.end(endArgs);
+    },
+  });
   return {
     startSpan(args): BraintrustSpan {
-      const span = experiment.startSpan(args);
-      return {
-        end: (endArgs) => {
-          span.end(endArgs);
-        },
-      };
+      return wrapSpan(experiment.startSpan(args));
     },
     flush: () => experiment.flush(),
     permalink: async () =>
@@ -930,6 +1044,17 @@ export async function publishBraintrustRows(
       event: rowEvent(row),
       ...(row.startTime !== undefined ? { startTime: row.startTime } : {}),
     });
+    for (const toolSpan of row.toolSpans) {
+      const child = span.startSpan({
+        name: toolSpan.name,
+        type: toolSpan.type,
+        event: toolSpan.event,
+        startTime: toolSpan.startTime,
+      });
+      if (toolSpan.endTime !== undefined) {
+        await child.end({ endTime: toolSpan.endTime });
+      }
+    }
     await span.end(
       row.endTime !== undefined ? { endTime: row.endTime } : undefined,
     );
