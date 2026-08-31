@@ -392,7 +392,6 @@ export const AGENT_EVAL_SUITE_MATRIX = {
   reasoningEffort: "low",
   surface: "mcp",
   server: "local",
-  scenarios: AGENT_EVAL_SUITE_SCENARIOS,
 } as const;
 
 export const SUITE_MATRIX = AGENT_EVAL_SUITE_MATRIX;
@@ -3473,7 +3472,8 @@ export const AGENT_EVAL_SUITE_USAGE = `Usage:
   bun run agent:e2e:suite compare --baseline-suite <path> --candidate-suite <path> [--out <dir>]
 
 Suites: ${AGENT_EVAL_SUITE_NAMES.join(", ")}
-Matrix: Codex ${LUNA_MODEL}, reasoning low, local MCP, discovery + intent + full scenarios
+Matrix: Codex ${LUNA_MODEL}, reasoning low, local MCP
+Defaults: canary discovery + intent; other suites intent only. Explicit --scenario values replace defaults; full is opt-in.
 `;
 
 const CLI_OPTIONS_BY_MODE: Record<AgentEvalSuiteCliMode, readonly string[]> = {

@@ -1094,6 +1094,23 @@ function findCodexHomeGlobalInstruction(directory: string): string | undefined {
   );
 }
 
+export function validateCodexEvalSkills(codexHome: string): void {
+  const skillsDir = join(codexHome, "skills");
+  if (!existsSync(skillsDir)) return;
+
+  let entries: string[];
+  try {
+    entries = readdirSync(skillsDir);
+  } catch {
+    throw new Error("CODEX_HOME skills directory could not be read");
+  }
+  const unsupportedEntry = entries.find((entry) => entry !== ".system");
+  assert(
+    unsupportedEntry === undefined,
+    `CODEX_HOME skills contains unsupported entry: ${unsupportedEntry}`,
+  );
+}
+
 export function validateCodexEvalHome(
   baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined>,
 ): void {
@@ -1115,6 +1132,7 @@ export function validateCodexEvalHome(
     globalInstruction === undefined,
     `CODEX_HOME contains global instructions: ${globalInstruction}`,
   );
+  validateCodexEvalSkills(codexHome);
 }
 
 export function createWorkloadIsolation(
@@ -2559,7 +2577,10 @@ export async function runAgentEval(
     );
   }
   const env = buildEvalEnv(dependencies.baseEnv ?? process.env);
-  if (options.agent === "codex" && !options.dryRun) {
+  if (
+    options.agent === "codex" &&
+    (!options.dryRun || env.CODEX_HOME !== undefined)
+  ) {
     validateCodexEvalHome(env);
   }
   const secretValues = collectSecretValues(env);

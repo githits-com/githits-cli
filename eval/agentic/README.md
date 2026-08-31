@@ -110,7 +110,9 @@ CI should create a clean `CODEX_HOME` and authenticate Codex with
 `OPENAI_API_KEY`. Set `GITHITS_API_TOKEN` for deterministic GitHits
 authentication. Never copy a personal auth file into a run directory.
 Non-interactive eval commands retain the supported `--ignore-user-config` and
-explicitly disable Codex's `apps`, `plugins`, and `remote_plugin` features.
+explicitly disable Codex's `apps`, `plugins`, and `remote_plugin` features. The
+flag suppresses Codex `config.toml`/user configuration only; explicit preflight
+still rejects direct `$CODEX_HOME/skills` entries other than `.system`.
 Interactive Codex sessions omit that exec-only flag, retain all three disables,
 clear ambient MCP servers, and register only the intended GitHits MCP target.
 
@@ -346,7 +348,8 @@ authentication and is not copied into the disposable roots. Dry-run Codex
 sessions do not require `CODEX_HOME`. The local MCP child is built from the
 host auth roots before acting-agent isolation, so trusted GitHits auth remains
 available without persisting credential paths. Session metadata records only
-safe relative isolation labels.
+safe relative labels for disposable acting-agent roots and omits the ephemeral
+workspace label because the command runs in the user-selected workspace.
 
 Claude and OpenCode sessions retain workspace isolation only. They are not
 causal evidence for instruction isolation until agent-specific subscription
@@ -670,9 +673,11 @@ skills; they instead use project-only settings plus an empty strict MCP config.
 Non-interactive Codex MCP evals use per-run `-c` MCP config overrides,
 `--ignore-rules`, and supported `--ignore-user-config`; every live Codex eval
 requires the caller-supplied dedicated eval `CODEX_HOME`, which is validated
-for root global instructions before launch. Non-interactive Skills evals omit
-the MCP and rule overrides while retaining `--ignore-user-config` so project
-skills can be discovered without user-configured MCP servers. Every
+for root global instructions and direct skills before launch. The supported
+`--ignore-user-config` flag suppresses Codex `config.toml`/user configuration;
+the explicit skills preflight remains in force. Non-interactive Skills evals
+omit the MCP and rule overrides while retaining `--ignore-user-config` so
+project skills can be discovered without user-configured MCP servers. Every
 non-interactive Codex eval command also repeats `--disable apps`, `--disable
 plugins`, and `--disable remote_plugin` before its prompt. Interactive Codex
 sessions omit both exec-only flags and retain the stricter dedicated-home

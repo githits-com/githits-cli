@@ -260,8 +260,6 @@ const legacyAgentEvalMetricsSchema = z.object({
   warnings: z.array(z.string()),
 });
 
-export const agentEvalMetricsV1Schema = legacyAgentEvalMetricsSchema;
-
 const intentProfileSchema = z.enum(["neutral", "githits"]);
 const scenarioSchema = z.enum(["discovery", "intent", "full"]);
 
@@ -805,8 +803,4 @@ export function parseAgentEvalMetrics(value: unknown): AgentEvalMetrics {
       intentFragmentHash: null,
     })),
   });
-}
-
-export function normalizeAgentEvalMetrics(value: unknown): AgentEvalMetrics {
-  return parseAgentEvalMetrics(value);
 }

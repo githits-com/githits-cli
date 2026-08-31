@@ -1439,7 +1439,6 @@ describe("agent eval harness", () => {
       expect(session.workspaceDir).toBe(workspaceDir);
       expect(session.isolation).toEqual({
         root: "<ephemeral>",
-        workspace: "workspace",
         home: "home",
         userprofile: "home",
         xdgConfigHome: "config",
@@ -2051,6 +2050,124 @@ describe("agent eval harness", () => {
     } finally {
       rmSync(codexHome, { recursive: true, force: true });
       rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("enforces the direct Codex skills contract for dry and live evals", async () => {
+    const codexHome = mkdtempSync(join(tmpdir(), "agent-eval-codex-home-"));
+    const workload = resolve("eval/agentic/workloads/express-router.md");
+    let availabilityCalls = 0;
+    let versionCalls = 0;
+    let commandCalls = 0;
+    const runProbe = async (dryRun: boolean): Promise<void> => {
+      const outDir = mkdtempSync(
+        join(tmpdir(), "agent-eval-skills-preflight-"),
+      );
+      try {
+        await runAgentEval(
+          parseArgs(
+            [
+              "--agent",
+              "codex",
+              "--out",
+              outDir,
+              "--workload",
+              workload,
+              ...(dryRun ? ["--dry-run"] : []),
+            ],
+            process.cwd(),
+          ),
+          {
+            baseEnv: { PATH: "/bin", CODEX_HOME: codexHome },
+            assertAgentAvailable: async () => {
+              availabilityCalls += 1;
+            },
+            collectAgentVersions: async () => {
+              versionCalls += 1;
+              return [undefined, "codex-test", undefined];
+            },
+            runCommand: async () => {
+              commandCalls += 1;
+              return {
+                stdout: JSON.stringify({
+                  status: "success",
+                  answer: "Injected result",
+                  confidence: "high",
+                }),
+                stderr: "",
+                exitCode: 0,
+                timedOut: false,
+              };
+            },
+          },
+        );
+      } finally {
+        rmSync(outDir, { recursive: true, force: true });
+      }
+    };
+
+    try {
+      for (const skillsSetup of [
+        undefined,
+        (home: string) => mkdirSync(join(home, "skills"), { recursive: true }),
+        (home: string) =>
+          mkdirSync(join(home, "skills", ".system"), { recursive: true }),
+      ]) {
+        skillsSetup?.(codexHome);
+        await runProbe(true);
+        await runProbe(false);
+        rmSync(join(codexHome, "skills"), { recursive: true, force: true });
+      }
+
+      mkdirSync(join(codexHome, "skills", "personal"), { recursive: true });
+      for (const dryRun of [true, false]) {
+        const outDir = mkdtempSync(join(tmpdir(), "agent-eval-skills-reject-"));
+        try {
+          await expect(
+            runAgentEval(
+              parseArgs(
+                [
+                  "--agent",
+                  "codex",
+                  "--out",
+                  outDir,
+                  "--workload",
+                  workload,
+                  ...(dryRun ? ["--dry-run"] : []),
+                ],
+                process.cwd(),
+              ),
+              {
+                baseEnv: { PATH: "/bin", CODEX_HOME: codexHome },
+                assertAgentAvailable: async () => {
+                  availabilityCalls += 1;
+                },
+                collectAgentVersions: async () => {
+                  versionCalls += 1;
+                  return [undefined, "codex-test", undefined];
+                },
+                runCommand: async () => {
+                  commandCalls += 1;
+                  return {
+                    stdout: "",
+                    stderr: "",
+                    exitCode: 0,
+                    timedOut: false,
+                  };
+                },
+              },
+            ),
+          ).rejects.toThrow("unsupported entry: personal");
+          expect(readdirSync(outDir)).toEqual([]);
+        } finally {
+          rmSync(outDir, { recursive: true, force: true });
+        }
+      }
+      expect(availabilityCalls).toBe(3);
+      expect(versionCalls).toBe(3);
+      expect(commandCalls).toBe(3);
+    } finally {
+      rmSync(codexHome, { recursive: true, force: true });
     }
   });
 

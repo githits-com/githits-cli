@@ -59,21 +59,24 @@ CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface skills 
 ```
 
 CI should provide a clean `CODEX_HOME` with `OPENAI_API_KEY` authentication. The
-harness does not read auth material and never copies it into artifacts. The
-workload preflight rejects only root-level `AGENTS.override.md` and `AGENTS.md`;
-nested runtime/cache files, including Codex's `config.toml`, bundled system
-skills, plugin caches, and logs, are allowed. The stricter existence check
-rejects a root instruction file even when it is empty. Interactive
-`agent:session` adds the direct-skills and allowed-config-key validation
-described below. Full MCP guidance installs only
+harness does not read auth material and never copies it into artifacts. Every
+Codex live-surface preflight rejects root-level `AGENTS.override.md` and
+`AGENTS.md`, plus every direct `$CODEX_HOME/skills` entry except `.system`.
+Nested runtime/cache files, including Codex's `config.toml`, bundled system
+skills, plugin caches, and logs, remain allowed for non-interactive execution.
+The stricter existence check rejects a root instruction file even when it is
+empty. Interactive `agent:session` additionally validates the allowed config
+keys described below. Full MCP guidance installs only
 the project guidance and `githits-mcp` skill; it does not install a CLI shim.
 Skills-surface runs retain their CLI shim.
 
 Every non-interactive Codex eval command retains `--ignore-user-config` and
 repeats `--disable apps`, `--disable plugins`, and `--disable remote_plugin`.
-This keeps user customization and external app/plugin/remote catalogs out of
-the descriptor, full-guidance, and skills surfaces while preserving repository
-skill discovery for the latter two where intended.
+`--ignore-user-config` suppresses Codex's `config.toml`/user configuration; it
+does not replace the explicit direct-skills preflight. These settings keep
+external app/plugin/remote catalogs out of the descriptor, full-guidance, and
+skills surfaces while preserving repository skill discovery for the latter two
+where intended.
 
 After live MCP execution, trace validation rejects external `AGENTS.md` or
 `SKILL.md` reads, guidance reads in the descriptor profile, and every GitHits
@@ -93,7 +96,9 @@ unchanged for Codex authentication. Interactive validation rejects root
 `model_reasoning_effort`, and project `trust_level`. The local MCP child is
 configured from the host auth roots before the acting-agent environment is
 replaced, preserving trusted GitHits authentication without copying
-credentials. Session metadata stores only relative isolation labels. Claude
+credentials. Session metadata stores only relative labels for the disposable
+acting-agent roots and omits its unused ephemeral workspace label because the
+interactive command runs in the user-selected workspace. Claude
 and OpenCode retain workspace isolation only; they are non-causal for
 instruction-isolation evidence until agent-specific subscription auth
 isolation exists. Interactive Codex commands do not pass the exec-only

@@ -23,6 +23,7 @@ import {
   AGENT_EVAL_SAFETY_CLASSES,
   AGENT_EVAL_SUITE_MATRIX,
   AGENT_EVAL_SUITE_NAMES,
+  AGENT_EVAL_SUITE_USAGE,
   type AgentEvalSuiteArtifact,
   type AgentEvalSuiteManifest,
   type AgentEvalSuiteShardExecutor,
@@ -519,6 +520,12 @@ describe("agent eval suites", () => {
       outDir: "comparison",
     });
     expect(parseAgentEvalSuiteCliArgs(["--help"])).toEqual({ mode: "help" });
+    expect(AGENT_EVAL_SUITE_USAGE).toContain(
+      "Defaults: canary discovery + intent; other suites intent only.",
+    );
+    expect(AGENT_EVAL_SUITE_USAGE).toContain(
+      "Explicit --scenario values replace defaults; full is opt-in.",
+    );
 
     for (const args of [
       ["run", "--suite", "canary", "--suite", "smoke"],

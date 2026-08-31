@@ -2,7 +2,6 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -74,21 +73,6 @@ function isTable(value: unknown): value is Record<string, unknown> {
 }
 
 function validateCodexInteractiveConfig(codexHome: string): void {
-  const skillsDir = join(codexHome, "skills");
-  if (existsSync(skillsDir)) {
-    let entries: string[];
-    try {
-      entries = readdirSync(skillsDir);
-    } catch {
-      throw new Error("CODEX_HOME skills directory could not be read");
-    }
-    const unsupportedEntry = entries.find((entry) => entry !== ".system");
-    assert(
-      unsupportedEntry === undefined,
-      `CODEX_HOME skills contains unsupported entry: ${unsupportedEntry}`,
-    );
-  }
-
   const configPath = join(codexHome, "config.toml");
   if (!existsSync(configPath)) return;
 
@@ -141,6 +125,13 @@ export function validateCodexInteractiveEvalHome(
   const codexHome = baseEnv.CODEX_HOME;
   assert(codexHome !== undefined, "CODEX_HOME is required");
   validateCodexInteractiveConfig(codexHome);
+}
+
+function sessionIsolationMetadata(
+  metadata: WorkloadIsolationMetadata,
+): Omit<WorkloadIsolationMetadata, "workspace"> {
+  const { workspace: _workspace, ...safeMetadata } = metadata;
+  return safeMetadata;
 }
 
 export function parseSessionArgs(
@@ -433,7 +424,9 @@ export function prepareAgentSession(
     mcpConfigPath,
     openCodeConfigPath,
     command,
-    ...(isolationMetadata ? { isolation: isolationMetadata } : {}),
+    ...(isolationMetadata
+      ? { isolation: sessionIsolationMetadata(isolationMetadata) }
+      : {}),
     skillInstallation,
     guidanceInstallation,
   });
@@ -458,7 +451,9 @@ export async function runAgentSession(
   const evalEnv = buildEvalEnv(baseEnv);
   let isolation: WorkloadIsolation | undefined;
   if (options.agent === "codex") {
-    if (!options.dryRun) validateCodexInteractiveEvalHome(evalEnv);
+    if (!options.dryRun || evalEnv.CODEX_HOME !== undefined) {
+      validateCodexInteractiveEvalHome(evalEnv);
+    }
     isolation = createWorkloadIsolation(evalEnv);
   }
   try {
