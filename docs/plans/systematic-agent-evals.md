@@ -1623,7 +1623,8 @@ None.
    status classification, including zero-call discovery, per-tool frequencies,
    unknown telemetry, partial/missing suites, CLI fallback, and isolation
    violations. Implement the pure formatter and thin CLI entrypoint.
-3. **Implemented locally; same-repository label path live-validated:** Add the dedicated workflow with the three triggers, an explicit
+3. **Implemented locally; same-repository label path
+   live-validated:** Add the dedicated workflow with the three triggers, an explicit
    `github.event.label.name == 'agent-eval'` job gate, same-repository label/SHA
    authorization, clean Codex home and API-key setup, the two scenario jobs,
    unconditional artifact upload/reporting, 14-day retention, and minimal
@@ -1634,7 +1635,8 @@ None.
    contract, and the required no-public-impact change fragment. Document label
    authorization, re-label behavior, exact suites/concurrency, expected
    duration/cost, secret names, and artifact/report locations.
-5. **Local and label evidence complete; scheduled/manual evidence pending merge:** Run focused tests, all suite dry-runs at concurrency 1 and the CI-selected
+5. **Local and label evidence complete; scheduled/manual evidence pending
+   merge:** Run focused tests, all suite dry-runs at concurrency 1 and the CI-selected
    values, `bun test`, typecheck, format, lint, build, and workflow syntax/action
    validation. The same-repository label path is live-validated with no global
    skill/guidance reads or CLI fallbacks. After the change is merged, manually
@@ -1645,14 +1647,17 @@ None.
 
 - Default local execution remains sequential; explicit concurrency never
   exceeds the requested in-flight workload count and preserves manifest order.
-- A same-repository label run checks out the exact labeled head SHA and
+- MET: A same-repository label run checks out the exact labeled head SHA and
   produces 2/2 discovery plus 21/21 intent records with concurrency 2/4
-  captured in artifacts; scheduled/default-branch manual execution remains
-  pending merge.
+  captured in artifacts.
+- PENDING AFTER MERGE: A trusted manual run and a scheduled default-branch run
+  check out the exact intended SHA and produce 2/2 discovery plus 21/21 intent
+  records, or explicit failed/missing records, with concurrency 2/4 captured in
+  artifacts.
 - A same-repository PR runs only after the exact `agent-eval` label event at the
   labeled head SHA; forks and later unlabeled SHAs cannot consume secrets.
 - The corrected same-repository label workflow completed in about 2 minutes 42
-  seconds at an estimated $0.2514 base cost; actual wall time, cost, and any
+  seconds at a $0.2514 rate-based estimate; actual wall time, cost, and any
   provider-quota behavior are recorded rather than hidden by retries.
 - The GitHub summary concisely shows status, exact Codex CLI/model identity,
   tool calls/tools used, tokens, duration, cost uncertainty, and evidence links
