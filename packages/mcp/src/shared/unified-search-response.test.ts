@@ -444,6 +444,31 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.results[0]?.followUp).toBe(
       'code_read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=840 end_line=1139',
     );
+
+    const endEvidenceHit: UnifiedSearchHit = {
+      ...hit,
+      id: "large-definition-end-evidence",
+      locator: {
+        ...hit.locator,
+        startLine: 1200,
+        endLine: 1210,
+        evidenceRange: {
+          startLine: 1200,
+          endLine: 1210,
+          matchLine: 1205,
+          matchSpansTruncated: false,
+        },
+      },
+    };
+    const endEvidencePayload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits([endEvidenceHit]),
+    );
+    expect(endEvidencePayload.results[0]?.followUp).toBe(
+      'code_read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=987 end_line=1286',
+    );
   });
 
   it("preserves identity-only and absent symbol context without changing legacy locators", () => {
