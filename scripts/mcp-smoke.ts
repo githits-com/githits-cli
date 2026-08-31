@@ -378,6 +378,30 @@ async function runExperimentalLiveSmoke(
         );
         assertExperimentalMcpResolveText(resolveTextBody);
 
+        const fuzzyResolveText = (await trackSmokeStep(
+          "mcp resolve_target fuzzy evidence experimental live",
+          () =>
+            client.callTool({
+              name: "resolve_target",
+              arguments: { name: "lodahs", preferred_kind: "package" },
+            }),
+        )) as McpSmokeToolResult;
+        const fuzzyResolveTextBody = assertDefaultText(
+          fuzzyResolveText,
+          "experimental fuzzy resolve default text",
+        );
+        assert(
+          /\d+% name similarity/.test(fuzzyResolveTextBody) &&
+            fuzzyResolveTextBody.includes(
+              "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
+            ) &&
+            fuzzyResolveTextBody.includes("indexed package snapshot") &&
+            fuzzyResolveTextBody.includes(
+              "code commands do so only when they resolve and serve a commit SHA",
+            ),
+          "experimental fuzzy resolve text should qualify lexical and indexed-snapshot evidence",
+        );
+
         const resolveJson = (await trackSmokeStep(
           "mcp resolve_target JSON experimental live",
           () =>
@@ -408,6 +432,39 @@ async function runExperimentalLiveSmoke(
                 typeof candidate.latestVersionMaliciousStatus === "string",
             ),
           "experimental resolve JSON should preserve malicious-content status for the full npm:express candidate",
+        );
+
+        const fuzzyResolveJson = (await trackSmokeStep(
+          "mcp resolve_target fuzzy JSON experimental live",
+          () =>
+            client.callTool({
+              name: "resolve_target",
+              arguments: {
+                name: "lodahs",
+                preferred_kind: "package",
+                format: "json",
+              },
+            }),
+        )) as McpSmokeToolResult;
+        const fuzzyResolvePayload = assertJsonResult(
+          fuzzyResolveJson,
+          "experimental fuzzy resolve JSON",
+        );
+        assert(
+          fuzzyResolvePayload !== null &&
+            typeof fuzzyResolvePayload === "object" &&
+            "candidates" in fuzzyResolvePayload &&
+            Array.isArray(fuzzyResolvePayload.candidates) &&
+            fuzzyResolvePayload.candidates.some(
+              (candidate: unknown) =>
+                candidate !== null &&
+                typeof candidate === "object" &&
+                "target" in candidate &&
+                candidate.target === "npm:lodash" &&
+                "nameSimilarity" in candidate &&
+                typeof candidate.nameSimilarity === "number",
+            ),
+          "experimental fuzzy resolve JSON should preserve numeric name similarity for npm:lodash",
         );
 
         const diffText = (await trackSmokeStep(

@@ -1047,6 +1047,22 @@ async function runExperimentalLiveSmoke(
   );
   assertExperimentalCliResolveText(resolveText);
 
+  const fuzzyResolveText = assertTerminalOutput(
+    await runCliWithEnv(["resolve", "lodahs", "--prefer-kind", "package"], env),
+    "experimental fuzzy resolve terminal",
+  );
+  assert(
+    /\d+% name similarity/.test(fuzzyResolveText) &&
+      fuzzyResolveText.includes(
+        "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
+      ) &&
+      fuzzyResolveText.includes("indexed package snapshot") &&
+      fuzzyResolveText.includes(
+        "code commands do so only when they resolve and serve a commit SHA",
+      ),
+    "experimental fuzzy resolve text should qualify lexical and indexed-snapshot evidence",
+  );
+
   const resolveJson = assertJsonOutput(
     await runCliWithEnv(
       [
@@ -1082,6 +1098,26 @@ async function runExperimentalLiveSmoke(
       ) &&
       Array.isArray(resolveJson.protectedMatches),
     "experimental resolve JSON missing structured candidate facts",
+  );
+
+  const fuzzyResolveJson = assertJsonOutput(
+    await runCliWithEnv(
+      ["resolve", "lodahs", "--prefer-kind", "package", "--json"],
+      env,
+    ),
+    "experimental fuzzy resolve json",
+  );
+  assertRecord(fuzzyResolveJson, "experimental fuzzy resolve json");
+  assert(
+    Array.isArray(fuzzyResolveJson.candidates) &&
+      fuzzyResolveJson.candidates.some(
+        (candidate) =>
+          candidate !== null &&
+          typeof candidate === "object" &&
+          candidate.target === "npm:lodash" &&
+          typeof candidate.nameSimilarity === "number",
+      ),
+    "experimental fuzzy resolve JSON should preserve numeric name similarity for npm:lodash",
   );
 
   const codeDiffText = assertTerminalOutput(

@@ -122,6 +122,9 @@ describe("resolve_target parity", () => {
 
   it("PARITY-JSON-KEYS: shared success result is CLI JSON === MCP JSON", async () => {
     const result = structuredClone(defaultResolveTargetResult);
+    const candidate = result.candidates[0];
+    if (!candidate) throw new Error("fixture missing resolve candidate");
+    candidate.nameSimilarity = 0.4;
     const cli = await cliJson(
       "express",
       {},
@@ -143,6 +146,9 @@ describe("resolve_target parity", () => {
 
     expect(mcpResult.isError).toBeUndefined();
     expect(cli).toEqual(JSON.parse(mcpResult.content[0]?.text ?? "{}"));
+    expect(cli).toMatchObject({
+      candidates: [{ target: "npm:express", nameSimilarity: 0.4 }],
+    });
   });
 
   it("PARITY-ERROR-ENVELOPE: typed service error is CLI JSON === MCP JSON", async () => {

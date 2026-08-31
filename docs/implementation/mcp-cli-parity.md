@@ -116,6 +116,53 @@ the typed evidence and does not invent fuzzy fallbacks, removed-package
 semantics, or symbol matches. Fixing them requires backend ownership and is not
 part of the local experimental-tool release.
 
+### Increment 5C production replay (2026-08-31)
+
+Authenticated source CLI and local MCP smoke passed after PkgSeer deployed
+candidate `nameSimilarity` and package-scoped certified-artifact
+`codeAvailable`. Both surfaces returned `npm:lodash` for `lodahs` with
+`nameSimilarity` approximately `0.400000006` and `npm:lodash-es` at
+`0.333333343`; human output rendered 40% and 33% plus the coarse lexical-support
+and indexed-snapshot qualifications. `loadsh` kept `npm:lodash` first at 27%
+while later candidates carried 40% and 63%, confirming that the client preserves
+backend order rather than reranking by lexical similarity. Its MEDIUM result
+remained non-actionable under the unchanged confidence/security gate.
+
+The production CLI/MCP matrix also covered:
+
+- typo `expres` -> MEDIUM `npm:express`, and an artificial unique missing name
+  -> the normal empty result;
+- `codex` with package and repository preferences -> repository best in both,
+  with preference changing candidate order only;
+- Maven/package `guava` -> `maven:com.google.guava:guava`, ahead of the former
+  `com.github.ben-manes.caffeine:guava` displacement;
+- `ua-parser-js` and `event-stream` -> current exact package candidates with
+  `CLEAR` latest-version malicious status despite their historical malicious
+  releases;
+- npm-scoped `lodahs` and `loadsh` -> no `npm:lodahs` or `npm:loadsh` removed
+  registry-security identities in either candidate list, so no continuation to
+  those identities was exposed;
+- repository aliases `angularjs` -> `github:angular/angular.js` and `reactjs` ->
+  `github:react/react` without client alias synthesis.
+
+Finally, `code files npm:lodash --json` resolved and served commit
+`4f0b76e2eca13de1c1fe8b4305abc1f7d63f4b86` with `freshness: current`. That code
+command response, not resolver `codeAvailable`, establishes the exact served
+artifact.
+
+Targeted local-server agent evaluation then ran the experimental resolution and
+stable `express-router` workloads with both Claude and Codex. All four workloads
+succeeded without CLI fallback or instruction findings. Claude rated both high;
+Codex rated resolution medium and `express-router` high. Codex made one
+recoverable repository-path miss before reading the indexed package path, which
+does not concern resolver evidence. Claude's suggestion to surface the removed
+`npm:lodahs` identity was rejected because registry-security-removed identities
+must remain undiscoverable and non-actionable. Its concern about a non-ambiguous
+MEDIUM result was also rejected: ambiguity describes whether multiple candidates
+compete, while confidence and malicious status independently control
+continuation. Package-detail and semantic-search observations were
+outside this client delta and both agents recovered without resolver changes.
+
 `feedback` is mutating, so smoke coverage exercises registration and
 validation/auth paths only. It does not submit fake feedback to the live
 backend.
@@ -193,7 +240,12 @@ test suite anchors the doc.
   remain unconfirmed and empty results point to spelling or filters rather than
   ranking-only context. Text omits actionable status lines and renders concise
   warnings only for non-actionable evidence; CLI warnings are red while MCP text
-  remains ANSI-free.
+  remains ANSI-free. Both text surfaces render nullable `nameSimilarity` as a
+  whole percentage and explain that it is coarse lexical support while candidate
+  order follows broader backend policy. Both label `codeAvailable` as an indexed
+  package or repository snapshot at the candidate's scope and state that exact
+  latest-version/ref readiness is established only when a code command resolves
+  and serves a commit SHA.
   `code_diff` patch previews are bounded at 320 UTF-8 bytes, label each affected
   file, and emit one aggregate `Next:` recovery, while
   `format: "json"` returns the full patch returned by the backend subject to

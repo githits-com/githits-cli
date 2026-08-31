@@ -321,12 +321,16 @@ targets such as `npm:express` or `github:openai/codex`. The default output is a
 compact numbered candidate list with ambiguity guidance when needed and
 protected exact-name matches annotated inline. It does not label any terminal
 candidate as best or top. Ranked candidates include their available normalized
-description, capped at 240 characters, and cheap trust evidence: repository
-stars, monthly or total package downloads, and docs/code availability. When a
-protected match falls outside the requested ranked limit, it is appended with
-the identity and confidence fields returned by the lightweight protected-match
-reference. When a ranked package has a repository URL but no package-level
-stars, the terminal shows its linked repository as compact
+description, capped at 240 characters, and cheap support evidence: repository
+stars, monthly or total package downloads, docs availability, indexed package
+or repository snapshots, and whole-percentage name similarity when the backend
+supplies it.
+Name similarity is coarse lexical support, not a client ranking rule; candidate
+order follows broader backend policy and the client never reranks by similarity.
+When a protected match falls outside the requested ranked limit, it is appended
+with the identity and confidence fields returned by the lightweight
+protected-match reference. When a ranked package has a repository URL but no
+package-level stars, the terminal shows its linked repository as compact
 `github:owner/repo` when possible and otherwise preserves the repository URL.
 Missing evidence is omitted rather than shown as zero.
 
@@ -375,8 +379,11 @@ only for JSON. The always-selected non-null
 `latestVersionMaliciousStatus`. Nullable `latestVersionMaliciousEvidence` is
 preserved for affected and uncertain candidates with exact `osvId` values,
 lowercase `classificationReasons`, `totalCount`, and `truncated`. Null fields are
-omitted and enum values are lowercase. Errors use the standard JSON envelope on
-stderr with clean stdout.
+omitted and enum values are lowercase. Nullable `nameSimilarity` is preserved as
+the backend's numeric fraction when present and omitted when null. Errors use the
+standard JSON envelope on stderr with clean stdout. The client does not select,
+parse, or project the backend's ranking `reason`; consumers use the typed
+confidence and evidence fields without interpreting backend rationale text.
 
 Terminal and local MCP text omit `CLEAR` and `NOT_APPLICABLE` decisions. They
 render concise warnings only for affected, uncertain, unsupported, or blocking
@@ -397,18 +404,33 @@ candidate whose status is exactly `CLEAR` or `NOT_APPLICABLE`. Affected, unknown
 missing, and unrecognized future values fail closed and emit no normal cross-tool
 next action. Ranking and filtering remain backend-owned.
 
+Human text renders package `codeAvailable` as `indexed package snapshot` and
+repository `codeAvailable` as `indexed repository snapshot`. Package evidence
+means some certified package artifact is indexed; it does not establish exact
+latest-version readiness. Repository evidence likewise does not establish exact
+ref readiness. Exact code readiness exists only after a code command resolves
+and serves a commit SHA.
+
 The command and local experimental MCP adapter use an internal service and do
 not change the public `@githits/mcp` service interface. Its GraphQL selection keeps `best` and
 `protectedMatches` to `kind`, `canonicalKey`, and `confidence`; full compact and
 conditional JSON fields are selected only for ranked `candidates`; the
 malicious-content decision is part of the compact candidate fields because every
 text surface consumes it. Its bounded advisory evidence is selected alongside the
-decision for the same reason. This keeps
-the operation below production's GraphQL complexity limit while preserving all
-fields consumed by each output mode. The CLI deliberately does not select
-expensive per-candidate `inspection` metadata. HTTP, transport, GraphQL, auth
-refresh, and client-version error classification are shared with the package
-intelligence service.
+decision for the same reason. Nullable `nameSimilarity` is also always selected
+for ranked candidates because compact CLI and MCP text both render it. Detailed
+ranking `reason` is deliberately not selected. This keeps the operation within
+production's GraphQL complexity limit while preserving all fields consumed by
+each output mode. The CLI deliberately does not select expensive per-candidate
+`inspection` metadata. HTTP, transport, GraphQL, auth refresh, and client-version
+error classification are shared with the package intelligence service.
+
+Adding always-selected `nameSimilarity` while retaining detailed-only `reason`
+made the production operation complexity 517 against the limit of 500. The
+client does not consume backend rationale, so removing the `reason` selection
+and projection restored the normal operation without a second query or weaker
+evidence. Authenticated production CLI and MCP smoke both pass with the reduced
+selection.
 
 The current candidate contract does not propagate linked GitHub
 stars/forks/issues onto package candidates. A package can therefore show its

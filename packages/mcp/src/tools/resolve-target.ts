@@ -13,6 +13,9 @@ import {
   buildResolveTargetSuccessPayload,
   findResolveTargetBestCandidate,
   formatLatestVersionMaliciousStatus,
+  formatResolveTargetCodeAvailability,
+  formatResolveTargetEvidenceNotes,
+  formatResolveTargetNameSimilarity,
   isLatestVersionMaliciousStatusActionable,
   isResolveTargetActionable,
   isResolveTargetIdentityActionable,
@@ -212,6 +215,7 @@ export function formatResolveTargetMcpText(
       `  ... ${omittedReferences.length} additional candidate ${omittedReferences.length === 1 ? "omitted" : "entries omitted"}${protectedNote}. Use format=json for the complete structured candidate and protected-match lists.`,
     );
   }
+  lines.push(...formatResolveTargetEvidenceNotes(references));
 
   if (blockedBest) {
     if (!bestCandidate) {
@@ -281,7 +285,12 @@ function formatEvidence(candidate: ResolveTargetCandidate): string {
     evidence.push(`${formatCompactNumber(candidate.downloadsTotal)} downloads`);
   }
   if (candidate.docsAvailable) evidence.push("docs");
-  if (candidate.codeAvailable) evidence.push("code");
+  const codeAvailability = formatResolveTargetCodeAvailability(candidate);
+  if (codeAvailability) evidence.push(codeAvailability);
+  const nameSimilarity = formatResolveTargetNameSimilarity(
+    candidate.nameSimilarity,
+  );
+  if (nameSimilarity) evidence.push(nameSimilarity);
   return evidence.map((value) => sanitizeTerminalText(value)).join(" · ");
 }
 

@@ -35,6 +35,7 @@ const COMPACT_CANDIDATE = {
   downloadsTotal: null,
   docsAvailable: true,
   codeAvailable: true,
+  nameSimilarity: null,
 };
 
 const DETAILED_CANDIDATE = {
@@ -46,7 +47,7 @@ const DETAILED_CANDIDATE = {
   matchedAliases: ["express"],
   matchTier: 0,
   score: 100,
-  reason: "Exact package identity match",
+  nameSimilarity: 0.95,
 };
 
 const MALICIOUS_EVIDENCE = {
@@ -147,6 +148,7 @@ describe("ResolveTargetServiceImpl", () => {
       "downloadsTotal",
       "docsAvailable",
       "codeAvailable",
+      "nameSimilarity",
     ]) {
       expect(request.query).toContain(`  ${field}\n`);
       expect(request.query).not.toContain(`${field} @include`);
@@ -164,11 +166,11 @@ describe("ResolveTargetServiceImpl", () => {
       "matchedAliases",
       "matchTier",
       "score",
-      "reason",
     ]) {
       expect(request.query).toContain(`  ${field}\n`);
     }
     expect(request.query).not.toContain("\n  protected\n");
+    expect(request.query).not.toContain("\n  reason\n");
     expect(request.query).not.toContain("inspection");
     expect(request.query).toContain(`latestVersionMaliciousEvidence {
     advisories {
@@ -245,7 +247,33 @@ describe("ResolveTargetServiceImpl", () => {
       ...detailedResult
     } = DETAILED_CANDIDATE;
     expect(result.candidates[0]).toEqual(detailedResult);
+    expect(result.candidates[0]?.nameSimilarity).toBe(0.95);
     expect(result.candidates[0]).not.toHaveProperty("downloadsTotal");
+  });
+
+  it("parses nullable name similarity in compact mode", async () => {
+    const service = new ResolveTargetServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(
+        mock(() =>
+          Promise.resolve(
+            jsonResponse(
+              resultBody({ ...COMPACT_CANDIDATE, nameSimilarity: 0.4 }),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    const result = await service.resolveTarget({
+      name: "lodahs",
+      preferredKinds: ["PACKAGE"],
+      limit: 8,
+      includeDetailedFields: false,
+    });
+
+    expect(result.candidates[0]?.nameSimilarity).toBe(0.4);
   });
 
   it("parses bounded malicious advisory evidence in compact mode", async () => {
@@ -342,8 +370,14 @@ describe("ResolveTargetServiceImpl", () => {
       latestVersionMaliciousEvidence: _evidence,
       ...missingMaliciousEvidence
     } = COMPACT_CANDIDATE;
+    const { nameSimilarity: _nameSimilarity, ...missingNameSimilarity } =
+      COMPACT_CANDIDATE;
 
-    for (const malformed of [missingConfidence, missingMaliciousEvidence]) {
+    for (const malformed of [
+      missingConfidence,
+      missingMaliciousEvidence,
+      missingNameSimilarity,
+    ]) {
       const service = new ResolveTargetServiceImpl(
         ENDPOINT,
         createMockTokenProvider(),

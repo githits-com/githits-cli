@@ -29,9 +29,9 @@ export interface ResolveTargetCandidatePayload {
   matchedAliases?: string[];
   docsAvailable?: boolean;
   codeAvailable?: boolean;
+  nameSimilarity?: number;
   matchTier?: number;
   score?: number;
-  reason?: string;
 }
 
 export interface ResolveTargetMaliciousAdvisoryPayload {
@@ -120,9 +120,9 @@ function projectTarget(
   assign(payload, "matchedAliases", candidate.matchedAliases);
   assign(payload, "docsAvailable", candidate.docsAvailable);
   assign(payload, "codeAvailable", candidate.codeAvailable);
+  assign(payload, "nameSimilarity", candidate.nameSimilarity);
   assign(payload, "matchTier", candidate.matchTier);
   assign(payload, "score", candidate.score);
-  assign(payload, "reason", candidate.reason);
   return payload;
 }
 
@@ -193,6 +193,8 @@ export function formatResolveTargetTerminal(
       ),
     ),
   );
+  const evidenceNotes = formatResolveTargetEvidenceNotes(candidates);
+  if (evidenceNotes.length > 0) lines.push("", ...evidenceNotes);
 
   const query = sanitizeTerminalText(options.query?.trim() || "<query>");
   if (blockedBest) {
@@ -275,8 +277,74 @@ function formatCandidate(
     fields.push(`repo ${compactRepositoryUrl(candidate.repositoryUrl)}`);
   }
   if (candidate?.docsAvailable) fields.push("docs");
-  if (candidate?.codeAvailable) fields.push("code");
+  const codeAvailability = candidate
+    ? formatResolveTargetCodeAvailability(candidate)
+    : undefined;
+  if (codeAvailability) fields.push(codeAvailability);
+  const nameSimilarity = formatResolveTargetNameSimilarity(
+    candidate?.nameSimilarity,
+  );
+  if (nameSimilarity) fields.push(nameSimilarity);
   return fields.join(" · ");
+}
+
+/** Describe code availability at the candidate identity's actual scope. */
+export function formatResolveTargetCodeAvailability(
+  candidate: ResolveTargetCandidate,
+): string | undefined {
+  if (!candidate.codeAvailable) return undefined;
+  switch (candidate.kind) {
+    case "PACKAGE":
+      return "indexed package snapshot";
+    case "REPOSITORY":
+      return "indexed repository snapshot";
+    default:
+      return "indexed code snapshot";
+  }
+}
+
+/** Format the backend's fractional lexical signal as a whole percentage. */
+export function formatResolveTargetNameSimilarity(
+  value: number | undefined,
+): string | undefined {
+  return value === undefined
+    ? undefined
+    : `${Math.round(value * 100)}% name similarity`;
+}
+
+/** Explain resolver evidence without implying that either signal is decisive. */
+export function formatResolveTargetEvidenceNotes(
+  targets: readonly ResolveTargetReference[],
+): string[] {
+  const candidates = targets.filter(isCandidate);
+  const notes: string[] = [];
+  if (candidates.some((candidate) => candidate.nameSimilarity !== undefined)) {
+    notes.push(
+      "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
+    );
+  }
+  if (candidates.some((candidate) => candidate.codeAvailable)) {
+    if (
+      candidates.some(
+        (candidate) => candidate.kind === "PACKAGE" && candidate.codeAvailable,
+      )
+    ) {
+      notes.push(
+        "An indexed package snapshot does not establish exact latest-version readiness; code commands do so only when they resolve and serve a commit SHA.",
+      );
+    }
+    if (
+      candidates.some(
+        (candidate) =>
+          candidate.kind === "REPOSITORY" && candidate.codeAvailable,
+      )
+    ) {
+      notes.push(
+        "An indexed repository snapshot does not establish exact ref readiness; code commands do so only when they resolve and serve a commit SHA.",
+      );
+    }
+  }
+  return notes;
 }
 
 function formatCandidateLines(

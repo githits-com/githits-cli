@@ -108,6 +108,7 @@ describe("resolveAction", () => {
     if (!candidate) throw new Error("fixture missing resolve candidate");
     affected.candidates[0] = {
       ...candidate,
+      nameSimilarity: 0.4,
       latestVersionMaliciousStatus: "AFFECTED",
       latestVersionMaliciousEvidence: {
         advisories: [
@@ -142,6 +143,7 @@ describe("resolveAction", () => {
       candidates: [
         {
           target: "npm:express",
+          nameSimilarity: 0.4,
           latestVersionMaliciousStatus: "affected",
           latestVersionMaliciousEvidence: {
             advisories: [

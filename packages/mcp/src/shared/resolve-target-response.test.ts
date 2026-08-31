@@ -27,7 +27,6 @@ function candidate(
     matchTier: 0,
     score: 100,
     confidence: "EXACT",
-    reason: "Exact package identity match",
     ...overrides,
     latestVersionMaliciousStatus:
       overrides.latestVersionMaliciousStatus ?? "CLEAR",
@@ -70,11 +69,20 @@ describe("buildResolveTargetSuccessPayload", () => {
           codeAvailable: true,
           matchTier: 0,
           score: 100,
-          reason: "Exact package identity match",
         },
       ],
       protectedMatches: ["npm:express"],
     });
+  });
+
+  it("preserves numeric name similarity in the shared JSON candidate", () => {
+    const fuzzy = candidate({ nameSimilarity: 0.4 });
+
+    expect(
+      buildResolveTargetSuccessPayload(
+        result({ best: fuzzy, candidates: [fuzzy], protectedMatches: [] }),
+      ).candidates[0]?.nameSimilarity,
+    ).toBe(0.4);
   });
 
   it("appends unbounded protected extras once so every reference resolves", () => {
@@ -250,7 +258,7 @@ describe("formatResolveTargetTerminal", () => {
     });
 
     expect(output).toContain(
-      "Candidates:\n  1. npm:express [exact] · package · 66k stars · 89M downloads/mo · docs · code · protected exact-name match",
+      "Candidates:\n  1. npm:express [exact] · package · 66k stars · 89M downloads/mo · docs · indexed package snapshot · protected exact-name match",
     );
     expect(output).toContain("     Fast web framework");
     expect(output).not.toContain("Warning:");
@@ -258,6 +266,47 @@ describe("formatResolveTargetTerminal", () => {
     expect(output).toContain(
       `Next: githits search 'router'"'"'s middleware' --in 'npm:express'`,
     );
+  });
+
+  it("renders coarse similarity without reordering or weakening continuation gates", () => {
+    const lodashEs = candidate({
+      canonicalKey: "npm:lodash-es",
+      displayName: "lodash-es",
+      confidence: "MEDIUM",
+      nameSimilarity: 0.333,
+    });
+    const lodash = candidate({
+      canonicalKey: "npm:lodash",
+      displayName: "lodash",
+      confidence: "MEDIUM",
+      nameSimilarity: 0.4,
+    });
+    const output = formatResolveTargetTerminal(
+      result({
+        best: lodashEs,
+        candidates: [lodashEs, lodash],
+        protectedMatches: [],
+      }),
+      { name: "lodahs", useColors: false },
+    );
+
+    expect(output).toContain(
+      "1. npm:lodash-es [medium] · package · 66k stars · 89M downloads/mo · docs · indexed package snapshot · 33% name similarity",
+    );
+    expect(output).toContain(
+      "2. npm:lodash [medium] · package · 66k stars · 89M downloads/mo · docs · indexed package snapshot · 40% name similarity",
+    );
+    expect(output.indexOf("npm:lodash-es")).toBeLessThan(
+      output.indexOf("npm:lodash ["),
+    );
+    expect(output).toContain(
+      "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
+    );
+    expect(output).toContain(
+      "An indexed package snapshot does not establish exact latest-version readiness; code commands do so only when they resolve and serve a commit SHA.",
+    );
+    expect(output).toContain("Unconfirmed ranked candidates:");
+    expect(output).not.toContain("--in 'npm:lodash-es'");
   });
 
   it("renders protected matches inline without changing candidate order", () => {
@@ -271,6 +320,7 @@ describe("formatResolveTargetTerminal", () => {
       displayName: "expressjs/express",
       downloadsLastMonth: undefined,
       confidence: "HIGH",
+      codeAvailable: false,
     });
     const output = formatResolveTargetTerminal(
       result({
@@ -281,13 +331,13 @@ describe("formatResolveTargetTerminal", () => {
     );
 
     expect(output).toContain(
-      "1. npm:express [exact] · package · 66k stars · 89M downloads/mo · docs · code · protected exact-name match",
+      "1. npm:express [exact] · package · 66k stars · 89M downloads/mo · docs · indexed package snapshot · protected exact-name match",
     );
     expect(output).toContain(
-      "2. pypi:express [exact] · package · 66k stars · 89M downloads/mo · docs · code · protected exact-name match",
+      "2. pypi:express [exact] · package · 66k stars · 89M downloads/mo · docs · indexed package snapshot · protected exact-name match",
     );
     expect(output).toContain(
-      "3. github:expressjs/express [high] · repository · 66k stars · docs · code",
+      "3. github:expressjs/express [high] · repository · 66k stars · docs",
     );
     expect(output).not.toContain("Also consider:");
     expect(output).not.toContain("Protected exact-name matches:");
@@ -461,6 +511,10 @@ describe("formatResolveTargetTerminal", () => {
 
     expect(output).not.toContain("Warning:");
     expect(output).not.toContain("malicious");
+    expect(output).toContain("indexed repository snapshot");
+    expect(output).toContain(
+      "An indexed repository snapshot does not establish exact ref readiness; code commands do so only when they resolve and serve a commit SHA.",
+    );
     expect(output).toContain(
       "Next: githits search 'middleware' --in 'github:expressjs/express'",
     );

@@ -93,9 +93,9 @@ export interface ResolveTargetCandidate extends ResolveTargetReference {
   matchedAliases?: string[];
   docsAvailable: boolean;
   codeAvailable: boolean;
+  nameSimilarity?: number;
   matchTier?: number;
   score?: number;
-  reason?: string;
 }
 
 export interface ResolveTargetResult {
@@ -138,6 +138,7 @@ const listCandidateSchema = z.object({
   downloadsTotal: z.number().int().nullable().optional(),
   docsAvailable: z.boolean(),
   codeAvailable: z.boolean(),
+  nameSimilarity: z.number().nullable(),
 });
 
 const targetReferenceSchema = listCandidateSchema.pick({
@@ -157,7 +158,6 @@ const detailedCandidateSchema = listCandidateSchema.extend({
   matchedAliases: z.array(z.string()),
   matchTier: z.number().int(),
   score: z.number(),
-  reason: z.string().nullable().optional(),
 });
 
 const graphQLErrorSchema = z.object({
@@ -244,6 +244,7 @@ fragment ResolveTargetListFields on TargetResolutionCandidate {
   downloadsTotal
   docsAvailable
   codeAvailable
+  nameSimilarity
 }
 
 fragment ResolveTargetJsonFields on TargetResolutionCandidate {
@@ -257,7 +258,6 @@ fragment ResolveTargetJsonFields on TargetResolutionCandidate {
   matchedAliases
   matchTier
   score
-  reason
 }`;
 
 export class ResolveTargetServiceImpl implements ResolveTargetService {
@@ -402,6 +402,7 @@ function normaliseCandidate(
   assignDefined(result, "stars", candidate.stars);
   assignDefined(result, "downloadsLastMonth", candidate.downloadsLastMonth);
   assignDefined(result, "downloadsTotal", candidate.downloadsTotal);
+  assignDefined(result, "nameSimilarity", candidate.nameSimilarity);
   if ("matchedAliases" in candidate) {
     assignDefined(result, "displayName", candidate.displayName);
     assignDefined(result, "registry", candidate.registry);
@@ -413,7 +414,6 @@ function normaliseCandidate(
     assignDefined(result, "matchedAliases", candidate.matchedAliases);
     assignDefined(result, "matchTier", candidate.matchTier);
     assignDefined(result, "score", candidate.score);
-    assignDefined(result, "reason", candidate.reason);
   }
   return result;
 }

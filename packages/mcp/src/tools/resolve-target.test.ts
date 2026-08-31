@@ -194,6 +194,51 @@ describe("resolve_target MCP adapter", () => {
     });
   });
 
+  it("renders coarse similarity and indexed-snapshot evidence without reranking", () => {
+    const lodashEs: ResolveTargetCandidate = {
+      kind: "PACKAGE",
+      canonicalKey: "npm:lodash-es",
+      confidence: "MEDIUM",
+      latestVersionMaliciousStatus: "CLEAR",
+      docsAvailable: true,
+      codeAvailable: true,
+      nameSimilarity: 0.333,
+    };
+    const lodash: ResolveTargetCandidate = {
+      ...lodashEs,
+      canonicalKey: "npm:lodash",
+      nameSimilarity: 0.4,
+    };
+    const text = formatResolveTargetMcpText(
+      result({
+        best: lodashEs,
+        candidates: [lodashEs, lodash],
+        protectedMatches: [],
+      }),
+      { name: "lodahs" },
+    );
+
+    expect(text).toContain(
+      "1. npm:lodash-es [medium; package] · docs · indexed package snapshot · 33% name similarity",
+    );
+    expect(text).toContain(
+      "2. npm:lodash [medium; package] · docs · indexed package snapshot · 40% name similarity",
+    );
+    expect(text.indexOf("npm:lodash-es")).toBeLessThan(
+      text.indexOf("npm:lodash ["),
+    );
+    expect(text).toContain(
+      "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
+    );
+    expect(text).toContain(
+      "An indexed package snapshot does not establish exact latest-version readiness; code commands do so only when they resolve and serve a commit SHA.",
+    );
+    expect(text).toContain("do not pass the best result automatically");
+    expect(text).not.toContain(
+      'pass the canonical target "npm:lodash-es" to the next MCP tool',
+    );
+  });
+
   it("emits direct canonical next actions only for EXACT and HIGH results", () => {
     for (const confidence of ["EXACT", "HIGH"] as const) {
       const best = {
@@ -242,6 +287,30 @@ describe("resolve_target MCP adapter", () => {
       'Next: call search with target "site:expressjs.com" and source "docs", then call docs_read for relevant results.',
     );
     expect(text).not.toContain("pass the canonical target");
+  });
+
+  it("renders repository code availability at repository scope", () => {
+    const repository: ResolveTargetCandidate = {
+      kind: "REPOSITORY",
+      canonicalKey: "github:openai/codex",
+      confidence: "EXACT",
+      latestVersionMaliciousStatus: "NOT_APPLICABLE",
+      docsAvailable: false,
+      codeAvailable: true,
+    };
+    const text = formatResolveTargetMcpText(
+      result({
+        best: repository,
+        candidates: [repository],
+        protectedMatches: [],
+      }),
+      { name: "codex" },
+    );
+
+    expect(text).toContain("indexed repository snapshot");
+    expect(text).toContain(
+      "An indexed repository snapshot does not establish exact ref readiness; code commands do so only when they resolve and serve a commit SHA.",
+    );
   });
 
   it("fails closed for affected, unknown, and future malicious statuses", () => {
