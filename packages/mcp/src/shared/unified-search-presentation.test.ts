@@ -97,6 +97,32 @@ function source(
   };
 }
 
+function groupedSources(
+  presentation: ReturnType<typeof projectUnifiedSearchPresentation>,
+) {
+  return presentation.targetGroups.flatMap((group) => group.sources);
+}
+
+function groupedTrustLimits(
+  presentation: ReturnType<typeof projectUnifiedSearchPresentation>,
+) {
+  return presentation.targetGroups.flatMap((group) => group.trustLimits);
+}
+
+function groupedAlternatives(
+  presentation: ReturnType<typeof projectUnifiedSearchPresentation>,
+) {
+  return presentation.targetGroups.flatMap((group) =>
+    group.alternatives ? [group.alternatives] : [],
+  );
+}
+
+function groupedSiteSuggestions(
+  presentation: ReturnType<typeof projectUnifiedSearchPresentation>,
+) {
+  return presentation.targetGroups.flatMap((group) => group.siteSuggestions);
+}
+
 describe("projectUnifiedSearchPresentation", () => {
   it.each(["PENDING", "INDEXING", "SEARCHING"] as const)(
     "keeps active lifecycle %s distinct",
@@ -218,7 +244,7 @@ describe("projectUnifiedSearchPresentation", () => {
       hasSnapshot: true,
       resultCount: 0,
     });
-    expect(presentation.sources).toEqual([
+    expect(groupedSources(presentation)).toEqual([
       {
         kind: "code",
         entries: [
@@ -237,7 +263,7 @@ describe("projectUnifiedSearchPresentation", () => {
     });
   });
 
-  it("groups symbol source readiness with code", () => {
+  it("preserves symbol source readiness as symbols", () => {
     const presentation = projectUnifiedSearchPresentation(
       completed({
         query: { raw: "router", sources: ["symbol"] },
@@ -252,9 +278,9 @@ describe("projectUnifiedSearchPresentation", () => {
       }),
     );
 
-    expect(presentation.sources).toEqual([
+    expect(groupedSources(presentation)).toEqual([
       {
-        kind: "code",
+        kind: "symbols",
         entries: [
           {
             state: "searched",
@@ -267,8 +293,25 @@ describe("projectUnifiedSearchPresentation", () => {
     ]);
   });
 
-  it.each(["MISSING", "UNRESOLVABLE", "FUTURE_STATE"] as const)(
-    "treats source state %s as unavailable and suppresses pivots",
+  it("source and warning provenance keeps code and symbols as separate lanes", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({ source: "CODE", codeIndexState: "CURRENT" }),
+          source({ source: "SYMBOL", codeIndexState: "CURRENT" }),
+        ],
+      }),
+    );
+
+    expect(groupedSources(presentation).map((group) => group.kind)).toEqual([
+      "code",
+      "symbols",
+    ]);
+  });
+
+  it.each(["MISSING", "FUTURE_STATE"] as const)(
+    "terminal target recovery keeps source state %s unavailable with conservative pivots",
     (state) => {
       const presentation = projectUnifiedSearchPresentation(
         completed({
@@ -283,7 +326,7 @@ describe("projectUnifiedSearchPresentation", () => {
         }),
       );
 
-      expect(presentation.sources).toEqual([
+      expect(groupedSources(presentation)).toEqual([
         {
           kind: "code",
           entries: [
@@ -300,6 +343,230 @@ describe("projectUnifiedSearchPresentation", () => {
     },
   );
 
+  it("terminal target recovery selects exact unresolvable and missing states", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "NOT_FOUND",
+            resultCount: 0,
+          }),
+          source({
+            targetLabel: "github:owner/repo#main",
+            indexingStatus: "UNRESOLVABLE",
+            codeIndexState: "UNRESOLVABLE",
+            targetResolution: {
+              freshness: "indexing",
+              freshnessReason: "no_current_fallback",
+              requested: { repoUrl: "https://github.com/owner/repo" },
+              availableVersions: [],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+          source({
+            source: "docs",
+            targetLabel: "site:docs.example.com",
+            indexingStatus: "NOT_FOUND",
+            resultCount: 0,
+          }),
+          source({
+            targetLabel: "opaque:target",
+            indexingStatus: "UNRESOLVABLE",
+            resultCount: 0,
+          }),
+          source({
+            targetLabel: "npm:express@4.18.2",
+            indexingStatus: "UNRESOLVABLE",
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.action).toEqual({ kind: "none" });
+    expect(presentation.targetGroups.map((group) => group.recovery)).toEqual([
+      { kind: "fix", family: "package" },
+      { kind: "fix", family: "repository" },
+      { kind: "fix", family: "unknown" },
+      { kind: "fix", family: "site" },
+    ]);
+    expect(presentation.action).not.toHaveProperty("searchRef");
+  });
+
+  it("terminal target recovery keeps a registry target as package with repo resolution", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "NOT_FOUND",
+            targetResolution: {
+              requested: { repoUrl: "https://github.com/expressjs/express" },
+              availableVersions: [],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.action).toEqual({ kind: "none" });
+    expect(presentation.targetGroups[0]?.recovery).toEqual({
+      kind: "fix",
+      family: "package",
+    });
+  });
+
+  it("terminal target recovery preserves site suggestion precedence", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            source: "docs",
+            targetLabel: "site:docs.example.com",
+            indexingStatus: "UNRESOLVABLE",
+            suggestedSiteTargets: ["site:docs.example.com/guide"],
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.action).toEqual({ kind: "none" });
+    expect(presentation.targetGroups[0]?.recovery).toEqual({
+      kind: "try",
+      category: "site",
+      target: "site:docs.example.com/guide",
+      additionalTargets: [],
+      truncated: false,
+    });
+  });
+
+  it("terminal target recovery preserves indexed alternative precedence", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "UNRESOLVABLE",
+            targetResolution: {
+              freshness: "indexing",
+              freshnessReason: "no_current_fallback",
+              availableVersions: [{ version: "4.17.0", ref: "v4.17.0" }],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.action).toEqual({ kind: "none" });
+    expect(presentation.targetGroups[0]?.recovery).toEqual({
+      kind: "try",
+      category: "version",
+      target: "npm:express@4.17.0",
+      additionalTargets: [],
+      truncated: false,
+    });
+  });
+
+  it("normalizes latest package display identities for recovery targets", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express latest",
+            requestedTarget: "npm:express latest",
+            codeIndexState: "UNRESOLVABLE",
+            targetResolution: {
+              availableVersions: [{ version: "5.1.0", ref: "v5.1.0" }],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.targetGroups[0]?.recovery).toEqual({
+      kind: "try",
+      category: "version",
+      target: "npm:express@5.1.0",
+      additionalTargets: [],
+      truncated: false,
+    });
+  });
+
+  it("keeps terminal recovery for a failed peer beside healthy hits", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "CURRENT",
+            resultCount: 1,
+          }),
+          source({
+            targetLabel: "npm:missing@1.0.0",
+            codeIndexState: "NOT_FOUND",
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(
+      presentation.targetGroups.map((group) => ({
+        target: group.identity.requested,
+        recovery: group.recovery,
+      })),
+    ).toEqual([
+      { target: "npm:express@4.18.2", recovery: undefined },
+      {
+        target: "npm:missing@1.0.0",
+        recovery: { kind: "fix", family: "package" },
+      },
+    ]);
+    expect(presentation.action).toEqual({ kind: "none" });
+  });
+
+  it("terminal target recovery prefers indexed alternatives without freshness signals", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "NOT_FOUND",
+            targetResolution: {
+              availableVersions: [{ version: "4.17.0", ref: "v4.17.0" }],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.action).toEqual({ kind: "none" });
+    expect(presentation.targetGroups[0]?.recovery).toEqual({
+      kind: "try",
+      category: "version",
+      target: "npm:express@4.17.0",
+      additionalTargets: [],
+      truncated: false,
+    });
+  });
+
   it.each(["docs", "auto"] as const)(
     "uses neutral docs provenance for contributor-less %s sources",
     (sourceName) => {
@@ -310,7 +577,7 @@ describe("projectUnifiedSearchPresentation", () => {
         }),
       );
 
-      expect(presentation.sources).toEqual([
+      expect(groupedSources(presentation)).toEqual([
         {
           kind: "docs",
           entries: [
@@ -345,14 +612,14 @@ describe("projectUnifiedSearchPresentation", () => {
 
     expect(presentation.availability.kind).toBe(kind);
     expect(presentation.availability.hasSnapshot).toBe(false);
-    expect(presentation.sources).toEqual([]);
+    expect(groupedSources(presentation)).toEqual([]);
     expect(presentation.progress).toEqual({
       targetsReady: 0,
       targetsTotal: 1,
       elapsedMs: 200,
       requestedSources: ["code"],
     });
-    expect(presentation.targets).toEqual([]);
+    expect(presentation.targetGroups).toEqual([]);
     expect(presentation.action.kind).toBe("poll");
   });
 
@@ -413,7 +680,7 @@ describe("projectUnifiedSearchPresentation", () => {
       hasSnapshot: false,
       resultCount: 0,
     });
-    expect(presentation.sources).toEqual([]);
+    expect(groupedSources(presentation)).toEqual([]);
     expect(presentation.warnings).toEqual([]);
   });
 
@@ -467,7 +734,7 @@ describe("projectUnifiedSearchPresentation", () => {
       }),
     );
 
-    expect(presentation.sources).toEqual([
+    expect(groupedSources(presentation)).toEqual([
       {
         kind: "repository_docs",
         entries: [
@@ -502,7 +769,9 @@ describe("projectUnifiedSearchPresentation", () => {
       },
     ]);
     expect(
-      presentation.trustLimits.filter((limit) => limit.kind === "source"),
+      groupedTrustLimits(presentation).filter(
+        (limit) => limit.kind === "source",
+      ),
     ).toEqual([
       {
         kind: "source",
@@ -548,7 +817,7 @@ describe("projectUnifiedSearchPresentation", () => {
       }),
     );
 
-    expect(presentation.sources).toEqual([
+    expect(groupedSources(presentation)).toEqual([
       {
         kind: "repository_docs",
         entries: [
@@ -575,7 +844,7 @@ describe("projectUnifiedSearchPresentation", () => {
         ],
       },
     ]);
-    expect(presentation.trustLimits).toEqual(
+    expect(groupedTrustLimits(presentation)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           kind: "stale",
@@ -614,15 +883,15 @@ describe("projectUnifiedSearchPresentation", () => {
       }),
     );
 
-    expect(presentation.sources).toEqual([]);
-    expect(presentation.trustLimits).toEqual([]);
-    expect(presentation.targets).toEqual([
+    expect(groupedSources(presentation)).toEqual([]);
+    expect(groupedTrustLimits(presentation)).toEqual([]);
+    expect(presentation.targetGroups.map((group) => group.identity)).toEqual([
       {
         requested: "npm:n8n@2.36.7",
         freshness: "INDEXING",
       },
     ]);
-    expect(presentation.alternatives).toEqual([
+    expect(groupedAlternatives(presentation)).toEqual([
       {
         target: "npm:n8n@2.36.7",
         versions: [
@@ -660,7 +929,7 @@ describe("projectUnifiedSearchPresentation", () => {
       }),
     );
 
-    expect(presentation.alternatives).toEqual([
+    expect(groupedAlternatives(presentation)).toEqual([
       expect.objectContaining({
         target: "npm:express latest",
         versions: [{ version: "4.18.2", ref: "v4.18.2" }],
@@ -670,7 +939,7 @@ describe("projectUnifiedSearchPresentation", () => {
         refs: [{ ref: "main" }],
       }),
     ]);
-    expect(presentation.targets).toEqual([
+    expect(presentation.targetGroups.map((group) => group.identity)).toEqual([
       { requested: "npm:express latest" },
       { requested: "github:expressjs/express#main" },
     ]);
@@ -700,15 +969,15 @@ describe("projectUnifiedSearchPresentation", () => {
       }),
     );
 
-    expect(presentation.alternatives[0]?.versions).toEqual([
+    expect(groupedAlternatives(presentation)[0]?.versions).toEqual([
       { version: "4.0.0", ref: "v4.0.0" },
     ]);
-    expect(presentation.alternatives[0]?.refs).toEqual([
+    expect(groupedAlternatives(presentation)[0]?.refs).toEqual([
       { ref: "master" },
       { ref: sha },
       { ref: secondSha },
     ]);
-    expect(presentation.alternatives[0]?.refsRemaining).toBe(1);
+    expect(groupedAlternatives(presentation)[0]?.refsRemaining).toBe(1);
   });
 
   it.each([
@@ -734,7 +1003,7 @@ describe("projectUnifiedSearchPresentation", () => {
         }),
       );
 
-      expect(presentation.alternatives).toEqual([
+      expect(groupedAlternatives(presentation)).toEqual([
         expect.objectContaining({ target: identity }),
       ]);
       expect(presentation.targetGroups).toHaveLength(1);
@@ -773,7 +1042,7 @@ describe("projectUnifiedSearchPresentation", () => {
       }),
     );
 
-    expect(presentation.targets).toEqual([
+    expect(presentation.targetGroups.map((group) => group.identity)).toEqual([
       {
         requested: "npm:express latest",
         fresh: "npm:express@5.2.1",
@@ -781,11 +1050,13 @@ describe("projectUnifiedSearchPresentation", () => {
         freshness: "STALE",
       },
     ]);
-    expect(JSON.stringify(presentation.targets)).not.toContain("indexingRef");
-    expect(JSON.stringify(presentation.targets)).not.toContain(
+    expect(JSON.stringify(presentation.targetGroups)).not.toContain(
+      "indexingRef",
+    );
+    expect(JSON.stringify(presentation.targetGroups)).not.toContain(
       "OMITTED_VERSION",
     );
-    expect(JSON.stringify(presentation.targets)).not.toContain(
+    expect(JSON.stringify(presentation.targetGroups)).not.toContain(
       "latest_version_indexing",
     );
   });
@@ -962,7 +1233,7 @@ describe("projectUnifiedSearchPresentation", () => {
     expect(
       presentation.targetGroups.flatMap((group) => group.trustLimits),
     ).not.toContainEqual({ kind: "mutable_evidence" });
-    expect(presentation.sources).toEqual([
+    expect(groupedSources(presentation)).toEqual([
       {
         kind: "code",
         entries: [
@@ -1000,13 +1271,13 @@ describe("projectUnifiedSearchPresentation", () => {
         ],
       },
     ]);
-    expect(presentation.alternatives[0]?.versions).toHaveLength(3);
-    expect(presentation.alternatives[0]?.versionsRemaining).toBe(1);
-    expect(presentation.alternatives[0]?.refs).toEqual([
+    expect(groupedAlternatives(presentation)[0]?.versions).toHaveLength(3);
+    expect(groupedAlternatives(presentation)[0]?.versionsRemaining).toBe(1);
+    expect(groupedAlternatives(presentation)[0]?.refs).toEqual([
       { ref: "HEAD" },
       { ref: "master" },
     ]);
-    expect(presentation.trustLimits).toEqual(
+    expect(groupedTrustLimits(presentation)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: "source", state: "waiting" }),
         expect.objectContaining({
@@ -1014,7 +1285,6 @@ describe("projectUnifiedSearchPresentation", () => {
           state: "available_not_searched",
         }),
         expect.objectContaining({ kind: "coverage", state: "capped" }),
-        expect.objectContaining({ kind: "mutable_evidence" }),
       ]),
     );
     expect(JSON.stringify(presentation)).not.toContain("indexingRef");
@@ -1112,10 +1382,11 @@ describe("projectUnifiedSearchPresentation", () => {
         servedTarget: "npm:express@5.1.0",
       }),
     ]);
-    expect(presentation.targets).toEqual([
+    expect(presentation.targetGroups.map((group) => group.identity)).toEqual([
       {
         requested: "npm:express latest",
         fresh: "npm:express@5.2.1",
+        served: "npm:express@5.1.0",
         freshness: "INDEXING",
       },
       {
@@ -1389,7 +1660,7 @@ describe("projectUnifiedSearchPresentation", () => {
       }),
     );
 
-    expect(presentation.trustLimits).toEqual(
+    expect(groupedTrustLimits(presentation)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           kind: "stale",
@@ -1425,7 +1696,7 @@ describe("projectUnifiedSearchPresentation", () => {
     const active = projectUnifiedSearchPresentation(
       incomplete({ partialResults: false, sourceStatus: [siteStatus] }),
     );
-    expect(active.siteSuggestions).toEqual(expectedSuggestions);
+    expect(groupedSiteSuggestions(active)).toEqual(expectedSuggestions);
     expect(active.action).toEqual({
       kind: "poll",
       searchRef: "search-ref-1",
@@ -1434,9 +1705,16 @@ describe("projectUnifiedSearchPresentation", () => {
     const completedPresentation = projectUnifiedSearchPresentation(
       completed({ results: [], sourceStatus: [siteStatus] }),
     );
-    expect(completedPresentation.siteSuggestions).toEqual(expectedSuggestions);
-    expect(completedPresentation.action).toEqual({
-      kind: "site_retry",
+    expect(groupedSiteSuggestions(completedPresentation)).toEqual(
+      expectedSuggestions,
+    );
+    expect(completedPresentation.action).toEqual({ kind: "none" });
+    expect(completedPresentation.targetGroups[0]?.recovery).toEqual({
+      kind: "try",
+      category: "site",
+      target: "site:docs.example.com",
+      additionalTargets: ["site:api.example.com"],
+      truncated: true,
     });
 
     for (const status of ["DEFERRED", "FUTURE_SESSION_STATE"] as const) {
@@ -1452,8 +1730,13 @@ describe("projectUnifiedSearchPresentation", () => {
           },
         }),
       );
-      expect(terminal.action).toEqual({
-        kind: "site_retry",
+      expect(terminal.action).toEqual({ kind: "none" });
+      expect(terminal.targetGroups[0]?.recovery).toEqual({
+        kind: "try",
+        category: "site",
+        target: "site:docs.example.com",
+        additionalTargets: ["site:api.example.com"],
+        truncated: true,
       });
       expect(terminal.action).not.toHaveProperty("searchRef");
     }
@@ -1483,18 +1766,28 @@ describe("projectUnifiedSearchPresentation", () => {
 
     expect(presentation.warnings).toEqual([
       { kind: "query", message: "unknown qualifier" },
+    ]);
+    expect(
+      presentation.targetGroups[0]?.trustLimits.filter(
+        (limit) => limit.kind === "constraint",
+      ),
+    ).toEqual([
       {
-        kind: "ignored_filter",
-        source: "site:expressjs.com",
+        kind: "constraint",
+        constraint: "ignored_filter",
+        source: "docs",
+        target: "site:expressjs.com",
         values: ["category"],
       },
       {
-        kind: "incompatible_query_feature",
-        source: "site:expressjs.com",
+        kind: "constraint",
+        constraint: "incompatible_query_feature",
+        source: "docs",
+        target: "site:expressjs.com",
         values: ["exact_name"],
       },
     ]);
-    expect(presentation.trustLimits).toEqual(
+    expect(groupedTrustLimits(presentation)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: "coverage", state: "partial" }),
       ]),
@@ -1503,6 +1796,75 @@ describe("projectUnifiedSearchPresentation", () => {
       "Source 'code' is indexing",
     );
     expect(presentation.action).toEqual({ kind: "new_search" });
+  });
+
+  it("source and warning provenance keeps normalized lanes and targets", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            source: "DOCS",
+            targetLabel: "npm:express",
+            ignoredFilters: ["fileIntent"],
+          }),
+          source({
+            source: "SYMBOL",
+            targetLabel: "npm:express",
+            incompatibleFilters: ["lang"],
+          }),
+          source({
+            source: "AUTO",
+            targetLabel: "site:docs.example.com",
+            ignoredQueryFeatures: ["name"],
+          }),
+          source({
+            source: "Future-Lane",
+            targetLabel: "opaque-target",
+            incompatibleQueryFeatures: ["kind"],
+          }),
+          source({
+            source: "",
+            targetLabel: "npm:empty",
+            ignoredFilters: ["category"],
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.warnings).toEqual([]);
+    expect(groupedTrustLimits(presentation)).toEqual(
+      expect.arrayContaining([
+        {
+          kind: "constraint",
+          constraint: "ignored_filter",
+          source: "docs",
+          target: "npm:express",
+          values: ["fileIntent"],
+        },
+        {
+          kind: "constraint",
+          constraint: "incompatible_filter",
+          source: "symbol",
+          target: "npm:express",
+          values: ["lang"],
+        },
+        {
+          kind: "constraint",
+          constraint: "ignored_query_feature",
+          source: "auto",
+          target: "site:docs.example.com",
+          values: ["name"],
+        },
+        {
+          kind: "constraint",
+          constraint: "incompatible_query_feature",
+          source: "future-lane",
+          target: "opaque-target",
+          values: ["kind"],
+        },
+      ]),
+    );
   });
 
   it("suppresses generic pivots for evidence limits and prefers indexed alternatives", () => {
@@ -1523,11 +1885,13 @@ describe("projectUnifiedSearchPresentation", () => {
       }),
     );
 
-    expect(presentation.action).toEqual({
-      kind: "indexed_alternative",
-      target: "npm:express@4.18.2",
+    expect(presentation.action).toEqual({ kind: "none" });
+    expect(presentation.targetGroups[0]?.recovery).toEqual({
+      kind: "try",
       category: "version",
-      value: "4.17.0",
+      target: "npm:express@4.17.0",
+      additionalTargets: [],
+      truncated: false,
     });
   });
 
@@ -1603,7 +1967,7 @@ describe("projectUnifiedSearchPresentation", () => {
       }),
     );
 
-    expect(presentation.alternatives).toEqual([
+    expect(groupedAlternatives(presentation)).toEqual([
       {
         target: "npm:express latest",
         versions: versions.slice(0, 3),
@@ -1614,5 +1978,172 @@ describe("projectUnifiedSearchPresentation", () => {
         suggestedRefsRemaining: 2,
       },
     ]);
+  });
+
+  it("does not invent specificity for unversioned packages or implicit refs", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            targetLabel: "npm:express",
+            codeIndexState: "UNRESOLVABLE",
+          }),
+          source({
+            targetLabel: "github:owner/repo",
+            codeIndexState: "UNRESOLVABLE",
+          }),
+        ],
+      }),
+    );
+
+    expect(
+      presentation.targetGroups.map((group) =>
+        group.sources.flatMap((sourceGroup) =>
+          sourceGroup.entries.map((entry) => entry.terminalReason),
+        ),
+      ),
+    ).toEqual([
+      [{ kind: "unresolvable", family: "package" }],
+      [{ kind: "unresolvable", family: "repository" }],
+    ]);
+  });
+
+  it("keeps a bare terminal lane reason beside indexing without local recovery", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      incomplete({
+        progress: {
+          status: "INDEXING",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 200,
+        },
+        sourceStatus: [
+          source({ source: "code", codeIndexState: "INDEXING" }),
+          source({ source: "symbol", codeIndexState: "NOT_FOUND" }),
+        ],
+      }),
+    );
+
+    expect(presentation.targetGroups[0]?.recovery).toBeUndefined();
+    expect(presentation.action).toEqual({
+      kind: "poll",
+      searchRef: "search-ref-1",
+    });
+  });
+
+  it.each(["TIMEOUT", "FAILED"] as const)(
+    "reruns a terminal response with a bare terminal lane reason: %s",
+    (status) => {
+      const presentation = projectUnifiedSearchPresentation(
+        incomplete({
+          partialResults: false,
+          progress: {
+            status,
+            targetsReady: 0,
+            targetsTotal: 1,
+            elapsedMs: 60_000,
+          },
+          sourceStatus: [
+            source({
+              source: "code",
+              codeIndexState: "CURRENT",
+              resultCount: 0,
+            }),
+            source({
+              source: "symbol",
+              codeIndexState: "NOT_FOUND",
+              resultCount: 0,
+            }),
+          ],
+        }),
+      );
+
+      expect(presentation.targetGroups[0]?.recovery).toBeUndefined();
+      expect(presentation.action).toEqual({ kind: "new_search" });
+    },
+  );
+
+  it("prefers a new search when another completed-empty target is indexing", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            targetLabel: "npm:one@1.0.0",
+            source: "code",
+            codeIndexState: "CURRENT",
+            resultCount: 0,
+          }),
+          source({
+            targetLabel: "npm:one@1.0.0",
+            source: "symbol",
+            codeIndexState: "UNRESOLVABLE",
+            resultCount: 0,
+          }),
+          source({
+            targetLabel: "npm:two@2.0.0",
+            source: "code",
+            codeIndexState: "INDEXING",
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.targetGroups.map((group) => group.recovery)).toEqual([
+      undefined,
+      undefined,
+    ]);
+    expect(presentation.action).toEqual({ kind: "new_search" });
+  });
+
+  it("keeps terminal alternatives informational beside a bare lane reason", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      incomplete({
+        partialResults: false,
+        progress: {
+          status: "FAILED",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 60_000,
+        },
+        sourceStatus: [
+          source({
+            source: "code",
+            codeIndexState: "CURRENT",
+            resultCount: 0,
+          }),
+          source({
+            source: "symbol",
+            codeIndexState: "UNRESOLVABLE",
+            targetResolution: {
+              availableVersions: [{ version: "4.17.0", ref: "v4.17.0" }],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.targetGroups[0]?.recovery).toBeUndefined();
+    expect(presentation.targetGroups[0]?.alternatives).toEqual(
+      expect.objectContaining({
+        versions: [{ version: "4.17.0", ref: "v4.17.0" }],
+      }),
+    );
+    expect(presentation.action).toEqual({ kind: "new_search" });
+  });
+
+  it("uses query rewrite for completed-empty evidence without a reference", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({ results: [], evidenceNotice: "mutable evidence" }),
+    );
+
+    expect(presentation.action).toEqual({
+      kind: "query_rewrite",
+      rewrites: ["shorter_or_broader", "symbol", "code_grep"],
+    });
   });
 });

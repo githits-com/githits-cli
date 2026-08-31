@@ -19,6 +19,13 @@ const troubleshootingPath = join(
 );
 const githitsMcpSkillPath = join(root, "skills", "githits-mcp", "SKILL.md");
 const githitsCodeSkillPath = join(root, "skills", "githits-code", "SKILL.md");
+const githitsCodeReferencePath = join(
+  root,
+  "skills",
+  "githits-code",
+  "references",
+  "code-and-docs.md",
+);
 const pluginMaintenanceSkillPath = join(
   root,
   ".agents",
@@ -57,6 +64,23 @@ function expectNotContainsAllIgnoringWhitespace(
 }
 
 describe("agent skills packaging", () => {
+  it("documents canonical target guidance for package and repository scope", async () => {
+    const [mcpContent, codeReference] = await Promise.all([
+      read(githitsMcpSkillPath),
+      read(githitsCodeReferencePath),
+    ]);
+
+    for (const content of [mcpContent, codeReference]) {
+      expectContainsAll(content, [
+        "swift:github.com/<owner>/<repo>",
+        "zig:gh/<owner>/<repo>",
+        "artifact/manifest root",
+        "public GitHub repository",
+        "full repositories or sibling packages",
+      ]);
+    }
+  });
+
   it("packages a public githits-onboarding skill with setup-focused frontmatter", async () => {
     const content = await read(onboardingSkillPath);
 

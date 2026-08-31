@@ -56,12 +56,11 @@ describe("renderUnifiedSearchStatusText", () => {
     const text = renderUnifiedSearchStatusText(payload);
 
     expect(firstLine(text)).toBe(
-      "Indexing continues - 1 interim result returned",
+      "1 interim result | 1 docs page | indexing | 0/1 ready",
     );
     expect(text).toContain(
       "express/routing [docs page] npm:express - source URL unavailable - Routing",
     );
-    expect(text).toContain("Search search-ref-status | 0/1 target ready");
     expect(text).toContain(
       'Next: search_status search_ref="search-ref-status" wait_timeout_ms=20000',
     );
@@ -76,7 +75,7 @@ describe("renderUnifiedSearchStatusText", () => {
       }),
     );
     expect(firstLine(statusText)).toBe(
-      "Indexing continues - 1 partial result returned",
+      "1 partial result | 1 docs page | indexing | 0/1 ready",
     );
   });
 
@@ -85,7 +84,7 @@ describe("renderUnifiedSearchStatusText", () => {
       result: result({ partialResults: true, results: [hit()] }),
     });
     const text = renderUnifiedSearchStatusText(payload);
-    expect(firstLine(text)).toContain("1 partial result returned");
+    expect(firstLine(text)).toContain("1 partial result");
     expect(text).not.toContain("1 interim result");
   });
 
@@ -101,11 +100,12 @@ describe("renderUnifiedSearchStatusText", () => {
         },
       }),
     );
-    expect(firstLine(text)).toBe("Preparing - no result snapshot yet");
+    expect(firstLine(text)).toBe(
+      "No result snapshot yet | preparing | 0/1 ready",
+    );
     expect(text).not.toContain("Indexing:");
     expect(text).not.toContain("No hits");
     expect(text).toContain("- npm:express");
-    expect(text).toContain("Search search-ref-status | 0/1 target ready");
     expect(text).toContain(
       'Next: search_status search_ref="search-ref-status" wait_timeout_ms=20000',
     );
@@ -126,12 +126,61 @@ describe("renderUnifiedSearchStatusText", () => {
       }),
     };
     const text = renderUnifiedSearchStatusText(payload);
-    expect(firstLine(text)).toContain("No results returned");
-    expect(text).toContain("- npm:express@5.2.1\n  Searched: code");
+    expect(firstLine(text)).toBe("No results");
+    expect(text).toContain("- npm:express@5.2.1\n  searched: code");
     expect(text).toContain(
       'Next: shorten or broaden query; use source="symbol"; use code_grep.',
     );
-    expect(text).toContain("Search search-ref-empty | completed");
+    expect(text).not.toContain("Search search-ref-empty | completed");
+  });
+
+  it("terminal target recovery renders typed guidance for stored results", () => {
+    const payload: UnifiedSearchStatusCompletedPayload = {
+      completed: true,
+      searchRef: "search-ref-terminal",
+      result: result({
+        sourceStatus: [
+          {
+            source: "CODE",
+            targetLabel: "npm:express@4.18.2",
+            codeIndexState: "NOT_FOUND",
+          },
+          {
+            source: "CODE",
+            targetLabel: "github:owner/repo#main",
+            indexingStatus: "UNRESOLVABLE",
+            targetResolution: {
+              freshness: "indexing",
+              freshnessReason: "no_current_fallback",
+              requested: { repoUrl: "https://github.com/owner/repo" },
+              availableVersions: [],
+              availableRefs: [],
+            },
+          },
+          {
+            source: "DOCS",
+            targetLabel: "site:docs.example.com",
+            codeIndexState: "UNRESOLVABLE",
+          },
+          {
+            source: "CODE",
+            targetLabel: "opaque:target",
+            indexingStatus: "NOT_FOUND",
+          },
+        ],
+      }),
+    };
+    const text = renderUnifiedSearchStatusText(payload);
+
+    expect(text).toContain(
+      "Fix: verify registry coordinate/version; use its public GitHub repo for",
+    );
+    expect(text).toContain("repo-wide search.");
+    expect(text).toContain("Fix: verify public GitHub repository/ref.");
+    expect(text).toContain("Fix: verify site host/path.");
+    expect(text).toContain("Fix: verify or replace target.");
+    expect(text).not.toContain("rerun search later");
+    expect(text).not.toContain("searchRef=");
   });
 
   it("continues completed mutable evidence through one status action", () => {
@@ -145,7 +194,7 @@ describe("renderUnifiedSearchStatusText", () => {
     };
     const text = renderUnifiedSearchStatusText(payload);
     expect(firstLine(text)).toContain("1 result");
-    expect(text).toContain("Search search-ref-evidence | completed");
+    expect(text).not.toContain("Search search-ref-evidence | completed");
     expect(text).toContain(
       'Next: search_status search_ref="search-ref-evidence" wait_timeout_ms=20000',
     );
@@ -167,7 +216,9 @@ describe("renderUnifiedSearchStatusText", () => {
           },
         }),
       );
-      expect(firstLine(text)).toStartWith(status);
+      expect(firstLine(text)).toBe(
+        `No result snapshot | ${status.toLowerCase()} | 0/1 ready`,
+      );
       expect(text).toContain("Next: rerun search later.");
       expect(text).not.toContain("Do not poll");
       expect(text).not.toContain("Next: search_status");
@@ -186,7 +237,7 @@ describe("renderUnifiedSearchStatusText", () => {
       }),
     );
     expect(firstLine(text)).toBe(
-      "FUTURE_SESSION_STATE - no result snapshot returned",
+      "No result snapshot | status unknown | 0/1 ready",
     );
     expect(text).toContain("Next: rerun search later.");
     expect(text).not.toContain("Do not poll");

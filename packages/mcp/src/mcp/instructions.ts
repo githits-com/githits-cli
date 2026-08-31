@@ -10,7 +10,7 @@ GitHits indexes public OSS/package evidence, not local workspaces, private repos
 
 When presenting \`get_example\` output, include source repository provenance/citations from GitHits' generated references/provenance section whenever present.`;
 
-const PACKAGE_TOOLS_PREAMBLE = `Indexed package/source tools inspect third-party dependency source, docs, and registry metadata. Package targets use \`registry:name[@version]\`; repo targets use GitHub URLs. Prefer the default compact \`text-v1\` output; request JSON only when exact structured fields are necessary.`;
+const PACKAGE_TOOLS_PREAMBLE = `Indexed package/source tools inspect third-party dependency source, docs, and registry metadata. Package targets use \`registry:name[@version]\` and inspect an indexed artifact/manifest root; Swift packages use \`swift:github.com/<owner>/<repo>\` and Zig packages use \`zig:gh/<owner>/<repo>\`. Use public GitHub repository targets for full repositories or sibling packages; repo targets use GitHub URLs. Prefer the default compact \`text-v1\` output; request JSON only when exact structured fields are necessary.`;
 
 const SEARCH_BULLET =
   "- `search` — discover relevant docs, code, tests, examples, and symbols in known packages/repos or exact `site:<host[/path]>` documentation targets before reading exact files; retry advisory `suggestedSiteTargets` explicitly when returned.";

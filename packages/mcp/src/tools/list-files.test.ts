@@ -3,6 +3,8 @@ import {
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
 } from "@githits/core-internal";
+import { z } from "zod";
+import { getMcpToolDescriptors } from "../mcp/server.js";
 import {
   createMockCodeNavigationService,
   defaultListFilesResult,
@@ -14,6 +16,24 @@ function parseText(result: { content: Array<{ text: string }> }): unknown {
 }
 
 describe("createListFilesTool — metadata", () => {
+  it("documents canonical target guidance for package and repository scope", () => {
+    const descriptor = getMcpToolDescriptors().find(
+      (entry) => entry.name === "code_files",
+    );
+    expect(descriptor).toBeDefined();
+    const jsonSchema = z.toJSONSchema(z.object(descriptor?.schema ?? {}));
+    const targetSchema = JSON.stringify(jsonSchema.properties?.target);
+
+    expect(targetSchema).toContain("swift:github.com/<owner>/<repo>");
+    expect(targetSchema).toContain("zig:gh/<owner>/<repo>");
+    expect(targetSchema).toContain("artifact/manifest-root");
+    expect(targetSchema).toContain("public GitHub repository");
+    expect(targetSchema).toContain("sibling packages");
+    expect(descriptor?.description.slice(0, 80)).toBe(
+      "List indexed files and paths in any public GitHub repo/package; then use `code_r",
+    );
+  });
+
   it("registers the correct tool name, description, and schema keys", () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     expect(tool.name).toBe("code_files");

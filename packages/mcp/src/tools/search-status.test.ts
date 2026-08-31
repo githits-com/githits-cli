@@ -125,7 +125,7 @@ describe("searchStatusTool", () => {
 
     const text = await tool.handler({ search_ref: incomplete.searchRef }, {});
     expect(text.content[0]?.text).toContain(
-      "Indexing: provisional snapshot is searchable",
+      "using: provisional snapshot; searched: code (provisional)",
     );
     expect(text.content[0]?.text).toContain(
       'Next: search_status search_ref="search-ref-provisional" wait_timeout_ms=20000',
@@ -271,9 +271,9 @@ describe("searchStatusTool", () => {
 
     const text = await tool.handler({ search_ref: "search-ref-docs" }, {});
     expect(text.content[0]?.text).toContain(
-      "Indexing: expressjs.com/en/guide docs",
+      "indexing: expressjs.com/en/guide docs",
     );
-    expect(text.content[0]?.text).toContain("Searched: repository docs");
+    expect(text.content[0]?.text).toContain("searched: repository docs");
   });
 
   it("keeps completed empty JSON structured", async () => {
@@ -352,7 +352,7 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "ref-timeout" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("TIMEOUT - no result snapshot returned");
+    expect(text).toContain("No result snapshot | timeout | 0/1 ready");
     expect(text).not.toContain("search_status |");
     expect(text).toContain("Next: rerun search later.");
     expect(text).not.toContain("search_ref=");
@@ -369,7 +369,7 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "ref-failed" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("FAILED - no result snapshot returned");
+    expect(text).toContain("No result snapshot | failed | 0/1 ready");
     expect(text).toContain("Next: rerun search later.");
     expect(text).not.toContain("search_ref=");
   });
@@ -412,7 +412,7 @@ describe("searchStatusTool", () => {
 
     const textResult = await tool.handler({ search_ref: "ref-deferred" }, {});
     const text = textResult.content[0]?.text ?? "";
-    expect(text).toContain("DEFERRED - 1 result returned");
+    expect(text).toContain("1 result | 1 repo code hit | deferred | 1/2 ready");
     expect(text).toContain("Next: rerun search later.");
     expect(text).not.toContain("search_ref=");
     expect(text).not.toContain("No hits");
@@ -432,7 +432,7 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "ref-deferred-empty" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("DEFERRED - no result snapshot returned");
+    expect(text).toContain("No result snapshot | deferred | 0/1 ready");
     expect(text).toContain("Next: rerun search later.");
     expect(text).not.toContain("No hits");
     expect(text).not.toContain("Indexing in progress");
@@ -471,7 +471,9 @@ describe("searchStatusTool", () => {
 
     const textResult = await tool.handler({ search_ref: "ref-future" }, {});
     const text = textResult.content[0]?.text ?? "";
-    expect(text).toContain("FUTURE_SESSION_STATE - 1 result returned");
+    expect(text).toContain(
+      "1 result | 1 repo code hit | status unknown | 0/1 ready",
+    );
     expect(text).toContain("Next: rerun search later.");
     expect(text).not.toContain("search_ref=");
     expect(text).not.toContain("No hits");
@@ -480,8 +482,8 @@ describe("searchStatusTool", () => {
   });
 
   it.each([
-    ["FAILED", "FAILED - no results returned"],
-    ["TIMEOUT", "TIMEOUT - no results returned"],
+    ["FAILED", "No results | failed | 0/1 ready"],
+    ["TIMEOUT", "No results | timeout | 0/1 ready"],
   ] as const)(
     "does not promise future hits for a terminal %s partial result",
     async (status, expectedMessage) => {
@@ -551,11 +553,11 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: incomplete.searchRef }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("Indexing - no results yet");
+    expect(text).toContain("No results yet | indexing | 0/1 ready");
     expect(text).toContain("- site:example.com");
-    expect(text).toContain("Searched: site:example.com docs");
-    expect(text).toContain("Suggested sites: site:docs.example.com");
-    expect(text).toContain("More suggested sites omitted");
+    expect(text).toContain("searched: site:example.com docs");
+    expect(text).toContain("available: site:docs.example.com");
+    expect(text).toContain("+more");
     expect(text).toContain(
       'Next: search_status search_ref="ref-site-recovery" wait_timeout_ms=20000',
     );
@@ -607,8 +609,8 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "ref-stale" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("- npm:express latest -> 5.2.1");
-    expect(text).toContain("Using: 5.1.0 while 5.2.1 indexes");
+    expect(text).toContain("- npm:express latest");
+    expect(text).toContain("using: 5.1.0 while 5.2.1 indexes");
     expect(text.match(/5\.1\.0 while 5\.2\.1 indexes/g)).toHaveLength(1);
   });
 
@@ -655,8 +657,8 @@ describe("searchStatusTool", () => {
     const result = await tool.handler({ search_ref: "search-ref-123" }, {});
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("- npm:express@4.18.2");
-    expect(text).toContain("Using: 4.18.2 (older snapshot)");
-    expect(text).toContain("Available now: versions");
+    expect(text).toContain("using: 4.18.2 (older snapshot)");
+    expect(text).toContain("indexed: versions");
     expect(text).toContain("4.18.2");
     expect(text).not.toContain("ref_resolution_deferred");
   });
@@ -697,12 +699,11 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "search-ref-123" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("No results returned");
+    expect(text).toContain("No results");
     expect(text).toContain("- site:example.com");
-    expect(text).toContain("Searched: site:example.com docs");
-    expect(text).toContain("Suggested sites: site:example.com/docs");
-    expect(text).toContain("More suggested sites omitted");
-    expect(text).toContain("Next: retry one suggested site target explicitly.");
+    expect(text).toContain("searched: site:example.com docs");
+    expect(text).toContain("Try: site:example.com/docs");
+    expect(text).toContain("+more");
     expect(text).not.toContain("Next: shorten or broaden site query.");
   });
 
@@ -753,9 +754,9 @@ describe("searchStatusTool", () => {
       {},
     );
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("No results returned");
+    expect(text).toContain("No results");
     expect(text).toContain("- github:githits-com/no-such-repo");
-    expect(text).toContain("Unavailable: code");
+    expect(text).toContain("repository unresolved: code");
     expect(text).not.toContain("Searched: code");
     expect(text).not.toContain("Repository ref cannot be resolved");
     expect(text).not.toContain("state=indexing");
@@ -774,8 +775,8 @@ describe("searchStatusTool", () => {
     const text = result.content[0]?.text ?? "";
 
     expect(result.isError).toBeUndefined();
-    expect(text).toContain("Searching - no result snapshot yet");
-    expect(text).toContain("Search ref-text | 0/1 target ready");
+    expect(text).toContain("No result snapshot yet | searching | 0/1 ready");
+    expect(text).not.toContain("Search ref-text |");
     expect(text).toContain(
       'Next: search_status search_ref="ref-text" wait_timeout_ms=20000',
     );
@@ -807,7 +808,7 @@ describe("searchStatusTool", () => {
     const text = result.content[0]?.text ?? "";
 
     expect(text).toContain("- npm:express latest");
-    expect(text).toContain("Available now: versions 4.18.2, refs main");
+    expect(text).toContain("indexed: versions 4.18.2, refs main");
     expect(text).toContain(
       'Next: search_status search_ref="ref-alternatives" wait_timeout_ms=20000',
     );

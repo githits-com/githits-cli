@@ -62,6 +62,8 @@ interface JsonParityFixture {
 }
 
 const DEFAULT_TEXT_LIMIT = 20_000;
+const TARGET_DETAIL_STATE_PATTERN =
+  /^ {2}(?:(?:indexing|searched|available|unavailable|using):|(?:ready|pending|provisional|older snapshot)$|(?:not found|unresolved|version unavailable|repository ref unresolved|(?:package|repository|site|target) (?:not found|unresolved)):)/;
 const JSON_PARITY_CONCURRENCY = 2;
 const SMOKE_PACKAGE_SPEC = "npm:express@5.2.1";
 let cliLaunchTarget = SOURCE_CLI_LAUNCH_TARGET;
@@ -377,7 +379,7 @@ export function assertSearchTerminalText(text: string, context: string): void {
     `${context}: non-outcome text precedes search outcome`,
   );
   assert(
-    /^(?:Preparing|Indexing|Searching)\b|^No results returned\b|^\d+ results?\b|^[A-Z_]+ - /.test(
+    /^(?:No result snapshot yet|No results yet|No result snapshot|No results)\b|^\d+ (?:partial |interim )?results?\b/.test(
       firstLine,
     ),
     `${context}: missing outcome headline`,
@@ -386,8 +388,12 @@ export function assertSearchTerminalText(text: string, context: string): void {
     !formatterLines.some((line) => /^status\s*:/i.test(line.trim())),
     `${context}: duplicated lifecycle status line`,
   );
+  assert(
+    !formatterLines.some((line) => /^Search\s+\S+\s+\|/.test(line)),
+    `${context}: separate Search <ref> session summary`,
+  );
   const lifecycleOutcomeLines = formatterLines.filter((line) =>
-    /^(?:Preparing|Indexing|Searching)\b/.test(line),
+    /\|\s+(?:preparing|indexing|searching)(?:\s*\||$)/.test(line),
   );
   assert(
     lifecycleOutcomeLines.length <= 1,
@@ -433,9 +439,7 @@ export function assertSearchTerminalText(text: string, context: string): void {
   );
 
   const hasReadinessText = formatterLines.some((line) =>
-    /^ {2}(?! {2}).*(?:Indexing|Searched|Available now|Unavailable|Using|Status):/.test(
-      line,
-    ),
+    TARGET_DETAIL_STATE_PATTERN.test(line),
   );
   if (hasReadinessText) {
     assert(
@@ -456,37 +460,40 @@ export function assertSearchTerminalText(text: string, context: string): void {
     statusActions.length <= 1,
     `${context}: expected at most one search-status action`,
   );
-  const summaryLines = formatterLines.filter((line) =>
-    /^Search\s+\S+\s+\|/.test(line),
-  );
-  assert(
-    summaryLines.length <= 1,
-    `${context}: expected at most one Search <ref> session summary`,
-  );
-  if (statusActions.length > 0) {
-    assert(
-      summaryLines.length === 1,
-      `${context}: expected one Search <ref> session summary`,
-    );
-  }
   if (statusActions.length === 1) {
     const searchRef = statusActions[0]?.match(
       /^Next: githits search-status (\S+) /,
     )?.[1];
-    assert(
-      searchRef !== undefined &&
-        summaryLines[0]?.startsWith(`Search ${searchRef} |`),
-      `${context}: session summary does not match search-status action`,
-    );
+    assert(searchRef !== undefined, `${context}: missing search-status ref`);
   }
   assert(
     !formatterText.includes("search_ref="),
     `${context}: MCP search_ref syntax leaked into CLI output`,
   );
   assert(
-    hasHumanSearchHitLocator(lines) || nextLines.length > 0,
+    hasHumanSearchHitLocator(lines) ||
+      hasTargetRecovery(formatterLines) ||
+      nextLines.length > 0,
     `${context}: missing result follow-up or next action`,
   );
+}
+
+function hasTargetRecovery(lines: string[]): boolean {
+  return lines.some((line, index) => {
+    if (!/^ {2}(?:Fix|Try):\s+\S/.test(line)) return false;
+    for (
+      let previousIndex = index - 1;
+      previousIndex >= 0;
+      previousIndex -= 1
+    ) {
+      const previous = lines[previousIndex];
+      if (!previous || previous.trim() === "") continue;
+      if (/^-\s+\S/.test(previous)) return true;
+      if (previous.startsWith("  ")) continue;
+      return false;
+    }
+    return false;
+  });
 }
 
 function hasHumanSearchHitLocator(lines: string[]): boolean {

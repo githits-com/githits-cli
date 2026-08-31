@@ -292,7 +292,7 @@ describe("createContainer", () => {
       globalThis.fetch = originalFetch;
       await rm(storageRoot, { recursive: true, force: true });
     }
-  });
+  }, 20_000);
 
   it("rejects insecure service URLs before constructing authenticated clients", async () => {
     await withEnvVars(

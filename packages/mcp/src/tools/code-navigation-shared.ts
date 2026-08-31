@@ -57,7 +57,7 @@ export const structuredCodeTargetObject: z.ZodObject<z.ZodRawShape> = z.object(
 
 export const structuredCodeTargetSchema: z.ZodType<StructuredCodeTargetArg> =
   structuredCodeTargetObject.describe(
-    "Target: provide registry + package_name (package scope) or repo_url with optional git_ref (repo scope; omitted ref means default branch intent).",
+    "Target: provide registry + package_name (indexed artifact/manifest-root package scope) or repo_url with optional git_ref (public GitHub repository scope for the full repository or sibling packages; omitted ref means default branch intent). Swift package targets use swift:github.com/<owner>/<repo>; Zig package targets use zig:gh/<owner>/<repo>.",
   ) as z.ZodType<StructuredCodeTargetArg>;
 
 export const codeTargetSchema: z.ZodType<CodeTargetArg> = z.union([
@@ -66,7 +66,7 @@ export const codeTargetSchema: z.ZodType<CodeTargetArg> = z.union([
     .string()
     .min(1)
     .describe(
-      "Compact target string. Package with explicit registry: `npm:react@18.2.0` or `npm:react` for latest release. Repository: `github:facebook/react`, `github.com/facebook/react`, `https://github.com/facebook/react`, or any repo form with `#HEAD` / `@HEAD` for a git ref. Output uses canonical `github:owner/repo#ref` form.",
+      "Compact target string. Package targets inspect an indexed artifact/manifest root: `npm:react@18.2.0` or `npm:react` for latest release; Swift uses `swift:github.com/<owner>/<repo>` and Zig uses `zig:gh/<owner>/<repo>`. Use a public GitHub repository target for the full repository or sibling packages: `github:facebook/react`, `github.com/facebook/react`, `https://github.com/facebook/react`, or any repo form with `#HEAD` / `@HEAD` for a git ref. Output uses canonical `github:owner/repo#ref` form.",
     ),
 ]);
 

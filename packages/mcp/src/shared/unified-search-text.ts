@@ -17,6 +17,7 @@
 
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { colors, dim, highlight, highlightRanges } from "./colors.js";
+import { formatRepositoryTarget } from "./repository-target.js";
 import {
   projectUnifiedSearchPresentation,
   targetDisplayFamilyKey,
@@ -27,6 +28,8 @@ import {
   type UnifiedSearchSourceGroup,
   type UnifiedSearchSourceKind,
   type UnifiedSearchTargetGroup,
+  type UnifiedSearchTargetRecovery,
+  type UnifiedSearchTerminalReason,
   type UnifiedSearchTrustLimit,
   type UnifiedSearchWarning,
 } from "./unified-search-presentation.js";
@@ -92,19 +95,6 @@ export function renderUnifiedSearchPresentationText(
     appendUnifiedSearchHits(lines, result.results, settings);
   }
 
-  const hasPostResultBlock =
-    presentation.searchRef !== undefined ||
-    presentation.progress !== undefined ||
-    presentation.action.kind !== "none";
-  if (
-    result.results.length > 0 &&
-    hasPostResultBlock &&
-    lines[lines.length - 1] !== ""
-  ) {
-    lines.push("");
-  }
-
-  appendPresentationSession(lines, presentation, settings);
   appendPresentationAction(lines, presentation, settings);
   return lines.join("\n");
 }
@@ -134,8 +124,6 @@ function formatPresentationOutcome(
   nextOffset: number | undefined,
   options: NormalizedTextOptions,
 ): string {
-  const target = presentationTarget(presentation, results);
-  const targetSuffix = target ? ` ${target}` : "";
   const count = presentation.availability.resultCount;
   const countLabel = `${count} result${count === 1 ? "" : "s"}`;
   const finish = (value: string): string =>
@@ -147,16 +135,30 @@ function formatPresentationOutcome(
 
   if (presentation.lifecycle.kind === "active") {
     const label = activeLifecycleLabel(presentation.lifecycle);
+    const readiness = presentation.progress
+      ? `${presentation.progress.targetsReady}/${presentation.progress.targetsTotal} ready`
+      : undefined;
     if (presentation.availability.kind === "no_snapshot") {
-      return finish(`${label}${targetSuffix} - no result snapshot yet`);
+      return finish(
+        ["No result snapshot yet", label, readiness].filter(Boolean).join(SEP),
+      );
     }
     if (presentation.availability.kind === "empty") {
-      return finish(`${label}${targetSuffix} - no results yet`);
+      return finish(
+        ["No results yet", label, readiness].filter(Boolean).join(SEP),
+      );
     }
     const resultKind =
       presentation.availability.kind === "partial" ? "partial" : "interim";
     return finish(
-      `${label} continues - ${countLabel.replace("result", `${resultKind} result`)} returned`,
+      [
+        countLabel.replace("result", `${resultKind} result`),
+        formatResultBreakdown(results),
+        label,
+        readiness,
+      ]
+        .filter(Boolean)
+        .join(SEP),
     );
   }
 
@@ -164,16 +166,27 @@ function formatPresentationOutcome(
     return finish(
       count > 0
         ? formatCompletedResultsHeadline(results, countLabel)
-        : `No results returned${target ? ` from ${target}` : ""}`,
+        : "No results",
     );
   }
 
-  const status = presentation.lifecycle.status ?? "UNKNOWN";
-  if (count > 0) return finish(`${status} - ${countLabel} returned`);
-  if (presentation.availability.kind === "no_snapshot") {
-    return finish(`${status} - no result snapshot returned`);
+  const status = formatLifecycleSummary(presentation.lifecycle);
+  const readiness = presentation.progress
+    ? `${presentation.progress.targetsReady}/${presentation.progress.targetsTotal} ready`
+    : undefined;
+  if (count > 0) {
+    return finish(
+      [countLabel, formatResultBreakdown(results), status, readiness]
+        .filter(Boolean)
+        .join(SEP),
+    );
   }
-  return finish(`${status} - no results returned`);
+  if (presentation.availability.kind === "no_snapshot") {
+    return finish(
+      ["No result snapshot", status, readiness].filter(Boolean).join(SEP),
+    );
+  }
+  return finish(["No results", status, readiness].filter(Boolean).join(SEP));
 }
 
 function formatCompletedResultsHeadline(
@@ -261,41 +274,12 @@ function activeLifecycleLabel(
 ): string {
   switch (lifecycle.status) {
     case "PENDING":
-      return "Preparing";
+      return "preparing";
     case "INDEXING":
-      return "Indexing";
+      return "indexing";
     case "SEARCHING":
-      return "Searching";
+      return "searching";
   }
-}
-
-function presentationTarget(
-  presentation: UnifiedSearchPresentation,
-  results: UnifiedSearchHitPayload[],
-): string | undefined {
-  if (presentation.targetGroups.length > 0) return undefined;
-  if (presentation.targets.length > 1) return undefined;
-  if (results.length > 0) {
-    const sourceTargets = presentation.sources.flatMap((group) =>
-      group.entries.map((entry) => entry.searchTarget),
-    );
-    const identities = [
-      ...results.map((result) => result.target),
-      ...sourceTargets,
-    ];
-    if (new Set(identities).size > 1) return undefined;
-    return results[0]?.target;
-  }
-  if (presentation.targets.length === 1) {
-    const target = presentation.targets[0];
-    return target?.served ?? target?.fresh ?? target?.requested;
-  }
-  const sourceTargets = presentation.sources.flatMap((group) =>
-    group.entries.map((entry) => entry.searchTarget),
-  );
-  if (new Set(sourceTargets).size > 1) return undefined;
-  const source = presentation.sources[0]?.entries[0];
-  return source?.searchTarget ?? source?.target;
 }
 
 function appendPresentationContext(
@@ -305,7 +289,7 @@ function appendPresentationContext(
 ): void {
   if (shouldRenderCompactSources(presentation)) {
     lines.push("");
-    appendCompactSources(lines, presentation.sources, options);
+    appendCompactSources(lines, presentation.targetGroups, options);
   } else if (presentation.targetGroups.length > 0) {
     lines.push("");
     presentation.targetGroups.forEach((group, index) => {
@@ -322,11 +306,7 @@ function shouldRenderCompactSources(
   if (
     presentation.lifecycle.kind !== "completed" ||
     presentation.availability.resultCount === 0 ||
-    presentation.sources.length === 0 ||
-    presentation.targetGroups.length === 0 ||
-    presentation.alternatives.length > 0 ||
-    presentation.trustLimits.length > 0 ||
-    presentation.siteSuggestions.length > 0
+    presentation.targetGroups.length === 0
   ) {
     return false;
   }
@@ -335,93 +315,116 @@ function shouldRenderCompactSources(
       group.alternatives === undefined &&
       group.siteSuggestions.length === 0 &&
       group.trustLimits.length === 0 &&
+      group.recovery === undefined &&
       (group.freshnessKind === undefined ||
         group.freshnessKind === "current") &&
       group.sources.every((source) =>
-        source.entries.every((entry) => entry.state === "searched"),
+        source.entries.every(
+          (entry) =>
+            entry.state === "searched" &&
+            formatCompactSource(source.kind, entry) !== undefined,
+        ),
       ),
   );
 }
 
 function appendCompactSources(
   lines: string[],
-  sources: UnifiedSearchSourceGroup[],
+  groups: UnifiedSearchTargetGroup[],
   options: NormalizedTextOptions,
 ): void {
-  const values = sources
-    .flatMap((source) =>
-      source.entries.map((entry) => ({
-        rank: compactSourceRank(source.kind),
-        value: formatCompactSource(source.kind, entry),
-      })),
-    )
-    .filter(
-      (entry): entry is { rank: number; value: string } =>
-        entry.value.length > 0,
-    )
-    .sort((left, right) => left.rank - right.rank)
-    .map((entry) => entry.value);
+  const values = groups.flatMap((group) => {
+    const identity =
+      group.identity.served ?? group.identity.fresh ?? group.identity.requested;
+    if (!identity) return [];
+    const sources = group.sources
+      .flatMap((source) =>
+        source.entries
+          .filter((entry) => entry.state === "searched")
+          .flatMap((entry) => {
+            const value = formatCompactSource(source.kind, entry);
+            return value
+              ? [{ rank: compactSourceRank(source.kind), value }]
+              : [];
+          }),
+      )
+      .sort((left, right) => left.rank - right.rank)
+      .map((source) => source.value);
+    const uniqueSources = [...new Set(sources)];
+    const distinctSources = uniqueSources.filter(
+      (source) => source !== identity,
+    );
+    if (distinctSources.length === 0) return [identity];
+    if (
+      uniqueSources.length === 1 &&
+      !identity.includes("#") &&
+      targetDisplayFamilyKey(distinctSources[0]) ===
+        targetDisplayFamilyKey(identity)
+    ) {
+      return distinctSources;
+    }
+    return [`${identity} - ${distinctSources.join(", ")}`];
+  });
   const unique = [...new Set(values)];
   if (unique.length === 0) return;
-  lines.push(...wrapText(`Sources: ${unique.join("; ")}`, options.width));
+  const wrapped = wrapText(
+    unique.join("; "),
+    Math.max(1, options.width - "Sources: ".length),
+  );
+  lines.push(
+    `Sources: ${wrapped[0] ?? ""}`,
+    ...wrapped.slice(1).map((line) => `  ${line}`),
+  );
 }
 
 function compactSourceRank(kind: UnifiedSearchSourceKind): number {
   switch (kind) {
-    case "site_docs":
-      return 0;
-    case "repository_docs":
-      return 1;
-    case "docs":
-      return 2;
     case "code":
+      return 0;
+    case "symbols":
+      return 1;
+    case "site_docs":
+      return 2;
+    case "repository_docs":
       return 3;
+    case "docs":
+      return 4;
   }
 }
 
 function formatCompactSource(
   kind: UnifiedSearchSourceKind,
   entry: UnifiedSearchSourceEntry,
-): string {
-  if (kind === "site_docs") {
-    return (
-      formatDocumentationSiteIdentity(entry.siteUrl) ??
-      entry.siteKey ??
-      compactTarget(entry.target)
+): string | undefined {
+  if (kind === "code") return "code";
+  if (kind === "symbols") return "symbols";
+  if (kind === "repository_docs" && entry.repositoryUrl && entry.commitSha) {
+    return formatRepositoryTarget(
+      entry.repositoryUrl,
+      entry.commitSha.slice(0, 8),
     );
   }
-  if (entry.repositoryUrl) {
-    return formatRepositoryIdentity(entry.repositoryUrl, entry.commitSha);
+  if (kind === "site_docs") {
+    const siteIdentity = formatDocumentationSiteIdentity(entry.siteUrl);
+    if (siteIdentity) return `site:${siteIdentity}`;
+    if (entry.target.startsWith("site:")) return entry.target;
   }
-  if (entry.siteUrl) {
-    return formatDocumentationSiteIdentity(entry.siteUrl) ?? entry.siteUrl;
-  }
-  return compactTarget(entry.target);
+  return undefined;
 }
 
-function formatRepositoryIdentity(url: string, commitSha?: string): string {
-  let identity = url;
-  try {
-    const parsed = new URL(url);
-    const path = parsed.pathname
-      .split("/")
-      .filter(Boolean)
-      .join("/")
-      .replace(/\.git$/, "");
-    identity =
-      parsed.host === "github.com" && path ? path : `${parsed.host}/${path}`;
-  } catch {
-    identity = url.replace(/^https?:\/\//, "").replace(/\.git$/, "");
+function sourceKindRank(kind: UnifiedSearchSourceKind): number {
+  switch (kind) {
+    case "code":
+      return 0;
+    case "symbols":
+      return 1;
+    case "repository_docs":
+      return 2;
+    case "site_docs":
+      return 3;
+    case "docs":
+      return 4;
   }
-  if (!commitSha) return identity;
-  return `${identity}@${commitSha.slice(0, 8)}`;
-}
-
-function compactTarget(value: string): string {
-  return value
-    .replace(/^site:/, "")
-    .replace(/^github:/, "")
-    .replace(/@[^/@#]+$/, "");
 }
 
 function appendPresentationTargetGroup(
@@ -433,83 +436,42 @@ function appendPresentationTargetGroup(
   lines.push(options.useColors ? highlight(identity, true) : identity);
 
   const details: string[] = [];
-  const stale = group.trustLimits
-    .filter(
-      (limit): limit is Extract<UnifiedSearchTrustLimit, { kind: "stale" }> =>
-        limit.kind === "stale",
-    )
-    .sort(
-      (left, right) =>
-        Number(Boolean(right.servedTarget)) +
-        Number(Boolean(right.freshTarget)) -
-        Number(Boolean(left.servedTarget)) -
-        Number(Boolean(left.freshTarget)),
-    )[0];
-  const identityIsStale =
-    !stale &&
-    Boolean(group.identity.served) &&
-    (group.freshnessKind === "stale" || group.freshnessKind === "indexing") &&
-    group.identity.served !==
-      (group.identity.fresh ?? group.identity.requested);
-  if (stale || identityIsStale) {
-    const served =
-      stale?.servedTarget ?? stale?.target ?? group.identity.served;
-    const fresh = stale?.freshTarget ?? group.identity.fresh;
-    details.push(
-      `Using: ${compactRelatedTarget(group.identity.requested, served ?? "older snapshot")}${fresh ? ` while ${compactRelatedTarget(group.identity.requested, fresh)} indexes` : " (older snapshot)"}`,
-    );
-  } else if (group.trustLimits.some((limit) => limit.kind === "provisional")) {
-    details.push("Indexing: provisional snapshot is searchable");
+  const using = formatUsingSegment(group);
+  if (using) details.push(using);
+
+  const searched = formatSourceStateSegment(group, "searched");
+  if (searched) details.push(`searched: ${searched}`);
+  const indexing = formatSourceStateSegment(group, "waiting");
+  if (indexing) details.push(`indexing: ${indexing}`);
+
+  const unavailable = formatUnavailableSegment(group);
+  if (unavailable) details.push(unavailable);
+
+  const available = formatAvailableSegment(group);
+  if (available) details.push(`available: ${available}`);
+
+  if (group.recovery === undefined) {
+    const indexed = formatTargetAlternatives(group.alternatives);
+    if (indexed) details.push(`indexed: ${indexed}`);
   }
 
-  const states: Array<{
-    state: UnifiedSearchSourceEntry["state"];
-    label: string;
-  }> = [
-    { state: "waiting", label: "Indexing" },
-    { state: "searched", label: "Searched" },
-    { state: "available_not_searched", label: "Available now" },
-    { state: "unavailable", label: "Unavailable" },
-  ];
-  for (const { state, label } of states) {
-    const entries = group.sources.flatMap((source) =>
-      source.entries
-        .filter((entry) => entry.state === state)
-        .map((entry) => ({ source, entry })),
-    );
-    if (entries.length === 0) continue;
-    const values = entries.map(({ source, entry }) =>
-      formatGroupedSource(source, entry, group.trustLimits),
-    );
-    details.push(`${label}: ${[...new Set(values)].join(", ")}`);
-  }
+  const constraints = formatTargetConstraints(group);
+  if (constraints) details.push(constraints);
 
   if (details.length === 0 && group.freshnessKind !== undefined) {
-    details.push(`Status: ${formatTargetStatus(group.freshnessKind)}`);
-  }
-
-  const ready = formatTargetAlternatives(group.alternatives);
-  if (ready) {
-    const readyIndex = details.findIndex((detail) =>
-      detail.startsWith("Available now:"),
-    );
-    if (readyIndex >= 0)
-      details[readyIndex] = `${details[readyIndex]}, ${ready}`;
-    else details.push(`Available now: ${ready}`);
-  }
-
-  const suggestions = [
-    ...new Set(group.siteSuggestions.flatMap((item) => item.suggestions)),
-  ];
-  if (suggestions.length > 0) {
-    details.push(`Suggested sites: ${suggestions.join(", ")}`);
-  }
-  if (group.siteSuggestions.some((item) => item.truncated)) {
-    details.push("More suggested sites omitted");
+    details.push(formatTargetStatus(group.freshnessKind));
   }
 
   if (details.length > 0) {
-    lines.push(...wrapHangingText(details.join(" | "), "  ", options.width));
+    lines.push(...wrapHangingText(details.join("; "), "  ", options.width));
+  }
+  if (group.recovery) {
+    const recovery = formatTargetRecovery(group.recovery, group);
+    lines.push(
+      ...wrapHangingText(recovery, "  ", options.width).map((line) =>
+        options.useColors ? `${colors.yellow}${line}${colors.reset}` : line,
+      ),
+    );
   }
 }
 
@@ -530,6 +492,179 @@ function formatTargetStatus(
   }
 }
 
+function formatUsingSegment(
+  group: UnifiedSearchTargetGroup,
+): string | undefined {
+  const stale = group.trustLimits
+    .filter(
+      (limit): limit is Extract<UnifiedSearchTrustLimit, { kind: "stale" }> =>
+        limit.kind === "stale",
+    )
+    .sort(
+      (left, right) =>
+        Number(Boolean(right.servedTarget)) +
+        Number(Boolean(right.freshTarget)) -
+        Number(Boolean(left.servedTarget)) -
+        Number(Boolean(left.freshTarget)),
+    )[0];
+  const identityIsStale =
+    !stale &&
+    Boolean(group.identity.served) &&
+    (group.freshnessKind === "stale" || group.freshnessKind === "indexing") &&
+    group.identity.served !==
+      (group.identity.fresh ?? group.identity.requested);
+  if (!stale && !identityIsStale) {
+    return group.trustLimits.some((limit) => limit.kind === "provisional")
+      ? "using: provisional snapshot"
+      : undefined;
+  }
+  const served = stale?.servedTarget ?? stale?.target ?? group.identity.served;
+  const fresh = stale?.freshTarget ?? group.identity.fresh;
+  return `using: ${compactRelatedTarget(group.identity.requested, served ?? "older snapshot")}${fresh ? ` while ${compactRelatedTarget(group.identity.requested, fresh)} indexes` : " (older snapshot)"}`;
+}
+
+function formatSourceStateSegment(
+  group: UnifiedSearchTargetGroup,
+  state: UnifiedSearchSourceEntry["state"],
+): string | undefined {
+  const values = group.sources
+    .flatMap((source) =>
+      source.entries
+        .filter((entry) => entry.state === state)
+        .map((entry) => ({
+          rank: sourceKindRank(source.kind),
+          value: formatGroupedSource(source, entry, group.trustLimits),
+        })),
+    )
+    .sort((left, right) => left.rank - right.rank)
+    .map((entry) => entry.value);
+  const unique = [...new Set(values)];
+  return unique.length > 0 ? unique.join(", ") : undefined;
+}
+
+function formatUnavailableSegment(
+  group: UnifiedSearchTargetGroup,
+): string | undefined {
+  const entries = group.sources.flatMap((source) =>
+    source.entries
+      .filter((entry) => entry.state === "unavailable")
+      .map((entry) => ({ source, entry })),
+  );
+  if (entries.length === 0) return undefined;
+  const mixed = group.sources.some((source) =>
+    source.entries.some(
+      (entry) => entry.state === "searched" || entry.state === "waiting",
+    ),
+  );
+  const values = entries
+    .map(({ source, entry }) => {
+      const lane = formatGroupedSource(source, entry, group.trustLimits);
+      const reason = entry.terminalReason;
+      const value = reason
+        ? `${formatTerminalReason(reason, mixed)}: ${lane}`
+        : `unavailable: ${lane}`;
+      return { rank: sourceKindRank(source.kind), value };
+    })
+    .sort((left, right) => left.rank - right.rank)
+    .map((entry) => entry.value);
+  return [...new Set(values)].join("; ");
+}
+
+function formatAvailableSegment(
+  group: UnifiedSearchTargetGroup,
+): string | undefined {
+  const values = group.sources
+    .flatMap((source) =>
+      source.entries
+        .filter((entry) => entry.state === "available_not_searched")
+        .map((entry) => ({
+          rank: sourceKindRank(source.kind),
+          value: formatGroupedSource(source, entry, group.trustLimits),
+        })),
+    )
+    .sort((left, right) => left.rank - right.rank)
+    .map((entry) => entry.value);
+  if (group.recovery === undefined) {
+    values.push(
+      ...group.siteSuggestions.flatMap((suggestion) => suggestion.suggestions),
+    );
+    if (group.siteSuggestions.some((suggestion) => suggestion.truncated)) {
+      values.push("+more");
+    }
+  }
+  const unique = [...new Set(values)];
+  return unique.length > 0 ? unique.join(", ") : undefined;
+}
+
+function formatTerminalReason(
+  reason: UnifiedSearchTerminalReason,
+  mixed: boolean,
+): string {
+  const family = reason.family === "unknown" ? "target" : reason.family;
+  if (reason.kind === "not_found") {
+    return mixed ? "not found" : `${family} not found`;
+  }
+  if (mixed) return "unresolved";
+  if (reason.specificity === "version") return "version unavailable";
+  if (reason.specificity === "ref") return "repository ref unresolved";
+  return `${family} unresolved`;
+}
+
+function formatTargetConstraints(
+  group: UnifiedSearchTargetGroup,
+): string | undefined {
+  const values = group.trustLimits.flatMap((limit) => {
+    if (limit.kind !== "constraint") return [];
+    const label = limit.constraint.replaceAll("_", " ");
+    const source = limit.source ? ` (${limit.source})` : "";
+    return [`${label}${source}: ${limit.values.join(", ")}`];
+  });
+  const unique = [...new Set(values)];
+  return unique.length > 0 ? unique.join("; ") : undefined;
+}
+
+function formatTargetRecovery(
+  recovery: UnifiedSearchTargetRecovery,
+  group: UnifiedSearchTargetGroup,
+): string {
+  if (recovery.kind === "fix") {
+    switch (recovery.family) {
+      case "package":
+        return "Fix: verify registry coordinate/version; use its public GitHub repo for repo-wide search.";
+      case "repository":
+        return "Fix: verify public GitHub repository/ref.";
+      case "site":
+        return "Fix: verify site host/path.";
+      case "unknown":
+        return "Fix: verify or replace target.";
+    }
+  }
+  if (recovery.additionalTargets.length === 0 && !recovery.truncated) {
+    return `Try: ${recovery.target}`;
+  }
+  const additional = recovery.additionalTargets.map((target) =>
+    compactRelatedTarget(group.identity.requested, target),
+  );
+  const remaining =
+    recovery.category === "version"
+      ? (group.alternatives?.versionsRemaining ?? 0)
+      : recovery.category === "ref"
+        ? (group.alternatives?.refsRemaining ?? 0) +
+          (group.alternatives?.suggestedRefsRemaining ?? 0)
+        : 0;
+  const label =
+    recovery.category === "site" ? "also suggested" : "also indexed";
+  const suffix = [
+    ...additional,
+    ...(remaining > 0
+      ? [`+${remaining}`]
+      : recovery.truncated
+        ? ["+more"]
+        : []),
+  ];
+  return `Try: ${recovery.target} (${label}: ${suffix.join(", ")})`;
+}
+
 function formatGroupedSource(
   source: UnifiedSearchSourceGroup,
   entry: UnifiedSearchSourceEntry,
@@ -545,14 +680,32 @@ function formatGroupedSource(
   const identity =
     source.kind === "code"
       ? "code"
-      : source.kind === "repository_docs"
-        ? "repository docs"
-        : source.kind === "site_docs"
-          ? `${formatDocumentationSourceIdentity(source, entry)} docs`
-          : "docs";
+      : source.kind === "symbols"
+        ? "symbols"
+        : source.kind === "repository_docs"
+          ? "repository docs"
+          : source.kind === "site_docs"
+            ? `${formatDocumentationSourceIdentity(source, entry)} docs`
+            : "docs";
   const qualifiers: string[] = [];
   if (coverageDetails) qualifiers.push(coverageDetails);
+  if (entry.state === "searched" && hasProvisionalTrust(entry, trustLimits)) {
+    qualifiers.push("provisional");
+  }
   return `${identity}${qualifiers.length > 0 ? ` (${qualifiers.join("; ")})` : ""}`;
+}
+
+function hasProvisionalTrust(
+  entry: UnifiedSearchSourceEntry,
+  trustLimits: UnifiedSearchTrustLimit[],
+): boolean {
+  return trustLimits.some(
+    (limit) =>
+      limit.kind === "provisional" &&
+      (!limit.target ||
+        limit.target === entry.target ||
+        limit.target === entry.searchTarget),
+  );
 }
 
 function formatDocumentationSourceIdentity(
@@ -578,18 +731,17 @@ function formatCoverageLimit(
 }
 
 function formatTargetGroupIdentity(group: UnifiedSearchTargetGroup): string {
-  const { requested, fresh, served } = group.identity;
-  const primary = requested ?? fresh ?? served ?? "target";
-  const staleLike =
-    group.trustLimits.some((limit) => limit.kind === "stale") ||
-    group.freshnessKind === "stale" ||
-    group.freshnessKind === "indexing";
-  const resolved = fresh ?? (staleLike ? undefined : served);
-  const resolution =
-    resolved && resolved !== primary
-      ? ` -> ${compactRelatedTarget(primary, resolved)}`
-      : "";
-  return `${primary}${resolution}`;
+  const primary =
+    group.identity.requested ??
+    group.identity.fresh ??
+    group.identity.served ??
+    "target";
+  if (formatUsingSegment(group)) return primary;
+  const resolved = group.identity.fresh ?? group.identity.served;
+  if (resolved && resolved !== primary) {
+    return `${primary} -> ${compactRelatedTarget(primary, resolved)}`;
+  }
+  return primary;
 }
 
 function compactRelatedTarget(base: string | undefined, value: string): string {
@@ -656,7 +808,10 @@ function appendPresentationWarnings(
       );
     else {
       const label = warning.kind.replaceAll("_", " ");
-      const source = warning.source ? ` (${warning.source})` : "";
+      const attribution = [warning.source, warning.target]
+        .filter((value): value is string => Boolean(value))
+        .join(" on ");
+      const source = attribution ? ` (${attribution})` : "";
       const value = `  - ${capitalize(label)}${source}: ${warning.values.join(", ")}`;
       lines.push(
         options.useColors ? `${colors.yellow}${value}${colors.reset}` : value,
@@ -665,30 +820,11 @@ function appendPresentationWarnings(
   }
 }
 
-function appendPresentationSession(
-  lines: string[],
-  presentation: UnifiedSearchPresentation,
-  options: NormalizedTextOptions,
-): void {
-  const parts: string[] = [];
-  if (presentation.searchRef) parts.push(`Search ${presentation.searchRef}`);
-  if (presentation.progress) {
-    const { targetsReady, targetsTotal } = presentation.progress;
-    parts.push(
-      `${targetsReady}/${targetsTotal} target${targetsTotal === 1 ? "" : "s"} ready`,
-    );
-  } else if (presentation.searchRef) {
-    parts.push(formatLifecycleSummary(presentation.lifecycle));
-  }
-  if (parts.length === 0) return;
-  if (lines[lines.length - 1] !== "") lines.push("");
-  lines.push(dim(parts.join(" | "), options.useColors));
-}
-
 function formatLifecycleSummary(lifecycle: UnifiedSearchLifecycle): string {
   if (lifecycle.kind === "completed") return "completed";
   if (lifecycle.kind === "active") return lifecycle.status.toLowerCase();
-  return lifecycle.status?.toLowerCase() ?? "status unknown";
+  if (lifecycle.kind === "terminal") return lifecycle.status.toLowerCase();
+  return "status unknown";
 }
 
 function formatRemaining(count: number): string {
@@ -702,11 +838,7 @@ function appendPresentationAction(
 ): void {
   const action = presentation.action;
   if (action.kind === "none") return;
-  if (
-    presentation.searchRef === undefined &&
-    presentation.progress === undefined &&
-    lines[lines.length - 1] !== ""
-  ) {
+  if (lines[lines.length - 1] !== "") {
     lines.push("");
   }
   if (action.kind === "poll" || action.kind === "status") {
@@ -719,16 +851,6 @@ function appendPresentationAction(
   }
   if (action.kind === "new_search") {
     lines.push("Next: rerun search later.");
-    return;
-  }
-  if (action.kind === "indexed_alternative") {
-    lines.push(
-      `Next: search indexed ${action.category} ${action.value}${action.target ? ` for ${action.target}` : ""}.`,
-    );
-    return;
-  }
-  if (action.kind === "site_retry") {
-    lines.push("Next: retry one suggested site target explicitly.");
     return;
   }
   if (action.kind === "query_rewrite") {

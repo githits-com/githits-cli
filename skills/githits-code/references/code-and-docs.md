@@ -1,6 +1,6 @@
 # GitHits Code And Docs CLI Reference
 
-Package target syntax requires an explicit registry: `registry:name[@version]`, for example `npm:express@5.2.1`; omit `@version` for the latest release. Repository compact targets use `github:org/repo[#ref|@ref]`, `github.com/org/repo[#ref|@ref]`, or `https://github.com/org/repo[#ref|@ref]`; omitted refs request the backend default-branch intent. Exact standalone documentation sites use `site:<host[/path]>`. Output uses canonical `github:org/repo#ref` formatting so refs can contain `@` safely. `code` commands also support `--repo-url <url> [--git-ref <ref>]`.
+Package target syntax requires an explicit registry: `registry:name[@version]`, for example `npm:express@5.2.1`; omit `@version` for the latest release. Package targets inspect an indexed artifact/manifest root. Swift package targets use `swift:github.com/<owner>/<repo>` and Zig package targets use `zig:gh/<owner>/<repo>`. Use public GitHub repository targets for full repositories or sibling packages. Repository compact targets use `github:org/repo[#ref|@ref]`, `github.com/org/repo[#ref|@ref]`, or `https://github.com/org/repo[#ref|@ref]`; omitted refs request the backend default-branch intent. Exact standalone documentation sites use `site:<host[/path]>`. Output uses canonical `github:org/repo#ref` formatting so refs can contain `@` safely. `code` commands also support `--repo-url <url> [--git-ref <ref>]`.
 
 ## Search
 
