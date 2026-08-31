@@ -4,12 +4,13 @@
 
 - Overall: IN PROGRESS
 - Current phase: Phase 4 — Braintrust Persistence Proof Of Concept
-  (LABELED CI PATH COMPLETE; DEFAULT-BRANCH ACTIVATION PENDING MERGE)
+  (PERSISTENCE PROVEN; COMPARISON IDENTITY CORRECTION READY)
 - Previous work: Phase 2 correction is COMPLETE. Phase 3 is merged and its
   same-repository label path is live-validated; Phase 4's exporter, CI wiring,
   local Braintrust readback, and first qualifying labeled CI export/readback
-  are complete. Default-branch scheduled/manual activation remains pending
-  merge.
+  are complete. The exact-head run proved persistence again, but exposed null
+  branch and base-experiment identity. Stable naming and native main-baseline
+  linkage are now required before Phase 4 is complete.
 - Owner: repository maintainers
 - Last verified: 2026-08-31
 - Deployment: Phases 1 through 3 are merged to `main`. The Phase 3
@@ -17,9 +18,10 @@
   for its first default-branch execution. Phase 4's exact-pinned exporter and
   post-report CI step are implemented, with local and labeled CI
   persistence/readback proven. A push to `main` deliberately does not trigger
-  the workflow, and default-branch scheduled/manual activation remains
-  pending merge. Cadence changes remain deferred until persistent
-  evidence is visible.
+  the workflow. The next correction must preserve the verified persistence
+  shape while making main, pull-request, and local experiments discoverable
+  and natively comparable. Default-branch scheduled/manual activation remains
+  pending merge.
 
 ## Problem And Expected Outcome
 
@@ -622,12 +624,12 @@ The following must be resolved before Phase 6:
    clean GitHub-hosted jobs run the Luna discovery and intent suites daily or
    after an authorized PR label, retain raw evidence, and render a concise
    no-baseline summary. A push to `main` does not start a paid run.
-4. **Phase 4 — Braintrust persistence proof of concept (LABELED CI PATH
-   COMPLETE; DEFAULT-BRANCH ACTIVATION PENDING MERGE):** normalized Phase 3 records
-   become durable per-workload/per-agent history without making agent
-   execution dependent on Braintrust. Local and labeled CI export/readback
-   are proven; default-branch scheduled/manual activation remains pending
-   merge.
+4. **Phase 4 — Braintrust persistence proof of concept (PERSISTENCE PROVEN;
+   COMPARISON IDENTITY CORRECTION READY):** normalized Phase 3 records become
+   durable per-workload/per-agent history without making agent execution
+   dependent on Braintrust. Local and labeled CI export/readback are proven;
+   stable channel-aware names and native main-baseline linkage must still be
+   implemented and proven for main, pull-request, and local runs.
 5. **Phase 5 — broader discovery matrix (PLANNED):** the proven metrics, suite,
    CI, and persistence contracts add approved Codex/Claude agent-model cells to
    the neutral canary without changing Luna history.
@@ -1685,16 +1687,18 @@ None.
 
 ### Status
 
-LABELED CI PATH COMPLETE; DEFAULT-BRANCH SCHEDULED/MANUAL ACTIVATION PENDING
-MERGE.
+PERSISTENCE PROVEN; COMPARISON IDENTITY CORRECTION READY.
 Phase 3 is merged and its same-repository label path has clean runner evidence.
 The exact-pinned Braintrust exporter, post-report CI wiring, local
 persistence/readback proof, internal operations skill, and qualifying labeled
 CI export/readback are complete. The local and CI native structural proofs
 verify tool counts, exact observed boundaries, child duration, tokens, and
-cost. Default-branch scheduled/manual activation remains pending merge;
-no paid rerun was made for this documentation-only closeout. SDK tracing was
-deliberately not added.
+cost. Exact-head labeled run `33429755678` persisted the final PR head but
+confirmed that experiment `base_exp_id` and branch identity are null and that
+the opaque `github-<run>-<attempt>` name is insufficient for routine operation.
+Stable naming and native comparison linkage are required before Phase 4 is
+complete. Default-branch scheduled/manual activation remains pending merge.
+SDK tracing was deliberately not added.
 
 ### Expected Outcome
 
@@ -1708,6 +1712,14 @@ repository/harness identity, exact Codex CLI/model identity, and a link to the
 GitHub workflow evidence. Local and GitHub suite generation and concise
 reporting remain independent of Braintrust. No SDK tracing is inserted into
 Codex, the GitHits MCP server, or the harness execution path.
+
+One execution remains one immutable Braintrust experiment. Its workload and
+scenario cells remain the comparable eval rows, and logical tool calls remain
+structural children. Experiments use stable channel-aware names and complete Git
+identity so Braintrust can link pull-request, local, and later main executions
+to the latest preceding main experiment. This preserves Braintrust's run-snapshot
+model; it does not append executions as rows inside per-workload experiments or
+write eval data to the production Logs stream.
 
 ### Assumptions
 
@@ -1732,8 +1744,15 @@ Codex, the GitHits MCP server, or the harness execution path.
   the tool-bearing row. Exporter schema/version is 2, and schema-v1/v2 metrics
   remain readable with missing timing normalized to null.
 - One CI run attempt is one immutable experiment. GitHub `run_id` plus
-  `run_attempt` gives reruns distinct names, so no event-ID scheme, upsert,
-  retry, or duplicate-repair mechanism is required.
+  `run_attempt` gives reruns distinct names. The stable naming contract is
+  `main-r<RUN_ID>-a<ATTEMPT>` for main-branch schedule/manual executions and
+  `pr-<NUMBER>-r<RUN_ID>-a<ATTEMPT>` for labeled pull-request executions.
+  Local exports default to
+  `local-<branch-slug>-<UTC-timestamp-with-milliseconds>-<short-sha>`. Channel,
+  branch, pull request number when present, full SHA, and run URL remain
+  structured metadata/tags rather than being recoverable only from the display
+  name. No event-ID scheme, upsert, retry, or duplicate-repair mechanism is
+  required.
 - The existing `bt` OAuth profile is suitable for local read/query operations
   and for a `bt eval` wrapper that injects resolved authentication into its Bun
   child. CI uses only the repository secret `BRAINTRUST_API_KEY` and invokes the
@@ -1754,6 +1773,27 @@ then reads its permalink through `summarize({ summarizeScores: false })`. This
 is a resolved implementation contradiction, not a reason to alter the neutral
 metrics contract.
 
+### Resolved Braintrust storage-model question
+
+Braintrust documents an experiment as an immutable snapshot of one eval run and
+uses identical row `input` values to match test cases between experiments. The
+current execution-to-experiment and workload/scenario-to-row mapping follows
+that model. A per-workload experiment with executions appended as rows would
+invert the model, mix points in time inside one snapshot, and weaken native
+experiment comparison. The project Logs view is expected to remain empty
+because it represents production log streams, not experiment rows.
+
+The actual defect is comparison identity. Exact-head experiment
+`github-33429755678-1` (ID `917d0a9e-9eec-42f6-b888-a109705fca0c`) has commit
+`dd01bceee724f61f968f3024673b32824f30d0c8`, but its branch and `base_exp_id`
+are null. GitHub checks out the evaluated SHA detached, while the exporter
+currently relies on suite Git discovery and supplies no explicit base. The
+workflow owns event channel, source branch, pull-request number, run ID, and
+attempt; the exporter owns normalization into Braintrust experiment identity.
+Threading those existing workflow values across that boundary is the local
+fix, and the ownership remains correct; no new service or state store is
+needed.
+
 ### Unknowns Or Product Decisions
 
 No product choice blocks the implementation. The selected policy is:
@@ -1765,6 +1805,18 @@ No product choice blocks the implementation. The selected policy is:
   the exact prompt and neutral answer, not stdout, stderr, environment values,
   MCP payloads, or auth state;
 - quality: no scorer or `scores` value in this phase;
+- comparison: before creating the current experiment, the Braintrust boundary
+  pages through the public newest-first experiment-list API scoped to the
+  project and selects the first returned object whose
+  `metadata.channel = main` and name matches the `main-r...-a...` contract. The
+  API has no server-side metadata filter. The selected ID is supplied as
+  `baseExperimentId`, yielding the preceding main run for a new main execution
+  and the latest main run for pull-request/local execution. Local export also
+  accepts an explicit main experiment name as an override. The actual linked
+  base ID/name is returned in the nonsecret result and rendered in CI/local
+  output. A PR or default local export before the first main baseline fails
+  before experiment creation; it never substitutes another channel. The first
+  main execution is the one-time bootstrap described below;
 - export failure: preserve the GitHub summary/artifacts, then fail the final
   workflow status so missing persistence cannot be silent;
 - retention: Braintrust is the durable normalized history. GitHub raw artifacts
@@ -1812,6 +1864,20 @@ merge.
   experiment URLs. The installed 3.29.0 runtime requires non-empty scores for
   `Experiment.log()`, so the exporter uses scoreless top-level eval spans and
   does not fabricate quality scores.
+- The installed SDK defines an experiment as a snapshot of an application at a
+  point in time and states that experiments are compared by identical `input`.
+  The public Braintrust
+  [experiment-list endpoint](https://www.braintrust.dev/docs/api-reference/experiments/list-experiments)
+  is newest-first and supports project scoping and cursor pagination, but not a
+  metadata filter. The integration must select the latest main experiment from
+  returned metadata/name client-side. `baseExperimentId` pins that selection,
+  and `Experiment.fetchBaseExperiment()` returns the actual linked ID/name
+  without score summarization. The installed SDK's automatic ancestry is not
+  used after bootstrap: 3.29.0 computes it separately from `repoInfo`. It also
+  exposes no explicit "no base" option, so the first main bootstrap may retain
+  an SDK-selected legacy ancestor; this actual value is reported but is not
+  accepted as proof of explicit main linkage. Per-workload experiments and
+  production-log ingestion remain out of scope.
 - Braintrust [SQL](https://www.braintrust.dev/docs/reference/sql) and the
   `bt experiments`/`bt sql` commands can inspect and compare the persisted fields.
   The repository skill records only commands exercised against the PoC
@@ -1895,17 +1961,34 @@ Standard Braintrust compare averages were duration
 scheduled/manual activation remains pending merge. No paid rerun was
 made for this documentation-only closeout.
 
+The user then requested an exact-head PR run. GitHub run
+[33429755678](https://github.com/githits-com/githits-cli/actions/runs/33429755678)
+at final head `dd01bceee724f61f968f3024673b32824f30d0c8` passed: discovery took
+52 seconds, intent 2 minutes 44 seconds, and summary/export 22 seconds. Its
+experiment `github-33429755678-1` (ID
+`917d0a9e-9eec-42f6-b888-a109705fca0c`) contains 23 eval roots and 111 tool
+children, exactly matching 111 MCP calls and zero CLI calls. One failed
+`pkg_changelog` child is retained under
+`intent/package-vulnerability-rubygems`. Eval totals are 539.891 seconds,
+2,724,638 prompt tokens, 20,526 completion tokens, 2,745,164 total tokens, and
+estimated cost `$0.23155396`; tool duration totals 239.36799836158752 seconds.
+The experiment commit is correct, but branch and `base_exp_id` are null. This
+run proves final-head persistence and supplies the correction's failing live
+case; it does not satisfy native baseline linkage.
+
 ### Affected Components
 
 - `scripts/agent-eval-braintrust.ts` and focused tests for pure mapping, CLI
-  parsing, and an injected SDK boundary;
+  parsing, channel-aware naming, branch/base propagation, result reporting, and
+  an injected SDK boundary;
 - `scripts/agent-eval-report.ts` and focused tests to preserve the already
   emitted `prompt.md` path and neutral answer in contained `report.json`
   evidence;
 - `package.json`/`bun.lock` for one exact-pinned `braintrust` development
   dependency and exporter entrypoint;
 - `.github/workflows/agent-evals.yml` for a post-report export step, narrowly
-  scoped secret, nonsecret result link, and final status aggregation;
+  scoped secret, event-aware channel/branch/PR identity, nonsecret result link,
+  and final status aggregation;
 - `.gitignore` for `.bt/` local CLI state;
 - `eval/agentic/README.md` and
   `docs/implementation/agentic-eval-metrics.md` for durable operations and data
@@ -1938,22 +2021,37 @@ made for this documentation-only closeout.
 
 2. **Experiment and comparison identity**
 
-   Create one experiment per invocation. CI passes the deterministic name
-   `github-<run_id>-<run_attempt>`; local use defaults to a timestamped
-   `local-...` name but accepts explicit `--experiment`. Use `update: false` and
-   no base experiment. Braintrust's normal experiment comparison matches rows
-   by `input`; the input therefore contains scenario, workload ID/path, exact
-   effective prompt, and its SHA-256. Agent, model, CLI, git, and run identity
-   stay out of `input` so comparable runs retain the same test-case key. A
-   changed effective prompt deliberately becomes a different input rather than
-   producing a misleading direct comparison.
+   Create one experiment per invocation. Use the stable channel-aware names
+   defined above; local use still accepts explicit `--experiment`. Use
+   `update: false`. Resolve the newest experiment with
+   `metadata.channel = main` in the same project before initializing the current
+   experiment and pass its ID as `baseExperimentId`; an explicit local base name
+   takes precedence. Resolution scans the API's newest-first project pages and
+   filters returned experiment metadata/name client-side because the endpoint
+   has no metadata query parameter. A PR or default local export before the
+   first main baseline fails before experiment creation. The first main run is
+   allowed as a bootstrap; because SDK 3.29.0 has no explicit no-base option,
+   its readback may contain an automatically chosen legacy ancestor and must
+   report it rather than claiming `none`.
+   Braintrust's normal experiment comparison matches rows by `input`; the input
+   therefore contains scenario, workload ID/path, exact effective prompt, and
+   its SHA-256. Agent, model, CLI, git, and run identity stay out of `input` so
+   comparable runs retain the same test-case key. A changed effective prompt
+   deliberately becomes a different input rather than producing a misleading
+   direct comparison.
 
-   Experiment metadata records source (`local` or `github`), GitHub run ID and
+   Experiment metadata records source (`local` or `github`), channel (`local`,
+   `main`, or `pr`), branch, pull-request number when present, GitHub run ID and
    attempt when present, workflow/run URL, suite IDs/names/hashes, target and
    measurement SHAs/branches/dirty state, schema version, and exporter version.
-   Explicit `repoInfo` uses the evaluated target SHA while SDK automatic Git
-   collection is disabled, preventing the summary checkout or local dirty tree
-   from replacing artifact identity.
+   Explicit `repoInfo` uses the evaluated target SHA and supplied branch while SDK
+   automatic Git collection is disabled, preventing the summary checkout or
+   local dirty tree from replacing artifact identity. Project-level base
+   discovery and experiment publishing remain methods of the same injected
+   Braintrust integration boundary. Its production implementation uses the
+   SDK's public `login()` result and authenticated `apiConn()` for the list API,
+   so it does not read or expose credential values or introduce a second
+   client/service layer.
 
 3. **One allowlisted eval root plus structural tool children per workload/scenario**
 
@@ -2044,6 +2142,55 @@ made for this documentation-only closeout.
    routes schema/detail questions to the durable implementation document rather
    than duplicating the full field contract.
 
+7. **Stable experiment identity and native base linkage**
+
+   Preserve the run-level experiment and workload-row mapping. Add one pure
+   identity builder that accepts source channel, GitHub run/attempt, optional
+   pull-request number, branch, SHA, and current time for local defaults. It
+   emits the naming contract above plus allowlisted experiment metadata and
+   tags. Reject missing PR number/branch for a pull-request channel and missing
+   branch for GitHub main execution before network initialization. Continue to
+   allow an explicit `--experiment` override locally, but never silently append
+   to an existing experiment (`update` remains false).
+
+   Extend the exporter boundary with the real branch and optional explicit base
+   experiment. GitHub supplies `github.head_ref` for labeled pull requests and
+   `github.ref_name` for schedule/manual executions; local export uses the
+   suite's verified target branch or an explicit branch override when the suite
+   was produced from a detached checkout. Pass commit, branch, and dirty state
+   as `repoInfo`. Add workflow job guards that prevent a non-main
+   `workflow_dispatch` from starting paid scenario jobs; the identity builder
+   also rejects a GitHub main channel whose supplied branch is not `main`.
+
+   Before initializing the current experiment, page through the official
+   newest-first experiment-list API through the SDK's authenticated `apiConn()`,
+   scoped to this project. Select client-side only the first experiment whose
+   metadata channel is `main` and whose name matches the stable main-name
+   contract; the endpoint has no metadata-filter parameter. Pass the result as
+   `baseExperimentId`; an explicit local base name takes precedence. If no main
+   exists, reject PR and default local export before initialization. Allow a
+   main run to create the bootstrap experiment, while documenting that SDK
+   3.29.0 may automatically attach a legacy Git-ancestor base because it has no
+   explicit no-base option. Report that actual bootstrap link but do not count
+   it as explicit-link acceptance evidence. Do not use automatic ancestry after
+   bootstrap.
+
+   After publishing, call public `fetchBaseExperiment()` to return the actual
+   linked ID/name in the nonsecret result and render it in CI/local output as a
+   base or `none`. Keep discovery inside the injected Braintrust integration
+   boundary; do not add a mutable alias, rolling experiment, second client
+   abstraction, state store, or retry.
+
+   Unit tests cover all three name shapes, sanitization, required identity,
+   rerun uniqueness, main-only manual dispatch, newest-first pagination and
+   client-side main selection, rejection of PR/default-local pre-bootstrap,
+   main bootstrap behavior, explicit-local-base precedence, exact SDK init
+   options, `fetchBaseExperiment()` readback, and safe result output.
+   Workflow contract tests prove the event-specific channel/name/branch/PR
+   arguments and that a non-main manual dispatch cannot start paid jobs.
+   Existing mapping and tool span tests prove the persisted row shape is
+   unchanged.
+
 ### Ordered Implementation Steps
 
 1. Add focused failing tests for the pure suite-to-Braintrust mapping: stable
@@ -2078,12 +2225,26 @@ made for this documentation-only closeout.
    field semantics proven in step 3. Validate it with the skill validator. Run
    plugin generation/check and confirm the internal skill causes no
    public/generated skill changes.
-6. Run focused tests, exporter validate-only mode, `bun test`, typecheck, format, lint,
-   `bun run plugins:generate`, `bun run plugins:check`, and `bun run build`.
-   After merge and secret provisioning, manually dispatch one workflow and
-   verify the GitHub summary link plus 23 reconciled Braintrust rows before
-   calling the PoC complete. The later scheduled run should create a separate
-   experiment without code changes.
+6. **Ready correction:** Implement the pure channel-aware identity builder,
+   branch/base exporter arguments, paged newest-main resolution, complete
+   `repoInfo`, safe base-ID/name result, workflow event routing and manual-ref guard, CI
+   summary field, and local operator docs in
+   `scripts/agent-eval-braintrust.ts`, its focused tests,
+   `.github/workflows/agent-evals.yml`, `eval/agentic/README.md`,
+   `docs/implementation/agentic-eval-metrics.md`, and the internal Braintrust
+   skill. Preserve row inputs, outputs, metrics, and structural children.
+7. Run focused tests, exporter validate-only mode, `bun test`, typecheck,
+   format, lint, `bun run plugins:generate`, `bun run plugins:check`, and
+   `bun run build`. Re-run the labeled PR path to prove its new name, complete
+   branch and unchanged row/tool reconciliation. Because no stable main
+   baseline exists yet, this PR proof uses validate-only/network-stub coverage
+   rather than creating a misleading default-linked experiment. After merge,
+   use the first main execution to establish the baseline and report any
+   SDK-selected bootstrap link. Prove a later main execution links to that main
+   experiment, a subsequent PR links to the latest main experiment, and a local
+   canary export links to that main experiment through default resolution or
+   the explicit override. The bootstrap's base state is not acceptance evidence
+   for the three comparison cases.
 
 ### Acceptance Criteria
 
@@ -2096,6 +2257,19 @@ made for this documentation-only closeout.
 - Every row is filterable by workload, scenario, agent, exact CLI/model,
   reasoning, guidance, intent, target SHA, and used-tool tags. Structured
   metadata exposes ordered tools and per-tool/per-status counts.
+- Every persisted experiment has a unique, channel-aware name following
+  `main-r<RUN_ID>-a<ATTEMPT>`,
+  `pr-<NUMBER>-r<RUN_ID>-a<ATTEMPT>`, or
+  `local-<branch-slug>-<UTC-timestamp-with-milliseconds>-<short-sha>`. Channel,
+  branch, PR number when present, full SHA, run identity, and source remain
+  independently filterable metadata/tags.
+- A pull-request experiment can be opened with a native Braintrust base link to
+  the latest main experiment whose linked name matches `main-r...-a...`; a local
+  experiment can be compared to main through default latest-main resolution or
+  an explicit main-experiment override; and a later main experiment links to
+  the preceding main experiment. These three cases require live readback with
+  non-null `base_exp_id` and the expected linked main experiment name before
+  Phase 4 is complete.
 - Prompt, neutral answer, process/final status, self-reported confidence, native
   token buckets/duration/cost, and GitHits-specific tool counts reconcile to
   contained source artifacts. Unknown telemetry is absent/unknown; a verified
@@ -2104,8 +2278,10 @@ made for this documentation-only closeout.
   counts/errors, token, and cost fields; labeled CI readback verifies the same
   contract across 23 eval spans and 116 structural tool children.
 - The exporter keeps unchanged scenario/workload/prompt inputs stable across
-  workflow attempts, and no baseline is selected automatically or metric
-  movement fails the workflow. Root `tool_calls` and `tool_errors` are omitted;
+  workflow attempts so Braintrust matches workload rows across experiments.
+  Default latest-main baseline selection or an explicit local base affects
+  comparison only; metric movement does not fail the workflow. Root
+  `tool_calls` and `tool_errors` are omitted;
   Braintrust derives them from exact-timed structural tool children. The local
   v2 readback verifies those native metrics and bounded SQL verifies the
   GitHits-specific/custom sequence and status metadata. Labeled CI run
