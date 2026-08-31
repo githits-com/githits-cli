@@ -55,7 +55,7 @@ function identityRecord(
 }
 
 describe("agent eval usage metrics", () => {
-  it("emits schema-v2 scenario identity with a SHA-256 intent hash", () => {
+  it("emits schema-v3 scenario identity with a SHA-256 intent hash", () => {
     const neutral = buildAgentEvalMetrics({
       runId: "run-neutral",
       startedAt: "2026-08-28T10:00:00.000Z",
@@ -69,7 +69,7 @@ describe("agent eval usage metrics", () => {
       records: [identityRecord("descriptors", "githits")],
     });
 
-    expect(neutral.schemaVersion).toBe(2);
+    expect(neutral.schemaVersion).toBe(3);
     expect(neutral.records[0]).toMatchObject({
       scenario: "discovery",
       intentProfile: "neutral",
@@ -103,7 +103,7 @@ describe("agent eval usage metrics", () => {
     };
     const normalized = parseAgentEvalMetrics(legacy);
 
-    expect(normalized.schemaVersion).toBe(2);
+    expect(normalized.schemaVersion).toBe(3);
     expect(normalized.records.map((record) => record.scenario)).toEqual([
       "discovery",
       "full",
@@ -122,6 +122,234 @@ describe("agent eval usage metrics", () => {
       current.records.map((record) => record.warnings),
     );
     expect(normalized.aggregates).toEqual(current.aggregates);
+  });
+
+  it("upgrades schema-v2 tool sequences with unknown timing", () => {
+    const current = buildAgentEvalMetrics({
+      runId: "run-v2",
+      startedAt: "2026-08-28T10:00:00.000Z",
+      completedAt: "2026-08-28T10:00:02.000Z",
+      records: [identityRecord("descriptors")],
+    });
+    const prior = {
+      ...current,
+      schemaVersion: 2,
+      records: current.records.map((record) => ({
+        ...record,
+        tools: {
+          ...record.tools,
+          sequence: record.tools.sequence.map(({ tool, surface, status }) => ({
+            tool,
+            surface,
+            status,
+          })),
+        },
+      })),
+    };
+
+    const normalized = parseAgentEvalMetrics(prior);
+
+    expect(normalized.schemaVersion).toBe(3);
+    expect(normalized.records[0]?.tools.sequence).toEqual([
+      {
+        tool: "pkg_info",
+        surface: "mcp",
+        status: "completed",
+        startedAt: null,
+        completedAt: null,
+      },
+    ]);
+  });
+
+  it("pairs Codex lifecycle observations with harness-observed boundaries", () => {
+    const record: AgentEvalRecordInput = {
+      ...identityRecord("descriptors"),
+      workloadId: "codex-timing",
+      agent: "codex",
+      usage: adaptAgentUsage(
+        codexUsageEvent({
+          input_tokens: 1,
+          cached_input_tokens: 0,
+          cache_write_input_tokens: 0,
+          output_tokens: 1,
+          reasoning_output_tokens: 0,
+        }),
+        "codex",
+        LUNA_MODEL,
+      ),
+      toolCalls: [
+        {
+          tool: "search",
+          server: "githits",
+          providerCallId: "mcp-1",
+          status: "in_progress",
+          observedAt: "2026-08-28T10:00:00.100Z",
+        },
+        {
+          tool: "search",
+          server: "githits",
+          providerCallId: "mcp-1",
+          status: "completed",
+          observedAt: "2026-08-28T10:00:00.300Z",
+        },
+        {
+          tool: "search",
+          server: "githits",
+          providerCallId: "mcp-2",
+          status: "in_progress",
+          observedAt: "2026-08-28T10:00:00.400Z",
+        },
+        {
+          tool: "search",
+          server: "githits",
+          providerCallId: "mcp-2",
+          status: "failed",
+          observedAt: "2026-08-28T10:00:00.500Z",
+        },
+      ],
+    };
+
+    const metrics = buildAgentEvalMetrics({
+      runId: "run-codex-timing",
+      startedAt: "2026-08-28T10:00:00.000Z",
+      completedAt: "2026-08-28T10:00:01.000Z",
+      records: [record],
+    });
+
+    expect(metrics.records[0]?.tools).toMatchObject({
+      rawEventCount: 4,
+      logicalCallCount: 2,
+      completedCount: 1,
+      failedCount: 1,
+    });
+    expect(metrics.records[0]?.tools.sequence).toEqual([
+      {
+        tool: "search",
+        surface: "mcp",
+        status: "completed",
+        startedAt: "2026-08-28T10:00:00.100Z",
+        completedAt: "2026-08-28T10:00:00.300Z",
+      },
+      {
+        tool: "search",
+        surface: "mcp",
+        status: "failed",
+        startedAt: "2026-08-28T10:00:00.400Z",
+        completedAt: "2026-08-28T10:00:00.500Z",
+      },
+    ]);
+  });
+
+  it("keeps missing boundaries unknown and rejects invalid or reverse intervals", () => {
+    const createRecord = (
+      workloadId: string,
+      toolCalls: AgentEvalRecordInput["toolCalls"],
+    ): AgentEvalRecordInput => ({
+      ...identityRecord("descriptors"),
+      workloadId,
+      agent: "codex",
+      usage: adaptAgentUsage(
+        codexUsageEvent({
+          input_tokens: 1,
+          cached_input_tokens: 0,
+          cache_write_input_tokens: 0,
+          output_tokens: 1,
+          reasoning_output_tokens: 0,
+        }),
+        "codex",
+        LUNA_MODEL,
+      ),
+      toolCalls,
+    });
+
+    const metrics = buildAgentEvalMetrics({
+      runId: "run-timing-gaps",
+      startedAt: "2026-08-28T10:00:00.000Z",
+      completedAt: "2026-08-28T10:00:01.000Z",
+      records: [
+        createRecord("completed-only", [
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "completed-only",
+            status: "completed",
+            observedAt: "2026-08-28T10:00:00.200Z",
+          },
+        ]),
+        createRecord("started-only", [
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "started-only",
+            status: "started",
+            observedAt: "2026-08-28T10:00:00.200Z",
+          },
+        ]),
+        createRecord("reverse", [
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "reverse",
+            status: "started",
+            observedAt: "2026-08-28T10:00:00.300Z",
+          },
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "reverse",
+            status: "completed",
+            observedAt: "2026-08-28T10:00:00.100Z",
+          },
+        ]),
+        createRecord("invalid", [
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "invalid",
+            status: "started",
+            observedAt: "not-a-timestamp",
+          },
+          {
+            tool: "search",
+            server: "githits",
+            providerCallId: "invalid",
+            status: "failed",
+            observedAt: "2026-08-28T10:00:00.400Z",
+          },
+        ]),
+      ],
+    });
+
+    expect(metrics.records.map((record) => record.tools.sequence[0])).toEqual([
+      {
+        tool: "search",
+        surface: "mcp",
+        status: "completed",
+        startedAt: null,
+        completedAt: "2026-08-28T10:00:00.200Z",
+      },
+      {
+        tool: "search",
+        surface: "mcp",
+        status: "started",
+        startedAt: "2026-08-28T10:00:00.200Z",
+        completedAt: null,
+      },
+      {
+        tool: "search",
+        surface: "mcp",
+        status: "completed",
+        startedAt: null,
+        completedAt: null,
+      },
+      {
+        tool: "search",
+        surface: "mcp",
+        status: "failed",
+        startedAt: null,
+        completedAt: "2026-08-28T10:00:00.400Z",
+      },
+    ]);
   });
 
   it("normalizes inclusive Luna usage and does not double-count reasoning", () => {
@@ -484,10 +712,34 @@ describe("agent eval usage metrics", () => {
       failedCount: 1,
       uniqueTools: ["pkg_info", "pkg_vulns", "search"],
       sequence: [
-        { tool: "pkg_info", surface: "mcp", status: "completed" },
-        { tool: "pkg_info", surface: "mcp", status: "completed" },
-        { tool: "search", surface: "cli", status: "completed" },
-        { tool: "pkg_vulns", surface: "mcp", status: "failed" },
+        {
+          tool: "pkg_info",
+          surface: "mcp",
+          status: "completed",
+          startedAt: null,
+          completedAt: null,
+        },
+        {
+          tool: "pkg_info",
+          surface: "mcp",
+          status: "completed",
+          startedAt: null,
+          completedAt: null,
+        },
+        {
+          tool: "search",
+          surface: "cli",
+          status: "completed",
+          startedAt: null,
+          completedAt: null,
+        },
+        {
+          tool: "pkg_vulns",
+          surface: "mcp",
+          status: "failed",
+          startedAt: null,
+          completedAt: null,
+        },
       ],
     });
     expect(metrics.aggregates).toMatchObject({
@@ -644,10 +896,34 @@ describe("agent eval usage metrics", () => {
       failedCount: 0,
       uniqueTools: ["search"],
       sequence: [
-        { tool: "search", surface: "cli", status: "completed" },
-        { tool: "search", surface: "mcp", status: "completed" },
-        { tool: "search", surface: "mcp", status: "completed" },
-        { tool: "search", surface: "mcp", status: "started" },
+        {
+          tool: "search",
+          surface: "cli",
+          status: "completed",
+          startedAt: null,
+          completedAt: null,
+        },
+        {
+          tool: "search",
+          surface: "mcp",
+          status: "completed",
+          startedAt: null,
+          completedAt: null,
+        },
+        {
+          tool: "search",
+          surface: "mcp",
+          status: "completed",
+          startedAt: null,
+          completedAt: null,
+        },
+        {
+          tool: "search",
+          surface: "mcp",
+          status: "started",
+          startedAt: null,
+          completedAt: null,
+        },
       ],
     });
     expect(JSON.stringify(metrics)).not.toContain("providerCallId");
