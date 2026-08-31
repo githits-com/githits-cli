@@ -1,0 +1,633 @@
+import { describe, expect, it } from "bun:test";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  type BraintrustSuiteInput,
+  preflightAndMapBraintrustRows,
+} from "./agent-eval-braintrust.ts";
+import {
+  type AgentEvalRecordInput,
+  adaptAgentUsage,
+  buildAgentEvalMetrics,
+  LUNA_MODEL,
+} from "./agent-eval-metrics.ts";
+import { buildRunReportFromMetadata } from "./agent-eval-report.ts";
+import {
+  type AgentEvalSuiteArtifact,
+  type AgentEvalSuiteScenario,
+  type AgentEvalSuiteShardOptions,
+  runAgentEvalSuite,
+} from "./agent-eval-suite.ts";
+
+function writeJson(path: string, value: unknown): void {
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+interface SuiteFixture {
+  root: string;
+  suitePath: string;
+  shardPath: string;
+  workloadDir: string;
+}
+
+interface SuiteOptions {
+  scenarios?: readonly AgentEvalSuiteScenario[];
+  workloadId?: string;
+  processStatus?: "success" | "failed" | "timeout";
+  toolCalls?: AgentEvalRecordInput["toolCalls"];
+  dryRun?: boolean;
+}
+
+function createRecord(
+  options: AgentEvalSuiteShardOptions,
+  workloadId: string,
+  suiteOptions: SuiteOptions,
+): AgentEvalRecordInput {
+  return {
+    workloadId,
+    requestedModel: LUNA_MODEL,
+    resolvedModel: LUNA_MODEL,
+    agent: "codex",
+    agentVersion: "codex-test",
+    reasoningEffort: "low",
+    surface: "mcp",
+    server: "local",
+    guidanceProfile: options.guidanceProfile,
+    scenario: options.scenario,
+    intentProfile: options.intentProfile,
+    intentFragmentHash: options.intentFragmentHash,
+    experimentalTools: false,
+    publishedPackage: null,
+    targetGit: { branch: "main", sha: null, dirty: false },
+    startedAt: "2026-08-28T10:00:00.000Z",
+    completedAt: "2026-08-28T10:00:01.000Z",
+    durationMs: 1000,
+    processStatus: suiteOptions.processStatus ?? "success",
+    finalStatus:
+      suiteOptions.processStatus === "success" ? "success" : "failure",
+    exitCode: suiteOptions.processStatus === "success" ? 0 : 1,
+    timedOut: suiteOptions.processStatus === "timeout",
+    usage: adaptAgentUsage(
+      JSON.stringify({
+        type: "turn.completed",
+        usage: {
+          input_tokens: 100,
+          cached_input_tokens: 20,
+          cache_write_input_tokens: 10,
+          output_tokens: 30,
+          reasoning_output_tokens: 4,
+        },
+      }),
+      "codex",
+      LUNA_MODEL,
+    ),
+    toolCalls: suiteOptions.toolCalls ?? [
+      { tool: "search", server: "githits", status: "completed" },
+      { tool: "pkg-info", server: "githits-cli", status: "started" },
+    ],
+    artifacts: {},
+  };
+}
+
+async function createSuite(
+  suiteOptions: SuiteOptions = {},
+): Promise<SuiteFixture> {
+  const root = mkdtempSync(join(tmpdir(), "agent-eval-braintrust-suite-"));
+  const workloadsDir = join(root, "eval", "agentic", "workloads");
+  const workloadId = suiteOptions.workloadId ?? "workload-a";
+  const workloadPath = join(workloadsDir, `${workloadId}.md`);
+  const reportingPath = join(workloadsDir, "REPORTING.md");
+  const schemaPath = join(root, "eval", "agentic", "result.schema.json");
+  const manifestPath = join(root, "eval", "agentic", "suites.json");
+  const outDir = join(root, "out");
+  mkdirSync(workloadsDir, { recursive: true });
+  mkdirSync(join(root, "skills", "githits-mcp"), { recursive: true });
+  mkdirSync(join(root, "src", "commands", "init"), { recursive: true });
+  writeFileSync(workloadPath, `# ${workloadId}\n`);
+  writeFileSync(reportingPath, "# Reporting contract\n");
+  writeFileSync(schemaPath, "{}\n");
+  writeFileSync(
+    join(root, "skills", "githits-mcp", "SKILL.md"),
+    "# Target skill\n",
+  );
+  writeFileSync(
+    join(root, "src", "commands", "init", "guidance-assets.ts"),
+    'export const GITHITS_GUIDANCE_BLOCK = "Target guidance";\n',
+  );
+  writeJson(manifestPath, {
+    schemaVersion: 1,
+    workloads: [
+      {
+        id: workloadId,
+        path: `eval/agentic/workloads/${workloadId}.md`,
+        safety: "stable",
+        suites: ["canary", "smoke", "stable-full"],
+      },
+    ],
+  });
+
+  let shardPath = "";
+  let workloadDir = "";
+  await runAgentEvalSuite({
+    suite: "canary",
+    repoRoot: root,
+    targetRoot: root,
+    outDir,
+    manifestPath,
+    workloadsDir,
+    reportingPath,
+    schemaPath,
+    dryRun: suiteOptions.dryRun ?? false,
+    workloadConcurrency: 1,
+    scenarios: suiteOptions.scenarios ?? ["discovery"],
+    shardExecutor: async (options) => {
+      shardPath = options.outDir;
+      workloadDir = join(options.outDir, "workloads", workloadId);
+      mkdirSync(workloadDir, { recursive: true });
+      const record = createRecord(options, workloadId, suiteOptions);
+      writeFileSync(
+        join(workloadDir, "prompt.md"),
+        `Prompt for ${options.scenario}/${workloadId}.\n`,
+      );
+      writeJson(join(workloadDir, "tool-calls.json"), record.toolCalls);
+      writeJson(join(workloadDir, "final.json"), {
+        status:
+          suiteOptions.processStatus === "success" ? "success" : "failure",
+        answer: `Answer for ${options.scenario}/${workloadId}.`,
+        confidence: "high",
+      });
+      writeFileSync(join(workloadDir, "stderr.txt"), "");
+      const runMetadata = {
+        runId: `run-${options.scenario}`,
+        startedAt: "2026-08-28T10:00:00.000Z",
+        completedAt: "2026-08-28T10:00:01.000Z",
+        agent: "codex",
+        model: LUNA_MODEL,
+        reasoningEffort: "low",
+        surface: "mcp",
+        server: "local",
+        guidanceProfile: options.guidanceProfile,
+        scenario: options.scenario,
+        intentProfile: options.intentProfile,
+        intentFragmentHash: options.intentFragmentHash,
+        dryRun: options.dryRun,
+        codexVersion: "codex-test",
+        git: { branch: "main", sha: null, dirty: false },
+        workloads: [
+          {
+            id: workloadId,
+            status:
+              suiteOptions.processStatus === "timeout"
+                ? "timeout"
+                : suiteOptions.processStatus === "failed"
+                  ? "failed"
+                  : "success",
+            durationMs: 1000,
+            workloadDir,
+          },
+        ],
+      };
+      writeJson(join(options.outDir, "run.json"), runMetadata);
+      writeJson(
+        join(options.outDir, "metrics.json"),
+        buildAgentEvalMetrics({
+          runId: runMetadata.runId,
+          startedAt: runMetadata.startedAt,
+          completedAt: runMetadata.completedAt,
+          records: [record],
+        }),
+      );
+      writeJson(
+        join(options.outDir, "report.json"),
+        buildRunReportFromMetadata(options.outDir, runMetadata),
+      );
+      return { runDir: options.outDir, status: "success" };
+    },
+  });
+  return {
+    root,
+    suitePath: join(outDir, "suite.json"),
+    shardPath,
+    workloadDir,
+  };
+}
+
+function suiteInput(label: string, suitePath: string): BraintrustSuiteInput {
+  return { label, suitePath };
+}
+
+function mutateJson(path: string, mutate: (value: any) => void): void {
+  const value = JSON.parse(readFileSync(path, "utf8"));
+  mutate(value);
+  writeJson(path, value);
+}
+
+function mutateSuite(
+  fixture: SuiteFixture,
+  mutate: (artifact: AgentEvalSuiteArtifact) => void,
+): void {
+  mutateJson(fixture.suitePath, mutate);
+}
+
+function mutateMetrics(
+  fixture: SuiteFixture,
+  mutate: (metrics: any) => void,
+): void {
+  mutateJson(join(fixture.shardPath, "metrics.json"), mutate);
+}
+
+describe("Braintrust eval row mapping", () => {
+  it("keeps stable input identity separate from process identity", async () => {
+    const fixture = await createSuite({ scenarios: ["full", "discovery"] });
+    const result = preflightAndMapBraintrustRows([
+      suiteInput("local", fixture.suitePath),
+    ]);
+
+    expect(result.rows.map((row) => row.input.scenario)).toEqual([
+      "discovery",
+      "full",
+    ]);
+    expect(Object.keys(result.rows[0]!.input).sort()).toEqual([
+      "prompt",
+      "promptSha256",
+      "scenario",
+      "workloadId",
+      "workloadPath",
+    ]);
+    expect(result.rows[0]!.input.workloadPath).toBe(
+      "eval/agentic/workloads/workload-a.md",
+    );
+    expect(result.rows[0]!.metadata.agent).toBe("codex");
+    expect(result.rows[0]!.metadata.suiteLabel).toBe("local");
+  });
+
+  it("captures exact prompt and answer with a byte hash", async () => {
+    const fixture = await createSuite();
+    const result = preflightAndMapBraintrustRows([
+      suiteInput("canary", fixture.suitePath),
+    ]);
+    const row = result.rows[0]!;
+
+    expect(row.input.prompt).toBe("Prompt for discovery/workload-a.\n");
+    expect(row.input.promptSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(row.output.answer).toBe("Answer for discovery/workload-a.");
+    expect(row.output.confidence).toBe("high");
+    expect(row.output.discovery).toBeUndefined();
+  });
+
+  it("orders rows by suite label, scenario, and workload", async () => {
+    const zeta = await createSuite({ scenarios: ["full", "discovery"] });
+    const alpha = await createSuite({
+      scenarios: ["full", "discovery"],
+      workloadId: "workload-b",
+    });
+    const result = preflightAndMapBraintrustRows([
+      suiteInput("zeta", zeta.suitePath),
+      suiteInput("alpha", alpha.suitePath),
+    ]);
+
+    expect(
+      result.rows.map(
+        (row) =>
+          `${row.metadata.suiteLabel}/${row.input.scenario}/${row.input.workloadId}`,
+      ),
+    ).toEqual([
+      "alpha/discovery/workload-b",
+      "alpha/full/workload-b",
+      "zeta/discovery/workload-a",
+      "zeta/full/workload-a",
+    ]);
+  });
+
+  it("maps every named metric and preserves known zeroes", async () => {
+    const fixture = await createSuite();
+    const result = preflightAndMapBraintrustRows([
+      suiteInput("known", fixture.suitePath),
+    ]);
+    const metrics = result.rows[0]!.metrics;
+    expect(metrics).toMatchObject({
+      agent_duration_ms: 1000,
+      logical_tool_calls: 2,
+      mcp_tool_calls: 1,
+      cli_tool_calls: 1,
+      tool_calls_started: 1,
+      tool_calls_completed: 1,
+      tool_calls_failed: 0,
+      tool_calls_unknown: 0,
+      raw_tool_events: 2,
+      uncached_input_tokens: 70,
+      cached_input_tokens: 20,
+      cache_write_input_tokens: 10,
+      output_tokens: 30,
+      reasoning_output_tokens: 4,
+    });
+    expect(metrics.estimated_cost_usd).toBeGreaterThan(0);
+
+    const zero = await createSuite({ toolCalls: [] });
+    const zeroRow = preflightAndMapBraintrustRows([
+      suiteInput("zero", zero.suitePath),
+    ]).rows[0]!;
+    expect(zeroRow.metrics.logical_tool_calls).toBe(0);
+    expect(zeroRow.metrics.mcp_tool_calls).toBe(0);
+    expect(zeroRow.metrics.cli_tool_calls).toBe(0);
+    expect(zeroRow.metrics.tool_calls_started).toBe(0);
+    expect(zeroRow.metadata.toolCounts).toEqual([]);
+    expect(zeroRow.tags).toEqual([]);
+  });
+
+  it("omits unknown values while retaining raw events", async () => {
+    const fixture = await createSuite();
+    mutateMetrics(fixture, (metrics) => {
+      const record = metrics.records[0];
+      record.tools.logicalCallCount = null;
+      record.usage.normalizedTokens.uncachedInputTokens = null;
+      record.usage.normalizedTokens.cachedInputTokens = null;
+      record.usage.normalizedTokens.cacheWriteInputTokens = null;
+      record.usage.normalizedTokens.outputTokens = null;
+      record.usage.normalizedTokens.reasoningOutputTokens = null;
+      record.usage.cost = {
+        kind: "unknown",
+        usd: null,
+        uncertainty: "unknown",
+        rateSnapshot: null,
+      };
+      metrics.aggregates.logicalToolCalls = null;
+    });
+    const row = preflightAndMapBraintrustRows([
+      suiteInput("unknown", fixture.suitePath),
+    ]).rows[0]!;
+
+    expect(row.metrics).toEqual({
+      agent_duration_ms: 1000,
+      raw_tool_events: 2,
+    });
+    expect(row.metadata.toolTelemetryKnown).toBe(false);
+    expect(row.metadata.toolSequence).toBeUndefined();
+    expect(row.metadata.toolCounts).toBeUndefined();
+    expect(row.tags).toEqual([]);
+    expect(row.metadata.costKind).toBe("unknown");
+  });
+
+  it("maps ordered tool sequence, per-tool counts, and tags", async () => {
+    const fixture = await createSuite();
+    const row = preflightAndMapBraintrustRows([
+      suiteInput("tools", fixture.suitePath),
+    ]).rows[0]!;
+
+    expect(row.metadata.toolSequence).toEqual([
+      { tool: "search", surface: "mcp", status: "completed" },
+      { tool: "pkg-info", surface: "cli", status: "started" },
+    ]);
+    expect(row.metadata.toolCounts).toEqual([
+      {
+        surface: "cli",
+        tool: "pkg-info",
+        total: 1,
+        statusCounts: { started: 1, completed: 0, failed: 0, unknown: 0 },
+      },
+      {
+        surface: "mcp",
+        tool: "search",
+        total: 1,
+        statusCounts: { started: 0, completed: 1, failed: 0, unknown: 0 },
+      },
+    ]);
+    expect(row.tags).toEqual(["tool:cli:pkg-info", "tool:mcp:search"]);
+  });
+
+  it("adds a status-only error for failed cells", async () => {
+    const fixture = await createSuite({ processStatus: "failed" });
+    mutateSuite(fixture, (artifact) => {
+      artifact.warnings = ["discovery shard failed: provider secret details"];
+    });
+    const row = preflightAndMapBraintrustRows([
+      suiteInput("failed", fixture.suitePath),
+    ]).rows[0]!;
+
+    expect(row.output.cellStatus).toBe("failed");
+    expect(row.output.processStatus).toBe("failed");
+    expect(row.error).toBe("eval_status:failed");
+    expect(JSON.stringify(row)).not.toContain("provider");
+  });
+
+  it("keeps metadata allowlisted and warnings free of local roots", async () => {
+    const fixture = await createSuite();
+    mutateMetrics(fixture, (metrics) => {
+      metrics.records[0].warnings = ["provider warning at /tmp/private-output"];
+    });
+    const row = preflightAndMapBraintrustRows([
+      suiteInput("allowlisted", fixture.suitePath),
+    ]).rows[0]!;
+    const metadataText = JSON.stringify(row.metadata);
+
+    expect(metadataText).not.toContain(fixture.root);
+    expect(metadataText).not.toContain("stderr");
+    expect(metadataText).not.toContain("stdout");
+    expect(metadataText).not.toContain(
+      "provider warning at /tmp/private-output",
+    );
+    expect(metadataText).toContain("provider warning at <path>");
+    expect(row.metadata.reportingContractSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(row.metadata.resultSchemaSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(row.metadata.measurementGit).toEqual({
+      branch: null,
+      sha: null,
+      dirty: null,
+    });
+  });
+
+  it("uses the suite target Git identity over a record mismatch", async () => {
+    const fixture = await createSuite();
+    mutateSuite(fixture, (artifact) => {
+      artifact.targetGit = {
+        branch: "main",
+        sha: "suite-target",
+        dirty: false,
+      };
+    });
+    mutateMetrics(fixture, (metrics) => {
+      metrics.records[0].targetGit = {
+        branch: "feature",
+        sha: "record-target",
+        dirty: true,
+      };
+    });
+
+    const row = preflightAndMapBraintrustRows([
+      suiteInput("target", fixture.suitePath),
+    ]).rows[0]!;
+
+    expect(row.metadata.targetGit).toEqual({
+      branch: "main",
+      sha: "suite-target",
+      dirty: false,
+    });
+  });
+
+  it("labels a non-success record final status when final evidence is absent", async () => {
+    const fixture = await createSuite();
+    mutateMetrics(fixture, (metrics) => {
+      metrics.records[0].finalStatus = "failure";
+    });
+    rmSync(join(fixture.workloadDir, "final.json"));
+
+    const row = preflightAndMapBraintrustRows([
+      suiteInput("final-status", fixture.suitePath),
+    ]).rows[0]!;
+
+    expect(row.output.finalStatus).toBe("failure");
+    expect(row.output.answer).toBeUndefined();
+    expect(row.error).toBe("eval_status:failure");
+  });
+
+  it("rejects dry runs, duplicate labels, duplicate cells, and mixed identities", async () => {
+    const normal = await createSuite();
+    const dryRun = await createSuite({ dryRun: true });
+    expect(() =>
+      preflightAndMapBraintrustRows([suiteInput("dry", dryRun.suitePath)]),
+    ).toThrow("dry-run");
+    expect(() =>
+      preflightAndMapBraintrustRows([
+        suiteInput("same", normal.suitePath),
+        suiteInput("same", normal.suitePath),
+      ]),
+    ).toThrow("duplicate suite label");
+    expect(() =>
+      preflightAndMapBraintrustRows([
+        suiteInput("one", normal.suitePath),
+        suiteInput("two", normal.suitePath),
+      ]),
+    ).toThrow("duplicate scenario/workload cell");
+
+    const identityCases = [
+      [
+        "targetGit",
+        (artifact: AgentEvalSuiteArtifact) =>
+          (artifact.targetGit.sha = "different-target"),
+      ],
+      [
+        "measurementGit",
+        (artifact: AgentEvalSuiteArtifact) =>
+          (artifact.measurementGit.sha = "different-measurement"),
+      ],
+      [
+        "reportingContractSha256",
+        (artifact: AgentEvalSuiteArtifact) =>
+          (artifact.contentIdentity.reportingContract.sha256 = "a".repeat(64)),
+      ],
+      [
+        "resultSchemaSha256",
+        (artifact: AgentEvalSuiteArtifact) =>
+          (artifact.contentIdentity.resultSchema.sha256 = "b".repeat(64)),
+      ],
+    ] as const;
+    for (const [name, mutate] of identityCases) {
+      const other = await createSuite();
+      mutateSuite(other, mutate);
+      expect(() =>
+        preflightAndMapBraintrustRows([
+          suiteInput("base", normal.suitePath),
+          suiteInput(name, other.suitePath),
+        ]),
+      ).toThrow("mixed");
+    }
+  });
+
+  it("rejects mixed child agent identity", async () => {
+    const normal = await createSuite();
+    const other = await createSuite({ workloadId: "workload-b" });
+    mutateMetrics(other, (metrics) => {
+      metrics.records[0].agent = "claude";
+    });
+    expect(() =>
+      preflightAndMapBraintrustRows([
+        suiteInput("base", normal.suitePath),
+        suiteInput("other", other.suitePath),
+      ]),
+    ).toThrow("mixed agent/model/reasoning/surface/server identity");
+  });
+
+  it("rejects missing child evidence and unsafe prompts", async () => {
+    const missingRecord = await createSuite();
+    mutateMetrics(missingRecord, (metrics) => {
+      metrics.records = [];
+    });
+    mutateSuite(missingRecord, (artifact) => {
+      artifact.cells[0]!.status = "missing";
+    });
+    expect(() =>
+      preflightAndMapBraintrustRows([
+        suiteInput("missing-record", missingRecord.suitePath),
+      ]),
+    ).toThrow("metrics record");
+
+    const missingWorkload = await createSuite();
+    mutateJson(join(missingWorkload.shardPath, "run.json"), (run) => {
+      run.workloads = [];
+    });
+    expect(() =>
+      preflightAndMapBraintrustRows([
+        suiteInput("missing-workload", missingWorkload.suitePath),
+      ]),
+    ).toThrow("report workload");
+
+    const missingPrompt = await createSuite();
+    rmSync(join(missingPrompt.workloadDir, "prompt.md"));
+    expect(() =>
+      preflightAndMapBraintrustRows([
+        suiteInput("missing-prompt", missingPrompt.suitePath),
+      ]),
+    ).toThrow("prompt artifact");
+
+    const unsafePrompt = await createSuite();
+    const outsidePrompt = join(unsafePrompt.root, "outside-prompt.md");
+    writeFileSync(outsidePrompt, "outside\n");
+    rmSync(join(unsafePrompt.workloadDir, "prompt.md"));
+    symlinkSync(outsidePrompt, join(unsafePrompt.workloadDir, "prompt.md"));
+    expect(() =>
+      preflightAndMapBraintrustRows([
+        suiteInput("unsafe-prompt", unsafePrompt.suitePath),
+      ]),
+    ).toThrow("prompt artifact");
+
+    const missingMetrics = await createSuite();
+    rmSync(join(missingMetrics.shardPath, "metrics.json"));
+    expect(() =>
+      preflightAndMapBraintrustRows([
+        suiteInput("missing-metrics", missingMetrics.suitePath),
+      ]),
+    ).toThrow("metrics.json");
+  });
+
+  it("accepts failed cells when their evidence is complete", async () => {
+    const fixture = await createSuite({ processStatus: "failed" });
+    const result = preflightAndMapBraintrustRows([
+      suiteInput("partial", fixture.suitePath),
+    ]);
+
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]!.output.cellStatus).toBe("failed");
+    expect(result.rows[0]!.input.prompt).toContain("Prompt for");
+  });
+
+  it("rejects invalid workload paths before exposing local roots", async () => {
+    const fixture = await createSuite();
+    mutateSuite(fixture, (artifact) => {
+      artifact.cells[0]!.workloadPath = "/private/workload.md";
+    });
+    expect(() =>
+      preflightAndMapBraintrustRows([
+        suiteInput("invalid-path", fixture.suitePath),
+      ]),
+    ).toThrow("workload path");
+  });
+});
