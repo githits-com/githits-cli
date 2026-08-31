@@ -73,6 +73,7 @@ export async function pkgUpgradeReviewAction(
       formatPackageUpgradeReviewTerminal(response, {
         verbose: options.verbose === true,
         useColors: shouldUseColors(),
+        terminalWidth: process.stdout.columns,
       }),
     );
   } catch (error) {

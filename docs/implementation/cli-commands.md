@@ -608,6 +608,40 @@ Fetches release notes or changelog entries for a package or GitHub repository. O
 
 **Troubleshooting.** Same debug areas as the rest of the `pkg` family.
 
+### `githits pkg upgrade-review`
+
+```
+githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1
+githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-staged@16.2.7..16.4.0
+githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1 --verbose
+githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1 --json
+```
+
+The human-readable CLI and MCP `pkg_upgrade_review` output use one shared
+formatter. It starts with `Upgrade review - N package(s)`, adds one
+`Across packages:` line only for batches, and groups each package as identity,
+security, deprecation, changes, compatibility, dependencies, dependency
+issues, and unknown evidence. Empty optional groups are omitted, but a returned
+zero-valued dependency comparison remains visible. Missing target security
+evidence renders `Target: deprecation unknown` so absence is not confused with
+verified non-deprecation. The formatter reports evidence and missing evidence;
+it does not make an approval, safety, or risk claim.
+
+The shared formatter wraps free prose to the caller width (minimum 20 columns).
+The CLI passes `process.stdout.columns` and enables ANSI only when supported;
+MCP disables ANSI and uses the 80-column default. Outcome and section headings
+are bold, package identity is bold cyan, and yellow is limited to compact
+attention summaries, labels, and matched signal terms. Heuristic section labels
+remain plain; only the matched keyword and excerpt marker are yellow. Detail
+prose and locators remain plain. Color never carries information that is absent
+from the words. Formatter-authored punctuation stays ASCII while backend
+Unicode is preserved. `--verbose` expands the bounded evidence rows in place.
+`--json` remains the structured, lossless machine surface and is shared with MCP
+`format: "json"`; `text-v1` is an in-place evolving presentation, not a
+byte-stable prose contract.
+
+**Troubleshooting.** Same debug areas as the rest of the `pkg` family.
+
 ### `githits docs list`
 
 ```

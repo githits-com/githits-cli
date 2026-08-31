@@ -242,6 +242,42 @@ formatter—contributors are never copied onto generic progress targets, and
 
 `pkg_changelog` shares its envelope builder and text formatter with the CLI `githits pkg changelog` command via `packages/mcp/src/shared/package-changelog-request.ts` and `packages/mcp/src/shared/package-changelog-response.ts`. MCP defaults to compact text with MCP-native `verbose=true`, `body_lines=<n>`, and `format="json"` hints for full bodies. The parity test (`src/tools/package-changelog-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across every service-sourced success / error fixture (happy latest, range mode, repo-URL addressing, no-source package-version entries, `--no-body` / `omit_bodies: true`, default bodies, empty entries, NOT_FOUND, PackageIntelligenceTargetNotFoundError, VERSION_NOT_FOUND, BACKEND_ERROR), and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT`.
 
+### `pkg_upgrade_review` response shape
+
+The JSON envelope is the stable structured boundary: it preserves the existing
+`summary` and `reviews` fields, normalized evidence categories, bounded backend
+metadata, and unknown evidence without adding assessment fields. CLI
+`--json` and MCP `format: "json"` use this same envelope and are compared by
+the package-upgrade-review parity test. `text-v1` evolves in place and is not a
+byte-stable contract.
+
+Default text is one shared formatter for CLI and MCP. It leads with
+`Upgrade review - N package(s)`, then groups each package as identity,
+`Security`, with direct and optional transitive summary rows before non-empty
+advisory groups, target `Deprecation`, `Changes`,
+`Compatibility`, `Dependencies`, returned `Dependency issues`, and final
+`Unknown evidence`. A batch adds one `Across packages:` summary; zero and one
+package omit it. The formatter removes internal tool headers and repeated
+field scaffolding while retaining concrete samples, stable package/advisory
+locators, truncation facts, and follow-up guidance.
+
+The formatter accepts ANSI and width as inputs. CLI supplies its current
+terminal width and enables ANSI when supported; MCP uses no ANSI and the
+80-column default. Outcome and section headings are bold-only, package identity
+is bold cyan, and yellow is limited to compact attention summaries, labels, and
+matched signal terms. Heuristic section labels remain plain; only the matched
+keyword and excerpt marker are yellow. Evidence detail and locators remain
+plain, and prose remains meaningful without color. Free prose uses hanging
+indentation and a minimum width of 20, while coordinates, versions, advisory
+IDs, and URLs remain unsplit. Changelog labels are exact (`Repository releases`,
+`Package versions (no release notes)`, or the normalized non-empty source
+verbatim). A defined
+zero-valued dependency comparison renders both direct and transitive zero
+counts; undefined evidence is omitted. Existing sample caps and `verbose`
+expansion remain unchanged except
+that dependency-issue locators are capped at five rows per category in default
+text with an explicit remainder; `verbose` expands them fully.
+
 ### `code_files` / `code_read` / `code_grep` response shapes
 
 These three indexed tools share an addressing and lifecycle contract (documented below) and then each projects its own data-first envelope. All three reuse the shipped `codeTargetSchema` + `resolveCodeTarget` from `packages/mcp/src/tools/code-navigation-shared.ts` — no parallel addressing module.
@@ -304,7 +340,7 @@ The `hint` field is emitted only when the cap *actually truncated* the response 
 
 **Example-search anatomy.** `get_example` text mode returns markdown directly, followed by `solution_id: <id>` when the REST response includes an app URL. This avoids JSON-wrapped markdown while preserving the `feedback` workflow. `search_language` text mode returns one match per line as `name (Display Name) aliases: a, b`; agents should pass the `name` value to `get_example.language`.
 
-**Package metadata anatomy.** `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, and `pkg_upgrade_review` text mode reuse the shared no-color terminal formatters but inject MCP-native hints. `pkg_deps` hides non-runtime groups by default and says `pass lifecycle="all"` when groups exist. `pkg_changelog` caps body previews and says `pass verbose=true`, `body_lines=<n>`, or `format="json"` when text omitted lines. Package tools keep JSON errors in all formats because agents can reliably branch on `{error, code, retryable, details?}`.
+**Package metadata anatomy.** `pkg_info`, `pkg_vulns`, `pkg_deps`, and `pkg_changelog` text mode reuse their shared no-color terminal formatters and inject surface-native hints where needed. `pkg_upgrade_review` uses one shared CLI/MCP formatter with caller width and ANSI as inputs. `pkg_deps` hides non-runtime groups by default and says `pass lifecycle="all"` when groups exist. `pkg_changelog` caps body previews and says `pass verbose=true`, `body_lines=<n>`, or `format="json"` when text omitted lines. Package tools keep JSON errors in all formats because agents can reliably branch on `{error, code, retryable, details?}`.
 
 **Unified search outcome-first anatomy** (CLI human search/search-status and MCP
 `search` / `search_status` text-v1). One shared presentation model owns target

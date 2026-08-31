@@ -32,6 +32,18 @@ Philosophy: "Create architecture that is performant and easy to test"
 
 See `docs/guidelines/ARCHITECTURAL_GUIDELINES.md` for detailed planning checklist and design principles.
 
+## Tool output UX
+
+Human-readable tool text is an optimized product surface, not raw field
+serialization. Before editing it, inspect real output and preserve existing
+strengths: lead with the outcome, group related evidence, remove repetition and
+scaffolding, and retain stable follow-up locators, actions, and trust facts.
+Wrap free prose to the caller's width, keep formatter-authored punctuation ASCII
+while preserving backend Unicode, and never make color carry meaning. When CLI
+and MCP need the same information, share one formatter per tool with color and
+width as inputs; keep JSON lossless for machines. A complete data dump is not
+good output merely because it is complete.
+
 ## Testing
 
 Philosophy: "If it is not tested, it is likely broken"

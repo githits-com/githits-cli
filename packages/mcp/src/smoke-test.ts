@@ -744,15 +744,20 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     }),
     "pkg_upgrade_review default",
   );
+  const upgradeReviewFirstLine = upgradeReviewText.split("\n")[0]?.trim();
   assert(
-    upgradeReviewText.includes("pkg_upgrade_review") &&
-      upgradeReviewText.includes("vulnerabilities") &&
-      upgradeReviewText.includes("changes"),
-    "pkg_upgrade_review default missing evidence sections",
+    upgradeReviewFirstLine === "Upgrade review - 1 package",
+    "pkg_upgrade_review default missing outcome headline",
   );
   assert(
-    !upgradeReviewText.includes("recommendation") &&
-      !upgradeReviewText.includes("risk level"),
+    upgradeReviewText.includes("npm:express 5.0.0 -> 5.2.1") &&
+      upgradeReviewText.includes("\nSecurity\n") &&
+      upgradeReviewText.includes("\nChanges\n"),
+    "pkg_upgrade_review default missing grouped evidence",
+  );
+  assert(
+    !upgradeReviewText.includes("pkg_upgrade_review") &&
+      !/\b(?:recommendation|risk level|assessment)\b/i.test(upgradeReviewText),
     "pkg_upgrade_review default leaked assessment language",
   );
 
