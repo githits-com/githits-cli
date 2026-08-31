@@ -777,36 +777,36 @@ describe("agent eval harness", () => {
   });
 
   it("builds Codex TOML config from the same MCP command", () => {
-    expect(
-      buildCodexConfig(
-        {
-          server: "local",
-          repoRoot: "/repo/githits-cli",
-          publishedPackage: "githits@latest",
-        },
-        {},
-      ),
-    ).toBe(
+    const config = buildCodexConfig(
+      {
+        server: "local",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      },
+      {},
+    );
+    expect(config).toBe(
       '[mcp_servers.githits]\ncommand = "bun"\nargs = ["run","--cwd","/repo/githits-cli","dev","mcp","start"]\n',
     );
+    expect(config).not.toContain("env_vars");
   });
 
   it("builds Codex config override args", () => {
-    expect(
-      buildCodexConfigArgs(
-        {
-          server: "published",
-          repoRoot: "/repo/githits-cli",
-          publishedPackage: "githits@0.4.2",
-        },
-        {},
-      ),
-    ).toEqual([
+    const args = buildCodexConfigArgs(
+      {
+        server: "published",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@0.4.2",
+      },
+      {},
+    );
+    expect(args).toEqual([
       "-c",
       'mcp_servers.githits.command="npx"',
       "-c",
       'mcp_servers.githits.args=["-y","githits@0.4.2","mcp","start"]',
     ]);
+    expect(args).not.toContain("mcp_servers.githits.env_vars");
   });
 
   it("builds OpenCode project config from the same MCP command", () => {
@@ -925,6 +925,30 @@ describe("agent eval harness", () => {
     ).toContain(
       'mcp_servers.githits.env.PKGSEER_URL="https://pkgseer-backend-dev.fly.dev"',
     );
+
+    const codexConfig = buildCodexConfig(
+      {
+        server: "local",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      },
+      env,
+    );
+    expect(codexConfig).toContain('env_vars = ["GITHITS_API_TOKEN"]');
+    expect(codexConfig).not.toContain("secret-token");
+
+    const codexArgs = buildCodexConfigArgs(
+      {
+        server: "local",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      },
+      env,
+    );
+    expect(codexArgs).toContain(
+      'mcp_servers.githits.env_vars=["GITHITS_API_TOKEN"]',
+    );
+    expect(codexArgs.join(" ")).not.toContain("secret-token");
   });
 
   it("passes host auth roots only to the MCP child for both guidance profiles", () => {
@@ -3403,6 +3427,16 @@ describe("agent eval harness", () => {
         expect(content).not.toContain(hostConfig);
         expect(content).not.toContain(hostAppdata);
       }
+      const codexConfig = readFileSync(
+        join(workloadDir, "codex-config.toml"),
+        "utf8",
+      );
+      expect(codexConfig).toContain('env_vars = ["GITHITS_API_TOKEN"]');
+      expect(codexConfig).not.toContain(apiToken);
+      expect(observedCommand?.join(" ")).toContain(
+        'mcp_servers.githits.env_vars=["GITHITS_API_TOKEN"]',
+      );
+      expect(observedCommand?.join(" ")).not.toContain(apiToken);
       const stdout = readFileSync(join(workloadDir, "stdout.json"), "utf8");
       const stderr = readFileSync(join(workloadDir, "stderr.txt"), "utf8");
       const final = JSON.parse(

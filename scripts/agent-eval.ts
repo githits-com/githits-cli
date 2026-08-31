@@ -711,6 +711,14 @@ function effectiveMcpConfigRoots(
   return roots;
 }
 
+function buildCodexMcpEnvVars(
+  baseEnv: NodeJS.ProcessEnv,
+): string[] | undefined {
+  return baseEnv.GITHITS_API_TOKEN === undefined
+    ? undefined
+    : ["GITHITS_API_TOKEN"];
+}
+
 export function buildCodexConfig(
   options: Pick<
     AgentEvalOptions,
@@ -724,6 +732,7 @@ export function buildCodexConfig(
   baseEnv: NodeJS.ProcessEnv = process.env,
 ): string {
   const command = buildMcpCommand(options, baseEnv);
+  const envVars = buildCodexMcpEnvVars(baseEnv);
   const lines = options.reasoningEffort
     ? [
         `model_reasoning_effort = ${JSON.stringify(options.reasoningEffort)}`,
@@ -735,6 +744,7 @@ export function buildCodexConfig(
     `command = ${JSON.stringify(command.command)}`,
     `args = ${JSON.stringify(command.args)}`,
   );
+  if (envVars) lines.push(`env_vars = ${JSON.stringify(envVars)}`);
   if (command.env && Object.keys(command.env).length > 0) {
     lines.push("", "[mcp_servers.githits.env]");
     for (const [key, value] of Object.entries(command.env)) {
@@ -758,12 +768,16 @@ export function buildCodexConfigArgs(
   baseEnv: NodeJS.ProcessEnv = process.env,
 ): string[] {
   const command = buildMcpCommand(options, baseEnv);
+  const envVars = buildCodexMcpEnvVars(baseEnv);
   const args = [
     "-c",
     `mcp_servers.githits.command=${JSON.stringify(command.command)}`,
     "-c",
     `mcp_servers.githits.args=${JSON.stringify(command.args)}`,
   ];
+  if (envVars) {
+    args.push("-c", `mcp_servers.githits.env_vars=${JSON.stringify(envVars)}`);
+  }
   if (options.reasoningEffort) {
     args.push(
       "-c",

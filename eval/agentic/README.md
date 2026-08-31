@@ -110,7 +110,9 @@ Windows.
 
 The CI workflow creates a clean `CODEX_HOME` and authenticates Codex with
 `OPENAI_API_KEY`. It sets `GITHITS_API_TOKEN` for deterministic GitHits
-authentication. Never copy a personal auth file into a run directory.
+authentication. Codex receives that token only by variable name through the MCP
+server's `env_vars`; the value is never written to `codex-config.toml` or an
+eval artifact. Never copy a personal auth file into a run directory.
 Non-interactive eval commands retain the supported `--ignore-user-config` and
 explicitly disable Codex's `apps`, `plugins`, and `remote_plugin` features. The
 flag suppresses Codex `config.toml`/user configuration only; explicit preflight

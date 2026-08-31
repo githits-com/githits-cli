@@ -60,8 +60,10 @@ CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface skills 
 ```
 
 The CI workflow provides a clean `CODEX_HOME` with `OPENAI_API_KEY`
-authentication. The harness does not read auth material and never copies it
-into artifacts. Every
+authentication. It forwards `GITHITS_API_TOKEN` to Codex by variable name
+through the MCP server's `env_vars`; the token value is never written to
+`codex-config.toml` or an artifact. The harness does not read auth material and
+never copies it into artifacts. Every
 Codex run with a supplied `CODEX_HOME`—including live runs and dry runs with an
 explicit or ambient value—preflights root-level `AGENTS.override.md` and
 `AGENTS.md`, plus every direct `$CODEX_HOME/skills` entry except `.system`.
