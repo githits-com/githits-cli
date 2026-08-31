@@ -92,8 +92,9 @@ silently. The workflow does not select a baseline or fail on metric movement.
 ### Verified PoC and comparison limitation
 
 The accepted GitHub run `33381601980` at SHA
-`dc63675d7c0ee95a9594eac272982943dceef521` validated and exported both suites
-as exactly 23 rows (two discovery plus 21 intent). The experiments
+`dc63675d7c0ee95a9594eac272982943dceef521` supplied the discovery and intent
+suite artifacts. Those artifacts were exported locally through `bt eval` as
+exactly 23 rows (two discovery plus 21 intent). The experiments
 `poc-33381601980-top-level-spans` and `poc-33381601980-repeat` were read back
 with 23 rows. Bounded SQL and row inspection reconciled prompts, neutral
 answers, prompt hashes, token buckets, duration, cost, and tool telemetry to
@@ -107,8 +108,7 @@ only generic Braintrust trace metrics, all zero; it does not expose the custom
 eval telemetry. Built-in comparison is therefore not a validated trend path.
 The current verified path is bounded `bt sql`/row inspection plus the
 experiment UI. Investigating a comparison that understands custom eval metrics
-is a Phase 5/PoC follow-up. CI acceptance remains pending until a real labeled
-or manual workflow run exports and readbacks 23 rows.
+is a Phase 5/PoC follow-up.
 
 ## Scenario and intent identity
 
