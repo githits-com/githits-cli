@@ -171,10 +171,14 @@ const DESCRIPTION_ROUTING: Record<
     ],
   },
   pkg_vulns: {
-    prefix: /^Check whether a package version is vulnerable/,
+    prefix: /^Check current package advisories\. Do not trust your memory/,
     exactPrefix:
-      "Check whether a package version is vulnerable; find affected and fixed versions.",
+      "Check current package advisories. Do not trust your memory for vulnerabilities. ",
     body: [
+      "a cutoff disclaimer is not current evidence",
+      '`advisory_scope:"all"`',
+      '`{"registry":"npm","package_name":"next","advisory_scope":"all"}`',
+      "Pinned lookup",
       "identifiers and aliases, including CVEs when available",
       "identifier aliases (including CVEs)",
       "`pkg_info`",

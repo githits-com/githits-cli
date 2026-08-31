@@ -192,7 +192,7 @@ describe("buildMcpQuickStart", () => {
       "Enumerate text, regex, or identifier matches in any public GitHub repo/package",
     );
     expect(descriptions.get("pkg_vulns")).toStartWith(
-      "Check whether a package version is vulnerable",
+      "Check current package advisories. Do not trust your memory for vulnerabilities.",
     );
   });
 
