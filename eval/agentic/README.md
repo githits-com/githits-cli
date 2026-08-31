@@ -57,11 +57,11 @@ workload edit or an agent system prompt.
 
 One-off and named-suite runs use this closed MCP scenario set:
 
-| Scenario    | Guidance      | Intent    | Meaning                                                |
-| ----------- | ------------- | --------- | ------------------------------------------------------ |
-| `discovery` | `descriptors` | `neutral` | Descriptor-only autonomous tool discovery              |
-| `intent`    | `descriptors` | `githits` | Descriptor-only discovery with the exact harness nudge |
-| `full`      | `full`        | `neutral` | Repository guidance and skills, with no nudge          |
+| Scenario    | Guidance      | Intent    | Fragment hash                                                       | Meaning                                                |
+| ----------- | ------------- | --------- | ------------------------------------------------------------------- | ------------------------------------------------------ |
+| `discovery` | `descriptors` | `neutral` | `null`                                                              | Descriptor-only autonomous tool discovery              |
+| `intent`    | `descriptors` | `githits` | `b04b96acfd7a89516ab1742d9df914bb6779e952c7df96ac9858785ed40f10d0` | Descriptor-only discovery with the exact harness nudge |
+| `full`      | `full`        | `neutral` | `null`                                                              | Repository guidance and skills, with no nudge          |
 
 Discovery is autonomous tool discovery from MCP descriptors; it is not a
 Claude Desktop or claude.ai simulation. `full` plus `githits`, Skills plus
@@ -75,14 +75,18 @@ Each workload receives a fresh temporary isolation root containing its workspace
 OS home, user profile, config directories, and temporary directory. Only the
 caller-supplied `CODEX_HOME` is retained outside that root. It is a dedicated
 eval home containing Codex authentication state and Codex-managed runtime state;
-it may accumulate managed state across runs. Live Codex evals reject a
-missing, relative, or root-level `AGENTS.override.md`/`AGENTS.md` before
-invoking the agent. The harness checks only those two names at the CODEX_HOME
-root and does not read auth material or guidance contents. Codex-managed `config.toml`,
-bundled system skills, plugin caches, logs, and other nested runtime files are
-allowed. A root global-instruction file is rejected even when empty; nested
-`AGENTS.md` files do not trigger this preflight because they are outside Codex's
-documented global discovery root.
+it may accumulate managed state across runs. Workload evals reject a missing,
+relative, or root-level `AGENTS.override.md`/`AGENTS.md` before invoking the
+agent. The workload preflight checks only those two names at the CODEX_HOME
+root and does not read auth material or guidance contents. Codex-managed
+`config.toml`, bundled system skills, plugin caches, logs, and other nested
+runtime files are allowed for workload execution. Interactive `agent:session`
+adds a stricter contract: direct `$CODEX_HOME/skills` may contain only
+`.system`, and `config.toml` may contain only `model`,
+`model_reasoning_effort`, and project `trust_level` keys. A root
+global-instruction file is rejected even when empty; nested `AGENTS.md` files
+do not trigger this preflight because they are outside Codex's documented
+global discovery root.
 
 For local subscription authentication, log in once to a dedicated home and use
 that same home for evals:
@@ -104,10 +108,11 @@ Windows.
 
 CI should create a clean `CODEX_HOME` and authenticate Codex with
 `OPENAI_API_KEY`. Set `GITHITS_API_TOKEN` for deterministic GitHits
-authentication. Never copy a personal auth file into a run directory. The eval
-commands retain `--ignore-user-config` and explicitly disable Codex's `apps`,
-`plugins`, and `remote_plugin` features, so user customization and external
-app/plugin catalogs cannot alter the tested surface.
+authentication. Never copy a personal auth file into a run directory.
+Non-interactive eval commands retain the supported `--ignore-user-config` and
+explicitly disable Codex's `apps`, `plugins`, and `remote_plugin` features.
+Interactive Codex sessions omit that exec-only flag, retain all three disables,
+clear ambient MCP servers, and register only the intended GitHits MCP target.
 
 An earlier partial Luna-low canary (2026-08-29) was not acceptance evidence:
 the clean descriptor cell completed in 31.2 seconds with zero tools, CLI calls,
@@ -150,6 +155,37 @@ the test suite, but no live skills canary has run.
 The v2, v3, and v4 measurements above, including the contaminated 42-cell
 stable-full run, remain historical descriptor/full and capacity evidence. None
 is relabeled as `intent` evidence under the current contract.
+
+### Current corrected Luna evidence
+
+The safe schema-v2 artifacts verified on 2026-08-31 include a bounded
+Luna-low package pair, the discovery canary, and the stable-full intent suite.
+The package discovery cell succeeded in 32,592 ms with zero logical/MCP/CLI
+calls; the package intent cell completed the process successfully in 275,327 ms
+with three logical MCP calls and zero CLI calls, but its final was
+inconclusive/low confidence. Both had zero isolation violations. These cells
+prove tool execution and isolation, not answer quality. The discovery canary
+recorded 2/2 process and final successes, 267,221 ms wall time, 266,375 ms
+cumulative agent time, two MCP `code_files` calls, zero CLI calls, zero
+isolation violations, and an estimated $0.0266578. The stable-full intent suite
+recorded 21/21 process and final successes, 798,452 ms wall time, 796,139 ms
+cumulative agent time, 115 MCP calls, zero CLI calls, zero isolation violations,
+and an estimated $0.2030556 with Codex CLI 0.151.0. One `code_grep` call failed
+and recovered within a successful workload. The six-workload smoke subset was
+derived from that stable artifact, not rerun: 6/6 process successes, 31 MCP
+calls, zero failed tool calls, and an estimated $0.06254004.
+
+Manual `bun run agent:session` validation on 2026-08-31 with Codex CLI 0.151.0
+and Luna high listed only six bundled system skills (Image Gen, OpenAI Docs,
+Plugin Creator, Review Agent, Skill Creator, and Skill Installer), no GitHits or
+personal skills, and `githits: connected (18 tools)`. No tool call or Keychain
+access was needed for this diagnostic; the normal temporary-workspace trust
+prompt required human approval. Two earlier stable intent attempts that waited
+at an unattended macOS Keychain approval prompt are invalid/excluded evidence,
+not a harness timeout defect. Local subscription/keychain-backed runs can
+require operator presence; daily CI remains a future decision and must use
+separately provisioned non-interactive API credentials without copying or
+reading credentials into artifacts.
 
 Trace validation fails an MCP workload if it observes an external
 `AGENTS.md`/`SKILL.md` read, a guidance read in the descriptor profile, or any
@@ -279,9 +315,10 @@ workload-content change excludes only that workload's cells. Harness Git or
 Codex CLI version drift remains a prominent warning and does not suppress
 otherwise compatible deltas, but it prevents a repository-only attribution
 label. Target Git/guidance differences remain intentional comparison
-dimensions. Valid schema-v1 suite artifacts normalize descriptor shards/cells
-to `discovery`, full to `full`, and missing/other profiles to `intent`; legacy
-child `metrics.json` files use the one-off v1 metrics normalizer.
+dimensions. Valid schema-v1 suite artifacts normalize the exact historical
+descriptor shards/cells to `discovery` and full to `full`; missing, null, or
+other profiles are rejected rather than mapped to `intent`. Legacy child
+`metrics.json` files use the one-off v1 metrics normalizer.
 
 These local commands are diagnostic measurement tools. Paid CI scheduling,
 persistent result history, service export, Haiku coverage, and quality judging
@@ -585,9 +622,10 @@ records expose `scenario`, `intentProfile`, and `intentFragmentHash`; the latter
 is the SHA-256 hash of the exact intent fragment (`null` for `neutral`). The
 one-off report and human summary expose the same identity. Valid schema-v1
 metrics remain readable through deterministic normalization: historical MCP
-`descriptors` maps to neutral `discovery`, `full` maps to neutral `full`, and
-neither maps to `intent`; no historical descriptor/full record is inferred to
-have used the intent fragment.
+`descriptors` maps to neutral `discovery`, and `full` maps to neutral `full`;
+missing, null, or other profiles are rejected rather than mapped to `intent`.
+No historical descriptor/full record is inferred to have used the intent
+fragment.
 
 `metrics.json` is authoritative for normalized usage and cost. For Codex it
 uses the final `turn.completed.usage` aggregate. `input_tokens` is inclusive of
@@ -625,12 +663,16 @@ add `--disable-slash-commands` to disable skills. The fresh per-workload home
 also prevents user-level `CLAUDE.md` discovery.
 Skills runs do not use that flag because Claude Code treats it as disabling all
 skills; they instead use project-only settings plus an empty strict MCP config.
-Codex MCP runs use per-run `-c` MCP config overrides, `--ignore-rules`, and
-`--ignore-user-config`; every live Codex eval requires the caller-supplied
-dedicated eval `CODEX_HOME`, which is validated for root global instructions
-before launch. Skills runs omit the MCP and rule overrides while retaining
-`--ignore-user-config` so project skills can be discovered without
-user-configured MCP servers. Every Codex eval command also repeats `--disable apps`, `--disable plugins`, and `--disable remote_plugin` before its prompt.
+Non-interactive Codex MCP evals use per-run `-c` MCP config overrides,
+`--ignore-rules`, and supported `--ignore-user-config`; every live Codex eval
+requires the caller-supplied dedicated eval `CODEX_HOME`, which is validated
+for root global instructions before launch. Non-interactive Skills evals omit
+the MCP and rule overrides while retaining `--ignore-user-config` so project
+skills can be discovered without user-configured MCP servers. Every
+non-interactive Codex eval command also repeats `--disable apps`, `--disable
+plugins`, and `--disable remote_plugin` before its prompt. Interactive Codex
+sessions omit both exec-only flags and retain the stricter dedicated-home
+contract described above.
 Codex always uses
 `--dangerously-bypass-approvals-and-sandbox` so non-interactive GitHits calls are
 not cancelled by the approval layer. Keep workloads controlled and run them from

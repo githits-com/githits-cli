@@ -60,10 +60,12 @@ CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface skills 
 
 CI should provide a clean `CODEX_HOME` with `OPENAI_API_KEY` authentication. The
 harness does not read auth material and never copies it into artifacts. The
-preflight rejects only root-level `AGENTS.override.md` and `AGENTS.md`; nested
-runtime/cache files, including Codex's `config.toml`, bundled system skills,
-plugin caches, and logs, are allowed. The stricter existence check rejects a
-root instruction file even when it is empty. Full MCP guidance installs only
+workload preflight rejects only root-level `AGENTS.override.md` and `AGENTS.md`;
+nested runtime/cache files, including Codex's `config.toml`, bundled system
+skills, plugin caches, and logs, are allowed. The stricter existence check
+rejects a root instruction file even when it is empty. Interactive
+`agent:session` adds the direct-skills and allowed-config-key validation
+described below. Full MCP guidance installs only
 the project guidance and `githits-mcp` skill; it does not install a CLI shim.
 Skills-surface runs retain their CLI shim.
 
@@ -85,16 +87,20 @@ Interactive `agent:session` applies the same disposable acting-agent
 `HOME`/`USERPROFILE`/`XDG_CONFIG_HOME`/`APPDATA` and temporary roots for Codex
 only. Live Codex sessions validate the caller-supplied absolute dedicated
 `CODEX_HOME` before launch; dry runs do not require it, and that path remains
-unchanged for Codex authentication. The local MCP child is configured from the
-host auth roots before the acting-agent environment is replaced, preserving
-trusted GitHits authentication without copying credentials. Session metadata
-stores only relative isolation labels. Claude and OpenCode retain workspace
-isolation only; they are non-causal for instruction-isolation evidence until
-agent-specific subscription auth isolation exists. Interactive Codex commands
-disable user config, `apps`, `plugins`, and `remote_plugin`, clear ambient MCP
-servers, and register only the intended local GitHits server on the MCP
-surface. They do not use exec-only `--ignore-rules`; reasoning effort applies
-on both Codex surfaces.
+unchanged for Codex authentication. Interactive validation rejects root
+`AGENTS.override.md`/`AGENTS.md`, every direct `$CODEX_HOME/skills` entry except
+`.system`, and every `config.toml` key except `model`,
+`model_reasoning_effort`, and project `trust_level`. The local MCP child is
+configured from the host auth roots before the acting-agent environment is
+replaced, preserving trusted GitHits authentication without copying
+credentials. Session metadata stores only relative isolation labels. Claude
+and OpenCode retain workspace isolation only; they are non-causal for
+instruction-isolation evidence until agent-specific subscription auth
+isolation exists. Interactive Codex commands do not pass the exec-only
+`--ignore-user-config`; they disable `apps`, `plugins`, and `remote_plugin`,
+clear ambient MCP servers, and register only the intended local GitHits server
+on the MCP surface. They do not use exec-only `--ignore-rules`; reasoning
+effort applies on both Codex surfaces.
 
 ### Clean-canary evidence and correction history
 
@@ -140,6 +146,58 @@ the test suite, but no live skills canary has run.
 The v2, v3, and v4 measurements above, including the contaminated 42-cell
 stable-full run, are preserved as historical descriptor/full and capacity
 evidence. None is relabeled as `intent` evidence under the current contract.
+
+### Current corrected Luna evidence
+
+The safe schema-v2 artifacts verified on 2026-08-31 include a bounded
+Luna-low package pair, the discovery canary, and the stable-full intent suite.
+The package discovery cell had one process/final success in 32,592 ms, zero
+logical/MCP/CLI calls, 38,763 uncached input, 56,576 cached input, 842 output,
+138 reasoning-detail tokens, and an estimated $0.00989452. The package intent
+cell had one process success and an inconclusive/low-confidence final in
+275,327 ms, three logical MCP calls and zero CLI calls, 51,445 uncached input,
+207,360 cached input, 688 output, 121 reasoning-detail tokens, and an estimated
+$0.0152618. Its calls were `quick_start` completed, with `pkg_info` and
+`pkg_vulns` started. Both cells had zero isolation violations. This establishes
+tool execution and isolation, not answer quality.
+
+The discovery canary recorded 2/2 process and final successes, 267,221 ms wall
+time, 266,375 ms cumulative agent time, two logical MCP `code_files` calls
+(started), zero CLI calls, zero isolation violations, 77,831 uncached input,
+376,320 cached input, 2,971 output, 591 reasoning-detail tokens, and an
+estimated $0.0266578 with `long_context_pricing_not_attributable` uncertainty.
+The stable-full intent suite recorded 21/21 process and final successes with
+no failures, timeouts, or missing cells: 798,452 ms wall time, 796,139 ms
+cumulative agent time, 115 logical MCP calls, zero CLI calls, zero isolation
+violations, 655,840 uncached input, 2,389,760 cached input, 20,077 output,
+4,272 reasoning-detail tokens, and an estimated $0.2030556 using a rate-based
+estimate with Codex CLI 0.151.0. One `code_grep` call failed and recovered
+within a successful workload; the remaining recorded calls completed. The
+named six-workload smoke subset was derived from this stable artifact, not
+rerun: 6/6 process successes, 280,541 ms summed duration, 31 MCP calls, zero
+failed tool calls, 198,863 uncached input, 746,752 cached input, 6,527 output,
+1,187 reasoning-detail tokens, and an estimated $0.06254004.
+
+The stable suite's MCP `callsByTool` totals were `code_files` 5,
+`code_grep` 16 (15 completed, one failed), `code_read` 31, `docs_list` 2,
+`docs_read` 14, `get_example` 1, `pkg_changelog` 4, `pkg_deps` 4,
+`pkg_info` 2, `pkg_upgrade_review` 4, `pkg_vulns` 8, `quick_start` 12, and
+`search` 12. The derived smoke subset contained `code_files` 2,
+`code_grep` 5, `code_read` 8, `docs_read` 3, `get_example` 1,
+`pkg_changelog` 2, `pkg_info` 1, `pkg_upgrade_review` 2, `pkg_vulns` 1,
+`quick_start` 2, and `search` 4; all 31 calls completed.
+
+Manual `bun run agent:session` validation on 2026-08-31 with Codex CLI 0.151.0
+and Luna high listed only six bundled system skills (Image Gen, OpenAI Docs,
+Plugin Creator, Review Agent, Skill Creator, and Skill Installer), no GitHits or
+personal skills, and `githits: connected (18 tools)`. No tool call or Keychain
+access was needed for this diagnostic; the normal temporary-workspace trust
+prompt required human approval. Two earlier stable intent attempts that waited
+at an unattended macOS Keychain approval prompt are invalid/excluded evidence,
+not a harness timeout defect. Local subscription/keychain-backed runs can
+require operator presence; future daily CI must use separately provisioned
+non-interactive API credentials without copying or reading credentials into
+artifacts.
 
 The trusted MCP child receives the caller's HOME, USERPROFILE, XDG_CONFIG_HOME,
 and APPDATA so keychain- or file-backed GitHits authentication can resolve,
@@ -247,10 +305,12 @@ cohort. A suite aggregate `callsByTool` is null when any selected cell lacks
 consistent logical telemetry, with those cell IDs listed; a mismatch between
 `logicalCallCount` and sequence length is treated as inconsistent telemetry.
 The suite loader deterministically normalizes valid schema-v1 artifacts at the
-boundary: descriptor shards/cells become `discovery`, full becomes `full`, and
-missing or other legacy profiles become `intent`. Their child `metrics.json`
-files are loaded through `parseAgentEvalMetrics`, which normalizes metrics v1
-without inventing intent evidence. Cell IDs are rewritten to
+boundary: historical descriptor shards/cells become `discovery`, and full
+becomes `full`. The historical v1 contract requires one of those exact
+profiles; missing, null, or other profiles are rejected rather than mapped to
+`intent`. Their child `metrics.json` files are loaded through
+`parseAgentEvalMetrics`, which normalizes metrics v1 without inventing intent
+evidence. Cell IDs are rewritten to
 `<scenario>/<workload>` during normalization; contamination and isolation
 warnings and contained child references are preserved.
 Raw child artifacts remain authoritative and partial shards preserve successful
