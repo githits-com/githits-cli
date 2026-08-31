@@ -352,6 +352,38 @@ The exporter metadata contract is schema/version 2; both values are recorded
 in experiment metadata for regression attribution. The safe CLI result keeps
 its separate result-file schema version.
 
+One exporter invocation is one immutable experiment. A scenario/workload cell
+is one eval row, and each normalized logical tool call is one structural tool
+child. The exporter owns stable names: `main-r<RUN_ID>-a<ATTEMPT>` for main,
+`pr-<PR_NUMBER>-r<RUN_ID>-a<ATTEMPT>` for trusted same-repository pull
+requests, and
+`local-<branch-slug>-<UTC-timestamp-with-milliseconds>-<short-sha>` for local
+exports. Local branch slugs are lowercase, collapse each run of
+non-ASCII-alphanumeric characters to one hyphen, and trim hyphens. Source,
+channel, branch, optional PR number, full SHA, run identity, and evaluated
+target dirty state are also retained in allowlisted metadata/tags and
+`repoInfo`.
+
+Before experiment initialization, the exporter scans the newest-first project
+pages through the same authenticated Braintrust integration boundary and picks
+the first returned object with `metadata.channel: main` and a
+`main-r...-a...` name. It filters client-side, paginating with the final object
+ID while a page is full; it does not send a metadata filter. That ID is passed
+as `baseExperimentId`. An explicit local `--base-experiment` takes precedence
+and skips discovery. PR and default-local exports fail before initialization if
+no main baseline exists. The first main run is a one-time bootstrap and may
+retain SDK automatic ancestry; the returned actual base is reported, but that
+bootstrap is not linkage acceptance evidence.
+
+After flush, the exporter calls `fetchBaseExperiment()` and reports the actual
+safe base `{id, name}` or `null` in the result. Validate-only builds and prints
+the same identity without credentials, network access, or baseline discovery;
+its base is unresolved/not queried. This deterministic identity/linkage
+contract is covered by focused tests, but has not yet been live-proven for a
+later main run linking to main, a PR linking to main, and a local run linking
+to main. Existing `github-*` experiments are historical records from the old
+identity contract and are not current baselines.
+
 The row mapper uses Braintrust-native metrics for duration (`duration`, in
 seconds), token totals and breakdowns (`tokens`, `prompt_tokens`,
 `prompt_cached_tokens`,
@@ -431,22 +463,28 @@ with null timing are rejected because accurate structural spans cannot be
 created. Validate all suite inputs before an export; the command reports only
 safe identities and row counts in validate-only mode.
 
-For an explicitly requested local export using the authenticated `bt` profile,
-run the same official entrypoint through `bt eval`:
+For a local export using the authenticated `bt` profile, run the same official
+entrypoint through `bt eval`:
 
 ```bash
 bt eval --runner bun --no-auto-instrumentation scripts/agent-eval-braintrust.ts -- \
   --suite discovery=.agent-eval/suites/<discovery>/suite.json \
   --suite intent=.agent-eval/suites/<intent>/suite.json \
   --project githits-cli-agent-evals \
-  --experiment local-<name> \
   --source local \
   --result-out .agent-eval/braintrust-result.json
 ```
 
+This default local export lets the exporter choose its stable name and resolve
+the latest main baseline. Use `--branch <branch>` only for a detached suite;
+`--experiment <name>` and `--base-experiment <main-r...-a...>` are local-only
+overrides. CI supplies its channel, branch, PR number, run ID, attempt, and URL
+through environment-bound arguments and does not pass `--experiment`.
+
 The result file is safe to retain and contains only schema version, mode,
-project, experiment, row count, suite summaries, and the export URL. It contains
-no prompt, answer, row body, artifact path, or credential. The direct command
+project, experiment, row count, suite summaries, export URL, and the actual
+base `{id, name}` or `null`. It contains no prompt, answer, row body, artifact
+path, or credential. The direct command
 `bun run agent:e2e:braintrust` is also the CI path; CI scopes
 `BRAINTRUST_API_KEY` only to that export step and never installs or runs `bt`.
 The workflow renders the existing report and retains raw artifacts for 14 days
@@ -529,7 +567,9 @@ Codex identity, successful/expected cells, wall and cumulative time, logical
 MCP/CLI calls, deterministic per-tool counts, token buckets, cost uncertainty,
 concurrency, and warnings. It never loads a baseline or calculates deltas. The
 subsequent Braintrust export uses the same validated suites and has no quality
-judge or baseline comparison.
+judge or metric-based failure gate; it resolves and records the native
+Braintrust base link after the report is rendered. The concise report remains
+absolute.
 Missing or malformed suite evidence, zero selected workloads or zero expected
 executions, partial/failed/timeout execution, unknown or missing workload cells,
 CLI fallback, and isolation violations make the workflow fail only after the

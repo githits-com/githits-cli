@@ -4,13 +4,14 @@
 
 - Overall: IN PROGRESS
 - Current phase: Phase 4 — Braintrust Persistence Proof Of Concept
-  (PERSISTENCE PROVEN; COMPARISON IDENTITY CORRECTION READY)
+  (IDENTITY/LINKAGE IMPLEMENTED LOCALLY; LIVE MAIN PROOF PENDING)
 - Previous work: Phase 2 correction is COMPLETE. Phase 3 is merged and its
   same-repository label path is live-validated; Phase 4's exporter, CI wiring,
   local Braintrust readback, and first qualifying labeled CI export/readback
   are complete. The exact-head run proved persistence again, but exposed null
   branch and base-experiment identity. Stable naming and native main-baseline
-  linkage are now required before Phase 4 is complete.
+  linkage are implemented locally and are now awaiting live main-baseline proof
+  before Phase 4 is complete.
 - Owner: repository maintainers
 - Last verified: 2026-08-31
 - Deployment: Phases 1 through 3 are merged to `main`. The Phase 3
@@ -18,10 +19,10 @@
   for its first default-branch execution. Phase 4's exact-pinned exporter and
   post-report CI step are implemented, with local and labeled CI
   persistence/readback proven. A push to `main` deliberately does not trigger
-  the workflow. The next correction must preserve the verified persistence
-  shape while making main, pull-request, and local experiments discoverable
-  and natively comparable. Default-branch scheduled/manual activation remains
-  pending merge.
+  the workflow. Stable channel-aware identity and explicit main-baseline
+  linkage are implemented locally, but no live export has yet proven
+  later-main, pull-request, and local readback linkage. Default-branch
+  scheduled/manual activation remains pending merge.
 
 ## Problem And Expected Outcome
 
@@ -624,12 +625,12 @@ The following must be resolved before Phase 6:
    clean GitHub-hosted jobs run the Luna discovery and intent suites daily or
    after an authorized PR label, retain raw evidence, and render a concise
    no-baseline summary. A push to `main` does not start a paid run.
-4. **Phase 4 — Braintrust persistence proof of concept (PERSISTENCE PROVEN;
-   COMPARISON IDENTITY CORRECTION READY):** normalized Phase 3 records become
-   durable per-workload/per-agent history without making agent execution
+4. **Phase 4 — Braintrust persistence proof of concept (IDENTITY/LINKAGE
+   IMPLEMENTED LOCALLY; LIVE MAIN PROOF PENDING):** normalized Phase 3 records
+   become durable per-workload/per-agent history without making agent execution
    dependent on Braintrust. Local and labeled CI export/readback are proven;
-   stable channel-aware names and native main-baseline linkage must still be
-   implemented and proven for main, pull-request, and local runs.
+   stable channel-aware names and native main-baseline linkage are implemented
+   locally, but still require live proof for main, pull-request, and local runs.
 5. **Phase 5 — broader discovery matrix (PLANNED):** the proven metrics, suite,
    CI, and persistence contracts add approved Codex/Claude agent-model cells to
    the neutral canary without changing Luna history.
@@ -1687,7 +1688,7 @@ None.
 
 ### Status
 
-PERSISTENCE PROVEN; COMPARISON IDENTITY CORRECTION READY.
+IDENTITY/LINKAGE IMPLEMENTED LOCALLY; LIVE MAIN PROOF PENDING.
 Phase 3 is merged and its same-repository label path has clean runner evidence.
 The exact-pinned Braintrust exporter, post-report CI wiring, local
 persistence/readback proof, internal operations skill, and qualifying labeled
@@ -1696,8 +1697,10 @@ verify tool counts, exact observed boundaries, child duration, tokens, and
 cost. Exact-head labeled run `33429755678` persisted the final PR head but
 confirmed that experiment `base_exp_id` and branch identity are null and that
 the opaque `github-<run>-<attempt>` name is insufficient for routine operation.
-Stable naming and native comparison linkage are required before Phase 4 is
-complete. Default-branch scheduled/manual activation remains pending merge.
+Stable naming and native comparison linkage are implemented locally. No live
+export/readback has yet proved later-main-to-main, PR-to-main, and
+local-to-main linkage, so Phase 4 remains incomplete. Default-branch
+scheduled/manual activation remains pending merge.
 SDK tracing was deliberately not added.
 
 ### Expected Outcome
@@ -2225,7 +2228,8 @@ case; it does not satisfy native baseline linkage.
    field semantics proven in step 3. Validate it with the skill validator. Run
    plugin generation/check and confirm the internal skill causes no
    public/generated skill changes.
-6. **Ready correction:** Implement the pure channel-aware identity builder,
+6. **Implemented locally; live main proof pending:** Implement the pure
+   channel-aware identity builder,
    branch/base exporter arguments, paged newest-main resolution, complete
    `repoInfo`, safe base-ID/name result, workflow event routing and manual-ref guard, CI
    summary field, and local operator docs in
@@ -2233,18 +2237,17 @@ case; it does not satisfy native baseline linkage.
    `.github/workflows/agent-evals.yml`, `eval/agentic/README.md`,
    `docs/implementation/agentic-eval-metrics.md`, and the internal Braintrust
    skill. Preserve row inputs, outputs, metrics, and structural children.
-7. Run focused tests, exporter validate-only mode, `bun test`, typecheck,
-   format, lint, `bun run plugins:generate`, `bun run plugins:check`, and
-   `bun run build`. Re-run the labeled PR path to prove its new name, complete
-   branch and unchanged row/tool reconciliation. Because no stable main
-   baseline exists yet, this PR proof uses validate-only/network-stub coverage
-   rather than creating a misleading default-linked experiment. After merge,
-   use the first main execution to establish the baseline and report any
-   SDK-selected bootstrap link. Prove a later main execution links to that main
-   experiment, a subsequent PR links to the latest main experiment, and a local
-   canary export links to that main experiment through default resolution or
-   the explicit override. The bootstrap's base state is not acceptance evidence
-   for the three comparison cases.
+   Deterministic evidence is 44 passing focused exporter/workflow tests and
+   `bun run typecheck` exit 0. No live Braintrust export/readback was run for
+   the new identity contract.
+7. Run the remaining non-live validation and, after merge, establish the first
+   main baseline. The bootstrap's base state is not acceptance evidence. Then
+   prove a later main execution links to that main experiment, a subsequent PR
+   links to the latest main experiment, and a local canary export links to that
+   main experiment through default resolution or the explicit override. Each
+   case requires live readback with the expected stable main name and non-null
+   `base_exp_id`; no CI paid run or default-branch run has occurred for this
+   contract yet.
 
 ### Acceptance Criteria
 
@@ -2257,19 +2260,22 @@ case; it does not satisfy native baseline linkage.
 - Every row is filterable by workload, scenario, agent, exact CLI/model,
   reasoning, guidance, intent, target SHA, and used-tool tags. Structured
   metadata exposes ordered tools and per-tool/per-status counts.
-- Every persisted experiment has a unique, channel-aware name following
+- MET locally (live proof pending): Every persisted experiment has a unique,
+  channel-aware name following
   `main-r<RUN_ID>-a<ATTEMPT>`,
   `pr-<NUMBER>-r<RUN_ID>-a<ATTEMPT>`, or
   `local-<branch-slug>-<UTC-timestamp-with-milliseconds>-<short-sha>`. Channel,
   branch, PR number when present, full SHA, run identity, and source remain
   independently filterable metadata/tags.
-- A pull-request experiment can be opened with a native Braintrust base link to
-  the latest main experiment whose linked name matches `main-r...-a...`; a local
-  experiment can be compared to main through default latest-main resolution or
-  an explicit main-experiment override; and a later main experiment links to
-  the preceding main experiment. These three cases require live readback with
-  non-null `base_exp_id` and the expected linked main experiment name before
-  Phase 4 is complete.
+- PENDING LIVE: A pull-request experiment must open with a native Braintrust
+  base link to the latest main experiment whose name matches `main-r...-a...`;
+  a local experiment must compare to main through default latest-main
+  resolution or an explicit main-experiment override; and a later main
+  experiment must link to the preceding main experiment. These three cases
+  require live readback with non-null `base_exp_id` and the expected linked
+  main experiment name before Phase 4 is complete. The deterministic local
+  implementation is covered by 44 focused tests and passing typecheck; no
+  live export/readback, CI paid run, or default-branch run has occurred for it.
 - Prompt, neutral answer, process/final status, self-reported confidence, native
   token buckets/duration/cost, and GitHits-specific tool counts reconcile to
   contained source artifacts. Unknown telemetry is absent/unknown; a verified

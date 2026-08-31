@@ -41,6 +41,52 @@ The exporter metadata contract is schema/version 2; both values are retained
 in experiment metadata for regression attribution. The safe CLI result keeps
 its separate result-file schema version.
 
+### Experiment identity and baseline linkage
+
+One exporter invocation is one immutable Braintrust experiment. Each
+scenario/workload cell is one eval row and each normalized logical tool call is
+one structural `tool` child beneath that row. The exporter owns stable names:
+`main-r<RUN_ID>-a<ATTEMPT>` for a main execution,
+`pr-<PR_NUMBER>-r<RUN_ID>-a<ATTEMPT>` for a pull request, and
+`local-<branch-slug>-<UTC-timestamp-with-milliseconds>-<short-sha>` for a
+local execution. Local branch slugs are lowercase, collapse each run of
+non-ASCII-alphanumeric characters to one hyphen, and trim hyphens. GitHub
+experiments use the workflow's real branch, full SHA, run ID, attempt, and PR
+number; local exports resolve the branch from the evaluated suite unless a
+detached suite requires `--branch`.
+
+The experiment metadata and allowlisted tags retain source (`local` or
+`github`), channel (`local`, `main`, or `pr`), branch, optional PR number, full
+SHA, run identity, and evaluated-target `repoInfo` including dirty state. The
+workflow passes `channel=main` for schedule/manual runs on `main` and
+`channel=pr` with the head branch and numeric PR number for the trusted
+same-repository label event. Manual dispatch on a non-main ref is rejected
+before either paid scenario job can start.
+
+Before initializing an export, the authenticated integration boundary pages
+through the newest-first project experiment list and selects the first object
+whose returned metadata channel is `main` and whose name matches
+`/^main-r\\d+-a\\d+$/`. Selection is client-side and uses the final object ID
+as the cursor while a page is full; no metadata filter is sent. A resolved ID
+is passed as `baseExperimentId`, and explicit local `--base-experiment` takes
+precedence and skips discovery. PR and default-local exports fail before
+experiment initialization when no main baseline exists. A main export is
+allowed as the one-time bootstrap; SDK 3.29.0 may choose an automatic
+ancestry for that first run because the public contract has no explicit
+no-base option, so the returned value is reported rather than treated as
+explicit linkage.
+
+After flush, the exporter calls `fetchBaseExperiment()` and includes only the
+actual safe `{id, name}` or `null` in the result. CI appends the experiment
+name/link and actual base name/ID (or explicit bootstrap/no-base text) to the
+step summary. Validate-only builds and prints the same identity/name without
+credentials, network access, or baseline discovery; its base is reported as
+unresolved/not queried. This identity and linkage behavior is deterministic
+and covered by the focused tests, but it has not yet been live-proven for a
+later main run linking to main, a PR linking to main, and a local run linking
+to main. Historical `github-*` experiments retain their old identity and
+null-linkage observations and are not evidence for this new contract.
+
 ### Row and field mapping
 
 | Export field | Source and policy |
@@ -84,11 +130,12 @@ metrics from structural children. The exporter rejects missing, invalid,
 reverse, or out-of-parent observed timing; it never fabricates a boundary.
 
 The CLI accepts repeated `--suite <label>=<suite.json>` inputs, strict local or
-GitHub identity, and `--validate-only`. Validation and result JSON are safe to
-print: they contain only project/experiment identity, suite summaries, row
-count, mode, and an export URL when available. The result never contains
-prompt, answer, row bodies, absolute paths, auth state, or keys. Local
-subscription export runs the official entrypoint through
+GitHub identity, channel-aware branch/PR fields, and `--validate-only`.
+Validation and result JSON are safe to print: they contain only
+project/experiment identity, suite summaries, row count, mode, an export URL
+when available, and the safe actual base `{id, name}` or `null`. The result
+never contains prompt, answer, row bodies, absolute paths, auth state, or keys.
+Local subscription export runs the official entrypoint through
 `bt eval --runner bun --no-auto-instrumentation`; CI invokes
 `bun run agent:e2e:braintrust` directly with `BRAINTRUST_API_KEY` scoped only to
 the exporter step.
@@ -116,7 +163,8 @@ export step runs with `if: always()` and `continue-on-error`. A final no-secret
 step checks the scenario result, report outcome, and exporter outcome and exits
 nonzero with each failed stage. Thus raw evidence and the concise report remain
 available during exporter outages, while persistence failure cannot pass
-silently. The workflow does not select a baseline or fail on metric movement.
+silently. The report does not select a baseline or fail on metric movement;
+the subsequent exporter resolves and records the native Braintrust base link.
 
 ### Verified PoC and historical migration evidence
 

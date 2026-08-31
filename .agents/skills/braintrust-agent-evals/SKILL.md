@@ -12,6 +12,14 @@ eval span per scenario/workload cell plus structural tool children; see
 [`docs/implementation/agentic-eval-metrics.md`](../../../docs/implementation/agentic-eval-metrics.md)
 for the field contract.
 
+The persistence unit is one exporter invocation = one experiment, one
+scenario/workload cell = one eval row, and one normalized logical tool call =
+one structural tool child. Current exporter-owned experiment names are
+`main-r<run-id>-a<attempt>`, `pr-<pr-number>-r<run-id>-a<attempt>`, and
+`local-<branch-slug>-<UTC-timestamp-with-milliseconds>-<short-sha>`. Historical
+`github-*` experiments predate this identity contract and should be treated as
+historical evidence, not as current names or baseline candidates.
+
 ## Safety and interpretation
 
 - Read-only is the default. Never delete experiments or upload raw stdout,
@@ -66,6 +74,17 @@ tokens, and estimated cost `$0.22819038`. Compare averages were duration
 `5.043478260869565`, tool errors `0`, and total tokens `117663.73913043478`.
 The default-branch scheduled/manual activation remains pending merge.
 
+For current comparisons, inspect experiment-level `metadata.channel` and
+`baseExperiment` in the safe exporter result or CI summary. A current main
+baseline has a `main-r...-a...` name and `channel: main`; PR and local exports
+resolve the newest such main experiment before initialization. The exporter
+reports the actual linked base `{id, name}` after `fetchBaseExperiment()`.
+Validate-only reports the base as unresolved/not queried and performs no
+discovery. The first main run is a one-time bootstrap; PR and default-local
+exports fail before initialization when no main baseline exists. Explicit
+local `--base-experiment` takes precedence and skips discovery. No live
+readback has yet proven later-main, PR, and local linkage under the new names.
+
 The exercised comparison syntax is:
 
 ```bash
@@ -103,10 +122,17 @@ bt eval --runner bun --no-auto-instrumentation scripts/agent-eval-braintrust.ts 
   --suite discovery=.agent-eval/suites/<discovery>/suite.json \
   --suite intent=.agent-eval/suites/<intent>/suite.json \
   --project githits-cli-agent-evals \
-  --experiment local-<name> \
   --source local \
   --result-out .agent-eval/braintrust-result.json
 ```
+
+This default local export lets the exporter derive its stable name and resolve
+the latest main baseline. Add `--branch <branch>` only when the evaluated suite
+is detached or has no branch; add `--base-experiment <main-r...-a...>` to use an
+explicit local main override. `--experiment <name>` is also a local-only
+override. GitHub workflow exports supply their channel, branch, PR number, run
+identity, and URL through environment-bound arguments and never pass
+`--experiment`.
 
 The suite preflight rejects dry-run suites, suites with no workload cells,
 duplicate cells, mixed identity or schema contracts, and missing/unsafe child
