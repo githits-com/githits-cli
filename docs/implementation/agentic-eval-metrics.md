@@ -344,8 +344,8 @@ reporter into two independent matrix entries on GitHub-hosted Ubuntu:
 
 | Entry     | Suite        | Scenario    | Workload concurrency | Timeout |
 | --------- | ------------ | ----------- | -------------------: | -------: |
-| discovery | `canary`      | `discovery` |                    2 | 30 min  |
-| intent    | `stable-full` | `intent`    |                    4 | 30 min  |
+| discovery | `canary`      | `discovery` |                    2 | 40 min  |
+| intent    | `stable-full` | `intent`    |                    4 | 40 min  |
 
 It triggers at `03:00` UTC from the default branch, on `workflow_dispatch`, and
 on `pull_request` events of type `labeled` targeting `main`. The paid jobs run

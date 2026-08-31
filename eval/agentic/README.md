@@ -358,7 +358,7 @@ label is an explicit maintainer review of the code and any changes to
 `.github/workflows/agent-evals.yml` before granting that SHA access to paid
 credentials.
 
-Each scenario job has a 30-minute timeout and creates its output directory
+Each scenario job has a 40-minute timeout and creates its output directory
 under `runner.temp` before checkout or setup. It installs the current Codex CLI
 and records `codex --version`, creates an empty per-scenario `CODEX_HOME`, and
 authenticates through Codex's stdin API-key flow. `OPENAI_API_KEY` is scoped to
