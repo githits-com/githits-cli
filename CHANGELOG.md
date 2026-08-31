@@ -5,6 +5,89 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.11.3] - 2026-08-31
+
+Patch release: improves search, target-resolution, and upgrade-review output;
+preserves actionable authentication, version, provenance, and keychain errors;
+and expands local agent-evaluation tooling.
+
+### Added
+
+- **Local Luna eval suites** - Provide repository-local Luna named-suite,
+  paired, and offline comparison tooling with explicit discovery/intent/full
+  scenario cells, schema-v2 suite/comparison artifacts, scenario-aware cohorts,
+  and deterministic schema-v1 compatibility. Defaults keep canary
+  discovery+intent and other named suites intent-only; full is local/manual
+  opt-in. Daily CI and service export remain unimplemented, and artifacts
+  distinguish tool execution from answer-quality evidence.
+
+### Changed
+
+- **Group resolved project identities** - CLI and local MCP resolution now keep
+  related package, repository, and documentation targets together with compact
+  per-target metric lanes, licenses, security warnings, and relation truncation
+  visible.
+- **Grouped upgrade review output** - CLI and MCP now share compact,
+  outcome-first upgrade evidence text with restrained semantic terminal color
+  while preserving follow-up locators and structured JSON.
+- **Route broad vulnerability questions to current evidence** - `pkg_vulns`
+  now explicitly covers qualitative package security questions and directs
+  agents away from potentially outdated training data.
+- **Agent eval isolation** - Codex evals and interactive sessions now use
+  disposable acting-agent home/config/temp roots, validate an absolute
+  dedicated `CODEX_HOME` before use or launch, reject direct home skills other
+  than `.system`, preserve trusted host auth roots only for the local GitHits
+  MCP child, and persist safe relative isolation metadata. Interactive sessions
+  omit exec-only flags and enforce the dedicated-home skills/config contract.
+- **Agent eval scenario metrics** - Maintainer-facing local eval runs now emit
+  schema-v2 normalized usage, cost, tool-surface, scenario, intent, and agent
+  version metrics. Exact intent fragments are SHA-256 identified, neutral
+  intent records `null`, valid schema-v1 metrics normalize deterministically,
+  and same-agent comparisons warn on version drift.
+
+### Fixed
+
+- **Search recovery and target guidance** - Correct terminal target recovery
+  and canonical package addressing, and unify CLI/MCP text around compact
+  target-state output with inline recovery and concrete documentation
+  provenance.
+- **Recognize backend authentication-required errors** - Package/source tools
+  now refresh or return the standard authentication guidance when GraphQL uses
+  its documented `AUTHENTICATION_REQUIRED` code.
+- **Preserve CodeDiff version alternatives** - Keep backend-ranked package
+  versions and their proven source refs in CLI/MCP error details, and show
+  actionable alternatives in CLI text.
+- **Surface keychain access failures** - Update `@napi-rs/keyring` so
+  unavailable or inaccessible credential stores report an error instead of
+  appearing to contain no credentials.
+
+## [@githits/mcp 0.11.3] - 2026-08-31
+
+Coordinated patch release: improves shared search and upgrade-review output,
+tool routing, authentication guidance, and CodeDiff recovery evidence.
+
+### Changed
+
+- **Grouped upgrade review output** - CLI and MCP now share compact,
+  outcome-first upgrade evidence text while preserving follow-up locators and
+  structured JSON.
+- **Route broad vulnerability questions to current evidence** - `pkg_vulns`
+  now explicitly covers qualitative package security questions and directs
+  agents away from potentially outdated training data.
+
+### Fixed
+
+- **Search recovery and target guidance** - Correct terminal target recovery
+  and canonical package addressing, and unify CLI/MCP text around compact
+  target-state output with inline recovery and concrete documentation
+  provenance.
+- **Recognize backend authentication-required errors** - Package/source tools
+  now refresh or return the standard authentication guidance when GraphQL uses
+  its documented `AUTHENTICATION_REQUIRED` code.
+- **Preserve CodeDiff version alternatives** - Keep backend-ranked package
+  versions and their proven source refs in CLI/MCP error details so callers can
+  offer actionable alternatives.
+
 ## [githits 0.11.2] - 2026-08-28
 
 Patch release: unifies search output across CLI and MCP, recognizes standalone

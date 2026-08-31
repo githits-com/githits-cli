@@ -26,6 +26,13 @@ const githitsCodeReferencePath = join(
   "references",
   "code-and-docs.md",
 );
+const githitsPackageReferencePath = join(
+  root,
+  "skills",
+  "githits-package",
+  "references",
+  "package.md",
+);
 const pluginMaintenanceSkillPath = join(
   root,
   ".agents",
@@ -65,9 +72,10 @@ function expectNotContainsAllIgnoringWhitespace(
 
 describe("agent skills packaging", () => {
   it("documents canonical target guidance for package and repository scope", async () => {
-    const [mcpContent, codeReference] = await Promise.all([
+    const [mcpContent, codeReference, packageReference] = await Promise.all([
       read(githitsMcpSkillPath),
       read(githitsCodeReferencePath),
+      read(githitsPackageReferencePath),
     ]);
 
     for (const content of [mcpContent, codeReference]) {
@@ -79,6 +87,11 @@ describe("agent skills packaging", () => {
         "full repositories or sibling packages",
       ]);
     }
+
+    expectContainsAll(packageReference, [
+      "swift:github.com/<owner>/<repo>",
+      "zig:gh/<owner>/<repo>",
+    ]);
   });
 
   it("packages a public githits-onboarding skill with setup-focused frontmatter", async () => {
