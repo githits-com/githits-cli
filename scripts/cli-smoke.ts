@@ -1021,19 +1021,17 @@ export function assertExperimentalCliResolveText(resolveText: string): void {
         !resolveText.includes("Next after choosing:"),
       "experimental malicious-blocked resolve text should omit the normal next action",
     );
-  } else if (resolveText.includes("explicitly choose a candidate")) {
-    assert(
-      resolveText.includes("explicitly choose a candidate") &&
-        resolveText.includes("--in '<target>'"),
-      "experimental unconfirmed resolve text should require an explicit choice",
-    );
   } else if (resolveText.includes("Ambiguous:")) {
     assert(
       resolveText.includes("Next after choosing:"),
       "experimental ambiguous resolve text should require an explicit choice",
     );
   } else {
-    assert(false, "experimental resolve text missing continuation guidance");
+    assert(
+      resolveText.includes("explicitly choose a candidate") &&
+        resolveText.includes("--in '<target>'"),
+      "experimental unconfirmed resolve text should require an explicit choice",
+    );
   }
 }
 

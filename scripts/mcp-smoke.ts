@@ -317,20 +317,16 @@ export function assertExperimentalMcpResolveText(
       !resolveTextBody.includes("Next:"),
       "experimental malicious-blocked resolve text should omit the normal next action",
     );
-  } else if (
-    resolveTextBody.includes("do not pass the best result automatically")
-  ) {
-    assert(
-      resolveTextBody.includes("do not pass the best result automatically"),
-      "experimental unconfirmed resolve text should require an explicit choice",
-    );
   } else if (resolveTextBody.includes("Ambiguous:")) {
     assert(
       resolveTextBody.includes("do not auto-select a candidate"),
       "experimental ambiguous resolve text should require an explicit choice",
     );
   } else {
-    assert(false, "experimental resolve text missing continuation guidance");
+    assert(
+      resolveTextBody.includes("do not pass the best result automatically"),
+      "experimental unconfirmed resolve text should require an explicit choice",
+    );
   }
 }
 

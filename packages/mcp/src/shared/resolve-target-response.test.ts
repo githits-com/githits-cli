@@ -110,6 +110,26 @@ describe("buildResolveTargetSuccessPayload", () => {
     ).toBe(0.4);
   });
 
+  it("preserves unavailable flags and their recorded counts in JSON", () => {
+    const unavailable = candidate({
+      docsAvailable: false,
+      codeAvailable: false,
+      docsPageCount: 12,
+      codeFileCount: 3,
+    });
+
+    expect(
+      buildResolveTargetSuccessPayload(
+        result({ best: unavailable, targets: [unavailable] }),
+      ).candidates[0],
+    ).toMatchObject({
+      docsAvailable: false,
+      codeAvailable: false,
+      docsPageCount: 12,
+      codeFileCount: 3,
+    });
+  });
+
   it("keeps protected references separate from the ordered target list", () => {
     const extra = {
       kind: "PACKAGE",
