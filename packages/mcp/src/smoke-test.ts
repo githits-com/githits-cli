@@ -323,21 +323,6 @@ function hasTargetRecovery(lines: string[]): boolean {
 
 function hasHumanSearchHitLocator(lines: string[]): boolean {
   return lines.some((line, index) => {
-    const definitionMatch =
-      /^\[\d+\]\s+.+?\s+-\s+(?:\S+\s+)?defined at (.+:\d+(?:-\d+)?)$/.exec(
-        line,
-      );
-    if (definitionMatch) {
-      const definitionLocator = definitionMatch[1]?.trim();
-      const evidenceLine = lines[index + 1];
-      return Boolean(
-        definitionLocator &&
-          evidenceLine &&
-          /^ {2}\S+\s+evidence (?:at \d+(?:-\d+)?|matches definition) \[(?:repo code|repo symbol)\]$/.test(
-            evidenceLine,
-          ),
-      );
-    }
     const docsMatch = /^\[\d+\]\s+(\S+)\s+\[docs page\]\s+(.+)$/.exec(line);
     if (docsMatch) {
       const pageId = docsMatch[1];

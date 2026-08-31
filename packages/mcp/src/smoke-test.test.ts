@@ -428,17 +428,15 @@ describe("runMcpSmoke", () => {
     [
       "focused evidence",
       "1 result | 1 repo code hit\n\n" +
-        "[1] compact - function defined at packages/pkg/src/compact.ts:858-964\n" +
-        "  github:owner/repo#abc123 evidence at 920-930 [repo code]\n" +
+        "[1] github:owner/repo#abc123 packages/pkg/src/compact.ts:858-964 [repo code] - compact (evidence 920-930)\n" +
         "  // Merge into single summary",
     ],
     [
       "equal evidence",
       "1 result | 1 repo symbol\n\n" +
-        "[1] compact - function defined at packages/pkg/src/compact.ts:858-964\n" +
-        "  github:owner/repo#abc123 evidence matches definition [repo symbol]",
+        "[1] github:owner/repo#abc123 packages/pkg/src/compact.ts:858-964 [repo symbol] - compact",
     ],
-  ])("allows a definition-first hit with %s", async (_name, searchText) => {
+  ])("allows a unified repository hit with %s", async (_name, searchText) => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(searchText);
@@ -479,6 +477,11 @@ describe("runMcpSmoke", () => {
     ["1 result\n\n[1] npm:express@5.2.1 lib/application.js [repo code] -"],
     [
       "1 result\n\n[1] compact - function defined at packages/pkg/src/compact.ts:858-964",
+    ],
+    [
+      "1 result\n\n" +
+        "[1] compact - function defined at packages/pkg/src/compact.ts:858-964\n" +
+        "  github:owner/repo#abc123 evidence at 920-930 [repo code]",
     ],
     [
       "1 result\n\n[1] compact - function defined at location unavailable\n" +

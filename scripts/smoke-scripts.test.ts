@@ -82,12 +82,11 @@ Next: shorten or broaden query; use githits code grep.`;
     expect(() => assertSearchTerminalText(completed, "search")).not.toThrow();
   });
 
-  it("accepts definition-first hits with a focused evidence locator", () => {
+  it("accepts unified repository headers with focused or equal evidence", () => {
     expect(() =>
       assertSearchTerminalText(
         "1 result | 1 repo code hit\n\n" +
-          "[1] compact - function defined at packages/pkg/src/compact.ts:858-964\n" +
-          "  github:owner/repo#abc123 evidence at 920-930 [repo code]\n" +
+          "[1] github:owner/repo#abc123 packages/pkg/src/compact.ts:858-964 [repo code] - compact (evidence 920-930)\n" +
           "  // Merge into single summary",
         "search",
       ),
@@ -95,8 +94,7 @@ Next: shorten or broaden query; use githits code grep.`;
     expect(() =>
       assertSearchTerminalText(
         "1 result | 1 repo symbol\n\n" +
-          "[1] compact - function defined at packages/pkg/src/compact.ts:858-964\n" +
-          "  github:owner/repo#abc123 evidence matches definition [repo symbol]",
+          "[1] github:owner/repo#abc123 packages/pkg/src/compact.ts:858-964 [repo symbol] - compact",
         "search",
       ),
     ).not.toThrow();
@@ -170,6 +168,11 @@ Next: shorten or broaden query; use githits code grep.`;
     ["1 result\n\n[1] npm:express@5.2.1 lib/application.js [repo code] -"],
     [
       "1 result\n\n[1] compact - function defined at packages/pkg/src/compact.ts:858-964",
+    ],
+    [
+      "1 result\n\n" +
+        "[1] compact - function defined at packages/pkg/src/compact.ts:858-964\n" +
+        "  github:owner/repo#abc123 evidence at 920-930 [repo code]",
     ],
     [
       "1 result\n\n[1] compact - function defined at location unavailable\n" +

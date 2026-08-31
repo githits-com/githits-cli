@@ -277,7 +277,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text.length).toBeLessThan(3459);
   });
 
-  it("renders the pi-mono definition before its focused evidence", () => {
+  it("renders the pi-mono definition and focused evidence in one header", () => {
     const filePath = "packages/coding-agent/src/core/compaction/compaction.ts";
     const text = renderUnifiedSearchSuccess(
       completed([
@@ -317,19 +317,16 @@ describe("renderUnifiedSearchSuccess", () => {
       ]),
     );
 
-    const definition = `[1] compact - function defined at ${filePath}:858-964`;
-    const evidence =
-      "github:badlogic/pi-mono#853a80d evidence at 920-930 [repo code]";
-    expect(text).toContain(definition);
-    expect(text).toContain(evidence);
-    expect(text.indexOf(definition)).toBeLessThan(text.indexOf(evidence));
-    expect(text.indexOf(evidence)).toBeLessThan(
+    const header = `[1] github:badlogic/pi-mono#853a80d ${filePath}:858-964 [repo code] - compact (evidence 920-930)`;
+    expect(text).toContain(header);
+    expect(text.indexOf(header)).toBeLessThan(
       text.indexOf("// Merge into single summary"),
     );
     expect(text).not.toContain("indexedRange");
+    expect(text).not.toContain("defined at");
   });
 
-  it("keeps associated, truncated, identity-only, and absent-symbol hits evidence-first", () => {
+  it("uses indexed blocks for associated hits and legacy evidence otherwise", () => {
     const associated = codeHit({
       title: "associated",
       locator: {
@@ -341,6 +338,7 @@ describe("renderUnifiedSearchSuccess", () => {
           endLine: 12,
           matchSpansTruncated: true,
         },
+        indexedRange: { startLine: 1, endLine: 50 },
         symbolContext: {
           name: "associated",
           relation: "associated_with_indexed_chunk",
@@ -379,7 +377,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "[1] cline/cline@v3.4.2 src/associated.ts:10-12 [repo code] - associated",
+      "[1] cline/cline@v3.4.2 src/associated.ts:1-50 [repo code] - associated (evidence 10-12)",
     );
     expect(text).toContain(
       "[2] cline/cline@v3.4.2 src/identity.ts:20-21 [repo code] - identityOnly",
@@ -423,7 +421,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text.match(/42-57/g)).toHaveLength(1);
-    expect(text).toContain("evidence matches definition");
+    expect(text).not.toContain("evidence 42-57");
   });
 
   it("does not promote repository documentation with associated symbol metadata", () => {
