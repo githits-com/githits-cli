@@ -332,6 +332,47 @@ describe("ResolveTargetServiceImpl", () => {
     expect(result.targets[0]?.match?.nameSimilarity).toBe(0.4);
   });
 
+  it("joins name similarity by canonical key without projecting sidecar-only candidates", async () => {
+    const lodash = {
+      ...COMPACT_CANDIDATE,
+      canonicalKey: "npm:lodash",
+      match: { confidence: "MEDIUM", nameSimilarity: null },
+    };
+    const unmatched = {
+      ...COMPACT_CANDIDATE,
+      canonicalKey: "npm:underscore",
+      match: { confidence: "LOW", nameSimilarity: null },
+    };
+    const response = resultBody(COMPACT_CANDIDATE, {
+      candidates: [
+        { canonicalKey: "npm:lodash", nameSimilarity: 0.4 },
+        { canonicalKey: "npm:removed", nameSimilarity: 1 },
+        { canonicalKey: "npm:express", nameSimilarity: 0.95 },
+      ],
+      targets: [COMPACT_CANDIDATE, lodash, unmatched],
+    });
+    const service = new ResolveTargetServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(mock(() => Promise.resolve(jsonResponse(response)))),
+    );
+
+    const result = await service.resolveTarget({
+      name: "lodahs",
+      limit: 8,
+      includeDetailedFields: false,
+    });
+
+    expect(result.targets.map((target) => target.canonicalKey)).toEqual([
+      "npm:express",
+      "npm:lodash",
+      "npm:underscore",
+    ]);
+    expect(result.targets[0]?.match?.nameSimilarity).toBe(0.95);
+    expect(result.targets[1]?.match?.nameSimilarity).toBe(0.4);
+    expect(result.targets[2]?.match).not.toHaveProperty("nameSimilarity");
+  });
+
   it("parses bounded malicious advisory evidence in compact mode", async () => {
     const affected = {
       ...COMPACT_CANDIDATE,
