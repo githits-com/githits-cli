@@ -1094,7 +1094,7 @@ function findCodexHomeGlobalInstruction(directory: string): string | undefined {
   );
 }
 
-export function validateCodexEvalSkills(codexHome: string): void {
+function validateCodexEvalSkills(codexHome: string): void {
   const skillsDir = join(codexHome, "skills");
   if (!existsSync(skillsDir)) return;
 
@@ -2556,7 +2556,6 @@ export async function runAgentEval(
   options: AgentEvalOptions,
   dependencies: AgentEvalDependencies = DEFAULT_AGENT_EVAL_DEPENDENCIES,
 ): Promise<void> {
-  options.intentProfile ??= "neutral";
   validateScenarioScope(options);
   assert(
     existsSync(options.schemaPath),

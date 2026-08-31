@@ -76,14 +76,13 @@ OS home, user profile, config directories, and temporary directory. Only the
 caller-supplied `CODEX_HOME` is retained outside that root. It is a dedicated
 eval home containing Codex authentication state and Codex-managed runtime state;
 it may accumulate managed state across runs. Workload evals reject a missing,
-relative, or root-level `AGENTS.override.md`/`AGENTS.md` before invoking the
-agent. The workload preflight checks only those two names at the CODEX_HOME
-root and does not read auth material or guidance contents. Codex-managed
+relative, or root-level `AGENTS.override.md`/`AGENTS.md`, plus every direct
+`$CODEX_HOME/skills` entry other than `.system`, before invoking the agent. The
+workload preflight does not read auth material or guidance contents. Codex-managed
 `config.toml`, bundled system skills, plugin caches, logs, and other nested
-runtime files are allowed for workload execution. Interactive `agent:session`
-adds a stricter contract: direct `$CODEX_HOME/skills` may contain only
-`.system`, and `config.toml` may contain only `model`,
-`model_reasoning_effort`, and project `trust_level` keys. A root
+runtime files are allowed for non-interactive workload execution. Interactive
+`agent:session` adds a stricter contract for `config.toml`: it may contain only
+`model`, `model_reasoning_effort`, and project `trust_level` keys. A root
 global-instruction file is rejected even when empty; nested `AGENTS.md` files
 do not trigger this preflight because they are outside Codex's documented
 global discovery root.
@@ -345,7 +344,8 @@ and `TMPDIR`/`TMP`/`TEMP` roots. A live Codex session requires an existing,
 absolute dedicated `CODEX_HOME` without a root `AGENTS.md` or
 `AGENTS.override.md`; the caller-supplied absolute path is preserved for Codex
 authentication and is not copied into the disposable roots. Dry-run Codex
-sessions do not require `CODEX_HOME`. The local MCP child is built from the
+sessions do not require `CODEX_HOME`, but an explicit or ambient supplied value
+is validated before use. The local MCP child is built from the
 host auth roots before acting-agent isolation, so trusted GitHits auth remains
 available without persisting credential paths. Session metadata records only
 safe relative labels for disposable acting-agent roots and omits the ephemeral
@@ -673,7 +673,9 @@ skills; they instead use project-only settings plus an empty strict MCP config.
 Non-interactive Codex MCP evals use per-run `-c` MCP config overrides,
 `--ignore-rules`, and supported `--ignore-user-config`; every live Codex eval
 requires the caller-supplied dedicated eval `CODEX_HOME`, which is validated
-for root global instructions and direct skills before launch. The supported
+for root global instructions and direct skills before use/launch. Dry runs may
+omit `CODEX_HOME`; when an explicit or ambient value is supplied, the same
+validation runs before use. The supported
 `--ignore-user-config` flag suppresses Codex `config.toml`/user configuration;
 the explicit skills preflight remains in force. Non-interactive Skills evals
 omit the MCP and rule overrides while retaining `--ignore-user-config` so

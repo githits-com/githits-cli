@@ -60,13 +60,16 @@ CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface skills 
 
 CI should provide a clean `CODEX_HOME` with `OPENAI_API_KEY` authentication. The
 harness does not read auth material and never copies it into artifacts. Every
-Codex live-surface preflight rejects root-level `AGENTS.override.md` and
+Codex run with a supplied `CODEX_HOME`—including live runs and dry runs with an
+explicit or ambient value—preflights root-level `AGENTS.override.md` and
 `AGENTS.md`, plus every direct `$CODEX_HOME/skills` entry except `.system`.
 Nested runtime/cache files, including Codex's `config.toml`, bundled system
 skills, plugin caches, and logs, remain allowed for non-interactive execution.
 The stricter existence check rejects a root instruction file even when it is
 empty. Interactive `agent:session` additionally validates the allowed config
-keys described below. Full MCP guidance installs only
+keys described below. Dry runs do not require `CODEX_HOME`; when one is
+supplied, the same dedicated-home and direct-skills preflight runs before use.
+Full MCP guidance installs only
 the project guidance and `githits-mcp` skill; it does not install a CLI shim.
 Skills-surface runs retain their CLI shim.
 
@@ -89,8 +92,9 @@ loader.
 Interactive `agent:session` applies the same disposable acting-agent
 `HOME`/`USERPROFILE`/`XDG_CONFIG_HOME`/`APPDATA` and temporary roots for Codex
 only. Live Codex sessions validate the caller-supplied absolute dedicated
-`CODEX_HOME` before launch; dry runs do not require it, and that path remains
-unchanged for Codex authentication. Interactive validation rejects root
+`CODEX_HOME` before use/launch; dry runs do not require it, but an explicit or
+ambient supplied value is validated before use, and that path remains unchanged
+for Codex authentication. Interactive validation rejects root
 `AGENTS.override.md`/`AGENTS.md`, every direct `$CODEX_HOME/skills` entry except
 `.system`, and every `config.toml` key except `model`,
 `model_reasoning_effort`, and project `trust_level`. The local MCP child is
