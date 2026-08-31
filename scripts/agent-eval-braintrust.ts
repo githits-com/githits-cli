@@ -659,7 +659,13 @@ function buildToolSpanDescriptors(
     assert(!toolBearing, "tool-bearing row has unknown logical telemetry");
     return [];
   }
-  if (telemetry.sequence.length === 0) return [];
+  if (telemetry.sequence.length === 0) {
+    assert(
+      record.tools.rawEventCount === 0,
+      "tool-bearing row has empty logical tool sequence",
+    );
+    return [];
+  }
   assert(
     parentTimes.startTime !== undefined && parentTimes.endTime !== undefined,
     "tool-bearing row has no valid parent span interval",

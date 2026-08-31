@@ -1747,10 +1747,11 @@ The initial plan assumed that `Experiment.log()` could represent a scoreless
 eval row. Runtime behavior in the installed Braintrust 3.29.0 package disproved
 that assumption: `Experiment.log()` requires non-empty `scores`. No quality
 judge or fabricated score is appropriate in this phase. The exporter therefore
-uses one top-level `type: "eval"` span per mapped cell, ends each span
-immediately, flushes the experiment, and then reads its permalink through
-`summarize({ summarizeScores: false })`. This is a resolved implementation
-contradiction, not a reason to alter the neutral metrics contract.
+uses one top-level `type: "eval"` span per mapped cell, publishes and closes
+its structural tool children, closes the eval root, flushes the experiment, and
+then reads its permalink through `summarize({ summarizeScores: false })`. This
+is a resolved implementation contradiction, not a reason to alter the neutral
+metrics contract.
 
 ### Unknowns Or Product Decisions
 

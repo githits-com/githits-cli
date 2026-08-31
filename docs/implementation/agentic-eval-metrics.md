@@ -33,9 +33,10 @@ installed SDK: its runtime requires non-empty `scores`. This phase has no
 quality scorer and does not fabricate scores. Instead, the production adapter
 initializes one experiment with `update: false`, artifact `repoInfo`, and
 automatic Git collection disabled, then starts one top-level `type: "eval"`
-span named by `cellId` for each row, ends it immediately, calls `flush()`, and
-then calls `summarize({ summarizeScores: false })` for the permalink. Agent
-execution is not traced or instrumented by this boundary.
+span named by `cellId` for each row, creates and closes its validated structural
+tool children, closes the eval root, calls `flush()`, and then calls
+`summarize({ summarizeScores: false })` for the permalink. Agent execution is
+not traced or instrumented by this boundary.
 The exporter metadata contract is schema/version 2; both values are retained
 in experiment metadata for regression attribution. The safe CLI result keeps
 its separate result-file schema version.

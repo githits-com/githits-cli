@@ -482,6 +482,20 @@ describe("Braintrust eval row mapping", () => {
     ).toThrow("tool-bearing row has unknown logical telemetry");
   });
 
+  it("rejects raw tool events without a logical tool sequence", async () => {
+    const fixture = await createSuite({ toolCalls: [] });
+    mutateMetrics(fixture, (metrics) => {
+      const record = firstMetricsRecord(metrics);
+      record.tools.rawEventCount = 1;
+    });
+
+    expect(() =>
+      preflightAndMapBraintrustRows([
+        suiteInput("raw-events-without-sequence", fixture.suitePath),
+      ]),
+    ).toThrow("tool-bearing row has empty logical tool sequence");
+  });
+
   it("maps ordered tool sequence, per-tool counts, and tags", async () => {
     const fixture = await createSuite();
     const row = preflightAndMapBraintrustRows([
