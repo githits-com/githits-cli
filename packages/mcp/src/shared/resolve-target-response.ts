@@ -453,9 +453,7 @@ export function formatResolveTargetEvidence(
   }
   const license = options.license ? formatLicense(target.license) : undefined;
   if (license) fields.push(`license ${license}`);
-  const docs = formatAvailability(
-    "docs",
-    "pages",
+  const docs = formatDocsAvailability(
     target.docsAvailable,
     target.docsPageCount,
     options.docs && target.kind !== "REPOSITORY",
@@ -474,7 +472,7 @@ export function formatResolveTargetEvidence(
 }
 
 /** Describe code evidence at the resolved identity's actual scope. */
-export function formatResolveTargetCodeAvailability(
+function formatResolveTargetCodeAvailability(
   target: ResolveTargetTarget,
   applicable = true,
 ): string | undefined {
@@ -496,7 +494,7 @@ export function formatResolveTargetCodeAvailability(
 }
 
 /** Format the backend's fractional lexical signal as a whole percentage. */
-export function formatResolveTargetNameSimilarity(
+function formatResolveTargetNameSimilarity(
   value: number | undefined,
 ): string | undefined {
   return value === undefined
@@ -514,18 +512,21 @@ export function formatResolveTargetEvidenceNotes(
       "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
     );
   }
-  if (
-    targets.some((target) => target.kind === "PACKAGE" && target.codeAvailable)
-  ) {
+  const hasPackageSnapshot = targets.some(
+    (target) => target.kind === "PACKAGE" && target.codeAvailable,
+  );
+  const hasRepositorySnapshot = targets.some(
+    (target) => target.kind === "REPOSITORY" && target.codeAvailable,
+  );
+  if (hasPackageSnapshot && hasRepositorySnapshot) {
+    notes.push(
+      "Indexed package and repository snapshots do not establish exact latest-version or ref readiness; code commands do so only when they resolve and serve a commit SHA.",
+    );
+  } else if (hasPackageSnapshot) {
     notes.push(
       "An indexed package snapshot does not establish exact latest-version readiness; code commands do so only when they resolve and serve a commit SHA.",
     );
-  }
-  if (
-    targets.some(
-      (target) => target.kind === "REPOSITORY" && target.codeAvailable,
-    )
-  ) {
+  } else if (hasRepositorySnapshot) {
     notes.push(
       "An indexed repository snapshot does not establish exact ref readiness; code commands do so only when they resolve and serve a commit SHA.",
     );
@@ -539,21 +540,19 @@ function formatLicense(value: string | undefined): string | undefined {
   return license === "mit" ? "MIT" : license;
 }
 
-function formatAvailability(
-  label: "docs" | "code",
-  unit: "pages" | "files",
+function formatDocsAvailability(
   available: boolean,
   count: number | undefined,
   applicable: boolean,
 ): string | undefined {
   if (!applicable) return undefined;
   if (count !== undefined && available) {
-    return `${label} ${formatCompactNumber(count)} ${unit}`;
+    return `docs ${formatCompactNumber(count)} pages`;
   }
   if (count !== undefined && count > 0) {
-    return `${label} unavailable (${formatCompactNumber(count)} ${unit} recorded)`;
+    return `docs unavailable (${formatCompactNumber(count)} pages recorded)`;
   }
-  return available ? `${label} available` : `no ${label}`;
+  return available ? "docs available" : "no docs";
 }
 
 /** Return concise warning copy only for a non-actionable backend decision. */

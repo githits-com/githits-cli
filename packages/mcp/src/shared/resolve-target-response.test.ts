@@ -454,6 +454,15 @@ describe("formatResolveTargetTerminal", () => {
     expect(output.match(/license MIT/g)).toHaveLength(1);
     expect(output).not.toContain("no docs");
     expect(output).not.toContain("no code");
+    expect(output).toContain(
+      "Indexed package and repository snapshots do not establish exact latest-version or ref readiness; code commands do so only when they resolve and serve a commit SHA.",
+    );
+    expect(output).not.toContain(
+      "An indexed package snapshot does not establish exact latest-version readiness",
+    );
+    expect(output).not.toContain(
+      "An indexed repository snapshot does not establish exact ref readiness",
+    );
   });
 
   it("keeps metrics in semantic lanes and lifts absent relation evidence to packages", () => {
