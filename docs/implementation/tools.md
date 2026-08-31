@@ -176,6 +176,12 @@ repository source summaries retain source line boundaries; when a long source
 comment must wrap, continuation lines repeat its comment marker so the snippet
 stays legible.
 
+The current evidence body is one contiguous backend-authored excerpt. If search
+later returns selected non-contiguous lines or multiple relevant enclosing
+blocks, the wire contract must carry each line's original coordinate and each
+block boundary. Text can then add line-number gutters and grouped blocks; it
+must not infer consecutive line numbers from `evidenceRange` for that shape.
+
 **Promoted `warnings[]`.** Noteworthy `sourceStatus` entries — sources reporting `incompatibleQueryFeatures`, `ignoredQueryFeatures`, `incompatibleFilters`, `ignoredFilters`, lifecycle anomalies (`indexingStatus`, `codeIndexState`), or a free-form `note` — are also surfaced as a top-level `warnings: string[]` in the completed/incomplete payloads (and appended after parser warnings inside the `search_status` result block). The structured detail still lives in `sourceStatus`; `warnings[]` is the agent-visible signal that something about execution did not match the request. On completed empty results, healthy non-contributor source entries are also retained with zero `resultCount` and served identity; requested/fresh labels emit only when they materially differ from served. Contributor-bearing DOCS rows retain their physical contributors instead of duplicating healthy served/current resolution metadata. Healthy `INDEXED` / `CURRENT` / non-divergent `STALE` states never become warnings. `PROVISIONAL` is queryable but remains a visible non-healthy indexing signal, including on completed responses. Successful non-empty responses keep the prior compact projection. JSON keeps promoted warnings and source-status detail lossless; MCP text classifies parser/query and structured constraint facts once below the outcome and does not repeat promoted lifecycle/freshness warning prose or opaque notes. Implementation in `buildSourceStatusWarnings` and empty-result compaction (`packages/mcp/src/shared/unified-search-response.ts`).
 
 **Standalone-site recovery.** `search` accepts exact documentation targets as
