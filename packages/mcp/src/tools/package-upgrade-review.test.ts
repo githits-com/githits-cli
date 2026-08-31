@@ -152,7 +152,11 @@ describe("createPackageUpgradeReviewTool", () => {
       {},
     );
     expect(text.isError).toBeUndefined();
-    expect(text.content[0]?.text).toContain("pkg_upgrade_review");
+    expect(text.content[0]?.text).toStartWith("Upgrade review - 1 package");
+    expect(text.content[0]?.text).toContain("Security");
+    expect(text.content[0]?.text).toContain("Changes");
+    expect(text.content[0]?.text).not.toContain("pkg_upgrade_review");
+    expect(text.content[0]?.text).not.toContain("\x1b[");
     expect(() => JSON.parse(text.content[0]?.text ?? "")).toThrow();
 
     const json = await tool.handler(

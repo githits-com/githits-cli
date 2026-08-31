@@ -179,6 +179,7 @@ describe("TokenManager", () => {
     overrides: {
       authService?: ReturnType<typeof createMockAuthService>;
       authStorage?: ReturnType<typeof createMockAuthStorage>;
+      refreshFailureMode?: "throw" | "return-undefined";
       authDiagnostics?: {
         recordClear: ReturnType<typeof mock>;
         load: ReturnType<typeof mock>;
@@ -195,6 +196,9 @@ describe("TokenManager", () => {
       authService,
       authStorage,
       mcpUrl: MCP_URL,
+      ...(overrides.refreshFailureMode !== undefined
+        ? { refreshFailureMode: overrides.refreshFailureMode }
+        : {}),
       authDiagnostics,
     });
     return { manager, authService, authStorage, authDiagnostics };
@@ -283,6 +287,28 @@ describe("TokenManager", () => {
       // Subsequent call should also return the token (cache must not be cleared)
       const result2 = await manager.getToken();
       expect(result2).toBe(tokenData.accessToken);
+    });
+
+    it("returns the current token when non-throwing proactive refresh fails", async () => {
+      const tokenData = createValidTokenData({
+        createdAt: new Date(Date.now() - 58 * 60_000).toISOString(),
+        expiresAt: new Date(Date.now() + 2 * 60_000).toISOString(),
+      });
+      const { manager, authStorage } = createTokenManager({
+        authService: createMockAuthService({
+          refreshAccessToken: mock(() =>
+            Promise.reject(new Error("network unavailable")),
+          ),
+        }),
+        authStorage: createMockAuthStorage({
+          loadTokens: mock(() => Promise.resolve(tokenData)),
+          loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+        }),
+        refreshFailureMode: "return-undefined",
+      });
+
+      expect(await manager.getToken()).toBe(tokenData.accessToken);
+      expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
     });
 
     it("clears token immediately when proactive refresh reports token reuse", async () => {
@@ -499,6 +525,47 @@ describe("TokenManager", () => {
       expect(storedToken?.refreshToken).toBe("rotated-refresh-token");
     });
 
+    it("returns undefined and retains expired credentials in non-throwing mode", async () => {
+      const tokenData = createValidTokenData({
+        createdAt: new Date(Date.now() - 7200_000).toISOString(),
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      });
+      const { manager, authStorage } = createTokenManager({
+        authService: createMockAuthService({
+          refreshAccessToken: mock(() =>
+            Promise.reject(new Error("network unavailable")),
+          ),
+        }),
+        authStorage: createMockAuthStorage({
+          loadTokens: mock(() => Promise.resolve(tokenData)),
+          loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+        }),
+        refreshFailureMode: "return-undefined",
+      });
+
+      expect(await manager.getToken()).toBeUndefined();
+      expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
+      expect(authStorage.clearActiveClient).not.toHaveBeenCalled();
+    });
+
+    it("refreshes expired credentials in non-throwing mode", async () => {
+      const tokenData = createValidTokenData({
+        createdAt: new Date(Date.now() - 7200_000).toISOString(),
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      });
+      const { manager, authService, authStorage } = createTokenManager({
+        authStorage: createMockAuthStorage({
+          loadTokens: mock(() => Promise.resolve(tokenData)),
+          loadClient: mock(() => Promise.resolve(defaultClientRegistration)),
+        }),
+        refreshFailureMode: "return-undefined",
+      });
+
+      expect(await manager.getToken()).toBe(defaultTokenResponse.accessToken);
+      expect(authService.refreshAccessToken).toHaveBeenCalledTimes(1);
+      expect(authStorage.saveTokensIfUnchanged).toHaveBeenCalledTimes(1);
+    });
+
     it("retains expired credentials when forced refresh times out", async () => {
       const tokenData = createValidTokenData({
         createdAt: new Date(Date.now() - 7200_000).toISOString(),
@@ -593,6 +660,23 @@ describe("TokenManager", () => {
       await expect(manager.getToken()).rejects.toThrow(
         "OAuth client registration is missing or unreadable",
       );
+    });
+
+    it("returns undefined when the refresh client registration is missing in non-throwing mode", async () => {
+      const tokenData = createValidTokenData({
+        createdAt: new Date(Date.now() - 7200_000).toISOString(),
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      });
+      const { manager, authStorage, authService } = createTokenManager({
+        authStorage: createMockAuthStorage({
+          loadTokens: mock(() => Promise.resolve(tokenData)),
+        }),
+        refreshFailureMode: "return-undefined",
+      });
+
+      expect(await manager.getToken()).toBeUndefined();
+      expect(authService.discoverEndpoints).not.toHaveBeenCalled();
+      expect(authStorage.clearActiveTokensIfUnchanged).not.toHaveBeenCalled();
     });
   });
 

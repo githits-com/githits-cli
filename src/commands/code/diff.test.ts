@@ -413,6 +413,28 @@ describe("formatCodeDiffError", () => {
     expect(output).toContain("(+2 more)");
   });
 
+  it("renders available package versions with their proven refs", () => {
+    const output = formatCodeDiffError({
+      code: "VERSION_NOT_FOUND",
+      message: "Version was not found.",
+      retryable: false,
+      details: {
+        availableVersions: [
+          { version: "2.1.1", ref: "2.1.1" },
+          { version: "4.0.0", ref: "4.0.0" },
+          { ref: "0123456789abcdef0123456789abcdef01234567" },
+        ],
+      },
+    });
+
+    expect(output).toContain(
+      "available versions: 2.1.1 (ref: 2.1.1), 4.0.0 (ref: 4.0.0), ref: 0123456789abcdef0123456789abcdef01234567",
+    );
+    expect(output).not.toContain(
+      "0123456789abcdef0123456789abcdef01234567 (ref:",
+    );
+  });
+
   it("preserves a local lower bound when the backend also truncated", () => {
     const output = formatCodeDiffError({
       code: "VERSION_NOT_FOUND",

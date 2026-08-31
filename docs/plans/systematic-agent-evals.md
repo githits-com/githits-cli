@@ -1265,8 +1265,8 @@ choice, not a causal requirement of the suite schema.
       calls, zero isolation violations, 655,840 uncached and 2,389,760 cached
       tokens, and an estimated $0.2030556. The named six-workload smoke subset
       is derived from those same stable metrics and is documented below.
-- [x] Focused tests (178 pass, 1,004 expectations), full tests (3,579 pass,
-      11,881 expectations), typecheck, format (442 files), lint (442 files),
+- [x] Focused tests (178 pass, 1,004 expectations), full tests (3,605 pass,
+      12,040 expectations), typecheck, format (442 files), lint (442 files),
       build, and all named-suite dry-runs pass. Dry-run coverage is canary
       discovery+intent (4 cells), smoke intent (6), stable-full intent (21),
       stateful-manual intent (1), experimental intent (3), and explicit canary
