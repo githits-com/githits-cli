@@ -521,7 +521,15 @@ function smokeResponse(
           : "compact changelog timeline",
       );
     case "pkg_upgrade_review":
-      return textResult("pkg_upgrade_review vulnerabilities changes");
+      return textResult(
+        "Upgrade review - 1 package\n\n" +
+          "npm:express 5.0.0 -> 5.2.1 (patch)\n\n" +
+          "Security\n" +
+          "  Direct: 0 affected -> 0 affected | 0 fixed | 0 added | 0 still present\n" +
+          "  Transitive: not checked\n\n" +
+          "Changes\n" +
+          "  Repository releases | 1 entry | 1 with release notes",
+      );
     case "docs_list":
       return textResult("docs_read page_id=page-1");
     case "docs_read":

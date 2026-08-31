@@ -1,24 +1,25 @@
 import type {
-  ResolveTargetCandidate,
   ResolveTargetReference,
   ResolveTargetResult,
   ResolveTargetService,
+  ResolveTargetTarget,
 } from "@githits/core-internal";
 import { PKGSEER_REGISTRY_LIST } from "@githits/core-internal";
 import { z } from "zod";
-import { formatCompactNumber } from "../shared/format-number.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { buildResolveTargetParams } from "../shared/resolve-target-request.js";
 import {
+  buildResolveTargetEvidencePlan,
   buildResolveTargetSuccessPayload,
-  findResolveTargetBestCandidate,
+  findResolveTargetBestTarget,
   formatLatestVersionMaliciousStatus,
-  formatResolveTargetCodeAvailability,
+  formatResolveTargetEvidence,
   formatResolveTargetEvidenceNotes,
-  formatResolveTargetNameSimilarity,
+  groupResolveTargets,
   isLatestVersionMaliciousStatusActionable,
   isResolveTargetActionable,
   isResolveTargetIdentityActionable,
+  type ResolveTargetEvidenceOptions,
   sanitizeTerminalText,
 } from "../shared/resolve-target-response.js";
 import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
@@ -137,25 +138,19 @@ export function formatResolveTargetMcpText(
 ): string {
   const actionable = isResolveTargetActionable(result);
   const identityActionable = isResolveTargetIdentityActionable(result);
-  const bestCandidate = findResolveTargetBestCandidate(result);
+  const bestTarget = findResolveTargetBestTarget(result);
   const blockedBest = identityActionable && !actionable;
   const protectedKeys = new Set(
     result.protectedMatches.map((target) => targetKey(target)),
   );
-  const allReferences = dedupeTargets([
-    ...result.candidates,
-    ...result.protectedMatches,
-    ...(result.best ? [result.best] : []),
-  ]);
-  const hasBlockedReference = allReferences.some(
+  const hasBlockedDirectTarget = result.targets.some(
     (target) =>
-      !isCandidate(target) ||
+      target.match !== undefined &&
       !isLatestVersionMaliciousStatusActionable(
         target.latestVersionMaliciousStatus,
       ),
   );
-  const references = allReferences.slice(0, 24);
-  const omittedReferences = allReferences.slice(references.length);
+  const groups = groupResolveTargets(result.targets);
   const lines: string[] = [];
 
   if (result.ambiguous) {
@@ -176,54 +171,27 @@ export function formatResolveTargetMcpText(
     );
   }
 
-  if (references.length > 0) {
-    if (result.ambiguous || actionable || blockedBest) {
-      lines.push("Candidates:");
-    }
-    references.forEach((target, index) => {
-      lines.push(
-        `  ${index + 1}. ${formatReference(target)}${
-          protectedKeys.has(targetKey(target))
-            ? " · protected exact-name match"
-            : ""
-        }`,
-      );
-      const description = isCandidate(target)
-        ? compactDescription(target.description)
-        : undefined;
-      if (description) lines.push(`     ${description}`);
-      const maliciousWarning = isCandidate(target)
-        ? formatLatestVersionMaliciousStatus(
-            target.latestVersionMaliciousStatus,
-            target.latestVersionMaliciousEvidence,
-          )
-        : undefined;
-      if (maliciousWarning) {
-        lines.push(`     Warning: ${maliciousWarning}`);
-      }
+  if (groups.length > 0) {
+    lines.push("Targets:");
+    groups.forEach((group, index) => {
+      lines.push(...formatMcpGroup(group.targets, index + 1, protectedKeys));
     });
   }
 
-  if (omittedReferences.length > 0) {
-    const omittedProtectedMatches = omittedReferences.filter((target) =>
-      protectedKeys.has(targetKey(target)),
-    ).length;
-    const protectedNote = omittedProtectedMatches
-      ? `, including ${omittedProtectedMatches} protected exact-name ${omittedProtectedMatches === 1 ? "match" : "matches"}`
-      : "";
+  if (result.targetsTruncated) {
     lines.push(
-      `  ... ${omittedReferences.length} additional candidate ${omittedReferences.length === 1 ? "omitted" : "entries omitted"}${protectedNote}. Use format=json for the complete structured candidate and protected-match lists.`,
+      "Note: Additional related targets were omitted; direct matches are complete.",
     );
   }
-  lines.push(...formatResolveTargetEvidenceNotes(references));
+  lines.push(...formatResolveTargetEvidenceNotes(result.targets));
 
   if (blockedBest) {
-    if (!bestCandidate) {
+    if (!bestTarget) {
       lines.push(
         "Warning: Malicious-content status is unavailable for the best match. Do not use this target.",
       );
     }
-  } else if (result.ambiguous && hasBlockedReference) {
+  } else if (result.ambiguous && hasBlockedDirectTarget) {
     lines.push(
       "Warning: Some candidates are not actionable. Narrow the result before continuing.",
     );
@@ -238,7 +206,7 @@ export function formatResolveTargetMcpText(
         ? `Next: call search with target "${target}" and source "docs", then call docs_read for relevant results.`
         : `Next: pass the canonical target "${target}" to the next MCP tool.`,
     );
-  } else if (result.best && hasBlockedReference) {
+  } else if (result.best && hasBlockedDirectTarget) {
     lines.push(
       "Warning: Some candidates are not actionable. Narrow the result before continuing.",
     );
@@ -261,37 +229,73 @@ function isTextFormat(format: ResolveTargetMcpArgs["format"]): boolean {
 function formatReference(target: ResolveTargetReference): string {
   const kind = sanitizeTerminalText(target.kind.toLowerCase());
   const confidence = sanitizeTerminalText(target.confidence.toLowerCase());
-  const fields = [
+  return [
     sanitizeTerminalText(target.canonicalKey),
     `[${confidence}; ${kind}]`,
-  ];
-  if (isCandidate(target)) {
-    const evidence = formatEvidence(target);
-    if (evidence) fields.push(`· ${evidence}`);
-  }
-  return fields.join(" ");
+  ].join(" ");
 }
 
-function formatEvidence(candidate: ResolveTargetCandidate): string {
-  const evidence: string[] = [];
-  if (candidate.stars !== undefined) {
-    evidence.push(`${formatCompactNumber(candidate.stars)} stars`);
-  }
-  if (candidate.downloadsLastMonth !== undefined) {
-    evidence.push(
-      `${formatCompactNumber(candidate.downloadsLastMonth)} downloads/mo`,
+function formatMcpGroup(
+  targets: ResolveTargetTarget[],
+  groupNumber: number,
+  protectedKeys: ReadonlySet<string>,
+): string[] {
+  const [lead, ...members] = targets;
+  if (!lead) return [];
+  const evidencePlan = buildResolveTargetEvidencePlan(targets);
+  const lines = [
+    `  ${groupNumber}. ${formatMcpTargetLine(lead, evidencePlan(lead), protectedKeys)}`,
+    ...formatMcpTargetDetails(lead, "     "),
+  ];
+  if (members.length > 0) lines.push("     Related targets:");
+  for (const member of members) {
+    lines.push(
+      `       ${formatMcpTargetLine(member, evidencePlan(member), protectedKeys)}`,
+      ...formatMcpTargetDetails(member, "         "),
     );
-  } else if (candidate.downloadsTotal !== undefined) {
-    evidence.push(`${formatCompactNumber(candidate.downloadsTotal)} downloads`);
   }
-  if (candidate.docsAvailable) evidence.push("docs");
-  const codeAvailability = formatResolveTargetCodeAvailability(candidate);
-  if (codeAvailability) evidence.push(codeAvailability);
-  const nameSimilarity = formatResolveTargetNameSimilarity(
-    candidate.nameSimilarity,
+  return lines;
+}
+
+function formatMcpTargetLine(
+  target: ResolveTargetTarget,
+  evidenceOptions: ResolveTargetEvidenceOptions,
+  protectedKeys: ReadonlySet<string>,
+): string {
+  const evidence = formatResolveTargetEvidence(target, evidenceOptions);
+  return `${formatMcpTarget(target)}${formatProtectedMarker(target, protectedKeys)}${evidence ? ` · ${evidence}` : ""}`;
+}
+
+function formatMcpTarget(target: ResolveTargetTarget): string {
+  const kind = sanitizeTerminalText(target.kind.toLowerCase());
+  const relationship = target.match
+    ? sanitizeTerminalText(target.match.confidence.toLowerCase())
+    : "related";
+  return `${sanitizeTerminalText(target.canonicalKey)} [${relationship}; ${kind}]`;
+}
+
+function formatProtectedMarker(
+  target: ResolveTargetTarget,
+  protectedKeys: ReadonlySet<string>,
+): string {
+  return protectedKeys.has(targetKey(target))
+    ? " · protected exact-name match"
+    : "";
+}
+
+function formatMcpTargetDetails(
+  target: ResolveTargetTarget,
+  indent: string,
+): string[] {
+  const lines: string[] = [];
+  const description = compactDescription(target.description);
+  if (description) lines.push(`${indent}${description}`);
+  const maliciousWarning = formatLatestVersionMaliciousStatus(
+    target.latestVersionMaliciousStatus,
+    target.latestVersionMaliciousEvidence,
   );
-  if (nameSimilarity) evidence.push(nameSimilarity);
-  return evidence.map((value) => sanitizeTerminalText(value)).join(" · ");
+  if (maliciousWarning) lines.push(`${indent}Warning: ${maliciousWarning}`);
+  return lines;
 }
 
 function compactDescription(value: string | undefined): string | undefined {
@@ -313,24 +317,8 @@ function formatAmbiguousReason(reason: string): string {
     : "Multiple candidates remain.";
 }
 
-function dedupeTargets(
-  targets: ResolveTargetReference[],
-): ResolveTargetReference[] {
-  const seen = new Set<string>();
-  return targets.filter((target) => {
-    const key = targetKey(target);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function targetKey(target: ResolveTargetReference): string {
+function targetKey(
+  target: Pick<ResolveTargetReference, "kind" | "canonicalKey">,
+): string {
   return `${target.kind}:${target.canonicalKey}`;
-}
-
-function isCandidate(
-  target: ResolveTargetReference,
-): target is ResolveTargetCandidate {
-  return Object.hasOwn(target, "docsAvailable");
 }

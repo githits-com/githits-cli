@@ -1,7 +1,7 @@
 import type {
-  ResolveTargetCandidate,
   ResolveTargetReference,
   ResolveTargetResult,
+  ResolveTargetTarget,
 } from "@githits/core-internal";
 import { colorize, dim, highlight } from "./colors.js";
 import { formatCompactNumber } from "./format-number.js";
@@ -12,7 +12,9 @@ export interface ResolveTargetCandidatePayload {
   target: string;
   name?: string;
   kind: string;
-  confidence: string;
+  confidence?: string;
+  direct: boolean;
+  groupKey?: string;
   description?: string;
   registry?: string;
   packageName?: string;
@@ -30,6 +32,9 @@ export interface ResolveTargetCandidatePayload {
   docsAvailable?: boolean;
   codeAvailable?: boolean;
   nameSimilarity?: number;
+  docsPageCount?: number;
+  codeFileCount?: number;
+  license?: string;
   matchTier?: number;
   score?: number;
 }
@@ -51,23 +56,21 @@ export interface ResolveTargetPayload {
   ambiguousReason?: string;
   candidates: ResolveTargetCandidatePayload[];
   protectedMatches: string[];
+  targetsTruncated: boolean;
 }
 
 /** Build the stable, non-duplicating JSON projection used by CLI and MCP. */
 export function buildResolveTargetSuccessPayload(
   result: ResolveTargetResult,
 ): ResolveTargetPayload {
-  const candidates = dedupeTargets([
-    ...result.candidates,
-    ...result.protectedMatches,
-    ...(result.best ? [result.best] : []),
-  ]).map(projectTarget);
+  const candidates = result.targets.map(projectTarget);
   const payload: ResolveTargetPayload = {
     ambiguous: result.ambiguous,
     candidates,
     protectedMatches: dedupeTargets(result.protectedMatches).map(
       (target) => target.canonicalKey,
     ),
+    targetsTruncated: result.targetsTruncated,
   };
   if (result.best) payload.best = result.best.canonicalKey;
   if (result.ambiguous) {
@@ -77,28 +80,28 @@ export function buildResolveTargetSuccessPayload(
 }
 
 function projectTarget(
-  target: ResolveTargetReference,
+  target: ResolveTargetTarget,
 ): ResolveTargetCandidatePayload {
   const payload: ResolveTargetCandidatePayload = {
     target: target.canonicalKey,
     kind: target.kind.toLowerCase(),
-    confidence: target.confidence.toLowerCase(),
+    direct: target.match !== undefined,
   };
-  if (!isCandidate(target)) return payload;
-  const candidate = target;
-  assign(payload, "name", candidate.displayName);
-  assign(payload, "description", candidate.description);
-  assign(payload, "registry", candidate.registry?.toLowerCase());
-  assign(payload, "packageName", candidate.packageName);
-  assign(payload, "latestVersion", candidate.latestVersion);
+  assign(payload, "confidence", target.match?.confidence.toLowerCase());
+  assign(payload, "groupKey", target.groupKey);
+  assign(payload, "name", target.displayName);
+  assign(payload, "description", target.description);
+  assign(payload, "registry", target.registry?.toLowerCase());
+  assign(payload, "packageName", target.packageName);
+  assign(payload, "latestVersion", target.latestVersion);
   assign(
     payload,
     "latestVersionMaliciousStatus",
-    candidate.latestVersionMaliciousStatus.toLowerCase(),
+    target.latestVersionMaliciousStatus.toLowerCase(),
   );
-  if (candidate.latestVersionMaliciousEvidence) {
+  if (target.latestVersionMaliciousEvidence) {
     payload.latestVersionMaliciousEvidence = {
-      advisories: candidate.latestVersionMaliciousEvidence.advisories.map(
+      advisories: target.latestVersionMaliciousEvidence.advisories.map(
         (advisory) => ({
           osvId: advisory.osvId,
           classificationReasons: advisory.classificationReasons.map((reason) =>
@@ -106,23 +109,26 @@ function projectTarget(
           ),
         }),
       ),
-      totalCount: candidate.latestVersionMaliciousEvidence.totalCount,
-      truncated: candidate.latestVersionMaliciousEvidence.truncated,
+      totalCount: target.latestVersionMaliciousEvidence.totalCount,
+      truncated: target.latestVersionMaliciousEvidence.truncated,
     };
   }
-  assign(payload, "repositoryUrl", candidate.repositoryUrl);
-  assign(payload, "repositoryOwner", candidate.repositoryOwner);
-  assign(payload, "repositoryName", candidate.repositoryName);
-  assign(payload, "stars", candidate.stars);
-  assign(payload, "downloadsLastMonth", candidate.downloadsLastMonth);
-  assign(payload, "downloadsTotal", candidate.downloadsTotal);
-  assign(payload, "documentationUrl", candidate.documentationUrl);
-  assign(payload, "matchedAliases", candidate.matchedAliases);
-  assign(payload, "docsAvailable", candidate.docsAvailable);
-  assign(payload, "codeAvailable", candidate.codeAvailable);
-  assign(payload, "nameSimilarity", candidate.nameSimilarity);
-  assign(payload, "matchTier", candidate.matchTier);
-  assign(payload, "score", candidate.score);
+  assign(payload, "repositoryUrl", target.repositoryUrl);
+  assign(payload, "repositoryOwner", target.repositoryOwner);
+  assign(payload, "repositoryName", target.repositoryName);
+  assign(payload, "stars", target.stars);
+  assign(payload, "downloadsLastMonth", target.downloadsLastMonth);
+  assign(payload, "downloadsTotal", target.downloadsTotal);
+  assign(payload, "documentationUrl", target.documentationUrl);
+  assign(payload, "matchedAliases", target.match?.matchedAliases);
+  assign(payload, "docsAvailable", target.docsAvailable);
+  assign(payload, "codeAvailable", target.codeAvailable);
+  assign(payload, "nameSimilarity", target.match?.nameSimilarity);
+  assign(payload, "docsPageCount", target.docsPageCount);
+  assign(payload, "codeFileCount", target.codeFileCount);
+  assign(payload, "license", target.license);
+  assign(payload, "matchTier", target.match?.matchTier);
+  assign(payload, "score", target.match?.score);
   return payload;
 }
 
@@ -132,18 +138,118 @@ export interface FormatResolveTargetTerminalOptions {
   useColors?: boolean;
 }
 
+export interface ResolveTargetGroup {
+  groupKey?: string;
+  targets: ResolveTargetTarget[];
+}
+
+export interface ResolveTargetEvidenceOptions {
+  stars: boolean;
+  downloads: boolean;
+  repository: boolean;
+  license: boolean;
+  docs: boolean;
+  code: boolean;
+}
+
+export type ResolveTargetEvidencePlan = (
+  target: ResolveTargetTarget,
+) => ResolveTargetEvidenceOptions;
+
+/** Preserve backend order while combining only contiguous equal non-null keys. */
+export function groupResolveTargets(
+  targets: readonly ResolveTargetTarget[],
+): ResolveTargetGroup[] {
+  const groups: ResolveTargetGroup[] = [];
+  for (const target of targets) {
+    const previous = groups.at(-1);
+    if (
+      target.groupKey !== undefined &&
+      previous?.groupKey === target.groupKey
+    ) {
+      previous.targets.push(target);
+    } else {
+      groups.push({
+        ...(target.groupKey !== undefined ? { groupKey: target.groupKey } : {}),
+        targets: [target],
+      });
+    }
+  }
+  return groups;
+}
+
+/**
+ * Build a group-scoped resolver that assigns project evidence to its clearest
+ * target lane. Package and repository code snapshots remain identity-scoped,
+ * while packages retain projected repository/site evidence only when the
+ * corresponding target is absent.
+ */
+export function buildResolveTargetEvidencePlan(
+  targets: readonly ResolveTargetTarget[],
+): ResolveTargetEvidencePlan {
+  const hasRepositoryTarget = targets.some(
+    (target) => target.kind === "REPOSITORY",
+  );
+  const hasSiteTarget = targets.some((target) => target.kind === "SITE");
+  const hasPackageLicense = targets.some(
+    (target) =>
+      target.kind === "PACKAGE" && formatLicense(target.license) !== undefined,
+  );
+
+  return (target: ResolveTargetTarget): ResolveTargetEvidenceOptions => {
+    switch (target.kind) {
+      case "PACKAGE":
+        return {
+          stars: !hasRepositoryTarget,
+          downloads: true,
+          repository: !hasRepositoryTarget,
+          license: true,
+          docs: !hasSiteTarget,
+          code: true,
+        };
+      case "REPOSITORY":
+        return {
+          stars: true,
+          downloads: false,
+          repository: false,
+          license: !hasPackageLicense,
+          docs: false,
+          code: true,
+        };
+      case "SITE":
+        return {
+          stars: false,
+          downloads: false,
+          repository: false,
+          license: false,
+          docs: true,
+          code: false,
+        };
+      default:
+        return {
+          stars: true,
+          downloads: true,
+          repository: true,
+          license: true,
+          docs: true,
+          code: true,
+        };
+    }
+  };
+}
+
 /**
  * Decide whether consumers may offer the best target as a direct next action.
  * Identity must be non-ambiguous uppercase EXACT/HIGH, and the matching full
  * candidate must carry CLEAR or NOT_APPLICABLE malicious-content evidence.
  */
 export function isResolveTargetActionable(
-  result: Pick<ResolveTargetResult, "ambiguous" | "best" | "candidates">,
+  result: Pick<ResolveTargetResult, "ambiguous" | "best" | "targets">,
 ): boolean {
   return (
     isResolveTargetIdentityActionable(result) &&
     isLatestVersionMaliciousStatusActionable(
-      findResolveTargetBestCandidate(result)?.latestVersionMaliciousStatus,
+      findResolveTargetBestTarget(result)?.latestVersionMaliciousStatus,
     )
   );
 }
@@ -159,46 +265,44 @@ export function formatResolveTargetTerminal(
   const useColors = options.useColors ?? false;
   const actionable = isResolveTargetActionable(result);
   const identityActionable = isResolveTargetIdentityActionable(result);
-  const bestCandidate = findResolveTargetBestCandidate(result);
+  const bestTarget = findResolveTargetBestTarget(result);
   const blockedBest = identityActionable && !actionable;
   const lines: string[] = [];
   if (result.ambiguous) lines.push(ambiguityMessage(result.ambiguousReason));
-  const protectedKeys = new Set(
-    result.protectedMatches.map((candidate) => candidateKey(candidate)),
-  );
-  const candidates = dedupeTargets([
-    ...result.candidates,
-    ...result.protectedMatches,
-    result.best,
-  ]);
-  const hasBlockedReference = candidates.some(
-    (candidate) =>
-      !isCandidate(candidate) ||
+  const protectedKeys = new Set(result.protectedMatches.map(targetKey));
+  const groups = groupResolveTargets(result.targets);
+  const hasBlockedDirectTarget = result.targets.some(
+    (target) =>
+      target.match !== undefined &&
       !isLatestVersionMaliciousStatusActionable(
-        candidate.latestVersionMaliciousStatus,
+        target.latestVersionMaliciousStatus,
       ),
   );
   lines.push(
     !result.ambiguous && !identityActionable
-      ? "Unconfirmed ranked candidates:"
-      : "Candidates:",
+      ? "Unconfirmed ranked targets:"
+      : "Targets:",
   );
   lines.push(
-    ...candidates.flatMap((candidate, index) =>
-      formatCandidateLines(
-        candidate,
-        index + 1,
-        protectedKeys.has(candidateKey(candidate)),
-        useColors,
-      ),
+    ...groups.flatMap((group, index) =>
+      formatTerminalGroup(group, index + 1, protectedKeys, useColors),
     ),
   );
-  const evidenceNotes = formatResolveTargetEvidenceNotes(candidates);
+  if (result.targetsTruncated) {
+    lines.push(
+      "",
+      dim(
+        "Note: Additional related targets were omitted; direct matches are complete.",
+        useColors,
+      ),
+    );
+  }
+  const evidenceNotes = formatResolveTargetEvidenceNotes(result.targets);
   if (evidenceNotes.length > 0) lines.push("", ...evidenceNotes);
 
   const query = sanitizeTerminalText(options.query?.trim() || "<query>");
   if (blockedBest) {
-    if (!bestCandidate) {
+    if (!bestTarget) {
       lines.push(
         "",
         formatTerminalWarning(
@@ -207,7 +311,7 @@ export function formatResolveTargetTerminal(
         ),
       );
     }
-  } else if (result.ambiguous && hasBlockedReference) {
+  } else if (result.ambiguous && hasBlockedDirectTarget) {
     lines.push(
       "",
       formatTerminalWarning(
@@ -226,7 +330,7 @@ export function formatResolveTargetTerminal(
       "",
       `Next: githits search ${shellQuote(query)} --in ${shellQuote(sanitizeTerminalText(result.best.canonicalKey))}${sourceOption}`,
     );
-  } else if (hasBlockedReference) {
+  } else if (hasBlockedDirectTarget) {
     lines.push(
       "",
       formatTerminalWarning(
@@ -246,61 +350,149 @@ export function formatResolveTargetTerminal(
 const KNOWN_CONFIDENCE_VALUES = new Set(["exact", "high", "medium", "low"]);
 const KNOWN_KIND_VALUES = new Set(["package", "repository", "site"]);
 
-function formatCandidate(
-  target: ResolveTargetReference,
+function formatTerminalTarget(
+  target: ResolveTargetTarget,
   useColors: boolean,
 ): string {
-  const candidate = isCandidate(target) ? target : undefined;
-  const confidence = target.confidence.toLowerCase();
   const kind = target.kind.toLowerCase();
-  const fields = [
-    `${highlight(sanitizeTerminalText(target.canonicalKey), useColors)} [${
-      KNOWN_CONFIDENCE_VALUES.has(confidence) ? confidence : "unknown"
-    }]`,
-    KNOWN_KIND_VALUES.has(kind) ? kind : "target",
-  ];
-  if (candidate?.stars !== undefined) {
-    fields.push(`${formatCompactNumber(candidate.stars)} stars`);
-  }
-  if (candidate?.downloadsLastMonth !== undefined) {
-    fields.push(
-      `${formatCompactNumber(candidate.downloadsLastMonth)} downloads/mo`,
-    );
-  } else if (candidate?.downloadsTotal !== undefined) {
-    fields.push(`${formatCompactNumber(candidate.downloadsTotal)} downloads`);
-  }
-  if (
-    kind === "package" &&
-    candidate?.repositoryUrl &&
-    candidate.stars === undefined
-  ) {
-    fields.push(`repo ${compactRepositoryUrl(candidate.repositoryUrl)}`);
-  }
-  if (candidate?.docsAvailable) fields.push("docs");
-  const codeAvailability = candidate
-    ? formatResolveTargetCodeAvailability(candidate)
-    : undefined;
-  if (codeAvailability) fields.push(codeAvailability);
-  const nameSimilarity = formatResolveTargetNameSimilarity(
-    candidate?.nameSimilarity,
+  const knownKind = KNOWN_KIND_VALUES.has(kind) ? kind : "target";
+  const identity = highlight(
+    sanitizeTerminalText(target.canonicalKey),
+    useColors,
   );
-  if (nameSimilarity) fields.push(nameSimilarity);
+  const fields = target.match
+    ? [`${identity} [${formatConfidence(target.match.confidence)}]`, knownKind]
+    : [identity, `related ${knownKind}`];
   return fields.join(" · ");
 }
 
-/** Describe code availability at the candidate identity's actual scope. */
-export function formatResolveTargetCodeAvailability(
-  candidate: ResolveTargetCandidate,
-): string | undefined {
-  if (!candidate.codeAvailable) return undefined;
-  switch (candidate.kind) {
-    case "PACKAGE":
-      return "indexed package snapshot";
-    case "REPOSITORY":
-      return "indexed repository snapshot";
-    default:
-      return "indexed code snapshot";
+function formatTerminalGroup(
+  group: ResolveTargetGroup,
+  groupNumber: number,
+  protectedKeys: ReadonlySet<string>,
+  useColors: boolean,
+): string[] {
+  const [lead, ...members] = group.targets;
+  if (!lead) return [];
+  const evidencePlan = buildResolveTargetEvidencePlan(group.targets);
+  const lines = [
+    `  ${groupNumber}. ${formatTerminalTargetLine(lead, evidencePlan(lead), protectedKeys, useColors)}`,
+    ...formatTerminalTargetDetails(lead, "     ", useColors),
+  ];
+  if (members.length > 0) lines.push("     Related targets:");
+  for (const member of members) {
+    lines.push(
+      `       ${formatTerminalTargetLine(member, evidencePlan(member), protectedKeys, useColors)}`,
+      ...formatTerminalTargetDetails(member, "         ", useColors),
+    );
   }
+  return lines;
+}
+
+function formatTerminalTargetLine(
+  target: ResolveTargetTarget,
+  evidenceOptions: ResolveTargetEvidenceOptions,
+  protectedKeys: ReadonlySet<string>,
+  useColors: boolean,
+): string {
+  const evidence = formatResolveTargetEvidence(target, evidenceOptions);
+  return `${formatTerminalTarget(target, useColors)}${formatProtectedMarker(target, protectedKeys)}${evidence ? ` · ${evidence}` : ""}`;
+}
+
+function formatProtectedMarker(
+  target: ResolveTargetTarget,
+  protectedKeys: ReadonlySet<string>,
+): string {
+  return protectedKeys.has(targetKey(target))
+    ? " · protected exact-name match"
+    : "";
+}
+
+function formatTerminalTargetDetails(
+  target: ResolveTargetTarget,
+  indent: string,
+  useColors: boolean,
+): string[] {
+  const lines: string[] = [];
+  const description = compactDescription(target.description);
+  if (description) lines.push(`${indent}${dim(description, useColors)}`);
+  const maliciousWarning = formatLatestVersionMaliciousStatus(
+    target.latestVersionMaliciousStatus,
+    target.latestVersionMaliciousEvidence,
+  );
+  if (maliciousWarning) {
+    lines.push(
+      `${indent}${formatTerminalWarning(maliciousWarning, useColors)}`,
+    );
+  }
+  return lines;
+}
+
+function formatConfidence(value: string): string {
+  const confidence = value.toLowerCase();
+  return KNOWN_CONFIDENCE_VALUES.has(confidence) ? confidence : "unknown";
+}
+
+export function formatResolveTargetEvidence(
+  target: ResolveTargetTarget,
+  options: ResolveTargetEvidenceOptions,
+): string {
+  const fields: string[] = [];
+  if (options.stars && target.stars !== undefined) {
+    fields.push(`${formatCompactNumber(target.stars)} stars`);
+  }
+  if (options.downloads && target.downloadsLastMonth !== undefined) {
+    fields.push(
+      `${formatCompactNumber(target.downloadsLastMonth)} downloads/mo`,
+    );
+  } else if (options.downloads && target.downloadsTotal !== undefined) {
+    fields.push(`${formatCompactNumber(target.downloadsTotal)} downloads`);
+  }
+  if (options.repository && target.kind === "PACKAGE" && target.repositoryUrl) {
+    fields.push(`repo ${compactRepositoryUrl(target.repositoryUrl)}`);
+  }
+  const license = options.license ? formatLicense(target.license) : undefined;
+  if (license) fields.push(`license ${license}`);
+  const docs = formatAvailability(
+    "docs",
+    "pages",
+    target.docsAvailable,
+    target.docsPageCount,
+    options.docs && target.kind !== "REPOSITORY",
+  );
+  if (docs) fields.push(docs);
+  const code = formatResolveTargetCodeAvailability(
+    target,
+    options.code && target.kind !== "SITE",
+  );
+  if (code) fields.push(code);
+  const nameSimilarity = formatResolveTargetNameSimilarity(
+    target.match?.nameSimilarity,
+  );
+  if (nameSimilarity) fields.push(nameSimilarity);
+  return fields.map(sanitizeTerminalText).join(" · ");
+}
+
+/** Describe code evidence at the resolved identity's actual scope. */
+export function formatResolveTargetCodeAvailability(
+  target: ResolveTargetTarget,
+  applicable = true,
+): string | undefined {
+  if (!applicable) return undefined;
+  if (target.codeAvailable) {
+    const scope =
+      target.kind === "PACKAGE"
+        ? "indexed package snapshot"
+        : target.kind === "REPOSITORY"
+          ? "indexed repository snapshot"
+          : "indexed code snapshot";
+    return target.codeFileCount === undefined
+      ? scope
+      : `${scope} (${formatCompactNumber(target.codeFileCount)} files)`;
+  }
+  return target.codeFileCount !== undefined && target.codeFileCount > 0
+    ? `code unavailable (${formatCompactNumber(target.codeFileCount)} files recorded)`
+    : "no code";
 }
 
 /** Format the backend's fractional lexical signal as a whole percentage. */
@@ -312,71 +504,62 @@ export function formatResolveTargetNameSimilarity(
     : `${Math.round(value * 100)}% name similarity`;
 }
 
-/** Explain resolver evidence without implying that either signal is decisive. */
+/** Explain resolver evidence without treating either signal as decisive. */
 export function formatResolveTargetEvidenceNotes(
-  targets: readonly ResolveTargetReference[],
+  targets: readonly ResolveTargetTarget[],
 ): string[] {
-  const candidates = targets.filter(isCandidate);
   const notes: string[] = [];
-  if (candidates.some((candidate) => candidate.nameSimilarity !== undefined)) {
+  if (targets.some((target) => target.match?.nameSimilarity !== undefined)) {
     notes.push(
       "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
     );
   }
-  if (candidates.some((candidate) => candidate.codeAvailable)) {
-    if (
-      candidates.some(
-        (candidate) => candidate.kind === "PACKAGE" && candidate.codeAvailable,
-      )
-    ) {
-      notes.push(
-        "An indexed package snapshot does not establish exact latest-version readiness; code commands do so only when they resolve and serve a commit SHA.",
-      );
-    }
-    if (
-      candidates.some(
-        (candidate) =>
-          candidate.kind === "REPOSITORY" && candidate.codeAvailable,
-      )
-    ) {
-      notes.push(
-        "An indexed repository snapshot does not establish exact ref readiness; code commands do so only when they resolve and serve a commit SHA.",
-      );
-    }
+  if (
+    targets.some((target) => target.kind === "PACKAGE" && target.codeAvailable)
+  ) {
+    notes.push(
+      "An indexed package snapshot does not establish exact latest-version readiness; code commands do so only when they resolve and serve a commit SHA.",
+    );
+  }
+  if (
+    targets.some(
+      (target) => target.kind === "REPOSITORY" && target.codeAvailable,
+    )
+  ) {
+    notes.push(
+      "An indexed repository snapshot does not establish exact ref readiness; code commands do so only when they resolve and serve a commit SHA.",
+    );
   }
   return notes;
 }
 
-function formatCandidateLines(
-  candidate: ResolveTargetReference,
-  index: number,
-  protectedMatch: boolean,
-  useColors: boolean,
-): string[] {
-  const marker = protectedMatch ? " · protected exact-name match" : "";
-  const lines = [
-    `  ${index}. ${formatCandidate(candidate, useColors)}${marker}`,
-  ];
-  const description = compactDescription(
-    isCandidate(candidate) ? candidate.description : undefined,
-  );
-  if (description) lines.push(`     ${dim(description, useColors)}`);
-  const maliciousWarning = isCandidate(candidate)
-    ? formatLatestVersionMaliciousStatus(
-        candidate.latestVersionMaliciousStatus,
-        candidate.latestVersionMaliciousEvidence,
-      )
-    : undefined;
-  if (maliciousWarning) {
-    lines.push(`     ${formatTerminalWarning(maliciousWarning, useColors)}`);
+function formatLicense(value: string | undefined): string | undefined {
+  const license = sanitizeTerminalText(value ?? "").trim();
+  if (!license) return undefined;
+  return license === "mit" ? "MIT" : license;
+}
+
+function formatAvailability(
+  label: "docs" | "code",
+  unit: "pages" | "files",
+  available: boolean,
+  count: number | undefined,
+  applicable: boolean,
+): string | undefined {
+  if (!applicable) return undefined;
+  if (count !== undefined && available) {
+    return `${label} ${formatCompactNumber(count)} ${unit}`;
   }
-  return lines;
+  if (count !== undefined && count > 0) {
+    return `${label} unavailable (${formatCompactNumber(count)} ${unit} recorded)`;
+  }
+  return available ? `${label} available` : `no ${label}`;
 }
 
 /** Return concise warning copy only for a non-actionable backend decision. */
 export function formatLatestVersionMaliciousStatus(
   status: string | undefined,
-  evidence?: ResolveTargetCandidate["latestVersionMaliciousEvidence"],
+  evidence?: ResolveTargetTarget["latestVersionMaliciousEvidence"],
 ): string | undefined {
   switch (status) {
     case "AFFECTED":
@@ -405,7 +588,7 @@ export function formatLatestVersionMaliciousStatus(
 function withMaliciousEvidence(
   message: string,
   guidance: string,
-  evidence: ResolveTargetCandidate["latestVersionMaliciousEvidence"],
+  evidence: ResolveTargetTarget["latestVersionMaliciousEvidence"],
   includeReasons: boolean,
 ): string {
   if (!evidence || evidence.advisories.length === 0) {
@@ -468,13 +651,14 @@ export function isLatestVersionMaliciousStatusActionable(
   return status === "CLEAR" || status === "NOT_APPLICABLE";
 }
 
-export function findResolveTargetBestCandidate(
-  result: Pick<ResolveTargetResult, "best" | "candidates">,
-): ResolveTargetCandidate | undefined {
+export function findResolveTargetBestTarget(
+  result: Pick<ResolveTargetResult, "best" | "targets">,
+): ResolveTargetTarget | undefined {
   if (!result.best) return undefined;
   const best = result.best;
-  return result.candidates.find(
-    (candidate) => candidateKey(candidate) === candidateKey(best),
+  return result.targets.find(
+    (target) =>
+      target.kind === best.kind && target.canonicalKey === best.canonicalKey,
   );
 }
 
@@ -522,21 +706,17 @@ function dedupeTargets<Target extends ResolveTargetReference>(
 ): Target[] {
   const seen = new Set<string>();
   return candidates.filter((candidate) => {
-    const key = candidateKey(candidate);
+    const key = targetKey(candidate);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 }
 
-function candidateKey(candidate: ResolveTargetReference): string {
+function targetKey(
+  candidate: Pick<ResolveTargetReference, "kind" | "canonicalKey">,
+): string {
   return `${candidate.kind}:${candidate.canonicalKey}`;
-}
-
-function isCandidate(
-  target: ResolveTargetReference,
-): target is ResolveTargetCandidate {
-  return Object.hasOwn(target, "docsAvailable");
 }
 
 function assign<Key extends keyof ResolveTargetCandidatePayload>(

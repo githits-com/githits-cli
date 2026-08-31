@@ -2,7 +2,7 @@ import type {
   PackageUpgradeReviewResponse as BackendPackageUpgradeReviewResponse,
   PackageIntelligenceService,
 } from "@githits/core-internal";
-import { colorize, highlight } from "./colors.js";
+import { colorize, colors, highlight } from "./colors.js";
 import type {
   PackageUpgradeReviewOptions,
   UpgradeReviewPackageRequest,
@@ -167,6 +167,7 @@ export interface UpgradeReviewResponse {
 export interface FormatPackageUpgradeReviewTerminalOptions {
   verbose?: boolean;
   useColors?: boolean;
+  terminalWidth?: number;
 }
 
 const BODY_PREVIEW_CHARS = 280;
@@ -450,80 +451,179 @@ function matchesSignalTerm(text: string, term: string): boolean {
   return lower.includes(term);
 }
 
-function hasIntroducedDependencyIssues(
-  issues: UpgradeDependencyIssues | undefined,
-): issues is UpgradeDependencyIssues {
-  if (!issues) return false;
-  return (
-    issues.introducedDeprecated.length > 0 ||
-    issues.introducedDuplicates.length > 0 ||
-    issues.introducedConflicts.length > 0 ||
-    issues.introducedOutdated.length > 0
-  );
-}
-
 export function formatPackageUpgradeReviewTerminal(
   response: UpgradeReviewResponse,
   options: FormatPackageUpgradeReviewTerminalOptions = {},
 ): string {
   const useColors = options.useColors === true;
+  const width = normaliseTerminalWidth(options.terminalWidth);
   const lines = [
     sectionTitle(
-      `pkg_upgrade_review | ${response.summary.total} upgrades | unknowns=${response.summary.withUnknowns} added-vulns=${response.summary.withAddedAdvisories} keyword-sampled=${response.summary.withBreakingSignals} dependency-changes=${response.summary.withDirectDependencyChanges} transitive-vuln-additions=${response.summary.withTransitiveVulnerabilityAdditions}`,
+      `Upgrade review - ${response.reviews.length} ${response.reviews.length === 1 ? "package" : "packages"}`,
       useColors,
     ),
-    "",
   ];
+  if (response.reviews.length > 1) {
+    appendWrappedText(
+      lines,
+      "Across packages: ",
+      aggregateSummary(response),
+      width,
+    );
+  }
   for (const review of response.reviews) {
+    lines.push("");
     lines.push(
       highlight(
-        `${review.registry}:${review.name} ${review.currentVersion} -> ${review.targetVersion} | ${review.versionDelta}`,
+        `${review.registry}:${review.name} ${review.currentVersion} -> ${review.targetVersion} (${review.versionDelta})`,
         useColors,
       ),
     );
-    lines.push(...formatVulnerabilitySection(review.security, options));
-    const deprecation = formatDeprecationLine(review);
-    if (deprecation) lines.push(deprecation);
-    lines.push(...formatChangesSection(review.changelog, options));
+    appendSection(lines, formatVulnerabilitySection(review.security, options));
+    const deprecation = formatDeprecationLine(review, options);
+    if (deprecation) appendSection(lines, deprecation);
+    appendSection(lines, formatChangesSection(review.changelog, options));
     if (review.compatibility) {
-      lines.push(...formatCompatibilitySection(review.compatibility, options));
+      appendSection(
+        lines,
+        formatCompatibilitySection(review.compatibility, options),
+      );
     }
     if (review.dependencyChanges) {
-      lines.push(
-        ...formatDependencyChangesSection(review.dependencyChanges, options),
+      appendSection(
+        lines,
+        formatDependencyChangesSection(review.dependencyChanges, options),
       );
     }
-    const dependencyIssues = review.dependencyIssues;
-    if (hasIntroducedDependencyIssues(dependencyIssues))
-      lines.push(...formatDependencyIssuesSection(dependencyIssues));
-    if (review.unknowns.length > 0)
-      lines.push(
-        "unknowns:",
-        ...review.unknowns.map((unknown) => `  - ${unknown}`),
+    if (review.dependencyIssues)
+      appendSection(
+        lines,
+        formatDependencyIssuesSection(review.dependencyIssues, options),
       );
-    lines.push("");
+    if (review.unknowns.length > 0) {
+      const unknownLines = [
+        attentionSectionTitle("Unknown evidence", useColors),
+      ];
+      for (const unknown of review.unknowns) {
+        appendWrappedText(unknownLines, "  - ", unknown, width, "    ");
+      }
+      appendSection(lines, unknownLines);
+    }
   }
   return `${lines.join("\n").trimEnd()}\n`;
 }
 
 function sectionTitle(text: string, useColors: boolean): string {
-  return colorize(text, "cyan", useColors);
+  return useColors ? `${colors.bold}${text}${colors.reset}` : text;
 }
 
-function formatDeprecationLine(review: UpgradeReview): string | undefined {
+function attentionSectionTitle(text: string, useColors: boolean): string {
+  return useColors
+    ? `${colors.bold}${colors.yellow}${text}${colors.reset}`
+    : text;
+}
+
+function normaliseTerminalWidth(width: number | undefined): number {
+  if (width === undefined || !Number.isFinite(width)) return 80;
+  return Math.max(20, Math.floor(width));
+}
+
+function appendSection(lines: string[], section: string[]): void {
+  if (section.length === 0) return;
+  lines.push("", ...section);
+}
+
+function appendWrappedText(
+  lines: string[],
+  prefix: string,
+  text: string,
+  width: number,
+  continuationPrefix = " ".repeat(prefix.length),
+  style?: (line: string) => string,
+): void {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) {
+    lines.push(style ? style(prefix.trimEnd()) : prefix.trimEnd());
+    return;
+  }
+  let current = prefix;
+  for (const word of words) {
+    const separator = current === prefix ? "" : " ";
+    if (
+      current.length + separator.length + word.length <= width ||
+      (current === prefix && current.trimEnd().length >= width)
+    ) {
+      current += `${separator}${word}`;
+      continue;
+    }
+    lines.push(style ? style(current.trimEnd()) : current.trimEnd());
+    current = `${continuationPrefix}${word}`;
+  }
+  lines.push(style ? style(current.trimEnd()) : current.trimEnd());
+}
+
+function aggregateSummary(response: UpgradeReviewResponse): string {
+  const reviewsWithTransitive = response.reviews.filter(
+    (review) => review.security.transitive !== undefined,
+  ).length;
+  const omittedTransitive = response.reviews.length - reviewsWithTransitive;
+  const clauses = [
+    `${response.summary.withUnknowns} with evidence gaps`,
+    `${response.summary.withAddedAdvisories} with added direct vulnerabilities`,
+  ];
+  if (reviewsWithTransitive === 0) {
+    clauses.push("transitive security not checked");
+  } else {
+    clauses.push(
+      `${response.summary.withTransitiveVulnerabilityAdditions} with added transitive vulnerabilities`,
+    );
+    if (omittedTransitive > 0)
+      clauses.push(`${omittedTransitive} without transitive security evidence`);
+  }
+  clauses.push(
+    `${response.summary.withBreakingSignals} with heuristic change signals`,
+    `${response.summary.withDirectDependencyChanges} with direct dependency changes`,
+  );
+  return clauses.join(" | ");
+}
+
+function formatDeprecationLine(
+  review: UpgradeReview,
+  options: FormatPackageUpgradeReviewTerminalOptions,
+): string[] | undefined {
   const current = review.security.current;
   const target = review.security.target;
-  if (!current && !target) return undefined;
-  const parts: string[] = [];
-  if (current?.deprecated === true) parts.push("current deprecated");
+  const width = normaliseTerminalWidth(options.terminalWidth);
+  const useColors = options.useColors === true;
+  const hasCurrentDeprecation = current?.deprecated === true;
+  const hasTargetDeprecation = target?.deprecated === true;
+  const targetDeprecationUnknown =
+    target === undefined || target.deprecated === undefined;
+  if (
+    !hasCurrentDeprecation &&
+    !hasTargetDeprecation &&
+    !targetDeprecationUnknown
+  )
+    return undefined;
+  const lines = [sectionTitle("Deprecation", useColors)];
+  if (current?.deprecated === true)
+    lines.push(attentionLine("  Current: deprecated", useColors));
   if (target?.deprecated === true) {
-    parts.push(
-      `target deprecated${target.deprecationReason ? `: ${target.deprecationReason}` : ""}`,
+    const reason = target.deprecationReason
+      ? `deprecated: ${target.deprecationReason}`
+      : "deprecated";
+    appendWrappedText(
+      lines,
+      "  Target: ",
+      reason,
+      width,
+      "          ",
+      (line) => attentionLine(line, useColors),
     );
   }
-  if (target?.deprecated === undefined)
-    parts.push("target deprecation unknown");
-  return parts.length > 0 ? `deprecation: ${parts.join("; ")}` : undefined;
+  if (targetDeprecationUnknown)
+    lines.push(attentionLine("  Target: deprecation unknown", useColors));
+  return lines.length > 1 ? lines : undefined;
 }
 
 function formatVulnerabilitySection(
@@ -532,16 +632,52 @@ function formatVulnerabilitySection(
 ): string[] {
   const current = security.current?.affectedCount ?? "unknown";
   const target = security.target?.affectedCount ?? "unknown";
-  const lines = [
-    sectionTitle("vulnerabilities", options.useColors === true),
-    `  direct package advisories: current version affected=${current}, target version affected=${target}, fixed by target=${security.removed.length}, added in target=${security.added.length}, still affects target=${security.notAddressed.length}`,
-  ];
-  const limit = options.verbose ? Number.POSITIVE_INFINITY : 5;
-  appendAdvisoryLines(lines, "added", security.added, limit);
-  appendAdvisoryLines(lines, "fixed", security.removed, limit);
-  appendAdvisoryLines(lines, "still present", security.notAddressed, limit);
+  const width = normaliseTerminalWidth(options.terminalWidth);
+  const useColors = options.useColors === true;
+  const lines = [sectionTitle("Security", useColors)];
+  appendWrappedText(
+    lines,
+    "  Direct: ",
+    `${current} affected -> ${target} affected | ${security.removed.length} fixed | ${security.added.length} added | ${security.notAddressed.length} still present`,
+    width,
+    "          ",
+    security.added.length > 0 || security.notAddressed.length > 0
+      ? (line) => attentionLine(line, useColors)
+      : undefined,
+  );
   lines.push(
-    ...formatTransitiveVulnerabilitySubsection(security.transitive, options),
+    ...formatTransitiveVulnerabilitySummary(security.transitive, options),
+  );
+  const limit = options.verbose ? Number.POSITIVE_INFINITY : 5;
+  appendAdvisoryLines(
+    lines,
+    "Added direct advisories",
+    security.added,
+    limit,
+    width,
+    useColors,
+    true,
+  );
+  appendAdvisoryLines(
+    lines,
+    "Fixed direct advisories",
+    security.removed,
+    limit,
+    width,
+    useColors,
+    false,
+  );
+  appendAdvisoryLines(
+    lines,
+    "Still present direct advisories",
+    security.notAddressed,
+    limit,
+    width,
+    useColors,
+    true,
+  );
+  lines.push(
+    ...formatTransitiveVulnerabilityDetails(security.transitive, options),
   );
   return lines;
 }
@@ -551,62 +687,107 @@ function appendAdvisoryLines(
   label: string,
   advisories: UpgradeAdvisorySummary[],
   limit: number,
+  width: number,
+  useColors: boolean,
+  attention: boolean,
 ): void {
   if (advisories.length === 0) return;
-  lines.push(`  ${label}:`);
+  lines.push(attention ? attentionLine(`  ${label}`, useColors) : `  ${label}`);
   for (const advisory of advisories.slice(0, limit)) {
-    lines.push(`    - ${formatAdvisory(advisory)}`);
+    const prefix = `    - ${formatAdvisoryPrefix(advisory)}`;
+    const prose = formatAdvisoryProse(advisory);
+    if (prose) {
+      appendWrappedText(lines, `${prefix}: `, prose, width, "      ");
+    } else {
+      lines.push(prefix);
+    }
   }
   const remaining = advisories.length - limit;
   if (remaining > 0)
     lines.push(`    - ... +${remaining} more with verbose output`);
 }
 
-function formatAdvisory(advisory: UpgradeAdvisorySummary): string {
+function formatAdvisoryPrefix(advisory: UpgradeAdvisorySummary): string {
   const id = advisory.id ?? advisory.aliases?.[0] ?? "unknown-id";
   const severity = advisory.severityLabel
     ? ` ${advisory.severityLabel}${typeof advisory.severity === "number" ? `(${advisory.severity})` : ""}`
     : "";
   const malicious = advisory.isMalicious ? " malicious" : "";
-  const summary = advisory.summary ? `: ${advisory.summary}` : "";
-  const fixed = advisory.fixedIn?.length
-    ? ` fixed in ${advisory.fixedIn.join(", ")}`
-    : "";
-  return `${id}${severity}${malicious}${summary}${fixed}`;
+  return `${id}${severity}${malicious}`;
 }
 
-function formatTransitiveVulnerabilitySubsection(
+function formatAdvisoryProse(advisory: UpgradeAdvisorySummary): string {
+  const parts: string[] = [];
+  if (advisory.summary) parts.push(advisory.summary);
+  if (advisory.fixedIn?.length)
+    parts.push(`fixed in ${advisory.fixedIn.join(", ")}`);
+  return parts.join(" | ");
+}
+
+function formatTransitiveVulnerabilitySummary(
   transitive: UpgradeTransitiveSecurity | undefined,
   options: FormatPackageUpgradeReviewTerminalOptions,
 ): string[] {
-  if (!transitive) return ["  transitive package advisories: not checked"];
-  const lines = [
-    `  transitive package advisories: current affected packages=${transitive.currentAffected}, target affected packages=${transitive.targetAffected}, fixed packages=${transitive.fixedPackageDetailsTotalCount}, added packages=${transitive.introducedPackageDetailsTotalCount}, still affected package details=${transitive.stillAffectedPackageDetailsTotalCount}`,
-  ];
+  const useColors = options.useColors === true;
+  if (!transitive)
+    return [attentionLine("  Transitive: not checked", useColors)];
+  const lines: string[] = [];
+  const width = normaliseTerminalWidth(options.terminalWidth);
+  appendWrappedText(
+    lines,
+    "  Transitive: ",
+    `${transitive.currentAffected} affected packages -> ${transitive.targetAffected} | ${transitive.fixedPackageDetailsTotalCount} fixed | ${transitive.introducedPackageDetailsTotalCount} added | ${transitive.stillAffectedPackageDetailsTotalCount} still affected`,
+    width,
+    "             ",
+    transitive.introducedPackageDetailsTotalCount > 0 ||
+      transitive.stillAffectedPackageDetailsTotalCount > 0
+      ? (line) => attentionLine(line, useColors)
+      : undefined,
+  );
+  return lines;
+}
+
+function formatTransitiveVulnerabilityDetails(
+  transitive: UpgradeTransitiveSecurity | undefined,
+  options: FormatPackageUpgradeReviewTerminalOptions,
+): string[] {
+  if (!transitive) return [];
+  const useColors = options.useColors === true;
+  const width = normaliseTerminalWidth(options.terminalWidth);
+  const lines: string[] = [];
   const limit = options.verbose ? Number.POSITIVE_INFINITY : 5;
   appendTransitivePackageLines(
     lines,
-    "added affected packages",
+    "Added transitive vulnerable packages",
     transitive.introducedPackageDetails,
     transitive.introducedPackageDetailsTotalCount,
     transitive.introducedPackageDetailsTruncated,
     limit,
+    width,
+    true,
+    useColors,
   );
   appendTransitivePackageLines(
     lines,
-    "still affected packages",
+    "Still affected transitive packages",
     transitive.stillAffectedPackageDetails,
     transitive.stillAffectedPackageDetailsTotalCount,
     transitive.stillAffectedPackageDetailsTruncated,
     limit,
+    width,
+    true,
+    useColors,
   );
   appendTransitivePackageLines(
     lines,
-    "fixed affected packages",
+    "Fixed transitive vulnerable packages",
     transitive.fixedPackageDetails,
     transitive.fixedPackageDetailsTotalCount,
     transitive.fixedPackageDetailsTruncated,
     limit,
+    width,
+    false,
+    useColors,
   );
   return lines;
 }
@@ -618,13 +799,15 @@ function appendTransitivePackageLines(
   totalCount: number,
   truncated: boolean,
   limit: number,
+  width: number,
+  attention: boolean,
+  useColors: boolean,
 ): void {
   if (totalCount === 0) return;
-  lines.push(`  ${label}:`);
+  lines.push(attention ? attentionLine(`  ${label}`, useColors) : `  ${label}`);
   const visible = packages.slice(0, limit);
-  for (const pkg of visible) {
-    lines.push(`    - ${formatTransitivePackage(pkg)}`);
-  }
+  for (const pkg of visible)
+    lines.push(...formatTransitivePackageLines(pkg, width));
   const verboseRemaining = Math.max(0, packages.length - visible.length);
   if (verboseRemaining > 0)
     lines.push(`    - ... +${verboseRemaining} more with verbose output`);
@@ -635,38 +818,63 @@ function appendTransitivePackageLines(
     );
 }
 
-function formatTransitivePackage(
+function formatTransitivePackageLines(
   pkg: UpgradeTransitiveVulnerablePackage,
-): string {
+  width: number,
+): string[] {
   const severity = pkg.maxSeverityLabel
     ? ` ${pkg.maxSeverityLabel}${typeof pkg.maxSeverityScore === "number" ? `(${pkg.maxSeverityScore})` : ""}`
     : "";
-  const advisories = pkg.advisoryIds.length
-    ? ` advisories: ${pkg.advisoryIds.join(", ")}`
-    : "";
-  return `${pkg.registry}:${pkg.name}@${pkg.versions.join("|")} affected=${pkg.affectedCount}${severity}${advisories}`;
+  const lines = [
+    `    - ${pkg.registry}:${pkg.name}@${pkg.versions.join("|")} affected=${pkg.affectedCount}${severity}`,
+  ];
+  if (pkg.advisoryIds.length > 0) {
+    const prefix = "      Advisories: ";
+    appendWrappedText(
+      lines,
+      prefix,
+      pkg.advisoryIds.join(", "),
+      width,
+      " ".repeat(prefix.length),
+    );
+  }
+  return lines;
 }
 
 function formatChangesSection(
   changelog: UpgradeChangelog,
   options: FormatPackageUpgradeReviewTerminalOptions,
 ): string[] {
-  const source = changelog.source ?? changelog.fallback ?? "unavailable";
-  const lines = [
-    sectionTitle("changes", options.useColors === true),
-    `  source: ${source}`,
-    `  release entries: ${changelog.totalEntries} total, ${changelog.totalEntriesWithBodies} with release-note bodies${changelog.truncated ? `; ${changelog.entries.length} ordinary entries sampled` : ""}`,
-  ];
+  const width = normaliseTerminalWidth(options.terminalWidth);
+  const useColors = options.useColors === true;
+  const source = formatChangelogSource(changelog);
+  const entryWord = changelog.totalEntries === 1 ? "entry" : "entries";
+  const lines = [sectionTitle("Changes", useColors)];
+  let coverage = `${source} | ${changelog.totalEntries} ${entryWord} | ${changelog.totalEntriesWithBodies} with release notes`;
+  if (changelog.truncated)
+    coverage += ` | ${changelog.sampledEntries.length} ordinary entries sampled`;
+  appendWrappedText(lines, "  ", coverage, width, "  ");
   const keywords = changelogKeywordSummary(changelog);
-  if (keywords.length > 0) {
-    lines.push(
-      `  keyword hits: ${changelog.totalKeywordEntries} entries (${keywords.join(", ")}); heuristic text match`,
+  if (keywords.length > 0 || changelog.totalKeywordEntries > 0) {
+    const keywordWord =
+      changelog.totalKeywordEntries === 1
+        ? "matching entry"
+        : "matching entries";
+    appendWrappedText(
+      lines,
+      "  Heuristic signals: ",
+      `${keywords.length > 0 ? keywords.join(", ") : "unspecified"} | ${changelog.totalKeywordEntries} ${keywordWord}`,
+      width,
+      "                    ",
+      (line) => colorizeSignalKeywords(line, keywords, useColors),
     );
   }
   if (changelog.keywordEntries.length > 0) {
-    lines.push("  keyword hit entries:");
+    lines.push("  Heuristic release entries");
     for (const entry of changelog.keywordEntries) {
-      lines.push(...formatKeywordChangelogEntry(entry, options));
+      lines.push(
+        ...formatKeywordChangelogEntry(entry, options, width, useColors),
+      );
     }
     if (options.verbose === true) {
       const keywordKeys = new Set(
@@ -676,28 +884,44 @@ function formatChangesSection(
         (entry) =>
           entry.bodyPreview && !keywordKeys.has(changelogEntryKey(entry)),
       );
-      appendPlainChangelogEntries(lines, "other release entries", otherEntries);
+      appendPlainChangelogEntries(
+        lines,
+        "Other release entries",
+        otherEntries,
+        width,
+      );
     }
     return lines;
   }
   appendPlainChangelogEntries(
     lines,
-    "sampled entries",
+    "Sampled release entries",
     changelog.sampledEntries,
+    width,
   );
   return lines;
+}
+
+function formatChangelogSource(changelog: UpgradeChangelog): string {
+  const source = changelog.source || changelog.fallback;
+  const sourceKey = source?.toLowerCase();
+  if (sourceKey === "releases") return "Repository releases";
+  if (sourceKey === "package_versions")
+    return "Package versions (no release notes)";
+  return source ?? "Changelog source unavailable";
 }
 
 function appendPlainChangelogEntries(
   lines: string[],
   label: string,
   entries: UpgradeChangelogEntry[],
+  width: number,
 ): void {
   const visibleEntries = entries.filter((entry) => entry.bodyPreview);
   if (visibleEntries.length === 0) return;
-  lines.push(`  ${label}:`);
+  lines.push(`  ${label}`);
   for (const entry of visibleEntries) {
-    lines.push(...formatPlainChangelogEntry(entry));
+    lines.push(...formatPlainChangelogEntry(entry, width));
   }
 }
 
@@ -709,19 +933,25 @@ function formatCompatibilitySection(
   compatibility: UpgradeCompatibility,
   options: FormatPackageUpgradeReviewTerminalOptions,
 ): string[] {
-  const lines = [sectionTitle("compatibility", options.useColors === true)];
+  if (
+    compatibility.peerDependencyChanges.length === 0 &&
+    compatibility.notes.length === 0
+  )
+    return [];
+  const width = normaliseTerminalWidth(options.terminalWidth);
+  const lines = [sectionTitle("Compatibility", options.useColors === true)];
   if (compatibility.peerDependencyChanges.length > 0) {
-    lines.push("  peer dependency metadata changes:");
+    lines.push("  Peer dependency changes");
     const limit = options.verbose ? Number.POSITIVE_INFINITY : 10;
     for (const change of compatibility.peerDependencyChanges.slice(0, limit)) {
-      lines.push(`    - ${change}`);
+      appendWrappedText(lines, "    - ", change, width, "      ");
     }
     const remaining = compatibility.peerDependencyChanges.length - limit;
     if (remaining > 0)
       lines.push(`    - ... +${remaining} more with verbose output`);
   }
   for (const note of compatibility.notes) {
-    lines.push(`  note: ${note}`);
+    appendWrappedText(lines, "  Note: ", note, width, "        ");
   }
   return lines;
 }
@@ -735,27 +965,67 @@ function changelogKeywordSummary(changelog: UpgradeChangelog): string[] {
 function formatKeywordChangelogEntry(
   entry: UpgradeChangelogEntry,
   options: FormatPackageUpgradeReviewTerminalOptions,
+  width: number,
+  useColors: boolean,
 ): string[] {
-  const version = entry.version ?? "unknown-version";
-  const link = entry.htmlUrl ? ` ${entry.htmlUrl}` : "";
-  const lines = [
-    `    - ${version}${entry.publishedAt ? ` (${entry.publishedAt})` : ""}${link}`,
-  ];
+  const lines = formatChangelogEntryHeader(entry, width);
   const matched = formatMatchedExcerpts(entry, options.verbose === true);
-  if (matched.length > 0) lines.push(...matched);
+  for (const excerpt of matched) {
+    appendWrappedText(lines, "      ", excerpt, width, "      ", (line) =>
+      colorizeSignalMarker(line, useColors),
+    );
+  }
   return lines;
 }
 
-function formatPlainChangelogEntry(entry: UpgradeChangelogEntry): string[] {
-  const version = entry.version ?? "unknown-version";
-  const link = entry.htmlUrl ? ` ${entry.htmlUrl}` : "";
-  const lines = [
-    `    - ${version}${entry.publishedAt ? ` (${entry.publishedAt})` : ""}${link}`,
-  ];
+function colorizeSignalMarker(line: string, useColors: boolean): string {
+  if (!useColors) return line;
+  return line.replace(/^(\s*\[[^\]]+\]:)/, `${colors.yellow}$1${colors.reset}`);
+}
+
+function colorizeSignalKeywords(
+  line: string,
+  keywords: string[],
+  useColors: boolean,
+): string {
+  if (!useColors || keywords.length === 0) return line;
+  let result = line;
+  for (const keyword of keywords) {
+    result = result.replace(
+      keyword,
+      `${colors.yellow}${keyword}${colors.reset}`,
+    );
+  }
+  return result;
+}
+
+function formatPlainChangelogEntry(
+  entry: UpgradeChangelogEntry,
+  width: number,
+): string[] {
+  const lines = formatChangelogEntryHeader(entry, width);
   if (entry.headline) {
-    lines.push(`      ${preview(entry.headline) ?? entry.headline}`);
+    appendWrappedText(
+      lines,
+      "      ",
+      preview(entry.headline) ?? entry.headline,
+      width,
+      "      ",
+    );
   }
   return lines;
+}
+
+function formatChangelogEntryHeader(
+  entry: UpgradeChangelogEntry,
+  width: number,
+): string[] {
+  const version = entry.version ?? "unknown-version";
+  const header = `    - ${version}${entry.publishedAt ? ` (${entry.publishedAt})` : ""}`;
+  if (!entry.htmlUrl) return [header];
+  if (header.length + 1 + entry.htmlUrl.length <= width)
+    return [`${header} ${entry.htmlUrl}`];
+  return [header, `      ${entry.htmlUrl}`];
 }
 
 function formatMatchedExcerpts(
@@ -773,7 +1043,7 @@ function formatMatchedExcerpts(
       const key = `${signal}:${excerpt}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      excerpts.push(`      [${signal}]: ${excerpt}`);
+      excerpts.push(`[${signal}]: ${excerpt}`);
       break;
     }
   }
@@ -818,20 +1088,23 @@ function formatDependencyChangesSection(
   changes: UpgradeDependencyChanges,
   options: FormatPackageUpgradeReviewTerminalOptions,
 ): string[] {
-  const lines = [
-    sectionTitle("dependencies", options.useColors === true),
-    `  direct dependencies: added=${changes.direct.added.length}, removed=${changes.direct.removed.length}, changed=${changes.direct.changed.length}`,
-  ];
-  lines.push(...formatDependencyChangeGroup("direct", changes.direct, options));
+  const useColors = options.useColors === true;
+  const lines = [sectionTitle("Dependencies", useColors)];
   lines.push(
-    `  transitive dependencies: added=${changes.transitive.added.length}, removed=${changes.transitive.removed.length}, changed=${changes.transitive.changed.length}`,
+    `  Direct: ${changes.direct.added.length} added | ${changes.direct.removed.length} removed | ${changes.direct.changed.length} changed`,
+  );
+  lines.push(...formatDependencyChangeGroup("Direct", changes.direct, options));
+  lines.push(
+    `  Transitive: ${changes.transitive.added.length} added | ${changes.transitive.removed.length} removed | ${changes.transitive.changed.length} changed`,
   );
   if (options.verbose) {
     lines.push(
-      ...formatDependencyChangeGroup("transitive", changes.transitive, options),
+      ...formatDependencyChangeGroup("Transitive", changes.transitive, options),
     );
   } else if (hasDependencyChangeGroupItems(changes.transitive)) {
-    lines.push("  transitive details: use verbose output");
+    lines.push(
+      "  More transitive dependency details are available with verbose output.",
+    );
   }
   return lines;
 }
@@ -847,7 +1120,7 @@ function hasDependencyChangeGroupItems(
 }
 
 function formatDependencyChangeGroup(
-  scope: "direct" | "transitive",
+  scope: "Direct" | "Transitive",
   group: UpgradeDependencyChangeGroup,
   options: FormatPackageUpgradeReviewTerminalOptions,
 ): string[] {
@@ -868,26 +1141,62 @@ function appendChangeLines(
   if (items.length === 0) return;
   const sample = items.slice(0, limit).map(formatDependencyChangeItem);
   const more = items.length > limit ? ` (+${items.length - limit} more)` : "";
-  lines.push(`  ${label}:${more ? `${more} with verbose output` : ""}`);
+  lines.push(`  ${label}${more ? `${more} with verbose output` : ""}`);
   for (const item of sample) lines.push(`    - ${item}`);
 }
 
 function formatDependencyIssuesSection(
   issues: UpgradeDependencyIssues,
+  options: FormatPackageUpgradeReviewTerminalOptions,
 ): string[] {
   const introduced =
     issues.introducedDeprecated.length +
     issues.introducedDuplicates.length +
     issues.introducedConflicts.length +
     issues.introducedOutdated.length;
-  const lines = [
-    "dependency issues:",
-    `  current ${issues.currentTotal}, target ${issues.targetTotal}, introduced ${introduced}`,
-  ];
-  appendStringList(lines, "introduced deprecated", issues.introducedDeprecated);
-  appendStringList(lines, "introduced duplicates", issues.introducedDuplicates);
-  appendStringList(lines, "introduced conflicts", issues.introducedConflicts);
-  appendStringList(lines, "introduced outdated", issues.introducedOutdated);
+  const useColors = options.useColors === true;
+  const limit = options.verbose ? Number.POSITIVE_INFINITY : 5;
+  const lines = [sectionTitle("Dependency issues", useColors)];
+  if (introduced === 0) {
+    lines.push(
+      `  none introduced | current total: ${issues.currentTotal} | target total: ${issues.targetTotal}`,
+    );
+    return lines;
+  }
+  lines.push(
+    attentionLine(
+      `  ${introduced} introduced | current total: ${issues.currentTotal} | target total: ${issues.targetTotal}`,
+      useColors,
+    ),
+  );
+  appendStringList(
+    lines,
+    "Introduced deprecated",
+    issues.introducedDeprecated,
+    limit,
+    useColors,
+  );
+  appendStringList(
+    lines,
+    "Introduced duplicates",
+    issues.introducedDuplicates,
+    limit,
+    useColors,
+  );
+  appendStringList(
+    lines,
+    "Introduced conflicts",
+    issues.introducedConflicts,
+    limit,
+    useColors,
+  );
+  appendStringList(
+    lines,
+    "Introduced outdated",
+    issues.introducedOutdated,
+    limit,
+    useColors,
+  );
   return lines;
 }
 
@@ -895,9 +1204,19 @@ function appendStringList(
   lines: string[],
   label: string,
   items: string[],
+  limit: number,
+  useColors: boolean,
 ): void {
   if (items.length === 0) return;
-  lines.push(`  ${label}: ${items.join(", ")}`);
+  lines.push(attentionLine(`  ${label}`, useColors));
+  for (const item of items.slice(0, limit)) lines.push(`    - ${item}`);
+  const remaining = items.length - limit;
+  if (remaining > 0)
+    lines.push(`    - ... +${remaining} more with verbose output`);
+}
+
+function attentionLine(text: string, useColors: boolean): string {
+  return colorize(text, "yellow", useColors);
 }
 
 function formatDependencyChangeItem(item: UpgradeDependencyChangeItem): string {

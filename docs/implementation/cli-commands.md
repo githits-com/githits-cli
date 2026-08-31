@@ -316,23 +316,49 @@ githits resolve guava --registry maven --limit 3
 githits resolve "pi agent" --query "coding agent CLI" --json
 ```
 
-Resolves a human-provided package or GitHub repository name to ranked canonical
-targets such as `npm:express` or `github:openai/codex`. The default output is a
-compact numbered candidate list with ambiguity guidance when needed and
-protected exact-name matches annotated inline. It does not label any terminal
-candidate as best or top. Ranked candidates include their available normalized
-description, capped at 240 characters, and cheap support evidence: repository
-stars, monthly or total package downloads, docs availability, indexed package
-or repository snapshots, and whole-percentage name similarity when the backend
-supplies it.
-Name similarity is coarse lexical support, not a client ranking rule; candidate
-order follows broader backend policy and the client never reranks by similarity.
-When a protected match falls outside the requested ranked limit, it is appended
-with the identity and confidence fields returned by the lightweight
-protected-match reference. When a ranked package has a repository URL but no
-package-level stars, the terminal shows its linked repository as compact
-`github:owner/repo` when possible and otherwise preserves the repository URL.
-Missing evidence is omitted rather than shown as zero.
+Resolves a human-provided package, GitHub repository, or standalone
+documentation-site name to canonical targets such as `npm:express`,
+`github:openai/codex`, or `site:expressjs.com`. The backend supplies one ordered
+presentation list containing direct ranked matches and bounded relation-only
+package, repository, and site context. The CLI preserves that order and groups
+only contiguous targets with the same non-null `groupKey`; null keys always
+remain singleton groups. Each group is numbered once and every additional
+identity appears under one `Related targets:` heading. Canonical keys stay
+copyable and every member is explicitly direct (with confidence) or related.
+
+Each target keeps its normalized description, capped at 240 characters. Compact
+text puts evidence on the same line as the target identity. Packages own
+downloads and license, repositories own stars, and sites own documentation
+evidence. Package and repository code snapshots remain on their respective
+identity lines because they establish different indexed scopes. When a group
+has no repository or site target, its package line retains the corresponding
+projected stars or documentation fallback, including the compact
+linked-repository identity when applicable.
+Repository license appears only when no package supplies one. The verified
+lowercase `mit` spelling renders canonically as `MIT`; other license strings are
+preserved. JSON remains lossless and does not apply presentation ownership.
+Positive
+docs/code counts render when content is available; otherwise availability is
+stated without inventing a count unless the backend supplies a contradictory
+positive recorded count. Available package and repository code renders as an
+indexed snapshot at that identity's scope, with a file count in parentheses when
+present. Available content with a zero count renders that zero;
+unavailable content with zero renders `no docs` / `no code`. Missing
+licenses/counts produce no placeholder. Structurally inapplicable evidence
+dimensions are omitted entirely: repositories show no docs field and sites show
+no code field. If availability is false despite a positive recorded count,
+output keeps both facts as `docs unavailable (<n> pages recorded)` or `code
+unavailable (<n> files recorded)`. `targetsTruncated` produces one note
+that additional related targets were omitted and direct matches are complete.
+The backend bounds the complete presentation list to 40 entries: up to 20 ranked
+direct matches, 12 additional protected matches, and 8 related targets. CLI and
+MCP text render that complete bounded list; only backend `targetsTruncated`
+signals omitted relations.
+
+When the backend supplies nullable `nameSimilarity`, compact text renders the
+fraction as a whole percentage on that target. It is coarse lexical support, not
+a client ranking rule: candidate order follows broader backend policy and the
+client never reranks by similarity.
 
 The shared CLI/local-MCP request boundary rejects an already-canonical package
 or GitHub repository target before the resolver service is called. Recognition
@@ -346,12 +372,12 @@ input.
 Terminal and MCP compact text share one actionability rule. A best result is a
 copyable/direct canonical next action only when it is non-ambiguous and has
 `EXACT` or `HIGH` confidence. Non-ambiguous `MEDIUM` and `LOW` results are
-labeled as unconfirmed ranked candidates and require the caller to narrow the
-name or filters, or choose a canonical candidate explicitly. Ambiguous results
+labeled as unconfirmed ranked targets and require the caller to narrow the
+name or filters, or choose a canonical target explicitly. Ambiguous results
 retain their existing choose-or-narrow guidance and literal `<target>`
 placeholder. Empty results ask for corrected spelling or adjusted
 registry filters; query, preferred-kind, and intent hints are ranking-only and
-cannot create candidates. No candidates is a valid JSON/text result but exits 1
+cannot create targets. No targets is a valid JSON/text result but exits 1
 because the command did not resolve a target. The backend guarantees that
 `best` is absent only when there are no candidates, so the terminal no-result
 message and exit status key off `best`.
@@ -360,35 +386,38 @@ message and exit status key off `best`.
 candidates only, and leaves repository candidates eligible. The command help
 enumerates every accepted value.
 `--prefer-kind package|repository` is a soft preference, not a filter.
-`--intent-hint` is repeatable. `--limit` controls the ranked list from 1-20
-(default 8); protected exact-name matches can be additional. `--query` and
+`--intent-hint` is repeatable. `--limit` controls direct ranked matches from
+1-20 (default 8); protected exact-name and related targets can be additional.
+`--query` and
 `--intent-hint` are sent to the service as ranking context. They rank retrieved
 candidates and do not expand candidate retrieval, and must not contain
 credentials, personal data, private code, or proprietary content. Terminal
 errors sanitize untrusted service and option text while JSON errors preserve
 the structured value through JSON escaping.
 
-`--json` emits the stable compact diagnostic envelope
-`{best?, ambiguous, ambiguousReason?, candidates, protectedMatches}`. Candidate
-objects occur once; `best` and `protectedMatches` use canonical-key references.
-Reference-only best/protected targets outside the ranked list produce minimal
-candidate objects with `target`, `kind`, and `confidence`, because no redundant
-detail fields are requested for those lists. Detailed ranking fields are fetched
-only for JSON. The always-selected non-null
-`latestVersionMaliciousStatus` candidate field is preserved in JSON as lowercase
-`latestVersionMaliciousStatus`. Nullable `latestVersionMaliciousEvidence` is
-preserved for affected and uncertain candidates with exact `osvId` values,
-lowercase `classificationReasons`, `totalCount`, and `truncated`. Null fields are
-omitted and enum values are lowercase. Nullable `nameSimilarity` is preserved as
-the backend's numeric fraction when present and omitted when null. Errors use the
-standard JSON envelope on stderr with clean stdout. The client does not select,
-parse, or project the backend's ranking `reason`; consumers use the typed
-confidence and evidence fields without interpreting backend rationale text.
+`--json` keeps the stable compact diagnostic envelope
+`{best?, ambiguous, ambiguousReason?, candidates, protectedMatches}` and adds
+root `targetsTruncated`. The `candidates` array now contains the backend-ordered
+presentation targets once. Every entry has `direct`; grouped entries have
+`groupKey`; counts and license are included when present. Direct entries retain
+the existing flattened confidence, alias, tier, and score fields from their
+non-null `match`; relation-only entries omit those fields. Nullable
+`nameSimilarity` is preserved as the backend's numeric fraction when present
+and omitted when null. The client does not select, parse, or project the
+backend's ranking `reason`. Array position
+is presentation-group order, not pure rank order. Optional nulls are omitted,
+zero counts are preserved, and enum values are lowercase. CLI JSON and MCP JSON
+use the same payload builder and remain deeply equal. Errors use the standard
+JSON envelope on stderr with clean stdout.
 
 Terminal and local MCP text omit `CLEAR` and `NOT_APPLICABLE` decisions. They
 render concise warnings only for affected, uncertain, unsupported, or blocking
-unavailable evidence; terminal warnings are red. Reference-only entries remain
-non-actionable when they are not backed by a full candidate.
+unavailable evidence; terminal warnings are red. Reference-only best/protected
+entries never synthesize or reorder presentation targets. A best reference
+missing its matching presentation target remains non-actionable.
+The backend contract guarantees every direct ranked and protected match is in
+`targets`; GitHits relies on that superset so text, JSON, and MCP all consume the
+same ordered list rather than reconstructing missing references client-side.
 Affected and uncertain warnings link every returned status-relevant advisory at
 `https://osv.dev/vulnerability/<percent-encoded-osv-id>`. Uncertain warnings also
 summarize the backend classification reasons; truncated evidence reports the
@@ -399,10 +428,14 @@ latest version; it is not a vulnerability-free claim. `AFFECTED` means active
 malicious evidence affects that version. `UNKNOWN` means active malicious
 evidence exists but the displayed version or ranges cannot be classified
 reliably. `NOT_APPLICABLE` is the non-package state. Direct continuation requires
-the existing non-ambiguous `EXACT`/`HIGH` identity decision and a matching full
-candidate whose status is exactly `CLEAR` or `NOT_APPLICABLE`. Affected, unknown,
+the existing non-ambiguous `EXACT`/`HIGH` identity decision and a matching
+target, located by both kind and canonical key, whose status is exactly `CLEAR`
+or `NOT_APPLICABLE`. Affected, unknown,
 missing, and unrecognized future values fail closed and emit no normal cross-tool
-next action. Ranking and filtering remain backend-owned.
+next action. A relation-only affected or unknown package still renders its
+member-local warning but cannot block an otherwise actionable matched best
+target. Aggregate ambiguity checks consider direct targets only. Ranking,
+relations, presentation order, and filtering remain backend-owned.
 
 Human text renders package `codeAvailable` as `indexed package snapshot` and
 repository `codeAvailable` as `indexed repository snapshot`. Package evidence
@@ -412,18 +445,25 @@ ref readiness. Exact code readiness exists only after a code command resolves
 and serves a commit SHA.
 
 The command and local experimental MCP adapter use an internal service and do
-not change the public `@githits/mcp` service interface. Its GraphQL selection keeps `best` and
-`protectedMatches` to `kind`, `canonicalKey`, and `confidence`; full compact and
-conditional JSON fields are selected only for ranked `candidates`; the
-malicious-content decision is part of the compact candidate fields because every
-text surface consumes it. Its bounded advisory evidence is selected alongside the
-decision for the same reason. Nullable `nameSimilarity` is also always selected
-for ranked candidates because compact CLI and MCP text both render it. Detailed
-ranking `reason` is deliberately not selected. This keeps the operation within
-production's GraphQL complexity limit while preserving all fields consumed by
-each output mode. The CLI deliberately does not select expensive per-candidate
-`inspection` metadata. HTTP, transport, GraphQL, auth refresh, and client-version
-error classification are shared with the package intelligence service.
+not change the public `@githits/mcp` service interface. Its GraphQL selection
+keeps `best` and `protectedMatches` to `kind`, `canonicalKey`, and `confidence`;
+one ordered `targets` selection always includes compact identity, presentation,
+security, grouping, count, and license fields, while JSON-only identity and
+detailed `match` fields remain conditional. Because the grouped target type does
+not expose lexical evidence, one always-selected legacy `candidates` sidecar is
+limited to `canonicalKey` and nullable `nameSimilarity`; the client joins it to
+direct target matches by canonical identity without reordering. No other legacy
+candidate fields or per-target follow-ups are requested. The malicious-content
+decision and bounded evidence remain compact fields because every text surface
+consumes them. Detailed ranking `reason` is deliberately not selected. This
+keeps the operation below production's GraphQL complexity limit while
+preserving all fields consumed by each output mode. The CLI deliberately does
+not select expensive per-target `inspection` metadata. HTTP, transport,
+GraphQL, auth refresh, and client-version error classification are shared with
+the package intelligence service. The shared GraphQL classifier treats the backend's
+documented `AUTHENTICATION_REQUIRED` code and the legacy `UNAUTHORIZED` code as
+server-auth failures, so both enter the normal token-refresh and `AUTH_REQUIRED`
+error path.
 
 Adding always-selected `nameSimilarity` while retaining detailed-only `reason`
 made the production operation complexity 517 against the limit of 500. The
@@ -432,22 +472,16 @@ and projection restored the normal operation without a second query or weaker
 evidence. Authenticated production CLI and MCP smoke both pass with the reduced
 selection.
 
-The current candidate contract does not propagate linked GitHub
-stars/forks/issues onto package candidates. A package can therefore show its
-linked repository without its popularity evidence. This remains a known
-release decision; the CLI does not fetch expensive `inspection` metadata to
-compensate for it.
-
 #### Standalone-site target kind
 
 `ResolveTargetKind` includes `SITE`, `--prefer-kind site` maps to it, and the
-terminal/JSON formatters render a `site` candidate whose canonical key parses
+terminal/JSON formatters render a `site` target whose canonical key parses
 straight back into `search --in`, closing the resolve-then-search loop for
 standalone documentation sites.
 
-`resolveTarget` returns `SITE` candidates for standalone documentation sites.
-Without `KNOWN_KIND_VALUES` carrying `site`, those candidates would render with
-the unknown-kind `target` label. Site candidates report `docsAvailable` true
+`resolveTarget` returns `SITE` targets for standalone documentation sites.
+Without `KNOWN_KIND_VALUES` carrying `site`, those targets would render with
+the unknown-kind `target` label. Site targets report `docsAvailable` true
 and `codeAvailable` false, so terminal output shows docs evidence without code,
 stars, or downloads. `--prefer-kind site` is a soft ranking preference rather
 than a filter, matching the package/repository kind contract.
@@ -627,6 +661,40 @@ Fetches release notes or changelog entries for a package or GitHub repository. O
 **Per-entry shape.** `{version, normalizedVersion?, publishedAt?, htmlUrl?, body?}`. `version` is kept even when null so agents can map `items.map(e => e.version)` without guarding; other nullable fields are stripped. The backend's opaque per-entry `metadata` GenericJSON is deliberately dropped from the envelope — revisit via agent feedback.
 
 **Errors.** `NOT_FOUND` covers both the backend's "package not found" case and the distinct "package exists but no changelog source resolved" case (typed `PackageIntelligenceChangelogSourceNotFoundError`; message names the sources that were tried). `VERSION_NOT_FOUND` enriches with structured `package` / `requested` / `available` detail lines from the shared `promoteGenericVersionNotFound` helper — which was extended in this PR to recognise `--from` and `--to` as promotable version inputs.
+
+**Troubleshooting.** Same debug areas as the rest of the `pkg` family.
+
+### `githits pkg upgrade-review`
+
+```
+githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1
+githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-staged@16.2.7..16.4.0
+githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1 --verbose
+githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1 --json
+```
+
+The human-readable CLI and MCP `pkg_upgrade_review` output use one shared
+formatter. It starts with `Upgrade review - N package(s)`, adds one
+`Across packages:` line only for batches, and groups each package as identity,
+security, deprecation, changes, compatibility, dependencies, dependency
+issues, and unknown evidence. Empty optional groups are omitted, but a returned
+zero-valued dependency comparison remains visible. Missing target security
+evidence renders `Target: deprecation unknown` so absence is not confused with
+verified non-deprecation. The formatter reports evidence and missing evidence;
+it does not make an approval, safety, or risk claim.
+
+The shared formatter wraps free prose to the caller width (minimum 20 columns).
+The CLI passes `process.stdout.columns` and enables ANSI only when supported;
+MCP disables ANSI and uses the 80-column default. Outcome and section headings
+are bold, package identity is bold cyan, and yellow is limited to compact
+attention summaries, labels, and matched signal terms. Heuristic section labels
+remain plain; only the matched keyword and excerpt marker are yellow. Detail
+prose and locators remain plain. Color never carries information that is absent
+from the words. Formatter-authored punctuation stays ASCII while backend
+Unicode is preserved. `--verbose` expands the bounded evidence rows in place.
+`--json` remains the structured, lossless machine surface and is shared with MCP
+`format: "json"`; `text-v1` is an in-place evolving presentation, not a
+byte-stable prose contract.
 
 **Troubleshooting.** Same debug areas as the rest of the `pkg` family.
 

@@ -1061,7 +1061,7 @@ export const defaultResolveTargetResult: ResolveTargetResult = {
       confidence: "EXACT",
     },
   ],
-  candidates: [
+  targets: [
     {
       kind: "PACKAGE",
       canonicalKey: "npm:express",
@@ -1073,9 +1073,10 @@ export const defaultResolveTargetResult: ResolveTargetResult = {
       latestVersionMaliciousStatus: "CLEAR",
       docsAvailable: true,
       codeAvailable: true,
-      confidence: "EXACT",
+      match: { confidence: "EXACT" },
     },
   ],
+  targetsTruncated: false,
   ambiguous: false,
   ambiguousReason: "NOT_AMBIGUOUS",
 };

@@ -225,6 +225,15 @@ test suite anchors the doc.
   deeply equal. Invalid caller input keeps the stable classification and
   envelope shape; surface-native validation prose is allowed where the CLI
   names a command/flag and MCP names a tool/argument.
+- Resolve text uses the same backend-ordered target list and contiguous grouping
+  helper on both surfaces. JSON preserves that list without regrouping, marks
+  direct versus relation-only entries, and exposes backend relation truncation.
+  A shared group evidence plan keeps metrics on each target line: packages own
+  downloads/license, repositories own stars/code, sites own docs, and package
+  rows retain projected fallbacks when the corresponding related target is
+  absent. All additional identities use one `Related targets:` heading.
+  Related malicious-package warnings are member-local and do not block the
+  matched best target's otherwise safe continuation.
 - The shared resolve request boundary recognizes already-canonical package and
   GitHub repository strings through the same compact parser used by downstream
   tools. Both surfaces return the same `INVALID_ARGUMENT` guidance without a
@@ -374,9 +383,9 @@ surface-native follow-up and pagination syntax plus ANSI differ.
 
 ### `PARITY-SHARED-TEXT-FORMATTER`
 
-- Unified search terminal and MCP text rendering use one shared formatter;
-  other text surfaces may share formatter code when the output is useful to
-  both humans and agents.
+- Unified search and `pkg_upgrade_review` terminal/MCP text rendering use one
+  shared formatter; other tools may share formatter code when their output is
+  useful to both humans and agents.
 - Shared formatters must accept surface-specific hints so MCP never emits
   CLI-only instructions like `--verbose` or `--lifecycle all`.
 - Default MCP success output should be compact `text-v1`; programmatic
@@ -417,10 +426,10 @@ When a new tool lands with both MCP and CLI surfaces:
 
 ## Non-goals
 
-- **Forcing identical default prose outside unified search.** Unified search
-  deliberately shares wording, hierarchy, and wrapping; other CLI terminal
-  output and MCP text remain related products whose hints can be
-  surface-native.
+- **Forcing identical default prose for tools without an intentionally shared
+  formatter.** Unified search and `pkg_upgrade_review` deliberately share
+  wording, hierarchy, and wrapping; other CLI terminal output and MCP text
+  remain related products whose hints can be surface-native.
 - **Shared MCP description copy.** Each tool's description targets a
   different decision the agent is making. Copy is not reusable.
 
@@ -564,6 +573,29 @@ When a new tool lands with both MCP and CLI surfaces:
   `--verbose` lifts the cap (terminal-only). `--no-body` mirrors
   MCP's `omit_bodies: true` and affects both terminal and
   `--json`. `--no-body` + `--verbose` is rejected.
+
+### `pkg_upgrade_review`
+
+`pkg_upgrade_review` and `githits pkg upgrade-review` use the same pure
+human-readable formatter. The CLI supplies `process.stdout.columns` and ANSI
+enablement; MCP supplies no ANSI and uses the formatter's 80-column default.
+With the same width and ANSI disabled, the text is equivalent apart from the
+CLI's existing trailing newline convention. `text-v1` is an evolving
+presentation contract, so parity covers hierarchy and wording invariants rather
+than byte stability: the outcome headline, package coordinate, evidence-group
+headings, stable locators, bounded samples, and explicit unknown/zero states.
+
+The default order is identity, `Security` with direct and optional transitive
+summary rows before non-empty advisory groups, target `Deprecation`, `Changes`,
+`Compatibility`, `Dependencies`, returned
+`Dependency issues`, and `Unknown evidence`. A batch adds one `Across packages:`
+summary. The formatter keeps JSON unchanged and lossless for machine callers;
+CLI `--json` and MCP `format: "json"` are the structured parity boundary. ANSI
+is semantic styling only: bold outcome/headings, bold cyan identity, and yellow
+compact attention summaries, labels, and matched signal terms. Heuristic
+section labels remain plain; only the matched keyword and excerpt marker are
+yellow. Evidence detail and locators remain plain. Words remain sufficient
+without color, authored punctuation is ASCII, and backend Unicode is preserved.
 
 ### `code_files` / `code_read` / `code_grep` (file-exploration bundle)
 

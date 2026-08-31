@@ -245,6 +245,18 @@ export function formatCodeDiffError(mapped: MappedError): string {
       )}`,
     );
   }
+  if (details.availableVersions?.length) {
+    lines.push(
+      `  available versions: ${formatRecoveryList(
+        details.availableVersions.map((entry) =>
+          entry.version !== undefined
+            ? `${entry.version} (ref: ${entry.ref})`
+            : `ref: ${entry.ref}`,
+        ),
+        safe,
+      )}`,
+    );
+  }
   if (details.availableRefs?.length) {
     lines.push(
       `  available refs: ${formatRecoveryList(

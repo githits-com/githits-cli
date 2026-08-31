@@ -470,24 +470,97 @@ describe("MCP smoke cohorts", () => {
 });
 
 describe("resolve smoke guidance", () => {
-  const cliMixed = `Candidates:
+  const cliMixed = `Targets:
   1. npm:express [exact] · package
-  2. npm:express-lookalike [high] · package
-     Warning: Malicious content affects the latest version. Do not use this target.
+     Related targets:
+       npm:express-lookalike · related package
+         Warning: Malicious content affects the latest version. Do not use this target.
 
 Next: githits search '<query>' --in 'npm:express'
 `;
   const mcpMixed = `Best match: npm:express [exact; package].
-Candidates:
+Targets:
   1. npm:express [exact; package]
-  2. npm:express-lookalike [high; package]
-     Warning: Malicious content affects the latest version. Do not use this target.
+     Related targets:
+       npm:express-lookalike [related; package]
+         Warning: Malicious content affects the latest version. Do not use this target.
 Next: pass the canonical target "npm:express" to the next MCP tool.
 `;
 
   it("allows a verified best action when only an alternative is warned", () => {
     expect(() => assertExperimentalCliResolveText(cliMixed)).not.toThrow();
     expect(() => assertExperimentalMcpResolveText(mcpMixed)).not.toThrow();
+  });
+
+  it("accepts a warning-free direct best nested under Related targets", () => {
+    const nestedBest = `Targets:
+  1. npm:project [exact] · package
+     Related targets:
+       github:owner/project [high] · repository
+
+Next: githits search '<query>' --in 'github:owner/project'
+`;
+
+    expect(() => assertExperimentalCliResolveText(nestedBest)).not.toThrow();
+    expect(() =>
+      assertExperimentalCliResolveText(
+        nestedBest.replace(
+          "       github:owner/project [high] · repository\n",
+          "       github:owner/project [high] · repository\n         Warning: Malicious content affects this target.\n",
+        ),
+      ),
+    ).toThrow("without a warning");
+
+    const nestedMcpBest = `Best match: github:owner/project [high; repository].
+Targets:
+  1. npm:express [exact; package]
+     Related targets:
+       github:owner/project [high; repository]
+Next: pass the canonical target "github:owner/project" to the next MCP tool.
+`;
+    expect(() => assertExperimentalMcpResolveText(nestedMcpBest)).not.toThrow();
+
+    const relatedCliAction = nestedBest.replace(
+      "github:owner/project [high] · repository",
+      "github:owner/project · related repository",
+    );
+    expect(() => assertExperimentalCliResolveText(relatedCliAction)).toThrow(
+      "without a warning",
+    );
+
+    const relatedMcpAction = nestedMcpBest.replace(
+      "       github:owner/project [high; repository]",
+      "       github:owner/project [related; repository]",
+    );
+    expect(() => assertExperimentalMcpResolveText(relatedMcpAction)).toThrow(
+      "listed direct candidate without a warning",
+    );
+
+    const relatedCliLead = relatedCliAction
+      .replace(
+        "  1. npm:project [exact] · package",
+        "  1. github:owner/project · related repository",
+      )
+      .replace(
+        "\n     Related targets:\n       github:owner/project · related repository",
+        "",
+      );
+    expect(() => assertExperimentalCliResolveText(relatedCliLead)).toThrow(
+      "listed direct candidate without a warning",
+    );
+
+    const relatedMcpLead = relatedMcpAction
+      .replace(
+        "  1. npm:express [exact; package]",
+        "  1. github:owner/project [related; repository]\n  2. npm:express [exact; package]",
+      )
+      .replace(
+        "\n     Related targets:\n       github:owner/project [related; repository]",
+        "",
+      );
+    expect(() => assertExperimentalMcpResolveText(relatedMcpLead)).toThrow(
+      "listed direct candidate without a warning",
+    );
   });
 
   it("accepts a warning-only blocked result with no normal action", () => {

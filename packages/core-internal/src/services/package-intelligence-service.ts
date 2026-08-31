@@ -3605,6 +3605,7 @@ export function createPackageIntelligenceGraphQLError(
     case "FEATURE_FLAG_REQUIRED":
       return new PackageIntelligenceFeatureFlagRequiredError(message);
 
+    case "AUTHENTICATION_REQUIRED":
     case "UNAUTHORIZED":
       return new AuthenticationError(
         SERVER_AUTHENTICATION_REJECTED_MESSAGE,

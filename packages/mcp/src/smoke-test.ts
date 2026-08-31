@@ -438,6 +438,22 @@ async function assertLiveOrAuthRequired(
     "search_language default missing Python display name",
   );
   assert(text.includes("aliases:"), "search_language default missing aliases");
+  const packageResult = await callTool(caller, "pkg_info", {
+    registry: "npm",
+    package_name: "express",
+  });
+  if (packageResult.isError === true) {
+    const envelope = assertCleanErrorEnvelope(
+      packageResult,
+      "pkg_info auth probe",
+    );
+    assert(
+      envelope.code === "AUTH_REQUIRED",
+      `pkg_info auth probe returned unexpected code ${envelope.code}`,
+    );
+    logger.log("AUTH_REQUIRED: live smoke skipped");
+    return false;
+  }
   return true;
 }
 
@@ -744,15 +760,20 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     }),
     "pkg_upgrade_review default",
   );
+  const upgradeReviewFirstLine = upgradeReviewText.split("\n")[0]?.trim();
   assert(
-    upgradeReviewText.includes("pkg_upgrade_review") &&
-      upgradeReviewText.includes("vulnerabilities") &&
-      upgradeReviewText.includes("changes"),
-    "pkg_upgrade_review default missing evidence sections",
+    upgradeReviewFirstLine === "Upgrade review - 1 package",
+    "pkg_upgrade_review default missing outcome headline",
   );
   assert(
-    !upgradeReviewText.includes("recommendation") &&
-      !upgradeReviewText.includes("risk level"),
+    upgradeReviewText.includes("npm:express 5.0.0 -> 5.2.1") &&
+      upgradeReviewText.includes("\nSecurity\n") &&
+      upgradeReviewText.includes("\nChanges\n"),
+    "pkg_upgrade_review default missing grouped evidence",
+  );
+  assert(
+    !upgradeReviewText.includes("pkg_upgrade_review") &&
+      !/\b(?:recommendation|risk level|assessment)\b/i.test(upgradeReviewText),
     "pkg_upgrade_review default leaked assessment language",
   );
 

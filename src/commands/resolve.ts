@@ -153,7 +153,7 @@ export function registerResolveCommand(program: Command): Command {
     )
     .option(
       "-n, --limit <n>",
-      `Ranked candidates (1-${RESOLVE_TARGET_MAX_LIMIT}, default ${RESOLVE_TARGET_DEFAULT_LIMIT}); protected exact matches may be additional`,
+      `Direct ranked matches (1-${RESOLVE_TARGET_MAX_LIMIT}, default ${RESOLVE_TARGET_DEFAULT_LIMIT}); protected exact and related targets may be additional`,
     )
     .option("--json", "Emit structured diagnostic JSON")
     .action(async (name: string, options: ResolveCommandOptions) => {
