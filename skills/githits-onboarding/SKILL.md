@@ -1,10 +1,9 @@
 ---
 name: githits-onboarding
 description: >-
-  Set up GitHits from an agent session: detect supported coding tools, install
-  GitHits MCP configuration, start account sign-in/signup, verify auth, and
-  recover from setup issues. Use when the user asks to install, connect, set up,
-  sign up for, or start using GitHits.
+  Use when the user asks to install, connect, configure, sign in to, sign up
+  for, or start using GitHits. Covers agent detection, MCP and guidance
+  installation, authentication, verification, and setup recovery.
 compatibility: Requires shell access, internet access, and npx. Use a local githits binary only for explicit local/dev/pinned testing.
 ---
 

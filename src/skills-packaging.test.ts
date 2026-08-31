@@ -99,12 +99,14 @@ describe("agent skills packaging", () => {
 
     expectContainsAll(content, [
       "name: githits-onboarding",
-      "Set up GitHits from an agent session",
+      "Use when the user asks to",
       "install",
       "connect",
-      "set up",
+      "configure",
+      "sign in",
       "sign up",
       "start using GitHits",
+      "setup recovery",
       "compatibility:",
     ]);
   });
@@ -275,14 +277,16 @@ describe("agent skills packaging", () => {
 
     expectContainsAllIgnoringWhitespace(publicContent, [
       "name: githits-mcp",
-      "public OSS/package evidence through GitHits MCP",
-      "Always load before invoking any GitHits MCP tool",
+      "Use whenever invoking GitHits MCP tools for public OSS/package evidence",
+      "Load before any GitHits MCP tool call",
+      "package, dependency, release, security, documentation",
+      "repository source/code search",
+      "canonical examples",
       "public OSS/package evidence",
       "discovery, planning, research, implementation, debugging, or maintenance",
       "repository source",
       "vulnerabilities",
-      "changelogs",
-      "upgrade reviews",
+      "upgrade review",
       "this skill already includes the stable\nquick-start guide below",
       "Do not call `quick_start` when this skill is loaded",
       "this rule applies to every GitHits tool",
@@ -297,6 +301,25 @@ describe("agent skills packaging", () => {
       "githits-package",
       "**Local experimental tools",
       "**Issue reporting",
+    ]);
+  });
+
+  it("keeps CLI skill triggers transport-specific and domain-separated", async () => {
+    const [codeContent, packageContent] = await Promise.all([
+      read(githitsCodeSkillPath),
+      read(join(root, "skills", "githits-package", "SKILL.md")),
+    ]);
+
+    expectContainsAllIgnoringWhitespace(codeContent, [
+      "Use whenever invoking the GitHits CLI",
+      "source, documentation, or example evidence",
+      "For GitHits CLI package, dependency, security, release, or upgrade evidence, use githits-package",
+    ]);
+    expectContainsAllIgnoringWhitespace(packageContent, [
+      "Use whenever invoking the GitHits CLI",
+      "package or dependency evidence",
+      "vulnerabilities",
+      "upgrade reviews",
     ]);
   });
 

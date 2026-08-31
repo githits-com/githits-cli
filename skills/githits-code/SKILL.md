@@ -1,10 +1,11 @@
 ---
 name: githits-code
 description: >-
-  Use GitHits CLI for canonical open-source examples, indexed source, docs,
-  grep, file listing, and code navigation. Activate when verifying library
-  behavior from source or examples. For metadata, vulnerabilities, dependency
-  graphs, or changelogs, use githits-package instead.
+  Use whenever invoking the GitHits CLI for public OSS source, documentation,
+  or example evidence, including code search/grep, file navigation, source
+  verification, docs lookup, or canonical cross-project examples. For GitHits
+  CLI package, dependency, security, release, or upgrade evidence, use
+  githits-package.
 compatibility: Requires shell access, internet access, and either a githits binary on PATH or npx.
 ---
 

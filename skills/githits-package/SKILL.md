@@ -1,11 +1,9 @@
 ---
 name: githits-package
 description: >-
-  Use GitHits CLI package-intelligence commands for package/dependency triage:
-  overview, latest version, license, repository health, vulnerabilities,
-  advisory history, dependency graphs, transitive provenance, changelogs,
-  release notes, and upgrade reviews. Activate for packages, dependencies,
-  versions, upgrades, CVEs, dependency footprints, or release changes.
+  Use whenever invoking the GitHits CLI for public package or dependency
+  evidence, including metadata, versions, licenses, vulnerabilities, dependency
+  graphs, changelogs, release notes, or upgrade reviews.
 compatibility: Requires shell access, internet access, and either a githits binary on PATH or npx.
 ---
 
