@@ -58,9 +58,9 @@ Remote MCP docs and setup help recommend the `githits-mcp` skill. The skill
 carries the stable quick-start guide, so a skill-loaded agent skips the
 normal `quick_start` call. Plain MCP clients use `quick_start` as the fallback
 for shared routing, scope, output, and safety guidance because clients expose
-server-level MCP instructions inconsistently. Current tool descriptions remain
-authoritative; an exposed local `Experimental` descriptor or material stale
-skill snapshot can still require `quick_start`. The stable skill copy is kept
+server-level MCP instructions inconsistently. Stable evidence descriptors
+repeat that session prerequisite; an exposed local `Experimental` descriptor
+still requires its runtime-specific `quick_start`. The stable skill copy is kept
 byte-for-byte aligned with `buildMcpQuickStart()` in
 `packages/mcp/src/mcp/instructions.ts`; runtime-only local appendices are
 excluded.

@@ -8,7 +8,13 @@ import {
 const schema: ZodRawShape = {};
 
 export const DESCRIPTION =
-  "GitHits guide for public GitHub/package search, grep, code, docs, and examples. Call once per session before other GitHits tools unless this quick-start guide is already in context. Tools execute without this guide, but a session that skips it lacks the shared safety posture and cross-tool routing guidance. Returns target syntax and compact-output rules without querying GitHits evidence.";
+  "Start GitHits sessions here unless the `githits-mcp` skill is loaded. Load once before other GitHits tools to get the shared safety posture, cross-tool routing, target syntax, and compact-output rules. This tool does not query GitHits evidence.";
+
+export const STABLE_QUICK_START_PREREQUISITE =
+  "Before using this tool, call `quick_start` once per session unless the `githits-mcp` skill is loaded.";
+
+export const EXPERIMENTAL_QUICK_START_PREREQUISITE =
+  "Before using this Experimental tool, call `quick_start` once per session unless its runtime guide is already in context; the `githits-mcp` skill contains only stable guidance.";
 
 export function createQuickStartTool(
   guide: string,

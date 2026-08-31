@@ -2,16 +2,26 @@
 
 ## Purpose
 
-The CLI exposes MCP tools that mirror the backend's MCP server. This document explains the tool architecture, the parity requirement with the backend, and how to add or modify tools.
+This document explains the shared MCP tool architecture, its host boundaries,
+and how to add or modify tools.
 
 ## Background
 
-GitHits has two MCP server implementations:
+GitHits has one shared MCP tool implementation and two server hosts. The public
+`@githits/mcp` package owns stable tool registration, descriptors,
+`quick_start`, schemas, handlers, and response formatting. The hosts are:
 
-- **Backend** (`githits-backend`) — Python/FastMCP, runs as hosted MCP services. Production exposes both the core example-search workflow (`get_example`, `search_language`, `feedback`) and indexed package/source tooling.
-- **CLI** (`githits-cli`) — TypeScript/MCP SDK, runs locally via `githits mcp start`. Surfaces the same public tool families, including unified `search`, package intelligence (`pkg_*`), docs (`docs_*`), and code navigation (`code_*`).
+- **Hosted** (`remote-mcp`) — serves `https://mcp.githits.com` and consumes a
+  released `@githits/mcp` version. It owns HTTP transport, request-scoped
+  service composition, auth/session handling, deployment, and observability.
+- **Local** (`githits-cli`) — runs via `githits mcp start` over stdio and adds
+  local auth/storage, CLI startup, and config-gated experimental tools around
+  the shared stable package surface.
 
-The CLI mirrors the production MCP tool contract where equivalent tools exist. Core example-search tool descriptions are kept aligned with GitHits backend wording; indexed package/source tool descriptions are kept aligned with the backend contract.
+Do not copy or independently implement package-owned MCP behavior in
+`remote-mcp`. A change here reaches hosted clients after `@githits/mcp` is
+released, `remote-mcp` updates the dependency, and the hosted server is
+deployed; no second tool implementation change is required.
 
 ## Tool-selection contract
 
@@ -59,16 +69,22 @@ Write the prefix as the answer to “why would an agent choose this tool now?”
 GitHits intentionally omits MCP initialize instructions because clients treat
 them inconsistently: some hide them, some promote them, and some repeat them
 with every tool. Guidance has two delivery paths: a loaded `githits-mcp` skill
-already carries the stable guide and skips a normal `quick_start` call, while
-plain MCP clients use the no-argument, read-only `quick_start` tool as their
-fallback. Current tool descriptions remain authoritative; a material mismatch
-with a stale skill snapshot or an exposed `Experimental` descriptor can still
-require `quick_start` for runtime-specific guidance. The stable guide is owned
+already carries the stable guide and skips `quick_start` for stable tools,
+while plain MCP clients use the no-argument, read-only `quick_start` tool once
+per session. The `quick_start` catalog prefix states both paths inside Claude
+Desktop's verified 80-character boundary. Every stable evidence or preparatory
+descriptor repeats the prerequisite as an MCP-composed footer without changing
+its distinct first-80 selection prefix; `feedback` is excluded because it is a
+post-result write. Exposed `Experimental` descriptors instead require their
+runtime guide because the public skill contains only stable guidance. The
+stable guide is owned
 by `packages/mcp/src/mcp/instructions.ts`; the terminal skill section must stay
 byte-for-byte aligned under `src/skills-packaging.test.ts`. Local
 `buildLocalMcpQuickStart()` appendices are runtime-only and excluded from that
 public copy. Individual tool descriptions remain self-contained so direct
-tool selection does not depend on the bootstrap.
+tool selection can still find the right evidence tool before the bootstrap.
+Transport-neutral callable descriptions do not receive the footer because that
+surface does not guarantee a `quick_start` tool exists.
 
 Use the tools in these roles:
 
@@ -106,7 +122,7 @@ Use the tools in these roles:
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `quick_start` | none | Load the canonical guide for public GitHub/package search, grep, code, docs, examples, routing, and external-content safety without querying GitHits evidence. Plain MCP clients call it once per session before other GitHits tools; skip it when the loaded `githits-mcp` skill already carries the guide. |
+| `quick_start` | none | Start a plain GitHits MCP session by loading the canonical guide for public GitHub/package search, grep, code, docs, examples, routing, and external-content safety without querying evidence. Call it once per session before other GitHits tools; skip it when the `githits-mcp` skill is loaded. |
 | `get_example` | `query`, `language?`, `license_mode?`, `format?` | Find canonical cross-project examples when no single target is the answer or target-scoped search came up short. For a known package or repository, use `search`, `docs_*`, or `code_*`. Defaults to markdown with source provenance and an optional `solution_id` for `feedback`; pass `format: "json"` for `{result, solution_id?}`. |
 | `search_language` | `query`, `format?` | Resolve a supported language name or alias for `get_example`; do not use it for source search. Defaults to one compact line per match; pass `format: "json"` for structured matches. |
 | `feedback` | `solution_id?`, `accepted`, `feedback_text?`, `tool_name?` | Submit feedback when a GitHits result or the overall experience was helpful, unhelpful, wrong, incomplete, slow, or confusing. Pass `solution_id` to rate an example or `tool_name` to identify a result. |
@@ -533,7 +549,12 @@ or a prefix repeated on every tool. Plain MCP clients use the `quick_start`
 tool to expose shared guidance once, on demand. The loaded `githits-mcp` skill
 contains the same stable guide and therefore needs no normal bootstrap call;
 current tool descriptions remain the source of truth for tool-specific
-routing, arguments, output, and recovery.
+routing, arguments, output, and recovery. The bootstrap descriptor's first 80
+characters identify it as the session entry point and name the skill-loaded
+exception. Stable evidence and preparatory descriptors repeat the prerequisite
+in a centrally composed footer, so selecting a direct tool still routes a plain
+MCP agent through `quick_start`. The footer is absent from transport-neutral
+callable tools, which may not expose a bootstrap tool.
 
 The concrete Codex failure was verified in August 2026. Codex PR
 [#21053](https://github.com/openai/codex/pull/21053) intentionally preserved
@@ -572,9 +593,8 @@ payload whose privilege, visibility, and repetition vary by host.
 The stable guide embedded in `skills/githits-mcp/SKILL.md` is an exact copy of
 `buildMcpQuickStart()` and is checked by `src/skills-packaging.test.ts`. The
 local experimental appendices from `buildLocalMcpQuickStart()` are not copied
-into the public skill; an exposed local `Experimental` descriptor or a material
-stale-snapshot mismatch is the bounded case where that client may call
-`quick_start` after loading the skill.
+into the public skill; an exposed local `Experimental` descriptor is the one
+case where that client calls `quick_start` after loading the skill.
 
 The reporting contract is validated structurally in the focused instruction
 tests: one concise `accepted: false` report per distinct issue, exact enabled
@@ -687,16 +707,20 @@ Each tool follows the same structure. See `packages/mcp/src/tools/search.ts` for
 1. Define an `Args` interface for the handler input
 2. Define a `schema` object with Zod validators (these become the MCP tool's input schema)
 3. Define a `DESCRIPTION` constant whose first 80 characters satisfy the
-   standalone selection contract above and whose complete text matches the
-   backend tool description
+   standalone selection contract above. MCP session composition appends the
+   shared `quick_start` prerequisite to evidence and preparatory tools.
 4. Export a `createXxxTool(service)` factory function returning a `ToolDefinition`
 5. The handler calls the service and wraps the result with `textResult()` or lets `withErrorHandling()` catch errors
 
-> **Descriptions are kept in sync with the backend MCP server.** Changes happen through coordinated PRs — the frontend may lead wording, but the backend mirrors before public release. Add an exact first-80 catalog test in `packages/mcp/src/mcp/server.test.ts`, then use descriptor-only agent evals to inspect discovery and actual calls. Even small wording differences can change tool selection behaviour.
+> **Descriptions and session composition are owned by `@githits/mcp`.** Do not
+> duplicate them in `remote-mcp`. Add an exact first-80 catalog test in
+> `packages/mcp/src/mcp/server.test.ts`, then use descriptor-only agent evals to
+> inspect discovery and actual calls. Even small wording differences can change
+> tool selection behaviour.
 
 ## Adding a New Tool
 
-When the backend adds a new tool, follow this checklist:
+When adding a new public MCP tool, follow this checklist:
 
 1. **Create tool file** — `packages/mcp/src/tools/new-tool.ts` with `Args` interface, `schema`, `DESCRIPTION`, and `createNewTool(service)` factory
 2. **Add service method** — Add the method to the relevant service interface and implementation in `packages/core-internal/src/services/`
@@ -708,19 +732,15 @@ When the backend adds a new tool, follow this checklist:
 8. **Update registration smoke** — Add the tool name to `EXPECTED_MCP_TOOLS` in `packages/mcp/src/smoke-test.ts`
 9. **Update CLI structure smoke** — If this adds a top-level CLI command, add it to `EXPECTED_TOP_LEVEL_COMMANDS` in `scripts/cli-smoke.ts`
 
-## Behavioral Differences from Backend
+## Host Boundaries
 
-While the contract (names, params, descriptions) is identical, some implementation details differ:
-
-| Aspect | Backend | CLI |
-|---|---|---|
-| `search_language` | Server-side search via `mcp_service.search_language()` | Client-side substring filter: fetches all languages from `/languages`, filters locally by name/display_name/aliases using case-insensitive `includes()` |
-| `get_example` response | Backend builds markdown from structured `McpSearchResponse` | CLI receives pre-formatted markdown from REST `/search` endpoint |
-| unified `search` response | Backend returns structured indexed-search hits and follow-up refs | CLI and MCP share JSON envelope builders over the code-navigation service result |
-| `feedback` response | Backend returns different messages for accepted/rejected | CLI hard-codes "Feedback submitted successfully" on success; the REST API response body is not used for the message |
-| Error handling | Catches specific exception types, logs to PostHog | Uses shared mapped-error helpers for consistent `ToolResult` errors |
-
-These differences exist because the CLI hits the REST API (which does its own formatting) rather than calling internal backend services directly.
+The hosted and local stable MCP servers do not maintain separate tool
+definitions or formatters. Both register the `@githits/mcp` surface and inject
+services through its `McpToolServices` boundary. `remote-mcp` owns hosted
+transport, request auth/session state, deployment, and observability; the CLI
+owns stdio startup, local auth/storage, and local configuration. The CLI may
+compose config-gated experimental tools, but those do not change the public or
+hosted stable inventory.
 
 ## Testing Tools
 
@@ -755,7 +775,8 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 
 ## Related Documentation
 
-- Backend tool definitions: `githits-backend/githits/api/mcp/server.py`
+- [`packages/mcp/README.md`](../../packages/mcp/README.md) — public package and
+  remote-host integration boundary
 - [`mcp-cli-parity.md`](./mcp-cli-parity.md) — rules for dual-surface tools (CLI ↔ MCP)
 - [`cli-commands.md`](./cli-commands.md) — CLI commands that mirror these MCP tools
 - `docs/guidelines/ARCHITECTURAL_GUIDELINES.md` — service isolation and testing patterns

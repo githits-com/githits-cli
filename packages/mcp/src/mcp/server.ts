@@ -17,6 +17,8 @@ import {
   createSearchLanguageTool,
   createSearchStatusTool,
   createSearchTool,
+  EXPERIMENTAL_QUICK_START_PREREQUISITE,
+  STABLE_QUICK_START_PREREQUISITE,
   type ToolDefinition,
   type ToolResult,
   type ZodRawShape,
@@ -150,7 +152,29 @@ function getToolDefinitionsFromFactories<TServices extends McpToolServices>(
   services: TServices,
   toolFactories: readonly McpToolFactory<TServices>[],
 ): ToolDefinition<unknown>[] {
-  return toolFactories.map((createTool) => createTool(services));
+  return toolFactories.map((createTool) =>
+    addMcpSessionPrerequisite(createTool(services)),
+  );
+}
+
+/**
+ * Add the bootstrap contract only while composing an MCP session.
+ * Transport-neutral callable tools may be used without a `quick_start` tool.
+ */
+function addMcpSessionPrerequisite<TArgs, TSchema extends ZodRawShape>(
+  tool: ToolDefinition<TArgs, TSchema>,
+): ToolDefinition<TArgs, TSchema> {
+  if (tool.name === "quick_start" || tool.name === "feedback") return tool;
+
+  // `Experimental` is the existing runtime-guide detection marker. Inspecting
+  // the descriptor keeps local-only tool names out of this public composer.
+  const prerequisite = tool.description.includes("Experimental")
+    ? EXPERIMENTAL_QUICK_START_PREREQUISITE
+    : STABLE_QUICK_START_PREREQUISITE;
+  return {
+    ...tool,
+    description: `${tool.description}\n\n${prerequisite}`,
+  };
 }
 
 export function getMcpToolDescriptors(): McpToolDescriptor[] {
@@ -203,7 +227,9 @@ export function registerMcpToolsWithFactories<
   },
 ): void {
   for (const createTool of toolFactories) {
-    const descriptor = createTool(options.descriptorServices);
+    const descriptor = addMcpSessionPrerequisite(
+      createTool(options.descriptorServices),
+    );
     server.registerTool(
       descriptor.name,
       {

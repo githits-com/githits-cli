@@ -102,23 +102,22 @@ would add machinery without improving the enforced contract.
 When `githits-mcp` is loaded, the agent reads the stable guide directly and
 must not call `quick_start` for bootstrap. It proceeds to the relevant evidence
 tool, including through chat-based tool search. When the skill is not loaded,
-the `quick_start` description and tool behavior remain unchanged and continue
-to provide the same guide once per session.
+the strengthened `quick_start` description directs one call per session, and
+the tool continues to return the same stable guide.
 
-An installed filesystem/plugin skill is a snapshot, while `quick_start` comes
-from the currently connected server. If an older installed guide conflicts
-with current tool descriptions, the descriptions are authoritative; the skill
-may call `quick_start` to resolve a material mismatch. This is an exceptional
-upgrade path, not normal bootstrap behavior.
+An installed filesystem/plugin skill is a snapshot, while current tool
+descriptions come from the connected server and remain authoritative. A loaded
+skill still skips stable `quick_start`; update the installed skill when its
+embedded guide is stale instead of adding a second runtime bootstrap path.
 
 ### Local experimental surface
 
 The static skill does not include `resolve_target`, `code_diff`, experimental
 privacy wording, or opt-in issue-reporting policy. Add one narrow exception to
-the skill: if any GitHits tool exposed to the agent has a description beginning
-with `Experimental`, call `quick_start` before the first GitHits tool so the
+the skill: if any GitHits tool exposed to the agent has a description marked
+`Experimental`, call `quick_start` before the first GitHits tool so the
 runtime-specific appendix is loaded. Do not promote experimental tool names or
-guidance into the stable guide itself. The description prefix is the detection
+guidance into the stable guide itself. The description marker is the detection
 contract and is asserted for every local experimental tool.
 
 This cannot preserve every `report_tool_issues = "all"` prompt. A lazy
@@ -160,13 +159,13 @@ Phase 1 delivered the first small parity increment:
   `## Quick-start guide` heading.
 - A loaded skill skips normal `quick_start`; plain MCP retains the
   `quick_start` fallback. Current tool descriptions remain authoritative.
-  A material stale-snapshot mismatch or an exposed local descriptor beginning
-  with `Experimental` may still trigger `quick_start` before the first
-  GitHits evidence tool for runtime-specific guidance.
+  An exposed local descriptor marked `Experimental` still triggers
+  `quick_start` before the first GitHits evidence tool for runtime-specific
+  guidance; this is the only loaded-skill exception.
 - `buildLocalMcpQuickStart()` runtime appendices, experimental tool names,
   privacy wording, and issue-reporting guidance remain outside the public
   skill. Every enabled local experimental descriptor is contract-tested with
-  the `Experimental` prefix.
+  the `Experimental` marker.
 - `src/skills-packaging.test.ts` enforces exact stable-guide parity,
   terminal-section structure, bootstrap wording, fallback/exception wording,
   external-content posture, and exclusion of local appendices.
@@ -353,7 +352,7 @@ Tactical rollout detail will be added after Phase 2 reorientation.
 
 ## Non-goals
 
-- Changing stable or experimental quick-start wording.
+- Changing stable or experimental quick-start guide content.
 - Removing or deprecating `quick_start`.
 - Promoting experimental tools or runtime issue-reporting policy.
 - Generating `SKILL.md` or moving shared guidance ownership.

@@ -11,6 +11,10 @@ import {
   createMockPackageIntelligenceService,
   defaultCodeDiffResult,
 } from "../services/test-helpers.js";
+import {
+  EXPERIMENTAL_QUICK_START_PREREQUISITE,
+  STABLE_QUICK_START_PREREQUISITE,
+} from "../tools/quick-start.js";
 import { buildLocalMcpQuickStart, buildMcpQuickStart } from "./instructions.js";
 import {
   createLocalMcpServer,
@@ -118,6 +122,12 @@ describe("createLocalMcpServer", () => {
 
       expect(registeredToolNames(server)).toEqual([...EXPECTED_STABLE_NAMES]);
       expect(serverInstructions(server)).toBeUndefined();
+      for (const name of EXPECTED_STABLE_NAMES) {
+        if (name === "quick_start" || name === "feedback") continue;
+        expect(registeredTools(server)[name]?.description).toEndWith(
+          STABLE_QUICK_START_PREREQUISITE,
+        );
+      }
       const result = await registeredTools(server).quick_start!.handler(
         {},
         undefined as unknown as RequestHandlerExtra<
@@ -144,6 +154,9 @@ describe("createLocalMcpServer", () => {
     for (const name of ["resolve_target", "code_diff"] as const) {
       expect(registeredTools(server)[name]?.description).toContain(
         "Experimental",
+      );
+      expect(registeredTools(server)[name]?.description).toEndWith(
+        EXPERIMENTAL_QUICK_START_PREREQUISITE,
       );
     }
     const result = await registeredTools(server).quick_start!.handler(

@@ -13,10 +13,13 @@ describe("quickStartTool", () => {
       destructiveHint: false,
     });
     expect(tool.description).toStartWith(
-      "GitHits guide for public GitHub/package search, grep, code, docs, and examples.",
+      "Start GitHits sessions here unless the `githits-mcp` skill is loaded.",
     );
-    expect(tool.description).toContain("Call once per session");
-    expect(tool.description).toContain("Tools execute without this guide");
+    expect(tool.description.slice(0, 80)).toBe(
+      "Start GitHits sessions here unless the `githits-mcp` skill is loaded. Load once ",
+    );
+    expect(tool.description).toContain("Load once before other GitHits tools");
+    expect(tool.description).toContain("does not query GitHits evidence");
 
     await expect(tool.handler({}, {})).resolves.toEqual({
       content: [{ type: "text", text: "session guide" }],
