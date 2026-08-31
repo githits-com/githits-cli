@@ -352,6 +352,70 @@ describe("agent eval usage metrics", () => {
     ]);
   });
 
+  it("rejects Codex terminal-then-started lifecycle transitions", () => {
+    const baseRecord: AgentEvalRecordInput = {
+      ...identityRecord("descriptors"),
+      workloadId: "terminal-then-started",
+      agent: "codex",
+      usage: adaptAgentUsage(
+        codexUsageEvent({
+          input_tokens: 1,
+          cached_input_tokens: 0,
+          cache_write_input_tokens: 0,
+          output_tokens: 1,
+          reasoning_output_tokens: 0,
+        }),
+        "codex",
+        LUNA_MODEL,
+      ),
+      toolCalls: [],
+    };
+
+    for (const observedAt of ["2026-08-28T10:00:00.300Z", undefined] as const) {
+      const metrics = buildAgentEvalMetrics({
+        runId: `run-terminal-then-started-${observedAt ?? "missing"}`,
+        startedAt: "2026-08-28T10:00:00.000Z",
+        completedAt: "2026-08-28T10:00:01.000Z",
+        records: [
+          {
+            ...baseRecord,
+            toolCalls: [
+              {
+                tool: "search",
+                server: "githits",
+                providerCallId: "replayed-call",
+                status: "completed",
+                observedAt: "2026-08-28T10:00:00.200Z",
+              },
+              {
+                tool: "search",
+                server: "githits",
+                providerCallId: "replayed-call",
+                status: "started",
+                ...(observedAt === undefined ? {} : { observedAt }),
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(metrics.records[0]?.tools).toMatchObject({
+        rawEventCount: 2,
+        logicalCallCount: 1,
+        completedCount: 0,
+      });
+      expect(metrics.records[0]?.tools.sequence).toEqual([
+        {
+          tool: "search",
+          surface: "mcp",
+          status: "started",
+          startedAt: null,
+          completedAt: null,
+        },
+      ]);
+    }
+  });
+
   it("normalizes inclusive Luna usage and does not double-count reasoning", () => {
     const metrics = adaptAgentUsage(
       codexUsageEvent({

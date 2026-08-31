@@ -652,23 +652,28 @@ function buildToolSpanDescriptors(
   record: AgentEvalRecord,
   telemetry: ReturnType<typeof toolTelemetry>,
   parentTimes: { startTime?: number; endTime?: number },
+  cellId: string,
 ): BraintrustToolSpanDescriptor[] {
+  const withCell = (message: string): string => `${cellId}: ${message}`;
   const toolBearing =
     record.tools.rawEventCount > 0 || telemetry.sequence.length > 0;
   if (!telemetry.known) {
-    assert(!toolBearing, "tool-bearing row has unknown logical telemetry");
+    assert(
+      !toolBearing,
+      withCell("tool-bearing row has unknown logical telemetry"),
+    );
     return [];
   }
   if (telemetry.sequence.length === 0) {
     assert(
       record.tools.rawEventCount === 0,
-      "tool-bearing row has empty logical tool sequence",
+      withCell("tool-bearing row has empty logical tool sequence"),
     );
     return [];
   }
   assert(
     parentTimes.startTime !== undefined && parentTimes.endTime !== undefined,
-    "tool-bearing row has no valid parent span interval",
+    withCell("tool-bearing row has no valid parent span interval"),
   );
   const parentStart = parentTimes.startTime;
   const parentEnd = parentTimes.endTime;
@@ -678,33 +683,39 @@ function buildToolSpanDescriptors(
     const endTime = observedUnixSeconds(call.completedAt);
     assert(
       call.status !== "unknown",
-      `tool call ${index + 1} has unknown status`,
+      withCell(`tool call ${index + 1} has unknown status`),
     );
     assert(
       startTime !== undefined,
-      `tool call ${index + 1} has no valid observed start time`,
+      withCell(`tool call ${index + 1} has no valid observed start time`),
     );
     assert(
       startTime >= parentStart && startTime <= parentEnd,
-      `tool call ${index + 1} starts outside the parent span interval`,
+      withCell(
+        `tool call ${index + 1} starts outside the parent span interval`,
+      ),
     );
     if (call.status === "started") {
       assert(
         call.completedAt === null,
-        `started tool call ${index + 1} has a terminal observed time`,
+        withCell(`started tool call ${index + 1} has a terminal observed time`),
       );
     } else {
       assert(
         endTime !== undefined,
-        `terminal tool call ${index + 1} has no valid observed completion time`,
+        withCell(
+          `terminal tool call ${index + 1} has no valid observed completion time`,
+        ),
       );
       assert(
         endTime >= startTime,
-        `tool call ${index + 1} has a reverse observed interval`,
+        withCell(`tool call ${index + 1} has a reverse observed interval`),
       );
       assert(
         endTime >= parentStart && endTime <= parentEnd,
-        `tool call ${index + 1} ends outside the parent span interval`,
+        withCell(
+          `tool call ${index + 1} ends outside the parent span interval`,
+        ),
       );
     }
     const event: BraintrustToolSpanEvent = {
@@ -834,7 +845,12 @@ function mapCell(
   const prompt = readPromptArtifact(report, workload);
   const telemetry = toolTelemetry(record, workload);
   const spanTimes = recordedSpanTimes(record);
-  const toolSpans = buildToolSpanDescriptors(record, telemetry, spanTimes);
+  const toolSpans = buildToolSpanDescriptors(
+    record,
+    telemetry,
+    spanTimes,
+    cell.id,
+  );
   const final = workload.finalReport;
   const finalStatus = record.finalStatus ?? final?.status;
   const output: BraintrustRowOutput = {

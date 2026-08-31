@@ -729,17 +729,13 @@ function mergeCodexToolObservation(
   const previousStarted = parseObservedTimestamp(
     previous.startedAt ?? undefined,
   );
-  const previousCompleted = parseObservedTimestamp(
-    previous.completedAt ?? undefined,
-  );
-  if (current.status === "started" && currentObservedAt !== undefined) {
-    if (
-      previousCompleted !== undefined &&
-      currentObservedAt.milliseconds < previousCompleted.milliseconds
-    ) {
+  if (current.status === "started") {
+    if (previous.status === "completed" || previous.status === "failed") {
       return rejectToolTiming(merged);
     }
-    if (merged.startedAt === null) merged.startedAt = currentObservedAt.value;
+    if (currentObservedAt !== undefined && merged.startedAt === null) {
+      merged.startedAt = currentObservedAt.value;
+    }
   }
   if (
     (current.status === "completed" || current.status === "failed") &&

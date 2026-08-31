@@ -782,11 +782,12 @@ describe("Braintrust eval row mapping", () => {
 
     for (const testCase of cases) {
       const fixture = await createSuite({ toolCalls: testCase.toolCalls });
-      expect(() =>
+      const map = () =>
         preflightAndMapBraintrustRows([
           suiteInput(testCase.name, fixture.suitePath),
-        ]),
-      ).toThrow(testCase.message);
+        ]);
+      expect(map).toThrow("Braintrust preflight: discovery/workload-a:");
+      expect(map).toThrow(testCase.message);
     }
 
     const invalid = await createSuite();
