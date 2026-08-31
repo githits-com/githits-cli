@@ -530,6 +530,11 @@ describe("Braintrust eval row mapping", () => {
             surface: "mcp",
             timingSource: "harness_stdout_observed",
           },
+          metrics: {
+            duration:
+              Date.parse("2026-08-28T10:00:00.200Z") / 1000 -
+              Date.parse("2026-08-28T10:00:00.100Z") / 1000,
+          },
         },
         startTime: Date.parse("2026-08-28T10:00:00.100Z") / 1000,
         endTime: Date.parse("2026-08-28T10:00:00.200Z") / 1000,
@@ -588,6 +593,11 @@ describe("Braintrust eval row mapping", () => {
             surface: "mcp",
             timingSource: "harness_stdout_observed",
           },
+          metrics: {
+            duration:
+              Date.parse("2026-08-28T10:00:00.400Z") / 1000 -
+              Date.parse("2026-08-28T10:00:00.200Z") / 1000,
+          },
           error: "tool_status:failed",
         },
         startTime: Date.parse("2026-08-28T10:00:00.200Z") / 1000,
@@ -595,6 +605,52 @@ describe("Braintrust eval row mapping", () => {
       },
     ]);
     expect(JSON.stringify(row.toolSpans)).not.toContain("provider details");
+  });
+
+  it("preserves zero duration for equal observed boundaries", async () => {
+    const fixture = await createSuite({
+      toolCalls: [
+        {
+          tool: "search",
+          server: "githits",
+          providerCallId: "equal-completed",
+          status: "started",
+          observedAt: "2026-08-28T10:00:00.200Z",
+        },
+        {
+          tool: "search",
+          server: "githits",
+          providerCallId: "equal-completed",
+          status: "completed",
+          observedAt: "2026-08-28T10:00:00.200Z",
+        },
+        {
+          tool: "pkg-info",
+          server: "githits-cli",
+          providerCallId: "equal-failed",
+          status: "started",
+          observedAt: "2026-08-28T10:00:00.200Z",
+        },
+        {
+          tool: "pkg-info",
+          server: "githits-cli",
+          providerCallId: "equal-failed",
+          status: "failed",
+          observedAt: "2026-08-28T10:00:00.200Z",
+        },
+      ],
+    });
+    const row = preflightAndMapBraintrustRows([
+      suiteInput("equal-boundaries", fixture.suitePath),
+    ]).rows[0]!;
+
+    expect(row.toolSpans.map((span) => span.event.metrics?.duration)).toEqual([
+      0, 0,
+    ]);
+    expect(row.toolSpans.map((span) => span.startTime)).toEqual([
+      Date.parse("2026-08-28T10:00:00.200Z") / 1000,
+      Date.parse("2026-08-28T10:00:00.200Z") / 1000,
+    ]);
   });
 
   it("rejects incomplete, invalid, reverse, and outside-parent tool intervals", async () => {
@@ -1045,8 +1101,8 @@ describe("Braintrust publisher boundary", () => {
         suiteSchemaVersion: mapping.suites[0]!.suiteSchemaVersion,
         reportSchemaVersion: mapping.rows[0]!.metadata.reportSchemaVersion,
         metricsSchemaVersion: mapping.rows[0]!.metadata.metricsSchemaVersion,
-        exporterSchemaVersion: 1,
-        exporterVersion: "1",
+        exporterSchemaVersion: 2,
+        exporterVersion: "2",
       },
       repoInfo: {
         commit: mapping.rows[0]!.metadata.targetGit.sha,

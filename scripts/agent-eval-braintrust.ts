@@ -118,6 +118,9 @@ export interface BraintrustToolSpanEvent {
     surface: "mcp" | "cli";
     timingSource: "harness_stdout_observed";
   };
+  metrics?: {
+    duration: number;
+  };
   error?: "tool_status:failed";
 }
 
@@ -324,8 +327,8 @@ export interface BraintrustSdk {
   ): BraintrustSdkExperiment;
 }
 
-const BRAINTRUST_EXPORTER_SCHEMA_VERSION = 1;
-const BRAINTRUST_EXPORTER_VERSION = "1";
+const BRAINTRUST_EXPORTER_SCHEMA_VERSION = 2;
+const BRAINTRUST_EXPORTER_VERSION = "2";
 
 interface LoadedBraintrustSuite {
   input: BraintrustSuiteInput;
@@ -706,6 +709,9 @@ function buildToolSpanDescriptors(
         surface: call.surface,
         timingSource: "harness_stdout_observed",
       },
+      ...(endTime !== undefined
+        ? { metrics: { duration: endTime - startTime } }
+        : {}),
       ...(call.status === "failed" ? { error: "tool_status:failed" } : {}),
     };
     return {
