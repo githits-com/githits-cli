@@ -75,10 +75,11 @@ Each workload receives a fresh temporary isolation root containing its workspace
 OS home, user profile, config directories, and temporary directory. Only the
 caller-supplied `CODEX_HOME` is retained outside that root. It is a dedicated
 eval home containing Codex authentication state and Codex-managed runtime state;
-it may accumulate managed state across runs. Workload evals reject a missing,
-relative, or root-level `AGENTS.override.md`/`AGENTS.md`, plus every direct
-`$CODEX_HOME/skills` entry other than `.system`, before invoking the agent. The
-workload preflight does not read auth material or guidance contents. Codex-managed
+it may accumulate managed state across runs. Workload evals reject a missing or
+relative `CODEX_HOME`, a root-level `AGENTS.override.md`/`AGENTS.md`, and every
+direct `$CODEX_HOME/skills` entry other than `.system`, before invoking the
+agent. The workload preflight does not read auth material or guidance contents.
+Codex-managed
 `config.toml`, bundled system skills, plugin caches, logs, and other nested
 runtime files are allowed for non-interactive workload execution. Interactive
 `agent:session` adds a stricter contract for `config.toml`: it may contain only
