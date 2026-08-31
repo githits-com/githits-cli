@@ -711,7 +711,7 @@ describe("searchAction", () => {
     expect(output).toContain(
       "Sources: npm:express@5.1.0 - site:expressjs.com/en/guide,",
     );
-    expect(output).toContain("expressjs/express@01234567");
+    expect(output).toContain("\n  github:expressjs/express#01234567");
     expect(output).toContain(
       "[1] express/routing [docs page] npm:express - expressjs.com/en/guide/routing.html -\n  Routing",
     );

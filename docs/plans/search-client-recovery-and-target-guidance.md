@@ -481,15 +481,16 @@ Ordinary completed, current results collapse all healthy groups to one line:
 
 ```text
 10 results | 6 repo code hits, 4 docs pages | next_offset=10
-Sources: npm:express@5.2.1 - code, site:expressjs.com, expressjs/express@dbac741a
+Sources: npm:express@5.2.1 - code, site:expressjs.com, github:expressjs/express#dbac741a
 ```
 
 Multiple healthy targets use one semicolon-delimited `Sources:` row, with each target
 written once and its searched sources following it. Code and symbols remain compact lane
 names. Documentation contributors retain canonical `site:<host[/path]>` locators and
-compact repository revisions. Compact output requires concrete documentation provenance;
-an incomplete payload without it stays in detailed target-state form. Ranked hit locators
-and JSON retain their existing provenance.
+canonical `github:<owner>/<repo>#<revision>` locators. A source identical to its standalone
+target is written once. Compact output requires concrete documentation provenance; an
+incomplete payload without it stays in detailed target-state form. Ranked hit locators and
+JSON retain their existing provenance.
 
 Mixed progress and terminal state use the same target list:
 

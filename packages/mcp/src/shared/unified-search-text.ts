@@ -17,6 +17,7 @@
 
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { colors, dim, highlight, highlightRanges } from "./colors.js";
+import { formatRepositoryTarget } from "./repository-target.js";
 import {
   projectUnifiedSearchPresentation,
   targetDisplayFamilyKey,
@@ -350,13 +351,22 @@ function appendCompactSources(
       .sort((left, right) => left.rank - right.rank)
       .map((source) => source.value);
     const uniqueSources = [...new Set(sources)];
-    return uniqueSources.length > 0
-      ? [`${identity} - ${uniqueSources.join(", ")}`]
-      : [];
+    const distinctSources = uniqueSources.filter(
+      (source) => source !== identity,
+    );
+    if (distinctSources.length === 0) return [identity];
+    return [`${identity} - ${distinctSources.join(", ")}`];
   });
   const unique = [...new Set(values)];
   if (unique.length === 0) return;
-  lines.push(...wrapText(`Sources: ${unique.join("; ")}`, options.width));
+  const wrapped = wrapText(
+    unique.join("; "),
+    Math.max(1, options.width - "Sources: ".length),
+  );
+  lines.push(
+    `Sources: ${wrapped[0] ?? ""}`,
+    ...wrapped.slice(1).map((line) => `  ${line}`),
+  );
 }
 
 function compactSourceRank(kind: UnifiedSearchSourceKind): number {
@@ -381,7 +391,10 @@ function formatCompactSource(
   if (kind === "code") return "code";
   if (kind === "symbols") return "symbols";
   if (kind === "repository_docs" && entry.repositoryUrl) {
-    return formatRepositoryIdentity(entry.repositoryUrl, entry.commitSha);
+    return formatRepositoryTarget(
+      entry.repositoryUrl,
+      entry.commitSha?.slice(0, 8),
+    );
   }
   if (kind === "site_docs") {
     const siteIdentity = formatDocumentationSiteIdentity(entry.siteUrl);
@@ -389,24 +402,6 @@ function formatCompactSource(
     if (entry.target.startsWith("site:")) return entry.target;
   }
   return undefined;
-}
-
-function formatRepositoryIdentity(url: string, commitSha?: string): string {
-  let identity = url;
-  try {
-    const parsed = new URL(url);
-    const path = parsed.pathname
-      .split("/")
-      .filter(Boolean)
-      .join("/")
-      .replace(/\.git$/, "");
-    identity =
-      parsed.host === "github.com" && path ? path : `${parsed.host}/${path}`;
-  } catch {
-    identity = url.replace(/^https?:\/\//, "").replace(/\.git$/, "");
-  }
-  if (!commitSha) return identity;
-  return `${identity}@${commitSha.slice(0, 8)}`;
 }
 
 function sourceKindRank(kind: UnifiedSearchSourceKind): number {

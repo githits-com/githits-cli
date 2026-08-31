@@ -259,7 +259,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "10 results | 5 repo docs, 5 docs pages | next_offset=10",
     );
     expect(text).toContain(
-      "Sources: npm:express@5.2.1 - site:expressjs.com, expressjs/express@dbac741a",
+      "Sources: npm:express@5.2.1 - site:expressjs.com,\n  github:expressjs/express#dbac741a",
     );
     expect(text).toContain(
       "[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01",
@@ -292,6 +292,76 @@ describe("renderUnifiedSearchSuccess", () => {
 
     expect(text).toContain("- npm:express@5.2.1\n  searched: docs");
     expect(text).not.toContain("Sources:");
+  });
+
+  it("does not repeat a standalone site identity in compact output", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([docsHit({ target: "site:hono.dev" })], {
+        sourceStatus: [
+          source({
+            source: "docs",
+            targetLabel: "site:hono.dev",
+            contributors: [
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                resultCount: 1,
+                siteUrl: "https://hono.dev",
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain("Sources: site:hono.dev");
+    expect(text).not.toContain("site:hono.dev - site:hono.dev");
+  });
+
+  it("keeps concrete provenance grouped with each healthy target", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed(
+        [
+          docsHit({ target: "npm:one@1.0.0" }),
+          docsHit({ target: "npm:two@2.0.0" }),
+        ],
+        {
+          sourceStatus: [
+            source({
+              source: "docs",
+              targetLabel: "npm:one@1.0.0",
+              contributors: [
+                {
+                  kind: "DOCPACK",
+                  state: "SEARCHED",
+                  resultCount: 1,
+                  siteUrl: "https://docs.one.example",
+                },
+              ],
+            }),
+            source({
+              source: "docs",
+              targetLabel: "npm:two@2.0.0",
+              contributors: [
+                {
+                  kind: "DOCPACK",
+                  state: "SEARCHED",
+                  resultCount: 1,
+                  siteUrl: "https://docs.two.example",
+                },
+              ],
+            }),
+          ],
+        },
+      ),
+      { width: 160 },
+    );
+
+    expect(text).toContain(
+      "Sources: npm:one@1.0.0 - site:docs.one.example; npm:two@2.0.0 - site:docs.two.example",
+    );
+    expect(text).not.toContain("\n- npm:one@1.0.0");
+    expect(text).not.toContain("\n- npm:two@2.0.0");
   });
 
   it("starts completed hits with the outcome and preserves hit anatomy", () => {
