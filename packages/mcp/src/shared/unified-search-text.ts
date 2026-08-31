@@ -1040,8 +1040,12 @@ function wrapHighlightedText(
       continue;
     }
 
-    const available = Math.max(1, width - leading.length);
+    const continuationMarker =
+      content.match(/^(?:\/\/[!/]?|#|--|\*)\s+/)?.[0] ?? "";
     let consumed = 0;
+    let isFirstSegment = true;
+    let segmentLeading = leading;
+    let available = Math.max(1, width - segmentLeading.length);
     while (content.length - consumed > available) {
       let breakAt = content.lastIndexOf(" ", consumed + available);
       if (breakAt <= consumed) {
@@ -1051,7 +1055,7 @@ function wrapHighlightedText(
       const chunk = content.slice(consumed, breakAt).trimEnd();
       output.push(
         highlightWrappedSegment(
-          leading,
+          segmentLeading,
           chunk,
           lineOffset + leading.length + consumed,
           ranges,
@@ -1060,10 +1064,13 @@ function wrapHighlightedText(
       );
       consumed = breakAt;
       while (content[consumed] === " ") consumed += 1;
+      isFirstSegment = false;
+      segmentLeading = `${leading}${continuationMarker}`;
+      available = Math.max(1, width - segmentLeading.length);
     }
     output.push(
       highlightWrappedSegment(
-        leading,
+        isFirstSegment ? leading : segmentLeading,
         content.slice(consumed),
         lineOffset + leading.length + consumed,
         ranges,

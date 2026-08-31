@@ -169,8 +169,11 @@ only to the exact served `gitRef`, and always use `repositoryFilePath`; they nev
 combine a repository target with a package-relative path or substitute
 `requestedRef`. A definition wider than the MCP `code_read` 300-line cap keeps
 its true structured range while the generated action requests a bounded window
-centred on the focused evidence. This client contract requires the deployed Phase 1A GraphQL
-schema; no legacy retry query or schema probe is attempted.
+centred on the focused evidence. This client contract requires the deployed Phase
+1A GraphQL schema; no legacy retry query or schema probe is attempted. Compact
+repository source summaries retain source line boundaries; when a long source
+comment must wrap, continuation lines repeat its comment marker so the snippet
+stays legible.
 
 **Promoted `warnings[]`.** Noteworthy `sourceStatus` entries — sources reporting `incompatibleQueryFeatures`, `ignoredQueryFeatures`, `incompatibleFilters`, `ignoredFilters`, lifecycle anomalies (`indexingStatus`, `codeIndexState`), or a free-form `note` — are also surfaced as a top-level `warnings: string[]` in the completed/incomplete payloads (and appended after parser warnings inside the `search_status` result block). The structured detail still lives in `sourceStatus`; `warnings[]` is the agent-visible signal that something about execution did not match the request. On completed empty results, healthy non-contributor source entries are also retained with zero `resultCount` and served identity; requested/fresh labels emit only when they materially differ from served. Contributor-bearing DOCS rows retain their physical contributors instead of duplicating healthy served/current resolution metadata. Healthy `INDEXED` / `CURRENT` / non-divergent `STALE` states never become warnings. `PROVISIONAL` is queryable but remains a visible non-healthy indexing signal, including on completed responses. Successful non-empty responses keep the prior compact projection. JSON keeps promoted warnings and source-status detail lossless; MCP text classifies parser/query and structured constraint facts once below the outcome and does not repeat promoted lifecycle/freshness warning prose or opaque notes. Implementation in `buildSourceStatusWarnings` and empty-result compaction (`packages/mcp/src/shared/unified-search-response.ts`).
 

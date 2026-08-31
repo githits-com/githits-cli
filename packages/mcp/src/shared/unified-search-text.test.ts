@@ -2366,6 +2366,28 @@ describe("renderUnifiedSearchSuccess", () => {
     }
   });
 
+  it("retains source comment markers on wrapped continuation lines", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          summary:
+            '/// The library calls this method when a log handler must emit a log message.\n/// <code lang="cs" source="Documentation/SerializationTests.cs" region="SerializeObject" />',
+        }),
+      ]),
+      { width: 48 },
+    );
+    const wrappedCommentLines = text
+      .split("\n")
+      .filter((line) =>
+        /library|handler|message|<code|source=|region=/.test(line),
+      );
+
+    expect(wrappedCommentLines.length).toBeGreaterThan(2);
+    expect(wrappedCommentLines.every((line) => line.startsWith("  /// "))).toBe(
+      true,
+    );
+  });
+
   it("does not split unbreakable summary tokens", () => {
     const token = `https://example.com/${"segment".repeat(20)}`;
     const text = renderUnifiedSearchSuccess(
