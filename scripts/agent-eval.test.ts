@@ -936,6 +936,9 @@ describe("agent eval harness", () => {
     );
     expect(codexConfig).toContain('env_vars = ["GITHITS_API_TOKEN"]');
     expect(codexConfig).not.toContain("secret-token");
+    expect(codexConfig.indexOf("env_vars =")).toBeLessThan(
+      codexConfig.indexOf("[mcp_servers.githits.env]"),
+    );
 
     const codexArgs = buildCodexConfigArgs(
       {
