@@ -7,7 +7,10 @@ import {
   writeFileSync,
 } from "node:fs";
 import { relative, resolve } from "node:path";
-import type { AgentEvalRecord } from "./agent-eval-metrics.ts";
+import type {
+  AgentEvalMetrics,
+  AgentEvalRecord,
+} from "./agent-eval-metrics.ts";
 import {
   type AgentEvalReport,
   isContainedRelativePath,
@@ -152,6 +155,7 @@ export interface BraintrustSuiteSummary {
   suiteId: string;
   suiteName: string;
   suiteSha256: string;
+  suiteSchemaVersion: number;
   scenarioCount: number;
   workloadCount: number;
 }
@@ -280,7 +284,6 @@ export interface BraintrustSdk {
   ): BraintrustSdkExperiment;
 }
 
-const BRAINTRUST_SUITE_SCHEMA_VERSION = 3;
 const BRAINTRUST_EXPORTER_SCHEMA_VERSION = 1;
 const BRAINTRUST_EXPORTER_VERSION = "1";
 
@@ -379,6 +382,7 @@ function reportWorkloadFor(
   scenario: AgentEvalSuiteScenario,
   workloadId: string,
 ): {
+  metrics: AgentEvalMetrics;
   record: AgentEvalRecord;
   report: AgentEvalReport;
   workload: WorkloadReport;
@@ -395,7 +399,7 @@ function reportWorkloadFor(
     (candidate) => candidate.id === workloadId,
   );
   assert(workload, `missing ${scenario}/${workloadId} report workload`);
-  return { record, report: shard.report, workload };
+  return { metrics: shard.metrics, record, report: shard.report, workload };
 }
 
 function readPromptArtifact(
@@ -564,6 +568,7 @@ function rowMetadata(
   scenario: AgentEvalSuiteScenario,
   workloadId: string,
   cellId: string,
+  metrics: AgentEvalMetrics,
   record: AgentEvalRecord,
   report: AgentEvalReport,
   workload: WorkloadReport,
@@ -591,7 +596,7 @@ function rowMetadata(
     suiteName: suite.artifact.suiteName,
     suiteSha256: suite.sha256,
     cellId,
-    runId: suite.shards[scenario]?.metrics?.runId ?? "unknown",
+    runId: metrics.runId,
     scenario,
     workloadId,
     guidanceProfile: record.guidanceProfile ?? "unknown",
@@ -616,7 +621,7 @@ function rowMetadata(
       dirty: suite.artifact.measurementGit.dirty,
     },
     reportSchemaVersion: report.schemaVersion,
-    metricsSchemaVersion: suite.shards[scenario]?.metrics?.schemaVersion ?? 0,
+    metricsSchemaVersion: metrics.schemaVersion,
     reportingContractSha256:
       suite.artifact.contentIdentity.reportingContract.sha256,
     resultSchemaSha256: suite.artifact.contentIdentity.resultSchema.sha256,
@@ -639,7 +644,7 @@ function mapCell(
   suite: AgentEvalImportedSuite,
   cell: AgentEvalImportedSuite["artifact"]["cells"][number],
 ): BraintrustRow {
-  const { record, report, workload } = reportWorkloadFor(
+  const { metrics, record, report, workload } = reportWorkloadFor(
     suite,
     cell.scenario,
     cell.workloadId,
@@ -698,6 +703,7 @@ function mapCell(
       cell.scenario,
       cell.workloadId,
       cell.id,
+      metrics,
       record,
       report,
       workload,
@@ -717,6 +723,10 @@ function preflightSuite(
   assert(
     !suite.artifact.dryRun && suite.artifact.status !== "dry-run",
     `suite ${input.label} is a dry-run`,
+  );
+  assert(
+    suite.artifact.cells.length > 0,
+    `suite ${input.label} has no workload cells`,
   );
   assertSameIdentity(expectedIdentity, suiteIdentity(suite));
   for (const cell of suite.artifact.cells) {
@@ -763,6 +773,7 @@ export function preflightAndMapBraintrustRows(
         suiteId: suite.artifact.suiteId,
         suiteName: suite.artifact.suiteName,
         suiteSha256: suite.sha256,
+        suiteSchemaVersion: suite.artifact.schemaVersion,
         scenarioCount: suite.artifact.matrix.scenarios.length,
         workloadCount: suite.artifact.selectedWorkloads.length,
       }))
@@ -787,6 +798,8 @@ export function buildBraintrustExperimentInit(
 ): BraintrustExperimentInit {
   const firstRow = mapping.rows[0];
   assert(firstRow, "cannot build experiment metadata without mapped rows");
+  const firstSuite = mapping.suites[0];
+  assert(firstSuite, "cannot build experiment metadata without mapped suites");
   const { metadata } = firstRow;
   const experimentMetadata: BraintrustExperimentMetadata = {
     source: options.source,
@@ -802,7 +815,7 @@ export function buildBraintrustExperimentInit(
     suites: mapping.suites,
     targetGit: metadata.targetGit,
     measurementGit: metadata.measurementGit,
-    suiteSchemaVersion: BRAINTRUST_SUITE_SCHEMA_VERSION,
+    suiteSchemaVersion: firstSuite.suiteSchemaVersion,
     reportSchemaVersion: metadata.reportSchemaVersion,
     metricsSchemaVersion: metadata.metricsSchemaVersion,
     exporterSchemaVersion: BRAINTRUST_EXPORTER_SCHEMA_VERSION,

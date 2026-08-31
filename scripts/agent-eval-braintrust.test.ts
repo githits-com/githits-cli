@@ -644,6 +644,22 @@ describe("Braintrust eval row mapping", () => {
     expect(result.rows[0]!.input.prompt).toContain("Prompt for");
   });
 
+  it("rejects a suite input that contributes no workload cells", async () => {
+    const fixture = await createSuite();
+    mutateSuite(fixture, (artifact) => {
+      artifact.selectedWorkloads = [];
+      artifact.contentIdentity.workloads = [];
+      artifact.cells = [];
+    });
+    mutateMetrics(fixture, (metrics) => {
+      metrics.records = [];
+    });
+
+    expect(() =>
+      preflightAndMapBraintrustRows([suiteInput("empty", fixture.suitePath)]),
+    ).toThrow("suite empty has no workload cells");
+  });
+
   it("rejects invalid workload paths before exposing local roots", async () => {
     const fixture = await createSuite();
     mutateSuite(fixture, (artifact) => {
@@ -686,7 +702,7 @@ describe("Braintrust publisher boundary", () => {
         suites: mapping.suites,
         targetGit: mapping.rows[0]!.metadata.targetGit,
         measurementGit: mapping.rows[0]!.metadata.measurementGit,
-        suiteSchemaVersion: 3,
+        suiteSchemaVersion: mapping.suites[0]!.suiteSchemaVersion,
         reportSchemaVersion: mapping.rows[0]!.metadata.reportSchemaVersion,
         metricsSchemaVersion: mapping.rows[0]!.metadata.metricsSchemaVersion,
         exporterSchemaVersion: 1,
@@ -700,6 +716,22 @@ describe("Braintrust publisher boundary", () => {
       gitMetadataSettings: { collect: "none" },
     });
     expect(JSON.stringify(init)).not.toContain(fixture.root);
+  });
+
+  it("uses the mapped suite schema version for experiment metadata", async () => {
+    const fixture = await createSuite();
+    const mapping = preflightAndMapBraintrustRows([
+      suiteInput("provenance", fixture.suitePath),
+    ]);
+    mapping.suites[0]!.suiteSchemaVersion = 37;
+
+    const init = buildBraintrustExperimentInit(mapping, {
+      project: "githits-cli-agent-evals",
+      experiment: "provenance-test",
+      source: "local",
+    });
+
+    expect(init.metadata.suiteSchemaVersion).toBe(37);
   });
 
   it("starts and ends rows in order with exact event fields", async () => {

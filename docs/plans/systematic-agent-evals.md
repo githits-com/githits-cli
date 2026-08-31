@@ -8,16 +8,18 @@
 - Previous work: Phase 2 correction is COMPLETE. Phase 3 is merged and its
   same-repository label path is live-validated; Phase 4's exporter, CI wiring,
   and local Braintrust readback are complete while the first qualifying CI
-  export/readback remains pending.
+  export/readback remains pending because the required repository secret is not
+  currently visible/effective in the Actions context.
 - Owner: repository maintainers
 - Last verified: 2026-08-31
 - Deployment: Phases 1 through 3 are merged to `main`. The Phase 3
   same-repository label path is live-validated; the scheduled path is waiting
   for its first default-branch execution. Phase 4's exact-pinned exporter and
   post-report CI step are implemented, with local 23-row persistence/readback
-  proven; qualifying CI validation remains pending. A push to `main`
-  deliberately does not trigger the workflow, and cadence changes remain
-  deferred until persistent evidence is visible.
+  proven; qualifying CI validation remains blocked until the required
+  repository secret is visible/effective. A push to `main` deliberately does
+  not trigger the workflow, and cadence changes remain deferred until
+  persistent evidence is visible.
 
 ## Problem And Expected Outcome
 
@@ -1683,12 +1685,14 @@ None.
 
 ### Status
 
-IMPLEMENTED LOCALLY; CI VALIDATION PENDING. Phase 3 is merged and its
+IMPLEMENTED LOCALLY; CI VALIDATION BLOCKED. Phase 3 is merged and its
 same-repository label path has clean runner evidence. The exact-pinned
 Braintrust exporter, post-report CI wiring, local persistence/readback proof,
 and internal operations skill are implemented. A real labeled or manually
 dispatched CI run must still export and read back 23 rows before Phase 4 is
-accepted as complete. SDK tracing was deliberately not added.
+accepted as complete; that validation cannot begin until the repository
+`BRAINTRUST_API_KEY` secret is visible/effective in Actions. SDK tracing was
+deliberately not added.
 
 ### Expected Outcome
 
@@ -1768,9 +1772,13 @@ metrics path.
 - The user-created Braintrust project `githits-cli-agent-evals` and local `bt`
   authentication exist. This is user-provided verification; the plan does not
   inspect `.bt/`, Keychain contents, or any credential value.
-- A repository administrator has provisioned the secret name
-  `BRAINTRUST_API_KEY` for CI. Its value is never read into an agent session;
-  qualifying CI export/readback remains pending.
+- The user reported adding `BRAINTRUST_API_KEY`, but both
+  `gh secret list --repo githits-com/githits-cli --json name` and the
+  repository Actions-secrets API currently expose only `GITHITS_API_TOKEN` and
+  `OPENAI_API_KEY`; organization-secret visibility could not be checked because
+  that API returned 403. Secret values were never read. CI/labeled validation
+  remains blocked until `BRAINTRUST_API_KEY` is visible and effective in the
+  repository Actions context.
 
 ### Verified Braintrust Constraints
 
@@ -1971,7 +1979,8 @@ real labeled or manually dispatched workflow exports and reads back 23 rows.
    prompt, answer, exact Codex version, SHA, and permalink against source
    artifacts. The built-in compare limitation is recorded for follow-up.
 4. **Implemented locally; CI validation pending:** Add the CI export/final-status
-   steps and document the provisioned `BRAINTRUST_API_KEY` secret name.
+   steps and document the repository Actions visibility/effectiveness of the
+   `BRAINTRUST_API_KEY` secret.
    Unit-test the workflow contract, validate YAML/action references, and use
    direct SDK execution in CI so the workflow does not install `bt`. A real
    labeled or manual run must still export/read back 23 rows.

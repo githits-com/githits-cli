@@ -459,10 +459,12 @@ Missing or malformed suite evidence, zero selected workloads or zero expected
 executions, partial/failed/timeout execution, unknown or missing workload cells,
 CLI fallback, and isolation violations make the workflow fail only after the
 report is rendered. A successful discovery run with zero GitHits calls and
-ordinary telemetry warnings remain advisory. The corrected live two-job path
-took about 2 minutes 42 seconds end to end and had a $0.2514 rate-based cost
-estimate; future runs can vary and this is not a billing guarantee. The
-workflow does not judge answer quality. Braintrust persistence is observational;
+ordinary telemetry warnings remain advisory. The two observed healthy workflow
+paths took about 2 minutes 42 seconds and 4 minutes 33 seconds end to end; this
+is an observed range, not a future-run guarantee. The 2-minute-42-second path
+had a $0.2514 rate-based cost estimate from the measured model rates; this is
+not a billing guarantee. The workflow does not judge answer quality. Braintrust
+persistence is observational;
 export failure preserves the report/artifacts and makes the final workflow
 status red.
 
