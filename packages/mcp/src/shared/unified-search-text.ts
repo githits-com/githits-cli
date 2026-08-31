@@ -318,7 +318,11 @@ function shouldRenderCompactSources(
       (group.freshnessKind === undefined ||
         group.freshnessKind === "current") &&
       group.sources.every((source) =>
-        source.entries.every((entry) => entry.state === "searched"),
+        source.entries.every(
+          (entry) =>
+            entry.state === "searched" &&
+            formatCompactSource(source.kind, entry) !== undefined,
+        ),
       ),
   );
 }
@@ -332,37 +336,77 @@ function appendCompactSources(
     const identity =
       group.identity.served ?? group.identity.fresh ?? group.identity.requested;
     if (!identity) return [];
-    const kinds = [
-      ...new Set(
-        group.sources.flatMap((source) =>
-          source.entries
-            .filter((entry) => entry.state === "searched")
-            .map(() => compactSourceLane(source.kind)),
-        ),
-      ),
-    ].sort((left, right) => compactLaneRank(left) - compactLaneRank(right));
-    return kinds.length > 0 ? [`${identity} - ${kinds.join(", ")}`] : [];
+    const sources = group.sources
+      .flatMap((source) =>
+        source.entries
+          .filter((entry) => entry.state === "searched")
+          .flatMap((entry) => {
+            const value = formatCompactSource(source.kind, entry);
+            return value
+              ? [{ rank: compactSourceRank(source.kind), value }]
+              : [];
+          }),
+      )
+      .sort((left, right) => left.rank - right.rank)
+      .map((source) => source.value);
+    const uniqueSources = [...new Set(sources)];
+    return uniqueSources.length > 0
+      ? [`${identity} - ${uniqueSources.join(", ")}`]
+      : [];
   });
   const unique = [...new Set(values)];
   if (unique.length === 0) return;
   lines.push(...wrapText(`Sources: ${unique.join("; ")}`, options.width));
 }
 
-function compactSourceLane(
-  kind: UnifiedSearchSourceKind,
-): "code" | "symbols" | "docs" {
+function compactSourceRank(kind: UnifiedSearchSourceKind): number {
   switch (kind) {
     case "code":
-      return "code";
+      return 0;
     case "symbols":
-      return "symbols";
-    default:
-      return "docs";
+      return 1;
+    case "site_docs":
+      return 2;
+    case "repository_docs":
+      return 3;
+    case "docs":
+      return 4;
   }
 }
 
-function compactLaneRank(kind: "code" | "symbols" | "docs"): number {
-  return kind === "code" ? 0 : kind === "symbols" ? 1 : 2;
+function formatCompactSource(
+  kind: UnifiedSearchSourceKind,
+  entry: UnifiedSearchSourceEntry,
+): string | undefined {
+  if (kind === "code") return "code";
+  if (kind === "symbols") return "symbols";
+  if (kind === "repository_docs" && entry.repositoryUrl) {
+    return formatRepositoryIdentity(entry.repositoryUrl, entry.commitSha);
+  }
+  if (kind === "site_docs") {
+    const siteIdentity = formatDocumentationSiteIdentity(entry.siteUrl);
+    if (siteIdentity) return `site:${siteIdentity}`;
+    if (entry.target.startsWith("site:")) return entry.target;
+  }
+  return undefined;
+}
+
+function formatRepositoryIdentity(url: string, commitSha?: string): string {
+  let identity = url;
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname
+      .split("/")
+      .filter(Boolean)
+      .join("/")
+      .replace(/\.git$/, "");
+    identity =
+      parsed.host === "github.com" && path ? path : `${parsed.host}/${path}`;
+  } catch {
+    identity = url.replace(/^https?:\/\//, "").replace(/\.git$/, "");
+  }
+  if (!commitSha) return identity;
+  return `${identity}@${commitSha.slice(0, 8)}`;
 }
 
 function sourceKindRank(kind: UnifiedSearchSourceKind): number {

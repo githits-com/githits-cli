@@ -242,10 +242,12 @@ wrapping, hit anatomy, and ordering. Callers provide ANSI enablement,
 surface-native action syntax, and an optional output width. CLI supplies its
 current terminal width; MCP uses the formatter's 80-column default. The order is
 an outcome headline carrying count/breakdown, lifecycle, readiness, and
-pagination when applicable; one compact `Sources: <target> - <lanes>` row for
-ordinary completed current results or one detailed target block per requested
-target; target-local state/recovery and global warnings; the separate ranked hit
-list; and at most one final `Next:` action.
+pagination when applicable; one compact `Sources: <target> - <sources>` row for
+ordinary completed current results, with canonical site locators and compact
+repository revisions; documentation without concrete provenance uses one detailed
+target block instead. Other non-compact results likewise use one block per requested
+target; target-local state/recovery and global warnings; the separate ranked hit list;
+and at most one final `Next:` action.
 
 `PENDING`, `INDEXING`, and `SEARCHING` remain distinct. Active empty output uses
 `No results yet | indexing | 0/1 ready`; an active response without a snapshot

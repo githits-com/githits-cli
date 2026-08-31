@@ -708,7 +708,10 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("1 result | 1 docs page");
-    expect(output).toContain("Sources: npm:express@5.1.0 - docs");
+    expect(output).toContain(
+      "Sources: npm:express@5.1.0 - site:expressjs.com/en/guide,",
+    );
+    expect(output).toContain("expressjs/express@01234567");
     expect(output).toContain(
       "[1] express/routing [docs page] npm:express - expressjs.com/en/guide/routing.html -\n  Routing",
     );

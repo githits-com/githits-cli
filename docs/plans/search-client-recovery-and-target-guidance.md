@@ -481,13 +481,15 @@ Ordinary completed, current results collapse all healthy groups to one line:
 
 ```text
 10 results | 6 repo code hits, 4 docs pages | next_offset=10
-Sources: npm:express@5.2.1 - code, docs
+Sources: npm:express@5.2.1 - code, site:expressjs.com, expressjs/express@dbac741a
 ```
 
 Multiple healthy targets use one semicolon-delimited `Sources:` row, with each target
-written once and its searched lanes following it. Repository/site contributor details
-are not repeated in this compact row; ranked hit locators retain the concrete evidence
-source and JSON retains full provenance.
+written once and its searched sources following it. Code and symbols remain compact lane
+names. Documentation contributors retain canonical `site:<host[/path]>` locators and
+compact repository revisions. Compact output requires concrete documentation provenance;
+an incomplete payload without it stays in detailed target-state form. Ranked hit locators
+and JSON retain their existing provenance.
 
 Mixed progress and terminal state use the same target list:
 
@@ -950,8 +952,9 @@ test behavior changed.
   the sole visible `searchRef`; stopped terminal references are not rendered.
 - Exact terminal reasons and lanes remain human/agent readable without raw backend prose;
   unknown states remain conservative.
-- Healthy output collapses to one target-plus-lanes `Sources:` row; ranked hits and
-  structured JSON remain unchanged.
+- Healthy output collapses to one target-plus-sources `Sources:` row, retaining concrete
+  documentation provenance when available; ranked hits and structured JSON remain
+  unchanged.
 - Presentation, renderer, CLI/MCP/parity, and smoke-helper validation pass with the
   final-head evidence recorded above. Full repository, package/build, live smoke, and
   targeted Claude/Codex agent-eval validation are complete; the qualitative evaluation

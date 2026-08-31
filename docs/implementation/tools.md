@@ -154,7 +154,10 @@ advisory rather than aliases; the client never selects or retries one automatica
 **Unified target-state output.** MCP `search` and `search_status` text-v1 return one
 outcome-first response. The headline carries result count/type breakdown,
 active/terminal lifecycle, readiness, and pagination when applicable. A completed
-current result set collapses to one `Sources: <target> - <lanes>` row; any trust,
+current result set collapses to one `Sources: <target> - <sources>` row; code and
+symbols use lane names while documentation uses a canonical `site:<host[/path]>`
+locator or compact repository revision. Documentation without concrete provenance stays
+in detailed target-state form. Any trust,
 warning, alternative, suggestion, or non-current fact keeps every target in one
 detailed list. Each target row can contain `using`, `searched`, `indexing`, an exact
 terminal reason, `available`, `indexed`, constraints, and at most one inline
@@ -333,8 +336,9 @@ anatomy, and ordering. The order is:
 
 1. one outcome headline with count/breakdown, lifecycle, readiness, and
    pagination when applicable;
-2. one compact `Sources: <target> - <lanes>` row for ordinary completed current
-   results, or one detailed block per target when any state must remain visible;
+2. one compact `Sources: <target> - <sources>` row for ordinary completed current
+   results, retaining concrete documentation provenance when available, or one
+   detailed block per target when any state must remain visible;
 3. target-local state and recovery, then query-wide warnings;
 4. the separate numbered ranked hit list; and
 5. at most one session/query-wide `Next:` action.

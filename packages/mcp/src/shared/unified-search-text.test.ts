@@ -258,7 +258,9 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text.split("\n")[0]).toBe(
       "10 results | 5 repo docs, 5 docs pages | next_offset=10",
     );
-    expect(text).toContain("Sources: npm:express@5.2.1 - docs");
+    expect(text).toContain(
+      "Sources: npm:express@5.2.1 - site:expressjs.com, expressjs/express@dbac741a",
+    );
     expect(text).toContain(
       "[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01",
     );
@@ -273,6 +275,23 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("### router.use()");
     expect(text.match(/next_offset=10/g)).toHaveLength(1);
     expect(text.length).toBeLessThan(3459);
+  });
+
+  it("keeps contributor-less documentation in detailed target state", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([docsHit({ target: "npm:express@5.2.1" })], {
+        sourceStatus: [
+          source({
+            source: "docs",
+            targetLabel: "npm:express@5.2.1",
+            resultCount: 1,
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain("- npm:express@5.2.1\n  searched: docs");
+    expect(text).not.toContain("Sources:");
   });
 
   it("starts completed hits with the outcome and preserves hit anatomy", () => {
