@@ -1239,11 +1239,12 @@ choice, not a causal requirement of the suite schema.
 - [x] Pure tests cover scenario expansion, exact intent prompt identity,
       schema-v1 compatibility, cross-agent/model/intent incompatibility, and
       comparison cohorts; focused and full suites pass.
-- [x] Codex `agent:session` and workload execution share tested isolation/local-
-      MCP construction. Manual Luna validation on 2026-08-31 with Codex CLI
-      0.151.0 listed only six bundled system skills and reported
-      `githits: connected (18 tools)`; no GitHits/personal skills or Keychain
-      access was needed.
+- [x] Codex `agent:session` and measured noninteractive workload execution share
+      tested isolation/local-MCP construction and reject every direct
+      `$CODEX_HOME/skills` entry except `.system`. Manual Luna validation on
+      2026-08-31 with Codex CLI 0.151.0 listed only six bundled system skills
+      and reported `githits: connected (18 tools)`; no GitHits/personal skills
+      or Keychain access was needed. This closes the Opus F1 contamination gap.
 - [x] Discovery runs receive no harness GitHits guidance or intent. Intent runs
       receive exactly `Use GitHits for this task.`. Full runs receive only the
       existing target-owned guidance and no additional nudge.
@@ -1264,8 +1265,8 @@ choice, not a causal requirement of the suite schema.
       calls, zero isolation violations, 655,840 uncached and 2,389,760 cached
       tokens, and an estimated $0.2030556. The named six-workload smoke subset
       is derived from those same stable metrics and is documented below.
-- [x] Focused tests (176 pass, 986 expectations), full tests (3,577 pass,
-      11,863 expectations), typecheck, format (442 files), lint (442 files),
+- [x] Focused tests (178 pass, 1,004 expectations), full tests (3,579 pass,
+      11,881 expectations), typecheck, format (442 files), lint (442 files),
       build, and all named-suite dry-runs pass. Dry-run coverage is canary
       discovery+intent (4 cells), smoke intent (6), stable-full intent (21),
       stateful-manual intent (1), experimental intent (3), and explicit canary
