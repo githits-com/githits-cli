@@ -3,19 +3,21 @@
 ## Status
 
 - Overall: IN PROGRESS
-- Current phase: Phase 3 — Parallel CI Execution And Concise Reporting
-  (IMPLEMENTED LOCALLY; SAME-REPOSITORY LABEL PATH LIVE-VALIDATED; SCHEDULED/MANUAL
-  PATH PENDING MERGE)
-- Previous work: Phase 2 correction is COMPLETE. Its discovery, intent, full,
-  scenario-aware comparison, metrics-compatibility, and Codex interactive
-  isolation contracts are locally validated; CI execution is Phase 3 and
-  Braintrust persistence is Phase 4.
+- Current phase: Phase 4 — Braintrust Persistence Proof Of Concept
+  (IMPLEMENTED LOCALLY; CI VALIDATION PENDING)
+- Previous work: Phase 2 correction is COMPLETE. Phase 3 is merged and its
+  same-repository label path is live-validated; Phase 4's exporter, CI wiring,
+  and local Braintrust readback are complete while the first qualifying CI
+  export/readback remains pending.
 - Owner: repository maintainers
 - Last verified: 2026-08-31
-- Deployment: Phases 1 and 2 merged to `main`; local maintainer tooling and the
-  Phase 3 workflow/report are implemented. Same-repository label-authorized
-  validation is live; scheduled/manual default-branch validation remains
-  pending merge. Braintrust persistence is a separate Phase 4 increment.
+- Deployment: Phases 1 through 3 are merged to `main`. The Phase 3
+  same-repository label path is live-validated; the scheduled path is waiting
+  for its first default-branch execution. Phase 4's exact-pinned exporter and
+  post-report CI step are implemented, with local 23-row persistence/readback
+  proven; qualifying CI validation remains pending. A push to `main`
+  deliberately does not trigger the workflow, and cadence changes remain
+  deferred until persistent evidence is visible.
 
 ## Problem And Expected Outcome
 
@@ -47,7 +49,7 @@ When this effort is complete:
   and normal Luna intent suite daily from `main`, or on an explicitly
   maintainer-authorized pull request, preserves raw artifacts, and renders a
   concise report without manufacturing a baseline comparison;
-- a later Braintrust integration persists the same normalized records for
+- the Braintrust integration persists the same normalized records for
   per-workload/per-agent history without changing the runner contract;
 - daily results are observational and alert on material drift without becoming
   a flaky merge gate; and
@@ -91,7 +93,7 @@ Out of scope for the initial phases:
   workload rubric and judge policy are approved;
 - a repository-owned database, queue, cache, lock, or dashboard;
 - baseline or `main` comparison inside the CI workflow;
-- Braintrust integration in the pipeline increment itself.
+- SDK tracing or a vendor-owned runner inside agent execution.
 
 ## Verified Current State And Evidence
 
@@ -110,19 +112,24 @@ Out of scope for the initial phases:
   one stateful onboarding workload, and three explicitly experimental-tool
   workloads.
 - `.agent-eval/` is gitignored. Each run now writes a normalized `metrics.json`
-  artifact, but no durable history exists.
+  artifact. The user created the Braintrust project
+  `githits-cli-agent-evals`, installed `bt` 0.18.0, and authenticated it with
+  `bt setup`; SDK instrumentation was intentionally skipped. The exact-pinned
+  exporter now persists normalized history without making agent execution
+  depend on Braintrust. Local `.bt/` state is repository-ignored and is not an
+  input to the eval harness.
 - `.github/workflows/main.yml` runs the reusable build/test workflow on pushes
   to `main`, and `.github/workflows/agent-evals.yml` now defines the scheduled,
   manual, and same-repository label-authorized Luna workflow. Repository
   administrators verified the required secret names `OPENAI_API_KEY` and
   `GITHITS_API_TOKEN` on 2026-08-31 without reading their values. The
-  same-repository label path is live-validated; default-branch scheduled/manual
-  execution remains pending merge before Phase 3 can be accepted as fully
-  complete.
+  same-repository label path is live-validated; the first default-branch
+  scheduled/manual execution has not happened yet.
 - The agentic eval documentation now distinguishes local human/agent-driven
-  inspection from the dedicated CI workflow. Deterministic smoke tests remain
-  merge gates, while scheduled live-agent evals are observational/advisory
-  until measured evidence supports a different policy.
+  inspection, the dedicated CI workflow, and Braintrust persistence.
+  Deterministic smoke tests remain merge gates, while scheduled live-agent
+  evals and their persistence are observational/advisory until qualifying CI
+  evidence supports a different policy.
 - The corrected Codex workload and interactive paths require a caller-supplied
   dedicated eval home containing authentication and Codex-managed runtime
   state, keep fresh per-workload OS homes, and reject root-level global
@@ -608,15 +615,17 @@ The following must be resolved before Phase 6:
    isolation, and Codex interactive isolation parity are implemented and
    validated; corrected discovery/intent evidence supersedes the two-profile
    behavior policy.
-3. **Phase 3 — parallel CI execution and concise reporting (IMPLEMENTED
-   LOCALLY; SAME-REPOSITORY LABEL PATH LIVE-VALIDATED; SCHEDULED/MANUAL PATH
-   PENDING MERGE):** clean GitHub-hosted jobs run the Luna discovery and intent
-   suites daily or after an authorized PR label, retain raw evidence, and
-   render a concise no-baseline summary. Do not mark this phase complete until
-   the scheduled/manual default-branch path is validated after merge.
-4. **Phase 4 — Braintrust persistence proof of concept (PLANNED):** normalized
-   Phase 3 records become durable per-workload/per-agent history without making
-   the runner dependent on Braintrust.
+3. **Phase 3 — parallel CI execution and concise reporting (MERGED;
+   SAME-REPOSITORY LABEL PATH LIVE-VALIDATED; FIRST SCHEDULED RUN PENDING):**
+   clean GitHub-hosted jobs run the Luna discovery and intent suites daily or
+   after an authorized PR label, retain raw evidence, and render a concise
+   no-baseline summary. A push to `main` does not start a paid run.
+4. **Phase 4 — Braintrust persistence proof of concept (IMPLEMENTED LOCALLY;
+   CI VALIDATION PENDING):** normalized Phase 3 records become durable
+   per-workload/per-agent history without making agent execution dependent on
+   Braintrust. The local export/readback proof and repository-internal
+   Braintrust operations skill are complete; a qualifying CI export/readback is
+   still required.
 5. **Phase 5 — broader discovery matrix (PLANNED):** the proven metrics, suite,
    CI, and persistence contracts add approved Codex/Claude agent-model cells to
    the neutral canary without changing Luna history.
@@ -1450,11 +1459,11 @@ captured below; Braintrust persistence is intentionally a later phase.
 
 ### Status
 
-IMPLEMENTED LOCALLY; SAME-REPOSITORY LABEL PATH LIVE-VALIDATED. The runner,
-schema-v3 suite artifacts, CI reporter, workflow, and operational documentation
-are complete and locally validated. The corrected label run passed its clean
-runner and summary checks; default-branch scheduled/manual execution remains
-pending merge, so Phase 3 deployment acceptance is not complete.
+MERGED; SAME-REPOSITORY LABEL PATH LIVE-VALIDATED. The runner, schema-v3 suite
+artifacts, CI reporter, workflow, and operational documentation are merged.
+The corrected label run passed its clean runner and summary checks; the first
+default-branch scheduled/manual execution has not happened yet. A push to
+`main` does not trigger this paid workflow.
 
 ### Live label-run evidence
 
@@ -1623,25 +1632,25 @@ None.
    status classification, including zero-call discovery, per-tool frequencies,
    unknown telemetry, partial/missing suites, CLI fallback, and isolation
    violations. Implement the pure formatter and thin CLI entrypoint.
-3. **Implemented locally; same-repository label path
-   live-validated:** Add the dedicated workflow with the three triggers, an explicit
+3. **Merged; same-repository label path live-validated:** Add the dedicated
+   workflow with the three triggers, an explicit
    `github.event.label.name == 'agent-eval'` job gate, same-repository label/SHA
    authorization, clean Codex home and API-key setup, the two scenario jobs,
    unconditional artifact upload/reporting, 14-day retention, and minimal
    permissions. Keep secret scope to the paid execution steps. The corrected
-   label run passed; default-branch scheduled/manual execution remains pending
-   merge.
+   label run passed; the first default-branch scheduled/manual execution is
+   pending.
 4. **Completed locally:** Update local/CI operational documentation, the durable implementation
    contract, and the required no-public-impact change fragment. Document label
    authorization, re-label behavior, exact suites/concurrency, expected
    duration/cost, secret names, and artifact/report locations.
-5. **Local and label evidence complete; scheduled/manual evidence pending
-   merge:** Run focused tests, all suite dry-runs at concurrency 1 and the CI-selected
+5. **Local and label evidence complete; first scheduled/manual evidence
+   pending:** Run focused tests, all suite dry-runs at concurrency 1 and the CI-selected
    values, `bun test`, typecheck, format, lint, build, and workflow syntax/action
    validation. The same-repository label path is live-validated with no global
-   skill/guidance reads or CLI fallbacks. After the change is merged, manually
-   dispatch the workflow and verify the scheduled/default-branch path before
-   treating Phase 3 deployment acceptance as complete.
+   skill/guidance reads or CLI fallbacks. Verify the scheduled/default-branch
+   path on its first run before treating Phase 3 deployment acceptance as
+   complete.
 
 ### Acceptance Criteria
 
@@ -1650,7 +1659,7 @@ None.
 - MET: A same-repository label run checks out the exact labeled head SHA and
   produces 2/2 discovery plus 21/21 intent records with concurrency 2/4
   captured in artifacts.
-- PENDING AFTER MERGE: A trusted manual run and a scheduled default-branch run
+- PENDING: A trusted manual run or scheduled default-branch run
   check out the exact intended SHA and produce 2/2 discovery plus 21/21 intent
   records, or explicit failed/missing records, with concurrency 2/4 captured in
   artifacts.
@@ -1674,49 +1683,345 @@ None.
 
 ### Status
 
-PLANNED. Reorient and detail after Phase 3 is merged and its first clean runner
-evidence is available.
+IMPLEMENTED LOCALLY; CI VALIDATION PENDING. Phase 3 is merged and its
+same-repository label path has clean runner evidence. The exact-pinned
+Braintrust exporter, post-report CI wiring, local persistence/readback proof,
+and internal operations skill are implemented. A real labeled or manually
+dispatched CI run must still export and read back 23 rows before Phase 4 is
+accepted as complete. SDK tracing was deliberately not added.
 
 ### Expected Outcome
 
-Braintrust persistently exposes each Luna workload/scenario execution and its
-tool-call frequencies, tools used, token buckets, duration, estimated cost,
-status, repository SHA, exact Codex CLI/model identity, and links to raw CI
-evidence. Local and GitHub suite generation remain fully functional when
-Braintrust is unavailable.
+Each completed Luna workflow attempt creates one immutable experiment in the
+Braintrust project `githits-cli-agent-evals`, with one top-level experiment row
+per scenario/workload cell. Braintrust exposes the exact effective prompt,
+answer/status evidence, tool-call frequencies and ordered sequence, token
+buckets, agent duration, estimated cost, repository/harness identity, exact
+Codex CLI/model identity, and a link to the GitHub workflow evidence. Local and
+GitHub suite generation and concise reporting remain independent of
+Braintrust. No SDK tracing is inserted into Codex, the GitHits MCP server, or
+the harness execution path.
 
 ### Assumptions
 
-- Phase 3's normalized records are sufficient input; Braintrust does not become
-  the source of truth for raw provider evidence.
-- The service can accept the existing versioned dimensions through a thin
-  mapping rather than forcing runner-specific instrumentation.
+- Phase 3 `suite.json`, contained child `metrics.json`/`report.json`, and raw
+  `prompt.md`/`final.json` evidence are the complete exporter input. Braintrust
+  does not become the source of truth for raw provider events.
+- The Braintrust experiment/event model accepts the existing dimensions through
+  a post-run mapping. The installed 3.29.0 SDK source confirms
+  `initExperiment()`, explicit experiment names, top-level `startSpan()` eval
+  rows with `input`, `output`, `error`, `metadata`, `metrics`, and `tags`,
+  explicit `flush()`, and `summarize({ summarizeScores: false })` permalink
+  retrieval. `update: true` continues an existing experiment, but the PoC does
+  not use it.
+- One CI run attempt is one immutable experiment. GitHub `run_id` plus
+  `run_attempt` gives reruns distinct names, so no event-ID scheme, upsert,
+  retry, or duplicate-repair mechanism is required.
+- The existing `bt` OAuth profile is suitable for local read/query operations
+  and for a `bt eval` wrapper that injects resolved authentication into its Bun
+  child. CI uses only the repository secret `BRAINTRUST_API_KEY` and invokes the
+  exporter directly; it does not install or depend on the global CLI.
+- Persisting the exact prompt and neutral answer now is required to make later
+  quality scoring possible after 14-day GitHub artifacts expire. Self-reported
+  confidence is diagnostic metadata, not a quality score.
+
+### Resolved SDK contract contradiction
+
+The initial plan assumed that `Experiment.log()` could represent a scoreless
+eval row. Runtime behavior in the installed Braintrust 3.29.0 package disproved
+that assumption: `Experiment.log()` requires non-empty `scores`. No quality
+judge or fabricated score is appropriate in this phase. The exporter therefore
+uses one top-level `type: "eval"` span per mapped cell, ends each span
+immediately, flushes the experiment, and then reads its permalink through
+`summarize({ summarizeScores: false })`. This is a resolved implementation
+contradiction, not a reason to alter the neutral metrics contract.
 
 ### Unknowns Or Product Decisions
 
-- Braintrust account/project ownership, available credits, authentication,
-  retention, and ingestion API/SDK.
-- Whether raw traces are uploaded or retained only in GitHub with durable links.
-- Dashboard grouping and whether exporter failure makes the advisory workflow
-  partial or failed.
+No product choice blocks the implementation. The selected policy is:
+
+- project: `githits-cli-agent-evals`;
+- ingestion: exact-pinned TypeScript `braintrust` SDK, currently verified as
+  3.29.0, through a downstream exporter;
+- raw traces: GitHub artifacts only; Braintrust receives normalized rows plus
+  the exact prompt and neutral answer, not stdout, stderr, environment values,
+  MCP payloads, or auth state;
+- quality: no scorer or `scores` value in this phase;
+- export failure: preserve the GitHub summary/artifacts, then fail the final
+  workflow status so missing persistence cannot be silent;
+- retention: Braintrust is the durable normalized history. GitHub raw artifacts
+  remain at 14 days until observed operations justify a change; and
+- cadence: unchanged in this phase. The existing schedule/manual/label triggers
+  remain; push-to-main behavior is reconsidered only after Braintrust evidence
+  is available.
+
+The built-in experiment comparison behavior is a known technical limitation,
+not a selected policy: its exercised output contains only generic all-zero trace
+metrics and omits the custom eval telemetry. Its investigation is deferred to a
+Phase 5 / PoC follow-up; bounded SQL and row/UI inspection remain the verified
+metrics path.
 
 ### Dependencies
 
-- Phase 3 accepted and merged.
-- Approved Braintrust proof-of-concept contract and credentials.
+- Phase 3's merge commit is `e1599b7`; planning was reoriented on current
+  `origin/main` commit `5a5fab7` after the non-overlapping 0.11.3 release merge.
+- The user-created Braintrust project `githits-cli-agent-evals` and local `bt`
+  authentication exist. This is user-provided verification; the plan does not
+  inspect `.bt/`, Keychain contents, or any credential value.
+- A repository administrator has provisioned the secret name
+  `BRAINTRUST_API_KEY` for CI. Its value is never read into an agent session;
+  qualifying CI export/readback remains pending.
+
+### Verified Braintrust Constraints
+
+- [`bt setup`](https://www.braintrust.dev/docs/reference/cli/setup) separates
+  authentication, optional skills/MCP setup, and optional SDK instrumentation.
+  Cancelling instrumentation does not undo authentication.
+- The [CLI authentication model](https://www.braintrust.dev/docs/reference/cli/quickstart)
+  uses an OAuth profile/keychain locally and `BRAINTRUST_API_KEY` in CI. The
+  official `bt` source passes resolved profile credentials to `bt eval` child
+  processes, which lets the same exporter run locally without reading or
+  copying Keychain material.
+- The [TypeScript SDK](https://www.braintrust.dev/docs/reference/libs/nodejs)
+  supports named experiments, explicit repository metadata, custom numeric
+  metrics, structured metadata, top-level eval spans, manual flush, and returned
+  experiment URLs. The installed 3.29.0 runtime requires non-empty scores for
+  `Experiment.log()`, so the exporter uses scoreless top-level eval spans and
+  does not fabricate quality scores.
+- Braintrust [SQL](https://www.braintrust.dev/docs/reference/sql) and the
+  `bt experiments`/`bt sql` commands can inspect and compare the persisted fields.
+  The repository skill records only commands exercised against the PoC
+  experiment. The built-in compare command currently returns only generic,
+  all-zero trace metrics rather than this custom telemetry; bounded SQL/query
+  and experiment UI inspection are the verified metrics path.
+
+### Verified PoC evidence
+
+The accepted GitHub run `33381601980` at SHA
+`dc63675d7c0ee95a9594eac272982943dceef521` validated and exported the discovery
+and intent suites as exactly 23 rows. The experiments
+`poc-33381601980-top-level-spans` and `poc-33381601980-repeat` each read back
+23 rows. Bounded SQL and row inspection reconciled prompts, neutral answers,
+prompt hashes, token buckets, duration, cost, and tool telemetry to the source
+artifacts. The first experiment permalink is:
+
+<https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/poc-33381601980-top-level-spans>
+
+The exercised command
+`bt experiments --json --project githits-cli-agent-evals compare
+poc-33381601980-top-level-spans poc-33381601980-repeat` succeeds but exposes
+only generic Braintrust trace metrics, all zero, and not the custom eval
+telemetry. This limitation does not invalidate persistence. It is a Phase 5 /
+PoC follow-up requiring investigation. CI acceptance remains pending until a
+real labeled or manually dispatched workflow exports and reads back 23 rows.
+
+### Affected Components
+
+- `scripts/agent-eval-braintrust.ts` and focused tests for pure mapping, CLI
+  parsing, and an injected SDK boundary;
+- `scripts/agent-eval-report.ts` and focused tests to preserve the already
+  emitted `prompt.md` path and neutral answer in contained `report.json`
+  evidence;
+- `package.json`/`bun.lock` for one exact-pinned `braintrust` development
+  dependency and exporter entrypoint;
+- `.github/workflows/agent-evals.yml` for a post-report export step, narrowly
+  scoped secret, nonsecret result link, and final status aggregation;
+- `.gitignore` for `.bt/` local CLI state;
+- `eval/agentic/README.md` and
+  `docs/implementation/agentic-eval-metrics.md` for durable operations and data
+  contracts;
+- `.agents/skills/braintrust-agent-evals/SKILL.md` as an internal-only
+  operations/query skill; and
+- one maintainer-facing change fragment with `none` impact for `githits` and
+  `@githits/mcp`.
+
+### Export Contract
+
+1. **Validated downstream input**
+
+   Reuse `loadImportedSuite()` for every repeatable
+   `--suite <label>=<suite.json>` input. This retains schema parsing, realpath
+   containment, canonical child basenames, metrics/report reconciliation, and
+   status validation. Before opening a network connection, reject dry-run
+   suites, duplicate scenario/workload cells, mixed target or measurement SHAs,
+   mixed agent/model/reasoning/surface/server identity, or incompatible
+   reporting/result-schema identity. Partial and failed suites with valid child
+   evidence remain exportable because failures are part of the history; a
+   missing or unparseable suite fails preflight and creates no experiment.
+
+   Extend the report's allowlisted workload artifacts with `prompt.md` and its
+   neutral final summary with `answer`. Existing report version 1 readers remain
+   compatible because both fields are additive and optional. The exporter
+   resolves prompt references inside the imported child run directory and
+   never loads raw stdout, stderr, environment/config files, or provider event
+   payloads.
+
+2. **Experiment and comparison identity**
+
+   Create one experiment per invocation. CI passes the deterministic name
+   `github-<run_id>-<run_attempt>`; local use defaults to a timestamped
+   `local-...` name but accepts explicit `--experiment`. Use `update: false` and
+   no base experiment. Braintrust's normal experiment comparison matches rows
+   by `input`; the input therefore contains scenario, workload ID/path, exact
+   effective prompt, and its SHA-256. Agent, model, CLI, git, and run identity
+   stay out of `input` so comparable runs retain the same test-case key. A
+   changed effective prompt deliberately becomes a different input rather than
+   producing a misleading direct comparison.
+
+   Experiment metadata records source (`local` or `github`), GitHub run ID and
+   attempt when present, workflow/run URL, suite IDs/names/hashes, target and
+   measurement SHAs/branches/dirty state, schema version, and exporter version.
+   Explicit `repoInfo` uses the evaluated target SHA while SDK automatic Git
+   collection is disabled, preventing the summary checkout or local dirty tree
+   from replacing artifact identity.
+
+3. **One allowlisted row per workload/scenario**
+
+   `output` contains process/cell/final status, neutral answer when present,
+   self-reported confidence, and discovery observation when available.
+   Failed cells use a generated status-only `error` label; raw error/stderr text
+   is not uploaded. `scores` is omitted.
+
+   Known numeric values map to custom metrics with stable names:
+   `agent_duration_ms`, `logical_tool_calls`, `mcp_tool_calls`,
+   `cli_tool_calls`, `tool_calls_started`, `tool_calls_completed`,
+   `tool_calls_failed`, `tool_calls_unknown`, `raw_tool_events`,
+   `uncached_input_tokens`, `cached_input_tokens`,
+   `cache_write_input_tokens`, `output_tokens`,
+   `reasoning_output_tokens`, and `estimated_cost_usd`. Known zero is logged as
+   zero. Unknown values are absent rather than coerced to zero. Custom names
+   avoid Braintrust reinterpreting the repository's rate estimate as
+   provider-reported billing.
+
+   Structured metadata contains cell/suite/run IDs, guidance/intent identity,
+   agent/model/reasoning/CLI identity, cost kind/uncertainty/rate snapshot,
+   normalized warnings/validation categories, `toolTelemetryKnown`, ordered
+   normalized tool sequence, and per-surface/per-tool total and status counts.
+   Each known used tool also adds a filter tag such as `tool:mcp:search`; the
+   nested counts remain authoritative. Tool telemetry that cannot reconcile is
+   `toolTelemetryKnown: false` with no tool-count metrics or fabricated empty
+   counts.
+
+4. **Thin SDK boundary and local authentication**
+
+   Keep record construction pure and inject only the minimal SDK publisher
+   needed by tests. Production initializes the exact project/experiment, starts
+   and immediately ends one top-level `type: "eval"` span per row in
+   deterministic suite/scenario/workload order, calls `flush()`, and writes a
+   small nonsecret result JSON containing project, experiment, URL, and
+   exported-row count. There is no agent execution, tracing wrapper, dataset,
+   scorer, queue, retry, lock, cache, or repository database.
+
+   The normal package command runs directly under Bun; `BRAINTRUST_API_KEY` is
+   required only when it performs a network export, matching CI. Local
+   OAuth-profile use runs the same file explicitly through
+   `bt eval --runner bun --no-auto-instrumentation ...`; the official `bt`
+   source supports the exported `btEvalMain` entrypoint, and the local
+   persistence/readback proof exercised this path without reading or copying
+   Keychain credentials. A credential-free `--validate-only` mode maps all rows
+   without initializing Braintrust and reports only identity/counts, not
+   prompts or answers.
+
+5. **CI sequencing and failure visibility**
+
+   Keep scenario execution and artifact upload unchanged. Mark the existing
+   report step `continue-on-error` so its summary is always appended. Run the
+   exporter afterward with `if: always()`, both downloaded suite paths, explicit
+   GitHub experiment identity, and `BRAINTRUST_API_KEY` scoped only to that
+   step. Append the returned Braintrust experiment link when available. A final
+   no-secret step fails if the scenario job, report step, or exporter step
+   failed. Thus an exporter outage cannot suppress raw evidence or the concise
+   report, but it cannot pass silently either. Do not retry ingestion.
+
+6. **Internal operations skill after live proof**
+
+   Create `.agents/skills/braintrust-agent-evals/SKILL.md` from the proven local
+   export/readback workflow. It is repository-internal and is not added to root
+   `skills/`, plugin manifests, generated assets, or public packages. Keep it
+   short and automatically discoverable for requests to inspect, compare, or
+   operate GitHits agent-eval history.
+
+   Document only exercised commands: selecting `githits-cli-agent-evals`,
+   listing/viewing/comparing experiments, running bounded SQL queries for token,
+   duration, tool, status, and cost fields, opening the returned permalink, and
+   invoking local export through the saved `bt` profile. The skill must prohibit
+   printing API keys, reading `.bt/` or Keychain contents, uploading raw
+   artifacts, deleting experiments, or treating confidence as quality. It
+   routes schema/detail questions to the durable implementation document rather
+   than duplicating the full field contract.
+
+### Ordered Implementation Steps
+
+1. Add focused failing tests for the pure suite-to-Braintrust mapping: stable
+   input identity, exact prompt/answer capture, deterministic ordering, all
+   numeric metrics, known-zero preservation, unknown omission, per-tool
+   frequency/sequence, failed cells, and allowlisted metadata only. Add the
+   additive prompt/answer report fields needed by those tests.
+2. **Implemented locally:** Implement exporter argument parsing, cross-suite
+   preflight, pure mapping, injected publisher, exact `braintrust` 3.29.0
+   development dependency, direct Bun entrypoint, `btEvalMain` profile wrapper,
+   validate-only output, explicit flush, and nonsecret result file. Verify
+   credential-free `--validate-only` mapping against complete Phase 3 artifacts
+   without running an agent.
+3. **Local persistence/readback proven:** Use the authenticated local `bt`
+   profile to export the accepted 23-cell evidence into
+   `githits-cli-agent-evals` under clearly named `poc-...` experiments. Read it
+   back with `bt experiments` and bounded `bt sql`; reconcile row count,
+   zero-tool discovery, tool-using cells, token buckets, duration, cost,
+   prompt, answer, exact Codex version, SHA, and permalink against source
+   artifacts. The built-in compare limitation is recorded for follow-up.
+4. **Implemented locally; CI validation pending:** Add the CI export/final-status
+   steps and document the provisioned `BRAINTRUST_API_KEY` secret name.
+   Unit-test the workflow contract, validate YAML/action references, and use
+   direct SDK execution in CI so the workflow does not install `bt`. A real
+   labeled or manual run must still export/read back 23 rows.
+5. **Implemented locally:** Update durable eval operations documentation and
+   create the internal `braintrust-agent-evals` skill from the commands and
+   field semantics proven in step 3. Validate it with the skill validator. Run
+   plugin generation/check and confirm the internal skill causes no
+   public/generated skill changes.
+6. Run focused tests, exporter validate-only mode, `bun test`, typecheck, format, lint,
+   `bun run plugins:generate`, `bun run plugins:check`, and `bun run build`.
+   After merge and secret provisioning, manually dispatch one workflow and
+   verify the GitHub summary link plus 23 reconciled Braintrust rows before
+   calling the PoC complete. The later scheduled run should create a separate
+   experiment without code changes.
 
 ### Acceptance Criteria
 
-- Braintrust shows durable records grouped by workload, agent, exact CLI/model,
-  reasoning, guidance, and intent, including per-tool call counts, token
-  buckets, duration, estimated cost/uncertainty, and failures.
-- Exported values reconcile to the source `suite.json`/`metrics.json` artifacts,
-  and missing telemetry remains unknown rather than zero.
-- Export failure never destroys raw GitHub evidence and cannot prevent local
-  suite/report generation.
-- No Braintrust credential appears in logs, artifacts, summaries, or records.
-- The proof of concept adds no repository database, queue, retry layer, or
-  runner replacement.
+- MET locally: PoC experiments in `githits-cli-agent-evals` have exactly 23
+  rows for the current two discovery plus 21 intent cells. PENDING for CI:
+  one real labeled or manually dispatched workflow experiment must be
+  exported/read back with the same 23-row reconciliation, including failed
+  cells when a run fails.
+- Every row is filterable by workload, scenario, agent, exact CLI/model,
+  reasoning, guidance, intent, target SHA, and used-tool tags. Structured
+  metadata exposes ordered tools and per-tool/per-status counts.
+- Prompt, neutral answer, process/final status, self-reported confidence, token
+  buckets, agent duration, estimated cost/uncertainty, and logical tool counts
+  reconcile to contained source artifacts. Unknown telemetry is absent/unknown;
+  a verified zero-tool discovery cell remains numeric zero.
+- The exporter keeps unchanged scenario/workload/prompt inputs stable across
+  workflow attempts, and no baseline is selected automatically or metric
+  movement fails the workflow. PENDING: the exercised `bt experiments compare`
+  command reports only generic all-zero trace metrics, so custom eval trend
+  comparison still requires the documented SQL/UI follow-up.
+- The existing GitHub concise report and 14-day raw artifact upload complete
+  even when export fails; the final workflow is red and names export as the
+  failed stage. Local suite/report generation works without Braintrust or its
+  credential.
+- `BRAINTRUST_API_KEY` is scoped only to the CI export step. No Braintrust,
+  GitHits, provider, Keychain, or local auth value appears in logs, artifacts,
+  summaries, records, tests, or the internal skill.
+- The internal skill can list, inspect, compare, and query the proven metrics
+  through the user's authenticated `bt` profile without reading credentials or
+  mutating/deleting experiments.
+- The Braintrust integration adds no tracing instrumentation, quality judge,
+  public skill, repository database, queue, retry, lock, cache, runner
+  replacement, or cadence change.
+- Braintrust ingestion itself makes no model call and adds no model-token cost;
+  exporter wall time and every run-variant Luna duration/cost value are measured
+  and persisted rather than pinned as an acceptance threshold.
 
 ## Phase 5 — Broader Discovery Matrix
 

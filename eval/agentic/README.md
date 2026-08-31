@@ -20,7 +20,7 @@ The repository-local named-suite commands below are the local measurement
 workflow. They run the fixed Luna matrix and produce validated suite and
 comparison artifacts. The CI workflow composes the same commands for daily and
 explicitly authorized pull-request runs; it retains raw artifacts for diagnosis
-but does not provide long-term service history or judge answer quality.
+and exports normalized rows to Braintrust, but does not judge answer quality.
 
 ## What Is Under Test
 
@@ -335,9 +335,76 @@ descriptor shards/cells to `discovery` and full to `full`; missing, null, or
 other profiles are rejected rather than mapped to `intent`. Legacy child
 `metrics.json` files use the one-off v1 metrics normalizer.
 
-These local commands are diagnostic measurement tools. CI scheduling is
-implemented by `.github/workflows/agent-evals.yml`; persistent result history,
-service export, Haiku coverage, and quality judging remain later phases.
+These local commands are diagnostic measurement tools. CI scheduling and
+Braintrust export are implemented by `.github/workflows/agent-evals.yml`;
+Haiku coverage and quality judging remain later phases.
+
+## Braintrust persistence
+
+The exporter persists normalized suite evidence in the Braintrust project
+`githits-cli-agent-evals` using the exact `braintrust` SDK `3.29.0`. It creates
+one top-level eval row per scenario/workload cell and does not upload raw
+stdout, stderr, provider events, environment/configuration, or arbitrary
+artifacts. No quality score is fabricated; self-reported confidence remains
+diagnostic metadata.
+
+Validate downloaded or local suites without credentials or network access:
+
+```bash
+bun run agent:e2e:braintrust \
+  --suite discovery=.agent-eval/suites/<discovery>/suite.json \
+  --suite intent=.agent-eval/suites/<intent>/suite.json \
+  --project githits-cli-agent-evals \
+  --validate-only
+```
+
+Validation requires non-dry-run suites with complete contained child evidence.
+It rejects dry-run suites, duplicate scenario/workload cells, mixed identity or
+schema contracts, and missing/unsafe prompts. Failed or partial cells remain
+exportable when their report, metrics, workload, and prompt evidence are
+complete. Validate all suite inputs before an export; the command reports only
+safe identities and row counts in validate-only mode.
+
+For an explicitly requested local export using the authenticated `bt` profile,
+run the same official entrypoint through `bt eval`:
+
+```bash
+bt eval --runner bun --no-auto-instrumentation scripts/agent-eval-braintrust.ts -- \
+  --suite discovery=.agent-eval/suites/<discovery>/suite.json \
+  --suite intent=.agent-eval/suites/<intent>/suite.json \
+  --project githits-cli-agent-evals \
+  --experiment local-<name> \
+  --source local \
+  --result-out .agent-eval/braintrust-result.json
+```
+
+The result file is safe to retain and contains only schema version, mode,
+project, experiment, row count, suite summaries, and the export URL. It contains
+no prompt, answer, row body, artifact path, or credential. The direct command
+`bun run agent:e2e:braintrust` is also the CI path; CI scopes
+`BRAINTRUST_API_KEY` only to that export step and never installs or runs `bt`.
+The workflow renders the existing report and retains raw artifacts for 14 days
+before exporting; a final no-secret step names scenario, report, or Braintrust
+failure while preserving the earlier evidence.
+
+Inspect persisted history with the authenticated profile:
+
+```bash
+bt experiments --json --project githits-cli-agent-evals list
+bt experiments --json --project githits-cli-agent-evals view <experiment-name>
+bt sql --json --non-interactive "SELECT input, output, metrics, metadata, tags FROM experiment('<experiment-id>') LIMIT 23"
+```
+
+The exercised comparison command is:
+
+```bash
+bt experiments --json --project githits-cli-agent-evals compare <experiment-a> <experiment-b>
+```
+
+It currently reports only generic Braintrust trace metrics, all zero for these
+rows, and does not surface the custom eval telemetry. Use bounded SQL and the
+experiment UI for current metrics inspection; comparison behavior is a
+follow-up investigation, not a validated trend signal.
 
 ## Daily CI workflow
 
@@ -371,8 +438,9 @@ configuration are never copied into CI. The scenario directories are uploaded
 as `agent-eval-discovery` and `agent-eval-intent` artifacts for 14 days.
 
 The final summary job always runs for an authorized workflow, downloads both
-scenario artifacts without flattening them, and appends the concise report to
-`GITHUB_STEP_SUMMARY`. The local equivalent is:
+scenario artifacts without flattening them, appends the concise report to
+`GITHUB_STEP_SUMMARY`, and then exports the normalized 23-cell result to
+Braintrust. The local equivalent report command is:
 
 ```bash
 bun run agent:e2e:ci-report \
@@ -384,7 +452,9 @@ bun run agent:e2e:ci-report \
 The report is absolute: it links to the workflow run, shows schema/harness and
 Codex identity, successful/expected cells, wall and cumulative time, logical
 MCP/CLI calls, deterministic per-tool counts, token buckets, cost uncertainty,
-concurrency, and warnings. It never loads a baseline or calculates deltas.
+concurrency, and warnings. It never loads a baseline or calculates deltas. The
+subsequent Braintrust export uses the same validated suites and has no quality
+judge or baseline comparison.
 Missing or malformed suite evidence, zero selected workloads or zero expected
 executions, partial/failed/timeout execution, unknown or missing workload cells,
 CLI fallback, and isolation violations make the workflow fail only after the
@@ -392,8 +462,8 @@ report is rendered. A successful discovery run with zero GitHits calls and
 ordinary telemetry warnings remain advisory. The initial healthy two-job path
 is expected to take about 5–6 minutes and costs
 about $0.23 as a base-rate estimate, not a billing guarantee. The workflow
-does not judge answer quality or provide persistent history; those are later
-service work.
+does not judge answer quality. Braintrust persistence is observational; export
+failure preserves the report/artifacts and makes the final workflow status red.
 
 For ad hoc interactive testing with the same MCP/skills setup logic:
 
@@ -576,8 +646,8 @@ bun run agent:e2e:report .agent-eval/runs/<run>
 
 Named suites are available through `agent:e2e:suite`. Use
 `--scenario full` for a local/manual full-guidance run. Daily pipeline
-execution is provided by `.github/workflows/agent-evals.yml`; persistent result
-history, service export, and quality judging remain later phases.
+execution and persistent result export are provided by
+`.github/workflows/agent-evals.yml`; quality judging remains a later phase.
 
 For broad skill edits, run at least:
 

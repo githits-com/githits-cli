@@ -8,10 +8,107 @@ and the console summary are review aids built from that artifact; they do not
 replace the raw terminal output or `tool-calls.json`.
 
 This is local maintainer tooling plus the repository's dedicated Luna CI
-workflow. It is not a persistent history service, deterministic CI gate, or
-quality judge. Named Luna suites, local paired/offline comparisons, and daily
-or explicitly authorized pull-request execution are implemented here;
-long-term export and answer-quality scoring remain later phases.
+workflow and its Braintrust persistence boundary. It is not a deterministic CI
+gate or quality judge. Named Luna suites, local paired/offline comparisons,
+daily or explicitly authorized pull-request execution, and normalized
+per-workload history are implemented here; answer-quality scoring remains a
+later phase.
+
+## Braintrust persistence contract
+
+`scripts/agent-eval-braintrust.ts` is a post-run mapper and exporter. It loads
+each labeled `suite.json` through `loadImportedSuite()`, rejects dry-run or
+incompatible inputs before network setup, and requires contained report,
+metrics, workload, and prompt evidence for every exported cell. Duplicate
+scenario/workload cells, mixed target or measurement Git identity, mixed
+agent/model/reasoning/surface/server identity, and incompatible reporting or
+result schemas are preflight errors. Failed or partial cells are retained when
+their child evidence is complete.
+
+The exact-pinned `braintrust` SDK is `3.29.0`. The earlier design assumption
+that `Experiment.log()` could accept a scoreless eval row was disproved by the
+installed SDK: its runtime requires non-empty `scores`. This phase has no
+quality scorer and does not fabricate scores. Instead, the production adapter
+initializes one experiment with `update: false`, artifact `repoInfo`, and
+automatic Git collection disabled, then starts one top-level `type: "eval"`
+span named by `cellId` for each row, ends it immediately, calls `flush()`, and
+then calls `summarize({ summarizeScores: false })` for the permalink. Agent
+execution is not traced or instrumented by this boundary.
+
+### Row and field mapping
+
+| Export field | Source and policy |
+| --- | --- |
+| `input` | Stable `{scenario, workloadId, workloadPath, prompt, promptSha256}`. Agent, model, CLI, Git, and run identity stay out so unchanged cells compare across attempts. |
+| `output` | Cell, process, report, and final status; exact neutral `answer` when present; optional confidence and discovery status. |
+| `error` | Generated status-only `eval_status:<status>` for non-success cells. Raw shard errors, stderr, provider errors, and validation paths are never copied. |
+| `metrics` | Named numeric duration, tool, token, and estimated-cost fields from normalized records. Known zero is preserved; `null`/unknown is omitted. |
+| `metadata` | Suite/cell/run, guidance/intent, agent/model/reasoning/CLI, target/measurement Git, schema/contract, cost/rate, warning/validation, and reconciled tool telemetry identity. |
+| `tags` | `tool:<surface>:<tool>` only for tools with known positive usage. |
+
+The metric names are `agent_duration_ms`, `logical_tool_calls`,
+`mcp_tool_calls`, `cli_tool_calls`, `tool_calls_started`,
+`tool_calls_completed`, `tool_calls_failed`, `tool_calls_unknown`,
+`raw_tool_events`, `uncached_input_tokens`, `cached_input_tokens`,
+`cache_write_input_tokens`, `output_tokens`, `reasoning_output_tokens`, and
+`estimated_cost_usd`. When tool telemetry reconciles, metadata also preserves
+the ordered normalized sequence and nested per-tool/status counts, including
+known zero status counts. When it does not reconcile, `toolTelemetryKnown` is
+false, tool-count/status metrics and per-tool counts/tags are omitted, and only
+known raw event count remains. Prompt bytes and SHA-256 are read only from the
+contained `prompt.md` referenced by the rebuilt report; no other raw artifact
+content is newly read.
+
+The CLI accepts repeated `--suite <label>=<suite.json>` inputs, strict local or
+GitHub identity, and `--validate-only`. Validation and result JSON are safe to
+print: they contain only project/experiment identity, suite summaries, row
+count, mode, and an export URL when available. The result never contains
+prompt, answer, row bodies, absolute paths, auth state, or keys. Local
+subscription export runs the official entrypoint through
+`bt eval --runner bun --no-auto-instrumentation`; CI invokes
+`bun run agent:e2e:braintrust` directly with `BRAINTRUST_API_KEY` scoped only to
+the exporter step.
+
+Authenticated readback uses the exercised command forms below. The project
+option placement for list/view is intentional; use the returned experiment ID
+for the bounded SQL query:
+
+```bash
+bt experiments --json --project githits-cli-agent-evals list
+bt experiments --json --project githits-cli-agent-evals view <experiment-name>
+bt sql --json --non-interactive "SELECT input, output, metrics, metadata, tags FROM experiment('<experiment-id>') LIMIT 23"
+```
+
+### CI sequencing and failure visibility
+
+The scenario jobs and unconditional 14-day artifact uploads run first. The
+summary job renders its report with `continue-on-error`, then the Braintrust
+export step runs with `if: always()` and `continue-on-error`. A final no-secret
+step checks the scenario result, report outcome, and exporter outcome and exits
+nonzero with each failed stage. Thus raw evidence and the concise report remain
+available during exporter outages, while persistence failure cannot pass
+silently. The workflow does not select a baseline or fail on metric movement.
+
+### Verified PoC and comparison limitation
+
+The accepted GitHub run `33381601980` at SHA
+`dc63675d7c0ee95a9594eac272982943dceef521` validated and exported both suites
+as exactly 23 rows (two discovery plus 21 intent). The experiments
+`poc-33381601980-top-level-spans` and `poc-33381601980-repeat` were read back
+with 23 rows. Bounded SQL and row inspection reconciled prompts, neutral
+answers, prompt hashes, token buckets, duration, cost, and tool telemetry to
+the source artifacts. The first experiment permalink is
+<https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/poc-33381601980-top-level-spans>.
+
+The exercised comparison command,
+`bt experiments --json --project githits-cli-agent-evals compare
+poc-33381601980-top-level-spans poc-33381601980-repeat`, succeeds but reports
+only generic Braintrust trace metrics, all zero; it does not expose the custom
+eval telemetry. Built-in comparison is therefore not a validated trend path.
+The current verified path is bounded `bt sql`/row inspection plus the
+experiment UI. Investigating a comparison that understands custom eval metrics
+is a Phase 5/PoC follow-up. CI acceptance remains pending until a real labeled
+or manual workflow run exports and readbacks 23 rows.
 
 ## Scenario and intent identity
 
@@ -678,8 +775,10 @@ artifacts that resolve outside the run directory.
 | `scripts/agent-eval-report.ts`       | Safe metrics loading, derived report fields, and console formatting                              |
 | `scripts/agent-eval-suite.ts`        | Named-suite manifest validation, Luna orchestration, paired comparison, and artifact containment |
 | `scripts/agent-eval-ci-report.ts`    | Schema-validated absolute CI Markdown report and failure classification                        |
+| `scripts/agent-eval-braintrust.ts`   | Validated suite mapping, Braintrust export, CLI entrypoint, and safe result output               |
 | `scripts/agent-eval-suite.test.ts`   | Suite, comparison, CLI, failure, and containment coverage                                        |
 | `scripts/agent-eval.test.ts`         | Runner, report, fallback, safety, and integration coverage                                       |
 | `scripts/agent-eval-metrics.test.ts` | Adapter and metrics-contract coverage                                                            |
 | `.github/workflows/agent-evals.yml`  | Daily, labeled-PR, and manual Luna execution plus unconditional summary                         |
 | `eval/agentic/README.md`             | User-facing harness usage, workload guidance, and limitations                                    |
+| `.agents/skills/braintrust-agent-evals/SKILL.md` | Internal read/query/export operating commands                                  |
