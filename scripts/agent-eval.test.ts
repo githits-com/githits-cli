@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, resolve, win32 } from "node:path";
+import { basename, dirname, join, resolve, win32 } from "node:path";
 import {
   GITHITS_GUIDANCE_BLOCK,
   GITHITS_GUIDANCE_MARKER,
@@ -1418,6 +1418,7 @@ describe("agent eval harness", () => {
         'mcp_servers.githits.env.HOME="/host/home"',
       );
       expect(observedEnv?.CODEX_HOME).toBe(codexHome);
+      const isolationRoot = dirname(observedEnv?.TMPDIR ?? "never");
       for (const [key, hostValue] of Object.entries({
         HOME: "/host/home",
         USERPROFILE: "/host/profile",
@@ -1425,9 +1426,7 @@ describe("agent eval harness", () => {
         APPDATA: "/host/appdata",
       })) {
         expect(observedEnv?.[key]).not.toBe(hostValue);
-        expect(observedEnv?.[key]).toStartWith(
-          observedEnv?.TMPDIR?.replace(/\/tmp$/, "") ?? "never",
-        );
+        expect(dirname(observedEnv?.[key] ?? "never")).toBe(isolationRoot);
       }
       expect(observedEnv?.RANDOM_SECRET).toBeUndefined();
       const session = JSON.parse(
