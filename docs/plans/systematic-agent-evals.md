@@ -2056,6 +2056,14 @@ case; it does not satisfy native baseline linkage.
    so it does not read or expose credential values or introduce a second
    client/service layer.
 
+   The nonsecret CLI result file is schema version 2 and includes the stable
+   experiment identity plus the actual `baseExperiment` `{id, name}` or null.
+   Validate-only uses null to mean unresolved/not queried because it performs
+   no discovery; export null means required Braintrust readback found no actual
+   linked base. `fetchBaseExperiment()` is required across the SDK adapter and
+   publisher boundary, so an unavailable capability fails rather than being
+   represented as no base.
+
 3. **One allowlisted eval root plus structural tool children per workload/scenario**
 
    `output` contains process/cell/final status, neutral answer when present,
@@ -2178,9 +2186,11 @@ case; it does not satisfy native baseline linkage.
    it as explicit-link acceptance evidence. Do not use automatic ancestry after
    bootstrap.
 
-   After publishing, call public `fetchBaseExperiment()` to return the actual
-   linked ID/name in the nonsecret result and render it in CI/local output as a
-   base or `none`. Keep discovery inside the injected Braintrust integration
+   After publishing, call required public `fetchBaseExperiment()` to return the
+   actual linked ID/name in the nonsecret result and render it in CI/local
+   output as a base or explicit no-base state. Validate-only's null is
+   unresolved/not queried; export null means readback found no actual linked
+   base. Keep discovery inside the injected Braintrust integration
    boundary; do not add a mutable alias, rolling experiment, second client
    abstraction, state store, or retry.
 

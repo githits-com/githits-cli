@@ -138,10 +138,13 @@ The suite preflight rejects dry-run suites, suites with no workload cells,
 duplicate cells, mixed identity or schema contracts, and missing/unsafe child
 evidence before network setup. It does not reject a failed cell that retains
 complete report, metrics, workload, and contained prompt evidence. The result
-file is nonsecret and contains only its result-file schema version, mode,
-project, experiment, row count, suite summaries, and an export URL when
-applicable; experiment metadata records exporter schema/version 2. It never
-contains row bodies, prompts, answers, artifact paths, or credentials.
+file is nonsecret and uses result-file `schemaVersion: 2`; it contains only
+mode, project, experiment, row count, suite summaries, an export URL when
+applicable, and `baseExperiment`. In validate-only mode `baseExperiment: null`
+means unresolved/not queried; in export mode `null` means the required
+Braintrust readback returned no actual linked base. Experiment metadata records
+exporter schema/version 2. It never contains row bodies, prompts, answers,
+artifact paths, or credentials.
 Terminal tool-bearing rows lacking complete/valid observed lifecycle timing are
 rejected because they cannot produce accurate structural children; an observed
 started-only call remains an open child. Zero-tool legacy rows remain

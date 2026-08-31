@@ -1283,6 +1283,9 @@ describe("Braintrust baseline precedence", () => {
           async permalink() {
             return undefined;
           },
+          async fetchBaseExperiment() {
+            return null;
+          },
         };
       };
     const resolver = async () => null;
@@ -1483,6 +1486,9 @@ describe("Braintrust publisher boundary", () => {
             calls.push("permalink");
             return "https://braintrust.dev/experiment/local-test";
           },
+          async fetchBaseExperiment() {
+            return null;
+          },
         };
       },
     );
@@ -1602,6 +1608,9 @@ describe("Braintrust publisher boundary", () => {
           async summarize(options) {
             calls.push(`summary:${options.summarizeScores}`);
             return { experimentUrl: "https://braintrust.dev/experiment/sdk" };
+          },
+          async fetchBaseExperiment() {
+            return null;
           },
         };
       },
@@ -1732,6 +1741,9 @@ describe("Braintrust publisher boundary", () => {
         async permalink() {
           return undefined;
         },
+        async fetchBaseExperiment() {
+          return null;
+        },
       }),
     );
 
@@ -1784,6 +1796,9 @@ describe("Braintrust publisher boundary", () => {
           async permalink() {
             calls.push("permalink");
             return "https://braintrust.dev/should-not-be-used";
+          },
+          async fetchBaseExperiment() {
+            return null;
           },
         }),
       ),
@@ -1933,7 +1948,7 @@ describe("Braintrust CLI wrapper", () => {
 
     expect(publisherCalled).toBe(false);
     expect(result).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       mode: "validate-only",
       project: "githits-cli-agent-evals",
       rowCount: 1,
@@ -2049,6 +2064,9 @@ describe("Braintrust CLI wrapper", () => {
               calls.push("permalink");
               return "https://braintrust.dev/experiment/local-export";
             },
+            async fetchBaseExperiment() {
+              return { id: "main-id", name: "main-r1-a1" };
+            },
           };
         },
         print: (line) => printed.push(line),
@@ -2066,14 +2084,14 @@ describe("Braintrust CLI wrapper", () => {
       "permalink",
     ]);
     expect(result).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 2,
       mode: "export",
       project: "githits-cli-agent-evals",
       experiment: "local-export",
       rowCount: 1,
       suites: result.suites,
       url: "https://braintrust.dev/experiment/local-export",
-      baseExperiment: null,
+      baseExperiment: { id: "main-id", name: "main-r1-a1" },
     });
     expect(JSON.parse(printed[0]!) as BraintrustCliResult).toEqual(result);
     const resultText = readFileSync(resultPath, "utf8");
@@ -2123,6 +2141,9 @@ describe("Braintrust CLI wrapper", () => {
             async permalink() {
               calls.push("permalink");
               return "https://braintrust.dev/should-not-be-used";
+            },
+            async fetchBaseExperiment() {
+              return null;
             },
           }),
         },

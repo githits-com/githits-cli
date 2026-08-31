@@ -286,7 +286,7 @@ export interface BraintrustBaseExperiment {
 }
 
 function safeBaseExperiment(value: unknown): BraintrustBaseExperiment | null {
-  if (value === null || value === undefined) return null;
+  if (value === null) return null;
   assert(
     typeof value === "object" && value !== null,
     "Braintrust base experiment response is invalid",
@@ -306,7 +306,7 @@ export interface BraintrustPublisher {
   startSpan(args: BraintrustStartSpanArgs): BraintrustSpan;
   flush(): Promise<void>;
   permalink(): Promise<string | undefined>;
-  fetchBaseExperiment?(): Promise<BraintrustBaseExperiment | null>;
+  fetchBaseExperiment(): Promise<BraintrustBaseExperiment | null>;
 }
 
 export interface BraintrustExportResult {
@@ -314,7 +314,7 @@ export interface BraintrustExportResult {
   experiment: string;
   url?: string;
   exportedRowCount: number;
-  baseExperiment?: BraintrustBaseExperiment | null;
+  baseExperiment: BraintrustBaseExperiment | null;
 }
 
 export interface BraintrustCliOptions extends BraintrustExportOptions {
@@ -324,14 +324,14 @@ export interface BraintrustCliOptions extends BraintrustExportOptions {
 }
 
 export interface BraintrustCliResult {
-  schemaVersion: 1;
+  schemaVersion: 2;
   mode: "validate-only" | "export";
   project: string;
   experiment: string;
   rowCount: number;
   suites: BraintrustSuiteSummary[];
   url?: string;
-  baseExperiment?: BraintrustBaseExperiment | null;
+  baseExperiment: BraintrustBaseExperiment | null;
 }
 
 export interface BraintrustCliRuntime {
@@ -358,7 +358,7 @@ export interface BraintrustSdkExperiment {
   summarize(options: { summarizeScores: false }): Promise<{
     experimentUrl?: string;
   }>;
-  fetchBaseExperiment?(): Promise<BraintrustBaseExperiment | null>;
+  fetchBaseExperiment(): Promise<BraintrustBaseExperiment | null>;
 }
 
 export interface BraintrustSdkApiConnection {
@@ -1312,10 +1312,8 @@ export async function createBraintrustPublisher(
     flush: () => experiment.flush(),
     permalink: async () =>
       (await experiment.summarize({ summarizeScores: false })).experimentUrl,
-    fetchBaseExperiment: async () => {
-      const base = await experiment.fetchBaseExperiment?.();
-      return safeBaseExperiment(base);
-    },
+    fetchBaseExperiment: async () =>
+      safeBaseExperiment(await experiment.fetchBaseExperiment()),
   };
 }
 
@@ -1457,7 +1455,7 @@ export async function publishBraintrustRows(
     );
   }
   await publisher.flush();
-  const baseExperiment = (await publisher.fetchBaseExperiment?.()) ?? null;
+  const baseExperiment = await publisher.fetchBaseExperiment();
   const url = await publisher.permalink();
   return {
     project: resolvedOptions.project,
@@ -1712,7 +1710,7 @@ function buildCliResult(
   baseExperiment: BraintrustBaseExperiment | null,
 ): BraintrustCliResult {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     mode,
     project: options.project,
     experiment,
@@ -1768,7 +1766,7 @@ export async function runBraintrustCli(
       mapping,
       exported.experiment,
       exported.url,
-      exported.baseExperiment ?? null,
+      exported.baseExperiment,
     );
   }
   if (options.resultOut !== undefined) {

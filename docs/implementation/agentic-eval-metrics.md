@@ -38,8 +38,8 @@ tool children, closes the eval root, calls `flush()`, and then calls
 `summarize({ summarizeScores: false })` for the permalink. Agent execution is
 not traced or instrumented by this boundary.
 The exporter metadata contract is schema/version 2; both values are retained
-in experiment metadata for regression attribution. The safe CLI result keeps
-its separate result-file schema version.
+in experiment metadata for regression attribution. The safe CLI result uses its
+separate result-file schema version 2.
 
 ### Experiment identity and baseline linkage
 
@@ -131,10 +131,13 @@ reverse, or out-of-parent observed timing; it never fabricates a boundary.
 
 The CLI accepts repeated `--suite <label>=<suite.json>` inputs, strict local or
 GitHub identity, channel-aware branch/PR fields, and `--validate-only`.
-Validation and result JSON are safe to print: they contain only
-project/experiment identity, suite summaries, row count, mode, an export URL
-when available, and the safe actual base `{id, name}` or `null`. The result
-never contains prompt, answer, row bodies, absolute paths, auth state, or keys.
+Validation and result JSON are safe to print: they use result-file schema
+version 2 and contain only project/experiment identity, suite summaries, row
+count, mode, an export URL when available, and the safe actual base
+`{id, name}` or `null`. In validate-only mode `baseExperiment: null` means
+unresolved/not queried; in export mode `null` means required Braintrust
+readback returned no actual linked base. The result never contains prompt,
+answer, row bodies, absolute paths, auth state, or keys.
 Local subscription export runs the official entrypoint through
 `bt eval --runner bun --no-auto-instrumentation`; CI invokes
 `bun run agent:e2e:braintrust` directly with `BRAINTRUST_API_KEY` scoped only to

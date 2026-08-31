@@ -350,7 +350,7 @@ spans under that eval root. No quality score is fabricated; self-reported
 confidence remains diagnostic metadata.
 The exporter metadata contract is schema/version 2; both values are recorded
 in experiment metadata for regression attribution. The safe CLI result keeps
-its separate result-file schema version.
+its separate result-file schema version 2.
 
 One exporter invocation is one immutable experiment. A scenario/workload cell
 is one eval row, and each normalized logical tool call is one structural tool
@@ -481,10 +481,12 @@ the latest main baseline. Use `--branch <branch>` only for a detached suite;
 overrides. CI supplies its channel, branch, PR number, run ID, attempt, and URL
 through environment-bound arguments and does not pass `--experiment`.
 
-The result file is safe to retain and contains only schema version, mode,
-project, experiment, row count, suite summaries, export URL, and the actual
-base `{id, name}` or `null`. It contains no prompt, answer, row body, artifact
-path, or credential. The direct command
+The result file is safe to retain and uses result-file `schemaVersion: 2`; it
+contains only mode, project, experiment, row count, suite summaries, export
+URL, and the actual base `{id, name}` or `null`. In validate-only mode
+`baseExperiment: null` means unresolved/not queried; in export mode `null`
+means required Braintrust readback returned no actual linked base. It contains
+no prompt, answer, row body, artifact path, or credential. The direct command
 `bun run agent:e2e:braintrust` is also the CI path; CI scopes
 `BRAINTRUST_API_KEY` only to that export step and never installs or runs `bt`.
 The workflow renders the existing report and retains raw artifacts for 14 days
