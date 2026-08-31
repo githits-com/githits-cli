@@ -7,10 +7,11 @@ schema-versioned `metrics.json` artifact for local inspection. `report.json`
 and the console summary are review aids built from that artifact; they do not
 replace the raw terminal output or `tool-calls.json`.
 
-This is local maintainer tooling. It is not a daily pipeline, persistent
-history service, deterministic CI gate, or quality judge. Named Luna suites and
-local paired/offline comparisons are implemented here; daily execution,
-long-term export, and answer-quality scoring remain later phases.
+This is local maintainer tooling plus the repository's dedicated Luna CI
+workflow. It is not a persistent history service, deterministic CI gate, or
+quality judge. Named Luna suites, local paired/offline comparisons, and daily
+or explicitly authorized pull-request execution are implemented here;
+long-term export and answer-quality scoring remain later phases.
 
 ## Scenario and intent identity
 
@@ -58,8 +59,9 @@ CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface mcp --s
 CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface skills --server local --workload eval/agentic/workloads/package-overview-vulnerabilities.md
 ```
 
-CI should provide a clean `CODEX_HOME` with `OPENAI_API_KEY` authentication. The
-harness does not read auth material and never copies it into artifacts. Every
+The CI workflow provides a clean `CODEX_HOME` with `OPENAI_API_KEY`
+authentication. The harness does not read auth material and never copies it
+into artifacts. Every
 Codex run with a supplied `CODEX_HOME`—including live runs and dry runs with an
 explicit or ambient value—preflights root-level `AGENTS.override.md` and
 `AGENTS.md`, plus every direct `$CODEX_HOME/skills` entry except `.system`.
@@ -204,7 +206,7 @@ access was needed for this diagnostic; the normal temporary-workspace trust
 prompt required human approval. Two earlier stable intent attempts that waited
 at an unattended macOS Keychain approval prompt are invalid/excluded evidence,
 not a harness timeout defect. Local subscription/keychain-backed runs can
-require operator presence; future daily CI must use separately provisioned
+require operator presence. The daily CI workflow uses separately provisioned
 non-interactive API credentials without copying or reading credentials into
 artifacts.
 
@@ -231,7 +233,7 @@ present.
 
 ## Named suite and comparison artifacts
 
-The Phase 2 suite layer emits schema-v2 `suite.json` around child run artifacts.
+The suite layer emits schema-v3 `suite.json` around child run artifacts.
 The fixed execution matrix is Codex `gpt-5.6-luna`, reasoning `low`, local MCP;
 its scenario-keyed shards may run concurrently while workloads remain
 sequential within each shard. The closed scenarios are `discovery`
@@ -247,7 +249,7 @@ suite, which enables the experimental-tools option.
 Use the local entrypoint as follows:
 
 ```bash
-bun run agent:e2e:suite run --suite canary [--dry-run] [--out <dir>]
+bun run agent:e2e:suite run --suite canary [--concurrency <positive integer>] [--dry-run] [--out <dir>]
 bun run agent:e2e:suite pair --suite canary --baseline-root ../githits-main [--dry-run] [--out <dir>]
 bun run agent:e2e:suite compare --baseline-suite <path> --candidate-suite <path> [--out <dir>]
 ```
@@ -268,7 +270,13 @@ target Git identity, and full-profile `skills/githits-mcp` plus
 `GITHITS_GUIDANCE_BLOCK`; a single-target run can select a target with
 `--target-root`.
 
-`suite.json` is schema version 2 and records the suite execution ID, matrix,
+One-off and suite workload concurrency defaults to `1`. The runner uses an
+in-process bounded pool and keeps results in input/manifest order while
+continuing ordinary workload failures; unexpected executor exceptions still
+reject the run. CI selects `2` for discovery and `4` for intent. The selected
+value is recorded in one-off `run.json` and suite `suite.json` metadata.
+
+`suite.json` is schema version 3 and records the suite execution ID, matrix,
 selected scenarios/workloads, measurement-harness and target Git identities,
 wall and cumulative agent time, scenario shard status/errors, scenario/workload
 cell status, normalized tokens, cost, duration, aggregate logical calls by
@@ -313,9 +321,10 @@ telemetry remain in the full status matrix but are excluded from the affected
 cohort. A suite aggregate `callsByTool` is null when any selected cell lacks
 consistent logical telemetry, with those cell IDs listed; a mismatch between
 `logicalCallCount` and sequence length is treated as inconsistent telemetry.
-The suite loader deterministically normalizes valid schema-v1 artifacts at the
-boundary: historical descriptor shards/cells become `discovery`, and full
-becomes `full`. The historical v1 contract requires one of those exact
+The suite loader deterministically normalizes valid schema-v1 and schema-v2
+artifacts at the boundary. Missing `workloadConcurrency` becomes `1`;
+historical descriptor shards/cells become `discovery`, and full becomes `full`.
+The historical v1 contract requires one of those exact
 profiles; missing, null, or other profiles are rejected rather than mapped to
 `intent`. Their child `metrics.json` files are loaded through
 `parseAgentEvalMetrics`, which normalizes metrics v1 without inventing intent
@@ -323,8 +332,61 @@ evidence. Cell IDs are rewritten to
 `<scenario>/<workload>` during normalization; contamination and isolation
 warnings and contained child references are preserved.
 Raw child artifacts remain authoritative and partial shards preserve successful
-siblings. These commands perform no retries, service export, persistence,
-scheduled CI execution, Haiku runs, or quality judging.
+siblings. Workload concurrency is execution metadata, not a comparison
+dimension; valid metric deltas remain visible when it differs. These commands
+perform no retries, service export, persistence, Haiku runs, or quality judging.
+
+## Phase 3 CI workflow
+
+`.github/workflows/agent-evals.yml` composes the validated local runner and CI
+reporter into two independent matrix entries on GitHub-hosted Ubuntu:
+
+| Entry     | Suite        | Scenario    | Workload concurrency | Timeout |
+| --------- | ------------ | ----------- | -------------------: | -------: |
+| discovery | `canary`      | `discovery` |                    2 | 30 min  |
+| intent    | `stable-full` | `intent`    |                    4 | 30 min  |
+
+It triggers at `03:00` UTC from the default branch, on `workflow_dispatch`, and
+on `pull_request` events of type `labeled` targeting `main`. The paid jobs run
+for a pull request only when the event label is exactly `agent-eval` and the
+head repository is the current repository. They check out the immutable
+labeled head SHA; scheduled and manual runs use `github.sha`. A later
+`synchronize` event does not rerun while the label remains. Removing and
+re-adding the label authorizes a newer SHA. Applying the label is an explicit
+maintainer review of the workflow and all code at that SHA, including any
+workflow changes that SHA contains.
+
+Each paid job creates its output directory before checkout, installs Bun,
+Node, frozen dependencies, and the current `@openai/codex` CLI, and records
+`codex --version`. It creates an empty per-scenario `CODEX_HOME` below
+`runner.temp` and authenticates with the official stdin API-key flow.
+`OPENAI_API_KEY` is scoped only to authentication; `GITHITS_API_TOKEN` is
+scoped only to paid suite execution. No local subscription state, Keychain
+data, user config, or personal skills are copied into the runner. Scenario
+outputs are uploaded as `agent-eval-discovery` and `agent-eval-intent` with
+14-day retention, including partial setup/execution evidence.
+
+The unconditional summary job downloads those artifacts into separate,
+non-flattened directories, checks out the same SHA, installs dependencies with
+no secrets, and runs `agent:e2e:ci-report`. It appends the generated Markdown
+to `GITHUB_STEP_SUMMARY` before returning a failure for malformed or missing
+suite evidence. The report is absolute and links to the workflow run; it shows
+schema/harness and Codex identity, status, cells, timing, logical MCP/CLI
+calls, deterministic per-tool counts, tokens, cost uncertainty, concurrency,
+and warnings. It never reads a baseline, calculates deltas, writes PR comments,
+or judges answer quality. Partial/failed/timeout execution, unknown or missing
+cells, CLI fallback, isolation violations, and missing evidence fail after the
+summary is rendered. Zero-call discovery and ordinary telemetry warnings stay
+advisory. The measured healthy path is expected to take 5–6 minutes and cost
+about $0.23 as a base-rate estimate, not a billing guarantee. No cross-run
+concurrency group is configured, so independent schedule, dispatch, and label
+runs may overlap.
+
+The local implementation and deterministic validation are complete. A live
+scheduled/manual/label-authorized workflow run remains pending; the repository
+administrator-verified secret names are `OPENAI_API_KEY` and
+`GITHITS_API_TOKEN` (verified 2026-08-31 without reading their values). No live
+duration, quota, or hosted-run evidence is claimed here yet.
 
 ## Previous paid comparison: contaminated; capacity evidence only
 
@@ -590,7 +652,9 @@ artifacts that resolve outside the run directory.
 | `scripts/agent-eval-metrics.ts`      | Codex adapter, Zod schemas, normalization, and aggregate builder                                 |
 | `scripts/agent-eval-report.ts`       | Safe metrics loading, derived report fields, and console formatting                              |
 | `scripts/agent-eval-suite.ts`        | Named-suite manifest validation, Luna orchestration, paired comparison, and artifact containment |
+| `scripts/agent-eval-ci-report.ts`    | Schema-validated absolute CI Markdown report and failure classification                        |
 | `scripts/agent-eval-suite.test.ts`   | Suite, comparison, CLI, failure, and containment coverage                                        |
 | `scripts/agent-eval.test.ts`         | Runner, report, fallback, safety, and integration coverage                                       |
 | `scripts/agent-eval-metrics.test.ts` | Adapter and metrics-contract coverage                                                            |
+| `.github/workflows/agent-evals.yml`  | Daily, labeled-PR, and manual Luna execution plus unconditional summary                         |
 | `eval/agentic/README.md`             | User-facing harness usage, workload guidance, and limitations                                    |

@@ -202,24 +202,30 @@ export function formatAgentEvalCiReport(
       : []),
     "| Scenario | Status | Cells | Wall time | Cumulative time | Logical calls | Tokens | Cost | Concurrency | Codex CLI | Warnings |",
     "| --- | --- | ---: | ---: | ---: | ---: | --- | --- | ---: | --- | ---: |",
-    ...options.suites.map((suite, index) =>
-      formatSuiteRow(suite, assessments[index]!),
-    ),
+    ...options.suites.map((suite, index) => {
+      const assessment = assessments[index];
+      assert(assessment, "missing suite assessment");
+      return formatSuiteRow(suite, assessment);
+    }),
     "",
-    ...options.suites.flatMap((suite, index) => [
-      `## ${suite.label}`,
-      `- Identity: ${suite.artifact ? formatIdentity(suite.artifact) : "unknown"}`,
-      ...(suite.artifact
-        ? [
-            `- Suite status: ${suite.artifact.status}`,
-            `- Suite scenarios: ${suite.artifact.matrix.scenarios.join(", ")}`,
-            `- Workloads: ${suite.artifact.selectedWorkloads.length}`,
-          ]
-        : []),
-      ...formatToolCalls(suite.artifact),
-      ...formatWarnings(suite, assessments[index]!),
-      "",
-    ]),
+    ...options.suites.flatMap((suite, index) => {
+      const assessment = assessments[index];
+      assert(assessment, "missing suite assessment");
+      return [
+        `## ${suite.label}`,
+        `- Identity: ${suite.artifact ? formatIdentity(suite.artifact) : "unknown"}`,
+        ...(suite.artifact
+          ? [
+              `- Suite status: ${suite.artifact.status}`,
+              `- Suite scenarios: ${suite.artifact.matrix.scenarios.join(", ")}`,
+              `- Workloads: ${suite.artifact.selectedWorkloads.length}`,
+            ]
+          : []),
+        ...formatToolCalls(suite.artifact),
+        ...formatWarnings(suite, assessment),
+        "",
+      ];
+    }),
   ];
   return { markdown: `${lines.join("\n")}\n`, failed };
 }
@@ -233,10 +239,7 @@ export function parseAgentEvalCiReportArgs(
   let out: string | undefined;
   for (let index = 0; index < args.length; index += 1) {
     const flag = args[index];
-    assert(
-      flag !== undefined && flag.startsWith("--"),
-      `unexpected argument: ${flag}`,
-    );
+    assert(flag?.startsWith("--"), `unexpected argument: ${flag}`);
     if (flag === "--suite") {
       const value = args[++index];
       assert(
