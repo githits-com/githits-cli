@@ -1078,15 +1078,28 @@ async function runExperimentalLiveSmoke(
     "experimental fuzzy resolve terminal",
   );
   assert(
-    /\d+% name similarity/.test(fuzzyResolveText) &&
-      fuzzyResolveText.includes(
-        "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
-      ) &&
+    !fuzzyResolveText.includes("name similarity") &&
+      !fuzzyResolveText.includes("coarse lexical support") &&
       fuzzyResolveText.includes("indexed package snapshot") &&
       fuzzyResolveText.includes(
         "code commands do so only when they resolve and serve a commit SHA",
       ),
-    "experimental fuzzy resolve text should qualify lexical and indexed-snapshot evidence",
+    "experimental fuzzy resolve default text should omit lexical detail but qualify indexed-snapshot evidence",
+  );
+
+  const fuzzyResolveVerbose = assertTerminalOutput(
+    await runCliWithEnv(
+      ["resolve", "lodahs", "--prefer-kind", "package", "--verbose"],
+      env,
+    ),
+    "experimental fuzzy resolve verbose terminal",
+  );
+  assert(
+    /\d+% name similarity/.test(fuzzyResolveVerbose) &&
+      fuzzyResolveVerbose.includes(
+        "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
+      ),
+    "experimental fuzzy resolve verbose text should qualify lexical evidence",
   );
 
   const resolveJson = assertJsonOutput(

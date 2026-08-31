@@ -67,6 +67,7 @@ export interface ResolveTargetParams {
   intentHints?: string[];
   limit: number;
   includeDetailedFields: boolean;
+  includeNameSimilarity: boolean;
 }
 
 export interface ResolveTargetReference {
@@ -193,11 +194,16 @@ const graphQLErrorSchema = z.object({
   extensions: z.record(z.string(), z.unknown()).optional(),
 });
 
-function responseSchema<Target extends z.ZodType>(targetSchema: Target) {
+function responseSchema<Target extends z.ZodType>(
+  targetSchema: Target,
+  includeNameSimilarity: boolean,
+) {
   const resultSchema = z.object({
     best: targetReferenceSchema.nullable(),
     protectedMatches: z.array(targetReferenceSchema),
-    candidates: z.array(candidateEvidenceSchema),
+    candidates: includeNameSimilarity
+      ? z.array(candidateEvidenceSchema)
+      : z.array(candidateEvidenceSchema).optional(),
     targets: z.array(targetSchema),
     targetsTruncated: z.boolean(),
     ambiguous: z.boolean(),
@@ -222,6 +228,7 @@ query ResolveTarget(
   $intentHints: [String!]
   $limit: Int!
   $includeDetailedFields: Boolean!
+  $includeNameSimilarity: Boolean!
 ) {
   resolveTarget(
     name: $name
@@ -237,7 +244,7 @@ query ResolveTarget(
     protectedMatches {
       ...ResolveTargetReferenceFields
     }
-    candidates {
+    candidates @include(if: $includeNameSimilarity) {
       canonicalKey
       nameSimilarity
     }
@@ -360,8 +367,8 @@ export class ResolveTargetServiceImpl implements ResolveTargetService {
 
     const parsed = (
       params.includeDetailedFields
-        ? responseSchema(detailedTargetSchema)
-        : responseSchema(listTargetSchema)
+        ? responseSchema(detailedTargetSchema, params.includeNameSimilarity)
+        : responseSchema(listTargetSchema, params.includeNameSimilarity)
     ).safeParse(response.parsedBody);
     if (!parsed.success) {
       throw new MalformedPackageIntelligenceResponseError(
@@ -385,7 +392,7 @@ export class ResolveTargetServiceImpl implements ResolveTargetService {
     }
 
     const nameSimilarityByCanonicalKey = new Map(
-      result.candidates.map((candidate) => [
+      (result.candidates ?? []).map((candidate) => [
         candidate.canonicalKey,
         candidate.nameSimilarity,
       ]),
@@ -421,6 +428,7 @@ function buildVariables(params: ResolveTargetParams): Record<string, unknown> {
     name: params.name,
     limit: params.limit,
     includeDetailedFields: params.includeDetailedFields,
+    includeNameSimilarity: params.includeNameSimilarity,
   };
   if (params.query !== undefined) variables.query = params.query;
   if (params.registries !== undefined) variables.registries = params.registries;

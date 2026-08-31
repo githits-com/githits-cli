@@ -57,7 +57,7 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback [solution_id]` | `--accept` or `--reject` | `-m, --message <text>`, `--tool <name>`, `--json` | Submit solution-tied or generic session feedback |
 | `doctor` | — | `--json` | Print redacted diagnostics for GitHits runtime, environment, service URLs, config, and auth storage |
-| `resolve <name>` *(experimental; config-gated)* | package or GitHub repository name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
+| `resolve <name>` *(experimental; config-gated)* | package or GitHub repository name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--verbose`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
 | `settings` | — | `--json` | Show canonical preferences, privacy and terms, and account limits |
 | `settings show` | — | `--json` | Explicit form of `settings` for showing all account settings |
 | `settings get <key>` | setting key | `--json` | Read one writable setting using its public CLI name |
@@ -313,6 +313,7 @@ Prints redacted diagnostics for comparing GitHits behavior across terminals or a
 githits resolve express
 githits resolve codex --prefer-kind repository
 githits resolve guava --registry maven --limit 3
+githits resolve lodahs --prefer-kind package --verbose
 githits resolve "pi agent" --query "coding agent CLI" --json
 ```
 
@@ -355,10 +356,13 @@ direct matches, 12 additional protected matches, and 8 related targets. CLI and
 MCP text render that complete bounded list; only backend `targetsTruncated`
 signals omitted relations.
 
-When the backend supplies nullable `nameSimilarity`, compact text renders the
-fraction as a whole percentage on that target. It is coarse lexical support, not
-a client ranking rule: candidate order follows broader backend policy and the
-client never reranks by similarity.
+Default text omits lexical similarity. `--verbose` renders nullable backend
+`nameSimilarity` as a whole percentage on each applicable target and adds one
+qualification: it is coarse lexical support, not a client ranking rule.
+Candidate order follows broader backend policy and the client never reranks by
+similarity. Local MCP text follows the same contract with `verbose: true`;
+explicit `false` is equivalent to the default. JSON always preserves the numeric
+fraction when present.
 
 The shared CLI/local-MCP request boundary rejects an already-canonical package
 or GitHub repository target before the resolver service is called. Recognition
@@ -450,10 +454,11 @@ keeps `best` and `protectedMatches` to `kind`, `canonicalKey`, and `confidence`;
 one ordered `targets` selection always includes compact identity, presentation,
 security, grouping, count, and license fields, while JSON-only identity and
 detailed `match` fields remain conditional. Because the grouped target type does
-not expose lexical evidence, one always-selected legacy `candidates` sidecar is
-limited to `canonicalKey` and nullable `nameSimilarity`; the client joins it to
-direct target matches by canonical identity without reordering. No other legacy
-candidate fields or per-target follow-ups are requested. The malicious-content
+not expose lexical evidence, one conditional legacy `candidates` sidecar is
+limited to `canonicalKey` and nullable `nameSimilarity`; it is selected only for
+verbose text or JSON. The client joins it to direct target matches by canonical
+identity without reordering. Default text omits the entire sidecar. No other
+legacy candidate fields or per-target follow-ups are requested. The malicious-content
 decision and bounded evidence remain compact fields because every text surface
 consumes them. Detailed ranking `reason` is deliberately not selected. This
 keeps the operation below production's GraphQL complexity limit while
@@ -465,12 +470,12 @@ documented `AUTHENTICATION_REQUIRED` code and the legacy `UNAUTHORIZED` code as
 server-auth failures, so both enter the normal token-refresh and `AUTH_REQUIRED`
 error path.
 
-Adding always-selected `nameSimilarity` while retaining detailed-only `reason`
-made the production operation complexity 517 against the limit of 500. The
-client does not consume backend rationale, so removing the `reason` selection
-and projection restored the normal operation without a second query or weaker
-evidence. Authenticated production CLI and MCP smoke both pass with the reduced
-selection.
+Selecting `nameSimilarity` while retaining detailed-only `reason` made the
+production operation complexity 517 against the limit of 500. The client does
+not consume backend rationale, so removing the `reason` selection and projection
+restored verbose/JSON operation without a second query or weaker evidence.
+Default text additionally skips the similarity sidecar. Authenticated production
+CLI and MCP smoke cover both selection modes.
 
 #### Standalone-site target kind
 

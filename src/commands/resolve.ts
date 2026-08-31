@@ -28,6 +28,7 @@ export interface ResolveCommandOptions {
   preferKind?: string;
   intentHint?: string[];
   limit?: string;
+  verbose?: boolean;
   json?: boolean;
 }
 
@@ -63,6 +64,7 @@ export async function resolveAction(
         RESOLVE_TARGET_MAX_LIMIT,
       ),
       includeDetailedFields: options.json === true,
+      includeNameSimilarity: options.verbose === true || options.json === true,
     });
     const result = await deps.resolveTargetService.resolveTarget(params);
 
@@ -73,6 +75,7 @@ export async function resolveAction(
         formatResolveTargetTerminal(result, {
           name: params.name,
           query: params.query,
+          verbose: options.verbose,
           useColors: shouldUseColors(),
         }),
       );
@@ -154,6 +157,10 @@ export function registerResolveCommand(program: Command): Command {
     .option(
       "-n, --limit <n>",
       `Direct ranked matches (1-${RESOLVE_TARGET_MAX_LIMIT}, default ${RESOLVE_TARGET_DEFAULT_LIMIT}); protected exact and related targets may be additional`,
+    )
+    .option(
+      "--verbose",
+      "Include coarse lexical name-similarity evidence in human output",
     )
     .option("--json", "Emit structured diagnostic JSON")
     .action(async (name: string, options: ResolveCommandOptions) => {

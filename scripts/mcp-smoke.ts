@@ -415,15 +415,37 @@ async function runExperimentalLiveSmoke(
           "experimental fuzzy resolve default text",
         );
         assert(
-          /\d+% name similarity/.test(fuzzyResolveTextBody) &&
-            fuzzyResolveTextBody.includes(
-              "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
-            ) &&
+          !fuzzyResolveTextBody.includes("name similarity") &&
+            !fuzzyResolveTextBody.includes("coarse lexical support") &&
             fuzzyResolveTextBody.includes("indexed package snapshot") &&
             fuzzyResolveTextBody.includes(
               "code commands do so only when they resolve and serve a commit SHA",
             ),
-          "experimental fuzzy resolve text should qualify lexical and indexed-snapshot evidence",
+          "experimental fuzzy resolve default text should omit lexical detail but qualify indexed-snapshot evidence",
+        );
+
+        const fuzzyResolveVerbose = (await trackSmokeStep(
+          "mcp resolve_target fuzzy verbose text experimental live",
+          () =>
+            client.callTool({
+              name: "resolve_target",
+              arguments: {
+                name: "lodahs",
+                preferred_kind: "package",
+                verbose: true,
+              },
+            }),
+        )) as McpSmokeToolResult;
+        const fuzzyResolveVerboseBody = assertDefaultText(
+          fuzzyResolveVerbose,
+          "experimental fuzzy resolve verbose text",
+        );
+        assert(
+          /\d+% name similarity/.test(fuzzyResolveVerboseBody) &&
+            fuzzyResolveVerboseBody.includes(
+              "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
+            ),
+          "experimental fuzzy resolve verbose text should qualify lexical evidence",
         );
 
         const resolveJson = (await trackSmokeStep(

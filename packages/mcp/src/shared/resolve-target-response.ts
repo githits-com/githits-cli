@@ -135,6 +135,7 @@ function projectTarget(
 export interface FormatResolveTargetTerminalOptions {
   name: string;
   query?: string;
+  verbose?: boolean;
   useColors?: boolean;
 }
 
@@ -150,6 +151,7 @@ export interface ResolveTargetEvidenceOptions {
   license: boolean;
   docs: boolean;
   code: boolean;
+  nameSimilarity: boolean;
 }
 
 export type ResolveTargetEvidencePlan = (
@@ -186,6 +188,7 @@ export function groupResolveTargets(
  */
 export function buildResolveTargetEvidencePlan(
   targets: readonly ResolveTargetTarget[],
+  includeNameSimilarity = false,
 ): ResolveTargetEvidencePlan {
   const hasRepositoryTarget = targets.some(
     (target) => target.kind === "REPOSITORY",
@@ -206,6 +209,7 @@ export function buildResolveTargetEvidencePlan(
           license: true,
           docs: !hasSiteTarget,
           code: true,
+          nameSimilarity: includeNameSimilarity,
         };
       case "REPOSITORY":
         return {
@@ -215,6 +219,7 @@ export function buildResolveTargetEvidencePlan(
           license: !hasPackageLicense,
           docs: false,
           code: true,
+          nameSimilarity: includeNameSimilarity,
         };
       case "SITE":
         return {
@@ -224,6 +229,7 @@ export function buildResolveTargetEvidencePlan(
           license: false,
           docs: true,
           code: false,
+          nameSimilarity: includeNameSimilarity,
         };
       default:
         return {
@@ -233,6 +239,7 @@ export function buildResolveTargetEvidencePlan(
           license: true,
           docs: true,
           code: true,
+          nameSimilarity: includeNameSimilarity,
         };
     }
   };
@@ -285,7 +292,13 @@ export function formatResolveTargetTerminal(
   );
   lines.push(
     ...groups.flatMap((group, index) =>
-      formatTerminalGroup(group, index + 1, protectedKeys, useColors),
+      formatTerminalGroup(
+        group,
+        index + 1,
+        protectedKeys,
+        useColors,
+        options.verbose === true,
+      ),
     ),
   );
   if (result.targetsTruncated) {
@@ -297,7 +310,10 @@ export function formatResolveTargetTerminal(
       ),
     );
   }
-  const evidenceNotes = formatResolveTargetEvidenceNotes(result.targets);
+  const evidenceNotes = formatResolveTargetEvidenceNotes(
+    result.targets,
+    options.verbose === true,
+  );
   if (evidenceNotes.length > 0) lines.push("", ...evidenceNotes);
 
   const query = sanitizeTerminalText(options.query?.trim() || "<query>");
@@ -371,10 +387,14 @@ function formatTerminalGroup(
   groupNumber: number,
   protectedKeys: ReadonlySet<string>,
   useColors: boolean,
+  includeNameSimilarity: boolean,
 ): string[] {
   const [lead, ...members] = group.targets;
   if (!lead) return [];
-  const evidencePlan = buildResolveTargetEvidencePlan(group.targets);
+  const evidencePlan = buildResolveTargetEvidencePlan(
+    group.targets,
+    includeNameSimilarity,
+  );
   const lines = [
     `  ${groupNumber}. ${formatTerminalTargetLine(lead, evidencePlan(lead), protectedKeys, useColors)}`,
     ...formatTerminalTargetDetails(lead, "     ", useColors),
@@ -464,9 +484,9 @@ export function formatResolveTargetEvidence(
     options.code && target.kind !== "SITE",
   );
   if (code) fields.push(code);
-  const nameSimilarity = formatResolveTargetNameSimilarity(
-    target.match?.nameSimilarity,
-  );
+  const nameSimilarity = options.nameSimilarity
+    ? formatResolveTargetNameSimilarity(target.match?.nameSimilarity)
+    : undefined;
   if (nameSimilarity) fields.push(nameSimilarity);
   return fields.map(sanitizeTerminalText).join(" · ");
 }
@@ -505,9 +525,13 @@ function formatResolveTargetNameSimilarity(
 /** Explain resolver evidence without treating either signal as decisive. */
 export function formatResolveTargetEvidenceNotes(
   targets: readonly ResolveTargetTarget[],
+  includeNameSimilarity = false,
 ): string[] {
   const notes: string[] = [];
-  if (targets.some((target) => target.match?.nameSimilarity !== undefined)) {
+  if (
+    includeNameSimilarity &&
+    targets.some((target) => target.match?.nameSimilarity !== undefined)
+  ) {
     notes.push(
       "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
     );

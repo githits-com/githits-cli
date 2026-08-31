@@ -96,6 +96,7 @@ describe("resolve_target MCP adapter", () => {
       "preferred_kind",
       "intent_hints",
       "limit",
+      "verbose",
       "format",
     ]);
     expect(schema.properties?.format).toMatchObject({
@@ -175,6 +176,7 @@ describe("resolve_target MCP adapter", () => {
       limit: 8,
       intentHints: ["server"],
       includeDetailedFields: false,
+      includeNameSimilarity: false,
     });
     const text = response.content[0]?.text ?? "";
     expect(text).toContain("Best match: npm:express [exact; package]");
@@ -189,15 +191,24 @@ describe("resolve_target MCP adapter", () => {
     );
     expect(text).not.toContain("githits ");
 
-    await invoke(tool, { name: "express", format: "text" });
+    await invoke(tool, { name: "express", format: "text", verbose: false });
     expect(resolveTarget).toHaveBeenLastCalledWith({
       name: "express",
       limit: 8,
       includeDetailedFields: false,
+      includeNameSimilarity: false,
+    });
+
+    await invoke(tool, { name: "express", verbose: true });
+    expect(resolveTarget).toHaveBeenLastCalledWith({
+      name: "express",
+      limit: 8,
+      includeDetailedFields: false,
+      includeNameSimilarity: true,
     });
   });
 
-  it("renders coarse similarity and indexed-snapshot evidence without reranking", () => {
+  it("renders coarse similarity only for verbose text without reranking", () => {
     const lodashEs: ResolveTargetTarget = {
       kind: "PACKAGE",
       canonicalKey: "npm:lodash-es",
@@ -211,19 +222,29 @@ describe("resolve_target MCP adapter", () => {
       canonicalKey: "npm:lodash",
       match: { confidence: "MEDIUM", nameSimilarity: 0.4 },
     };
-    const text = formatResolveTargetMcpText(
-      result({
-        best: {
-          kind: lodashEs.kind,
-          canonicalKey: lodashEs.canonicalKey,
-          confidence: "MEDIUM",
-        },
-        targets: [lodashEs, lodash],
-        protectedMatches: [],
-      }),
-      { name: "lodahs" },
-    );
+    const resolved = result({
+      best: {
+        kind: lodashEs.kind,
+        canonicalKey: lodashEs.canonicalKey,
+        confidence: "MEDIUM",
+      },
+      targets: [lodashEs, lodash],
+      protectedMatches: [],
+    });
+    const compactText = formatResolveTargetMcpText(resolved, {
+      name: "lodahs",
+      verbose: false,
+    });
+    const text = formatResolveTargetMcpText(resolved, {
+      name: "lodahs",
+      verbose: true,
+    });
 
+    expect(compactText).not.toContain("name similarity");
+    expect(compactText).not.toContain("coarse lexical support");
+    expect(compactText).toContain(
+      "An indexed package snapshot does not establish exact latest-version readiness; code commands do so only when they resolve and serve a commit SHA.",
+    );
     expect(text).toContain(
       "1. npm:lodash-es [medium; package] · docs available · indexed package snapshot · 33% name similarity",
     );
@@ -571,6 +592,7 @@ describe("resolve_target MCP adapter", () => {
       name: "express",
       limit: 8,
       includeDetailedFields: true,
+      includeNameSimilarity: true,
     });
     expect(response.content[0]?.text).toBe(
       JSON.stringify(buildResolveTargetSuccessPayload(result())),

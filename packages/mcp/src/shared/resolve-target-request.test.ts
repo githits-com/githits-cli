@@ -16,6 +16,7 @@ describe("buildResolveTargetParams", () => {
       name: "express",
       limit: RESOLVE_TARGET_DEFAULT_LIMIT,
       includeDetailedFields: false,
+      includeNameSimilarity: false,
     });
   });
 
@@ -29,6 +30,7 @@ describe("buildResolveTargetParams", () => {
         intentHints: [" Server ", "server", "", "CLI"],
         limit: 3,
         includeDetailedFields: true,
+        includeNameSimilarity: true,
       }),
     ).toEqual({
       name: "express",
@@ -38,6 +40,7 @@ describe("buildResolveTargetParams", () => {
       intentHints: ["Server", "CLI"],
       limit: 3,
       includeDetailedFields: true,
+      includeNameSimilarity: true,
     });
   });
 
@@ -55,6 +58,7 @@ describe("buildResolveTargetParams", () => {
       name: "express",
       limit: 8,
       includeDetailedFields: false,
+      includeNameSimilarity: false,
     });
   });
 

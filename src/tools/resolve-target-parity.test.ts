@@ -116,6 +116,7 @@ describe("resolve_target parity", () => {
       intentHints: ["server", "web"],
       limit: 8,
       includeDetailedFields: true,
+      includeNameSimilarity: true,
     });
     expect(cli).toBeDefined();
   });

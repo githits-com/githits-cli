@@ -122,8 +122,9 @@ Authenticated source CLI and local MCP smoke passed after PkgSeer deployed
 candidate `nameSimilarity` and package-scoped certified-artifact
 `codeAvailable`. Both surfaces returned `npm:lodash` for `lodahs` with
 `nameSimilarity` approximately `0.400000006` and `npm:lodash-es` at
-`0.333333343`; human output rendered 40% and 33% plus the coarse lexical-support
-and indexed-snapshot qualifications. `loadsh` kept `npm:lodash` first at 27%
+`0.333333343`; verbose human output rendered 40% and 33% plus the coarse
+lexical-support qualification, while default text omitted both. Both modes kept
+the indexed-snapshot qualification. `loadsh` kept `npm:lodash` first at 27%
 while later candidates carried 40% and 63%, confirming that the client preserves
 backend order rather than reranking by lexical similarity. Its MEDIUM result
 remained non-actionable under the unchanged confidence/security gate.
@@ -249,9 +250,11 @@ test suite anchors the doc.
   remain unconfirmed and empty results point to spelling or filters rather than
   ranking-only context. Text omits actionable status lines and renders concise
   warnings only for non-actionable evidence; CLI warnings are red while MCP text
-  remains ANSI-free. Both text surfaces render nullable `nameSimilarity` as a
+  remains ANSI-free. Both text surfaces omit lexical evidence by default;
+  CLI `--verbose` and MCP `verbose: true` render nullable `nameSimilarity` as a
   whole percentage and explain that it is coarse lexical support while candidate
-  order follows broader backend policy. Both label `codeAvailable` as an indexed
+  order follows broader backend policy. JSON preserves the numeric fraction.
+  Both label `codeAvailable` as an indexed
   package or repository snapshot at the candidate's scope and state that exact
   latest-version/ref readiness is established only when a code command resolves
   and serves a commit SHA.

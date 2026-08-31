@@ -125,7 +125,9 @@ describe("ResolveTargetServiceImpl", () => {
     let capturedBody: string | undefined;
     const fetchFn = mock((_url: string, init?: RequestInit) => {
       capturedBody = init?.body as string;
-      return Promise.resolve(jsonResponse(resultBody(COMPACT_CANDIDATE)));
+      return Promise.resolve(
+        jsonResponse(resultBody(COMPACT_CANDIDATE, { candidates: undefined })),
+      );
     });
     const service = new ResolveTargetServiceImpl(
       ENDPOINT,
@@ -137,6 +139,7 @@ describe("ResolveTargetServiceImpl", () => {
       name: "express",
       limit: 8,
       includeDetailedFields: false,
+      includeNameSimilarity: false,
     });
 
     const request = JSON.parse(capturedBody ?? "{}");
@@ -144,10 +147,13 @@ describe("ResolveTargetServiceImpl", () => {
       name: "express",
       limit: 8,
       includeDetailedFields: false,
+      includeNameSimilarity: false,
     });
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(request.query).toBe(RESOLVE_TARGET_QUERY);
-    expect(request.query).toContain(`candidates {
+    expect(
+      request.query,
+    ).toContain(`candidates @include(if: $includeNameSimilarity) {
       canonicalKey
       nameSimilarity
     }`);
@@ -277,6 +283,7 @@ describe("ResolveTargetServiceImpl", () => {
       intentHints: ["server"],
       limit: 3,
       includeDetailedFields: true,
+      includeNameSimilarity: true,
     });
 
     const request = JSON.parse(capturedBody ?? "{}");
@@ -288,6 +295,7 @@ describe("ResolveTargetServiceImpl", () => {
       intentHints: ["server"],
       limit: 3,
       includeDetailedFields: true,
+      includeNameSimilarity: true,
     });
     expect(result.best).toEqual({
       kind: "PACKAGE",
@@ -327,6 +335,7 @@ describe("ResolveTargetServiceImpl", () => {
       preferredKinds: ["PACKAGE"],
       limit: 8,
       includeDetailedFields: false,
+      includeNameSimilarity: true,
     });
 
     expect(result.targets[0]?.match?.nameSimilarity).toBe(0.4);
@@ -361,6 +370,7 @@ describe("ResolveTargetServiceImpl", () => {
       name: "lodahs",
       limit: 8,
       includeDetailedFields: false,
+      includeNameSimilarity: true,
     });
 
     expect(result.targets.map((target) => target.canonicalKey)).toEqual([
@@ -391,6 +401,7 @@ describe("ResolveTargetServiceImpl", () => {
       name: "express",
       limit: 8,
       includeDetailedFields: false,
+      includeNameSimilarity: false,
     });
 
     expect(result.targets[0]?.latestVersionMaliciousEvidence).toEqual(
@@ -434,6 +445,7 @@ describe("ResolveTargetServiceImpl", () => {
       name: "expressjs",
       limit: 8,
       includeDetailedFields: false,
+      includeNameSimilarity: false,
     });
 
     expect(parsed.targetsTruncated).toBe(true);
@@ -474,6 +486,7 @@ describe("ResolveTargetServiceImpl", () => {
         name: "express",
         limit: 8,
         includeDetailedFields: false,
+        includeNameSimilarity: false,
       }),
     ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
   });
@@ -493,6 +506,7 @@ describe("ResolveTargetServiceImpl", () => {
         name: "express",
         limit: 8,
         includeDetailedFields: false,
+        includeNameSimilarity: false,
       }),
     ).resolves.toBeDefined();
 
@@ -510,6 +524,7 @@ describe("ResolveTargetServiceImpl", () => {
         name: "express",
         limit: 8,
         includeDetailedFields: true,
+        includeNameSimilarity: false,
       }),
     ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
   });
@@ -528,9 +543,6 @@ describe("ResolveTargetServiceImpl", () => {
     for (const malformedBody of [
       resultBody(missingConfidence),
       resultBody(missingMaliciousEvidence),
-      resultBody(COMPACT_CANDIDATE, {
-        candidates: [{ canonicalKey: "npm:express" }],
-      }),
     ]) {
       const service = new ResolveTargetServiceImpl(
         ENDPOINT,
@@ -543,9 +555,37 @@ describe("ResolveTargetServiceImpl", () => {
           name: "express",
           limit: 8,
           includeDetailedFields: false,
+          includeNameSimilarity: false,
         }),
       ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
     }
+  });
+
+  it("requires well-formed candidate evidence only when requested", async () => {
+    const service = new ResolveTargetServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(
+        mock(() =>
+          Promise.resolve(
+            jsonResponse(
+              resultBody(COMPACT_CANDIDATE, {
+                candidates: [{ canonicalKey: "npm:express" }],
+              }),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await expect(
+      service.resolveTarget({
+        name: "express",
+        limit: 8,
+        includeDetailedFields: false,
+        includeNameSimilarity: true,
+      }),
+    ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
   });
 
   it("requires a non-null malicious status and preserves future values", async () => {
@@ -567,6 +607,7 @@ describe("ResolveTargetServiceImpl", () => {
           name: "express",
           limit: 8,
           includeDetailedFields: false,
+          includeNameSimilarity: false,
         }),
       ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
     }
@@ -587,6 +628,7 @@ describe("ResolveTargetServiceImpl", () => {
       name: "express",
       limit: 8,
       includeDetailedFields: false,
+      includeNameSimilarity: false,
     });
     expect(result.targets[0]?.latestVersionMaliciousStatus).toBe(
       "REVIEW_REQUIRED",
@@ -623,6 +665,7 @@ describe("ResolveTargetServiceImpl", () => {
         name: "express",
         limit: 8,
         includeDetailedFields: false,
+        includeNameSimilarity: false,
       }),
     ).resolves.toBeDefined();
     expect(forceRefresh).toHaveBeenCalledTimes(1);
@@ -642,6 +685,7 @@ describe("ResolveTargetServiceImpl", () => {
         name: "express",
         limit: 8,
         includeDetailedFields: false,
+        includeNameSimilarity: false,
       }),
     ).rejects.toBeInstanceOf(PackageIntelligenceAccessError);
   });
@@ -658,6 +702,7 @@ describe("ResolveTargetServiceImpl", () => {
         name: "express",
         limit: 8,
         includeDetailedFields: false,
+        includeNameSimilarity: false,
       }),
     ).rejects.toBeInstanceOf(PackageIntelligenceNetworkError);
   });
@@ -678,6 +723,7 @@ describe("ResolveTargetServiceImpl", () => {
         name: "express",
         limit: 8,
         includeDetailedFields: false,
+        includeNameSimilarity: false,
       }),
     ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
   });
@@ -706,6 +752,7 @@ describe("ResolveTargetServiceImpl", () => {
           name: "express",
           limit: 8,
           includeDetailedFields: false,
+          includeNameSimilarity: false,
         }),
       ).rejects.toBeInstanceOf(errorClass);
     }
@@ -738,6 +785,7 @@ describe("ResolveTargetServiceImpl", () => {
         name: "express",
         limit: 8,
         includeDetailedFields: false,
+        includeNameSimilarity: false,
       }),
     ).rejects.toBeInstanceOf(AuthenticationError);
   });

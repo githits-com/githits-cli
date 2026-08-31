@@ -639,7 +639,7 @@ describe("formatResolveTargetTerminal", () => {
     );
   });
 
-  it("renders coarse similarity without reordering or weakening continuation gates", () => {
+  it("renders coarse similarity only when verbose without changing order or gates", () => {
     const lodashEs = candidate({
       canonicalKey: "npm:lodash-es",
       displayName: "lodash-es",
@@ -652,15 +652,26 @@ describe("formatResolveTargetTerminal", () => {
       confidence: "MEDIUM",
       nameSimilarity: 0.4,
     });
-    const output = formatResolveTargetTerminal(
-      result({
-        best: lodashEs,
-        targets: [lodashEs, lodash],
-        protectedMatches: [],
-      }),
-      { name: "lodahs", useColors: false },
-    );
+    const resolved = result({
+      best: lodashEs,
+      targets: [lodashEs, lodash],
+      protectedMatches: [],
+    });
+    const compactOutput = formatResolveTargetTerminal(resolved, {
+      name: "lodahs",
+      useColors: false,
+    });
+    const output = formatResolveTargetTerminal(resolved, {
+      name: "lodahs",
+      verbose: true,
+      useColors: false,
+    });
 
+    expect(compactOutput).not.toContain("name similarity");
+    expect(compactOutput).not.toContain("coarse lexical support");
+    expect(compactOutput).toContain(
+      "An indexed package snapshot does not establish exact latest-version readiness; code commands do so only when they resolve and serve a commit SHA.",
+    );
     expect(output).toContain(
       "1. npm:lodash-es [medium] · package · 66k stars · 89M downloads/mo · docs available · indexed package snapshot · 33% name similarity",
     );

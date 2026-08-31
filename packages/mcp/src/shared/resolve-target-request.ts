@@ -25,6 +25,7 @@ export interface ResolveTargetRequestInput {
   intentHints?: string[];
   limit?: number;
   includeDetailedFields: boolean;
+  includeNameSimilarity?: boolean;
 }
 
 export function buildResolveTargetParams(
@@ -49,6 +50,7 @@ export function buildResolveTargetParams(
     name,
     limit,
     includeDetailedFields: input.includeDetailedFields,
+    includeNameSimilarity: input.includeNameSimilarity ?? false,
   };
   const query = input.query?.trim();
   if (query) params.query = query;
