@@ -53,6 +53,19 @@ read back two eval roots and 10 tool children. Native comparison reported
 0.006 to 10.400 seconds. Native token and cost fields remain populated. Open
 the experiment permalink when row-level UI inspection is useful.
 
+The labeled CI path is proven by [run
+33424857668](https://github.com/githits-com/githits-cli/actions/runs/33424857668)
+at code SHA `7195ccc56b9ac9288dfb3d8de854f2f0e7ae7cf0`. Its experiment is
+`github-33424857668-1` (ID `182ee9db-0df3-40f4-8987-6eeb6d91a89b`), source
+`github`, exporter/schema 2, metrics schema 3: 23 eval spans and 116 tool
+children, exactly matching 116 MCP calls, with zero CLI calls and zero failed
+tool spans. Totals were 513.911 seconds eval duration, 126.458999872 seconds tool
+duration, 2,686,094 prompt tokens, 20,172 completion tokens, 2,706,266 total
+tokens, and estimated cost `$0.22819038`. Compare averages were duration
+`22.343956532685652`, estimated cost `$0.009921320869565216`, tool calls
+`5.043478260869565`, tool errors `0`, and total tokens `117663.73913043478`.
+The default-branch scheduled/manual activation remains pending merge.
+
 The exercised comparison syntax is:
 
 ```bash

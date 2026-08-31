@@ -4,22 +4,22 @@
 
 - Overall: IN PROGRESS
 - Current phase: Phase 4 — Braintrust Persistence Proof Of Concept
-  (IMPLEMENTED LOCALLY; CI VALIDATION PENDING)
+  (LABELED CI PATH COMPLETE; DEFAULT-BRANCH ACTIVATION PENDING MERGE)
 - Previous work: Phase 2 correction is COMPLETE. Phase 3 is merged and its
   same-repository label path is live-validated; Phase 4's exporter, CI wiring,
-  and local Braintrust readback are complete while the first qualifying CI
-  export/readback remains pending because the required repository secret is not
-  currently visible/effective in the Actions context.
+  local Braintrust readback, and first qualifying labeled CI export/readback
+  are complete. Default-branch scheduled/manual activation remains pending
+  merge.
 - Owner: repository maintainers
 - Last verified: 2026-08-31
 - Deployment: Phases 1 through 3 are merged to `main`. The Phase 3
   same-repository label path is live-validated; the scheduled path is waiting
   for its first default-branch execution. Phase 4's exact-pinned exporter and
-  post-report CI step are implemented, with local 23-row persistence/readback
-  proven; qualifying CI validation remains blocked until the required
-  repository secret is visible/effective. A push to `main` deliberately does
-  not trigger the workflow, and cadence changes remain deferred until
-  persistent evidence is visible.
+  post-report CI step are implemented, with local and labeled CI
+  persistence/readback proven. A push to `main` deliberately does not trigger
+  the workflow, and default-branch scheduled/manual activation remains
+  pending merge. Cadence changes remain deferred until persistent
+  evidence is visible.
 
 ## Problem And Expected Outcome
 
@@ -622,12 +622,12 @@ The following must be resolved before Phase 6:
    clean GitHub-hosted jobs run the Luna discovery and intent suites daily or
    after an authorized PR label, retain raw evidence, and render a concise
    no-baseline summary. A push to `main` does not start a paid run.
-4. **Phase 4 — Braintrust persistence proof of concept (IMPLEMENTED LOCALLY;
-   CI VALIDATION PENDING):** normalized Phase 3 records become durable
-   per-workload/per-agent history without making agent execution dependent on
-   Braintrust. The local export/readback proof and repository-internal
-   Braintrust operations skill are complete; a qualifying CI export/readback is
-   still required.
+4. **Phase 4 — Braintrust persistence proof of concept (LABELED CI PATH
+   COMPLETE; DEFAULT-BRANCH ACTIVATION PENDING MERGE):** normalized Phase 3 records
+   become durable per-workload/per-agent history without making agent
+   execution dependent on Braintrust. Local and labeled CI export/readback
+   are proven; default-branch scheduled/manual activation remains pending
+   merge.
 5. **Phase 5 — broader discovery matrix (PLANNED):** the proven metrics, suite,
    CI, and persistence contracts add approved Codex/Claude agent-model cells to
    the neutral canary without changing Luna history.
@@ -1685,15 +1685,16 @@ None.
 
 ### Status
 
-IMPLEMENTED LOCALLY; NATIVE STRUCTURAL PROOF COMPLETE LOCALLY; CI VALIDATION
-PENDING. Phase 3 is merged and its same-repository label path has clean runner
-evidence. The exact-pinned Braintrust exporter, post-report CI wiring, local
-persistence/readback proof, and internal operations skill are implemented. The
-fresh local native structural proof below verifies tool counts, exact observed
-boundaries, child duration, tokens, and cost. A fresh labeled or manually
-dispatched CI run must still export and read back the expected cells before
-Phase 4 is accepted as complete; default-branch scheduled/manual activation
-also remains pending after merge. SDK tracing was deliberately not added.
+LABELED CI PATH COMPLETE; DEFAULT-BRANCH SCHEDULED/MANUAL ACTIVATION PENDING
+MERGE.
+Phase 3 is merged and its same-repository label path has clean runner evidence.
+The exact-pinned Braintrust exporter, post-report CI wiring, local
+persistence/readback proof, internal operations skill, and qualifying labeled
+CI export/readback are complete. The local and CI native structural proofs
+verify tool counts, exact observed boundaries, child duration, tokens, and
+cost. Default-branch scheduled/manual activation remains pending merge;
+no paid rerun was made for this documentation-only closeout. SDK tracing was
+deliberately not added.
 
 ### Expected Outcome
 
@@ -1779,8 +1780,9 @@ telemetry. The current exporter records one structural `tool` child per known
 logical call, using exact harness-observed boundaries and computed duration for
 completed/failed calls. Native comparison now reports those child-derived
 `tool_calls` and `tool_errors`; bounded SQL remains the path for the exact
-GitHits-specific sequence and status counts. A fresh labeled CI export/readback
-and default-branch scheduled/manual activation remain pending.
+GitHits-specific sequence and status counts. The labeled CI export/readback is
+verified below; default-branch scheduled/manual activation remains pending
+merge.
 
 ### Dependencies
 
@@ -1789,13 +1791,10 @@ and default-branch scheduled/manual activation remain pending.
 - The user-created Braintrust project `githits-cli-agent-evals` and local `bt`
   authentication exist. This is user-provided verification; the plan does not
   inspect `.bt/`, Keychain contents, or any credential value.
-- The user reported adding `BRAINTRUST_API_KEY`, but both
-  `gh secret list --repo githits-com/githits-cli --json name` and the
-  repository Actions-secrets API currently expose only `GITHITS_API_TOKEN` and
-  `OPENAI_API_KEY`; organization-secret visibility could not be checked because
-  that API returned 403. Secret values were never read. CI/labeled validation
-  remains blocked until `BRAINTRUST_API_KEY` is visible and effective in the
-  repository Actions context.
+- `BRAINTRUST_API_KEY` is effective in the repository Actions context, as
+  verified by the labeled CI export/readback in run `33424857668`. Secret
+  values were never read. Default-branch scheduled/manual activation remains
+  pending merge.
 
 ### Verified Braintrust Constraints
 
@@ -1877,6 +1876,24 @@ with individual durations from 0.006 to 10.400 seconds; eval duration totaled
 proof, not CI proof. The preceding `poc-native-tool-spans-20260831` experiment
 proved counts and timestamps but had null child duration and is superseded by
 the v2 experiment.
+
+The qualifying labeled CI proof is GitHub run
+[33424857668](https://github.com/githits-com/githits-cli/actions/runs/33424857668)
+at code SHA `7195ccc56b9ac9288dfb3d8de854f2f0e7ae7cf0`. Discovery completed in
+40 seconds, intent in 2 minutes 32 seconds, and summary/export in 22 seconds,
+for about 3 minutes total. Its Braintrust experiment is
+`github-33424857668-1` (ID `182ee9db-0df3-40f4-8987-6eeb6d91a89b`), with source
+`github`, exporter/schema 2, and metrics schema 3. Readback reconciled 23 eval
+spans and 116 structural tool spans exactly to 116 MCP calls: zero CLI calls
+and zero failed tool spans. Totals were 513.911 seconds of eval duration,
+126.458999872 seconds of tool duration, 2,686,094 prompt tokens, 20,172
+completion tokens, 2,706,266 total tokens, and estimated cost `$0.22819038`.
+Standard Braintrust compare averages were duration
+`22.343956532685652`, estimated cost `$0.009921320869565216`, tool calls
+`5.043478260869565`, tool errors `0`, and total tokens
+`117663.73913043478`. This proves the labeled PR path; default-branch
+scheduled/manual activation remains pending merge. No paid rerun was
+made for this documentation-only closeout.
 
 ### Affected Components
 
@@ -2049,13 +2066,13 @@ the v2 experiment.
    permalink against source artifacts. The current proof is recorded below for
    `.agent-eval/suites/native-tool-smoke-2`; the earlier native-root experiment
    remains superseded historical evidence.
-4. **Implemented locally; CI validation pending:** Add the CI export/final-status
-   steps and document the repository Actions visibility/effectiveness of the
-   `BRAINTRUST_API_KEY` secret.
-   Unit-test the workflow contract, validate YAML/action references, and use
-   direct SDK execution in CI so the workflow does not install `bt`. A real
-   labeled or manual run must still export/read back the expected eval roots and
-   structural children.
+4. **Implemented and labeled-path validated; default-branch activation
+   pending:** The CI export/final-status steps and repository Actions
+   `BRAINTRUST_API_KEY` configuration are implemented. Workflow contract tests,
+   YAML/action-reference validation, and direct SDK execution in CI were
+   included in the implementation evidence. Run `33424857668` exported/read back
+   the expected 23 eval roots and 116 structural children; default-branch
+   scheduled/manual activation remains pending merge.
 5. **Implemented locally:** Update durable eval operations documentation and
    create the internal `braintrust-agent-evals` skill from the commands and
    field semantics proven in step 3. Validate it with the skill validator. Run
@@ -2070,12 +2087,12 @@ the v2 experiment.
 
 ### Acceptance Criteria
 
-- MET locally: the current native structural PoC has two eval roots and 10 tool
-  children for its two-cell canary, with native comparison showing
-  `tool_calls` average `5.0` and `tool_errors` `0`. PENDING for CI: one real
-  labeled or manually dispatched workflow experiment must be exported/read back
-  with its expected eval-root and child reconciliation, including failed cells
-  when a run fails.
+- MET: the local native structural PoC has two eval roots and 10 tool children
+  for its two-cell canary, and labeled CI run `33424857668` read back 23 eval
+  spans and 116 structural tool children. Native comparison showed
+  `tool_calls` average `5.0` locally and `5.043478260869565` in CI, with
+  `tool_errors` `0` in both. Default-branch scheduled/manual activation remains
+  pending merge.
 - Every row is filterable by workload, scenario, agent, exact CLI/model,
   reasoning, guidance, intent, target SHA, and used-tool tags. Structured
   metadata exposes ordered tools and per-tool/per-status counts.
@@ -2084,15 +2101,16 @@ the v2 experiment.
   contained source artifacts. Unknown telemetry is absent/unknown; a verified
   zero-tool discovery cell remains numeric zero. The local native structural
   proof verifies exact observed child boundaries, computed duration, native tool
-  counts/errors, token, and cost fields; a fresh CI export/readback remains
-  pending acceptance work.
+  counts/errors, token, and cost fields; labeled CI readback verifies the same
+  contract across 23 eval spans and 116 structural tool children.
 - The exporter keeps unchanged scenario/workload/prompt inputs stable across
   workflow attempts, and no baseline is selected automatically or metric
   movement fails the workflow. Root `tool_calls` and `tool_errors` are omitted;
   Braintrust derives them from exact-timed structural tool children. The local
   v2 readback verifies those native metrics and bounded SQL verifies the
-  GitHits-specific/custom sequence and status metadata. A fresh CI
-  export/readback remains pending.
+  GitHits-specific/custom sequence and status metadata. Labeled CI run
+  `33424857668` verifies the native structural counts and metrics; default-
+  branch scheduled/manual activation remains pending merge.
 - The existing GitHub concise report and 14-day raw artifact upload complete
   even when export fails; the final workflow is red and names export as the
   failed stage. Local suite/report generation works without Braintrust or its

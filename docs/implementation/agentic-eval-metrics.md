@@ -168,6 +168,24 @@ proof, not CI proof. The preceding
 `poc-native-tool-spans-20260831` experiment proved counts and timestamps but
 had null child duration and is superseded by the v2 experiment.
 
+The qualifying labeled CI proof is GitHub run
+[33424857668](https://github.com/githits-com/githits-cli/actions/runs/33424857668)
+at code SHA `7195ccc56b9ac9288dfb3d8de854f2f0e7ae7cf0`. Discovery completed in
+40 seconds, intent in 2 minutes 32 seconds, and summary/export in 22 seconds,
+for about 3 minutes total. Its Braintrust experiment is
+`github-33424857668-1` (ID `182ee9db-0df3-40f4-8987-6eeb6d91a89b`), with source
+`github`, exporter/schema 2, and metrics schema 3. Readback reconciled 23 eval
+spans and 116 structural tool spans exactly to 116 MCP calls: zero CLI calls
+and zero failed tool spans. Totals were 513.911 seconds of eval duration,
+126.458999872 seconds of tool duration, 2,686,094 prompt tokens, 20,172
+completion tokens, 2,706,266 total tokens, and estimated cost `$0.22819038`.
+Standard Braintrust compare averages were duration
+`22.343956532685652`, estimated cost `$0.009921320869565216`, tool calls
+`5.043478260869565`, tool errors `0`, and total tokens
+`117663.73913043478`. This validates the labeled pull-request path; default-
+branch scheduled/manual activation remains pending merge. No paid rerun
+was made for this documentation-only closeout.
+
 ## Scenario and intent identity
 
 The harness has three closed MCP scenarios:
