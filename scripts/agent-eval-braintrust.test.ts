@@ -24,6 +24,7 @@ import {
   runBraintrustCli,
 } from "./agent-eval-braintrust.ts";
 import {
+  type AgentEvalMetrics,
   type AgentEvalRecordInput,
   adaptAgentUsage,
   buildAgentEvalMetrics,
@@ -234,8 +235,8 @@ function suiteInput(label: string, suitePath: string): BraintrustSuiteInput {
   return { label, suitePath };
 }
 
-function mutateJson(path: string, mutate: (value: any) => void): void {
-  const value = JSON.parse(readFileSync(path, "utf8"));
+function mutateJson<T>(path: string, mutate: (value: T) => void): void {
+  const value = JSON.parse(readFileSync(path, "utf8")) as T;
   mutate(value);
   writeJson(path, value);
 }
@@ -249,9 +250,19 @@ function mutateSuite(
 
 function mutateMetrics(
   fixture: SuiteFixture,
-  mutate: (metrics: any) => void,
+  mutate: (metrics: AgentEvalMetrics) => void,
 ): void {
   mutateJson(join(fixture.shardPath, "metrics.json"), mutate);
+}
+
+function firstMetricsRecord(
+  metrics: AgentEvalMetrics,
+): AgentEvalMetrics["records"][number] {
+  const record = metrics.records[0];
+  if (!record) {
+    throw new Error("test fixture must contain a metrics record");
+  }
+  return record;
 }
 
 describe("Braintrust eval row mapping", () => {
@@ -356,7 +367,7 @@ describe("Braintrust eval row mapping", () => {
   it("omits unknown values while retaining raw events", async () => {
     const fixture = await createSuite();
     mutateMetrics(fixture, (metrics) => {
-      const record = metrics.records[0];
+      const record = firstMetricsRecord(metrics);
       record.tools.logicalCallCount = null;
       record.usage.normalizedTokens.uncachedInputTokens = null;
       record.usage.normalizedTokens.cachedInputTokens = null;
@@ -431,7 +442,9 @@ describe("Braintrust eval row mapping", () => {
   it("keeps metadata allowlisted and warnings free of local roots", async () => {
     const fixture = await createSuite();
     mutateMetrics(fixture, (metrics) => {
-      metrics.records[0].warnings = ["provider warning at /tmp/private-output"];
+      firstMetricsRecord(metrics).warnings = [
+        "provider warning at /tmp/private-output",
+      ];
     });
     const row = preflightAndMapBraintrustRows([
       suiteInput("allowlisted", fixture.suitePath),
@@ -464,7 +477,7 @@ describe("Braintrust eval row mapping", () => {
       };
     });
     mutateMetrics(fixture, (metrics) => {
-      metrics.records[0].targetGit = {
+      firstMetricsRecord(metrics).targetGit = {
         branch: "feature",
         sha: "record-target",
         dirty: true,
@@ -485,7 +498,7 @@ describe("Braintrust eval row mapping", () => {
   it("labels a non-success record final status when final evidence is absent", async () => {
     const fixture = await createSuite();
     mutateMetrics(fixture, (metrics) => {
-      metrics.records[0].finalStatus = "failure";
+      firstMetricsRecord(metrics).finalStatus = "failure";
     });
     rmSync(join(fixture.workloadDir, "final.json"));
 
@@ -555,7 +568,7 @@ describe("Braintrust eval row mapping", () => {
     const normal = await createSuite();
     const other = await createSuite({ workloadId: "workload-b" });
     mutateMetrics(other, (metrics) => {
-      metrics.records[0].agent = "claude";
+      firstMetricsRecord(metrics).agent = "claude";
     });
     expect(() =>
       preflightAndMapBraintrustRows([
@@ -580,9 +593,12 @@ describe("Braintrust eval row mapping", () => {
     ).toThrow("metrics record");
 
     const missingWorkload = await createSuite();
-    mutateJson(join(missingWorkload.shardPath, "run.json"), (run) => {
-      run.workloads = [];
-    });
+    mutateJson<{ workloads: unknown[] }>(
+      join(missingWorkload.shardPath, "run.json"),
+      (run) => {
+        run.workloads = [];
+      },
+    );
     expect(() =>
       preflightAndMapBraintrustRows([
         suiteInput("missing-workload", missingWorkload.suitePath),
@@ -793,6 +809,7 @@ describe("Braintrust publisher boundary", () => {
             return {
               end() {
                 calls.push(`end:${args.name}`);
+                return 0;
               },
             };
           },
@@ -1250,6 +1267,10 @@ function readSummarySteps(workflow: WorkflowContract): WorkflowStepContract[] {
   return summaryJob.steps;
 }
 
+function githubExpression(name: string): string {
+  return `$${"{"}{ ${name} }}`;
+}
+
 describe("Agent eval workflow Braintrust integration", () => {
   it("exports after reporting and aggregates final stage failures", () => {
     const workflow = readAgentEvalWorkflow();
@@ -1300,14 +1321,17 @@ describe("Agent eval workflow Braintrust integration", () => {
       '--suite intent="$RUNNER_TEMP/agent-eval-artifacts/intent/suite.json"',
     );
     expect(run).toContain('--project "githits-cli-agent-evals"');
+    const githubRunId = githubExpression("github.run_id");
+    const githubRunAttempt = githubExpression("github.run_attempt");
+    const githubRepository = githubExpression("github.repository");
     expect(run).toContain(
-      '--experiment "github-${{ github.run_id }}-${{ github.run_attempt }}"',
+      `--experiment "github-${githubRunId}-${githubRunAttempt}"`,
     );
     expect(run).toContain("--source github");
-    expect(run).toContain('--run-id "${{ github.run_id }}"');
-    expect(run).toContain('--run-attempt "${{ github.run_attempt }}"');
+    expect(run).toContain(`--run-id "${githubRunId}"`);
+    expect(run).toContain(`--run-attempt "${githubRunAttempt}"`);
     expect(run).toContain(
-      '--run-url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"',
+      `--run-url "https://github.com/${githubRepository}/actions/runs/${githubRunId}"`,
     );
     expect(run).toContain('--result-out "$RESULT_OUT"');
     expect(run).toContain("result.url");
@@ -1315,24 +1339,26 @@ describe("Agent eval workflow Braintrust integration", () => {
     expect(run).not.toContain("bt eval");
 
     const allSteps = Object.values(workflow.jobs).flatMap((job) => job.steps);
+    const braintrustApiKey = githubExpression("secrets.BRAINTRUST_API_KEY");
+    const runnerTemp = githubExpression("runner.temp");
     const secretBindings = allSteps.flatMap((step) =>
       Object.values(step.env ?? {}).filter((value) =>
         value.includes("secrets.BRAINTRUST_API_KEY"),
       ),
     );
-    expect(secretBindings).toEqual(["${{ secrets.BRAINTRUST_API_KEY }}"]);
+    expect(secretBindings).toEqual([braintrustApiKey]);
     expect(braintrust?.env).toEqual({
-      BRAINTRUST_API_KEY: "${{ secrets.BRAINTRUST_API_KEY }}",
-      RESULT_OUT: "${{ runner.temp }}/agent-eval-braintrust-result.json",
+      BRAINTRUST_API_KEY: braintrustApiKey,
+      RESULT_OUT: `${runnerTemp}/agent-eval-braintrust-result.json`,
     });
 
     const finalize = summarySteps.find(
       (step) => step.name === "Finalize agent eval status",
     );
     expect(finalize?.env).toEqual({
-      SCENARIO_RESULT: "${{ needs.scenario.result }}",
-      REPORT_OUTCOME: "${{ steps.report.outcome }}",
-      BRAINTRUST_OUTCOME: "${{ steps.braintrust.outcome }}",
+      SCENARIO_RESULT: githubExpression("needs.scenario.result"),
+      REPORT_OUTCOME: githubExpression("steps.report.outcome"),
+      BRAINTRUST_OUTCOME: githubExpression("steps.braintrust.outcome"),
     });
     expect(Object.values(finalize?.env ?? {}).join(" ")).not.toContain(
       "secrets.",

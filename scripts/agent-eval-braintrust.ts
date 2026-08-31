@@ -262,7 +262,7 @@ export type BraintrustPublisherFactory = (
 ) => BraintrustPublisher | Promise<BraintrustPublisher>;
 
 export interface BraintrustSdkSpan {
-  end(): void | number;
+  end(): number;
 }
 
 export interface BraintrustSdkExperiment {
@@ -333,8 +333,8 @@ function normalizeWarning(value: string): string {
 }
 
 function normalizeSuiteWarning(value: string): string {
-  const shardFailure = value.match(/^(.+ shard failed):/);
-  return normalizeWarning(shardFailure ? shardFailure[1]! : value);
+  const shardFailure = value.match(/^(.+ shard failed):/)?.[1];
+  return normalizeWarning(shardFailure ?? value);
 }
 
 function suiteIdentity(suite: AgentEvalImportedSuite): SuiteIdentity {
@@ -740,7 +740,9 @@ export function preflightAndMapBraintrustRows(
     labels.add(input.label);
     return { input, suite: loadImportedSuite(input.suitePath) };
   });
-  const expectedIdentity = suiteIdentity(loaded[0]!.suite);
+  const firstLoaded = loaded[0];
+  assert(firstLoaded, "at least one suite input is required");
+  const expectedIdentity = suiteIdentity(firstLoaded.suite);
   const seenCells = new Set<string>();
   for (const item of loaded) preflightSuite(item, expectedIdentity, seenCells);
 
@@ -947,10 +949,9 @@ export function parseBraintrustArgs(
 
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
-    cliAssert(
-      flag !== undefined && flag.startsWith("--"),
-      `unknown argument: ${flag ?? ""}`,
-    );
+    if (!flag?.startsWith("--")) {
+      cliAssert(false, `unknown argument: ${flag ?? ""}`);
+    }
     if (flag === "--validate-only") {
       cliAssert(!seenFlags.has(flag), `duplicate argument: ${flag}`);
       seenFlags.add(flag);
