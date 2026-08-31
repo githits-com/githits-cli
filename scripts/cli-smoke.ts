@@ -1001,8 +1001,7 @@ async function assertLiveOrAuthRequired(
 
 export function assertExperimentalCliResolveText(resolveText: string): void {
   assert(
-    (resolveText.includes("Targets:") ||
-      resolveText.includes("Unconfirmed ranked targets:")) &&
+    resolveText.includes("Targets:") &&
       /\n\s+\d+\. (?:npm|github|site):\S+/.test(resolveText),
     "experimental resolve text should include canonical target groups",
   );
@@ -1022,7 +1021,7 @@ export function assertExperimentalCliResolveText(resolveText: string): void {
         !resolveText.includes("Next after choosing:"),
       "experimental malicious-blocked resolve text should omit the normal next action",
     );
-  } else if (resolveText.includes("Unconfirmed ranked targets:")) {
+  } else if (resolveText.includes("explicitly choose a candidate")) {
     assert(
       resolveText.includes("explicitly choose a candidate") &&
         resolveText.includes("--in '<target>'"),
@@ -1081,10 +1080,10 @@ async function runExperimentalLiveSmoke(
     !fuzzyResolveText.includes("name similarity") &&
       !fuzzyResolveText.includes("coarse lexical support") &&
       fuzzyResolveText.includes("indexed package snapshot") &&
-      fuzzyResolveText.includes(
-        "code commands do so only when they resolve and serve a commit SHA",
-      ),
-    "experimental fuzzy resolve default text should omit lexical detail but qualify indexed-snapshot evidence",
+      !fuzzyResolveText.includes("readiness") &&
+      !fuzzyResolveText.includes("no code") &&
+      !fuzzyResolveText.includes("no docs"),
+    "experimental fuzzy resolve default text should omit lexical and negative availability detail",
   );
 
   const fuzzyResolveVerbose = assertTerminalOutput(

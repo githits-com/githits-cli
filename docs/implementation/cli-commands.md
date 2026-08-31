@@ -338,18 +338,14 @@ linked-repository identity when applicable.
 Repository license appears only when no package supplies one. The verified
 lowercase `mit` spelling renders canonically as `MIT`; other license strings are
 preserved. JSON remains lossless and does not apply presentation ownership.
-Positive
-docs/code counts render when content is available; otherwise availability is
-stated without inventing a count unless the backend supplies a contradictory
-positive recorded count. Available package and repository code renders as an
-indexed snapshot at that identity's scope, with a file count in parentheses when
-present. Available content with a zero count renders that zero;
-unavailable content with zero renders `no docs` / `no code`. Missing
-licenses/counts produce no placeholder. Structurally inapplicable evidence
-dimensions are omitted entirely: repositories show no docs field and sites show
-no code field. If availability is false despite a positive recorded count,
-output keeps both facts as `docs unavailable (<n> pages recorded)` or `code
-unavailable (<n> files recorded)`. `targetsTruncated` produces one note
+Human text renders docs/code evidence only when the corresponding availability
+flag is true. Positive counts render when supplied; missing counts produce no
+placeholder. Available package and repository code renders as an indexed
+snapshot at that identity's scope, with a file count in parentheses when
+present. Unavailable or unknown docs/code evidence is omitted even if a recorded
+count is present: resolver availability is not a decision about whether a later
+docs or code command can follow up. Structurally inapplicable evidence dimensions
+are also omitted. `targetsTruncated` produces one note
 that additional related targets were omitted and direct matches are complete.
 The backend bounds the complete presentation list to 40 entries: up to 20 ranked
 direct matches, 12 additional protected matches, and 8 related targets. CLI and
@@ -375,9 +371,10 @@ input.
 
 Terminal and MCP compact text share one actionability rule. A best result is a
 copyable/direct canonical next action only when it is non-ambiguous and has
-`EXACT` or `HIGH` confidence. Non-ambiguous `MEDIUM` and `LOW` results are
-labeled as unconfirmed ranked targets and require the caller to narrow the
-name or filters, or choose a canonical target explicitly. Ambiguous results
+`EXACT` or `HIGH` confidence. All non-empty terminal lists use the neutral
+`Targets:` heading. Non-ambiguous `MEDIUM` and `LOW` results still require the
+caller to narrow the name or filters, or choose a canonical target explicitly;
+the confidence tag and next-action guidance carry that policy. Ambiguous results
 retain their existing choose-or-narrow guidance and literal `<target>`
 placeholder. Empty results ask for corrected spelling or adjusted
 registry filters; query, preferred-kind, and intent hints are ranking-only and
@@ -445,8 +442,9 @@ Human text renders package `codeAvailable` as `indexed package snapshot` and
 repository `codeAvailable` as `indexed repository snapshot`. Package evidence
 means some certified package artifact is indexed; it does not establish exact
 latest-version readiness. Repository evidence likewise does not establish exact
-ref readiness. Exact code readiness exists only after a code command resolves
-and serves a commit SHA.
+ref readiness. Code commands independently establish whether they can resolve
+and serve a commit SHA; compact resolver text does not add a trailing readiness
+disclaimer or render negative availability labels.
 
 The command and local experimental MCP adapter use an internal service and do
 not change the public `@githits/mcp` service interface. Its GraphQL selection
@@ -475,7 +473,7 @@ production operation complexity 517 against the limit of 500. The client does
 not consume backend rationale, so removing the `reason` selection and projection
 restored verbose/JSON operation without a second query or weaker evidence.
 Default text additionally skips the similarity sidecar. Authenticated production
-CLI and MCP smoke cover both selection modes.
+CLI smoke and direct MCP production replay cover both selection modes.
 
 #### Standalone-site target kind
 

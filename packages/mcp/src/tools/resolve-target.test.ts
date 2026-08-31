@@ -242,9 +242,7 @@ describe("resolve_target MCP adapter", () => {
 
     expect(compactText).not.toContain("name similarity");
     expect(compactText).not.toContain("coarse lexical support");
-    expect(compactText).toContain(
-      "An indexed package snapshot does not establish exact latest-version readiness; code commands do so only when they resolve and serve a commit SHA.",
-    );
+    expect(compactText).not.toContain("readiness");
     expect(text).toContain(
       "1. npm:lodash-es [medium; package] · docs available · indexed package snapshot · 33% name similarity",
     );
@@ -257,9 +255,7 @@ describe("resolve_target MCP adapter", () => {
     expect(text).toContain(
       "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
     );
-    expect(text).toContain(
-      "An indexed package snapshot does not establish exact latest-version readiness; code commands do so only when they resolve and serve a commit SHA.",
-    );
+    expect(text).not.toContain("readiness");
     expect(text).toContain("do not pass the best result automatically");
     expect(text).not.toContain(
       'pass the canonical target "npm:lodash-es" to the next MCP tool',
@@ -399,9 +395,7 @@ describe("resolve_target MCP adapter", () => {
     );
 
     expect(text).toContain("indexed repository snapshot");
-    expect(text).toContain(
-      "An indexed repository snapshot does not establish exact ref readiness; code commands do so only when they resolve and serve a commit SHA.",
-    );
+    expect(text).not.toContain("readiness");
   });
 
   it("fails closed for affected, unknown, and future malicious statuses", () => {
@@ -531,9 +525,8 @@ describe("resolve_target MCP adapter", () => {
         { name: "express" },
       );
 
-      expect(text).toContain(
-        `Unconfirmed ranked candidates: the best result is ${confidence.toLowerCase()} confidence.\nTargets:\n  1. npm:express`,
-      );
+      expect(text).toContain("Targets:\n  1. npm:express");
+      expect(text).not.toContain("Unconfirmed ranked candidates:");
       expect(text).not.toContain("jsr:@express/core");
       expect(text).not.toContain("\nCandidates:\n");
       expect(text).not.toContain("Warning:");
@@ -571,9 +564,8 @@ describe("resolve_target MCP adapter", () => {
         { name: "express" },
       );
 
-      expect(text).toContain(
-        `Unconfirmed ranked candidates: the best result is ${confidence.toLowerCase()} confidence.`,
-      );
+      expect(text).toContain("Targets:\n  1. npm:express");
+      expect(text).not.toContain("Unconfirmed ranked candidates:");
       expect(text).toContain("Next: narrow the name or filters");
       expect(text).toContain("explicitly choose a candidate");
       expect(text).toContain("do not pass the best result automatically");

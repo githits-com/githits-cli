@@ -285,11 +285,7 @@ export function formatResolveTargetTerminal(
         target.latestVersionMaliciousStatus,
       ),
   );
-  lines.push(
-    !result.ambiguous && !identityActionable
-      ? "Unconfirmed ranked targets:"
-      : "Targets:",
-  );
+  lines.push("Targets:");
   lines.push(
     ...groups.flatMap((group, index) =>
       formatTerminalGroup(
@@ -496,21 +492,16 @@ function formatResolveTargetCodeAvailability(
   target: ResolveTargetTarget,
   applicable = true,
 ): string | undefined {
-  if (!applicable) return undefined;
-  if (target.codeAvailable) {
-    const scope =
-      target.kind === "PACKAGE"
-        ? "indexed package snapshot"
-        : target.kind === "REPOSITORY"
-          ? "indexed repository snapshot"
-          : "indexed code snapshot";
-    return target.codeFileCount === undefined
-      ? scope
-      : `${scope} (${formatCompactNumber(target.codeFileCount)} files)`;
-  }
-  return target.codeFileCount !== undefined && target.codeFileCount > 0
-    ? `code unavailable (${formatCompactNumber(target.codeFileCount)} files recorded)`
-    : "no code";
+  if (!applicable || !target.codeAvailable) return undefined;
+  const scope =
+    target.kind === "PACKAGE"
+      ? "indexed package snapshot"
+      : target.kind === "REPOSITORY"
+        ? "indexed repository snapshot"
+        : "indexed code snapshot";
+  return target.codeFileCount === undefined
+    ? scope
+    : `${scope} (${formatCompactNumber(target.codeFileCount)} files)`;
 }
 
 /** Format the backend's fractional lexical signal as a whole percentage. */
@@ -536,25 +527,6 @@ export function formatResolveTargetEvidenceNotes(
       "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
     );
   }
-  const hasPackageSnapshot = targets.some(
-    (target) => target.kind === "PACKAGE" && target.codeAvailable,
-  );
-  const hasRepositorySnapshot = targets.some(
-    (target) => target.kind === "REPOSITORY" && target.codeAvailable,
-  );
-  if (hasPackageSnapshot && hasRepositorySnapshot) {
-    notes.push(
-      "Indexed package and repository snapshots do not establish exact latest-version or ref readiness; code commands do so only when they resolve and serve a commit SHA.",
-    );
-  } else if (hasPackageSnapshot) {
-    notes.push(
-      "An indexed package snapshot does not establish exact latest-version readiness; code commands do so only when they resolve and serve a commit SHA.",
-    );
-  } else if (hasRepositorySnapshot) {
-    notes.push(
-      "An indexed repository snapshot does not establish exact ref readiness; code commands do so only when they resolve and serve a commit SHA.",
-    );
-  }
   return notes;
 }
 
@@ -569,14 +541,11 @@ function formatDocsAvailability(
   count: number | undefined,
   applicable: boolean,
 ): string | undefined {
-  if (!applicable) return undefined;
-  if (count !== undefined && available) {
+  if (!applicable || !available) return undefined;
+  if (count !== undefined) {
     return `docs ${formatCompactNumber(count)} pages`;
   }
-  if (count !== undefined && count > 0) {
-    return `docs unavailable (${formatCompactNumber(count)} pages recorded)`;
-  }
-  return available ? "docs available" : "no docs";
+  return "docs available";
 }
 
 /** Return concise warning copy only for a non-actionable backend decision. */

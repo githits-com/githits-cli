@@ -124,7 +124,8 @@ candidate `nameSimilarity` and package-scoped certified-artifact
 `nameSimilarity` approximately `0.400000006` and `npm:lodash-es` at
 `0.333333343`; verbose human output rendered 40% and 33% plus the coarse
 lexical-support qualification, while default text omitted both. Both modes kept
-the indexed-snapshot qualification. `loadsh` kept `npm:lodash` first at 27%
+positive indexed-snapshot labels without rendering negative availability or a
+trailing readiness disclaimer. `loadsh` kept `npm:lodash` first at 27%
 while later candidates carried 40% and 63%, confirming that the client preserves
 backend order rather than reranking by lexical similarity. Its MEDIUM result
 remained non-actionable under the unchanged confidence/security gate.
@@ -150,6 +151,15 @@ Finally, `code files npm:lodash --json` resolved and served commit
 `4f0b76e2eca13de1c1fe8b4305abc1f7d63f4b86` with `freshness: current`. That code
 command response, not resolver `codeAvailable`, establishes the exact served
 artifact.
+
+After the compact-output revision, authenticated source CLI smoke passed all 93
+stable and experimental steps, including default, verbose, and JSON resolution.
+Source MCP smoke stopped before its resolver cohort because the unrelated stable
+`get_example` call exceeded MCP's fixed 60-second timeout; the same production
+call took 118-174 seconds in the successful CLI run. Direct authenticated MCP
+default, verbose, and JSON resolution passed. Targeted Claude and Codex resolver
+evaluations both continued into code tools and completed successfully without
+interpreting omitted availability evidence as a follow-up prohibition.
 
 Targeted local-server agent evaluation then ran the experimental resolution and
 stable `express-router` workloads with both Claude and Codex. All four workloads
@@ -247,17 +257,18 @@ test suite anchors the doc.
   matching candidate has `CLEAR` or `NOT_APPLICABLE` latest-version
   malicious-content status can emit a direct canonical next action. `AFFECTED`,
   `UNKNOWN`, missing, and future statuses fail closed. `MEDIUM`/`LOW` results
-  remain unconfirmed and empty results point to spelling or filters rather than
+  remain unconfirmed under that rule, while every non-empty list uses the neutral
+  `Targets:` heading. Empty results point to spelling or filters rather than
   ranking-only context. Text omits actionable status lines and renders concise
   warnings only for non-actionable evidence; CLI warnings are red while MCP text
   remains ANSI-free. Both text surfaces omit lexical evidence by default;
   CLI `--verbose` and MCP `verbose: true` render nullable `nameSimilarity` as a
   whole percentage and explain that it is coarse lexical support while candidate
   order follows broader backend policy. JSON preserves the numeric fraction.
-  Both label `codeAvailable` as an indexed
-  package or repository snapshot at the candidate's scope and state that exact
-  latest-version/ref readiness is established only when a code command resolves
-  and serves a commit SHA.
+  Both label positive `codeAvailable` as an indexed package or repository
+  snapshot at the candidate's scope. False availability and its counts are
+  omitted because they do not decide whether a later code command can resolve
+  and serve a commit SHA; JSON remains lossless.
   `code_diff` patch previews are bounded at 320 UTF-8 bytes, label each affected
   file, and emit one aggregate `Next:` recovery, while
   `format: "json"` returns the full patch returned by the backend subject to

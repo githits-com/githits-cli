@@ -171,11 +171,7 @@ export function formatResolveTargetMcpText(
     lines.push(`Best match: ${formatReference(result.best)}.`);
   } else if (blockedBest && result.best) {
     lines.push(`Best identity match: ${formatReference(result.best)}.`);
-  } else if (result.best) {
-    lines.push(
-      `Unconfirmed ranked candidates: the best result is ${sanitizeTerminalText(result.best.confidence.toLowerCase())} confidence.`,
-    );
-  } else {
+  } else if (!result.best) {
     lines.push(
       `No targets found for "${sanitizeTerminalText(options.name)}". Check the spelling or adjust registry filters; query, preferred kind, and intent hints only rank existing candidates.`,
     );

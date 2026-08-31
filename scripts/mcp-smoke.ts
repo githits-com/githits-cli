@@ -317,7 +317,9 @@ export function assertExperimentalMcpResolveText(
       !resolveTextBody.includes("Next:"),
       "experimental malicious-blocked resolve text should omit the normal next action",
     );
-  } else if (resolveTextBody.includes("Unconfirmed ranked candidates:")) {
+  } else if (
+    resolveTextBody.includes("do not pass the best result automatically")
+  ) {
     assert(
       resolveTextBody.includes("do not pass the best result automatically"),
       "experimental unconfirmed resolve text should require an explicit choice",
@@ -418,10 +420,10 @@ async function runExperimentalLiveSmoke(
           !fuzzyResolveTextBody.includes("name similarity") &&
             !fuzzyResolveTextBody.includes("coarse lexical support") &&
             fuzzyResolveTextBody.includes("indexed package snapshot") &&
-            fuzzyResolveTextBody.includes(
-              "code commands do so only when they resolve and serve a commit SHA",
-            ),
-          "experimental fuzzy resolve default text should omit lexical detail but qualify indexed-snapshot evidence",
+            !fuzzyResolveTextBody.includes("readiness") &&
+            !fuzzyResolveTextBody.includes("no code") &&
+            !fuzzyResolveTextBody.includes("no docs"),
+          "experimental fuzzy resolve default text should omit lexical and negative availability detail",
         );
 
         const fuzzyResolveVerbose = (await trackSmokeStep(

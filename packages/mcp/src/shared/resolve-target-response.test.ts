@@ -454,15 +454,7 @@ describe("formatResolveTargetTerminal", () => {
     expect(output.match(/license MIT/g)).toHaveLength(1);
     expect(output).not.toContain("no docs");
     expect(output).not.toContain("no code");
-    expect(output).toContain(
-      "Indexed package and repository snapshots do not establish exact latest-version or ref readiness; code commands do so only when they resolve and serve a commit SHA.",
-    );
-    expect(output).not.toContain(
-      "An indexed package snapshot does not establish exact latest-version readiness",
-    );
-    expect(output).not.toContain(
-      "An indexed repository snapshot does not establish exact ref readiness",
-    );
+    expect(output).not.toContain("readiness");
   });
 
   it("keeps metrics in semantic lanes and lifts absent relation evidence to packages", () => {
@@ -606,9 +598,10 @@ describe("formatResolveTargetTerminal", () => {
       "site:expressjs.com [exact] · site · docs available",
     );
     expect(output).toContain(
-      "npm:express · related package · 66k stars · 89M downloads/mo · no code",
+      "npm:express · related package · 66k stars · 89M downloads/mo",
     );
     expect(output).not.toContain("no docs");
+    expect(output).not.toContain("no code");
     expect(output).not.toContain("license ");
     expect(output).toContain(
       "Warning: Malicious-content status is uncertain. Verify the advisory details before using this version.",
@@ -669,9 +662,7 @@ describe("formatResolveTargetTerminal", () => {
 
     expect(compactOutput).not.toContain("name similarity");
     expect(compactOutput).not.toContain("coarse lexical support");
-    expect(compactOutput).toContain(
-      "An indexed package snapshot does not establish exact latest-version readiness; code commands do so only when they resolve and serve a commit SHA.",
-    );
+    expect(compactOutput).not.toContain("readiness");
     expect(output).toContain(
       "1. npm:lodash-es [medium] · package · 66k stars · 89M downloads/mo · docs available · indexed package snapshot · 33% name similarity",
     );
@@ -684,10 +675,9 @@ describe("formatResolveTargetTerminal", () => {
     expect(output).toContain(
       "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
     );
-    expect(output).toContain(
-      "An indexed package snapshot does not establish exact latest-version readiness; code commands do so only when they resolve and serve a commit SHA.",
-    );
-    expect(output).toContain("Unconfirmed ranked targets:");
+    expect(output).not.toContain("readiness");
+    expect(output).toContain("Targets:");
+    expect(output).not.toContain("Unconfirmed ranked targets:");
     expect(output).not.toContain("--in 'npm:lodash-es'");
   });
 
@@ -809,7 +799,7 @@ describe("formatResolveTargetTerminal", () => {
     expect(output).toContain("     Google core libraries for Java");
   });
 
-  it("explains positive recorded counts when availability is false", () => {
+  it("omits counts and negative labels when availability is false", () => {
     const unavailable = candidate({
       docsAvailable: false,
       codeAvailable: false,
@@ -821,9 +811,11 @@ describe("formatResolveTargetTerminal", () => {
       { name: "express", useColors: false },
     );
 
-    expect(output).toContain(
-      "docs unavailable (12 pages recorded) · code unavailable (3 files recorded)",
-    );
+    expect(output).not.toContain("12 pages");
+    expect(output).not.toContain("3 files");
+    expect(output).not.toContain("no docs");
+    expect(output).not.toContain("no code");
+    expect(output).not.toContain("unavailable");
   });
 
   it("renders specific ambiguity guidance and a generic follow-up target", () => {
@@ -907,9 +899,7 @@ describe("formatResolveTargetTerminal", () => {
     expect(output).not.toContain("Warning:");
     expect(output).not.toContain("malicious");
     expect(output).toContain("indexed repository snapshot");
-    expect(output).toContain(
-      "An indexed repository snapshot does not establish exact ref readiness; code commands do so only when they resolve and serve a commit SHA.",
-    );
+    expect(output).not.toContain("readiness");
     expect(output).toContain(
       "Next: githits search 'middleware' --in 'github:expressjs/express'",
     );
@@ -1078,7 +1068,8 @@ describe("formatResolveTargetTerminal", () => {
         { name: "express", query: "middleware", useColors: false },
       );
 
-      expect(output).toContain("Unconfirmed ranked targets:\n  1. npm:express");
+      expect(output).toContain("Targets:\n  1. npm:express");
+      expect(output).not.toContain("Unconfirmed ranked targets:");
       expect(output).toContain("narrow the name or filters");
       expect(output).toContain("explicitly choose a candidate");
       expect(output).toContain("--in '<target>'");
