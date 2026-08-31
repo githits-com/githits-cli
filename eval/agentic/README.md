@@ -7,18 +7,20 @@ effectively from the exposed guidance.
 It is not a smoke test. Smoke tests exercise CLI and MCP contracts directly.
 Agentic evals exercise agent behavior end-to-end.
 
-This harness is intentionally human/agent-driven, not CI. Use it to understand
-how MCP tool-description, quick-start, or skill changes affect real agent
-behavior. Do not treat a live agent pass/fail result as a deterministic
+Use this harness locally to understand how MCP tool-description, quick-start,
+or skill changes affect real agent behavior. The dedicated CI workflow runs a
+small Luna matrix daily and on explicitly authorized same-repository pull
+requests. Do not treat a live agent pass/fail result as a deterministic
 regression test: model behavior, backend indexing state, auth state, network
 conditions, and package data can all change. The useful output is the artifact
 set, especially `tool-calls.json`, `final.json`, `metrics.json`, `report.json`,
 and `isolation-violations.json`.
 
-The repository-local named-suite commands below are the Phase 2 measurement
+The repository-local named-suite commands below are the local measurement
 workflow. They run the fixed Luna matrix and produce validated suite and
-comparison artifacts, but they do not yet schedule paid runs, retain history in
-a service, or judge answer quality.
+comparison artifacts. The CI workflow composes the same commands for daily and
+explicitly authorized pull-request runs; it retains raw artifacts for diagnosis
+but does not provide long-term service history or judge answer quality.
 
 ## What Is Under Test
 
@@ -106,9 +108,11 @@ environment. When an optional config root is unset, the harness uses the
 platform default: `HOME/.config` on POSIX or `USERPROFILE/AppData/Roaming` on
 Windows.
 
-CI should create a clean `CODEX_HOME` and authenticate Codex with
-`OPENAI_API_KEY`. Set `GITHITS_API_TOKEN` for deterministic GitHits
-authentication. Never copy a personal auth file into a run directory.
+The CI workflow creates a clean `CODEX_HOME` and authenticates Codex with
+`OPENAI_API_KEY`. It sets `GITHITS_API_TOKEN` for deterministic GitHits
+authentication. Codex receives that token only by variable name through the MCP
+server's `env_vars`; the value is never written to `codex-config.toml` or an
+eval artifact. Never copy a personal auth file into a run directory.
 Non-interactive eval commands retain the supported `--ignore-user-config` and
 explicitly disable Codex's `apps`, `plugins`, and `remote_plugin` features. The
 flag suppresses Codex `config.toml`/user configuration only; explicit preflight
@@ -185,9 +189,9 @@ access was needed for this diagnostic; the normal temporary-workspace trust
 prompt required human approval. Two earlier stable intent attempts that waited
 at an unattended macOS Keychain approval prompt are invalid/excluded evidence,
 not a harness timeout defect. Local subscription/keychain-backed runs can
-require operator presence; daily CI remains a future decision and must use
-separately provisioned non-interactive API credentials without copying or
-reading credentials into artifacts.
+require operator presence. The daily CI workflow uses separately provisioned
+non-interactive API credentials without copying or reading credentials into
+artifacts.
 
 Trace validation fails an MCP workload if it observes an external
 `AGENTS.md`/`SKILL.md` read, a guidance read in the descriptor profile, or any
@@ -235,8 +239,8 @@ curated workload policy rather than one manually selected workload:
 
 ```bash
 # One target checkout; default output is .agent-eval/suites/<timestamp>
-bun run agent:e2e:suite run --suite canary --dry-run
-bun run agent:e2e:suite run --suite smoke --out .agent-eval/suites/smoke-local
+bun run agent:e2e:suite run --suite canary --concurrency 2 --dry-run
+bun run agent:e2e:suite run --suite smoke --concurrency 4 --out .agent-eval/suites/smoke-local
 
 # Compare the current checkout with an explicit baseline target checkout
 bun run agent:e2e:suite pair --suite canary --baseline-root ../githits-main --dry-run
@@ -261,10 +265,15 @@ subset of smoke, smoke is a subset of stable-full, and stateful or experimental
 workloads never enter those stable suites.
 
 Every named suite uses exactly Codex `gpt-5.6-luna`, reasoning `low`, local MCP,
-and scenario-keyed shards. Shards may run concurrently; workloads remain
-sequential within each shard. By default, `canary` runs `discovery` and
-`intent`; `smoke`, `stable-full`, `stateful-manual`, and `experimental` run
-`intent` only. Repeatable `--scenario discovery|intent|full` explicitly selects
+and scenario-keyed shards. Shards may run concurrently; each shard runs its
+workloads through a bounded pool selected by `workloadConcurrency`, which
+defaults to `1` locally. Results remain in manifest order and the value is
+recorded in `run.json` and schema-v3 `suite.json`. CI runs `discovery` with
+concurrency `2` and `intent` with concurrency `4`. By default, `canary` runs
+`discovery` and `intent`; `smoke`, `stable-full`, `stateful-manual`, and
+`experimental` run
+`intent` only. An empty suite selection fails during preflight before child
+execution. Repeatable `--scenario discovery|intent|full` explicitly selects
 the scenario cells and replaces the default selection, so `full` is a local or
 manual opt-in. The experimental suite passes the explicit experimental-tools
 option. The pair command runs the baseline target fully before the current
@@ -305,7 +314,11 @@ MCP and CLI rows. Raw provider event counts remain separate audit evidence.
 `callsByTool: null`, unknown token/cost/duration values, and missing cell IDs
 mean telemetry was not available or was inconsistent; they are never silently
 converted to zero. Partial shards preserve their successful sibling and the
-full status matrix. Suite and comparison artifacts are schema version 2.
+full status matrix. Suite artifacts are schema version 3 and record
+`workloadConcurrency` as execution metadata. Version-1 and version-2 suite
+artifacts remain readable and normalize a missing concurrency value to `1`.
+Comparison output does not treat concurrency as a content dimension, so valid
+metric deltas remain visible.
 
 Pair/offline comparison matches cells by scenario and workload. Agent, model,
 reasoning, guidance profile, intent profile, and intent-fragment hash must also
@@ -322,9 +335,65 @@ descriptor shards/cells to `discovery` and full to `full`; missing, null, or
 other profiles are rejected rather than mapped to `intent`. Legacy child
 `metrics.json` files use the one-off v1 metrics normalizer.
 
-These local commands are diagnostic measurement tools. Paid CI scheduling,
-persistent result history, service export, Haiku coverage, and quality judging
-remain later phases.
+These local commands are diagnostic measurement tools. CI scheduling is
+implemented by `.github/workflows/agent-evals.yml`; persistent result history,
+service export, Haiku coverage, and quality judging remain later phases.
+
+## Daily CI workflow
+
+`.github/workflows/agent-evals.yml` runs the two initial Luna-low cells in
+parallel on GitHub-hosted Ubuntu:
+
+| Job       | Suite                  | Scenario    | Workload concurrency |
+| --------- | ---------------------- | ----------- | -------------------: |
+| discovery | `canary`                | `discovery` |                    2 |
+| intent    | `stable-full`           | `intent`    |                    4 |
+
+The workflow runs at 03:00 UTC from the default branch, on manual
+`workflow_dispatch`, and for a `pull_request` `labeled` event targeting
+`main`. A pull request run is authorized only when the event label is exactly
+`agent-eval` and `github.event.pull_request.head.repo.full_name` equals the
+repository; forks cannot consume the provider secrets. The workflow checks out
+the immutable labeled head SHA for that event and `github.sha` for scheduled or
+manual runs. Later commits on a still-labeled pull request do not rerun the
+workflow; remove and re-add the label to authorize the newer SHA. Applying the
+label is an explicit maintainer review of the code and any changes to
+`.github/workflows/agent-evals.yml` before granting that SHA access to paid
+credentials.
+
+Each scenario job has a 40-minute timeout and creates its output directory
+under `runner.temp` before checkout or setup. It installs the current Codex CLI
+and records `codex --version`, creates an empty per-scenario `CODEX_HOME`, and
+authenticates through Codex's stdin API-key flow. `OPENAI_API_KEY` is scoped to
+that authentication step; `GITHITS_API_TOKEN` is scoped only to the paid suite
+execution. Local subscription state, Keychain data, personal skills, and user
+configuration are never copied into CI. The scenario directories are uploaded
+as `agent-eval-discovery` and `agent-eval-intent` artifacts for 14 days.
+
+The final summary job always runs for an authorized workflow, downloads both
+scenario artifacts without flattening them, and appends the concise report to
+`GITHUB_STEP_SUMMARY`. The local equivalent is:
+
+```bash
+bun run agent:e2e:ci-report \
+  --suite discovery=.agent-eval/ci-validation/discovery/suite.json \
+  --suite intent=.agent-eval/ci-validation/intent/suite.json \
+  --out .agent-eval/ci-validation/summary.md
+```
+
+The report is absolute: it links to the workflow run, shows schema/harness and
+Codex identity, successful/expected cells, wall and cumulative time, logical
+MCP/CLI calls, deterministic per-tool counts, token buckets, cost uncertainty,
+concurrency, and warnings. It never loads a baseline or calculates deltas.
+Missing or malformed suite evidence, zero selected workloads or zero expected
+executions, partial/failed/timeout execution, unknown or missing workload cells,
+CLI fallback, and isolation violations make the workflow fail only after the
+report is rendered. A successful discovery run with zero GitHits calls and
+ordinary telemetry warnings remain advisory. The initial healthy two-job path
+is expected to take about 5–6 minutes and costs
+about $0.23 as a base-rate estimate, not a billing guarantee. The workflow
+does not judge answer quality or provide persistent history; those are later
+service work.
 
 For ad hoc interactive testing with the same MCP/skills setup logic:
 
@@ -378,6 +447,7 @@ Useful options:
                                 One-off prompt intent; defaults to `neutral`
 --reasoning-effort <minimal|low|medium|high|xhigh|max|ultra>
                                 Codex reasoning effort; automated Codex defaults to `high`
+--concurrency <positive integer> Maximum workloads in flight; defaults to `1`
 --dry-run                       Generate artifacts without invoking the agent
 --out <dir>                     Output directory, default `.agent-eval/runs/<timestamp>`
 --timeout <seconds>             Per-workload timeout, default 300
@@ -505,9 +575,9 @@ bun run agent:e2e:report .agent-eval/runs/<run>
 ```
 
 Named suites are available through `agent:e2e:suite`. Use
-`--scenario full` for a local/manual full-guidance run; daily pipeline
-execution, persistent result history, service export, and quality judging
-remain later phases.
+`--scenario full` for a local/manual full-guidance run. Daily pipeline
+execution is provided by `.github/workflows/agent-evals.yml`; persistent result
+history, service export, and quality judging remain later phases.
 
 For broad skill edits, run at least:
 

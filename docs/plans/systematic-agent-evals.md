@@ -3,16 +3,19 @@
 ## Status
 
 - Overall: IN PROGRESS
-- Current phase: Phase 3 — Daily Main Execution And Persistent Export (BLOCKED ON
-  PRODUCT DECISIONS)
+- Current phase: Phase 3 — Parallel CI Execution And Concise Reporting
+  (IMPLEMENTED LOCALLY; SAME-REPOSITORY LABEL PATH LIVE-VALIDATED; SCHEDULED/MANUAL
+  PATH PENDING MERGE)
 - Previous work: Phase 2 correction is COMPLETE. Its discovery, intent, full,
   scenario-aware comparison, metrics-compatibility, and Codex interactive
-  isolation contracts are locally validated; daily execution and persistence
-  remain Phase 3 work.
+  isolation contracts are locally validated; CI execution is Phase 3 and
+  Braintrust persistence is Phase 4.
 - Owner: repository maintainers
 - Last verified: 2026-08-31
-- Deployment: Phase 1 merged to `main`; local maintainer tooling is available.
-  Scheduled execution and external persistence remain Phase 3 work.
+- Deployment: Phases 1 and 2 merged to `main`; local maintainer tooling and the
+  Phase 3 workflow/report are implemented. Same-repository label-authorized
+  validation is live; scheduled/manual default-branch validation remains
+  pending merge. Braintrust persistence is a separate Phase 4 increment.
 
 ## Problem And Expected Outcome
 
@@ -40,10 +43,12 @@ When this effort is complete:
   status, and links to the raw evidence;
 - a local paired run can compare a candidate checkout with a main baseline while
   holding agent harness versions and model settings constant;
-- a clean automation runner executes the approved neutral discovery canary
-  across the approved agent/model matrix and the normal Luna intent suite
-  daily from `main`, preserves raw artifacts, and exports the same normalized
-  records to the selected long-term service;
+- a clean automation runner executes the two-workload neutral discovery canary
+  and normal Luna intent suite daily from `main`, or on an explicitly
+  maintainer-authorized pull request, preserves raw artifacts, and renders a
+  concise report without manufacturing a baseline comparison;
+- a later Braintrust integration persists the same normalized records for
+  per-workload/per-agent history without changing the runner contract;
 - daily results are observational and alert on material drift without becoming
   a flaky merge gate; and
 - result quality can be added later through explicit workload rubrics without
@@ -66,15 +71,17 @@ In scope:
   cost, harness versions, and run identity;
 - named canary, smoke, stable-full, stateful-manual, and experimental suites;
 - local baseline/candidate comparison;
-- scheduled and manually dispatched execution from `main` after runner,
-  authentication, budget, and persistence decisions are made;
-- durable raw-artifact retention plus export to a service selected separately;
+- scheduled and manually dispatched execution from `main`, plus a
+  maintainer-label-triggered same-repository pull-request path;
+- short-lived CI raw-artifact retention for diagnosis, followed by a separate
+  Braintrust proof of concept for durable normalized history;
 - an advisory drift policy and a later quality-evaluation extension point.
 
 Out of scope for the initial phases:
 
 - replacing the existing agent process runner with a vendor-owned runner;
-- automatically running paid agent evals on every pull request;
+- automatically running paid agent evals on every pull request or on fork pull
+  requests;
 - treating stochastic agent results as deterministic CI gates;
 - OpenCode or the Agent Skills surface in the first scheduled matrix;
 - automated expansion to Claude or additional Codex models before their exact
@@ -83,7 +90,8 @@ Out of scope for the initial phases:
 - an LLM judge, golden-answer corpus, or composite quality score before a
   workload rubric and judge policy are approved;
 - a repository-owned database, queue, cache, lock, or dashboard;
-- selecting the long-term eval service in this plan.
+- baseline or `main` comparison inside the CI workflow;
+- Braintrust integration in the pipeline increment itself.
 
 ## Verified Current State And Evidence
 
@@ -104,13 +112,17 @@ Out of scope for the initial phases:
 - `.agent-eval/` is gitignored. Each run now writes a normalized `metrics.json`
   artifact, but no durable history exists.
 - `.github/workflows/main.yml` runs the reusable build/test workflow on pushes
-  to `main`. There is no scheduled live-agent workflow and no agent/provider
-  authentication in CI.
-- The current agentic eval documentation deliberately says the harness is
-  human/agent-driven and not CI. This conflicts with the requested daily run.
-  The resolution is to keep deterministic smoke tests as merge gates and make
-  scheduled live-agent evals observational/advisory until measured evidence
-  supports a different policy.
+  to `main`, and `.github/workflows/agent-evals.yml` now defines the scheduled,
+  manual, and same-repository label-authorized Luna workflow. Repository
+  administrators verified the required secret names `OPENAI_API_KEY` and
+  `GITHITS_API_TOKEN` on 2026-08-31 without reading their values. The
+  same-repository label path is live-validated; default-branch scheduled/manual
+  execution remains pending merge before Phase 3 can be accepted as fully
+  complete.
+- The agentic eval documentation now distinguishes local human/agent-driven
+  inspection from the dedicated CI workflow. Deterministic smoke tests remain
+  merge gates, while scheduled live-agent evals are observational/advisory
+  until measured evidence supports a different policy.
 - The corrected Codex workload and interactive paths require a caller-supplied
   dedicated eval home containing authentication and Codex-managed runtime
   state, keep fresh per-workload OS homes, and reject root-level global
@@ -118,8 +130,7 @@ Out of scope for the initial phases:
   `--ignore-user-config`; interactive `agent:session` omits that exec-only flag,
   strictly validates direct skills/config inputs, and disables the external
   app/plugin surfaces. The clean scenario evidence and the 2026-08-31 manual
-  Luna session now establish the local isolation contract; Phase 3 remains
-  blocked on the service, runner, and budget decisions below.
+  Luna session now establish the local isolation contract.
 - The accepted v4 Luna-low descriptor cell was clean but made zero GitHits calls;
   its paired full-guidance cell made three successful MCP calls. A separate
   clean Luna-high descriptor run on 2026-08-29 also made zero GitHits or CLI
@@ -137,6 +148,26 @@ Out of scope for the initial phases:
   ambient MCP servers, and keeps only the intended local GitHits MCP target.
   Manual Luna validation confirms that caller-global skills do not appear;
   Claude and OpenCode remain non-causal for instruction-isolation evidence.
+
+### Phase 3 concurrency baseline
+
+The corrected Luna-low intent suite took 798,452 ms wall time with workloads
+executed sequentially. Replaying its recorded per-workload durations through a
+deterministic input-order pool gives 411,742 ms at concurrency 2, 280,622 ms at
+3, and 213,885 ms at 4. The corrected discovery canary took 267,221 ms
+sequentially; its two workloads project to 234,795 ms when run together because
+the slower workload dominates. Running discovery and intent as two concurrent
+CI jobs, with workload concurrency 2 and 4 respectively, therefore projects the
+paid-agent critical path at about 3.9 minutes. The corrected same-repository
+label run later measured about 2 minutes 42 seconds end to end, superseding the
+provisional 5–6 minute target for the validated path. Intent concurrency above
+4 would not shorten the current critical path, so it would add provider load
+without useful runtime improvement.
+
+The two scheduled suites used an estimated \$0.2297134 in the accepted local
+evidence (\$0.0266578 discovery plus \$0.2030556 intent). This is a base-rate
+estimate with recorded long-context uncertainty, not a billing guarantee.
+Concurrency changes wall time, not the workload count or expected model cost.
 
 ### Bounded planning baseline
 
@@ -187,8 +218,8 @@ historical capacity numbers, not the cost of the revised scenario policy:
 
 Workload mix, the one-line intent prompt, and provider behavior can move these
 figures substantially. The corrected neutral canary and Luna intent suite
-measurements below provide evidence for Phase 3's later budget and timeout
-decisions. The
+measurements below are the evidence used for Phase 3's concurrency, budget, and
+timeout decisions. The
 contaminated two-profile stable-full total cannot be divided in half and called
 a verified intent-suite estimate.
 
@@ -350,16 +381,26 @@ suite manifest
    changes, failures, and harness-version changes. Incompatible dimensions are
    explicit warnings, not silently merged results.
 
-7. **Persistence/export**
+7. **Automation and reporting**
 
-   In Phase 3, GitHub artifacts retain immutable raw evidence for replay and the
-   selected service receives normalized records for long-term per-eval/per-agent
-   trends. The exporter is a thin boundary around the service SDK or API. No
-   repository-owned persistence infrastructure is introduced.
+   Phase 3 composes the existing suite runner in one dedicated GitHub Actions
+   workflow. Discovery and intent are separate jobs, each using a bounded
+   workload pool; a final job reads their validated `suite.json` artifacts and
+   renders one concise GitHub step summary. The workflow never reads a baseline
+   or calculates deltas. Short-lived GitHub artifacts preserve raw evidence for
+   diagnosis, and exact checkout and Codex CLI versions identify the run.
 
-8. **Quality evaluation**
+8. **Persistence/export**
 
-   The final JSON and evidence remain available for later scoring. Phase 5 may
+   Phase 4 maps the same normalized suite records into Braintrust for long-term
+   per-eval/per-agent trends. The exporter remains a thin boundary around the
+   verified Braintrust SDK or API contract. No repository-owned persistence
+   infrastructure is introduced, and the runner does not depend on Braintrust
+   to produce valid local or GitHub artifacts.
+
+9. **Quality evaluation**
+
+   The final JSON and evidence remain available for later scoring. Phase 6 may
    add deterministic workload rubrics first and an optional judge second. The
    agent's current self-reported usefulness/confidence is diagnostic metadata,
    not an authoritative quality score.
@@ -402,23 +443,23 @@ Local policy:
 
 Automation policy after Phase 3:
 
-- run the two-workload neutral descriptor canary from `main` across the approved
-  agent/model cells to detect autonomous-discovery drift;
-- run the normal Luna-low workload set with the one-line intent nudge, with the
-  final daily suite size chosen from corrected timing and cost measurements;
+- run the two-workload neutral descriptor canary with Luna-low to detect
+  autonomous-discovery drift;
+- run the 21-workload Luna-low stable-full suite with the one-line intent nudge;
 - do not run neutral descriptors across the remaining stable workloads and do
   not schedule full guidance by default;
 - keep experimental workloads manual;
-- do not run paid evals automatically on every PR initially;
+- run daily from the default branch and when a maintainer adds the exact
+  `agent-eval` label to a same-repository pull request; later commits require
+  removing and re-adding the label rather than silently reusing authorization;
 - keep the scheduled workflow advisory. Deterministic tests remain the merge
   gate.
 
-The current Phase 3 proposal is to allow daily agent CLI versions to advance so
-harness drift is observable, while recording exact versions. That is not yet an
-approved policy; a pinned control offers stronger attribution at additional
-cost. Local PR comparisons must run baseline and candidate close together with
-the same installed agent versions so repository changes are not confused with
-harness changes.
+Phase 3 intentionally installs the current Codex CLI on each clean runner so
+harness drift is observable, records the exact installed version, and does not
+add a pinned control. Local paired comparisons continue to run baseline and
+candidate close together with the same installed agent version so repository
+changes are not confused with harness changes.
 
 ## Assumptions
 
@@ -427,9 +468,8 @@ harness changes.
   shows a workload is redundant, unsafe, or consistently non-diagnostic.
 - MCP local mode is the initial scheduled surface because it evaluates the
   checkout on `main`.
-- The existing two-shard Luna validation is useful capacity evidence but does
-  not define the corrected scenario matrix. Concurrency and cost must be
-  remeasured for the neutral-canary plus intent-suite shape.
+- The accepted corrected discovery and intent artifacts are the capacity and
+  cost baseline for the first workflow.
 - Daily evals are for regression detection and investigation, not deterministic
   correctness proof.
 - A service-neutral JSON contract lets local work proceed before the team
@@ -437,38 +477,27 @@ harness changes.
 
 ## Unknowns And Product Decisions
 
-None block Phase 1 or Phase 2.
+None block Phase 3 implementation. The same-repository label path is
+live-validated; scheduled/manual activation and final acceptance remain pending
+external workflow execution after merge using the verified `OPENAI_API_KEY` and
+`GITHITS_API_TOKEN` secret names. This is an operational validation dependency,
+not a product decision.
 
-The following must be resolved before Phase 3 is detailed or implemented:
+The following must be resolved before Phase 4 is detailed:
 
-- **Long-term service and retention:** which service receives normalized
-  metrics, whether it also stores raw traces, retention duration, dashboard and
-  alert requirements, and available credits.
-- **Automation runner and authentication:** GitHub-hosted clean Linux is the
-  preferred isolation baseline, but Codex CLI installation and API-key
-  authentication must be verified without exposing credentials. If policy or
-  licensing requires a dedicated runner, that is a user-approved infrastructure
-  decision.
-- **Budget and concurrency:** approve a daily dollar/quota ceiling before Phase
-  3. The measured Luna-only stable-full run cost an estimated \$0.48549548 for
-     both historical profiles, before service charges; it is contaminated capacity
-     evidence, not the revised intent-suite budget.
-- **Harness update policy:** confirm whether daily jobs intentionally install
-  latest agent CLIs, use an approved moving version range, or run both floating
-  and pinned controls. Latest-only is the smallest design that detects harness
-  drift but makes upstream changes part of the daily variance.
-- **Discovery matrix:** approve the exact agent CLI/model/reasoning cells and cadence
-  for the neutral two-workload canary. The manual `claude.ai` observation does
-  not authorize or configure Claude Code automation, and marketed model names
-  alone are insufficient identity.
+- Braintrust project/account ownership, available credits, retention, and the
+  accepted SDK/API ingestion path;
+- whether Braintrust should store raw traces or only normalized records and
+  GitHub artifact links;
+- required dashboard grouping and any Phase 4 notification destination.
 
-The following must be resolved before Phase 4:
+The following must be resolved before Phase 5:
 
 - which additional Codex and Claude agent/model cells are worth retaining in the
   discovery canary after the Luna-only pipeline and service integration are
   stable, including their adapter, authentication, cadence, and budget policy.
 
-The following must be resolved before Phase 5:
+The following must be resolved before Phase 6:
 
 - which workloads need objective quality scoring;
 - rubric ownership and acceptable reference-answer maintenance;
@@ -501,9 +530,8 @@ The following must be resolved before Phase 5:
   replayed after parser fixes.
 - Do not add retries or timer-based workarounds for model, backend, or exporter
   failures. Preserve evidence and fix observed root causes.
-- Service export failure must not destroy the local/GitHub artifact. Phase 3
-  decides whether it fails the advisory workflow or produces a visible partial
-  result based on the selected service contract.
+- A Phase 4 Braintrust export failure must not destroy the local/GitHub artifact.
+  Its workflow status policy will be decided from the verified service contract.
 
 ### Compatibility And Migration
 
@@ -531,8 +559,11 @@ The following must be resolved before Phase 5:
 - Mutable package/backend responses are a confounder for token trends. Preserve
   raw results and result byte counts where exposed so an alert can be
   investigated; do not claim that a token delta alone proves harness drift.
-- Concurrency is bounded by the explicit configured scenario cells. No queue or
-  scheduler is added in the repository.
+- Workload concurrency is an explicit positive integer execution input, defaults
+  to 1 locally, and is recorded in suite identity. The implementation is a small
+  in-process promise pool with deterministic result order, not a queue, scheduler,
+  lock, retry, or persistent coordination layer. CI uses 2 for discovery and 4
+  for intent based on the measured baseline above.
 
 ### Testing
 
@@ -577,14 +608,19 @@ The following must be resolved before Phase 5:
    isolation, and Codex interactive isolation parity are implemented and
    validated; corrected discovery/intent evidence supersedes the two-profile
    behavior policy.
-3. **Phase 3 — daily main execution and persistent export (BLOCKED ON PRODUCT
-   DECISIONS):** a clean runner executes the approved neutral discovery canary
-   and Luna intent suite daily from `main`, retains raw evidence, and exports
-   normalized records to the selected service.
-4. **Phase 4 — broader discovery matrix (PLANNED):** the proven metrics, suite,
-   comparison, and persistence contracts add approved Codex/Claude agent-model
-   cells to the neutral canary without changing Luna history.
-5. **Phase 5 — trend policy and result quality (PLANNED):** historical variance
+3. **Phase 3 — parallel CI execution and concise reporting (IMPLEMENTED
+   LOCALLY; SAME-REPOSITORY LABEL PATH LIVE-VALIDATED; SCHEDULED/MANUAL PATH
+   PENDING MERGE):** clean GitHub-hosted jobs run the Luna discovery and intent
+   suites daily or after an authorized PR label, retain raw evidence, and
+   render a concise no-baseline summary. Do not mark this phase complete until
+   the scheduled/manual default-branch path is validated after merge.
+4. **Phase 4 — Braintrust persistence proof of concept (PLANNED):** normalized
+   Phase 3 records become durable per-workload/per-agent history without making
+   the runner dependent on Braintrust.
+5. **Phase 5 — broader discovery matrix (PLANNED):** the proven metrics, suite,
+   CI, and persistence contracts add approved Codex/Claude agent-model cells to
+   the neutral canary without changing Luna history.
+6. **Phase 6 — trend policy and result quality (PLANNED):** historical variance
    supports calibrated drift alerts, and approved workload rubrics optionally
    assess answer quality without changing the execution contract.
 
@@ -820,10 +856,10 @@ automation is designed.
 
 ### Unknowns Or Product Decisions
 
-The exact scheduled discovery model matrix remains a Phase 3 product decision.
-Phase 2 supports explicit scenario/model identity and validates Luna locally;
-it does not spend across an unapproved broad model matrix. The target service
-and automation budget also remain later-phase decisions.
+At Phase 2 completion the scheduled discovery model matrix, target service, and
+automation budget were unresolved. Subsequent user decisions selected Luna-low
+only for Phase 3, separated Braintrust into Phase 4, and retained any broader
+model matrix for Phase 5.
 
 ### Dependencies
 
@@ -878,9 +914,9 @@ and automation budget also remain later-phase decisions.
    initial paid behavior cell is Codex `gpt-5.6-luna`, reasoning `low`, local
    MCP. Scenario cells are explicit records rather than an unconditional
    guidance-profile Cartesian product, so the canary can later include approved
-   agent/model cells without applying them to all 21 workloads. Workloads remain
-   sequential inside each cell; configured cells may run concurrently within
-   the approved bound.
+   agent/model cells without applying them to all 21 workloads. Configured
+   scenario shards may run concurrently; each shard uses the explicit bounded
+   `workloadConcurrency` pool (default `1`) and preserves manifest order.
 
    The one-off runner accepts the same intent profile so targeted and suite
    evidence have identical prompt construction. It appends the exact harness-
@@ -969,9 +1005,9 @@ and automation budget also remain later-phase decisions.
    `callsByTool`, and warnings. Raw workload artifacts and child `metrics.json`
    files remain authoritative. Introduce a scenario-aware suite schema version;
    preserve schema-version-1 reading through the deterministic historical
-      descriptor-to-discovery and full-to-full mapping above. Only the exact
-      historical `descriptors` and `full` profiles are valid; missing, null, or
-      other profiles are rejected rather than inferred as `intent`.
+   descriptor-to-discovery and full-to-full mapping above. Only the exact
+   historical `descriptors` and `full` profiles are valid; missing, null, or
+   other profiles are rejected rather than inferred as `intent`.
 
    Live paired mode and offline compare mode call the same pure comparison and
    write a schema-validated `comparison.json` with one pair ID and references to
@@ -1052,9 +1088,10 @@ and automation budget also remain later-phase decisions.
    semantics and a guidance-only difference between two target fixtures.
    Preserve current one-off defaults and artifact compatibility.
 4. Add single-target suite orchestration with an injected shard executor for
-   deterministic tests. Execute the two profile shards concurrently, preserve
-   sequential workloads inside each runner, and write a validated partial or
-   complete `suite.json` after both shards settle.
+   deterministic tests. Execute the two profile shards concurrently, run each
+   shard's workloads through its explicit bounded pool while preserving
+   manifest order, and write a validated partial or complete `suite.json` after
+   both shards settle.
 5. Add live pair mode from the current candidate checkout with one explicit
    baseline root, plus offline compare mode over two existing `suite.json`
    artifacts. Route both through the same pure comparison, validate compatible
@@ -1125,7 +1162,7 @@ choice, not a causal requirement of the suite schema.
    actual time/cost; the smoke cohort is measured as the named subset of that
    stable run rather than rerun. This deliberately repeats only the bounded
    package cells after the safety check. Do not spend on a broader model matrix
-   until Phase 3 approves it.
+   without the later explicit rollout decision; Phase 3 now remains Luna-only.
 
 ### Edge Cases And Boundaries
 
@@ -1263,7 +1300,7 @@ choice, not a causal requirement of the suite schema.
       canary wall/cumulative time is 267,221/266,375 ms; stable wall/cumulative
       time is 798,452/796,139 ms. Stable totals are 115 MCP calls, zero CLI
       calls, zero isolation violations, 655,840 uncached and 2,389,760 cached
-      tokens, and an estimated $0.2030556. The named six-workload smoke subset
+      tokens, and an estimated \$0.2030556. The named six-workload smoke subset
       is derived from those same stable metrics and is documented below.
 - [x] Focused tests (178 pass, 1,004 expectations), full tests (3,605 pass,
       12,040 expectations), typecheck, format (442 files), lint (442 files),
@@ -1280,7 +1317,8 @@ choice, not a causal requirement of the suite schema.
 
 COMPLETE — the corrected workload and interactive Codex paths validate the
 disposable acting-agent boundary, trusted MCP authentication, scenario identity,
-and intended tool surface. Phase 3 remains blocked on product decisions.
+and intended tool surface. Subsequent user decisions and measured concurrency
+evidence make Phase 3 ready, subject to CI secret provisioning.
 
 ### Canary evidence and correction history
 
@@ -1342,7 +1380,7 @@ The discovery canary artifact recorded 2/2 process and final successes, 267,221
 ms wall time, 266,375 ms cumulative agent time, two logical MCP `code_files`
 calls (started), zero CLI calls, zero isolation violations, 77,831 uncached
 input, 376,320 cached input, 2,971 output, 591 reasoning-detail tokens, and an
-estimated $0.0266578 with `long_context_pricing_not_attributable` uncertainty.
+estimated \$0.0266578 with `long_context_pricing_not_attributable` uncertainty.
 
 The stable-full intent artifact recorded 21/21 process and final successes with
 no failures, timeouts, or missing cells: 798,452 ms wall time, 796,139 ms
@@ -1373,7 +1411,7 @@ access was needed for this diagnostic; the normal temporary-workspace trust
 prompt required human approval. Two earlier stable intent attempts that waited
 at an unattended macOS Keychain approval prompt are invalid/excluded evidence,
 not a harness timeout defect. Local subscription/keychain-backed runs can
-require operator presence; future daily CI must use separately provisioned
+require operator presence. The daily CI workflow uses separately provisioned
 non-interactive API credentials without copying or reading credentials into
 artifacts.
 
@@ -1405,86 +1443,302 @@ redacted in persisted artifacts.
 Phase 2 correction is complete. The prior 42-cell behavior comparison remains
 contaminated and must not be reinterpreted; v4 remains historical
 discovery/full evidence, while the current scenario artifacts above establish
-the corrected discovery canary and intent suite. Phase 3 remains blocked on the
-existing service, runner, discovery-matrix, authentication, budget, concurrency,
-and retention product decisions.
+the corrected discovery canary and intent suite. The pipeline decisions are
+captured below; Braintrust persistence is intentionally a later phase.
 
-## Phase 3 — Daily Main Execution And Persistent Export
+## Phase 3 — Parallel CI Execution And Concise Reporting
 
 ### Status
 
-BLOCKED ON PRODUCT DECISIONS listed above. Detail this phase after the Phase 2
-scenario/isolation correction and service/runner/budget/discovery-matrix
-selection.
+IMPLEMENTED LOCALLY; SAME-REPOSITORY LABEL PATH LIVE-VALIDATED. The runner,
+schema-v3 suite artifacts, CI reporter, workflow, and operational documentation
+are complete and locally validated. The corrected label run passed its clean
+runner and summary checks; default-branch scheduled/manual execution remains
+pending merge, so Phase 3 deployment acceptance is not complete.
+
+### Live label-run evidence
+
+The first same-repository label run, `33379420414` at SHA `6f26242`, rendered
+its summary but failed execution validation: discovery was 2/2, intent was
+20/21, authenticated MCP data calls returned `AUTH_REQUIRED`, and
+`docs-discovery` used the GitHits CLI fallback. The root cause was missing
+Codex stdio `env_vars` forwarding. This demonstrates failure detection, not
+model quality.
+
+The corrected same-repository label run
+([workflow run 33380560726](https://github.com/githits-com/githits-cli/actions/runs/33380560726))
+at exact SHA `16fd964` succeeded: discovery took 44 seconds and intent 2
+minutes 24 seconds, with 13 seconds for summary rendering; end to end it ran
+from 10:02:30Z to 10:05:12Z (about 2 minutes 42 seconds). Suite
+wall/cumulative seconds were 24.804/44.386 for discovery and 124.898/454.773
+for intent. The cells were 2/2 and 21/21 at workload concurrency 2/4, using
+Codex CLI 0.151.0. All 125 logical calls (10 + 115) were MCP; there were no
+isolation-violation files, CLI calls/fallbacks, `AUTH_REQUIRED` responses, or
+warnings. Reporter estimates were $0.0265 + $0.2249 (about $0.2514 total),
+with 417 uncached input, 2,474,289 cached input, 701,553 cache-write input,
+22,048 output, and 4,739 reasoning tokens. All 23 Codex configs used only the
+name-only `GITHITS_API_TOKEN` `env_vars` entry and no literal token assignment;
+secret values were not read during inspection.
 
 ### Expected Outcome
 
-A clean authenticated runner executes the two-workload neutral discovery canary
-for each approved agent/model cell plus the approved Luna-low intent suite daily
-from `main` and on manual dispatch. It retains immutable raw artifacts,
-publishes a human-readable summary, and exports normalized per-workload/scenario
-records to the selected long-term service. Full guidance remains local/manual.
+A clean GitHub-hosted runner executes Luna-low discovery and intent suites in
+parallel each day from the default branch, on trusted manual dispatch, or once
+when a maintainer adds `agent-eval` to a same-repository pull request. A final
+job renders one concise report containing execution status, exact harness
+identity, durations, token buckets, estimated cost, logical call totals, and
+per-tool call counts. It performs no baseline or `main` comparison. Full
+guidance remains local/manual.
 
 ### Assumptions
 
-- Corrected Phase 2 discovery and intent measurements fit the approved daily
-  budget and provider quotas.
-- The selected service accepts the normalized dimensions or can be integrated
-  through a thin mapping layer.
-- The runner can install or provide the required agent CLIs without leaking
-  credentials.
+- The first scheduled shape is the two-workload discovery canary plus the
+  21-workload stable-full intent suite, both Codex `gpt-5.6-luna` at low
+  reasoning.
+- GitHub-hosted Ubuntu is the clean execution boundary. The current Codex CLI is
+  deliberately installed on every run so version drift is measured, and its
+  exact version is captured in existing artifacts and the concise report.
+- A provisional daily schedule of 03:00 UTC is acceptable; changing the cron
+  later does not alter the execution or metrics contract.
+- GitHub artifacts are diagnostic rather than long-term persistence. Retain
+  them for 14 days until Phase 4 establishes the Braintrust retention policy.
+- The accepted \$0.2297134 local estimate is sufficient cost evidence for the
+  first Luna-only daily shape; no hard cost gate is introduced.
 
 ### Unknowns Or Product Decisions
 
-- Service, retention, runner, authentication, daily intent-suite size, discovery
-  agent/model cells and cadence, budget, concurrency, and harness-version policy
-  must be approved before implementation details are added.
+None.
 
 ### Dependencies
 
-- Phase 2 accepted and merged.
-- Approved service and runner decisions.
-- Provider and GitHits automation credentials provisioned outside the
-  repository.
+- Phase 2 accepted and merged at `origin/main` commit `68f4b96`.
+- Repository administrators verified the required secret names
+  `OPENAI_API_KEY` and `GITHITS_API_TOKEN` on 2026-08-31 without reading their
+  values. Secret values are never read into a developer or review session.
+- Existing GitHub-hosted runner access and provider quotas support two
+  discovery calls plus four concurrent intent calls per workflow. Independent
+  schedule, dispatch, and label-triggered workflows may overlap and multiply
+  that load; Phase 3 deliberately adds no cross-run lock or queue, so any
+  resulting provider failure remains visible evidence.
+
+### Affected Components
+
+- `scripts/agent-eval.ts` and focused tests for bounded workload execution;
+- `scripts/agent-eval-suite.ts` and focused tests for CLI propagation,
+  execution identity, and suite validation;
+- a small CI-summary script and its tests, plus a package-script entrypoint;
+- `.github/workflows/agent-evals.yml` as a dedicated paid workflow, leaving the
+  deterministic `main.yml`, `pr.yml`, and reusable `ci.yml` paths unchanged;
+- `eval/agentic/README.md`,
+  `docs/implementation/agentic-eval-metrics.md`, and one maintainer-facing
+  change fragment with `none` impact for both public packages.
+
+### Contracts And Failure Behavior
+
+1. **Bounded workload execution**
+
+   Add an explicit positive-integer `--concurrency` input to the one-off and
+   suite run commands. It defaults to 1, preserving current local behavior.
+   The runner uses a small in-process promise pool, starts at most the requested
+   number of workloads, and stores results in manifest order regardless of
+   completion order. The selected concurrency is recorded in `run.json` and
+   `suite.json` execution metadata so duration evidence remains attributable.
+   The suite writer advances to schema version 3; version 1 and 2 readers
+   normalize absent workload concurrency to 1. It is execution configuration,
+   not a prompt/content compatibility dimension, so it is reported but does not
+   suppress otherwise valid tool/token comparisons.
+
+   Ordinary workload failures already return persisted failure evidence; they
+   do not prevent unscheduled siblings from running. An unexpected executor
+   exception rejects the run as today. An empty suite selection fails during
+   preflight before child execution. Do not add retries, provider backoff,
+   locks, a queue, or a scheduler. Concurrent workloads continue to receive
+   separate disposable acting-agent homes/workspaces and share only the
+   caller-supplied clean `CODEX_HOME`, as current concurrent scenario shards do.
+
+2. **Workflow triggers and authorization**
+
+   Add one workflow with `schedule`, `workflow_dispatch`, and
+   `pull_request: {types: [labeled]}` triggers. Scheduled runs use the workflow
+   from the default branch and check out that exact SHA. PR execution requires
+   both the exact `agent-eval` label event and
+   `head.repo.full_name == github.repository`; it checks out the immutable
+   `github.event.pull_request.head.sha` from that label event. A later
+   `synchronize` event does not rerun while the label remains. Maintainers must
+   remove/re-add the label to authorize a newer SHA.
+
+   Do not use `pull_request_target`, do not accept fork PRs, and set workflow
+   permissions to `contents: read`. Applying the label is authorization to run
+   that reviewed same-repository SHA with provider secrets, including any
+   changes it makes to `.github/workflows/agent-evals.yml`; this operational rule
+   is documented beside the workflow.
+
+3. **Clean Codex and credential boundary**
+
+   Install the current Codex CLI using the official supported installer, then
+   record `codex --version`. Create an empty absolute `CODEX_HOME` under
+   `runner.temp` so the existing validator proves no global `AGENTS.md` or
+   non-system skills are present. Authenticate non-interactively through the
+   official API-key flow and expose provider/GitHits secrets only to the
+   execution steps. The existing environment allowlist passes
+   `OPENAI_API_KEY` and `GITHITS_API_TOKEN`; artifact redaction remains the
+   enforcement boundary. Do not copy local subscription state, Keychain data,
+   user config, skills, or auth files into CI.
+
+4. **Two scenario jobs**
+
+   Run discovery as `canary --scenario discovery --concurrency 2` and intent as
+   `stable-full --scenario intent --concurrency 4` in two matrix entries/jobs.
+   Each job has a 40-minute timeout, uploads its complete suite directory even
+   after a recorded failure, and retains it for 14 days. Full, experimental,
+   stateful, neutral non-canary, Claude, and baseline/candidate cells are absent.
+
+5. **Concise report and workflow status**
+
+   A pure formatter reads one or more schema-validated suite artifacts and
+   emits a compact Markdown table for `$GITHUB_STEP_SUMMARY`. Per scenario it
+   reports suite status, successful/expected cells, wall and cumulative agent
+   time, logical MCP/CLI calls, token buckets, estimated cost/uncertainty,
+   Codex CLI version, isolation/telemetry warnings, and deterministic per-tool
+   logical call counts. The workflow supplies a run URL, which the reporter
+   renders as the evidence link to the workflow run containing the artifacts;
+   it does not load a baseline, calculate deltas, or write PR comments.
+
+   The summary job runs with `if: always()` so missing and failed scenario jobs
+   remain visible. Missing/unparseable suite evidence, isolation violations,
+   CLI fallback in an MCP run, timeouts, zero selected workloads or zero
+   expected executions, and failed/missing workload cells make the workflow
+   fail after the summary is written. A successful discovery cell with zero
+   GitHits calls remains a valid observed result. Metric movement
+   alone cannot fail because this phase performs no comparison or thresholding.
+
+### Ordered Implementation Steps
+
+1. **Completed:** Add focused failing tests for concurrency parsing, a maximum-in-flight
+   invariant, continued execution after ordinary workload failure, unexpected
+   executor rejection, and manifest-order output. Implement the minimal pool and
+   record/propagate the selected value through run and suite artifacts while
+   keeping default concurrency 1.
+2. **Completed:** Add focused failing tests for compact multi-suite Markdown output and its
+   status classification, including zero-call discovery, per-tool frequencies,
+   unknown telemetry, partial/missing suites, CLI fallback, and isolation
+   violations. Implement the pure formatter and thin CLI entrypoint.
+3. **Implemented locally; same-repository label path
+   live-validated:** Add the dedicated workflow with the three triggers, an explicit
+   `github.event.label.name == 'agent-eval'` job gate, same-repository label/SHA
+   authorization, clean Codex home and API-key setup, the two scenario jobs,
+   unconditional artifact upload/reporting, 14-day retention, and minimal
+   permissions. Keep secret scope to the paid execution steps. The corrected
+   label run passed; default-branch scheduled/manual execution remains pending
+   merge.
+4. **Completed locally:** Update local/CI operational documentation, the durable implementation
+   contract, and the required no-public-impact change fragment. Document label
+   authorization, re-label behavior, exact suites/concurrency, expected
+   duration/cost, secret names, and artifact/report locations.
+5. **Local and label evidence complete; scheduled/manual evidence pending
+   merge:** Run focused tests, all suite dry-runs at concurrency 1 and the CI-selected
+   values, `bun test`, typecheck, format, lint, build, and workflow syntax/action
+   validation. The same-repository label path is live-validated with no global
+   skill/guidance reads or CLI fallbacks. After the change is merged, manually
+   dispatch the workflow and verify the scheduled/default-branch path before
+   treating Phase 3 deployment acceptance as complete.
 
 ### Acceptance Criteria
 
-- A scheduled run checks out the exact `main` SHA and produces all expected
-  neutral-canary and intent-suite records or explicit partial-failure records.
-- Exact agent CLI versions and resolved models make harness drift identifiable.
-- Raw artifacts and normalized metrics survive the runner lifecycle for the
-  approved retention period.
-- The selected service shows persistent trends by workload, agent, exact agent
-  CLI version, guidance, and intent for tool calls/tools used, token buckets, duration, cost,
-  and failures.
-- No credentials appear in artifacts, logs, workflow annotations, or exporter
-  payloads.
-- The workflow is advisory and does not block `main` or PR merges.
-- A manual dispatch can reproduce the same suite/configuration.
-- No scheduled full-guidance cells or neutral descriptor runs outside canary are
-  present unless a later explicit policy change approves them.
+- Default local execution remains sequential; explicit concurrency never
+  exceeds the requested in-flight workload count and preserves manifest order.
+- MET: A same-repository label run checks out the exact labeled head SHA and
+  produces 2/2 discovery plus 21/21 intent records with concurrency 2/4
+  captured in artifacts.
+- PENDING AFTER MERGE: A trusted manual run and a scheduled default-branch run
+  check out the exact intended SHA and produce 2/2 discovery plus 21/21 intent
+  records, or explicit failed/missing records, with concurrency 2/4 captured in
+  artifacts.
+- A same-repository PR runs only after the exact `agent-eval` label event at the
+  labeled head SHA; forks and later unlabeled SHAs cannot consume secrets.
+- The corrected same-repository label workflow completed in about 2 minutes 42
+  seconds at a $0.2514 rate-based estimate; actual wall time, cost, and any
+  provider-quota behavior are recorded rather than hidden by retries.
+- The GitHub summary concisely shows status, exact Codex CLI/model identity,
+  tool calls/tools used, tokens, duration, cost uncertainty, and evidence links
+  for both scenarios, with no baseline or `main` comparison.
+- Execution-invalid evidence makes the workflow red only after the summary is
+  rendered; zero-call discovery and ordinary metric values remain advisory.
+- No secret value, local auth state, global guidance, or personal skill appears
+  in logs, artifacts, summaries, or acting-agent context.
+- Raw/normalized artifacts remain downloadable for 14 days; no Braintrust SDK,
+  exporter, repository persistence, queue, retry, lock, or quality judge is
+  introduced.
 
-## Phase 4 — Broader Discovery Matrix
+## Phase 4 — Braintrust Persistence Proof Of Concept
 
 ### Status
 
-PLANNED. Detail only after the Luna-only pipeline and selected service have been
-validated in Phase 3 and the user approves specific additional cells.
+PLANNED. Reorient and detail after Phase 3 is merged and its first clean runner
+evidence is available.
+
+### Expected Outcome
+
+Braintrust persistently exposes each Luna workload/scenario execution and its
+tool-call frequencies, tools used, token buckets, duration, estimated cost,
+status, repository SHA, exact Codex CLI/model identity, and links to raw CI
+evidence. Local and GitHub suite generation remain fully functional when
+Braintrust is unavailable.
+
+### Assumptions
+
+- Phase 3's normalized records are sufficient input; Braintrust does not become
+  the source of truth for raw provider evidence.
+- The service can accept the existing versioned dimensions through a thin
+  mapping rather than forcing runner-specific instrumentation.
+
+### Unknowns Or Product Decisions
+
+- Braintrust account/project ownership, available credits, authentication,
+  retention, and ingestion API/SDK.
+- Whether raw traces are uploaded or retained only in GitHub with durable links.
+- Dashboard grouping and whether exporter failure makes the advisory workflow
+  partial or failed.
+
+### Dependencies
+
+- Phase 3 accepted and merged.
+- Approved Braintrust proof-of-concept contract and credentials.
+
+### Acceptance Criteria
+
+- Braintrust shows durable records grouped by workload, agent, exact CLI/model,
+  reasoning, guidance, and intent, including per-tool call counts, token
+  buckets, duration, estimated cost/uncertainty, and failures.
+- Exported values reconcile to the source `suite.json`/`metrics.json` artifacts,
+  and missing telemetry remains unknown rather than zero.
+- Export failure never destroys raw GitHub evidence and cannot prevent local
+  suite/report generation.
+- No Braintrust credential appears in logs, artifacts, summaries, or records.
+- The proof of concept adds no repository database, queue, retry layer, or
+  runner replacement.
+
+## Phase 5 — Broader Discovery Matrix
+
+### Status
+
+PLANNED. Detail only after the Luna-only pipeline and Braintrust proof of
+concept have been validated and the user approves specific additional cells.
 
 ### Expected Outcome
 
 Approved additional Codex and Claude agent/model cells use the same neutral
-two-workload discovery canary, normalized metrics, comparison, and persistence
+two-workload discovery canary, normalized metrics, CI report, and persistence
 contracts as Luna. This tracks which agents autonomously select registered
-GitHits tools without rewriting Luna history or coupling service export to one
+GitHits tools without rewriting Luna history or coupling persistence to one
 provider.
 
 ### Assumptions
 
-- Phase 3 has exposed and resolved the initial harness, runner, authentication,
-  and service-integration bumps.
-- Each added agent CLI has a provider adapter sufficient for tool, token, duration,
-  cost, and identity telemetry before it enters the scheduled matrix.
+- Phases 3 and 4 have exposed and resolved the initial harness, runner,
+  authentication, and service-integration bumps.
+- Each added agent CLI has a provider adapter sufficient for tool, token,
+  duration, cost, and identity telemetry before entering the scheduled matrix.
 
 ### Unknowns Or Product Decisions
 
@@ -1497,22 +1751,21 @@ provider.
 
 ### Dependencies
 
-- Phase 3 accepted and merged.
+- Phases 3 and 4 accepted and merged.
 - Approved broader-matrix rollout and budget decision.
 
 ### Acceptance Criteria
 
-- Usage, cost, tool, duration, agent CLI, and identity metrics conform to the same
-  versioned contract without changing historical Luna records.
-- Every new agent CLI's neutral prompt and isolation are verified on the automation
-  runner before results are treated as causal discovery evidence.
-- The selected service compares trends only within compatible agent/model/
-  reasoning/scenario dimensions; cross-agent values remain explicitly
-  non-equivalent.
+- Usage, cost, tool, duration, agent CLI, and identity metrics conform to the
+  same versioned contract without changing historical Luna records.
+- Every new agent CLI's neutral prompt and isolation are verified on the clean
+  automation runner before results are treated as causal discovery evidence.
+- Braintrust compares trends only within compatible agent/model/reasoning/
+  scenario dimensions; cross-agent values remain explicitly non-equivalent.
 - The approved canary matrix runs within its measured budget and preserves the
   same raw-artifact and credential-redaction guarantees.
 
-## Phase 5 — Trend Policy And Result Quality
+## Phase 6 — Trend Policy And Result Quality
 
 ### Status
 
@@ -1527,7 +1780,7 @@ rubrics with the score and judge provenance stored beside operational metrics.
 
 ### Assumptions
 
-- Phase 3 provides queryable Luna history and raw evidence; Phase 4 provides
+- Phase 4 provides queryable Luna history and raw evidence; Phase 5 provides
   broader discovery history if that rollout has been approved.
 - Alerting thresholds are based on observed variance rather than the initial
   eight-run sample.
@@ -1540,7 +1793,7 @@ rubrics with the score and judge provenance stored beside operational metrics.
 
 ### Dependencies
 
-- Phase 3 accepted and merged; Phase 4 is required only for additional-model
+- Phase 4 accepted and merged; Phase 5 is required only for additional-model
   trend or quality policy.
 - Approved quality and alerting decisions.
 
@@ -1564,21 +1817,21 @@ detailing or implementing the next phase. Update this plan with changed
 assumptions, decisions, measured timing/cost evidence, architecture, and scope.
 Do not proceed when `$next-steps` reports `REPLAN` or `PRODUCT INPUT NEEDED`.
 
-At the Phase 2 boundary, explicitly bring the service, runner/authentication,
-budget, concurrency, discovery agent/model cells, intent-suite size, and harness-
-update decisions to the user with the corrected measurements. At the Phase 3
-boundary, bring the broader discovery-matrix decision to the user with the
-observed Luna pipeline evidence. Bring the quality/alerting policy at the Phase
-4 or Phase 5 boundary with observed historical variance.
+At the Phase 3 boundary, record actual CI duration, cost, concurrency behavior,
+Codex version, quota failures, summary usefulness, and any isolation or fallback
+evidence, then resolve the Braintrust contract before detailing Phase 4. At the
+Phase 4 boundary, bring the broader discovery-matrix decision to the user with
+the observed Luna pipeline and persistence evidence. Bring the quality/alerting
+policy at the Phase 5 or Phase 6 boundary with observed historical variance.
 
 ## Completion And Cleanup
 
 The overall effort is complete when:
 
 - local named suites and paired comparisons are documented and verified;
-- the daily neutral discovery canary and approved Luna intent suite persist raw
-  and normalized evidence;
-- the selected service exposes the required per-workload/per-agent trends;
+- the daily and label-authorized neutral discovery canary and Luna intent suite
+  preserve raw and normalized evidence and render concise CI reports;
+- Braintrust exposes the required per-workload/per-agent trends;
 - the advisory drift policy is documented;
 - any approved quality rubric is implemented or explicitly recorded as out of
   scope; and

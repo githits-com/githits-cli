@@ -777,36 +777,36 @@ describe("agent eval harness", () => {
   });
 
   it("builds Codex TOML config from the same MCP command", () => {
-    expect(
-      buildCodexConfig(
-        {
-          server: "local",
-          repoRoot: "/repo/githits-cli",
-          publishedPackage: "githits@latest",
-        },
-        {},
-      ),
-    ).toBe(
+    const config = buildCodexConfig(
+      {
+        server: "local",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      },
+      {},
+    );
+    expect(config).toBe(
       '[mcp_servers.githits]\ncommand = "bun"\nargs = ["run","--cwd","/repo/githits-cli","dev","mcp","start"]\n',
     );
+    expect(config).not.toContain("env_vars");
   });
 
   it("builds Codex config override args", () => {
-    expect(
-      buildCodexConfigArgs(
-        {
-          server: "published",
-          repoRoot: "/repo/githits-cli",
-          publishedPackage: "githits@0.4.2",
-        },
-        {},
-      ),
-    ).toEqual([
+    const args = buildCodexConfigArgs(
+      {
+        server: "published",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@0.4.2",
+      },
+      {},
+    );
+    expect(args).toEqual([
       "-c",
       'mcp_servers.githits.command="npx"',
       "-c",
       'mcp_servers.githits.args=["-y","githits@0.4.2","mcp","start"]',
     ]);
+    expect(args).not.toContain("mcp_servers.githits.env_vars");
   });
 
   it("builds OpenCode project config from the same MCP command", () => {
@@ -925,6 +925,33 @@ describe("agent eval harness", () => {
     ).toContain(
       'mcp_servers.githits.env.PKGSEER_URL="https://pkgseer-backend-dev.fly.dev"',
     );
+
+    const codexConfig = buildCodexConfig(
+      {
+        server: "local",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      },
+      env,
+    );
+    expect(codexConfig).toContain('env_vars = ["GITHITS_API_TOKEN"]');
+    expect(codexConfig).not.toContain("secret-token");
+    expect(codexConfig.indexOf("env_vars =")).toBeLessThan(
+      codexConfig.indexOf("[mcp_servers.githits.env]"),
+    );
+
+    const codexArgs = buildCodexConfigArgs(
+      {
+        server: "local",
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      },
+      env,
+    );
+    expect(codexArgs).toContain(
+      'mcp_servers.githits.env_vars=["GITHITS_API_TOKEN"]',
+    );
+    expect(codexArgs.join(" ")).not.toContain("secret-token");
   });
 
   it("passes host auth roots only to the MCP child for both guidance profiles", () => {
@@ -2540,6 +2567,8 @@ describe("agent eval harness", () => {
         "eval/agentic/workloads/express-router.md",
         "--timeout",
         "12",
+        "--concurrency",
+        "3",
         "--dry-run",
       ],
       repoRoot,
@@ -2551,10 +2580,135 @@ describe("agent eval harness", () => {
     expect(options.surface).toBe("skills");
     expect(options.publishedPackage).toBe("githits@0.4.2");
     expect(options.timeoutSeconds).toBe(12);
+    expect(options.workloadConcurrency).toBe(3);
     expect(options.dryRun).toBe(true);
     expect(options.workloads).toEqual([
       resolve(repoRoot, "eval/agentic/workloads/express-router.md"),
     ]);
+  });
+
+  it("defaults concurrency to one and rejects invalid values before execution", () => {
+    const repoRoot = join(tmpdir(), "githits-cli");
+    expect(parseArgs(["--dry-run"], repoRoot).workloadConcurrency).toBe(1);
+    for (const value of ["0", "-1", "1.5", "not-a-number"]) {
+      expect(() =>
+        parseArgs(["--concurrency", value, "--dry-run"], repoRoot),
+      ).toThrow("--concurrency must be a positive integer");
+    }
+    expect(() => parseArgs(["--concurrency", "--dry-run"], repoRoot)).toThrow(
+      "--concurrency requires a value",
+    );
+  });
+
+  it("runs workloads within the selected bound, preserves input order, and continues after ordinary failures", async () => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), "agent-eval-concurrency-"));
+    const outDir = join(fixtureRoot, "run");
+    const workloads = ["workload-a", "workload-b", "workload-c", "workload-d"];
+    for (const id of workloads) {
+      writeFileSync(join(fixtureRoot, `${id}.md`), `# ${id}\n`);
+    }
+    const reportingPath = join(fixtureRoot, "REPORTING.md");
+    writeFileSync(reportingPath, "status\nanswer\nconfidence\n");
+    let active = 0;
+    let maxActive = 0;
+    let calls = 0;
+    try {
+      const options = parseArgs(
+        [
+          "--agent",
+          "opencode",
+          "--concurrency",
+          "2",
+          "--out",
+          outDir,
+          "--reporting",
+          reportingPath,
+          ...workloads.flatMap((id) => [
+            "--workload",
+            join(fixtureRoot, `${id}.md`),
+          ]),
+        ],
+        process.cwd(),
+      );
+      await runAgentEval(options, {
+        baseEnv: { PATH: "/bin" },
+        assertAgentAvailable: async () => {},
+        collectAgentVersions: async () => [
+          "opencode-test",
+          undefined,
+          "opencode-test",
+        ],
+        runCommand: async () => {
+          const call = calls;
+          calls += 1;
+          active += 1;
+          maxActive = Math.max(maxActive, active);
+          await new Promise((resolve) =>
+            setTimeout(resolve, call === 0 ? 15 : 2),
+          );
+          active -= 1;
+          return {
+            stdout: JSON.stringify({
+              status: "success",
+              answer: `answer-${call}`,
+              confidence: "high",
+            }),
+            stderr: "",
+            exitCode: call === 1 ? 1 : 0,
+            timedOut: false,
+          };
+        },
+      });
+      const run = JSON.parse(
+        readFileSync(join(outDir, "run.json"), "utf8"),
+      ) as {
+        workloadConcurrency: number;
+        workloads: Array<{ id: string; status: string }>;
+      };
+      expect(maxActive).toBe(2);
+      expect(calls).toBe(4);
+      expect(run.workloadConcurrency).toBe(2);
+      expect(run.workloads.map((workload) => workload.id)).toEqual(workloads);
+      expect(run.workloads.map((workload) => workload.status)).toEqual([
+        "success",
+        "failed",
+        "success",
+        "success",
+      ]);
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps rejecting when a workload executor unexpectedly throws", async () => {
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-concurrency-error-"));
+    try {
+      const options = parseArgs(
+        [
+          "--agent",
+          "opencode",
+          "--concurrency",
+          "2",
+          "--out",
+          outDir,
+          "--workload",
+          "eval/agentic/workloads/express-router.md",
+        ],
+        process.cwd(),
+      );
+      await expect(
+        runAgentEval(options, {
+          baseEnv: { PATH: "/bin" },
+          assertAgentAvailable: async () => {},
+          collectAgentVersions: async () => [undefined, undefined, undefined],
+          runCommand: async () => {
+            throw new Error("unexpected executor failure");
+          },
+        }),
+      ).rejects.toThrow("unexpected executor failure");
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
   });
 
   it("accepts the experimental flag only for local MCP evals", () => {
@@ -3276,6 +3430,16 @@ describe("agent eval harness", () => {
         expect(content).not.toContain(hostConfig);
         expect(content).not.toContain(hostAppdata);
       }
+      const codexConfig = readFileSync(
+        join(workloadDir, "codex-config.toml"),
+        "utf8",
+      );
+      expect(codexConfig).toContain('env_vars = ["GITHITS_API_TOKEN"]');
+      expect(codexConfig).not.toContain(apiToken);
+      expect(observedCommand?.join(" ")).toContain(
+        'mcp_servers.githits.env_vars=["GITHITS_API_TOKEN"]',
+      );
+      expect(observedCommand?.join(" ")).not.toContain(apiToken);
       const stdout = readFileSync(join(workloadDir, "stdout.json"), "utf8");
       const stderr = readFileSync(join(workloadDir, "stderr.txt"), "utf8");
       const final = JSON.parse(

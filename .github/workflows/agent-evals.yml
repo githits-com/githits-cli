@@ -1,0 +1,177 @@
+name: Agent Evals
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    types: [labeled]
+
+permissions:
+  contents: read
+
+env:
+  CHECKOUT_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  scenario:
+    name: ${{ matrix.label }} agent eval
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.label.name == 'agent-eval' &&
+      github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: discovery
+            label: Discovery
+            suite: canary
+            scenario: discovery
+            workload-concurrency: 2
+          - id: intent
+            label: Intent
+            suite: stable-full
+            scenario: intent
+            workload-concurrency: 4
+    steps:
+      - name: Prepare scenario output
+        run: |
+          set -euo pipefail
+          scenario_out="$RUNNER_TEMP/agent-eval-${{ matrix.id }}"
+          mkdir -p "$scenario_out"
+          printf 'scenario=%s\n' '${{ matrix.id }}' > "$scenario_out/execution-started.txt"
+
+      - name: Checkout evaluated SHA
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.CHECKOUT_SHA }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install current Codex CLI
+        run: npm install --global @openai/codex@latest
+
+      - name: Record Codex CLI version
+        run: codex --version
+
+      - name: Initialize empty Codex home
+        env:
+          CODEX_HOME: ${{ runner.temp }}/agent-eval-codex-home-${{ matrix.id }}
+        run: mkdir -p "$CODEX_HOME"
+
+      - name: Authenticate Codex with API key
+        env:
+          CODEX_HOME: ${{ runner.temp }}/agent-eval-codex-home-${{ matrix.id }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$OPENAI_API_KEY" | codex login --with-api-key
+
+      - name: Run ${{ matrix.label }} suite
+        env:
+          CODEX_HOME: ${{ runner.temp }}/agent-eval-codex-home-${{ matrix.id }}
+          SCENARIO_OUT: ${{ runner.temp }}/agent-eval-${{ matrix.id }}
+          GITHITS_API_TOKEN: ${{ secrets.GITHITS_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          bun run agent:e2e:suite run \
+            --suite "${{ matrix.suite }}" \
+            --scenario "${{ matrix.scenario }}" \
+            --concurrency "${{ matrix.workload-concurrency }}" \
+            --out "$SCENARIO_OUT"
+
+      - name: Upload ${{ matrix.label }} artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-eval-${{ matrix.id }}
+          path: ${{ runner.temp }}/agent-eval-${{ matrix.id }}
+          if-no-files-found: warn
+          retention-days: 14
+
+  summary:
+    name: Agent eval summary
+    if: >-
+      always() &&
+      (github.event_name != 'pull_request' ||
+      (github.event.label.name == 'agent-eval' &&
+      github.event.pull_request.head.repo.full_name == github.repository))
+    needs: scenario
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare artifact directories
+        run: mkdir -p "$RUNNER_TEMP/agent-eval-artifacts/discovery" "$RUNNER_TEMP/agent-eval-artifacts/intent"
+
+      - name: Download discovery artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: agent-eval-discovery
+          path: ${{ runner.temp }}/agent-eval-artifacts/discovery
+
+      - name: Download intent artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: agent-eval-intent
+          path: ${{ runner.temp }}/agent-eval-artifacts/intent
+
+      - name: Checkout evaluated SHA
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.CHECKOUT_SHA }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Render agent eval summary
+        id: report
+        env:
+          REPORT_OUT: ${{ runner.temp }}/agent-eval-summary.md
+        run: |
+          set +e
+          bun run agent:e2e:ci-report \
+            --suite discovery="$RUNNER_TEMP/agent-eval-artifacts/discovery/suite.json" \
+            --suite intent="$RUNNER_TEMP/agent-eval-artifacts/intent/suite.json" \
+            --run-url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --out "$REPORT_OUT"
+          report_status=$?
+          set -e
+          if [ "${{ needs.scenario.result }}" != "success" ]; then
+            report_status=1
+          fi
+          if [ -f "$REPORT_OUT" ]; then
+            cat "$REPORT_OUT" >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "# Agent eval CI report"
+              echo ""
+              echo "Reporter did not produce a summary artifact."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$report_status"

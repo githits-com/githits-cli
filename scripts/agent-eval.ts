@@ -81,6 +81,7 @@ export interface AgentEvalOptions {
   reasoningEffort?: CodexReasoningEffort;
   experimentalTools: boolean;
   workloads: string[];
+  workloadConcurrency: number;
   outDir: string;
   timeoutSeconds: number;
   publishedPackage: string;
@@ -374,6 +375,7 @@ export function parseArgs(
     intentProfile: "neutral",
     experimentalTools: false,
     workloads: [],
+    workloadConcurrency: 1,
     outDir: defaultOutDir(repoRoot),
     timeoutSeconds: 300,
     publishedPackage: "githits@latest",
@@ -465,6 +467,18 @@ export function parseArgs(
         const value = argv[++i];
         assert(value, "--workload requires a path");
         options.workloads.push(value);
+        break;
+      }
+      case "--concurrency": {
+        const value = argv[++i];
+        assert(
+          value !== undefined && !value.startsWith("--"),
+          "--concurrency requires a value",
+        );
+        options.workloadConcurrency = parsePositiveInteger(
+          value,
+          "--concurrency",
+        );
         break;
       }
       case "--out": {
@@ -598,6 +612,7 @@ Options:
   --surface mcp|skills            GitHits access surface under test (default: mcp)
   --server local|published        GitHits source mode: local checkout or published package (default: local)
   --workload <path>               Workload markdown path, repeatable
+  --concurrency <positive integer> Maximum workloads to run concurrently (default: 1)
   --out <dir>                     Output directory
   --target-root <path>             Target checkout under test (default: measurement root)
   --timeout <seconds>             Per-workload timeout (default: 300)
@@ -696,6 +711,14 @@ function effectiveMcpConfigRoots(
   return roots;
 }
 
+function buildCodexMcpEnvVars(
+  baseEnv: NodeJS.ProcessEnv,
+): string[] | undefined {
+  return baseEnv.GITHITS_API_TOKEN === undefined
+    ? undefined
+    : ["GITHITS_API_TOKEN"];
+}
+
 export function buildCodexConfig(
   options: Pick<
     AgentEvalOptions,
@@ -709,6 +732,7 @@ export function buildCodexConfig(
   baseEnv: NodeJS.ProcessEnv = process.env,
 ): string {
   const command = buildMcpCommand(options, baseEnv);
+  const envVars = buildCodexMcpEnvVars(baseEnv);
   const lines = options.reasoningEffort
     ? [
         `model_reasoning_effort = ${JSON.stringify(options.reasoningEffort)}`,
@@ -720,6 +744,7 @@ export function buildCodexConfig(
     `command = ${JSON.stringify(command.command)}`,
     `args = ${JSON.stringify(command.args)}`,
   );
+  if (envVars) lines.push(`env_vars = ${JSON.stringify(envVars)}`);
   if (command.env && Object.keys(command.env).length > 0) {
     lines.push("", "[mcp_servers.githits.env]");
     for (const [key, value] of Object.entries(command.env)) {
@@ -743,12 +768,16 @@ export function buildCodexConfigArgs(
   baseEnv: NodeJS.ProcessEnv = process.env,
 ): string[] {
   const command = buildMcpCommand(options, baseEnv);
+  const envVars = buildCodexMcpEnvVars(baseEnv);
   const args = [
     "-c",
     `mcp_servers.githits.command=${JSON.stringify(command.command)}`,
     "-c",
     `mcp_servers.githits.args=${JSON.stringify(command.args)}`,
   ];
+  if (envVars) {
+    args.push("-c", `mcp_servers.githits.env_vars=${JSON.stringify(envVars)}`);
+  }
   if (options.reasoningEffort) {
     args.push(
       "-c",
@@ -2552,10 +2581,39 @@ async function runWorkload(
   }
 }
 
+async function runWorkloadsWithConcurrency(
+  workloads: readonly string[],
+  concurrency: number,
+  execute: (workload: string) => Promise<WorkloadRunExecution>,
+): Promise<WorkloadRunExecution[]> {
+  const results = new Array<WorkloadRunExecution>(workloads.length);
+  let nextIndex = 0;
+  const worker = async (): Promise<void> => {
+    while (nextIndex < workloads.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const workload = workloads[index];
+      assert(workload, "missing workload");
+      results[index] = await execute(workload);
+    }
+  };
+  const workers = Array.from(
+    { length: Math.min(concurrency, workloads.length) },
+    () => worker(),
+  );
+  await Promise.all(workers);
+  return results;
+}
+
 export async function runAgentEval(
   options: AgentEvalOptions,
   dependencies: AgentEvalDependencies = DEFAULT_AGENT_EVAL_DEPENDENCIES,
 ): Promise<void> {
+  assert(
+    Number.isInteger(options.workloadConcurrency) &&
+      options.workloadConcurrency > 0,
+    "workloadConcurrency must be a positive integer",
+  );
   validateScenarioScope(options);
   assert(
     existsSync(options.schemaPath),
@@ -2608,10 +2666,11 @@ export async function runAgentEval(
     versionsPromise,
   ]);
 
-  const workloadExecutions: WorkloadRunExecution[] = [];
-  for (const workload of options.workloads) {
-    workloadExecutions.push(
-      await runWorkload(
+  const workloadExecutions = await runWorkloadsWithConcurrency(
+    options.workloads,
+    options.workloadConcurrency,
+    (workload) =>
+      runWorkload(
         options,
         workload,
         options.outDir,
@@ -2623,8 +2682,7 @@ export async function runAgentEval(
         dependencies.runCommand ?? runWithTimeout,
         guidanceBlock,
       ),
-    );
-  }
+  );
   const completedAt = new Date().toISOString();
   const workloadResults = workloadExecutions.map(
     (execution) => execution.metadata,
@@ -2648,6 +2706,7 @@ export async function runAgentEval(
     publishedPackage: options.publishedPackage,
     dryRun: options.dryRun,
     timeoutSeconds: options.timeoutSeconds,
+    workloadConcurrency: options.workloadConcurrency,
     repoRoot: options.repoRoot,
     measurementRoot: options.repoRoot,
     targetRoot: effectiveTargetRoot(options),
