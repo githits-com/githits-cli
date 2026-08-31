@@ -12,17 +12,22 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import {
+  type BraintrustBaseExperiment,
   type BraintrustCliResult,
   type BraintrustEndSpanArgs,
+  type BraintrustExperimentInit,
+  type BraintrustIdentityInput,
   type BraintrustRowEvent,
   type BraintrustSpan,
   type BraintrustSuiteInput,
   btEvalMain,
+  buildBraintrustExperimentIdentity,
   buildBraintrustExperimentInit,
   createBraintrustPublisher,
   parseBraintrustArgs,
   preflightAndMapBraintrustRows,
   publishBraintrustRows,
+  resolveBraintrustMainExperiment,
   runBraintrustCli,
 } from "./agent-eval-braintrust.ts";
 import {
@@ -80,7 +85,11 @@ function createRecord(
     intentFragmentHash: options.intentFragmentHash,
     experimentalTools: false,
     publishedPackage: null,
-    targetGit: { branch: "main", sha: null, dirty: false },
+    targetGit: {
+      branch: "main",
+      sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      dirty: false,
+    },
     startedAt: "2026-08-28T10:00:00.000Z",
     completedAt: "2026-08-28T10:00:01.000Z",
     durationMs: 1000,
@@ -212,7 +221,11 @@ async function createSuite(
         intentFragmentHash: options.intentFragmentHash,
         dryRun: options.dryRun,
         codexVersion: "codex-test",
-        git: { branch: "main", sha: null, dirty: false },
+        git: {
+          branch: "main",
+          sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          dirty: false,
+        },
         workloads: [
           {
             id: workloadId,
@@ -243,6 +256,13 @@ async function createSuite(
       );
       return { runDir: options.outDir, status: "success" };
     },
+  });
+  mutateJson<AgentEvalSuiteArtifact>(join(outDir, "suite.json"), (artifact) => {
+    artifact.targetGit = {
+      branch: "main",
+      sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      dirty: false,
+    };
   });
   return {
     root,
@@ -1084,6 +1104,262 @@ describe("Braintrust eval row mapping", () => {
   });
 });
 
+describe("Braintrust experiment identity", () => {
+  it("builds stable channel-aware experiment identity", () => {
+    const sha = "abcdef1234567890abcdef1234567890abcdef12";
+    expect(
+      buildBraintrustExperimentIdentity({
+        source: "github",
+        channel: "main",
+        branch: "main",
+        sha,
+        githubRunId: "123",
+        githubRunAttempt: "2",
+      }),
+    ).toEqual({
+      source: "github",
+      channel: "main",
+      branch: "main",
+      sha,
+      experiment: "main-r123-a2",
+      tags: ["source:github", "channel:main", "branch:main", `sha:${sha}`],
+    });
+    expect(
+      buildBraintrustExperimentIdentity({
+        source: "github",
+        channel: "pr",
+        branch: "Feature/One",
+        sha,
+        pullRequestNumber: "456",
+        githubRunId: "123",
+        githubRunAttempt: "2",
+      }).experiment,
+    ).toBe("pr-456-r123-a2");
+    expect(
+      buildBraintrustExperimentIdentity({
+        source: "local",
+        channel: "local",
+        branch: "Feature/One & two",
+        sha,
+        now: new Date("2026-08-31T20:24:22.123Z"),
+      }).experiment,
+    ).toBe("local-feature-one-two-20260831T202422123Z-abcdef12");
+
+    const invalid: BraintrustIdentityInput[] = [
+      {
+        source: "github",
+        channel: "local",
+        branch: "main",
+        sha,
+        githubRunId: "123",
+        githubRunAttempt: "2",
+      },
+      {
+        source: "github",
+        channel: "main",
+        branch: "feature",
+        sha,
+        githubRunId: "123",
+        githubRunAttempt: "2",
+      },
+      {
+        source: "github",
+        channel: "pr",
+        branch: "feature",
+        sha,
+        githubRunId: "123",
+        githubRunAttempt: "2",
+      },
+      {
+        source: "github",
+        channel: "main",
+        branch: "main",
+        sha,
+        githubRunId: "not-numeric",
+        githubRunAttempt: "2",
+      },
+      {
+        source: "local",
+        channel: "local",
+        branch: null,
+        sha,
+      },
+      {
+        source: "local",
+        channel: "local",
+        branch: "main",
+        sha: null,
+      },
+    ];
+    for (const input of invalid)
+      expect(() => buildBraintrustExperimentIdentity(input)).toThrow();
+  });
+});
+
+describe("Braintrust main baseline resolution", () => {
+  it("resolves the latest valid main experiment across pages", async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      id: `first-${index}`,
+      name: `other-${index}`,
+      metadata: { channel: "pr" },
+    }));
+    const secondPage = [
+      {
+        id: "invalid-main-name",
+        name: "main-r123",
+        metadata: { channel: "main" },
+      },
+      {
+        id: "latest-main",
+        name: "main-r123-a2",
+        metadata: { channel: "main" },
+      },
+    ];
+    const requests: unknown[] = [];
+    const sdk: import("./agent-eval-braintrust.ts").BraintrustSdk = {
+      async login() {
+        return {
+          apiConn() {
+            return {
+              async get_json(objectType, params) {
+                requests.push({ objectType, params });
+                return requests.length === 1
+                  ? { objects: firstPage }
+                  : { objects: secondPage };
+              },
+            };
+          },
+        };
+      },
+      initExperiment() {
+        throw new Error("initialization must not occur during resolution");
+      },
+    };
+
+    await expect(
+      resolveBraintrustMainExperiment("project", sdk),
+    ).resolves.toEqual({
+      id: "latest-main",
+      name: "main-r123-a2",
+    });
+    expect(requests).toEqual([
+      {
+        objectType: "v1/experiment",
+        params: { project_name: "project", limit: "100" },
+      },
+      {
+        objectType: "v1/experiment",
+        params: {
+          project_name: "project",
+          limit: "100",
+          starting_after: "first-99",
+        },
+      },
+    ]);
+    expect(JSON.stringify(requests)).not.toContain("metadata");
+  });
+});
+
+describe("Braintrust baseline precedence", () => {
+  it("enforces main baseline bootstrap and explicit local precedence", async () => {
+    const fixture = await createSuite();
+    const mapping = preflightAndMapBraintrustRows([
+      suiteInput("baseline", fixture.suitePath),
+    ]);
+    const makePublisher =
+      (initSeen: BraintrustExperimentInit[]) =>
+      (init: BraintrustExperimentInit) => {
+        initSeen.push(init);
+        return {
+          startSpan() {
+            return {
+              startSpan() {
+                return leafSpan();
+              },
+              end() {},
+            };
+          },
+          async flush() {},
+          async permalink() {
+            return undefined;
+          },
+        };
+      };
+    const resolver = async () => null;
+    await expect(
+      publishBraintrustRows(
+        mapping,
+        {
+          project: "project",
+          source: "github",
+          channel: "pr",
+          branch: "feature",
+          sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          pullRequestNumber: "456",
+          githubRunId: "123",
+          githubRunAttempt: "2",
+        },
+        makePublisher([]),
+        resolver,
+      ),
+    ).rejects.toThrow("no main Braintrust baseline");
+
+    await expect(
+      publishBraintrustRows(
+        mapping,
+        {
+          project: "project",
+          source: "local",
+          channel: "local",
+          branch: "main",
+          sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          now: new Date("2026-08-31T20:24:22.123Z"),
+        },
+        makePublisher([]),
+        resolver,
+      ),
+    ).rejects.toThrow("no main Braintrust baseline");
+
+    const mainInit: BraintrustExperimentInit[] = [];
+    await publishBraintrustRows(
+      mapping,
+      {
+        project: "project",
+        source: "github",
+        channel: "main",
+        branch: "main",
+        sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        githubRunId: "123",
+        githubRunAttempt: "2",
+      },
+      makePublisher(mainInit),
+      resolver,
+    );
+    expect(mainInit[0]).toBeDefined();
+    expect(mainInit[0]).not.toHaveProperty("baseExperimentId");
+    expect(mainInit[0]!.experiment).toBe("main-r123-a2");
+
+    const localInit: BraintrustExperimentInit[] = [];
+    await publishBraintrustRows(
+      mapping,
+      {
+        project: "project",
+        source: "local",
+        channel: "local",
+        branch: "main",
+        sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        experiment: "local-explicit",
+        baseExperiment: "main-r10-a1",
+      },
+      makePublisher(localInit),
+      async () => {
+        throw new Error("base discovery must be skipped");
+      },
+    );
+    expect(localInit[0]!.baseExperiment).toBe("main-r10-a1");
+  });
+});
+
 describe("Braintrust publisher boundary", () => {
   it("builds exact allowlisted experiment initialization options", async () => {
     const fixture = await createSuite();
@@ -1092,8 +1368,9 @@ describe("Braintrust publisher boundary", () => {
     ]);
     const init = buildBraintrustExperimentInit(mapping, {
       project: "githits-cli-agent-evals",
-      experiment: "github-123-2",
       source: "github",
+      channel: "main",
+      branch: "main",
       githubRunId: "123",
       githubRunAttempt: "2",
       githubRunUrl:
@@ -1102,10 +1379,19 @@ describe("Braintrust publisher boundary", () => {
 
     expect(init).toEqual({
       project: "githits-cli-agent-evals",
-      experiment: "github-123-2",
+      experiment: "main-r123-a2",
       update: false,
+      tags: [
+        "source:github",
+        "channel:main",
+        "branch:main",
+        "sha:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      ],
       metadata: {
         source: "github",
+        channel: "main",
+        branch: "main",
+        sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         githubRunId: "123",
         githubRunAttempt: "2",
         githubRunUrl:
@@ -1240,6 +1526,7 @@ describe("Braintrust publisher boundary", () => {
       experiment: "local-test",
       url: "https://braintrust.dev/experiment/local-test",
       exportedRowCount: 2,
+      baseExperiment: null,
     });
     expect(JSON.stringify(result)).not.toContain(fixture.root);
     expect(JSON.stringify(result)).not.toContain("Prompt for");
@@ -1263,6 +1550,12 @@ describe("Braintrust publisher boundary", () => {
         expect(options).toEqual({
           experiment: "sdk-test",
           update: false,
+          tags: [
+            "source:local",
+            "channel:local",
+            "branch:main",
+            "sha:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          ],
           metadata: init.metadata,
           repoInfo: init.repoInfo,
           gitMetadataSettings: { collect: "none" },
@@ -1334,6 +1627,82 @@ describe("Braintrust publisher boundary", () => {
       "summary:false",
     ]);
     expect(result.url).toBe("https://braintrust.dev/experiment/sdk");
+  });
+
+  it("pins and reports the actual Braintrust base experiment", async () => {
+    const fixture = await createSuite();
+    const mapping = preflightAndMapBraintrustRows([
+      suiteInput("readback", fixture.suitePath),
+    ]);
+    const calls: string[] = [];
+    const sdk: import("./agent-eval-braintrust.ts").BraintrustSdk = {
+      initExperiment(project, options) {
+        calls.push(`init:${project}`);
+        expect(options.baseExperimentId).toBe("main-id");
+        return {
+          startSpan() {
+            return {
+              startSpan() {
+                return {
+                  startSpan() {
+                    throw new Error("unexpected nested span");
+                  },
+                  end() {
+                    return 0;
+                  },
+                };
+              },
+              end() {
+                return 0;
+              },
+            };
+          },
+          async flush() {
+            calls.push("flush");
+          },
+          async fetchBaseExperiment() {
+            calls.push("fetch-base");
+            return {
+              id: "main-id",
+              name: "main-r10-a1",
+              unused: "must-not-be-exported",
+            } as unknown as BraintrustBaseExperiment;
+          },
+          async summarize(options) {
+            calls.push(`summary:${options.summarizeScores}`);
+            return {
+              experimentUrl: "https://braintrust.dev/experiment/readback",
+            };
+          },
+        };
+      },
+    };
+    const result = await publishBraintrustRows(
+      mapping,
+      {
+        project: "project",
+        source: "local",
+        channel: "local",
+        branch: "main",
+        sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        experiment: "local-readback",
+        baseExperimentId: "main-id",
+      },
+      (init) => createBraintrustPublisher(init, sdk),
+    );
+
+    expect(calls).toEqual([
+      "init:project",
+      "flush",
+      "fetch-base",
+      "summary:false",
+    ]);
+    expect(result).toMatchObject({
+      experiment: "local-readback",
+      url: "https://braintrust.dev/experiment/readback",
+      baseExperiment: { id: "main-id", name: "main-r10-a1" },
+    });
+    expect(JSON.stringify(result)).not.toContain("aaaaaaaa");
   });
 
   it("exports only a generated status error for failed rows", async () => {
@@ -1439,8 +1808,8 @@ describe("Braintrust CLI wrapper", () => {
     expect(options).toEqual({
       suites: [{ label: "canary", suitePath: "out/suite.json" }],
       project: "githits-cli-agent-evals",
-      experiment: "local-20260831T123456000Z",
       source: "local",
+      channel: "local",
       validateOnly: false,
     });
   });
@@ -1451,10 +1820,12 @@ describe("Braintrust CLI wrapper", () => {
       "daily=out/suite.json",
       "--project",
       "custom-project",
-      "--experiment",
-      "github-123-2",
       "--source",
       "github",
+      "--channel",
+      "main",
+      "--branch",
+      "main",
       "--run-id",
       "123",
       "--run-attempt",
@@ -1469,8 +1840,9 @@ describe("Braintrust CLI wrapper", () => {
     expect(options).toEqual({
       suites: [{ label: "daily", suitePath: "out/suite.json" }],
       project: "custom-project",
-      experiment: "github-123-2",
       source: "github",
+      channel: "main",
+      branch: "main",
       githubRunId: "123",
       githubRunAttempt: "2",
       githubRunUrl:
@@ -1643,11 +2015,16 @@ describe("Braintrust CLI wrapper", () => {
         `canary=${fixture.suitePath}`,
         "--experiment",
         "local-export",
+        "--base-experiment",
+        "main-r1-a1",
         "--result-out",
         resultPath,
       ],
       {
         env: { BRAINTRUST_API_KEY: "dummy-secret" },
+        baseResolver: async () => {
+          throw new Error("base discovery must be skipped");
+        },
         publisherFactory: async (init) => {
           calls.push(`init:${init.project}/${init.experiment}`);
           return {
@@ -1696,6 +2073,7 @@ describe("Braintrust CLI wrapper", () => {
       rowCount: 1,
       suites: result.suites,
       url: "https://braintrust.dev/experiment/local-export",
+      baseExperiment: null,
     });
     expect(JSON.parse(printed[0]!) as BraintrustCliResult).toEqual(result);
     const resultText = readFileSync(resultPath, "utf8");
@@ -1712,9 +2090,17 @@ describe("Braintrust CLI wrapper", () => {
     const calls: string[] = [];
     await expect(
       runBraintrustCli(
-        ["--suite", `canary=${fixture.suitePath}`, "--result-out", resultPath],
+        [
+          "--suite",
+          `canary=${fixture.suitePath}`,
+          "--base-experiment",
+          "main-r1-a1",
+          "--result-out",
+          resultPath,
+        ],
         {
           env: { BRAINTRUST_API_KEY: "dummy-secret" },
+          baseResolver: async () => null,
           publisherFactory: () => ({
             startSpan(args) {
               calls.push(`start:${args.name}`);

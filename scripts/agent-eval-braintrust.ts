@@ -203,8 +203,15 @@ export interface BraintrustMappingResult {
 
 export interface BraintrustExportOptions {
   project: string;
-  experiment: string;
+  experiment?: string;
   source: "local" | "github";
+  channel?: "local" | "main" | "pr";
+  branch?: string | null;
+  sha?: string | null;
+  pullRequestNumber?: string;
+  baseExperiment?: string;
+  baseExperimentId?: string;
+  now?: Date;
   githubRunId?: string;
   githubRunAttempt?: string;
   githubRunUrl?: string;
@@ -222,6 +229,10 @@ export interface BraintrustRowEvent {
 export interface BraintrustExperimentMetadata {
   [key: string]: unknown;
   source: BraintrustExportOptions["source"];
+  channel?: "local" | "main" | "pr";
+  branch?: string;
+  sha?: string;
+  pullRequestNumber?: string;
   githubRunId?: string;
   githubRunAttempt?: string;
   githubRunUrl?: string;
@@ -239,6 +250,9 @@ export interface BraintrustExperimentInit {
   project: string;
   experiment: string;
   update: false;
+  baseExperiment?: string;
+  baseExperimentId?: string;
+  tags?: string[];
   metadata: BraintrustExperimentMetadata;
   repoInfo: {
     commit: string | null;
@@ -266,10 +280,33 @@ export interface BraintrustSpan {
   end(args?: BraintrustEndSpanArgs): void | Promise<void>;
 }
 
+export interface BraintrustBaseExperiment {
+  id: string;
+  name: string;
+}
+
+function safeBaseExperiment(value: unknown): BraintrustBaseExperiment | null {
+  if (value === null || value === undefined) return null;
+  assert(
+    typeof value === "object" && value !== null,
+    "Braintrust base experiment response is invalid",
+  );
+  const candidate = value as { id?: unknown; name?: unknown };
+  assert(
+    typeof candidate.id === "string" &&
+      candidate.id.length > 0 &&
+      typeof candidate.name === "string" &&
+      candidate.name.length > 0,
+    "Braintrust base experiment response is invalid",
+  );
+  return { id: candidate.id, name: candidate.name };
+}
+
 export interface BraintrustPublisher {
   startSpan(args: BraintrustStartSpanArgs): BraintrustSpan;
   flush(): Promise<void>;
   permalink(): Promise<string | undefined>;
+  fetchBaseExperiment?(): Promise<BraintrustBaseExperiment | null>;
 }
 
 export interface BraintrustExportResult {
@@ -277,6 +314,7 @@ export interface BraintrustExportResult {
   experiment: string;
   url?: string;
   exportedRowCount: number;
+  baseExperiment?: BraintrustBaseExperiment | null;
 }
 
 export interface BraintrustCliOptions extends BraintrustExportOptions {
@@ -293,12 +331,14 @@ export interface BraintrustCliResult {
   rowCount: number;
   suites: BraintrustSuiteSummary[];
   url?: string;
+  baseExperiment?: BraintrustBaseExperiment | null;
 }
 
 export interface BraintrustCliRuntime {
   now?: () => Date;
   env?: Readonly<Record<string, string | undefined>>;
   publisherFactory?: BraintrustPublisherFactory;
+  baseResolver?: (project: string) => Promise<BraintrustBaseExperiment | null>;
   writeFile?: (path: string, contents: string) => void;
   print?: (line: string) => void;
 }
@@ -318,9 +358,23 @@ export interface BraintrustSdkExperiment {
   summarize(options: { summarizeScores: false }): Promise<{
     experimentUrl?: string;
   }>;
+  fetchBaseExperiment?(): Promise<BraintrustBaseExperiment | null>;
+}
+
+export interface BraintrustSdkApiConnection {
+  get_json(
+    objectType: string,
+    params?: Record<string, string | string[] | undefined>,
+    retries?: number,
+  ): Promise<unknown>;
+}
+
+export interface BraintrustSdkState {
+  apiConn(): BraintrustSdkApiConnection;
 }
 
 export interface BraintrustSdk {
+  login?(): Promise<BraintrustSdkState>;
   initExperiment(
     project: string,
     options: Omit<BraintrustExperimentInit, "project">,
@@ -352,8 +406,151 @@ interface PromptArtifact {
   sha256: string;
 }
 
+export type BraintrustChannel = "local" | "main" | "pr";
+
+export interface BraintrustExperimentIdentity {
+  source: BraintrustExportOptions["source"];
+  channel: BraintrustChannel;
+  branch: string;
+  sha: string;
+  pullRequestNumber?: string;
+  experiment: string;
+  tags: string[];
+}
+
+export interface BraintrustIdentityInput {
+  source: BraintrustExportOptions["source"];
+  channel?: BraintrustChannel;
+  branch: string | null | undefined;
+  sha: string | null | undefined;
+  pullRequestNumber?: string;
+  githubRunId?: string;
+  githubRunAttempt?: string;
+  experiment?: string;
+  now?: Date;
+}
+
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`Braintrust preflight: ${message}`);
+}
+
+function assertNonEmptyIdentity(
+  value: string | null | undefined,
+  field: string,
+): string {
+  assert(
+    typeof value === "string" && value.trim().length > 0,
+    `${field} is required`,
+  );
+  return value;
+}
+
+function assertPositiveInteger(
+  value: string | undefined,
+  field: string,
+): string {
+  assert(
+    typeof value === "string" && /^[1-9]\d*$/.test(value),
+    `${field} must be a positive integer`,
+  );
+  return value;
+}
+
+function branchSlug(branch: string): string {
+  const slug = branch.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  assert(
+    slug.length > 0,
+    "branch must contain an ASCII alphanumeric character",
+  );
+  return slug.toLowerCase();
+}
+
+function buildIdentityTags(identity: {
+  source: BraintrustExportOptions["source"];
+  channel: BraintrustChannel;
+  branch: string;
+  sha: string;
+  pullRequestNumber?: string;
+}): string[] {
+  return [
+    `source:${identity.source}`,
+    `channel:${identity.channel}`,
+    `branch:${identity.branch}`,
+    `sha:${identity.sha}`,
+    ...(identity.pullRequestNumber !== undefined
+      ? [`pr:${identity.pullRequestNumber}`]
+      : []),
+  ];
+}
+
+export function buildBraintrustExperimentIdentity(
+  input: BraintrustIdentityInput,
+): BraintrustExperimentIdentity {
+  const channel =
+    input.channel ?? (input.source === "local" ? "local" : "main");
+  assert(
+    (input.source === "local" && channel === "local") ||
+      (input.source === "github" && (channel === "main" || channel === "pr")),
+    `source ${input.source} is incompatible with channel ${channel}`,
+  );
+  const branch = assertNonEmptyIdentity(input.branch, "branch");
+  const sha = assertNonEmptyIdentity(input.sha, "SHA");
+
+  let experiment: string;
+  const identity = {
+    source: input.source,
+    channel,
+    branch,
+    sha,
+    ...(input.pullRequestNumber !== undefined
+      ? { pullRequestNumber: input.pullRequestNumber }
+      : {}),
+  };
+  if (input.source === "github") {
+    assert(
+      input.experiment === undefined,
+      "--experiment is only permitted for local exports",
+    );
+    const runId = assertPositiveInteger(input.githubRunId, "GitHub run ID");
+    const attempt = assertPositiveInteger(
+      input.githubRunAttempt,
+      "GitHub run attempt",
+    );
+    if (channel === "main") {
+      assert(branch === "main", "GitHub main channel requires branch main");
+      assert(
+        input.pullRequestNumber === undefined,
+        "GitHub main channel must not have a pull-request number",
+      );
+      experiment = `main-r${runId}-a${attempt}`;
+    } else {
+      const pullRequestNumber = assertPositiveInteger(
+        input.pullRequestNumber,
+        "pull-request number",
+      );
+      experiment = `pr-${pullRequestNumber}-r${runId}-a${attempt}`;
+    }
+  } else {
+    assert(
+      input.pullRequestNumber === undefined &&
+        input.githubRunId === undefined &&
+        input.githubRunAttempt === undefined,
+      "GitHub identity fields require source github",
+    );
+    const now = input.now ?? new Date();
+    assert(!Number.isNaN(now.getTime()), "current time is invalid");
+    experiment =
+      input.experiment ??
+      `local-${branchSlug(branch)}-${now
+        .toISOString()
+        .replace(/[^0-9A-Za-z]/g, "")}-${sha.slice(0, 8)}`;
+    assertNonEmptyIdentity(experiment, "experiment");
+  }
+  return {
+    ...identity,
+    experiment,
+    tags: buildIdentityTags(identity),
+  };
 }
 
 function uniqueSorted(values: readonly string[]): string[] {
@@ -990,8 +1187,53 @@ export function buildBraintrustExperimentInit(
   const firstSuite = mapping.suites[0];
   assert(firstSuite, "cannot build experiment metadata without mapped suites");
   const { metadata } = firstRow;
-  const experimentMetadata: BraintrustExperimentMetadata = {
+  const branch =
+    options.branch !== undefined
+      ? options.branch
+      : options.source === "github"
+        ? null
+        : metadata.targetGit.branch;
+  const sha = options.sha !== undefined ? options.sha : metadata.targetGit.sha;
+  if (options.source === "local") {
+    assert(
+      options.githubRunId === undefined &&
+        options.githubRunAttempt === undefined &&
+        options.githubRunUrl === undefined,
+      "GitHub run fields require source github",
+    );
+  }
+  const identity = buildBraintrustExperimentIdentity({
     source: options.source,
+    channel: options.channel,
+    branch,
+    sha,
+    pullRequestNumber: options.pullRequestNumber,
+    githubRunId: options.githubRunId,
+    githubRunAttempt: options.githubRunAttempt,
+    experiment: options.experiment,
+    now: options.now,
+  });
+  if (options.baseExperiment !== undefined) {
+    assert(
+      options.source === "local",
+      "explicit base experiment is only permitted for local exports",
+    );
+    assertNonEmptyIdentity(options.baseExperiment, "base experiment");
+  }
+  if (
+    options.baseExperiment === undefined &&
+    options.baseExperimentId !== undefined
+  ) {
+    assertNonEmptyIdentity(options.baseExperimentId, "base experiment ID");
+  }
+  const experimentMetadata: BraintrustExperimentMetadata = {
+    source: identity.source,
+    channel: identity.channel,
+    branch: identity.branch,
+    sha: identity.sha,
+    ...(identity.pullRequestNumber !== undefined
+      ? { pullRequestNumber: identity.pullRequestNumber }
+      : {}),
     ...(options.githubRunId !== undefined
       ? { githubRunId: options.githubRunId }
       : {}),
@@ -1012,12 +1254,20 @@ export function buildBraintrustExperimentInit(
   };
   return {
     project: options.project,
-    experiment: options.experiment,
+    experiment: identity.experiment,
     update: false,
+    ...(options.baseExperiment !== undefined
+      ? { baseExperiment: options.baseExperiment }
+      : {}),
+    ...(options.baseExperiment === undefined &&
+    options.baseExperimentId !== undefined
+      ? { baseExperimentId: options.baseExperimentId }
+      : {}),
+    tags: identity.tags,
     metadata: experimentMetadata,
     repoInfo: {
-      commit: metadata.targetGit.sha,
-      branch: metadata.targetGit.branch,
+      commit: identity.sha,
+      branch: identity.branch,
       dirty: metadata.targetGit.dirty,
     },
     gitMetadataSettings: { collect: "none" },
@@ -1031,6 +1281,13 @@ export async function createBraintrustPublisher(
   const sdkOptions: Omit<BraintrustExperimentInit, "project"> = {
     experiment: init.experiment,
     update: init.update,
+    ...(init.baseExperiment !== undefined
+      ? { baseExperiment: init.baseExperiment }
+      : {}),
+    ...(init.baseExperimentId !== undefined
+      ? { baseExperimentId: init.baseExperimentId }
+      : {}),
+    tags: init.tags,
     metadata: init.metadata,
     repoInfo: init.repoInfo,
     gitMetadataSettings: init.gitMetadataSettings,
@@ -1055,15 +1312,127 @@ export async function createBraintrustPublisher(
     flush: () => experiment.flush(),
     permalink: async () =>
       (await experiment.summarize({ summarizeScores: false })).experimentUrl,
+    fetchBaseExperiment: async () => {
+      const base = await experiment.fetchBaseExperiment?.();
+      return safeBaseExperiment(base);
+    },
   };
+}
+
+const BRAINTRUST_EXPERIMENT_PAGE_SIZE = "100";
+
+interface BraintrustListedExperiment {
+  id: string;
+  name: string;
+  metadata?: Record<string, unknown> | null;
+}
+
+function listedExperiments(value: unknown): BraintrustListedExperiment[] {
+  assert(
+    typeof value === "object" && value !== null && "objects" in value,
+    "Braintrust experiment list response is invalid",
+  );
+  const objects = (value as { objects?: unknown }).objects;
+  assert(
+    Array.isArray(objects),
+    "Braintrust experiment list response is invalid",
+  );
+  return objects.map((candidate) => {
+    assert(
+      typeof candidate === "object" && candidate !== null,
+      "Braintrust experiment list item is invalid",
+    );
+    const item = candidate as {
+      id?: unknown;
+      name?: unknown;
+      metadata?: unknown;
+    };
+    assert(
+      typeof item.id === "string" &&
+        item.id.length > 0 &&
+        typeof item.name === "string",
+      "Braintrust experiment list item is invalid",
+    );
+    return {
+      id: item.id,
+      name: item.name,
+      ...(item.metadata !== undefined
+        ? {
+            metadata: (item.metadata ?? null) as Record<string, unknown> | null,
+          }
+        : {}),
+    };
+  });
+}
+
+export async function resolveBraintrustMainExperiment(
+  project: string,
+  injectedSdk?: BraintrustSdk,
+): Promise<BraintrustBaseExperiment | null> {
+  const sdk =
+    injectedSdk ?? ((await import("braintrust")) as unknown as BraintrustSdk);
+  assert(typeof sdk.login === "function", "Braintrust login is unavailable");
+  const state = await sdk.login();
+  const api = state.apiConn();
+  let startingAfter: string | undefined;
+  while (true) {
+    const page = listedExperiments(
+      await api.get_json(
+        "v1/experiment",
+        {
+          project_name: project,
+          limit: BRAINTRUST_EXPERIMENT_PAGE_SIZE,
+          ...(startingAfter !== undefined
+            ? { starting_after: startingAfter }
+            : {}),
+        },
+        0,
+      ),
+    );
+    for (const experiment of page) {
+      if (
+        experiment.metadata?.channel === "main" &&
+        /^main-r\d+-a\d+$/.test(experiment.name)
+      ) {
+        return safeBaseExperiment(experiment);
+      }
+    }
+    if (page.length < Number(BRAINTRUST_EXPERIMENT_PAGE_SIZE)) return null;
+    const final = page[page.length - 1];
+    assert(final, "Braintrust experiment list page is empty");
+    startingAfter = final.id;
+  }
 }
 
 export async function publishBraintrustRows(
   mapping: BraintrustMappingResult,
   options: BraintrustExportOptions,
   publisherFactory: BraintrustPublisherFactory = createBraintrustPublisher,
+  baseResolver?: (project: string) => Promise<BraintrustBaseExperiment | null>,
 ): Promise<BraintrustExportResult> {
-  const init = buildBraintrustExperimentInit(mapping, options);
+  let resolvedOptions = options;
+  const channel =
+    options.channel ?? (options.source === "local" ? "local" : "main");
+  if (options.baseExperiment !== undefined) {
+    cliAssert(
+      options.source === "local",
+      "explicit base experiment is only permitted for local exports",
+    );
+  } else if (
+    options.baseExperimentId === undefined &&
+    baseResolver !== undefined
+  ) {
+    const base = safeBaseExperiment(await baseResolver(options.project));
+    cliAssert(
+      base !== null || channel === "main",
+      `no main Braintrust baseline exists for ${channel} export`,
+    );
+    resolvedOptions = {
+      ...options,
+      ...(base !== null ? { baseExperimentId: base.id } : {}),
+    };
+  }
+  const init = buildBraintrustExperimentInit(mapping, resolvedOptions);
   const publisher = await publisherFactory(init);
   for (const row of mapping.rows) {
     const span = publisher.startSpan({
@@ -1088,12 +1457,14 @@ export async function publishBraintrustRows(
     );
   }
   await publisher.flush();
+  const baseExperiment = (await publisher.fetchBaseExperiment?.()) ?? null;
   const url = await publisher.permalink();
   return {
-    project: options.project,
-    experiment: options.experiment,
+    project: resolvedOptions.project,
+    experiment: init.experiment,
     ...(url !== undefined ? { url } : {}),
     exportedRowCount: mapping.rows.length,
+    baseExperiment,
   };
 }
 
@@ -1129,11 +1500,6 @@ function parseSuiteInput(value: string): BraintrustSuiteInput {
   return { label, suitePath };
 }
 
-function localExperimentName(now: Date): string {
-  cliAssert(!Number.isNaN(now.getTime()), "current time is invalid");
-  return `local-${now.toISOString().replace(/[^0-9A-Za-z]/g, "")}`;
-}
-
 function validateRunUrl(value: string): void {
   let url: URL;
   try {
@@ -1151,12 +1517,17 @@ export function parseBraintrustArgs(
   argv: readonly string[],
   now: Date = new Date(),
 ): BraintrustCliOptions {
+  cliAssert(!Number.isNaN(now.getTime()), "current time is invalid");
   const suites: BraintrustSuiteInput[] = [];
   const seenSuiteLabels = new Set<string>();
   const seenFlags = new Set<string>();
   let project = DEFAULT_BRAINTRUST_PROJECT;
   let experiment: string | undefined;
   let source: BraintrustExportOptions["source"] = "local";
+  let channel: BraintrustChannel | undefined;
+  let branch: string | null | undefined;
+  let pullRequestNumber: string | undefined;
+  let baseExperiment: string | undefined;
   let githubRunId: string | undefined;
   let githubRunAttempt: string | undefined;
   let githubRunUrl: string | undefined;
@@ -1181,6 +1552,10 @@ export function parseBraintrustArgs(
         flag === "--project" ||
         flag === "--experiment" ||
         flag === "--source" ||
+        flag === "--channel" ||
+        flag === "--branch" ||
+        flag === "--pr-number" ||
+        flag === "--base-experiment" ||
         flag === "--run-id" ||
         flag === "--run-attempt" ||
         flag === "--run-url" ||
@@ -1218,6 +1593,24 @@ export function parseBraintrustArgs(
         );
         source = parsed.value;
         break;
+      case "--channel":
+        cliAssert(
+          parsed.value === "local" ||
+            parsed.value === "main" ||
+            parsed.value === "pr",
+          "--channel must be local, main, or pr",
+        );
+        channel = parsed.value;
+        break;
+      case "--branch":
+        branch = parsed.value;
+        break;
+      case "--pr-number":
+        pullRequestNumber = parsed.value;
+        break;
+      case "--base-experiment":
+        baseExperiment = parsed.value;
+        break;
       case "--run-id":
         githubRunId = parsed.value;
         break;
@@ -1241,6 +1634,14 @@ export function parseBraintrustArgs(
     githubRunUrl !== undefined;
   if (source === "local") {
     cliAssert(!hasGithubMetadata, "GitHub run fields require --source github");
+    cliAssert(
+      channel === undefined || channel === "local",
+      "local source requires local channel",
+    );
+    cliAssert(
+      pullRequestNumber === undefined,
+      "pull-request number requires a GitHub pull-request channel",
+    );
   } else {
     cliAssert(
       githubRunId !== undefined &&
@@ -1249,20 +1650,43 @@ export function parseBraintrustArgs(
       "--source github requires --run-id, --run-attempt, and --run-url",
     );
     cliAssert(
-      experimentWasExplicit,
-      "--source github requires an explicit --experiment",
+      !experimentWasExplicit,
+      "--experiment is only permitted for local exports",
     );
     cliAssert(
-      experiment === `github-${githubRunId}-${githubRunAttempt}`,
-      "GitHub experiment must be github-<run-id>-<run-attempt>",
+      typeof branch === "string" && branch.trim().length > 0,
+      "GitHub source requires --branch",
+    );
+    cliAssert(
+      channel === "main" || channel === "pr",
+      "GitHub source requires --channel main or pr",
+    );
+    if (channel === "pr") {
+      cliAssert(
+        pullRequestNumber !== undefined && /^[1-9]\d*$/.test(pullRequestNumber),
+        "pull-request channel requires a positive numeric --pr-number",
+      );
+    } else {
+      cliAssert(
+        pullRequestNumber === undefined,
+        "main channel must not have --pr-number",
+      );
+    }
+    cliAssert(
+      baseExperiment === undefined,
+      "--base-experiment is only permitted for local exports",
     );
   }
 
   return {
     suites,
     project,
-    experiment: experiment ?? localExperimentName(now),
     source,
+    channel: channel ?? (source === "local" ? "local" : "main"),
+    ...(experiment !== undefined ? { experiment } : {}),
+    ...(branch !== undefined ? { branch } : {}),
+    ...(pullRequestNumber !== undefined ? { pullRequestNumber } : {}),
+    ...(baseExperiment !== undefined ? { baseExperiment } : {}),
     ...(githubRunId !== undefined ? { githubRunId } : {}),
     ...(githubRunAttempt !== undefined ? { githubRunAttempt } : {}),
     ...(githubRunUrl !== undefined ? { githubRunUrl } : {}),
@@ -1283,16 +1707,19 @@ function buildCliResult(
   mode: BraintrustCliResult["mode"],
   options: BraintrustCliOptions,
   mapping: BraintrustMappingResult,
+  experiment: string,
   url: string | undefined,
+  baseExperiment: BraintrustBaseExperiment | null,
 ): BraintrustCliResult {
   return {
     schemaVersion: 1,
     mode,
     project: options.project,
-    experiment: options.experiment,
+    experiment,
     rowCount: mapping.rows.length,
     suites: mapping.suites,
     ...(url !== undefined ? { url } : {}),
+    baseExperiment,
   };
 }
 
@@ -1308,11 +1735,21 @@ export async function runBraintrustCli(
   argv: readonly string[],
   runtime: BraintrustCliRuntime = {},
 ): Promise<BraintrustCliResult> {
-  const options = parseBraintrustArgs(argv, runtime.now?.() ?? new Date());
-  const mapping = preflightAndMapBraintrustRows(options.suites);
+  const now = runtime.now?.() ?? new Date();
+  const parsedOptions = parseBraintrustArgs(argv, now);
+  const mapping = preflightAndMapBraintrustRows(parsedOptions.suites);
+  const options: BraintrustCliOptions = { ...parsedOptions, now };
+  const init = buildBraintrustExperimentInit(mapping, options);
   let result: BraintrustCliResult;
   if (options.validateOnly) {
-    result = buildCliResult("validate-only", options, mapping, undefined);
+    result = buildCliResult(
+      "validate-only",
+      options,
+      mapping,
+      init.experiment,
+      undefined,
+      null,
+    );
   } else {
     cliAssert(
       hasBraintrustApiKey(runtime),
@@ -1322,8 +1759,17 @@ export async function runBraintrustCli(
       mapping,
       options,
       runtime.publisherFactory,
+      runtime.baseResolver ??
+        ((project) => resolveBraintrustMainExperiment(project)),
     );
-    result = buildCliResult("export", options, mapping, exported.url);
+    result = buildCliResult(
+      "export",
+      options,
+      mapping,
+      exported.experiment,
+      exported.url,
+      exported.baseExperiment ?? null,
+    );
   }
   if (options.resultOut !== undefined) {
     writeCliResult(
