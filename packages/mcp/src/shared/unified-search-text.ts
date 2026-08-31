@@ -355,6 +355,14 @@ function appendCompactSources(
       (source) => source !== identity,
     );
     if (distinctSources.length === 0) return [identity];
+    if (
+      uniqueSources.length === 1 &&
+      distinctSources.length === 1 &&
+      targetDisplayFamilyKey(distinctSources[0]) ===
+        targetDisplayFamilyKey(identity)
+    ) {
+      return distinctSources;
+    }
     return [`${identity} - ${distinctSources.join(", ")}`];
   });
   const unique = [...new Set(values)];
@@ -390,10 +398,10 @@ function formatCompactSource(
 ): string | undefined {
   if (kind === "code") return "code";
   if (kind === "symbols") return "symbols";
-  if (kind === "repository_docs" && entry.repositoryUrl) {
+  if (kind === "repository_docs" && entry.repositoryUrl && entry.commitSha) {
     return formatRepositoryTarget(
       entry.repositoryUrl,
-      entry.commitSha?.slice(0, 8),
+      entry.commitSha.slice(0, 8),
     );
   }
   if (kind === "site_docs") {

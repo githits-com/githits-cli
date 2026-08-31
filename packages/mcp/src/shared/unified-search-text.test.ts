@@ -318,6 +318,59 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("site:hono.dev - site:hono.dev");
   });
 
+  it("uses the sole pinned repository source instead of its unpinned target", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([docsHit({ target: "github:axios/axios" })], {
+        sourceStatus: [
+          source({
+            source: "docs",
+            targetLabel: "github:axios/axios",
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                resultCount: 1,
+                repositoryUrl: "https://github.com/axios/axios",
+                commitSha: "fede1d1500000000000000000000000000000000",
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain("Sources: github:axios/axios#fede1d15");
+    expect(text).not.toContain(
+      "github:axios/axios - github:axios/axios#fede1d15",
+    );
+  });
+
+  it("keeps repository docs without a commit in detailed target state", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([docsHit({ target: "github:axios/axios#main" })], {
+        sourceStatus: [
+          source({
+            source: "docs",
+            targetLabel: "github:axios/axios#main",
+            contributors: [
+              {
+                kind: "REPOSITORY_DOCS",
+                state: "SEARCHED",
+                resultCount: 1,
+                repositoryUrl: "https://github.com/axios/axios",
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(text).toContain(
+      "- github:axios/axios#main\n  searched: repository docs",
+    );
+    expect(text).not.toContain("Sources:");
+  });
+
   it("keeps concrete provenance grouped with each healthy target", () => {
     const text = renderUnifiedSearchSuccess(
       completed(

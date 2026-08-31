@@ -488,9 +488,10 @@ Multiple healthy targets use one semicolon-delimited `Sources:` row, with each t
 written once and its searched sources following it. Code and symbols remain compact lane
 names. Documentation contributors retain canonical `site:<host[/path]>` locators and
 canonical `github:<owner>/<repo>#<revision>` locators. A source identical to its standalone
-target is written once. Compact output requires concrete documentation provenance; an
-incomplete payload without it stays in detailed target-state form. Ranked hit locators and
-JSON retain their existing provenance.
+target is written once; a sole pinned repository source replaces its less-specific
+repository target. Compact output requires concrete documentation provenance; an incomplete
+payload without it stays in detailed target-state form. Ranked hit locators and JSON retain
+their existing provenance.
 
 Mixed progress and terminal state use the same target list:
 

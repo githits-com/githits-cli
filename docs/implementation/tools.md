@@ -157,8 +157,9 @@ active/terminal lifecycle, readiness, and pagination when applicable. A complete
 current result set collapses to one `Sources: <target> - <sources>` row; code and
 symbols use lane names while documentation uses a canonical `site:<host[/path]>`
 or `github:<owner>/<repo>#<revision>` locator. A source identical to its standalone
-target is written once. Documentation without concrete provenance stays in detailed
-target-state form. Any trust,
+target is written once; a sole pinned repository source replaces its less-specific
+repository target. Documentation without concrete provenance stays in detailed target-state
+form. Any trust,
 warning, alternative, suggestion, or non-current fact keeps every target in one
 detailed list. Each target row can contain `using`, `searched`, `indexing`, an exact
 terminal reason, `available`, `indexed`, constraints, and at most one inline
