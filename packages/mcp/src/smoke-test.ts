@@ -438,6 +438,22 @@ async function assertLiveOrAuthRequired(
     "search_language default missing Python display name",
   );
   assert(text.includes("aliases:"), "search_language default missing aliases");
+  const packageResult = await callTool(caller, "pkg_info", {
+    registry: "npm",
+    package_name: "express",
+  });
+  if (packageResult.isError === true) {
+    const envelope = assertCleanErrorEnvelope(
+      packageResult,
+      "pkg_info auth probe",
+    );
+    assert(
+      envelope.code === "AUTH_REQUIRED",
+      `pkg_info auth probe returned unexpected code ${envelope.code}`,
+    );
+    logger.log("AUTH_REQUIRED: live smoke skipped");
+    return false;
+  }
   return true;
 }
 

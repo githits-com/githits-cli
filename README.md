@@ -132,8 +132,9 @@ npx githits@latest docs read <page-id> --lines 20-80
 
 GitHits 0.10 adds two opt-in local tools for early dogfooding:
 
-- `resolve_target` / `githits resolve` turns a fuzzy or ambiguous package or
-  repository name into ranked canonical targets.
+- `resolve_target` / `githits resolve` turns a fuzzy or ambiguous package,
+  repository, or documentation-site name into grouped canonical targets with
+  related project identities kept together.
 - `code_diff` / `githits code diff` compares repository trees resolved from
   exact package versions or public GitHub refs.
 

@@ -96,7 +96,7 @@ describe("resolveAction", () => {
       includeDetailedFields: false,
     });
     expect(String(writeSpy.mock.calls[0]?.[0])).toContain(
-      "Candidates:\n  1. npm:express",
+      "Targets:\n  1. npm:express",
     );
     expect(String(writeSpy.mock.calls[0]?.[0])).not.toContain("Warning:");
     expect(String(writeSpy.mock.calls[0]?.[0])).not.toContain("malicious");
@@ -104,9 +104,9 @@ describe("resolveAction", () => {
 
   it("requests detailed data and prints clean JSON", async () => {
     const affected = structuredClone(defaultResolveTargetResult);
-    const candidate = affected.candidates[0];
+    const candidate = affected.targets[0];
     if (!candidate) throw new Error("fixture missing resolve candidate");
-    affected.candidates[0] = {
+    affected.targets[0] = {
       ...candidate,
       latestVersionMaliciousStatus: "AFFECTED",
       latestVersionMaliciousEvidence: {
@@ -163,7 +163,7 @@ describe("resolveAction", () => {
     const empty = {
       ...defaultResolveTargetResult,
       best: undefined,
-      candidates: [],
+      targets: [],
       protectedMatches: [],
     };
 
@@ -181,6 +181,7 @@ describe("resolveAction", () => {
       ambiguous: false,
       candidates: [],
       protectedMatches: [],
+      targetsTruncated: false,
     });
     expect(process.exitCode).toBe(1);
   });
@@ -192,7 +193,7 @@ describe("resolveAction", () => {
     const empty = {
       ...defaultResolveTargetResult,
       best: undefined,
-      candidates: [],
+      targets: [],
       protectedMatches: [],
     };
 
@@ -457,6 +458,12 @@ describe("registerResolveCommand", () => {
         ?.description,
     ).toBe(
       `Comma-separated filter that constrains package candidates only: ${PKGSEER_REGISTRY_LIST}`,
+    );
+    expect(
+      resolveCommand?.options.find((option) => option.long === "--limit")
+        ?.description,
+    ).toBe(
+      "Direct ranked matches (1-20, default 8); protected exact and related targets may be additional",
     );
   });
 
