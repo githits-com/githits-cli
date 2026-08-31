@@ -13,7 +13,12 @@ behavior. Do not treat a live agent pass/fail result as a deterministic
 regression test: model behavior, backend indexing state, auth state, network
 conditions, and package data can all change. The useful output is the artifact
 set, especially `tool-calls.json`, `final.json`, `metrics.json`, `report.json`,
-`toolIssues`, `instructionIssues`, and the agent's usefulness assessment.
+and `isolation-violations.json`.
+
+The repository-local named-suite commands below are the Phase 2 measurement
+workflow. They run the fixed Luna matrix and produce validated suite and
+comparison artifacts, but they do not yet schedule paid runs, retain history in
+a service, or judge answer quality.
 
 ## What Is Under Test
 
@@ -23,18 +28,17 @@ set, especially `tool-calls.json`, `final.json`, `metrics.json`, `report.json`,
   by default.
 - Skills mode copies this checkout's `skills/` directory into the isolated
   workspace at `skills/`, `.agents/skills`, `.claude/skills`, and
-  `.codex/skills`, creates a `githits` CLI shim on `PATH`, and runs Claude with
-  an empty strict MCP config so global/plugin MCP servers do not contaminate the
-  run.
-- MCP runs use the `descriptors` guidance profile by default. It exposes the
-  MCP tools, including `quick_start`, with no MCP server instructions and no
-  installed skills or project pointer. This approximates a remote connector
-  that exposes tool definitions only. OpenCode can isolate this profile
-  locally; Codex and Claude runs retain the diagnostic limitations documented
-  below. The `full` profile uses the same MCP server and additionally installs
-  only the `githits-mcp` skill plus project `CLAUDE.md`/`AGENTS.md` guidance.
-  `full` requires
-  `--server local`; `descriptors` also supports published MCP runs.
+  `.codex/skills`, creates a `githits` CLI shim on `PATH`, and gives Claude an
+  empty strict MCP config so global/plugin MCP servers do not contaminate the
+  run. Codex and OpenCode use their corresponding isolated command/config
+  paths.
+- One-off MCP runs use the `descriptors` guidance profile by default. The
+  closed scenario set is described below; `descriptors` plus `neutral` is
+  discovery, while `descriptors` plus `githits` is intent. The `full` profile
+  uses the same MCP server and additionally installs only the `githits-mcp`
+  skill plus project `CLAUDE.md`/`AGENTS.md` guidance; it does not install a
+  CLI shim. `full` requires `--server local`; descriptor-only runs also support
+  published MCP runs.
 - To evaluate `quick_start` or MCP description changes, change branch/source
   and run local mode.
 - To evaluate skill instruction changes, use `--surface skills --server local`.
@@ -43,38 +47,162 @@ Smoke tests are the right fit for CI gating. Agentic evals are the right fit for
 qualitative review before/after instruction, tool-description, and agent-facing
 UX changes.
 
-The harness must not add GitHits usage guidance through agent system prompts,
-append prompts, or plugin commands. The `descriptors` profile does not install
-project guidance; `full` deliberately exercises the same
-canonical project guidance and skills that a guided local installation provides.
-Workload prompts may ask the agent to report what happened, but must not tell
-the agent how to use GitHits.
+Workload prompts remain neutral and must not tell the agent how to use GitHits.
+The harness-owned `githits` intent profile is the one explicit exception: it
+appends exactly `Use GitHits for this task.` between the workload and the
+unchanged reporting prompt. It is an identity-bearing test condition, not a
+workload edit or an agent system prompt.
+
+## Closed scenarios
+
+One-off and named-suite runs use this closed MCP scenario set:
+
+| Scenario    | Guidance      | Intent    | Fragment hash                                                       | Meaning                                                |
+| ----------- | ------------- | --------- | ------------------------------------------------------------------- | ------------------------------------------------------ |
+| `discovery` | `descriptors` | `neutral` | `null`                                                              | Descriptor-only autonomous tool discovery              |
+| `intent`    | `descriptors` | `githits` | `b04b96acfd7a89516ab1742d9df914bb6779e952c7df96ac9858785ed40f10d0` | Descriptor-only discovery with the exact harness nudge |
+| `full`      | `full`        | `neutral` | `null`                                                              | Repository guidance and skills, with no nudge          |
+
+Discovery is autonomous tool discovery from MCP descriptors; it is not a
+Claude Desktop or claude.ai simulation. `full` plus `githits`, Skills plus
+`githits`, non-MCP `githits`, and unnamed or other values are rejected before an
+agent launches. `--intent-profile` defaults to `neutral`, and its value is
+recorded with the scenario and exact fragment hash.
 
 ## Isolation
 
-Runs execute agents from an empty temporary workspace so repository-local files
-such as `AGENTS.md`, `.mcp.json`, commands, skills, and plugin payloads do not
-contaminate results. The harness keeps normal agent and GitHits authentication
-so human-driven keychain/OAuth sessions continue to work. OpenCode can exclude
-user guidance under that constraint. Codex always reads global
-`$CODEX_HOME/AGENTS.md` when present; `--ignore-user-config` excludes
-`config.toml`, not agent guidance. Claude Code's `--bare` mode suppresses global
-`CLAUDE.md` auto-discovery but disables subscription/OAuth in favor of
-API-key-style auth. Therefore local Codex and Claude descriptor/full runs may
-observe user-level guidance and are diagnostic only, not causal evidence for a
-guidance-profile comparison. Use an authenticated remote connector or another
-verified instruction-isolated host for acceptance; do not treat a local Codex
-or Claude profile label as proof of instruction isolation.
+Each workload receives a fresh temporary isolation root containing its workspace,
+OS home, user profile, config directories, and temporary directory. Only the
+caller-supplied `CODEX_HOME` is retained outside that root. It is a dedicated
+eval home containing Codex authentication state and Codex-managed runtime state;
+it may accumulate managed state across runs. Workload evals reject a missing or
+relative `CODEX_HOME`, a root-level `AGENTS.override.md`/`AGENTS.md`, and every
+direct `$CODEX_HOME/skills` entry other than `.system`, before invoking the
+agent. The workload preflight does not read auth material or guidance contents.
+Codex-managed
+`config.toml`, bundled system skills, plugin caches, logs, and other nested
+runtime files are allowed for non-interactive workload execution. Interactive
+`agent:session` adds a stricter contract for `config.toml`: it may contain only
+`model`, `model_reasoning_effort`, and project `trust_level` keys. A root
+global-instruction file is rejected even when empty; nested `AGENTS.md` files
+do not trigger this preflight because they are outside Codex's documented
+global discovery root.
+
+For local subscription authentication, log in once to a dedicated home and use
+that same home for evals:
+
+```bash
+CODEX_HOME="$HOME/.codex-eval" codex login -c 'cli_auth_credentials_store="file"'
+CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface mcp --server local --workload eval/agentic/workloads/package-overview-vulnerabilities.md
+CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface skills --server local --workload eval/agentic/workloads/package-overview-vulnerabilities.md
+```
+
+The acting agent still receives only the disposable per-workload
+`HOME`/`USERPROFILE`/`XDG_CONFIG_HOME`/`APPDATA` and temporary paths. The MCP
+child receives the caller's `HOME`/`USERPROFILE`/`XDG_CONFIG_HOME`/`APPDATA`
+overrides so keychain- or file-backed GitHits authentication can resolve in the
+trusted child. Descriptors and full guidance use the same child authentication
+environment. When an optional config root is unset, the harness uses the
+platform default: `HOME/.config` on POSIX or `USERPROFILE/AppData/Roaming` on
+Windows.
+
+CI should create a clean `CODEX_HOME` and authenticate Codex with
+`OPENAI_API_KEY`. Set `GITHITS_API_TOKEN` for deterministic GitHits
+authentication. Never copy a personal auth file into a run directory.
+Non-interactive eval commands retain the supported `--ignore-user-config` and
+explicitly disable Codex's `apps`, `plugins`, and `remote_plugin` features. The
+flag suppresses Codex `config.toml`/user configuration only; explicit preflight
+still rejects direct `$CODEX_HOME/skills` entries other than `.system`.
+Interactive Codex sessions omit that exec-only flag, retain all three disables,
+clear ambient MCP servers, and register only the intended GitHits MCP target.
+
+An earlier partial Luna-low canary (2026-08-29) was not acceptance evidence:
+the clean descriptor cell completed in 31.2 seconds with zero tools, CLI calls,
+or isolation violations, while the clean full cell completed in 35.0 seconds
+with two MCP calls and zero CLI calls but both GitHits calls returned
+AUTH_REQUIRED, so the agent fell back to web sources. At that point, the final
+two-cell canary still required successful GitHits MCP calls as well as clean
+isolation.
+
+The v3 rerun completed the authenticated MCP path: the descriptor cell took
+30.9 seconds at an estimated $0.01057352 with zero tool calls, CLI calls, or
+isolation violations; the full cell took 20.2 seconds at an estimated
+$0.00726356 with three successful MCP calls and zero CLI calls. The full cell
+was nevertheless marked failed because macOS `/var` and `/private/var` aliases
+made the validator report the workspace-installed skill as external. Canonical
+filesystem containment now addresses that false positive; this remains
+root-cause validation history rather than accepted canary evidence. At that
+point, the final canary was pending.
+
+The v4 clean canary is accepted isolation and causal baseline evidence. The
+descriptor cell succeeded in 27.8 seconds with 31,305 uncached input, 46,336
+cached input, 934 output, and 237 reasoning-detail tokens; its base-rate
+estimate was $0.00830852, with zero logical/MCP/CLI calls and no isolation
+violations. The full cell succeeded in 24.3 seconds with 28,661 uncached
+input, 67,584 cached input, 778 output, and 141 reasoning-detail tokens; its
+base-rate estimate was $0.00801748, with three successful logical MCP calls
+(`quick_start`, `pkg_info`, `pkg_vulns`), zero CLI calls, and no isolation
+violations. Persisted MCP child `HOME` is `<redacted>` in `mcp.json` and
+command metadata while `targetRoot` remains the real checkout for attribution.
+After per-run workspace/output paths are normalized away, the command surfaces
+are identical and both runs disable `apps`, `plugins`, and `remote_plugin`.
+Sequential wall time was approximately 52.1 seconds and estimated cost was
+\$0.016326. This is the clean causal baseline seed; it does not replace the
+contaminated 42-cell stable-full capacity measurement.
+
+The v4 live evidence covers MCP descriptor/full cells only. Skills-surface
+isolation and authentication have deterministic injected-command coverage in
+the test suite, but no live skills canary has run.
+
+The v2, v3, and v4 measurements above, including the contaminated 42-cell
+stable-full run, remain historical descriptor/full and capacity evidence. None
+is relabeled as `intent` evidence under the current contract.
+
+### Current corrected Luna evidence
+
+The safe schema-v2 artifacts verified on 2026-08-31 include a bounded
+Luna-low package pair, the discovery canary, and the stable-full intent suite.
+The package discovery cell succeeded in 32,592 ms with zero logical/MCP/CLI
+calls; the package intent cell completed the process successfully in 275,327 ms
+with three logical MCP calls and zero CLI calls, but its final was
+inconclusive/low confidence. Both had zero isolation violations. These cells
+prove tool execution and isolation, not answer quality. The discovery canary
+recorded 2/2 process and final successes, 267,221 ms wall time, 266,375 ms
+cumulative agent time, two MCP `code_files` calls, zero CLI calls, zero
+isolation violations, and an estimated $0.0266578. The stable-full intent suite
+recorded 21/21 process and final successes, 798,452 ms wall time, 796,139 ms
+cumulative agent time, 115 MCP calls, zero CLI calls, zero isolation violations,
+and an estimated $0.2030556 with Codex CLI 0.151.0. One `code_grep` call failed
+and recovered within a successful workload. The six-workload smoke subset was
+derived from that stable artifact, not rerun: 6/6 process successes, 31 MCP
+calls, zero failed tool calls, and an estimated $0.06254004.
+
+Manual `bun run agent:session` validation on 2026-08-31 with Codex CLI 0.151.0
+and Luna high listed only six bundled system skills (Image Gen, OpenAI Docs,
+Plugin Creator, Review Agent, Skill Creator, and Skill Installer), no GitHits or
+personal skills, and `githits: connected (18 tools)`. No tool call or Keychain
+access was needed for this diagnostic; the normal temporary-workspace trust
+prompt required human approval. Two earlier stable intent attempts that waited
+at an unattended macOS Keychain approval prompt are invalid/excluded evidence,
+not a harness timeout defect. Local subscription/keychain-backed runs can
+require operator presence; daily CI remains a future decision and must use
+separately provisioned non-interactive API credentials without copying or
+reading credentials into artifacts.
+
+Trace validation fails an MCP workload if it observes an external
+`AGENTS.md`/`SKILL.md` read, a guidance read in the descriptor profile, or any
+GitHits CLI call. The failure is preserved as redacted
+`isolation-violations.json`; workspace-installed full-profile skills are
+allowed. Skills-surface CLI calls remain valid.
 
 OpenCode eval and session processes set `OPENCODE_DISABLE_EXTERNAL_SKILLS=1`
 and `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` to exclude global and
 Claude-compatible skills. Full MCP runs retain the intended local
 `.opencode/skills` installation. Generated OpenCode config denies task
 delegation (`permission.task: "deny"`) so GitHits calls stay in the observable
-session. MCP reports identify any GitHits CLI fallback in both the
-`descriptors` and `full` profiles rather than counting it as equivalent MCP
-usage. Skills runs intentionally use the CLI surface and do not receive that
-MCP fallback warning.
+session. MCP reports identify any GitHits CLI fallback as an eval validation
+failure rather than counting it as equivalent MCP usage. Skills runs
+intentionally use the CLI surface and remain valid.
 
 GitHits authentication follows normal local behavior. Keychain-backed human
 login should work by default. Automation can use `GITHITS_API_TOKEN`.
@@ -100,12 +228,110 @@ bun run agent:e2e:report .agent-eval/runs/<run>
 bun run agent:e2e:report --compare .agent-eval/runs/<before> .agent-eval/runs/<after>
 ```
 
+## Named suites and Luna matrix
+
+Use the named-suite entrypoint when the change should be measured with the
+curated workload policy rather than one manually selected workload:
+
+```bash
+# One target checkout; default output is .agent-eval/suites/<timestamp>
+bun run agent:e2e:suite run --suite canary --dry-run
+bun run agent:e2e:suite run --suite smoke --out .agent-eval/suites/smoke-local
+
+# Compare the current checkout with an explicit baseline target checkout
+bun run agent:e2e:suite pair --suite canary --baseline-root ../githits-main --dry-run
+
+# Compare two existing suite artifacts without launching an agent
+bun run agent:e2e:suite compare \
+  --baseline-suite .agent-eval/pairs/<timestamp>/baseline/suite.json \
+  --candidate-suite .agent-eval/pairs/<timestamp>/candidate/suite.json \
+  --out .agent-eval/comparisons/local-review
+```
+
+Canary has `express-router` and
+`package-overview-vulnerabilities`; smoke adds `global-example`,
+`unified-search-investigation`, `docs-search-followup`, and
+`package-upgrade-safety`; stable-full contains all 21 stable workloads.
+`stateful-manual` contains only `githits-onboarding` and is dry-run-only in
+this phase. `experimental` contains only
+`experimental-code-diff`, `experimental-resolution-follow-up`, and
+`experimental-site-resolution-follow-up`. The manifest therefore classifies
+25 workloads: 21 stable, one stateful, and three experimental. Canary is a
+subset of smoke, smoke is a subset of stable-full, and stateful or experimental
+workloads never enter those stable suites.
+
+Every named suite uses exactly Codex `gpt-5.6-luna`, reasoning `low`, local MCP,
+and scenario-keyed shards. Shards may run concurrently; workloads remain
+sequential within each shard. By default, `canary` runs `discovery` and
+`intent`; `smoke`, `stable-full`, `stateful-manual`, and `experimental` run
+`intent` only. Repeatable `--scenario discovery|intent|full` explicitly selects
+the scenario cells and replaces the default selection, so `full` is a local or
+manual opt-in. The experimental suite passes the explicit experimental-tools
+option. The pair command runs the baseline target fully before the current
+checkout, while the current checkout owns the measurement harness for both
+sides. A pair has no candidate-root option: run it from the candidate checkout
+and use `--baseline-root` for the other target.
+
+Each scenario cell carries the fixed agent/model/reasoning identity and its
+guidance/intent identity:
+
+| Scenario    | Guidance      | Intent    | Fragment hash                                                      |
+| ----------- | ------------- | --------- | ------------------------------------------------------------------ |
+| `discovery` | `descriptors` | `neutral` | `null`                                                             |
+| `intent`    | `descriptors` | `githits` | `b04b96acfd7a89516ab1742d9df914bb6779e952c7df96ac9858785ed40f10d0` |
+| `full`      | `full`        | `neutral` | `null`                                                             |
+
+For `run`, the current checkout owns workloads, the manifest, reporting
+contract, result schema, adapters, output, and comparison code. `--target-root`
+can point a single-target run at another checkout; that target supplies its
+local MCP/CLI implementation, target Git identity, and full-profile
+`skills/githits-mcp` plus `GITHITS_GUIDANCE_BLOCK`. Pair artifacts record both
+the measurement-harness and target roots/identities so harness drift is not
+mistaken for a target change.
+
+Each run writes `suite.json` under its suite directory. A pair writes
+`baseline/suite.json`, `candidate/suite.json`, and
+`comparison/comparison.json` under `.agent-eval/pairs/<timestamp>` (or under
+`--out`). Offline comparison defaults to
+`.agent-eval/comparisons/<timestamp>`. The suite and comparison artifacts point
+to child `run.json`, `metrics.json`, and `report.json` using portable relative
+paths; imported references cannot traverse or follow symlinks outside their
+owning suite directory.
+
+Suite and comparison output includes normalized token buckets, cost estimates,
+duration, process/final status, scenario/workload cell IDs, full-cell failures,
+and logical tool counts grouped by `(surface, normalized tool)` with separate
+MCP and CLI rows. Raw provider event counts remain separate audit evidence.
+`callsByTool: null`, unknown token/cost/duration values, and missing cell IDs
+mean telemetry was not available or was inconsistent; they are never silently
+converted to zero. Partial shards preserve their successful sibling and the
+full status matrix. Suite and comparison artifacts are schema version 2.
+
+Pair/offline comparison matches cells by scenario and workload. Agent, model,
+reasoning, guidance profile, intent profile, and intent-fragment hash must also
+match; a mismatch is incompatible, so historical discovery/full cells are
+never compared as intent. Aggregate deltas use only compatible cells where
+that metric is known on both sides and list included/excluded cells.
+Reporting-contract or result-schema changes suppress direct deltas; a
+workload-content change excludes only that workload's cells. Harness Git or
+Codex CLI version drift remains a prominent warning and does not suppress
+otherwise compatible deltas, but it prevents a repository-only attribution
+label. Target Git/guidance differences remain intentional comparison
+dimensions. Valid schema-v1 suite artifacts normalize the exact historical
+descriptor shards/cells to `discovery` and full to `full`; missing, null, or
+other profiles are rejected rather than mapped to `intent`. Legacy child
+`metrics.json` files use the one-off v1 metrics normalizer.
+
+These local commands are diagnostic measurement tools. Paid CI scheduling,
+persistent result history, service export, Haiku coverage, and quality judging
+remain later phases.
+
 For ad hoc interactive testing with the same MCP/skills setup logic:
 
 ```bash
 bun run agent:session --agent claude --surface mcp --server local
 bun run agent:session --agent claude --surface skills --server local --model haiku
-bun run agent:session --agent codex --surface skills --server local --prompt "Evaluate npm:express"
+CODEX_HOME="$HOME/.codex-eval" bun run agent:session --agent codex --surface skills --server local --prompt "Evaluate npm:express"
 bun run agent:session --agent codex --surface mcp --server local --dry-run
 bun run agent:session --agent claude --surface mcp --server local --guidance-profile full --dry-run
 bun run agent:session --agent opencode --surface mcp --server local --prompt "Evaluate npm:express" --dry-run
@@ -113,7 +339,22 @@ bun run agent:session --agent codex --surface mcp --server local --experimental-
 ```
 
 `agent:session` creates an isolated temp workspace by default and leaves it in
-place for inspection. Skills mode installs this checkout's skills into
+place for inspection. Codex sessions additionally use the workload runner's
+disposable acting-agent `HOME`, `USERPROFILE`, `XDG_CONFIG_HOME`, `APPDATA`,
+and `TMPDIR`/`TMP`/`TEMP` roots. A live Codex session requires an existing,
+absolute dedicated `CODEX_HOME` without a root `AGENTS.md` or
+`AGENTS.override.md`; the caller-supplied absolute path is preserved for Codex
+authentication and is not copied into the disposable roots. Dry-run Codex
+sessions do not require `CODEX_HOME`, but an explicit or ambient supplied value
+is validated before use. The local MCP child is built from the
+host auth roots before acting-agent isolation, so trusted GitHits auth remains
+available without persisting credential paths. Session metadata records only
+safe relative labels for disposable acting-agent roots and omits the ephemeral
+workspace label because the command runs in the user-selected workspace.
+
+Claude and OpenCode sessions retain workspace isolation only. They are not
+causal evidence for instruction isolation until agent-specific subscription
+auth isolation exists. Skills mode installs this checkout's skills into
 `skills/`, `.opencode/skills`, `.agents/skills`, `.claude/skills`, and
 `.codex/skills`, and adds a local `githits` CLI shim to `PATH`. MCP mode writes
 the same local/published GitHits MCP config used by the eval harness. Claude gets
@@ -133,6 +374,8 @@ Useful options:
 --surface <mcp|skills>          GitHits access surface under test, default `mcp`
 --guidance-profile <descriptors|full>
                                 MCP guidance profile; MCP defaults to `descriptors`
+--intent-profile <neutral|githits>
+                                One-off prompt intent; defaults to `neutral`
 --reasoning-effort <minimal|low|medium|high|xhigh|max|ultra>
                                 Codex reasoning effort; automated Codex defaults to `high`
 --dry-run                       Generate artifacts without invoking the agent
@@ -173,14 +416,17 @@ Automated Codex runs default to `gpt-5.6-luna` with `high` reasoning. Use
 `--model` and `--reasoning-effort` to evaluate another Codex configuration;
 explicit values always win. Claude accepts aliases such as `sonnet` and
 `haiku`; explicit Codex examples include `gpt-5.4-mini` or `gpt-5.4-nano` when
-available. The harness stores the effective model and reasoning effort in
-`run.json` and `report.json`, and includes them in the console summary.
+available. The harness stores the effective model, reasoning effort, and exact
+selected agent CLI version in `run.json` and `report.json`, and includes them
+in the console summary. The report's generic `agentVersion` is selected only
+from the matching agent-specific run field; legacy, dry-run, or missing version
+data is shown as `unknown` rather than inferred from another agent.
 
 After each run, the harness prints a concise summary with the run directory,
-per-workload status and duration, unique GitHits tool count, raw tool event
-count, normalized token buckets, cost kind/USD/uncertainty, logical call count,
-MCP/CLI call counts, usefulness/confidence when available, key artifact paths,
-and reported tool/instruction issues. Null metrics are printed as `unknown`.
+per-workload status and duration, unique tool count, raw tool event count,
+normalized token buckets, cost kind/USD/uncertainty, logical call count,
+MCP/CLI call counts, confidence when available, key artifact paths, and any
+validation warnings. Null metrics are printed as `unknown`.
 It also prints a `Next:` block with the exact report, compare, and raw-call
 inspection commands an agent should use for follow-up. The same summary can be
 regenerated later from persisted artifacts:
@@ -200,10 +446,10 @@ bun run agent:e2e:report --compare .agent-eval/runs/published-baseline .agent-ev
 ```
 
 Same-agent comparisons include normalized aggregate status counts and label the
-guidance profile, model, and reasoning effort. They warn when any of those
-comparison dimensions differ. Cross-agent comparisons intentionally degrade to
-tool-name presence with a warning because Claude and Codex expose different
-tool-call status events.
+scenario, workload, guidance/intent identity, model, and reasoning effort. They
+warn when any identity dimension differs. Cross-agent comparisons intentionally
+degrade to tool-name presence with a warning because Claude and Codex expose
+different tool-call status events.
 
 ## Workloads
 
@@ -225,29 +471,29 @@ Use targeted workloads when a change affects a specific tool family. Use both
 Claude and Codex for instruction/tool-description/skill changes when practical;
 use at least one agent for quick iteration.
 
-| Affected Area | Workload |
-|---|---|
-| Agent-driven GitHits onboarding and setup UX | `githits-onboarding.md` |
-| Core global examples, `get_example`, `search_language`, `feedback` | `global-example.md` |
-| Unified `search` / `search_status` behavior | `unified-search-investigation.md`; use `search-source-ergonomics.md` when changing `search` source-selection arguments or minimal-call guidance; use `opencode-compaction.md` for the remote-MCP routing regression |
-| Explicit standalone site targets in unified `search` | `site-search-explicit.md` |
-| Package overview or vulnerability UX, `pkg_info`, `pkg_vulns` | `package-overview-vulnerabilities.md`; use `package-vulnerability-filter.md` for severity/version filtering behavior, `package-vulnerability-history.md` for historical/non-affecting advisory scope behavior, and `package-vulnerability-rubygems.md` for non-npm descriptor routing |
-| Dependency graph UX, `pkg_deps` | `package-dependencies.md` |
-| Release notes UX, `pkg_changelog` | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior |
-| Upgrade evidence UX, `pkg_upgrade_review` | `package-upgrade-safety.md` |
-| Documentation browsing, `docs_list`, `docs_read` | `docs-discovery.md`; use `docs-search-followup.md` for search-to-read handoff and `docs-search-noise.md` for noisy docs-result recovery |
-| File listing / file read UX, `code_files`, `code_read` | `code-file-navigation.md`; use `code-files-listing.md` for focused listing behavior; use `code-read-window.md` for focused source-window behavior |
-| Deterministic source search UX, `code_grep` | `code-grep-investigation.md` |
-| Multi-tool code navigation strategy and MCP/skill guidance | `express-router.md`; `opencode-compaction.md` is the remote-MCP routing regression derived from the connector transcript |
-| Experimental target resolution | `experimental-resolution-follow-up.md`; use `experimental-site-resolution-follow-up.md` for site resolution into docs search |
-| Experimental exact source diff | `experimental-code-diff.md` |
+| Affected Area                                                      | Workload                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent-driven GitHits onboarding and setup UX                       | `githits-onboarding.md`                                                                                                                                                                                                                                                               |
+| Core global examples, `get_example`, `search_language`, `feedback` | `global-example.md`                                                                                                                                                                                                                                                                   |
+| Unified `search` / `search_status` behavior                        | `unified-search-investigation.md`; use `search-source-ergonomics.md` when changing `search` source-selection arguments or minimal-call guidance; use `opencode-compaction.md` for the remote-MCP routing regression                                                                   |
+| Explicit standalone site targets in unified `search`               | `site-search-explicit.md`                                                                                                                                                                                                                                                             |
+| Package overview or vulnerability UX, `pkg_info`, `pkg_vulns`      | `package-overview-vulnerabilities.md`; use `package-vulnerability-filter.md` for severity/version filtering behavior, `package-vulnerability-history.md` for historical/non-affecting advisory scope behavior, and `package-vulnerability-rubygems.md` for non-npm descriptor routing |
+| Dependency graph UX, `pkg_deps`                                    | `package-dependencies.md`                                                                                                                                                                                                                                                             |
+| Release notes UX, `pkg_changelog`                                  | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior                                                                                                                                                                                              |
+| Upgrade evidence UX, `pkg_upgrade_review`                          | `package-upgrade-safety.md`                                                                                                                                                                                                                                                           |
+| Documentation browsing, `docs_list`, `docs_read`                   | `docs-discovery.md`; use `docs-search-followup.md` for search-to-read handoff and `docs-search-noise.md` for noisy docs-result recovery                                                                                                                                               |
+| File listing / file read UX, `code_files`, `code_read`             | `code-file-navigation.md`; use `code-files-listing.md` for focused listing behavior; use `code-read-window.md` for focused source-window behavior                                                                                                                                     |
+| Deterministic source search UX, `code_grep`                        | `code-grep-investigation.md`                                                                                                                                                                                                                                                          |
+| Multi-tool code navigation strategy and MCP/skill guidance         | `express-router.md`; `opencode-compaction.md` is the remote-MCP routing regression derived from the connector transcript                                                                                                                                                              |
+| Experimental target resolution                                     | `experimental-resolution-follow-up.md`; use `experimental-site-resolution-follow-up.md` for site resolution into docs search                                                                                                                                                          |
+| Experimental exact source diff                                     | `experimental-code-diff.md`                                                                                                                                                                                                                                                           |
 
 For broad MCP quick-start or description edits, start with the cheap Luna-low
-canary in both guidance profiles:
+canary's `discovery` and `intent` scenarios:
 
 ```bash
 bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile descriptors --workload eval/agentic/workloads/express-router.md
-bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile full --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile descriptors --intent-profile githits --workload eval/agentic/workloads/express-router.md
 ```
 
 These two commands are the smallest local Luna-low metrics pair. Each run
@@ -258,21 +504,22 @@ bun run agent:e2e:report --json .agent-eval/runs/<run>
 bun run agent:e2e:report .agent-eval/runs/<run>
 ```
 
-Named suites, daily pipeline execution, persistent result history, and quality
-judging are later phases; this implementation runs the existing workload list
-one workload at a time.
+Named suites are available through `agent:e2e:suite`. Use
+`--scenario full` for a local/manual full-guidance run; daily pipeline
+execution, persistent result history, service export, and quality judging
+remain later phases.
 
 For broad skill edits, run at least:
 
 ```bash
 bun run agent:e2e --agent claude --surface skills --server local --workload eval/agentic/workloads/express-router.md
-bun run agent:e2e --agent codex --surface skills --server local --workload eval/agentic/workloads/express-router.md
+CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface skills --server local --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent opencode --surface skills --server local --workload eval/agentic/workloads/express-router.md
 ```
 
 For tool-specific edits, add the workload from the table. Compare
-`tool-calls.json` plus the final JSON's `toolIssues`, `instructionIssues`, and
-`githitsUsefulnessReason` across branches or against a published run.
+`tool-calls.json`, `metrics.json`, and the final JSON's answer/confidence across
+branches or against a published run.
 
 For local experimental tool changes, run both new workloads and the
 `express-router.md` regression cohort with Claude and Codex:
@@ -288,9 +535,9 @@ bun run agent:e2e --agent claude --server local --experimental-tools --workload 
 bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/express-router.md
 ```
 
-The eval override forces issue reporting off. Inspect raw `tool-calls.json`
-for the actual tool sequence and arguments, then inspect `final.json` for
-`toolIssues`, `instructionIssues`, usefulness, and confidence. For
+The eval override keeps the acting result contract product-neutral. Inspect raw
+`tool-calls.json` for the actual tool sequence and arguments, then inspect
+`final.json` for status, answer, and confidence. For
 resolution, check that ambiguity is retained when warranted and source
 follow-up uses the selected identity; for source diffs, check exact
 changed-file evidence and bounded summaries without compatibility claims.
@@ -333,8 +580,9 @@ Notable findings to keep in mind when evaluating future changes:
   `code_files` is unavailable even when earlier runs used it; treat raw calls as
   the source of truth and fix concrete validation/error issues rather than
   overfitting instructions to one noisy run.
-- `tool-calls.json` is the source of truth for tool usage. The final JSON is for
-  the agent's assessment of clarity, issues, and usefulness.
+- `tool-calls.json` is the source of truth for tool usage. The final JSON records
+  only the agent's result status, answer, and confidence; quality assessment is
+  a later review concern.
 - `report.json` and `agent:e2e:report` are derived review aids. They normalize
   tool names/statuses for readability but do not replace raw artifacts.
 
@@ -348,7 +596,8 @@ Each run writes:
   usage, cost, tool-surface, identity, timing, and warning fields.
 - `report.json` with derived review fields, normalized tool summaries, matched
   metrics fields, relative artifact paths, and warnings for missing or
-  ambiguous metrics, missing artifacts, CLI fallback, or self-report drift.
+  ambiguous metrics, missing artifacts, validation violations, or legacy
+  self-report drift.
 - One workload directory per workload with `prompt.md`, `stdout.json`,
   `stderr.txt`, `tool-calls.json`, and `final.json` when parsing succeeds.
 - Each live or dry-run workload also records `discovery-events.json`. For Claude
@@ -362,11 +611,29 @@ Each run writes:
   dry-run metadata, and `.agent-session/session.json` persist
   `experimentalTools: true`; the Claude, Codex, and OpenCode local launch
   vectors contain the same `--experimental-tools` flag.
-- Skills runs also write `skill-installation.json` with the copied skill path
-  and CLI shim path.
+- Skills runs also write `skill-installation.json` with relative copied-skill
+  paths and the CLI shim path.
 - Full MCP runs additionally write `guidance-installation.json` with the
-  canonical project instruction paths and copied skill metadata. Paths are
-  persisted for inspection; credentials are never persisted.
+  canonical project instruction paths and copied skill metadata. Full MCP
+  metadata has no CLI shim. Paths are persisted for inspection; credentials are
+  never persisted. Host home values in MCP child configs and persisted command
+  metadata are redacted after the child has consumed runtime config. Other
+  paths and agent evidence remain attributable; credential secrets continue to
+  be redacted globally.
+- Each workload records relative isolation metadata. If trace validation finds
+  an external/descriptor guidance read or MCP CLI fallback, it writes redacted
+  `isolation-violations.json` and marks the workload failed.
+
+Current one-off metrics are schema version 2. Run metadata and normalized
+records expose `scenario`, `intentProfile`, and `intentFragmentHash`; the latter
+is the SHA-256 hash of the exact intent fragment (`null` for `neutral`). The
+one-off report and human summary expose the same identity plus the exact
+selected agent CLI version, or `unknown` for legacy, dry-run, or missing data.
+Valid schema-v1 metrics remain readable through deterministic normalization: historical MCP
+`descriptors` maps to neutral `discovery`, and `full` maps to neutral `full`;
+missing, null, or other profiles are rejected rather than mapped to `intent`.
+No historical descriptor/full record is inferred to have used the intent
+fragment.
 
 `metrics.json` is authoritative for normalized usage and cost. For Codex it
 uses the final `turn.completed.usage` aggregate. `input_tokens` is inclusive of
@@ -400,21 +667,31 @@ the nullable field supports later provider adapters.
 
 Claude is launched with `--permission-mode bypassPermissions` so non-interactive
 evals can exercise GitHits without a human approval prompt. Non-full MCP runs
-add `--disable-slash-commands` to disable skills, but this does not disable
-global `CLAUDE.md` discovery; the isolation limitation above still applies.
+add `--disable-slash-commands` to disable skills. The fresh per-workload home
+also prevents user-level `CLAUDE.md` discovery.
 Skills runs do not use that flag because Claude Code treats it as disabling all
 skills; they instead use project-only settings plus an empty strict MCP config.
-Codex MCP runs use per-run `-c` MCP config overrides, `--ignore-rules`, and
-`--ignore-user-config`; these exclude user config, execution-policy rules, and
-configured MCP/plugin skills, but not global `$CODEX_HOME/AGENTS.md`. Skills
-runs omit the MCP and rule overrides while retaining `--ignore-user-config` so
-project skills can be discovered without user-configured MCP servers. Codex always uses
+Non-interactive Codex MCP evals use per-run `-c` MCP config overrides,
+`--ignore-rules`, and supported `--ignore-user-config`; every live Codex eval
+requires the caller-supplied dedicated eval `CODEX_HOME`, which is validated
+for root global instructions and direct skills before use/launch. Dry runs may
+omit `CODEX_HOME`; when an explicit or ambient value is supplied, the same
+validation runs before use. The supported
+`--ignore-user-config` flag suppresses Codex `config.toml`/user configuration;
+the explicit skills preflight remains in force. Non-interactive Skills evals
+omit the MCP and rule overrides while retaining `--ignore-user-config` so
+project skills can be discovered without user-configured MCP servers. Every
+non-interactive Codex eval command also repeats `--disable apps`, `--disable
+plugins`, and `--disable remote_plugin` before its prompt. Interactive Codex
+sessions omit both exec-only flags and retain the stricter dedicated-home
+contract described above.
+Codex always uses
 `--dangerously-bypass-approvals-and-sandbox` so non-interactive GitHits calls are
 not cancelled by the approval layer. Keep workloads controlled and run them from
 the harness's empty temporary workspace. These isolation flags belong to
 non-interactive `codex exec`; interactive `agent:session` launches must not pass
 the exec-only `--ignore-rules` flag.
 
-Malformed final JSON, schema mismatches, Claude failures, and timeouts are
-harness failures. Raw stdout and stderr are preserved for diagnosis with known
-secret values redacted.
+Malformed final JSON, schema mismatches, external guidance reads, MCP CLI
+fallbacks, Claude failures, and timeouts are harness failures. Raw stdout and
+stderr are preserved for diagnosis with known credential secrets redacted.

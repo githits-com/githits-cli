@@ -4,23 +4,12 @@ import {
   type AgentEvalMetrics,
   type AgentEvalRecord,
   type AgentUsageMetrics,
-  agentEvalMetricsSchema,
+  deriveEvalScenario,
+  parseAgentEvalMetrics,
 } from "./agent-eval-metrics.ts";
 
 export type AgentEvalReportMode = "report" | "json" | "compare";
 
-const CLAUDE_PROFILE_ISOLATION_WARNING =
-  "Claude subscription runs may auto-discover global CLAUDE.md; descriptors/full profile evidence is diagnostic, not instruction-isolated";
-const CODEX_PROFILE_ISOLATION_WARNING =
-  "Codex loads global $CODEX_HOME/AGENTS.md when present; descriptors/full profile evidence is diagnostic, not instruction-isolated";
-
-function profileIsolationWarning(
-  agent: string | undefined,
-): string | undefined {
-  if (agent === "claude") return CLAUDE_PROFILE_ISOLATION_WARNING;
-  if (agent === "codex") return CODEX_PROFILE_ISOLATION_WARNING;
-  return undefined;
-}
 export type NormalizedToolStatus =
   | "started"
   | "completed"
@@ -44,14 +33,26 @@ export interface AgentEvalGitMetadata {
 export interface AgentEvalRunMetadata {
   runId?: string;
   agent?: string;
+  claudeVersion?: string | null;
+  codexVersion?: string | null;
+  opencodeVersion?: string | null;
   model?: string;
   reasoningEffort?: string;
   surface?: string;
   server?: string;
   guidanceProfile?: string;
+  scenario?: string | null;
+  intentProfile?: string;
+  intentFragmentHash?: string | null;
   dryRun?: boolean;
   git?: AgentEvalGitMetadata;
   workloads?: WorkloadRunMetadata[];
+}
+
+export interface EvalValidationViolationSummary {
+  category: string;
+  path?: string;
+  tool?: string;
 }
 
 export interface WorkloadRunMetadata {
@@ -61,6 +62,7 @@ export interface WorkloadRunMetadata {
   exitCode?: number;
   timedOut?: boolean;
   workloadDir?: string;
+  validationViolations?: EvalValidationViolationSummary[];
 }
 
 export interface ExtractedToolCallForReport {
@@ -77,12 +79,32 @@ export interface ToolCallSummary {
   errors: string[];
 }
 
+export interface CallsByToolEntry {
+  surface: "mcp" | "cli";
+  tool: string;
+  total: number;
+  started: number;
+  completed: number;
+  failed: number;
+  unknown: number;
+}
+
+export interface CallsByToolDelta {
+  surface: "mcp" | "cli";
+  tool: string;
+  before: CallsByToolEntry | null;
+  after: CallsByToolEntry | null;
+  delta: Omit<CallsByToolEntry, "surface" | "tool"> | null;
+  change: "added" | "removed" | "changed" | "unchanged" | "unknown";
+}
+
 export interface WorkloadMetricsReport {
   normalizedTokens: AgentUsageMetrics["normalizedTokens"];
   cost: Pick<AgentUsageMetrics["cost"], "kind" | "usd" | "uncertainty">;
   logicalToolCount: number | null;
   mcpCallCount: number | null;
   cliCallCount: number | null;
+  callsByTool: CallsByToolEntry[] | null;
   telemetryWarnings: string[];
 }
 
@@ -108,13 +130,13 @@ export interface DiscoverySummary {
 
 export interface FinalReportSummary {
   status: string;
-  usefulness: string;
-  usefulnessReason: string;
   confidence: string;
-  expectedToolUse: string[];
-  unexpectedToolUse: string[];
-  toolIssues: string[];
-  instructionIssues: string[];
+  usefulness?: string;
+  usefulnessReason?: string;
+  expectedToolUse?: string[];
+  unexpectedToolUse?: string[];
+  toolIssues?: string[];
+  instructionIssues?: string[];
 }
 
 export interface WorkloadReport {
@@ -129,6 +151,7 @@ export interface WorkloadReport {
   metrics: WorkloadMetricsReport;
   discovery?: DiscoverySummary;
   finalReport?: FinalReportSummary;
+  validationViolations: EvalValidationViolationSummary[];
   warnings: string[];
 }
 
@@ -136,11 +159,15 @@ export interface AgentEvalReport {
   schemaVersion: 1;
   status: string;
   agent?: string;
+  agentVersion?: string | null;
   model?: string;
   reasoningEffort?: string;
   surface?: string;
   server?: string;
   guidanceProfile?: string;
+  scenario?: string | null;
+  intentProfile?: string;
+  intentFragmentHash?: string | null;
   dryRun?: boolean;
   git?: AgentEvalGitMetadata;
   runDir: string;
@@ -156,7 +183,13 @@ export interface AgentEvalCompareReport {
   sameAgent: boolean;
   warnings: string[];
   workloads: string[];
+  toolDeltas: WorkloadCallsByToolComparison[];
   lines: string[];
+}
+
+export interface WorkloadCallsByToolComparison {
+  workloadId: string;
+  deltas: CallsByToolDelta[] | null;
 }
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -250,13 +283,60 @@ function unknownWorkloadMetrics(warning: string): WorkloadMetricsReport {
     logicalToolCount: null,
     mcpCallCount: null,
     cliCallCount: null,
+    callsByTool: null,
     telemetryWarnings: [warning],
   };
+}
+
+function compareStrings(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+export function summarizeCallsByTool(
+  sequence: AgentEvalRecord["tools"]["sequence"],
+  logicalCallCount: number | null,
+): CallsByToolEntry[] | null {
+  if (logicalCallCount === null || logicalCallCount !== sequence.length) {
+    return null;
+  }
+
+  const entries = new Map<string, CallsByToolEntry>();
+  for (const call of sequence) {
+    const tool = normalizeToolName(call.tool);
+    const key = `${call.surface}\0${tool}`;
+    const entry = entries.get(key) ?? {
+      surface: call.surface,
+      tool,
+      total: 0,
+      started: 0,
+      completed: 0,
+      failed: 0,
+      unknown: 0,
+    };
+    entry.total += 1;
+    entry[call.status] += 1;
+    entries.set(key, entry);
+  }
+  return [...entries.values()].sort(
+    (left, right) =>
+      compareStrings(left.surface, right.surface) ||
+      compareStrings(left.tool, right.tool),
+  );
 }
 
 function workloadMetricsFromRecord(
   record: AgentEvalRecord,
 ): WorkloadMetricsReport {
+  const callsByTool = summarizeCallsByTool(
+    record.tools.sequence,
+    record.tools.logicalCallCount,
+  );
+  const telemetryWarnings = [...record.warnings];
+  if (callsByTool === null) {
+    telemetryWarnings.push(
+      "logical tool telemetry unavailable or inconsistent; callsByTool is unknown",
+    );
+  }
   return {
     normalizedTokens: record.usage.normalizedTokens,
     cost: {
@@ -269,7 +349,8 @@ function workloadMetricsFromRecord(
       .length,
     cliCallCount: record.tools.sequence.filter((call) => call.surface === "cli")
       .length,
-    telemetryWarnings: record.warnings,
+    callsByTool,
+    telemetryWarnings: [...new Set(telemetryWarnings)],
   };
 }
 
@@ -330,22 +411,24 @@ function loadRunMetrics(runDir: string, expectedRunId?: string): LoadedMetrics {
       ],
     };
   }
-  const parsed = agentEvalMetricsSchema.safeParse(value);
-  if (!parsed.success) {
+  let parsed: AgentEvalMetrics;
+  try {
+    parsed = parseAgentEvalMetrics(value);
+  } catch {
     return {
       warnings: [
         "metrics.json invalid; normalized usage, cost, and logical tool metrics are unknown",
       ],
     };
   }
-  if (expectedRunId !== undefined && parsed.data.runId !== expectedRunId) {
+  if (expectedRunId !== undefined && parsed.runId !== expectedRunId) {
     return {
       warnings: [
         "metrics.json runId mismatch; normalized usage, cost, and logical tool metrics are unknown",
       ],
     };
   }
-  return { value: parsed.data, warnings: [] };
+  return { value: parsed, warnings: [] };
 }
 
 export function parseReportArgs(argv: string[]): AgentEvalReportOptions {
@@ -434,25 +517,28 @@ export function summarizeFinalReport(
 ): FinalReportSummary | undefined {
   const record = asRecord(report);
   if (!record) return undefined;
-  return {
+  const summary: FinalReportSummary = {
     status: typeof record.status === "string" ? record.status : "unknown",
-    usefulness:
-      typeof record.githitsUsefulness === "string"
-        ? record.githitsUsefulness
-        : "unknown",
-    usefulnessReason:
-      typeof record.githitsUsefulnessReason === "string"
-        ? record.githitsUsefulnessReason
-        : "",
     confidence:
       typeof record.confidence === "string" ? record.confidence : "unknown",
-    expectedToolUse: stringArray(record.expectedToolUse).map(normalizeToolName),
-    unexpectedToolUse: stringArray(record.unexpectedToolUse).map(
-      normalizeToolName,
-    ),
-    toolIssues: toolIssueArray(record.toolIssues),
-    instructionIssues: stringArray(record.instructionIssues),
   };
+  if (typeof record.githitsUsefulness === "string")
+    summary.usefulness = record.githitsUsefulness;
+  if (typeof record.githitsUsefulnessReason === "string")
+    summary.usefulnessReason = record.githitsUsefulnessReason;
+  if (record.expectedToolUse !== undefined)
+    summary.expectedToolUse = stringArray(record.expectedToolUse).map(
+      normalizeToolName,
+    );
+  if (record.unexpectedToolUse !== undefined)
+    summary.unexpectedToolUse = stringArray(record.unexpectedToolUse).map(
+      normalizeToolName,
+    );
+  if (record.toolIssues !== undefined)
+    summary.toolIssues = toolIssueArray(record.toolIssues);
+  if (record.instructionIssues !== undefined)
+    summary.instructionIssues = stringArray(record.instructionIssues);
+  return summary;
 }
 
 export function workloadIdFromPath(workloadPath: string): string {
@@ -501,6 +587,24 @@ function readToolCalls(path: string): ExtractedToolCallForReport[] | undefined {
   });
 }
 
+function readValidationViolations(
+  path: string,
+): EvalValidationViolationSummary[] {
+  const value = readJson(path);
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item): EvalValidationViolationSummary[] => {
+    const record = asRecord(item);
+    if (!record || typeof record.category !== "string") return [];
+    return [
+      {
+        category: record.category,
+        ...(typeof record.path === "string" ? { path: record.path } : {}),
+        ...(typeof record.tool === "string" ? { tool: record.tool } : {}),
+      },
+    ];
+  });
+}
+
 function readDiscovery(path: string): DiscoverySummary | undefined {
   const record = asRecord(readJson(path));
   if (!record) return undefined;
@@ -533,6 +637,7 @@ function buildWorkloadReport(
     stderr: join(workloadDir, "stderr.txt"),
     skillInstallation: join(workloadDir, "skill-installation.json"),
     guidanceInstallation: join(workloadDir, "guidance-installation.json"),
+    isolationViolations: join(workloadDir, "isolation-violations.json"),
     discoveryEvents: join(workloadDir, "discovery-events.json"),
   };
   const artifacts: Record<string, string> = {};
@@ -563,6 +668,9 @@ function buildWorkloadReport(
   const discovery = safePaths.discoveryEvents
     ? readDiscovery(safePaths.discoveryEvents)
     : undefined;
+  const validationViolations = safePaths.isolationViolations
+    ? readValidationViolations(safePaths.isolationViolations)
+    : (workload.validationViolations ?? []);
   const warnings: string[] = [];
   if (!isSafeWorkloadId(workload.id)) {
     warnings.push(
@@ -591,6 +699,27 @@ function buildWorkloadReport(
       );
     }
   }
+  for (const violation of validationViolations) {
+    if (
+      violation.category === "mcp-cli-fallback" &&
+      violation.tool &&
+      !warnings.some((warning) => warning.includes("CLI fallback"))
+    ) {
+      warnings.push(
+        `MCP ${fallbackGuidanceProfile ?? "unknown"} guidance run used GitHits CLI fallback: ${violation.tool}`,
+      );
+    }
+    if (violation.category === "external-guidance-read") {
+      warnings.push(
+        `external guidance read outside isolated workspace: ${violation.path ?? "unknown"}`,
+      );
+    }
+    if (violation.category === "descriptor-guidance-read") {
+      warnings.push(
+        `descriptor profile read guidance: ${violation.path ?? "unknown"}`,
+      );
+    }
+  }
   const metrics = metricsRecord
     ? workloadMetricsFromRecord(metricsRecord)
     : unknownWorkloadMetrics(
@@ -599,7 +728,7 @@ function buildWorkloadReport(
       );
   if (finalReport) {
     const rawTools = new Set(toolCalls.uniqueTools);
-    const drift = finalReport.unexpectedToolUse.filter(
+    const drift = (finalReport.unexpectedToolUse ?? []).filter(
       (tool) => looksLikeToolName(tool) && !rawTools.has(tool),
     );
     if (drift.length > 0) {
@@ -611,7 +740,7 @@ function buildWorkloadReport(
 
   return {
     id: workload.id,
-    status: workload.status,
+    status: validationViolations.length > 0 ? "failed" : workload.status,
     durationMs: workload.durationMs,
     exitCode: workload.exitCode,
     timedOut: workload.timedOut,
@@ -621,8 +750,59 @@ function buildWorkloadReport(
     metrics,
     discovery,
     finalReport,
+    validationViolations,
     warnings,
   };
+}
+
+function reportIdentity(metadata: AgentEvalRunMetadata): {
+  scenario: string | null;
+  intentProfile: string;
+  intentFragmentHash: string | null;
+} {
+  const intentProfile =
+    metadata.intentProfile === "githits" ? "githits" : "neutral";
+  const intentFragmentHash =
+    intentProfile === "githits" ? (metadata.intentFragmentHash ?? null) : null;
+  if (metadata.scenario !== undefined) {
+    return {
+      scenario: metadata.scenario,
+      intentProfile,
+      intentFragmentHash,
+    };
+  }
+  if (metadata.surface !== "mcp") {
+    return { scenario: null, intentProfile, intentFragmentHash };
+  }
+  const guidanceProfile =
+    metadata.guidanceProfile === "full" ||
+    metadata.guidanceProfile === "descriptors"
+      ? metadata.guidanceProfile
+      : "descriptors";
+  return {
+    scenario: deriveEvalScenario(
+      "mcp",
+      guidanceProfile,
+      intentProfile === "githits" ? "githits" : "neutral",
+    ),
+    intentProfile,
+    intentFragmentHash,
+  };
+}
+
+function selectedAgentVersion(
+  metadata: AgentEvalRunMetadata,
+): string | null | undefined {
+  switch (metadata.agent) {
+    case "claude":
+      return metadata.claudeVersion;
+    case "codex":
+      return metadata.codexVersion;
+    case "opencode":
+      return metadata.opencodeVersion;
+    default:
+      return undefined;
+  }
 }
 
 export function buildRunReportFromMetadata(
@@ -642,6 +822,7 @@ export function buildRunReportFromMetadata(
   }
   const loadedMetrics = loadRunMetrics(runDir, metadata.runId);
   const metrics = loadedMetrics.value;
+  const identity = reportIdentity(metadata);
   const metricsByWorkloadId = new Map<string, AgentEvalRecord>();
   const duplicateMetricIds = new Set<string>();
   const metricsMatchingWarnings: string[] = [];
@@ -680,14 +861,6 @@ export function buildRunReportFromMetadata(
     ...metricsMatchingWarnings,
   ];
   warnings.push(...metricWarnings);
-  const isolationWarning = profileIsolationWarning(metadata.agent);
-  if (
-    isolationWarning &&
-    metadata.surface === "mcp" &&
-    ["descriptors", "full"].includes(metadata.guidanceProfile ?? "descriptors")
-  ) {
-    warnings.push(isolationWarning);
-  }
   const reports = workloads.map((workload) =>
     buildWorkloadReport(
       runDir,
@@ -714,15 +887,20 @@ export function buildRunReportFromMetadata(
     : metadata.dryRun
       ? "dry-run"
       : "success";
+  const agentVersion = selectedAgentVersion(metadata);
   return {
     schemaVersion: 1,
     status,
     agent: metadata.agent,
+    ...(agentVersion === undefined ? {} : { agentVersion }),
     model: metadata.model,
     reasoningEffort: metadata.reasoningEffort,
     surface: metadata.surface,
     server: metadata.server,
     guidanceProfile: metadata.guidanceProfile,
+    scenario: identity.scenario,
+    intentProfile: identity.intentProfile,
+    intentFragmentHash: identity.intentFragmentHash,
     dryRun: metadata.dryRun,
     git: metadata.git,
     runDir,
@@ -750,6 +928,17 @@ function formatMetricValue(value: number | null): string {
   return value === null ? "unknown" : String(value);
 }
 
+function formatCallsByTool(callsByTool: CallsByToolEntry[] | null): string {
+  if (callsByTool === null) return "unknown";
+  if (callsByTool.length === 0) return "none";
+  return callsByTool
+    .map(
+      (entry) =>
+        `${entry.surface}/${entry.tool}(total=${entry.total} started=${entry.started} completed=${entry.completed} failed=${entry.failed} unknown=${entry.unknown})`,
+    )
+    .join(",");
+}
+
 function formatWorkloadMetrics(metrics: WorkloadMetricsReport): string {
   const tokens = metrics.normalizedTokens;
   return [
@@ -764,6 +953,7 @@ function formatWorkloadMetrics(metrics: WorkloadMetricsReport): string {
     `logicalCalls=${formatMetricValue(metrics.logicalToolCount)}`,
     `mcpCalls=${formatMetricValue(metrics.mcpCallCount)}`,
     `cliCalls=${formatMetricValue(metrics.cliCallCount)}`,
+    `callsByTool=${formatCallsByTool(metrics.callsByTool)}`,
   ].join(" ");
 }
 
@@ -792,12 +982,12 @@ export function formatRunReport(report: AgentEvalReport): string {
       ? "n/a"
       : (report.guidanceProfile ?? "descriptors");
   const lines = [
-    `Agent eval: ${report.status} (${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.surface ?? "mcp"}/${report.server ?? "unknown"}) profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""} ${report.runDir}`,
+    `Agent eval: ${report.status} (${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.surface ?? "mcp"}/${report.server ?? "unknown"}) agentVersion=${report.agentVersion ?? "unknown"} profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""} intent=${report.intentProfile ?? "neutral"} scenario=${report.scenario ?? "n/a"} intentHash=${report.intentFragmentHash ?? "null"} ${report.runDir}`,
   ];
   for (const workload of report.workloads) {
     const final = workload.finalReport;
     const details = final
-      ? ` usefulness=${final.usefulness} confidence=${final.confidence}`
+      ? ` confidence=${final.confidence}${final.usefulness ? ` usefulness=${final.usefulness}` : ""}`
       : "";
     lines.push(
       `${workload.id} ${workload.status} ${formatDuration(workload.durationMs)} uniqueTools=${workload.toolCalls.uniqueTools.length} rawEvents=${workload.toolCalls.rawCount} ${formatWorkloadMetrics(workload.metrics)}${workload.discovery ? ` discovery=${workload.discovery.status}` : ""}${details}`,
@@ -809,6 +999,7 @@ export function formatRunReport(report: AgentEvalReport): string {
       workload.artifacts.skillInstallation,
       workload.artifacts.guidanceInstallation,
       workload.artifacts.discoveryEvents,
+      workload.artifacts.isolationViolations,
     ].filter(Boolean);
     if (artifacts.length > 0)
       lines.push(`  artifacts: ${artifacts.join(", ")}`);
@@ -823,8 +1014,10 @@ export function formatRunReport(report: AgentEvalReport): string {
     const final = workload.finalReport;
     if (!final) return [];
     return [
-      ...final.toolIssues.map((issue) => `${workload.id} tool: ${issue}`),
-      ...final.instructionIssues.map(
+      ...(final.toolIssues ?? []).map(
+        (issue) => `${workload.id} tool: ${issue}`,
+      ),
+      ...(final.instructionIssues ?? []).map(
         (issue) => `${workload.id} instruction: ${issue}`,
       ),
     ];
@@ -877,12 +1070,108 @@ function formatRunLabel(
   return `${report.agent ?? "unknown"}${report.model ? `:${report.model}` : ""}/${report.surface ?? "mcp"}/${report.server ?? "unknown"}`;
 }
 
+const CALLS_BY_TOOL_COUNT_FIELDS = [
+  "total",
+  "started",
+  "completed",
+  "failed",
+  "unknown",
+] as const;
+
+type CallsByToolCounts = Omit<CallsByToolEntry, "surface" | "tool">;
+
+function zeroCallsByToolEntry(
+  surface: CallsByToolEntry["surface"],
+  tool: string,
+): CallsByToolEntry {
+  return {
+    surface,
+    tool,
+    total: 0,
+    started: 0,
+    completed: 0,
+    failed: 0,
+    unknown: 0,
+  };
+}
+
+function formatCallsByToolEntry(entry: CallsByToolEntry | null): string {
+  if (entry === null) return "unknown";
+  return `total=${entry.total},started=${entry.started},completed=${entry.completed},failed=${entry.failed},unknown=${entry.unknown}`;
+}
+
+function compareCallsByTool(
+  before: CallsByToolEntry[] | null,
+  after: CallsByToolEntry[] | null,
+): CallsByToolDelta[] | null {
+  if (before === null || after === null) return null;
+  const beforeMap = new Map(
+    before.map((entry) => [`${entry.surface}\0${entry.tool}`, entry]),
+  );
+  const afterMap = new Map(
+    after.map((entry) => [`${entry.surface}\0${entry.tool}`, entry]),
+  );
+  const keys = [...new Set([...beforeMap.keys(), ...afterMap.keys()])].sort(
+    (left, right) => {
+      const [leftSurface = "", leftTool = ""] = left.split("\0");
+      const [rightSurface = "", rightTool = ""] = right.split("\0");
+      return (
+        compareStrings(leftSurface, rightSurface) ||
+        compareStrings(leftTool, rightTool)
+      );
+    },
+  );
+  return keys.map((key) => {
+    const [surface, tool] = key.split("\0") as [
+      CallsByToolEntry["surface"],
+      string,
+    ];
+    const beforeEntry =
+      beforeMap.get(key) ?? zeroCallsByToolEntry(surface, tool);
+    const afterEntry = afterMap.get(key) ?? zeroCallsByToolEntry(surface, tool);
+    if (beforeEntry === null || afterEntry === null) {
+      return {
+        surface,
+        tool,
+        before: beforeEntry,
+        after: afterEntry,
+        delta: null,
+        change: "unknown" as const,
+      };
+    }
+    const delta: CallsByToolCounts = Object.fromEntries(
+      CALLS_BY_TOOL_COUNT_FIELDS.map((field) => [
+        field,
+        afterEntry[field] - beforeEntry[field],
+      ]),
+    ) as CallsByToolCounts;
+    const changed = CALLS_BY_TOOL_COUNT_FIELDS.some(
+      (field) => delta[field] !== 0,
+    );
+    return {
+      surface,
+      tool,
+      before: beforeEntry,
+      after: afterEntry,
+      delta,
+      change:
+        beforeEntry.total === 0 && afterEntry.total > 0
+          ? "added"
+          : beforeEntry.total > 0 && afterEntry.total === 0
+            ? "removed"
+            : changed
+              ? "changed"
+              : "unchanged",
+    };
+  });
+}
+
 function formatRunContext(report: AgentEvalReport): string {
   const profile =
     report.surface === "skills"
       ? "n/a"
       : (report.guidanceProfile ?? "descriptors");
-  return `profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""}`;
+  return `agentVersion=${report.agentVersion ?? "unknown"} profile=${profile}${report.reasoningEffort ? ` effort=${report.reasoningEffort}` : ""} intent=${report.intentProfile ?? "neutral"} scenario=${report.scenario ?? "n/a"} intentHash=${report.intentFragmentHash ?? "null"}`;
 }
 
 function effectiveGuidanceProfile(report: AgentEvalReport): string | undefined {
@@ -897,6 +1186,13 @@ function compareMetadataWarnings(
 ): string[] {
   if (before.agent !== after.agent) return [];
   const warnings: string[] = [];
+  const beforeAgentVersion = before.agentVersion ?? "unknown";
+  const afterAgentVersion = after.agentVersion ?? "unknown";
+  if (beforeAgentVersion !== afterAgentVersion) {
+    warnings.push(
+      `agent CLI version differs: ${beforeAgentVersion} -> ${afterAgentVersion}`,
+    );
+  }
   const beforeProfile = effectiveGuidanceProfile(before);
   const afterProfile = effectiveGuidanceProfile(after);
   if (beforeProfile !== afterProfile) {
@@ -913,19 +1209,6 @@ function compareMetadataWarnings(
     warnings.push(
       `reasoning effort differs: ${before.reasoningEffort ?? "unspecified"} -> ${after.reasoningEffort ?? "unspecified"}`,
     );
-  }
-  const isolationWarning = profileIsolationWarning(before.agent);
-  if (
-    isolationWarning &&
-    [before, after].some(
-      (report) =>
-        report.surface === "mcp" &&
-        ["descriptors", "full"].includes(
-          report.guidanceProfile ?? "descriptors",
-        ),
-    )
-  ) {
-    warnings.push(isolationWarning);
   }
   return warnings;
 }
@@ -951,6 +1234,7 @@ export function compareReports(
     `Agent eval compare: before=${before.runDir} (${formatRunLabel(before)}) ${formatRunContext(before)} after=${after.runDir} (${formatRunLabel(after)}) ${formatRunContext(after)}`,
     ...warnings.map((warning) => `Warning: ${warning}`),
   ];
+  const toolDeltas: WorkloadCallsByToolComparison[] = [];
   for (const id of ids) {
     const left = beforeMap.get(id);
     const right = afterMap.get(id);
@@ -967,6 +1251,24 @@ export function compareReports(
         ? `unchanged ${right.status}`
         : `${left.status} -> ${right.status}`;
     lines.push(`${id} status ${status}`);
+    if (sameAgent) {
+      const deltas = compareCallsByTool(
+        left.metrics.callsByTool,
+        right.metrics.callsByTool,
+      );
+      toolDeltas.push({ workloadId: id, deltas });
+      if (deltas === null) {
+        lines.push(
+          "  callsByTool: unknown (logical tool telemetry unavailable for before or after)",
+        );
+      } else {
+        for (const delta of deltas) {
+          lines.push(
+            `  callsByTool ${delta.surface}/${delta.tool}: ${delta.change} before=${formatCallsByToolEntry(delta.before)} after=${formatCallsByToolEntry(delta.after)}${delta.delta ? ` delta=${formatCallsByToolEntry({ surface: delta.surface, tool: delta.tool, ...delta.delta })}` : " delta=unknown"}`,
+          );
+        }
+      }
+    }
     const toolDiff = diffStrings(
       left.toolCalls.uniqueTools,
       right.toolCalls.uniqueTools,
@@ -997,6 +1299,7 @@ export function compareReports(
     sameAgent,
     warnings,
     workloads: ids,
+    toolDeltas,
     lines,
   };
 }

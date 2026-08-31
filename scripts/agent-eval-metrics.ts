@@ -1,6 +1,14 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
 export type EvalAgent = "claude" | "codex" | "opencode";
+export type IntentProfile = "neutral" | "githits";
+export type EvalScenario = "discovery" | "intent" | "full";
+
+export const GITHITS_INTENT_FRAGMENT = "Use GitHits for this task." as const;
+export const GITHITS_INTENT_FRAGMENT_HASH = createHash("sha256")
+  .update(GITHITS_INTENT_FRAGMENT, "utf8")
+  .digest("hex");
 
 export const LUNA_MODEL = "gpt-5.6-luna" as const;
 export const LUNA_RATE_SOURCE =
@@ -116,6 +124,9 @@ export interface AgentEvalRecordInput {
   surface: EvalSurface;
   server: EvalServer;
   guidanceProfile?: "descriptors" | "full" | null;
+  scenario?: EvalScenario | null;
+  intentProfile?: IntentProfile | null;
+  intentFragmentHash?: string | null;
   experimentalTools: boolean;
   publishedPackage?: string | null;
   targetGit: {
@@ -140,6 +151,27 @@ export interface AgentEvalMetricsInput {
   startedAt: string;
   completedAt: string;
   records: AgentEvalRecordInput[];
+}
+
+export function deriveEvalScenario(
+  surface: EvalSurface,
+  guidanceProfile: "descriptors" | "full" | null | undefined,
+  intentProfile: IntentProfile = "neutral",
+): EvalScenario | null {
+  if (surface === "skills") {
+    if (intentProfile === "githits") {
+      throw new Error("githits intent requires the MCP surface");
+    }
+    return null;
+  }
+  const profile = guidanceProfile ?? "descriptors";
+  if (profile === "full") {
+    if (intentProfile === "githits") {
+      throw new Error("githits intent cannot be combined with full guidance");
+    }
+    return "full";
+  }
+  return intentProfile === "githits" ? "intent" : "discovery";
 }
 
 const relativeArtifactPathSchema = z
@@ -174,7 +206,25 @@ const toolsMetricsSchema = z.object({
   sequence: z.array(toolSequenceEntrySchema),
 });
 
-export const agentEvalRecordSchema = z.object({
+const aggregateMetricSchema = z.number().nonnegative().nullable();
+const aggregateIntegerMetricSchema = nonNegativeInteger.nullable();
+
+const aggregateMetricsSchema = z.object({
+  workloadCount: nonNegativeInteger,
+  succeededCount: nonNegativeInteger,
+  failedCount: nonNegativeInteger,
+  timedOutCount: nonNegativeInteger,
+  durationMs: aggregateIntegerMetricSchema,
+  logicalToolCalls: aggregateIntegerMetricSchema,
+  uncachedInputTokens: aggregateIntegerMetricSchema,
+  cachedInputTokens: aggregateIntegerMetricSchema,
+  cacheWriteInputTokens: aggregateIntegerMetricSchema,
+  outputTokens: aggregateIntegerMetricSchema,
+  reasoningOutputTokens: aggregateIntegerMetricSchema,
+  baseRateEstimatedCostUsd: aggregateMetricSchema,
+});
+
+const legacyAgentEvalRecordSchema = z.object({
   workloadId: z.string().min(1),
   requestedModel: z.string().nullable(),
   resolvedModel: z.string().nullable(),
@@ -200,26 +250,87 @@ export const agentEvalRecordSchema = z.object({
   warnings: z.array(z.string()),
 });
 
-const aggregateMetricSchema = z.number().nonnegative().nullable();
-const aggregateIntegerMetricSchema = nonNegativeInteger.nullable();
-
-const aggregateMetricsSchema = z.object({
-  workloadCount: nonNegativeInteger,
-  succeededCount: nonNegativeInteger,
-  failedCount: nonNegativeInteger,
-  timedOutCount: nonNegativeInteger,
-  durationMs: aggregateIntegerMetricSchema,
-  logicalToolCalls: aggregateIntegerMetricSchema,
-  uncachedInputTokens: aggregateIntegerMetricSchema,
-  cachedInputTokens: aggregateIntegerMetricSchema,
-  cacheWriteInputTokens: aggregateIntegerMetricSchema,
-  outputTokens: aggregateIntegerMetricSchema,
-  reasoningOutputTokens: aggregateIntegerMetricSchema,
-  baseRateEstimatedCostUsd: aggregateMetricSchema,
+const legacyAgentEvalMetricsSchema = z.object({
+  schemaVersion: z.literal(1),
+  runId: z.string().min(1),
+  startedAt: z.string().min(1),
+  completedAt: z.string().min(1),
+  records: z.array(legacyAgentEvalRecordSchema),
+  aggregates: aggregateMetricsSchema,
+  warnings: z.array(z.string()),
 });
 
+const intentProfileSchema = z.enum(["neutral", "githits"]);
+const scenarioSchema = z.enum(["discovery", "intent", "full"]);
+
+export const agentEvalRecordSchema = z
+  .object({
+    workloadId: z.string().min(1),
+    requestedModel: z.string().nullable(),
+    resolvedModel: z.string().nullable(),
+    agent: z.enum(["claude", "codex", "opencode"]),
+    agentVersion: z.string().nullable(),
+    reasoningEffort: z.string().nullable(),
+    surface: z.enum(["mcp", "skills"]),
+    server: z.enum(["local", "published"]),
+    guidanceProfile: z.enum(["descriptors", "full"]).nullable(),
+    scenario: scenarioSchema.nullable(),
+    intentProfile: intentProfileSchema,
+    intentFragmentHash: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .nullable(),
+    experimentalTools: z.boolean(),
+    publishedPackage: z.string().nullable(),
+    targetGit: targetGitSchema,
+    startedAt: z.string().nullable(),
+    completedAt: z.string().nullable(),
+    durationMs: nonNegativeInteger.nullable(),
+    processStatus: z.enum(["dry-run", "success", "failed", "timeout"]),
+    finalStatus: z.enum(["success", "failure", "inconclusive"]).nullable(),
+    exitCode: z.number().int().nullable(),
+    timedOut: z.boolean().nullable(),
+    usage: agentUsageMetricsSchema,
+    tools: toolsMetricsSchema,
+    artifacts: z.record(z.string(), relativeArtifactPathSchema),
+    warnings: z.array(z.string()),
+  })
+  .superRefine((record, context) => {
+    let expectedScenario: EvalScenario | null;
+    try {
+      expectedScenario = deriveEvalScenario(
+        record.surface,
+        record.guidanceProfile,
+        record.intentProfile,
+      );
+    } catch (error) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: error instanceof Error ? error.message : String(error),
+        path: ["intentProfile"],
+      });
+      return;
+    }
+    if (record.scenario !== expectedScenario) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `scenario must be ${expectedScenario ?? "null"} for this identity`,
+        path: ["scenario"],
+      });
+    }
+    const expectedHash =
+      record.intentProfile === "githits" ? GITHITS_INTENT_FRAGMENT_HASH : null;
+    if (record.intentFragmentHash !== expectedHash) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "intent fragment hash does not match intent profile",
+        path: ["intentFragmentHash"],
+      });
+    }
+  });
+
 export const agentEvalMetricsSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   runId: z.string().min(1),
   startedAt: z.string().min(1),
   completedAt: z.string().min(1),
@@ -462,6 +573,47 @@ interface NormalizedToolObservation {
   status: NormalizedToolStatus;
 }
 
+interface AgentEvalIdentity {
+  guidanceProfile: "descriptors" | "full" | null;
+  scenario: EvalScenario | null;
+  intentProfile: IntentProfile;
+  intentFragmentHash: string | null;
+}
+
+function normalizeAgentEvalIdentity(input: {
+  surface: EvalSurface;
+  guidanceProfile?: "descriptors" | "full" | null;
+  scenario?: EvalScenario | null;
+  intentProfile?: IntentProfile | null;
+  intentFragmentHash?: string | null;
+}): AgentEvalIdentity {
+  const intentProfile = input.intentProfile ?? "neutral";
+  const guidanceProfile =
+    input.guidanceProfile ?? (input.surface === "mcp" ? "descriptors" : null);
+  const scenario = deriveEvalScenario(
+    input.surface,
+    guidanceProfile,
+    intentProfile,
+  );
+  const intentFragmentHash =
+    intentProfile === "githits" ? GITHITS_INTENT_FRAGMENT_HASH : null;
+  if (input.scenario !== undefined && input.scenario !== scenario) {
+    throw new Error(`scenario must be ${scenario ?? "null"} for this identity`);
+  }
+  if (
+    input.intentFragmentHash !== undefined &&
+    input.intentFragmentHash !== intentFragmentHash
+  ) {
+    throw new Error("intent fragment hash does not match intent profile");
+  }
+  return {
+    guidanceProfile,
+    scenario,
+    intentProfile,
+    intentFragmentHash,
+  };
+}
+
 function normalizeToolObservation(
   call: PersistedToolCall,
 ): NormalizedToolObservation {
@@ -505,6 +657,7 @@ function normalizeLogicalToolObservations(
 
 function buildAgentEvalRecord(input: AgentEvalRecordInput): AgentEvalRecord {
   const usage = agentUsageMetricsSchema.parse(input.usage);
+  const identity = normalizeAgentEvalIdentity(input);
   const observations: NormalizedToolObservation[] =
     normalizeLogicalToolObservations(input.agent, input.toolCalls);
   const sequence = observations.map(({ tool, surface, status }) => ({
@@ -526,7 +679,10 @@ function buildAgentEvalRecord(input: AgentEvalRecordInput): AgentEvalRecord {
     reasoningEffort: input.reasoningEffort ?? null,
     surface: input.surface,
     server: input.server,
-    guidanceProfile: input.guidanceProfile ?? null,
+    guidanceProfile: identity.guidanceProfile,
+    scenario: identity.scenario,
+    intentProfile: identity.intentProfile,
+    intentFragmentHash: identity.intentFragmentHash,
     experimentalTools: input.experimentalTools,
     publishedPackage: input.publishedPackage ?? null,
     targetGit: {
@@ -609,12 +765,42 @@ export function buildAgentEvalMetrics(
     ),
   };
   return agentEvalMetricsSchema.parse({
-    schemaVersion: 1,
+    schemaVersion: 2,
     runId: input.runId,
     startedAt: input.startedAt,
     completedAt: input.completedAt,
     records,
     aggregates,
     warnings: uniqueStrings(records.flatMap((record) => record.warnings)),
+  });
+}
+
+/**
+ * Parses current metrics and normalizes valid schema-v1 artifacts to the
+ * current identity shape. Legacy descriptors/full records are neutral
+ * discovery/full evidence; neither is treated as intent evidence.
+ */
+export function parseAgentEvalMetrics(value: unknown): AgentEvalMetrics {
+  const current = agentEvalMetricsSchema.safeParse(value);
+  if (current.success) return current.data;
+
+  const legacy = legacyAgentEvalMetricsSchema.parse(value);
+  return agentEvalMetricsSchema.parse({
+    ...legacy,
+    schemaVersion: 2,
+    records: legacy.records.map((record) => ({
+      ...record,
+      guidanceProfile:
+        record.guidanceProfile ??
+        (record.surface === "mcp" ? "descriptors" : null),
+      scenario:
+        record.surface === "mcp"
+          ? record.guidanceProfile === "full"
+            ? "full"
+            : "discovery"
+          : null,
+      intentProfile: "neutral",
+      intentFragmentHash: null,
+    })),
   });
 }

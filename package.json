@@ -54,6 +54,7 @@
     "plugins:check": "bun run scripts/generate-plugin-assets.ts --check",
     "audit:pkg-ecosystems": "bun run scripts/pkg-ecosystem-audit.ts",
     "agent:e2e": "bun run scripts/agent-eval.ts",
+    "agent:e2e:suite": "bun run scripts/agent-eval-suite.ts",
     "agent:e2e:report": "bun run scripts/agent-eval-report.ts",
     "agent:session": "bun run scripts/agent-session.ts",
     "eval": "bun run eval/run.ts",

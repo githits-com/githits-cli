@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "workloads": [
+    {
+      "id": "code-file-navigation",
+      "path": "eval/agentic/workloads/code-file-navigation.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "code-files-listing",
+      "path": "eval/agentic/workloads/code-files-listing.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "code-grep-investigation",
+      "path": "eval/agentic/workloads/code-grep-investigation.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "code-read-window",
+      "path": "eval/agentic/workloads/code-read-window.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "docs-discovery",
+      "path": "eval/agentic/workloads/docs-discovery.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "docs-search-followup",
+      "path": "eval/agentic/workloads/docs-search-followup.md",
+      "safety": "stable",
+      "suites": ["smoke", "stable-full"]
+    },
+    {
+      "id": "docs-search-noise",
+      "path": "eval/agentic/workloads/docs-search-noise.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "express-router",
+      "path": "eval/agentic/workloads/express-router.md",
+      "safety": "stable",
+      "suites": ["canary", "smoke", "stable-full"]
+    },
+    {
+      "id": "experimental-code-diff",
+      "path": "eval/agentic/workloads/experimental-code-diff.md",
+      "safety": "experimental",
+      "suites": ["experimental"]
+    },
+    {
+      "id": "experimental-resolution-follow-up",
+      "path": "eval/agentic/workloads/experimental-resolution-follow-up.md",
+      "safety": "experimental",
+      "suites": ["experimental"]
+    },
+    {
+      "id": "experimental-site-resolution-follow-up",
+      "path": "eval/agentic/workloads/experimental-site-resolution-follow-up.md",
+      "safety": "experimental",
+      "suites": ["experimental"]
+    },
+    {
+      "id": "githits-onboarding",
+      "path": "eval/agentic/workloads/githits-onboarding.md",
+      "safety": "stateful",
+      "suites": ["stateful-manual"]
+    },
+    {
+      "id": "global-example",
+      "path": "eval/agentic/workloads/global-example.md",
+      "safety": "stable",
+      "suites": ["smoke", "stable-full"]
+    },
+    {
+      "id": "opencode-compaction",
+      "path": "eval/agentic/workloads/opencode-compaction.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "package-changelog",
+      "path": "eval/agentic/workloads/package-changelog.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "package-changelog-range",
+      "path": "eval/agentic/workloads/package-changelog-range.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "package-dependencies",
+      "path": "eval/agentic/workloads/package-dependencies.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "package-overview-vulnerabilities",
+      "path": "eval/agentic/workloads/package-overview-vulnerabilities.md",
+      "safety": "stable",
+      "suites": ["canary", "smoke", "stable-full"]
+    },
+    {
+      "id": "package-upgrade-safety",
+      "path": "eval/agentic/workloads/package-upgrade-safety.md",
+      "safety": "stable",
+      "suites": ["smoke", "stable-full"]
+    },
+    {
+      "id": "package-vulnerability-filter",
+      "path": "eval/agentic/workloads/package-vulnerability-filter.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "package-vulnerability-history",
+      "path": "eval/agentic/workloads/package-vulnerability-history.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "package-vulnerability-rubygems",
+      "path": "eval/agentic/workloads/package-vulnerability-rubygems.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "search-source-ergonomics",
+      "path": "eval/agentic/workloads/search-source-ergonomics.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "site-search-explicit",
+      "path": "eval/agentic/workloads/site-search-explicit.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "unified-search-investigation",
+      "path": "eval/agentic/workloads/unified-search-investigation.md",
+      "safety": "stable",
+      "suites": ["smoke", "stable-full"]
+    }
+  ]
+}

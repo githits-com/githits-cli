@@ -5,16 +5,125 @@ import {
   agentEvalMetricsSchema,
   agentUsageMetricsSchema,
   buildAgentEvalMetrics,
+  GITHITS_INTENT_FRAGMENT,
+  GITHITS_INTENT_FRAGMENT_HASH,
   LUNA_MODEL,
   LUNA_RATE_EFFECTIVE_DATE,
   LUNA_RATE_SOURCE,
+  parseAgentEvalMetrics,
 } from "./agent-eval-metrics.ts";
 
 function codexUsageEvent(usage: Record<string, number>): string {
   return JSON.stringify({ type: "turn.completed", usage });
 }
 
+function identityRecord(
+  guidanceProfile: "descriptors" | "full",
+  intentProfile: "neutral" | "githits" = "neutral",
+): AgentEvalRecordInput {
+  return {
+    workloadId: `${guidanceProfile}-${intentProfile}`,
+    requestedModel: null,
+    resolvedModel: null,
+    agent: "claude",
+    agentVersion: "claude 1.0.0",
+    reasoningEffort: null,
+    surface: "mcp",
+    server: "local",
+    guidanceProfile,
+    intentProfile,
+    experimentalTools: false,
+    publishedPackage: null,
+    targetGit: { branch: "main", sha: "abc123", dirty: false },
+    startedAt: "2026-08-28T10:00:00.000Z",
+    completedAt: "2026-08-28T10:00:01.000Z",
+    durationMs: 1000,
+    processStatus: "success",
+    finalStatus: "success",
+    exitCode: 0,
+    timedOut: false,
+    usage: adaptAgentUsage("", "claude", undefined),
+    toolCalls: [
+      {
+        tool: "mcp__githits__pkg_info",
+        server: "githits",
+        status: "completed",
+      },
+    ],
+    artifacts: {},
+  };
+}
+
 describe("agent eval usage metrics", () => {
+  it("emits schema-v2 scenario identity with a SHA-256 intent hash", () => {
+    const neutral = buildAgentEvalMetrics({
+      runId: "run-neutral",
+      startedAt: "2026-08-28T10:00:00.000Z",
+      completedAt: "2026-08-28T10:00:01.000Z",
+      records: [identityRecord("descriptors")],
+    });
+    const intent = buildAgentEvalMetrics({
+      runId: "run-intent",
+      startedAt: "2026-08-28T10:00:00.000Z",
+      completedAt: "2026-08-28T10:00:01.000Z",
+      records: [identityRecord("descriptors", "githits")],
+    });
+
+    expect(neutral.schemaVersion).toBe(2);
+    expect(neutral.records[0]).toMatchObject({
+      scenario: "discovery",
+      intentProfile: "neutral",
+      intentFragmentHash: null,
+    });
+    expect(intent.records[0]).toMatchObject({
+      scenario: "intent",
+      intentProfile: "githits",
+      intentFragmentHash: GITHITS_INTENT_FRAGMENT_HASH,
+    });
+    expect(GITHITS_INTENT_FRAGMENT_HASH).toBe(
+      "b04b96acfd7a89516ab1742d9df914bb6779e952c7df96ac9858785ed40f10d0",
+    );
+    expect(GITHITS_INTENT_FRAGMENT).toBe("Use GitHits for this task.");
+    expect(agentEvalMetricsSchema.parse(intent)).toEqual(intent);
+  });
+
+  it("normalizes schema-v1 descriptor/full metrics without inventing intent", () => {
+    const current = buildAgentEvalMetrics({
+      runId: "run-legacy",
+      startedAt: "2026-08-28T10:00:00.000Z",
+      completedAt: "2026-08-28T10:00:02.000Z",
+      records: [identityRecord("descriptors"), identityRecord("full")],
+    });
+    const legacy: unknown = {
+      ...current,
+      schemaVersion: 1,
+      records: current.records.map(
+        ({ scenario, intentProfile, intentFragmentHash, ...record }) => record,
+      ),
+    };
+    const normalized = parseAgentEvalMetrics(legacy);
+
+    expect(normalized.schemaVersion).toBe(2);
+    expect(normalized.records.map((record) => record.scenario)).toEqual([
+      "discovery",
+      "full",
+    ]);
+    expect(normalized.records).toSatisfy((records) =>
+      records.every(
+        (record) =>
+          record.intentProfile === "neutral" &&
+          record.intentFragmentHash === null,
+      ),
+    );
+    expect(normalized.records.map((record) => record.tools)).toEqual(
+      current.records.map((record) => record.tools),
+    );
+    expect(normalized.records.map((record) => record.warnings)).toEqual(
+      current.records.map((record) => record.warnings),
+    );
+    expect(normalized.aggregates).toEqual(current.aggregates);
+  });
+
   it("normalizes inclusive Luna usage and does not double-count reasoning", () => {
     const metrics = adaptAgentUsage(
       codexUsageEvent({
