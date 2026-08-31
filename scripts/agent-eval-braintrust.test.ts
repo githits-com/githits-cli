@@ -2255,7 +2255,10 @@ describe("Agent eval workflow Braintrust integration", () => {
     expect(run).toContain("BRAINTRUST_BRANCH");
     expect(run).toContain("BRAINTRUST_PR_NUMBER");
     expect(run).toContain("braintrust_args+=(--pr-number");
-    expect(run).toContain('"${braintrust_args[@]}"');
+    const quotedArgsExpansion = ['"', "$", "{braintrust_args[@]}", '"'].join(
+      "",
+    );
+    expect(run).toContain(quotedArgsExpansion);
     expect(run).toContain("--source github");
     expect(run).toContain('--channel "$BRAINTRUST_CHANNEL"');
     expect(run).toContain('--branch "$BRAINTRUST_BRANCH"');
