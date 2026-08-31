@@ -381,17 +381,37 @@ and warnings. It never reads a baseline, calculates deltas, writes PR comments,
 or judges answer quality. Partial/failed/timeout execution, unknown or missing
 cells, zero selected workloads or zero expected executions, CLI fallback,
 isolation violations, and missing evidence fail after the summary is rendered.
-Zero-call discovery and ordinary telemetry warnings stay advisory. The measured
-healthy path is expected to take 5–6 minutes and cost
-about $0.23 as a base-rate estimate, not a billing guarantee. No cross-run
+Zero-call discovery and ordinary telemetry warnings stay advisory. No cross-run
 concurrency group is configured, so independent schedule, dispatch, and label
 runs may overlap.
 
-The local implementation and deterministic validation are complete. A live
-scheduled/manual/label-authorized workflow run remains pending; the repository
-administrator-verified secret names are `OPENAI_API_KEY` and
-`GITHITS_API_TOKEN` (verified 2026-08-31 without reading their values). No live
-duration, quota, or hosted-run evidence is claimed here yet.
+### Live CI validation evidence
+
+The first same-repository label run, `33379420414` at SHA `6f26242`, rendered
+its summary but failed execution validation: discovery was 2/2, intent was
+20/21, authenticated MCP data calls returned `AUTH_REQUIRED`, and
+`docs-discovery` used the GitHits CLI fallback. The root cause was missing
+Codex stdio `env_vars` forwarding. This confirms failure detection and is not
+model-quality evidence.
+
+The corrected same-repository label run
+([workflow run 33380560726](https://github.com/githits-com/githits-cli/actions/runs/33380560726))
+at exact SHA `16fd964` succeeded. The discovery job took 44 seconds, intent
+took 2 minutes 24 seconds, and summary rendering took 13 seconds. The workflow
+ran from 10:02:30Z to 10:05:12Z (about 2 minutes 42 seconds end to end).
+Discovery suite wall/cumulative time was 24.804/44.386 seconds; intent was
+124.898/454.773 seconds. The cells were 2/2 and 21/21 at workload concurrency
+2/4, using Codex CLI 0.151.0. Logical calls were 10 + 115 = 125, all MCP;
+there were no isolation-violation files, CLI calls/fallbacks, `AUTH_REQUIRED`
+responses, or warnings. Reporter cost estimates were $0.0265 + $0.2249,
+about $0.2514 total. Token totals were 417 uncached input, 2,474,289 cached
+input, 701,553 cache-write input, 22,048 output, and 4,739 reasoning tokens.
+
+All 23 Codex configs contained only the name-only `GITHITS_API_TOKEN`
+`env_vars` entry and no literal token assignment; secret values were not read
+during inspection. The same-repository label path is live-validated. Default
+branch scheduled/manual execution remains pending merge, so this does not yet
+establish scheduled/manual behavior or complete all deployment acceptance.
 
 ## Previous paid comparison: contaminated; capacity evidence only
 

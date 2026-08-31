@@ -4,7 +4,8 @@
 
 - Overall: IN PROGRESS
 - Current phase: Phase 3 — Parallel CI Execution And Concise Reporting
-  (IMPLEMENTED LOCALLY; LIVE VALIDATION PENDING)
+  (IMPLEMENTED LOCALLY; SAME-REPOSITORY LABEL PATH LIVE-VALIDATED; SCHEDULED/MANUAL
+  PATH PENDING MERGE)
 - Previous work: Phase 2 correction is COMPLETE. Its discovery, intent, full,
   scenario-aware comparison, metrics-compatibility, and Codex interactive
   isolation contracts are locally validated; CI execution is Phase 3 and
@@ -12,9 +13,9 @@
 - Owner: repository maintainers
 - Last verified: 2026-08-31
 - Deployment: Phases 1 and 2 merged to `main`; local maintainer tooling and the
-  Phase 3 workflow/report are implemented. Live scheduled and label-authorized
-  validation is pending. Braintrust persistence is a separate Phase 4
-  increment.
+  Phase 3 workflow/report are implemented. Same-repository label-authorized
+  validation is live; scheduled/manual default-branch validation remains
+  pending merge. Braintrust persistence is a separate Phase 4 increment.
 
 ## Problem And Expected Outcome
 
@@ -114,8 +115,9 @@ Out of scope for the initial phases:
   to `main`, and `.github/workflows/agent-evals.yml` now defines the scheduled,
   manual, and same-repository label-authorized Luna workflow. Repository
   administrators verified the required secret names `OPENAI_API_KEY` and
-  `GITHITS_API_TOKEN` on 2026-08-31 without reading their values. A live
-  workflow run is still required before Phase 3 can be accepted as fully
+  `GITHITS_API_TOKEN` on 2026-08-31 without reading their values. The
+  same-repository label path is live-validated; default-branch scheduled/manual
+  execution remains pending merge before Phase 3 can be accepted as fully
   complete.
 - The agentic eval documentation now distinguishes local human/agent-driven
   inspection from the dedicated CI workflow. Deterministic smoke tests remain
@@ -156,10 +158,11 @@ deterministic input-order pool gives 411,742 ms at concurrency 2, 280,622 ms at
 sequentially; its two workloads project to 234,795 ms when run together because
 the slower workload dominates. Running discovery and intent as two concurrent
 CI jobs, with workload concurrency 2 and 4 respectively, therefore projects the
-paid-agent critical path at about 3.9 minutes. Setup and reporting should keep a
-healthy workflow near 5–6 minutes. Intent concurrency above 4 would not shorten
-the current critical path, so it would add provider load without useful runtime
-improvement.
+paid-agent critical path at about 3.9 minutes. The corrected same-repository
+label run later measured about 2 minutes 42 seconds end to end, superseding the
+provisional 5–6 minute target for the validated path. Intent concurrency above
+4 would not shorten the current critical path, so it would add provider load
+without useful runtime improvement.
 
 The two scheduled suites used an estimated \$0.2297134 in the accepted local
 evidence (\$0.0266578 discovery plus \$0.2030556 intent). This is a base-rate
@@ -474,9 +477,10 @@ changes are not confused with harness changes.
 
 ## Unknowns And Product Decisions
 
-None block Phase 3 implementation. Live activation and acceptance remain
-pending external workflow execution using the verified `OPENAI_API_KEY` and
-`GITHITS_API_TOKEN` secret names; this is an operational validation dependency,
+None block Phase 3 implementation. The same-repository label path is
+live-validated; scheduled/manual activation and final acceptance remain pending
+external workflow execution after merge using the verified `OPENAI_API_KEY` and
+`GITHITS_API_TOKEN` secret names. This is an operational validation dependency,
 not a product decision.
 
 The following must be resolved before Phase 4 is detailed:
@@ -605,10 +609,11 @@ The following must be resolved before Phase 6:
    validated; corrected discovery/intent evidence supersedes the two-profile
    behavior policy.
 3. **Phase 3 — parallel CI execution and concise reporting (IMPLEMENTED
-   LOCALLY; LIVE VALIDATION PENDING):** clean GitHub-hosted jobs run the Luna
-   discovery and intent suites daily or after an authorized PR label, retain
-   raw evidence, and render a concise no-baseline summary. Do not mark this
-   phase complete until a live workflow passes.
+   LOCALLY; SAME-REPOSITORY LABEL PATH LIVE-VALIDATED; SCHEDULED/MANUAL PATH
+   PENDING MERGE):** clean GitHub-hosted jobs run the Luna discovery and intent
+   suites daily or after an authorized PR label, retain raw evidence, and
+   render a concise no-baseline summary. Do not mark this phase complete until
+   the scheduled/manual default-branch path is validated after merge.
 4. **Phase 4 — Braintrust persistence proof of concept (PLANNED):** normalized
    Phase 3 records become durable per-workload/per-agent history without making
    the runner dependent on Braintrust.
@@ -1445,11 +1450,35 @@ captured below; Braintrust persistence is intentionally a later phase.
 
 ### Status
 
-IMPLEMENTED LOCALLY. The runner, schema-v3 suite artifacts, CI reporter,
-workflow, and operational documentation are complete and locally validated.
-Live scheduled/manual/label-authorized execution and paid acceptance remain
-pending; do not mark Phase 3 complete until a live workflow passes its clean
-runner and summary checks.
+IMPLEMENTED LOCALLY; SAME-REPOSITORY LABEL PATH LIVE-VALIDATED. The runner,
+schema-v3 suite artifacts, CI reporter, workflow, and operational documentation
+are complete and locally validated. The corrected label run passed its clean
+runner and summary checks; default-branch scheduled/manual execution remains
+pending merge, so Phase 3 deployment acceptance is not complete.
+
+### Live label-run evidence
+
+The first same-repository label run, `33379420414` at SHA `6f26242`, rendered
+its summary but failed execution validation: discovery was 2/2, intent was
+20/21, authenticated MCP data calls returned `AUTH_REQUIRED`, and
+`docs-discovery` used the GitHits CLI fallback. The root cause was missing
+Codex stdio `env_vars` forwarding. This demonstrates failure detection, not
+model quality.
+
+The corrected same-repository label run
+([workflow run 33380560726](https://github.com/githits-com/githits-cli/actions/runs/33380560726))
+at exact SHA `16fd964` succeeded: discovery took 44 seconds and intent 2
+minutes 24 seconds, with 13 seconds for summary rendering; end to end it ran
+from 10:02:30Z to 10:05:12Z (about 2 minutes 42 seconds). Suite
+wall/cumulative seconds were 24.804/44.386 for discovery and 124.898/454.773
+for intent. The cells were 2/2 and 21/21 at workload concurrency 2/4, using
+Codex CLI 0.151.0. All 125 logical calls (10 + 115) were MCP; there were no
+isolation-violation files, CLI calls/fallbacks, `AUTH_REQUIRED` responses, or
+warnings. Reporter estimates were $0.0265 + $0.2249 (about $0.2514 total),
+with 417 uncached input, 2,474,289 cached input, 701,553 cache-write input,
+22,048 output, and 4,739 reasoning tokens. All 23 Codex configs used only the
+name-only `GITHITS_API_TOKEN` `env_vars` entry and no literal token assignment;
+secret values were not read during inspection.
 
 ### Expected Outcome
 
@@ -1594,35 +1623,37 @@ None.
    status classification, including zero-call discovery, per-tool frequencies,
    unknown telemetry, partial/missing suites, CLI fallback, and isolation
    violations. Implement the pure formatter and thin CLI entrypoint.
-3. **Implemented locally; live validation pending:** Add the dedicated workflow with the three triggers, an explicit
+3. **Implemented locally; same-repository label path live-validated:** Add the dedicated workflow with the three triggers, an explicit
    `github.event.label.name == 'agent-eval'` job gate, same-repository label/SHA
    authorization, clean Codex home and API-key setup, the two scenario jobs,
    unconditional artifact upload/reporting, 14-day retention, and minimal
-   permissions. Keep secret scope to the paid execution steps.
+   permissions. Keep secret scope to the paid execution steps. The corrected
+   label run passed; default-branch scheduled/manual execution remains pending
+   merge.
 4. **Completed locally:** Update local/CI operational documentation, the durable implementation
    contract, and the required no-public-impact change fragment. Document label
    authorization, re-label behavior, exact suites/concurrency, expected
    duration/cost, secret names, and artifact/report locations.
-5. **Local evidence complete; live evidence pending:** Run focused tests, all suite dry-runs at concurrency 1 and the CI-selected
+5. **Local and label evidence complete; scheduled/manual evidence pending merge:** Run focused tests, all suite dry-runs at concurrency 1 and the CI-selected
    values, `bun test`, typecheck, format, lint, build, and workflow syntax/action
-   validation. After secrets are provisioned, manually dispatch the workflow,
-   verify no global skill/guidance reads or CLI fallbacks, compare observed wall
-   time/cost with the baseline, and inspect the rendered summary and downloaded
-   artifacts before enabling the schedule/label operationally.
+   validation. The same-repository label path is live-validated with no global
+   skill/guidance reads or CLI fallbacks. After the change is merged, manually
+   dispatch the workflow and verify the scheduled/default-branch path before
+   treating Phase 3 deployment acceptance as complete.
 
 ### Acceptance Criteria
 
 - Default local execution remains sequential; explicit concurrency never
   exceeds the requested in-flight workload count and preserves manifest order.
-- A trusted manual run and a scheduled default-branch run check out the exact
-  intended SHA and produce 2/2 discovery plus 21/21 intent records, or explicit
-  failed/missing records, with concurrency 2/4 captured in artifacts.
+- A same-repository label run checks out the exact labeled head SHA and
+  produces 2/2 discovery plus 21/21 intent records with concurrency 2/4
+  captured in artifacts; scheduled/default-branch manual execution remains
+  pending merge.
 - A same-repository PR runs only after the exact `agent-eval` label event at the
   labeled head SHA; forks and later unlabeled SHAs cannot consume secrets.
-- A healthy live workflow completes near the evidence-backed 5–6 minute target;
-  actual wall time, cost, and any provider-quota behavior are recorded rather
-  than hidden by retries. Material deviation is investigated before changing
-  concurrency.
+- The corrected same-repository label workflow completed in about 2 minutes 42
+  seconds at an estimated $0.2514 base cost; actual wall time, cost, and any
+  provider-quota behavior are recorded rather than hidden by retries.
 - The GitHub summary concisely shows status, exact Codex CLI/model identity,
   tool calls/tools used, tokens, duration, cost uncertainty, and evidence links
   for both scenarios, with no baseline or `main` comparison.
