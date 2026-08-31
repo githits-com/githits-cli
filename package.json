@@ -56,6 +56,7 @@
     "agent:e2e": "bun run scripts/agent-eval.ts",
     "agent:e2e:suite": "bun run scripts/agent-eval-suite.ts",
     "agent:e2e:report": "bun run scripts/agent-eval-report.ts",
+    "agent:e2e:ci-report": "bun run scripts/agent-eval-ci-report.ts",
     "agent:session": "bun run scripts/agent-session.ts",
     "eval": "bun run eval/run.ts",
     "test": "bun test",
