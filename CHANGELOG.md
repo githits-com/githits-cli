@@ -18,8 +18,8 @@ and expands local agent-evaluation tooling.
   scenario cells, schema-v2 suite/comparison artifacts, scenario-aware cohorts,
   and deterministic schema-v1 compatibility. Defaults keep canary
   discovery+intent and other named suites intent-only; full is local/manual
-  opt-in. Daily CI and service export remain unimplemented, and artifacts
-  distinguish tool execution from answer-quality evidence.
+  opt-in. Service export remains unimplemented, and artifacts distinguish tool
+  execution from answer-quality evidence.
 
 ### Changed
 
@@ -33,6 +33,14 @@ and expands local agent-evaluation tooling.
 - **Route broad vulnerability questions to current evidence** - `pkg_vulns`
   now explicitly covers qualitative package security questions and directs
   agents away from potentially outdated training data.
+- **Explain target-resolution evidence** - `githits resolve` and its local
+  experimental MCP counterpart expose backend name similarity in JSON and
+  opt-in verbose text, qualify it as coarse lexical support without reranking,
+  and label positive code evidence as an indexed package or repository
+  snapshot. Default text remains compact, uses a neutral target heading, omits
+  negative availability claims, and does not fetch lexical evidence.
+  Experimental JSON candidates no longer project backend ranking `reason`
+  text.
 - **Agent eval isolation** - Codex evals and interactive sessions now use
   disposable acting-agent home/config/temp roots, validate an absolute
   dedicated `CODEX_HOME` before use or launch, reject direct home skills other
@@ -44,6 +52,10 @@ and expands local agent-evaluation tooling.
   version metrics. Exact intent fragments are SHA-256 identified, neutral
   intent records `null`, valid schema-v1 metrics normalize deterministically,
   and same-agent comparisons warn on version drift.
+- **Daily Luna agent eval workflow** - Add maintainer-authorized daily, manual,
+  and same-repository labeled-pull-request execution for the Luna discovery and
+  intent suites, bounded concurrency, 14-day raw artifact retention, and
+  concise absolute summaries. Public package behavior is unchanged.
 
 ### Fixed
 
