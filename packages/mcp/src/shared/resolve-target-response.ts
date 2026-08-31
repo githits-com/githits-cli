@@ -152,6 +152,10 @@ export interface ResolveTargetEvidenceOptions {
   code: boolean;
 }
 
+export type ResolveTargetEvidencePlan = (
+  target: ResolveTargetTarget,
+) => ResolveTargetEvidenceOptions;
+
 /** Preserve backend order while combining only contiguous equal non-null keys. */
 export function groupResolveTargets(
   targets: readonly ResolveTargetTarget[],
@@ -175,14 +179,14 @@ export function groupResolveTargets(
 }
 
 /**
- * Assign each evidence dimension to its clearest target lane. Package targets
- * retain projected repository/site evidence only when the corresponding target
- * is absent, so partial and singleton groups remain informative without
- * repeating complete-group metrics.
+ * Build a group-scoped resolver that assigns each evidence dimension to its
+ * clearest target lane. Package targets retain projected repository/site
+ * evidence only when the corresponding target is absent, so partial and
+ * singleton groups remain informative without repeating complete-group metrics.
  */
 export function buildResolveTargetEvidencePlan(
   targets: readonly ResolveTargetTarget[],
-): ResolveTargetEvidenceOptions[] {
+): ResolveTargetEvidencePlan {
   const hasRepositoryTarget = targets.some(
     (target) => target.kind === "REPOSITORY",
   );
@@ -192,7 +196,7 @@ export function buildResolveTargetEvidencePlan(
       target.kind === "PACKAGE" && formatLicense(target.license) !== undefined,
   );
 
-  return targets.map((target) => {
+  return (target: ResolveTargetTarget): ResolveTargetEvidenceOptions => {
     switch (target.kind) {
       case "PACKAGE":
         return {
@@ -231,7 +235,7 @@ export function buildResolveTargetEvidencePlan(
           code: true,
         };
     }
-  });
+  };
 }
 
 /**
@@ -370,13 +374,13 @@ function formatTerminalGroup(
   if (!lead) return [];
   const evidencePlan = buildResolveTargetEvidencePlan(group.targets);
   const lines = [
-    `  ${groupNumber}. ${formatTerminalTargetLine(lead, evidencePlan[0], protectedKeys, useColors)}`,
+    `  ${groupNumber}. ${formatTerminalTargetLine(lead, evidencePlan(lead), protectedKeys, useColors)}`,
     ...formatTerminalTargetDetails(lead, "     ", useColors),
   ];
   if (members.length > 0) lines.push("     Related targets:");
-  for (const [index, member] of members.entries()) {
+  for (const member of members) {
     lines.push(
-      `       ${formatTerminalTargetLine(member, evidencePlan[index + 1], protectedKeys, useColors)}`,
+      `       ${formatTerminalTargetLine(member, evidencePlan(member), protectedKeys, useColors)}`,
       ...formatTerminalTargetDetails(member, "         ", useColors),
     );
   }
@@ -385,14 +389,11 @@ function formatTerminalGroup(
 
 function formatTerminalTargetLine(
   target: ResolveTargetTarget,
-  evidenceOptions: ResolveTargetEvidenceOptions | undefined,
+  evidenceOptions: ResolveTargetEvidenceOptions,
   protectedKeys: ReadonlySet<string>,
   useColors: boolean,
 ): string {
-  const evidence = formatResolveTargetEvidence(
-    target,
-    evidenceOptions ?? allResolveTargetEvidence(),
-  );
+  const evidence = formatResolveTargetEvidence(target, evidenceOptions);
   return `${formatTerminalTarget(target, useColors)}${formatProtectedMarker(target, protectedKeys)}${evidence ? ` · ${evidence}` : ""}`;
 }
 
@@ -467,17 +468,6 @@ export function formatResolveTargetEvidence(
   );
   if (code) fields.push(code);
   return fields.map(sanitizeTerminalText).join(" · ");
-}
-
-function allResolveTargetEvidence(): ResolveTargetEvidenceOptions {
-  return {
-    stars: true,
-    downloads: true,
-    repository: true,
-    license: true,
-    docs: true,
-    code: true,
-  };
 }
 
 function formatLicense(value: string | undefined): string | undefined {

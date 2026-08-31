@@ -242,13 +242,13 @@ function formatMcpGroup(
   if (!lead) return [];
   const evidencePlan = buildResolveTargetEvidencePlan(targets);
   const lines = [
-    `  ${groupNumber}. ${formatMcpTargetLine(lead, evidencePlan[0], protectedKeys)}`,
+    `  ${groupNumber}. ${formatMcpTargetLine(lead, evidencePlan(lead), protectedKeys)}`,
     ...formatMcpTargetDetails(lead, "     "),
   ];
   if (members.length > 0) lines.push("     Related targets:");
-  for (const [index, member] of members.entries()) {
+  for (const member of members) {
     lines.push(
-      `       ${formatMcpTargetLine(member, evidencePlan[index + 1], protectedKeys)}`,
+      `       ${formatMcpTargetLine(member, evidencePlan(member), protectedKeys)}`,
       ...formatMcpTargetDetails(member, "         "),
     );
   }
@@ -257,12 +257,10 @@ function formatMcpGroup(
 
 function formatMcpTargetLine(
   target: ResolveTargetTarget,
-  evidenceOptions: ResolveTargetEvidenceOptions | undefined,
+  evidenceOptions: ResolveTargetEvidenceOptions,
   protectedKeys: ReadonlySet<string>,
 ): string {
-  const evidence = evidenceOptions
-    ? formatResolveTargetEvidence(target, evidenceOptions)
-    : "";
+  const evidence = formatResolveTargetEvidence(target, evidenceOptions);
   return `${formatMcpTarget(target)}${formatProtectedMarker(target, protectedKeys)}${evidence ? ` · ${evidence}` : ""}`;
 }
 
