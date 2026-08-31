@@ -866,11 +866,11 @@ function formatChangesSection(
       `${keywords.length > 0 ? keywords.join(", ") : "unspecified"} | ${changelog.totalKeywordEntries} ${keywordWord}`,
       width,
       "                    ",
-      (line) => attentionLine(line, useColors),
+      (line) => colorizeSignalKeywords(line, keywords, useColors),
     );
   }
   if (changelog.keywordEntries.length > 0) {
-    lines.push(attentionLine("  Heuristic release entries", useColors));
+    lines.push("  Heuristic release entries");
     for (const entry of changelog.keywordEntries) {
       lines.push(
         ...formatKeywordChangelogEntry(entry, options, width, useColors),
@@ -981,6 +981,22 @@ function formatKeywordChangelogEntry(
 function colorizeSignalMarker(line: string, useColors: boolean): string {
   if (!useColors) return line;
   return line.replace(/^(\s*\[[^\]]+\]:)/, `${colors.yellow}$1${colors.reset}`);
+}
+
+function colorizeSignalKeywords(
+  line: string,
+  keywords: string[],
+  useColors: boolean,
+): string {
+  if (!useColors || keywords.length === 0) return line;
+  let result = line;
+  for (const keyword of keywords) {
+    result = result.replace(
+      keyword,
+      `${colors.yellow}${keyword}${colors.reset}`,
+    );
+  }
+  return result;
 }
 
 function formatPlainChangelogEntry(

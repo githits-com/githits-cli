@@ -321,10 +321,11 @@ ANSI only when supported. MCP passes no ANSI and uses the 80-column default.
 
 ANSI is semantic styling only: the outcome and section headings are bold, the
 package identity is bold cyan, and yellow is limited to compact attention
-summaries, labels, and matched signal markers. Evidence detail and locators
-remain plain instead of turning long excerpts into color blocks. Provenance may
-be dimmed; trust limits, unknown details, and follow-up guidance are not.
-Removing ANSI leaves the same words and hierarchy.
+summaries, labels, and matched signal terms. Heuristic section labels remain
+plain; only the matched keyword and excerpt marker are yellow. Evidence detail
+and locators remain plain instead of turning long excerpts into color blocks.
+Provenance may be dimmed; trust limits, unknown details, and follow-up guidance
+are not. Removing ANSI leaves the same words and hierarchy.
 
 Changelog source labels are exact: `releases` renders as `Repository releases`,
 `package_versions` fallback renders as `Package versions (no release notes)`,

@@ -841,6 +841,12 @@ describe("package upgrade review response", () => {
     expect(colored).toContain(
       "\x1b[1m\x1b[33mUnknown evidence\x1b[0m\n  - changelog evidence incomplete",
     );
+    expect(colored).toContain(
+      "  Heuristic signals: \x1b[33mbreaking\x1b[0m | 1 matching entry",
+    );
+    expect(colored).toContain("\n  Heuristic release entries\n");
+    expect(colored).not.toContain("\x1b[33m  Heuristic signals:");
+    expect(colored).not.toContain("\x1b[33m  Heuristic release entries");
     expect(colored).not.toContain("\x1b[33m    - GHSA-new");
     expect(colored).not.toContain("\x1b[33m    - npm:left-pad@1.0.0");
     expect(colored).not.toContain("\x1b[33m  - changelog evidence incomplete");

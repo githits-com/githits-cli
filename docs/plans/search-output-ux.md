@@ -207,10 +207,11 @@ summaries, excerpts, and guidance wrap with hanging indentation.
 - Package identity: emphasized and visually stronger than its evidence sections.
 - Section headings: bold, not the same cyan treatment as the package identity.
 - Attention evidence: explicit words plus yellow emphasis on compact summaries,
-  labels, and matched signal markers when ANSI is enabled. Added/still-present
-  vulnerabilities, target deprecation, heuristic change signals, and unknown
-  evidence use that role, while their detail prose and locators remain plain.
-  Yellow means “inspect this fact,” not a risk rating.
+  labels, and matched signal terms when ANSI is enabled. Added/still-present
+  vulnerabilities, target deprecation, and unknown evidence use that role,
+  while their detail prose and locators remain plain. Heuristic structure stays
+  plain; only the matched keyword and excerpt marker are yellow. Yellow means
+  “inspect this fact,” not a risk rating.
 - Provenance: dates and source URLs may be dimmed when they are secondary to the
   evidence. Trust qualifiers and actions are never dimmed.
 - Positive factual changes such as fixed advisories remain plain; the formatter
@@ -524,27 +525,23 @@ remained clean.
 
 Deterministic and product verification completed as follows:
 
-- The focused four-file suite passed with 29 tests and 163 assertions. After
+- The focused four-file suite passed with 29 tests and 167 assertions. After
   the main merge, full `bun test` passed with 3,518 tests, 0 failures, and
-  11,409 assertions across 185 files; the test-only `process.stdout` descriptor
+  11,413 assertions across 185 files; the test-only `process.stdout` descriptor
   leak was fixed.
 - After the merge, typecheck, format, lint, plugin check, build, built CLI/MCP
   Node smokes, and public-package validation passed. Plugin generation remained
   clean for 10 canonical assets with no generated diff.
 - Authenticated source CLI and MCP stable/experimental smokes passed before the
-  main merge with the same Phase 2a production delta. A post-merge CLI
-  source-smoke rerun passed the unauthenticated matrix, then was externally
-  blocked for more than six minutes in macOS
-  `SecKeychainFindGenericPassword` on the first authenticated
-  `languages python --json` call. Process sampling verified a Keychain
-  decryption wait and no network request; the run was stopped without touching
-  credential state. Source MCP was not redundantly started because it uses the
-  same blocked authentication state.
+  main merge with the same Phase 2a production delta. Both source suites passed
+  again after the final color correction, including live `pkg_upgrade_review`
+  text/JSON coverage and CLI/MCP JSON parity.
 - Real Express default output was inspected. Normal 80-column free prose is
   bounded, while fixed locators remain intentionally unsplit.
 - Final screenshot review found that the broad attention role colored complete
-  evidence bodies. Yellow was narrowed to compact summaries, labels, and
-  matched markers; detail prose and locators remain plain.
+  evidence bodies and heuristic structure. Yellow was narrowed to compact
+  actionable summaries/labels plus matched heuristic terms; detail prose,
+  locators, and heuristic section labels remain plain.
 
 Review and evaluation truth is also recorded explicitly: Luna preflight
 findings were fixed; the single internal reviewer finding (parity process-state
