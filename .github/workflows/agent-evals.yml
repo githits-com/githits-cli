@@ -151,6 +151,7 @@ jobs:
 
       - name: Render agent eval summary
         id: report
+        continue-on-error: true
         env:
           REPORT_OUT: ${{ runner.temp }}/agent-eval-summary.md
         run: |
@@ -175,3 +176,52 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
           exit "$report_status"
+
+      - name: Export agent eval metrics to Braintrust
+        id: braintrust
+        if: always()
+        continue-on-error: true
+        env:
+          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+          RESULT_OUT: ${{ runner.temp }}/agent-eval-braintrust-result.json
+        run: |
+          set -euo pipefail
+          bun run agent:e2e:braintrust \
+            --suite discovery="$RUNNER_TEMP/agent-eval-artifacts/discovery/suite.json" \
+            --suite intent="$RUNNER_TEMP/agent-eval-artifacts/intent/suite.json" \
+            --project "githits-cli-agent-evals" \
+            --experiment "github-${{ github.run_id }}-${{ github.run_attempt }}" \
+            --source github \
+            --run-id "${{ github.run_id }}" \
+            --run-attempt "${{ github.run_attempt }}" \
+            --run-url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --result-out "$RESULT_OUT"
+          if [ -f "$RESULT_OUT" ]; then
+            experiment_url="$(node -e 'const fs = require("node:fs"); const result = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); if (typeof result.url === "string") process.stdout.write(result.url);' "$RESULT_OUT")"
+            if [ -n "$experiment_url" ]; then
+              printf '\n[Braintrust experiment](%s)\n' "$experiment_url" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+      - name: Finalize agent eval status
+        if: always()
+        env:
+          SCENARIO_RESULT: ${{ needs.scenario.result }}
+          REPORT_OUTCOME: ${{ steps.report.outcome }}
+          BRAINTRUST_OUTCOME: ${{ steps.braintrust.outcome }}
+        run: |
+          set -euo pipefail
+          failed_stages=()
+          if [ "$SCENARIO_RESULT" != "success" ]; then
+            failed_stages+=("scenario=$SCENARIO_RESULT")
+          fi
+          if [ "$REPORT_OUTCOME" != "success" ]; then
+            failed_stages+=("report=$REPORT_OUTCOME")
+          fi
+          if [ "$BRAINTRUST_OUTCOME" != "success" ]; then
+            failed_stages+=("braintrust=$BRAINTRUST_OUTCOME")
+          fi
+          if [ "${#failed_stages[@]}" -gt 0 ]; then
+            printf 'Agent eval failed stages: %s\n' "${failed_stages[*]}"
+            exit 1
+          fi

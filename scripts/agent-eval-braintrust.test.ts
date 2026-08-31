@@ -9,7 +9,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { parse as parseYaml } from "yaml";
 import {
   type BraintrustCliResult,
   type BraintrustRowEvent,
@@ -1215,5 +1216,126 @@ describe("Braintrust CLI wrapper", () => {
     expect(typeof btEvalMain).toBe("function");
     expect(btEvalMain.length).toBe(0);
     expect(typeof runBraintrustCli).toBe("function");
+  });
+});
+
+interface WorkflowStepContract {
+  name?: string;
+  id?: string;
+  if?: string;
+  "continue-on-error"?: boolean;
+  run?: string;
+  env?: Record<string, string>;
+}
+
+interface WorkflowContract {
+  jobs: Record<string, { steps: WorkflowStepContract[] }>;
+}
+
+function readAgentEvalWorkflow(): WorkflowContract {
+  const workflowPath = resolve(
+    process.cwd(),
+    ".github",
+    "workflows",
+    "agent-evals.yml",
+  );
+  return parseYaml(readFileSync(workflowPath, "utf8")) as WorkflowContract;
+}
+
+function readSummarySteps(workflow: WorkflowContract): WorkflowStepContract[] {
+  const summaryJob = workflow.jobs.summary;
+  if (!summaryJob) {
+    throw new Error("agent-evals workflow must define a summary job");
+  }
+  return summaryJob.steps;
+}
+
+describe("Agent eval workflow Braintrust integration", () => {
+  it("exports after reporting and aggregates final stage failures", () => {
+    const workflow = readAgentEvalWorkflow();
+    const summarySteps = readSummarySteps(workflow);
+    const reportIndex = summarySteps.findIndex((step) => step.id === "report");
+    const braintrustIndex = summarySteps.findIndex(
+      (step) => step.id === "braintrust",
+    );
+    const finalIndex = summarySteps.findIndex(
+      (step) => step.name === "Finalize agent eval status",
+    );
+    const report = summarySteps[reportIndex];
+    const braintrust = summarySteps[braintrustIndex];
+    const finalize = summarySteps[finalIndex];
+
+    expect(reportIndex).toBeGreaterThanOrEqual(0);
+    expect(braintrustIndex).toBeGreaterThan(reportIndex);
+    expect(finalIndex).toBeGreaterThan(braintrustIndex);
+    expect(report?.["continue-on-error"]).toBe(true);
+    expect(braintrust).toMatchObject({
+      id: "braintrust",
+      if: "always()",
+      "continue-on-error": true,
+    });
+    expect(finalize).toMatchObject({
+      if: "always()",
+    });
+    expect(finalize?.run).toContain("SCENARIO_RESULT");
+    expect(finalize?.run).toContain("REPORT_OUTCOME");
+    expect(finalize?.run).toContain("BRAINTRUST_OUTCOME");
+    expect(finalize?.run).toContain("scenario=");
+    expect(finalize?.run).toContain("report=");
+    expect(finalize?.run).toContain("braintrust=");
+    expect(finalize?.run).toContain("exit 1");
+  });
+
+  it("uses the direct exporter command with one narrowly scoped secret", () => {
+    const workflow = readAgentEvalWorkflow();
+    const summarySteps = readSummarySteps(workflow);
+    const braintrust = summarySteps.find((step) => step.id === "braintrust");
+    const run = braintrust?.run ?? "";
+
+    expect(run).toContain("bun run agent:e2e:braintrust");
+    expect(run).toContain(
+      '--suite discovery="$RUNNER_TEMP/agent-eval-artifacts/discovery/suite.json"',
+    );
+    expect(run).toContain(
+      '--suite intent="$RUNNER_TEMP/agent-eval-artifacts/intent/suite.json"',
+    );
+    expect(run).toContain('--project "githits-cli-agent-evals"');
+    expect(run).toContain(
+      '--experiment "github-${{ github.run_id }}-${{ github.run_attempt }}"',
+    );
+    expect(run).toContain("--source github");
+    expect(run).toContain('--run-id "${{ github.run_id }}"');
+    expect(run).toContain('--run-attempt "${{ github.run_attempt }}"');
+    expect(run).toContain(
+      '--run-url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"',
+    );
+    expect(run).toContain('--result-out "$RESULT_OUT"');
+    expect(run).toContain("result.url");
+    expect(run).toContain("GITHUB_STEP_SUMMARY");
+    expect(run).not.toContain("bt eval");
+
+    const allSteps = Object.values(workflow.jobs).flatMap((job) => job.steps);
+    const secretBindings = allSteps.flatMap((step) =>
+      Object.values(step.env ?? {}).filter((value) =>
+        value.includes("secrets.BRAINTRUST_API_KEY"),
+      ),
+    );
+    expect(secretBindings).toEqual(["${{ secrets.BRAINTRUST_API_KEY }}"]);
+    expect(braintrust?.env).toEqual({
+      BRAINTRUST_API_KEY: "${{ secrets.BRAINTRUST_API_KEY }}",
+      RESULT_OUT: "${{ runner.temp }}/agent-eval-braintrust-result.json",
+    });
+
+    const finalize = summarySteps.find(
+      (step) => step.name === "Finalize agent eval status",
+    );
+    expect(finalize?.env).toEqual({
+      SCENARIO_RESULT: "${{ needs.scenario.result }}",
+      REPORT_OUTCOME: "${{ steps.report.outcome }}",
+      BRAINTRUST_OUTCOME: "${{ steps.braintrust.outcome }}",
+    });
+    expect(Object.values(finalize?.env ?? {}).join(" ")).not.toContain(
+      "secrets.",
+    );
   });
 });
