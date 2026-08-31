@@ -526,8 +526,8 @@ remained clean.
 Deterministic and product verification completed as follows:
 
 - The focused four-file suite passed with 29 tests and 167 assertions. After
-  the main merge, full `bun test` passed with 3,518 tests, 0 failures, and
-  11,413 assertions across 185 files; the test-only `process.stdout` descriptor
+  the main merge, full `bun test` passed with 3,519 tests, 0 failures, and
+  11,384 assertions across 185 files; the test-only `process.stdout` descriptor
   leak was fixed.
 - After the merge, typecheck, format, lint, plugin check, build, built CLI/MCP
   Node smokes, and public-package validation passed. Plugin generation remained
