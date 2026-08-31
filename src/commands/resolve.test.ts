@@ -471,6 +471,10 @@ describe("registerResolveCommand", () => {
     ]) {
       expect(help).toContain(value);
     }
+    expect(
+      resolveCommand?.options.find((option) => option.long === "--verbose")
+        ?.short,
+    ).toBe("-v");
     expect(resolveCommand?.description()).toContain(
       "--query and --intent-hint values are sent",
     );

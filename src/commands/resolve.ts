@@ -159,7 +159,7 @@ export function registerResolveCommand(program: Command): Command {
       `Direct ranked matches (1-${RESOLVE_TARGET_MAX_LIMIT}, default ${RESOLVE_TARGET_DEFAULT_LIMIT}); protected exact and related targets may be additional`,
     )
     .option(
-      "--verbose",
+      "-v, --verbose",
       "Include coarse lexical name-similarity evidence in human output",
     )
     .option("--json", "Emit structured diagnostic JSON")
