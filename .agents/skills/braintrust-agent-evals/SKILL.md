@@ -80,11 +80,12 @@ bt eval --runner bun --no-auto-instrumentation scripts/agent-eval-braintrust.ts 
   --result-out .agent-eval/braintrust-result.json
 ```
 
-The suite preflight rejects dry-run suites, duplicate cells, mixed identity or
-schema contracts, and missing/unsafe child evidence before network setup. It
-does not reject a failed cell that retains complete report, metrics, workload,
-and contained prompt evidence. The result file is nonsecret and contains only
-schema version, mode, project, experiment, row count, suite summaries, and an
-export URL when applicable; it never contains row bodies, prompts, answers,
+The suite preflight rejects dry-run suites, suites with no workload cells,
+duplicate cells, mixed identity or schema contracts, and missing/unsafe child
+evidence before network setup. It does not reject a failed cell that retains
+complete report, metrics, workload, and contained prompt evidence. The result
+file is nonsecret and contains only schema version, mode, project, experiment,
+row count, suite summaries, and an export URL when applicable; it never contains
+row bodies, prompts, answers,
 artifact paths, or credentials. Do not create or upload a new experiment unless
 the user explicitly requests that export.

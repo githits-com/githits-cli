@@ -359,11 +359,12 @@ bun run agent:e2e:braintrust \
 ```
 
 Validation requires non-dry-run suites with complete contained child evidence.
-It rejects dry-run suites, duplicate scenario/workload cells, mixed identity or
-schema contracts, and missing/unsafe prompts. Failed or partial cells remain
-exportable when their report, metrics, workload, and prompt evidence are
-complete. Validate all suite inputs before an export; the command reports only
-safe identities and row counts in validate-only mode.
+It rejects dry-run suites, suites with no workload cells, duplicate
+scenario/workload cells, mixed identity or schema contracts, and missing/unsafe
+prompts. Failed or partial cells remain exportable when their report, metrics,
+workload, and prompt evidence are complete. Validate all suite inputs before an
+export; the command reports only safe identities and row counts in validate-only
+mode.
 
 For an explicitly requested local export using the authenticated `bt` profile,
 run the same official entrypoint through `bt eval`:

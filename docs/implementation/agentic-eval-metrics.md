@@ -19,8 +19,9 @@ later phase.
 `scripts/agent-eval-braintrust.ts` is a post-run mapper and exporter. It loads
 each labeled `suite.json` through `loadImportedSuite()`, rejects dry-run or
 incompatible inputs before network setup, and requires contained report,
-metrics, workload, and prompt evidence for every exported cell. Duplicate
-scenario/workload cells, mixed target or measurement Git identity, mixed
+metrics, workload, and prompt evidence for every exported cell. Each suite
+input must contribute at least one workload cell. Duplicate scenario/workload
+cells, mixed target or measurement Git identity, mixed
 agent/model/reasoning/surface/server identity, and incompatible reporting or
 result schemas are preflight errors. Failed or partial cells are retained when
 their child evidence is complete.
