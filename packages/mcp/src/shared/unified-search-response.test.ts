@@ -399,7 +399,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
   });
 
-  it("caps a large definition follow-up without changing its structured range", () => {
+  it("centres a capped large-definition follow-up on evidence without changing its structured range", () => {
     const hit: UnifiedSearchHit = {
       id: "large-definition",
       resultType: "REPOSITORY_CODE",
@@ -410,11 +410,12 @@ describe("buildUnifiedSearchSuccessPayload", () => {
         gitRef: "exact-served-ref",
         filePath: "src/large.ts",
         repositoryFilePath: "src/large.ts",
-        startLine: 250,
-        endLine: 255,
+        startLine: 984,
+        endLine: 994,
         evidenceRange: {
-          startLine: 250,
-          endLine: 255,
+          startLine: 984,
+          endLine: 994,
+          matchLine: 989,
           matchSpansTruncated: false,
         },
         symbolContext: {
@@ -423,8 +424,8 @@ describe("buildUnifiedSearchSuccessPayload", () => {
           definitionRange: {
             filePath: "src/large.ts",
             repositoryFilePath: "src/large.ts",
-            startLine: 1,
-            endLine: 500,
+            startLine: 269,
+            endLine: 1286,
           },
         },
       },
@@ -439,9 +440,9 @@ describe("buildUnifiedSearchSuccessPayload", () => {
 
     expect(
       payload.results[0]?.locator.symbolContext?.definitionRange?.endLine,
-    ).toBe(500);
+    ).toBe(1286);
     expect(payload.results[0]?.followUp).toBe(
-      'code_read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=1 end_line=300',
+      'code_read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=840 end_line=1139',
     );
   });
 

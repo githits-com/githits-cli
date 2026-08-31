@@ -51,16 +51,24 @@ function buildSearchHitCodeReadInput(
   const targetFilePath = definition?.filePath ?? loc.filePath;
   const repositoryFilePath =
     definition?.repositoryFilePath ?? loc.repositoryFilePath;
-  const startLine =
-    definition?.startLine ?? evidence?.startLine ?? loc.startLine;
+  let startLine = definition?.startLine ?? evidence?.startLine ?? loc.startLine;
   const trueEndLine = definition?.endLine ?? evidence?.endLine ?? loc.endLine;
-  const endLine =
+  let endLine = trueEndLine;
+  if (
     syntax === "mcp" &&
     typeof startLine === "number" &&
     typeof trueEndLine === "number" &&
     trueEndLine - startLine + 1 > MCP_READ_MAX_SPAN
-      ? startLine + MCP_READ_MAX_SPAN - 1
-      : trueEndLine;
+  ) {
+    if (definition) {
+      ({ startLine, endLine } = boundLargeDefinitionRange(
+        definition,
+        evidence,
+      ));
+    } else {
+      endLine = startLine + MCP_READ_MAX_SPAN - 1;
+    }
+  }
   const exactRef = loc.commitSha ?? loc.gitRef;
 
   if (loc.repoUrl && exactRef && repositoryFilePath) {
@@ -88,6 +96,33 @@ function buildSearchHitCodeReadInput(
     startLine,
     endLine,
     preferPackageTarget: isPackageTarget(hit),
+  };
+}
+
+function boundLargeDefinitionRange(
+  definition: { startLine: number; endLine: number },
+  evidence: { startLine: number; endLine: number } | undefined,
+): { startLine: number; endLine: number } {
+  const latestStart = definition.endLine - MCP_READ_MAX_SPAN + 1;
+  const evidenceSpan = evidence
+    ? evidence.endLine - evidence.startLine + 1
+    : undefined;
+  if (
+    evidence &&
+    typeof evidenceSpan === "number" &&
+    evidenceSpan <= MCP_READ_MAX_SPAN
+  ) {
+    const leadingContext = Math.floor((MCP_READ_MAX_SPAN - evidenceSpan) / 2);
+    const startLine = Math.min(
+      Math.max(definition.startLine, evidence.startLine - leadingContext),
+      latestStart,
+    );
+    return { startLine, endLine: startLine + MCP_READ_MAX_SPAN - 1 };
+  }
+
+  return {
+    startLine: definition.startLine,
+    endLine: definition.startLine + MCP_READ_MAX_SPAN - 1,
   };
 }
 
