@@ -8,7 +8,8 @@
 - Commits: Phase 1 runtime `56f6003`; Phase 1 guidance/docs `e0057e6`; runtime/preflight
   fixes `c88194b`, `80f93a2`; privacy/wording review closure `b6c0581`; Phase 1B
   plan baseline `28772a3`; Phase 1B runtime `9b3523e` and runtime closure commits
-  `6b4a2d2`, `c268cba`, `e4cb960`, `49a6f23`, `2c0c9e2`.
+  `6b4a2d2`, `c268cba`, `e4cb960`, `49a6f23`, `2c0c9e2`; compact provenance
+  follow-up commits `9364f81`, `bc51e67`, `c423ff5`, and `dcbb9f9`.
 - Phase 1B worker evidence: 144 focused presentation/text/status tests pass; 218
   consumer, parity, CLI/MCP, and smoke-helper tests pass; `bun run typecheck` and
   the owned-file Biome check pass. One transient worker test-suite deletion mistake
@@ -23,10 +24,11 @@
   high confidence and no futile `search_status` polling; it ran before the final
   runtime closure commits, whose deterministic shapes are covered by final-head tests
   and smoke suites.
-- The fresh Opus review loop is complete: round 3 verified all accepted findings are
-  closed, no further round was warranted under the reviewer/max-three-round loop,
-  and the final external review is clean.
-- Last verified: 2026-08-29
+- The original fresh Opus review loop is complete and externally clean. The compact
+  provenance follow-up used the maximum three Opus rounds; round 3 found one pinned-target
+  identity defect, closed in `dcbb9f9`. A final internal changed-delta review
+  found no remaining issue; no fourth external round was run.
+- Last verified: 2026-08-31
 
 ## Problem and expected outcome
 
@@ -489,9 +491,10 @@ written once and its searched sources following it. Code and symbols remain comp
 names. Documentation contributors retain canonical `site:<host[/path]>` locators and
 canonical `github:<owner>/<repo>#<revision>` locators. A source identical to its standalone
 target is written once; a sole pinned repository source replaces its less-specific
-repository target. Compact output requires concrete documentation provenance; an incomplete
-payload without it stays in detailed target-state form. Ranked hit locators and JSON retain
-their existing provenance.
+ref-less repository target. An already-pinned repository target remains beside its resolved
+commit. Compact repository provenance requires both the repository URL and commit; other
+documentation without concrete provenance stays in detailed target-state form. Ranked hit
+locators and JSON retain their existing provenance.
 
 Mixed progress and terminal state use the same target list:
 
@@ -884,6 +887,31 @@ suite passed 145 tests with 459 expectations across 2 files; `bun run typecheck`
 owned-file Biome check, and `git diff --check` passed. This behavior-neutral closure
 is separate from the unchanged final-head validation above.
 
+The compact provenance follow-up implements the user-requested physical source display:
+healthy documentation sources now render canonical `site:<host[/path]>` and pinned
+`github:<owner>/<repo>#<revision>` locators instead of the generic `docs` lane. A direct
+ref-less repository target collapses to its sole pinned source; a pinned target remains
+beside the resolved commit. Contributor-less documentation remains detailed because no
+healthy live response shape was found that could truthfully supply compact provenance.
+
+At `dcbb9f9`, the focused formatter/CLI suite passed 153 tests with 560 expectations;
+`bun test` passed 3,570 tests with 11,390 expectations and 0 failures; build, typecheck,
+lint, format check, and `git diff --check` passed. Source and built live searches produced
+`Sources: npm:express@5.2.1 - site:expressjs.com, github:expressjs/express#dbac741a`
+and preserved the explicit mapping
+`Sources: github:axios/axios#v1.7.9 - github:axios/axios#b2cb45d5`. All four smoke modes
+passed at `bc51e67`. After the two subsequent repository-provenance fixes, the final
+CLI smoke attempt stopped before its search assertions because the unrelated
+`get_example` request timed out after 240 seconds; no retry or weakened assertion was
+added. Direct source and built search runs passed after the final fix.
+
+The targeted Codex descriptor-profile agent evaluation at
+`.agent-eval/runs/2026-08-31T09-21-05-040Z` completed successfully with high confidence,
+eight logical MCP calls, no CLI fallback, and no instruction issue. Search provided
+useful discovery evidence and the agent correctly used normal `next_offset` pagination
+without inventing a `search_status` action. One broad `docs_read` range was unrelated;
+a targeted follow-up read resolved it.
+
 The final preflight sibling scan found one stale optional session-row and duplicate
 `searchRef` description in `docs/implementation/mcp-cli-parity.md`; this closure
 updates that parity section to the implemented single-list contract. No runtime or
@@ -942,6 +970,16 @@ test behavior changed.
   records the correction. The fresh Opus review loop is complete with all accepted
   findings closed; no further round was warranted under the reviewer/max-three-round
   loop.
+- The compact provenance follow-up used a separate fresh Opus review loop. Round 1
+  required replayable GitHub locators, direct-site deduplication, and hanging indentation;
+  `bc51e67` closed them. Round 2 required collapsing a ref-less direct repository target
+  to its sole pinned physical source; `c423ff5` also closed an internal finding by
+  requiring both repository URL and commit for compact provenance. Round 3 found that
+  the same-family collapse also erased an explicitly pinned request identity. The
+  suggested target-only remedy was rejected because it would discard the physical commit
+  provenance required by the user; `dcbb9f9` instead preserves both sides of that mapping.
+  The three-round external cap was reached, and the final internal changed-delta review
+  found no remaining finding.
 
 ### Phase 1B acceptance criteria
 
@@ -958,11 +996,13 @@ test behavior changed.
   documentation provenance when available; ranked hits and structured JSON remain
   unchanged.
 - Presentation, renderer, CLI/MCP/parity, and smoke-helper validation pass with the
-  final-head evidence recorded above. Full repository, package/build, live smoke, and
-  targeted Claude/Codex agent-eval validation are complete; the qualitative evaluation
-  predates the final runtime closure and those shapes are covered by deterministic
-  tests/smokes. The fresh Opus review loop is complete with all accepted findings
-  closed.
+  final-head evidence recorded above. Full repository and build validation pass. All
+  four live smoke modes passed before the final two repository-only provenance fixes;
+  final source/built search probes pass, while the final CLI suite was blocked before
+  search by the recorded unrelated `get_example` timeout. Targeted agent-eval validation
+  is complete. Both fresh Opus loops exhausted their permitted review flow with all
+  accepted findings closed; the provenance loop's last post-fix check is internal because
+  its third external round found the final defect.
 - Durable implementation docs and the existing dual-package patch fragment reflect the
   final behavior; package versions, released changelogs, descriptors, skills, generated
   assets, and backend requests remain unchanged.
@@ -1040,9 +1080,9 @@ build, package, smoke, and agent-eval verification appropriate to changed MCP be
 ## Phase boundary and completion
 
 Phase 1 and Phase 1B are complete in the recorded commits above and stay within the
-existing client-owned text projection. Final-head validation is recorded, and the
-fresh Opus review loop is complete with all accepted findings closed before the
-updated draft PR is pushed. Use a
+existing client-owned text projection. Final-head validation and the live-smoke limitation
+are recorded, and both fresh Opus loops completed their permitted rounds with all accepted
+findings closed before the updated draft PR is pushed. Use a
 fresh `origin/main` comparison before beginning Phase 2, and do not mix speculative
 Phase 2 fields into the client UX increment.
 
