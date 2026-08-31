@@ -37,6 +37,7 @@ export interface BraintrustRowOutput {
 }
 
 export interface BraintrustRowMetrics {
+  [key: string]: unknown;
   agent_duration_ms?: number;
   logical_tool_calls?: number;
   mcp_tool_calls?: number;
@@ -95,6 +96,7 @@ export interface BraintrustToolSequenceEntry {
 }
 
 export interface BraintrustRowMetadata {
+  [key: string]: unknown;
   suiteLabel: string;
   suiteId: string;
   suiteName: string;
@@ -152,6 +154,101 @@ export interface BraintrustMappingResult {
   rows: BraintrustRow[];
   suites: BraintrustSuiteSummary[];
 }
+
+export interface BraintrustExportOptions {
+  project: string;
+  experiment: string;
+  source: "local" | "github";
+  githubRunId?: string;
+  githubRunAttempt?: string;
+  githubRunUrl?: string;
+}
+
+export interface BraintrustRowEvent {
+  input: BraintrustRowInput;
+  output: BraintrustRowOutput;
+  error?: string;
+  metrics: BraintrustRowMetrics;
+  metadata: BraintrustRowMetadata;
+  tags: string[];
+}
+
+export interface BraintrustExperimentMetadata {
+  [key: string]: unknown;
+  source: BraintrustExportOptions["source"];
+  githubRunId?: string;
+  githubRunAttempt?: string;
+  githubRunUrl?: string;
+  suites: BraintrustSuiteSummary[];
+  targetGit: BraintrustGitIdentity;
+  measurementGit: BraintrustGitIdentity;
+  suiteSchemaVersion: number;
+  reportSchemaVersion: number;
+  metricsSchemaVersion: number;
+  exporterSchemaVersion: number;
+  exporterVersion: string;
+}
+
+export interface BraintrustExperimentInit {
+  project: string;
+  experiment: string;
+  update: false;
+  metadata: BraintrustExperimentMetadata;
+  repoInfo: {
+    commit: string | null;
+    branch: string | null;
+    dirty: boolean | null;
+  };
+  gitMetadataSettings: {
+    collect: "none";
+  };
+}
+
+export interface BraintrustStartSpanArgs {
+  name: string;
+  type: "eval";
+  event: BraintrustRowEvent;
+}
+
+export interface BraintrustSpan {
+  end(): void | Promise<void>;
+}
+
+export interface BraintrustPublisher {
+  startSpan(args: BraintrustStartSpanArgs): BraintrustSpan;
+  flush(): Promise<void>;
+  permalink(): Promise<string | undefined>;
+}
+
+export interface BraintrustExportResult {
+  project: string;
+  experiment: string;
+  url?: string;
+  exportedRowCount: number;
+}
+
+export interface BraintrustSdkSpan {
+  end(): void | number;
+}
+
+export interface BraintrustSdkExperiment {
+  startSpan(args: BraintrustStartSpanArgs): BraintrustSdkSpan;
+  flush(): Promise<void>;
+  summarize(options: { summarizeScores: false }): Promise<{
+    experimentUrl?: string;
+  }>;
+}
+
+export interface BraintrustSdk {
+  initExperiment(
+    project: string,
+    options: Omit<BraintrustExperimentInit, "project">,
+  ): BraintrustSdkExperiment;
+}
+
+const BRAINTRUST_SUITE_SCHEMA_VERSION = 3;
+const BRAINTRUST_EXPORTER_SCHEMA_VERSION = 1;
+const BRAINTRUST_EXPORTER_VERSION = "1";
 
 interface LoadedBraintrustSuite {
   input: BraintrustSuiteInput;
@@ -634,5 +731,119 @@ export function preflightAndMapBraintrustRows(
         workloadCount: suite.artifact.selectedWorkloads.length,
       }))
       .sort((left, right) => compareStrings(left.label, right.label)),
+  };
+}
+
+function rowEvent(row: BraintrustRow): BraintrustRowEvent {
+  return {
+    input: row.input,
+    output: row.output,
+    ...(row.error ? { error: row.error } : {}),
+    metrics: row.metrics,
+    metadata: row.metadata,
+    tags: row.tags,
+  };
+}
+
+export function buildBraintrustExperimentInit(
+  mapping: BraintrustMappingResult,
+  options: BraintrustExportOptions,
+): BraintrustExperimentInit {
+  const firstRow = mapping.rows[0];
+  assert(firstRow, "cannot build experiment metadata without mapped rows");
+  const { metadata } = firstRow;
+  const experimentMetadata: BraintrustExperimentMetadata = {
+    source: options.source,
+    ...(options.githubRunId !== undefined
+      ? { githubRunId: options.githubRunId }
+      : {}),
+    ...(options.githubRunAttempt !== undefined
+      ? { githubRunAttempt: options.githubRunAttempt }
+      : {}),
+    ...(options.githubRunUrl !== undefined
+      ? { githubRunUrl: options.githubRunUrl }
+      : {}),
+    suites: mapping.suites,
+    targetGit: metadata.targetGit,
+    measurementGit: metadata.measurementGit,
+    suiteSchemaVersion: BRAINTRUST_SUITE_SCHEMA_VERSION,
+    reportSchemaVersion: metadata.reportSchemaVersion,
+    metricsSchemaVersion: metadata.metricsSchemaVersion,
+    exporterSchemaVersion: BRAINTRUST_EXPORTER_SCHEMA_VERSION,
+    exporterVersion: BRAINTRUST_EXPORTER_VERSION,
+  };
+  return {
+    project: options.project,
+    experiment: options.experiment,
+    update: false,
+    metadata: experimentMetadata,
+    repoInfo: {
+      commit: metadata.targetGit.sha,
+      branch: metadata.targetGit.branch,
+      dirty: metadata.targetGit.dirty,
+    },
+    gitMetadataSettings: { collect: "none" },
+  };
+}
+
+export async function createBraintrustPublisher(
+  init: BraintrustExperimentInit,
+  injectedSdk?: BraintrustSdk,
+): Promise<BraintrustPublisher> {
+  const sdkOptions: Omit<BraintrustExperimentInit, "project"> = {
+    experiment: init.experiment,
+    update: init.update,
+    metadata: init.metadata,
+    repoInfo: init.repoInfo,
+    gitMetadataSettings: init.gitMetadataSettings,
+  };
+  let experiment: BraintrustSdkExperiment;
+  if (injectedSdk) {
+    experiment = injectedSdk.initExperiment(init.project, sdkOptions);
+  } else {
+    const braintrust = await import("braintrust");
+    experiment = braintrust.initExperiment(init.project, sdkOptions);
+  }
+  return {
+    startSpan(args): BraintrustSpan {
+      const span = experiment.startSpan(args);
+      return {
+        end: () => {
+          span.end();
+        },
+      };
+    },
+    flush: () => experiment.flush(),
+    permalink: async () =>
+      (await experiment.summarize({ summarizeScores: false })).experimentUrl,
+  };
+}
+
+export async function publishBraintrustRows(
+  mapping: BraintrustMappingResult,
+  options: BraintrustExportOptions,
+  publisherFactory: (
+    init: BraintrustExperimentInit,
+  ) =>
+    | BraintrustPublisher
+    | Promise<BraintrustPublisher> = createBraintrustPublisher,
+): Promise<BraintrustExportResult> {
+  const init = buildBraintrustExperimentInit(mapping, options);
+  const publisher = await publisherFactory(init);
+  for (const row of mapping.rows) {
+    const span = publisher.startSpan({
+      name: row.metadata.cellId,
+      type: "eval",
+      event: rowEvent(row),
+    });
+    await span.end();
+  }
+  await publisher.flush();
+  const url = await publisher.permalink();
+  return {
+    project: options.project,
+    experiment: options.experiment,
+    ...(url !== undefined ? { url } : {}),
+    exportedRowCount: mapping.rows.length,
   };
 }

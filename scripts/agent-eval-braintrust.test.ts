@@ -11,8 +11,12 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  type BraintrustRowEvent,
   type BraintrustSuiteInput,
+  buildBraintrustExperimentInit,
+  createBraintrustPublisher,
   preflightAndMapBraintrustRows,
+  publishBraintrustRows,
 } from "./agent-eval-braintrust.ts";
 import {
   type AgentEvalRecordInput,
@@ -52,6 +56,7 @@ function createRecord(
   workloadId: string,
   suiteOptions: SuiteOptions,
 ): AgentEvalRecordInput {
+  const processStatus = suiteOptions.processStatus ?? "success";
   return {
     workloadId,
     requestedModel: LUNA_MODEL,
@@ -71,11 +76,10 @@ function createRecord(
     startedAt: "2026-08-28T10:00:00.000Z",
     completedAt: "2026-08-28T10:00:01.000Z",
     durationMs: 1000,
-    processStatus: suiteOptions.processStatus ?? "success",
-    finalStatus:
-      suiteOptions.processStatus === "success" ? "success" : "failure",
-    exitCode: suiteOptions.processStatus === "success" ? 0 : 1,
-    timedOut: suiteOptions.processStatus === "timeout",
+    processStatus,
+    finalStatus: processStatus === "success" ? "success" : "failure",
+    exitCode: processStatus === "success" ? 0 : 1,
+    timedOut: processStatus === "timeout",
     usage: adaptAgentUsage(
       JSON.stringify({
         type: "turn.completed",
@@ -629,5 +633,271 @@ describe("Braintrust eval row mapping", () => {
         suiteInput("invalid-path", fixture.suitePath),
       ]),
     ).toThrow("workload path");
+  });
+});
+
+describe("Braintrust publisher boundary", () => {
+  it("builds exact allowlisted experiment initialization options", async () => {
+    const fixture = await createSuite();
+    const mapping = preflightAndMapBraintrustRows([
+      suiteInput("github", fixture.suitePath),
+    ]);
+    const init = buildBraintrustExperimentInit(mapping, {
+      project: "githits-cli-agent-evals",
+      experiment: "github-123-2",
+      source: "github",
+      githubRunId: "123",
+      githubRunAttempt: "2",
+      githubRunUrl:
+        "https://github.com/githits-com/githits-cli/actions/runs/123",
+    });
+
+    expect(init).toEqual({
+      project: "githits-cli-agent-evals",
+      experiment: "github-123-2",
+      update: false,
+      metadata: {
+        source: "github",
+        githubRunId: "123",
+        githubRunAttempt: "2",
+        githubRunUrl:
+          "https://github.com/githits-com/githits-cli/actions/runs/123",
+        suites: mapping.suites,
+        targetGit: mapping.rows[0]!.metadata.targetGit,
+        measurementGit: mapping.rows[0]!.metadata.measurementGit,
+        suiteSchemaVersion: 3,
+        reportSchemaVersion: mapping.rows[0]!.metadata.reportSchemaVersion,
+        metricsSchemaVersion: mapping.rows[0]!.metadata.metricsSchemaVersion,
+        exporterSchemaVersion: 1,
+        exporterVersion: "1",
+      },
+      repoInfo: {
+        commit: mapping.rows[0]!.metadata.targetGit.sha,
+        branch: mapping.rows[0]!.metadata.targetGit.branch,
+        dirty: mapping.rows[0]!.metadata.targetGit.dirty,
+      },
+      gitMetadataSettings: { collect: "none" },
+    });
+    expect(JSON.stringify(init)).not.toContain(fixture.root);
+  });
+
+  it("starts and ends rows in order with exact event fields", async () => {
+    const fixture = await createSuite({ scenarios: ["full", "discovery"] });
+    const mapping = preflightAndMapBraintrustRows([
+      suiteInput("ordered", fixture.suitePath),
+    ]);
+    const calls: string[] = [];
+    const events: unknown[] = [];
+    const result = await publishBraintrustRows(
+      mapping,
+      {
+        project: "githits-cli-agent-evals",
+        experiment: "local-test",
+        source: "local",
+      },
+      async (init) => {
+        calls.push(`init:${init.project}/${init.experiment}`);
+        return {
+          startSpan(args) {
+            calls.push(`start:${args.name}`);
+            events.push(args.event);
+            expect(args.type).toBe("eval");
+            expect(Object.keys(args).sort()).toEqual(["event", "name", "type"]);
+            return {
+              end() {
+                calls.push(`end:${args.name}`);
+              },
+            };
+          },
+          async flush() {
+            calls.push("flush");
+          },
+          async permalink() {
+            calls.push("permalink");
+            return "https://braintrust.dev/experiment/local-test";
+          },
+        };
+      },
+    );
+
+    expect(calls).toEqual([
+      "init:githits-cli-agent-evals/local-test",
+      "start:discovery/workload-a",
+      "end:discovery/workload-a",
+      "start:full/workload-a",
+      "end:full/workload-a",
+      "flush",
+      "permalink",
+    ]);
+    expect(
+      (events as Array<Record<string, unknown>>).map((event) =>
+        Object.keys(event).sort(),
+      ),
+    ).toEqual([
+      ["input", "metadata", "metrics", "output", "tags"],
+      ["input", "metadata", "metrics", "output", "tags"],
+    ]);
+    expect(
+      (events as Array<Record<string, unknown>>).some(
+        (event) => "scores" in event || "expected" in event || "id" in event,
+      ),
+    ).toBe(false);
+    expect(result).toEqual({
+      project: "githits-cli-agent-evals",
+      experiment: "local-test",
+      url: "https://braintrust.dev/experiment/local-test",
+      exportedRowCount: 2,
+    });
+    expect(JSON.stringify(result)).not.toContain(fixture.root);
+    expect(JSON.stringify(result)).not.toContain("Prompt for");
+    expect(JSON.stringify(result)).not.toContain("Answer for");
+  });
+
+  it("uses the pinned SDK span and initialization contracts", async () => {
+    const fixture = await createSuite();
+    const mapping = preflightAndMapBraintrustRows([
+      suiteInput("sdk", fixture.suitePath),
+    ]);
+    const init = buildBraintrustExperimentInit(mapping, {
+      project: "githits-cli-agent-evals",
+      experiment: "sdk-test",
+      source: "local",
+    });
+    const calls: string[] = [];
+    const sdk: import("./agent-eval-braintrust.ts").BraintrustSdk = {
+      initExperiment(project, options) {
+        calls.push(`init:${project}`);
+        expect(options).toEqual({
+          experiment: "sdk-test",
+          update: false,
+          metadata: init.metadata,
+          repoInfo: init.repoInfo,
+          gitMetadataSettings: { collect: "none" },
+        });
+        return {
+          startSpan(args) {
+            calls.push(`start:${args.name}`);
+            expect(args.type).toBe("eval");
+            expect(Object.keys(args.event).sort()).toEqual([
+              "input",
+              "metadata",
+              "metrics",
+              "output",
+              "tags",
+            ]);
+            return {
+              end() {
+                calls.push(`end:${args.name}`);
+              },
+            };
+          },
+          async flush() {
+            calls.push("flush");
+          },
+          async summarize(options) {
+            calls.push(`summary:${options.summarizeScores}`);
+            return { experimentUrl: "https://braintrust.dev/experiment/sdk" };
+          },
+        };
+      },
+    };
+    const result = await publishBraintrustRows(
+      mapping,
+      {
+        project: "githits-cli-agent-evals",
+        experiment: "sdk-test",
+        source: "local",
+      },
+      (publisherInit) => createBraintrustPublisher(publisherInit, sdk),
+    );
+
+    expect(calls).toEqual([
+      "init:githits-cli-agent-evals",
+      "start:discovery/workload-a",
+      "end:discovery/workload-a",
+      "flush",
+      "summary:false",
+    ]);
+    expect(result.url).toBe("https://braintrust.dev/experiment/sdk");
+  });
+
+  it("exports only a generated status error for failed rows", async () => {
+    const fixture = await createSuite({ processStatus: "failed" });
+    const mapping = preflightAndMapBraintrustRows([
+      suiteInput("failed-row", fixture.suitePath),
+    ]);
+    let event: BraintrustRowEvent | undefined;
+    await publishBraintrustRows(
+      mapping,
+      {
+        project: "githits-cli-agent-evals",
+        experiment: "failed-row-test",
+        source: "local",
+      },
+      () => ({
+        startSpan(args) {
+          event = args.event;
+          return { end() {} };
+        },
+        async flush() {},
+        async permalink() {
+          return undefined;
+        },
+      }),
+    );
+
+    expect(event).toBeDefined();
+    expect(Object.keys(event!).sort()).toEqual([
+      "error",
+      "input",
+      "metadata",
+      "metrics",
+      "output",
+      "tags",
+    ]);
+    expect(event!.error).toBe("eval_status:failed");
+    expect("scores" in event!).toBe(false);
+    expect("expected" in event!).toBe(false);
+    expect("id" in event!).toBe(false);
+  });
+
+  it("does not retry a failed row and does not flush partial exports", async () => {
+    const fixture = await createSuite({ scenarios: ["discovery", "full"] });
+    const mapping = preflightAndMapBraintrustRows([
+      suiteInput("failure", fixture.suitePath),
+    ]);
+    const calls: string[] = [];
+    await expect(
+      publishBraintrustRows(
+        mapping,
+        {
+          project: "githits-cli-agent-evals",
+          experiment: "failure-test",
+          source: "local",
+        },
+        () => ({
+          startSpan(args) {
+            calls.push(`start:${args.name}`);
+            return {
+              end() {
+                calls.push(`end:${args.name}`);
+                throw new Error("publisher failure");
+              },
+            };
+          },
+          async flush() {
+            calls.push("flush");
+          },
+          async permalink() {
+            calls.push("permalink");
+            return "https://braintrust.dev/should-not-be-used";
+          },
+        }),
+      ),
+    ).rejects.toThrow("publisher failure");
+    expect(calls).toEqual([
+      "start:discovery/workload-a",
+      "end:discovery/workload-a",
+    ]);
   });
 });

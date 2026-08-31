@@ -120,6 +120,7 @@
     "@biomejs/biome": "2.5.6",
     "@types/bun": "latest",
     "@types/semver": "^7.7.1",
+    "braintrust": "3.29.0",
     "bunup": "^0.16.32",
     "husky": "^9.1.7",
     "lint-staged": "17.3.0",
