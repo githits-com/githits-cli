@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
-import { STABLE_QUICK_START_PREREQUISITE } from "@githits/mcp/internal";
+import { QUICK_START_PREREQUISITE } from "@githits/mcp/internal";
 import { CLAUDE_MCP_ALLOWED_TOOLS } from "./drivers/claude-cli.js";
 import {
   buildPass3Prompt,
@@ -19,10 +19,10 @@ import { prepareSkillsFixtureWorkspace } from "./skills-workspace.js";
 describe("security eval skills surface", () => {
   it("keeps mock evidence descriptions aligned with MCP session composition", () => {
     expect(composeEvalMcpDescription("base", "guardrail", false)).toBe(
-      `base\n\n${STABLE_QUICK_START_PREREQUISITE}`,
+      `base\n\n${QUICK_START_PREREQUISITE}`,
     );
     expect(composeEvalMcpDescription("base", "guardrail", true)).toBe(
-      `base\n\nguardrail\n\n${STABLE_QUICK_START_PREREQUISITE}`,
+      `base\n\nguardrail\n\n${QUICK_START_PREREQUISITE}`,
     );
   });
 

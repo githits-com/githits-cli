@@ -74,12 +74,12 @@ wording (787 words v4 → 171 words compact).
 
 Those measurements validate the shared wording only when the block is in
 context. Plain MCP delivery depends on the agent calling `quick_start`; every
-stable evidence descriptor now repeats that session prerequisite, and the
+evidence descriptor now repeats that session prerequisite, and the
 bootstrap tool names its purpose and loaded-skill exception inside the first 80
 characters. The loaded `githits-mcp` skill embeds the same stable block and
-skips that redundant call. An exposed local `Experimental` descriptor still
-requires `quick_start` for runtime-specific guidance. Luna-low descriptor-only
-and full-guidance canaries called `quick_start` exactly once in every workload,
+always skips that redundant call; there are no tool-specific exceptions.
+Luna-low descriptor-only and full-guidance canaries called `quick_start`
+exactly once in every workload,
 but a later Claude Desktop source-reading session skipped it. `code_read` and
 `code_grep` therefore now carry focused local posture as a fallback. This is
 not evidence that other content tools are protected when neither the skill nor
@@ -124,8 +124,7 @@ Other tools (`quick_start`, `pkg_deps`, `code_files`, `search_status`,
 control and need no per-tool addendum. The shared posture is available to plain
 MCP agents after they call `quick_start`; a loaded `githits-mcp` skill already
 carries the stable posture. The runtime-only local appendices are not embedded
-in that skill. An exposed `Experimental` descriptor remains the bounded reason
-to call `quick_start` after loading the skill.
+in that skill and do not create a second bootstrap path.
 
 ## Where the wording lives
 

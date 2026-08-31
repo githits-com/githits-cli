@@ -70,12 +70,10 @@ The public `githits-mcp` skill is self-contained for the stable path: its
 terminal `## Quick-start guide` section is an exact copy of
 `buildMcpQuickStart()` from `packages/mcp/src/mcp/instructions.ts`, enforced by
 `src/skills-packaging.test.ts`. Plain MCP clients use the `quick_start` tool;
-clients with the loaded skill skip that call for stable tools. Stable evidence
-descriptors repeat this prerequisite at MCP composition time, while exposed
-local `Experimental` descriptors still require their runtime-specific
-`quick_start`. The
-runtime-only `buildLocalMcpQuickStart()` appendices are excluded from the
-public skill copy.
+clients with the loaded skill always skip that call. Every evidence descriptor
+repeats the same prerequisite at MCP composition time; there are no
+tool-specific exceptions. Runtime-only `buildLocalMcpQuickStart()` appendices
+are excluded from the public skill copy and do not change the bootstrap rule.
 
 There are no authored host-specific skill copies. If a host later requires a
 self-contained copy, the generator may create it, but tests must enforce exact

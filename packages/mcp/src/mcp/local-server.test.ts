@@ -11,10 +11,7 @@ import {
   createMockPackageIntelligenceService,
   defaultCodeDiffResult,
 } from "../services/test-helpers.js";
-import {
-  EXPERIMENTAL_QUICK_START_PREREQUISITE,
-  STABLE_QUICK_START_PREREQUISITE,
-} from "../tools/quick-start.js";
+import { QUICK_START_PREREQUISITE } from "../tools/quick-start.js";
 import { buildLocalMcpQuickStart, buildMcpQuickStart } from "./instructions.js";
 import {
   createLocalMcpServer,
@@ -125,7 +122,7 @@ describe("createLocalMcpServer", () => {
       for (const name of EXPECTED_STABLE_NAMES) {
         if (name === "quick_start" || name === "feedback") continue;
         expect(registeredTools(server)[name]?.description).toEndWith(
-          STABLE_QUICK_START_PREREQUISITE,
+          QUICK_START_PREREQUISITE,
         );
       }
       const result = await registeredTools(server).quick_start!.handler(
@@ -156,7 +153,7 @@ describe("createLocalMcpServer", () => {
         "Experimental",
       );
       expect(registeredTools(server)[name]?.description).toEndWith(
-        EXPERIMENTAL_QUICK_START_PREREQUISITE,
+        QUICK_START_PREREQUISITE,
       );
     }
     const result = await registeredTools(server).quick_start!.handler(

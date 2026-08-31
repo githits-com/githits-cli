@@ -5,7 +5,7 @@ import type {
 } from "@githits/core-internal";
 import { z } from "zod";
 import { createMockCodeNavigationService } from "../services/test-helpers.js";
-import { STABLE_QUICK_START_PREREQUISITE } from "../tools/quick-start.js";
+import { QUICK_START_PREREQUISITE } from "../tools/quick-start.js";
 import type { McpToolServices } from "../tools/tool-services.js";
 import {
   BOUNDED_WRITE_TOOL_ANNOTATIONS,
@@ -277,13 +277,9 @@ describe("MCP tool description catalog", () => {
       }
 
       if (descriptor.name === "quick_start" || descriptor.name === "feedback") {
-        expect(descriptor.description).not.toContain(
-          STABLE_QUICK_START_PREREQUISITE,
-        );
+        expect(descriptor.description).not.toContain(QUICK_START_PREREQUISITE);
       } else {
-        expect(descriptor.description).toEndWith(
-          STABLE_QUICK_START_PREREQUISITE,
-        );
+        expect(descriptor.description).toEndWith(QUICK_START_PREREQUISITE);
       }
     }
 

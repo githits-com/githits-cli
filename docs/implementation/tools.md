@@ -69,19 +69,17 @@ Write the prefix as the answer to “why would an agent choose this tool now?”
 GitHits intentionally omits MCP initialize instructions because clients treat
 them inconsistently: some hide them, some promote them, and some repeat them
 with every tool. Guidance has two delivery paths: a loaded `githits-mcp` skill
-already carries the stable guide and skips `quick_start` for stable tools,
+already carries the stable guide and skips `quick_start`,
 while plain MCP clients use the no-argument, read-only `quick_start` tool once
 per session. The `quick_start` catalog prefix states both paths inside Claude
-Desktop's verified 80-character boundary. Every stable evidence or preparatory
+Desktop's verified 80-character boundary. Every evidence or preparatory
 descriptor repeats the prerequisite as an MCP-composed footer without changing
 its distinct first-80 selection prefix; `feedback` is excluded because it is a
-post-result write. Exposed `Experimental` descriptors instead require their
-runtime guide because the public skill contains only stable guidance. The
-stable guide is owned
-by `packages/mcp/src/mcp/instructions.ts`; the terminal skill section must stay
+post-result write. There are no tool-specific exceptions. The stable guide is
+owned by `packages/mcp/src/mcp/instructions.ts`; the terminal skill section must stay
 byte-for-byte aligned under `src/skills-packaging.test.ts`. Local
 `buildLocalMcpQuickStart()` appendices are runtime-only and excluded from that
-public copy. Individual tool descriptions remain self-contained so direct
+public copy; they do not change when `quick_start` is called. Individual tool descriptions remain self-contained so direct
 tool selection can still find the right evidence tool before the bootstrap.
 Transport-neutral callable descriptions do not receive the footer because that
 surface does not guarantee a `quick_start` tool exists.
@@ -547,14 +545,15 @@ The MCP server deliberately omits protocol-level `instructions`. Clients have
 handled that field as hidden guidance, privileged guidance, namespace metadata,
 or a prefix repeated on every tool. Plain MCP clients use the `quick_start`
 tool to expose shared guidance once, on demand. The loaded `githits-mcp` skill
-contains the same stable guide and therefore needs no normal bootstrap call;
+contains the same stable guide and therefore makes no bootstrap call;
 current tool descriptions remain the source of truth for tool-specific
 routing, arguments, output, and recovery. The bootstrap descriptor's first 80
 characters identify it as the session entry point and name the skill-loaded
-exception. Stable evidence and preparatory descriptors repeat the prerequisite
+exception. Every evidence and preparatory descriptor repeats the same prerequisite
 in a centrally composed footer, so selecting a direct tool still routes a plain
 MCP agent through `quick_start`. The footer is absent from transport-neutral
-callable tools, which may not expose a bootstrap tool.
+callable tools, which may not expose a bootstrap tool. There are no
+tool-specific exceptions.
 
 The concrete Codex failure was verified in August 2026. Codex PR
 [#21053](https://github.com/openai/codex/pull/21053) intentionally preserved
@@ -593,8 +592,7 @@ payload whose privilege, visibility, and repetition vary by host.
 The stable guide embedded in `skills/githits-mcp/SKILL.md` is an exact copy of
 `buildMcpQuickStart()` and is checked by `src/skills-packaging.test.ts`. The
 local experimental appendices from `buildLocalMcpQuickStart()` are not copied
-into the public skill; an exposed local `Experimental` descriptor is the one
-case where that client calls `quick_start` after loading the skill.
+into the public skill and do not override the loaded-skill rule.
 
 The reporting contract is validated structurally in the focused instruction
 tests: one concise `accepted: false` report per distinct issue, exact enabled

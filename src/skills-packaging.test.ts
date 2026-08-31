@@ -275,28 +275,26 @@ describe("agent skills packaging", () => {
 
     expectContainsAllIgnoringWhitespace(publicContent, [
       "name: githits-mcp",
-      "OSS context layer",
+      "public OSS/package evidence through GitHits MCP",
+      "Always load before invoking any GitHits MCP tool",
       "public OSS/package evidence",
       "discovery, planning, research, implementation, debugging, or maintenance",
       "repository source",
       "vulnerabilities",
       "changelogs",
-      "upgrade-review evidence",
-      "before relying on model memory or generic web search",
+      "upgrade reviews",
       "this skill already includes the stable\nquick-start guide below",
-      "Do not call `quick_start` before stable tools when this\nskill is loaded",
-      "Current tool descriptions are authoritative over a stale installed skill\nsnapshot",
-      "If any GitHits tool description exposed to the agent is marked\n`Experimental`, call `quick_start` before the first GitHits evidence tool",
-      "This is the only loaded-skill exception",
+      "Do not call `quick_start` when this skill is loaded",
+      "this rule applies to every GitHits tool",
       "for routing, scope, target syntax,\noutput, safety, citations, and recovery",
-      "If GitHits MCP tools are unavailable",
-      "switch to the `githits-code` or `githits-package` skill",
-      "Do not treat missing MCP registration as evidence",
     ]);
     expect(embeddedGuide).toBe(buildMcpQuickStart());
     expect(publicContent).toContain("External-content posture");
     expectNotContainsAllIgnoringWhitespace(publicContent, [
       "call `quick_start` once per session",
+      "Experimental",
+      "githits-code",
+      "githits-package",
       "**Local experimental tools",
       "**Issue reporting",
     ]);

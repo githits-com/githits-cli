@@ -17,8 +17,7 @@ import {
   createSearchLanguageTool,
   createSearchStatusTool,
   createSearchTool,
-  EXPERIMENTAL_QUICK_START_PREREQUISITE,
-  STABLE_QUICK_START_PREREQUISITE,
+  QUICK_START_PREREQUISITE,
   type ToolDefinition,
   type ToolResult,
   type ZodRawShape,
@@ -166,14 +165,9 @@ function addMcpSessionPrerequisite<TArgs, TSchema extends ZodRawShape>(
 ): ToolDefinition<TArgs, TSchema> {
   if (tool.name === "quick_start" || tool.name === "feedback") return tool;
 
-  // `Experimental` is the existing runtime-guide detection marker. Inspecting
-  // the descriptor keeps local-only tool names out of this public composer.
-  const prerequisite = tool.description.includes("Experimental")
-    ? EXPERIMENTAL_QUICK_START_PREREQUISITE
-    : STABLE_QUICK_START_PREREQUISITE;
   return {
     ...tool,
-    description: `${tool.description}\n\n${prerequisite}`,
+    description: `${tool.description}\n\n${QUICK_START_PREREQUISITE}`,
   };
 }
 

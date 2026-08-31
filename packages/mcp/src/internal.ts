@@ -107,7 +107,7 @@ export {
 } from "./tools/package-vulnerabilities.js";
 export {
   DESCRIPTION as QUICK_START_DESCRIPTION,
-  STABLE_QUICK_START_PREREQUISITE,
+  QUICK_START_PREREQUISITE,
 } from "./tools/quick-start.js";
 export {
   DESCRIPTION as READ_FILE_DESCRIPTION,

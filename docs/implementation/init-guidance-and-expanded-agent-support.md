@@ -56,14 +56,13 @@ probe means Codex is not detected.
 
 Remote MCP docs and setup help recommend the `githits-mcp` skill. The skill
 carries the stable quick-start guide, so a skill-loaded agent skips the
-normal `quick_start` call. Plain MCP clients use `quick_start` as the fallback
+`quick_start` call. Plain MCP clients use `quick_start` as the fallback
 for shared routing, scope, output, and safety guidance because clients expose
-server-level MCP instructions inconsistently. Stable evidence descriptors
-repeat that session prerequisite; an exposed local `Experimental` descriptor
-still requires its runtime-specific `quick_start`. The stable skill copy is kept
-byte-for-byte aligned with `buildMcpQuickStart()` in
+server-level MCP instructions inconsistently. Every evidence descriptor repeats
+that same session prerequisite, with no tool-specific exceptions. The stable
+skill copy is kept byte-for-byte aligned with `buildMcpQuickStart()` in
 `packages/mcp/src/mcp/instructions.ts`; runtime-only local appendices are
-excluded.
+excluded and do not change when `quick_start` is called.
 
 ## Skill catalog and active roots
 

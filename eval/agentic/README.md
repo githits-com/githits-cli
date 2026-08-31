@@ -579,15 +579,17 @@ Named suites are available through `agent:e2e:suite`. Use
 execution is provided by `.github/workflows/agent-evals.yml`; persistent result
 history, service export, and quality judging remain later phases.
 
-For broad skill edits, run at least:
+For broad `githits-mcp` skill edits, use the MCP `full` profile so the isolated
+workspace installs that skill and exposes GitHits MCP without the CLI skills:
 
 ```bash
-bun run agent:e2e --agent claude --surface skills --server local --workload eval/agentic/workloads/express-router.md
-CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface skills --server local --workload eval/agentic/workloads/express-router.md
-bun run agent:e2e --agent opencode --surface skills --server local --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent claude --surface mcp --server local --guidance-profile full --workload eval/agentic/workloads/express-router.md
+CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface mcp --server local --guidance-profile full --workload eval/agentic/workloads/express-router.md
 ```
 
-For tool-specific edits, add the workload from the table. Compare
+Use `--surface skills` for `githits-code` or `githits-package` CLI skill edits;
+that surface intentionally has no GitHits MCP server. For tool-specific edits,
+add the workload from the table. Compare
 `tool-calls.json`, `metrics.json`, and the final JSON's answer/confidence across
 branches or against a published run.
 

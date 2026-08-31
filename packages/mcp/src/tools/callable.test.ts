@@ -9,7 +9,7 @@ import {
 } from "../tools.js";
 import { toCallableTool } from "./callable.js";
 import { createGetExampleTool, type GetExampleService } from "./get-example.js";
-import { STABLE_QUICK_START_PREREQUISITE } from "./quick-start.js";
+import { QUICK_START_PREREQUISITE } from "./quick-start.js";
 import {
   BOUNDED_WRITE_TOOL_ANNOTATIONS,
   type ToolDefinition,
@@ -45,7 +45,7 @@ describe("toCallableTool", () => {
       enum: ["text-v1", "text", "json"],
       default: "text-v1",
     });
-    expect(callable.description).not.toContain(STABLE_QUICK_START_PREREQUISITE);
+    expect(callable.description).not.toContain(QUICK_START_PREREQUISITE);
   });
 
   it("validates before calling the service and strips unknown input", async () => {
