@@ -116,6 +116,7 @@ describe("resolve_target parity", () => {
       intentHints: ["server", "web"],
       limit: 8,
       includeDetailedFields: true,
+      includeNameSimilarity: true,
     });
     expect(cli).toBeDefined();
   });
@@ -123,6 +124,10 @@ describe("resolve_target parity", () => {
   it("PARITY-JSON-KEYS: shared success result is CLI JSON === MCP JSON", async () => {
     const result = structuredClone(defaultResolveTargetResult);
     result.targets[0]!.groupKey = "github:expressjs/express";
+    if (!result.targets[0]!.match) {
+      throw new Error("fixture missing resolve target match");
+    }
+    result.targets[0]!.match.nameSimilarity = 0.4;
     result.targets[0]!.docsPageCount = 128;
     result.targets[0]!.license = "MIT";
     result.targets.push({
@@ -164,6 +169,7 @@ describe("resolve_target parity", () => {
           target: "npm:express",
           direct: true,
           groupKey: "github:expressjs/express",
+          nameSimilarity: 0.4,
           docsPageCount: 128,
           license: "MIT",
         },

@@ -31,12 +31,12 @@ export interface ResolveTargetCandidatePayload {
   matchedAliases?: string[];
   docsAvailable?: boolean;
   codeAvailable?: boolean;
+  nameSimilarity?: number;
   docsPageCount?: number;
   codeFileCount?: number;
   license?: string;
   matchTier?: number;
   score?: number;
-  reason?: string;
 }
 
 export interface ResolveTargetMaliciousAdvisoryPayload {
@@ -123,18 +123,19 @@ function projectTarget(
   assign(payload, "matchedAliases", target.match?.matchedAliases);
   assign(payload, "docsAvailable", target.docsAvailable);
   assign(payload, "codeAvailable", target.codeAvailable);
+  assign(payload, "nameSimilarity", target.match?.nameSimilarity);
   assign(payload, "docsPageCount", target.docsPageCount);
   assign(payload, "codeFileCount", target.codeFileCount);
   assign(payload, "license", target.license);
   assign(payload, "matchTier", target.match?.matchTier);
   assign(payload, "score", target.match?.score);
-  assign(payload, "reason", target.match?.reason);
   return payload;
 }
 
 export interface FormatResolveTargetTerminalOptions {
   name: string;
   query?: string;
+  verbose?: boolean;
   useColors?: boolean;
 }
 
@@ -150,6 +151,7 @@ export interface ResolveTargetEvidenceOptions {
   license: boolean;
   docs: boolean;
   code: boolean;
+  nameSimilarity: boolean;
 }
 
 export type ResolveTargetEvidencePlan = (
@@ -179,13 +181,14 @@ export function groupResolveTargets(
 }
 
 /**
- * Build a group-scoped resolver that assigns each evidence dimension to its
- * clearest target lane. Package targets retain projected repository/site
- * evidence only when the corresponding target is absent, so partial and
- * singleton groups remain informative without repeating complete-group metrics.
+ * Build a group-scoped resolver that assigns project evidence to its clearest
+ * target lane. Package and repository code snapshots remain identity-scoped,
+ * while packages retain projected repository/site evidence only when the
+ * corresponding target is absent.
  */
 export function buildResolveTargetEvidencePlan(
   targets: readonly ResolveTargetTarget[],
+  includeNameSimilarity = false,
 ): ResolveTargetEvidencePlan {
   const hasRepositoryTarget = targets.some(
     (target) => target.kind === "REPOSITORY",
@@ -205,7 +208,8 @@ export function buildResolveTargetEvidencePlan(
           repository: !hasRepositoryTarget,
           license: true,
           docs: !hasSiteTarget,
-          code: !hasRepositoryTarget,
+          code: true,
+          nameSimilarity: includeNameSimilarity,
         };
       case "REPOSITORY":
         return {
@@ -215,6 +219,7 @@ export function buildResolveTargetEvidencePlan(
           license: !hasPackageLicense,
           docs: false,
           code: true,
+          nameSimilarity: includeNameSimilarity,
         };
       case "SITE":
         return {
@@ -224,6 +229,7 @@ export function buildResolveTargetEvidencePlan(
           license: false,
           docs: true,
           code: false,
+          nameSimilarity: includeNameSimilarity,
         };
       default:
         return {
@@ -233,6 +239,7 @@ export function buildResolveTargetEvidencePlan(
           license: true,
           docs: true,
           code: true,
+          nameSimilarity: includeNameSimilarity,
         };
     }
   };
@@ -278,14 +285,16 @@ export function formatResolveTargetTerminal(
         target.latestVersionMaliciousStatus,
       ),
   );
-  lines.push(
-    !result.ambiguous && !identityActionable
-      ? "Unconfirmed ranked targets:"
-      : "Targets:",
-  );
+  lines.push("Targets:");
   lines.push(
     ...groups.flatMap((group, index) =>
-      formatTerminalGroup(group, index + 1, protectedKeys, useColors),
+      formatTerminalGroup(
+        group,
+        index + 1,
+        protectedKeys,
+        useColors,
+        options.verbose === true,
+      ),
     ),
   );
   if (result.targetsTruncated) {
@@ -297,6 +306,11 @@ export function formatResolveTargetTerminal(
       ),
     );
   }
+  const evidenceNotes = formatResolveTargetEvidenceNotes(
+    result.targets,
+    options.verbose === true,
+  );
+  if (evidenceNotes.length > 0) lines.push("", ...evidenceNotes);
 
   const query = sanitizeTerminalText(options.query?.trim() || "<query>");
   if (blockedBest) {
@@ -369,10 +383,14 @@ function formatTerminalGroup(
   groupNumber: number,
   protectedKeys: ReadonlySet<string>,
   useColors: boolean,
+  includeNameSimilarity: boolean,
 ): string[] {
   const [lead, ...members] = group.targets;
   if (!lead) return [];
-  const evidencePlan = buildResolveTargetEvidencePlan(group.targets);
+  const evidencePlan = buildResolveTargetEvidencePlan(
+    group.targets,
+    includeNameSimilarity,
+  );
   const lines = [
     `  ${groupNumber}. ${formatTerminalTargetLine(lead, evidencePlan(lead), protectedKeys, useColors)}`,
     ...formatTerminalTargetDetails(lead, "     ", useColors),
@@ -451,23 +469,65 @@ export function formatResolveTargetEvidence(
   }
   const license = options.license ? formatLicense(target.license) : undefined;
   if (license) fields.push(`license ${license}`);
-  const docs = formatAvailability(
-    "docs",
-    "pages",
+  const docs = formatDocsAvailability(
     target.docsAvailable,
     target.docsPageCount,
     options.docs && target.kind !== "REPOSITORY",
   );
   if (docs) fields.push(docs);
-  const code = formatAvailability(
-    "code",
-    "files",
-    target.codeAvailable,
-    target.codeFileCount,
+  const code = formatResolveTargetCodeAvailability(
+    target,
     options.code && target.kind !== "SITE",
   );
   if (code) fields.push(code);
+  const nameSimilarity = options.nameSimilarity
+    ? formatResolveTargetNameSimilarity(target.match?.nameSimilarity)
+    : undefined;
+  if (nameSimilarity) fields.push(nameSimilarity);
   return fields.map(sanitizeTerminalText).join(" · ");
+}
+
+/** Describe code evidence at the resolved identity's actual scope. */
+function formatResolveTargetCodeAvailability(
+  target: ResolveTargetTarget,
+  applicable = true,
+): string | undefined {
+  if (!applicable || !target.codeAvailable) return undefined;
+  const scope =
+    target.kind === "PACKAGE"
+      ? "indexed package snapshot"
+      : target.kind === "REPOSITORY"
+        ? "indexed repository snapshot"
+        : "indexed code snapshot";
+  return target.codeFileCount === undefined
+    ? scope
+    : `${scope} (${formatCompactNumber(target.codeFileCount)} files)`;
+}
+
+/** Format the backend's fractional lexical signal as a whole percentage. */
+function formatResolveTargetNameSimilarity(
+  value: number | undefined,
+): string | undefined {
+  return value === undefined
+    ? undefined
+    : `${Math.round(value * 100)}% name similarity`;
+}
+
+/** Explain resolver evidence without treating either signal as decisive. */
+export function formatResolveTargetEvidenceNotes(
+  targets: readonly ResolveTargetTarget[],
+  includeNameSimilarity = false,
+): string[] {
+  const notes: string[] = [];
+  if (
+    includeNameSimilarity &&
+    targets.some((target) => target.match?.nameSimilarity !== undefined)
+  ) {
+    notes.push(
+      "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
+    );
+  }
+  return notes;
 }
 
 function formatLicense(value: string | undefined): string | undefined {
@@ -476,21 +536,16 @@ function formatLicense(value: string | undefined): string | undefined {
   return license === "mit" ? "MIT" : license;
 }
 
-function formatAvailability(
-  label: "docs" | "code",
-  unit: "pages" | "files",
+function formatDocsAvailability(
   available: boolean,
   count: number | undefined,
   applicable: boolean,
 ): string | undefined {
-  if (!applicable) return undefined;
-  if (count !== undefined && available) {
-    return `${label} ${formatCompactNumber(count)} ${unit}`;
+  if (!applicable || !available) return undefined;
+  if (count !== undefined) {
+    return `docs ${formatCompactNumber(count)} pages`;
   }
-  if (count !== undefined && count > 0) {
-    return `${label} unavailable (${formatCompactNumber(count)} ${unit} recorded)`;
-  }
-  return available ? `${label} available` : `no ${label}`;
+  return "docs available";
 }
 
 /** Return concise warning copy only for a non-actionable backend decision. */

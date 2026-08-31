@@ -65,9 +65,10 @@ describe("resolveAction", () => {
   });
 
   it("normalizes options, requests compact data, and renders terminal output", async () => {
-    const resolveTarget = mock(() =>
-      Promise.resolve(defaultResolveTargetResult),
-    );
+    const compact = structuredClone(defaultResolveTargetResult);
+    if (!compact.targets[0]?.match) throw new Error("fixture missing match");
+    compact.targets[0].match.nameSimilarity = 0.4;
+    const resolveTarget = mock(() => Promise.resolve(compact));
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(
       () => true,
     );
@@ -94,20 +95,56 @@ describe("resolveAction", () => {
       intentHints: ["server"],
       limit: 3,
       includeDetailedFields: false,
+      includeNameSimilarity: false,
     });
     expect(String(writeSpy.mock.calls[0]?.[0])).toContain(
       "Targets:\n  1. npm:express",
     );
     expect(String(writeSpy.mock.calls[0]?.[0])).not.toContain("Warning:");
     expect(String(writeSpy.mock.calls[0]?.[0])).not.toContain("malicious");
+    expect(String(writeSpy.mock.calls[0]?.[0])).not.toContain(
+      "name similarity",
+    );
+  });
+
+  it("requests and renders lexical evidence only for verbose text", async () => {
+    const verbose = structuredClone(defaultResolveTargetResult);
+    if (!verbose.targets[0]?.match) throw new Error("fixture missing match");
+    verbose.targets[0].match.nameSimilarity = 0.4;
+    const resolveTarget = mock(() => Promise.resolve(verbose));
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      () => true,
+    );
+
+    await resolveAction(
+      "lodahs",
+      { verbose: true },
+      deps({
+        resolveTargetService: createMockResolveTargetService({ resolveTarget }),
+      }),
+    );
+
+    expect(resolveTarget).toHaveBeenCalledWith({
+      name: "lodahs",
+      limit: 8,
+      includeDetailedFields: false,
+      includeNameSimilarity: true,
+    });
+    const output = String(writeSpy.mock.calls[0]?.[0]);
+    expect(output).toContain("40% name similarity");
+    expect(output).toContain(
+      "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
+    );
   });
 
   it("requests detailed data and prints clean JSON", async () => {
     const affected = structuredClone(defaultResolveTargetResult);
     const candidate = affected.targets[0];
     if (!candidate) throw new Error("fixture missing resolve candidate");
+    if (!candidate.match) throw new Error("fixture missing resolve match");
     affected.targets[0] = {
       ...candidate,
+      match: { ...candidate.match, nameSimilarity: 0.4 },
       latestVersionMaliciousStatus: "AFFECTED",
       latestVersionMaliciousEvidence: {
         advisories: [
@@ -135,6 +172,7 @@ describe("resolveAction", () => {
       name: "express",
       limit: 8,
       includeDetailedFields: true,
+      includeNameSimilarity: true,
     });
     expect(JSON.parse(String(logSpy.mock.calls[0]?.[0]))).toMatchObject({
       best: "npm:express",
@@ -142,6 +180,7 @@ describe("resolveAction", () => {
       candidates: [
         {
           target: "npm:express",
+          nameSimilarity: 0.4,
           latestVersionMaliciousStatus: "affected",
           latestVersionMaliciousEvidence: {
             advisories: [
@@ -427,10 +466,15 @@ describe("registerResolveCommand", () => {
       "--prefer-kind",
       "--intent-hint",
       "--limit",
+      "--verbose",
       "--json",
     ]) {
       expect(help).toContain(value);
     }
+    expect(
+      resolveCommand?.options.find((option) => option.long === "--verbose")
+        ?.short,
+    ).toBe("-v");
     expect(resolveCommand?.description()).toContain(
       "--query and --intent-hint values are sent",
     );

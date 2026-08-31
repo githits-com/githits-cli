@@ -1008,8 +1008,7 @@ async function assertLiveOrAuthRequired(
 
 export function assertExperimentalCliResolveText(resolveText: string): void {
   assert(
-    (resolveText.includes("Targets:") ||
-      resolveText.includes("Unconfirmed ranked targets:")) &&
+    resolveText.includes("Targets:") &&
       /\n\s+\d+\. (?:npm|github|site):\S+/.test(resolveText),
     "experimental resolve text should include canonical target groups",
   );
@@ -1029,19 +1028,17 @@ export function assertExperimentalCliResolveText(resolveText: string): void {
         !resolveText.includes("Next after choosing:"),
       "experimental malicious-blocked resolve text should omit the normal next action",
     );
-  } else if (resolveText.includes("Unconfirmed ranked targets:")) {
-    assert(
-      resolveText.includes("explicitly choose a candidate") &&
-        resolveText.includes("--in '<target>'"),
-      "experimental unconfirmed resolve text should require an explicit choice",
-    );
   } else if (resolveText.includes("Ambiguous:")) {
     assert(
       resolveText.includes("Next after choosing:"),
       "experimental ambiguous resolve text should require an explicit choice",
     );
   } else {
-    assert(false, "experimental resolve text missing continuation guidance");
+    assert(
+      resolveText.includes("explicitly choose a candidate") &&
+        resolveText.includes("--in '<target>'"),
+      "experimental unconfirmed resolve text should require an explicit choice",
+    );
   }
 }
 
@@ -1080,6 +1077,35 @@ async function runExperimentalLiveSmoke(
     "experimental expressjs resolution should directly match the site and group related package/repository targets",
   );
 
+  const fuzzyResolveText = assertTerminalOutput(
+    await runCliWithEnv(["resolve", "lodahs", "--prefer-kind", "package"], env),
+    "experimental fuzzy resolve terminal",
+  );
+  assert(
+    !fuzzyResolveText.includes("name similarity") &&
+      !fuzzyResolveText.includes("coarse lexical support") &&
+      fuzzyResolveText.includes("indexed package snapshot") &&
+      !fuzzyResolveText.includes("readiness") &&
+      !fuzzyResolveText.includes("no code") &&
+      !fuzzyResolveText.includes("no docs"),
+    "experimental fuzzy resolve default text should omit lexical and negative availability detail",
+  );
+
+  const fuzzyResolveVerbose = assertTerminalOutput(
+    await runCliWithEnv(
+      ["resolve", "lodahs", "--prefer-kind", "package", "--verbose"],
+      env,
+    ),
+    "experimental fuzzy resolve verbose terminal",
+  );
+  assert(
+    /\d+% name similarity/.test(fuzzyResolveVerbose) &&
+      fuzzyResolveVerbose.includes(
+        "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
+      ),
+    "experimental fuzzy resolve verbose text should qualify lexical evidence",
+  );
+
   const resolveJson = assertJsonOutput(
     await runCliWithEnv(
       [
@@ -1116,6 +1142,26 @@ async function runExperimentalLiveSmoke(
       Array.isArray(resolveJson.protectedMatches) &&
       typeof resolveJson.targetsTruncated === "boolean",
     "experimental resolve JSON missing structured candidate facts",
+  );
+
+  const fuzzyResolveJson = assertJsonOutput(
+    await runCliWithEnv(
+      ["resolve", "lodahs", "--prefer-kind", "package", "--json"],
+      env,
+    ),
+    "experimental fuzzy resolve json",
+  );
+  assertRecord(fuzzyResolveJson, "experimental fuzzy resolve json");
+  assert(
+    Array.isArray(fuzzyResolveJson.candidates) &&
+      fuzzyResolveJson.candidates.some(
+        (candidate) =>
+          candidate !== null &&
+          typeof candidate === "object" &&
+          candidate.target === "npm:lodash" &&
+          typeof candidate.nameSimilarity === "number",
+      ),
+    "experimental fuzzy resolve JSON should preserve numeric name similarity for npm:lodash",
   );
 
   const codeDiffText = assertTerminalOutput(

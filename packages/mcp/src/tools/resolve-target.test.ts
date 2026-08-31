@@ -96,6 +96,7 @@ describe("resolve_target MCP adapter", () => {
       "preferred_kind",
       "intent_hints",
       "limit",
+      "verbose",
       "format",
     ]);
     expect(schema.properties?.format).toMatchObject({
@@ -175,6 +176,7 @@ describe("resolve_target MCP adapter", () => {
       limit: 8,
       intentHints: ["server"],
       includeDetailedFields: false,
+      includeNameSimilarity: false,
     });
     const text = response.content[0]?.text ?? "";
     expect(text).toContain("Best match: npm:express [exact; package]");
@@ -189,12 +191,75 @@ describe("resolve_target MCP adapter", () => {
     );
     expect(text).not.toContain("githits ");
 
-    await invoke(tool, { name: "express", format: "text" });
+    await invoke(tool, { name: "express", format: "text", verbose: false });
     expect(resolveTarget).toHaveBeenLastCalledWith({
       name: "express",
       limit: 8,
       includeDetailedFields: false,
+      includeNameSimilarity: false,
     });
+
+    await invoke(tool, { name: "express", verbose: true });
+    expect(resolveTarget).toHaveBeenLastCalledWith({
+      name: "express",
+      limit: 8,
+      includeDetailedFields: false,
+      includeNameSimilarity: true,
+    });
+  });
+
+  it("renders coarse similarity only for verbose text without reranking", () => {
+    const lodashEs: ResolveTargetTarget = {
+      kind: "PACKAGE",
+      canonicalKey: "npm:lodash-es",
+      latestVersionMaliciousStatus: "CLEAR",
+      docsAvailable: true,
+      codeAvailable: true,
+      match: { confidence: "MEDIUM", nameSimilarity: 0.333 },
+    };
+    const lodash: ResolveTargetTarget = {
+      ...lodashEs,
+      canonicalKey: "npm:lodash",
+      match: { confidence: "MEDIUM", nameSimilarity: 0.4 },
+    };
+    const resolved = result({
+      best: {
+        kind: lodashEs.kind,
+        canonicalKey: lodashEs.canonicalKey,
+        confidence: "MEDIUM",
+      },
+      targets: [lodashEs, lodash],
+      protectedMatches: [],
+    });
+    const compactText = formatResolveTargetMcpText(resolved, {
+      name: "lodahs",
+      verbose: false,
+    });
+    const text = formatResolveTargetMcpText(resolved, {
+      name: "lodahs",
+      verbose: true,
+    });
+
+    expect(compactText).not.toContain("name similarity");
+    expect(compactText).not.toContain("coarse lexical support");
+    expect(compactText).not.toContain("readiness");
+    expect(text).toContain(
+      "1. npm:lodash-es [medium; package] · docs available · indexed package snapshot · 33% name similarity",
+    );
+    expect(text).toContain(
+      "2. npm:lodash [medium; package] · docs available · indexed package snapshot · 40% name similarity",
+    );
+    expect(text.indexOf("npm:lodash-es")).toBeLessThan(
+      text.indexOf("npm:lodash ["),
+    );
+    expect(text).toContain(
+      "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
+    );
+    expect(text).not.toContain("readiness");
+    expect(text).toContain("do not pass the best result automatically");
+    expect(text).not.toContain(
+      'pass the canonical target "npm:lodash-es" to the next MCP tool',
+    );
   });
 
   it("renders the same grouped relationship hierarchy and keeps related warnings non-blocking", () => {
@@ -244,7 +309,7 @@ describe("resolve_target MCP adapter", () => {
       "Warning: Malicious-content status is uncertain. Verify the advisory details before using this version.",
     );
     expect(text).toContain(
-      "github:expressjs/express [related; repository] · code 1.2k files",
+      "github:expressjs/express [related; repository] · indexed repository snapshot (1.2k files)",
     );
     expect(text).toContain(
       "Note: Additional related targets were omitted; direct matches are complete.",
@@ -305,6 +370,32 @@ describe("resolve_target MCP adapter", () => {
       'Next: call search with target "site:expressjs.com" and source "docs", then call docs_read for relevant results.',
     );
     expect(text).not.toContain("pass the canonical target");
+  });
+
+  it("renders repository code availability at repository scope", () => {
+    const repository: ResolveTargetTarget = {
+      kind: "REPOSITORY",
+      canonicalKey: "github:openai/codex",
+      latestVersionMaliciousStatus: "NOT_APPLICABLE",
+      docsAvailable: false,
+      codeAvailable: true,
+      match: { confidence: "EXACT" },
+    };
+    const text = formatResolveTargetMcpText(
+      result({
+        best: {
+          kind: repository.kind,
+          canonicalKey: repository.canonicalKey,
+          confidence: "EXACT",
+        },
+        targets: [repository],
+        protectedMatches: [],
+      }),
+      { name: "codex" },
+    );
+
+    expect(text).toContain("indexed repository snapshot");
+    expect(text).not.toContain("readiness");
   });
 
   it("fails closed for affected, unknown, and future malicious statuses", () => {
@@ -434,9 +525,8 @@ describe("resolve_target MCP adapter", () => {
         { name: "express" },
       );
 
-      expect(text).toContain(
-        `Unconfirmed ranked candidates: the best result is ${confidence.toLowerCase()} confidence.\nTargets:\n  1. npm:express`,
-      );
+      expect(text).toContain("Targets:\n  1. npm:express");
+      expect(text).not.toContain("Unconfirmed ranked candidates:");
       expect(text).not.toContain("jsr:@express/core");
       expect(text).not.toContain("\nCandidates:\n");
       expect(text).not.toContain("Warning:");
@@ -474,9 +564,8 @@ describe("resolve_target MCP adapter", () => {
         { name: "express" },
       );
 
-      expect(text).toContain(
-        `Unconfirmed ranked candidates: the best result is ${confidence.toLowerCase()} confidence.`,
-      );
+      expect(text).toContain("Targets:\n  1. npm:express");
+      expect(text).not.toContain("Unconfirmed ranked candidates:");
       expect(text).toContain("Next: narrow the name or filters");
       expect(text).toContain("explicitly choose a candidate");
       expect(text).toContain("do not pass the best result automatically");
@@ -495,6 +584,7 @@ describe("resolve_target MCP adapter", () => {
       name: "express",
       limit: 8,
       includeDetailedFields: true,
+      includeNameSimilarity: true,
     });
     expect(response.content[0]?.text).toBe(
       JSON.stringify(buildResolveTargetSuccessPayload(result())),

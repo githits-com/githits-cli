@@ -57,7 +57,7 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback [solution_id]` | `--accept` or `--reject` | `-m, --message <text>`, `--tool <name>`, `--json` | Submit solution-tied or generic session feedback |
 | `doctor` | — | `--json` | Print redacted diagnostics for GitHits runtime, environment, service URLs, config, and auth storage |
-| `resolve <name>` *(experimental; config-gated)* | package or GitHub repository name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
+| `resolve <name>` *(experimental; config-gated)* | package or GitHub repository name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--verbose`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
 | `settings` | — | `--json` | Show canonical preferences, privacy and terms, and account limits |
 | `settings show` | — | `--json` | Explicit form of `settings` for showing all account settings |
 | `settings get <key>` | setting key | `--json` | Read one writable setting using its public CLI name |
@@ -314,6 +314,7 @@ Prints redacted diagnostics for comparing GitHits behavior across terminals or a
 githits resolve express
 githits resolve codex --prefer-kind repository
 githits resolve guava --registry maven --limit 3
+githits resolve lodahs --prefer-kind package --verbose
 githits resolve "pi agent" --query "coding agent CLI" --json
 ```
 
@@ -329,28 +330,36 @@ copyable and every member is explicitly direct (with confidence) or related.
 
 Each target keeps its normalized description, capped at 240 characters. Compact
 text puts evidence on the same line as the target identity. Packages own
-downloads and license, repositories own stars and code evidence, and sites own
-documentation evidence. When a group has no repository or site target, its
-package line retains the corresponding projected stars/code or documentation
-fallback, including the compact linked-repository identity when applicable.
+downloads and license, repositories own stars, and sites own documentation
+evidence. Package and repository code snapshots remain on their respective
+identity lines because they establish different indexed scopes. When a group
+has no repository or site target, its package line retains the corresponding
+projected stars or documentation fallback, including the compact
+linked-repository identity when applicable.
 Repository license appears only when no package supplies one. The verified
 lowercase `mit` spelling renders canonically as `MIT`; other license strings are
 preserved. JSON remains lossless and does not apply presentation ownership.
-Positive
-docs/code counts render when content is available; otherwise availability is
-stated without inventing a count unless the backend supplies a contradictory
-positive recorded count. Available content with a zero count renders that zero;
-unavailable content with zero renders `no docs` / `no code`. Missing
-licenses/counts produce no placeholder. Structurally inapplicable evidence
-dimensions are omitted entirely: repositories show no docs field and sites show
-no code field. If availability is false despite a positive recorded count,
-output keeps both facts as `docs unavailable (<n> pages recorded)` or `code
-unavailable (<n> files recorded)`. `targetsTruncated` produces one note
+Human text renders docs/code evidence only when the corresponding availability
+flag is true. Positive counts render when supplied; missing counts produce no
+placeholder. Available package and repository code renders as an indexed
+snapshot at that identity's scope, with a file count in parentheses when
+present. Unavailable or unknown docs/code evidence is omitted even if a recorded
+count is present: resolver availability is not a decision about whether a later
+docs or code command can follow up. Structurally inapplicable evidence dimensions
+are also omitted. `targetsTruncated` produces one note
 that additional related targets were omitted and direct matches are complete.
 The backend bounds the complete presentation list to 40 entries: up to 20 ranked
 direct matches, 12 additional protected matches, and 8 related targets. CLI and
 MCP text render that complete bounded list; only backend `targetsTruncated`
 signals omitted relations.
+
+Default text omits lexical similarity. `--verbose` renders nullable backend
+`nameSimilarity` as a whole percentage on each applicable target and adds one
+qualification: it is coarse lexical support, not a client ranking rule.
+Candidate order follows broader backend policy and the client never reranks by
+similarity. Local MCP text follows the same contract with `verbose: true`;
+explicit `false` is equivalent to the default. JSON always preserves the numeric
+fraction when present.
 
 The shared CLI/local-MCP request boundary rejects an already-canonical package
 or GitHub repository target before the resolver service is called. Recognition
@@ -363,9 +372,10 @@ input.
 
 Terminal and MCP compact text share one actionability rule. A best result is a
 copyable/direct canonical next action only when it is non-ambiguous and has
-`EXACT` or `HIGH` confidence. Non-ambiguous `MEDIUM` and `LOW` results are
-labeled as unconfirmed ranked targets and require the caller to narrow the
-name or filters, or choose a canonical target explicitly. Ambiguous results
+`EXACT` or `HIGH` confidence. All non-empty terminal lists use the neutral
+`Targets:` heading. Non-ambiguous `MEDIUM` and `LOW` results still require the
+caller to narrow the name or filters, or choose a canonical target explicitly;
+the confidence tag and next-action guidance carry that policy. Ambiguous results
 retain their existing choose-or-narrow guidance and literal `<target>`
 placeholder. Empty results ask for corrected spelling or adjusted
 registry filters; query, preferred-kind, and intent hints are ranking-only and
@@ -392,8 +402,11 @@ the structured value through JSON escaping.
 root `targetsTruncated`. The `candidates` array now contains the backend-ordered
 presentation targets once. Every entry has `direct`; grouped entries have
 `groupKey`; counts and license are included when present. Direct entries retain
-the existing flattened confidence, alias, tier, score, and reason fields from
-their non-null `match`; relation-only entries omit those fields. Array position
+the existing flattened confidence, alias, tier, and score fields from their
+non-null `match`; relation-only entries omit those fields. Nullable
+`nameSimilarity` is preserved as the backend's numeric fraction when present
+and omitted when null. The client does not select, parse, or project the
+backend's ranking `reason`. Array position
 is presentation-group order, not pure rank order. Optional nulls are omitted,
 zero counts are preserved, and enum values are lowercase. CLI JSON and MCP JSON
 use the same payload builder and remain deeply equal. Errors use the standard
@@ -426,23 +439,42 @@ member-local warning but cannot block an otherwise actionable matched best
 target. Aggregate ambiguity checks consider direct targets only. Ranking,
 relations, presentation order, and filtering remain backend-owned.
 
+Human text renders package `codeAvailable` as `indexed package snapshot` and
+repository `codeAvailable` as `indexed repository snapshot`. Package evidence
+means some certified package artifact is indexed; it does not establish exact
+latest-version readiness. Repository evidence likewise does not establish exact
+ref readiness. Code commands independently establish whether they can resolve
+and serve a commit SHA; compact resolver text does not add a trailing readiness
+disclaimer or render negative availability labels.
+
 The command and local experimental MCP adapter use an internal service and do
 not change the public `@githits/mcp` service interface. Its GraphQL selection
 keeps `best` and `protectedMatches` to `kind`, `canonicalKey`, and `confidence`;
 one ordered `targets` selection always includes compact identity, presentation,
 security, grouping, count, and license fields, while JSON-only identity and
-detailed `match` fields remain conditional. The query does not select legacy
-`candidates`, and no per-target follow-up exists. The malicious-content decision
-and bounded evidence remain compact fields because every text surface consumes
-them. This keeps
-the operation below production's GraphQL complexity limit while preserving all
-fields consumed by each output mode. The CLI deliberately does not select
-expensive per-target `inspection` metadata. HTTP, transport, GraphQL, auth
-refresh, and client-version error classification are shared with the package
-intelligence service. The shared GraphQL classifier treats the backend's
+detailed `match` fields remain conditional. Because the grouped target type does
+not expose lexical evidence, one conditional legacy `candidates` sidecar is
+limited to `canonicalKey` and nullable `nameSimilarity`; it is selected only for
+verbose text or JSON. The client joins it to direct target matches by canonical
+identity without reordering. Default text omits the entire sidecar. No other
+legacy candidate fields or per-target follow-ups are requested. The malicious-content
+decision and bounded evidence remain compact fields because every text surface
+consumes them. Detailed ranking `reason` is deliberately not selected. This
+keeps the operation below production's GraphQL complexity limit while
+preserving all fields consumed by each output mode. The CLI deliberately does
+not select expensive per-target `inspection` metadata. HTTP, transport,
+GraphQL, auth refresh, and client-version error classification are shared with
+the package intelligence service. The shared GraphQL classifier treats the backend's
 documented `AUTHENTICATION_REQUIRED` code and the legacy `UNAUTHORIZED` code as
 server-auth failures, so both enter the normal token-refresh and `AUTH_REQUIRED`
 error path.
+
+Selecting `nameSimilarity` while retaining detailed-only `reason` made the
+production operation complexity 517 against the limit of 500. The client does
+not consume backend rationale, so removing the `reason` selection and projection
+restored verbose/JSON operation without a second query or weaker evidence.
+Default text additionally skips the similarity sidecar. Authenticated production
+CLI smoke and direct MCP production replay cover both selection modes.
 
 #### Standalone-site target kind
 

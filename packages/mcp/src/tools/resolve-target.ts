@@ -14,6 +14,7 @@ import {
   findResolveTargetBestTarget,
   formatLatestVersionMaliciousStatus,
   formatResolveTargetEvidence,
+  formatResolveTargetEvidenceNotes,
   groupResolveTargets,
   isLatestVersionMaliciousStatusActionable,
   isResolveTargetActionable,
@@ -36,6 +37,7 @@ export interface ResolveTargetMcpArgs {
   preferred_kind?: string;
   intent_hints?: string[];
   limit?: number;
+  verbose?: boolean;
   format?: "text-v1" | "text" | "json";
 }
 
@@ -73,6 +75,12 @@ const schema: ZodRawShape = {
     .number()
     .optional()
     .describe("Optional integer candidate limit from 1 through 20."),
+  verbose: z
+    .boolean()
+    .optional()
+    .describe(
+      "When true, text output includes coarse lexical name-similarity evidence. Default false. JSON always includes available numeric similarity.",
+    ),
   format: z
     .enum(["text-v1", "text", "json"])
     .default("text-v1")
@@ -82,7 +90,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION =
-  'Resolve package, repository, or documentation-site names into canonical targets. Experimental tool for fuzzy, ambiguous, misspelled, or human-friendly public OSS names. Do not call for canonical `registry:name`, `github:owner/repo`, or `site:<host[/path]>` targets; use those directly with the next MCP tool. Pass a selected standalone documentation-site target to `search` with `source: "docs"`; request `format: "json"` when exact locator fields are needed, then pass a relevant `pageId` and returned line range to `docs_read`. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text-v1` (also available as `text`) gives bounded ranked candidates. Only a non-ambiguous EXACT or HIGH best result with CLEAR or NOT_APPLICABLE malicious-content status gets a direct follow-up; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. MEDIUM and LOW require narrowing or an explicit choice. Use `json` for the structured result.';
+  'Resolve package, repository, or documentation-site names into canonical targets. Experimental tool for fuzzy, ambiguous, misspelled, or human-friendly public OSS names. Do not call for canonical `registry:name`, `github:owner/repo`, or `site:<host[/path]>` targets; use those directly with the next MCP tool. Pass a selected standalone documentation-site target to `search` with `source: "docs"`; request `format: "json"` when exact locator fields are needed, then pass a relevant `pageId` and returned line range to `docs_read`. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text-v1` (also available as `text`) gives bounded ranked candidates; pass `verbose: true` to include coarse lexical name-similarity evidence. Only a non-ambiguous EXACT or HIGH best result with CLEAR or NOT_APPLICABLE malicious-content status gets a direct follow-up; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. MEDIUM and LOW require narrowing or an explicit choice. Use `json` for the structured result.';
 
 export function createResolveTargetTool(
   service: ResolveTargetService,
@@ -103,12 +111,14 @@ export function createResolveTargetTool(
           intentHints: args.intent_hints,
           limit: args.limit,
           includeDetailedFields: !textFormat,
+          includeNameSimilarity: args.verbose === true || !textFormat,
         });
         const result = await service.resolveTarget(params);
         if (textFormat) {
           return textResult(
             formatResolveTargetMcpText(result, {
               name: params.name,
+              verbose: args.verbose,
             }),
           );
         }
@@ -128,6 +138,7 @@ export function createResolveTargetTool(
 
 export interface FormatResolveTargetMcpTextOptions {
   name: string;
+  verbose?: boolean;
 }
 
 /** Render agent-facing guidance without emitting CLI-specific commands. */
@@ -160,11 +171,7 @@ export function formatResolveTargetMcpText(
     lines.push(`Best match: ${formatReference(result.best)}.`);
   } else if (blockedBest && result.best) {
     lines.push(`Best identity match: ${formatReference(result.best)}.`);
-  } else if (result.best) {
-    lines.push(
-      `Unconfirmed ranked candidates: the best result is ${sanitizeTerminalText(result.best.confidence.toLowerCase())} confidence.`,
-    );
-  } else {
+  } else if (!result.best) {
     lines.push(
       `No targets found for "${sanitizeTerminalText(options.name)}". Check the spelling or adjust registry filters; query, preferred kind, and intent hints only rank existing candidates.`,
     );
@@ -173,7 +180,14 @@ export function formatResolveTargetMcpText(
   if (groups.length > 0) {
     lines.push("Targets:");
     groups.forEach((group, index) => {
-      lines.push(...formatMcpGroup(group.targets, index + 1, protectedKeys));
+      lines.push(
+        ...formatMcpGroup(
+          group.targets,
+          index + 1,
+          protectedKeys,
+          options.verbose === true,
+        ),
+      );
     });
   }
 
@@ -182,6 +196,12 @@ export function formatResolveTargetMcpText(
       "Note: Additional related targets were omitted; direct matches are complete.",
     );
   }
+  lines.push(
+    ...formatResolveTargetEvidenceNotes(
+      result.targets,
+      options.verbose === true,
+    ),
+  );
 
   if (blockedBest) {
     if (!bestTarget) {
@@ -237,10 +257,14 @@ function formatMcpGroup(
   targets: ResolveTargetTarget[],
   groupNumber: number,
   protectedKeys: ReadonlySet<string>,
+  includeNameSimilarity: boolean,
 ): string[] {
   const [lead, ...members] = targets;
   if (!lead) return [];
-  const evidencePlan = buildResolveTargetEvidencePlan(targets);
+  const evidencePlan = buildResolveTargetEvidencePlan(
+    targets,
+    includeNameSimilarity,
+  );
   const lines = [
     `  ${groupNumber}. ${formatMcpTargetLine(lead, evidencePlan(lead), protectedKeys)}`,
     ...formatMcpTargetDetails(lead, "     "),

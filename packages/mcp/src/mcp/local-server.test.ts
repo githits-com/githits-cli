@@ -248,6 +248,7 @@ describe("createLocalMcpServer", () => {
       name: "express",
       limit: 8,
       includeDetailedFields: true,
+      includeNameSimilarity: true,
     });
 
     const codeDiff = mock(() => Promise.resolve(defaultCodeDiffResult));

@@ -13,10 +13,10 @@ import {
 
 interface CandidateOverrides extends Partial<ResolveTargetTarget> {
   confidence?: string;
+  nameSimilarity?: number;
   matchedAliases?: string[];
   matchTier?: number;
   score?: number;
-  reason?: string;
 }
 
 function candidate(
@@ -24,10 +24,10 @@ function candidate(
 ): ResolveTargetTarget & { confidence: string } {
   const {
     confidence = "EXACT",
+    nameSimilarity,
     matchedAliases = ["express"],
     matchTier = 0,
     score = 100,
-    reason = "Exact package identity match",
     ...targetOverrides
   } = overrides;
   return {
@@ -44,10 +44,10 @@ function candidate(
     codeAvailable: true,
     match: {
       confidence,
+      ...(nameSimilarity !== undefined ? { nameSimilarity } : {}),
       matchedAliases,
       matchTier,
       score,
-      reason,
     },
     ...targetOverrides,
     latestVersionMaliciousStatus:
@@ -93,11 +93,40 @@ describe("buildResolveTargetSuccessPayload", () => {
           codeAvailable: true,
           matchTier: 0,
           score: 100,
-          reason: "Exact package identity match",
         },
       ],
       protectedMatches: ["npm:express"],
       targetsTruncated: false,
+    });
+  });
+
+  it("preserves numeric name similarity in the shared JSON candidate", () => {
+    const fuzzy = candidate({ nameSimilarity: 0.4 });
+
+    expect(
+      buildResolveTargetSuccessPayload(
+        result({ best: fuzzy, targets: [fuzzy], protectedMatches: [] }),
+      ).candidates[0]?.nameSimilarity,
+    ).toBe(0.4);
+  });
+
+  it("preserves unavailable flags and their recorded counts in JSON", () => {
+    const unavailable = candidate({
+      docsAvailable: false,
+      codeAvailable: false,
+      docsPageCount: 12,
+      codeFileCount: 3,
+    });
+
+    expect(
+      buildResolveTargetSuccessPayload(
+        result({ best: unavailable, targets: [unavailable] }),
+      ).candidates[0],
+    ).toMatchObject({
+      docsAvailable: false,
+      codeAvailable: false,
+      docsPageCount: 12,
+      codeFileCount: 3,
     });
   });
 
@@ -436,7 +465,7 @@ describe("formatResolveTargetTerminal", () => {
     );
     expect(output).not.toContain("repo github:expressjs/express");
     expect(output).toContain(
-      "     Related targets:\n       github:expressjs/express · related repository · 66k stars · code 1.2k files",
+      "     Related targets:\n       github:expressjs/express · related repository · 66k stars · indexed repository snapshot (1.2k files)",
     );
     expect(output).toContain(
       "       site:expressjs.com · related site · docs 128 pages\n         Fast web framework",
@@ -445,6 +474,7 @@ describe("formatResolveTargetTerminal", () => {
     expect(output.match(/license MIT/g)).toHaveLength(1);
     expect(output).not.toContain("no docs");
     expect(output).not.toContain("no code");
+    expect(output).not.toContain("readiness");
   });
 
   it("keeps metrics in semantic lanes and lifts absent relation evidence to packages", () => {
@@ -486,7 +516,7 @@ describe("formatResolveTargetTerminal", () => {
       "npm:express [exact] · package · protected exact-name match · 89M downloads/mo · license MIT · docs 128 pages",
     );
     expect(withoutSite).toContain(
-      "github:expressjs/express · related repository · 66k stars · code 1.2k files",
+      "github:expressjs/express · related repository · 66k stars · indexed repository snapshot (1.2k files)",
     );
     expect(withoutSite).not.toContain("repo github:expressjs/express");
 
@@ -503,7 +533,7 @@ describe("formatResolveTargetTerminal", () => {
       { name: "express", useColors: false },
     );
     expect(withoutRepository).toContain(
-      "npm:express [exact] · package · protected exact-name match · 66k stars · 89M downloads/mo · repo github:expressjs/express · license MIT · code 1.2k files",
+      "npm:express [exact] · package · protected exact-name match · 66k stars · 89M downloads/mo · repo github:expressjs/express · license MIT · indexed package snapshot (1.2k files)",
     );
     expect(withoutRepository).toContain(
       "site:expressjs.com · related site · docs 96 pages",
@@ -515,7 +545,7 @@ describe("formatResolveTargetTerminal", () => {
       { name: "express", useColors: false },
     );
     expect(solo).toContain(
-      "66k stars · 89M downloads/mo · repo github:expressjs/express · license MIT · docs 128 pages · code 1.2k files",
+      "66k stars · 89M downloads/mo · repo github:expressjs/express · license MIT · docs 128 pages · indexed package snapshot (1.2k files)",
     );
   });
 
@@ -535,7 +565,7 @@ describe("formatResolveTargetTerminal", () => {
     );
 
     expect(output).toContain(
-      "github:expressjs/express [exact] · repository · 66k stars · license MIT · code 1.2k files",
+      "github:expressjs/express [exact] · repository · 66k stars · license MIT · indexed repository snapshot (1.2k files)",
     );
     expect(output).not.toContain("license mit");
   });
@@ -588,9 +618,10 @@ describe("formatResolveTargetTerminal", () => {
       "site:expressjs.com [exact] · site · docs available",
     );
     expect(output).toContain(
-      "npm:express · related package · 66k stars · 89M downloads/mo · no code",
+      "npm:express · related package · 66k stars · 89M downloads/mo",
     );
     expect(output).not.toContain("no docs");
+    expect(output).not.toContain("no code");
     expect(output).not.toContain("license ");
     expect(output).toContain(
       "Warning: Malicious-content status is uncertain. Verify the advisory details before using this version.",
@@ -612,13 +643,62 @@ describe("formatResolveTargetTerminal", () => {
     });
 
     expect(output).toContain(
-      "Targets:\n  1. npm:express [exact] · package · protected exact-name match · 66k stars · 89M downloads/mo · docs available · code available\n     Fast web framework",
+      "Targets:\n  1. npm:express [exact] · package · protected exact-name match · 66k stars · 89M downloads/mo · docs available · indexed package snapshot\n     Fast web framework",
     );
     expect(output).not.toContain("Warning:");
     expect(output).not.toContain("malicious");
     expect(output).toContain(
       `Next: githits search 'router'"'"'s middleware' --in 'npm:express'`,
     );
+  });
+
+  it("renders coarse similarity only when verbose without changing order or gates", () => {
+    const lodashEs = candidate({
+      canonicalKey: "npm:lodash-es",
+      displayName: "lodash-es",
+      confidence: "MEDIUM",
+      nameSimilarity: 0.333,
+    });
+    const lodash = candidate({
+      canonicalKey: "npm:lodash",
+      displayName: "lodash",
+      confidence: "MEDIUM",
+      nameSimilarity: 0.4,
+    });
+    const resolved = result({
+      best: lodashEs,
+      targets: [lodashEs, lodash],
+      protectedMatches: [],
+    });
+    const compactOutput = formatResolveTargetTerminal(resolved, {
+      name: "lodahs",
+      useColors: false,
+    });
+    const output = formatResolveTargetTerminal(resolved, {
+      name: "lodahs",
+      verbose: true,
+      useColors: false,
+    });
+
+    expect(compactOutput).not.toContain("name similarity");
+    expect(compactOutput).not.toContain("coarse lexical support");
+    expect(compactOutput).not.toContain("readiness");
+    expect(output).toContain(
+      "1. npm:lodash-es [medium] · package · 66k stars · 89M downloads/mo · docs available · indexed package snapshot · 33% name similarity",
+    );
+    expect(output).toContain(
+      "2. npm:lodash [medium] · package · 66k stars · 89M downloads/mo · docs available · indexed package snapshot · 40% name similarity",
+    );
+    expect(output.indexOf("npm:lodash-es")).toBeLessThan(
+      output.indexOf("npm:lodash ["),
+    );
+    expect(output).toContain(
+      "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
+    );
+    expect(output).not.toContain("readiness");
+    expect(output).toContain("Targets:");
+    expect(output).not.toContain("Unconfirmed ranked targets:");
+    expect(output).not.toContain("--in 'npm:lodash-es'");
   });
 
   it("renders protected matches inline without changing candidate order", () => {
@@ -632,6 +712,7 @@ describe("formatResolveTargetTerminal", () => {
       displayName: "expressjs/express",
       downloadsLastMonth: undefined,
       confidence: "HIGH",
+      codeAvailable: false,
     });
     const output = formatResolveTargetTerminal(
       result({
@@ -730,15 +811,15 @@ describe("formatResolveTargetTerminal", () => {
     );
 
     expect(output).toContain(
-      "crates:serde [exact] · package · 500M downloads · repo github:serde-rs/serde · docs available · code available\n     Fast web framework",
+      "crates:serde [exact] · package · 500M downloads · repo github:serde-rs/serde · docs available · indexed package snapshot\n     Fast web framework",
     );
     expect(output).toContain(
-      "maven:com.google.guava:guava [exact] · package · repo github:google/guava · docs available · code available\n     Google core libraries for Java",
+      "maven:com.google.guava:guava [exact] · package · repo github:google/guava · docs available · indexed package snapshot\n     Google core libraries for Java",
     );
     expect(output).toContain("     Google core libraries for Java");
   });
 
-  it("explains positive recorded counts when availability is false", () => {
+  it("omits counts and negative labels when availability is false", () => {
     const unavailable = candidate({
       docsAvailable: false,
       codeAvailable: false,
@@ -750,9 +831,11 @@ describe("formatResolveTargetTerminal", () => {
       { name: "express", useColors: false },
     );
 
-    expect(output).toContain(
-      "docs unavailable (12 pages recorded) · code unavailable (3 files recorded)",
-    );
+    expect(output).not.toContain("12 pages");
+    expect(output).not.toContain("3 files");
+    expect(output).not.toContain("no docs");
+    expect(output).not.toContain("no code");
+    expect(output).not.toContain("unavailable");
   });
 
   it("renders specific ambiguity guidance and a generic follow-up target", () => {
@@ -835,6 +918,8 @@ describe("formatResolveTargetTerminal", () => {
 
     expect(output).not.toContain("Warning:");
     expect(output).not.toContain("malicious");
+    expect(output).toContain("indexed repository snapshot");
+    expect(output).not.toContain("readiness");
     expect(output).toContain(
       "Next: githits search 'middleware' --in 'github:expressjs/express'",
     );
@@ -1003,7 +1088,8 @@ describe("formatResolveTargetTerminal", () => {
         { name: "express", query: "middleware", useColors: false },
       );
 
-      expect(output).toContain("Unconfirmed ranked targets:\n  1. npm:express");
+      expect(output).toContain("Targets:\n  1. npm:express");
+      expect(output).not.toContain("Unconfirmed ranked targets:");
       expect(output).toContain("narrow the name or filters");
       expect(output).toContain("explicitly choose a candidate");
       expect(output).toContain("--in '<target>'");

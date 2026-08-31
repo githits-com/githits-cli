@@ -67,6 +67,7 @@ export interface ResolveTargetParams {
   intentHints?: string[];
   limit: number;
   includeDetailedFields: boolean;
+  includeNameSimilarity: boolean;
 }
 
 export interface ResolveTargetReference {
@@ -77,10 +78,10 @@ export interface ResolveTargetReference {
 
 export interface ResolveTargetMatch {
   confidence: string;
+  nameSimilarity?: number;
   matchedAliases?: string[];
   matchTier?: number;
   score?: number;
-  reason?: string;
 }
 
 export interface ResolveTargetTarget {
@@ -141,11 +142,15 @@ const compactMatchSchema = z.object({
   confidence: z.string(),
 });
 
+const candidateEvidenceSchema = z.object({
+  canonicalKey: z.string(),
+  nameSimilarity: z.number().nullable(),
+});
+
 const detailedMatchSchema = compactMatchSchema.extend({
   matchedAliases: z.array(z.string()),
   matchTier: z.number().int(),
   score: z.number(),
-  reason: z.string().nullable().optional(),
 });
 
 const listTargetSchema = z.object({
@@ -189,10 +194,16 @@ const graphQLErrorSchema = z.object({
   extensions: z.record(z.string(), z.unknown()).optional(),
 });
 
-function responseSchema<Target extends z.ZodType>(targetSchema: Target) {
+function responseSchema<Target extends z.ZodType>(
+  targetSchema: Target,
+  includeNameSimilarity: boolean,
+) {
   const resultSchema = z.object({
     best: targetReferenceSchema.nullable(),
     protectedMatches: z.array(targetReferenceSchema),
+    candidates: includeNameSimilarity
+      ? z.array(candidateEvidenceSchema)
+      : z.array(candidateEvidenceSchema).optional(),
     targets: z.array(targetSchema),
     targetsTruncated: z.boolean(),
     ambiguous: z.boolean(),
@@ -217,6 +228,7 @@ query ResolveTarget(
   $intentHints: [String!]
   $limit: Int!
   $includeDetailedFields: Boolean!
+  $includeNameSimilarity: Boolean!
 ) {
   resolveTarget(
     name: $name
@@ -231,6 +243,10 @@ query ResolveTarget(
     }
     protectedMatches {
       ...ResolveTargetReferenceFields
+    }
+    candidates @include(if: $includeNameSimilarity) {
+      canonicalKey
+      nameSimilarity
     }
     targetsTruncated
     targets {
@@ -291,7 +307,6 @@ fragment ResolveTargetMatchJsonFields on TargetResolutionMatch {
   matchedAliases
   matchTier
   score
-  reason
 }`;
 
 export class ResolveTargetServiceImpl implements ResolveTargetService {
@@ -352,8 +367,8 @@ export class ResolveTargetServiceImpl implements ResolveTargetService {
 
     const parsed = (
       params.includeDetailedFields
-        ? responseSchema(detailedTargetSchema)
-        : responseSchema(listTargetSchema)
+        ? responseSchema(detailedTargetSchema, params.includeNameSimilarity)
+        : responseSchema(listTargetSchema, params.includeNameSimilarity)
     ).safeParse(response.parsedBody);
     if (!parsed.success) {
       throw new MalformedPackageIntelligenceResponseError(
@@ -376,10 +391,21 @@ export class ResolveTargetServiceImpl implements ResolveTargetService {
       );
     }
 
+    const nameSimilarityByCanonicalKey = new Map(
+      (result.candidates ?? []).map((candidate) => [
+        candidate.canonicalKey,
+        candidate.nameSimilarity,
+      ]),
+    );
     return {
       best: result.best ? normaliseReference(result.best) : undefined,
       protectedMatches: result.protectedMatches.map(normaliseReference),
-      targets: result.targets.map(normaliseTarget),
+      targets: result.targets.map((target) =>
+        normaliseTarget(
+          target,
+          nameSimilarityByCanonicalKey.get(target.canonicalKey),
+        ),
+      ),
       targetsTruncated: result.targetsTruncated,
       ambiguous: result.ambiguous,
       ambiguousReason: result.ambiguousReason,
@@ -402,6 +428,7 @@ function buildVariables(params: ResolveTargetParams): Record<string, unknown> {
     name: params.name,
     limit: params.limit,
     includeDetailedFields: params.includeDetailedFields,
+    includeNameSimilarity: params.includeNameSimilarity,
   };
   if (params.query !== undefined) variables.query = params.query;
   if (params.registries !== undefined) variables.registries = params.registries;
@@ -417,6 +444,7 @@ function normaliseTarget(
   target:
     | z.infer<typeof listTargetSchema>
     | z.infer<typeof detailedTargetSchema>,
+  nameSimilarity: number | null | undefined,
 ): ResolveTargetTarget {
   const result: ResolveTargetTarget = {
     kind: target.kind,
@@ -442,11 +470,11 @@ function normaliseTarget(
   assignDefined(result, "license", target.license);
   if (target.match) {
     const match: ResolveTargetMatch = { confidence: target.match.confidence };
+    assignDefined(match, "nameSimilarity", nameSimilarity);
     if ("matchedAliases" in target.match) {
       assignDefined(match, "matchedAliases", target.match.matchedAliases);
       assignDefined(match, "matchTier", target.match.matchTier);
       assignDefined(match, "score", target.match.score);
-      assignDefined(match, "reason", target.match.reason);
     }
     result.match = match;
   }
