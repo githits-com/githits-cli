@@ -84,6 +84,9 @@ discovery. The first main run is a one-time bootstrap; PR and default-local
 exports fail before initialization when no main baseline exists. Explicit
 local `--base-experiment` takes precedence and skips discovery. No live
 readback has yet proven later-main, PR, and local linkage under the new names.
+For exports, use the returned experiment name from the SDK readback; it can
+differ from a reused explicit local name if Braintrust de-duplicates it.
+Validate-only reports the requested or generated name.
 
 The exercised comparison syntax is:
 

@@ -1280,6 +1280,9 @@ describe("Braintrust baseline precedence", () => {
             };
           },
           async flush() {},
+          async name() {
+            return init.experiment;
+          },
           async permalink() {
             return undefined;
           },
@@ -1482,6 +1485,9 @@ describe("Braintrust publisher boundary", () => {
           async flush() {
             calls.push("flush");
           },
+          async name() {
+            return init.experiment;
+          },
           async permalink() {
             calls.push("permalink");
             return "https://braintrust.dev/experiment/local-test";
@@ -1567,6 +1573,7 @@ describe("Braintrust publisher boundary", () => {
           gitMetadataSettings: { collect: "none" },
         });
         return {
+          name: Promise.resolve("sdk-test"),
           startSpan(args) {
             calls.push(`start:${args.name}`);
             expect(args.type).toBe("eval");
@@ -1649,6 +1656,7 @@ describe("Braintrust publisher boundary", () => {
         calls.push(`init:${project}`);
         expect(options.baseExperimentId).toBe("main-id");
         return {
+          name: Promise.resolve("server-created-name"),
           startSpan() {
             return {
               startSpan() {
@@ -1707,7 +1715,7 @@ describe("Braintrust publisher boundary", () => {
       "summary:false",
     ]);
     expect(result).toMatchObject({
-      experiment: "local-readback",
+      experiment: "server-created-name",
       url: "https://braintrust.dev/experiment/readback",
       baseExperiment: { id: "main-id", name: "main-r10-a1" },
     });
@@ -1738,6 +1746,9 @@ describe("Braintrust publisher boundary", () => {
           };
         },
         async flush() {},
+        async name() {
+          return "failed-row-test";
+        },
         async permalink() {
           return undefined;
         },
@@ -1792,6 +1803,9 @@ describe("Braintrust publisher boundary", () => {
           },
           async flush() {
             calls.push("flush");
+          },
+          async name() {
+            return "failure-test";
           },
           async permalink() {
             calls.push("permalink");
@@ -2060,6 +2074,9 @@ describe("Braintrust CLI wrapper", () => {
             async flush() {
               calls.push("flush");
             },
+            async name() {
+              return "local-export";
+            },
             async permalink() {
               calls.push("permalink");
               return "https://braintrust.dev/experiment/local-export";
@@ -2137,6 +2154,9 @@ describe("Braintrust CLI wrapper", () => {
             },
             async flush() {
               calls.push("flush");
+            },
+            async name() {
+              return "failure-test";
             },
             async permalink() {
               calls.push("permalink");

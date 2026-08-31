@@ -305,6 +305,7 @@ function safeBaseExperiment(value: unknown): BraintrustBaseExperiment | null {
 export interface BraintrustPublisher {
   startSpan(args: BraintrustStartSpanArgs): BraintrustSpan;
   flush(): Promise<void>;
+  name(): Promise<string>;
   permalink(): Promise<string | undefined>;
   fetchBaseExperiment(): Promise<BraintrustBaseExperiment | null>;
 }
@@ -355,6 +356,7 @@ export interface BraintrustSdkSpan {
 export interface BraintrustSdkExperiment {
   startSpan(args: BraintrustStartSpanArgs): BraintrustSdkSpan;
   flush(): Promise<void>;
+  name: Promise<string>;
   summarize(options: { summarizeScores: false }): Promise<{
     experimentUrl?: string;
   }>;
@@ -1310,6 +1312,7 @@ export async function createBraintrustPublisher(
       return wrapSpan(experiment.startSpan(args));
     },
     flush: () => experiment.flush(),
+    name: () => experiment.name,
     permalink: async () =>
       (await experiment.summarize({ summarizeScores: false })).experimentUrl,
     fetchBaseExperiment: async () =>
@@ -1456,10 +1459,11 @@ export async function publishBraintrustRows(
   }
   await publisher.flush();
   const baseExperiment = await publisher.fetchBaseExperiment();
+  const experiment = await publisher.name();
   const url = await publisher.permalink();
   return {
     project: resolvedOptions.project,
-    experiment: init.experiment,
+    experiment,
     ...(url !== undefined ? { url } : {}),
     exportedRowCount: mapping.rows.length,
     baseExperiment,

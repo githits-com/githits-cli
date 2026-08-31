@@ -383,6 +383,9 @@ contract is covered by focused tests, but has not yet been live-proven for a
 later main run linking to main, a PR linking to main, and a local run linking
 to main. Existing `github-*` experiments are historical records from the old
 identity contract and are not current baselines.
+For exports, the reported experiment name is the SDK's actual server name
+after flush, which may differ from a reused explicit local name when Braintrust
+de-duplicates it. Validate-only reports the requested or generated name.
 
 The row mapper uses Braintrust-native metrics for duration (`duration`, in
 seconds), token totals and breakdowns (`tokens`, `prompt_tokens`,

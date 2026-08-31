@@ -66,7 +66,7 @@ before either paid scenario job can start.
 Before initializing an export, the authenticated integration boundary pages
 through the newest-first project experiment list and selects the first object
 whose returned metadata channel is `main` and whose name matches
-`/^main-r\\d+-a\\d+$/`. Selection is client-side and uses the final object ID
+`/^main-r\d+-a\d+$/`. Selection is client-side and uses the final object ID
 as the cursor while a page is full; no metadata filter is sent. A resolved ID
 is passed as `baseExperimentId`, and explicit local `--base-experiment` takes
 precedence and skips discovery. PR and default-local exports fail before
@@ -75,6 +75,10 @@ allowed as the one-time bootstrap; SDK 3.29.0 may choose an automatic
 ancestry for that first run because the public contract has no explicit
 no-base option, so the returned value is reported rather than treated as
 explicit linkage.
+
+Main baseline selection intentionally does not exclude an experiment with the
+same evaluated SHA. Harness, model, or service drift is temporal and can occur
+without a source change; filtering same-SHA attempts would hide that signal.
 
 After flush, the exporter calls `fetchBaseExperiment()` and includes only the
 actual safe `{id, name}` or `null` in the result. CI appends the experiment
@@ -86,6 +90,10 @@ and covered by the focused tests, but it has not yet been live-proven for a
 later main run linking to main, a PR linking to main, and a local run linking
 to main. Historical `github-*` experiments retain their old identity and
 null-linkage observations and are not evidence for this new contract.
+For an export, the reported experiment name is the SDK's actual `Experiment.name`
+readback after flush, so it remains accurate if an explicit local name is
+reused and Braintrust de-duplicates it; validate-only reports the requested or
+generated name because no server experiment exists.
 
 ### Row and field mapping
 
