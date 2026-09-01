@@ -14,7 +14,7 @@ import {
 import type { TokenProvider } from "./token-provider.js";
 
 export const AGENTIC_ASK_REQUEST_TIMEOUT_MS = 210_000;
-export const AGENTIC_ASK_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
+export const AGENTIC_ASK_MAX_RESPONSE_BYTES: number = 4 * 1024 * 1024;
 
 const UUID_V7_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
