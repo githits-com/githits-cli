@@ -12,6 +12,7 @@ import {
   AuthRequiredError,
   buildAuthRequiredErrorPayload,
   type MappedError,
+  mapTermsAcceptanceError,
   requireAuth,
   sanitizeTerminalText,
   shellQuote,
@@ -84,7 +85,10 @@ export async function askAction(
         }),
       );
     } else {
-      const diagnostic = formatMappedErrorForTerminal(failure.mapped);
+      const diagnostic = formatMappedErrorForTerminal({
+        ...failure.mapped,
+        message: sanitizeTerminalText(failure.mapped.message),
+      });
       console.error(
         failure.toolCallId
           ? `${diagnostic}\nAsk run ID: ${failure.toolCallId}`
@@ -125,6 +129,9 @@ export function formatAgenticAskSourceCommand(
 }
 
 export function mapAgenticAskErrorForCli(error: unknown): AskCliError {
+  const termsError = mapTermsAcceptanceError(error);
+  if (termsError) return { mapped: termsError };
+
   if (error instanceof AgenticAskHttpError) {
     const details = {
       status: error.status,

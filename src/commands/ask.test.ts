@@ -5,6 +5,7 @@ import {
   AgenticAskRequestTimeoutError,
   type AgenticAskService,
 } from "@githits/core-internal";
+import { TermsAcceptanceRequiredError } from "@githits/core-internal/browser";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import {
   type AskCommandDependencies,
@@ -198,6 +199,56 @@ describe("askAction", () => {
     expect(error.mock.calls[0]?.[0]).toBe(
       `Agentic Ask is rate limited. Try again in 12 seconds.\nAsk run ID: ${TOOL_CALL_ID}`,
     );
+  });
+
+  it("renders the shared terms-acceptance remediation", async () => {
+    const error = spyOn(console, "error").mockImplementation(() => undefined);
+    spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    await expect(
+      askAction(
+        "npm:example",
+        "How?",
+        {},
+        createDeps(
+          mock(() => Promise.reject(new TermsAcceptanceRequiredError())),
+        ),
+      ),
+    ).rejects.toThrow("process.exit");
+
+    expect(error.mock.calls[0]?.[0]).toBe(
+      "Terms acceptance required. Run `githits settings terms accept`, then retry.",
+    );
+  });
+
+  it("sanitizes mapped human error messages", async () => {
+    const error = spyOn(console, "error").mockImplementation(() => undefined);
+    spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    await expect(
+      askAction(
+        "npm:example",
+        "How?",
+        {},
+        createDeps(
+          mock(() =>
+            Promise.reject(
+              new AgenticAskHttpError(
+                "ACCESS_DENIED",
+                "Access\u001b[31m denied.\u0007",
+                403,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ).rejects.toThrow("process.exit");
+
+    expect(error.mock.calls[0]?.[0]).toBe("Access denied.");
   });
 
   it("preserves structured timeout data without exposing usage", async () => {

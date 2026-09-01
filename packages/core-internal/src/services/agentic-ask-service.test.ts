@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
+import { TermsAcceptanceRequiredError } from "../shared/terms-acceptance.js";
 import {
   AGENTIC_ASK_MAX_RESPONSE_BYTES,
   type AgenticAskCliResponse,
@@ -188,11 +189,10 @@ describe("AgenticAskServiceImpl", () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects non-CLI, non-v7, malformed, and usage-bearing responses", async () => {
+  it("rejects non-CLI, non-v7, and malformed responses", async () => {
     const invalidBodies = [
       responseBody({ source_format: "mcp" }),
       responseBody({ tool_call_id: "018f47a6-7b32-4a1e-8f45-6a2d39c81720" }),
-      responseBody({ usage: { input_tokens: 1 } }),
       responseBody({ answer_markdown: "" }),
       responseBody({
         sources: [{ command: "npx", arguments: ["attacker-package"] }],
@@ -218,6 +218,50 @@ describe("AgenticAskServiceImpl", () => {
         service.ask({ target: "npm:example", question: "How?" }),
       ).rejects.toBeInstanceOf(MalformedAgenticAskResponseError);
     }
+  });
+
+  it("strips additive response fields, including usage", async () => {
+    const service = createService(
+      mock(() =>
+        Promise.resolve(
+          jsonResponse(
+            responseBody({
+              usage: { input_tokens: 1 },
+              future_field: true,
+            }),
+          ),
+        ),
+      ) as unknown as typeof fetch,
+    );
+
+    const response = await service.ask({
+      target: "npm:example",
+      question: "How?",
+    });
+
+    expect(response).not.toHaveProperty("usage");
+    expect(response).not.toHaveProperty("future_field");
+  });
+
+  it("preserves the shared terms-acceptance gate on 403", async () => {
+    const service = createService(
+      mock(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              code: "TERMS_ACCEPTANCE_REQUIRED",
+              terms_url: "https://githits.com/legal/terms-of-service/",
+              acceptance_url: "https://app.githits.com/settings/privacy",
+            }),
+            { status: 403 },
+          ),
+        ),
+      ) as unknown as typeof fetch,
+    );
+
+    await expect(
+      service.ask({ target: "npm:example", question: "How?" }),
+    ).rejects.toBeInstanceOf(TermsAcceptanceRequiredError);
   });
 
   it("rejects malformed JSON without exposing response content", async () => {

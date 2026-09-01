@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
+import { throwIfTermsAcceptanceRequired } from "../shared/terms-acceptance.js";
 import { validateServiceUrl } from "./config.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import { parseRetryAfterSeconds } from "./githits-service.js";
@@ -39,21 +40,17 @@ const cliSourceArgumentsSchema = z.union([
   ]),
 ]);
 
-const cliSourceCallSchema = z
-  .object({
-    command: z.literal("npx"),
-    arguments: cliSourceArgumentsSchema,
-  })
-  .strict();
+const cliSourceCallSchema = z.object({
+  command: z.literal("npx"),
+  arguments: cliSourceArgumentsSchema,
+});
 
-const cliResponseSchema = z
-  .object({
-    source_format: z.literal("cli"),
-    tool_call_id: z.string().regex(UUID_V7_PATTERN),
-    answer_markdown: z.string().min(1),
-    sources: z.array(cliSourceCallSchema),
-  })
-  .strict();
+const cliResponseSchema = z.object({
+  source_format: z.literal("cli"),
+  tool_call_id: z.string().regex(UUID_V7_PATTERN),
+  answer_markdown: z.string().min(1),
+  sources: z.array(cliSourceCallSchema),
+});
 
 export interface AgenticAskRequest {
   target: string;
@@ -233,7 +230,12 @@ export class AgenticAskServiceImpl implements AgenticAskService {
       response.headers.get("X-GitHits-Tool-Call-Id"),
     );
     if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined);
+      if (response.status === 403) {
+        const body = await readBoundedResponseBody(response);
+        throwIfTermsAcceptanceRequired(body);
+      } else {
+        await response.body?.cancel().catch(() => undefined);
+      }
       throw createHttpError(response, toolCallId);
     }
 

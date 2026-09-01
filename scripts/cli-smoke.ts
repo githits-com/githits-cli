@@ -911,6 +911,10 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
       EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS,
     );
     assert(
+      helpResult.stdout.includes('githits ask npm:express "question"'),
+      "experimental root help should include ask in Getting started",
+    );
+    assert(
       helpResult.stdout.includes("githits resolve express"),
       "experimental root help should include resolve in Getting started",
     );

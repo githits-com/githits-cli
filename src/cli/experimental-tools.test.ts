@@ -128,6 +128,7 @@ describe("experimental CLI process policy", () => {
         const root = await runCli(xdgConfigHome, ["--help"]);
         expect(root.exitCode).toBe(0);
         expect(root.stdout).toContain("ask");
+        expect(root.stdout).toContain('githits ask npm:express "question"');
         expect(root.stdout).toContain("resolve");
 
         const ask = await runCli(xdgConfigHome, ["ask", "--help"]);

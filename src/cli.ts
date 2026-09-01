@@ -124,7 +124,10 @@ async function main(): Promise<void> {
     .hook("postAction", (_thisCommand, actionCommand) => {
       endTelemetrySpan(commandSpans.get(actionCommand));
     })
-    .addHelpText("after", buildGettingStartedText(resolveAvailable));
+    .addHelpText(
+      "after",
+      buildGettingStartedText({ askAvailable, resolveAvailable }),
+    );
 
   // Setup command
   registerInitCommand(program);
@@ -256,8 +259,14 @@ function isSearchHelpTarget(value: string | undefined): boolean {
   return value === "search" || value === "search-status";
 }
 
-function buildGettingStartedText(resolveAvailable: boolean): string {
-  const experimentalResolve = resolveAvailable
+function buildGettingStartedText(options: {
+  askAvailable: boolean;
+  resolveAvailable: boolean;
+}): string {
+  const experimentalAsk = options.askAvailable
+    ? '\n  githits ask npm:express "question"  Ask about one open-source target'
+    : "";
+  const experimentalResolve = options.resolveAvailable
     ? "\n  githits resolve express              Resolve a package or repository name"
     : "";
   return `
@@ -265,7 +274,7 @@ ${colorizeBrand("Getting started:", "primary", useColors, { bold: true })}
   githits init                         Connect GitHits to your coding agents
   githits login                        Sign in to your GitHits account
   githits mcp                          Show MCP setup instructions
-  githits example "query"              Find real-world implementations${experimentalResolve}
+  githits example "query"              Find real-world implementations${experimentalAsk}${experimentalResolve}
 
 Learn more at https://githits.com
 Docs: https://docs.githits.com
