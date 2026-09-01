@@ -873,6 +873,141 @@ describe("package upgrade review response", () => {
     expect(text).not.toContain("Sampled release entries");
   });
 
+  it("renders keyword and distinct sampled entries in source order", () => {
+    const base = formatterReview();
+    const keywordEntry = {
+      ...base.changelog.keywordEntries[0]!,
+      version: "4.4.3",
+      htmlUrl: "https://example.com/releases/4.4.3",
+      headline: "Keyword release",
+    };
+    const firstSample = {
+      ...keywordEntry,
+      version: "4.4.2",
+      htmlUrl: "https://example.com/releases/4.4.2",
+      headline: "First sampled release",
+      signals: [],
+    };
+    const secondSample = {
+      ...keywordEntry,
+      version: "4.4.1",
+      htmlUrl: "https://example.com/releases/4.4.1",
+      headline: "Second sampled release",
+      signals: [],
+    };
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([
+        formatterReview({
+          changelog: {
+            ...base.changelog,
+            entries: [keywordEntry, firstSample, secondSample],
+            sampledEntries: [firstSample, secondSample],
+            keywordEntries: [keywordEntry],
+            totalKeywordEntries: 1,
+            totalEntries: 3,
+            totalEntriesWithBodies: 3,
+          },
+        }),
+      ]),
+    );
+
+    expect(text).toContain("Heuristic release entries");
+    expect(text).toContain("Sampled release entries");
+    expect(text.indexOf("Heuristic release entries")).toBeLessThan(
+      text.indexOf("Sampled release entries"),
+    );
+    expect(text.indexOf("4.4.2")).toBeLessThan(text.indexOf("4.4.1"));
+    expect(text).toContain("First sampled release");
+    expect(text).toContain("Second sampled release");
+  });
+
+  it("renders an overlapping keyword and sampled entry only once", () => {
+    const base = formatterReview();
+    const keywordEntry = {
+      ...base.changelog.keywordEntries[0]!,
+      version: "4.4.3",
+      htmlUrl: "https://example.com/releases/overlap",
+      headline: "Overlapping release",
+    };
+    const distinctSample = {
+      ...keywordEntry,
+      version: "4.4.2",
+      htmlUrl: "https://example.com/releases/distinct",
+      headline: "Distinct sampled release",
+      signals: [],
+    };
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([
+        formatterReview({
+          changelog: {
+            ...base.changelog,
+            entries: [keywordEntry, distinctSample],
+            sampledEntries: [keywordEntry, distinctSample],
+            keywordEntries: [keywordEntry],
+            totalKeywordEntries: 1,
+            totalEntries: 2,
+            totalEntriesWithBodies: 2,
+          },
+        }),
+      ]),
+    );
+
+    expect(text.split(keywordEntry.htmlUrl).length - 1).toBe(1);
+    expect(text).toContain("Sampled release entries");
+    expect(text).toContain(distinctSample.htmlUrl);
+  });
+
+  it("excludes keyword and sampled entries from verbose extras", () => {
+    const base = formatterReview();
+    const keywordEntry = {
+      ...base.changelog.keywordEntries[0]!,
+      version: "4.4.3",
+      htmlUrl: "https://example.com/releases/keyword",
+      headline: "Keyword release",
+    };
+    const sampledEntry = {
+      ...keywordEntry,
+      version: "4.4.2",
+      htmlUrl: "https://example.com/releases/sampled",
+      headline: "Sampled release",
+      signals: [],
+    };
+    const otherEntry = {
+      ...keywordEntry,
+      version: "4.4.1",
+      htmlUrl: "https://example.com/releases/other",
+      headline: "Other release",
+      body: "Other release body",
+      bodyPreview: "Other release body",
+      signals: [],
+    };
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([
+        formatterReview({
+          changelog: {
+            ...base.changelog,
+            entries: [keywordEntry, sampledEntry, otherEntry],
+            sampledEntries: [sampledEntry],
+            keywordEntries: [keywordEntry],
+            totalKeywordEntries: 1,
+            totalEntries: 3,
+            totalEntriesWithBodies: 3,
+          },
+        }),
+      ]),
+      { verbose: true },
+    );
+    const otherSection = text.slice(text.indexOf("Other release entries"));
+
+    expect(text).toContain("Sampled release entries");
+    expect(text.split(keywordEntry.htmlUrl).length - 1).toBe(1);
+    expect(text.split(sampledEntry.htmlUrl).length - 1).toBe(1);
+    expect(text.split(otherEntry.htmlUrl).length - 1).toBe(1);
+    expect(otherSection).toContain(otherEntry.htmlUrl);
+    expect(otherSection).not.toContain(keywordEntry.htmlUrl);
+    expect(otherSection).not.toContain(sampledEntry.htmlUrl);
+  });
+
   it("keeps no-color text ASCII-authored and colors attention without changing words", () => {
     const plain = formatPackageUpgradeReviewTerminal(formatterResponse(), {
       useColors: false,

@@ -876,13 +876,26 @@ function formatChangesSection(
         ...formatKeywordChangelogEntry(entry, options, width, useColors),
       );
     }
+    const keywordKeys = new Set(
+      changelog.keywordEntries.map((entry) => changelogEntryKey(entry)),
+    );
+    const sampledKeys = new Set(keywordKeys);
+    const sampledEntries = changelog.sampledEntries.filter((entry) => {
+      const key = changelogEntryKey(entry);
+      if (sampledKeys.has(key)) return false;
+      sampledKeys.add(key);
+      return true;
+    });
+    appendPlainChangelogEntries(
+      lines,
+      "Sampled release entries",
+      sampledEntries,
+      width,
+    );
     if (options.verbose === true) {
-      const keywordKeys = new Set(
-        changelog.keywordEntries.map((entry) => changelogEntryKey(entry)),
-      );
       const otherEntries = changelog.entries.filter(
         (entry) =>
-          entry.bodyPreview && !keywordKeys.has(changelogEntryKey(entry)),
+          entry.bodyPreview && !sampledKeys.has(changelogEntryKey(entry)),
       );
       appendPlainChangelogEntries(
         lines,
@@ -891,14 +904,14 @@ function formatChangesSection(
         width,
       );
     }
-    return lines;
   }
-  appendPlainChangelogEntries(
-    lines,
-    "Sampled release entries",
-    changelog.sampledEntries,
-    width,
-  );
+  if (changelog.keywordEntries.length === 0)
+    appendPlainChangelogEntries(
+      lines,
+      "Sampled release entries",
+      changelog.sampledEntries,
+      width,
+    );
   return lines;
 }
 
