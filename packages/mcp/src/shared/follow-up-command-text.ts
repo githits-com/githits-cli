@@ -70,10 +70,9 @@ function buildSearchHitCodeReadInput(
     trueEndLine - startLine + 1 > MCP_READ_MAX_SPAN
   ) {
     if (definition) {
-      ({ startLine, endLine } = boundLargeDefinitionRange(
-        definition,
-        evidence,
-      ));
+      ({ startLine, endLine } = boundLargeReadRange(definition, evidence));
+    } else if (evidence) {
+      ({ startLine, endLine } = boundLargeReadRange(evidence, evidence));
     } else {
       endLine = startLine + MCP_READ_MAX_SPAN - 1;
     }
@@ -108,13 +107,13 @@ function buildSearchHitCodeReadInput(
   };
 }
 
-function boundLargeDefinitionRange(
-  definition: { startLine: number; endLine: number },
+function boundLargeReadRange(
+  bounds: { startLine: number; endLine: number },
   evidence:
     | { startLine: number; endLine: number; matchLine?: number }
     | undefined,
 ): { startLine: number; endLine: number } {
-  const latestStart = definition.endLine - MCP_READ_MAX_SPAN + 1;
+  const latestStart = bounds.endLine - MCP_READ_MAX_SPAN + 1;
   const evidenceSpan = evidence
     ? evidence.endLine - evidence.startLine + 1
     : undefined;
@@ -125,7 +124,7 @@ function boundLargeDefinitionRange(
   ) {
     const leadingContext = Math.floor((MCP_READ_MAX_SPAN - evidenceSpan) / 2);
     const startLine = Math.min(
-      Math.max(definition.startLine, evidence.startLine - leadingContext),
+      Math.max(bounds.startLine, evidence.startLine - leadingContext),
       latestStart,
     );
     return { startLine, endLine: startLine + MCP_READ_MAX_SPAN - 1 };
@@ -135,9 +134,9 @@ function boundLargeDefinitionRange(
   const leadingContext = Math.floor((MCP_READ_MAX_SPAN - 1) / 2);
   const startLine = Math.min(
     Math.max(
-      definition.startLine,
+      bounds.startLine,
       focusedLine === undefined
-        ? definition.startLine
+        ? bounds.startLine
         : focusedLine - leadingContext,
     ),
     latestStart,

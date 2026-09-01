@@ -530,6 +530,43 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.results[0]?.followUp).not.toContain("requestedRef");
   });
 
+  it("keeps the match in capped oversized evidence without an enclosing definition", () => {
+    const hit: UnifiedSearchHit = {
+      id: "oversized-associated-evidence",
+      resultType: "REPOSITORY_CODE",
+      targetLabel: "owner/repo@main",
+      locator: {
+        repoUrl: "https://github.com/owner/repo",
+        gitRef: "exact-served-ref",
+        filePath: "src/evidence.ts",
+        repositoryFilePath: "src/evidence.ts",
+        startLine: 600,
+        endLine: 950,
+        evidenceRange: {
+          startLine: 600,
+          endLine: 950,
+          matchLine: 940,
+          matchSpansTruncated: true,
+        },
+        symbolContext: {
+          name: "associated",
+          relation: "associated_with_indexed_chunk",
+        },
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits([hit]),
+    );
+
+    expect(payload.results[0]?.followUp).toBe(
+      'code_read target="github:owner/repo#exact-served-ref" path="src/evidence.ts" start_line=651 end_line=950',
+    );
+  });
+
   it("preserves identity-only and absent symbol context without changing legacy locators", () => {
     const baseHit: UnifiedSearchHit = {
       id: "identity-only",
