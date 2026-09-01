@@ -315,6 +315,7 @@ describe("renderUnifiedSearchSuccess", () => {
           },
         }),
       ]),
+      { width: 200 },
     );
 
     const header = `[1] github:badlogic/pi-mono#853a80d ${filePath}:920-930 [repo code] - compact (function at lines 858-964)`;
@@ -362,7 +363,7 @@ describe("renderUnifiedSearchSuccess", () => {
       },
     });
     const payload = completed([hit]);
-    const text = renderUnifiedSearchSuccess(payload);
+    const text = renderUnifiedSearchSuccess(payload, { width: 200 });
 
     expect(text).toContain(
       `[1] hex:phoenix@1.8.13 ${filePath}:95-97 [repo code] - Mix.Tasks.Phx.Gen.Auth.Injector.router_plug_inject/2 (function at lines 100-115)`,
@@ -374,6 +375,11 @@ describe("renderUnifiedSearchSuccess", () => {
     });
     expect(colored).toContain(
       `Mix.Tasks.Phx.Gen.Auth.Injector.\u001b[1m\u001b[33mrouter\u001b[0m_plug_inject/2`,
+    );
+
+    const wrapped = renderUnifiedSearchSuccess(payload, { width: 80 });
+    expect(wrapped).toContain(
+      `[1] hex:phoenix@1.8.13 ${filePath}:95-97 [repo code] -\n  Mix.Tasks.Phx.Gen.Auth.Injector.router_plug_inject/2`,
     );
 
     const equalRangeText = renderUnifiedSearchSuccess(
@@ -407,11 +413,37 @@ describe("renderUnifiedSearchSuccess", () => {
           },
         }),
       ]),
+      { width: 200 },
     );
     expect(equalRangeText).toContain(
       `[1] hex:phoenix@1.8.13 ${filePath}:121-131 [repo code] - Mix.Tasks.Phx.Gen.Auth.Injector.router_plug_help_text/2 (function)`,
     );
     expect(equalRangeText.match(/121-131/g)).toHaveLength(1);
+  });
+
+  it("does not manufacture qualified identities from name-prefix collisions", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          title: "getUser",
+          locator: {
+            filePath: "src/api.ts",
+            startLine: 20,
+            endLine: 22,
+            symbolContext: {
+              name: "get",
+              qualifiedPath: "Api.get",
+              kind: "function",
+              relation: "associated_with_indexed_chunk",
+            },
+          },
+        }),
+      ]),
+      { width: 200 },
+    );
+
+    expect(text).toContain("src/api.ts:20-22 [repo code] - getUser (function)");
+    expect(text).not.toContain("Api.getUser");
   });
 
   it("uses evidence ranges for associated, identity-only, and absent-symbol hits", () => {
@@ -464,6 +496,7 @@ describe("renderUnifiedSearchSuccess", () => {
 
     const text = renderUnifiedSearchSuccess(
       completed([associated, identityOnly, absent]),
+      { width: 200 },
     );
 
     expect(text).toContain(

@@ -932,7 +932,6 @@ function appendHit(
   const title = header.title;
   const titleFits =
     title === undefined ||
-    header.keepTitleInline === true ||
     (!title.includes("\n") &&
       rank.length + header.prefix.length + 3 + title.length <= options.width);
   if (titleFits) {
@@ -1059,7 +1058,6 @@ interface FormattedHitHeader {
   segments: HitHeaderSegment[];
   title?: string;
   titleHighlights?: ReadonlyArray<readonly [number, number]>;
-  keepTitleInline?: boolean;
 }
 
 function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
@@ -1108,7 +1106,6 @@ function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
       hit.highlights?.title,
       title.highlightOffset,
     ),
-    keepTitleInline: title.keepInline,
   };
 }
 
@@ -1132,7 +1129,6 @@ function formatRepositoryEvidence(
 interface RepositoryHitTitle {
   text?: string;
   highlightOffset: number;
-  keepInline: boolean;
 }
 
 function formatRepositoryHitTitle(
@@ -1144,7 +1140,6 @@ function formatRepositoryHitTitle(
     return {
       text: hit.title || undefined,
       highlightOffset: 0,
-      keepInline: false,
     };
   }
 
@@ -1177,10 +1172,6 @@ function formatRepositoryHitTitle(
   return {
     text,
     highlightOffset: identity.highlightOffset,
-    keepInline:
-      typeof hit.title === "string" &&
-      !/\s/.test(hit.title) &&
-      text !== hit.title,
   };
 }
 
@@ -1211,16 +1202,26 @@ function formatRepositorySymbolIdentity(
     !qualifiedPath ||
     !name ||
     qualifiedPath.startsWith("<") ||
-    !hasQualifiedNameSuffix(qualifiedPath, name) ||
-    !title.startsWith(name)
+    !hasQualifiedNameSuffix(qualifiedPath, name)
   ) {
     return { text: title, highlightOffset: 0 };
   }
 
+  const titleSuffix = title.startsWith(name)
+    ? title.slice(name.length)
+    : undefined;
+  if (titleSuffix === undefined || !isSymbolSignatureSuffix(titleSuffix)) {
+    return { text: title, highlightOffset: 0 };
+  }
+
   return {
-    text: `${qualifiedPath}${title.slice(name.length)}`,
+    text: `${qualifiedPath}${titleSuffix}`,
     highlightOffset: qualifiedPath.length - name.length,
   };
+}
+
+function isSymbolSignatureSuffix(suffix: string): boolean {
+  return suffix === "" || /^\/\d+$/.test(suffix) || /^\([^\n]*\)$/.test(suffix);
 }
 
 function hasQualifiedNameSuffix(qualifiedPath: string, name: string): boolean {
