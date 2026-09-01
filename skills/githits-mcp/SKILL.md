@@ -1,6 +1,6 @@
 ---
 name: githits-mcp
-description: Use whenever invoking GitHits MCP tools for public OSS/package evidence: package, dependency, release, security, documentation, repository source/code search, or canonical examples. Load before any GitHits MCP tool call.
+description: "Use whenever invoking GitHits MCP tools for public OSS/package evidence: package, dependency, release, security, documentation, repository source/code search, or canonical examples. Load before any GitHits MCP tool call."
 ---
 
 # GitHits MCP

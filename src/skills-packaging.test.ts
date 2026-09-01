@@ -1,7 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildMcpQuickStart } from "@githits/mcp";
+import { parse as parseYaml } from "yaml";
 
 const root = join(import.meta.dir, "..");
 const onboardingSkillPath = join(
@@ -363,5 +364,45 @@ describe("agent skills packaging", () => {
       "internal, repository-only skill",
       "Do not publish or package it",
     ]);
+  });
+
+  it("has valid YAML frontmatter in every public skill SKILL.md", async () => {
+    const skillsDir = join(root, "skills");
+    const entries = await readdir(skillsDir, { withFileTypes: true });
+    const skillDirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+
+    expect(skillDirs.length).toBeGreaterThanOrEqual(4);
+
+    for (const dir of skillDirs) {
+      const skillPath = join(skillsDir, dir, "SKILL.md");
+      const content = await read(skillPath);
+
+      const match = content.match(/^---\n(.*?)\n---/s);
+      expect(
+        match,
+        `${dir}/SKILL.md must start with YAML frontmatter`,
+      ).not.toBe(null);
+
+      const frontmatter = match?.[1] ?? "";
+      let parsed: unknown;
+      try {
+        parsed = parseYaml(frontmatter);
+      } catch (e) {
+        throw new Error(
+          `${dir}/SKILL.md has invalid YAML frontmatter: ${(e as Error).message}`,
+        );
+      }
+
+      expect(
+        typeof parsed,
+        `${dir}/SKILL.md frontmatter must parse to an object`,
+      ).toBe("object");
+      const record = parsed as Record<string, unknown>;
+      expect(record.name, `${dir}/SKILL.md must have a name`).toBeDefined();
+      expect(
+        record.description,
+        `${dir}/SKILL.md must have a description`,
+      ).toBeDefined();
+    }
   });
 });
