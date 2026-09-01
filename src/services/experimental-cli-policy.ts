@@ -7,7 +7,11 @@ import {
 import type { FileSystemService } from "./filesystem-service.js";
 
 /** The CLI command paths gated by the experimental tools setting. */
-export const EXPERIMENTAL_CLI_COMMANDS = ["resolve", "code diff"] as const;
+export const EXPERIMENTAL_CLI_COMMANDS = [
+  "ask",
+  "resolve",
+  "code diff",
+] as const;
 export type ExperimentalCliCommand = (typeof EXPERIMENTAL_CLI_COMMANDS)[number];
 
 export class ExperimentalToolsDisabledError extends Error {

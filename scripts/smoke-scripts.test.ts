@@ -455,10 +455,12 @@ describe("CLI root help smoke contract", () => {
       EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
     );
     expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).toContain("uninstall");
+    expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).not.toContain("ask");
     expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).not.toContain("resolve");
+    expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toContain("ask");
     expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toContain("resolve");
     expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toHaveLength(
-      EXPECTED_STABLE_TOP_LEVEL_COMMANDS.length + 1,
+      EXPECTED_STABLE_TOP_LEVEL_COMMANDS.length + 2,
     );
   });
 

@@ -2,7 +2,10 @@ import { describe, expect, it, mock } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ResolveTargetServiceImpl } from "@githits/core-internal";
+import {
+  AgenticAskServiceImpl,
+  ResolveTargetServiceImpl,
+} from "@githits/core-internal";
 import {
   createAuthCommandDependencies,
   createAuthStatusDependencies,
@@ -201,18 +204,19 @@ describe("container auth dependencies", () => {
 });
 
 describe("createContainer", () => {
-  it("constructs the resolve service for environment-token auth", async () => {
+  it("constructs private experimental services for environment-token auth", async () => {
     await withoutProxyEnv(async () =>
       withApiToken("ghi-test", async () => {
         const deps = await createContainer({ resolveStoredToken: false });
         expect(deps.resolveTargetService).toBeInstanceOf(
           ResolveTargetServiceImpl,
         );
+        expect(deps.agenticAskService).toBeInstanceOf(AgenticAskServiceImpl);
       }),
     );
   });
 
-  it("constructs the resolve service for stored-token auth", async () => {
+  it("constructs private experimental services for stored-token auth", async () => {
     await withoutProxyEnv(async () =>
       withApiToken(undefined, async () =>
         withAuthStorageEnv("file", async () => {
@@ -220,7 +224,58 @@ describe("createContainer", () => {
           expect(deps.resolveTargetService).toBeInstanceOf(
             ResolveTargetServiceImpl,
           );
+          expect(deps.agenticAskService).toBeInstanceOf(AgenticAskServiceImpl);
         }),
+      ),
+    );
+  });
+
+  it("wires Agentic Ask to the API URL with the normal token and client identity", async () => {
+    await withoutProxyEnv(async () =>
+      withEnvVars(
+        {
+          GITHITS_API_TOKEN: "ghi-ask-test",
+          GITHITS_API_URL: "https://api.githits.test",
+        },
+        async () => {
+          const originalFetch = globalThis.fetch;
+          let capturedUrl: string | undefined;
+          let capturedInit: RequestInit | undefined;
+          globalThis.fetch = mock(
+            (url: string | URL | Request, init?: RequestInit) => {
+              capturedUrl = String(url);
+              capturedInit = init;
+              return Promise.resolve(
+                new Response(
+                  JSON.stringify({
+                    source_format: "cli",
+                    tool_call_id: "018f47a6-7b32-7a1e-8f45-6a2d39c81720",
+                    answer_markdown: "Grounded answer.",
+                    sources: [],
+                  }),
+                ),
+              );
+            },
+          ) as unknown as typeof fetch;
+
+          try {
+            const deps = await createContainer({ resolveStoredToken: false });
+            await deps.agenticAskService.ask({
+              target: "npm:example",
+              question: "How?",
+            });
+
+            expect(capturedUrl).toBe("https://api.githits.test/ask");
+            expect(capturedInit?.headers).toMatchObject({
+              Authorization: "Bearer ghi-ask-test",
+              "x-githits-client-name": "githits-cli",
+              "x-githits-client-version": expect.stringMatching(/^\S+$/),
+            });
+            expect(capturedInit?.signal).toBeInstanceOf(AbortSignal);
+          } finally {
+            globalThis.fetch = originalFetch;
+          }
+        },
       ),
     );
   });

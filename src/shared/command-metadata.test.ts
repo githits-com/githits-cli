@@ -7,6 +7,7 @@ import {
 describe("authenticated command metadata", () => {
   it("covers all authenticated JSON-capable commands", () => {
     expect(AUTHENTICATED_COMMANDS.map((entry) => entry.path)).toEqual([
+      "ask",
       "example",
       "languages",
       "resolve",
@@ -31,6 +32,15 @@ describe("authenticated command metadata", () => {
       "pkg changelog",
       "pkg upgrade-review",
     ]);
+  });
+
+  it("marks ask as auto-login eligible and JSON-capable", () => {
+    expect(getAuthenticatedCommandMetadata("ask")).toEqual({
+      path: "ask",
+      autoLoginEligible: true,
+      postLoginMessage: "Authentication complete. Running Agentic Ask...",
+      jsonCapable: true,
+    });
   });
 
   it("marks resolve as auto-login eligible and JSON-capable", () => {

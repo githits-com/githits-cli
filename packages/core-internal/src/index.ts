@@ -1,4 +1,5 @@
 export * from "./auth/index.js";
+export * from "./services/agentic-ask-service.js";
 export * from "./services/client-update-required-error.js";
 export * from "./services/code-navigation-service.js";
 export * from "./services/config.js";

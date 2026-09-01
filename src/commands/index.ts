@@ -1,4 +1,10 @@
 export {
+  type AskCommandDependencies,
+  type AskCommandOptions,
+  askAction,
+  registerAskCommand,
+} from "./ask.js";
+export {
   type AuthStatusDependencies,
   authStatusAction,
   authTokenAction,

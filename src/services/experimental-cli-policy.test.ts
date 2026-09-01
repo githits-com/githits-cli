@@ -19,11 +19,13 @@ function configFile(contents: string) {
 
 describe("experimental CLI policy", () => {
   it("keeps experimental CLI membership in one data list", () => {
-    expect(EXPERIMENTAL_CLI_COMMANDS).toEqual(["resolve", "code diff"]);
+    expect(EXPERIMENTAL_CLI_COMMANDS).toEqual(["ask", "resolve", "code diff"]);
+    expect(isExperimentalCliCommand("ask")).toBe(true);
     expect(isExperimentalCliCommand("resolve")).toBe(true);
     expect(isExperimentalCliCommand("code diff")).toBe(true);
     expect(isExperimentalCliCommand("code files")).toBe(false);
     expect(shouldRegisterCliCommand("resolve", false)).toBe(false);
+    expect(shouldRegisterCliCommand("ask", false)).toBe(false);
     expect(shouldRegisterCliCommand("code diff", false)).toBe(false);
     expect(shouldRegisterCliCommand("resolve", true)).toBe(true);
     expect(shouldRegisterCliCommand("code diff", true)).toBe(true);
@@ -31,6 +33,10 @@ describe("experimental CLI policy", () => {
   });
 
   it("detects direct commands and their help forms", () => {
+    expect(getExperimentalCliCommand(["ask", "npm:express", "How?"])).toBe(
+      "ask",
+    );
+    expect(getExperimentalCliCommand(["help", "ask"])).toBe("ask");
     expect(getExperimentalCliCommand(["resolve", "express"])).toBe("resolve");
     expect(getExperimentalCliCommand(["resolve", "--help"])).toBe("resolve");
     expect(getExperimentalCliCommand(["help", "code", "diff"])).toBe(
@@ -67,6 +73,12 @@ describe("experimental CLI policy", () => {
       resolveExperimentalCliPolicy(
         configFile("[experimental]\ntools = true\n"),
         ["code", "diff", "--help"],
+      ),
+    ).resolves.toMatchObject({ tools: true });
+    await expect(
+      resolveExperimentalCliPolicy(
+        configFile("[experimental]\ntools = true\n"),
+        ["ask", "--help"],
       ),
     ).resolves.toMatchObject({ tools: true });
   });

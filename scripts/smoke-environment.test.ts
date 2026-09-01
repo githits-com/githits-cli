@@ -59,11 +59,16 @@ describe("createScopedSmokeEnvironment", () => {
       expect(scoped.env.GITHITS_AUTH_STORAGE).toBe("file");
       expect(scoped.env.HOME).toBe("/real-home");
       expect(scoped.env.XDG_CONFIG_HOME).not.toBe("/real-config");
+      expect(scoped.env.APPDATA?.startsWith(scoped.root)).toBe(true);
       const configPath = writeSmokeConfig(
         scoped.env,
         "[experimental]\ntools = true\n",
       );
-      expect(configPath).toContain(scoped.env.XDG_CONFIG_HOME!);
+      expect(configPath).toContain(
+        process.platform === "win32"
+          ? scoped.env.APPDATA!
+          : scoped.env.XDG_CONFIG_HOME!,
+      );
     } finally {
       scoped.cleanup();
     }

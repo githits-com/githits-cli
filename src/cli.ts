@@ -10,6 +10,7 @@ import {
   startUpdateCheckTaskForInvocation,
 } from "./cli/update-check.js";
 import {
+  registerAskCommand,
   registerAuthStatusCommand,
   registerCodeCommandGroup,
   registerDocsCommandGroup,
@@ -82,6 +83,10 @@ async function main(): Promise<void> {
     "resolve",
     experimentalCliPolicy.tools,
   );
+  const askAvailable = shouldRegisterCliCommand(
+    "ask",
+    experimentalCliPolicy.tools,
+  );
 
   await enforceCachedRequiredUpdateForInvocation({
     args: argv,
@@ -136,6 +141,9 @@ async function main(): Promise<void> {
   registerLanguagesCommand(program);
   registerFeedbackCommand(program);
   registerDoctorCommand(program);
+  if (askAvailable) {
+    registerAskCommand(program);
+  }
   if (resolveAvailable) {
     registerResolveCommand(program);
   }

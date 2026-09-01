@@ -53,7 +53,7 @@ export function isTokenRefreshableError(error: unknown): boolean {
  * Parse an HTTP Retry-After value into a non-negative delay in seconds.
  * HTTP-date delays round up so callers never retry before the stated time.
  */
-function parseRetryAfterSeconds(
+export function parseRetryAfterSeconds(
   value: string | null,
   nowMs: number,
 ): number | undefined {
