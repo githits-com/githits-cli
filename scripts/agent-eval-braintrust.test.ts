@@ -2196,6 +2196,11 @@ interface WorkflowStepContract {
 }
 
 interface WorkflowContract {
+  on?: {
+    push?: {
+      branches?: string[];
+    };
+  };
   jobs: Record<string, { if?: string; steps: WorkflowStepContract[] }>;
 }
 
@@ -2222,7 +2227,7 @@ function githubExpression(name: string): string {
 }
 
 describe("Agent eval workflow Braintrust integration", () => {
-  it("routes stable Braintrust identity and guards non-main manual dispatch", () => {
+  it("routes stable identity for main pushes and guards non-main manual dispatch", () => {
     const workflow = readAgentEvalWorkflow();
     const scenario = workflow.jobs.scenario;
     const summarySteps = readSummarySteps(workflow);
@@ -2238,6 +2243,7 @@ describe("Agent eval workflow Braintrust integration", () => {
     const braintrust = summarySteps[braintrustIndex];
     const finalize = summarySteps[finalIndex];
 
+    expect(workflow.on?.push?.branches).toEqual(["main"]);
     expect(scenario?.if).toContain(
       "github.event_name != 'workflow_dispatch' || github.ref_name == 'main'",
     );

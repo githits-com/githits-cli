@@ -72,7 +72,15 @@ duration, 2,686,094 prompt tokens, 20,172 completion tokens, 2,706,266 total
 tokens, and estimated cost `$0.22819038`. Compare averages were duration
 `22.343956532685652`, estimated cost `$0.009921320869565216`, tool calls
 `5.043478260869565`, tool errors `0`, and total tokens `117663.73913043478`.
-The default-branch scheduled/manual activation remains pending merge.
+The first stable default-branch bootstrap is [run
+33477846273](https://github.com/githits-com/githits-cli/actions/runs/33477846273)
+at SHA `40796bd0eabaf87afec5ea0e4460ff47e7448603`. Experiment
+`main-r33477846273-a1` (ID `6f3847fc-3816-4b32-b1f6-65019c2757b7`) read back
+23 eval roots and 112 tool children, zero CLI calls, 3,024,404 tokens,
+445.728 seconds cumulative agent duration, and estimated cost `$0.24188221`.
+Its null base is the expected one-time bootstrap result. Main pushes now
+temporarily run the same matrix, in addition to the daily/manual/label paths,
+to collect variance and workload-optimization evidence.
 
 For current comparisons, inspect experiment-level `metadata.channel` and
 `baseExperiment` in the safe exporter result or CI summary. A current main
@@ -83,7 +91,8 @@ Validate-only reports the base as unresolved/not queried and performs no
 discovery. The first main run is a one-time bootstrap; PR and default-local
 exports fail before initialization when no main baseline exists. Explicit
 local `--base-experiment` takes precedence and skips discovery. No live
-readback has yet proven later-main, PR, and local linkage under the new names.
+readback has proven the first main bootstrap, but not later-main, PR, or local
+linkage under the new names.
 For exports, use the returned experiment name from the SDK readback; it can
 differ from a reused explicit local name if Braintrust de-duplicates it.
 Validate-only reports the requested or generated name.
@@ -93,6 +102,11 @@ The exercised comparison syntax is:
 ```bash
 bt experiments --json --project githits-cli-agent-evals compare <experiment-a> <experiment-b>
 ```
+
+For custom cross-experiment SQL analysis, join eval rows by
+`metadata.cellId`, not `metadata.workloadId`: the same workload can appear in
+multiple scenarios. Braintrust's built-in experiment comparison already
+matches the stable row inputs and avoids this ambiguity.
 
 The prior custom-only experiments succeeded but reported only generic
 Braintrust trace metrics, which were zero and did not expose their custom eval
