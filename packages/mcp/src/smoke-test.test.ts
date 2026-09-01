@@ -426,6 +426,29 @@ describe("runMcpSmoke", () => {
 
   it.each([
     [
+      "focused evidence",
+      "1 result | 1 repo code hit\n\n" +
+        "[1] github:owner/repo#abc123 packages/pkg/src/compact.ts:920-930 [repo code] - compact (function at lines 858-964)\n" +
+        "  // Merge into single summary",
+    ],
+    [
+      "equal evidence",
+      "1 result | 1 repo symbol\n\n" +
+        "[1] github:owner/repo#abc123 packages/pkg/src/compact.ts:858-964 [repo symbol] - compact (function)",
+    ],
+  ])("allows a unified repository hit with %s", async (_name, searchText) => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(searchText);
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+  });
+
+  it.each([
+    [
       "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
         "  This payload mentions code_read but has no locator",
     ],
@@ -452,6 +475,18 @@ describe("runMcpSmoke", () => {
         "  Wrapped title without a locator",
     ],
     ["1 result\n\n[1] npm:express@5.2.1 lib/application.js [repo code] -"],
+    [
+      "1 result\n\n[1] compact - function defined at packages/pkg/src/compact.ts:858-964",
+    ],
+    [
+      "1 result\n\n" +
+        "[1] compact - function defined at packages/pkg/src/compact.ts:858-964\n" +
+        "  github:owner/repo#abc123 evidence at 920-930 [repo code]",
+    ],
+    [
+      "1 result\n\n[1] compact - function defined at location unavailable\n" +
+        "  github:owner/repo#abc123 evidence at 920-930 [repo code]",
+    ],
   ])("rejects incomplete or prose-only hit follow-ups", async (searchText) => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {

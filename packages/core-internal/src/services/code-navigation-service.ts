@@ -238,6 +238,48 @@ export interface UnifiedSearchParams {
   waitTimeoutMs?: number;
 }
 
+export interface UnifiedSearchEvidenceRange {
+  startLine: number;
+  endLine: number;
+  matchLine?: number;
+  rangeKind?: string;
+  matchSpansTruncated: boolean;
+}
+
+export interface UnifiedSearchIndexedRange {
+  startLine: number;
+  endLine: number;
+}
+
+export interface UnifiedSearchDefinitionRange {
+  filePath: string;
+  repositoryFilePath: string;
+  startLine: number;
+  endLine: number;
+}
+
+interface UnifiedSearchSymbolContextBase {
+  name: string;
+  qualifiedPath?: string;
+  kind?: string;
+}
+
+export interface UnifiedSearchEnclosingSymbolContext
+  extends UnifiedSearchSymbolContextBase {
+  relation: "encloses_match";
+  definitionRange: UnifiedSearchDefinitionRange;
+}
+
+export interface UnifiedSearchAssociatedSymbolContext
+  extends UnifiedSearchSymbolContextBase {
+  relation: "associated_with_indexed_chunk";
+  definitionRange?: UnifiedSearchDefinitionRange;
+}
+
+export type UnifiedSearchSymbolContext =
+  | UnifiedSearchEnclosingSymbolContext
+  | UnifiedSearchAssociatedSymbolContext;
+
 export interface UnifiedSearchLocator {
   registry?: string;
   packageName?: string;
@@ -247,10 +289,15 @@ export interface UnifiedSearchLocator {
   sourceUrl?: string;
   repoUrl?: string;
   gitRef?: string;
+  commitSha?: string;
   requestedRef?: string;
   filePath?: string;
+  repositoryFilePath?: string;
   startLine?: number;
   endLine?: number;
+  evidenceRange?: UnifiedSearchEvidenceRange;
+  indexedRange?: UnifiedSearchIndexedRange;
+  symbolContext?: UnifiedSearchSymbolContext;
   fileContentHash?: string;
   symbolRef?: string;
   qualifiedPath?: string;
@@ -1095,6 +1142,51 @@ indexingEstimate {
   source
 }`;
 
+const UNIFIED_SEARCH_LOCATOR_SELECTION = `
+registry
+packageName
+version
+pageId
+sourceKind
+sourceUrl
+repoUrl
+gitRef
+commitSha
+requestedRef
+filePath
+repositoryFilePath
+startLine
+endLine
+evidenceRange {
+  startLine
+  endLine
+  matchLine
+  rangeKind
+  matchSpansTruncated
+}
+indexedRange {
+  startLine
+  endLine
+}
+symbolContext {
+  name
+  qualifiedPath
+  kind
+  relation
+  definitionRange {
+    filePath
+    repositoryFilePath
+    startLine
+    endLine
+  }
+}
+fileContentHash
+symbolRef
+qualifiedPath
+kind
+category
+language`;
+
 const UNIFIED_SEARCH_QUERY = `
 query UnifiedSearch(
   $targets: [SearchPackageInput!]!
@@ -1138,24 +1230,7 @@ query UnifiedSearch(
           summary
         }
         locator {
-          registry
-          packageName
-          version
-          pageId
-          sourceKind
-          sourceUrl
-          repoUrl
-          gitRef
-          requestedRef
-          filePath
-          startLine
-          endLine
-          fileContentHash
-          symbolRef
-          qualifiedPath
-          kind
-          category
-          language
+          ${UNIFIED_SEARCH_LOCATOR_SELECTION}
         }
       }
       page {
@@ -1295,24 +1370,7 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!, $waitT
           summary
         }
         locator {
-          registry
-          packageName
-          version
-          pageId
-          sourceKind
-          sourceUrl
-          repoUrl
-          gitRef
-          requestedRef
-          filePath
-          startLine
-          endLine
-          fileContentHash
-          symbolRef
-          qualifiedPath
-          kind
-          category
-          language
+          ${UNIFIED_SEARCH_LOCATOR_SELECTION}
         }
       }
       page {
@@ -1479,6 +1537,43 @@ const unifiedSearchResultTypeSchema = z.enum([
   "REPOSITORY_DOC",
 ]);
 
+const unifiedSearchLineRangeSchema = z
+  .object({
+    startLine: z.number().int().positive(),
+    endLine: z.number().int().positive(),
+  })
+  .refine((range) => range.startLine <= range.endLine, {
+    message: "startLine must be less than or equal to endLine",
+  });
+
+const unifiedSearchEvidenceRangeSchema = unifiedSearchLineRangeSchema.extend({
+  matchLine: z.number().int().positive().nullable().optional(),
+  rangeKind: z.string().nullable().optional(),
+  matchSpansTruncated: z.boolean(),
+});
+
+const unifiedSearchDefinitionRangeSchema = unifiedSearchLineRangeSchema.extend({
+  filePath: z.string(),
+  repositoryFilePath: z.string(),
+});
+
+const unifiedSearchSymbolContextBaseSchema = z.object({
+  name: z.string(),
+  qualifiedPath: z.string().nullable().optional(),
+  kind: z.string().nullable().optional(),
+});
+
+const unifiedSearchSymbolContextSchema = z.discriminatedUnion("relation", [
+  unifiedSearchSymbolContextBaseSchema.extend({
+    relation: z.literal("ENCLOSES_MATCH"),
+    definitionRange: unifiedSearchDefinitionRangeSchema,
+  }),
+  unifiedSearchSymbolContextBaseSchema.extend({
+    relation: z.literal("ASSOCIATED_WITH_INDEXED_CHUNK"),
+    definitionRange: unifiedSearchDefinitionRangeSchema.nullable().optional(),
+  }),
+]);
+
 const unifiedSearchLocatorSchema = z.object({
   registry: z.string().nullable().optional(),
   packageName: z.string().nullable().optional(),
@@ -1488,10 +1583,15 @@ const unifiedSearchLocatorSchema = z.object({
   sourceUrl: z.string().nullable().optional(),
   repoUrl: z.string().nullable().optional(),
   gitRef: z.string().nullable().optional(),
+  commitSha: z.string().nullable().optional(),
   requestedRef: z.string().nullable().optional(),
   filePath: z.string().nullable().optional(),
+  repositoryFilePath: z.string().nullable().optional(),
   startLine: z.number().int().nullable().optional(),
   endLine: z.number().int().nullable().optional(),
+  evidenceRange: unifiedSearchEvidenceRangeSchema.nullable().optional(),
+  indexedRange: unifiedSearchLineRangeSchema.nullable().optional(),
+  symbolContext: unifiedSearchSymbolContextSchema.nullable().optional(),
   fileContentHash: z.string().nullable().optional(),
   symbolRef: z.string().nullable().optional(),
   qualifiedPath: z.string().nullable().optional(),
@@ -2954,26 +3054,7 @@ export class CodeNavigationServiceImpl
               summary: entry.highlights.summary ?? undefined,
             }
           : undefined,
-        locator: {
-          registry: entry.locator.registry ?? undefined,
-          packageName: entry.locator.packageName ?? undefined,
-          version: entry.locator.version ?? undefined,
-          pageId: entry.locator.pageId ?? undefined,
-          sourceKind: entry.locator.sourceKind ?? undefined,
-          sourceUrl: entry.locator.sourceUrl ?? undefined,
-          repoUrl: entry.locator.repoUrl ?? undefined,
-          gitRef: entry.locator.gitRef ?? undefined,
-          requestedRef: entry.locator.requestedRef ?? undefined,
-          filePath: entry.locator.filePath ?? undefined,
-          startLine: entry.locator.startLine ?? undefined,
-          endLine: entry.locator.endLine ?? undefined,
-          fileContentHash: entry.locator.fileContentHash ?? undefined,
-          symbolRef: entry.locator.symbolRef ?? undefined,
-          qualifiedPath: entry.locator.qualifiedPath ?? undefined,
-          kind: entry.locator.kind ?? undefined,
-          category: entry.locator.category ?? undefined,
-          language: entry.locator.language ?? undefined,
-        },
+        locator: normaliseUnifiedSearchLocator(entry.locator),
       })),
       page: {
         offset: result.page.offset,
@@ -3410,6 +3491,88 @@ export class CodeNavigationServiceImpl
       targetResolution: normaliseTargetResolution(data.targetResolution),
     };
   }
+}
+
+function normaliseUnifiedSearchLocator(
+  value: z.infer<typeof unifiedSearchLocatorSchema>,
+): UnifiedSearchLocator {
+  return {
+    registry: value.registry ?? undefined,
+    packageName: value.packageName ?? undefined,
+    version: value.version ?? undefined,
+    pageId: value.pageId ?? undefined,
+    sourceKind: value.sourceKind ?? undefined,
+    sourceUrl: value.sourceUrl ?? undefined,
+    repoUrl: value.repoUrl ?? undefined,
+    gitRef: value.gitRef ?? undefined,
+    commitSha: value.commitSha ?? undefined,
+    requestedRef: value.requestedRef ?? undefined,
+    filePath: value.filePath ?? undefined,
+    repositoryFilePath: value.repositoryFilePath ?? undefined,
+    startLine: value.startLine ?? undefined,
+    endLine: value.endLine ?? undefined,
+    evidenceRange: value.evidenceRange
+      ? {
+          startLine: value.evidenceRange.startLine,
+          endLine: value.evidenceRange.endLine,
+          matchLine: value.evidenceRange.matchLine ?? undefined,
+          rangeKind: value.evidenceRange.rangeKind ?? undefined,
+          matchSpansTruncated: value.evidenceRange.matchSpansTruncated,
+        }
+      : undefined,
+    indexedRange: value.indexedRange
+      ? {
+          startLine: value.indexedRange.startLine,
+          endLine: value.indexedRange.endLine,
+        }
+      : undefined,
+    symbolContext: value.symbolContext
+      ? normaliseUnifiedSearchSymbolContext(value.symbolContext)
+      : undefined,
+    fileContentHash: value.fileContentHash ?? undefined,
+    symbolRef: value.symbolRef ?? undefined,
+    qualifiedPath: value.qualifiedPath ?? undefined,
+    kind: value.kind ?? undefined,
+    category: value.category ?? undefined,
+    language: value.language ?? undefined,
+  };
+}
+
+function normaliseUnifiedSearchSymbolContext(
+  value: z.infer<typeof unifiedSearchSymbolContextSchema>,
+): UnifiedSearchSymbolContext {
+  const identity = {
+    name: value.name,
+    qualifiedPath: value.qualifiedPath ?? undefined,
+    kind: value.kind ?? undefined,
+  };
+  if (value.relation === "ENCLOSES_MATCH") {
+    return {
+      ...identity,
+      relation: "encloses_match",
+      definitionRange: normaliseUnifiedSearchDefinitionRange(
+        value.definitionRange,
+      ),
+    };
+  }
+  return {
+    ...identity,
+    relation: "associated_with_indexed_chunk",
+    definitionRange: value.definitionRange
+      ? normaliseUnifiedSearchDefinitionRange(value.definitionRange)
+      : undefined,
+  };
+}
+
+function normaliseUnifiedSearchDefinitionRange(
+  value: z.infer<typeof unifiedSearchDefinitionRangeSchema>,
+): UnifiedSearchDefinitionRange {
+  return {
+    filePath: value.filePath,
+    repositoryFilePath: value.repositoryFilePath,
+    startLine: value.startLine,
+    endLine: value.endLine,
+  };
 }
 
 function validateCodeDiffParams(

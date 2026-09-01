@@ -277,6 +277,348 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text.length).toBeLessThan(3459);
   });
 
+  it("renders the pi-mono evidence before its enclosing definition", () => {
+    const filePath = "packages/coding-agent/src/core/compaction/compaction.ts";
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          target: "github:badlogic/pi-mono#853a80d",
+          title: "compact",
+          summary:
+            "// Merge into single summary\nawait generateSummaryWithUsage();",
+          locator: {
+            repoUrl: "https://github.com/badlogic/pi-mono",
+            gitRef: "853a80d",
+            filePath,
+            repositoryFilePath: filePath,
+            startLine: 920,
+            endLine: 930,
+            evidenceRange: {
+              startLine: 920,
+              endLine: 930,
+              matchLine: 924,
+              rangeKind: "match_window",
+              matchSpansTruncated: false,
+            },
+            indexedRange: { startLine: 900, endLine: 940 },
+            symbolContext: {
+              name: "compact",
+              kind: "function",
+              relation: "encloses_match",
+              definitionRange: {
+                filePath,
+                repositoryFilePath: filePath,
+                startLine: 858,
+                endLine: 964,
+              },
+            },
+          },
+        }),
+      ]),
+      { width: 200 },
+    );
+
+    const header = `[1] github:badlogic/pi-mono#853a80d ${filePath}:920-930 [repo code] - compact (function at lines 858-964)`;
+    expect(text).toContain(header);
+    expect(text.indexOf(header)).toBeLessThan(
+      text.indexOf("// Merge into single summary"),
+    );
+    expect(text).not.toContain("indexedRange");
+    expect(text).not.toContain("defined at");
+  });
+
+  it("does not imply that a cross-file associated definition shares the evidence file", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          title: "associated",
+          locator: {
+            filePath: "src/evidence.ts",
+            startLine: 20,
+            endLine: 22,
+            evidenceRange: {
+              startLine: 20,
+              endLine: 22,
+              matchSpansTruncated: false,
+            },
+            symbolContext: {
+              name: "associated",
+              kind: "function",
+              relation: "associated_with_indexed_chunk",
+              definitionRange: {
+                filePath: "src/definition.ts",
+                repositoryFilePath: "src/definition.ts",
+                startLine: 1,
+                endLine: 50,
+              },
+            },
+          },
+        }),
+      ]),
+      { width: 200 },
+    );
+
+    expect(text).toContain(
+      "src/evidence.ts:20-22 [repo code] - associated (function)",
+    );
+    expect(text).not.toContain("lines 1-50");
+  });
+
+  it("combines Phoenix qualified paths with title arity for docstring evidence", () => {
+    const filePath = "lib/mix/tasks/phx.gen.auth/injector.ex";
+    const hit = codeHit({
+      target: "hex:phoenix@1.8.13",
+      title: "router_plug_inject/2",
+      summary:
+        '@doc """\nInjects the fetch_current_scope_for_<schema> plug into router\'s browser pipeline\n"""',
+      highlights: { title: [[0, 6]] },
+      locator: {
+        filePath,
+        repositoryFilePath: filePath,
+        startLine: 95,
+        endLine: 97,
+        evidenceRange: {
+          startLine: 95,
+          endLine: 97,
+          matchLine: 96,
+          rangeKind: "source_doc_match_window",
+          matchSpansTruncated: false,
+        },
+        indexedRange: { startLine: 100, endLine: 115 },
+        symbolContext: {
+          name: "router_plug_inject",
+          qualifiedPath: "Mix.Tasks.Phx.Gen.Auth.Injector.router_plug_inject",
+          kind: "function",
+          relation: "associated_with_indexed_chunk",
+          definitionRange: {
+            filePath,
+            repositoryFilePath: filePath,
+            startLine: 100,
+            endLine: 115,
+          },
+        },
+      },
+    });
+    const payload = completed([hit]);
+    const text = renderUnifiedSearchSuccess(payload, { width: 200 });
+
+    expect(text).toContain(
+      `[1] hex:phoenix@1.8.13 ${filePath}:95-97 [repo code] - Mix.Tasks.Phx.Gen.Auth.Injector.router_plug_inject/2 (function at lines 100-115)`,
+    );
+
+    const colored = renderUnifiedSearchSuccess(payload, {
+      useColors: true,
+      width: 200,
+    });
+    expect(colored).toContain(
+      `Mix.Tasks.Phx.Gen.Auth.Injector.\u001b[1m\u001b[33mrouter\u001b[0m_plug_inject/2`,
+    );
+
+    const wrapped = renderUnifiedSearchSuccess(payload, { width: 80 });
+    expect(wrapped).toContain(
+      `[1] hex:phoenix@1.8.13 ${filePath}:95-97 [repo code] -\n  Mix.Tasks.Phx.Gen.Auth.Injector.router_plug_inject/2`,
+    );
+
+    const equalRangeText = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          target: "hex:phoenix@1.8.13",
+          title: "router_plug_help_text/2",
+          locator: {
+            filePath,
+            startLine: 121,
+            endLine: 131,
+            evidenceRange: {
+              startLine: 121,
+              endLine: 131,
+              matchSpansTruncated: false,
+            },
+            indexedRange: { startLine: 121, endLine: 131 },
+            symbolContext: {
+              name: "router_plug_help_text",
+              qualifiedPath:
+                "Mix.Tasks.Phx.Gen.Auth.Injector.router_plug_help_text",
+              kind: "function",
+              relation: "encloses_match",
+              definitionRange: {
+                filePath,
+                repositoryFilePath: filePath,
+                startLine: 121,
+                endLine: 131,
+              },
+            },
+          },
+        }),
+      ]),
+      { width: 200 },
+    );
+    expect(equalRangeText).toContain(
+      `[1] hex:phoenix@1.8.13 ${filePath}:121-131 [repo code] - Mix.Tasks.Phx.Gen.Auth.Injector.router_plug_help_text/2 (function)`,
+    );
+    expect(equalRangeText.match(/121-131/g)).toHaveLength(1);
+  });
+
+  it("does not manufacture qualified identities from name-prefix collisions", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          title: "getUser",
+          locator: {
+            filePath: "src/api.ts",
+            startLine: 20,
+            endLine: 22,
+            symbolContext: {
+              name: "get",
+              qualifiedPath: "Api.get",
+              kind: "function",
+              relation: "associated_with_indexed_chunk",
+            },
+          },
+        }),
+      ]),
+      { width: 200 },
+    );
+
+    expect(text).toContain("src/api.ts:20-22 [repo code] - getUser (function)");
+    expect(text).not.toContain("Api.getUser");
+  });
+
+  it("uses evidence ranges for associated, identity-only, and absent-symbol hits", () => {
+    const associated = codeHit({
+      title: "associated",
+      locator: {
+        filePath: "src/associated.ts",
+        startLine: 10,
+        endLine: 12,
+        evidenceRange: {
+          startLine: 10,
+          endLine: 12,
+          matchSpansTruncated: true,
+        },
+        indexedRange: { startLine: 1, endLine: 50 },
+        symbolContext: {
+          name: "associated",
+          qualifiedPath: "Example.associated",
+          kind: "function",
+          relation: "associated_with_indexed_chunk",
+          definitionRange: {
+            filePath: "src/associated.ts",
+            repositoryFilePath: "packages/pkg/src/associated.ts",
+            startLine: 1,
+            endLine: 50,
+          },
+        },
+      },
+    });
+    const identityOnly = codeHit({
+      title: "identityOnly",
+      locator: {
+        filePath: "src/identity.ts",
+        startLine: 20,
+        endLine: 21,
+        symbolContext: {
+          name: "identityOnly",
+          relation: "associated_with_indexed_chunk",
+        },
+      },
+    });
+    const absent = codeHit({
+      title: "top-level evidence",
+      locator: {
+        filePath: "src/top-level.ts",
+        startLine: 1,
+        endLine: 1,
+      },
+    });
+
+    const text = renderUnifiedSearchSuccess(
+      completed([associated, identityOnly, absent]),
+      { width: 200 },
+    );
+
+    expect(text).toContain(
+      "[1] cline/cline@v3.4.2 src/associated.ts:10-12 [repo code] - Example.associated (function at lines 1-50)",
+    );
+    expect(text).toContain(
+      "[2] cline/cline@v3.4.2 src/identity.ts:20-21 [repo code] - identityOnly",
+    );
+    expect(text).toContain(
+      "[3] cline/cline@v3.4.2 src/top-level.ts:1 [repo code] - top-level evidence",
+    );
+    expect(text).not.toContain("defined at");
+  });
+
+  it("collapses equal definition and evidence ranges only in text", () => {
+    const filePath = "src/router.ts";
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          title: "router",
+          locator: {
+            filePath,
+            repositoryFilePath: filePath,
+            startLine: 42,
+            endLine: 57,
+            evidenceRange: {
+              startLine: 42,
+              endLine: 57,
+              matchSpansTruncated: false,
+            },
+            symbolContext: {
+              name: "router",
+              kind: "function",
+              relation: "encloses_match",
+              definitionRange: {
+                filePath,
+                repositoryFilePath: filePath,
+                startLine: 42,
+                endLine: 57,
+              },
+            },
+          },
+        }),
+      ]),
+    );
+
+    expect(text.match(/42-57/g)).toHaveLength(1);
+    expect(text).toContain("router (function)");
+  });
+
+  it("does not promote repository documentation with associated symbol metadata", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        {
+          type: "repository_doc",
+          target: "npm:express@5.2.1",
+          title: "5.0.0-alpha.4 / 2017-03-01",
+          summary: "Release notes",
+          locator: {
+            pageId: "history-release",
+            filePath: "History.md",
+            startLine: 169,
+            endLine: 179,
+            symbolContext: {
+              name: "5.0.0-alpha.4 / 2017-03-01",
+              kind: "module",
+              relation: "encloses_match",
+              definitionRange: {
+                filePath: "History.md",
+                repositoryFilePath: "History.md",
+                startLine: 166,
+                endLine: 182,
+              },
+            },
+          },
+        },
+      ]),
+    );
+
+    expect(text).toContain(
+      "[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01",
+    );
+    expect(text).not.toContain("defined at");
+  });
+
   it("keeps contributor-less documentation in detailed target state", () => {
     const text = renderUnifiedSearchSuccess(
       completed([docsHit({ target: "npm:express@5.2.1" })], {
@@ -2180,6 +2522,28 @@ describe("renderUnifiedSearchSuccess", () => {
     for (const line of text.split("\n")) {
       if (!line.startsWith("[")) expect(line.length).toBeLessThanOrEqual(82);
     }
+  });
+
+  it("retains source comment markers on wrapped continuation lines", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          summary:
+            '/// The library calls this method when a log handler must emit a log message.\n/// <code lang="cs" source="Documentation/SerializationTests.cs" region="SerializeObject" />',
+        }),
+      ]),
+      { width: 48 },
+    );
+    const wrappedCommentLines = text
+      .split("\n")
+      .filter((line) =>
+        /library|handler|message|<code|source=|region=/.test(line),
+      );
+
+    expect(wrappedCommentLines.length).toBeGreaterThan(2);
+    expect(wrappedCommentLines.every((line) => line.startsWith("  /// "))).toBe(
+      true,
+    );
   });
 
   it("does not split unbreakable summary tokens", () => {

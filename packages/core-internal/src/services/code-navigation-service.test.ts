@@ -1025,6 +1025,306 @@ describe("CodeNavigationServiceImpl", () => {
     expect(body.variables.allowPartialResults).toBe(true);
   });
 
+  for (const operation of ["search", "searchStatus"] as const) {
+    it(`selects and normalises bounded evidence locators from ${operation}`, async () => {
+      const searchResult = {
+        query: "context compaction compact conversation history",
+        queryWarnings: [],
+        sources: ["CODE"],
+        results: [
+          {
+            id: "pi-mono-compact",
+            resultType: "REPOSITORY_CODE",
+            targetLabel: "badlogic/pi-mono@main",
+            title: "compact",
+            summary: "// Merge into single summary",
+            locator: {
+              repoUrl: "https://github.com/badlogic/pi-mono",
+              gitRef: "main",
+              commitSha: "853a80d0000000000000000000000000000000000",
+              requestedRef: "main",
+              filePath:
+                "packages/coding-agent/src/core/compaction/compaction.ts",
+              repositoryFilePath:
+                "packages/coding-agent/src/core/compaction/compaction.ts",
+              startLine: 920,
+              endLine: 930,
+              evidenceRange: {
+                startLine: 920,
+                endLine: 930,
+                matchLine: 924,
+                rangeKind: "match_window",
+                matchSpansTruncated: false,
+              },
+              indexedRange: { startLine: 858, endLine: 964 },
+              symbolContext: {
+                name: "compact",
+                qualifiedPath: "Compaction.compact",
+                kind: "function",
+                relation: "ENCLOSES_MATCH",
+                definitionRange: {
+                  filePath:
+                    "packages/coding-agent/src/core/compaction/compaction.ts",
+                  repositoryFilePath:
+                    "packages/coding-agent/src/core/compaction/compaction.ts",
+                  startLine: 858,
+                  endLine: 964,
+                },
+              },
+            },
+          },
+        ],
+        page: { offset: 0, limit: 15, returned: 1, hasMore: false },
+        partialResults: false,
+        sourceStatus: [],
+      };
+      const fn = mockFetch(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              data:
+                operation === "search"
+                  ? {
+                      search: {
+                        completed: true,
+                        searchRef: "search-ref-evidence",
+                        result: searchResult,
+                        progress: null,
+                      },
+                    }
+                  : {
+                      discoverySearchProgress: {
+                        searchRef: "search-ref-evidence",
+                        status: "COMPLETED",
+                        targetsTotal: 1,
+                        targetsReady: 1,
+                        elapsedMs: 12,
+                        query: searchResult.query,
+                        queryWarnings: [],
+                        sources: ["CODE"],
+                        results: searchResult,
+                      },
+                    },
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          ),
+        ),
+      );
+      const service = new CodeNavigationServiceImpl(
+        BASE_URL,
+        createMockTokenProvider(),
+        globalThis.fetch,
+      );
+
+      const outcome =
+        operation === "search"
+          ? await service.search({
+              targets: [{ repoUrl: "https://github.com/badlogic/pi-mono" }],
+              query: searchResult.query,
+            })
+          : await service.searchStatus("search-ref-evidence");
+
+      if (outcome.state !== "completed") {
+        throw new Error("expected completed search outcome");
+      }
+      expect(outcome.result.results[0]?.locator).toMatchObject({
+        startLine: 920,
+        endLine: 930,
+        commitSha: "853a80d0000000000000000000000000000000000",
+        repositoryFilePath:
+          "packages/coding-agent/src/core/compaction/compaction.ts",
+        evidenceRange: {
+          startLine: 920,
+          endLine: 930,
+          matchLine: 924,
+          rangeKind: "match_window",
+          matchSpansTruncated: false,
+        },
+        indexedRange: { startLine: 858, endLine: 964 },
+        symbolContext: {
+          relation: "encloses_match",
+          definitionRange: {
+            startLine: 858,
+            endLine: 964,
+          },
+        },
+      });
+      const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+      const query = JSON.parse(init.body as string).query as string;
+      for (const field of [
+        "commitSha",
+        "repositoryFilePath",
+        "evidenceRange",
+        "matchSpansTruncated",
+        "indexedRange",
+        "symbolContext",
+        "definitionRange",
+        "relation",
+      ]) {
+        expect(query).toContain(field);
+      }
+      expect(query).not.toMatch(/\b(?:definitionBody|fileBody|body|content)\b/);
+    });
+  }
+
+  it.each([
+    {
+      name: "an enclosing relation without a definition range",
+      symbolContext: {
+        name: "compact",
+        relation: "ENCLOSES_MATCH",
+      },
+    },
+    {
+      name: "a partial associated definition locator",
+      symbolContext: {
+        name: "compact",
+        relation: "ASSOCIATED_WITH_INDEXED_CHUNK",
+        definitionRange: {
+          filePath: "src/compact.ts",
+          startLine: 1,
+          endLine: 2,
+        },
+      },
+    },
+  ])("rejects $name", async ({ symbolContext }) => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              search: {
+                completed: true,
+                searchRef: null,
+                result: {
+                  query: "compact",
+                  queryWarnings: [],
+                  sources: ["CODE"],
+                  results: [
+                    {
+                      id: "bad-symbol-context",
+                      resultType: "REPOSITORY_CODE",
+                      targetLabel: "badlogic/pi-mono@main",
+                      locator: {
+                        filePath: "src/compact.ts",
+                        startLine: 1,
+                        endLine: 1,
+                        symbolContext,
+                      },
+                    },
+                  ],
+                  page: { offset: 0, limit: 10, returned: 1, hasMore: false },
+                  partialResults: false,
+                  sourceStatus: [],
+                },
+                progress: null,
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    await expect(
+      service.search({
+        targets: [{ repoUrl: "https://github.com/badlogic/pi-mono" }],
+        query: "compact",
+      }),
+    ).rejects.toBeInstanceOf(MalformedCodeNavigationResponseError);
+  });
+
+  it("accepts identity-only, absent-symbol, and one-line boundary evidence", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              search: {
+                completed: true,
+                searchRef: null,
+                result: {
+                  query: "compact",
+                  queryWarnings: [],
+                  sources: ["CODE"],
+                  results: [
+                    {
+                      id: "identity-only",
+                      resultType: "REPOSITORY_CODE",
+                      targetLabel: "badlogic/pi-mono@main",
+                      locator: {
+                        filePath: "src/compact.ts",
+                        startLine: 1,
+                        endLine: 1,
+                        evidenceRange: {
+                          startLine: 1,
+                          endLine: 1,
+                          matchLine: 1,
+                          rangeKind: "match_window",
+                          matchSpansTruncated: true,
+                        },
+                        indexedRange: { startLine: 1, endLine: 1 },
+                        symbolContext: {
+                          name: "compact",
+                          relation: "ASSOCIATED_WITH_INDEXED_CHUNK",
+                        },
+                      },
+                    },
+                    {
+                      id: "absent-symbol",
+                      resultType: "REPOSITORY_CODE",
+                      targetLabel: "badlogic/pi-mono@main",
+                      locator: {
+                        filePath: "src/top-level.ts",
+                        startLine: 1,
+                        endLine: 1,
+                        symbolContext: null,
+                      },
+                    },
+                  ],
+                  page: { offset: 0, limit: 10, returned: 2, hasMore: false },
+                  partialResults: false,
+                  sourceStatus: [],
+                },
+                progress: null,
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    const outcome = await service.search({
+      targets: [{ repoUrl: "https://github.com/badlogic/pi-mono" }],
+      query: "compact",
+    });
+    if (outcome.state !== "completed") {
+      throw new Error("expected completed search outcome");
+    }
+    expect(outcome.result.results[0]?.locator.symbolContext).toEqual({
+      name: "compact",
+      qualifiedPath: undefined,
+      kind: undefined,
+      relation: "associated_with_indexed_chunk",
+      definitionRange: undefined,
+    });
+    expect(outcome.result.results[0]?.locator.evidenceRange).toMatchObject({
+      startLine: 1,
+      endLine: 1,
+      matchSpansTruncated: true,
+    });
+    expect(outcome.result.results[1]?.locator.symbolContext).toBeUndefined();
+  });
+
   it("forwards the search-status wait window to GraphQL", async () => {
     let capturedBody = "";
     globalThis.fetch = mock((_, init?: RequestInit) => {
