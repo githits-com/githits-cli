@@ -3,7 +3,10 @@ import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import { throwIfTermsAcceptanceRequired } from "../shared/terms-acceptance.js";
 import { validateServiceUrl } from "./config.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
-import { parseRetryAfterSeconds } from "./githits-service.js";
+import {
+  isTokenRefreshableError,
+  parseRetryAfterSeconds,
+} from "./githits-service.js";
 import {
   type ServiceDiagnostics,
   withServiceDiagnostics,
@@ -184,8 +187,9 @@ export class AgenticAskServiceImpl implements AgenticAskService {
               getToken: () => this.tokenProvider.getToken(),
               forceRefresh: () => this.tokenProvider.forceRefresh(),
               shouldRefresh: (error) =>
-                error instanceof AgenticAskHttpError &&
-                error.code === "AUTH_REQUIRED",
+                (error instanceof AgenticAskHttpError &&
+                  error.code === "AUTH_REQUIRED") ||
+                isTokenRefreshableError(error),
               executeWithToken: (token) =>
                 this.executeAsk(token, request, signal),
             }),
@@ -244,7 +248,15 @@ export class AgenticAskServiceImpl implements AgenticAskService {
       throw createHttpError(response, toolCallId);
     }
 
-    const body = await readBoundedResponseBody(response);
+    let body: string;
+    try {
+      body = await readBoundedResponseBody(response);
+    } catch (cause) {
+      if (signal.aborted || cause instanceof AgenticAskResponseTooLargeError) {
+        throw cause;
+      }
+      throw new AgenticAskConnectionError({ cause });
+    }
     let raw: unknown;
     try {
       raw = JSON.parse(body);

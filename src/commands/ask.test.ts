@@ -333,9 +333,11 @@ describe("askAction", () => {
 describe("Agentic Ask human formatting", () => {
   it("preserves markdown newlines while stripping terminal controls", () => {
     const formatted = formatAgenticAskHumanResponse(
-      result({ answer_markdown: "First\n\u001b[31mSecond\u0007" }),
+      result({
+        answer_markdown: "First\n\tindented\n\t\tdeep\n\u001b[31mSecond\u0007",
+      }),
     );
-    expect(formatted).toContain("First\nSecond");
+    expect(formatted).toContain("First\n\tindented\n\t\tdeep\nSecond");
     expect(formatted).not.toContain("\u001b");
     expect(formatted).not.toContain("\u0007");
   });

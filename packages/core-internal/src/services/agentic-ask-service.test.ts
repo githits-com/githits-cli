@@ -3,6 +3,7 @@ import { TermsAcceptanceRequiredError } from "../shared/terms-acceptance.js";
 import {
   AGENTIC_ASK_MAX_RESPONSE_BYTES,
   type AgenticAskCliResponse,
+  AgenticAskConnectionError,
   AgenticAskHttpError,
   AgenticAskRequestTimeoutError,
   AgenticAskResponseTooLargeError,
@@ -170,6 +171,34 @@ describe("AgenticAskServiceImpl", () => {
     ]);
   });
 
+  it("refreshes an OAuth token once after a terms gate", async () => {
+    const forceRefresh = mock(() => Promise.resolve("fresh-token"));
+    const tokenProvider = createMockTokenProvider({
+      getToken: mock(() => Promise.resolve("stale.jwt.token")),
+      forceRefresh,
+    });
+    let requestCount = 0;
+    const fetchFn = mock(() => {
+      requestCount += 1;
+      return Promise.resolve(
+        requestCount === 1
+          ? new Response(
+              JSON.stringify({ code: "TERMS_ACCEPTANCE_REQUIRED" }),
+              { status: 403 },
+            )
+          : jsonResponse(),
+      );
+    }) as unknown as typeof fetch;
+
+    await createService(fetchFn, { tokenProvider }).ask({
+      target: "npm:example",
+      question: "How is it used?",
+    });
+
+    expect(forceRefresh).toHaveBeenCalledTimes(1);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
   it("does not attempt local refresh for an opaque API token", async () => {
     const forceRefresh = mock(() => Promise.resolve("unexpected"));
     const fetchFn = mock(() =>
@@ -298,6 +327,26 @@ describe("AgenticAskServiceImpl", () => {
       name: "MalformedAgenticAskResponseError",
       message: "GitHits returned an invalid Agentic Ask response.",
     });
+  });
+
+  it("maps a successful-response stream reset to a connection error", async () => {
+    const service = createService(
+      mock(() =>
+        Promise.resolve(
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(new Error("connection reset"));
+              },
+            }),
+          ),
+        ),
+      ) as unknown as typeof fetch,
+    );
+
+    await expect(
+      service.ask({ target: "npm:example", question: "How?" }),
+    ).rejects.toBeInstanceOf(AgenticAskConnectionError);
   });
 
   it.each([
