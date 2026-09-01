@@ -869,49 +869,48 @@ function formatChangesSection(
       (line) => colorizeSignalKeywords(line, keywords, useColors),
     );
   }
-  if (changelog.keywordEntries.length > 0) {
+  const renderedKeys = new Set<string>();
+  const keywordEntries = changelog.keywordEntries.filter((entry) => {
+    const key = changelogEntryKey(entry);
+    if (renderedKeys.has(key)) return false;
+    renderedKeys.add(key);
+    return true;
+  });
+  if (keywordEntries.length > 0) {
     lines.push("  Heuristic release entries");
-    for (const entry of changelog.keywordEntries) {
+    for (const entry of keywordEntries) {
       lines.push(
         ...formatKeywordChangelogEntry(entry, options, width, useColors),
       );
     }
-    const keywordKeys = new Set(
-      changelog.keywordEntries.map((entry) => changelogEntryKey(entry)),
-    );
-    const sampledKeys = new Set(keywordKeys);
-    const sampledEntries = changelog.sampledEntries.filter((entry) => {
+  }
+  const sampledEntries = changelog.sampledEntries.filter((entry) => {
+    const key = changelogEntryKey(entry);
+    if (renderedKeys.has(key)) return false;
+    renderedKeys.add(key);
+    return true;
+  });
+  appendPlainChangelogEntries(
+    lines,
+    "Sampled release entries",
+    sampledEntries,
+    width,
+  );
+  if (options.verbose === true) {
+    const otherEntries = changelog.entries.filter((entry) => {
+      if (!entry.bodyPreview) return false;
       const key = changelogEntryKey(entry);
-      if (sampledKeys.has(key)) return false;
-      sampledKeys.add(key);
+      if (renderedKeys.has(key)) return false;
+      renderedKeys.add(key);
       return true;
     });
     appendPlainChangelogEntries(
       lines,
-      "Sampled release entries",
-      sampledEntries,
+      "Other release entries",
+      otherEntries,
       width,
     );
-    if (options.verbose === true) {
-      const otherEntries = changelog.entries.filter(
-        (entry) =>
-          entry.bodyPreview && !sampledKeys.has(changelogEntryKey(entry)),
-      );
-      appendPlainChangelogEntries(
-        lines,
-        "Other release entries",
-        otherEntries,
-        width,
-      );
-    }
   }
-  if (changelog.keywordEntries.length === 0)
-    appendPlainChangelogEntries(
-      lines,
-      "Sampled release entries",
-      changelog.sampledEntries,
-      width,
-    );
   return lines;
 }
 

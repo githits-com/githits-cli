@@ -1008,6 +1008,106 @@ describe("package upgrade review response", () => {
     expect(otherSection).not.toContain(sampledEntry.htmlUrl);
   });
 
+  it("renders verbose extras when no keyword entries are available", () => {
+    const base = formatterReview();
+    const sampledEntry = {
+      ...base.changelog.entries[0]!,
+      version: "4.4.2",
+      htmlUrl: "https://example.com/releases/sampled-without-keywords",
+      headline: "Sampled release",
+      signals: [],
+    };
+    const otherEntry = {
+      ...sampledEntry,
+      version: "4.4.1",
+      htmlUrl: "https://example.com/releases/other-without-keywords",
+      headline: "Other release",
+      body: "Other release body",
+      bodyPreview: "Other release body",
+    };
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([
+        formatterReview({
+          changelog: {
+            ...base.changelog,
+            entries: [sampledEntry, otherEntry],
+            sampledEntries: [sampledEntry],
+            keywordEntries: [],
+            totalKeywordEntries: 0,
+            totalEntries: 2,
+            totalEntriesWithBodies: 2,
+            breakingSignals: [],
+            migrationSignals: [],
+          },
+        }),
+      ]),
+      { verbose: true },
+    );
+
+    expect(text).toContain("Sampled release entries");
+    expect(text).toContain("Other release entries");
+    expect(text).toContain(otherEntry.htmlUrl);
+    expect(text.split(sampledEntry.htmlUrl).length - 1).toBe(1);
+    expect(text.split(otherEntry.htmlUrl).length - 1).toBe(1);
+  });
+
+  it("deduplicates entries within each rendered changelog tier", () => {
+    const base = formatterReview();
+    const keywordEntry = {
+      ...base.changelog.keywordEntries[0]!,
+      version: "4.4.3",
+      htmlUrl: "https://example.com/releases/duplicate-keyword",
+      headline: "Keyword release",
+    };
+    const duplicateKeyword = {
+      ...keywordEntry,
+      headline: "Duplicate keyword release",
+    };
+    const sampledEntry = {
+      ...keywordEntry,
+      version: "4.4.2",
+      htmlUrl: "https://example.com/releases/duplicate-sampled",
+      headline: "Sampled release",
+      signals: [],
+    };
+    const duplicateSampled = {
+      ...sampledEntry,
+      headline: "Duplicate sampled release",
+    };
+    const otherEntry = {
+      ...sampledEntry,
+      version: "4.4.1",
+      htmlUrl: "https://example.com/releases/duplicate-other",
+      headline: "Other release",
+      body: "Other release body",
+      bodyPreview: "Other release body",
+    };
+    const duplicateOther = {
+      ...otherEntry,
+      headline: "Duplicate other release",
+    };
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([
+        formatterReview({
+          changelog: {
+            ...base.changelog,
+            entries: [keywordEntry, sampledEntry, otherEntry, duplicateOther],
+            sampledEntries: [sampledEntry, duplicateSampled],
+            keywordEntries: [keywordEntry, duplicateKeyword],
+            totalKeywordEntries: 2,
+            totalEntries: 4,
+            totalEntriesWithBodies: 4,
+          },
+        }),
+      ]),
+      { verbose: true },
+    );
+
+    expect(text.split(keywordEntry.htmlUrl).length - 1).toBe(1);
+    expect(text.split(sampledEntry.htmlUrl).length - 1).toBe(1);
+    expect(text.split(otherEntry.htmlUrl).length - 1).toBe(1);
+  });
+
   it("keeps no-color text ASCII-authored and colors attention without changing words", () => {
     const plain = formatPackageUpgradeReviewTerminal(formatterResponse(), {
       useColors: false,
