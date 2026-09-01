@@ -115,6 +115,26 @@ describe("askAction", () => {
     expect(write).not.toHaveBeenCalled();
   });
 
+  it("stops interactive progress before writing the answer", async () => {
+    const events: string[] = [];
+    const write = spyOn(process.stdout, "write").mockImplementation(() => {
+      events.push("answer");
+      return true;
+    });
+
+    await askAction(
+      "npm:example",
+      "How?",
+      {},
+      createDeps(undefined, {
+        createSpinner: () => ({ stop: () => events.push("spinner stopped") }),
+      }),
+    );
+
+    expect(events).toEqual(["spinner stopped", "answer"]);
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+
   it("throws the standard auth error before invoking the service", async () => {
     const ask = mock(() => Promise.resolve(result()));
     await expect(
@@ -277,13 +297,15 @@ describe("Agentic Ask human formatting", () => {
           "githits@latest",
           "code",
           "read",
+          "--lines",
+          "1-2",
           "--",
           "github:owner/repo",
           "path with 'quote'\nand control.ts",
         ],
       }),
     ).toBe(
-      `npx githits@latest code read -- github:owner/repo 'path with '"'"'quote'"'"'and control.ts'`,
+      `npx githits@latest code read --lines 1-2 -- github:owner/repo 'path with '"'"'quote'"'"'and control.ts'`,
     );
   });
 });

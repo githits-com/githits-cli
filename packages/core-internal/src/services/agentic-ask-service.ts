@@ -15,10 +15,34 @@ export const AGENTIC_ASK_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 const UUID_V7_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const sourceLineRangeSchema = z.string().regex(/^\d+-\d+$/);
+
+const cliSourceArgumentsSchema = z.union([
+  z.tuple([
+    z.literal("githits@latest"),
+    z.literal("code"),
+    z.literal("read"),
+    z.literal("--lines"),
+    sourceLineRangeSchema,
+    z.literal("--"),
+    z.string().min(1),
+    z.string().min(1),
+  ]),
+  z.tuple([
+    z.literal("githits@latest"),
+    z.literal("docs"),
+    z.literal("read"),
+    z.literal("--lines"),
+    sourceLineRangeSchema,
+    z.literal("--"),
+    z.string().min(1),
+  ]),
+]);
+
 const cliSourceCallSchema = z
   .object({
     command: z.literal("npx"),
-    arguments: z.array(z.string()).min(1),
+    arguments: cliSourceArgumentsSchema,
   })
   .strict();
 
@@ -42,7 +66,18 @@ export interface AgenticAskRequestOptions {
 
 export interface AgenticAskCliSourceCall {
   command: "npx";
-  arguments: string[];
+  arguments:
+    | [
+        "githits@latest",
+        "code",
+        "read",
+        "--lines",
+        string,
+        "--",
+        string,
+        string,
+      ]
+    | ["githits@latest", "docs", "read", "--lines", string, "--", string];
 }
 
 export interface AgenticAskCliResponse {

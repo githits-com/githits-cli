@@ -18,6 +18,7 @@ import {
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
+import type { Spinner } from "../shared/spinner.js";
 import { startSpinner } from "../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
 import {
@@ -34,6 +35,7 @@ export interface AskCommandDependencies {
   hasValidToken: boolean;
   mcpUrl: string;
   signal?: AbortSignal;
+  createSpinner?: () => Spinner;
 }
 
 interface AskCliError {
@@ -57,18 +59,21 @@ export async function askAction(
     throw error;
   }
 
-  const spinner = startSpinner(SPINNER_MESSAGES.ask, !options.json);
+  const spinner =
+    deps.createSpinner?.() ?? startSpinner(SPINNER_MESSAGES.ask, !options.json);
   try {
     const result = await deps.agenticAskService.ask(
       { target, question },
       deps.signal ? { signal: deps.signal } : undefined,
     );
+    spinner.stop();
     if (options.json) {
       console.log(JSON.stringify(result));
     } else {
       process.stdout.write(formatAgenticAskHumanResponse(result));
     }
   } catch (error) {
+    spinner.stop();
     if (isCallerCancellation(error, deps.signal)) throw error;
     const failure = mapAgenticAskErrorForCli(error);
     if (options.json) {
@@ -87,8 +92,6 @@ export async function askAction(
       );
     }
     process.exit(1);
-  } finally {
-    spinner.stop();
   }
 }
 

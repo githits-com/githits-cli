@@ -194,6 +194,17 @@ describe("AgenticAskServiceImpl", () => {
       responseBody({ tool_call_id: "018f47a6-7b32-4a1e-8f45-6a2d39c81720" }),
       responseBody({ usage: { input_tokens: 1 } }),
       responseBody({ answer_markdown: "" }),
+      responseBody({
+        sources: [{ command: "npx", arguments: ["attacker-package"] }],
+      }),
+      responseBody({
+        sources: [
+          {
+            command: "npx",
+            arguments: ["githits@latest", "code", "read", "npm:example"],
+          },
+        ],
+      }),
       { answer_markdown: "missing fields" },
     ];
 
