@@ -15,6 +15,9 @@ coverage
 .claude
 .agent-eval/
 
+# Braintrust local state
+.bt/
+
 # logs
 logs
 _.log

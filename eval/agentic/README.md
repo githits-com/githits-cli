@@ -20,7 +20,7 @@ The repository-local named-suite commands below are the local measurement
 workflow. They run the fixed Luna matrix and produce validated suite and
 comparison artifacts. The CI workflow composes the same commands for daily and
 explicitly authorized pull-request runs; it retains raw artifacts for diagnosis
-but does not provide long-term service history or judge answer quality.
+and exports normalized rows to Braintrust, but does not judge answer quality.
 
 ## What Is Under Test
 
@@ -335,9 +335,194 @@ descriptor shards/cells to `discovery` and full to `full`; missing, null, or
 other profiles are rejected rather than mapped to `intent`. Legacy child
 `metrics.json` files use the one-off v1 metrics normalizer.
 
-These local commands are diagnostic measurement tools. CI scheduling is
-implemented by `.github/workflows/agent-evals.yml`; persistent result history,
-service export, Haiku coverage, and quality judging remain later phases.
+These local commands are diagnostic measurement tools. CI scheduling and
+Braintrust export are implemented by `.github/workflows/agent-evals.yml`;
+Haiku coverage and quality judging remain later phases.
+
+## Braintrust persistence
+
+The exporter persists normalized suite evidence in the Braintrust project
+`githits-cli-agent-evals` using the exact `braintrust` SDK `3.29.0`. It creates
+one top-level `type: "eval"` span per scenario/workload cell and does not upload
+raw stdout, stderr, provider events, environment/configuration, or arbitrary
+artifacts. Known logical tool calls are safe structural `type: "tool"` child
+spans under that eval root. No quality score is fabricated; self-reported
+confidence remains diagnostic metadata.
+The exporter metadata contract is schema/version 2; both values are recorded
+in experiment metadata for regression attribution. The safe CLI result keeps
+its separate result-file schema version 2.
+
+One exporter invocation is one immutable experiment. A scenario/workload cell
+is one eval row, and each normalized logical tool call is one structural tool
+child. The exporter owns stable names: `main-r<RUN_ID>-a<ATTEMPT>` for main,
+`pr-<PR_NUMBER>-r<RUN_ID>-a<ATTEMPT>` for trusted same-repository pull
+requests, and
+`local-<branch-slug>-<UTC-timestamp-with-milliseconds>-<short-sha>` for local
+exports. Local branch slugs are lowercase, collapse each run of
+non-ASCII-alphanumeric characters to one hyphen, and trim hyphens. Source,
+channel, branch, optional PR number, full SHA, run identity, and evaluated
+target dirty state are also retained in allowlisted metadata/tags and
+`repoInfo`.
+
+Before experiment initialization, the exporter scans the newest-first project
+pages through the same authenticated Braintrust integration boundary and picks
+the first returned object with `metadata.channel: main` and a
+`main-r...-a...` name. It filters client-side, paginating with the final object
+ID while a page is full; it does not send a metadata filter. That ID is passed
+as `baseExperimentId`. An explicit local `--base-experiment` takes precedence
+and skips discovery. PR and default-local exports fail before initialization if
+no main baseline exists. The first main run is a one-time bootstrap and may
+retain SDK automatic ancestry; the returned actual base is reported, but that
+bootstrap is not linkage acceptance evidence.
+
+After flush, the exporter calls `fetchBaseExperiment()` and reports the actual
+safe base `{id, name}` or `null` in the result. Validate-only builds and prints
+the same identity without credentials, network access, or baseline discovery;
+its base is unresolved/not queried. This deterministic identity/linkage
+contract is covered by focused tests, but has not yet been live-proven for a
+later main run linking to main, a PR linking to main, and a local run linking
+to main. Existing `github-*` experiments are historical records from the old
+identity contract and are not current baselines.
+For exports, the reported experiment name is the SDK's actual server name
+after flush, which may differ from a reused explicit local name when Braintrust
+de-duplicates it. Validate-only reports the requested or generated name.
+
+The row mapper uses Braintrust-native metrics for duration (`duration`, in
+seconds), token totals and breakdowns (`tokens`, `prompt_tokens`,
+`prompt_cached_tokens`,
+`prompt_cache_creation_tokens`, `completion_tokens`, and
+`completion_reasoning_tokens`), and rate-based cost (`estimated_cost`). It
+retains only the GitHits-specific `mcp_tool_calls`, `cli_tool_calls`,
+`tool_calls_started`, `tool_calls_completed`, `tool_calls_unknown`, and
+`raw_tool_events` metrics. The superseded pre-structural native-root export
+from the accepted artifacts (`poc-33381601980-native-root`, Braintrust ID
+`dfa37c74-0b31-4b48-aeb1-a2698a03cecc`, 23 rows) populated native duration,
+prompt/completion/cache/reasoning token buckets, total `tokens`, and estimated
+cost in readback/comparison. Bounded SQL totals were
+`prompt_tokens=2,861,042`, `completion_tokens=20,942`,
+`tokens=2,881,984`, and `estimated_cost=0.23660003`; duration ranged from 8.53
+to 207.317 seconds. This is local evidence, not CI proof. Native structural
+tool views are populated by the current exporter: completed/failed child spans
+carry exact harness-observed start/end times and computed duration, while
+started-only children remain open without a fabricated duration. Root rows do
+not set `tool_calls` or `tool_errors`; Braintrust derives those native metrics
+from the structural children. The labeled CI proof is recorded below;
+default-branch scheduled/manual activation remains pending merge.
+
+The current local native structural proof used suite
+`.agent-eval/suites/native-tool-smoke-2` at target and measurement commit
+`4850299`. Its Luna-low intent canary ran with workload concurrency 2: 2/2
+workloads succeeded, with 10 logical MCP calls, zero CLI calls and failures,
+and complete harness-observed intervals for all 10 calls. Wall time was
+43.447 seconds, cumulative agent time 71.855 seconds, and estimated cost
+`$0.02070904`.
+
+The resulting experiment `poc-native-tool-spans-v2-20260831` (ID
+`e8480301-6622-4a06-a37b-0ebd0e42bb64`,
+<https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/poc-native-tool-spans-v2-20260831>)
+read back two eval roots and 10 structural tool children. Native comparison
+reported `tool_calls` average `5.0` and `tool_errors` `0`. Child SQL showed
+exact observed start/end values and computed durations totaling 30.970 seconds,
+with individual durations from 0.006 to 10.400 seconds; eval duration totaled
+71.855 seconds. Native token and cost fields remain populated. This is local
+proof, not CI proof. The preceding `poc-native-tool-spans-20260831` experiment
+proved counts and timestamps but had null child duration and is superseded by
+the v2 experiment.
+
+The qualifying labeled CI proof is GitHub run
+[33424857668](https://github.com/githits-com/githits-cli/actions/runs/33424857668)
+at code SHA `7195ccc56b9ac9288dfb3d8de854f2f0e7ae7cf0`. Discovery completed in
+40 seconds, intent in 2 minutes 32 seconds, and summary/export in 22 seconds,
+for about 3 minutes total. Its Braintrust experiment is
+`github-33424857668-1` (ID `182ee9db-0df3-40f4-8987-6eeb6d91a89b`), with source
+`github`, exporter/schema 2, and metrics schema 3. Readback reconciled 23 eval
+spans and 116 structural tool spans exactly to 116 MCP calls: zero CLI calls
+and zero failed tool spans. Totals were 513.911 seconds of eval duration,
+126.458999872 seconds of tool duration, 2,686,094 prompt tokens, 20,172
+completion tokens, 2,706,266 total tokens, and estimated cost `$0.22819038`.
+Standard Braintrust compare averages were duration
+`22.343956532685652`, estimated cost `$0.009921320869565216`, tool calls
+`5.043478260869565`, tool errors `0`, and total tokens
+`117663.73913043478`. This validates the labeled pull-request path; default-
+branch scheduled/manual activation remains pending merge. No paid rerun
+was made for this documentation-only closeout.
+
+Validate downloaded or local suites without credentials or network access:
+
+```bash
+bun run agent:e2e:braintrust \
+  --suite discovery=.agent-eval/suites/<discovery>/suite.json \
+  --suite intent=.agent-eval/suites/<intent>/suite.json \
+  --project githits-cli-agent-evals \
+  --validate-only
+```
+
+Validation requires non-dry-run suites with complete contained child evidence.
+It rejects dry-run suites, suites with no workload cells, duplicate
+scenario/workload cells, mixed identity or schema contracts, and missing/unsafe
+prompts. Failed or partial cells remain exportable when their report, metrics,
+workload, and prompt evidence are complete; tool-bearing legacy cells upgraded
+with null timing are rejected because accurate structural spans cannot be
+created. Validate all suite inputs before an export; the command reports only
+safe identities and row counts in validate-only mode.
+
+For a local export using the authenticated `bt` profile, run the same official
+entrypoint through `bt eval`:
+
+```bash
+bt eval --runner bun --no-auto-instrumentation scripts/agent-eval-braintrust.ts -- \
+  --suite discovery=.agent-eval/suites/<discovery>/suite.json \
+  --suite intent=.agent-eval/suites/<intent>/suite.json \
+  --project githits-cli-agent-evals \
+  --source local \
+  --result-out .agent-eval/braintrust-result.json
+```
+
+This default local export lets the exporter choose its stable name and resolve
+the latest main baseline. Use `--branch <branch>` only for a detached suite;
+`--experiment <name>` and `--base-experiment <main-r...-a...>` are local-only
+overrides. CI supplies its channel, branch, PR number, run ID, attempt, and URL
+through environment-bound arguments and does not pass `--experiment`.
+
+The result file is safe to retain and uses result-file `schemaVersion: 2`; it
+contains only mode, project, experiment, row count, suite summaries, export
+URL, and the actual base `{id, name}` or `null`. In validate-only mode
+`baseExperiment: null` means unresolved/not queried; in export mode `null`
+means required Braintrust readback returned no actual linked base. It contains
+no prompt, answer, row body, artifact path, or credential. The direct command
+`bun run agent:e2e:braintrust` is also the CI path; CI scopes
+`BRAINTRUST_API_KEY` only to that export step and never installs or runs `bt`.
+The workflow renders the existing report and retains raw artifacts for 14 days
+before exporting; a final no-secret step names scenario, report, or Braintrust
+failure while preserving the earlier evidence.
+
+Inspect persisted history with the authenticated profile:
+
+```bash
+bt experiments --json --project githits-cli-agent-evals list
+bt experiments --json --project githits-cli-agent-evals view <experiment-name>
+bt sql --json --non-interactive "SELECT input, output, metrics, metadata, tags FROM experiment('<experiment-id>') WHERE span_attributes.type = 'eval' LIMIT 23"
+bt sql --json --non-interactive "SELECT name, span_attributes.type, metrics, metadata FROM experiment('<experiment-id>') WHERE span_attributes.type = 'tool' LIMIT 100"
+```
+
+An exported experiment contains one eval root per workload cell plus one
+structural tool child per normalized logical call. Filter
+`span_attributes.type` when counting workload rows; an unfiltered `count(*)`
+includes both kinds of span.
+
+The exercised comparison command is:
+
+```bash
+bt experiments --json --project githits-cli-agent-evals compare <experiment-a> <experiment-b>
+```
+
+The prior custom-only rows produced only generic Braintrust trace metrics, all
+zero, and did not surface their custom eval telemetry; that remains a historical
+observation about those older rows. The preceding native-root experiment is
+also historical: it set root `tool_calls=119` and `tool_errors=2`, so its
+comparison reported zero before structural child spans were implemented. Use
+the v2 experiment above for the current native tool comparison and bounded SQL
+for the exact GitHits-specific sequence/count metadata.
 
 ## Daily CI workflow
 
@@ -371,8 +556,9 @@ configuration are never copied into CI. The scenario directories are uploaded
 as `agent-eval-discovery` and `agent-eval-intent` artifacts for 14 days.
 
 The final summary job always runs for an authorized workflow, downloads both
-scenario artifacts without flattening them, and appends the concise report to
-`GITHUB_STEP_SUMMARY`. The local equivalent is:
+scenario artifacts without flattening them, appends the concise report to
+`GITHUB_STEP_SUMMARY`, and then exports the normalized 23-cell result to
+Braintrust. The local equivalent report command is:
 
 ```bash
 bun run agent:e2e:ci-report \
@@ -384,16 +570,23 @@ bun run agent:e2e:ci-report \
 The report is absolute: it links to the workflow run, shows schema/harness and
 Codex identity, successful/expected cells, wall and cumulative time, logical
 MCP/CLI calls, deterministic per-tool counts, token buckets, cost uncertainty,
-concurrency, and warnings. It never loads a baseline or calculates deltas.
+concurrency, and warnings. It never loads a baseline or calculates deltas. The
+subsequent Braintrust export uses the same validated suites and has no quality
+judge or metric-based failure gate; it resolves and records the native
+Braintrust base link after the report is rendered. The concise report remains
+absolute.
 Missing or malformed suite evidence, zero selected workloads or zero expected
 executions, partial/failed/timeout execution, unknown or missing workload cells,
 CLI fallback, and isolation violations make the workflow fail only after the
 report is rendered. A successful discovery run with zero GitHits calls and
-ordinary telemetry warnings remain advisory. The initial healthy two-job path
-is expected to take about 5–6 minutes and costs
-about $0.23 as a base-rate estimate, not a billing guarantee. The workflow
-does not judge answer quality or provide persistent history; those are later
-service work.
+ordinary telemetry warnings remain advisory. The two observed healthy workflow
+paths took about 2 minutes 42 seconds and 4 minutes 33 seconds end to end; this
+is an observed range, not a future-run guarantee. The 2-minute-42-second path
+had a $0.2514 rate-based cost estimate from the measured model rates; this is
+not a billing guarantee. The workflow does not judge answer quality. Braintrust
+persistence is observational;
+export failure preserves the report/artifacts and makes the final workflow
+status red.
 
 For ad hoc interactive testing with the same MCP/skills setup logic:
 
@@ -576,8 +769,8 @@ bun run agent:e2e:report .agent-eval/runs/<run>
 
 Named suites are available through `agent:e2e:suite`. Use
 `--scenario full` for a local/manual full-guidance run. Daily pipeline
-execution is provided by `.github/workflows/agent-evals.yml`; persistent result
-history, service export, and quality judging remain later phases.
+execution and persistent result export are provided by
+`.github/workflows/agent-evals.yml`; quality judging remains a later phase.
 
 For broad skill edits, run at least:
 
@@ -706,7 +899,7 @@ Each run writes:
   an external/descriptor guidance read or MCP CLI fallback, it writes redacted
   `isolation-violations.json` and marks the workload failed.
 
-Current one-off metrics are schema version 2. Run metadata and normalized
+Current one-off metrics are schema version 3. Run metadata and normalized
 records expose `scenario`, `intentProfile`, and `intentFragmentHash`; the latter
 is the SHA-256 hash of the exact intent fragment (`null` for `neutral`). The
 one-off report and human summary expose the same identity plus the exact
@@ -716,6 +909,16 @@ Valid schema-v1 metrics remain readable through deterministic normalization: his
 missing, null, or other profiles are rejected rather than mapped to `intent`.
 No historical descriptor/full record is inferred to have used the intent
 fragment.
+
+The harness records an ISO-8601 `observedAt` when each complete stdout JSONL
+lifecycle line is received. Schema-v3 normalization pairs valid observations
+for each logical call into nullable `startedAt` and `completedAt`; these are
+harness receipt times, not provider execution times. Existing schema-v1 and
+schema-v2 metrics remain readable with missing timing upgraded to `null`.
+Raw `tool-calls.json` lifecycle events may retain their optional `observedAt`.
+Accurate Braintrust export rejects terminal tool-bearing rows without complete,
+valid, ordered observed boundaries; observed started-only calls remain open,
+and zero-tool legacy rows remain exportable.
 
 `metrics.json` is authoritative for normalized usage and cost. For Codex it
 uses the final `turn.completed.usage` aggregate. `input_tokens` is inclusive of
