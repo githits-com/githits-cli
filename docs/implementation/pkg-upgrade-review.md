@@ -340,10 +340,15 @@ summary retains `Target: deprecation unknown`.
 Default samples remain bounded: direct advisories and transitive vulnerable
 package details and dependency-issue locators show up to five rows per category,
 peer changes up to ten, and dependency change details use the existing
-compact/verbose limits. Changelog keyword hits remain visible; ordinary entries
-are sampled. `--verbose` expands the bounded row groups in place without
-changing the JSON response. Backend truncation and unknown evidence remain
-explicit rather than being presented as complete.
+compact/verbose limits. Changelog keyword evidence renders first, followed by
+each distinct sampled release not already represented by keyword evidence, in
+sample source order. Identity-only samples retain their available version,
+publication date, URL, and headline without inventing a body. The existing
+`changelogEntryKey` identity prevents repeats across keyword, sampled, and
+verbose other tiers; verbose other entries remain body-preview-backed.
+`--verbose` expands the bounded row groups in place without changing the JSON
+response. Backend truncation and unknown evidence remain explicit rather than
+being presented as complete.
 
 ## Fact Reporting Rules
 
