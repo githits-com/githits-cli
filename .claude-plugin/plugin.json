@@ -1,6 +1,6 @@
 {
   "name": "githits",
-  "version": "0.11.3",
+  "version": "0.11.4",
   "description": "The code context layer for AI coding agents",
   "author": {
     "name": "GitHits"
