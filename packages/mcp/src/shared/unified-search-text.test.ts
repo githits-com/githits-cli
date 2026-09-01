@@ -327,6 +327,43 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("defined at");
   });
 
+  it("does not imply that a cross-file associated definition shares the evidence file", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          title: "associated",
+          locator: {
+            filePath: "src/evidence.ts",
+            startLine: 20,
+            endLine: 22,
+            evidenceRange: {
+              startLine: 20,
+              endLine: 22,
+              matchSpansTruncated: false,
+            },
+            symbolContext: {
+              name: "associated",
+              kind: "function",
+              relation: "associated_with_indexed_chunk",
+              definitionRange: {
+                filePath: "src/definition.ts",
+                repositoryFilePath: "src/definition.ts",
+                startLine: 1,
+                endLine: 50,
+              },
+            },
+          },
+        }),
+      ]),
+      { width: 200 },
+    );
+
+    expect(text).toContain(
+      "src/evidence.ts:20-22 [repo code] - associated (function)",
+    );
+    expect(text).not.toContain("lines 1-50");
+  });
+
   it("combines Phoenix qualified paths with title arity for docstring evidence", () => {
     const filePath = "lib/mix/tasks/phx.gen.auth/injector.ex";
     const hit = codeHit({

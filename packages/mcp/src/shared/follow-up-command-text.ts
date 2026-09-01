@@ -25,6 +25,15 @@ export function buildSearchHitFollowUpCommand(
       ? buildCliDocsReadCommand(loc.pageId, loc.startLine, loc.endLine)
       : buildDocsReadCommand(loc.pageId, loc.startLine, loc.endLine);
   }
+  if (
+    (hit.type === "repository_code" || hit.type === "repository_symbol") &&
+    loc.repoUrl &&
+    !loc.commitSha &&
+    !loc.gitRef &&
+    !isPackageTarget(hit)
+  ) {
+    return "follow-up unavailable: missing exact revision";
+  }
   const input = buildSearchHitCodeReadInput(hit, syntax);
   if (input) {
     return syntax === "cli"
@@ -101,7 +110,9 @@ function buildSearchHitCodeReadInput(
 
 function boundLargeDefinitionRange(
   definition: { startLine: number; endLine: number },
-  evidence: { startLine: number; endLine: number } | undefined,
+  evidence:
+    | { startLine: number; endLine: number; matchLine?: number }
+    | undefined,
 ): { startLine: number; endLine: number } {
   const latestStart = definition.endLine - MCP_READ_MAX_SPAN + 1;
   const evidenceSpan = evidence
@@ -120,9 +131,20 @@ function boundLargeDefinitionRange(
     return { startLine, endLine: startLine + MCP_READ_MAX_SPAN - 1 };
   }
 
+  const focusedLine = evidence?.matchLine ?? evidence?.startLine;
+  const leadingContext = Math.floor((MCP_READ_MAX_SPAN - 1) / 2);
+  const startLine = Math.min(
+    Math.max(
+      definition.startLine,
+      focusedLine === undefined
+        ? definition.startLine
+        : focusedLine - leadingContext,
+    ),
+    latestStart,
+  );
   return {
-    startLine: definition.startLine,
-    endLine: definition.startLine + MCP_READ_MAX_SPAN - 1,
+    startLine,
+    endLine: startLine + MCP_READ_MAX_SPAN - 1,
   };
 }
 

@@ -1146,8 +1146,11 @@ function formatRepositoryHitTitle(
   const identity = formatRepositorySymbolIdentity(hit);
   const context = hit.locator.symbolContext;
   const definition = context?.definitionRange;
+  const definitionSharesEvidenceFile =
+    definition?.filePath === hit.locator.filePath;
   const definitionDiffers =
     definition !== undefined &&
+    definitionSharesEvidenceFile &&
     (definition.startLine !== evidenceStartLine ||
       definition.endLine !== evidenceEndLine);
   const indexed = hit.locator.indexedRange;

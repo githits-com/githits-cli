@@ -86,7 +86,7 @@ Next: shorten or broaden query; use githits code grep.`;
     expect(() =>
       assertSearchTerminalText(
         "1 result | 1 repo code hit\n\n" +
-          "[1] github:owner/repo#abc123 packages/pkg/src/compact.ts:858-964 [repo code] - compact (evidence 920-930)\n" +
+          "[1] github:owner/repo#abc123 packages/pkg/src/compact.ts:920-930 [repo code] - compact (function at lines 858-964)\n" +
           "  // Merge into single summary",
         "search",
       ),
@@ -94,7 +94,7 @@ Next: shorten or broaden query; use githits code grep.`;
     expect(() =>
       assertSearchTerminalText(
         "1 result | 1 repo symbol\n\n" +
-          "[1] github:owner/repo#abc123 packages/pkg/src/compact.ts:858-964 [repo symbol] - compact",
+          "[1] github:owner/repo#abc123 packages/pkg/src/compact.ts:858-964 [repo symbol] - compact (function)",
         "search",
       ),
     ).not.toThrow();

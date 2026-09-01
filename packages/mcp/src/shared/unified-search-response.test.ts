@@ -469,6 +469,65 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(endEvidencePayload.results[0]?.followUp).toBe(
       'code_read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=987 end_line=1286',
     );
+
+    const oversizedEvidenceHit: UnifiedSearchHit = {
+      ...hit,
+      id: "large-definition-oversized-evidence",
+      locator: {
+        ...hit.locator,
+        startLine: 600,
+        endLine: 950,
+        evidenceRange: {
+          startLine: 600,
+          endLine: 950,
+          matchLine: 900,
+          matchSpansTruncated: true,
+        },
+      },
+    };
+    const oversizedEvidencePayload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits([oversizedEvidenceHit]),
+    );
+    expect(oversizedEvidencePayload.results[0]?.followUp).toBe(
+      'code_read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=751 end_line=1050',
+    );
+  });
+
+  it("does not generate a repository follow-up without an exact served revision", () => {
+    const hit: UnifiedSearchHit = {
+      id: "missing-exact-revision",
+      resultType: "REPOSITORY_CODE",
+      targetLabel: "owner/repo@main",
+      locator: {
+        repoUrl: "https://github.com/owner/repo",
+        requestedRef: "main",
+        filePath: "src/index.ts",
+        repositoryFilePath: "src/index.ts",
+        startLine: 10,
+        endLine: 12,
+        evidenceRange: {
+          startLine: 10,
+          endLine: 12,
+          matchLine: 11,
+          matchSpansTruncated: false,
+        },
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits([hit]),
+    );
+
+    expect(payload.results[0]?.followUp).toBe(
+      "follow-up unavailable: missing exact revision",
+    );
+    expect(payload.results[0]?.followUp).not.toContain("requestedRef");
   });
 
   it("preserves identity-only and absent symbol context without changing legacy locators", () => {
@@ -507,6 +566,10 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       name: "router",
       relation: "associated_with_indexed_chunk",
     });
+    expect(Object.keys(payload.results[0]!.locator.symbolContext!)).toEqual([
+      "name",
+      "relation",
+    ]);
     expect(payload.results[1]?.locator).not.toHaveProperty("symbolContext");
     expect(payload.results[0]?.locator).toMatchObject({
       filePath: "lib/router/index.js",

@@ -147,42 +147,11 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Partial-result truth.** Every result-bearing initial `search` payload and stored `search_status.result` carries the backend's exact `partialResults: boolean`, including `false` for an atomic serveable interim snapshot and `true` for a subset of requested evidence. A progress-only response with no result snapshot omits the field. This additive field is retained unchanged in CLI `--json` and MCP `format: "json"`; text-v1 uses it only to label active results as interim or partial.
 
-**Repository search evidence locators.** Repository code and symbol hits keep the
-legacy target-relative `locator.filePath` and evidence `startLine` / `endLine`
-while also exposing the repository-root `repositoryFilePath`, exact served
-`commitSha`, explicit `evidenceRange`, original `indexedRange`, and optional
-`symbolContext`. Evidence includes `matchLine`, backend `rangeKind`, and
-`matchSpansTruncated`; symbol context keeps backend identity/kind plus the fixed
-lowercase relation `encloses_match` or `associated_with_indexed_chunk`. A proven
-enclosing relation always has one complete `definitionRange` containing both
-target-relative and repository-root paths. Associated or identity-only context
-may omit that range. Malformed partial definition locators invalidate the search
-response instead of being repaired or dropped.
+**Repository search evidence locators.** Repository code and symbol hits keep the legacy target-relative `locator.filePath` and evidence `startLine` / `endLine` while also exposing the repository-root `repositoryFilePath`, exact served `commitSha`, explicit `evidenceRange`, original `indexedRange`, and optional `symbolContext`. Evidence includes `matchLine`, backend `rangeKind`, and `matchSpansTruncated`; symbol context keeps backend identity/kind plus the fixed lowercase relation `encloses_match` or `associated_with_indexed_chunk`. A proven enclosing relation always has one complete `definitionRange` containing both target-relative and repository-root paths. Associated or identity-only context may omit that range. Malformed partial definition locators invalidate the search response instead of being repaired or dropped.
 
-JSON retains all ranges even when their coordinates are equal. Compact text uses
-one repository-hit header shape whose path suffix is always the focused evidence
-range. A meaningful symbol `qualifiedPath` replaces the local name while keeping
-signature detail carried only by the hit title, such as Elixir arity. Symbol kind
-follows the identity, with a differing definition range rendered as
-`(function at lines 100-115)`; a differing indexed range without a definition is
-labelled as a chunk. Equal ranges are printed once. The single
-`followUp` uses the definition only for proven enclosure and otherwise uses the
-evidence range. Repository reads pair `repoUrl` with `commitSha`, falling back
-only to the exact served `gitRef`, and always use `repositoryFilePath`; they never
-combine a repository target with a package-relative path or substitute
-`requestedRef`. A definition wider than the MCP `code_read` 300-line cap keeps
-its true structured range while the generated action requests a bounded window
-centred on the focused evidence. This client contract requires the deployed Phase
-1A GraphQL schema; no legacy retry query or schema probe is attempted. Compact
-repository source summaries retain source line boundaries; when a long source
-comment must wrap, continuation lines repeat its comment marker so the snippet
-stays legible.
+JSON retains all ranges even when their coordinates are equal. Compact text uses one repository-hit header shape whose path suffix is always the focused evidence range. A meaningful symbol `qualifiedPath` replaces the local name while keeping signature detail carried only by the hit title, such as Elixir arity. Symbol kind follows the identity, with a differing same-file definition range rendered as `(function at lines 100-115)`; a differing indexed range without a definition is labelled as a chunk. Equal ranges are printed once. The single `followUp` uses the definition only for proven enclosure and otherwise uses the evidence range. Repository reads pair `repoUrl` with `commitSha`, falling back only to the exact served `gitRef`, and always use `repositoryFilePath`; they never combine a repository target with a package-relative path, substitute `requestedRef`, or generate an unpinned repository action. A definition wider than the MCP `code_read` 300-line cap keeps its true structured range while the generated action requests a bounded window centred on the focused evidence or `matchLine`. This client contract requires the deployed Phase 1A GraphQL schema; no legacy retry query or schema probe is attempted. Compact repository source summaries retain source line boundaries; when a long source comment must wrap, continuation lines repeat its comment marker so the snippet stays legible.
 
-The current evidence body is one contiguous backend-authored excerpt. If search
-later returns selected non-contiguous lines or multiple relevant enclosing
-blocks, the wire contract must carry each line's original coordinate and each
-block boundary. Text can then add line-number gutters and grouped blocks; it
-must not infer consecutive line numbers from `evidenceRange` for that shape.
+The current evidence body is one contiguous backend-authored excerpt. If search later returns selected non-contiguous lines or multiple relevant enclosing blocks, the wire contract must carry each line's original coordinate and each block boundary. Text can then add line-number gutters and grouped blocks; it must not infer consecutive line numbers from `evidenceRange` for that shape.
 
 **Promoted `warnings[]`.** Noteworthy `sourceStatus` entries — sources reporting `incompatibleQueryFeatures`, `ignoredQueryFeatures`, `incompatibleFilters`, `ignoredFilters`, lifecycle anomalies (`indexingStatus`, `codeIndexState`), or a free-form `note` — are also surfaced as a top-level `warnings: string[]` in the completed/incomplete payloads (and appended after parser warnings inside the `search_status` result block). The structured detail still lives in `sourceStatus`; `warnings[]` is the agent-visible signal that something about execution did not match the request. On completed empty results, healthy non-contributor source entries are also retained with zero `resultCount` and served identity; requested/fresh labels emit only when they materially differ from served. Contributor-bearing DOCS rows retain their physical contributors instead of duplicating healthy served/current resolution metadata. Healthy `INDEXED` / `CURRENT` / non-divergent `STALE` states never become warnings. `PROVISIONAL` is queryable but remains a visible non-healthy indexing signal, including on completed responses. Successful non-empty responses keep the prior compact projection. JSON keeps promoted warnings and source-status detail lossless; MCP text classifies parser/query and structured constraint facts once below the outcome and does not repeat promoted lifecycle/freshness warning prose or opaque notes. Implementation in `buildSourceStatusWarnings` and empty-result compaction (`packages/mcp/src/shared/unified-search-response.ts`).
 

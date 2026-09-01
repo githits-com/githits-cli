@@ -574,12 +574,29 @@ function buildLocatorPayload(
   if (src.evidenceRange) locator.evidenceRange = { ...src.evidenceRange };
   if (src.indexedRange) locator.indexedRange = { ...src.indexedRange };
   if (src.symbolContext) {
-    locator.symbolContext = {
-      ...src.symbolContext,
-      ...(src.symbolContext.definitionRange
-        ? { definitionRange: { ...src.symbolContext.definitionRange } }
-        : {}),
-    };
+    if (src.symbolContext.relation === "encloses_match") {
+      locator.symbolContext = {
+        name: src.symbolContext.name,
+        relation: src.symbolContext.relation,
+        definitionRange: { ...src.symbolContext.definitionRange },
+        ...(src.symbolContext.qualifiedPath
+          ? { qualifiedPath: src.symbolContext.qualifiedPath }
+          : {}),
+        ...(src.symbolContext.kind ? { kind: src.symbolContext.kind } : {}),
+      };
+    } else {
+      locator.symbolContext = {
+        name: src.symbolContext.name,
+        relation: src.symbolContext.relation,
+        ...(src.symbolContext.qualifiedPath
+          ? { qualifiedPath: src.symbolContext.qualifiedPath }
+          : {}),
+        ...(src.symbolContext.kind ? { kind: src.symbolContext.kind } : {}),
+        ...(src.symbolContext.definitionRange
+          ? { definitionRange: { ...src.symbolContext.definitionRange } }
+          : {}),
+      };
+    }
   }
   // Top-level symbols often have qualifiedPath identical to title;
   // skip the duplicate. Nested members (e.g. `MyClass.method`) still
