@@ -10,9 +10,9 @@ replace the raw terminal output or `tool-calls.json`.
 This is local maintainer tooling plus the repository's dedicated Luna CI
 workflow and its Braintrust persistence boundary. It is not a deterministic CI
 gate or quality judge. Named Luna suites, local paired/offline comparisons,
-daily or explicitly authorized pull-request execution, and normalized
-per-workload history are implemented here; answer-quality scoring remains a
-later phase.
+daily, temporary per-main-push, or explicitly authorized pull-request
+execution, and normalized per-workload history are implemented here;
+answer-quality scoring remains a later phase.
 
 ## Braintrust persistence contract
 
@@ -58,7 +58,7 @@ detached suite requires `--branch`.
 The experiment metadata and allowlisted tags retain source (`local` or
 `github`), channel (`local`, `main`, or `pr`), branch, optional PR number, full
 SHA, run identity, and evaluated-target `repoInfo` including dirty state. The
-workflow passes `channel=main` for schedule/manual runs on `main` and
+workflow passes `channel=main` for push/schedule/manual runs on `main` and
 `channel=pr` with the head branch and numeric PR number for the trusted
 same-repository label event. Manual dispatch on a non-main ref is rejected
 before either paid scenario job can start.
@@ -241,9 +241,8 @@ completion tokens, 2,706,266 total tokens, and estimated cost `$0.22819038`.
 Standard Braintrust compare averages were duration
 `22.343956532685652`, estimated cost `$0.009921320869565216`, tool calls
 `5.043478260869565`, tool errors `0`, and total tokens
-`117663.73913043478`. This validates the labeled pull-request path; default-
-branch scheduled/manual activation remains pending merge. No paid rerun
-was made for this documentation-only closeout.
+`117663.73913043478`. This validates the labeled pull-request path; the stable
+main bootstrap is recorded in the live CI evidence section below.
 
 ## Scenario and intent identity
 
@@ -582,8 +581,11 @@ reporter into two independent matrix entries on GitHub-hosted Ubuntu:
 | discovery | `canary`      | `discovery` |                    2 | 40 min  |
 | intent    | `stable-full` | `intent`    |                    4 | 40 min  |
 
-It triggers at `03:00` UTC from the default branch, on `workflow_dispatch`, and
-on `pull_request` events of type `labeled` targeting `main`. The paid jobs run
+It triggers on every push to `main`, at `03:00` UTC from the default branch, on
+`workflow_dispatch`, and on `pull_request` events of type `labeled` targeting
+`main`. The push trigger is temporary data-collection policy for measuring
+run-to-run variance and selecting workloads to optimize; daily/manual/label
+coverage remains available and the workflow remains advisory. The paid jobs run
 for a pull request only when the event label is exactly `agent-eval` and the
 head repository is the current repository. They check out the immutable
 labeled head SHA; scheduled and manual runs use `github.sha`. A later
@@ -641,9 +643,17 @@ input, 701,553 cache-write input, 22,048 output, and 4,739 reasoning tokens.
 
 All 23 Codex configs contained only the name-only `GITHITS_API_TOKEN`
 `env_vars` entry and no literal token assignment; secret values were not read
-during inspection. The same-repository label path is live-validated. Default
-branch scheduled/manual execution remains pending merge, so this does not yet
-establish scheduled/manual behavior or complete all deployment acceptance.
+during inspection. The same-repository label path is live-validated.
+
+The first stable main bootstrap
+([workflow run 33477846273](https://github.com/githits-com/githits-cli/actions/runs/33477846273))
+at merge SHA `40796bd` succeeded on 2026-09-01 as experiment
+`main-r33477846273-a1`. It persisted 23 eval roots and 112 MCP tool children,
+with zero CLI calls, 3,024,404 total tokens, 445.728 seconds cumulative agent
+duration, and a $0.24188221 rate-based estimated cost. The required Braintrust
+readback returned no base, which is the expected one-time bootstrap result.
+This proves default-branch manual execution and stable main identity, but not
+yet later-main-to-main, pull-request-to-main, or local-to-main linkage.
 
 ## Previous paid comparison: contaminated; capacity evidence only
 

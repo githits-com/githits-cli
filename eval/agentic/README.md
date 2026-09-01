@@ -8,9 +8,12 @@ It is not a smoke test. Smoke tests exercise CLI and MCP contracts directly.
 Agentic evals exercise agent behavior end-to-end.
 
 Use this harness locally to understand how MCP tool-description, quick-start,
-or skill changes affect real agent behavior. The dedicated CI workflow runs a
-small Luna matrix daily and on explicitly authorized same-repository pull
-requests. Do not treat a live agent pass/fail result as a deterministic
+or skill changes affect real agent behavior. The dedicated CI workflow
+temporarily runs a small Luna matrix on every push to `main`, as well as daily
+and on explicitly authorized same-repository pull requests. This elevated
+cadence collects enough comparable history to measure variance and identify
+workloads worth optimizing; it should be reconsidered after that data exists.
+Do not treat a live agent pass/fail result as a deterministic
 regression test: model behavior, backend indexing state, auth state, network
 conditions, and package data can all change. The useful output is the artifact
 set, especially `tool-calls.json`, `final.json`, `metrics.json`, `report.json`,
@@ -18,9 +21,10 @@ and `isolation-violations.json`.
 
 The repository-local named-suite commands below are the local measurement
 workflow. They run the fixed Luna matrix and produce validated suite and
-comparison artifacts. The CI workflow composes the same commands for daily and
-explicitly authorized pull-request runs; it retains raw artifacts for diagnosis
-and exports normalized rows to Braintrust, but does not judge answer quality.
+comparison artifacts. The CI workflow composes the same commands for main
+pushes, daily runs, and explicitly authorized pull-request runs; it retains raw
+artifacts for diagnosis and exports normalized rows to Braintrust, but does not
+judge answer quality.
 
 ## What Is Under Test
 
@@ -406,8 +410,8 @@ tool views are populated by the current exporter: completed/failed child spans
 carry exact harness-observed start/end times and computed duration, while
 started-only children remain open without a fabricated duration. Root rows do
 not set `tool_calls` or `tool_errors`; Braintrust derives those native metrics
-from the structural children. The labeled CI proof is recorded below;
-default-branch scheduled/manual activation remains pending merge.
+from the structural children. The labeled CI proof and first stable main
+bootstrap are recorded below.
 
 The current local native structural proof used suite
 `.agent-eval/suites/native-tool-smoke-2` at target and measurement commit
@@ -443,9 +447,15 @@ completion tokens, 2,706,266 total tokens, and estimated cost `$0.22819038`.
 Standard Braintrust compare averages were duration
 `22.343956532685652`, estimated cost `$0.009921320869565216`, tool calls
 `5.043478260869565`, tool errors `0`, and total tokens
-`117663.73913043478`. This validates the labeled pull-request path; default-
-branch scheduled/manual activation remains pending merge. No paid rerun
-was made for this documentation-only closeout.
+`117663.73913043478`. This validates the labeled pull-request path.
+
+The first stable main bootstrap is GitHub run
+[33477846273](https://github.com/githits-com/githits-cli/actions/runs/33477846273)
+at merge SHA `40796bd`. Its experiment `main-r33477846273-a1` persisted 23 eval
+roots and 112 MCP tool children, with zero CLI calls, 3,024,404 total tokens,
+445.728 seconds cumulative agent duration, and a `$0.24188221` rate-based
+estimated cost. Its required base readback was null, which is expected for the
+one-time bootstrap and is not later-main linkage proof.
 
 Validate downloaded or local suites without credentials or network access:
 
@@ -534,9 +544,12 @@ parallel on GitHub-hosted Ubuntu:
 | discovery | `canary`                | `discovery` |                    2 |
 | intent    | `stable-full`           | `intent`    |                    4 |
 
-The workflow runs at 03:00 UTC from the default branch, on manual
-`workflow_dispatch`, and for a `pull_request` `labeled` event targeting
-`main`. A pull request run is authorized only when the event label is exactly
+The workflow runs on every push to `main`, at 03:00 UTC from the default
+branch, on manual `workflow_dispatch`, and for a `pull_request` `labeled` event
+targeting `main`. The push trigger is intentionally temporary while
+maintainers collect run-to-run variance and workload-optimization evidence; it
+does not change the advisory, non-gating policy. A pull request run is
+authorized only when the event label is exactly
 `agent-eval` and `github.event.pull_request.head.repo.full_name` equals the
 repository; forks cannot consume the provider secrets. The workflow checks out
 the immutable labeled head SHA for that event and `github.sha` for scheduled or

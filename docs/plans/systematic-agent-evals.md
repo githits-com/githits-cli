@@ -4,25 +4,23 @@
 
 - Overall: IN PROGRESS
 - Current phase: Phase 4 — Braintrust Persistence Proof Of Concept
-  (IDENTITY/LINKAGE IMPLEMENTED LOCALLY; LIVE MAIN PROOF PENDING)
+  (MAIN BOOTSTRAP PROVEN; LIVE LINKAGE PROOF PENDING)
 - Previous work: Phase 2 correction is COMPLETE. Phase 3 is merged and its
   same-repository label path is live-validated; Phase 4's exporter, CI wiring,
   local Braintrust readback, and first qualifying labeled CI export/readback
   are complete. The exact-head run proved persistence again, but exposed null
   branch and base-experiment identity. Stable naming and native main-baseline
-  linkage are implemented locally and are now awaiting live main-baseline proof
-  before Phase 4 is complete.
+  linkage are implemented. The first stable main bootstrap is live-proven and
+  later-main, pull-request, and local linkage remain before Phase 4 is complete.
 - Owner: repository maintainers
-- Last verified: 2026-08-31
+- Last verified: 2026-09-01
 - Deployment: Phases 1 through 3 are merged to `main`. The Phase 3
-  same-repository label path is live-validated; the scheduled path is waiting
-  for its first default-branch execution. Phase 4's exact-pinned exporter and
-  post-report CI step are implemented, with local and labeled CI
-  persistence/readback proven. A push to `main` deliberately does not trigger
-  the workflow. Stable channel-aware identity and explicit main-baseline
-  linkage are implemented locally, but no live export has yet proven
-  later-main, pull-request, and local readback linkage. Default-branch
-  scheduled/manual activation remains pending merge.
+  same-repository label path and first default-branch manual bootstrap are
+  live-validated. Phase 4's exact-pinned exporter and post-report CI step are
+  implemented, with local, labeled CI, and main-bootstrap persistence/readback
+  proven. Pushes to `main` now temporarily trigger the workflow to collect
+  variance and workload-optimization evidence. No live export has yet proven
+  later-main, pull-request, and local readback linkage.
 
 ## Problem And Expected Outcome
 
@@ -489,11 +487,11 @@ changes are not confused with harness changes.
 
 ## Unknowns And Product Decisions
 
-None block Phase 3 implementation. The same-repository label path is
-live-validated; scheduled/manual activation and final acceptance remain pending
-external workflow execution after merge using the verified `OPENAI_API_KEY` and
-`GITHITS_API_TOKEN` secret names. This is an operational validation dependency,
-not a product decision.
+None block Phase 3 implementation. The same-repository label and first
+default-branch manual paths are live-validated using the verified
+`OPENAI_API_KEY` and `GITHITS_API_TOKEN` secret names. Phase 4 linkage
+acceptance remains an operational validation dependency, not a product
+decision.
 
 The following must be resolved before Phase 4 is detailed:
 
@@ -620,17 +618,17 @@ The following must be resolved before Phase 6:
    isolation, and Codex interactive isolation parity are implemented and
    validated; corrected discovery/intent evidence supersedes the two-profile
    behavior policy.
-3. **Phase 3 — parallel CI execution and concise reporting (MERGED;
-   SAME-REPOSITORY LABEL PATH LIVE-VALIDATED; FIRST SCHEDULED RUN PENDING):**
-   clean GitHub-hosted jobs run the Luna discovery and intent suites daily or
-   after an authorized PR label, retain raw evidence, and render a concise
-   no-baseline summary. A push to `main` does not start a paid run.
-4. **Phase 4 — Braintrust persistence proof of concept (IDENTITY/LINKAGE
-   IMPLEMENTED LOCALLY; LIVE MAIN PROOF PENDING):** normalized Phase 3 records
+3. **Phase 3 — parallel CI execution and concise reporting (MERGED; LABEL AND
+   MAIN-MANUAL PATHS LIVE-VALIDATED; TEMPORARY MAIN-PUSH COLLECTION ENABLED):**
+   clean GitHub-hosted jobs run the Luna discovery and intent suites on main
+   pushes, daily, or after an authorized PR label, retain raw evidence, and
+   render a concise no-baseline summary.
+4. **Phase 4 — Braintrust persistence proof of concept (MAIN BOOTSTRAP PROVEN;
+   LIVE LINKAGE PROOF PENDING):** normalized Phase 3 records
    become durable per-workload/per-agent history without making agent execution
    dependent on Braintrust. Local and labeled CI export/readback are proven;
-   stable channel-aware names and native main-baseline linkage are implemented
-   locally, but still require live proof for main, pull-request, and local runs.
+   stable channel-aware names and native main-baseline linkage are implemented;
+   later-main, pull-request, and local linkage still require live proof.
 5. **Phase 5 — broader discovery matrix (PLANNED):** the proven metrics, suite,
    CI, and persistence contracts add approved Codex/Claude agent-model cells to
    the neutral canary without changing Luna history.
@@ -1464,11 +1462,12 @@ captured below; Braintrust persistence is intentionally a later phase.
 
 ### Status
 
-MERGED; SAME-REPOSITORY LABEL PATH LIVE-VALIDATED. The runner, schema-v3 suite
-artifacts, CI reporter, workflow, and operational documentation are merged.
-The corrected label run passed its clean runner and summary checks; the first
-default-branch scheduled/manual execution has not happened yet. A push to
-`main` does not trigger this paid workflow.
+MERGED; SAME-REPOSITORY LABEL AND MAIN-MANUAL PATHS LIVE-VALIDATED. The runner,
+schema-v3 suite artifacts, CI reporter, workflow, and operational documentation
+are merged. The corrected label run and first default-branch manual bootstrap
+passed their runner, summary, and persistence checks. This increment
+temporarily enables paid execution on every push to `main` to collect variance
+and workload-optimization evidence.
 
 ### Live label-run evidence
 
@@ -1637,25 +1636,24 @@ None.
    status classification, including zero-call discovery, per-tool frequencies,
    unknown telemetry, partial/missing suites, CLI fallback, and isolation
    violations. Implement the pure formatter and thin CLI entrypoint.
-3. **Merged; same-repository label path live-validated:** Add the dedicated
-   workflow with the three triggers, an explicit
-   `github.event.label.name == 'agent-eval'` job gate, same-repository label/SHA
-   authorization, clean Codex home and API-key setup, the two scenario jobs,
-   unconditional artifact upload/reporting, 14-day retention, and minimal
+3. **Merged; same-repository label and main-manual paths live-validated; main
+   pushes enabled in this increment:** Add the dedicated workflow triggers, an
+   explicit `github.event.label.name == 'agent-eval'` job gate, same-repository
+   label/SHA authorization, clean Codex home and API-key setup, the two scenario
+   jobs, unconditional artifact upload/reporting, 14-day retention, and minimal
    permissions. Keep secret scope to the paid execution steps. The corrected
-   label run passed; the first default-branch scheduled/manual execution is
-   pending.
+   label and first default-branch manual runs passed. Temporarily add the
+   `push: main` trigger for variance collection without making results a gate.
 4. **Completed locally:** Update local/CI operational documentation, the durable implementation
    contract, and the required no-public-impact change fragment. Document label
    authorization, re-label behavior, exact suites/concurrency, expected
    duration/cost, secret names, and artifact/report locations.
-5. **Local and label evidence complete; first scheduled/manual evidence
-   pending:** Run focused tests, all suite dry-runs at concurrency 1 and the CI-selected
+5. **Local, label, and first main-manual evidence complete:** Run focused tests,
+   all suite dry-runs at concurrency 1 and the CI-selected
    values, `bun test`, typecheck, format, lint, build, and workflow syntax/action
    validation. The same-repository label path is live-validated with no global
-   skill/guidance reads or CLI fallbacks. Verify the scheduled/default-branch
-   path on its first run before treating Phase 3 deployment acceptance as
-   complete.
+   skill/guidance reads or CLI fallbacks. Main bootstrap run `33477846273`
+   verifies default-branch execution, summary, and persistence.
 
 ### Acceptance Criteria
 
@@ -1688,7 +1686,7 @@ None.
 
 ### Status
 
-IDENTITY/LINKAGE IMPLEMENTED LOCALLY; LIVE MAIN PROOF PENDING.
+MAIN BOOTSTRAP PROVEN; LIVE LINKAGE PROOF PENDING.
 Phase 3 is merged and its same-repository label path has clean runner evidence.
 The exact-pinned Braintrust exporter, post-report CI wiring, local
 persistence/readback proof, internal operations skill, and qualifying labeled
@@ -1697,10 +1695,11 @@ verify tool counts, exact observed boundaries, child duration, tokens, and
 cost. Exact-head labeled run `33429755678` persisted the final PR head but
 confirmed that experiment `base_exp_id` and branch identity are null and that
 the opaque `github-<run>-<attempt>` name is insufficient for routine operation.
-Stable naming and native comparison linkage are implemented locally. No live
+Stable naming and native comparison linkage are implemented. Main bootstrap
+run `33477846273` persisted `main-r33477846273-a1` with the expected null base,
+proving default-branch manual execution and stable main identity. No live
 export/readback has yet proved later-main-to-main, PR-to-main, and
-local-to-main linkage, so Phase 4 remains incomplete. Default-branch
-scheduled/manual activation remains pending merge.
+local-to-main linkage, so Phase 4 remains incomplete.
 SDK tracing was deliberately not added.
 
 ### Expected Outcome
@@ -1824,9 +1823,11 @@ No product choice blocks the implementation. The selected policy is:
   workflow status so missing persistence cannot be silent;
 - retention: Braintrust is the durable normalized history. GitHub raw artifacts
   remain at 14 days until observed operations justify a change; and
-- cadence: unchanged in this phase. The existing schedule/manual/label triggers
-  remain; push-to-main behavior is reconsidered only after Braintrust evidence
-  is available.
+- cadence: every push to `main` temporarily runs the existing Luna matrix while
+  enough Braintrust history is collected to measure variance and select
+  workloads to optimize. The schedule/manual/label triggers remain, and the
+  workflow stays advisory rather than becoming a merge gate. Reconsider the
+  push trigger after that evidence exists.
 
 The built-in experiment comparison behavior observed on prior custom-only rows
 is a historical limitation, not a native-first result: its exercised output
@@ -1835,9 +1836,9 @@ telemetry. The current exporter records one structural `tool` child per known
 logical call, using exact harness-observed boundaries and computed duration for
 completed/failed calls. Native comparison now reports those child-derived
 `tool_calls` and `tool_errors`; bounded SQL remains the path for the exact
-GitHits-specific sequence and status counts. The labeled CI export/readback is
-verified below; default-branch scheduled/manual activation remains pending
-merge.
+GitHits-specific sequence and status counts. The labeled CI export/readback and
+first stable main bootstrap are verified below; later-main, pull-request, and
+local linkage remain pending.
 
 ### Dependencies
 
@@ -1848,8 +1849,8 @@ merge.
   inspect `.bt/`, Keychain contents, or any credential value.
 - `BRAINTRUST_API_KEY` is effective in the repository Actions context, as
   verified by the labeled CI export/readback in run `33424857668`. Secret
-  values were never read. Default-branch scheduled/manual activation remains
-  pending merge.
+  values were never read. Default-branch manual bootstrap is proven by run
+  `33477846273`; its expected null base is not later-main linkage proof.
 
 ### Verified Braintrust Constraints
 
@@ -1960,9 +1961,9 @@ completion tokens, 2,706,266 total tokens, and estimated cost `$0.22819038`.
 Standard Braintrust compare averages were duration
 `22.343956532685652`, estimated cost `$0.009921320869565216`, tool calls
 `5.043478260869565`, tool errors `0`, and total tokens
-`117663.73913043478`. This proves the labeled PR path; default-branch
-scheduled/manual activation remains pending merge. No paid rerun was
-made for this documentation-only closeout.
+`117663.73913043478`. This proves the labeled PR path. Main bootstrap run
+`33477846273` subsequently proved default-branch manual execution and the
+stable `main-r33477846273-a1` identity with the expected null base.
 
 The user then requested an exact-head PR run. GitHub run
 [33429755678](https://github.com/githits-com/githits-cli/actions/runs/33429755678)
@@ -2226,13 +2227,13 @@ case; it does not satisfy native baseline linkage.
    permalink against source artifacts. The current proof is recorded below for
    `.agent-eval/suites/native-tool-smoke-2`; the earlier native-root experiment
    remains superseded historical evidence.
-4. **Implemented and labeled-path validated; default-branch activation
-   pending:** The CI export/final-status steps and repository Actions
+4. **Implemented; labeled and first main-manual paths validated:** The CI
+   export/final-status steps and repository Actions
    `BRAINTRUST_API_KEY` configuration are implemented. Workflow contract tests,
    YAML/action-reference validation, and direct SDK execution in CI were
    included in the implementation evidence. Run `33424857668` exported/read back
-   the expected 23 eval roots and 116 structural children; default-branch
-   scheduled/manual activation remains pending merge.
+   the expected 23 eval roots and 116 structural children; run `33477846273`
+   proved the stable main bootstrap and required null-base readback.
 5. **Implemented locally:** Update durable eval operations documentation and
    create the internal `braintrust-agent-evals` skill from the commands and
    field semantics proven in step 3. Validate it with the skill validator. Run
@@ -2265,8 +2266,8 @@ case; it does not satisfy native baseline linkage.
   for its two-cell canary, and labeled CI run `33424857668` read back 23 eval
   spans and 116 structural tool children. Native comparison showed
   `tool_calls` average `5.0` locally and `5.043478260869565` in CI, with
-  `tool_errors` `0` in both. Default-branch scheduled/manual activation remains
-  pending merge.
+  `tool_errors` `0` in both. Main bootstrap run `33477846273` added 23 eval
+  roots and 112 structural tool children with the expected null base.
 - Every row is filterable by workload, scenario, agent, exact CLI/model,
   reasoning, guidance, intent, target SHA, and used-tool tags. Structured
   metadata exposes ordered tools and per-tool/per-status counts.
@@ -2301,8 +2302,8 @@ case; it does not satisfy native baseline linkage.
   Braintrust derives them from exact-timed structural tool children. The local
   v2 readback verifies those native metrics and bounded SQL verifies the
   GitHits-specific/custom sequence and status metadata. Labeled CI run
-  `33424857668` verifies the native structural counts and metrics; default-
-  branch scheduled/manual activation remains pending merge.
+  `33424857668` verifies the native structural counts and metrics; main run
+  `33477846273` verifies default-branch manual bootstrap behavior.
 - The existing GitHub concise report and 14-day raw artifact upload complete
   even when export fails; the final workflow is red and names export as the
   failed stage. Local suite/report generation works without Braintrust or its
