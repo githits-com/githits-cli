@@ -852,7 +852,7 @@ function formatChangesSection(
   const lines = [sectionTitle("Changes", useColors)];
   let coverage = `${source} | ${changelog.totalEntries} ${entryWord} | ${changelog.totalEntriesWithBodies} with release notes`;
   if (changelog.truncated)
-    coverage += ` | ${changelog.sampledEntries.length} ordinary entries sampled`;
+    coverage += ` | ${changelog.sampledEntries.length} release entries sampled`;
   appendWrappedText(lines, "  ", coverage, width, "  ");
   const keywords = changelogKeywordSummary(changelog);
   if (keywords.length > 0 || changelog.totalKeywordEntries > 0) {

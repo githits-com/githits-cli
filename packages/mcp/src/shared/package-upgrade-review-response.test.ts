@@ -906,11 +906,16 @@ describe("package upgrade review response", () => {
             totalKeywordEntries: 1,
             totalEntries: 3,
             totalEntriesWithBodies: 3,
+            truncated: true,
           },
         }),
       ]),
     );
 
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "3 entries | 3 with release notes | 2 release entries sampled",
+    );
+    expect(text).not.toContain("ordinary entries sampled");
     expect(text).toContain("Heuristic release entries");
     expect(text).toContain("Sampled release entries");
     expect(text.indexOf("Heuristic release entries")).toBeLessThan(
