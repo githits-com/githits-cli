@@ -264,7 +264,7 @@ function buildGettingStartedText(options: {
   resolveAvailable: boolean;
 }): string {
   const experimentalAsk = options.askAvailable
-    ? '\n  githits ask npm:express "question"  Ask about one open-source target'
+    ? '\n  githits ask npm:express "question"   Ask about one open-source target'
     : "";
   const experimentalResolve = options.resolveAvailable
     ? "\n  githits resolve express              Resolve a package or repository name"

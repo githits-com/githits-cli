@@ -231,7 +231,12 @@ export class AgenticAskServiceImpl implements AgenticAskService {
     );
     if (!response.ok) {
       if (response.status === 403) {
-        const body = await readBoundedResponseBody(response);
+        let body = "";
+        try {
+          body = await readBoundedResponseBody(response);
+        } catch (cause) {
+          if (signal.aborted) throw signal.reason ?? cause;
+        }
         throwIfTermsAcceptanceRequired(body);
       } else {
         await response.body?.cancel().catch(() => undefined);

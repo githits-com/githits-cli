@@ -264,6 +264,27 @@ describe("AgenticAskServiceImpl", () => {
     ).rejects.toBeInstanceOf(TermsAcceptanceRequiredError);
   });
 
+  it("preserves ACCESS_DENIED when the 403 body cannot be read", async () => {
+    const service = createService(
+      mock(() =>
+        Promise.resolve(
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(new Error("connection reset"));
+              },
+            }),
+            { status: 403 },
+          ),
+        ),
+      ) as unknown as typeof fetch,
+    );
+
+    await expect(
+      service.ask({ target: "npm:example", question: "How?" }),
+    ).rejects.toMatchObject({ code: "ACCESS_DENIED", status: 403 });
+  });
+
   it("rejects malformed JSON without exposing response content", async () => {
     const service = createService(
       mock(() =>
