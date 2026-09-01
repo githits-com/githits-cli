@@ -1084,12 +1084,16 @@ function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
       titleHighlights: hit.highlights?.title,
     };
   }
-  const block = formatRepositoryBlock(hit);
-  const location = block.filePath
-    ? `${block.filePath}${formatLineRange(block.startLine, block.endLine)}`
+  const evidence = formatRepositoryEvidence(hit);
+  const location = evidence.filePath
+    ? `${evidence.filePath}${formatLineRange(evidence.startLine, evidence.endLine)}`
     : "location unavailable";
   const type = `[${shortType(hit.type)}]`;
-  const title = formatRepositoryHitTitle(hit, block.startLine, block.endLine);
+  const title = formatRepositoryHitTitle(
+    hit,
+    evidence.startLine,
+    evidence.endLine,
+  );
   return {
     prefix: `${hit.target} ${location} ${type}`,
     segments: [
@@ -1099,71 +1103,149 @@ function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
       { text: " ", style: "plain" },
       { text: type, style: "secondary" },
     ],
-    title,
-    titleHighlights: hit.highlights?.title,
-    keepTitleInline:
-      (hit.type === "repository_code" || hit.type === "repository_symbol") &&
-      typeof hit.title === "string" &&
-      title !== hit.title &&
-      !/\s/.test(hit.title),
+    title: title.text,
+    titleHighlights: offsetHighlightRanges(
+      hit.highlights?.title,
+      title.highlightOffset,
+    ),
+    keepTitleInline: title.keepInline,
   };
 }
 
-interface RepositoryBlock {
+interface RepositoryEvidence {
   filePath?: string;
   startLine?: number;
   endLine?: number;
 }
 
-function formatRepositoryBlock(hit: UnifiedSearchHitPayload): RepositoryBlock {
+function formatRepositoryEvidence(
+  hit: UnifiedSearchHitPayload,
+): RepositoryEvidence {
   const loc = hit.locator;
-  if (hit.type !== "repository_code" && hit.type !== "repository_symbol") {
-    return {
-      filePath: loc.filePath,
-      startLine: loc.startLine,
-      endLine: loc.endLine,
-    };
-  }
-
-  const context = loc.symbolContext;
-  if (context?.relation === "encloses_match") {
-    return {
-      filePath: context.definitionRange.filePath,
-      startLine: context.definitionRange.startLine,
-      endLine: context.definitionRange.endLine,
-    };
-  }
-
   return {
     filePath: loc.filePath,
-    startLine: loc.indexedRange?.startLine ?? loc.startLine,
-    endLine: loc.indexedRange?.endLine ?? loc.endLine,
+    startLine: loc.evidenceRange?.startLine ?? loc.startLine,
+    endLine: loc.evidenceRange?.endLine ?? loc.endLine,
   };
+}
+
+interface RepositoryHitTitle {
+  text?: string;
+  highlightOffset: number;
+  keepInline: boolean;
 }
 
 function formatRepositoryHitTitle(
   hit: UnifiedSearchHitPayload,
-  blockStartLine: number | undefined,
-  blockEndLine: number | undefined,
-): string | undefined {
+  evidenceStartLine: number | undefined,
+  evidenceEndLine: number | undefined,
+): RepositoryHitTitle {
   if (hit.type !== "repository_code" && hit.type !== "repository_symbol") {
-    return hit.title || undefined;
+    return {
+      text: hit.title || undefined,
+      highlightOffset: 0,
+      keepInline: false,
+    };
   }
 
-  const evidence = hit.locator.evidenceRange ?? {
-    startLine: hit.locator.startLine,
-    endLine: hit.locator.endLine,
-  };
-  const evidenceDiffers =
-    typeof evidence.startLine === "number" &&
-    (evidence.startLine !== blockStartLine ||
-      evidence.endLine !== blockEndLine);
-  const evidenceLabel = evidenceDiffers
-    ? `evidence ${formatBareLineRange(evidence.startLine, evidence.endLine)}`
-    : undefined;
+  const identity = formatRepositorySymbolIdentity(hit);
+  const context = hit.locator.symbolContext;
+  const definition = context?.definitionRange;
+  const definitionDiffers =
+    definition !== undefined &&
+    (definition.startLine !== evidenceStartLine ||
+      definition.endLine !== evidenceEndLine);
+  const indexed = hit.locator.indexedRange;
+  const indexedDiffers =
+    indexed !== undefined &&
+    (indexed.startLine !== evidenceStartLine ||
+      indexed.endLine !== evidenceEndLine);
+  const kind = context?.kind;
+  const annotation = definition
+    ? definitionDiffers
+      ? formatRangeAnnotation(kind ?? "definition", definition)
+      : kind
+    : indexedDiffers
+      ? formatRangeAnnotation("chunk", indexed)
+      : kind;
+  const text = identity.text
+    ? annotation
+      ? `${identity.text} (${annotation})`
+      : identity.text
+    : annotation;
 
-  if (!hit.title) return evidenceLabel;
-  return evidenceLabel ? `${hit.title} (${evidenceLabel})` : hit.title;
+  return {
+    text,
+    highlightOffset: identity.highlightOffset,
+    keepInline:
+      typeof hit.title === "string" &&
+      !/\s/.test(hit.title) &&
+      text !== hit.title,
+  };
+}
+
+interface RepositorySymbolIdentity {
+  text?: string;
+  highlightOffset: number;
+}
+
+function formatRepositorySymbolIdentity(
+  hit: UnifiedSearchHitPayload,
+): RepositorySymbolIdentity {
+  const title = hit.title || undefined;
+  const context = hit.locator.symbolContext;
+  const qualifiedPath = context?.qualifiedPath;
+  const name = context?.name;
+
+  if (!title) {
+    return {
+      text:
+        qualifiedPath && !qualifiedPath.startsWith("<")
+          ? qualifiedPath
+          : undefined,
+      highlightOffset: 0,
+    };
+  }
+
+  if (
+    !qualifiedPath ||
+    !name ||
+    qualifiedPath.startsWith("<") ||
+    !hasQualifiedNameSuffix(qualifiedPath, name) ||
+    !title.startsWith(name)
+  ) {
+    return { text: title, highlightOffset: 0 };
+  }
+
+  return {
+    text: `${qualifiedPath}${title.slice(name.length)}`,
+    highlightOffset: qualifiedPath.length - name.length,
+  };
+}
+
+function hasQualifiedNameSuffix(qualifiedPath: string, name: string): boolean {
+  return (
+    qualifiedPath === name ||
+    [".", "::", "#", "/"].some((separator) =>
+      qualifiedPath.endsWith(`${separator}${name}`),
+    )
+  );
+}
+
+function formatRangeAnnotation(
+  label: string,
+  range: { startLine: number; endLine: number },
+): string {
+  const lineLabel = range.startLine === range.endLine ? "line" : "lines";
+  return `${label} at ${lineLabel} ${formatBareLineRange(range.startLine, range.endLine)}`;
+}
+
+function offsetHighlightRanges(
+  ranges: ReadonlyArray<readonly [number, number]> | undefined,
+  offset: number,
+): ReadonlyArray<readonly [number, number]> | undefined {
+  if (!ranges || offset === 0) return ranges;
+  return ranges.map(([from, to]) => [from + offset, to + offset] as const);
 }
 
 function renderHitHeaderPrefix(

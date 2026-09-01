@@ -188,8 +188,9 @@ projection and formatter serve CLI `--json`, MCP `format: "json"`, CLI text, and
 MCP text. Structured parity includes legacy `filePath` / `startLine` / `endLine`
 plus `commitSha`, `repositoryFilePath`, `evidenceRange`, `indexedRange`, and
 relation-aware `symbolContext`; equal ranges remain distinct in JSON. Text
-parity uses one repository-hit header shape with the enclosing/indexed block
-range first and a differing focused evidence range after the title. The
+parity uses one repository-hit header shape with the focused evidence range in
+the locator and a differing definition/indexed range after the qualified title.
+The
 single structured `followUp` is MCP syntax on both JSON surfaces and prefers a
 proven definition at the exact served repository identity, with the 300-line
 MCP read cap applied without changing the true structured definition range.

@@ -185,7 +185,7 @@ describe("search parity", () => {
     });
   });
 
-  it("PARITY-TEXT-FORMATTER: CLI === MCP for block and evidence ranges", async () => {
+  it("PARITY-TEXT-FORMATTER: CLI === MCP for evidence and definition ranges", async () => {
     const outcome = evidenceOutcome();
     expect(await cliTextForOutcome(outcome)).toBe(
       await mcpTextForOutcome(outcome),

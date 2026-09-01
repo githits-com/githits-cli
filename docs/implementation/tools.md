@@ -160,10 +160,12 @@ may omit that range. Malformed partial definition locators invalidate the search
 response instead of being repaired or dropped.
 
 JSON retains all ranges even when their coordinates are equal. Compact text uses
-one repository-hit header shape: the path suffix is the proven definition range
-for `encloses_match`, the indexed range for associated chunks, and the legacy
-evidence range otherwise. A differing focused evidence range follows the title
-on the same header; equal ranges are printed once. The single
+one repository-hit header shape whose path suffix is always the focused evidence
+range. A meaningful symbol `qualifiedPath` replaces the local name while keeping
+signature detail carried only by the hit title, such as Elixir arity. Symbol kind
+follows the identity, with a differing definition range rendered as
+`(function at lines 100-115)`; a differing indexed range without a definition is
+labelled as a chunk. Equal ranges are printed once. The single
 `followUp` uses the definition only for proven enclosure and otherwise uses the
 evidence range. Repository reads pair `repoUrl` with `commitSha`, falling back
 only to the exact served `gitRef`, and always use `repositoryFilePath`; they never

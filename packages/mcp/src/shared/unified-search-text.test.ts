@@ -277,7 +277,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text.length).toBeLessThan(3459);
   });
 
-  it("renders the pi-mono definition and focused evidence in one header", () => {
+  it("renders the pi-mono evidence before its enclosing definition", () => {
     const filePath = "packages/coding-agent/src/core/compaction/compaction.ts";
     const text = renderUnifiedSearchSuccess(
       completed([
@@ -317,7 +317,7 @@ describe("renderUnifiedSearchSuccess", () => {
       ]),
     );
 
-    const header = `[1] github:badlogic/pi-mono#853a80d ${filePath}:858-964 [repo code] - compact (evidence 920-930)`;
+    const header = `[1] github:badlogic/pi-mono#853a80d ${filePath}:920-930 [repo code] - compact (function at lines 858-964)`;
     expect(text).toContain(header);
     expect(text.indexOf(header)).toBeLessThan(
       text.indexOf("// Merge into single summary"),
@@ -326,7 +326,95 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("defined at");
   });
 
-  it("uses indexed blocks for associated hits and legacy evidence otherwise", () => {
+  it("combines Phoenix qualified paths with title arity for docstring evidence", () => {
+    const filePath = "lib/mix/tasks/phx.gen.auth/injector.ex";
+    const hit = codeHit({
+      target: "hex:phoenix@1.8.13",
+      title: "router_plug_inject/2",
+      summary:
+        '@doc """\nInjects the fetch_current_scope_for_<schema> plug into router\'s browser pipeline\n"""',
+      highlights: { title: [[0, 6]] },
+      locator: {
+        filePath,
+        repositoryFilePath: filePath,
+        startLine: 95,
+        endLine: 97,
+        evidenceRange: {
+          startLine: 95,
+          endLine: 97,
+          matchLine: 96,
+          rangeKind: "source_doc_match_window",
+          matchSpansTruncated: false,
+        },
+        indexedRange: { startLine: 100, endLine: 115 },
+        symbolContext: {
+          name: "router_plug_inject",
+          qualifiedPath: "Mix.Tasks.Phx.Gen.Auth.Injector.router_plug_inject",
+          kind: "function",
+          relation: "associated_with_indexed_chunk",
+          definitionRange: {
+            filePath,
+            repositoryFilePath: filePath,
+            startLine: 100,
+            endLine: 115,
+          },
+        },
+      },
+    });
+    const payload = completed([hit]);
+    const text = renderUnifiedSearchSuccess(payload);
+
+    expect(text).toContain(
+      `[1] hex:phoenix@1.8.13 ${filePath}:95-97 [repo code] - Mix.Tasks.Phx.Gen.Auth.Injector.router_plug_inject/2 (function at lines 100-115)`,
+    );
+
+    const colored = renderUnifiedSearchSuccess(payload, {
+      useColors: true,
+      width: 200,
+    });
+    expect(colored).toContain(
+      `Mix.Tasks.Phx.Gen.Auth.Injector.\u001b[1m\u001b[33mrouter\u001b[0m_plug_inject/2`,
+    );
+
+    const equalRangeText = renderUnifiedSearchSuccess(
+      completed([
+        codeHit({
+          target: "hex:phoenix@1.8.13",
+          title: "router_plug_help_text/2",
+          locator: {
+            filePath,
+            startLine: 121,
+            endLine: 131,
+            evidenceRange: {
+              startLine: 121,
+              endLine: 131,
+              matchSpansTruncated: false,
+            },
+            indexedRange: { startLine: 121, endLine: 131 },
+            symbolContext: {
+              name: "router_plug_help_text",
+              qualifiedPath:
+                "Mix.Tasks.Phx.Gen.Auth.Injector.router_plug_help_text",
+              kind: "function",
+              relation: "encloses_match",
+              definitionRange: {
+                filePath,
+                repositoryFilePath: filePath,
+                startLine: 121,
+                endLine: 131,
+              },
+            },
+          },
+        }),
+      ]),
+    );
+    expect(equalRangeText).toContain(
+      `[1] hex:phoenix@1.8.13 ${filePath}:121-131 [repo code] - Mix.Tasks.Phx.Gen.Auth.Injector.router_plug_help_text/2 (function)`,
+    );
+    expect(equalRangeText.match(/121-131/g)).toHaveLength(1);
+  });
+
+  it("uses evidence ranges for associated, identity-only, and absent-symbol hits", () => {
     const associated = codeHit({
       title: "associated",
       locator: {
@@ -341,6 +429,8 @@ describe("renderUnifiedSearchSuccess", () => {
         indexedRange: { startLine: 1, endLine: 50 },
         symbolContext: {
           name: "associated",
+          qualifiedPath: "Example.associated",
+          kind: "function",
           relation: "associated_with_indexed_chunk",
           definitionRange: {
             filePath: "src/associated.ts",
@@ -377,7 +467,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "[1] cline/cline@v3.4.2 src/associated.ts:1-50 [repo code] - associated (evidence 10-12)",
+      "[1] cline/cline@v3.4.2 src/associated.ts:10-12 [repo code] - Example.associated (function at lines 1-50)",
     );
     expect(text).toContain(
       "[2] cline/cline@v3.4.2 src/identity.ts:20-21 [repo code] - identityOnly",
@@ -421,7 +511,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text.match(/42-57/g)).toHaveLength(1);
-    expect(text).not.toContain("evidence 42-57");
+    expect(text).toContain("router (function)");
   });
 
   it("does not promote repository documentation with associated symbol metadata", () => {

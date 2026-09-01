@@ -256,10 +256,11 @@ concrete site docs, and docs. Hits remain a separate numbered ranked evidence li
 with their follow-up locators: `[1] npm:express@5.2.1 History.md:169-179 [repo doc] -
 5.0.0-alpha.4 / 2017-03-01` or `[2] 386050 [docs page] npm:express -
 expressjs.com/en/4x/api/router/#routerroute - router.route()`. Repository code and
-symbol hits use one header shape: the path suffix is the proven definition range for
-`encloses_match`, the indexed range for an associated chunk, and the legacy evidence
-range otherwise. A differing focused evidence range follows the title on the same
-header; equal ranges are printed once. Documentation headers retain the actual page ID
+symbol hits use one header shape: the path suffix is the focused evidence range, while
+a meaningful qualified symbol identity retains signature detail from the hit title and
+is followed by its kind and any differing definition range. A differing indexed range
+without a definition is labelled as a chunk; equal ranges are printed once.
+Documentation headers retain the actual page ID
 required by `docs_read`; formatter-authored punctuation is ASCII and Unicode in
 backend payloads passes through unchanged. Executable read command lines and qualified
 internal IDs stay omitted from default text. Active empty output is `No results yet |
