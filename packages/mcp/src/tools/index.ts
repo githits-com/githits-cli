@@ -21,6 +21,7 @@ export {
 export {
   createQuickStartTool,
   DESCRIPTION as QUICK_START_DESCRIPTION,
+  QUICK_START_PREREQUISITE,
 } from "./quick-start.js";
 export {
   createReadFileTool,

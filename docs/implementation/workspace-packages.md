@@ -37,8 +37,13 @@ manifest move is complete.
 
 ## Public API Boundaries
 
-- External consumers, including the future remote MCP server repo, must import
-  only from `@githits/mcp`, `@githits/mcp/client`,
+- The production `remote-mcp` server consumes the published `@githits/mcp`
+  package for tool registration, descriptors, `quick_start`, and tool logic.
+  It supplies the hosted transport, request-scoped service composition,
+  auth/session handling, deployment, and observability rather than duplicating
+  package-owned behavior.
+- External consumers, including the `remote-mcp` repository, must import only
+  from `@githits/mcp`, `@githits/mcp/client`,
   `@githits/mcp/smoke-test`, `@githits/mcp/tools`, and
   `@githits/mcp/package.json`.
 - `@githits/mcp/tools` is the browser-callable proof-of-concept boundary. It

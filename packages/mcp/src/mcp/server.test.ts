@@ -5,6 +5,7 @@ import type {
 } from "@githits/core-internal";
 import { z } from "zod";
 import { createMockCodeNavigationService } from "../services/test-helpers.js";
+import { QUICK_START_PREREQUISITE } from "../tools/quick-start.js";
 import type { McpToolServices } from "../tools/tool-services.js";
 import {
   BOUNDED_WRITE_TOOL_ANNOTATIONS,
@@ -75,12 +76,13 @@ const DESCRIPTION_ROUTING: Record<
 > = {
   quick_start: {
     prefix:
-      /^GitHits guide for public GitHub\/package search, grep, code, docs, and examples\./,
+      /^Start GitHits sessions here unless the `githits-mcp` skill is loaded\./,
+    exactPrefix:
+      "Start GitHits sessions here unless the `githits-mcp` skill is loaded. Load once ",
     body: [
-      "Call once per session",
-      "before other GitHits tools",
-      "this quick-start guide is already in context",
-      "without querying GitHits evidence",
+      "Load once before other GitHits tools",
+      "shared safety posture",
+      "does not query GitHits evidence",
     ],
   },
   get_example: {
@@ -273,6 +275,12 @@ describe("MCP tool description catalog", () => {
           `${descriptor.name}: ${phrase}`,
         ).not.toContain(phrase);
       }
+
+      if (descriptor.name === "quick_start" || descriptor.name === "feedback") {
+        expect(descriptor.description).not.toContain(QUICK_START_PREREQUISITE);
+      } else {
+        expect(descriptor.description).toEndWith(QUICK_START_PREREQUISITE);
+      }
     }
 
     expect(
@@ -280,7 +288,7 @@ describe("MCP tool description catalog", () => {
         (total, descriptor) => total + descriptor.description.length,
         0,
       ),
-    ).toBeLessThan(15_000);
+    ).toBeLessThan(17_000);
 
     const searchSchema = z.toJSONSchema(
       z.object(descriptors.find(({ name }) => name === "search")?.schema ?? {}),

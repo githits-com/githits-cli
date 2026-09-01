@@ -70,11 +70,10 @@ The public `githits-mcp` skill is self-contained for the stable path: its
 terminal `## Quick-start guide` section is an exact copy of
 `buildMcpQuickStart()` from `packages/mcp/src/mcp/instructions.ts`, enforced by
 `src/skills-packaging.test.ts`. Plain MCP clients use the `quick_start` tool;
-clients with the loaded skill skip that normal call. Current tool descriptions
-remain authoritative, and exposed local `Experimental` descriptors or a
-material stale-snapshot mismatch can still require `quick_start`. The
-runtime-only `buildLocalMcpQuickStart()` appendices are excluded from the
-public skill copy.
+clients with the loaded skill always skip that call. Every evidence descriptor
+repeats the same prerequisite at MCP composition time; there are no
+tool-specific exceptions. Runtime-only `buildLocalMcpQuickStart()` appendices
+are excluded from the public skill copy and do not change the bootstrap rule.
 
 There are no authored host-specific skill copies. If a host later requires a
 self-contained copy, the generator may create it, but tests must enforce exact
@@ -118,6 +117,14 @@ path: it installs stdio for Claude Code, Codex CLI, Gemini CLI, and the other
 local hosts, while Cursor remains remote-only. Claude and Gemini CLI setup
 remove obsolete plugin or extension state before installing the user-scoped
 stdio server so the remote package and local server are not registered together.
+
+The hosted server lives in the separate `remote-mcp` repository. It consumes a
+released `@githits/mcp` version for tool registration, descriptors,
+`quick_start`, and tool logic, while retaining ownership of HTTP transport,
+request-scoped service composition, auth/session handling, deployment, and
+observability. Do not mirror package-owned MCP behavior in `remote-mcp`. Changes
+to that behavior reach plugin and extension clients only after the package is
+released, the remote dependency is updated, and the hosted server is deployed.
 
 The repository root is the portable Agent Plugin root and also a native
 Antigravity plugin directory. `plugin.json` is the shared Agent Plugins manifest

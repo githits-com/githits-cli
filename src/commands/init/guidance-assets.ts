@@ -23,4 +23,4 @@ export const GITHITS_SKILL_CATALOG = [
 ] as const;
 
 export const GITHITS_GUIDANCE_BLOCK =
-  "GitHits is installed for public OSS/package evidence. Prefer the `githits-mcp` skill when available; otherwise call GitHits `quick_start` once before choosing tools.";
+  "GitHits is installed for public OSS/package evidence. When the `githits-mcp` skill is loaded, follow it and do not call `quick_start`. Otherwise call GitHits `quick_start` once per session before any other GitHits tool.";

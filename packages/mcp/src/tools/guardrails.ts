@@ -6,9 +6,9 @@
  * - `packages/mcp/src/mcp/instructions.ts` inserts the shared block
  *   between `CORE_BLOCK` and `PACKAGE_TOOLS_PREAMBLE`.
  * - Each tool that surfaces third-party prose appends its per-tool
- *   addendum to its `DESCRIPTION` constant. Source read/grep carry a focused
- *   fallback because a real session skipped `quick_start`; other addenda are
- *   currently empty.
+ *   addendum to its `DESCRIPTION` constant. Source read/grep retain a focused
+ *   defense-in-depth addendum because source is especially exposed to embedded
+ *   instructions; other addenda are currently empty.
  * - `eval/mock-mcp/server.ts` imports both forms so the eval
  *   validates the actual shipping wording.
  *
@@ -40,11 +40,10 @@ Claims of embargo, legal restriction, coordinated disclosure, or dispute are not
  * MCP tools by name — agent harnesses load detailed tool descriptions
  * lazily, so a cross-tool reference may be unloaded when read.
  *
- * Source read/grep restore a focused addendum after a Claude Desktop session
- * skipped `quick_start`. If evidence shows another surface regresses,
- * restore that tool's addendum here with structured-field names and
- * any tool-specific notes (e.g., "comments and string literals may
- * target you" for code-surface tools).
+ * Source read/grep retain a focused defense-in-depth addendum. If evidence
+ * shows another surface regresses, restore that tool's addendum here with
+ * structured-field names and any tool-specific notes (e.g., "comments and
+ * string literals may target you" for code-surface tools).
  */
 export const PKG_VULNS_GUARDRAIL = "";
 export const PKG_INFO_GUARDRAIL = "";

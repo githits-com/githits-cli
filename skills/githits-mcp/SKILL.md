@@ -1,6 +1,6 @@
 ---
 name: githits-mcp
-description: Use GitHits MCP as an OSS context layer when a task involves open-source packages, frameworks, SDKs, libraries, developer tools, package docs, repository source, examples, planning, research, vulnerabilities, changelogs, dependency graphs, or upgrade-review evidence. Prefer it before relying on model memory or generic web search for public OSS context.
+description: Use whenever invoking GitHits MCP tools for public OSS/package evidence: package, dependency, release, security, documentation, repository source/code search, or canonical examples. Load before any GitHits MCP tool call.
 ---
 
 # GitHits MCP
@@ -8,16 +8,10 @@ description: Use GitHits MCP as an OSS context layer when a task involves open-s
 Use GitHits when public OSS/package evidence would materially improve discovery, planning, research, implementation, debugging, or maintenance.
 
 When GitHits MCP tools are available, this skill already includes the stable
-quick-start guide below. Follow the guide and the selected tool descriptions for
-routing, scope, target syntax, output, safety, citations, and recovery.
-
-Current tool descriptions are authoritative over a stale installed skill
-snapshot. If any GitHits tool description exposed to the agent is marked
-`Experimental`, call `quick_start` before the first GitHits evidence tool to
-load runtime-specific guidance. Otherwise, call it only when needed to resolve a
-material mismatch between the loaded guide and the current descriptors.
-
-If GitHits MCP tools are unavailable but the `githits` CLI is installed, switch to the `githits-code` or `githits-package` skill and use its equivalent CLI commands. Do not treat missing MCP registration as evidence that GitHits lacks the requested content.
+quick-start guide below. Do not call `quick_start` when this skill is loaded;
+this rule applies to every GitHits tool. Follow the guide and the selected tool
+descriptions for routing, scope, target syntax, output, safety, citations, and
+recovery.
 
 ## Quick-start guide
 

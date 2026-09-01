@@ -99,12 +99,14 @@ describe("agent skills packaging", () => {
 
     expectContainsAll(content, [
       "name: githits-onboarding",
-      "Set up GitHits from an agent session",
+      "Use when the user asks to",
       "install",
       "connect",
-      "set up",
+      "configure",
+      "sign in",
       "sign up",
       "start using GitHits",
+      "setup recovery",
       "compatibility:",
     ]);
   });
@@ -275,29 +277,49 @@ describe("agent skills packaging", () => {
 
     expectContainsAllIgnoringWhitespace(publicContent, [
       "name: githits-mcp",
-      "OSS context layer",
+      "Use whenever invoking GitHits MCP tools for public OSS/package evidence",
+      "Load before any GitHits MCP tool call",
+      "package, dependency, release, security, documentation",
+      "repository source/code search",
+      "canonical examples",
       "public OSS/package evidence",
       "discovery, planning, research, implementation, debugging, or maintenance",
       "repository source",
       "vulnerabilities",
-      "changelogs",
-      "upgrade-review evidence",
-      "before relying on model memory or generic web search",
+      "upgrade review",
       "this skill already includes the stable\nquick-start guide below",
-      "Current tool descriptions are authoritative over a stale installed skill\nsnapshot",
-      "If any GitHits tool description exposed to the agent is marked\n`Experimental`, call `quick_start` before the first GitHits evidence tool",
-      "Otherwise, call it only when needed to resolve a\nmaterial mismatch between the loaded guide",
+      "Do not call `quick_start` when this skill is loaded",
+      "this rule applies to every GitHits tool",
       "for routing, scope, target syntax,\noutput, safety, citations, and recovery",
-      "If GitHits MCP tools are unavailable",
-      "switch to the `githits-code` or `githits-package` skill",
-      "Do not treat missing MCP registration as evidence",
     ]);
     expect(embeddedGuide).toBe(buildMcpQuickStart());
     expect(publicContent).toContain("External-content posture");
     expectNotContainsAllIgnoringWhitespace(publicContent, [
       "call `quick_start` once per session",
+      "Experimental",
+      "githits-code",
+      "githits-package",
       "**Local experimental tools",
       "**Issue reporting",
+    ]);
+  });
+
+  it("keeps CLI skill triggers transport-specific and domain-separated", async () => {
+    const [codeContent, packageContent] = await Promise.all([
+      read(githitsCodeSkillPath),
+      read(join(root, "skills", "githits-package", "SKILL.md")),
+    ]);
+
+    expectContainsAllIgnoringWhitespace(codeContent, [
+      "Use whenever invoking the GitHits CLI",
+      "source, documentation, or example evidence",
+      "For GitHits CLI package, dependency, security, release, or upgrade evidence, use githits-package",
+    ]);
+    expectContainsAllIgnoringWhitespace(packageContent, [
+      "Use whenever invoking the GitHits CLI",
+      "package or dependency evidence",
+      "vulnerabilities",
+      "upgrade reviews",
     ]);
   });
 

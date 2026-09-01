@@ -72,7 +72,7 @@ packages/mcp/src/mcp/instructions.ts
                     | exact parity test
                     v
 skills/githits-mcp/SKILL.md
-       activation + stable guide + CLI fallback
+              activation + stable guide
               |                    |
               | current hosts      | future transport
               v                    v
@@ -97,43 +97,35 @@ would add machinery without improving the enforced contract.
 
 ## Compatibility boundary
 
-### Normal stable surface
+### Session bootstrap
 
 When `githits-mcp` is loaded, the agent reads the stable guide directly and
-must not call `quick_start` for bootstrap. It proceeds to the relevant evidence
-tool, including through chat-based tool search. When the skill is not loaded,
-the `quick_start` description and tool behavior remain unchanged and continue
-to provide the same guide once per session.
+must not call `quick_start`. This applies to every GitHits MCP tool, including
+tools exposed only by local composition. When the skill is not loaded, the
+strengthened `quick_start` description directs one call per session before any
+other GitHits tool.
 
-An installed filesystem/plugin skill is a snapshot, while `quick_start` comes
-from the currently connected server. If an older installed guide conflicts
-with current tool descriptions, the descriptions are authoritative; the skill
-may call `quick_start` to resolve a material mismatch. This is an exceptional
-upgrade path, not normal bootstrap behavior.
+An installed filesystem/plugin skill is a snapshot, while current tool
+descriptions come from the connected server and remain authoritative. A loaded
+skill still skips `quick_start`; update the installed skill when its embedded
+guide is stale instead of adding a second runtime bootstrap path.
 
 ### Local experimental surface
 
 The static skill does not include `resolve_target`, `code_diff`, experimental
-privacy wording, or opt-in issue-reporting policy. Add one narrow exception to
-the skill: if any GitHits tool exposed to the agent has a description beginning
-with `Experimental`, call `quick_start` before the first GitHits tool so the
-runtime-specific appendix is loaded. Do not promote experimental tool names or
-guidance into the stable guide itself. The description prefix is the detection
-contract and is asserted for every local experimental tool.
+privacy wording, or opt-in issue-reporting policy because those tools are
+config-gated and absent from the public/remote MCP surface. That packaging
+boundary does not change the session bootstrap invariant. Local experimental
+descriptors receive the same prerequisite footer as every other evidence tool:
+call `quick_start` once when the skill is absent and skip it when the skill is
+loaded.
 
-This cannot preserve every `report_tool_issues = "all"` prompt. A lazy
-tool-search client may expose only a stable descriptor for a stable-only task,
-so the agent has no transport-neutral signal that experimental tools and their
-runtime appendix exist. Phase 1 accepts that optional feedback prompt may be
-missed in that case; stable tool selection and evidence behavior are unchanged.
-Preserving the prompt completely would require an always-visible runtime signal
-or a `quick_start` call in every skill-loaded session, both outside this small
-parity PR and the latter contrary to its purpose.
-
-This exception preserves runtime-appendix behavior when an experimental
-descriptor is exposed, while retaining current ownership. Removing it would
-discard that runtime guidance; embedding the appendix would advertise phantom
-tools and policy to most users.
+Plain local clients still receive the runtime appendix from their one normal
+`quick_start` call. Skill-loaded local sessions may not receive optional
+runtime issue-reporting prompts, but tool descriptions must remain sufficient
+for selecting and using the exposed tools. Do not solve optional local guidance
+delivery by adding a tool-specific bootstrap exception or by advertising local
+tools in the stable public skill.
 
 ## Phase map
 
@@ -158,17 +150,14 @@ Phase 1 delivered the first small parity increment:
   `buildMcpQuickStart()` guide from
   `packages/mcp/src/mcp/instructions.ts` under one terminal
   `## Quick-start guide` heading.
-- A loaded skill skips normal `quick_start`; plain MCP retains the
-  `quick_start` fallback. Current tool descriptions remain authoritative.
-  A material stale-snapshot mismatch or an exposed local descriptor beginning
-  with `Experimental` may still trigger `quick_start` before the first
-  GitHits evidence tool for runtime-specific guidance.
+- A loaded skill always skips `quick_start`; plain MCP calls it once per
+  session. Every MCP evidence/preparatory descriptor repeats this same
+  prerequisite, with no tool-specific exceptions.
 - `buildLocalMcpQuickStart()` runtime appendices, experimental tool names,
   privacy wording, and issue-reporting guidance remain outside the public
-  skill. Every enabled local experimental descriptor is contract-tested with
-  the `Experimental` prefix.
+  skill and do not change the bootstrap rule.
 - `src/skills-packaging.test.ts` enforces exact stable-guide parity,
-  terminal-section structure, bootstrap wording, fallback/exception wording,
+  terminal-section structure, the universal bootstrap wording,
   external-content posture, and exclusion of local appendices.
 - `AGENTS.md`, the internal maintenance/release skills, and implementation
   docs now own the same source/parity and delivery-path rules. The root
@@ -207,6 +196,17 @@ Deterministic evidence:
 
 Qualitative evidence:
 
+- PR #335 trigger validation used isolated Codex `gpt-5.6-luna` full and plain
+  MCP profiles across neutral code-navigation and package/vulnerability
+  workloads. Both full-profile sessions read `githits-mcp` before their first
+  GitHits call, skipped `quick_start`, completed 11 MCP calls with no CLI calls,
+  and returned success/high-confidence results. The matching plain sessions
+  called `quick_start` first and exactly once, completed 17 MCP calls with no
+  CLI calls, and also returned success/high-confidence results.
+- The matching Claude full-profile attempt discovered `githits-mcp` and
+  connected the GitHits server, but the local Claude CLI was logged out and
+  stopped before reasoning or tool use. It is not trigger evidence; no
+  authentication material was inspected or copied to bypass the failure.
 - Isolated OpenCode descriptors (local MCP, descriptors profile) called
   `quick_start`; success/high usefulness, no instruction issues.
 - Isolated OpenCode full (local MCP, full profile) loaded the skill and skipped
@@ -218,12 +218,9 @@ Qualitative evidence:
   `quick_start`; Codex full (local MCP, full profile) and Claude full (local
   MCP, full profile) skipped it. These are diagnostic under the documented
   local guidance-isolation limitations.
-- The first OpenCode full run inherited local GitHits experimental
-  configuration and correctly called `quick_start` under the
-  `Experimental`/runtime-appendix exception. The first OpenCode skills run
-  inherited a globally configured MCP. Acceptance reruns used one isolated
-  temporary `XDG_CONFIG_HOME` while preserving normal auth; neither initial
-  trace was an implementation failure.
+- The first OpenCode skills run inherited a globally configured MCP. Acceptance
+  reruns used one isolated temporary `XDG_CONFIG_HOME` while preserving normal
+  auth; that initial trace was not acceptance evidence.
 
 Phase 1 acceptance is complete, including the documented lazy-discovery
 limitation for optional `report_tool_issues = "all"` guidance. Phase 2 and
@@ -353,7 +350,7 @@ Tactical rollout detail will be added after Phase 2 reorientation.
 
 ## Non-goals
 
-- Changing stable or experimental quick-start wording.
+- Changing stable or experimental quick-start guide content.
 - Removing or deprecating `quick_start`.
 - Promoting experimental tools or runtime issue-reporting policy.
 - Generating `SKILL.md` or moving shared guidance ownership.

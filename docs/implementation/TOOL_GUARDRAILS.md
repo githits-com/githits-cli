@@ -73,12 +73,13 @@ gate. Compact loses ~2 percentage points and saves ~78% of the
 wording (787 words v4 → 171 words compact).
 
 Those measurements validate the shared wording only when the block is in
-context. Plain MCP delivery normally depends on the agent calling `quick_start`;
-the loaded `githits-mcp` skill embeds the same stable block and skips that
-redundant call. Current tool descriptions remain authoritative, and a material
-stale-snapshot mismatch or exposed local `Experimental` descriptor can still
-justify `quick_start` for runtime-specific guidance. Luna-low descriptor-only
-and full-guidance canaries called `quick_start` exactly once in every workload,
+context. Plain MCP delivery depends on the agent calling `quick_start`; every
+evidence descriptor now repeats that session prerequisite, and the
+bootstrap tool names its purpose and loaded-skill exception inside the first 80
+characters. The loaded `githits-mcp` skill embeds the same stable block and
+always skips that redundant call; there are no tool-specific exceptions.
+Luna-low descriptor-only and full-guidance canaries called `quick_start`
+exactly once in every workload,
 but a later Claude Desktop source-reading session skipped it. `code_read` and
 `code_grep` therefore now carry focused local posture as a fallback. This is
 not evidence that other content tools are protected when neither the skill nor
@@ -97,11 +98,12 @@ addendum and its `tool` mode contained two, so the earlier 0/35 result was
 discarded. An earlier eight-cell Pass 3 attempt was also discarded because the
 agents bypassed the mock MCP; the forced-tool prompts replace that invalid run.
 
-**Constraint on per-tool addenda**: never reference another MCP tool
-by name in a tool's description. Agent harnesses load detailed tool
-descriptions lazily — only when a tool is actively invoked — so a
-cross-tool reference may be unloaded when read. Per-tool addenda
-must stand on their own.
+**Constraint on per-tool addenda**: do not reference another evidence MCP tool
+by name in a tool's safety addendum. Agent harnesses load detailed tool
+descriptions lazily, so a cross-tool safety reference may be unloaded when read.
+The centrally composed `quick_start` session prerequisite is the sole exception:
+it is repeated on each evidence/preparatory descriptor, and `quick_start`'s own
+first-80 catalog prefix makes that bootstrap discoverable.
 
 ## Tools that surface third-party content
 
@@ -122,8 +124,7 @@ Other tools (`quick_start`, `pkg_deps`, `code_files`, `search_status`,
 control and need no per-tool addendum. The shared posture is available to plain
 MCP agents after they call `quick_start`; a loaded `githits-mcp` skill already
 carries the stable posture. The runtime-only local appendices are not embedded
-in that skill. An exposed `Experimental` descriptor or material stale-snapshot
-mismatch remains a bounded reason to call `quick_start`.
+in that skill and do not create a second bootstrap path.
 
 ## Where the wording lives
 
@@ -142,8 +143,9 @@ mismatch remains a bounded reason to call `quick_start`.
   `DESCRIPTION_BASE`, then appends its guardrail constant to the production
   `DESCRIPTION` with a `\n\n` separator. The eval mock imports base descriptions
   through `@githits/mcp/internal` so `off`, `tool`, and `both` compose the exact
-  intended layers. Empty constants produce a trailing `\n\n` on production
-  descriptions, which is cosmetic-only.
+  intended guardrail layers, then appends the stable MCP-session `quick_start`
+  prerequisite just like production. Empty constants produce a trailing `\n\n`
+  on production descriptions, which is cosmetic-only.
 
 ## Adding a new tool that surfaces third-party content
 
