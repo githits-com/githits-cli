@@ -816,6 +816,63 @@ describe("package upgrade review response", () => {
     ).toBe(true);
   });
 
+  it("renders identity-only sampled changelog entries without a preview", () => {
+    const base = formatterReview();
+    const sampledEntry = {
+      ...base.changelog.entries[0]!,
+      version: "4.4.3",
+      publishedAt: "2025-12-01T20:49:43.268Z",
+      htmlUrl: "https://example.com/releases/4.4.3",
+      body: undefined,
+      bodyPreview: undefined,
+      headline: "Identity-only release",
+    };
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([
+        formatterReview({
+          changelog: {
+            ...base.changelog,
+            entries: [sampledEntry],
+            sampledEntries: [sampledEntry],
+            keywordEntries: [],
+            totalKeywordEntries: 0,
+            breakingSignals: [],
+            migrationSignals: [],
+          },
+        }),
+      ]),
+    );
+
+    expect(text).toContain(
+      "Sampled release entries\n    - 4.4.3 (2025-12-01T20:49:43.268Z) https://example.com/releases/4.4.3",
+    );
+    expect(text).toContain("      Identity-only release");
+    expect(text).not.toContain("Breaking: removed an API.");
+  });
+
+  it("omits the sampled release heading when no entries are available", () => {
+    const base = formatterReview();
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([
+        formatterReview({
+          changelog: {
+            ...base.changelog,
+            entries: [],
+            sampledEntries: [],
+            keywordEntries: [],
+            totalKeywordEntries: 0,
+            totalEntries: 0,
+            totalEntriesWithBodies: 0,
+            breakingSignals: [],
+            migrationSignals: [],
+          },
+        }),
+      ]),
+    );
+
+    expect(text).not.toContain("Sampled release entries");
+  });
+
   it("keeps no-color text ASCII-authored and colors attention without changing words", () => {
     const plain = formatPackageUpgradeReviewTerminal(formatterResponse(), {
       useColors: false,

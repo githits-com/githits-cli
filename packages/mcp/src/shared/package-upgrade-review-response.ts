@@ -917,10 +917,9 @@ function appendPlainChangelogEntries(
   entries: UpgradeChangelogEntry[],
   width: number,
 ): void {
-  const visibleEntries = entries.filter((entry) => entry.bodyPreview);
-  if (visibleEntries.length === 0) return;
+  if (entries.length === 0) return;
   lines.push(`  ${label}`);
-  for (const entry of visibleEntries) {
+  for (const entry of entries) {
     lines.push(...formatPlainChangelogEntry(entry, width));
   }
 }
