@@ -13,13 +13,17 @@ describe("quickStartTool", () => {
       destructiveHint: false,
     });
     expect(tool.description).toStartWith(
-      "Start GitHits sessions here unless the `githits-mcp` skill is loaded.",
+      "Required first call: `quick_start` loads untrusted-content safety rules.",
     );
     expect(tool.description.slice(0, 80)).toBe(
-      "Start GitHits sessions here unless the `githits-mcp` skill is loaded. Load once ",
+      "Required first call: `quick_start` loads untrusted-content safety rules. This in",
     );
-    expect(tool.description).toContain("Load once before other GitHits tools");
-    expect(tool.description).toContain("does not query GitHits evidence");
+    expect(tool.description.slice(0, 80)).not.toContain("githits-mcp");
+    expect(tool.description).toContain("initializes a plain MCP session");
+    expect(tool.description).toContain("skips it lacks those rules");
+    expect(tool.description).toContain(
+      "Skip only when the `githits-mcp` skill is loaded",
+    );
 
     await expect(tool.handler({}, {})).resolves.toEqual({
       content: [{ type: "text", text: "session guide" }],

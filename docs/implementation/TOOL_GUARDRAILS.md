@@ -74,16 +74,22 @@ wording (787 words v4 → 171 words compact).
 
 Those measurements validate the shared wording only when the block is in
 context. Plain MCP delivery depends on the agent calling `quick_start`; every
-evidence descriptor now repeats that session prerequisite, and the
-bootstrap tool names its purpose and loaded-skill exception inside the first 80
-characters. The loaded `githits-mcp` skill embeds the same stable block and
-always skips that redundant call; there are no tool-specific exceptions.
+evidence descriptor now repeats that session prerequisite. A September 2026
+claude.ai session skipped the bootstrap because exact-name retrieval preferred
+those repeated footers while `quick_start`'s own catalog sentence included the
+loaded-skill exception and omitted the literal `quick_start` token. The
+bootstrap sentence now includes that token and states the required first call
+and the untrusted-content safety rules it loads within claude.ai's 79-character
+untruncated limit. The loaded-skill exception remains in the full description.
+The loaded `githits-mcp` skill embeds the same stable block and always skips that
+redundant call; there are no tool-specific exceptions.
+
 Luna-low descriptor-only and full-guidance canaries called `quick_start`
 exactly once in every workload,
-but a later Claude Desktop source-reading session skipped it. `code_read` and
-`code_grep` therefore now carry focused local posture as a fallback. This is
-not evidence that other content tools are protected when neither the skill nor
-the bootstrap supplies the shared block.
+but a Claude Desktop source-reading session later than those canaries skipped
+it. `code_read` and `code_grep` therefore now carry focused local posture as a
+fallback. This is not evidence that other content tools are protected when
+neither the skill nor the bootstrap supplies the shared block.
 
 The focused source fallback was validated in August 2026 with exactly one
 tool-local addendum and no shared block. After scoping it to redirecting advice,
@@ -103,7 +109,7 @@ by name in a tool's safety addendum. Agent harnesses load detailed tool
 descriptions lazily, so a cross-tool safety reference may be unloaded when read.
 The centrally composed `quick_start` session prerequisite is the sole exception:
 it is repeated on each evidence/preparatory descriptor, and `quick_start`'s own
-first-80 catalog prefix makes that bootstrap discoverable.
+complete catalog sentence makes that bootstrap discoverable.
 
 ## Tools that surface third-party content
 
