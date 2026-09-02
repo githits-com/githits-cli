@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parse as parseYaml } from "yaml";
 
 export const CANONICAL_SKILL_NAMES = [
   "githits-code",
@@ -64,6 +65,12 @@ interface RegistryMeta {
   "io.modelcontextprotocol.registry/publisher-provided"?: RegistryPublisherMetadata;
 }
 
+interface SkillFrontmatter {
+  metadata?: {
+    internal?: unknown;
+  };
+}
+
 export interface PluginServerJson {
   version?: string;
   remotes?: RegistryRemote[];
@@ -125,6 +132,23 @@ function assertCanonicalSkills(skillNames: string[]): void {
       `Canonical skill set mismatch. Expected ${expected.join(", ")}; received ${actual.join(", ") || "none"}`,
     );
   }
+}
+
+function parseSkillFrontmatter(
+  content: string,
+  path: string,
+): SkillFrontmatter {
+  const match = content.match(/^---\r?\n(.*?)\r?\n---/s);
+  if (!match) {
+    throw new Error(`${path} must start with YAML frontmatter`);
+  }
+
+  const parsed = parseYaml(match[1] ?? "") as unknown;
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error(`${path} frontmatter must parse to an object`);
+  }
+
+  return parsed as SkillFrontmatter;
 }
 
 export function createPluginAssetInputs(
@@ -373,14 +397,54 @@ async function discoverSkillNames(root: string): Promise<string[]> {
       continue;
     }
     try {
-      await readFile(join(skillsRoot, entry.name, "SKILL.md"), "utf8");
+      const path = join(skillsRoot, entry.name, "SKILL.md");
+      const frontmatter = parseSkillFrontmatter(
+        await readFile(path, "utf8"),
+        path,
+      );
+      if (
+        (CANONICAL_SKILL_NAMES as readonly string[]).includes(entry.name) &&
+        frontmatter.metadata?.internal === true
+      ) {
+        throw new Error(
+          `${path} is in the public skill allow-list and must not set metadata.internal: true`,
+        );
+      }
       skillNames.push(entry.name);
-    } catch {
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw error;
+      }
       // Non-skill directories do not belong to the public skill surface.
     }
   }
 
   return skillNames.sort();
+}
+
+async function assertInternalSkills(root: string): Promise<void> {
+  const skillsRoot = join(root, ".agents", "skills");
+  const entries = await readdir(skillsRoot, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const path = join(skillsRoot, entry.name, "SKILL.md");
+    let content: string;
+    try {
+      content = await readFile(path, "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        continue;
+      }
+      throw error;
+    }
+    const frontmatter = parseSkillFrontmatter(content, path);
+    if (frontmatter.metadata?.internal !== true) {
+      throw new Error(`${path} must set metadata.internal: true`);
+    }
+  }
 }
 
 export async function generatePluginAssets(
@@ -396,6 +460,7 @@ export async function generatePluginAssets(
     join(root, "server.json"),
   );
   const skillNames = await discoverSkillNames(root);
+  await assertInternalSkills(root);
   const assets = renderPluginAssets(
     createPluginAssetInputs(packageJson, serverJson, skillNames),
   );

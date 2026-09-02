@@ -1,6 +1,8 @@
 ---
 name: braintrust-agent-evals
 description: Inspect, query, compare, or explicitly export GitHits agent-eval history in Braintrust using the repository's verified workflow.
+metadata:
+  internal: true
 ---
 
 # Braintrust agent evals

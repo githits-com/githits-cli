@@ -41,6 +41,13 @@ const pluginMaintenanceSkillPath = join(
   "githits-plugin-maintenance",
   "SKILL.md",
 );
+const braintrustAgentEvalsSkillPath = join(
+  root,
+  ".agents",
+  "skills",
+  "braintrust-agent-evals",
+  "SKILL.md",
+);
 async function read(path: string): Promise<string> {
   return readFile(path, "utf8");
 }
@@ -366,6 +373,19 @@ describe("agent skills packaging", () => {
     ]);
   });
 
+  it("keeps the Braintrust eval skill repository-internal", async () => {
+    const content = await read(braintrustAgentEvalsSkillPath);
+    const match = content.match(/^---\r?\n(.*?)\r?\n---/s);
+
+    expect(match).not.toBe(null);
+
+    const parsed = parseYaml(match?.[1] ?? "") as {
+      metadata?: { internal?: boolean };
+    };
+
+    expect(parsed.metadata?.internal).toBe(true);
+  });
+
   it("has valid YAML frontmatter in every public skill SKILL.md", async () => {
     const skillsDir = join(root, "skills");
     const entries = await readdir(skillsDir, { withFileTypes: true });
@@ -403,6 +423,11 @@ describe("agent skills packaging", () => {
         record.description,
         `${dir}/SKILL.md must have a description`,
       ).toBeDefined();
+      const metadata = record.metadata as Record<string, unknown> | undefined;
+      expect(
+        metadata?.internal,
+        `${dir}/SKILL.md must remain publicly discoverable`,
+      ).not.toBe(true);
     }
   });
 });
