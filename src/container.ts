@@ -287,7 +287,7 @@ export interface Dependencies {
   packageIntelligenceService: PackageIntelligenceService;
   /** Resolves fuzzy package/repository names for the CLI dogfood surface. */
   resolveTargetService: ResolveTargetService;
-  /** Private experimental Ask service used only by the root CLI. */
+  /** Private experimental Ask service used by the root CLI and local MCP. */
   agenticAskService: AgenticAskService;
   /** GitHits REST API service */
   githitsService: GitHitsService;

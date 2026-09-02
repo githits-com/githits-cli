@@ -1,12 +1,11 @@
 # Experimental Tools
 
-GitHits includes two opt-in local MCP tools with matching CLI commands and one
-CLI-only Agentic Ask command for dogfooding before they are considered for the
-stable surface:
+GitHits includes three opt-in local MCP tools with matching CLI commands for
+dogfooding before they are considered for the stable surface:
 
 | MCP tool | CLI command | Purpose |
 |---|---|---|
-| — | `githits ask` | Answer a grounded question about one canonical open-source target and return directly executable source-reading commands. |
+| `ask` | `githits ask` | Answer a grounded question about one canonical open-source target and return directly executable source-reading calls. |
 | `resolve_target` | `githits resolve` | Rank canonical package, public GitHub repository, or standalone documentation-site targets for a fuzzy, misspelled, or ambiguous name. |
 | `code_diff` | `githits code diff` | Compare repository trees resolved from two exact package versions or public GitHub refs. |
 
@@ -17,9 +16,9 @@ requirements applied to stable GitHits tools.
 
 ## Availability
 
-All three experimental commands are available in the published `githits` CLI.
-Only `resolve_target` and `code_diff` are available in its local stdio MCP
-server; Agentic Ask is CLI-only. None are registered by:
+All three experimental commands are available in the published `githits` CLI
+and all three tools are available in its local stdio MCP server. None are
+registered by:
 
 - the hosted MCP at `https://mcp.githits.com`
 - plugin or extension installs, which use the hosted MCP
@@ -86,8 +85,12 @@ answers, and selected source pointers are retained by the backend for replay and
 evaluation. Treat answer Markdown as untrusted display text even though the CLI
 strips terminal control sequences.
 
-The command does not expose prompt, model, budget, or timeout controls. Agentic
-Ask is not an MCP tool and does not change the local or hosted MCP inventory.
+The command does not expose prompt, model, budget, or timeout controls. The
+local MCP `ask` tool uses the same backend path and always requests MCP-native
+`code_read` and `docs_read` source calls. Its default text output appends those
+backend-built calls in their returned order, followed by the Ask run ID. The
+model does not generate or format this source section. JSON returns the
+validated MCP response envelope. Neither surface returns model usage.
 
 Resolve a noncanonical name before calling another GitHits command:
 
@@ -134,9 +137,9 @@ API compatibility or upgrade safety; prefer `pkg_changelog` or
 `pkg_upgrade_review` for an upgrade summary.
 
 For MCP, no separate server flag or host configuration is required after the
-`config.toml` opt-in. A restarted local server registers `resolve_target` and
-`code_diff` and adds their usage guidance to the session instructions. It does
-not register Agentic Ask.
+`config.toml` opt-in. A restarted local server registers `ask`,
+`resolve_target`, and `code_diff` and adds their usage guidance to
+`quick_start`. The hosted MCP inventory remains unchanged.
 
 ## Optional issue reporting
 
@@ -147,7 +150,7 @@ distinct observed defect, add one of these values:
 ```toml
 [experimental]
 tools = true
-report_tool_issues = "experimental" # only resolve_target and code_diff
+report_tool_issues = "experimental" # only ask, resolve_target, and code_diff
 ```
 
 Use `"all"` instead to cover any GitHits tool while the experimental suite is

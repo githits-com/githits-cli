@@ -7,7 +7,7 @@ import {
   type LocalExperimentalToolName,
 } from "./instructions.js";
 
-const EXPERIMENTAL_TOOLS = ["resolve_target", "code_diff"] as const;
+const EXPERIMENTAL_TOOLS = ["ask", "resolve_target", "code_diff"] as const;
 
 function buildLocal(
   enabledExperimentalTools: readonly LocalExperimentalToolName[],
@@ -61,6 +61,10 @@ describe("buildLocalMcpQuickStart", () => {
 
     expect(instructions).toContain("Local experimental tools");
     expect(instructions).toContain("public OSS only");
+    expect(instructions).toContain("`ask`");
+    expect(instructions).toContain("retained for replay and evaluation");
+    expect(instructions).toContain("backend-selected order");
+    expect(instructions).toContain("do not invent or rewrite them");
     expect(instructions).toContain("`resolve_target`");
     expect(instructions).toContain("`code_diff`");
     expect(instructions).toContain("canonical `registry:name`");
@@ -86,10 +90,11 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("diffs do not prove compatibility");
     expect(instructions).toContain("credentials");
     expect(instructions).toContain("private or proprietary content");
-    expect(instructions).toContain("targets.\n\n- `resolve_target`");
+    expect(instructions).toContain("targets.\n\n- `ask`");
+    expect(instructions).toContain("response envelope.\n- `resolve_target`");
     expect(instructions).toContain("to `docs_read`.\n- `code_diff`");
     expect(instructions.length - buildMcpQuickStart().length).toBeLessThan(
-      1_400,
+      1_900,
     );
     expect(instructions).not.toContain("Issue reporting");
     expect(instructions).not.toContain("accepted: false");
@@ -125,11 +130,15 @@ describe("buildLocalMcpQuickStart", () => {
       { enabled: [] as const, absent: EXPERIMENTAL_TOOLS },
       {
         enabled: ["resolve_target"] as const,
-        absent: ["code_diff"] as const,
+        absent: ["ask", "code_diff"] as const,
       },
       {
         enabled: ["code_diff"] as const,
-        absent: ["resolve_target"] as const,
+        absent: ["ask", "resolve_target"] as const,
+      },
+      {
+        enabled: ["ask"] as const,
+        absent: ["resolve_target", "code_diff"] as const,
       },
     ];
 

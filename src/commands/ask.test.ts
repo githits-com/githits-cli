@@ -54,12 +54,19 @@ function result(
   };
 }
 
+type CliAsk = (
+  request: { target: string; question: string; sourceFormat?: "cli" },
+  options?: { signal?: AbortSignal },
+) => Promise<AgenticAskCliResponse>;
+
 function createDeps(
-  ask: AgenticAskService["ask"] = mock(() => Promise.resolve(result())),
+  ask: CliAsk = mock(() => Promise.resolve(result())),
   overrides: Partial<AskCommandDependencies> = {},
 ): AskCommandDependencies {
   return {
-    agenticAskService: { ask },
+    agenticAskService: {
+      ask: ask as unknown as AgenticAskService["ask"],
+    },
     hasValidToken: true,
     mcpUrl: "https://mcp.githits.com",
     ...overrides,

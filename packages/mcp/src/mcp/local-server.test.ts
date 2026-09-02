@@ -1,5 +1,8 @@
 import { describe, expect, it, mock } from "bun:test";
-import type { ResolveTargetService } from "@githits/core-internal";
+import type {
+  AgenticAskService,
+  ResolveTargetService,
+} from "@githits/core-internal";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type {
   ServerNotification,
@@ -39,6 +42,7 @@ const EXPECTED_STABLE_NAMES = [
 
 const EXPECTED_EXPERIMENTAL_NAMES = [
   ...EXPECTED_STABLE_NAMES,
+  "ask",
   "resolve_target",
   "code_diff",
 ] as const;
@@ -66,6 +70,11 @@ function createServices(
     githitsService: createMockGitHitsService(),
     codeNavigationService: createMockCodeNavigationService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
+    agenticAskService: {
+      ask: mock(() =>
+        Promise.reject(new Error("unused")),
+      ) as unknown as AgenticAskService["ask"],
+    },
     resolveTargetService,
     ...overrides,
   };
@@ -129,7 +138,7 @@ describe("createLocalMcpServer", () => {
     }
   });
 
-  it("adds both experimental tools to the quick-start guide", async () => {
+  it("adds all experimental tools to the quick-start guide", async () => {
     const server = createLocalMcpServer({
       metadata: { name: "local-githits", version: "0.0.0" },
       services: createServices(),
@@ -139,9 +148,9 @@ describe("createLocalMcpServer", () => {
     expect(registeredToolNames(server)).toEqual([
       ...EXPECTED_EXPERIMENTAL_NAMES,
     ]);
-    expect(registeredToolNames(server)).toHaveLength(18);
+    expect(registeredToolNames(server)).toHaveLength(19);
     expect(serverInstructions(server)).toBeUndefined();
-    for (const name of ["resolve_target", "code_diff"] as const) {
+    for (const name of ["ask", "resolve_target", "code_diff"] as const) {
       expect(registeredTools(server)[name]?.description).toContain(
         "Experimental",
       );
@@ -155,7 +164,7 @@ describe("createLocalMcpServer", () => {
     );
     expect(result.content[0]?.text).toBe(
       buildLocalMcpQuickStart({
-        enabledExperimentalTools: ["resolve_target", "code_diff"],
+        enabledExperimentalTools: ["ask", "resolve_target", "code_diff"],
       }),
     );
     for (const name of EXPECTED_EXPERIMENTAL_NAMES.filter(
@@ -205,6 +214,14 @@ describe("createLocalMcpServer", () => {
   });
 
   it("resolves the extended service from the request-scoped local provider", async () => {
+    const ask = mock(() =>
+      Promise.resolve({
+        source_format: "mcp" as const,
+        tool_call_id: "018f47a6-7b32-7a1e-8f45-6a2d39c81720",
+        answer_markdown: "Grounded answer.",
+        sources: [],
+      }),
+    );
     const resolveTarget = mock(() =>
       Promise.resolve({
         best: {
@@ -220,6 +237,9 @@ describe("createLocalMcpServer", () => {
       }),
     );
     const services = createServices({
+      agenticAskService: {
+        ask: ask as unknown as AgenticAskService["ask"],
+      },
       resolveTargetService: { resolveTarget },
     });
     const provider = mock(() => services);
@@ -233,6 +253,23 @@ describe("createLocalMcpServer", () => {
         _registeredTools: Record<string, TestRegisteredTool>;
       }
     )._registeredTools.resolve_target!;
+
+    const askResult = await registeredTools(server).ask!.handler(
+      { target: "npm:express", question: "How?", format: "json" },
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+    expect(askResult.isError).toBeUndefined();
+    expect(ask).toHaveBeenCalledWith(
+      {
+        target: "npm:express",
+        question: "How?",
+        sourceFormat: "mcp",
+      },
+      undefined,
+    );
 
     const result = await registered.handler(
       { name: "express", format: "json" },

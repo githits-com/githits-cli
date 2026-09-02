@@ -5,6 +5,7 @@ import {
   type AgenticAskCliResponse,
   AgenticAskConnectionError,
   AgenticAskHttpError,
+  type AgenticAskMcpResponse,
   AgenticAskRequestTimeoutError,
   AgenticAskResponseTooLargeError,
   AgenticAskServiceImpl,
@@ -45,6 +46,34 @@ function responseBody(overrides: Record<string, unknown> = {}) {
           "--",
           "docs:example:guide",
         ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function mcpResponseBody(overrides: Record<string, unknown> = {}) {
+  return {
+    source_format: "mcp",
+    tool_call_id: TOOL_CALL_ID,
+    answer_markdown: "Use the documented API.",
+    sources: [
+      {
+        name: "code_read",
+        arguments: {
+          target: "npm:example",
+          path: "src/index.ts",
+          start_line: 10,
+          end_line: 20,
+        },
+      },
+      {
+        name: "docs_read",
+        arguments: {
+          page_id: "docs:example:guide",
+          start_line: 3,
+          end_line: 8,
+        },
       },
     ],
     ...overrides,
@@ -117,6 +146,62 @@ describe("AgenticAskServiceImpl", () => {
       question: "How is the client created?",
       source_format: "cli",
     });
+  });
+
+  it("requests and validates MCP source calls when selected by the caller", async () => {
+    let capturedInit: RequestInit | undefined;
+    const fetchFn = mock((_url: string | URL | Request, init?: RequestInit) => {
+      capturedInit = init;
+      return Promise.resolve(jsonResponse(mcpResponseBody()));
+    }) as unknown as typeof fetch;
+
+    const result = await createService(fetchFn).ask({
+      target: "npm:example",
+      question: "How is the client created?",
+      sourceFormat: "mcp",
+    });
+
+    expect(result).toEqual(mcpResponseBody() as AgenticAskMcpResponse);
+    expect(JSON.parse(String(capturedInit?.body))).toEqual({
+      target: "npm:example",
+      question: "How is the client created?",
+      source_format: "mcp",
+    });
+  });
+
+  it("rejects malformed MCP calls and a mismatched response format", async () => {
+    const invalidBodies = [
+      responseBody(),
+      mcpResponseBody({
+        sources: [
+          {
+            name: "code_read",
+            arguments: {
+              target: "npm:example",
+              path: "src/index.ts",
+              start_line: 0,
+              end_line: 20,
+            },
+          },
+        ],
+      }),
+      mcpResponseBody({ sources: [{ name: "shell", arguments: {} }] }),
+    ];
+
+    for (const body of invalidBodies) {
+      const service = createService(
+        mock(() =>
+          Promise.resolve(jsonResponse(body)),
+        ) as unknown as typeof fetch,
+      );
+      await expect(
+        service.ask({
+          target: "npm:example",
+          question: "How?",
+          sourceFormat: "mcp",
+        }),
+      ).rejects.toBeInstanceOf(MalformedAgenticAskResponseError);
+    }
   });
 
   it("accepts both OAuth JWT and opaque API-token credentials", async () => {

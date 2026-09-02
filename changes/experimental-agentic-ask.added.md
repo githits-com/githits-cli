@@ -3,4 +3,4 @@
 "@githits/mcp": none
 ---
 
-- **Experimental Agentic Ask** - Add an opt-in CLI-only `githits ask` command with safe human output, validated JSON, replay IDs, and directly executable source commands.
+- **Experimental Agentic Ask** - Add opt-in `githits ask` CLI and local MCP surfaces with validated output, replay IDs, and directly executable source calls.

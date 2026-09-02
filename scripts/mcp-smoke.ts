@@ -35,6 +35,7 @@ export interface McpSmokeScriptOptions {
 
 export const EXPECTED_EXPERIMENTAL_MCP_TOOLS = [
   ...EXPECTED_MCP_TOOLS,
+  "ask",
   "resolve_target",
   "code_diff",
 ] as const;
@@ -165,7 +166,8 @@ async function assertExperimentalMcpSession(
     `${context}: quick_start`,
   );
   assert(
-    quickStart.includes("resolve_target") &&
+    quickStart.includes("ask") &&
+      quickStart.includes("resolve_target") &&
       quickStart.includes("code_diff") &&
       quickStart.includes("site:<host[/path]>") &&
       quickStart.includes('source:"docs"') &&
@@ -252,6 +254,23 @@ async function runExperimentalRegistrationSmoke(
       ["--experimental-tools"],
       async (client) => {
         await assertExperimentalMcpSession(client, "experimental registration");
+        const askResult = (await trackSmokeStep(
+          'mcp ask {"target":"npm:express"} registration',
+          () =>
+            client.callTool({
+              name: "ask",
+              arguments: {
+                target: "npm:express",
+                question: "Where is router dispatch implemented?",
+              },
+            }),
+        )) as McpSmokeToolResult;
+        assert(
+          assertCleanErrorEnvelope(askResult, "ask registration").code ===
+            "AUTH_REQUIRED",
+          "ask registration should require auth",
+        );
+
         const resolveResult = (await trackSmokeStep(
           'mcp resolve_target {"name":"express"} registration',
           () =>
@@ -361,6 +380,59 @@ async function runExperimentalLiveSmoke(
           console.log("AUTH_REQUIRED: live MCP experimental smoke skipped");
           return;
         }
+
+        const askText = (await trackSmokeStep(
+          "mcp ask default text experimental live",
+          () =>
+            client.callTool({
+              name: "ask",
+              arguments: {
+                target: "npm:express",
+                question: "Where is router dispatch implemented?",
+              },
+            }),
+        )) as McpSmokeToolResult;
+        const askTextBody = assertDefaultText(
+          askText,
+          "experimental ask default text",
+        );
+        assert(
+          askTextBody.includes("\n\nSources:\n") &&
+            /\n\s+\d+\. (?:code_read|docs_read)\(\{[^\n]+\}\)/.test(
+              askTextBody,
+            ) &&
+            /\n\nAsk run ID: [0-9a-f-]+\n$/.test(askTextBody),
+          "experimental ask text should append callable sources and the run ID",
+        );
+
+        const askJson = (await trackSmokeStep(
+          "mcp ask JSON experimental live",
+          () =>
+            client.callTool({
+              name: "ask",
+              arguments: {
+                target: "npm:express",
+                question: "Where is router dispatch implemented?",
+                format: "json",
+              },
+            }),
+        )) as McpSmokeToolResult;
+        const askPayload = assertJsonResult(askJson, "experimental ask JSON");
+        assert(
+          askPayload !== null &&
+            typeof askPayload === "object" &&
+            !Array.isArray(askPayload),
+          "experimental ask JSON should be an object",
+        );
+        const askRecord = askPayload as Record<string, unknown>;
+        assert(
+          askRecord.source_format === "mcp" &&
+            typeof askRecord.tool_call_id === "string" &&
+            typeof askRecord.answer_markdown === "string" &&
+            Array.isArray(askRecord.sources) &&
+            !("usage" in askRecord),
+          "experimental ask JSON should be the validated MCP envelope without usage",
+        );
 
         const resolveText = (await trackSmokeStep(
           "mcp resolve_target default text experimental live",

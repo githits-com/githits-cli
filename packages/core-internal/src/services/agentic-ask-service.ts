@@ -55,10 +55,51 @@ const cliResponseSchema = z.object({
   sources: z.array(cliSourceCallSchema),
 });
 
-export interface AgenticAskRequest {
+const mcpCodeReadSourceCallSchema = z.object({
+  name: z.literal("code_read"),
+  arguments: z.object({
+    target: z.string().min(1),
+    path: z.string().min(1),
+    start_line: z.number().int().min(1),
+    end_line: z.number().int().min(1),
+  }),
+});
+
+const mcpDocumentationReadSourceCallSchema = z.object({
+  name: z.literal("docs_read"),
+  arguments: z.object({
+    page_id: z.string().min(1),
+    start_line: z.number().int().min(1),
+    end_line: z.number().int().min(1),
+  }),
+});
+
+const mcpResponseSchema = z.object({
+  source_format: z.literal("mcp"),
+  tool_call_id: z.string().regex(UUID_V7_PATTERN),
+  answer_markdown: z.string().min(1),
+  sources: z.array(
+    z.discriminatedUnion("name", [
+      mcpCodeReadSourceCallSchema,
+      mcpDocumentationReadSourceCallSchema,
+    ]),
+  ),
+});
+
+interface AgenticAskRequestBase {
   target: string;
   question: string;
 }
+
+export interface AgenticAskCliRequest extends AgenticAskRequestBase {
+  sourceFormat?: "cli";
+}
+
+export interface AgenticAskMcpRequest extends AgenticAskRequestBase {
+  sourceFormat: "mcp";
+}
+
+export type AgenticAskRequest = AgenticAskCliRequest | AgenticAskMcpRequest;
 
 export interface AgenticAskRequestOptions {
   signal?: AbortSignal;
@@ -87,9 +128,45 @@ export interface AgenticAskCliResponse {
   sources: AgenticAskCliSourceCall[];
 }
 
+export interface AgenticAskMcpCodeReadSourceCall {
+  name: "code_read";
+  arguments: {
+    target: string;
+    path: string;
+    start_line: number;
+    end_line: number;
+  };
+}
+
+export interface AgenticAskMcpDocumentationReadSourceCall {
+  name: "docs_read";
+  arguments: {
+    page_id: string;
+    start_line: number;
+    end_line: number;
+  };
+}
+
+export type AgenticAskMcpSourceCall =
+  | AgenticAskMcpCodeReadSourceCall
+  | AgenticAskMcpDocumentationReadSourceCall;
+
+export interface AgenticAskMcpResponse {
+  source_format: "mcp";
+  tool_call_id: string;
+  answer_markdown: string;
+  sources: AgenticAskMcpSourceCall[];
+}
+
+export type AgenticAskResponse = AgenticAskCliResponse | AgenticAskMcpResponse;
+
 export interface AgenticAskService {
   ask(
-    request: AgenticAskRequest,
+    request: AgenticAskMcpRequest,
+    options?: AgenticAskRequestOptions,
+  ): Promise<AgenticAskMcpResponse>;
+  ask(
+    request: AgenticAskCliRequest,
     options?: AgenticAskRequestOptions,
   ): Promise<AgenticAskCliResponse>;
 }
@@ -174,9 +251,24 @@ export class AgenticAskServiceImpl implements AgenticAskService {
   ) {}
 
   async ask(
+    request: AgenticAskMcpRequest,
+    options?: AgenticAskRequestOptions,
+  ): Promise<AgenticAskMcpResponse>;
+  async ask(
+    request: AgenticAskCliRequest,
+    options?: AgenticAskRequestOptions,
+  ): Promise<AgenticAskCliResponse>;
+  async ask(
+    request: AgenticAskRequest,
+    options?: AgenticAskRequestOptions,
+  ): Promise<AgenticAskResponse> {
+    return this.askRequest(request, options);
+  }
+
+  private async askRequest(
     request: AgenticAskRequest,
     options: AgenticAskRequestOptions = {},
-  ): Promise<AgenticAskCliResponse> {
+  ): Promise<AgenticAskResponse> {
     return withServiceDiagnostics(
       this.runtime.diagnostics,
       "agentic-ask.request",
@@ -203,7 +295,7 @@ export class AgenticAskServiceImpl implements AgenticAskService {
     token: string,
     request: AgenticAskRequest,
     signal: AbortSignal,
-  ): Promise<AgenticAskCliResponse> {
+  ): Promise<AgenticAskResponse> {
     const apiUrl = validateServiceUrl(this.apiUrl, "GITHITS_API_URL");
     let response: Response;
     try {
@@ -218,7 +310,7 @@ export class AgenticAskServiceImpl implements AgenticAskService {
         body: JSON.stringify({
           target: request.target,
           question: request.question,
-          source_format: "cli",
+          source_format: request.sourceFormat ?? "cli",
         }),
         signal,
       });
@@ -264,7 +356,9 @@ export class AgenticAskServiceImpl implements AgenticAskService {
       throw new MalformedAgenticAskResponseError({ cause });
     }
 
-    const parsed = cliResponseSchema.safeParse(raw);
+    const responseSchema =
+      request.sourceFormat === "mcp" ? mcpResponseSchema : cliResponseSchema;
+    const parsed = responseSchema.safeParse(raw);
     if (!parsed.success) {
       throw new MalformedAgenticAskResponseError({ cause: parsed.error });
     }

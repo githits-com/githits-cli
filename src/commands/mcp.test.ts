@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  type AgenticAskService,
   AuthenticationError,
   TermsAcceptanceRequiredError,
 } from "@githits/core-internal";
@@ -69,6 +70,11 @@ function createTestServices(
   overrides: Partial<LocalMcpToolServices> = {},
 ): LocalMcpToolServices {
   return {
+    agenticAskService: {
+      ask: mock(() =>
+        Promise.reject(new Error("unused")),
+      ) as unknown as AgenticAskService["ask"],
+    },
     codeNavigationService: createMockCodeNavigationService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
     githitsService: createMockGitHitsService(),
@@ -496,6 +502,7 @@ describe("createMcpCommandStartup", () => {
         });
         expect(startup.services.resolveTargetService).toBeDefined();
         expect(startup.services.codeNavigationService.codeDiff).toBeDefined();
+        expect(startup.services.agenticAskService).toBeDefined();
       });
     } finally {
       if (previousToken === undefined) delete process.env.GITHITS_API_TOKEN;

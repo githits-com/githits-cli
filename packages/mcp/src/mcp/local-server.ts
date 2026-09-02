@@ -1,4 +1,5 @@
 import type {
+  AgenticAskService,
   CodeDiffService,
   ResolveTargetService,
 } from "@githits/core-internal";
@@ -11,6 +12,7 @@ import {
   buildLocalMcpQuickStart,
   type LocalExperimentalToolName,
 } from "./instructions.js";
+import { createLocalAgenticAskTool } from "./local-agentic-ask.js";
 import {
   createDescriptorServices,
   createMcpServerWithFactories,
@@ -31,6 +33,7 @@ export interface LocalExperimentalMcpPolicy {
 }
 
 export interface LocalMcpToolServices extends McpToolServices {
+  agenticAskService: AgenticAskService;
   codeNavigationService: McpToolServices["codeNavigationService"] &
     CodeDiffService;
   resolveTargetService: ResolveTargetService;
@@ -88,6 +91,10 @@ const LOCAL_CODE_DIFF_FACTORY: McpToolFactory<LocalMcpToolServices> = (
   services,
 ) => eraseMcpTool(createCodeDiffTool(services.codeNavigationService));
 
+const LOCAL_AGENTIC_ASK_FACTORY: McpToolFactory<LocalMcpToolServices> = (
+  services,
+) => eraseMcpTool(createLocalAgenticAskTool(services.agenticAskService));
+
 interface LocalExperimentalToolDefinition {
   name: LocalExperimentalToolName;
   factory: McpToolFactory<LocalMcpToolServices>;
@@ -95,6 +102,7 @@ interface LocalExperimentalToolDefinition {
 
 const LOCAL_EXPERIMENTAL_TOOL_DEFINITIONS: readonly LocalExperimentalToolDefinition[] =
   [
+    { name: "ask", factory: LOCAL_AGENTIC_ASK_FACTORY },
     { name: "resolve_target", factory: LOCAL_RESOLVE_TARGET_FACTORY },
     { name: "code_diff", factory: LOCAL_CODE_DIFF_FACTORY },
   ];
@@ -106,6 +114,9 @@ function createLocalDescriptorServices(): LocalMcpToolServices {
   const stable = createDescriptorServices();
   return {
     ...stable,
+    agenticAskService: {
+      ask: fail,
+    },
     codeNavigationService: {
       ...stable.codeNavigationService,
       codeDiff: fail,

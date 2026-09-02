@@ -363,17 +363,29 @@ describe("createContainer", () => {
     );
   });
 
-  it("threads explicit client telemetry into constructed services", async () => {
+  it("threads explicit client telemetry into constructed services, including Ask", async () => {
     await withoutProxyEnv(async () =>
       withApiToken("ghi-test", async () => {
         const originalFetch = globalThis.fetch;
         let capturedHeaders: Record<string, string> | undefined;
-        const fetchFn = mock((_url: string, init?: RequestInit) => {
+        const fetchFn = mock((url: string, init?: RequestInit) => {
           capturedHeaders = init?.headers as Record<string, string>;
           return Promise.resolve(
-            new Response(JSON.stringify([]), {
-              headers: { "Content-Type": "application/json" },
-            }),
+            new Response(
+              JSON.stringify(
+                url.endsWith("/ask")
+                  ? {
+                      source_format: "mcp",
+                      tool_call_id: "018f47a6-7b32-7a1e-8f45-6a2d39c81720",
+                      answer_markdown: "Grounded answer.",
+                      sources: [],
+                    }
+                  : [],
+              ),
+              {
+                headers: { "Content-Type": "application/json" },
+              },
+            ),
           );
         });
         globalThis.fetch = fetchFn as unknown as typeof fetch;
@@ -386,6 +398,11 @@ describe("createContainer", () => {
           });
 
           await deps.githitsService.getLanguages();
+          await deps.agenticAskService.ask({
+            target: "npm:example",
+            question: "How?",
+            sourceFormat: "mcp",
+          });
 
           expect(capturedHeaders?.Authorization).toBe("Bearer ghi-test");
           expect(capturedHeaders?.["User-Agent"]).toMatch(/^githits-cli\/\S+$/);

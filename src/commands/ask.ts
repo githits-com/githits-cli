@@ -1,18 +1,11 @@
-import {
-  type AgenticAskCliResponse,
-  AgenticAskConnectionError,
-  AgenticAskHttpError,
-  AgenticAskRequestTimeoutError,
-  AgenticAskResponseTooLargeError,
-  type AgenticAskService,
-  AuthenticationError,
-  MalformedAgenticAskResponseError,
+import type {
+  AgenticAskCliResponse,
+  AgenticAskService,
 } from "@githits/core-internal";
 import {
   AuthRequiredError,
   buildAuthRequiredErrorPayload,
-  type MappedError,
-  mapTermsAcceptanceError,
+  mapAgenticAskError,
   requireAuth,
   sanitizeTerminalText,
   shellQuote,
@@ -37,11 +30,6 @@ export interface AskCommandDependencies {
   mcpUrl: string;
   signal?: AbortSignal;
   createSpinner?: () => Spinner;
-}
-
-interface AskCliError {
-  mapped: MappedError;
-  toolCallId?: string;
 }
 
 export async function askAction(
@@ -128,94 +116,8 @@ export function formatAgenticAskSourceCommand(
     .join(" ");
 }
 
-export function mapAgenticAskErrorForCli(error: unknown): AskCliError {
-  const termsError = mapTermsAcceptanceError(error);
-  if (termsError) return { mapped: termsError };
-
-  if (error instanceof AgenticAskHttpError) {
-    const details = {
-      status: error.status,
-      ...(error.retryAfterSeconds !== undefined
-        ? { retryAfterSeconds: error.retryAfterSeconds }
-        : {}),
-      ...(error.code === "AUTH_REQUIRED"
-        ? { authSource: "server" as const }
-        : {}),
-    };
-    return {
-      mapped: {
-        code: mapHttpErrorCode(error),
-        message: error.message,
-        retryable: error.retryable,
-        details,
-      },
-      toolCallId: error.toolCallId,
-    };
-  }
-  if (error instanceof AuthenticationError) {
-    return {
-      mapped: {
-        code: "AUTH_REQUIRED",
-        message: error.message,
-        retryable: false,
-        details: { authSource: error.source },
-      },
-    };
-  }
-  if (error instanceof AgenticAskRequestTimeoutError) {
-    return {
-      mapped: {
-        code: "TIMEOUT",
-        message: error.message,
-        retryable: true,
-        details: { timeoutMs: error.timeoutMs },
-      },
-    };
-  }
-  if (error instanceof AgenticAskConnectionError) {
-    return {
-      mapped: { code: "NETWORK", message: error.message, retryable: true },
-    };
-  }
-  if (
-    error instanceof MalformedAgenticAskResponseError ||
-    error instanceof AgenticAskResponseTooLargeError
-  ) {
-    return {
-      mapped: {
-        code: "PROTOCOL_ERROR",
-        message: error.message,
-        retryable: false,
-      },
-    };
-  }
-  return {
-    mapped: {
-      code: "UNKNOWN",
-      message: "Agentic Ask failed unexpectedly.",
-      retryable: false,
-    },
-  };
-}
-
-function mapHttpErrorCode(error: AgenticAskHttpError): MappedError["code"] {
-  switch (error.code) {
-    case "INVALID_TARGET":
-    case "INVALID_REQUEST":
-      return "INVALID_ARGUMENT";
-    case "AUTH_REQUIRED":
-      return "AUTH_REQUIRED";
-    case "ACCESS_DENIED":
-      return "ACCESS_DENIED";
-    case "RATE_LIMITED":
-      return "RATE_LIMITED";
-    case "TIMEOUT":
-      return "TIMEOUT";
-    case "EXECUTION_FAILED":
-    case "SERVICE_UNAVAILABLE":
-    case "HTTP_ERROR":
-      return "BACKEND_ERROR";
-  }
+export function mapAgenticAskErrorForCli(error: unknown) {
+  return mapAgenticAskError(error);
 }
 
 function sanitizeTerminalMarkdown(value: string): string {

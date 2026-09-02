@@ -8,6 +8,7 @@ export {
   type LocalMcpToolServicesProvider,
 } from "./mcp/local-server.js";
 export { getMcpToolDefinitions } from "./mcp/server.js";
+export * from "./shared/agentic-ask-error-map.js";
 export * from "./shared/code-diff-request.js";
 export * from "./shared/code-diff-response.js";
 export * from "./shared/code-diff-text.js";

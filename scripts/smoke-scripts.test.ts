@@ -514,6 +514,7 @@ describe("MCP smoke cohorts", () => {
   it("keeps experimental inventory local and additive to the stable baseline", () => {
     expect(EXPECTED_EXPERIMENTAL_MCP_TOOLS).toEqual([
       ...EXPECTED_MCP_TOOLS,
+      "ask",
       "resolve_target",
       "code_diff",
     ]);

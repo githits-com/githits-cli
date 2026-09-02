@@ -129,7 +129,7 @@ export function buildMcpInstructions(
   return buildMcpQuickStart(options);
 }
 
-export type LocalExperimentalToolName = "resolve_target" | "code_diff";
+export type LocalExperimentalToolName = "ask" | "resolve_target" | "code_diff";
 
 export interface BuildLocalMcpQuickStartOptions {
   enabledExperimentalTools: readonly LocalExperimentalToolName[];
@@ -144,6 +144,9 @@ const LOCAL_EXPERIMENTAL_HEADING =
 
 const LOCAL_EXPERIMENTAL_PRIVACY =
   "Inputs are sent to GitHits. Never send credentials, personal data, private or proprietary content, local paths, or private targets.";
+
+const LOCAL_AGENTIC_ASK_GUIDANCE =
+  "- `ask` — answer one question about one canonical public package or repository target using backend-controlled grounded retrieval. The answer is retained for replay and evaluation. Sources are appended as directly callable MCP tools in backend-selected order; do not invent or rewrite them. Use the returned Ask run ID when reporting a defect. Prefer the default text output; use JSON only for the exact validated response envelope.";
 
 const LOCAL_RESOLVE_TARGET_GUIDANCE =
   '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` target is docs-only: pass it to `search` with `source:"docs"`; request `format:"json"` when exact locator fields are needed, then pass a relevant `pageId` and returned line range to `docs_read`.';
@@ -166,6 +169,9 @@ export function buildLocalMcpQuickStart(
     LOCAL_EXPERIMENTAL_PRIVACY,
   ];
   const toolGuidance: string[] = [];
+  if (enabled.has("ask")) {
+    toolGuidance.push(LOCAL_AGENTIC_ASK_GUIDANCE);
+  }
   if (enabled.has("resolve_target")) {
     toolGuidance.push(LOCAL_RESOLVE_TARGET_GUIDANCE);
   }
