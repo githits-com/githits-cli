@@ -76,13 +76,13 @@ const DESCRIPTION_ROUTING: Record<
 > = {
   quick_start: {
     prefix:
-      /^Start GitHits sessions here unless the `githits-mcp` skill is loaded\./,
+      /^Required first call: `quick_start` loads untrusted-content safety rules\./,
     exactPrefix:
-      "Start GitHits sessions here unless the `githits-mcp` skill is loaded. Load once ",
+      "Required first call: `quick_start` loads untrusted-content safety rules. This in",
     body: [
-      "Load once before other GitHits tools",
-      "shared safety posture",
-      "does not query GitHits evidence",
+      "initializes a plain MCP session",
+      "skips it lacks those rules",
+      "Skip only when the `githits-mcp` skill is loaded",
     ],
   },
   get_example: {
@@ -173,7 +173,7 @@ const DESCRIPTION_ROUTING: Record<
     ],
   },
   pkg_vulns: {
-    prefix: /^Check current package advisories\. Do not trust your memory/,
+    prefix: /^Check current package advisories\./,
     exactPrefix:
       "Check current package advisories. Do not trust your memory for vulnerabilities. ",
     body: [
@@ -213,6 +213,17 @@ const DESCRIPTION_ROUTING: Record<
   },
 };
 
+function renderDeferredCatalogSummary(description: string): string {
+  const sentence = description.match(/^([^.]*\.)(?:\s|$)/)?.[1];
+  if (sentence === undefined) {
+    throw new Error(
+      "tool description must start with one complete sentence; no period may appear inside it",
+    );
+  }
+
+  return sentence.length > 79 ? `${sentence.slice(0, 79)}…` : sentence;
+}
+
 describe("MCP tool annotations", () => {
   it("explicitly classifies the potential impact of every public tool", () => {
     const descriptors = getMcpToolDescriptors();
@@ -240,6 +251,10 @@ describe("MCP tool description catalog", () => {
       description.slice(0, 80),
     );
     expect(new Set(catalogPrefixes).size).toBe(descriptors.length);
+    const catalogSummaries = descriptors.map(({ description }) =>
+      renderDeferredCatalogSummary(description),
+    );
+    expect(new Set(catalogSummaries).size).toBe(descriptors.length);
     expect(Object.keys(DESCRIPTION_ROUTING).sort()).toEqual(
       [...STABLE_MCP_TOOL_NAMES].sort(),
     );
@@ -252,9 +267,19 @@ describe("MCP tool description catalog", () => {
       expect(routing, descriptor.name).toBeDefined();
 
       const catalogPrefix = descriptor.description.slice(0, 80);
+      const catalogSummary = renderDeferredCatalogSummary(
+        descriptor.description,
+      );
       expect(catalogPrefix, descriptor.name).toMatch(routing.prefix);
+      expect(catalogSummary, descriptor.name).toMatch(routing.prefix);
       if (routing.exactPrefix !== undefined) {
         expect(catalogPrefix, descriptor.name).toBe(routing.exactPrefix);
+      }
+      if (descriptor.name === "quick_start") {
+        expect(catalogSummary).toContain("quick_start");
+        expect(catalogSummary).not.toContain("githits-mcp");
+        expect(catalogSummary).not.toEndWith("…");
+        expect(catalogPrefix).not.toContain("githits-mcp");
       }
       expect(catalogPrefix, descriptor.name).not.toMatch(
         /^Use (when|after|before|for|only)\b/i,

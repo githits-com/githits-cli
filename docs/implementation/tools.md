@@ -26,27 +26,32 @@ deployed; no second tool implementation change is required.
 ## Tool-selection contract
 
 MCP clients may receive only a truncated catalog before loading a tool
-definition. Every tool description therefore starts with a compact,
-benefit-specific verb/object phrase. Do not spend that prefix on generic
-phrasing such as “Use when the user asks” or “Use when the user needs”. The
-first 80 characters prioritize the user's likely question and the tool's
-distinct role; treat that boundary as a ceiling, not a target. Keep registry
-counts and enumerations in the loaded definition because they crowd out trigger
-language and can imply incomplete or inconsistent catalog boundaries. The
-loaded definition owns the complete use/avoid boundary, argument constraints,
-and the exact name of each immediate follow-up tool; repeat those handoffs on
-both sides of a workflow so a client can recover when it loads only one tool.
+definition. The verified claude.ai deferred-tool catalog renders the first
+description sentence, capped at 80 displayed characters: sentences longer than
+79 characters appear as their first 79 plus an ellipsis. Every tool description
+therefore starts with a compact, benefit-specific sentence. Do not spend that
+sentence on generic phrasing such as “Use when the user asks” or “Use when the
+user needs”. The first sentence prioritizes the user's likely question and the
+tool's distinct role; keep it within 79 characters when it must render whole.
+Keep the first 80 raw characters useful for clients that expose a raw prefix.
+Keep registry counts and enumerations in the loaded definition because they
+crowd out trigger language and can imply incomplete or inconsistent catalog
+boundaries. The loaded definition owns the complete use/avoid boundary,
+argument constraints, and the exact name of each immediate follow-up tool.
+Repeat those handoffs on both sides of a workflow so a client can recover when
+it loads only one tool.
 
-The 80-character boundary comes from an August 2026 Claude Desktop connector
+The raw 80-character boundary comes from an August 2026 Claude Desktop connector
 session with no GitHits memories or user instruction to use GitHits. Its
 unguided selection context contained the tool name and first 80 description
 characters; the connector description and MCP server instructions were absent.
-That observation is host-specific rather than an MCP protocol guarantee, but it
-defines the minimum catalog surface GitHits designs and tests. Other clients
-may expose different amounts or kinds of discovery context; 80 characters is
-GitHits' verified Claude Desktop design target, not a cross-client guarantee.
+A separate September 2026 claude.ai session exposed the first-sentence renderer
+described above. These observations are host-specific rather than MCP protocol
+guarantees, but together define the catalog surfaces GitHits designs and tests.
+Other clients may expose different amounts or kinds of discovery context.
 
-Write the prefix as the answer to “why would an agent choose this tool now?”:
+Write the opening sentence as the answer to “why would an agent choose this tool
+now?”:
 
 - Match natural questions such as “is this version vulnerable?” or “what does
   this package depend on?”, rather than catalog taxonomy or implementation
@@ -60,29 +65,47 @@ Write the prefix as the answer to “why would an agent choose this tool now?”
 - Distinguish sibling tools before adding shared corpus terms. For example,
   package health, advisory detail, dependency graphs, changelog history, and
   upgrade review need visibly different openings.
-- Make every prefix stand alone. Do not assume ordering, adjacency, a shared
-  connector description, `quick_start`, or server instructions supply context.
+- Make every opening sentence stand alone. Do not assume ordering, adjacency, a
+  shared connector description, `quick_start`, or server instructions supply
+  context.
 - Keep exhaustive registry coverage, schemas, limits, handoffs, and safety
-  detail in the remainder of the loaded definition. Do not fill unused prefix
-  characters merely because the client permits 80.
+  detail in the remainder of the loaded definition. Do not pad the opening
+  sentence toward the catalog limit.
+- Avoid internal periods in the opening sentence, including abbreviations,
+  version literals, and filenames; the observed host sentence boundary is
+  otherwise ambiguous, and the descriptor contract rejects it.
 
 GitHits intentionally omits MCP initialize instructions because clients treat
 them inconsistently: some hide them, some promote them, and some repeat them
 with every tool. Guidance has two delivery paths: a loaded `githits-mcp` skill
 already carries the stable guide and skips `quick_start`,
 while plain MCP clients use the no-argument, read-only `quick_start` tool once
-per session. The `quick_start` catalog prefix states both paths inside Claude
-Desktop's verified 80-character boundary. Every evidence or preparatory
-descriptor repeats the prerequisite as an MCP-composed footer without changing
-its distinct first-80 selection prefix; `feedback` is excluded because it is a
-post-result write. There are no tool-specific exceptions. The stable guide is
-owned by `packages/mcp/src/mcp/instructions.ts`; the terminal skill section must stay
+per session. The `quick_start` catalog sentence states the required first call
+and the untrusted-content safety rules it loads in 72 characters, so claude.ai
+renders it whole; the skill-loaded exception remains in the full description.
+Every evidence or preparatory descriptor repeats the prerequisite as an
+MCP-composed footer without changing its distinct opening sentence or raw
+prefix; `feedback` is excluded because it is a post-result write. There are no
+tool-specific exceptions. The stable guide is owned by
+`packages/mcp/src/mcp/instructions.ts`; the terminal skill section must stay
 byte-for-byte aligned under `src/skills-packaging.test.ts`. Local
 `buildLocalMcpQuickStart()` appendices are runtime-only and excluded from that
-public copy; they do not change when `quick_start` is called. Individual tool descriptions remain self-contained so direct
-tool selection can still find the right evidence tool before the bootstrap.
+public copy; they do not change when `quick_start` is called. Individual tool
+descriptions remain self-contained so direct tool selection can still find the
+right evidence tool before the bootstrap.
 Transport-neutral callable descriptions do not receive the footer because that
 surface does not guarantee a `quick_start` tool exists.
+
+The `quick_start` catalog sentence was corrected after a September 2026
+claude.ai session skipped `quick_start`: exact-name retrieval matched the
+prerequisite footer repeated by the dependent tools, while `quick_start`'s own
+catalog sentence included the loaded-skill exception and omitted both the
+literal `quick_start` token and the safety consequence. The replacement
+sentence includes both because the
+observed retrieval matched description bodies rather than tool names. The
+transcript-derived probe in
+`eval/agentic/probes/claude-ai-deferred-catalog.md` preserves that catalog layout
+and substitutes the current rendered `quick_start` sentence.
 
 Use the tools in these roles:
 
@@ -120,7 +143,7 @@ Use the tools in these roles:
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `quick_start` | none | Start a plain GitHits MCP session by loading the canonical guide for public GitHub/package search, grep, code, docs, examples, routing, and external-content safety without querying evidence. Call it once per session before other GitHits tools; skip it when the `githits-mcp` skill is loaded. |
+| `quick_start` | none | Required first call for a plain GitHits MCP session. Loads untrusted-content safety rules, cross-tool routing, target syntax, and compact-output rules. A plain session that skips it lacks those rules; skip only when the `githits-mcp` skill is loaded. |
 | `get_example` | `query`, `language?`, `license_mode?`, `format?` | Find canonical cross-project examples when no single target is the answer or target-scoped search came up short. For a known package or repository, use `search`, `docs_*`, or `code_*`. Defaults to markdown with source provenance and an optional `solution_id` for `feedback`; pass `format: "json"` for `{result, solution_id?}`. |
 | `search_language` | `query`, `format?` | Resolve a supported language name or alias for `get_example`; do not use it for source search. Defaults to one compact line per match; pass `format: "json"` for structured matches. |
 | `feedback` | `solution_id?`, `accepted`, `feedback_text?`, `tool_name?` | Submit feedback when a GitHits result or the overall experience was helpful, unhelpful, wrong, incomplete, slow, or confusing. Pass `solution_id` to rate an example or `tool_name` to identify a result. |
@@ -553,9 +576,11 @@ or a prefix repeated on every tool. Plain MCP clients use the `quick_start`
 tool to expose shared guidance once, on demand. The loaded `githits-mcp` skill
 contains the same stable guide and therefore makes no bootstrap call;
 current tool descriptions remain the source of truth for tool-specific
-routing, arguments, output, and recovery. The bootstrap descriptor's first 80
-characters identify it as the session entry point and name the skill-loaded
-exception. Every evidence and preparatory descriptor repeats the same prerequisite
+routing, arguments, output, and recovery. The bootstrap descriptor's complete
+catalog sentence identifies it as the required first call, includes the literal
+`quick_start` retrieval token, and states the untrusted-content safety benefit;
+the skill-loaded exception follows later. Every evidence and preparatory
+descriptor repeats the same prerequisite
 in a centrally composed footer, so selecting a direct tool still routes a plain
 MCP agent through `quick_start`. The footer is absent from transport-neutral
 callable tools, which may not expose a bootstrap tool. There are no
@@ -710,17 +735,20 @@ Each tool follows the same structure. See `packages/mcp/src/tools/search.ts` for
 
 1. Define an `Args` interface for the handler input
 2. Define a `schema` object with Zod validators (these become the MCP tool's input schema)
-3. Define a `DESCRIPTION` constant whose first 80 characters satisfy the
-   standalone selection contract above. MCP session composition appends the
-   shared `quick_start` prerequisite to evidence and preparatory tools.
+3. Define a `DESCRIPTION` constant whose first sentence satisfies claude.ai's
+   rendered catalog contract and whose first 80 raw characters remain useful to
+   clients that expose a raw prefix. Do not use internal periods in that opening
+   sentence; abbreviations, version literals, and filenames make the observed
+   host boundary ambiguous. MCP session composition appends the shared
+   `quick_start` prerequisite to evidence and preparatory tools.
 4. Export a `createXxxTool(service)` factory function returning a `ToolDefinition`
 5. The handler calls the service and wraps the result with `textResult()` or lets `withErrorHandling()` catch errors
 
 > **Descriptions and session composition are owned by `@githits/mcp`.** Do not
-> duplicate them in `remote-mcp`. Add an exact first-80 catalog test in
-> `packages/mcp/src/mcp/server.test.ts`, then use descriptor-only agent evals to
-> inspect discovery and actual calls. Even small wording differences can change
-> tool selection behaviour.
+> duplicate them in `remote-mcp`. Add a rendered first-sentence contract and an
+> exact first-80 raw-prefix test in `packages/mcp/src/mcp/server.test.ts`, then
+> use descriptor-only agent evals to inspect discovery and actual calls. Even
+> small wording differences can change tool selection behaviour.
 
 ## Adding a New Tool
 

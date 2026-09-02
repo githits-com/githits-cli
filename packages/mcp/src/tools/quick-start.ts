@@ -8,7 +8,7 @@ import {
 const schema: ZodRawShape = {};
 
 export const DESCRIPTION =
-  "Start GitHits sessions here unless the `githits-mcp` skill is loaded. Load once before other GitHits tools to get the shared safety posture, cross-tool routing, target syntax, and compact-output rules. This tool does not query GitHits evidence.";
+  "Required first call: `quick_start` loads untrusted-content safety rules. This initializes a plain MCP session with cross-tool routing, target syntax, and compact-output rules. A plain session that skips it lacks those rules. Skip only when the `githits-mcp` skill is loaded.";
 
 export const QUICK_START_PREREQUISITE =
   "Before using this tool, call `quick_start` once per session unless the `githits-mcp` skill is loaded.";

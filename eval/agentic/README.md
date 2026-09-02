@@ -733,6 +733,19 @@ Workloads are Markdown prompts. They should contain:
 
 - The task.
 
+`probes/claude-ai-deferred-catalog.md` is the deliberate exception: it prepends the
+transcript-reported claude.ai `Available tools` catalog to a package evaluation
+task. It is a prompt-level salience approximation, not a claim to reproduce
+claude.ai system-prompt privilege, clipping, retrieval, or `tool_search`
+behavior. Keep the reported catalog static until a newer connector transcript
+justifies refreshing it, except for the substituted `quick_start` line: that
+line must track the production tool through claude.ai's observed renderer. It
+uses the first description sentence when that sentence is at most 79
+characters, or the first 79 plus an ellipsis otherwise. The colocated
+deterministic test enforces this contract. The real GitHits MCP remains attached
+and callable, so this probes catalog-line salience without isolating
+catalog-only selection.
+
 The harness appends `eval/agentic/workloads/REPORTING.md` to every workload so
 all agents return the same structured report. Workload files should not repeat
 that reporting contract.
@@ -754,6 +767,7 @@ use at least one agent for quick iteration.
 | Unified `search` / `search_status` behavior                        | `unified-search-investigation.md`; use `search-source-ergonomics.md` when changing `search` source-selection arguments or minimal-call guidance; use `opencode-compaction.md` for the remote-MCP routing regression                                                                   |
 | Explicit standalone site targets in unified `search`               | `site-search-explicit.md`                                                                                                                                                                                                                                                             |
 | Package overview or vulnerability UX, `pkg_info`, `pkg_vulns`      | `package-overview-vulnerabilities.md`; use `package-vulnerability-filter.md` for severity/version filtering behavior, `package-vulnerability-history.md` for historical/non-affecting advisory scope behavior, and `package-vulnerability-rubygems.md` for non-npm descriptor routing |
+| `quick_start` catalog salience in the reported claude.ai layout    | `probes/claude-ai-deferred-catalog.md`; inspect whether `quick_start` is the first GitHits call, exactly once, before package evidence tools                                                                                                                                         |
 | Dependency graph UX, `pkg_deps`                                    | `package-dependencies.md`                                                                                                                                                                                                                                                             |
 | Release notes UX, `pkg_changelog`                                  | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior                                                                                                                                                                                              |
 | Upgrade evidence UX, `pkg_upgrade_review`                          | `package-upgrade-safety.md`                                                                                                                                                                                                                                                           |
@@ -779,6 +793,29 @@ writes `metrics.json` and `report.json`; use the printed run directory with:
 bun run agent:e2e:report --json .agent-eval/runs/<run>
 bun run agent:e2e:report .agent-eval/runs/<run>
 ```
+
+For a `quick_start` catalog-prefix change, also run the transcript-derived
+catalog salience probe with the descriptor profile and inspect
+`tool-calls.json` directly:
+
+```bash
+bun run agent:e2e --agent claude --server local --guidance-profile descriptors --intent-profile githits --workload eval/agentic/probes/claude-ai-deferred-catalog.md
+```
+
+This Claude-specific probe lives outside the named-suite `workloads/` inventory
+because named suites run the fixed Codex/Luna matrix. Run it only with the
+one-off command above.
+
+Claude workload runs use a disposable acting-agent `HOME`, so an ordinary host
+subscription login from `claude auth login` is not visible to this command. Use
+one of the harness-preserved non-interactive Claude authentication inputs
+(`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`) without printing or copying
+credential values into the run directory. A direct normal-home Claude canary
+can confirm host behavior, but is not harness isolation evidence.
+
+The candidate behavior is one `quick_start` call before `pkg_info` or
+`pkg_vulns`. Harness success alone is insufficient, and this probe does not
+replace validation in claude.ai.
 
 Named suites are available through `agent:e2e:suite`. Use
 `--scenario full` for a local/manual full-guidance run. Daily pipeline
