@@ -3431,13 +3431,14 @@ describe("initAction", () => {
     const logCalls = getLogOutput();
     expect(
       logCalls.some((msg) =>
-        msg.includes("Your agent can only read your local codebase"),
+        msg.includes("Let your agents see beyond your codebase"),
       ),
     ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("GitHits connects them"))).toBe(
+      true,
+    );
     expect(
-      logCalls.some((msg) =>
-        msg.includes("navigate the open-source code your app depends on"),
-      ),
+      logCalls.some((msg) => msg.includes("open-source dependency index")),
     ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("With GitHits"))).toBe(true);
     expect(
@@ -3492,9 +3493,11 @@ describe("initAction", () => {
 
       await initAction({ guidance: false }, { ...deps, isInteractive: false });
       const introLines = getLogOutput();
-      expect(introLines).toContain("  Your agent can only read your local");
-      expect(introLines).toContain("  codebase.");
-      expect(introLines).not.toContain("  codebas e.");
+      expect(introLines).toContain("  Let your agents see beyond your");
+      expect(introLines).toContain("  version-aware open-source dependency");
+      expect(introLines).not.toContain(
+        "  version-aware open-sourc e dependency",
+      );
 
       logSpy.mockClear();
       await initAction(
