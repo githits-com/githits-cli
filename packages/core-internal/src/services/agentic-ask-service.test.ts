@@ -9,6 +9,7 @@ import {
   AgenticAskRequestTimeoutError,
   AgenticAskResponseTooLargeError,
   AgenticAskServiceImpl,
+  type AgenticAskUrlResponse,
   MalformedAgenticAskResponseError,
   parseAgenticAskToolCallId,
 } from "./agentic-ask-service.js";
@@ -75,6 +76,21 @@ function mcpResponseBody(overrides: Record<string, unknown> = {}) {
           end_line: 8,
         },
       },
+    ],
+    ...overrides,
+  };
+}
+
+function urlResponseBody(overrides: Record<string, unknown> = {}) {
+  return {
+    source_format: "url",
+    tool_call_id: TOOL_CALL_ID,
+    answer_markdown: "Use the documented API.",
+    sources: [
+      {
+        url: "https://github.com/example/project/blob/main/src/index.ts#L10-L20",
+      },
+      { url: "https://example.com/docs/guide#L3-L8" },
     ],
     ...overrides,
   };
@@ -167,6 +183,63 @@ describe("AgenticAskServiceImpl", () => {
       question: "How is the client created?",
       source_format: "mcp",
     });
+  });
+
+  it("requests and validates upstream URLs when selected by the caller", async () => {
+    let capturedInit: RequestInit | undefined;
+    const fetchFn = mock((_url: string | URL | Request, init?: RequestInit) => {
+      capturedInit = init;
+      return Promise.resolve(
+        jsonResponse(
+          urlResponseBody({
+            usage: { input_tokens: 1 },
+            future_field: true,
+          }),
+        ),
+      );
+    }) as unknown as typeof fetch;
+
+    const result = await createService(fetchFn).ask({
+      target: "npm:example",
+      question: "How is the client created?",
+      sourceFormat: "url",
+    });
+
+    expect(result).toEqual(urlResponseBody() as AgenticAskUrlResponse);
+    expect(result).not.toHaveProperty("usage");
+    expect(JSON.parse(String(capturedInit?.body))).toEqual({
+      target: "npm:example",
+      question: "How is the client created?",
+      source_format: "url",
+    });
+  });
+
+  it("rejects malformed URL sources and a mismatched response format", async () => {
+    const invalidBodies = [
+      responseBody(),
+      urlResponseBody({ sources: [{ url: "javascript:alert(1)" }] }),
+      urlResponseBody({ sources: [{ url: "not a URL" }] }),
+      urlResponseBody({ sources: [{ url: " https://example.com/source" }] }),
+      urlResponseBody({ sources: [{ url: "https://example.com/source " }] }),
+      urlResponseBody({ sources: [{ url: "https://example.com/a\nb" }] }),
+      urlResponseBody({ sources: [{ url: "https://example.com/a\tb" }] }),
+      urlResponseBody({ sources: [{ href: "https://example.com" }] }),
+    ];
+
+    for (const body of invalidBodies) {
+      const service = createService(
+        mock(() =>
+          Promise.resolve(jsonResponse(body)),
+        ) as unknown as typeof fetch,
+      );
+      await expect(
+        service.ask({
+          target: "npm:example",
+          question: "How?",
+          sourceFormat: "url",
+        }),
+      ).rejects.toBeInstanceOf(MalformedAgenticAskResponseError);
+    }
   });
 
   it("rejects malformed MCP calls and a mismatched response format", async () => {

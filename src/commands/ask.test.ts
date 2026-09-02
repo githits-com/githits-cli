@@ -4,6 +4,7 @@ import {
   AgenticAskHttpError,
   AgenticAskRequestTimeoutError,
   type AgenticAskService,
+  type AgenticAskUrlResponse,
 } from "@githits/core-internal";
 import { TermsAcceptanceRequiredError } from "@githits/core-internal/browser";
 import { AuthRequiredError } from "@githits/mcp/internal";
@@ -54,10 +55,28 @@ function result(
   };
 }
 
+function urlResult(): AgenticAskUrlResponse {
+  return {
+    source_format: "url",
+    tool_call_id: TOOL_CALL_ID,
+    answer_markdown: "Use the public factory.",
+    sources: [
+      {
+        url: "https://github.com/example/project/blob/main/src/index.ts#L10-L20",
+      },
+      { url: "https://example.com/docs/guide#L3-L8" },
+    ],
+  };
+}
+
 type CliAsk = (
-  request: { target: string; question: string; sourceFormat?: "cli" },
+  request: {
+    target: string;
+    question: string;
+    sourceFormat?: "cli" | "url";
+  },
   options?: { signal?: AbortSignal },
-) => Promise<AgenticAskCliResponse>;
+) => Promise<AgenticAskCliResponse | AgenticAskUrlResponse>;
 
 function createDeps(
   ask: CliAsk = mock(() => Promise.resolve(result())),
@@ -121,6 +140,46 @@ describe("askAction", () => {
     expect(log).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual(response);
     expect(write).not.toHaveBeenCalled();
+  });
+
+  it("requests and renders original upstream URLs when selected", async () => {
+    const response = urlResult();
+    const ask = mock(() => Promise.resolve(response));
+    const write = spyOn(process.stdout, "write").mockImplementation(() => true);
+
+    await askAction(
+      "npm:example",
+      "How?",
+      { sourceFormat: "url" },
+      createDeps(ask),
+    );
+
+    expect(ask).toHaveBeenCalledWith(
+      {
+        target: "npm:example",
+        question: "How?",
+        sourceFormat: "url",
+      },
+      undefined,
+    );
+    expect(write.mock.calls[0]?.[0]).toBe(
+      "Use the public factory.\n\nSources:\n  1. https://github.com/example/project/blob/main/src/index.ts#L10-L20\n  2. https://example.com/docs/guide#L3-L8\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\n",
+    );
+  });
+
+  it("returns only the URL envelope when URL sources and JSON are selected", async () => {
+    const response = urlResult();
+    const log = spyOn(console, "log").mockImplementation(() => undefined);
+
+    await askAction(
+      "npm:example",
+      "How?",
+      { json: true, sourceFormat: "url" },
+      createDeps(mock(() => Promise.resolve(response))),
+    );
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual(response);
+    expect(log.mock.calls[0]?.[0]).not.toContain("usage");
   });
 
   it("stops interactive progress before writing the answer", async () => {

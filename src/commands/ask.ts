@@ -1,6 +1,7 @@
 import type {
   AgenticAskCliResponse,
   AgenticAskService,
+  AgenticAskUrlResponse,
 } from "@githits/core-internal";
 import {
   AuthRequiredError,
@@ -10,7 +11,7 @@ import {
   sanitizeTerminalText,
   shellQuote,
 } from "@githits/mcp/internal";
-import type { Command } from "commander";
+import { type Command, Option } from "commander";
 import { createContainer } from "../container.js";
 import type { Spinner } from "../shared/spinner.js";
 import { startSpinner } from "../shared/spinner.js";
@@ -22,6 +23,7 @@ import {
 
 export interface AskCommandOptions {
   json?: boolean;
+  sourceFormat?: "cli" | "url";
 }
 
 export interface AskCommandDependencies {
@@ -51,10 +53,17 @@ export async function askAction(
   const spinner =
     deps.createSpinner?.() ?? startSpinner(SPINNER_MESSAGES.ask, !options.json);
   try {
-    const result = await deps.agenticAskService.ask(
-      { target, question },
-      deps.signal ? { signal: deps.signal } : undefined,
-    );
+    const requestOptions = deps.signal ? { signal: deps.signal } : undefined;
+    const result =
+      options.sourceFormat === "url"
+        ? await deps.agenticAskService.ask(
+            { target, question, sourceFormat: "url" },
+            requestOptions,
+          )
+        : await deps.agenticAskService.ask(
+            { target, question },
+            requestOptions,
+          );
     spinner.stop();
     if (options.json) {
       console.log(JSON.stringify(result));
@@ -87,21 +96,23 @@ export async function askAction(
   }
 }
 
-/** Render validated Ask markdown and directly executable source commands. */
+/** Render validated Ask markdown, selected source pointers, and replay ID. */
 export function formatAgenticAskHumanResponse(
-  response: AgenticAskCliResponse,
+  response: AgenticAskCliResponse | AgenticAskUrlResponse,
 ): string {
   const sections = [sanitizeTerminalMarkdown(response.answer_markdown).trim()];
   if (response.sources.length > 0) {
-    sections.push(
-      [
-        "Sources:",
-        ...response.sources.map(
-          (source, index) =>
-            `  ${index + 1}. ${formatAgenticAskSourceCommand(source)}`,
-        ),
-      ].join("\n"),
-    );
+    const sourceLines =
+      response.source_format === "url"
+        ? response.sources.map(
+            (source, index) =>
+              `  ${index + 1}. ${sanitizeTerminalText(source.url)}`,
+          )
+        : response.sources.map(
+            (source, index) =>
+              `  ${index + 1}. ${formatAgenticAskSourceCommand(source)}`,
+          );
+    sections.push(["Sources:", ...sourceLines].join("\n"));
   }
   sections.push(`Ask run ID: ${response.tool_call_id}`);
   return `${sections.join("\n\n")}\n`;
@@ -150,7 +161,7 @@ function isCallerCancellation(
 const DESCRIPTION = `Ask a grounded question about one open-source package or repository.
 
 The backend controls the prompt, model, budgets, and validation policy. The
-response includes replayable source commands and an Ask run ID for later review.`;
+response includes replayable source pointers and an Ask run ID for later review.`;
 
 export function registerAskCommand(program: Command): Command {
   return program
@@ -159,6 +170,12 @@ export function registerAskCommand(program: Command): Command {
     .description(DESCRIPTION)
     .argument("<target>", "Canonical package or GitHub repository target")
     .argument("<question>", "Question to answer from indexed public sources")
+    .addOption(
+      new Option(
+        "--source-format <format>",
+        "Source pointers: native CLI commands (default) or upstream URLs",
+      ).choices(["cli", "url"]),
+    )
     .option("--json", "Output the validated backend response as JSON")
     .action(
       async (target: string, question: string, options: AskCommandOptions) => {

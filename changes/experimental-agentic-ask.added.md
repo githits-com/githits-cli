@@ -3,4 +3,4 @@
 "@githits/mcp": none
 ---
 
-- **Experimental Agentic Ask** - Add opt-in `githits ask` CLI and local MCP surfaces with validated output, replay IDs, and directly executable source calls.
+- **Experimental Agentic Ask** - Add opt-in `githits ask` CLI and local MCP surfaces with validated output, replay IDs, directly executable source calls, and original upstream URL sources.

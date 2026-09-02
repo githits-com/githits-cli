@@ -405,33 +405,47 @@ async function runExperimentalLiveSmoke(
           "experimental ask text should append callable sources and the run ID",
         );
 
-        const askJson = (await trackSmokeStep(
-          "mcp ask JSON experimental live",
+        const askUrlJson = (await trackSmokeStep(
+          "mcp ask URL JSON experimental live",
           () =>
             client.callTool({
               name: "ask",
               arguments: {
                 target: "npm:express",
                 question: "Where is router dispatch implemented?",
+                source_format: "url",
                 format: "json",
               },
             }),
         )) as McpSmokeToolResult;
-        const askPayload = assertJsonResult(askJson, "experimental ask JSON");
-        assert(
-          askPayload !== null &&
-            typeof askPayload === "object" &&
-            !Array.isArray(askPayload),
-          "experimental ask JSON should be an object",
+        const askUrlPayload = assertJsonResult(
+          askUrlJson,
+          "experimental ask URL JSON",
         );
-        const askRecord = askPayload as Record<string, unknown>;
         assert(
-          askRecord.source_format === "mcp" &&
-            typeof askRecord.tool_call_id === "string" &&
-            typeof askRecord.answer_markdown === "string" &&
-            Array.isArray(askRecord.sources) &&
-            !("usage" in askRecord),
-          "experimental ask JSON should be the validated MCP envelope without usage",
+          askUrlPayload !== null &&
+            typeof askUrlPayload === "object" &&
+            !Array.isArray(askUrlPayload),
+          "experimental ask URL JSON should be an object",
+        );
+        const askUrlRecord = askUrlPayload as Record<string, unknown>;
+        assert(
+          askUrlRecord.source_format === "url" &&
+            typeof askUrlRecord.tool_call_id === "string" &&
+            typeof askUrlRecord.answer_markdown === "string" &&
+            Array.isArray(askUrlRecord.sources) &&
+            askUrlRecord.sources.every(
+              (source) =>
+                source !== null &&
+                typeof source === "object" &&
+                !Array.isArray(source) &&
+                typeof (source as Record<string, unknown>).url === "string" &&
+                /^https?:\/\//.test(
+                  (source as Record<string, string>).url ?? "",
+                ),
+            ) &&
+            !("usage" in askUrlRecord),
+          "experimental ask URL JSON should contain only validated upstream URLs without usage",
         );
 
         const resolveText = (await trackSmokeStep(

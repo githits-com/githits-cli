@@ -3,6 +3,7 @@ import {
   AgenticAskHttpError,
   type AgenticAskMcpResponse,
   type AgenticAskService,
+  type AgenticAskUrlResponse,
   AuthenticationError,
 } from "@githits/core-internal";
 import { TermsAcceptanceRequiredError } from "@githits/core-internal/browser";
@@ -43,10 +44,24 @@ function response(): AgenticAskMcpResponse {
   };
 }
 
+function urlResponse(): AgenticAskUrlResponse {
+  return {
+    source_format: "url",
+    tool_call_id: TOOL_CALL_ID,
+    answer_markdown: "Use the documented API.",
+    sources: [
+      {
+        url: "https://github.com/example/project/blob/main/src/index.ts#L10-L20",
+      },
+      { url: "https://example.com/docs/guide#L3-L8" },
+    ],
+  };
+}
+
 type McpAsk = (
-  request: { target: string; question: string; sourceFormat: "mcp" },
+  request: { target: string; question: string; sourceFormat: "mcp" | "url" },
   options?: { signal?: AbortSignal },
-) => Promise<AgenticAskMcpResponse>;
+) => Promise<AgenticAskMcpResponse | AgenticAskUrlResponse>;
 
 function createService(
   ask: McpAsk = mock(() => Promise.resolve(response())),
@@ -76,7 +91,16 @@ describe("local ask MCP adapter", () => {
       openWorldHint: false,
       destructiveHint: false,
     });
-    expect(Object.keys(tool.schema)).toEqual(["target", "question", "format"]);
+    expect(Object.keys(tool.schema)).toEqual([
+      "target",
+      "question",
+      "source_format",
+      "format",
+    ]);
+    expect(jsonSchema.properties?.source_format).toMatchObject({
+      default: "mcp",
+      enum: ["mcp", "url"],
+    });
     expect(jsonSchema.properties?.format).toMatchObject({
       default: "text-v1",
       enum: ["text-v1", "text", "json"],
@@ -114,6 +138,46 @@ describe("local ask MCP adapter", () => {
     });
 
     expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual(response());
+    expect(result.content[0]?.text).not.toContain("usage");
+  });
+
+  it("requests and renders original upstream URLs when selected", async () => {
+    const response = urlResponse();
+    const ask = mock(() => Promise.resolve(response));
+    const result = await invoke(createLocalAgenticAskTool(createService(ask)), {
+      target: "npm:example",
+      question: "How?",
+      source_format: "url",
+    });
+
+    expect(ask).toHaveBeenCalledWith(
+      {
+        target: "npm:example",
+        question: "How?",
+        sourceFormat: "url",
+      },
+      undefined,
+    );
+    expect(result.content[0]?.text).toBe(
+      "Use the documented API.\n\nSources:\n  1. https://github.com/example/project/blob/main/src/index.ts#L10-L20\n  2. https://example.com/docs/guide#L3-L8\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\n",
+    );
+  });
+
+  it("returns only the URL envelope for JSON when selected", async () => {
+    const response = urlResponse();
+    const result = await invoke(
+      createLocalAgenticAskTool(
+        createService(mock(() => Promise.resolve(response))),
+      ),
+      {
+        target: "npm:example",
+        question: "How?",
+        source_format: "url",
+        format: "json",
+      },
+    );
+
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual(response);
     expect(result.content[0]?.text).not.toContain("usage");
   });
 

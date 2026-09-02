@@ -5,7 +5,7 @@ dogfooding before they are considered for the stable surface:
 
 | MCP tool | CLI command | Purpose |
 |---|---|---|
-| `ask` | `githits ask` | Answer a grounded question about one canonical open-source target and return directly executable source-reading calls. |
+| `ask` | `githits ask` | Answer a grounded question about one canonical open-source target and return executable source-reading calls or original upstream URLs. |
 | `resolve_target` | `githits resolve` | Rank canonical package, public GitHub repository, or standalone documentation-site targets for a fuzzy, misspelled, or ambiguous name. |
 | `code_diff` | `githits code diff` | Compare repository trees resolved from two exact package versions or public GitHub refs. |
 
@@ -76,21 +76,28 @@ Ask one question about a canonical package or repository target:
 ```sh
 githits ask pypi:fastapi "How does dependency injection resolve nested dependencies?"
 githits ask github:expressjs/express "Where is router dispatch implemented?" --json
+githits ask npm:express "Where is router dispatch implemented?" --source-format url
 ```
 
-Human output contains the grounded answer, an Ask run ID, and source commands
-in the form `npx githits@latest ...` that can be executed directly. JSON output
-is the validated backend response and intentionally omits model usage. Questions,
-answers, and selected source pointers are retained by the backend for replay and
-evaluation. Treat answer Markdown as untrusted display text even though the CLI
-strips terminal control sequences.
+By default, human output contains the grounded answer, an Ask run ID, and source
+commands in the form `npx githits@latest ...` that can be executed directly.
+JSON output is the validated backend response and intentionally omits model
+usage. Questions, answers, and selected source pointers are retained by the
+backend for replay and evaluation. Treat answer Markdown as untrusted display
+text even though the CLI strips terminal control sequences.
+
+Use `--source-format url` to return the original upstream HTTP URLs instead of
+CLI source commands. This changes only source presentation; the backend still
+selects the evidence and appends the source section deterministically.
 
 The command does not expose prompt, model, budget, or timeout controls. The
-local MCP `ask` tool uses the same backend path and always requests MCP-native
-`code_read` and `docs_read` source calls. Its default text output appends those
-backend-built calls in their returned order, followed by the Ask run ID. The
-model does not generate or format this source section. JSON returns the
-validated MCP response envelope. Neither surface returns model usage.
+local MCP `ask` tool uses the same backend path and defaults to MCP-native
+`code_read` and `docs_read` source calls. Set `source_format` to `url` for
+original upstream HTTP URLs. Text output appends the selected backend-built
+source pointers in their returned order, followed by the Ask run ID. The model
+does not generate or format this source section. JSON returns the validated
+response envelope for the selected source format. Neither surface returns model
+usage.
 
 Resolve a noncanonical name before calling another GitHits command:
 

@@ -64,7 +64,8 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("`ask`");
     expect(instructions).toContain("retained for replay and evaluation");
     expect(instructions).toContain("backend-selected order");
-    expect(instructions).toContain("do not invent or rewrite them");
+    expect(instructions).toContain('`source_format:"url"`');
+    expect(instructions).toContain("Do not invent or rewrite sources");
     expect(instructions).toContain("`resolve_target`");
     expect(instructions).toContain("`code_diff`");
     expect(instructions).toContain("canonical `registry:name`");

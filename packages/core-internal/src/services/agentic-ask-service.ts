@@ -86,6 +86,23 @@ const mcpResponseSchema = z.object({
   ),
 });
 
+const upstreamUrlSchema = z
+  .string()
+  .refine((value) => value === value.trim() && !hasControlCharacters(value))
+  .pipe(z.string().url())
+  .refine((value) => {
+    if (!URL.canParse(value)) return false;
+    const protocol = new URL(value).protocol;
+    return protocol === "http:" || protocol === "https:";
+  });
+
+const urlResponseSchema = z.object({
+  source_format: z.literal("url"),
+  tool_call_id: z.string().regex(UUID_V7_PATTERN),
+  answer_markdown: z.string().min(1),
+  sources: z.array(z.object({ url: upstreamUrlSchema })),
+});
+
 interface AgenticAskRequestBase {
   target: string;
   question: string;
@@ -99,7 +116,14 @@ export interface AgenticAskMcpRequest extends AgenticAskRequestBase {
   sourceFormat: "mcp";
 }
 
-export type AgenticAskRequest = AgenticAskCliRequest | AgenticAskMcpRequest;
+export interface AgenticAskUrlRequest extends AgenticAskRequestBase {
+  sourceFormat: "url";
+}
+
+export type AgenticAskRequest =
+  | AgenticAskCliRequest
+  | AgenticAskMcpRequest
+  | AgenticAskUrlRequest;
 
 export interface AgenticAskRequestOptions {
   signal?: AbortSignal;
@@ -158,7 +182,21 @@ export interface AgenticAskMcpResponse {
   sources: AgenticAskMcpSourceCall[];
 }
 
-export type AgenticAskResponse = AgenticAskCliResponse | AgenticAskMcpResponse;
+export interface AgenticAskUrlSource {
+  url: string;
+}
+
+export interface AgenticAskUrlResponse {
+  source_format: "url";
+  tool_call_id: string;
+  answer_markdown: string;
+  sources: AgenticAskUrlSource[];
+}
+
+export type AgenticAskResponse =
+  | AgenticAskCliResponse
+  | AgenticAskMcpResponse
+  | AgenticAskUrlResponse;
 
 export interface AgenticAskService {
   ask(
@@ -169,6 +207,10 @@ export interface AgenticAskService {
     request: AgenticAskCliRequest,
     options?: AgenticAskRequestOptions,
   ): Promise<AgenticAskCliResponse>;
+  ask(
+    request: AgenticAskUrlRequest,
+    options?: AgenticAskRequestOptions,
+  ): Promise<AgenticAskUrlResponse>;
 }
 
 export type AgenticAskHttpErrorCode =
@@ -258,6 +300,10 @@ export class AgenticAskServiceImpl implements AgenticAskService {
     request: AgenticAskCliRequest,
     options?: AgenticAskRequestOptions,
   ): Promise<AgenticAskCliResponse>;
+  async ask(
+    request: AgenticAskUrlRequest,
+    options?: AgenticAskRequestOptions,
+  ): Promise<AgenticAskUrlResponse>;
   async ask(
     request: AgenticAskRequest,
     options?: AgenticAskRequestOptions,
@@ -357,7 +403,11 @@ export class AgenticAskServiceImpl implements AgenticAskService {
     }
 
     const responseSchema =
-      request.sourceFormat === "mcp" ? mcpResponseSchema : cliResponseSchema;
+      request.sourceFormat === "mcp"
+        ? mcpResponseSchema
+        : request.sourceFormat === "url"
+          ? urlResponseSchema
+          : cliResponseSchema;
     const parsed = responseSchema.safeParse(raw);
     if (!parsed.success) {
       throw new MalformedAgenticAskResponseError({ cause: parsed.error });
