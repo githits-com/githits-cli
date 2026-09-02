@@ -4,7 +4,7 @@ import {
   mkdtemp,
   readdir,
   readFile,
-  rename,
+  rename as renamePath,
   rmdir,
   stat,
   unlink,
@@ -36,6 +36,9 @@ export interface FileSystemService {
 
   /** Delete directory if it exists and is empty */
   deleteDirIfEmpty(path: string): Promise<void>;
+
+  /** Atomically rename a path on the same filesystem */
+  rename(source: string, destination: string): Promise<void>;
 
   /** Check if file exists */
   exists(path: string): Promise<boolean>;
@@ -134,6 +137,10 @@ export class FileSystemServiceImpl implements FileSystemService {
     }
   }
 
+  async rename(source: string, destination: string): Promise<void> {
+    await renamePath(source, destination);
+  }
+
   async exists(path: string): Promise<boolean> {
     try {
       await stat(path);
@@ -211,7 +218,7 @@ export class FileSystemServiceImpl implements FileSystemService {
     try {
       await writeFile(tmpPath, contents, { mode });
       operation = "replace-target";
-      await rename(tmpPath, path);
+      await renamePath(tmpPath, path);
     } catch (error) {
       logFileSystemDiagnostic(operation, error);
       // Clean up temp file on failure

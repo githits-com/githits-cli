@@ -20,6 +20,7 @@ const LOCK_OWNER_RECHECK_MS = 1_000;
 const ORPHANED_LOCK_MS = 5_000;
 const OWNER_FILE = "owner.json";
 const RECLAIM_FILE_PREFIX = "reclaim-";
+const RELEASE_DIR_PREFIX = `${LOCK_DIR}.release-`;
 const RECLAIM_OWNER_HASH_PATTERN = /^[0-9a-f]{64}$/;
 const MAX_NODE_PROCESS_ID = 0x7fffffff;
 const PROCESS_IDENTITY_LOOKUP_TIMEOUT_MS = 5_000;
@@ -463,14 +464,28 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     const currentOwner = await this.readOwnerForRelease();
     if (currentOwner.state !== "present" || currentOwner.owner.id !== owner.id)
       return;
-    if (!(await this.deleteFileForCleanup(this.ownerPath()))) return;
+
+    const releasePath = this.releasePath(owner.id);
+    try {
+      // Rename is the unlock point. Cleanup at the owner-scoped sibling cannot
+      // overlap a successor creating the shared auth.lock pathname on Windows.
+      await this.fileSystemService.rename(this.lockPath, releasePath);
+    } catch (error) {
+      this.logDiagnostic({
+        event: "lock-release-rename-failed",
+        code: (error as NodeJS.ErrnoException).code ?? null,
+      });
+      return;
+    }
+
+    if (!(await this.deleteFileForCleanup(this.ownerPath(releasePath)))) return;
     await this.fileSystemService
-      .deleteDirIfEmpty(this.lockPath)
+      .deleteDirIfEmpty(releasePath)
       .catch(() => undefined);
   }
 
-  private ownerPath(): string {
-    return this.fileSystemService.joinPath(this.lockPath, OWNER_FILE);
+  private ownerPath(lockPath: string = this.lockPath): string {
+    return this.fileSystemService.joinPath(lockPath, OWNER_FILE);
   }
 
   private reclaimPath(ownerId: string): string {
@@ -478,6 +493,14 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     return this.fileSystemService.joinPath(
       this.lockPath,
       `${RECLAIM_FILE_PREFIX}${ownerHash}`,
+    );
+  }
+
+  private releasePath(ownerId: string): string {
+    const ownerHash = createHash("sha256").update(ownerId).digest("hex");
+    return this.fileSystemService.joinPath(
+      this.fileSystemService.getDirname(this.lockPath),
+      `${RELEASE_DIR_PREFIX}${ownerHash}`,
     );
   }
 

@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { once } from "node:events";
 import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { getAuthLockDir } from "./app-config-paths.js";
 import {
   AuthStorageImpl,
@@ -134,9 +134,11 @@ describe("LockedAuthStorage", () => {
     const ownerPath = join(lockPath, "owner.json");
     const deleteFile = fsWithHome.deleteFile.bind(fsWithHome);
     let ownerDeleteCount = 0;
+    let cleanupOwnerPath = "";
     fsWithHome.deleteFile = mock(async (path: string) => {
-      if (path === ownerPath && ownerDeleteCount === 0) {
+      if (path.endsWith("owner.json") && ownerDeleteCount === 0) {
         ownerDeleteCount += 1;
+        cleanupOwnerPath = path;
         const error = new Error(
           "owner file is temporarily busy",
         ) as NodeJS.ErrnoException;
@@ -153,7 +155,130 @@ describe("LockedAuthStorage", () => {
     await storage.withAuthStorageLock(async () => undefined);
 
     expect(ownerDeleteCount).toBe(2);
+    expect(cleanupOwnerPath).not.toBe(ownerPath);
     expect(await fs.exists(lockPath)).toBe(false);
+  });
+
+  it("lets a successor acquire while the previous release path is cleaning up", async () => {
+    const { fs, fsWithHome, lockPath } = await createStoragePaths();
+    const firstEntered = createDeferred();
+    const releaseFirst = createDeferred();
+    const secondObservedFirst = createDeferred();
+    const secondEntered = createDeferred();
+    const cleanupStarted = createDeferred();
+    const continueCleanup = createDeferred();
+    const renamePath = fsWithHome.rename.bind(fsWithHome);
+    const deleteFile = fsWithHome.deleteFile.bind(fsWithHome);
+    let firstReleasePath = "";
+    const firstFs = Object.assign(Object.create(fsWithHome), {
+      rename: mock(async (source: string, destination: string) => {
+        if (source === lockPath) firstReleasePath = destination;
+        await renamePath(source, destination);
+      }),
+      deleteFile: mock(async (path: string) => {
+        if (
+          firstReleasePath !== "" &&
+          path === join(firstReleasePath, "owner.json")
+        ) {
+          cleanupStarted.resolve();
+          await continueCleanup.promise;
+        }
+        await deleteFile(path);
+      }),
+    }) as FileSystemServiceImpl;
+    const first = new LockedAuthStorage(createMockAuthStorage(), firstFs, {
+      lockTimeoutMs: 1_000,
+      getProcessStartedAt: testProcessStartedAt,
+    });
+    const second = new LockedAuthStorage(createMockAuthStorage(), fsWithHome, {
+      lockTimeoutMs: 1_000,
+      getProcessStartedAt: testProcessStartedAt,
+      isOwnerAlive: async () => {
+        secondObservedFirst.resolve();
+        return true;
+      },
+    });
+    let activeCriticalSections = 0;
+    let maxActiveCriticalSections = 0;
+    let secondDidEnter = false;
+    let firstDidComplete = false;
+
+    const firstRun = first
+      .withAuthStorageLock(async () => {
+        activeCriticalSections += 1;
+        maxActiveCriticalSections = Math.max(
+          maxActiveCriticalSections,
+          activeCriticalSections,
+        );
+        firstEntered.resolve();
+        await releaseFirst.promise;
+        activeCriticalSections -= 1;
+      })
+      .then(() => {
+        firstDidComplete = true;
+      });
+    await firstEntered.promise;
+    const firstOwnerId = (
+      JSON.parse(await fs.readFile(join(lockPath, "owner.json"))) as {
+        id: string;
+      }
+    ).id;
+    const expectedReleasePath = join(
+      dirname(lockPath),
+      `auth.lock.release-${createHash("sha256").update(firstOwnerId).digest("hex")}`,
+    );
+    const secondRun = second.withAuthStorageLock(async () => {
+      activeCriticalSections += 1;
+      maxActiveCriticalSections = Math.max(
+        maxActiveCriticalSections,
+        activeCriticalSections,
+      );
+      secondDidEnter = true;
+      secondEntered.resolve();
+      activeCriticalSections -= 1;
+    });
+
+    try {
+      await secondObservedFirst.promise;
+      expect(secondDidEnter).toBe(false);
+
+      releaseFirst.resolve();
+      await cleanupStarted.promise;
+      await secondEntered.promise;
+      await secondRun;
+
+      expect(firstReleasePath).toBe(expectedReleasePath);
+      expect(firstDidComplete).toBe(false);
+      expect(maxActiveCriticalSections).toBe(1);
+    } finally {
+      releaseFirst.resolve();
+      continueCleanup.resolve();
+    }
+
+    await firstRun;
+    expect(await fs.exists(lockPath)).toBe(false);
+  });
+
+  it("retains the owned lock when release rename fails", async () => {
+    const { fs, fsWithHome, lockPath } = await createStoragePaths();
+    const ownerPath = join(lockPath, "owner.json");
+    const rename = mock(async () => {
+      const error = new Error(
+        "lock directory cannot be renamed",
+      ) as NodeJS.ErrnoException;
+      error.code = "EPERM";
+      throw error;
+    });
+    fsWithHome.rename = rename;
+    const storage = new LockedAuthStorage(createMockAuthStorage(), fsWithHome, {
+      getProcessStartedAt: testProcessStartedAt,
+    });
+
+    await storage.withAuthStorageLock(async () => undefined);
+
+    expect(rename).toHaveBeenCalledTimes(1);
+    expect(await fs.exists(lockPath)).toBe(true);
+    expect(await fs.exists(ownerPath)).toBe(true);
   });
 
   it("keeps a concurrent holder when another acquisition loses owner creation", async () => {
