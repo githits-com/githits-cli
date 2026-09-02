@@ -86,12 +86,7 @@ export interface FileSystemService {
  */
 export class FileSystemServiceImpl implements FileSystemService {
   async readFile(path: string): Promise<string> {
-    try {
-      return await readFile(path, "utf-8");
-    } catch (error) {
-      logFileSystemDiagnostic("read-file", error);
-      throw error;
-    }
+    return readFile(path, "utf-8");
   }
 
   async writeFile(
@@ -151,12 +146,7 @@ export class FileSystemServiceImpl implements FileSystemService {
   }
 
   async ensureDir(path: string, mode?: number): Promise<void> {
-    try {
-      await mkdir(path, { recursive: true, mode });
-    } catch (error) {
-      logFileSystemDiagnostic("ensure-dir", error);
-      throw error;
-    }
+    await mkdir(path, { recursive: true, mode });
   }
 
   async createTempDir(prefix: string): Promise<string> {
@@ -214,13 +204,10 @@ export class FileSystemServiceImpl implements FileSystemService {
     } catch {
       // File doesn't exist yet — use default
     }
-    let operation = "write-temp";
     try {
       await writeFile(tmpPath, contents, { mode });
-      operation = "replace-target";
       await renamePath(tmpPath, path);
     } catch (error) {
-      logFileSystemDiagnostic(operation, error);
       // Clean up temp file on failure
       try {
         await unlink(tmpPath);
@@ -230,13 +217,4 @@ export class FileSystemServiceImpl implements FileSystemService {
       throw error;
     }
   }
-}
-
-function logFileSystemDiagnostic(operation: string, error: unknown): void {
-  if (process.env.GITHITS_AUTH_LOCK_DIAGNOSTIC_STRESS !== "1") return;
-  const code = (error as NodeJS.ErrnoException).code ?? null;
-  if (code === "ENOENT") return;
-  console.error(
-    `[auth-filesystem-diagnostic] ${JSON.stringify({ operation, code })}`,
-  );
 }

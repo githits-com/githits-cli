@@ -87,7 +87,6 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
   private readonly lockContext = new AsyncLocalStorage<string>();
   private currentOwner: LockOwner | null = null;
   private readonly lockLoads: boolean;
-  private readonly diagnostics: boolean;
 
   constructor(
     private readonly storage: AuthStorage,
@@ -99,11 +98,9 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
         processStartedAt: string | null,
       ) => Promise<boolean>;
       getProcessStartedAt?: (pid: number) => Promise<string | null>;
-      diagnostics?: boolean;
     } = {},
   ) {
     this.lockTimeoutMs = options.lockTimeoutMs ?? LOCK_TIMEOUT_MS;
-    this.diagnostics = options.diagnostics === true;
     this.processStartedAtLookup =
       options.getProcessStartedAt ?? getProcessStartedAt;
     this.isOwnerAlive =
@@ -115,7 +112,6 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
           pid === process.pid
             ? () => this.getCurrentProcessStartedAt()
             : this.processStartedAtLookup,
-          (event) => this.logDiagnostic(event),
         ));
     this.lockLoads = storage.requiresLoadLock === true;
     this.lockPath = fileSystemService.joinPath(
@@ -228,21 +224,10 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     const processStartedAt = await this.getCurrentProcessStartedAt();
     const startedAt = Date.now();
     let nextOwnerCheckAt = 0;
-    try {
-      await mkdir(dirname(this.lockPath), { recursive: true, mode: 0o700 });
-    } catch (error) {
-      this.logDiagnostic({
-        event: "lock-acquire-operation-failed",
-        operation: "ensure-lock-parent",
-        code: (error as NodeJS.ErrnoException).code ?? null,
-      });
-      throw error;
-    }
+    await mkdir(dirname(this.lockPath), { recursive: true, mode: 0o700 });
     while (true) {
-      let operation = "create-lock-directory";
       try {
         await mkdir(this.lockPath, { recursive: false, mode: 0o700 });
-        operation = "create-owner-file";
         try {
           const owner = await this.writeOwner(processStartedAt);
           return owner;
@@ -266,22 +251,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
           throw error;
         }
       } catch (error) {
-        const code = (error as NodeJS.ErrnoException).code;
-        if (code !== "EEXIST") {
-          const ownerResult =
-            code === "EPERM" ? await this.readOwner() : undefined;
-          this.logDiagnostic({
-            event: "lock-acquire-operation-failed",
-            operation,
-            code: code ?? null,
-            ownerState: ownerResult?.state ?? null,
-            ownerIsCurrentProcess:
-              ownerResult?.state === "present"
-                ? ownerResult.owner.pid === process.pid
-                : null,
-          });
-          throw error;
-        }
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
         const now = Date.now();
         if (now >= nextOwnerCheckAt) {
           await this.reclaimStaleLock();
@@ -357,12 +327,6 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
       owner.processStartedAt,
     ));
     if (!ownerDead) return;
-
-    this.logDiagnostic({
-      event: "reclaim-proven-dead-owner",
-      ownerIsCurrentProcess: owner.pid === process.pid,
-      ownerHasProcessStart: owner.processStartedAt !== null,
-    });
 
     await this.reclaimProvenDeadOwner(owner);
   }
@@ -473,11 +437,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
       // namespace. Its later removal cannot overlap a successor creating the
       // auth.lock pathname on Windows.
       await this.fileSystemService.rename(this.lockPath, releasePath);
-    } catch (error) {
-      this.logDiagnostic({
-        event: "lock-release-rename-failed",
-        code: (error as NodeJS.ErrnoException).code ?? null,
-      });
+    } catch {
       return;
     }
 
@@ -486,8 +446,8 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
       .catch(() => undefined);
   }
 
-  private ownerPath(lockPath: string = this.lockPath): string {
-    return this.fileSystemService.joinPath(lockPath, OWNER_FILE);
+  private ownerPath(): string {
+    return this.fileSystemService.joinPath(this.lockPath, OWNER_FILE);
   }
 
   private reclaimPath(ownerId: string): string {
@@ -539,11 +499,6 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     }
     return false;
   }
-
-  private logDiagnostic(event: Record<string, unknown>): void {
-    if (!this.diagnostics) return;
-    console.error(`[auth-lock-diagnostic] ${JSON.stringify(event)}`);
-  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -561,9 +516,8 @@ async function isOriginalProcessAlive(
   pid: number,
   processStartedAt: string | null,
   getStartedAt: (pid: number) => Promise<string | null>,
-  diagnose: (event: Record<string, unknown>) => void = () => {},
 ): Promise<boolean> {
-  if (!isProcessAlive(pid, diagnose)) return false;
+  if (!isProcessAlive(pid)) return false;
   if (!processStartedAt) return true;
   let observedStartedAt: string | null;
   try {
@@ -575,33 +529,16 @@ async function isOriginalProcessAlive(
   // unavailable lookup is not evidence that the live PID stopped owning the
   // lock, so retain the lock and let the bounded timeout surface contention.
   if (!observedStartedAt) return true;
-  const matches = observedStartedAt === processStartedAt;
-  if (!matches) {
-    diagnose({
-      event: "process-start-mismatch",
-      ownerIsCurrentProcess: pid === process.pid,
-    });
-  }
-  return matches;
+  return observedStartedAt === processStartedAt;
 }
 
-function isProcessAlive(
-  pid: number,
-  diagnose: (event: Record<string, unknown>) => void,
-): boolean {
+function isProcessAlive(pid: number): boolean {
   if (pid <= 0) return false;
   try {
     process.kill(pid, 0);
     return true;
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    if (code === "ESRCH") {
-      diagnose({
-        event: "process-probe-absent",
-        ownerIsCurrentProcess: pid === process.pid,
-        code,
-      });
-    }
     // ESRCH is the only definitive absent-process result. Permission and
     // unexpected inspection failures must fail closed so they cannot admit a
     // second refresh-token consumer.

@@ -28,8 +28,6 @@ import { TokenManager } from "./token-manager.js";
 
 describe("TokenManager file-backed integration", () => {
   const baseUrl = "https://mcp.githits.com";
-  const simultaneousRefreshDiagnosticAttempts =
-    process.env.GITHITS_AUTH_LOCK_DIAGNOSTIC_STRESS === "1" ? 50 : 1;
   const tempDirs: string[] = [];
 
   // These tests intentionally exercise the production process-identity probe,
@@ -341,101 +339,48 @@ describe("TokenManager file-backed integration", () => {
     );
   });
 
-  for (
-    let diagnosticAttempt = 1;
-    diagnosticAttempt <= simultaneousRefreshDiagnosticAttempts;
-    diagnosticAttempt += 1
-  ) {
-    it(`makes one endpoint refresh for many simultaneous expired-token agents (diagnostic attempt ${diagnosticAttempt})`, async () => {
-      const storageCount = 12;
-      const storages = await createRealStorageSet(storageCount);
-      const initial = createExpiredToken({
-        accessToken: "initial-access-token",
-        refreshToken: "initial-refresh-token",
-      });
-      await storages[0]?.saveAuthSession(
-        baseUrl,
-        defaultClientRegistration,
-        initial,
-      );
-      const refreshGate = createRefreshGate([
-        {
-          accessToken: "refreshed-access-token",
-          refreshToken: "refreshed-refresh-token",
-          expiresIn: 3600,
-        },
-      ]);
-      const authService = createMockAuthService({
-        refreshAccessToken: refreshGate.refreshAccessToken,
-      });
-      const managers = storages.map(
-        (authStorage) =>
-          new TokenManager({ authService, authStorage, mcpUrl: baseUrl }),
-      );
-
-      const results = Promise.all(
-        managers.map((manager) => manager.getToken()),
-      );
-      await refreshGate.waitForCalls(1);
-      await Promise.race([refreshGate.waitForCalls(2), sleep(100)]);
-      refreshGate.resolveAll();
-
-      let values: Array<string | undefined>;
-      try {
-        values = await results;
-      } catch (reason) {
-        throw new Error(
-          `[token-refresh-diagnostic] ${JSON.stringify({
-            diagnosticAttempt,
-            endpointCalls: refreshGate.refreshAccessToken.mock.calls.length,
-            rejectionName:
-              reason instanceof Error ? reason.name : typeof reason,
-            rejectionCode:
-              typeof reason === "object" &&
-              reason !== null &&
-              "code" in reason &&
-              typeof reason.code === "string"
-                ? reason.code
-                : null,
-          })}`,
-        );
-      }
-      expect(values).toEqual(
-        Array.from({ length: storageCount }, () => "refreshed-access-token"),
-      );
-      expect(refreshGate.refreshAccessToken).toHaveBeenCalledTimes(1);
-      expect(await storages[0]?.loadTokens(baseUrl)).toEqual(
-        expect.objectContaining({
-          accessToken: "refreshed-access-token",
-          refreshToken: "refreshed-refresh-token",
-        }),
-      );
+  it("makes one endpoint refresh for many simultaneous expired-token agents", async () => {
+    const storageCount = 12;
+    const storages = await createRealStorageSet(storageCount);
+    const initial = createExpiredToken({
+      accessToken: "initial-access-token",
+      refreshToken: "initial-refresh-token",
     });
-  }
-
-  it("diagnoses repeated current-process signal-zero probes on Windows", () => {
-    if (process.platform !== "win32") return;
-
-    const attempts = 50_000;
-    const errorCodes = new Map<string, number>();
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-      try {
-        process.kill(process.pid, 0);
-      } catch (error) {
-        const code = (error as NodeJS.ErrnoException).code ?? "UNKNOWN";
-        errorCodes.set(code, (errorCodes.get(code) ?? 0) + 1);
-      }
-    }
-
-    const errors = Object.fromEntries(errorCodes);
-    console.error(
-      `[auth-lock-diagnostic] ${JSON.stringify({
-        event: "current-process-probe-summary",
-        attempts,
-        errors,
-      })}`,
+    await storages[0]?.saveAuthSession(
+      baseUrl,
+      defaultClientRegistration,
+      initial,
     );
-    expect(errors).toEqual({});
+    const refreshGate = createRefreshGate([
+      {
+        accessToken: "refreshed-access-token",
+        refreshToken: "refreshed-refresh-token",
+        expiresIn: 3600,
+      },
+    ]);
+    const authService = createMockAuthService({
+      refreshAccessToken: refreshGate.refreshAccessToken,
+    });
+    const managers = storages.map(
+      (authStorage) =>
+        new TokenManager({ authService, authStorage, mcpUrl: baseUrl }),
+    );
+
+    const results = Promise.all(managers.map((manager) => manager.getToken()));
+    await refreshGate.waitForCalls(1);
+    await Promise.race([refreshGate.waitForCalls(2), sleep(100)]);
+    refreshGate.resolveAll();
+
+    await expect(results).resolves.toEqual(
+      Array.from({ length: storageCount }, () => "refreshed-access-token"),
+    );
+    expect(refreshGate.refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(await storages[0]?.loadTokens(baseUrl)).toEqual(
+      expect.objectContaining({
+        accessToken: "refreshed-access-token",
+        refreshToken: "refreshed-refresh-token",
+      }),
+    );
   });
 
   it("makes one endpoint refresh for many simultaneous force refresh retries", async () => {
@@ -746,11 +691,7 @@ describe("TokenManager file-backed integration", () => {
       Array.from(
         { length: count },
         () =>
-          new LockedAuthStorage(
-            new AuthStorageImpl(fs, configDir),
-            fsWithHome,
-            { diagnostics: true },
-          ),
+          new LockedAuthStorage(new AuthStorageImpl(fs, configDir), fsWithHome),
       ),
     );
   }
