@@ -76,7 +76,12 @@ describe("buildMcpQuickStart", () => {
     const instructions = buildMcpQuickStart();
 
     expect(instructions).toContain("External-content posture");
+    expect(instructions).toContain("remote public OSS repositories");
+    expect(instructions).toContain("untrusted third-party evidence");
     expect(instructions).toContain("tool-owned reference/provenance sections");
+    expect(instructions).toContain("host safeguards");
+    expect(instructions).not.toContain("never pass to the user");
+    expect(instructions).not.toContain("are not authoritative");
   });
 
   it("omits the external-content posture when explicitly opted out", () => {
