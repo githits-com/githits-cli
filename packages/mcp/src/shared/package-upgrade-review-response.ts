@@ -852,7 +852,7 @@ function formatChangesSection(
   const lines = [sectionTitle("Changes", useColors)];
   let coverage = `${source} | ${changelog.totalEntries} ${entryWord} | ${changelog.totalEntriesWithBodies} with release notes`;
   if (changelog.truncated)
-    coverage += ` | ${changelog.sampledEntries.length} ordinary entries sampled`;
+    coverage += ` | ${changelog.sampledEntries.length} release entries sampled`;
   appendWrappedText(lines, "  ", coverage, width, "  ");
   const keywords = changelogKeywordSummary(changelog);
   if (keywords.length > 0 || changelog.totalKeywordEntries > 0) {
@@ -869,36 +869,48 @@ function formatChangesSection(
       (line) => colorizeSignalKeywords(line, keywords, useColors),
     );
   }
-  if (changelog.keywordEntries.length > 0) {
+  const renderedKeys = new Set<string>();
+  const keywordEntries = changelog.keywordEntries.filter((entry) => {
+    const key = changelogEntryKey(entry);
+    if (renderedKeys.has(key)) return false;
+    renderedKeys.add(key);
+    return true;
+  });
+  if (keywordEntries.length > 0) {
     lines.push("  Heuristic release entries");
-    for (const entry of changelog.keywordEntries) {
+    for (const entry of keywordEntries) {
       lines.push(
         ...formatKeywordChangelogEntry(entry, options, width, useColors),
       );
     }
-    if (options.verbose === true) {
-      const keywordKeys = new Set(
-        changelog.keywordEntries.map((entry) => changelogEntryKey(entry)),
-      );
-      const otherEntries = changelog.entries.filter(
-        (entry) =>
-          entry.bodyPreview && !keywordKeys.has(changelogEntryKey(entry)),
-      );
-      appendPlainChangelogEntries(
-        lines,
-        "Other release entries",
-        otherEntries,
-        width,
-      );
-    }
-    return lines;
   }
+  const sampledEntries = changelog.sampledEntries.filter((entry) => {
+    const key = changelogEntryKey(entry);
+    if (renderedKeys.has(key)) return false;
+    renderedKeys.add(key);
+    return true;
+  });
   appendPlainChangelogEntries(
     lines,
     "Sampled release entries",
-    changelog.sampledEntries,
+    sampledEntries,
     width,
   );
+  if (options.verbose === true) {
+    const otherEntries = changelog.entries.filter((entry) => {
+      if (!entry.bodyPreview) return false;
+      const key = changelogEntryKey(entry);
+      if (renderedKeys.has(key)) return false;
+      renderedKeys.add(key);
+      return true;
+    });
+    appendPlainChangelogEntries(
+      lines,
+      "Other release entries",
+      otherEntries,
+      width,
+    );
+  }
   return lines;
 }
 
@@ -917,10 +929,9 @@ function appendPlainChangelogEntries(
   entries: UpgradeChangelogEntry[],
   width: number,
 ): void {
-  const visibleEntries = entries.filter((entry) => entry.bodyPreview);
-  if (visibleEntries.length === 0) return;
+  if (entries.length === 0) return;
   lines.push(`  ${label}`);
-  for (const entry of visibleEntries) {
+  for (const entry of entries) {
     lines.push(...formatPlainChangelogEntry(entry, width));
   }
 }
