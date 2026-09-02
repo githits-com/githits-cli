@@ -20,6 +20,7 @@ const LOCK_OWNER_RECHECK_MS = 1_000;
 const ORPHANED_LOCK_MS = 5_000;
 const OWNER_FILE = "owner.json";
 const RECLAIM_FILE_PREFIX = "reclaim-";
+const RELEASE_DIR_PREFIX = `${LOCK_DIR}.release-`;
 const RECLAIM_OWNER_HASH_PATTERN = /^[0-9a-f]{64}$/;
 const MAX_NODE_PROCESS_ID = 0x7fffffff;
 const PROCESS_IDENTITY_LOOKUP_TIMEOUT_MS = 5_000;
@@ -343,12 +344,13 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     }
 
     const currentOwner = await this.readOwner();
+    let removedExpectedOwner = false;
     if (
       currentOwner.state === "present" &&
       currentOwner.owner.id === owner.id
     ) {
       // Leave the directory in place if owner removal remains uncertain.
-      await this.deleteFileForCleanup(this.ownerPath());
+      removedExpectedOwner = await this.deleteFileForCleanup(this.ownerPath());
     }
 
     if (!(await this.deleteFileForCleanup(claimPath))) {
@@ -357,9 +359,11 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
       return;
     }
 
-    // Empty-only deletion cannot remove a successor's owner file. It also
-    // lets a delayed contender finish cleanup if it briefly blocked the
-    // original claim holder's directory removal.
+    // A delayed reclaimer that no longer sees its exact owner must not remove
+    // a directory that the real owner or a successor may be releasing.
+    if (!removedExpectedOwner) return;
+
+    // Empty-only deletion cannot remove a successor's owner file.
     await this.fileSystemService
       .deleteDirIfEmpty(this.lockPath)
       .catch(() => undefined);
@@ -427,9 +431,21 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     const currentOwner = await this.readOwnerForRelease();
     if (currentOwner.state !== "present" || currentOwner.owner.id !== owner.id)
       return;
+
     if (!(await this.deleteFileForCleanup(this.ownerPath()))) return;
+
+    const releasePath = this.releasePath(owner.id);
+    try {
+      // Rename the verified owner's now-empty directory out of the shared
+      // namespace. Its later removal cannot overlap a successor creating the
+      // auth.lock pathname on Windows.
+      await this.fileSystemService.rename(this.lockPath, releasePath);
+    } catch {
+      return;
+    }
+
     await this.fileSystemService
-      .deleteDirIfEmpty(this.lockPath)
+      .deleteDirIfEmpty(releasePath)
       .catch(() => undefined);
   }
 
@@ -442,6 +458,14 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     return this.fileSystemService.joinPath(
       this.lockPath,
       `${RECLAIM_FILE_PREFIX}${ownerHash}`,
+    );
+  }
+
+  private releasePath(ownerId: string): string {
+    const ownerHash = createHash("sha256").update(ownerId).digest("hex");
+    return this.fileSystemService.joinPath(
+      this.fileSystemService.getDirname(this.lockPath),
+      `${RELEASE_DIR_PREFIX}${ownerHash}`,
     );
   }
 
