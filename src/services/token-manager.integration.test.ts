@@ -371,42 +371,34 @@ describe("TokenManager file-backed integration", () => {
           new TokenManager({ authService, authStorage, mcpUrl: baseUrl }),
       );
 
-      const results = Promise.allSettled(
+      const results = Promise.all(
         managers.map((manager) => manager.getToken()),
       );
       await refreshGate.waitForCalls(1);
       await Promise.race([refreshGate.waitForCalls(2), sleep(100)]);
       refreshGate.resolveAll();
 
-      const settled = await results;
-      const rejections = settled.filter(
-        (result): result is PromiseRejectedResult =>
-          result.status === "rejected",
-      );
-      if (rejections.length > 0) {
+      let values: Array<string | undefined>;
+      try {
+        values = await results;
+      } catch (reason) {
         throw new Error(
           `[token-refresh-diagnostic] ${JSON.stringify({
             diagnosticAttempt,
             endpointCalls: refreshGate.refreshAccessToken.mock.calls.length,
-            rejectionCount: rejections.length,
-            rejections: rejections.map(({ reason }) => ({
-              name: reason instanceof Error ? reason.name : typeof reason,
-              code:
-                typeof reason === "object" &&
-                reason !== null &&
-                "code" in reason &&
-                typeof reason.code === "string"
-                  ? reason.code
-                  : null,
-            })),
+            rejectionName:
+              reason instanceof Error ? reason.name : typeof reason,
+            rejectionCode:
+              typeof reason === "object" &&
+              reason !== null &&
+              "code" in reason &&
+              typeof reason.code === "string"
+                ? reason.code
+                : null,
           })}`,
         );
       }
-      expect(
-        settled.map((result) =>
-          result.status === "fulfilled" ? result.value : undefined,
-        ),
-      ).toEqual(
+      expect(values).toEqual(
         Array.from({ length: storageCount }, () => "refreshed-access-token"),
       );
       expect(refreshGate.refreshAccessToken).toHaveBeenCalledTimes(1);
