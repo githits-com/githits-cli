@@ -123,8 +123,12 @@ jobs:
         run: bun test
 
   auth-lock-diagnostic:
-    name: Diagnostic / Windows auth lock
+    name: Diagnostic / Windows auth lock / ${{ matrix.shard }}
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
 
     steps:
       - name: Checkout

@@ -228,6 +228,7 @@ export class FileSystemServiceImpl implements FileSystemService {
 function logFileSystemDiagnostic(operation: string, error: unknown): void {
   if (process.env.GITHITS_AUTH_LOCK_DIAGNOSTIC_STRESS !== "1") return;
   const code = (error as NodeJS.ErrnoException).code ?? null;
+  if (code === "ENOENT") return;
   console.error(
     `[auth-filesystem-diagnostic] ${JSON.stringify({ operation, code })}`,
   );
