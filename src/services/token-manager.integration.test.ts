@@ -366,12 +366,40 @@ describe("TokenManager file-backed integration", () => {
         new TokenManager({ authService, authStorage, mcpUrl: baseUrl }),
     );
 
-    const results = Promise.all(managers.map((manager) => manager.getToken()));
+    const results = Promise.allSettled(
+      managers.map((manager) => manager.getToken()),
+    );
     await refreshGate.waitForCalls(1);
     await Promise.race([refreshGate.waitForCalls(2), sleep(100)]);
     refreshGate.resolveAll();
 
-    await expect(results).resolves.toEqual(
+    const settled = await results;
+    const rejections = settled.filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (rejections.length > 0) {
+      throw new Error(
+        `[token-refresh-diagnostic] ${JSON.stringify({
+          endpointCalls: refreshGate.refreshAccessToken.mock.calls.length,
+          rejectionCount: rejections.length,
+          rejections: rejections.map(({ reason }) => ({
+            name: reason instanceof Error ? reason.name : typeof reason,
+            code:
+              typeof reason === "object" &&
+              reason !== null &&
+              "code" in reason &&
+              typeof reason.code === "string"
+                ? reason.code
+                : null,
+          })),
+        })}`,
+      );
+    }
+    expect(
+      settled.map((result) =>
+        result.status === "fulfilled" ? result.value : undefined,
+      ),
+    ).toEqual(
       Array.from({ length: storageCount }, () => "refreshed-access-token"),
     );
     expect(refreshGate.refreshAccessToken).toHaveBeenCalledTimes(1);
@@ -381,6 +409,31 @@ describe("TokenManager file-backed integration", () => {
         refreshToken: "refreshed-refresh-token",
       }),
     );
+  });
+
+  it("diagnoses repeated current-process signal-zero probes on Windows", () => {
+    if (process.platform !== "win32") return;
+
+    const attempts = 50_000;
+    const errorCodes = new Map<string, number>();
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        process.kill(process.pid, 0);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code ?? "UNKNOWN";
+        errorCodes.set(code, (errorCodes.get(code) ?? 0) + 1);
+      }
+    }
+
+    const errors = Object.fromEntries(errorCodes);
+    console.error(
+      `[auth-lock-diagnostic] ${JSON.stringify({
+        event: "current-process-probe-summary",
+        attempts,
+        errors,
+      })}`,
+    );
+    expect(errors).toEqual({});
   });
 
   it("makes one endpoint refresh for many simultaneous force refresh retries", async () => {
@@ -691,7 +744,11 @@ describe("TokenManager file-backed integration", () => {
       Array.from(
         { length: count },
         () =>
-          new LockedAuthStorage(new AuthStorageImpl(fs, configDir), fsWithHome),
+          new LockedAuthStorage(
+            new AuthStorageImpl(fs, configDir),
+            fsWithHome,
+            { diagnostics: true },
+          ),
       ),
     );
   }

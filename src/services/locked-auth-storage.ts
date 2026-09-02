@@ -86,6 +86,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
   private readonly lockContext = new AsyncLocalStorage<string>();
   private currentOwner: LockOwner | null = null;
   private readonly lockLoads: boolean;
+  private readonly diagnostics: boolean;
 
   constructor(
     private readonly storage: AuthStorage,
@@ -97,9 +98,11 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
         processStartedAt: string | null,
       ) => Promise<boolean>;
       getProcessStartedAt?: (pid: number) => Promise<string | null>;
+      diagnostics?: boolean;
     } = {},
   ) {
     this.lockTimeoutMs = options.lockTimeoutMs ?? LOCK_TIMEOUT_MS;
+    this.diagnostics = options.diagnostics === true;
     this.processStartedAtLookup =
       options.getProcessStartedAt ?? getProcessStartedAt;
     this.isOwnerAlive =
@@ -111,6 +114,7 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
           pid === process.pid
             ? () => this.getCurrentProcessStartedAt()
             : this.processStartedAtLookup,
+          (event) => this.logDiagnostic(event),
         ));
     this.lockLoads = storage.requiresLoadLock === true;
     this.lockPath = fileSystemService.joinPath(
@@ -327,6 +331,12 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     ));
     if (!ownerDead) return;
 
+    this.logDiagnostic({
+      event: "reclaim-proven-dead-owner",
+      ownerIsCurrentProcess: owner.pid === process.pid,
+      ownerHasProcessStart: owner.processStartedAt !== null,
+    });
+
     await this.reclaimProvenDeadOwner(owner);
   }
 
@@ -478,6 +488,11 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     }
     return false;
   }
+
+  private logDiagnostic(event: Record<string, unknown>): void {
+    if (!this.diagnostics) return;
+    console.error(`[auth-lock-diagnostic] ${JSON.stringify(event)}`);
+  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -495,8 +510,9 @@ async function isOriginalProcessAlive(
   pid: number,
   processStartedAt: string | null,
   getStartedAt: (pid: number) => Promise<string | null>,
+  diagnose: (event: Record<string, unknown>) => void = () => {},
 ): Promise<boolean> {
-  if (!isProcessAlive(pid)) return false;
+  if (!isProcessAlive(pid, diagnose)) return false;
   if (!processStartedAt) return true;
   let observedStartedAt: string | null;
   try {
@@ -508,16 +524,33 @@ async function isOriginalProcessAlive(
   // unavailable lookup is not evidence that the live PID stopped owning the
   // lock, so retain the lock and let the bounded timeout surface contention.
   if (!observedStartedAt) return true;
-  return observedStartedAt === processStartedAt;
+  const matches = observedStartedAt === processStartedAt;
+  if (!matches) {
+    diagnose({
+      event: "process-start-mismatch",
+      ownerIsCurrentProcess: pid === process.pid,
+    });
+  }
+  return matches;
 }
 
-function isProcessAlive(pid: number): boolean {
+function isProcessAlive(
+  pid: number,
+  diagnose: (event: Record<string, unknown>) => void,
+): boolean {
   if (pid <= 0) return false;
   try {
     process.kill(pid, 0);
     return true;
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ESRCH") {
+      diagnose({
+        event: "process-probe-absent",
+        ownerIsCurrentProcess: pid === process.pid,
+        code,
+      });
+    }
     // ESRCH is the only definitive absent-process result. Permission and
     // unexpected inspection failures must fail closed so they cannot admit a
     // second refresh-token consumer.
