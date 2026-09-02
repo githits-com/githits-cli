@@ -265,11 +265,19 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
           throw error;
         }
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== "EEXIST") {
+          const ownerResult =
+            code === "EPERM" ? await this.readOwner() : undefined;
           this.logDiagnostic({
             event: "lock-acquire-operation-failed",
             operation,
-            code: (error as NodeJS.ErrnoException).code ?? null,
+            code: code ?? null,
+            ownerState: ownerResult?.state ?? null,
+            ownerIsCurrentProcess:
+              ownerResult?.state === "present"
+                ? ownerResult.owner.pid === process.pid
+                : null,
           });
           throw error;
         }
