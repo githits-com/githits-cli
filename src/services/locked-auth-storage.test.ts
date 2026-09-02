@@ -938,6 +938,10 @@ describe("LockedAuthStorage", () => {
     const ownerPath = join(lockPath, "owner.json");
     const deadOwnerId = "dead-owner";
     const deadOwnerPid = 999_999_999;
+    const claimPath = join(
+      lockPath,
+      `reclaim-${createHash("sha256").update(deadOwnerId).digest("hex")}`,
+    );
     await mkdir(lockPath, { recursive: true, mode: 0o700 });
     await writeFile(
       ownerPath,
@@ -951,21 +955,19 @@ describe("LockedAuthStorage", () => {
 
     const delayedOwnerCheckStarted = createDeferred();
     const continueDelayedOwnerCheck = createDeferred();
-    const delayedCleanupFinished = createDeferred();
+    const delayedClaimCleanupFinished = createDeferred();
     const successorEntered = createDeferred();
     const releaseSuccessor = createDeferred();
     const deleteFile = fsWithHome.deleteFile.bind(fsWithHome);
-    const deleteDirIfEmpty = fsWithHome.deleteDirIfEmpty.bind(fsWithHome);
+    const deleteDirIfEmpty = mock(fsWithHome.deleteDirIfEmpty.bind(fsWithHome));
     let delayedOwnerDeleteCount = 0;
     const delayedFs = Object.assign(Object.create(fsWithHome), {
       deleteFile: mock(async (path: string) => {
         if (path === ownerPath) delayedOwnerDeleteCount += 1;
         await deleteFile(path);
+        if (path === claimPath) delayedClaimCleanupFinished.resolve();
       }),
-      deleteDirIfEmpty: mock(async (path: string) => {
-        await deleteDirIfEmpty(path);
-        delayedCleanupFinished.resolve();
-      }),
+      deleteDirIfEmpty,
     }) as FileSystemServiceImpl;
     const delayed = new LockedAuthStorage(
       new AuthStorageImpl(fs, configDir),
@@ -1009,13 +1011,14 @@ describe("LockedAuthStorage", () => {
     await successorEntered.promise;
 
     continueDelayedOwnerCheck.resolve();
-    await delayedCleanupFinished.promise;
+    await delayedClaimCleanupFinished.promise;
 
     const successorOwner = JSON.parse(await fs.readFile(ownerPath)) as {
       id: string;
     };
     expect(successorOwner.id).not.toBe(deadOwnerId);
     expect(delayedOwnerDeleteCount).toBe(0);
+    expect(deleteDirIfEmpty).not.toHaveBeenCalled();
 
     releaseSuccessor.resolve();
     await Promise.all([delayedRun, winnerRun]);

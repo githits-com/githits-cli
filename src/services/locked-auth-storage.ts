@@ -344,12 +344,13 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     }
 
     const currentOwner = await this.readOwner();
+    let removedExpectedOwner = false;
     if (
       currentOwner.state === "present" &&
       currentOwner.owner.id === owner.id
     ) {
       // Leave the directory in place if owner removal remains uncertain.
-      await this.deleteFileForCleanup(this.ownerPath());
+      removedExpectedOwner = await this.deleteFileForCleanup(this.ownerPath());
     }
 
     if (!(await this.deleteFileForCleanup(claimPath))) {
@@ -358,9 +359,11 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
       return;
     }
 
-    // Empty-only deletion cannot remove a successor's owner file. It also
-    // lets a delayed contender finish cleanup if it briefly blocked the
-    // original claim holder's directory removal.
+    // A delayed reclaimer that no longer sees its exact owner must not remove
+    // a directory that the real owner or a successor may be releasing.
+    if (!removedExpectedOwner) return;
+
+    // Empty-only deletion cannot remove a successor's owner file.
     await this.fileSystemService
       .deleteDirIfEmpty(this.lockPath)
       .catch(() => undefined);
