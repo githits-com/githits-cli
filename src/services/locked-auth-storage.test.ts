@@ -134,11 +134,9 @@ describe("LockedAuthStorage", () => {
     const ownerPath = join(lockPath, "owner.json");
     const deleteFile = fsWithHome.deleteFile.bind(fsWithHome);
     let ownerDeleteCount = 0;
-    let cleanupOwnerPath = "";
     fsWithHome.deleteFile = mock(async (path: string) => {
-      if (path.endsWith("owner.json") && ownerDeleteCount === 0) {
+      if (path === ownerPath && ownerDeleteCount === 0) {
         ownerDeleteCount += 1;
-        cleanupOwnerPath = path;
         const error = new Error(
           "owner file is temporarily busy",
         ) as NodeJS.ErrnoException;
@@ -155,7 +153,6 @@ describe("LockedAuthStorage", () => {
     await storage.withAuthStorageLock(async () => undefined);
 
     expect(ownerDeleteCount).toBe(2);
-    expect(cleanupOwnerPath).not.toBe(ownerPath);
     expect(await fs.exists(lockPath)).toBe(false);
   });
 
@@ -168,22 +165,19 @@ describe("LockedAuthStorage", () => {
     const cleanupStarted = createDeferred();
     const continueCleanup = createDeferred();
     const renamePath = fsWithHome.rename.bind(fsWithHome);
-    const deleteFile = fsWithHome.deleteFile.bind(fsWithHome);
+    const deleteDirIfEmpty = fsWithHome.deleteDirIfEmpty.bind(fsWithHome);
     let firstReleasePath = "";
     const firstFs = Object.assign(Object.create(fsWithHome), {
       rename: mock(async (source: string, destination: string) => {
         if (source === lockPath) firstReleasePath = destination;
         await renamePath(source, destination);
       }),
-      deleteFile: mock(async (path: string) => {
-        if (
-          firstReleasePath !== "" &&
-          path === join(firstReleasePath, "owner.json")
-        ) {
+      deleteDirIfEmpty: mock(async (path: string) => {
+        if (firstReleasePath !== "" && path === firstReleasePath) {
           cleanupStarted.resolve();
           await continueCleanup.promise;
         }
-        await deleteFile(path);
+        await deleteDirIfEmpty(path);
       }),
     }) as FileSystemServiceImpl;
     const first = new LockedAuthStorage(createMockAuthStorage(), firstFs, {
@@ -259,7 +253,7 @@ describe("LockedAuthStorage", () => {
     expect(await fs.exists(lockPath)).toBe(false);
   });
 
-  it("retains the owned lock when release rename fails", async () => {
+  it("retains an ownerless directory when release rename fails", async () => {
     const { fs, fsWithHome, lockPath } = await createStoragePaths();
     const ownerPath = join(lockPath, "owner.json");
     const rename = mock(async () => {
@@ -278,7 +272,7 @@ describe("LockedAuthStorage", () => {
 
     expect(rename).toHaveBeenCalledTimes(1);
     expect(await fs.exists(lockPath)).toBe(true);
-    expect(await fs.exists(ownerPath)).toBe(true);
+    expect(await fs.exists(ownerPath)).toBe(false);
   });
 
   it("keeps a concurrent holder when another acquisition loses owner creation", async () => {

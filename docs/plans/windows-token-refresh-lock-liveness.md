@@ -7,8 +7,8 @@ many file-backed `TokenManager` callers after a single successful endpoint
 refresh. Twelve agents sharing one expired, single-use refresh token must make
 exactly one endpoint call and all return the persisted access token.
 
-Overall status: IMPLEMENTING — focused tests and typecheck pass; Windows stress
-validation is pending.
+Overall status: INVESTIGATING — Windows stress disproved rename-before-owner-
+deletion; the corrected empty-directory rename order is under validation.
 
 Overall assumptions: the four credential-free Windows reproductions identify
 the same failure class as the supplied CI failure; the original job did not log
@@ -96,12 +96,12 @@ keeps the lock protocol deterministic to test and avoids a private, lock-only
 filesystem seam. The smaller direct `node:fs/promises` import was rejected
 because it would make the handoff operation the only uninjected release I/O.
 
-Normal release will atomically rename the still-owned directory, including its
-verified matching `owner.json`, from `auth.lock` to a unique owner-scoped sibling
-before deleting either the owner file or the directory. The rename is the unlock
-linearization point. A waiter can see the old directory or create a fresh
-`auth.lock`; it never competes with deletion of that same pathname. Cleanup then
-targets only the renamed directory and cannot remove a successor lock.
+Normal release will verify and remove its exact `owner.json`, then atomically
+rename the now-empty directory from `auth.lock` to a unique owner-scoped sibling.
+The existing ownerless release state remains, but the shared pathname is never
+removed: a waiter can see the old directory or create a fresh `auth.lock`; it
+never competes with `rmdir(auth.lock)`. Cleanup targets only the renamed empty
+directory and cannot remove a successor lock.
 
 The owner-scoped cleanup name is derived from the existing SHA-256 owner hash,
 so it is filesystem-safe on Windows and does not expose owner metadata. If the
@@ -122,8 +122,9 @@ Windows unlink/create collision to `owner.json` and is also rejected.
 - Same-parent directory rename is atomic at filesystem namespace granularity on
   supported platforms; the final Windows stress validation must verify Bun's
   concrete behavior under the original contention shape.
-- A release rename failure retains the matching live lock and preserves the
-  current fail-closed behavior. It is not reclassified or retried.
+- A release rename failure retains the ownerless directory and preserves the
+  current fail-closed behavior until age-bounded ownerless reclamation. It is
+  not reclassified or retried.
 - Stale-owner and old-ownerless reclamation continue using their existing
   guarded empty-directory deletion. Changing those unobserved recovery paths
   would add protocol surface without evidence from this failure.
@@ -141,10 +142,10 @@ Windows unlink/create collision to `owner.json` and is also rejected.
   held. Older contenders can observe the lock normally; as with the existing
   hardened reclaim protocol, long-running local MCP processes should be restarted
   after upgrading so all releasers use the corrected handoff.
-- Failure and rollback: a failed rename leaves the original lock intact and
-  reclaimable after process exit. A crash after rename can leave only an inert
-  owner-scoped cleanup directory. Reverting the code requires no data migration,
-  but restores the normal-release Windows race.
+- Failure and rollback: a failed rename leaves the original directory ownerless
+  and eligible for existing age-bounded reclamation. A crash after rename can
+  leave only an inert empty owner-scoped cleanup directory. Reverting the code
+  requires no data migration, but restores the normal-release Windows race.
 - Operations and documentation: permanent auth documentation will describe the
   unlock point, inert residue, remaining fail-closed recovery behavior, and manual
   cleanup guidance. Temporary diagnostics and CI stress configuration are removed.
@@ -176,10 +177,10 @@ Detailed implementation:
    implementation, and the central mock factory.
 2. Add an owner-scoped release-path helper in `LockedAuthStorage` using the
    existing SHA-256 owner hash and a Windows-safe sibling suffix.
-3. After `releaseLock()` re-reads and verifies its exact owner, rename the whole
-   lock directory to that release path. Only after the rename succeeds, delete
-   `owner.json` from the renamed path and remove that renamed empty directory.
-   Preserve current fail-closed behavior if verification or rename fails.
+3. After `releaseLock()` re-reads and verifies its exact owner, remove that owner
+   record, rename the now-empty lock directory to the release path, and remove
+   only the renamed empty directory. Preserve current fail-closed behavior if
+   verification, owner deletion, or rename fails.
 4. Add a deterministic two-storage regression using deferred gates. Block the
    first owner's cleanup only after its rename, let a second storage acquire the
    original `auth.lock`, and assert the critical sections do not overlap and the
@@ -207,8 +208,7 @@ Acceptance criteria:
 
 - Deterministic regression proves a successor uses a fresh `auth.lock` while
   prior cleanup is blocked at a distinct owner-scoped path.
-- Normal release never deletes `owner.json` or removes a directory at the
-  contested `auth.lock` path.
+- Normal release never removes a directory at the contested `auth.lock` path.
 - Unexpected `mkdir`, owner verification, and release-rename errors remain
   fail-closed and are not retried as contention.
 - The unchanged integration test makes one endpoint call and returns the same

@@ -465,10 +465,13 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     if (currentOwner.state !== "present" || currentOwner.owner.id !== owner.id)
       return;
 
+    if (!(await this.deleteFileForCleanup(this.ownerPath()))) return;
+
     const releasePath = this.releasePath(owner.id);
     try {
-      // Rename is the unlock point. Cleanup at the owner-scoped sibling cannot
-      // overlap a successor creating the shared auth.lock pathname on Windows.
+      // Rename the verified owner's now-empty directory out of the shared
+      // namespace. Its later removal cannot overlap a successor creating the
+      // auth.lock pathname on Windows.
       await this.fileSystemService.rename(this.lockPath, releasePath);
     } catch (error) {
       this.logDiagnostic({
@@ -478,7 +481,6 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
       return;
     }
 
-    if (!(await this.deleteFileForCleanup(this.ownerPath(releasePath)))) return;
     await this.fileSystemService
       .deleteDirIfEmpty(releasePath)
       .catch(() => undefined);
