@@ -59,6 +59,11 @@ directories:
 - `githits-onboarding`
 - `githits-package`
 
+`CANONICAL_SKILL_NAMES` is the public allow-list. Skills under
+`.agents/skills/` are repository-only and must set `metadata.internal: true`;
+plugin generation validates both sides so generic skill installers cannot
+surface maintenance or operations skills.
+
 Generated plugin assets package these root skills directly. Direct `githits
 init` setup places the same files at each selected host's verified active root;
 shared hosts use `.agents/skills`, while Claude Code, Kiro, Factory Droid,

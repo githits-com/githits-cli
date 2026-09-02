@@ -177,8 +177,23 @@ describe("plugin asset generation", () => {
       for (const skillName of CANONICAL_SKILL_NAMES) {
         const skillRoot = join(root, "skills", skillName);
         await mkdir(skillRoot, { recursive: true });
-        await writeFile(join(skillRoot, "SKILL.md"), `# ${skillName}\n`);
+        await writeFile(
+          join(skillRoot, "SKILL.md"),
+          `---\nname: ${skillName}\ndescription: Public skill.\n---\n`,
+        );
       }
+      const internalSkillRoot = join(
+        root,
+        ".agents",
+        "skills",
+        "internal-evals",
+      );
+      const internalSkillPath = join(internalSkillRoot, "SKILL.md");
+      await mkdir(internalSkillRoot, { recursive: true });
+      await writeFile(
+        internalSkillPath,
+        "---\nname: internal-evals\ndescription: Internal skill.\nmetadata:\n  internal: true\n---\n",
+      );
 
       await generatePluginAssets({ root });
       await expect(
@@ -193,6 +208,26 @@ describe("plugin asset generation", () => {
       await generatePluginAssets({ root });
       expect(await readFile(join(root, ".mcp.json"), "utf8")).toContain(
         "https://mcp.githits.com",
+      );
+
+      await writeFile(
+        internalSkillPath,
+        "---\nname: internal-evals\ndescription: Internal skill.\n---\n",
+      );
+      await expect(generatePluginAssets({ root })).rejects.toThrow(
+        "must set metadata.internal: true",
+      );
+
+      await writeFile(
+        internalSkillPath,
+        "---\nname: internal-evals\ndescription: Internal skill.\nmetadata:\n  internal: true\n---\n",
+      );
+      await writeFile(
+        join(root, "skills", "githits-code", "SKILL.md"),
+        "---\nname: githits-code\ndescription: Public skill.\nmetadata:\n  internal: true\n---\n",
+      );
+      await expect(generatePluginAssets({ root })).rejects.toThrow(
+        "is in the public skill allow-list",
       );
     } finally {
       await rm(root, { recursive: true, force: true });
