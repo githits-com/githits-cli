@@ -64,7 +64,9 @@ Not in scope:
   changes.
 - Replacing the lock protocol, changing token refresh policy, or changing
   callers.
-- Upgrading Bun or changing CI configuration.
+- Upgrading Bun or retaining diagnostic CI configuration in the final delta.
+  The test branch may temporarily isolate repeated Windows observations in a
+  dedicated job so the full suite keeps its normal timing profile.
 - Plugin manifests, MCP descriptors, public Agent Skills, or `@githits/mcp`
   behavior.
 - External issues, releases, publishing, or deployment. The user explicitly

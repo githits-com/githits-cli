@@ -28,6 +28,8 @@ import { TokenManager } from "./token-manager.js";
 
 describe("TokenManager file-backed integration", () => {
   const baseUrl = "https://mcp.githits.com";
+  const simultaneousRefreshDiagnosticAttempts =
+    process.env.GITHITS_AUTH_LOCK_DIAGNOSTIC_STRESS === "1" ? 50 : 1;
   const tempDirs: string[] = [];
 
   // These tests intentionally exercise the production process-identity probe,
@@ -341,7 +343,7 @@ describe("TokenManager file-backed integration", () => {
 
   for (
     let diagnosticAttempt = 1;
-    diagnosticAttempt <= 20;
+    diagnosticAttempt <= simultaneousRefreshDiagnosticAttempts;
     diagnosticAttempt += 1
   ) {
     it(`makes one endpoint refresh for many simultaneous expired-token agents (diagnostic attempt ${diagnosticAttempt})`, async () => {
