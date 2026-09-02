@@ -339,77 +339,85 @@ describe("TokenManager file-backed integration", () => {
     );
   });
 
-  it("makes one endpoint refresh for many simultaneous expired-token agents", async () => {
-    const storageCount = 12;
-    const storages = await createRealStorageSet(storageCount);
-    const initial = createExpiredToken({
-      accessToken: "initial-access-token",
-      refreshToken: "initial-refresh-token",
-    });
-    await storages[0]?.saveAuthSession(
-      baseUrl,
-      defaultClientRegistration,
-      initial,
-    );
-    const refreshGate = createRefreshGate([
-      {
-        accessToken: "refreshed-access-token",
-        refreshToken: "refreshed-refresh-token",
-        expiresIn: 3600,
-      },
-    ]);
-    const authService = createMockAuthService({
-      refreshAccessToken: refreshGate.refreshAccessToken,
-    });
-    const managers = storages.map(
-      (authStorage) =>
-        new TokenManager({ authService, authStorage, mcpUrl: baseUrl }),
-    );
-
-    const results = Promise.allSettled(
-      managers.map((manager) => manager.getToken()),
-    );
-    await refreshGate.waitForCalls(1);
-    await Promise.race([refreshGate.waitForCalls(2), sleep(100)]);
-    refreshGate.resolveAll();
-
-    const settled = await results;
-    const rejections = settled.filter(
-      (result): result is PromiseRejectedResult => result.status === "rejected",
-    );
-    if (rejections.length > 0) {
-      throw new Error(
-        `[token-refresh-diagnostic] ${JSON.stringify({
-          endpointCalls: refreshGate.refreshAccessToken.mock.calls.length,
-          rejectionCount: rejections.length,
-          rejections: rejections.map(({ reason }) => ({
-            name: reason instanceof Error ? reason.name : typeof reason,
-            code:
-              typeof reason === "object" &&
-              reason !== null &&
-              "code" in reason &&
-              typeof reason.code === "string"
-                ? reason.code
-                : null,
-          })),
-        })}`,
+  for (
+    let diagnosticAttempt = 1;
+    diagnosticAttempt <= 20;
+    diagnosticAttempt += 1
+  ) {
+    it(`makes one endpoint refresh for many simultaneous expired-token agents (diagnostic attempt ${diagnosticAttempt})`, async () => {
+      const storageCount = 12;
+      const storages = await createRealStorageSet(storageCount);
+      const initial = createExpiredToken({
+        accessToken: "initial-access-token",
+        refreshToken: "initial-refresh-token",
+      });
+      await storages[0]?.saveAuthSession(
+        baseUrl,
+        defaultClientRegistration,
+        initial,
       );
-    }
-    expect(
-      settled.map((result) =>
-        result.status === "fulfilled" ? result.value : undefined,
-      ),
-    ).toEqual(
-      Array.from({ length: storageCount }, () => "refreshed-access-token"),
-    );
-    expect(refreshGate.refreshAccessToken).toHaveBeenCalledTimes(1);
-    expect(await storages[0]?.loadTokens(baseUrl)).toEqual(
-      expect.objectContaining({
-        accessToken: "refreshed-access-token",
-        refreshToken: "refreshed-refresh-token",
-      }),
-    );
-  });
+      const refreshGate = createRefreshGate([
+        {
+          accessToken: "refreshed-access-token",
+          refreshToken: "refreshed-refresh-token",
+          expiresIn: 3600,
+        },
+      ]);
+      const authService = createMockAuthService({
+        refreshAccessToken: refreshGate.refreshAccessToken,
+      });
+      const managers = storages.map(
+        (authStorage) =>
+          new TokenManager({ authService, authStorage, mcpUrl: baseUrl }),
+      );
+
+      const results = Promise.allSettled(
+        managers.map((manager) => manager.getToken()),
+      );
+      await refreshGate.waitForCalls(1);
+      await Promise.race([refreshGate.waitForCalls(2), sleep(100)]);
+      refreshGate.resolveAll();
+
+      const settled = await results;
+      const rejections = settled.filter(
+        (result): result is PromiseRejectedResult =>
+          result.status === "rejected",
+      );
+      if (rejections.length > 0) {
+        throw new Error(
+          `[token-refresh-diagnostic] ${JSON.stringify({
+            diagnosticAttempt,
+            endpointCalls: refreshGate.refreshAccessToken.mock.calls.length,
+            rejectionCount: rejections.length,
+            rejections: rejections.map(({ reason }) => ({
+              name: reason instanceof Error ? reason.name : typeof reason,
+              code:
+                typeof reason === "object" &&
+                reason !== null &&
+                "code" in reason &&
+                typeof reason.code === "string"
+                  ? reason.code
+                  : null,
+            })),
+          })}`,
+        );
+      }
+      expect(
+        settled.map((result) =>
+          result.status === "fulfilled" ? result.value : undefined,
+        ),
+      ).toEqual(
+        Array.from({ length: storageCount }, () => "refreshed-access-token"),
+      );
+      expect(refreshGate.refreshAccessToken).toHaveBeenCalledTimes(1);
+      expect(await storages[0]?.loadTokens(baseUrl)).toEqual(
+        expect.objectContaining({
+          accessToken: "refreshed-access-token",
+          refreshToken: "refreshed-refresh-token",
+        }),
+      );
+    });
+  }
 
   it("diagnoses repeated current-process signal-zero probes on Windows", () => {
     if (process.platform !== "win32") return;
