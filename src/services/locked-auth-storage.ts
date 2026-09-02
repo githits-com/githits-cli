@@ -227,10 +227,21 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
     const processStartedAt = await this.getCurrentProcessStartedAt();
     const startedAt = Date.now();
     let nextOwnerCheckAt = 0;
-    await mkdir(dirname(this.lockPath), { recursive: true, mode: 0o700 });
+    try {
+      await mkdir(dirname(this.lockPath), { recursive: true, mode: 0o700 });
+    } catch (error) {
+      this.logDiagnostic({
+        event: "lock-acquire-operation-failed",
+        operation: "ensure-lock-parent",
+        code: (error as NodeJS.ErrnoException).code ?? null,
+      });
+      throw error;
+    }
     while (true) {
+      let operation = "create-lock-directory";
       try {
         await mkdir(this.lockPath, { recursive: false, mode: 0o700 });
+        operation = "create-owner-file";
         try {
           const owner = await this.writeOwner(processStartedAt);
           return owner;
@@ -254,7 +265,14 @@ export class LockedAuthStorage implements AuthStorage, AuthStorageLockProvider {
           throw error;
         }
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+          this.logDiagnostic({
+            event: "lock-acquire-operation-failed",
+            operation,
+            code: (error as NodeJS.ErrnoException).code ?? null,
+          });
+          throw error;
+        }
         const now = Date.now();
         if (now >= nextOwnerCheckAt) {
           await this.reclaimStaleLock();
