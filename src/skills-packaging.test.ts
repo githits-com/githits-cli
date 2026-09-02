@@ -377,7 +377,7 @@ describe("agent skills packaging", () => {
       const skillPath = join(skillsDir, dir, "SKILL.md");
       const content = await read(skillPath);
 
-      const match = content.match(/^---\n(.*?)\n---/s);
+      const match = content.match(/^---\r?\n(.*?)\r?\n---/s);
       expect(
         match,
         `${dir}/SKILL.md must start with YAML frontmatter`,
