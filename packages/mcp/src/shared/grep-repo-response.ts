@@ -1,4 +1,8 @@
-import type { GrepRepoMatch, GrepRepoResult } from "@githits/core-internal";
+import type {
+  GrepRepoMatch,
+  GrepRepoResult,
+  GrepRepoSymbolField,
+} from "@githits/core-internal";
 import { colorize, dim, highlightRanges } from "./colors.js";
 import { buildEmptyGrepGuidance } from "./grep-repo-text.js";
 import { shellQuote } from "./shell-quote.js";
@@ -31,10 +35,7 @@ export interface LeanGrepRepoMatch {
     filePath?: string;
     startLine?: number;
     endLine?: number;
-    code?: string;
-    callerCount?: number;
     contentHash?: string;
-    parentSymbolRef?: string;
     parentPath?: string;
   };
 }
@@ -61,7 +62,7 @@ export interface LeanGrepRepoFilter {
   maxMatches?: number;
   maxMatchesPerFile?: number;
   cursor?: string;
-  symbolFields?: string[];
+  symbolFields?: GrepRepoSymbolField[];
 }
 
 export interface LeanGrepRepoEnvelope {
@@ -106,7 +107,7 @@ export interface BuildGrepRepoPayloadOptions {
   maxMatches: number;
   maxMatchesPerFile?: number;
   cursor?: string;
-  symbolFields?: string[];
+  symbolFields?: GrepRepoSymbolField[];
   excludeDocFiles?: boolean;
   excludeTestFiles?: boolean;
   explicit: {
@@ -562,9 +563,6 @@ function formatSymbolHint(
   if (symbol.kind) parts.push(`(${symbol.kind})`);
   if (symbol.isPublic === true) parts.push("public");
   if (symbol.arity !== undefined) parts.push(`arity=${symbol.arity}`);
-  if (symbol.callerCount !== undefined) {
-    parts.push(`callers=${symbol.callerCount}`);
-  }
   if (symbol.startLine !== undefined && symbol.endLine !== undefined) {
     parts.push(`L${symbol.startLine}-${symbol.endLine}`);
   }

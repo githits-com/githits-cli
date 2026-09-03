@@ -13,6 +13,7 @@ import {
   CodeNavigationTargetNotFoundError,
   CodeNavigationValidationError,
   CodeNavigationVersionNotFoundError,
+  GREP_REPO_SYMBOL_FIELDS,
   MalformedCodeNavigationResponseError,
   type UnifiedSearchDocumentationContributor,
 } from "./code-navigation-service.js";
@@ -2639,7 +2640,7 @@ describe("CodeNavigationServiceImpl", () => {
       maxMatches: 100,
       maxMatchesPerFile: 3,
       cursor: "cursor-123",
-      symbolFields: ["name", "qualified_path", "kind"],
+      symbolFields: [...GREP_REPO_SYMBOL_FIELDS],
       waitTimeoutMs: 5000,
     });
     const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
@@ -2663,15 +2664,25 @@ describe("CodeNavigationServiceImpl", () => {
       maxMatches: 100,
       maxMatchesPerFile: 3,
       cursor: "cursor-123",
-      symbolFields: ["name", "qualified_path", "kind"],
+      symbolFields: [...GREP_REPO_SYMBOL_FIELDS],
       waitTimeoutMs: 5000,
     });
     expect(body.query).toContain("indexingEstimate");
-    expect(body.query).toContain("symbol {");
-    expect(body.query).toContain("name");
-    expect(body.query).toContain("qualifiedPath");
-    expect(body.query).toContain("kind");
-    expect(body.query).not.toContain("symbolRef");
+    const symbolBlock = body.query.match(/symbol \{\n([\s\S]*?)\n {6}\}/)?.[1];
+    expect(symbolBlock?.trim().split(/\s+/)).toEqual([
+      "symbolRef",
+      "name",
+      "qualifiedPath",
+      "kind",
+      "category",
+      "arity",
+      "isPublic",
+      "filePath",
+      "startLine",
+      "endLine",
+      "contentHash",
+      "parentPath",
+    ]);
   });
 
   it("sends GraphQL variables with the correct listRepoFiles shape", async () => {

@@ -658,7 +658,10 @@ envelope shape.
   grep to whole-target literal ASCII case-insensitive matching;
   whole-target regexes must include at least one literal substring.
   `symbol_fields` / `--symbol-field` passes backend symbol
-  hydration through to `symbolFields`; the response envelope
+  hydration through to `symbolFields`. Supported fields are
+  `symbol_ref`, `name`, `qualified_path`, `kind`, `category`, `arity`,
+  `is_public`, `file_path`, `start_line`, `end_line`, `content_hash`, and
+  `parent_path`; the response envelope
   carries `matches[].symbol` when the backend hydrates it. Empty text uses
   shared scan/scope/served-target context and branches recovery on whether
   `filesInScope` is zero. Completed scans reject an unchanged repeat;

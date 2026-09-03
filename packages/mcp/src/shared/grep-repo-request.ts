@@ -2,12 +2,19 @@ import type {
   CodeNavigationTarget,
   GrepPathSelectorKind,
   GrepRepoParams,
+  GrepRepoSymbolField,
 } from "@githits/core-internal";
+import { GREP_REPO_SYMBOL_FIELDS } from "@githits/core-internal";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
   MAX_WAIT_TIMEOUT_MS,
 } from "./code-navigation-defaults.js";
 import { InvalidPackageSpecError } from "./package-spec.js";
+
+export {
+  GREP_REPO_SYMBOL_FIELDS,
+  type GrepRepoSymbolField,
+} from "@githits/core-internal";
 
 const PATTERN_MAX = 200;
 export const GREP_REPO_CONTEXT_MIN = 0;
@@ -16,26 +23,6 @@ const LIMIT_MIN = 1;
 const LIMIT_MAX = 1000;
 const LIMIT_DEFAULT = 50;
 const WAIT_MIN = 0;
-
-export const GREP_REPO_SYMBOL_FIELDS = [
-  "symbol_ref",
-  "name",
-  "qualified_path",
-  "kind",
-  "category",
-  "arity",
-  "is_public",
-  "file_path",
-  "start_line",
-  "end_line",
-  "code",
-  "caller_count",
-  "content_hash",
-  "parent_symbol_ref",
-  "parent_path",
-] as const;
-
-export type GrepRepoSymbolField = (typeof GREP_REPO_SYMBOL_FIELDS)[number];
 
 export const GREP_REPO_SYMBOL_FIELDS_NOTE: string = `Hydrate these enclosing-symbol fields on each match; omit for no symbol hydration. Valid values: ${GREP_REPO_SYMBOL_FIELDS.join(", ")}.`;
 

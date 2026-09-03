@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { GrepRepoResult } from "@githits/core-internal";
 import {
+  type BuildGrepRepoPayloadOptions,
   buildGrepRepoSuccessPayload,
   formatGrepRepoTerminal,
 } from "./grep-repo-response.js";
@@ -44,7 +45,7 @@ const baseResult: GrepRepoResult = {
   },
 };
 
-const baseOptions = {
+const baseOptions: BuildGrepRepoPayloadOptions = {
   registry: "npm",
   name: "express",
   pattern: "express()",

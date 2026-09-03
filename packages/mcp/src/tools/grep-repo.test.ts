@@ -9,6 +9,7 @@ import {
   createMockCodeNavigationService,
   defaultGrepRepoResult,
 } from "../services/test-helpers.js";
+import { GREP_REPO_SYMBOL_FIELDS } from "../shared/grep-repo-request.js";
 import { createGrepRepoTool } from "./grep-repo.js";
 
 function parseText(result: { content: Array<{ text: string }> }): unknown {
@@ -52,6 +53,13 @@ describe("createGrepRepoTool — metadata", () => {
       "wait_timeout_ms",
     ]);
     expect(tool.schema.symbol_fields?.description).toContain("parent_path");
+    expect(
+      tool.schema.symbol_fields?.safeParse(GREP_REPO_SYMBOL_FIELDS).success,
+    ).toBe(true);
+    for (const field of ["code", "caller_count", "parent_symbol_ref"]) {
+      expect(tool.schema.symbol_fields?.safeParse([field]).success).toBe(false);
+      expect(tool.schema.symbol_fields?.description).not.toContain(field);
+    }
     expect(tool.schema.max_matches?.description).toContain(
       "total result limit",
     );
