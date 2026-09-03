@@ -1,8 +1,8 @@
 /**
  * Hand-crafted response envelope for the `package_dependencies` tool.
  * Shared by CLI `--json` output and MCP `content[0].text`. The terminal
- * formatter is CLI-only; it reads from the same envelope shape agents
- * consume so the two surfaces can never drift.
+ * formatter reads from the same envelope shape agents consume so the two
+ * surfaces can never drift.
  *
  * Key design commitments:
  *
@@ -356,7 +356,7 @@ export function buildPackageDependenciesSuccessPayload(
         transitive.dependencyConflicts.length > 0
       ) {
         block.conflicts = transitive.dependencyConflicts.map((c) =>
-          projectTransitiveConflict(c, graph, payload),
+          projectTransitiveConflict(c, graph as DependencyGraph, payload),
         );
       }
       if (
@@ -375,7 +375,7 @@ export function buildPackageDependenciesSuccessPayload(
   if (options.includeIssues === true && issueSummary) {
     payload.issues = projectDependencyIssues(
       issueSummary,
-      graph,
+      graph as DependencyGraph,
       payload,
       options.maxDepth,
     );
@@ -390,7 +390,7 @@ export function buildPackageDependenciesSuccessPayload(
 
 function projectDependencyIssues(
   issues: DependencyIssuesSummary,
-  graph: DependencyGraph | null,
+  graph: DependencyGraph,
   payload: LeanDependencyReport,
   maxDepth: number | undefined,
 ): LeanDependencyIssues {
@@ -474,7 +474,7 @@ function projectDuplicateIssue(
 
 function projectTransitiveConflict(
   conflict: DependencyConflict,
-  graph: DependencyGraph | null,
+  graph: DependencyGraph,
   payload: LeanDependencyReport,
 ): LeanTypedConflict {
   return {
@@ -493,7 +493,7 @@ function projectTransitiveConflict(
 
 function projectIssueConflict(
   conflict: DependencyIssueConflict,
-  graph: DependencyGraph | null,
+  graph: DependencyGraph,
   payload: LeanDependencyReport,
 ): LeanDependencyConflictIssue {
   const out: LeanDependencyConflictIssue = {
@@ -514,7 +514,7 @@ function projectIssueConflict(
 
 function projectConflictRequirements(
   edges: DependencyConflictEdge[],
-  graph: DependencyGraph | null,
+  graph: DependencyGraph,
   payload: LeanDependencyReport,
 ): LeanConflictRequirement[] {
   return edges.map((edge) => ({
@@ -534,13 +534,13 @@ function projectConflictRequirements(
 }
 
 function projectGraphNode(
-  graph: DependencyGraph | null,
+  graph: DependencyGraph,
   index: number,
 ): LeanDependencyNodeIdentity {
   // Graph edge indices are a service/schema invariant. This projection
   // assumes that contract and deliberately does not add a presentation-
   // layer recovery path.
-  const node = graph!.nodes[index]!;
+  const node = graph.nodes[index] as DependencyGraph["nodes"][number];
   const identity: LeanDependencyNodeIdentity = {
     registry: lowerRegistry(node.registry),
     name: node.name,
@@ -800,7 +800,7 @@ function lowerRegistry(value: string | undefined): string {
 }
 
 // --------------------------------------------------------------------
-// Terminal formatter (CLI-only)
+// Terminal formatter (shared by CLI and MCP text surfaces)
 // --------------------------------------------------------------------
 
 /**
@@ -835,6 +835,10 @@ export interface FormatDependenciesTerminalOptions {
   /** If true, render the groups block beneath the deps list. */
   showGroups?: boolean;
   hiddenGroupsHint?: string;
+  /** Whether to render the dependency issue analysis section. */
+  includeIssues?: boolean;
+  /** Caller-owned action for complete issue details when compact output truncates. */
+  issuesDetailHint?: string;
 }
 
 export function formatPackageDependenciesTerminal(
@@ -852,6 +856,7 @@ export function formatPackageDependenciesTerminal(
     includeTransitive: options.includeTransitive,
     maxDepth: options.maxDepth,
     includeImporters: verbose,
+    includeIssues: options.includeIssues,
   });
   const useColors = options.useColors ?? false;
   const showGroups = options.showGroups ?? false;
@@ -872,6 +877,14 @@ export function formatPackageDependenciesTerminal(
   if (showGroups) {
     blocks.push(formatGroupsBlock(payload, verbose, useColors));
   }
+
+  const dependencyIssues = formatDependencyIssues(
+    payload.issues,
+    verbose,
+    useColors,
+    options.issuesDetailHint,
+  );
+  if (dependencyIssues) blocks.push(dependencyIssues);
 
   return `${blocks.filter((b) => b.length > 0).join("\n\n")}\n`;
 }
@@ -1092,6 +1105,312 @@ function formatImporterBullets(
 }
 
 // --------------------------------------------------------------------
+// Dependency issues
+// --------------------------------------------------------------------
+
+function formatDependencyIssues(
+  issues: LeanDependencyIssues | undefined,
+  verbose: boolean,
+  useColors: boolean,
+  detailHint: string | undefined,
+): string {
+  if (!issues) return "";
+
+  const totalNoun = issues.total === 1 ? "issue" : "issues";
+  const scope =
+    issues.scope.mode === "full"
+      ? "full graph"
+      : `max depth ${issues.scope.maxDepth}`;
+  const lines = [
+    `${colorize("Dependency issues", "yellow", useColors)}: ${issues.total} ${totalNoun} (${scope})`,
+    formatDependencyIssueCounts(issues),
+  ];
+
+  if (issues.total === 0 && issueCategoryEvidenceCount(issues) === 0) {
+    lines.push("No dependency issues detected.");
+    return lines.join("\n");
+  }
+
+  if (verbose) {
+    lines.push(...formatVerboseIssueCategories(issues, useColors));
+    return lines.join("\n");
+  }
+
+  const compact = formatCompactIssueCategories(issues, useColors);
+  lines.push(...compact.lines);
+  if (compact.truncated && detailHint) lines.push(detailHint);
+  return lines.join("\n");
+}
+
+function formatDependencyIssueCounts(issues: LeanDependencyIssues): string {
+  const counts = [
+    formatIssueCount(
+      issues.deprecated.count,
+      "deprecated dependency",
+      "deprecated dependencies",
+    ),
+    formatIssueCount(
+      issues.outdated.count,
+      "outdated dependency",
+      "outdated dependencies",
+    ),
+    formatIssueCount(
+      issues.duplicates.count,
+      "duplicate dependency",
+      "duplicate dependencies",
+    ),
+    formatIssueCount(issues.conflicts.count, "conflict", "conflicts"),
+  ];
+  return `  ${counts.join(" | ")}`;
+}
+
+function formatIssueCount(
+  count: number,
+  singularNoun: string,
+  pluralNoun: string,
+): string {
+  return `${count} ${count === 1 ? singularNoun : pluralNoun}`;
+}
+
+function issueCategoryEvidenceCount(issues: LeanDependencyIssues): number {
+  return (
+    issues.deprecated.items.length +
+    issues.outdated.items.length +
+    issues.duplicates.items.length +
+    issues.conflicts.items.length
+  );
+}
+
+interface FormattedIssueCategories {
+  lines: string[];
+  truncated: boolean;
+}
+
+function formatCompactIssueCategories(
+  issues: LeanDependencyIssues,
+  useColors: boolean,
+): FormattedIssueCategories {
+  const lines: string[] = [];
+  let truncated = false;
+
+  const deprecated = sortIssueItems(issues.deprecated.items);
+  if (deprecated.length > 0) {
+    const shown = deprecated.slice(0, 3);
+    lines.push(colorize("Deprecated dependencies:", "yellow", useColors));
+    lines.push(...shown.map((item) => `  - ${formatDeprecatedIssue(item)}`));
+    truncated ||= issueCategoryTruncated(
+      issues.deprecated.count,
+      deprecated.length,
+      shown.length,
+    );
+  } else {
+    truncated ||= issues.deprecated.count > 0;
+  }
+
+  const outdated = sortIssueItems(issues.outdated.items);
+  if (outdated.length > 0) {
+    const shown = outdated.slice(0, 3);
+    lines.push(colorize("Outdated dependencies:", "yellow", useColors));
+    lines.push(...shown.map((item) => `  - ${formatOutdatedIssue(item)}`));
+    truncated ||= issueCategoryTruncated(
+      issues.outdated.count,
+      outdated.length,
+      shown.length,
+    );
+  } else {
+    truncated ||= issues.outdated.count > 0;
+  }
+
+  const duplicates = sortIssueItems(issues.duplicates.items);
+  if (duplicates.length > 0) {
+    const shown = duplicates.slice(0, 3);
+    lines.push(colorize("Duplicate dependencies:", "yellow", useColors));
+    lines.push(...shown.map((item) => `  - ${formatDuplicateIssue(item)}`));
+    truncated ||= issueCategoryTruncated(
+      issues.duplicates.count,
+      duplicates.length,
+      shown.length,
+    );
+  } else {
+    truncated ||= issues.duplicates.count > 0;
+  }
+
+  const conflicts = sortIssueItems(issues.conflicts.items);
+  if (conflicts.length > 0) {
+    lines.push(colorize("Conflicts:", "yellow", useColors));
+    for (const conflict of conflicts.slice(0, 3)) {
+      const formatted = formatCompactIssueConflict(conflict);
+      lines.push(...formatted.lines);
+      truncated ||= formatted.truncated;
+    }
+    truncated ||= issueCategoryTruncated(
+      issues.conflicts.count,
+      conflicts.length,
+      Math.min(3, conflicts.length),
+    );
+  } else {
+    truncated ||= issues.conflicts.count > 0;
+  }
+  return { lines, truncated };
+}
+
+function issueCategoryTruncated(
+  backendCount: number,
+  itemCount: number,
+  shownCount: number,
+): boolean {
+  return Math.max(backendCount, itemCount) > shownCount;
+}
+
+function formatVerboseIssueCategories(
+  issues: LeanDependencyIssues,
+  useColors: boolean,
+): string[] {
+  const lines: string[] = [];
+  const deprecated = sortIssueItems(issues.deprecated.items);
+  if (deprecated.length > 0) {
+    lines.push(colorize("Deprecated dependencies:", "yellow", useColors));
+    lines.push(
+      ...deprecated.map((item) => `  - ${formatDeprecatedIssue(item)}`),
+    );
+  }
+  const outdated = sortIssueItems(issues.outdated.items);
+  if (outdated.length > 0) {
+    lines.push(colorize("Outdated dependencies:", "yellow", useColors));
+    lines.push(...outdated.map((item) => `  - ${formatOutdatedIssue(item)}`));
+  }
+  const duplicates = sortIssueItems(issues.duplicates.items);
+  if (duplicates.length > 0) {
+    lines.push(colorize("Duplicate dependencies:", "yellow", useColors));
+    lines.push(
+      ...duplicates.map((item) => `  - ${formatDuplicateIssue(item)}`),
+    );
+  }
+  const conflicts = sortIssueItems(issues.conflicts.items);
+  if (conflicts.length > 0) {
+    lines.push(colorize("Issue conflicts:", "yellow", useColors));
+    for (const conflict of conflicts) {
+      lines.push(`  - ${formatIssueConflict(conflict)}`);
+      lines.push(...formatConflictRequirements(conflict.requirements).lines);
+    }
+  }
+  return lines;
+}
+
+interface FormattedConflictRequirements {
+  lines: string[];
+  truncated: boolean;
+}
+
+function formatDeprecatedIssue(issue: LeanDeprecatedDependencyIssue): string {
+  const versions = issue.versions.join(", ");
+  const reasons = issue.reasons
+    .filter((reason) => reason.reason !== undefined)
+    .map((reason) => `${reason.version}: ${reason.reason}`)
+    .join("; ");
+  return `${issue.name} [${versions}]${reasons ? ` - ${reasons}` : ""}`;
+}
+
+function formatOutdatedIssue(issue: LeanOutdatedDependencyIssue): string {
+  const versions = issue.versions
+    .map((version) => `${version.version} (${version.severity})`)
+    .join(", ");
+  const latest =
+    issue.latestVersion === undefined ? "" : ` (latest ${issue.latestVersion})`;
+  return `${issue.name} [${versions}]${latest}`;
+}
+
+function formatDuplicateIssue(issue: LeanDuplicateDependencyIssue): string {
+  return `${issue.name} [${issue.versions.join(", ")}]`;
+}
+
+function formatIssueConflict(conflict: LeanDependencyConflictIssue): string {
+  const versions =
+    conflict.versions.length > 0 ? ` [${conflict.versions.join(", ")}]` : "";
+  const constraints = conflict.requiredVersions.join(", ");
+  return `${conflict.name}${versions}: ${constraints}`;
+}
+
+function formatCompactIssueConflict(
+  conflict: LeanDependencyConflictIssue,
+): FormattedConflictRequirements {
+  const requirements = formatConflictRequirements(conflict.requirements, {
+    maxGroups: 3,
+    maxImporters: 3,
+  });
+  return {
+    lines: [`  - ${formatIssueConflict(conflict)}`, ...requirements.lines],
+    truncated: requirements.truncated,
+  };
+}
+
+function sortIssueItems<T extends { name: string; registry?: string }>(
+  items: T[],
+): T[] {
+  return items.slice().sort((a, b) => {
+    if (a.name !== b.name) return a.name < b.name ? -1 : 1;
+    const ar = a.registry ?? "";
+    const br = b.registry ?? "";
+    return ar < br ? -1 : ar > br ? 1 : 0;
+  });
+}
+
+function formatConflictRequirements(
+  requirements: LeanConflictRequirement[],
+  limits: { maxGroups?: number; maxImporters?: number } = {},
+): FormattedConflictRequirements {
+  const byConstraint = new Map<string, LeanConflictRequirement[]>();
+  for (const requirement of requirements) {
+    const existing = byConstraint.get(requirement.constraint);
+    if (existing) existing.push(requirement);
+    else byConstraint.set(requirement.constraint, [requirement]);
+  }
+
+  const lines: string[] = [];
+  const constraints = [...byConstraint.keys()].sort();
+  const maxGroups = limits.maxGroups ?? Number.POSITIVE_INFINITY;
+  const maxImporters = limits.maxImporters ?? Number.POSITIVE_INFINITY;
+  let truncated = constraints.length > maxGroups;
+  for (const constraint of constraints.slice(0, maxGroups)) {
+    const entries = byConstraint.get(constraint) ?? [];
+    const dependencyTypes = new Set(
+      entries.map((entry) => entry.dependencyType),
+    );
+    const includeDependencyType = dependencyTypes.size > 1;
+    const seen = new Set<string>();
+    const importers: Array<{ label: string; dependencyType: string }> = [];
+    for (const entry of entries) {
+      const importer = entry.importer;
+      const label = importer.version
+        ? `${importer.name}@${importer.version}`
+        : importer.name;
+      const key = `${label}\u0000${entry.dependencyType}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      importers.push({ label, dependencyType: entry.dependencyType });
+    }
+    importers.sort((a, b) => {
+      if (a.label !== b.label) return a.label < b.label ? -1 : 1;
+      return a.dependencyType < b.dependencyType
+        ? -1
+        : a.dependencyType > b.dependencyType
+          ? 1
+          : 0;
+    });
+    const labels = importers
+      .slice(0, maxImporters)
+      .map((importer) =>
+        includeDependencyType
+          ? `${importer.label} (${importer.dependencyType})`
+          : importer.label,
+      );
+    truncated ||= importers.length > maxImporters;
+    lines.push(`    - ${constraint} required by ${labels.join(", ")}`);
+  }
+  return { lines, truncated };
+}
+
+// --------------------------------------------------------------------
 // Conflicts + cycles (only when transitive output is requested)
 // --------------------------------------------------------------------
 
@@ -1125,6 +1444,11 @@ function formatConflictsAndCycles(
       a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
     );
     for (const c of sorted) {
+      if (c.requirements.length > 0) {
+        lines.push(`  ${c.name}: ${c.requiredVersions.join(", ")}`);
+        lines.push(...formatConflictRequirements(c.requirements).lines);
+        continue;
+      }
       const padded = `${c.name}:`.padEnd(nameWidth + 2);
       lines.push(`  ${padded}  ${c.requiredVersions.join(", ")}`);
     }

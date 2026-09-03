@@ -10,8 +10,145 @@ import {
   formatPackageDependenciesTerminal,
 } from "./package-dependencies-response.js";
 
+const ESC = String.fromCharCode(27);
+const ANSI_SGR_PATTERN = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
+
 function clone<T>(value: T): T {
   return structuredClone(value);
+}
+
+function dependencyIssueReport(): DependencyReport {
+  const graph = {
+    formatVersion: 4,
+    nodes: [
+      { registry: "NPM", name: "express", version: "5.2.1" },
+      { registry: "NPM", name: "importer", version: "1.0.0" },
+      { registry: "NPM", name: "shared", version: "1.0.0" },
+    ],
+    edges: [
+      { toIndex: 2, constraint: "^1.0.0", dependencyType: "runtime" },
+      {
+        fromIndex: 1,
+        toIndex: 2,
+        constraint: "^1.0.0",
+        dependencyType: "peer",
+      },
+    ],
+  };
+  const conflictingEdges = [
+    { toIndex: 2, versionConstraint: "^1.0.0", dependencyType: "runtime" },
+    {
+      fromIndex: 1,
+      toIndex: 2,
+      versionConstraint: "^1.0.0",
+      dependencyType: "peer",
+    },
+  ];
+  return {
+    package: { name: "express", registry: "NPM", version: "5.2.1" },
+    dependencies: {
+      direct: [{ name: "runtime-dep", versionConstraint: "^1.0.0" }],
+      transitive: {
+        dependencyGraph: graph,
+        dependencyIssues: {
+          totalCount: 16,
+          deprecatedCount: 4,
+          outdatedCount: 4,
+          duplicateCount: 4,
+          conflictCount: 4,
+          deprecatedPackages: [
+            {
+              registry: "NPM",
+              name: "zeta-deprecated",
+              versions: ["1.0.0"],
+              reasons: [{ version: "1.0.0", reason: "Use replacement" }],
+            },
+            {
+              registry: "NPM",
+              name: "alpha-deprecated",
+              versions: ["2.0.0"],
+              reasons: [{ version: "2.0.0" }],
+            },
+            {
+              registry: "NPM",
+              name: "beta-deprecated",
+              versions: ["3.0.0"],
+              reasons: [],
+            },
+            {
+              registry: "NPM",
+              name: "gamma-deprecated",
+              versions: ["4.0.0"],
+              reasons: [],
+            },
+          ],
+          outdatedPackages: [
+            {
+              registry: "NPM",
+              name: "zeta-outdated",
+              latestVersion: "9.0.0",
+              severity: "LOW",
+              versions: [{ version: "1.0.0", severity: "LOW" }],
+            },
+            {
+              registry: "NPM",
+              name: "alpha-outdated",
+              severity: "HIGH",
+              versions: [{ version: "2.0.0", severity: "HIGH" }],
+            },
+            {
+              registry: "NPM",
+              name: "beta-outdated",
+              severity: "MEDIUM",
+              versions: [{ version: "3.0.0", severity: "MEDIUM" }],
+            },
+            {
+              registry: "NPM",
+              name: "gamma-outdated",
+              severity: "UNKNOWN",
+              versions: [{ version: "4.0.0", severity: "UNKNOWN" }],
+            },
+          ],
+          duplicatePackages: [
+            { registry: "NPM", name: "zeta-duplicate", versions: ["1.0.0"] },
+            { registry: "NPM", name: "alpha-duplicate", versions: ["2.0.0"] },
+            { registry: "NPM", name: "beta-duplicate", versions: ["3.0.0"] },
+            { registry: "NPM", name: "gamma-duplicate", versions: ["4.0.0"] },
+          ],
+          conflicts: [
+            {
+              registry: "NPM",
+              name: "zeta-conflict",
+              versions: ["1.0.0", "2.0.0"],
+              requiredVersions: ["^1.0.0"],
+              conflictingEdges,
+            },
+            {
+              registry: "NPM",
+              name: "alpha-conflict",
+              versions: ["1.0.0", "2.0.0"],
+              requiredVersions: ["^1.0.0"],
+              conflictingEdges,
+            },
+            {
+              registry: "NPM",
+              name: "beta-conflict",
+              versions: ["1.0.0", "2.0.0"],
+              requiredVersions: ["^1.0.0"],
+              conflictingEdges,
+            },
+            {
+              registry: "NPM",
+              name: "gamma-conflict",
+              versions: ["1.0.0", "2.0.0"],
+              requiredVersions: ["^1.0.0"],
+              conflictingEdges,
+            },
+          ],
+        },
+      },
+    },
+  };
 }
 
 describe("buildPackageDependenciesSuccessPayload — runtime block", () => {
@@ -681,6 +818,238 @@ describe("buildPackageDependenciesSuccessPayload — dependency issues", () => {
     });
     expect(payload.issues).toBeUndefined();
     expect(payload.transitive).toEqual({});
+  });
+});
+
+describe("formatPackageDependenciesTerminal — dependency issues", () => {
+  it("renders bounded deterministic compact examples with one detail hint", () => {
+    const hint = "Use --json for complete dependency issue details.";
+    const output = formatPackageDependenciesTerminal(dependencyIssueReport(), {
+      includeIssues: true,
+      issuesDetailHint: hint,
+      useColors: false,
+      maxDepth: 3,
+    });
+
+    expect(output).toContain("Dependency issues: 16 issues (max depth 3)");
+    expect(output).toContain(
+      "4 deprecated dependencies | 4 outdated dependencies | 4 duplicate dependencies | 4 conflicts",
+    );
+    expect(output).toContain("alpha-deprecated");
+    expect(output).toContain("beta-deprecated");
+    expect(output).toContain("gamma-deprecated");
+    expect(output).not.toContain("zeta-deprecated");
+    expect(output).toContain("alpha-outdated");
+    expect(output).toContain("alpha-duplicate");
+    expect(output).toContain("alpha-conflict");
+    expect(output).not.toContain("zeta-conflict");
+    expect(output.split(hint).length - 1).toBe(1);
+  });
+
+  it("renders all issue rows, reasons, latest evidence, and conflict requirements in verbose mode", () => {
+    const hint = "Use --json for complete dependency issue details.";
+    const output = formatPackageDependenciesTerminal(dependencyIssueReport(), {
+      includeIssues: true,
+      issuesDetailHint: hint,
+      useColors: false,
+      verbose: true,
+    });
+
+    expect(output).toContain("Dependency issues: 16 issues (full graph)");
+    expect(output).toContain("zeta-deprecated");
+    expect(output).toContain("Use replacement");
+    expect(output).toContain("zeta-outdated");
+    expect(output).toContain("latest 9.0.0");
+    expect(output).toContain("zeta-duplicate");
+    expect(output).toContain("zeta-conflict [1.0.0, 2.0.0]: ^1.0.0");
+    expect(output).toContain(
+      "- ^1.0.0 required by express@5.2.1 (runtime), importer@1.0.0 (peer)",
+    );
+    expect(output).not.toContain(hint);
+  });
+
+  it("keeps the existing verbose transitive conflict section actionable", () => {
+    const fixture = dependencyIssueReport();
+    if (!fixture.dependencies?.transitive) {
+      throw new Error("expected transitive fixture");
+    }
+    fixture.dependencies.transitive.dependencyConflicts = [
+      {
+        packageName: "shared",
+        requiredVersions: ["^2.0.0", "^1.0.0"],
+        conflictingEdges: [
+          {
+            toIndex: 2,
+            versionConstraint: "^1.0.0",
+            dependencyType: "runtime",
+          },
+          {
+            fromIndex: 1,
+            toIndex: 2,
+            versionConstraint: "^1.0.0",
+            dependencyType: "peer",
+          },
+        ],
+      },
+    ];
+
+    const output = formatPackageDependenciesTerminal(fixture, {
+      includeTransitive: true,
+      useColors: false,
+      verbose: true,
+    });
+
+    expect(output).toContain("Conflicts (1):");
+    expect(output).toContain("shared: ^1.0.0, ^2.0.0");
+    expect(output).toContain(
+      "- ^1.0.0 required by express@5.2.1 (runtime), importer@1.0.0 (peer)",
+    );
+  });
+
+  it("renders zero issues as a scoped positive acknowledgement", () => {
+    const fixture = dependencyIssueReport();
+    if (!fixture.dependencies?.transitive?.dependencyIssues) {
+      throw new Error("expected issue fixture");
+    }
+    fixture.dependencies.transitive.dependencyIssues = {
+      totalCount: 0,
+      deprecatedCount: 0,
+      outdatedCount: 0,
+      duplicateCount: 0,
+      conflictCount: 0,
+      deprecatedPackages: [],
+      outdatedPackages: [],
+      duplicatePackages: [],
+      conflicts: [],
+    };
+
+    const output = formatPackageDependenciesTerminal(fixture, {
+      includeIssues: true,
+      useColors: false,
+    });
+
+    expect(output).toContain("Dependency issues: 0 issues (full graph)");
+    expect(output).toContain(
+      "0 deprecated dependencies | 0 outdated dependencies | 0 duplicate dependencies | 0 conflicts",
+    );
+    expect(output).toContain("No dependency issues detected.");
+  });
+
+  it("uses singular grammar for each issue category", () => {
+    const fixture = dependencyIssueReport();
+    if (!fixture.dependencies?.transitive?.dependencyIssues) {
+      throw new Error("expected issue fixture");
+    }
+    const issues = fixture.dependencies.transitive.dependencyIssues;
+    issues.totalCount = 4;
+    issues.deprecatedCount = 1;
+    issues.outdatedCount = 1;
+    issues.duplicateCount = 1;
+    issues.conflictCount = 1;
+    issues.deprecatedPackages = issues.deprecatedPackages.slice(0, 1);
+    issues.outdatedPackages = issues.outdatedPackages.slice(0, 1);
+    issues.duplicatePackages = issues.duplicatePackages.slice(0, 1);
+    issues.conflicts = issues.conflicts.slice(0, 1);
+
+    const output = formatPackageDependenciesTerminal(fixture, {
+      includeIssues: true,
+      useColors: false,
+    });
+
+    expect(output).toContain(
+      "1 deprecated dependency | 1 outdated dependency | 1 duplicate dependency | 1 conflict",
+    );
+  });
+
+  it("caps compact conflict requirements by constraint group and importer labels", () => {
+    const fixture = dependencyIssueReport();
+    const transitive = fixture.dependencies?.transitive;
+    const graph = transitive?.dependencyGraph;
+    const issue = transitive?.dependencyIssues?.conflicts.find(
+      (conflict) => conflict.name === "alpha-conflict",
+    );
+    if (!transitive || !graph || !issue) {
+      throw new Error("expected issue fixture");
+    }
+    graph.nodes.push(
+      { registry: "NPM", name: "importer-a", version: "1.0.0" },
+      { registry: "NPM", name: "importer-b", version: "1.0.0" },
+      { registry: "NPM", name: "importer-c", version: "1.0.0" },
+      { registry: "NPM", name: "importer-d", version: "1.0.0" },
+    );
+    issue.conflictingEdges = [
+      { toIndex: 2, versionConstraint: "^1.0.0", dependencyType: "runtime" },
+      {
+        fromIndex: 1,
+        toIndex: 2,
+        versionConstraint: "^1.0.0",
+        dependencyType: "runtime",
+      },
+      {
+        fromIndex: 3,
+        toIndex: 2,
+        versionConstraint: "^1.0.0",
+        dependencyType: "runtime",
+      },
+      {
+        fromIndex: 4,
+        toIndex: 2,
+        versionConstraint: "^1.0.0",
+        dependencyType: "runtime",
+      },
+      {
+        fromIndex: 5,
+        toIndex: 2,
+        versionConstraint: "^1.0.0",
+        dependencyType: "runtime",
+      },
+      {
+        fromIndex: 6,
+        toIndex: 2,
+        versionConstraint: "^2.0.0",
+        dependencyType: "runtime",
+      },
+      {
+        fromIndex: 3,
+        toIndex: 2,
+        versionConstraint: "^3.0.0",
+        dependencyType: "runtime",
+      },
+      {
+        fromIndex: 4,
+        toIndex: 2,
+        versionConstraint: "^4.0.0",
+        dependencyType: "runtime",
+      },
+    ];
+    const hint = "Use --json for complete dependency issue details.";
+    const output = formatPackageDependenciesTerminal(fixture, {
+      includeIssues: true,
+      issuesDetailHint: hint,
+      useColors: false,
+    });
+
+    expect(output).toContain(
+      "^1.0.0 required by express@5.2.1, importer-a@1.0.0, importer-b@1.0.0",
+    );
+    expect(output).toContain("^2.0.0 required by importer-d@1.0.0");
+    expect(output).toContain("^3.0.0 required by importer-a@1.0.0");
+    expect(output).not.toContain("^4.0.0 required by importer-a@1.0.0");
+    expect(output).not.toContain("importer-c@1.0.0");
+    expect(output.split(hint).length - 1).toBe(1);
+  });
+
+  it("keeps ANSI optional and semantically redundant for issue output", () => {
+    const colored = formatPackageDependenciesTerminal(dependencyIssueReport(), {
+      includeIssues: true,
+      useColors: true,
+    });
+    const plain = formatPackageDependenciesTerminal(dependencyIssueReport(), {
+      includeIssues: true,
+      useColors: false,
+    });
+    const withoutAnsi = colored.replace(ANSI_SGR_PATTERN, "");
+    expect(withoutAnsi).toBe(plain);
   });
 });
 
