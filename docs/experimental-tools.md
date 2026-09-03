@@ -102,7 +102,9 @@ for original upstream HTTP URLs. Text output appends the selected backend-built
 source pointers in their returned order, followed by the Ask run ID, thread ID,
 and conditional follow-up guidance. The model does not generate or format this
 source section. JSON returns the validated response for the selected source
-format. Neither surface returns model usage.
+format. Neither surface returns model usage. The tool description directs agents
+to call `resolve_target` first when the intended target is ambiguous or not yet
+canonical.
 
 Resolve a noncanonical name before calling another GitHits command:
 

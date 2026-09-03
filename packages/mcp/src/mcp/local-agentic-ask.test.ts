@@ -92,6 +92,9 @@ describe("local ask MCP adapter", () => {
     expect(DESCRIPTION).toContain(
       "Ask one grounded question about a canonical public package or repository target",
     );
+    expect(DESCRIPTION).toContain(
+      "Call resolve_target first when the intended target is ambiguous",
+    );
     expect(tool.annotations).toEqual({
       readOnlyHint: false,
       openWorldHint: false,
