@@ -173,9 +173,9 @@ export interface PackageDependenciesParams {
   /** Include transitive dependency issue analysis. */
   includeDependencyIssues?: boolean;
   /**
-   * Optional transitive-traversal depth (1–10). Omit for the backend
-   * default (full graph) — note the CLI applies a 3-deep guardrail but
-   * the MCP surface deliberately does not.
+   * Optional transitive-traversal depth (1–10). Omit for the backend's full
+   * graph default. Normal direct-only CLI/MCP calls send depth 1 explicitly;
+   * issue-only calls omit depth for full analysis unless the caller bounds it.
    */
   maxDepth?: number;
   /**
