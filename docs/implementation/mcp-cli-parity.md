@@ -522,6 +522,23 @@ When a new tool lands with both MCP and CLI surfaces:
 - **`@version` rejection.** CLI-only. The MCP tool has no `version`
   input. The CLI's `pkg info` throws `InvalidPackageSpecError` on
   any non-null parsed version — never silently swaps to latest.
+- **Shared package-summary envelope and formatter.** CLI `--json` and MCP
+  `format: "json"` use the same lean envelope, including additive
+  `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total` fields.
+  The shared formatter also owns the latest-versus-history text semantics:
+  `vulnerabilities.total` is latest-version affectedness and
+  `advisoryHistory.total` is package-wide non-withdrawn, deduplicated history.
+  History remains renderable when the nullable latest count is unavailable.
+- **Surface-native history follow-up.** Both compact text surfaces use the same
+  `Latest:` and `History:` labels and show a history follow-up only when history
+  exceeds latest. CLI uses `githits pkg vulns <registry>:<name> --scope all`;
+  MCP uses `pkg_vulns` with `advisory_scope="all"`. No other text semantics
+  diverge.
+- **Compact versus detailed fetching.** Default text requests
+  `includeVerboseFields: false`; verbose text and JSON request `true` on both
+  surfaces. `allVulnerabilityCount` is selected for every package summary,
+  while `versionCount` and `downloadsRefreshedAt` are selected only for the
+  detailed modes.
 
 ### `pkg_vulns`
 
