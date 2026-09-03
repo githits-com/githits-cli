@@ -4,7 +4,7 @@
 
 - Overall: **IN PROGRESS**
 - Phase 1 — package overview distinguishes current-version and package-history
-  evidence: **COMPLETE — awaiting PR review**
+  evidence: **COMPLETE — draft PR #350**
 - Phase 2 — dependency analysis exposes actionable issue and conflict evidence:
   **READY**
 - Phase 3 — vulnerability inspection optionally audits resolved transitive
@@ -330,7 +330,7 @@ client view consumes. Callers never have to discover and combine coupled flags.
 
 ### Phase 1 — package overview distinguishes version risk from package history
 
-- **Status:** COMPLETE — awaiting PR review
+- **Status:** COMPLETE — draft PR #350
 - **Expected outcome:** `pkg_info` reports affecting-latest and package-wide advisory
   counts without contradiction, and verbose/JSON callers receive version-count and
   download-freshness evidence already available from the summary resolver.
@@ -539,6 +539,12 @@ Verified results:
 The implementation required no backend change, new infrastructure, fallback, or
 ownership move. Phase 2 remains a separate ready increment; Phase 3 still requires
 the planned post-Phase-2 reorientation.
+
+Review closed one terminal-width defect in the internal runtime pass. Three external
+Claude Opus rounds then closed independent-history action gating, all-version scope
+labels across formatter/help/skills, CLI help reflow, and the public Agent Skill
+release clause. The round-3 code verdict was clean; its final release-metadata note
+was fixed directly under the three-round limit. No review finding remains deferred.
 
 ### Phase 1 acceptance criteria
 
