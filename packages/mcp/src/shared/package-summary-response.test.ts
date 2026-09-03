@@ -23,7 +23,12 @@ function getVulnerabilityLines(output: string): string[] {
   if (first === undefined) return [];
   const result: string[] = [first];
   for (const line of lines.slice(start + 1)) {
-    if (!line.startsWith(continuationPrefix)) break;
+    if (
+      !line.startsWith(continuationPrefix) ||
+      line.trimStart().startsWith("Inspect history:")
+    ) {
+      break;
+    }
     result.push(line);
   }
   return result;
@@ -298,7 +303,7 @@ describe("formatPackageSummaryTerminal", () => {
       "Repository       https://github.com/expressjs/express (63k stars, 14k forks, 123 issues)",
     );
     expect(vulnerabilityText(output)).toBe(
-      "Latest: 5 affected | History: 5 known advisories across all versions",
+      "Latest: 5 affected History: 5 known advisories across all versions",
     );
     expect(output).not.toContain("Versions");
     expect(output).not.toContain("refreshed 2024-06-15");
@@ -336,10 +341,12 @@ describe("formatPackageSummaryTerminal", () => {
     const continuationPrefix = " ".repeat("Vulnerabilities".length + 2);
     expect(lines.length).toBe(2);
     expect(lines[1]?.startsWith(continuationPrefix)).toBe(true);
-    expect(lines[1]?.slice(continuationPrefix.length)).toBe("versions");
+    expect(lines[1]?.slice(continuationPrefix.length)).toBe(
+      "History: 5 known advisories across all versions",
+    );
     expect(lines.every((line) => displayWidth(line) <= 80)).toBe(true);
     expect(vulnerabilityText(output)).toBe(
-      "Latest: 5 affected | History: 5 known advisories across all versions",
+      "Latest: 5 affected History: 5 known advisories across all versions",
     );
   });
 
@@ -379,7 +386,7 @@ describe("formatPackageSummaryTerminal", () => {
       now: FIXED_NOW,
     });
     expect(vulnerabilityText(output)).toBe(
-      "Latest: 1 affected | History: 1 known advisory across all versions",
+      "Latest: 1 affected History: 1 known advisory across all versions",
     );
   });
 
@@ -396,7 +403,7 @@ describe("formatPackageSummaryTerminal", () => {
       now: FIXED_NOW,
     });
     expect(vulnerabilityText(output)).toBe(
-      "Latest: none affected | History: none known across all versions",
+      "Latest: none affected History: none known across all versions",
     );
   });
 
@@ -417,7 +424,7 @@ describe("formatPackageSummaryTerminal", () => {
       now: FIXED_NOW,
     });
     expect(vulnerabilityText(output)).toBe(
-      "Latest: unavailable | History: 5 known advisories across all versions",
+      "Latest: unavailable History: 5 known advisories across all versions",
     );
   });
 
@@ -436,7 +443,7 @@ describe("formatPackageSummaryTerminal", () => {
       now: FIXED_NOW,
     });
     expect(vulnerabilityText(output)).toBe(
-      "Latest: 2 affected | History: 2 known advisories across all versions",
+      "Latest: 2 affected History: 2 known advisories across all versions",
     );
   });
 
@@ -455,7 +462,7 @@ describe("formatPackageSummaryTerminal", () => {
     });
     const lines = getVulnerabilityLines(output);
     expect(vulnerabilityText(output)).toBe(
-      "Latest: 5 affected | History: 3 known advisories across all versions (inconsistent backend evidence)",
+      "Latest: 5 affected History: 3 known advisories across all versions (inconsistent backend evidence)",
     );
     expect(lines.every((line) => displayWidth(line) <= 80)).toBe(true);
     expect(
@@ -477,7 +484,7 @@ describe("formatPackageSummaryTerminal", () => {
       now: FIXED_NOW,
     });
     expect(vulnerabilityText(output)).toBe(
-      "Latest: 1 affected | History: none known across all versions (inconsistent backend evidence)",
+      "Latest: 1 affected History: none known across all versions (inconsistent backend evidence)",
     );
   });
 
@@ -494,7 +501,7 @@ describe("formatPackageSummaryTerminal", () => {
       lines.slice(1).every((line) => line.startsWith(" ".repeat(17))),
     ).toBe(true);
     expect(vulnerabilityText(output)).toBe(
-      "Latest: 5 affected | History: 5 known advisories across all versions",
+      "Latest: 5 affected History: 5 known advisories across all versions",
     );
   });
 
@@ -513,7 +520,7 @@ describe("formatPackageSummaryTerminal", () => {
       surface: "cli",
     });
     expect(vulnerabilityText(cliOutput)).toBe(
-      "Latest: none affected | History: 5 known advisories across all versions",
+      "Latest: none affected History: 5 known advisories across all versions",
     );
     expect(cliOutput).toContain(
       "Inspect history: githits pkg vulns npm:express --scope all",
@@ -587,15 +594,14 @@ describe("formatPackageSummaryTerminal", () => {
       terminalWidth: 60,
     });
     const lines = output.trimEnd().split("\n");
+    const hintPrefix = " ".repeat("Vulnerabilities".length + 2);
     const hintIndex = lines.findIndex((line) =>
-      line.startsWith("  Inspect history:"),
+      line.startsWith(`${hintPrefix}Inspect history:`),
     );
     const hintLines = hintIndex < 0 ? [] : lines.slice(hintIndex);
     expect(hintLines.length).toBeGreaterThan(1);
     expect(hintLines.every((line) => displayWidth(line) <= 60)).toBe(true);
-    expect(hintLines.slice(1).every((line) => line.startsWith("    "))).toBe(
-      true,
-    );
+    expect(hintLines.every((line) => line.startsWith(hintPrefix))).toBe(true);
     expect(hintLines.join("\n")).toContain("npm:");
     expect(hintLines.join(" ").replace(/\s+/g, " ")).toContain("--scope all");
   });

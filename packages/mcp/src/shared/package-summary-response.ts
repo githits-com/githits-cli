@@ -487,10 +487,13 @@ function buildFieldList(
   const labelWidth = Math.max(10, ...fields.map((field) => field.label.length));
 
   const valueIndent = " ".repeat(labelWidth + 2);
+  const valueWidth = Math.max(1, width - valueIndent.length);
   const lines = fields.flatMap((field) => {
     const valueLines =
       field.label === "Vulnerabilities"
-        ? wrapText(field.value, Math.max(1, width - labelWidth - 2)).split("\n")
+        ? field.value
+            .split("\n")
+            .flatMap((value) => wrapText(value, valueWidth).split("\n"))
         : [field.value];
     return valueLines.map((value, index) =>
       index === 0
@@ -501,16 +504,10 @@ function buildFieldList(
 
   const historyHint = formatHistoryHint(lean, surface);
   if (historyHint) {
-    const hintIndent = "    ";
-    const wrappedHint = wrapText(
-      historyHint,
-      Math.max(1, width - hintIndent.length),
-    ).split("\n");
+    const wrappedHint = wrapText(historyHint, valueWidth).split("\n");
     lines.push(
       dim(
-        wrappedHint
-          .map((line, index) => `${index === 0 ? "  " : hintIndent}${line}`)
-          .join("\n"),
+        wrappedHint.map((line) => `${valueIndent}${line}`).join("\n"),
         useColors,
       ),
     );
@@ -558,7 +555,7 @@ function formatVulnerabilityStatus(
     history.total === 0
       ? `History: none known across all versions${historySuffix}`
       : `History: ${history.total} known ${historyNoun} across all versions${historySuffix}`;
-  return `${latest} | ${historyText}`;
+  return `${latest}\n${historyText}`;
 }
 
 function formatHistoryHint(

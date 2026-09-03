@@ -610,7 +610,7 @@ function smokeResponse(
     case "pkg_info":
       return textResult(
         "express\nRepository 1 stars\n" +
-          "Vulnerabilities  Latest: none affected | History: 5 known advisories across all versions",
+          "Vulnerabilities  Latest: none affected\n                 History: 5 known advisories across all versions",
       );
     case "pkg_deps":
       return textResult(

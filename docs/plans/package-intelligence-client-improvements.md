@@ -411,7 +411,8 @@ service response.
 Default text uses scope-explicit wording from the two independent blocks:
 
 ```text
-Vulnerabilities  Latest: none affected | History: 5 known across all versions
+Vulnerabilities  Latest: none affected
+                 History: 5 known across all versions
 ```
 
 Use singular/plural grammar and preserve an explicit unavailable distinction. If the
