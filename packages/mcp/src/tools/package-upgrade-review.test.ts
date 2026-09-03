@@ -1,5 +1,7 @@
 import { describe, expect, it, mock } from "bun:test";
+import { z } from "zod";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
+import { PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES } from "../shared/package-upgrade-review-request.js";
 import { createPackageUpgradeReviewTool } from "./package-upgrade-review.js";
 
 function parseText(result: { content: Array<{ text: string }> }): unknown {
@@ -27,6 +29,13 @@ describe("createPackageUpgradeReviewTool", () => {
       "target_version",
       "verbose",
     ]);
+
+    const inputSchema = z.toJSONSchema(z.object(tool.schema));
+    expect(inputSchema.properties?.packages).toMatchObject({
+      description: expect.stringContaining("at most 30 upgrades"),
+    });
+    expect(inputSchema.properties?.packages).not.toHaveProperty("maxItems");
+    expect(tool.description).toContain("at most 30 upgrades");
   });
 
   it("calls the aggregate service method with normalized single-package params", async () => {
@@ -186,5 +195,39 @@ describe("createPackageUpgradeReviewTool", () => {
 
     expect(result.isError).toBe(true);
     expect(parseText(result)).toMatchObject({ code: "INVALID_ARGUMENT" });
+  });
+
+  it("rejects over-cap batches before calling the service", async () => {
+    const packageUpgradeReview = mock(() =>
+      Promise.reject(new Error("service must not be called")),
+    );
+    const tool = createPackageUpgradeReviewTool(
+      createMockPackageIntelligenceService({
+        packageUpgradeReview: packageUpgradeReview as never,
+      }),
+    );
+
+    const result = await tool.handler(
+      {
+        packages: Array.from(
+          { length: PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES + 1 },
+          (_, index) => ({
+            registry: "npm",
+            package_name: `package-${index}`,
+            current_version: "1.0.0",
+            target_version: "1.0.1",
+          }),
+        ),
+      },
+      {},
+    );
+
+    expect(packageUpgradeReview).not.toHaveBeenCalled();
+    expect(result.isError).toBe(true);
+    expect(parseText(result)).toMatchObject({
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+      error: "packages[] must contain at most 30 upgrades.",
+    });
   });
 });

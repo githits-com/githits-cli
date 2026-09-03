@@ -1,9 +1,14 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
-import { InvalidPackageSpecError } from "@githits/mcp/internal";
+import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
+import {
+  InvalidPackageSpecError,
+  PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES,
+} from "@githits/mcp/internal";
+import { Command } from "commander";
 import { createMockPackageIntelligenceService } from "../../services/test-helpers.js";
 import {
   parseUpgradeReviewPackageOption,
   pkgUpgradeReviewAction,
+  registerPkgUpgradeReviewCommand,
 } from "./upgrade-review.js";
 
 const originalStdoutWrite = process.stdout.write;
@@ -57,6 +62,60 @@ describe("parseUpgradeReviewPackageOption", () => {
     expect(() => parseUpgradeReviewPackageOption("npm:zod@4.3.6-")).toThrow(
       "The shell likely treated '>' as output redirection",
     );
+  });
+});
+
+describe("pkg upgrade-review help", () => {
+  it("advertises the maximum batch size", () => {
+    const command = registerPkgUpgradeReviewCommand(
+      new Command().command("pkg"),
+    );
+    const help = command.helpInformation().replace(/\s+/g, " ");
+
+    expect(help).toContain("at most 30 upgrades");
+    expect(help).toContain("maximum 30");
+  });
+});
+
+describe("pkgUpgradeReviewAction", () => {
+  it("rejects over-cap batches before calling the service", async () => {
+    const packageUpgradeReview = mock(() =>
+      Promise.reject(new Error("service must not be called")),
+    );
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      await expect(
+        pkgUpgradeReviewAction(
+          undefined,
+          {
+            package: Array.from(
+              { length: PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES + 1 },
+              (_, index) => `npm:package-${index}@1.0.0..1.0.1`,
+            ),
+          },
+          {
+            packageIntelligenceService: createMockPackageIntelligenceService({
+              packageUpgradeReview: packageUpgradeReview as never,
+            }),
+            codeNavigationUrl: "https://pkgseer.dev",
+            hasValidToken: true,
+            mcpUrl: "https://mcp.githits.com",
+          },
+        ),
+      ).rejects.toThrow("process.exit");
+
+      expect(packageUpgradeReview).not.toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("packages[] must contain at most 30 upgrades."),
+      );
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
   });
 
   it("writes JSON through stdout.write instead of console.log", async () => {

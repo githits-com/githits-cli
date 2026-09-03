@@ -4,6 +4,7 @@ import {
   buildPackageUpgradeReviewRequest,
   formatPackageUpgradeReviewTerminal,
   InvalidPackageSpecError,
+  PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES,
   parsePackageSpec,
   requireAuth,
   shouldUseColors,
@@ -191,6 +192,7 @@ const DESCRIPTION = `Report evidence for a package upgrade without assigning ris
 
 Single package: githits pkg upgrade-review npm:zod@4.3.6 --to 4.4.3
 Batch: githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-staged@16.2.7..16.4.0
+Batch accepts at most ${PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES} upgrades.
 
 The older -> delimiter is still accepted when quoted, but unquoted > is shell
 redirection in zsh/bash. Prefer .. for repeatable --package entries.
@@ -209,7 +211,7 @@ export function registerPkgUpgradeReviewCommand(pkgCommand: Command): Command {
     .option("--to <version>", "Target version for single-package mode")
     .option(
       "--package <spec>",
-      "Repeatable batch entry: <registry>:<name>@<current>..<target>",
+      `Repeatable batch entry (maximum ${PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES}): <registry>:<name>@<current>..<target>`,
       collectPackage,
       [] as string[],
     )

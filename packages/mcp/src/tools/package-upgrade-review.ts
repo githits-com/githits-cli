@@ -2,7 +2,10 @@ import type { PackageIntelligenceService } from "@githits/core-internal";
 import { PKGSEER_REGISTRY_LIST } from "@githits/core-internal";
 import { z } from "zod";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
-import { buildPackageUpgradeReviewRequest } from "../shared/package-upgrade-review-request.js";
+import {
+  buildPackageUpgradeReviewRequest,
+  PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES,
+} from "../shared/package-upgrade-review-request.js";
 import {
   buildPackageUpgradeReview,
   formatPackageUpgradeReviewTerminal,
@@ -77,7 +80,9 @@ const schema: ZodRawShape = {
   packages: z
     .array(packageSchema)
     .optional()
-    .describe("Batch mode. Mutually exclusive with single-package fields."),
+    .describe(
+      `Batch mode with at most ${PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES} upgrades after blank rows are removed. Mutually exclusive with single-package fields.`,
+    ),
   skip_transitive_security: z
     .boolean()
     .optional()
@@ -116,8 +121,8 @@ const DESCRIPTION =
   "The tool reports facts only and does not assign risk or decide whether to accept an upgrade. " +
   "Use this instead of inferring acceptability from semver, including patch bumps. " +
   "Accepts either one package via registry/package_name/current_version/" +
-  "target_version or batch `packages[]`. Batch execution is capped internally " +
-  "to avoid flooding the package-intelligence backend. Use `pkg_info` for latest health, `pkg_changelog` for release notes, `pkg_vulns` for advisory detail, or `pkg_deps` for dependency graphs." +
+  `target_version or batch \`packages[]\` with at most ${PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES} upgrades. ` +
+  "Use `pkg_info` for latest health, `pkg_changelog` for release notes, `pkg_vulns` for advisory detail, or `pkg_deps` for dependency graphs." +
   `\n\n${PKG_UPGRADE_REVIEW_GUARDRAIL}`;
 
 export function createPackageUpgradeReviewTool(
