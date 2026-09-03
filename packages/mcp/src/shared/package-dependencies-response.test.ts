@@ -1014,6 +1014,9 @@ describe("formatPackageDependenciesTerminal — dependency issues", () => {
       true,
     );
     expect(output.replace(/\s+/g, " ")).toContain(
+      "Deprecated 4 | Outdated 4 | Duplicates 4 | Conflicts 4",
+    );
+    expect(output.replace(/\s+/g, " ")).toContain(
       "This module is not supported, and leaks memory. Do not use it.",
     );
     expect(output).toContain("^1.0.0 required by express@5.2.1");

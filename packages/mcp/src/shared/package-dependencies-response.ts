@@ -1126,10 +1126,10 @@ function formatDependencyIssues(
     issues.scope.mode === "full"
       ? "full graph"
       : `max depth ${issues.scope.maxDepth}`;
-  const count = boundCompactIssueLines(
-    [formatDependencyIssueCounts(issues)],
-    terminalWidth,
-  );
+  const countLine = formatDependencyIssueCounts(issues);
+  const count = verbose
+    ? { lines: wrapIssueEvidence(countLine, terminalWidth), truncated: false }
+    : boundCompactIssueLines([countLine], terminalWidth);
   const lines = [
     `${colorize("Dependency issues", "yellow", useColors)}: ${issues.total} (${scope})`,
     ...count.lines,
