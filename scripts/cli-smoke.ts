@@ -1265,6 +1265,14 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "pkg info terminal missing vulnerability status",
   );
   assert(
+    pkgInfoText.includes("Latest:"),
+    "pkg info terminal missing latest vulnerability scope",
+  );
+  assert(
+    pkgInfoText.includes("History:"),
+    "pkg info terminal missing package-wide vulnerability history scope",
+  );
+  assert(
     !pkgInfoText.includes("Install") && !pkgInfoText.includes("Usage"),
     "pkg info terminal should not include quickstart fields",
   );
@@ -1279,6 +1287,20 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   assert(
     typeof pkgInfoJson.version === "string",
     "pkg info json missing version",
+  );
+  assert(
+    typeof pkgInfoJson.versionCount === "number",
+    "pkg info json missing version count",
+  );
+  assertRecord(pkgInfoJson.downloads, "pkg info json downloads");
+  assert(
+    typeof pkgInfoJson.downloads.refreshedAt === "string",
+    "pkg info json missing download refresh date",
+  );
+  assertRecord(pkgInfoJson.advisoryHistory, "pkg info json advisory history");
+  assert(
+    typeof pkgInfoJson.advisoryHistory.total === "number",
+    "pkg info json missing advisory history count",
   );
   assert(
     !("install" in pkgInfoJson) && !("usage" in pkgInfoJson),

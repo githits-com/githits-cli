@@ -525,6 +525,14 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_info default missing vulnerability status",
   );
   assert(
+    pkgInfoText.includes("Latest:"),
+    "pkg_info default missing latest vulnerability scope",
+  );
+  assert(
+    pkgInfoText.includes("History:"),
+    "pkg_info default missing package-wide vulnerability history scope",
+  );
+  assert(
     !pkgInfoText.includes("Install") && !pkgInfoText.includes("Usage"),
     "pkg_info default should not include quickstart fields",
   );
@@ -543,6 +551,20 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   assert(
     typeof pkgInfoJson.version === "string",
     "pkg_info json missing version",
+  );
+  assert(
+    typeof pkgInfoJson.versionCount === "number",
+    "pkg_info json missing version count",
+  );
+  assertRecord(pkgInfoJson.downloads, "pkg_info json downloads");
+  assert(
+    typeof pkgInfoJson.downloads.refreshedAt === "string",
+    "pkg_info json missing download refresh date",
+  );
+  assertRecord(pkgInfoJson.advisoryHistory, "pkg_info json advisory history");
+  assert(
+    typeof pkgInfoJson.advisoryHistory.total === "number",
+    "pkg_info json missing advisory history count",
   );
   assert(
     !("install" in pkgInfoJson) && !("usage" in pkgInfoJson),

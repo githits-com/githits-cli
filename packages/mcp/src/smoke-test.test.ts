@@ -608,7 +608,10 @@ function smokeResponse(
     case "get_example":
       return textResult("example\nsolution_id: smoke");
     case "pkg_info":
-      return textResult("express\nRepository 1 stars\nVulnerabilities none");
+      return textResult(
+        "express\nRepository 1 stars\n" +
+          "Vulnerabilities  Latest: none affected | History: 5 known advisories across all versions",
+      );
     case "pkg_deps":
       return textResult(
         args.lifecycle === "all"
@@ -684,7 +687,14 @@ function smokeJsonResponse(
     case "get_example":
       return jsonResult({ result: "example" });
     case "pkg_info":
-      return jsonResult({ registry: "npm", name: "express", version: "1.0.0" });
+      return jsonResult({
+        registry: "npm",
+        name: "express",
+        version: "1.0.0",
+        versionCount: 42,
+        downloads: { refreshedAt: "2024-06-15" },
+        advisoryHistory: { total: 5 },
+      });
     case "pkg_deps":
       return jsonResult({ runtime: {} });
     case "pkg_vulns":
