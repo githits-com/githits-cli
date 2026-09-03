@@ -1901,6 +1901,53 @@ describe("PackageIntelligenceServiceImpl — packageDependencies", () => {
     },
   };
 
+  const ZERO_DEPENDENCY_ISSUES = {
+    totalCount: 0,
+    deprecatedCount: 0,
+    outdatedCount: 0,
+    duplicateCount: 0,
+    conflictCount: 0,
+    deprecatedPackages: [],
+    outdatedPackages: [],
+    duplicatePackages: [],
+    conflicts: [],
+  };
+
+  const MINIMAL_DEPENDENCY_GRAPH = {
+    formatVersion: 1,
+    nodes: [{ registry: "NPM", name: "express", version: "5.2.1" }],
+    edges: [],
+  };
+
+  function createIssueAnalysisBody(
+    options: { dependencyIssues?: unknown; dependencyGraph?: unknown } = {},
+  ) {
+    const dependencyIssues = Object.hasOwn(options, "dependencyIssues")
+      ? options.dependencyIssues
+      : ZERO_DEPENDENCY_ISSUES;
+    const dependencyGraph = Object.hasOwn(options, "dependencyGraph")
+      ? options.dependencyGraph
+      : MINIMAL_DEPENDENCY_GRAPH;
+
+    return {
+      data: {
+        packageDependencies: {
+          package: { name: "express", registry: "NPM", version: "5.2.1" },
+          dependencies: {
+            direct: [],
+            transitive: {
+              dependencyIssues,
+              dependencyGraph,
+            },
+          },
+          dependencyGroups: null,
+        },
+      },
+    };
+  }
+
+  const ISSUE_ANALYSIS_BODY = createIssueAnalysisBody();
+
   it("maps a happy-path response to DependencyReport", async () => {
     const fetchFn = mock(() => Promise.resolve(jsonResponse(EXPRESS_BODY)));
     const service = new PackageIntelligenceServiceImpl(
@@ -1955,7 +2002,13 @@ describe("PackageIntelligenceServiceImpl — packageDependencies", () => {
       let capturedBody: string | undefined;
       const fetchFn = mock((_url: string, init?: RequestInit) => {
         capturedBody = init?.body as string;
-        return Promise.resolve(jsonResponse(EXPRESS_BODY));
+        return Promise.resolve(
+          jsonResponse(
+            includeDependencyIssues === true
+              ? ISSUE_ANALYSIS_BODY
+              : EXPRESS_BODY,
+          ),
+        );
       });
       const service = new PackageIntelligenceServiceImpl(
         ENDPOINT,
@@ -1994,7 +2047,7 @@ describe("PackageIntelligenceServiceImpl — packageDependencies", () => {
     let capturedBody: string | undefined;
     const fetchFn = mock((_url: string, init?: RequestInit) => {
       capturedBody = init?.body as string;
-      return Promise.resolve(jsonResponse(EXPRESS_BODY));
+      return Promise.resolve(jsonResponse(ISSUE_ANALYSIS_BODY));
     });
     const service = new PackageIntelligenceServiceImpl(
       ENDPOINT,
@@ -2052,6 +2105,28 @@ describe("PackageIntelligenceServiceImpl — packageDependencies", () => {
           dependencies: {
             direct: [],
             transitive: {
+              dependencyGraph: {
+                formatVersion: 1,
+                nodes: [
+                  { registry: "NPM", name: "express", version: "5.2.1" },
+                  {
+                    registry: "NPM",
+                    name: "parent-package",
+                    version: "1.0.0",
+                  },
+                  {
+                    registry: "NPM",
+                    name: "conflicted-package",
+                    version: "1.0.0",
+                  },
+                  {
+                    registry: "NPM",
+                    name: "conflicted-package",
+                    version: "2.0.0",
+                  },
+                ],
+                edges: [],
+              },
               dependencyIssues: {
                 totalCount: 4,
                 deprecatedCount: 1,
@@ -2180,6 +2255,52 @@ describe("PackageIntelligenceServiceImpl — packageDependencies", () => {
       ],
     });
   });
+
+  it.each([
+    [
+      "missing issue summary",
+      { dependencyIssues: undefined },
+      "Dependency issue analysis response missing dependency issues.",
+    ],
+    [
+      "null issue summary",
+      { dependencyIssues: null },
+      "Dependency issue analysis response missing dependency issues.",
+    ],
+    [
+      "missing companion graph",
+      { dependencyGraph: undefined },
+      "Dependency issue analysis response missing dependency graph.",
+    ],
+    [
+      "null companion graph",
+      { dependencyGraph: null },
+      "Dependency issue analysis response missing dependency graph.",
+    ],
+  ] as const)(
+    "rejects explicit issue analysis with %s",
+    async (_label, options, message) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(jsonResponse(createIssueAnalysisBody(options))),
+      );
+      const service = new PackageIntelligenceServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(fetchFn),
+      );
+
+      const result = await service
+        .packageDependencies({
+          registry: "NPM",
+          packageName: "express",
+          includeDependencyIssues: true,
+        })
+        .catch((error: unknown) => error);
+
+      expect(result).toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+      expect(result).toMatchObject({ message });
+    },
+  );
 
   it("omits lifecycle when empty array (treated as 'no filter')", async () => {
     let capturedBody: string | undefined;

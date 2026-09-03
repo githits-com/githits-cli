@@ -2957,7 +2957,22 @@ export class PackageIntelligenceServiceImpl
       );
     }
 
-    return this.normaliseDependencyReport(data);
+    const report = this.normaliseDependencyReport(data);
+    if (params.includeDependencyIssues === true) {
+      const transitive = report.dependencies?.transitive;
+      if (!transitive?.dependencyIssues) {
+        throw new MalformedPackageIntelligenceResponseError(
+          "Dependency issue analysis response missing dependency issues.",
+        );
+      }
+      if (!transitive.dependencyGraph) {
+        throw new MalformedPackageIntelligenceResponseError(
+          "Dependency issue analysis response missing dependency graph.",
+        );
+      }
+    }
+
+    return report;
   }
 
   private normaliseDependencyReport(
