@@ -1,6 +1,19 @@
 import { describe, expect, it } from "bun:test";
 import { InvalidPackageSpecError } from "./package-spec.js";
-import { buildPackageUpgradeReviewRequest } from "./package-upgrade-review-request.js";
+import {
+  buildPackageUpgradeReviewRequest,
+  PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES,
+  type UpgradeReviewPackageInput,
+} from "./package-upgrade-review-request.js";
+
+function batchPackage(index: number): UpgradeReviewPackageInput {
+  return {
+    registry: "npm",
+    packageName: `package-${index}`,
+    currentVersion: "1.0.0",
+    targetVersion: "1.0.1",
+  };
+}
 
 describe("buildPackageUpgradeReviewRequest", () => {
   it("treats an empty packages array as absent for single-package mode", () => {
@@ -96,6 +109,44 @@ describe("buildPackageUpgradeReviewRequest", () => {
       currentVersion: "4.18.0",
       targetVersion: "5.0.0",
     });
+  });
+
+  it("accepts the maximum batch size after dropping blank rows", () => {
+    const { packages } = buildPackageUpgradeReviewRequest({
+      packages: [
+        {
+          registry: " ",
+          packageName: "",
+          currentVersion: "\t",
+          targetVersion: "",
+        },
+        ...Array.from(
+          { length: PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES },
+          (_, index) => batchPackage(index),
+        ),
+      ],
+    });
+
+    expect(packages).toHaveLength(PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES);
+  });
+
+  it("rejects batches above the maximum", () => {
+    expect(() =>
+      buildPackageUpgradeReviewRequest({
+        packages: Array.from(
+          { length: PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES + 1 },
+          (_, index) => batchPackage(index),
+        ),
+      }),
+    ).toThrow(InvalidPackageSpecError);
+    expect(() =>
+      buildPackageUpgradeReviewRequest({
+        packages: Array.from(
+          { length: PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES + 1 },
+          (_, index) => batchPackage(index),
+        ),
+      }),
+    ).toThrow("packages[] must contain at most 30 upgrades.");
   });
 
   it("still rejects calls without a package target", () => {

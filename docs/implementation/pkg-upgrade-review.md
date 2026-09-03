@@ -77,6 +77,7 @@ Validation rules:
 
 - Require either `packages` or the single-package fields.
 - Reject `packages` combined with `registry`, `package_name`, `current_version`, or `target_version`.
+- Accept at most 30 nonblank `packages[]` rows. Blank rows are removed before applying the limit, and a larger batch is rejected by the shared CLI/MCP request builder before any package-intelligence service call.
 - Reject tag-style `v` versions for package-addressed registry versions, matching `pkg_vulns`, `pkg_deps`, and `pkg_changelog`.
 - Keep transitive security evidence enabled by default because direct-only security hides important dependency-tree evidence. Allow callers to pass `skip_transitive_security: true` when latency is more important than transitive vulnerability context.
 - Keep `include_dependency_issues` default `false` initially for the same reason. Turn it on automatically only when the caller explicitly asks for lockfile/dependency-tree evidence, or document that agents should pass it for lockfile reviews.

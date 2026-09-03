@@ -56,6 +56,7 @@ export interface PackageUpgradeReviewRequestBuildResult {
 }
 
 const DEFAULT_CHANGELOG_LIMIT = 20;
+export const PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES = 30;
 
 export function buildPackageUpgradeReviewRequest(
   input: PackageUpgradeReviewRequestInput,
@@ -144,6 +145,11 @@ function parseBatch(
   if (!Array.isArray(packages) || packages.length === 0) {
     throw new InvalidPackageSpecError(
       "packages[] must contain at least one upgrade.",
+    );
+  }
+  if (packages.length > PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES) {
+    throw new InvalidPackageSpecError(
+      `packages[] must contain at most ${PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES} upgrades.`,
     );
   }
   return packages.map(parsePackageInput);
