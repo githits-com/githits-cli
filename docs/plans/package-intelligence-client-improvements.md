@@ -495,10 +495,12 @@ request `includeVerboseFields`; compact text does not fetch them.
   with the suites still passing unauthenticated.
 - `bun run smoke:cli:built` and `bun run smoke:mcp:built` after the build because the
   public package and smoke-visible output both change.
-- Targeted Claude and Codex agent evaluations using
-  `package-overview-vulnerabilities.md` and `package-vulnerability-history.md`;
-  inspect tool calls, final answers, metrics, and isolation violations rather than
-  treating harness completion as a quality verdict.
+- Targeted Codex agent evaluations, plus Claude when a harness-preserved
+  non-interactive authentication input is available, using
+  `package-overview-vulnerabilities.md` and `package-vulnerability-history.md`.
+  Record an unavailable harness explicitly; otherwise inspect tool calls, final
+  answers, metrics, and isolation violations rather than treating harness completion
+  as a quality verdict.
 
 ### Phase 1 implementation record
 
@@ -542,8 +544,9 @@ the planned post-Phase-2 reorientation.
 - CLI and MCP JSON deep-equal; text differs only in surface-native history guidance
   and ANSI/width inputs.
 - No new backend call, fallback, cache, or broad package-summary field dump is added.
-- Required tests, smoke, build/package validation, docs, changes fragment, and targeted
-  agent evaluation complete successfully.
+- Required tests, smoke, build/package validation, docs, changes fragment, and
+  available targeted agent evaluations complete successfully; any unavailable agent
+  harness is verified and recorded explicitly.
 
 ## Phase 2 detailed implementation plan
 
