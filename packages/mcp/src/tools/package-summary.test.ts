@@ -114,7 +114,7 @@ describe("createPackageSummaryTool — happy path", () => {
     );
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("GitHub");
-    expect(text).toContain("Recent advisories");
+    expect(text).toContain("Advisory history (all versions)");
     expect(text).toContain("Recent changes");
     expect(text).toContain("Versions");
     expect(text).toContain("214 published");

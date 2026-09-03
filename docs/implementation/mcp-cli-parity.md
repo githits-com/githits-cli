@@ -530,8 +530,9 @@ When a new tool lands with both MCP and CLI surfaces:
   `advisoryHistory.total` is package-wide non-withdrawn, deduplicated history.
   History remains renderable when the nullable latest count is unavailable.
 - **Surface-native history follow-up.** Both compact text surfaces use the same
-  `Latest:` and `History:` labels and show a history follow-up only when history
-  exceeds latest. CLI uses `githits pkg vulns <registry>:<name> --scope all`;
+  `Latest:` and `History:` labels and show a history follow-up when history
+  exceeds numeric latest evidence, or when latest is unavailable and history is
+  positive. CLI uses `githits pkg vulns <registry>:<name> --scope all`;
   MCP uses `pkg_vulns` with `advisory_scope="all"`. No other text semantics
   diverge.
 - **Compact versus detailed fetching.** Default text requests

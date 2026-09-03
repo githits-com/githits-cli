@@ -307,7 +307,7 @@ describe("formatPackageSummaryTerminal", () => {
     expect(output).not.toContain("Usage");
   });
 
-  it("verbose mode adds GitHub details, Recent advisories, and Recent changes", () => {
+  it("verbose mode adds GitHub details, advisory history, and Recent changes", () => {
     const output = formatPackageSummaryTerminal(defaultPackageSummary, {
       verbose: true,
       useColors: false,
@@ -318,7 +318,7 @@ describe("formatPackageSummaryTerminal", () => {
     expect(output).toContain(
       "  Topics       framework, http, middleware, nodejs, web",
     );
-    expect(output).toContain("Recent advisories");
+    expect(output).toContain("Advisory history (all versions)");
     expect(output).toContain("GHSA-xxxx-xxxx-xxxx");
     expect(output).toContain("Recent changes");
     expect(output).toContain("Versions");
@@ -498,7 +498,7 @@ describe("formatPackageSummaryTerminal", () => {
     );
   });
 
-  it("adds surface-native history guidance only when history exceeds latest", () => {
+  it("adds surface-native history guidance when history exceeds numeric latest", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: 0,
@@ -527,6 +527,48 @@ describe("formatPackageSummaryTerminal", () => {
     expect(mcpOutput).toContain(
       'Inspect history: use pkg_vulns with advisory_scope="all".',
     );
+  });
+
+  it("adds surface-native history guidance when latest evidence is unavailable", () => {
+    const fixture = happyFixture();
+    fixture.security = {
+      vulnerabilityCount: undefined,
+      allVulnerabilityCount: 5,
+      hasCurrentVulnerabilities: false,
+      recentVulnerabilities: [],
+    };
+
+    const cliOutput = formatPackageSummaryTerminal(fixture, {
+      useColors: false,
+      now: FIXED_NOW,
+      surface: "cli",
+    });
+    expect(cliOutput).toContain(
+      "Inspect history: githits pkg vulns npm:express --scope all",
+    );
+
+    const mcpOutput = formatPackageSummaryTerminal(fixture, {
+      useColors: false,
+      now: FIXED_NOW,
+      surface: "mcp",
+    });
+    expect(mcpOutput).toContain(
+      'Inspect history: use pkg_vulns with advisory_scope="all".',
+    );
+
+    fixture.security.allVulnerabilityCount = 0;
+    const cliZeroHistory = formatPackageSummaryTerminal(fixture, {
+      useColors: false,
+      now: FIXED_NOW,
+      surface: "cli",
+    });
+    const mcpZeroHistory = formatPackageSummaryTerminal(fixture, {
+      useColors: false,
+      now: FIXED_NOW,
+      surface: "mcp",
+    });
+    expect(cliZeroHistory).not.toContain("Inspect history");
+    expect(mcpZeroHistory).not.toContain("Inspect history");
   });
 
   it("wraps a long package-name CLI history hint within the terminal width", () => {

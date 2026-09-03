@@ -565,9 +565,11 @@ function formatHistoryHint(
   lean: LeanPackageSummary,
   surface: "cli" | "mcp",
 ): string | undefined {
+  if (!lean.advisoryHistory || lean.advisoryHistory.total <= 0) {
+    return undefined;
+  }
   if (
-    !lean.advisoryHistory ||
-    !lean.vulnerabilities ||
+    lean.vulnerabilities &&
     lean.advisoryHistory.total <= lean.vulnerabilities.total
   ) {
     return undefined;
@@ -633,7 +635,7 @@ function formatVerboseAdvisories(
   const labelWidth = Math.max(
     ...advisories.map((a) => (a.severityLabel ?? "").length),
   );
-  const lines = [highlight("Recent advisories", useColors)];
+  const lines = [highlight("Advisory history (all versions)", useColors)];
   for (const advisory of advisories) {
     const parts: string[] = [];
     const label = (advisory.severityLabel ?? "").padEnd(labelWidth);
