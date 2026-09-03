@@ -3,6 +3,7 @@ export {
   type AskCommandOptions,
   askAction,
   registerAskCommand,
+  validateAskCommandBeforeAction,
 } from "./ask.js";
 export {
   type AuthStatusDependencies,

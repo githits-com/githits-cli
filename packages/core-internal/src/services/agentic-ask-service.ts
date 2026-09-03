@@ -236,6 +236,7 @@ export interface AgenticAskService {
 
 export type AgenticAskHttpErrorCode =
   | "INVALID_TARGET"
+  | "THREAD_NOT_FOUND"
   | "AUTH_REQUIRED"
   | "ACCESS_DENIED"
   | "INVALID_REQUEST"
@@ -532,6 +533,26 @@ function createHttpError(
       return new AgenticAskHttpError(
         "ACCESS_DENIED",
         "Access to Agentic Ask is denied.",
+        status,
+        toolCallId,
+        undefined,
+        false,
+        threadId,
+      );
+    case 404:
+      return new AgenticAskHttpError(
+        "THREAD_NOT_FOUND",
+        "Agentic Ask thread was not found.",
+        status,
+        toolCallId,
+        undefined,
+        false,
+        threadId,
+      );
+    case 409:
+      return new AgenticAskHttpError(
+        "INVALID_REQUEST",
+        "This Agentic Ask thread cannot accept another follow-up.",
         status,
         toolCallId,
         undefined,

@@ -62,8 +62,11 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("Local experimental tools");
     expect(instructions).toContain("public OSS only");
     expect(instructions).toContain("`ask`");
-    expect(instructions).toContain("retained for replay and evaluation");
-    expect(instructions).toContain("backend-selected order");
+    expect(instructions).toContain(
+      "public repository or package question and receive a source-cited answer",
+    );
+    expect(instructions).toContain("Call `resolve_target` first");
+    expect(instructions).toContain("Reuse a returned `thread_id` only");
     expect(instructions).toContain('`source_format:"url"`');
     expect(instructions).toContain("Do not invent or rewrite sources");
     expect(instructions).toContain("`resolve_target`");
@@ -92,7 +95,9 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("credentials");
     expect(instructions).toContain("private or proprietary content");
     expect(instructions).toContain("targets.\n\n- `ask`");
-    expect(instructions).toContain("response envelope.\n- `resolve_target`");
+    expect(instructions).toContain(
+      "response fields are needed.\n- `resolve_target`",
+    );
     expect(instructions).toContain("to `docs_read`.\n- `code_diff`");
     expect(instructions.length - buildMcpQuickStart().length).toBeLessThan(
       1_900,

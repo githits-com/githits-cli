@@ -91,7 +91,7 @@ describe("local ask MCP adapter", () => {
     expect(tool.name).toBe("ask");
     const firstSentence = `${DESCRIPTION.split(".", 1)[0]}.`;
     expect(firstSentence).toBe(
-      "Ask one grounded question about one canonical public package or repository.",
+      "Ask a public repository or package question and receive a source-cited answer.",
     );
     expect(firstSentence.length).toBeLessThanOrEqual(79);
     expect(DESCRIPTION).toContain(
@@ -256,6 +256,37 @@ describe("local ask MCP adapter", () => {
       thread_id: CONVERSATION_ID,
     });
   });
+
+  it.each([
+    ["THREAD_NOT_FOUND", "Agentic Ask thread was not found.", 404, "NOT_FOUND"],
+    [
+      "INVALID_REQUEST",
+      "This Agentic Ask thread cannot accept another follow-up.",
+      409,
+      "INVALID_ARGUMENT",
+    ],
+  ] as const)(
+    "maps %s thread failures without exposing response bodies",
+    async (errorCode, message, status, mappedCode) => {
+      const ask = mock(() =>
+        Promise.reject(new AgenticAskHttpError(errorCode, message, status)),
+      );
+      const result = await invoke(
+        createLocalAgenticAskTool(createService(ask)),
+        {
+          thread_id: CONVERSATION_ID,
+          question: "How?",
+        },
+      );
+
+      expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({
+        error: message,
+        code: mappedCode,
+        retryable: false,
+        details: { status },
+      });
+    },
+  );
 
   it("omits a missing failure run ID", async () => {
     const ask = mock(() =>

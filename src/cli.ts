@@ -26,6 +26,7 @@ import {
   registerResolveCommand,
   registerSettingsCommand,
   registerUnifiedSearchCommands,
+  validateAskCommandBeforeAction,
 } from "./commands/index.js";
 import { loginFlow, stderrLoginOutput } from "./commands/login.js";
 import {
@@ -114,6 +115,7 @@ async function main(): Promise<void> {
     })
     .hook("preAction", async (thisCommand, actionCommand) => {
       const command = actionCommand ?? thisCommand;
+      validateAskCommandBeforeAction(command);
       commandSpans.set(
         command,
         startTelemetrySpan(getTelemetryCommandName(command)),

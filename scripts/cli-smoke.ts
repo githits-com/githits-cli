@@ -930,6 +930,20 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
       "experimental ask help should expose the bounded CLI contract",
     );
 
+    const malformedAskJson = await runCliWithEnv(
+      ["ask", "--json", "--thread", "018f47a6-7b32-7b1e-8f45-6a2d39c81720"],
+      env,
+    );
+    assertJsonErrorCode(
+      malformedAskJson,
+      "experimental malformed ask",
+      "INVALID_ARGUMENT",
+    );
+    assert(
+      malformedAskJson.stdout.trim() === "",
+      "experimental malformed ask should keep stdout empty",
+    );
+
     const codeHelp = await runCliWithEnv(["code", "--help"], env);
     assert(
       codeHelp.exitCode === 0 && codeHelp.stdout.includes("diff"),

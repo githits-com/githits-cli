@@ -1,10 +1,10 @@
-import type {
-  AgenticAskMcpResponse,
-  AgenticAskMcpSourceCall,
-  AgenticAskService,
-  AgenticAskUrlResponse,
+import {
+  type AgenticAskMcpResponse,
+  type AgenticAskMcpSourceCall,
+  type AgenticAskService,
+  type AgenticAskUrlResponse,
+  normalizeAgenticAskThreadId,
 } from "@githits/core-internal";
-import { normalizeAgenticAskThreadId } from "@githits/core-internal";
 import { z } from "zod";
 import { mapAgenticAskError } from "../shared/agentic-ask-error-map.js";
 import {
@@ -58,12 +58,12 @@ const schema: ZodRawShape = {
     .enum(["text-v1", "text", "json"])
     .default("text-v1")
     .describe(
-      "Response format. `text-v1` and `text` return the answer followed by the selected source pointers and Ask run ID; `json` returns the validated backend envelope.",
+      "Response format. `text-v1` and `text` return the answer followed by source pointers and identifiers; `json` returns the response as JSON.",
     ),
 };
 
 export const DESCRIPTION =
-  "Ask one grounded question about one canonical public package or repository. Continue a prior thread by its returned thread_id only when the earlier answer is insufficient or additional information is needed. Call resolve_target first when the intended target is ambiguous or not canonical. Experimental local tool that uses the backend-controlled prompt, model, budgets, and evidence validation. Each call is retained for replay and evaluation. Sources default to backend-built MCP calls in deterministic order; request source_format=url for original upstream URLs. Model usage is not returned.";
+  "Ask a public repository or package question and receive a source-cited answer. Call resolve_target first when the intended target is ambiguous or not canonical. Continue a prior thread by its returned thread_id only when the earlier answer is insufficient or additional information is needed. Sources default to actionable MCP calls; request source_format=url for original upstream URLs.";
 
 export function createLocalAgenticAskTool(
   service: AgenticAskService,
@@ -126,7 +126,7 @@ export function createLocalAgenticAskTool(
   };
 }
 
-/** Render the validated answer, selected source pointers, and replay ID. */
+/** Render the validated answer, selected source pointers, and identifiers. */
 export function formatAgenticAskMcpText(
   response: AgenticAskMcpResponse | AgenticAskUrlResponse,
 ): string {

@@ -8,12 +8,15 @@ import {
 } from "@githits/core-internal";
 import { TermsAcceptanceRequiredError } from "@githits/core-internal/browser";
 import { AuthRequiredError } from "@githits/mcp/internal";
+import { Command } from "commander";
 import {
   type AskCommandDependencies,
   askAction,
   formatAgenticAskHumanResponse,
   formatAgenticAskSourceCommand,
+  registerAskCommand,
   resolveAskCommandPositionals,
+  validateAskCommandBeforeAction,
 } from "./ask.js";
 
 const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
@@ -501,5 +504,30 @@ describe("Agentic Ask positional parsing", () => {
     expect(() =>
       resolveAskCommandPositionals(undefined, undefined, CONVERSATION_ID),
     ).toThrow("Provide a question");
+  });
+});
+
+describe("Agentic Ask registration", () => {
+  it.each([
+    ["missing follow-up question", ["ask", "--thread", CONVERSATION_ID]],
+    ["missing initial question", ["ask", "npm:example"]],
+    [
+      "target combined with thread",
+      ["ask", "npm:example", "How?", "--thread", CONVERSATION_ID],
+    ],
+    ["malformed thread", ["ask", "--thread", "not-a-uuid", "How?"]],
+  ])("rejects %s before root command work", async (_name, args) => {
+    const program = new Command().name("githits").exitOverride();
+    let rootWorkStarted = false;
+    program.hook("preAction", (_thisCommand, actionCommand) => {
+      validateAskCommandBeforeAction(actionCommand);
+      rootWorkStarted = true;
+    });
+    registerAskCommand(program);
+
+    await expect(
+      program.parseAsync(["node", "githits", ...args]),
+    ).rejects.toBeInstanceOf(Error);
+    expect(rootWorkStarted).toBe(false);
   });
 });

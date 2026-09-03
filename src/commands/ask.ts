@@ -1,9 +1,9 @@
-import type {
-  AgenticAskCliResponse,
-  AgenticAskService,
-  AgenticAskUrlResponse,
+import {
+  type AgenticAskCliResponse,
+  type AgenticAskService,
+  type AgenticAskUrlResponse,
+  normalizeAgenticAskThreadId,
 } from "@githits/core-internal";
-import { normalizeAgenticAskThreadId } from "@githits/core-internal";
 import {
   AuthRequiredError,
   buildAuthRequiredErrorPayload,
@@ -76,7 +76,7 @@ export async function askAction(
   } catch (error) {
     spinner.stop();
     if (isCallerCancellation(error, deps.signal)) throw error;
-    const failure = mapAgenticAskErrorForCli(error);
+    const failure = mapAgenticAskError(error);
     if (options.json) {
       console.error(
         JSON.stringify({
@@ -100,7 +100,7 @@ export async function askAction(
   }
 }
 
-/** Render validated Ask markdown, selected source pointers, and replay ID. */
+/** Render the Ask answer, selected source pointers, and identifiers. */
 export function formatAgenticAskHumanResponse(
   response: AgenticAskCliResponse | AgenticAskUrlResponse,
 ): string {
@@ -131,10 +131,6 @@ export function formatAgenticAskSourceCommand(
   return [source.command, ...source.arguments]
     .map((argument) => quoteShellArgument(sanitizeTerminalText(argument)))
     .join(" ");
-}
-
-export function mapAgenticAskErrorForCli(error: unknown) {
-  return mapAgenticAskError(error);
 }
 
 function sanitizeTerminalMarkdown(value: string): string {
@@ -209,16 +205,32 @@ export function resolveAskCommandPositionals(
   return { target: targetOrQuestion, question };
 }
 
-const DESCRIPTION = `Ask a grounded question about one open-source package or repository.
+/** Reject invalid Ask shapes before the root pre-action can start auto-login. */
+export function validateAskCommandBeforeAction(command: Command): void {
+  if (command.name() !== "ask") return;
 
-The backend controls the prompt, model, budgets, and validation policy. The
-response includes replayable source pointers, an Ask run ID, and a thread ID
-that can be passed to --thread when a follow-up is needed.`;
+  const [targetOrQuestion, question] = command.processedArgs as [
+    string | undefined,
+    string | undefined,
+  ];
+  const options = command.opts<AskCommandOptions>();
+  const input = resolveAskCommandPositionals(
+    targetOrQuestion,
+    question,
+    options.thread,
+  );
+  resolveAskSubject(input.target, options.thread);
+}
+
+const DESCRIPTION = `Ask a public repository or package question and receive a source-cited answer.
+
+Use a returned thread ID with --thread only when the previous answer is
+insufficient or more information is needed.`;
 
 export function registerAskCommand(program: Command): Command {
   return program
     .command("ask")
-    .summary("Ask a grounded question about one open-source target")
+    .summary("Ask a public repository or package question")
     .description(DESCRIPTION)
     .usage(
       "[options] <target> <question>\n       githits ask --thread <UUID> <question>",
@@ -235,7 +247,7 @@ export function registerAskCommand(program: Command): Command {
         "Source pointers: native CLI commands (default) or upstream URLs",
       ).choices(["cli", "url"]),
     )
-    .option("--json", "Output the validated backend response as JSON")
+    .option("--json", "Output the response as JSON")
     .action(
       async (
         targetOrQuestion: string | undefined,

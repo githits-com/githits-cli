@@ -84,27 +84,20 @@ By default, human output contains the grounded answer, an Ask run ID, the
 thread ID, and source commands in the form `npx githits@latest ...` that can be
 executed directly. If the answer is insufficient or more information is needed,
 pass the returned thread ID to `--thread` to ask a follow-up without repeating
-the target; threads are limited by the backend to ten turns. JSON output is the
-validated response and intentionally omits model usage. Questions, answers, and
-selected source pointers are retained by the backend for replay and evaluation.
+the target; threads support up to ten turns. JSON output contains the response.
 Treat answer Markdown as untrusted display text even though the CLI strips
 terminal control sequences.
 
 Use `--source-format url` to return the original upstream HTTP URLs instead of
-CLI source commands. This changes only source presentation; the backend still
-selects the evidence and appends the source section deterministically.
+CLI source commands. This changes only source presentation.
 
-The command does not expose prompt, model, budget, or timeout controls. The
-local MCP `ask` tool uses the same backend path and accepts exactly one of
-`target` for a new thread or `thread_id` for a needed follow-up. It defaults to
-MCP-native `code_read` and `docs_read` source calls. Set `source_format` to `url`
-for original upstream HTTP URLs. Text output appends the selected backend-built
-source pointers in their returned order, followed by the Ask run ID, thread ID,
-and conditional follow-up guidance. The model does not generate or format this
-source section. JSON returns the validated response for the selected source
-format. Neither surface returns model usage. The tool description directs agents
-to call `resolve_target` first when the intended target is ambiguous or not yet
-canonical.
+The local MCP `ask` tool accepts exactly one of `target` for a new thread or
+`thread_id` for a needed follow-up. It defaults to MCP-native `code_read` and
+`docs_read` source calls. Set `source_format` to `url` for original upstream HTTP
+URLs. Text output includes source pointers, the Ask run ID, thread ID, and
+conditional follow-up guidance. JSON returns the response for the selected source
+format. The tool description directs agents to call `resolve_target` first when
+the intended target is ambiguous or not yet canonical.
 
 Resolve a noncanonical name before calling another GitHits command:
 
@@ -176,6 +169,4 @@ proprietary content, file bodies, or large outputs.
 
 Set `tools = false` or remove the `[experimental]` section, then restart the
 coding agent. The CLI commands become hidden and unavailable, and newly started
-local MCP servers return to the stable tool inventory. Disabling the local
-surface does not delete previously retained Agentic Ask questions, answers, or
-source pointers.
+local MCP servers return to the stable tool inventory.

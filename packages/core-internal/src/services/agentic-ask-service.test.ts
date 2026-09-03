@@ -546,6 +546,8 @@ describe("AgenticAskServiceImpl", () => {
     [400, "INVALID_TARGET", false],
     [401, "AUTH_REQUIRED", false],
     [403, "ACCESS_DENIED", false],
+    [404, "THREAD_NOT_FOUND", false],
+    [409, "INVALID_REQUEST", false],
     [422, "INVALID_REQUEST", false],
     [429, "RATE_LIMITED", true],
     [500, "EXECUTION_FAILED", false],

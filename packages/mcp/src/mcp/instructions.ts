@@ -145,8 +145,14 @@ const LOCAL_EXPERIMENTAL_HEADING =
 const LOCAL_EXPERIMENTAL_PRIVACY =
   "Inputs are sent to GitHits. Never send credentials, personal data, private or proprietary content, local paths, or private targets.";
 
-const LOCAL_AGENTIC_ASK_GUIDANCE =
-  '- `ask` — answer one question about one canonical public package or repository target using backend-controlled grounded retrieval. The answer is retained for replay and evaluation. Sources default to directly callable MCP tools in backend-selected order; use `source_format:"url"` for original upstream URLs. Do not invent or rewrite sources. Use the returned Ask run ID when reporting a defect. Prefer the default text output; use JSON only for the exact validated response envelope.';
+const LOCAL_AGENTIC_ASK_GUIDANCE_START =
+  "- `ask` — ask a public repository or package question and receive a source-cited answer.";
+
+const LOCAL_AGENTIC_ASK_RESOLVE_GUIDANCE =
+  " Call `resolve_target` first when the intended target is ambiguous or noncanonical.";
+
+const LOCAL_AGENTIC_ASK_GUIDANCE_END =
+  ' Reuse a returned `thread_id` only when the previous answer is insufficient or more information is needed. Sources default to directly callable MCP tools; use `source_format:"url"` for original upstream URLs. Do not invent or rewrite sources. Use the returned Ask run ID when reporting a defect. Prefer the default text output; use JSON only when exact response fields are needed.';
 
 const LOCAL_RESOLVE_TARGET_GUIDANCE =
   '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` target is docs-only: pass it to `search` with `source:"docs"`; request `format:"json"` when exact locator fields are needed, then pass a relevant `pageId` and returned line range to `docs_read`.';
@@ -170,7 +176,9 @@ export function buildLocalMcpQuickStart(
   ];
   const toolGuidance: string[] = [];
   if (enabled.has("ask")) {
-    toolGuidance.push(LOCAL_AGENTIC_ASK_GUIDANCE);
+    toolGuidance.push(
+      `${LOCAL_AGENTIC_ASK_GUIDANCE_START}${enabled.has("resolve_target") ? LOCAL_AGENTIC_ASK_RESOLVE_GUIDANCE : ""}${LOCAL_AGENTIC_ASK_GUIDANCE_END}`,
+    );
   }
   if (enabled.has("resolve_target")) {
     toolGuidance.push(LOCAL_RESOLVE_TARGET_GUIDANCE);

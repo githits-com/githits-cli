@@ -91,6 +91,8 @@ function mapHttpErrorCode(error: AgenticAskHttpError): MappedError["code"] {
     case "INVALID_TARGET":
     case "INVALID_REQUEST":
       return "INVALID_ARGUMENT";
+    case "THREAD_NOT_FOUND":
+      return "NOT_FOUND";
     case "AUTH_REQUIRED":
       return "AUTH_REQUIRED";
     case "ACCESS_DENIED":
