@@ -48,18 +48,13 @@ const cliSourceCallSchema = z.object({
   arguments: cliSourceArgumentsSchema,
 });
 
-const cliResponseSchema = z
-  .object({
-    source_format: z.literal("cli"),
-    tool_call_id: z.string().regex(UUID_V7_PATTERN),
-    conversation_id: z.string().regex(UUID_V7_PATTERN),
-    answer_markdown: z.string().min(1),
-    sources: z.array(cliSourceCallSchema),
-  })
-  .transform(({ conversation_id, ...response }) => ({
-    ...response,
-    thread_id: conversation_id,
-  }));
+const cliResponseSchema = z.object({
+  source_format: z.literal("cli"),
+  tool_call_id: z.string().regex(UUID_V7_PATTERN),
+  thread_id: z.string().regex(UUID_V7_PATTERN),
+  answer_markdown: z.string().min(1),
+  sources: z.array(cliSourceCallSchema),
+});
 
 const mcpCodeReadSourceCallSchema = z.object({
   name: z.literal("code_read"),
@@ -80,23 +75,18 @@ const mcpDocumentationReadSourceCallSchema = z.object({
   }),
 });
 
-const mcpResponseSchema = z
-  .object({
-    source_format: z.literal("mcp"),
-    tool_call_id: z.string().regex(UUID_V7_PATTERN),
-    conversation_id: z.string().regex(UUID_V7_PATTERN),
-    answer_markdown: z.string().min(1),
-    sources: z.array(
-      z.discriminatedUnion("name", [
-        mcpCodeReadSourceCallSchema,
-        mcpDocumentationReadSourceCallSchema,
-      ]),
-    ),
-  })
-  .transform(({ conversation_id, ...response }) => ({
-    ...response,
-    thread_id: conversation_id,
-  }));
+const mcpResponseSchema = z.object({
+  source_format: z.literal("mcp"),
+  tool_call_id: z.string().regex(UUID_V7_PATTERN),
+  thread_id: z.string().regex(UUID_V7_PATTERN),
+  answer_markdown: z.string().min(1),
+  sources: z.array(
+    z.discriminatedUnion("name", [
+      mcpCodeReadSourceCallSchema,
+      mcpDocumentationReadSourceCallSchema,
+    ]),
+  ),
+});
 
 const upstreamUrlSchema = z
   .string()
@@ -108,18 +98,13 @@ const upstreamUrlSchema = z
     return protocol === "http:" || protocol === "https:";
   });
 
-const urlResponseSchema = z
-  .object({
-    source_format: z.literal("url"),
-    tool_call_id: z.string().regex(UUID_V7_PATTERN),
-    conversation_id: z.string().regex(UUID_V7_PATTERN),
-    answer_markdown: z.string().min(1),
-    sources: z.array(z.object({ url: upstreamUrlSchema })),
-  })
-  .transform(({ conversation_id, ...response }) => ({
-    ...response,
-    thread_id: conversation_id,
-  }));
+const urlResponseSchema = z.object({
+  source_format: z.literal("url"),
+  tool_call_id: z.string().regex(UUID_V7_PATTERN),
+  thread_id: z.string().regex(UUID_V7_PATTERN),
+  answer_markdown: z.string().min(1),
+  sources: z.array(z.object({ url: upstreamUrlSchema })),
+});
 
 interface AgenticAskQuestion {
   question: string;
@@ -379,7 +364,7 @@ export class AgenticAskServiceImpl implements AgenticAskService {
         body: JSON.stringify({
           ...(request.target !== undefined
             ? { target: request.target }
-            : { conversation_id: request.threadId }),
+            : { thread_id: request.threadId }),
           question: request.question,
           source_format: request.sourceFormat ?? "cli",
         }),
@@ -397,7 +382,7 @@ export class AgenticAskServiceImpl implements AgenticAskService {
       response.headers.get("X-GitHits-Tool-Call-Id"),
     );
     const threadId = normalizeAgenticAskThreadId(
-      response.headers.get("X-GitHits-Conversation-Id"),
+      response.headers.get("X-GitHits-Thread-Id"),
     );
     if (!response.ok) {
       if (response.status === 403) {

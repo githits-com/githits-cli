@@ -20,7 +20,7 @@ import {
 } from "./ask.js";
 
 const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
-const CONVERSATION_ID = "018f47a6-7b32-7b1e-8f45-6a2d39c81720";
+const THREAD_ID = "018f47a6-7b32-7b1e-8f45-6a2d39c81720";
 
 function result(
   overrides: Partial<AgenticAskCliResponse> = {},
@@ -28,7 +28,7 @@ function result(
   return {
     source_format: "cli",
     tool_call_id: TOOL_CALL_ID,
-    thread_id: CONVERSATION_ID,
+    thread_id: THREAD_ID,
     answer_markdown: "Use the public factory.",
     sources: [
       {
@@ -65,7 +65,7 @@ function urlResult(): AgenticAskUrlResponse {
   return {
     source_format: "url",
     tool_call_id: TOOL_CALL_ID,
-    thread_id: CONVERSATION_ID,
+    thread_id: THREAD_ID,
     answer_markdown: "Use the public factory.",
     sources: [
       {
@@ -129,7 +129,7 @@ describe("askAction", () => {
       "npx githits@latest docs read --lines 3-8 -- docs:example:guide",
     );
     expect(write.mock.calls[0]?.[0]).toContain(`Ask run ID: ${TOOL_CALL_ID}`);
-    expect(write.mock.calls[0]?.[0]).toContain(`Thread ID: ${CONVERSATION_ID}`);
+    expect(write.mock.calls[0]?.[0]).toContain(`Thread ID: ${THREAD_ID}`);
   });
 
   it("continues a thread without a target", async () => {
@@ -139,13 +139,13 @@ describe("askAction", () => {
     await askAction(
       undefined,
       "Where is that choice checked?",
-      { thread: CONVERSATION_ID },
+      { thread: THREAD_ID },
       createDeps(ask),
     );
 
     expect(ask).toHaveBeenCalledWith(
       {
-        threadId: CONVERSATION_ID,
+        threadId: THREAD_ID,
         question: "Where is that choice checked?",
       },
       undefined,
@@ -156,12 +156,7 @@ describe("askAction", () => {
     const ask = mock(() => Promise.resolve(result()));
 
     await expect(
-      askAction(
-        "npm:example",
-        "How?",
-        { thread: CONVERSATION_ID },
-        createDeps(ask),
-      ),
+      askAction("npm:example", "How?", { thread: THREAD_ID }, createDeps(ask)),
     ).rejects.toThrow("exactly one");
     await expect(
       askAction(undefined, "How?", {}, createDeps(ask)),
@@ -298,7 +293,7 @@ describe("askAction", () => {
       TOOL_CALL_ID,
       12,
       true,
-      CONVERSATION_ID,
+      THREAD_ID,
     );
 
     await expect(
@@ -311,7 +306,7 @@ describe("askAction", () => {
     ).rejects.toThrow("process.exit");
 
     expect(error.mock.calls[0]?.[0]).toBe(
-      `Agentic Ask is rate limited. Try again in 12 seconds.\nAsk run ID: ${TOOL_CALL_ID}\nThread ID: ${CONVERSATION_ID}`,
+      `Agentic Ask is rate limited. Try again in 12 seconds.\nAsk run ID: ${TOOL_CALL_ID}\nThread ID: ${THREAD_ID}`,
     );
   });
 
@@ -489,31 +484,31 @@ describe("Agentic Ask positional parsing", () => {
       resolveAskCommandPositionals(
         "Where is that checked?",
         undefined,
-        CONVERSATION_ID,
+        THREAD_ID,
       ),
     ).toEqual({ target: undefined, question: "Where is that checked?" });
   });
 
   it("rejects ambiguous and incomplete positional forms", () => {
     expect(() =>
-      resolveAskCommandPositionals("npm:example", "How?", CONVERSATION_ID),
+      resolveAskCommandPositionals("npm:example", "How?", THREAD_ID),
     ).toThrow("Do not provide a target");
     expect(() =>
       resolveAskCommandPositionals("npm:example", undefined, undefined),
     ).toThrow("Provide a target and question");
     expect(() =>
-      resolveAskCommandPositionals(undefined, undefined, CONVERSATION_ID),
+      resolveAskCommandPositionals(undefined, undefined, THREAD_ID),
     ).toThrow("Provide a question");
   });
 });
 
 describe("Agentic Ask registration", () => {
   it.each([
-    ["missing follow-up question", ["ask", "--thread", CONVERSATION_ID]],
+    ["missing follow-up question", ["ask", "--thread", THREAD_ID]],
     ["missing initial question", ["ask", "npm:example"]],
     [
       "target combined with thread",
-      ["ask", "npm:example", "How?", "--thread", CONVERSATION_ID],
+      ["ask", "npm:example", "How?", "--thread", THREAD_ID],
     ],
     ["malformed thread", ["ask", "--thread", "not-a-uuid", "How?"]],
   ])("rejects %s before root command work", async (_name, args) => {

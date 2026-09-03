@@ -16,13 +16,13 @@ import {
 } from "./local-agentic-ask.js";
 
 const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
-const CONVERSATION_ID = "018f47a6-7b32-7b1e-8f45-6a2d39c81720";
+const THREAD_ID = "018f47a6-7b32-7b1e-8f45-6a2d39c81720";
 
 function response(): AgenticAskMcpResponse {
   return {
     source_format: "mcp",
     tool_call_id: TOOL_CALL_ID,
-    thread_id: CONVERSATION_ID,
+    thread_id: THREAD_ID,
     answer_markdown: "Use the documented API.",
     sources: [
       {
@@ -50,7 +50,7 @@ function urlResponse(): AgenticAskUrlResponse {
   return {
     source_format: "url",
     tool_call_id: TOOL_CALL_ID,
-    thread_id: CONVERSATION_ID,
+    thread_id: THREAD_ID,
     answer_markdown: "Use the documented API.",
     sources: [
       {
@@ -145,13 +145,13 @@ describe("local ask MCP adapter", () => {
   it("continues a thread without resending a target", async () => {
     const ask = mock(() => Promise.resolve(response()));
     await invoke(createLocalAgenticAskTool(createService(ask)), {
-      thread_id: CONVERSATION_ID,
+      thread_id: THREAD_ID,
       question: "Where is that checked?",
     });
 
     expect(ask).toHaveBeenCalledWith(
       {
-        threadId: CONVERSATION_ID,
+        threadId: THREAD_ID,
         question: "Where is that checked?",
         sourceFormat: "mcp",
       },
@@ -163,7 +163,7 @@ describe("local ask MCP adapter", () => {
     const ask = mock(() => Promise.resolve(response()));
     const tool = createLocalAgenticAskTool(createService(ask));
     const invalidArgs: AgenticAskMcpArgs[] = [
-      { target: "npm:example", thread_id: CONVERSATION_ID, question: "How?" },
+      { target: "npm:example", thread_id: THREAD_ID, question: "How?" },
       { question: "How?" },
       { thread_id: "not-a-uuid", question: "How?" },
     ];
@@ -238,7 +238,7 @@ describe("local ask MCP adapter", () => {
       TOOL_CALL_ID,
       12,
       true,
-      CONVERSATION_ID,
+      THREAD_ID,
     );
     const ask = mock(() => Promise.reject(error));
     const result = await invoke(createLocalAgenticAskTool(createService(ask)), {
@@ -253,7 +253,7 @@ describe("local ask MCP adapter", () => {
       retryable: true,
       details: { status: 429, retryAfterSeconds: 12 },
       tool_call_id: TOOL_CALL_ID,
-      thread_id: CONVERSATION_ID,
+      thread_id: THREAD_ID,
     });
   });
 
@@ -274,7 +274,7 @@ describe("local ask MCP adapter", () => {
       const result = await invoke(
         createLocalAgenticAskTool(createService(ask)),
         {
-          thread_id: CONVERSATION_ID,
+          thread_id: THREAD_ID,
           question: "How?",
         },
       );

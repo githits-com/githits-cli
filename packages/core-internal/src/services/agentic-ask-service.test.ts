@@ -17,13 +17,13 @@ import {
 import { createMockTokenProvider } from "./test-helpers.js";
 
 const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
-const CONVERSATION_ID = "018f47a6-7b32-7b1e-8f45-6a2d39c81720";
+const THREAD_ID = "018f47a6-7b32-7b1e-8f45-6a2d39c81720";
 
 function responseBody(overrides: Record<string, unknown> = {}) {
   return {
     source_format: "cli",
     tool_call_id: TOOL_CALL_ID,
-    conversation_id: CONVERSATION_ID,
+    thread_id: THREAD_ID,
     answer_markdown: "Use the documented API.",
     sources: [
       {
@@ -60,7 +60,7 @@ function mcpResponseBody(overrides: Record<string, unknown> = {}) {
   return {
     source_format: "mcp",
     tool_call_id: TOOL_CALL_ID,
-    conversation_id: CONVERSATION_ID,
+    thread_id: THREAD_ID,
     answer_markdown: "Use the documented API.",
     sources: [
       {
@@ -89,7 +89,7 @@ function urlResponseBody(overrides: Record<string, unknown> = {}) {
   return {
     source_format: "url",
     tool_call_id: TOOL_CALL_ID,
-    conversation_id: CONVERSATION_ID,
+    thread_id: THREAD_ID,
     answer_markdown: "Use the documented API.",
     sources: [
       {
@@ -99,11 +99,6 @@ function urlResponseBody(overrides: Record<string, unknown> = {}) {
     ],
     ...overrides,
   };
-}
-
-function withPublicThreadId(body: Record<string, unknown>) {
-  const { conversation_id: thread_id, ...response } = body;
-  return { ...response, thread_id };
 }
 
 function jsonResponse(
@@ -155,9 +150,7 @@ describe("AgenticAskServiceImpl", () => {
       question: "How is the client created?",
     });
 
-    expect(result).toEqual(
-      withPublicThreadId(responseBody()) as unknown as AgenticAskCliResponse,
-    );
+    expect(result).toEqual(responseBody() as unknown as AgenticAskCliResponse);
     expect(capturedUrl).toBe("https://api.githits.test/ask");
     expect(capturedInit?.method).toBe("POST");
     expect(capturedInit?.signal).toBeInstanceOf(AbortSignal);
@@ -190,7 +183,7 @@ describe("AgenticAskServiceImpl", () => {
     });
 
     expect(result).toEqual(
-      withPublicThreadId(mcpResponseBody()) as unknown as AgenticAskMcpResponse,
+      mcpResponseBody() as unknown as AgenticAskMcpResponse,
     );
     expect(JSON.parse(String(capturedInit?.body))).toEqual({
       target: "npm:example",
@@ -199,7 +192,7 @@ describe("AgenticAskServiceImpl", () => {
     });
   });
 
-  it("continues a conversation without resending its target", async () => {
+  it("continues a thread without resending its target", async () => {
     let capturedInit: RequestInit | undefined;
     const fetchFn = mock((_url: string | URL | Request, init?: RequestInit) => {
       capturedInit = init;
@@ -207,12 +200,12 @@ describe("AgenticAskServiceImpl", () => {
     }) as unknown as typeof fetch;
 
     await createService(fetchFn).ask({
-      threadId: CONVERSATION_ID,
+      threadId: THREAD_ID,
       question: "Where is that choice checked?",
     });
 
     expect(JSON.parse(String(capturedInit?.body))).toEqual({
-      conversation_id: CONVERSATION_ID,
+      thread_id: THREAD_ID,
       question: "Where is that choice checked?",
       source_format: "cli",
     });
@@ -239,7 +232,7 @@ describe("AgenticAskServiceImpl", () => {
     });
 
     expect(result).toEqual(
-      withPublicThreadId(urlResponseBody()) as unknown as AgenticAskUrlResponse,
+      urlResponseBody() as unknown as AgenticAskUrlResponse,
     );
     expect(result).not.toHaveProperty("usage");
     expect(JSON.parse(String(capturedInit?.body))).toEqual({
@@ -561,7 +554,7 @@ describe("AgenticAskServiceImpl", () => {
           status,
           headers: {
             "X-GitHits-Tool-Call-Id": TOOL_CALL_ID,
-            "X-GitHits-Conversation-Id": CONVERSATION_ID,
+            "X-GitHits-Thread-Id": THREAD_ID,
             ...(status === 429 ? { "Retry-After": "17" } : {}),
           },
         }),
@@ -582,7 +575,7 @@ describe("AgenticAskServiceImpl", () => {
         status,
         retryable,
         toolCallId: TOOL_CALL_ID,
-        threadId: CONVERSATION_ID,
+        threadId: THREAD_ID,
         ...(status === 429 ? { retryAfterSeconds: 17 } : {}),
       });
       expect((error as Error).message).not.toContain("private backend");
@@ -707,8 +700,8 @@ describe("parseAgenticAskToolCallId", () => {
 
 describe("normalizeAgenticAskThreadId", () => {
   it("accepts one UUIDv7 and normalizes case", () => {
-    expect(normalizeAgenticAskThreadId(CONVERSATION_ID.toUpperCase())).toBe(
-      CONVERSATION_ID,
+    expect(normalizeAgenticAskThreadId(THREAD_ID.toUpperCase())).toBe(
+      THREAD_ID,
     );
   });
 
@@ -718,9 +711,9 @@ describe("normalizeAgenticAskThreadId", () => {
     "",
     "not-a-uuid",
     "018f47a6-7b32-4b1e-8f45-6a2d39c81720",
-    `${CONVERSATION_ID}, ${CONVERSATION_ID}`,
-    `${CONVERSATION_ID}\nspoofed`,
-    ` ${CONVERSATION_ID}`,
+    `${THREAD_ID}, ${THREAD_ID}`,
+    `${THREAD_ID}\nspoofed`,
+    ` ${THREAD_ID}`,
   ])("rejects unsafe or ambiguous value %s", (value) => {
     expect(normalizeAgenticAskThreadId(value)).toBeUndefined();
   });
