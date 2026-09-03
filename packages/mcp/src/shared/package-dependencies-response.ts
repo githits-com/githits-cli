@@ -872,7 +872,12 @@ export function formatPackageDependenciesTerminal(
 
   if (includeTransitive) {
     blocks.push(formatTransitiveDepsList(payload, verbose, useColors));
-    const issues = formatConflictsAndCycles(payload, verbose, useColors);
+    const issues = formatConflictsAndCycles(
+      payload,
+      verbose,
+      useColors,
+      terminalWidth,
+    );
     if (issues) blocks.push(issues);
   } else if (!showGroups) {
     blocks.push(formatDirectDepsList(payload, verbose, useColors));
@@ -1154,7 +1159,9 @@ function formatDependencyIssues(
   );
   compact.truncated ||= count.truncated;
   lines.push(...compact.lines);
-  if (compact.truncated && detailHint) lines.push(detailHint);
+  if (compact.truncated && detailHint) {
+    lines.push(...wrapIssueEvidence(detailHint, terminalWidth));
+  }
   return lines.join("\n");
 }
 
@@ -1293,6 +1300,7 @@ function wrapIssueEvidence(value: string, width: number): string[] {
     : prefix;
   const words = value.slice(prefix.length).split(/\s+/).filter(Boolean);
   const lines: string[] = [];
+  let firstLine = true;
   let current = truncateIssueText(prefix, width);
   for (const word of words) {
     const separator = current === prefix ? "" : " ";
@@ -1300,8 +1308,13 @@ function wrapIssueEvidence(value: string, width: number): string[] {
       current += `${separator}${word}`;
       continue;
     }
+    const startsWithBullet = current === prefix && firstLine;
     if (current !== prefix) lines.push(current);
-    current = truncateIssueText(continuation, width);
+    current = truncateIssueText(
+      startsWithBullet ? prefix : continuation,
+      width,
+    );
+    firstLine = false;
     for (const character of Array.from(word)) {
       if (measureTerminalWidth(current + character) > width) {
         lines.push(current);
@@ -1516,6 +1529,7 @@ function formatConflictsAndCycles(
   payload: LeanDependencyReport,
   verbose: boolean,
   useColors: boolean,
+  terminalWidth: number,
 ): string {
   const t = payload.transitive;
   if (!t) return "";
@@ -1543,8 +1557,15 @@ function formatConflictsAndCycles(
     );
     for (const c of sorted) {
       if (c.requirements.length > 0) {
-        lines.push(`  ${c.name}: ${c.requiredVersions.join(", ")}`);
-        lines.push(...formatConflictRequirements(c.requirements).lines);
+        lines.push(
+          ...wrapIssueEvidence(
+            `  ${c.name}: ${c.requiredVersions.join(", ")}`,
+            terminalWidth,
+          ),
+        );
+        for (const line of formatConflictRequirements(c.requirements).lines) {
+          lines.push(...wrapIssueEvidence(line, terminalWidth));
+        }
         continue;
       }
       const padded = `${c.name}:`.padEnd(nameWidth + 2);

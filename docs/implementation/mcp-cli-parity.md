@@ -625,7 +625,8 @@ When a new tool lands with both MCP and CLI surfaces:
   at three per category and conflict constraint/importer groups at three each.
   Every compact issue evidence line is bounded to the resolved terminal width
   with formatter-authored ASCII `...`; verbose output wraps long evidence and
-  remains complete. MCP's descriptor signals that omitted `max_depth` traverses
+  remains complete. MCP uses the formatter's 80-column default; CLI supplies its
+  current terminal width. MCP's descriptor signals that omitted `max_depth` traverses
   the full graph and that `max_depth` bounds analysis cost and scope.
   CLI `--verbose` renders all selected issue rows and requirements; MCP keeps
   text compact and supplies `Pass format: "json" for complete issue details.`

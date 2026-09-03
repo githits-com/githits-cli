@@ -971,12 +971,11 @@ describe("formatPackageDependenciesTerminal — dependency issues", () => {
       const issueLines = output
         .slice(output.indexOf("Dependency issues"))
         .trimEnd()
-        .split("\n")
-        .filter((line) => line !== hint);
+        .split("\n");
       expect(
         issueLines.every((line) => measureTerminalWidth(line) <= width),
       ).toBe(true);
-      expect(output.split(hint).length - 1).toBe(1);
+      expect(output.replace(/\s+/g, " ").split(hint).length - 1).toBe(1);
     }
 
     const compact = formatPackageDependenciesTerminal(fixture, {
@@ -1031,6 +1030,29 @@ describe("formatPackageDependenciesTerminal — dependency issues", () => {
     );
   });
 
+  it("keeps long verbose issue tokens' bullets and hint text intact", () => {
+    const fixture = longIssueDependencyReport();
+    const hint = "Use --json for complete dependency issue details.";
+    const output = formatPackageDependenciesTerminal(fixture, {
+      includeIssues: true,
+      issuesDetailHint: hint,
+      terminalWidth: 36,
+      useColors: false,
+      verbose: true,
+    });
+    const issueLines = output
+      .slice(output.indexOf("Dependency issues"))
+      .trimEnd()
+      .split("\n");
+    const longTokenLine = issueLines.find((line) =>
+      line.startsWith("  - a-very-long-"),
+    );
+    expect(longTokenLine?.startsWith("  - ")).toBe(true);
+    expect(output.replace(/\s+/g, "")).toContain(
+      "a-very-long-duplicate-package-name",
+    );
+  });
+
   it("renders all issue rows, reasons, latest evidence, and conflict requirements in verbose mode", () => {
     const hint = "Use --json for complete dependency issue details.";
     const output = formatPackageDependenciesTerminal(dependencyIssueReport(), {
@@ -1078,17 +1100,46 @@ describe("formatPackageDependenciesTerminal — dependency issues", () => {
       },
     ];
 
-    const output = formatPackageDependenciesTerminal(fixture, {
-      includeTransitive: true,
-      useColors: false,
-      verbose: true,
-    });
+    const graph = fixture.dependencies.transitive.dependencyGraph;
+    const conflict = fixture.dependencies.transitive.dependencyConflicts[0];
+    if (!graph || !conflict) throw new Error("expected conflict fixture");
+    for (let index = 3; index <= 12; index += 1) {
+      graph.nodes.push({
+        registry: "NPM",
+        name: `importer-${index}`,
+        version: "1.0.0",
+      });
+      conflict.conflictingEdges.push({
+        fromIndex: index,
+        toIndex: 2,
+        versionConstraint: "^1.0.0",
+        dependencyType: "runtime",
+      });
+    }
 
-    expect(output).toContain("Conflicts (1):");
-    expect(output).toContain("shared: ^1.0.0, ^2.0.0");
-    expect(output).toContain(
-      "- ^1.0.0 required by express@5.2.1 (runtime), importer@1.0.0 (peer)",
-    );
+    for (const width of [80, 36]) {
+      const output = formatPackageDependenciesTerminal(fixture, {
+        includeTransitive: true,
+        terminalWidth: width,
+        useColors: false,
+        verbose: true,
+      });
+      const conflictLines = output
+        .slice(output.indexOf("Conflicts (1):"))
+        .trimEnd()
+        .split("\n");
+      expect(
+        conflictLines.every((line) => measureTerminalWidth(line) <= width),
+      ).toBe(true);
+      expect(output.replace(/\s+/g, " ")).toContain("shared: ^1.0.0, ^2.0.0");
+      for (const importer of [
+        "express@5.2.1",
+        "importer@1.0.0",
+        "importer-12@1.0.0",
+      ]) {
+        expect(output.replace(/\s+/g, " ")).toContain(importer);
+      }
+    }
   });
 
   it("renders zero issues as a scoped positive acknowledgement", () => {

@@ -502,10 +502,10 @@ describe("pkgDepsAction", () => {
       const issueLines = output
         .slice(output.indexOf("Dependency issues"))
         .trimEnd()
-        .split("\n")
-        .filter((line) => line !== hint);
+        .split("\n");
       expect(issueLines.every((line) => line.length <= 36)).toBe(true);
       expect(output).toContain("  Deprecated 4 | Outdated 4 | Dup...");
+      expect(output.replace(/\s+/g, " ").split(hint).length - 1).toBe(1);
     } finally {
       writeSpy.mockRestore();
       if (columnsDescriptor) {
