@@ -94,7 +94,6 @@ describe("local ask MCP adapter", () => {
       "Ask a public repository or package question and receive a source-cited answer.",
     );
     expect(firstSentence.length).toBeLessThanOrEqual(79);
-    expect(DESCRIPTION).toContain("Experimental local tool.");
     expect(DESCRIPTION).toContain(
       "Call resolve_target first when the intended target is ambiguous",
     );

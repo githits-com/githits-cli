@@ -63,7 +63,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION =
-  "Ask a public repository or package question and receive a source-cited answer. Experimental local tool. Call resolve_target first when the intended target is ambiguous or not canonical. Continue a prior thread by its returned thread_id only when the earlier answer is insufficient or additional information is needed. Sources default to actionable MCP calls; request source_format=url for original upstream URLs.";
+  "Ask a public repository or package question and receive a source-cited answer. Call resolve_target first when the intended target is ambiguous or not canonical. Continue a prior thread by its returned thread_id only when the earlier answer is insufficient or additional information is needed. Sources default to actionable MCP calls; request source_format=url for original upstream URLs.";
 
 export function createLocalAgenticAskTool(
   service: AgenticAskService,

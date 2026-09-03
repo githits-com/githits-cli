@@ -158,9 +158,6 @@ describe("createLocalMcpServer", () => {
     expect(registeredToolNames(server)).toHaveLength(19);
     expect(serverInstructions(server)).toBeUndefined();
     for (const name of ["ask", "resolve_target", "code_diff"] as const) {
-      expect(registeredTools(server)[name]?.description).toContain(
-        "Experimental",
-      );
       expect(registeredTools(server)[name]?.description).toEndWith(
         QUICK_START_PREREQUISITE,
       );
