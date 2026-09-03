@@ -6,12 +6,47 @@ import {
   formatPackageSummaryTerminal,
   severityLabel,
 } from "./package-summary-response.js";
+import { terminalWidth } from "./terminal-width.js";
 
 const FIXED_NOW = new Date("2024-06-01T12:00:00Z");
 
 function happyFixture(): PackageSummary {
   return structuredClone(defaultPackageSummary);
 }
+
+function getVulnerabilityLines(output: string): string[] {
+  const lines = output.trimEnd().split("\n");
+  const start = lines.findIndex((line) => line.startsWith("Vulnerabilities"));
+  if (start < 0) return [];
+  const continuationPrefix = " ".repeat("Vulnerabilities".length + 2);
+  const first = lines[start];
+  if (first === undefined) return [];
+  const result: string[] = [first];
+  for (const line of lines.slice(start + 1)) {
+    if (!line.startsWith(continuationPrefix)) break;
+    result.push(line);
+  }
+  return result;
+}
+
+function vulnerabilityText(output: string): string {
+  const lines = getVulnerabilityLines(output);
+  if (lines.length === 0) return "";
+  const first = lines[0];
+  if (first === undefined) return "";
+  const valuePrefix = `${"Vulnerabilities"}  `;
+  return [
+    first.slice(valuePrefix.length),
+    ...lines.slice(1).map((line) => line.trim()),
+  ].join(" ");
+}
+
+function displayWidth(line: string): number {
+  return terminalWidth(line.replace(ANSI_SGR_PATTERN, ""));
+}
+
+const ESC = String.fromCharCode(0x1b);
+const ANSI_SGR_PATTERN = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
 
 describe("buildPackageSummarySuccessPayload — happy path", () => {
   it("includes every top-level section when the fixture is fully populated", () => {
@@ -262,8 +297,8 @@ describe("formatPackageSummaryTerminal", () => {
     expect(output).toContain(
       "Repository       https://github.com/expressjs/express (63k stars, 14k forks, 123 issues)",
     );
-    expect(output).toContain(
-      "Vulnerabilities  Latest: 5 affected | History: 5 known advisories across all versions",
+    expect(vulnerabilityText(output)).toBe(
+      "Latest: 5 affected | History: 5 known advisories across all versions",
     );
     expect(output).not.toContain("Versions");
     expect(output).not.toContain("refreshed 2024-06-15");
@@ -289,6 +324,23 @@ describe("formatPackageSummaryTerminal", () => {
     expect(output).toContain("Versions");
     expect(output).toContain("214 published");
     expect(output).toContain("refreshed 2024-06-15");
+  });
+
+  it("wraps vulnerability status at standard width with aligned continuation", () => {
+    const output = formatPackageSummaryTerminal(defaultPackageSummary, {
+      useColors: false,
+      now: FIXED_NOW,
+      terminalWidth: 80,
+    });
+    const lines = getVulnerabilityLines(output);
+    const continuationPrefix = " ".repeat("Vulnerabilities".length + 2);
+    expect(lines.length).toBe(2);
+    expect(lines[1]?.startsWith(continuationPrefix)).toBe(true);
+    expect(lines[1]?.slice(continuationPrefix.length)).toBe("versions");
+    expect(lines.every((line) => displayWidth(line) <= 80)).toBe(true);
+    expect(vulnerabilityText(output)).toBe(
+      "Latest: 5 affected | History: 5 known advisories across all versions",
+    );
   });
 
   it("text output stays printable ASCII", () => {
@@ -326,7 +378,7 @@ describe("formatPackageSummaryTerminal", () => {
       useColors: false,
       now: FIXED_NOW,
     });
-    expect(output).toContain(
+    expect(vulnerabilityText(output)).toBe(
       "Latest: 1 affected | History: 1 known advisory across all versions",
     );
   });
@@ -343,8 +395,8 @@ describe("formatPackageSummaryTerminal", () => {
       useColors: false,
       now: FIXED_NOW,
     });
-    expect(output).toContain(
-      "Vulnerabilities  Latest: none affected | History: none known across all versions",
+    expect(vulnerabilityText(output)).toBe(
+      "Latest: none affected | History: none known across all versions",
     );
   });
 
@@ -364,8 +416,8 @@ describe("formatPackageSummaryTerminal", () => {
       useColors: false,
       now: FIXED_NOW,
     });
-    expect(output).toContain(
-      "Vulnerabilities  Latest: unavailable | History: 5 known advisories across all versions",
+    expect(vulnerabilityText(output)).toBe(
+      "Latest: unavailable | History: 5 known advisories across all versions",
     );
   });
 
@@ -383,12 +435,12 @@ describe("formatPackageSummaryTerminal", () => {
       useColors: false,
       now: FIXED_NOW,
     });
-    expect(output).toContain(
+    expect(vulnerabilityText(output)).toBe(
       "Latest: 2 affected | History: 2 known advisories across all versions",
     );
   });
 
-  it("labels contradictory history counts without comparing them or adding a hint", () => {
+  it("wraps contradictory history evidence at standard width without a hint", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: 5,
@@ -399,10 +451,16 @@ describe("formatPackageSummaryTerminal", () => {
     const output = formatPackageSummaryTerminal(fixture, {
       useColors: false,
       now: FIXED_NOW,
+      terminalWidth: 80,
     });
-    expect(output).toContain(
+    const lines = getVulnerabilityLines(output);
+    expect(vulnerabilityText(output)).toBe(
       "Latest: 5 affected | History: 3 known advisories across all versions (inconsistent backend evidence)",
     );
+    expect(lines.every((line) => displayWidth(line) <= 80)).toBe(true);
+    expect(
+      lines.slice(1).every((line) => line.startsWith(" ".repeat(17))),
+    ).toBe(true);
     expect(output).not.toContain("Inspect history");
   });
 
@@ -418,8 +476,25 @@ describe("formatPackageSummaryTerminal", () => {
       useColors: false,
       now: FIXED_NOW,
     });
-    expect(output).toContain(
+    expect(vulnerabilityText(output)).toBe(
       "Latest: 1 affected | History: none known across all versions (inconsistent backend evidence)",
+    );
+  });
+
+  it("keeps vulnerability continuations within a narrow width", () => {
+    const output = formatPackageSummaryTerminal(defaultPackageSummary, {
+      useColors: false,
+      now: FIXED_NOW,
+      terminalWidth: 40,
+    });
+    const lines = getVulnerabilityLines(output);
+    expect(lines.length).toBeGreaterThan(2);
+    expect(lines.every((line) => displayWidth(line) <= 40)).toBe(true);
+    expect(
+      lines.slice(1).every((line) => line.startsWith(" ".repeat(17))),
+    ).toBe(true);
+    expect(vulnerabilityText(output)).toBe(
+      "Latest: 5 affected | History: 5 known advisories across all versions",
     );
   });
 
@@ -437,8 +512,8 @@ describe("formatPackageSummaryTerminal", () => {
       now: FIXED_NOW,
       surface: "cli",
     });
-    expect(cliOutput).toContain(
-      "Vulnerabilities  Latest: none affected | History: 5 known advisories across all versions",
+    expect(vulnerabilityText(cliOutput)).toBe(
+      "Latest: none affected | History: 5 known advisories across all versions",
     );
     expect(cliOutput).toContain(
       "Inspect history: githits pkg vulns npm:express --scope all",
@@ -452,6 +527,35 @@ describe("formatPackageSummaryTerminal", () => {
     expect(mcpOutput).toContain(
       'Inspect history: use pkg_vulns with advisory_scope="all".',
     );
+  });
+
+  it("wraps a long package-name CLI history hint within the terminal width", () => {
+    const fixture = happyFixture();
+    fixture.package.name = "a".repeat(100);
+    fixture.security = {
+      vulnerabilityCount: 0,
+      allVulnerabilityCount: 5,
+      hasCurrentVulnerabilities: false,
+      recentVulnerabilities: [],
+    };
+    const output = formatPackageSummaryTerminal(fixture, {
+      useColors: false,
+      now: FIXED_NOW,
+      surface: "cli",
+      terminalWidth: 60,
+    });
+    const lines = output.trimEnd().split("\n");
+    const hintIndex = lines.findIndex((line) =>
+      line.startsWith("  Inspect history:"),
+    );
+    const hintLines = hintIndex < 0 ? [] : lines.slice(hintIndex);
+    expect(hintLines.length).toBeGreaterThan(1);
+    expect(hintLines.every((line) => displayWidth(line) <= 60)).toBe(true);
+    expect(hintLines.slice(1).every((line) => line.startsWith("    "))).toBe(
+      true,
+    );
+    expect(hintLines.join("\n")).toContain("npm:");
+    expect(hintLines.join(" ").replace(/\s+/g, " ")).toContain("--scope all");
   });
 
   it("does not render refresh metadata when no download count exists", () => {

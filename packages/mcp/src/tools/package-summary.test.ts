@@ -96,7 +96,7 @@ describe("createPackageSummaryTool — happy path", () => {
     expect(text).toContain("Repository");
     expect(text).toContain("63k stars, 14k forks, 123 issues");
     expect(text).toContain("Vulnerabilities");
-    expect(text).toContain(
+    expect(text.replace(/\s+/g, " ")).toContain(
       "Latest: 5 affected | History: 5 known advisories across all versions",
     );
     expect(text).not.toContain("githits pkg vulns");

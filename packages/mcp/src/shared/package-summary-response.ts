@@ -342,6 +342,7 @@ export function formatPackageSummaryTerminal(
     now,
     options.verbose ?? false,
     surface,
+    width,
   );
   if (fields.length > 0) {
     sections.push(fields.join("\n"));
@@ -367,15 +368,31 @@ function resolveWidth(explicit: number | undefined): number {
 }
 
 function wrapText(text: string, width: number): string {
+  const safeWidth = Math.max(1, width);
   const words = text.split(/\s+/);
   const lines: string[] = [];
   let current = "";
   for (const word of words) {
+    if (word.length > safeWidth) {
+      if (current.length > 0) {
+        lines.push(current);
+        current = "";
+      }
+      for (let offset = 0; offset < word.length; offset += safeWidth) {
+        const chunk = word.slice(offset, offset + safeWidth);
+        if (chunk.length === safeWidth || offset + safeWidth < word.length) {
+          lines.push(chunk);
+        } else {
+          current = chunk;
+        }
+      }
+      continue;
+    }
     if (current.length === 0) {
       current = word;
       continue;
     }
-    if (current.length + 1 + word.length > width) {
+    if (current.length + 1 + word.length > safeWidth) {
       lines.push(current);
       current = word;
     } else {
@@ -398,6 +415,7 @@ function buildFieldList(
   now: Date,
   verbose: boolean,
   surface: "cli" | "mcp",
+  width: number,
 ): string[] {
   const fields: LabelledField[] = [];
 
@@ -468,12 +486,35 @@ function buildFieldList(
   // the locked padding rule). Minimum 10 cols for a readable gutter.
   const labelWidth = Math.max(10, ...fields.map((field) => field.label.length));
 
-  const lines = fields.map(
-    (field) => `${field.label.padEnd(labelWidth)}  ${field.value}`,
-  );
+  const valueIndent = " ".repeat(labelWidth + 2);
+  const lines = fields.flatMap((field) => {
+    const valueLines =
+      field.label === "Vulnerabilities"
+        ? wrapText(field.value, Math.max(1, width - labelWidth - 2)).split("\n")
+        : [field.value];
+    return valueLines.map((value, index) =>
+      index === 0
+        ? `${field.label.padEnd(labelWidth)}  ${value}`
+        : `${valueIndent}${value}`,
+    );
+  });
 
   const historyHint = formatHistoryHint(lean, surface);
-  if (historyHint) lines.push(dim(`  ${historyHint}`, useColors));
+  if (historyHint) {
+    const hintIndent = "    ";
+    const wrappedHint = wrapText(
+      historyHint,
+      Math.max(1, width - hintIndent.length),
+    ).split("\n");
+    lines.push(
+      dim(
+        wrappedHint
+          .map((line, index) => `${index === 0 ? "  " : hintIndent}${line}`)
+          .join("\n"),
+        useColors,
+      ),
+    );
+  }
   return lines;
 }
 
