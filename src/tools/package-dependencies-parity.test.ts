@@ -48,6 +48,89 @@ function cliDeps(
   };
 }
 
+const issueDependencyReport: DependencyReport = {
+  package: { name: "express", registry: "NPM", version: "5.2.1" },
+  dependencies: {
+    direct: [{ name: "shared", versionConstraint: "^1.0.0", type: "runtime" }],
+    transitive: {
+      totalEdges: 2,
+      uniquePackagesCount: 1,
+      uniqueDependencies: ["shared@1.0.0"],
+      dependencyConflicts: [],
+      circularDependencyCycles: [],
+      dependencyGraph: {
+        formatVersion: 4,
+        nodes: [
+          { registry: "NPM", name: "express", version: "5.2.1" },
+          { registry: "NPM", name: "importer", version: "1.0.0" },
+          { registry: "NPM", name: "shared", version: "1.0.0" },
+        ],
+        edges: [
+          {
+            toIndex: 2,
+            constraint: "^1.0.0",
+            dependencyType: "runtime",
+          },
+          {
+            fromIndex: 1,
+            toIndex: 2,
+            constraint: "^2.0.0",
+            dependencyType: "peer",
+          },
+        ],
+      },
+      dependencyIssues: {
+        totalCount: 4,
+        deprecatedCount: 1,
+        outdatedCount: 1,
+        duplicateCount: 1,
+        conflictCount: 1,
+        deprecatedPackages: [
+          {
+            registry: "NPM",
+            name: "legacy",
+            versions: ["1.0.0"],
+            reasons: [{ version: "1.0.0", reason: "Use replacement" }],
+          },
+        ],
+        outdatedPackages: [
+          {
+            registry: "NPM",
+            name: "shared",
+            latestVersion: "2.0.0",
+            severity: "HIGH",
+            versions: [{ version: "1.0.0", severity: "HIGH" }],
+          },
+        ],
+        duplicatePackages: [
+          { registry: "NPM", name: "duplicate", versions: ["1.0.0", "2.0.0"] },
+        ],
+        conflicts: [
+          {
+            registry: "NPM",
+            name: "shared",
+            versions: ["1.0.0", "2.0.0"],
+            requiredVersions: ["^1.0.0", "^2.0.0"],
+            conflictingEdges: [
+              {
+                toIndex: 2,
+                versionConstraint: "^1.0.0",
+                dependencyType: "runtime",
+              },
+              {
+                fromIndex: 1,
+                toIndex: 2,
+                versionConstraint: "^2.0.0",
+                dependencyType: "peer",
+              },
+            ],
+          },
+        ],
+      },
+    },
+  },
+};
+
 async function cliJson(
   spec: string,
   options: Parameters<typeof pkgDepsAction>[1] = {},
@@ -82,6 +165,7 @@ async function mcpJson(
     version?: string;
     lifecycle?: string;
     include_importers?: boolean;
+    include_issues?: boolean;
     max_depth?: number;
   },
   packageDependenciesMock?: () => Promise<DependencyReport>,
@@ -387,6 +471,93 @@ describe("package_dependencies parity", () => {
     expect(pkgs).toEqual([{ name: "accepts", version: "2.0.0" }]);
     // Importers absent — lean default.
     expect(pkgs?.[0]?.importers).toBeUndefined();
+  });
+
+  it("PARITY-JSON-KEYS: unbounded issue analysis CLI === MCP", async () => {
+    const fn = mock(() => Promise.resolve(issueDependencyReport));
+    const cli = await cliJson(
+      "npm:express",
+      { issues: true },
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageDependencies: fn as never,
+        }),
+      }),
+    );
+    const { json } = await mcpJson(
+      {
+        registry: "npm",
+        package_name: "express",
+        include_issues: true,
+      },
+      fn as never,
+    );
+
+    expect(cli).toEqual(json);
+    expect((cli as { transitive?: unknown }).transitive).toBeUndefined();
+    expect((cli as { issues?: { scope: unknown } }).issues?.scope).toEqual({
+      mode: "full",
+    });
+    expect(
+      (
+        cli as {
+          issues?: { conflicts: { items: Array<{ requirements: unknown[] }> } };
+        }
+      ).issues?.conflicts.items[0]?.requirements,
+    ).toHaveLength(2);
+  });
+
+  it("PARITY-JSON-KEYS: bounded issue analysis CLI === MCP", async () => {
+    const fn = mock(() => Promise.resolve(issueDependencyReport));
+    const cli = await cliJson(
+      "npm:express",
+      { issues: true, depth: "4" },
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageDependencies: fn as never,
+        }),
+      }),
+    );
+    const { json } = await mcpJson(
+      {
+        registry: "npm",
+        package_name: "express",
+        include_issues: true,
+        max_depth: 4,
+      },
+      fn as never,
+    );
+
+    expect(cli).toEqual(json);
+    expect((cli as { transitive?: unknown }).transitive).toBeDefined();
+    expect((cli as { issues?: { scope: unknown } }).issues?.scope).toEqual({
+      mode: "depth_limited",
+      maxDepth: 4,
+    });
+  });
+
+  it("PARITY-JSON-KEYS: explicit false issue analysis remains unchanged CLI === MCP", async () => {
+    const fn = mock(() => Promise.resolve(defaultDependencyReport));
+    const cli = await cliJson(
+      "npm:express",
+      { issues: false },
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageDependencies: fn as never,
+        }),
+      }),
+    );
+    const { json } = await mcpJson(
+      {
+        registry: "npm",
+        package_name: "express",
+        include_issues: false,
+      },
+      fn as never,
+    );
+
+    expect(cli).toEqual(json);
+    expect((cli as { issues?: unknown }).issues).toBeUndefined();
   });
 
   it("PARITY-JSON-KEYS: versioned match suppresses requestedVersion on both surfaces", async () => {
