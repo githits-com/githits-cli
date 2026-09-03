@@ -89,8 +89,8 @@ describe("local ask MCP adapter", () => {
     const jsonSchema = z.toJSONSchema(z.object(tool.schema));
 
     expect(tool.name).toBe("ask");
-    expect(DESCRIPTION).toContain(
-      "Ask one grounded question about a canonical public package or repository target",
+    expect(DESCRIPTION.slice(0, 80)).toBe(
+      "Ask one grounded question about a canonical public package or repository target.",
     );
     expect(DESCRIPTION).toContain(
       "Call resolve_target first when the intended target is ambiguous",

@@ -63,7 +63,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION =
-  "Ask one grounded question about a canonical public package or repository target, or continue a prior thread by its returned thread_id when the earlier answer is insufficient or additional information is needed. Call resolve_target first when the intended target is ambiguous or not canonical. Experimental local tool that uses the backend-controlled prompt, model, budgets, and evidence validation. Each call is retained for replay and evaluation. Sources default to backend-built MCP calls in deterministic order; request source_format=url for original upstream URLs. Model usage is not returned.";
+  "Ask one grounded question about a canonical public package or repository target. Continue a prior thread by its returned thread_id only when the earlier answer is insufficient or additional information is needed. Call resolve_target first when the intended target is ambiguous or not canonical. Experimental local tool that uses the backend-controlled prompt, model, budgets, and evidence validation. Each call is retained for replay and evaluation. Sources default to backend-built MCP calls in deterministic order; request source_format=url for original upstream URLs. Model usage is not returned.";
 
 export function createLocalAgenticAskTool(
   service: AgenticAskService,
