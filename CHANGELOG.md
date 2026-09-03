@@ -5,6 +5,53 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.12.0] - 2026-09-03
+
+Minor release: adds opt-in Agentic Ask and improves repository grep,
+upgrade-review validation and release context, and Windows token-refresh
+handoff.
+
+### Added
+
+- **Experimental Agentic Ask** - Add opt-in `githits ask` CLI and local MCP
+  surfaces with source-cited answers, follow-up threads, directly executable
+  source calls, and original upstream URL sources.
+
+### Changed
+
+- **Align upgrade-review batch validation** - CLI and MCP now advertise and
+  enforce the deployed limit of 30 nonblank package upgrades before sending a
+  request.
+
+### Fixed
+
+- **Align grep symbol fields** - CLI and MCP validation now expose only symbol
+  metadata that repository grep can hydrate.
+- **Improve upgrade-review release context** - Compact output keeps
+  identity-only sampled releases visible and avoids repeating releases across
+  heuristic, sampled, and verbose entries.
+- **Serialize Windows token refresh handoff** - Release file-backed auth locks
+  without racing successor agents against removal of the shared lock path.
+
+## [@githits/mcp 0.12.0] - 2026-09-03
+
+Coordinated minor release: aligns `@githits/mcp` with the CLI 0.12 line and
+improves repository grep and upgrade-review validation and release context.
+
+### Changed
+
+- **Align upgrade-review batch validation** - CLI and MCP now advertise and
+  enforce the deployed limit of 30 nonblank package upgrades before sending a
+  request.
+
+### Fixed
+
+- **Align grep symbol fields** - CLI and MCP validation now expose only symbol
+  metadata that repository grep can hydrate.
+- **Improve upgrade-review release context** - Compact output keeps
+  identity-only sampled releases visible and avoids repeating releases across
+  heuristic, sampled, and verbose entries.
+
 ## [githits 0.11.5] - 2026-09-02
 
 Coordinated patch release: improves quick-start discovery and public OSS
