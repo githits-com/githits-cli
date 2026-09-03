@@ -99,6 +99,14 @@ describe("package_summary parity", () => {
     });
     expect(isError).toBeUndefined();
     expect(cli).toEqual(json);
+    expect((cli as Record<string, unknown>).versionCount).toBe(214);
+    expect(
+      ((cli as Record<string, unknown>).downloads as Record<string, unknown>)
+        .refreshedAt,
+    ).toBe("2024-06-15");
+    expect((cli as Record<string, unknown>).advisoryHistory).toEqual({
+      total: 5,
+    });
   });
 
   it("PARITY-JSON-KEYS: minimal-fields success CLI === MCP", async () => {
@@ -123,6 +131,7 @@ describe("package_summary parity", () => {
     );
 
     expect(cli).toEqual(json);
+    expect(cli).not.toHaveProperty("advisoryHistory");
   });
 
   it("PARITY-ERROR-ENVELOPE: NOT_FOUND CLI === MCP", async () => {
