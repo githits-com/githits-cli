@@ -2685,6 +2685,51 @@ describe("CodeNavigationServiceImpl", () => {
     ]);
   });
 
+  it("selects only requested grepRepo symbol fields", async () => {
+    const fn = mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              grepRepo: {
+                matches: [],
+                nextCursor: null,
+                totalMatches: 0,
+                hasMore: false,
+                truncatedReason: "NONE",
+                filesScanned: 0,
+                filesInScope: 0,
+                binaryFilesSkipped: 0,
+                filesTooLargeSkipped: 0,
+                uniqueFilesMatched: 0,
+                codeIndexState: "CURRENT",
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+    await service.grepRepo({
+      target: { registry: "NPM", packageName: "express", version: "5.2.1" },
+      pattern: "middleware",
+      symbolFields: ["name", "qualified_path"],
+    });
+    const [, subsetInit] = fn.mock.calls[0] as unknown as [string, RequestInit];
+    const subsetBody = JSON.parse(subsetInit.body as string);
+    const subsetSymbolBlock = subsetBody.query.match(
+      /symbol \{\n([\s\S]*?)\n {6}\}/,
+    )?.[1];
+    expect(subsetSymbolBlock?.trim().split(/\s+/)).toEqual([
+      "name",
+      "qualifiedPath",
+    ]);
+  });
+
   it("sends GraphQL variables with the correct listRepoFiles shape", async () => {
     const fn = mockFetch(() =>
       Promise.resolve(
