@@ -220,3 +220,75 @@ describe("buildPackageDependenciesParams — depth bounds", () => {
     expect(params.maxDepth).toBeUndefined();
   });
 });
+
+describe("buildPackageDependenciesParams — dependency issues", () => {
+  it.each([
+    ["unbounded", undefined],
+    ["bounded", 4],
+  ] as const)(
+    "enables issue analysis and transitive graph for %s requests",
+    (_label, maxDepth) => {
+      const { params } = buildPackageDependenciesParams({
+        registry: "npm",
+        packageName: "x",
+        includeIssues: true,
+        ...(maxDepth === undefined ? {} : { maxDepth }),
+      });
+
+      expect(params.includeDependencyIssues).toBe(true);
+      expect(params.includeTransitive).toBe(true);
+      expect(params.maxDepth).toBe(maxDepth);
+    },
+  );
+
+  it.each([
+    ["omitted", undefined],
+    ["explicit false", false],
+  ] as const)(
+    "preserves transitive and depth inputs when issues are %s",
+    (_label, includeIssues) => {
+      const { params } = buildPackageDependenciesParams({
+        registry: "npm",
+        packageName: "x",
+        ...(includeIssues === undefined ? {} : { includeIssues }),
+        includeTransitive: false,
+        maxDepth: 2,
+      });
+
+      expect(params.includeDependencyIssues).toBe(includeIssues);
+      expect(params.includeTransitive).toBe(false);
+      expect(params.maxDepth).toBe(2);
+    },
+  );
+
+  it("does not couple issue analysis to groups or transitive details", () => {
+    const { params } = buildPackageDependenciesParams({
+      registry: "npm",
+      packageName: "x",
+      includeIssues: true,
+      includeGroups: false,
+      includeTransitiveDetails: false,
+    });
+
+    expect(params.includeDependencyIssues).toBe(true);
+    expect(params.includeTransitive).toBe(true);
+    expect(params.includeGroups).toBe(false);
+    expect(params.includeTransitiveDetails).toBe(false);
+  });
+
+  it("keeps empty values on the existing validation path with issues disabled", () => {
+    const { params, canonicalLifecycles } = buildPackageDependenciesParams({
+      registry: " npm ",
+      packageName: " x ",
+      version: "   ",
+      includeIssues: false,
+      lifecycle: [],
+    });
+
+    expect(params.packageName).toBe("x");
+    expect(params.version).toBeUndefined();
+    expect(params.includeDependencyIssues).toBe(false);
+    expect(params.lifecycle).toBeUndefined();
+    expect(canonicalLifecycles).toEqual([]);
+  });
+});
