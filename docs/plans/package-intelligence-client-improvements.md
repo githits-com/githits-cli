@@ -338,6 +338,10 @@ client view consumes. Callers never have to discover and combine coupled flags.
   the existing single-query graph selection because root edges are required to map
   direct constraints to resolved versions; an uncapped issue analysis therefore has
   an explicit full-graph payload cost.
+- Ordinary transitive conflict projections also fail closed when a returned conflict
+  contains indexed `conflictingEdges` but the nullable companion graph is absent.
+  Edge-free conflict summaries remain valid without a graph because they require no
+  index resolution.
 - When issue analysis is explicitly selected, the service fails closed if either the
   nullable `dependencyIssues` result or its companion graph is absent; default and
   explicit-false calls retain their existing nullable transitive behavior.

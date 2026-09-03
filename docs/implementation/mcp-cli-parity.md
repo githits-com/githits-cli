@@ -635,7 +635,9 @@ When a new tool lands with both MCP and CLI surfaces:
   default false, so normal/false calls do not compute or fetch that subtree;
   issue mode fetches the internal companion graph but never exposes it. Because
   the selected backend fields are nullable, explicit issue mode fails closed when
-  either `dependencyIssues` or the companion graph is absent.
+  either `dependencyIssues` or the companion graph is absent. Ordinary transitive
+  conflicts fail closed when indexed `conflictingEdges` are present without the
+  companion graph; edge-free conflict summaries remain valid without it.
 
 ### `pkg_changelog`
 

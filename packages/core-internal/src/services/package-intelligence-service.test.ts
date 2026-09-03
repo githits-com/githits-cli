@@ -1946,6 +1946,41 @@ describe("PackageIntelligenceServiceImpl — packageDependencies", () => {
     };
   }
 
+  function createTransitiveConflictBody(
+    includeGraph: boolean,
+    dependencyGraph: unknown,
+    conflictingEdges: unknown[] = [
+      {
+        fromIndex: null,
+        toIndex: 0,
+        versionConstraint: "^1.0.0",
+        dependencyType: "runtime",
+      },
+    ],
+  ) {
+    return {
+      data: {
+        packageDependencies: {
+          package: { name: "express", registry: "NPM", version: "5.2.1" },
+          dependencies: {
+            direct: [],
+            transitive: {
+              ...(includeGraph ? { dependencyGraph } : {}),
+              dependencyConflicts: [
+                {
+                  packageName: "shared",
+                  requiredVersions: ["^1.0.0", "^2.0.0"],
+                  conflictingEdges,
+                },
+              ],
+            },
+          },
+          dependencyGroups: null,
+        },
+      },
+    };
+  }
+
   const ISSUE_ANALYSIS_BODY = createIssueAnalysisBody();
 
   it("maps a happy-path response to DependencyReport", async () => {
@@ -2301,6 +2336,68 @@ describe("PackageIntelligenceServiceImpl — packageDependencies", () => {
       expect(result).toMatchObject({ message });
     },
   );
+
+  it.each([
+    ["missing", false, undefined],
+    ["null", true, null],
+  ] as const)(
+    "rejects ordinary transitive conflicts with %s dependency graph when edges are present",
+    async (_label, includeGraph, dependencyGraph) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(
+          jsonResponse(
+            createTransitiveConflictBody(includeGraph, dependencyGraph),
+          ),
+        ),
+      );
+      const service = new PackageIntelligenceServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(fetchFn),
+      );
+
+      const result = await service
+        .packageDependencies({
+          registry: "NPM",
+          packageName: "express",
+          includeTransitive: true,
+        })
+        .catch((error: unknown) => error);
+
+      expect(result).toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+      expect(result).toMatchObject({
+        message:
+          "Transitive dependency conflict edges response missing dependency graph.",
+      });
+    },
+  );
+
+  it("accepts edge-free ordinary conflicts without a dependency graph", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse(createTransitiveConflictBody(true, null, [])),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const report = await service.packageDependencies({
+      registry: "NPM",
+      packageName: "express",
+      includeTransitive: true,
+    });
+
+    expect(report.dependencies?.transitive?.dependencyConflicts).toEqual([
+      {
+        packageName: "shared",
+        requiredVersions: ["^1.0.0", "^2.0.0"],
+        conflictingEdges: [],
+      },
+    ]);
+  });
 
   it("omits lifecycle when empty array (treated as 'no filter')", async () => {
     let capturedBody: string | undefined;

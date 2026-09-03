@@ -311,6 +311,9 @@ The service fails closed when explicit issue analysis receives neither the
 nullable issue summary nor its companion graph. The MCP descriptor calls out
 that omitted `max_depth` traverses the full graph and that a supplied depth
 bounds analysis cost and scope.
+Ordinary transitive conflicts likewise fail closed when they contain indexed
+`conflictingEdges` without the nullable companion graph; edge-free conflict
+summaries need no graph and remain accepted.
 
 **Issue text.** MCP text stays compact and bounded: it reports the total,
 `full graph` or `max depth N`, all four category counts, and at most three

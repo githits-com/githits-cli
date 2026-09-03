@@ -2971,6 +2971,17 @@ export class PackageIntelligenceServiceImpl
         );
       }
     }
+    if (params.includeTransitive === true) {
+      const transitive = report.dependencies?.transitive;
+      const hasConflictEdges = transitive?.dependencyConflicts?.some(
+        (conflict) => conflict.conflictingEdges.length > 0,
+      );
+      if (hasConflictEdges && !transitive?.dependencyGraph) {
+        throw new MalformedPackageIntelligenceResponseError(
+          "Transitive dependency conflict edges response missing dependency graph.",
+        );
+      }
+    }
 
     return report;
   }
