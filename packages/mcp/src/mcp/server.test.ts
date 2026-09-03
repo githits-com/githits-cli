@@ -167,6 +167,7 @@ const DESCRIPTION_ROUTING: Record<
       "Assess latest package health and adoption: license, downloads, and activity. Pro",
     body: [
       "`pkg_vulns`",
+      'Use `pkg_vulns` for version-specific vulnerability details, or pass `advisory_scope: "all"` for package-wide history;',
       "`pkg_deps`",
       "`pkg_changelog`",
       "`pkg_upgrade_review`",

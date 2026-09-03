@@ -2,7 +2,7 @@
 
 ## Package Info
 
-`githits pkg info <registry:name>` returns latest-version triage: license, description, repository popularity, downloads, publish age, and vulnerability status. Use `--verbose` for GitHub language/topics/last-pushed, recent advisories, and recent changes. Use `--json` for structured fields.
+`githits pkg info <registry:name>` returns latest-version triage: license, description, repository popularity, downloads, publish age, and separate latest-affected and package-wide advisory-history scopes. Use `--verbose` for GitHub language/topics/last-pushed, package-wide advisory history (all versions), published-version count, download freshness, and recent changes. Use `--json` for structured fields.
 
 Supported registries include npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, vcpkg, and Zig.
 Swift package targets use `swift:github.com/<owner>/<repo>`; Zig package targets use `zig:gh/<owner>/<repo>`.

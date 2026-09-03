@@ -41,13 +41,13 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe(
-      "Text only. Adds GitHub language/topics/last-pushed, recent advisories, and recent changes. Ignored for format=json.",
+      "Text only. Adds GitHub language/topics/last-pushed, published-version count, download refresh date, package-wide advisory history (all versions), and recent changes. Latest affected and package-wide history counts are shown separately. Ignored for format=json.",
     ),
   format: z
     .enum(["text-v1", "text", "json"])
     .default("text-v1")
     .describe(
-      'Response format. Default `text-v1` — compact package overview. Pass `format: "json"` for the structured envelope.',
+      'Response format. Default `text-v1` — compact package overview. Pass `format: "json"` for structured fields including `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total`.',
     ),
 };
 
@@ -56,10 +56,15 @@ export const DESCRIPTION_BASE: string =
   "`registry` and `package_name` (for example `npm` + `express`). " +
   "Default text returns license, description, repository popularity " +
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
-  "publish age, and vulnerability status. Set `verbose: true` for " +
-  "GitHub language/topics/last-pushed, recent advisories, and recent " +
-  'changes. Pass `format: "json"` for structured fields. Use ' +
-  "`pkg_vulns` for version-specific vulnerability details, `pkg_deps` for the dependency graph, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison.";
+  "publish age, latest affected count, and separate package-wide advisory " +
+  "history count. These counts are shown separately. Set `verbose: true` for " +
+  "GitHub language/topics/last-pushed, " +
+  "published-version count, download refresh date, package-wide advisory " +
+  "history (all versions), " +
+  'and recent changes. Pass `format: "json"` for structured fields ' +
+  "including `versionCount`, `downloads.refreshedAt`, and " +
+  "`advisoryHistory.total`. Use " +
+  '`pkg_vulns` for version-specific vulnerability details, or pass `advisory_scope: "all"` for package-wide history; use `pkg_deps` for the dependency graph, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison.';
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_INFO_GUARDRAIL}`;
 

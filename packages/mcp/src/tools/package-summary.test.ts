@@ -25,6 +25,19 @@ describe("createPackageSummaryTool — metadata", () => {
     expect(tool.description).toContain("for example `npm` + `express`");
     expect(tool.description).toContain("[ARCHIVED]");
     expect(tool.description).toContain("verbose: true");
+    expect(tool.description).toContain("latest affected count");
+    expect(tool.description).toContain("package-wide advisory history count");
+    expect(tool.description).toContain("shown separately");
+    expect(tool.description).toContain("published-version count");
+    expect(tool.description).toContain("downloads.refreshedAt");
+    expect(tool.description).toContain("advisoryHistory.total");
+    expect(tool.description).toContain("advisory history (all versions)");
+    expect(tool.description).toContain(
+      'Use `pkg_vulns` for version-specific vulnerability details, or pass `advisory_scope: "all"` for package-wide history;',
+    );
+    expect(tool.schema.verbose?.description).toContain(
+      "advisory history (all versions)",
+    );
     expect(tool.description).toContain("pkg_vulns");
     expect(Object.keys(tool.schema)).toEqual([
       "registry",
@@ -46,10 +59,34 @@ describe("createPackageSummaryTool — happy path", () => {
 
     expect(packageSummary).toHaveBeenCalledTimes(1);
     const calls = packageSummary.mock.calls as unknown as Array<
-      [{ registry: string; packageName: string }]
+      [{ registry: string; packageName: string; includeVerboseFields: boolean }]
     >;
     expect(calls[0]?.[0]?.registry).toBe("NPM");
     expect(calls[0]?.[0]?.packageName).toBe("express");
+    expect(calls[0]?.[0]?.includeVerboseFields).toBe(false);
+  });
+
+  it("requests verbose fields for verbose text and JSON", async () => {
+    const packageSummary = mock(() => Promise.resolve(defaultPackageSummary));
+    const service = createMockPackageIntelligenceService({ packageSummary });
+    const tool = createPackageSummaryTool(service);
+
+    await tool.handler(
+      { registry: "npm", package_name: "express", verbose: true },
+      {},
+    );
+    await tool.handler(
+      { registry: "npm", package_name: "express", format: "json" },
+      {},
+    );
+
+    const calls = packageSummary.mock.calls as unknown as Array<
+      [{ includeVerboseFields: boolean }]
+    >;
+    expect(calls.map(([params]) => params.includeVerboseFields)).toEqual([
+      true,
+      true,
+    ]);
   });
 
   it("returns compact text in content[0].text by default", async () => {
@@ -66,6 +103,10 @@ describe("createPackageSummaryTool — happy path", () => {
     expect(text).toContain("Repository");
     expect(text).toContain("63k stars, 14k forks, 123 issues");
     expect(text).toContain("Vulnerabilities");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "Latest: 5 affected History: 5 known advisories across all versions",
+    );
+    expect(text).not.toContain("githits pkg vulns");
     expect(text).not.toContain("Install");
     expect(() => JSON.parse(text)).toThrow();
   });
@@ -80,8 +121,11 @@ describe("createPackageSummaryTool — happy path", () => {
     );
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("GitHub");
-    expect(text).toContain("Recent advisories");
+    expect(text).toContain("Advisory history (all versions)");
     expect(text).toContain("Recent changes");
+    expect(text).toContain("Versions");
+    expect(text).toContain("214 published");
+    expect(text).toContain("refreshed 2024-06-15");
     expect(text).not.toContain("Usage");
   });
 
@@ -97,8 +141,38 @@ describe("createPackageSummaryTool — happy path", () => {
     expect(payload.registry).toBe("npm");
     expect(payload.name).toBe("express");
     expect(payload.version).toBe("4.18.2");
+    expect(payload.versionCount).toBe(214);
+    expect((payload.downloads as Record<string, unknown>).refreshedAt).toBe(
+      "2024-06-15",
+    );
+    expect(payload.advisoryHistory).toEqual({ total: 5 });
     expect("install" in payload).toBe(false);
     expect("usage" in payload).toBe(false);
+  });
+
+  it("keeps package history evidence in text without an inline action", async () => {
+    const summary = structuredClone(defaultPackageSummary);
+    summary.security = {
+      vulnerabilityCount: 0,
+      allVulnerabilityCount: 5,
+      hasCurrentVulnerabilities: false,
+      recentVulnerabilities: [],
+    };
+    const tool = createPackageSummaryTool(
+      createMockPackageIntelligenceService({
+        packageSummary: mock(() => Promise.resolve(summary)),
+      }),
+    );
+
+    const result = await tool.handler(
+      { registry: "npm", package_name: "express" },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("Latest: none affected");
+    expect(text).toContain("History: 5 known advisories across all versions");
+    expect(text).not.toContain("Inspect history");
+    expect(text).not.toContain("githits pkg vulns");
   });
 });
 

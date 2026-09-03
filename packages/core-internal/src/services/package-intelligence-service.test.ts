@@ -53,6 +53,8 @@ const HAPPY_BODY = {
         description: "Fast web framework",
         latestVersion: "4.18.2",
         latestVersionPublishedAt: "2023-05-28T00:00:00Z",
+        versionCount: 42,
+        downloadsRefreshedAt: "2024-06-15T00:00:00Z",
         homepage: "https://expressjs.com",
         repositoryUrl: "https://github.com/expressjs/express",
         license: "MIT",
@@ -70,6 +72,7 @@ const HAPPY_BODY = {
       },
       security: {
         vulnerabilityCount: 5,
+        allVulnerabilityCount: 5,
         hasCurrentVulnerabilities: true,
         recentVulnerabilities: [
           {
@@ -119,10 +122,46 @@ describe("PackageIntelligenceServiceImpl", () => {
 
     expect(result.package.name).toBe("express");
     expect(result.package.latestVersion).toBe("4.18.2");
+    expect(result.package.versionCount).toBe(42);
+    expect(result.package.downloadsRefreshedAt).toBe("2024-06-15T00:00:00Z");
     expect(result.package.downloadsLastMonth).toBe(86_000_000);
     expect(result.package.githubRepository?.stargazersCount).toBe(63_400);
     expect(result.security?.vulnerabilityCount).toBe(5);
+    expect(result.security?.allVulnerabilityCount).toBe(5);
     expect(result.latestChangelogs?.[0]?.version).toBe("4.18.2");
+  });
+
+  it("preserves zero values for summary metadata", async () => {
+    const body = {
+      data: {
+        packageSummary: {
+          package: {
+            name: "new-package",
+            latestVersion: "0.0.1",
+            versionCount: 0,
+            downloadsRefreshedAt: null,
+          },
+          security: {
+            allVulnerabilityCount: 0,
+          },
+        },
+      },
+    };
+    const fetchFn = mock(() => Promise.resolve(jsonResponse(body)));
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.packageSummary({
+      registry: "NPM",
+      packageName: "new-package",
+    });
+
+    expect(result.package.versionCount).toBe(0);
+    expect(result.package.downloadsRefreshedAt).toBeUndefined();
+    expect(result.security?.allVulnerabilityCount).toBe(0);
   });
 
   it("preserves null blocks (security / github absent)", async () => {
@@ -210,6 +249,36 @@ describe("PackageIntelligenceServiceImpl", () => {
     ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
   });
 
+  it.each([
+    ["missing", undefined],
+    ["null", null],
+  ])(
+    "throws MalformedPackageIntelligenceResponseError when security allVulnerabilityCount is %s",
+    async (_label, allVulnerabilityCount) => {
+      const body = {
+        data: {
+          packageSummary: {
+            package: { name: "x", latestVersion: "1.0.0" },
+            security:
+              allVulnerabilityCount === undefined
+                ? { vulnerabilityCount: 0 }
+                : { allVulnerabilityCount },
+          },
+        },
+      };
+      const fetchFn = mock(() => Promise.resolve(jsonResponse(body)));
+      const service = new PackageIntelligenceServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(fetchFn),
+      );
+
+      await expect(
+        service.packageSummary({ registry: "NPM", packageName: "x" }),
+      ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+    },
+  );
+
   it("sends packageSummary query with registry + name vars and conditional details", async () => {
     let capturedBody: string | undefined;
     const fetchFn = mock((_url: string, init?: RequestInit) => {
@@ -229,6 +298,16 @@ describe("PackageIntelligenceServiceImpl", () => {
     expect(parsed.query).toContain("packageSummary(registry: $registry");
     expect(parsed.query).toContain(
       "latestChangelogs(limit: 3) @include(if: $includeVerboseFields)",
+    );
+    expect(parsed.query).toContain("allVulnerabilityCount");
+    expect(parsed.query).not.toContain(
+      "allVulnerabilityCount @include(if: $includeVerboseFields)",
+    );
+    expect(parsed.query).toContain(
+      "versionCount @include(if: $includeVerboseFields)",
+    );
+    expect(parsed.query).toContain(
+      "downloadsRefreshedAt @include(if: $includeVerboseFields)",
     );
     expect(parsed.query).not.toContain("quickstart");
     expect(parsed.query).not.toContain("installCommand");
@@ -260,6 +339,12 @@ describe("PackageIntelligenceServiceImpl", () => {
 
     const parsed = JSON.parse(capturedBody ?? "{}");
     expect(parsed.variables.includeVerboseFields).toBe(false);
+    expect(parsed.query).toContain(
+      "versionCount @include(if: $includeVerboseFields)",
+    );
+    expect(parsed.query).toContain(
+      "downloadsRefreshedAt @include(if: $includeVerboseFields)",
+    );
   });
 
   it("sends Bearer token and hits the correct URL", async () => {

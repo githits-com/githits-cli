@@ -4,11 +4,39 @@ import {
   PackageIntelligenceTargetNotFoundError,
 } from "@githits/core-internal";
 import { AuthRequiredError } from "@githits/mcp/internal";
+import { Command } from "commander";
 import {
   createMockPackageIntelligenceService,
   defaultPackageSummary,
 } from "../../services/test-helpers.js";
-import { type PkgInfoCommandDependencies, pkgInfoAction } from "./info.js";
+import {
+  type PkgInfoCommandDependencies,
+  pkgInfoAction,
+  registerPkgInfoCommand,
+} from "./info.js";
+
+describe("pkg info help", () => {
+  it("describes latest and package-wide advisory evidence plus verbose metadata", () => {
+    const command = registerPkgInfoCommand(new Command().command("pkg"));
+    const rawHelp = command.helpInformation();
+    const help = rawHelp.replace(/\s+/g, " ");
+
+    expect(help).toContain("latest affected count");
+    expect(help).toContain("package-wide advisory history count");
+    expect(help).toContain("separate package-wide advisory");
+    expect(help).toContain("published-version count");
+    expect(help).toContain("download refresh date");
+    expect(help).toContain("advisory history");
+    expect(help).toContain("advisory history (all versions)");
+    expect(help).toContain("history (all versions), and recent changes");
+    expect(
+      rawHelp
+        .split("\n")
+        .some((line) => line.trim() === "history (all versions),"),
+    ).toBe(false);
+    expect(help).toContain("githits pkg vulns <registry>:<name> --scope all");
+  });
+});
 
 describe("pkgInfoAction", () => {
   const mcpUrl = "https://mcp.githits.com";
@@ -26,6 +54,8 @@ describe("pkgInfoAction", () => {
   }
 
   it("renders the default terminal block via stdout.write", async () => {
+    const packageSummary = mock(() => Promise.resolve(defaultPackageSummary));
+    const service = createMockPackageIntelligenceService({ packageSummary });
     const writes: string[] = [];
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
       chunk: string | Uint8Array,
@@ -36,30 +66,114 @@ describe("pkgInfoAction", () => {
       return true;
     }) as typeof process.stdout.write);
 
-    await pkgInfoAction("npm:express", {}, createDeps());
+    await pkgInfoAction(
+      "npm:express",
+      {},
+      createDeps({ packageIntelligenceService: service }),
+    );
 
     const combined = writes.join("");
     expect(combined).toContain("express @ 4.18.2 | MIT");
     expect(combined).toContain("Repository");
     expect(combined).toContain("63k stars, 14k forks, 123 issues");
     expect(combined).toContain("Vulnerabilities");
+    expect(combined).not.toContain("advisory_scope");
     expect(combined).not.toContain("Install");
+    const calls = packageSummary.mock.calls as unknown as Array<
+      [{ includeVerboseFields: boolean }]
+    >;
+    expect(calls[0]?.[0]?.includeVerboseFields).toBe(false);
     writeSpy.mockRestore();
   });
 
   it("prints the lean JSON envelope when --json is provided", async () => {
+    const packageSummary = mock(() => Promise.resolve(defaultPackageSummary));
+    const service = createMockPackageIntelligenceService({ packageSummary });
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
 
-    await pkgInfoAction("npm:express", { json: true }, createDeps());
+    await pkgInfoAction(
+      "npm:express",
+      { json: true },
+      createDeps({ packageIntelligenceService: service }),
+    );
 
     const output = logSpy.mock.calls[0]?.[0] as string;
     const payload = JSON.parse(output);
     expect(payload.name).toBe("express");
     expect(payload.registry).toBe("npm");
     expect(payload.version).toBe("4.18.2");
+    expect(payload.versionCount).toBe(214);
+    expect(payload.downloads.refreshedAt).toBe("2024-06-15");
+    expect(payload.advisoryHistory).toEqual({ total: 5 });
     expect("install" in payload).toBe(false);
     expect("usage" in payload).toBe(false);
+    const calls = packageSummary.mock.calls as unknown as Array<
+      [{ includeVerboseFields: boolean }]
+    >;
+    expect(calls[0]?.[0]?.includeVerboseFields).toBe(true);
     logSpy.mockRestore();
+  });
+
+  it("requests verbose fields for --verbose text", async () => {
+    const packageSummary = mock(() => Promise.resolve(defaultPackageSummary));
+    const service = createMockPackageIntelligenceService({ packageSummary });
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+
+    await pkgInfoAction(
+      "npm:express",
+      { verbose: true },
+      createDeps({ packageIntelligenceService: service }),
+    );
+
+    expect(writes.join("")).toContain("214 published");
+    expect(writes.join("")).toContain("refreshed 2024-06-15");
+    const calls = packageSummary.mock.calls as unknown as Array<
+      [{ includeVerboseFields: boolean }]
+    >;
+    expect(calls[0]?.[0]?.includeVerboseFields).toBe(true);
+    writeSpy.mockRestore();
+  });
+
+  it("keeps package history evidence in output without an inline action", async () => {
+    const summary = structuredClone(defaultPackageSummary);
+    summary.security = {
+      vulnerabilityCount: 0,
+      allVulnerabilityCount: 5,
+      hasCurrentVulnerabilities: false,
+      recentVulnerabilities: [],
+    };
+    const service = createMockPackageIntelligenceService({
+      packageSummary: mock(() => Promise.resolve(summary)),
+    });
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+
+    await pkgInfoAction(
+      "npm:express",
+      {},
+      createDeps({ packageIntelligenceService: service }),
+    );
+    const output = writes.join("");
+    expect(output).toContain("Latest: none affected");
+    expect(output).toContain("History: 5 known advisories across all versions");
+    expect(output).not.toContain("Inspect history");
+    expect(output).not.toContain("advisory_scope");
+    writeSpy.mockRestore();
   });
 
   it("rejects @version with INVALID_ARGUMENT — non-JSON path writes stderr and exits 1", async () => {

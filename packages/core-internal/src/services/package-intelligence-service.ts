@@ -61,6 +61,8 @@ export interface PackageIdentity {
   license?: string;
   downloadsLastMonth?: number;
   downloadsTotal?: number;
+  versionCount?: number;
+  downloadsRefreshedAt?: string;
   githubRepository?: GithubRepository;
 }
 
@@ -83,6 +85,7 @@ export interface VulnerabilityOverview {
 
 export interface PackageSecurityOverview {
   vulnerabilityCount?: number;
+  allVulnerabilityCount: number;
   hasCurrentVulnerabilities?: boolean;
   recentVulnerabilities?: VulnerabilityOverview[];
 }
@@ -882,6 +885,8 @@ const packageIdentitySchema = z.object({
   description: z.string().nullable().optional(),
   latestVersion: z.string().nullable().optional(),
   latestVersionPublishedAt: z.string().nullable().optional(),
+  versionCount: z.number().int().nullable().optional(),
+  downloadsRefreshedAt: z.string().nullable().optional(),
   homepage: z.string().nullable().optional(),
   repositoryUrl: z.string().nullable().optional(),
   license: z.string().nullable().optional(),
@@ -900,6 +905,7 @@ const vulnerabilityOverviewSchema = z.object({
 const packageSecurityOverviewSchema = z
   .object({
     vulnerabilityCount: z.number().int().nullable().optional(),
+    allVulnerabilityCount: z.number().int(),
     hasCurrentVulnerabilities: z.boolean().nullable().optional(),
     recentVulnerabilities: z
       .array(vulnerabilityOverviewSchema)
@@ -954,6 +960,8 @@ query PackageSummary(
       license
       downloadsLastMonth
       downloadsTotal
+      versionCount @include(if: $includeVerboseFields)
+      downloadsRefreshedAt @include(if: $includeVerboseFields)
       githubRepository {
         stargazersCount
         forksCount
@@ -966,6 +974,7 @@ query PackageSummary(
     }
     security {
       vulnerabilityCount
+      allVulnerabilityCount
       hasCurrentVulnerabilities
       recentVulnerabilities @include(if: $includeVerboseFields) {
         osvId
@@ -2401,6 +2410,8 @@ export class PackageIntelligenceServiceImpl
       license: pkg?.license ?? undefined,
       downloadsLastMonth: pkg?.downloadsLastMonth ?? undefined,
       downloadsTotal: pkg?.downloadsTotal ?? undefined,
+      versionCount: pkg?.versionCount ?? undefined,
+      downloadsRefreshedAt: pkg?.downloadsRefreshedAt ?? undefined,
       githubRepository: github
         ? {
             stargazersCount: github.stargazersCount ?? undefined,
@@ -2417,6 +2428,7 @@ export class PackageIntelligenceServiceImpl
     const security: PackageSecurityOverview | undefined = data.security
       ? {
           vulnerabilityCount: data.security.vulnerabilityCount ?? undefined,
+          allVulnerabilityCount: data.security.allVulnerabilityCount,
           hasCurrentVulnerabilities:
             data.security.hasCurrentVulnerabilities ?? undefined,
           recentVulnerabilities:

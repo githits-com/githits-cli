@@ -104,8 +104,11 @@ const PKG_INFO_DESCRIPTION = `Latest-version package overview for dependency tri
 
 Default output shows license, description, repository popularity
 (stars/forks/issues and [ARCHIVED] when applicable), downloads,
-publish age, and vulnerability status. --verbose adds GitHub
-language/topics/last-pushed, recent advisories, and recent changes.
+publish age, latest affected count, and separate package-wide advisory
+history count. --verbose adds GitHub language/topics/last-pushed,
+published-version count, download refresh date, package-wide advisory
+history (all versions), and recent changes. Inspect package history with:
+githits pkg vulns <registry>:<name> --scope all.
 
 Package spec: <registry>:<name>. Supported registries: ${PKGSEER_REGISTRY_LIST}.
 
@@ -121,9 +124,12 @@ export function registerPkgInfoCommand(pkgCommand: Command): Command {
     .argument("<spec>", "Package spec, e.g. npm:express or pypi:requests")
     .option(
       "-v, --verbose",
-      "Show GitHub language/topics/last-pushed, recent advisories, and recent changes",
+      "Show GitHub language/topics/last-pushed, published-version count, download refresh date, package-wide advisory history (all versions), and recent changes",
     )
-    .option("--json", "Emit the lean JSON envelope")
+    .option(
+      "--json",
+      "Emit the lean JSON envelope with version count, download refresh date, and advisory history",
+    )
     .action(async (spec: string, options: PkgInfoCommandOptions) => {
       const deps = await createContainer();
       await pkgInfoAction(spec, options, {
