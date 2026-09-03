@@ -615,6 +615,59 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   assertRecord(depsJson, "pkg_deps json");
   assertRecord(depsJson.runtime, "pkg_deps json runtime");
 
+  const depsIssuesText = assertDefaultText(
+    await callTool(caller, "pkg_deps", {
+      registry: "npm",
+      package_name: "express",
+      include_issues: true,
+    }),
+    "pkg_deps issues default",
+  );
+  assert(
+    depsIssuesText.includes("Dependency issues"),
+    "pkg_deps issues default missing issue heading",
+  );
+
+  const depsIssuesJson = assertJsonResult(
+    await callTool(caller, "pkg_deps", {
+      registry: "npm",
+      package_name: "express",
+      include_issues: true,
+      format: "json",
+    }),
+    "pkg_deps issues json",
+  );
+  assertRecord(depsIssuesJson, "pkg_deps issues json");
+  assert(
+    !("transitive" in depsIssuesJson),
+    "pkg_deps issues json should not expose ordinary transitive output",
+  );
+  assertRecord(depsIssuesJson.issues, "pkg_deps issues json issues");
+  assertRecord(depsIssuesJson.issues.scope, "pkg_deps issues json scope");
+  assert(
+    depsIssuesJson.issues.scope.mode === "full",
+    "pkg_deps issues json should report full scope",
+  );
+  for (const category of [
+    "deprecated",
+    "outdated",
+    "duplicates",
+    "conflicts",
+  ]) {
+    assertRecord(
+      depsIssuesJson.issues[category],
+      `pkg_deps issues json ${category}`,
+    );
+    assert(
+      typeof depsIssuesJson.issues[category].count === "number",
+      `pkg_deps issues json ${category} missing count`,
+    );
+    assert(
+      Array.isArray(depsIssuesJson.issues[category].items),
+      `pkg_deps issues json ${category} missing items`,
+    );
+  }
+
   const vulnsText = assertDefaultText(
     await callTool(caller, "pkg_vulns", {
       registry: "npm",

@@ -156,6 +156,23 @@ describe("runMcpSmoke", () => {
       name: "feedback",
       args: { solution_id: "", accepted: true },
     });
+    expect(calls).toContainEqual({
+      name: "pkg_deps",
+      args: {
+        registry: "npm",
+        package_name: "express",
+        include_issues: true,
+      },
+    });
+    expect(calls).toContainEqual({
+      name: "pkg_deps",
+      args: {
+        registry: "npm",
+        package_name: "express",
+        include_issues: true,
+        format: "json",
+      },
+    });
   });
 
   it("rejects search action references outside a Next line", async () => {
@@ -613,6 +630,9 @@ function smokeResponse(
           "Vulnerabilities  Latest: none affected\n                 History: 5 known advisories across all versions",
       );
     case "pkg_deps":
+      if (args.include_issues === true) {
+        return textResult("Dependency issues: 0 issues across the full graph");
+      }
       return textResult(
         args.lifecycle === "all"
           ? "Dependency groups: runtime, development"
@@ -696,6 +716,18 @@ function smokeJsonResponse(
         advisoryHistory: { total: 5 },
       });
     case "pkg_deps":
+      if (args.include_issues === true) {
+        return jsonResult({
+          issues: {
+            total: 0,
+            scope: { mode: "full" },
+            deprecated: { count: 0, items: [] },
+            outdated: { count: 0, items: [] },
+            duplicates: { count: 0, items: [] },
+            conflicts: { count: 0, items: [] },
+          },
+        });
+      }
       return jsonResult({ runtime: {} });
     case "pkg_vulns":
       return jsonResult({
