@@ -68,7 +68,7 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe(
-      'When true, computes deprecated, outdated, duplicate, and conflict analysis across the resolved dependency graph. Off by default; use `format: "json"` for complete issue rows.',
+      'When true, computes deprecated, outdated, duplicate, and conflict analysis across the resolved dependency graph. Without `max_depth`, this traverses the full graph; set `max_depth` to bound analysis cost and scope. Off by default; use `format: "json"` for complete issue rows.',
     ),
   max_depth: z
     .number()
@@ -99,7 +99,8 @@ const DESCRIPTION =
   "per-package provenance. Supports npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, " +
   "Go, and Swift. Use `include_issues: true` for deprecated, outdated, duplicate, " +
   'and conflict analysis across the resolved dependency graph; use `format: "json"` ' +
-  "for complete issue rows. " +
+  "for complete issue rows. Without `max_depth`, issues scan the full graph; " +
+  "`max_depth` bounds cost and scope. " +
   "Use `pkg_info` for latest package health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence.";
 
 export function createPackageDependenciesTool(
@@ -141,14 +142,6 @@ export function createPackageDependenciesTool(
           includeTransitiveDetails: includeTransitiveOutput,
           includeGroups: showGroups || textFormat,
         });
-        const payload = buildPackageDependenciesSuccessPayload(report, {
-          requestedVersion: args.version,
-          canonicalLifecycles,
-          includeTransitive: includeTransitiveOutput,
-          maxDepth: args.max_depth,
-          includeImporters: args.include_importers ?? false,
-          includeIssues,
-        });
         if (textFormat) {
           const textLifecycles =
             canonicalLifecycles.length > 0
@@ -169,6 +162,14 @@ export function createPackageDependenciesTool(
             }).trimEnd(),
           );
         }
+        const payload = buildPackageDependenciesSuccessPayload(report, {
+          requestedVersion: args.version,
+          canonicalLifecycles,
+          includeTransitive: includeTransitiveOutput,
+          maxDepth: args.max_depth,
+          includeImporters: args.include_importers ?? false,
+          includeIssues,
+        });
         return textResult(JSON.stringify(payload));
       } catch (error) {
         throwIfCallerCancellation(error, context?.signal);

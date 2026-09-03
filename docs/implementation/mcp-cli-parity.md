@@ -623,12 +623,18 @@ When a new tool lands with both MCP and CLI surfaces:
 - **Issue text and cost boundary.** Both surfaces use the shared formatter.
   Compact output reports total/scope and all four counts, then caps examples
   at three per category and conflict constraint/importer groups at three each.
+  Every compact issue evidence line is bounded to the resolved terminal width
+  with formatter-authored ASCII `...`; verbose output wraps long evidence and
+  remains complete. MCP's descriptor signals that omitted `max_depth` traverses
+  the full graph and that `max_depth` bounds analysis cost and scope.
   CLI `--verbose` renders all selected issue rows and requirements; MCP keeps
   text compact and supplies `Pass format: "json" for complete issue details.`
   when bounded evidence is omitted. The service query selects
   `dependencyIssues` through `@include(if: $includeDependencyIssues)` with
   default false, so normal/false calls do not compute or fetch that subtree;
-  issue mode fetches the internal companion graph but never exposes it.
+  issue mode fetches the internal companion graph but never exposes it. Because
+  the selected backend fields are nullable, explicit issue mode fails closed when
+  either `dependencyIssues` or the companion graph is absent.
 
 ### `pkg_changelog`
 

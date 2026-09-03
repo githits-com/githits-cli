@@ -162,6 +162,8 @@ describe("createPackageDependenciesTool — metadata", () => {
     expect(tool.description).toContain(
       "deprecated, outdated, duplicate, and conflict analysis",
     );
+    expect(tool.description).toContain("issues scan the full graph");
+    expect(tool.description).toContain("max_depth");
     expect(Object.keys(tool.schema).sort()).toEqual([
       "format",
       "include_importers",
@@ -176,6 +178,11 @@ describe("createPackageDependenciesTool — metadata", () => {
     expect(schema.properties?.include_issues).toMatchObject({
       type: "boolean",
     });
+    const issueSchema = schema.properties?.include_issues;
+    if (!issueSchema) throw new Error("expected include_issues schema");
+    expect((issueSchema as { description?: string }).description).toContain(
+      "Without `max_depth`, this traverses the full graph",
+    );
     expect(tool.annotations?.readOnlyHint).toBe(true);
   });
 

@@ -268,10 +268,12 @@ client view consumes. Callers never have to discover and combine coupled flags.
 - JSON remains lossless for every selected backend fact, but expensive analysis is
   absent unless explicitly requested.
 - Text remains bounded and outcome-first. Default text includes decisive counts;
-  verbose text expands rows already present in the normalized response. Follow-up
-  actions belong after evidence only when the current output needs them to complete
-  the task. `pkg_info` needs no inline action because CLI help routes history today and
-  the corrected MCP descriptor will route all-version callers to `pkg_vulns`.
+  compact issue evidence is bounded to the resolved terminal width with ASCII
+  ellipses and a single complete-detail hint, while verbose text wraps without
+  dropping selected rows or requirements. Follow-up actions belong after evidence
+  only when the current output needs them to complete the task. `pkg_info` needs no
+  inline action because CLI help routes history today and the corrected MCP
+  descriptor will route all-version callers to `pkg_vulns`.
 - Backend registry/version matching and advisory classification remain authoritative.
 
 ### Error and partial-result behavior
@@ -336,6 +338,9 @@ client view consumes. Callers never have to discover and combine coupled flags.
   the existing single-query graph selection because root edges are required to map
   direct constraints to resolved versions; an uncapped issue analysis therefore has
   an explicit full-graph payload cost.
+- When issue analysis is explicitly selected, the service fails closed if either the
+  nullable `dependencyIssues` result or its companion graph is absent; default and
+  explicit-false calls retain their existing nullable transitive behavior.
 - `pkg_vulns` selects transitive vulnerability fields only for explicit transitive
   audit and does not select the dependency graph.
 - Wire tests assert variables, directives, and omitted subtrees for default and
@@ -804,11 +809,14 @@ complete referenced node identities. A null `fromIndex` becomes the inspected pa
 identity with `root: true`; no JSON deduplication is allowed. Deterministic sorting and
 deduplication are presentation-only for compact text.
 
-Default text shows category counts and bounded examples. CLI `--verbose` expands all
-selected issue rows and importer details. MCP compact text remains bounded and directs
-callers to `format:"json"` for complete rows; no generic MCP verbose flag is added in
-this phase. Correct the existing CLI `--verbose` help, which currently mentions only
-group metadata despite also controlling importer and conflict detail.
+Default text shows category counts and bounded examples. Compact issue evidence stays
+within the resolved terminal width with formatter-authored ASCII `...`; any shortened
+row uses one caller-supplied complete-detail hint. CLI `--verbose` expands all selected
+issue rows and importer details, wrapping long prose/lists without dropping evidence.
+MCP compact text remains bounded and directs callers to `format:"json"` for complete
+rows; no generic MCP verbose flag is added in this phase. Correct the existing CLI
+`--verbose` help, which currently mentions only group metadata despite also controlling
+importer and conflict detail.
 
 ### Likely affected components
 

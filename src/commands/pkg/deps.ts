@@ -122,6 +122,7 @@ export async function pkgDepsAction(
       showGroups,
       includeIssues,
       issuesDetailHint: "Use --verbose for complete issue details.",
+      terminalWidth: process.stdout.columns,
     });
     process.stdout.write(output);
   } catch (error) {

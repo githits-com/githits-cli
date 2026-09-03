@@ -307,14 +307,21 @@ remain actionable without exposing graph indices. Omitted or explicit-false
 `include_issues` preserves the existing issue selection and request cost;
 `dependencyIssues` is selected only for an explicit true value. The companion
 graph is an internal service input and is never exposed as raw graph data.
+The service fails closed when explicit issue analysis receives neither the
+nullable issue summary nor its companion graph. The MCP descriptor calls out
+that omitted `max_depth` traverses the full graph and that a supplied depth
+bounds analysis cost and scope.
 
 **Issue text.** MCP text stays compact and bounded: it reports the total,
 `full graph` or `max depth N`, all four category counts, and at most three
 deterministically sorted examples per non-empty category. Conflict examples
-also cap constraint groups and importer/type labels at three each. If any
-selected rows or conflict evidence are omitted, text emits the caller-owned
-hint `Pass format: "json" for complete issue details.`; complete JSON remains
-the MCP route for all rows. Zero is rendered as positive checked evidence.
+also cap constraint groups and importer/type labels at three each. Every compact
+issue evidence line is bounded to the resolved terminal width with formatter-
+authored ASCII `...`; verbose output wraps long rows and requirements without
+dropping selected evidence. If any selected rows or conflict evidence are
+omitted, text emits the caller-owned hint `Pass format: "json" for complete
+issue details.`; complete JSON remains the MCP route for all rows. Zero is
+rendered as positive checked evidence.
 CLI uses the same formatter with `--verbose` to render every issue row and
 conflict requirement, and its corresponding hint is `Use --verbose for complete
 issue details.`. Sorting, grouping, and deduplication are presentation-only;

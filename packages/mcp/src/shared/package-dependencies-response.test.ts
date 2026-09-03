@@ -9,12 +9,19 @@ import {
   buildPackageDependenciesSuccessPayload,
   formatPackageDependenciesTerminal,
 } from "./package-dependencies-response.js";
+import { terminalWidth as measureTerminalWidth } from "./terminal-width.js";
 
 const ESC = String.fromCharCode(27);
 const ANSI_SGR_PATTERN = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
 
 function clone<T>(value: T): T {
   return structuredClone(value);
+}
+
+function requireItem<T>(items: T[], index: number): T {
+  const item = items[index];
+  if (item === undefined) throw new Error(`missing fixture item at ${index}`);
+  return item;
 }
 
 function dependencyIssueReport(): DependencyReport {
@@ -149,6 +156,97 @@ function dependencyIssueReport(): DependencyReport {
       },
     },
   };
+}
+
+function longIssueDependencyReport(): DependencyReport {
+  const fixture = dependencyIssueReport();
+  const transitive = fixture.dependencies?.transitive;
+  const graph = transitive?.dependencyGraph;
+  const issues = transitive?.dependencyIssues;
+  if (!transitive || !graph || !issues) {
+    throw new Error("expected dependency issue fixture");
+  }
+
+  const deprecationReason =
+    "This module is not supported, and leaks memory. Do not use it. Check out lru-cache for a good and tested replacement.";
+  graph.nodes[1] = {
+    registry: "NPM",
+    name: "a-very-long-importer-package-name",
+    version: "1.0.0",
+  };
+  graph.nodes[2] = {
+    registry: "NPM",
+    name: "a-very-long-conflicting-package-name",
+    version: "1.0.0",
+  };
+  issues.deprecatedPackages[0] = {
+    registry: "NPM",
+    name: "inflight",
+    versions: ["1.0.6", "1.0.7"],
+    reasons: [
+      { version: "1.0.6", reason: deprecationReason },
+      { version: "1.0.7", reason: deprecationReason },
+    ],
+  };
+  issues.deprecatedPackages[1] = {
+    ...requireItem(issues.deprecatedPackages, 1),
+    name: "zeta-deprecated-1",
+  };
+  issues.deprecatedPackages[2] = {
+    ...requireItem(issues.deprecatedPackages, 2),
+    name: "zeta-deprecated-2",
+  };
+  issues.deprecatedPackages[3] = {
+    ...requireItem(issues.deprecatedPackages, 3),
+    name: "zeta-deprecated-3",
+  };
+  issues.outdatedPackages[0] = {
+    registry: "NPM",
+    name: "glob",
+    latestVersion: "11.0.0",
+    severity: "HIGH",
+    versions: [
+      { version: "10.4.5", severity: "HIGH" },
+      { version: "10.4.6", severity: "HIGH" },
+    ],
+  };
+  issues.outdatedPackages[1] = {
+    ...requireItem(issues.outdatedPackages, 1),
+    name: "zeta-outdated-1",
+  };
+  issues.outdatedPackages[2] = {
+    ...requireItem(issues.outdatedPackages, 2),
+    name: "zeta-outdated-2",
+  };
+  issues.outdatedPackages[3] = {
+    ...requireItem(issues.outdatedPackages, 3),
+    name: "zeta-outdated-3",
+  };
+  issues.duplicatePackages[0] = {
+    registry: "NPM",
+    name: "a-very-long-duplicate-package-name",
+    versions: ["1.0.0", "2.0.0", "3.0.0"],
+  };
+  issues.conflicts[0] = {
+    registry: "NPM",
+    name: "a-very-long-conflicting-package-name",
+    versions: ["1.0.0", "2.0.0"],
+    requiredVersions: ["^1.0.0", "^2.0.0"],
+    conflictingEdges: [
+      {
+        toIndex: 2,
+        versionConstraint: "^1.0.0",
+        dependencyType: "runtime",
+      },
+      {
+        fromIndex: 1,
+        toIndex: 2,
+        versionConstraint: "^2.0.0",
+        dependencyType: "peer",
+      },
+    ],
+  };
+  return fixture;
 }
 
 describe("buildPackageDependenciesSuccessPayload — runtime block", () => {
@@ -854,6 +952,80 @@ describe("formatPackageDependenciesTerminal — dependency issues", () => {
     expect(output).toContain("alpha-conflict");
     expect(output).not.toContain("zeta-conflict");
     expect(output.split(hint).length - 1).toBe(1);
+  });
+
+  it("bounds realistic compact issue evidence by terminal cells and dedups reasons", () => {
+    const fixture = longIssueDependencyReport();
+    const hint = "Use --json for complete dependency issue details.";
+    const before = buildPackageDependenciesSuccessPayload(fixture, {
+      includeIssues: true,
+    });
+
+    for (const width of [80, 36]) {
+      const output = formatPackageDependenciesTerminal(fixture, {
+        includeIssues: true,
+        issuesDetailHint: hint,
+        terminalWidth: width,
+        useColors: false,
+      });
+      const issueLines = output
+        .slice(output.indexOf("Dependency issues"))
+        .trimEnd()
+        .split("\n")
+        .filter((line) => line !== hint);
+      expect(
+        issueLines.every((line) => measureTerminalWidth(line) <= width),
+      ).toBe(true);
+      expect(output.split(hint).length - 1).toBe(1);
+    }
+
+    const compact = formatPackageDependenciesTerminal(fixture, {
+      includeIssues: true,
+      issuesDetailHint: hint,
+      terminalWidth: 80,
+      useColors: false,
+    });
+    expect(compact).toContain("inflight [1.0.6, 1.0.7]");
+    expect(compact).toContain("1.0.6, 1.0.7: This module is not supported");
+    expect(compact.match(/This module is not supported/g)).toHaveLength(1);
+    expect(compact).toContain("glob [10.4.5 (HIGH), 10.4.6 (HIGH)]");
+    expect(compact).toContain("a-very-long-conflicting-package-name");
+
+    const after = buildPackageDependenciesSuccessPayload(fixture, {
+      includeIssues: true,
+    });
+    expect(after).toEqual(before);
+  });
+
+  it("wraps verbose issue prose and requirements without dropping evidence", () => {
+    const fixture = longIssueDependencyReport();
+    const output = formatPackageDependenciesTerminal(fixture, {
+      includeIssues: true,
+      issuesDetailHint: "Use --json for complete dependency issue details.",
+      terminalWidth: 36,
+      useColors: false,
+      verbose: true,
+    });
+    const issueLines = output
+      .slice(output.indexOf("Dependency issues"))
+      .trimEnd()
+      .split("\n");
+    expect(issueLines.every((line) => measureTerminalWidth(line) <= 36)).toBe(
+      true,
+    );
+    expect(output.replace(/\s+/g, " ")).toContain(
+      "This module is not supported, and leaks memory. Do not use it.",
+    );
+    expect(output).toContain("^1.0.0 required by express@5.2.1");
+    expect(output.replace(/\s+/g, "")).toContain(
+      "^2.0.0 required by a-very-long-importer-package-name@1.0.0".replace(
+        /\s/g,
+        "",
+      ),
+    );
+    expect(output).not.toContain(
+      "Use --json for complete dependency issue details.",
+    );
   });
 
   it("renders all issue rows, reasons, latest evidence, and conflict requirements in verbose mode", () => {

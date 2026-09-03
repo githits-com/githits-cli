@@ -464,6 +464,58 @@ describe("pkgDepsAction", () => {
     writeSpy.mockRestore();
   });
 
+  it("passes the current terminal width to compact issue formatting", async () => {
+    const writes: string[] = [];
+    const columnsDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      "columns",
+    );
+    Object.defineProperty(process.stdout, "columns", {
+      configurable: true,
+      writable: true,
+      value: 36,
+    });
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+
+    try {
+      await pkgDepsAction(
+        "npm:express",
+        { issues: true },
+        createDeps({
+          packageIntelligenceService: createMockPackageIntelligenceService({
+            packageDependencies: mock(() =>
+              Promise.resolve(issueDependencyReport()),
+            ),
+          }),
+        }),
+      );
+
+      const output = writes.join("");
+      const hint = "Use --verbose for complete issue details.";
+      const issueLines = output
+        .slice(output.indexOf("Dependency issues"))
+        .trimEnd()
+        .split("\n")
+        .filter((line) => line !== hint);
+      expect(issueLines.every((line) => line.length <= 36)).toBe(true);
+      expect(output).toContain("  Deprecated 4 | Outdated 4 | Dup...");
+    } finally {
+      writeSpy.mockRestore();
+      if (columnsDescriptor) {
+        Object.defineProperty(process.stdout, "columns", columnsDescriptor);
+      } else {
+        Reflect.deleteProperty(process.stdout, "columns");
+      }
+    }
+  });
+
   it("rejects non-numeric --depth input", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {

@@ -60,6 +60,7 @@ import type {
   DependencyLifecycle,
   DependencyLifecycleInput,
 } from "./package-dependencies-request.js";
+import { terminalWidth as measureTerminalWidth } from "./terminal-width.js";
 
 export interface LeanDirectDependency {
   name: string;
@@ -839,6 +840,8 @@ export interface FormatDependenciesTerminalOptions {
   includeIssues?: boolean;
   /** Caller-owned action for complete issue details when compact output truncates. */
   issuesDetailHint?: string;
+  /** Terminal column width for compact issue evidence; defaults to 80. */
+  terminalWidth?: number;
 }
 
 export function formatPackageDependenciesTerminal(
@@ -859,6 +862,7 @@ export function formatPackageDependenciesTerminal(
     includeIssues: options.includeIssues,
   });
   const useColors = options.useColors ?? false;
+  const terminalWidth = resolveIssueTerminalWidth(options.terminalWidth);
   const showGroups = options.showGroups ?? false;
   const includeTransitive = options.includeTransitive ?? false;
 
@@ -883,6 +887,7 @@ export function formatPackageDependenciesTerminal(
     verbose,
     useColors,
     options.issuesDetailHint,
+    terminalWidth,
   );
   if (dependencyIssues) blocks.push(dependencyIssues);
 
@@ -1113,6 +1118,7 @@ function formatDependencyIssues(
   verbose: boolean,
   useColors: boolean,
   detailHint: string | undefined,
+  terminalWidth: number,
 ): string {
   if (!issues) return "";
 
@@ -1120,9 +1126,13 @@ function formatDependencyIssues(
     issues.scope.mode === "full"
       ? "full graph"
       : `max depth ${issues.scope.maxDepth}`;
+  const count = boundCompactIssueLines(
+    [formatDependencyIssueCounts(issues)],
+    terminalWidth,
+  );
   const lines = [
     `${colorize("Dependency issues", "yellow", useColors)}: ${issues.total} (${scope})`,
-    formatDependencyIssueCounts(issues),
+    ...count.lines,
   ];
 
   if (issues.total === 0 && issueCategoryEvidenceCount(issues) === 0) {
@@ -1131,11 +1141,18 @@ function formatDependencyIssues(
   }
 
   if (verbose) {
-    lines.push(...formatVerboseIssueCategories(issues, useColors));
+    lines.push(
+      ...formatVerboseIssueCategories(issues, useColors, terminalWidth),
+    );
     return lines.join("\n");
   }
 
-  const compact = formatCompactIssueCategories(issues, useColors);
+  const compact = formatCompactIssueCategories(
+    issues,
+    useColors,
+    terminalWidth,
+  );
+  compact.truncated ||= count.truncated;
   lines.push(...compact.lines);
   if (compact.truncated && detailHint) lines.push(detailHint);
   return lines.join("\n");
@@ -1162,15 +1179,22 @@ interface FormattedIssueCategories {
 function formatCompactIssueCategories(
   issues: LeanDependencyIssues,
   useColors: boolean,
+  terminalWidth: number,
 ): FormattedIssueCategories {
   const lines: string[] = [];
   let truncated = false;
+
+  const appendBounded = (values: string[]): void => {
+    const bounded = boundCompactIssueLines(values, terminalWidth);
+    lines.push(...bounded.lines);
+    truncated ||= bounded.truncated;
+  };
 
   const deprecated = sortIssueItems(issues.deprecated.items);
   if (deprecated.length > 0) {
     const shown = deprecated.slice(0, 3);
     lines.push(colorize("Deprecated dependencies:", "yellow", useColors));
-    lines.push(...shown.map((item) => `  - ${formatDeprecatedIssue(item)}`));
+    appendBounded(shown.map((item) => `  - ${formatDeprecatedIssue(item)}`));
     truncated ||= issueCategoryTruncated(
       issues.deprecated.count,
       deprecated.length,
@@ -1184,7 +1208,7 @@ function formatCompactIssueCategories(
   if (outdated.length > 0) {
     const shown = outdated.slice(0, 3);
     lines.push(colorize("Outdated dependencies:", "yellow", useColors));
-    lines.push(...shown.map((item) => `  - ${formatOutdatedIssue(item)}`));
+    appendBounded(shown.map((item) => `  - ${formatOutdatedIssue(item)}`));
     truncated ||= issueCategoryTruncated(
       issues.outdated.count,
       outdated.length,
@@ -1198,7 +1222,7 @@ function formatCompactIssueCategories(
   if (duplicates.length > 0) {
     const shown = duplicates.slice(0, 3);
     lines.push(colorize("Duplicate dependencies:", "yellow", useColors));
-    lines.push(...shown.map((item) => `  - ${formatDuplicateIssue(item)}`));
+    appendBounded(shown.map((item) => `  - ${formatDuplicateIssue(item)}`));
     truncated ||= issueCategoryTruncated(
       issues.duplicates.count,
       duplicates.length,
@@ -1212,7 +1236,7 @@ function formatCompactIssueCategories(
   if (conflicts.length > 0) {
     lines.push(colorize("Conflicts:", "yellow", useColors));
     for (const conflict of conflicts.slice(0, 3)) {
-      const formatted = formatCompactIssueConflict(conflict);
+      const formatted = formatCompactIssueConflict(conflict, terminalWidth);
       lines.push(...formatted.lines);
       truncated ||= formatted.truncated;
     }
@@ -1227,6 +1251,70 @@ function formatCompactIssueCategories(
   return { lines, truncated };
 }
 
+interface BoundedIssueLines {
+  lines: string[];
+  truncated: boolean;
+}
+
+function resolveIssueTerminalWidth(width: number | undefined): number {
+  return typeof width === "number" && Number.isFinite(width) && width > 0
+    ? Math.max(1, Math.floor(width))
+    : 80;
+}
+
+function boundCompactIssueLines(
+  values: string[],
+  width: number,
+): BoundedIssueLines {
+  let truncated = false;
+  const lines = values.map((value) => {
+    if (measureTerminalWidth(value) <= width) return value;
+    truncated = true;
+    const suffix = width >= 3 ? "..." : ".".repeat(width);
+    return `${truncateIssueText(value, width - suffix.length)}${suffix}`;
+  });
+  return { lines, truncated };
+}
+
+function truncateIssueText(value: string, width: number): string {
+  let result = "";
+  for (const character of value) {
+    if (measureTerminalWidth(result + character) > width) break;
+    result += character;
+  }
+  return result;
+}
+
+function wrapIssueEvidence(value: string, width: number): string[] {
+  if (measureTerminalWidth(value) <= width) return [value];
+  const prefix = value.match(/^\s*-\s/)?.[0] ?? value.match(/^\s*/)?.[0] ?? "";
+  const continuation = prefix.endsWith("- ")
+    ? `${prefix.slice(0, -2)}  `
+    : prefix;
+  const words = value.slice(prefix.length).split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = truncateIssueText(prefix, width);
+  for (const word of words) {
+    const separator = current === prefix ? "" : " ";
+    if (measureTerminalWidth(current + separator + word) <= width) {
+      current += `${separator}${word}`;
+      continue;
+    }
+    if (current !== prefix) lines.push(current);
+    current = truncateIssueText(continuation, width);
+    for (const character of Array.from(word)) {
+      if (measureTerminalWidth(current + character) > width) {
+        lines.push(current);
+        current = `${truncateIssueText(continuation, width)}${character}`;
+      } else {
+        current += character;
+      }
+    }
+  }
+  if (current !== prefix) lines.push(current);
+  return lines;
+}
+
 function issueCategoryTruncated(
   backendCount: number,
   itemCount: number,
@@ -1238,33 +1326,56 @@ function issueCategoryTruncated(
 function formatVerboseIssueCategories(
   issues: LeanDependencyIssues,
   useColors: boolean,
+  terminalWidth: number,
 ): string[] {
   const lines: string[] = [];
   const deprecated = sortIssueItems(issues.deprecated.items);
   if (deprecated.length > 0) {
     lines.push(colorize("Deprecated dependencies:", "yellow", useColors));
-    lines.push(
-      ...deprecated.map((item) => `  - ${formatDeprecatedIssue(item)}`),
-    );
+    for (const item of deprecated) {
+      lines.push(
+        ...wrapIssueEvidence(
+          `  - ${formatDeprecatedIssue(item)}`,
+          terminalWidth,
+        ),
+      );
+    }
   }
   const outdated = sortIssueItems(issues.outdated.items);
   if (outdated.length > 0) {
     lines.push(colorize("Outdated dependencies:", "yellow", useColors));
-    lines.push(...outdated.map((item) => `  - ${formatOutdatedIssue(item)}`));
+    for (const item of outdated) {
+      lines.push(
+        ...wrapIssueEvidence(`  - ${formatOutdatedIssue(item)}`, terminalWidth),
+      );
+    }
   }
   const duplicates = sortIssueItems(issues.duplicates.items);
   if (duplicates.length > 0) {
     lines.push(colorize("Duplicate dependencies:", "yellow", useColors));
-    lines.push(
-      ...duplicates.map((item) => `  - ${formatDuplicateIssue(item)}`),
-    );
+    for (const item of duplicates) {
+      lines.push(
+        ...wrapIssueEvidence(
+          `  - ${formatDuplicateIssue(item)}`,
+          terminalWidth,
+        ),
+      );
+    }
   }
   const conflicts = sortIssueItems(issues.conflicts.items);
   if (conflicts.length > 0) {
     lines.push(colorize("Issue conflicts:", "yellow", useColors));
     for (const conflict of conflicts) {
-      lines.push(`  - ${formatIssueConflict(conflict)}`);
-      lines.push(...formatConflictRequirements(conflict.requirements).lines);
+      lines.push(
+        ...wrapIssueEvidence(
+          `  - ${formatIssueConflict(conflict)}`,
+          terminalWidth,
+        ),
+      );
+      for (const line of formatConflictRequirements(conflict.requirements)
+        .lines) {
+        lines.push(...wrapIssueEvidence(line, terminalWidth));
+      }
     }
   }
   return lines;
@@ -1277,9 +1388,18 @@ interface FormattedConflictRequirements {
 
 function formatDeprecatedIssue(issue: LeanDeprecatedDependencyIssue): string {
   const versions = issue.versions.join(", ");
-  const reasons = issue.reasons
-    .filter((reason) => reason.reason !== undefined)
-    .map((reason) => `${reason.version}: ${reason.reason}`)
+  const versionsByReason = new Map<string, string[]>();
+  for (const reason of issue.reasons) {
+    if (reason.reason === undefined) continue;
+    const matchingVersions = versionsByReason.get(reason.reason);
+    if (matchingVersions) matchingVersions.push(reason.version);
+    else versionsByReason.set(reason.reason, [reason.version]);
+  }
+  const reasons = [...versionsByReason.entries()]
+    .map(
+      ([reason, matchingVersions]) =>
+        `${matchingVersions.join(", ")}: ${reason}`,
+    )
     .join("; ");
   return `${issue.name} [${versions}]${reasons ? ` - ${reasons}` : ""}`;
 }
@@ -1306,14 +1426,19 @@ function formatIssueConflict(conflict: LeanDependencyConflictIssue): string {
 
 function formatCompactIssueConflict(
   conflict: LeanDependencyConflictIssue,
+  terminalWidth: number,
 ): FormattedConflictRequirements {
   const requirements = formatConflictRequirements(conflict.requirements, {
     maxGroups: 3,
     maxImporters: 3,
   });
+  const bounded = boundCompactIssueLines(
+    [`  - ${formatIssueConflict(conflict)}`, ...requirements.lines],
+    terminalWidth,
+  );
   return {
-    lines: [`  - ${formatIssueConflict(conflict)}`, ...requirements.lines],
-    truncated: requirements.truncated,
+    lines: bounded.lines,
+    truncated: requirements.truncated || bounded.truncated,
   };
 }
 
