@@ -298,7 +298,9 @@ conflicts: {count, items: [{registry?, name, versions, requiredVersions, require
 ```
 
 Counts are backend facts and item arrays are complete for the selected graph;
-zero analysis still emits all four empty category records. Issue conflicts use
+registry identities are canonical lowercase while names, versions, reasons,
+severity, repositories, and edge evidence retain their backend values. Zero
+analysis still emits all four empty category records. Issue conflicts use
 the same lossless requirement projection as existing transitive conflicts, so
 constraints, dependency types, resolved targets, and contributing importers
 remain actionable without exposing graph indices. Omitted or explicit-false

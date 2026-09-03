@@ -429,7 +429,7 @@ describe("pkgDepsAction", () => {
 
     const output = writes.join("");
     const hint = "Use --verbose for complete issue details.";
-    expect(output).toContain("Dependency issues: 16 issues (full graph)");
+    expect(output).toContain("Dependency issues: 16 (full graph)");
     expect(output.split(hint).length - 1).toBe(1);
     expect(output).not.toContain("zeta-deprecated");
     writeSpy.mockRestore();

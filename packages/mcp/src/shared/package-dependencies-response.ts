@@ -1116,13 +1116,12 @@ function formatDependencyIssues(
 ): string {
   if (!issues) return "";
 
-  const totalNoun = issues.total === 1 ? "issue" : "issues";
   const scope =
     issues.scope.mode === "full"
       ? "full graph"
       : `max depth ${issues.scope.maxDepth}`;
   const lines = [
-    `${colorize("Dependency issues", "yellow", useColors)}: ${issues.total} ${totalNoun} (${scope})`,
+    `${colorize("Dependency issues", "yellow", useColors)}: ${issues.total} (${scope})`,
     formatDependencyIssueCounts(issues),
   ];
 
@@ -1143,33 +1142,7 @@ function formatDependencyIssues(
 }
 
 function formatDependencyIssueCounts(issues: LeanDependencyIssues): string {
-  const counts = [
-    formatIssueCount(
-      issues.deprecated.count,
-      "deprecated dependency",
-      "deprecated dependencies",
-    ),
-    formatIssueCount(
-      issues.outdated.count,
-      "outdated dependency",
-      "outdated dependencies",
-    ),
-    formatIssueCount(
-      issues.duplicates.count,
-      "duplicate dependency",
-      "duplicate dependencies",
-    ),
-    formatIssueCount(issues.conflicts.count, "conflict", "conflicts"),
-  ];
-  return `  ${counts.join(" | ")}`;
-}
-
-function formatIssueCount(
-  count: number,
-  singularNoun: string,
-  pluralNoun: string,
-): string {
-  return `${count} ${count === 1 ? singularNoun : pluralNoun}`;
+  return `  Deprecated ${issues.deprecated.count} | Outdated ${issues.outdated.count} | Duplicates ${issues.duplicates.count} | Conflicts ${issues.conflicts.count}`;
 }
 
 function issueCategoryEvidenceCount(issues: LeanDependencyIssues): number {

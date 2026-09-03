@@ -613,12 +613,11 @@ When a new tool lands with both MCP and CLI surfaces:
 - **Dependency issue envelope.** `issues` contains `total`, `scope`
   (`{mode: "full"}` or `{mode: "depth_limited", maxDepth}`), and
   `deprecated`, `outdated`, `duplicates`, and `conflicts` records, each
-  shaped as `{count, items}`. Deprecated items preserve registry/name,
-  versions, and per-version reasons; outdated items preserve registry/name,
-  versions with severity, optional latest version and repository URL; duplicate
-  items preserve optional registry/name and all versions; conflict items
-  preserve optional registry/name, resolved versions, required versions, and
-  complete requirements. Zero analysis emits `total: 0` and all four empty
+  shaped as `{count, items}`. Registry fields on issue rows and importer/target
+  identities are canonical lowercase in the envelope. Names, resolved/latest
+  versions, deprecation reasons, severity, repository URLs, required versions,
+  declared constraints, dependency types, and edge multiplicity/order retain
+  their backend values. Zero analysis emits `total: 0` and all four empty
   category records. JSON preserves backend order/multiplicity; text-only
   sorting, grouping, and bounds do not alter parity JSON.
 - **Issue text and cost boundary.** Both surfaces use the shared formatter.

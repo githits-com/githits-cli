@@ -831,10 +831,20 @@ describe("formatPackageDependenciesTerminal — dependency issues", () => {
       maxDepth: 3,
     });
 
-    expect(output).toContain("Dependency issues: 16 issues (max depth 3)");
+    expect(output).toContain("Dependency issues: 16 (max depth 3)");
     expect(output).toContain(
-      "4 deprecated dependencies | 4 outdated dependencies | 4 duplicate dependencies | 4 conflicts",
+      "  Deprecated 4 | Outdated 4 | Duplicates 4 | Conflicts 4",
     );
+    const summaryLines = output
+      .trimEnd()
+      .split("\n")
+      .filter(
+        (line) =>
+          line.startsWith("Dependency issues:") ||
+          line.startsWith("  Deprecated "),
+      );
+    expect(summaryLines).toHaveLength(2);
+    expect(summaryLines.every((line) => line.length <= 80)).toBe(true);
     expect(output).toContain("alpha-deprecated");
     expect(output).toContain("beta-deprecated");
     expect(output).toContain("gamma-deprecated");
@@ -855,7 +865,7 @@ describe("formatPackageDependenciesTerminal — dependency issues", () => {
       verbose: true,
     });
 
-    expect(output).toContain("Dependency issues: 16 issues (full graph)");
+    expect(output).toContain("Dependency issues: 16 (full graph)");
     expect(output).toContain("zeta-deprecated");
     expect(output).toContain("Use replacement");
     expect(output).toContain("zeta-outdated");
@@ -928,14 +938,14 @@ describe("formatPackageDependenciesTerminal — dependency issues", () => {
       useColors: false,
     });
 
-    expect(output).toContain("Dependency issues: 0 issues (full graph)");
+    expect(output).toContain("Dependency issues: 0 (full graph)");
     expect(output).toContain(
-      "0 deprecated dependencies | 0 outdated dependencies | 0 duplicate dependencies | 0 conflicts",
+      "  Deprecated 0 | Outdated 0 | Duplicates 0 | Conflicts 0",
     );
     expect(output).toContain("No dependency issues detected.");
   });
 
-  it("uses singular grammar for each issue category", () => {
+  it("renders explicit category count labels", () => {
     const fixture = dependencyIssueReport();
     if (!fixture.dependencies?.transitive?.dependencyIssues) {
       throw new Error("expected issue fixture");
@@ -957,7 +967,7 @@ describe("formatPackageDependenciesTerminal — dependency issues", () => {
     });
 
     expect(output).toContain(
-      "1 deprecated dependency | 1 outdated dependency | 1 duplicate dependency | 1 conflict",
+      "  Deprecated 1 | Outdated 1 | Duplicates 1 | Conflicts 1",
     );
   });
 

@@ -603,9 +603,9 @@ describe("createPackageDependenciesTool — happy path", () => {
 
     const text = result.content[0]?.text ?? "";
     const hint = 'Pass format: "json" for complete issue details.';
-    expect(text).toContain("Dependency issues: 16 issues (full graph)");
+    expect(text).toContain("Dependency issues: 16 (full graph)");
     expect(text).toContain(
-      "4 deprecated dependencies | 4 outdated dependencies | 4 duplicate dependencies | 4 conflicts",
+      "  Deprecated 4 | Outdated 4 | Duplicates 4 | Conflicts 4",
     );
     expect(text.split(hint).length - 1).toBe(1);
     expect(text).not.toContain("zeta-deprecated");

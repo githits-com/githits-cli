@@ -763,9 +763,10 @@ interface LeanDependencyIssues {
 ```
 
 Category counts and item arrays map from their same-named backend facts; they are not
-recomputed. Preserve registry, package, resolved-version, latest-version, severity,
-repository, and reason evidence exactly. Reasons remain untrusted prose and outdated
-evidence does not become an upgrade recommendation.
+recomputed. Registry identities use the existing envelope convention of canonical
+lowercase values; preserve package names, resolved versions, latest versions,
+severity, repositories, reasons, and conflict-edge evidence exactly. Reasons remain
+untrusted prose and outdated evidence does not become an upgrade recommendation.
 
 The existing `LeanTypedConflict` keeps `name` and `requiredVersions` and adds required
 `requirements: LeanConflictRequirement[]`. Issue conflicts use the fuller interface
@@ -860,9 +861,10 @@ group metadata despite also controlling importer and conflict detail.
 - Treat the backend's documented conflict-edge indices as an invariant. Do not add a
   fallback for out-of-range indices without a reproduction; a verified violation belongs
   at the service/schema boundary rather than in presentation.
-- Registry/name/version values and every conflict edge's constraint and dependency
-  type remain exact backend facts. Sorting/deduplication is text presentation only;
-  JSON keeps one requirement per backend conflict edge.
+- Registry identities are canonical lowercase in the envelope; package names and
+  versions plus every conflict edge's constraint and dependency type remain exact
+  backend facts. Sorting/deduplication is text presentation only; JSON keeps one
+  requirement per backend conflict edge.
 - Unsupported dependency registries continue to fail in the existing request builder
   before a network call.
 
