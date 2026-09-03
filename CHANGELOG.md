@@ -5,6 +5,53 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.11.5] - 2026-09-02
+
+Coordinated patch release: improves quick-start discovery and public OSS
+content safety, fixes Agent Skill discovery and packaging, and expands
+maintainer eval coverage.
+
+### Changed
+
+- **Temporarily evaluate every main update** - Run the advisory Luna agent-eval
+  workflow on every push to `main` while maintainers collect Braintrust
+  variance and workload-optimization evidence; daily, manual, and explicitly
+  labeled pull-request runs remain available.
+
+### Fixed
+
+- **Hide the Braintrust eval skill from public installers** - Mark the
+  repository-only operations skill as internal so skill registries do not
+  offer it to end users.
+- **Improve quick-start discovery** - The `quick_start` catalog sentence now
+  identifies the required first call and the untrusted-content safety rules it
+  loads before plain MCP sessions use evidence tools.
+- **Keep the MCP skill installable** - Quote its YAML frontmatter description
+  so standards-compliant Agent Skill installers parse it successfully.
+
+### Security
+
+- **Clarify remote OSS content boundaries** - Frame retrieved public OSS
+  content as untrusted evidence that cannot override user authorization or
+  host safeguards while preserving prompt-injection protections.
+
+## [@githits/mcp 0.11.5] - 2026-09-02
+
+Coordinated patch release: improves quick-start discovery and clarifies the
+security boundaries for retrieved public OSS content.
+
+### Fixed
+
+- **Improve quick-start discovery** - The `quick_start` catalog sentence now
+  identifies the required first call and the untrusted-content safety rules it
+  loads before plain MCP sessions use evidence tools.
+
+### Security
+
+- **Clarify remote OSS content boundaries** - Frame retrieved public OSS
+  content as untrusted evidence that cannot override user authorization or
+  host safeguards while preserving prompt-injection protections.
+
 ## [githits 0.11.4] - 2026-09-01
 
 Patch release: adds definition-aware search evidence, improves MCP session
