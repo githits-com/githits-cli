@@ -6,10 +6,10 @@
 - Phase 1 — package overview distinguishes current-version and package-history
   evidence: **COMPLETE — merged in PR #350 at `9d267a2`**
 - Phase 2 — dependency analysis exposes actionable issue and conflict evidence:
-  **READY — reverified against `origin/main` at `9d267a2`**
+  **IMPLEMENTED — draft PR #351, awaiting merge**
 - Phase 3 — vulnerability inspection optionally audits resolved transitive
-  dependencies: **PENDING REORIENTATION**
-- Last verified: 2026-09-03
+  dependencies: **PENDING REORIENTATION — blocked on Phase 2 merge and `$next-steps`**
+- Last verified: 2026-09-04
 
 ## Problem and expected outcome
 
@@ -402,7 +402,7 @@ client view consumes. Callers never have to discover and combine coupled flags.
 
 ### Phase 2 — dependency issues and conflicts become actionable
 
-- **Status:** READY
+- **Status:** IMPLEMENTED — draft PR #351, awaiting merge
 - **Expected outcome:** callers can explicitly request deprecated, outdated,
   duplicate, and conflict analysis, and every visible conflict can identify the
   target package, incompatible constraints, and contributing importers without
@@ -422,7 +422,7 @@ client view consumes. Callers never have to discover and combine coupled flags.
 
 ### Phase 3 — vulnerability inspection optionally audits transitive risk
 
-- **Status:** PENDING REORIENTATION
+- **Status:** PENDING REORIENTATION — blocked on Phase 2 merge and `$next-steps`
 - **Expected outcome:** an explicit `pkg_vulns` transitive mode reports direct
   package affectedness plus vulnerabilities affecting resolved dependency versions,
   with severity, package/version, matched-range, and nearest-fix evidence and without
@@ -554,8 +554,9 @@ Verified results:
 
 The implementation required no backend change, new infrastructure, fallback, or
 ownership move. Subsequent product review of `5e33dc7` accepted the evidence lines but
-reopened Phase 1 for URL contrast and action hierarchy. Phase 2 remains a separate ready
-increment; Phase 3 still requires the planned post-Phase-2 reorientation.
+reopened Phase 1 for URL contrast and action hierarchy. At that point Phase 2 was a
+separate ready increment; it is now implemented as recorded above. Phase 3 still
+requires the planned post-Phase-2 reorientation.
 
 Review closed one terminal-width defect in the internal runtime pass. Three external
 Claude Opus rounds then closed independent-history action gating, all-version scope
@@ -675,6 +676,37 @@ as they do now.
   available targeted agent evaluations complete successfully; any unavailable agent
   harness is verified and recorded explicitly.
 
+## Phase 2 implemented result
+
+Phase 2 is implemented in the client repository and is awaiting merge as draft PR
+#351. It delivered CLI `--issues` and MCP `include_issues`, conditional issue and
+companion-graph selection with full-graph versus depth-bounded cost, exact lossless
+issue/conflict JSON requirements, bounded compact and complete wrapped verbose text,
+and fail-closed validation for missing issue/graph data and edge-backed ordinary
+transitive conflicts. Edge-free conflict summaries remain valid without a graph.
+There was no backend change and no new infrastructure.
+
+Live representative inspection covered `npm:express` (69 graph nodes and issue total
+8) and `npm:is-number` (one root graph node and issue total 0). Final gates covered
+3,976 tests plus typecheck, lint, format, build, and package validation; source smoke
+passed with CLI 103 and MCP 54, and built smoke passed with CLI 23 and MCP 8.
+The final Codex descriptor evaluation reported high confidence after 9 MCP calls,
+with correct issue, importer, lifecycle, and full-versus-bounded routing. Claude
+evaluation was unavailable because its harness was not logged in.
+
+Internal full-delta review was clean. Three external Opus rounds found valid issues
+and all were fixed; the round-3 graph fix received a final internal clean result, and
+no round 4 was run because the review cap was reached. No unresolved findings remain.
+The final review also corrected the earlier contradiction: edge-backed ordinary
+transitive conflicts were added in Phase 2 and are now covered by both width and
+graph validation.
+
+Phase 2 commits, grouped compactly: feature work `56eed9f`, `ddde860`, `df37442`,
+`942278d`, `e5d9e9e`, `003141f`; tests/smoke/docs `4e1900a`, `aa1a3af`, `258c352`;
+corrections `07e11f5`, `e4fe879`, `01df950`, `2b4ef01`, `4bd9110`, `16dc4ca`,
+`d38b8c3`. The implementation is carried by draft PR #351 and is not yet merged,
+released, or deployed.
+
 ## Phase 2 detailed implementation plan
 
 ### Readiness recheck after Phase 1 merge
@@ -685,8 +717,9 @@ paths. The local backend GraphQL schema still exposes lazy `dependencyIssues`, t
 `dependencyConflicts`, graph nodes, and indexed conflict edges with the shapes below.
 A live `npm:express` dependency probe still reports one conflict without importer
 detail, while a live upgrade-review probe with dependency issues successfully returned
-current and target issue totals from the deployed backend. Phase 2 therefore remains
-relevant and implementation-ready with no product decision or missing contract detail.
+current and target issue totals from the deployed backend. Phase 2 therefore remained
+relevant and implementation-ready at that recheck, with no product decision or
+missing contract detail; it is now implemented and awaiting the merge recorded above.
 
 ### Behavioral contract
 

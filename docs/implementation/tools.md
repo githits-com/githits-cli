@@ -320,7 +320,8 @@ summaries need no graph and remain accepted.
 deterministically sorted examples per non-empty category. Conflict examples
 also cap constraint groups and importer/type labels at three each. Every compact
 issue evidence line is bounded to the resolved terminal width with formatter-
-authored ASCII `...` (MCP defaults to 80 columns); verbose output wraps long rows and requirements without
+authored ASCII `...` (MCP defaults to 80 columns); verbose output wraps long rows
+and requirements without
 dropping selected evidence. If any selected rows or conflict evidence are
 omitted, text emits the caller-owned hint `Pass format: "json" for complete
 issue details.`; complete JSON remains the MCP route for all rows. Zero is
