@@ -504,7 +504,7 @@ request `includeVerboseFields`; compact text does not fetch them.
 
 ### Phase 1 implementation record
 
-Implemented on 2026-09-03 in six bounded product commits:
+Implemented on 2026-09-03 in eight bounded product commits:
 
 - `77bdbc6` adds the minimal GraphQL selections, normalized service types, strict
   security-block validation, and compact-versus-detailed wire tests;
@@ -513,13 +513,16 @@ Implemented on 2026-09-03 in six bounded product commits:
 - `8e46c27` adds authenticated and deterministic smoke assertions; and
 - `ac3e2b0` records the permanent contract and pending release impact; and
 - `418e480` wraps the vulnerability evidence and history action to the caller's
-  terminal width after implementation review found the initial rows could overflow.
+  terminal width after implementation review found the initial rows could overflow;
+- `050ed54` keeps the history action available when latest evidence is unavailable
+  and labels verbose rows explicitly as all-version history; and
+- `6a68469` applies the same scope label to CLI/MCP help and discovery text.
 
 Verified results:
 
 - affected focused suites passed, including 63 core-service tests, 35 response
   tests, 32 entrypoint/parity tests, and 131 smoke-helper tests;
-- the final full suite passed: 3,828 tests, 0 failures;
+- the final full suite passed: 3,829 tests, 0 failures;
 - typecheck, lint, formatting, build, and public-package validation passed;
 - authenticated source CLI and MCP smoke suites passed against the deployed backend;
 - built unauthenticated CLI and MCP smoke suites passed;
