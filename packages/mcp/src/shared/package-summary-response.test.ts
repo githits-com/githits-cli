@@ -24,12 +24,15 @@ describe("buildPackageSummarySuccessPayload — happy path", () => {
     expect(payload.homepage).toBe("https://expressjs.com");
     expect(payload.repository).toBe("https://github.com/expressjs/express");
     expect(payload.publishedAt).toBe("2023-05-28");
+    expect(payload.versionCount).toBe(214);
     expect(payload.downloads?.lastMonth).toBe(86_000_000);
+    expect(payload.downloads?.refreshedAt).toBe("2024-06-15");
     expect(payload.github?.stars).toBe(63_400);
     expect("install" in payload).toBe(false);
     expect("usage" in payload).toBe(false);
     expect(payload.vulnerabilities?.total).toBe(5);
     expect(payload.vulnerabilities?.affectsLatest).toBe(true);
+    expect(payload.advisoryHistory).toEqual({ total: 5 });
     expect(payload.vulnerabilities?.recent?.[0]?.severityLabel).toBe("high");
     expect(payload.recentChanges?.length).toBe(3);
   });
@@ -61,6 +64,7 @@ describe("buildPackageSummarySuccessPayload — omission rules", () => {
     const fixture = happyFixture();
     fixture.package.downloadsLastMonth = undefined;
     fixture.package.downloadsTotal = undefined;
+    fixture.package.downloadsRefreshedAt = undefined;
     const payload = buildPackageSummarySuccessPayload(fixture);
     expect(payload.downloads).toBeUndefined();
   });
@@ -68,6 +72,7 @@ describe("buildPackageSummarySuccessPayload — omission rules", () => {
   it("keeps downloads partial-object when only one leaf is populated", () => {
     const fixture = happyFixture();
     fixture.package.downloadsTotal = undefined;
+    fixture.package.downloadsRefreshedAt = undefined;
     const payload = buildPackageSummarySuccessPayload(fixture);
     expect(payload.downloads).toEqual({ lastMonth: 86_000_000 });
   });
@@ -90,6 +95,7 @@ describe("buildPackageSummarySuccessPayload — omission rules", () => {
 
   it("keeps vulnerabilities block when total is 0", () => {
     const fixture = happyFixture();
+    fixture.package.versionCount = 0;
     fixture.security = {
       vulnerabilityCount: 0,
       allVulnerabilityCount: 0,
@@ -101,6 +107,8 @@ describe("buildPackageSummarySuccessPayload — omission rules", () => {
       total: 0,
       affectsLatest: false,
     });
+    expect(payload.versionCount).toBe(0);
+    expect(payload.advisoryHistory).toEqual({ total: 0 });
   });
 
   it("omits vulnerabilities block when vulnerabilityCount is null/missing", () => {
@@ -114,10 +122,16 @@ describe("buildPackageSummarySuccessPayload — omission rules", () => {
     expect(
       buildPackageSummarySuccessPayload(fixture).vulnerabilities,
     ).toBeUndefined();
+    expect(
+      buildPackageSummarySuccessPayload(fixture).advisoryHistory,
+    ).toBeDefined();
 
     fixture.security = undefined;
     expect(
       buildPackageSummarySuccessPayload(fixture).vulnerabilities,
+    ).toBeUndefined();
+    expect(
+      buildPackageSummarySuccessPayload(fixture).advisoryHistory,
     ).toBeUndefined();
   });
 
@@ -186,6 +200,15 @@ describe("buildPackageSummarySuccessPayload — data transformations", () => {
     expect(payload.publishedAt).toBe("2024-05-10");
   });
 
+  it("normalizes download refresh date even when download counts are absent", () => {
+    const fixture = happyFixture();
+    fixture.package.downloadsLastMonth = undefined;
+    fixture.package.downloadsTotal = undefined;
+    fixture.package.downloadsRefreshedAt = "2024-06-15T23:59:00Z";
+    const payload = buildPackageSummarySuccessPayload(fixture);
+    expect(payload.downloads).toEqual({ refreshedAt: "2024-06-15" });
+  });
+
   it("omits severity/severityLabel when the score is null or non-positive", () => {
     const fixture = happyFixture();
     fixture.security = {
@@ -240,8 +263,11 @@ describe("formatPackageSummaryTerminal", () => {
       "Repository       https://github.com/expressjs/express (63k stars, 14k forks, 123 issues)",
     );
     expect(output).toContain(
-      "Vulnerabilities  5 active vulnerabilities; latest affected",
+      "Vulnerabilities  Latest: 5 affected | History: 5 known advisories across all versions",
     );
+    expect(output).not.toContain("Versions");
+    expect(output).not.toContain("refreshed 2024-06-15");
+    expect(output).not.toContain("GHSA-xxxx-xxxx-xxxx");
     expect(output).not.toContain("Install");
     expect(output).not.toContain("Usage");
   });
@@ -260,6 +286,9 @@ describe("formatPackageSummaryTerminal", () => {
     expect(output).toContain("Recent advisories");
     expect(output).toContain("GHSA-xxxx-xxxx-xxxx");
     expect(output).toContain("Recent changes");
+    expect(output).toContain("Versions");
+    expect(output).toContain("214 published");
+    expect(output).toContain("refreshed 2024-06-15");
   });
 
   it("text output stays printable ASCII", () => {
@@ -297,7 +326,9 @@ describe("formatPackageSummaryTerminal", () => {
       useColors: false,
       now: FIXED_NOW,
     });
-    expect(output).toContain("1 active vulnerability; latest affected");
+    expect(output).toContain(
+      "Latest: 1 affected | History: 1 known advisory across all versions",
+    );
   });
 
   it("renders explicit zero-vulnerability status", () => {
@@ -313,8 +344,128 @@ describe("formatPackageSummaryTerminal", () => {
       now: FIXED_NOW,
     });
     expect(output).toContain(
-      "Vulnerabilities  No active vulnerabilities in latest published version",
+      "Vulnerabilities  Latest: none affected | History: none known across all versions",
     );
+  });
+
+  it("renders history independently when latest vulnerability count is unavailable", () => {
+    const fixture = happyFixture();
+    fixture.security = {
+      vulnerabilityCount: undefined,
+      allVulnerabilityCount: 5,
+      hasCurrentVulnerabilities: false,
+      recentVulnerabilities: [],
+    };
+    const payload = buildPackageSummarySuccessPayload(fixture);
+    expect(payload.vulnerabilities).toBeUndefined();
+    expect(payload.advisoryHistory).toEqual({ total: 5 });
+
+    const output = formatPackageSummaryTerminal(fixture, {
+      useColors: false,
+      now: FIXED_NOW,
+    });
+    expect(output).toContain(
+      "Vulnerabilities  Latest: unavailable | History: 5 known advisories across all versions",
+    );
+  });
+
+  it("uses the numeric latest count as authoritative when the auxiliary flag is false", () => {
+    const fixture = happyFixture();
+    fixture.security = {
+      vulnerabilityCount: 2,
+      allVulnerabilityCount: 2,
+      hasCurrentVulnerabilities: false,
+      recentVulnerabilities: [],
+    };
+    const payload = buildPackageSummarySuccessPayload(fixture);
+    expect(payload.vulnerabilities?.affectsLatest).toBe(false);
+    const output = formatPackageSummaryTerminal(fixture, {
+      useColors: false,
+      now: FIXED_NOW,
+    });
+    expect(output).toContain(
+      "Latest: 2 affected | History: 2 known advisories across all versions",
+    );
+  });
+
+  it("labels contradictory history counts without comparing them or adding a hint", () => {
+    const fixture = happyFixture();
+    fixture.security = {
+      vulnerabilityCount: 5,
+      allVulnerabilityCount: 3,
+      hasCurrentVulnerabilities: true,
+      recentVulnerabilities: [],
+    };
+    const output = formatPackageSummaryTerminal(fixture, {
+      useColors: false,
+      now: FIXED_NOW,
+    });
+    expect(output).toContain(
+      "Latest: 5 affected | History: 3 known advisories across all versions (inconsistent backend evidence)",
+    );
+    expect(output).not.toContain("Inspect history");
+  });
+
+  it("labels zero history as inconsistent when latest has a positive count", () => {
+    const fixture = happyFixture();
+    fixture.security = {
+      vulnerabilityCount: 1,
+      allVulnerabilityCount: 0,
+      hasCurrentVulnerabilities: true,
+      recentVulnerabilities: [],
+    };
+    const output = formatPackageSummaryTerminal(fixture, {
+      useColors: false,
+      now: FIXED_NOW,
+    });
+    expect(output).toContain(
+      "Latest: 1 affected | History: none known across all versions (inconsistent backend evidence)",
+    );
+  });
+
+  it("adds surface-native history guidance only when history exceeds latest", () => {
+    const fixture = happyFixture();
+    fixture.security = {
+      vulnerabilityCount: 0,
+      allVulnerabilityCount: 5,
+      hasCurrentVulnerabilities: false,
+      recentVulnerabilities: [],
+    };
+
+    const cliOutput = formatPackageSummaryTerminal(fixture, {
+      useColors: false,
+      now: FIXED_NOW,
+      surface: "cli",
+    });
+    expect(cliOutput).toContain(
+      "Vulnerabilities  Latest: none affected | History: 5 known advisories across all versions",
+    );
+    expect(cliOutput).toContain(
+      "Inspect history: githits pkg vulns npm:express --scope all",
+    );
+
+    const mcpOutput = formatPackageSummaryTerminal(fixture, {
+      useColors: false,
+      now: FIXED_NOW,
+      surface: "mcp",
+    });
+    expect(mcpOutput).toContain(
+      'Inspect history: use pkg_vulns with advisory_scope="all".',
+    );
+  });
+
+  it("does not render refresh metadata when no download count exists", () => {
+    const fixture = happyFixture();
+    fixture.package.downloadsLastMonth = undefined;
+    fixture.package.downloadsTotal = undefined;
+    fixture.package.downloadsRefreshedAt = "2024-06-15T23:59:00Z";
+    const output = formatPackageSummaryTerminal(fixture, {
+      verbose: true,
+      useColors: false,
+      now: FIXED_NOW,
+    });
+    expect(output).not.toContain("Downloads");
+    expect(output).not.toContain("refreshed 2024-06-15");
   });
 
   it("omits license separator when license is null", () => {

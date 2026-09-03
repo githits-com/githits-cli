@@ -4,9 +4,10 @@
  *
  * Principles:
  * - **Token-efficient.** Every field dropped from the GraphQL payload
- *   is a deliberate decision. Metadata (`schemaVersion`, refresh
- *   timestamps, `versionCount`, duplicate GitHub identifiers) is
- *   omitted; only fields that inform an agent decision survive.
+ *   is a deliberate decision. Decision-relevant metadata such as the
+ *   published-version count and download refresh date is retained;
+ *   unrelated schema metadata and duplicate GitHub identifiers remain
+ *   omitted.
  * - **Null-omitted.** Scalars go missing when null; blocks go missing
  *   when every leaf is null; arrays go missing when empty. Agent
  *   callers receive present data only, not a skeleton.
@@ -35,6 +36,7 @@ export type SeverityLabel = "critical" | "high" | "medium" | "low";
 export interface LeanDownloads {
   lastMonth?: number;
   total?: number;
+  refreshedAt?: string;
 }
 
 export interface LeanGithub {
@@ -61,6 +63,10 @@ export interface LeanVulnerabilities {
   recent?: LeanVulnerability[];
 }
 
+export interface LeanAdvisoryHistory {
+  total: number;
+}
+
 export interface LeanRecentChange {
   version: string;
   date?: string;
@@ -71,6 +77,7 @@ export interface LeanPackageSummary {
   registry: string;
   name: string;
   version: string;
+  versionCount?: number;
   description?: string;
   license?: string;
   homepage?: string;
@@ -79,6 +86,7 @@ export interface LeanPackageSummary {
   downloads?: LeanDownloads;
   github?: LeanGithub;
   vulnerabilities?: LeanVulnerabilities;
+  advisoryHistory?: LeanAdvisoryHistory;
   recentChanges?: LeanRecentChange[];
 }
 
@@ -97,6 +105,7 @@ export function buildPackageSummarySuccessPayload(
     version: pkg.latestVersion,
   };
 
+  assignIfDefined(payload, "versionCount", pkg.versionCount);
   assignIfDefined(payload, "description", pkg.description);
   assignIfDefined(payload, "license", pkg.license);
   assignIfDefined(payload, "homepage", pkg.homepage);
@@ -107,7 +116,11 @@ export function buildPackageSummarySuccessPayload(
     toIsoDate(pkg.latestVersionPublishedAt),
   );
 
-  const downloads = buildDownloads(pkg.downloadsLastMonth, pkg.downloadsTotal);
+  const downloads = buildDownloads(
+    pkg.downloadsLastMonth,
+    pkg.downloadsTotal,
+    pkg.downloadsRefreshedAt,
+  );
   if (downloads) payload.downloads = downloads;
 
   const github = buildGithub(pkg.githubRepository);
@@ -115,6 +128,9 @@ export function buildPackageSummarySuccessPayload(
 
   const vulns = buildVulnerabilities(summary.security);
   if (vulns) payload.vulnerabilities = vulns;
+
+  const advisoryHistory = buildAdvisoryHistory(summary.security);
+  if (advisoryHistory) payload.advisoryHistory = advisoryHistory;
 
   const recent = buildRecentChanges(summary.latestChangelogs);
   if (recent) payload.recentChanges = recent;
@@ -148,10 +164,13 @@ function assignIfDefined<T, K extends keyof T>(
 function buildDownloads(
   lastMonth: number | undefined,
   total: number | undefined,
+  refreshedAt: string | undefined,
 ): LeanDownloads | undefined {
   const result: LeanDownloads = {};
   if (typeof lastMonth === "number") result.lastMonth = lastMonth;
   if (typeof total === "number") result.total = total;
+  const normalizedRefresh = toIsoDate(refreshedAt);
+  if (normalizedRefresh) result.refreshedAt = normalizedRefresh;
   return Object.keys(result).length > 0 ? result : undefined;
 }
 
@@ -202,6 +221,13 @@ function buildVulnerabilities(
     result.recent = recent;
   }
   return result;
+}
+
+function buildAdvisoryHistory(
+  security: PackageSecurityOverview | undefined,
+): LeanAdvisoryHistory | undefined {
+  if (!security) return undefined;
+  return { total: security.allVulnerabilityCount };
 }
 
 function buildVulnerability(
@@ -272,6 +298,7 @@ function stripMarkdownHeading(line: string): string {
 export interface FormatTerminalOptions {
   verbose?: boolean;
   useColors?: boolean;
+  surface?: "cli" | "mcp";
   /** Column width for wrapping the description line. Defaults to 80. */
   terminalWidth?: number;
   /**
@@ -292,6 +319,7 @@ export function formatPackageSummaryTerminal(
   const useColors = options.useColors ?? false;
   const width = resolveWidth(options.terminalWidth);
   const now = options.now ?? new Date();
+  const surface = options.surface ?? "cli";
 
   const sections: string[] = [];
 
@@ -307,7 +335,14 @@ export function formatPackageSummaryTerminal(
   }
 
   // Field list.
-  const fields = buildFieldList(lean, summary, useColors, now);
+  const fields = buildFieldList(
+    lean,
+    summary,
+    useColors,
+    now,
+    options.verbose ?? false,
+    surface,
+  );
   if (fields.length > 0) {
     sections.push(fields.join("\n"));
   }
@@ -361,6 +396,8 @@ function buildFieldList(
   summary: PackageSummary,
   useColors: boolean,
   now: Date,
+  verbose: boolean,
+  surface: "cli" | "mcp",
 ): string[] {
   const fields: LabelledField[] = [];
 
@@ -390,22 +427,40 @@ function buildFieldList(
     fields.push({ label: "Published", value: publishedRelative });
   }
 
-  if (lean.downloads?.lastMonth !== undefined) {
+  if (verbose && lean.versionCount !== undefined) {
     fields.push({
-      label: "Downloads",
-      value: `${formatCompactNumber(lean.downloads.lastMonth)} / month`,
-    });
-  } else if (lean.downloads?.total !== undefined) {
-    fields.push({
-      label: "Downloads",
-      value: `${formatCompactNumber(lean.downloads.total)} total`,
+      label: "Versions",
+      value: `${formatCompactNumber(lean.versionCount)} published`,
     });
   }
 
-  if (lean.vulnerabilities) {
+  if (lean.downloads?.lastMonth !== undefined) {
+    const refreshed =
+      verbose && lean.downloads.refreshedAt
+        ? `; refreshed ${lean.downloads.refreshedAt}`
+        : "";
+    fields.push({
+      label: "Downloads",
+      value: `${formatCompactNumber(lean.downloads.lastMonth)} / month${refreshed}`,
+    });
+  } else if (lean.downloads?.total !== undefined) {
+    const refreshed =
+      verbose && lean.downloads.refreshedAt
+        ? `; refreshed ${lean.downloads.refreshedAt}`
+        : "";
+    fields.push({
+      label: "Downloads",
+      value: `${formatCompactNumber(lean.downloads.total)} total${refreshed}`,
+    });
+  }
+
+  if (lean.advisoryHistory) {
     fields.push({
       label: "Vulnerabilities",
-      value: formatVulnerabilityStatus(lean.vulnerabilities),
+      value: formatVulnerabilityStatus(
+        lean.vulnerabilities,
+        lean.advisoryHistory,
+      ),
     });
   }
 
@@ -413,9 +468,13 @@ function buildFieldList(
   // the locked padding rule). Minimum 10 cols for a readable gutter.
   const labelWidth = Math.max(10, ...fields.map((field) => field.label.length));
 
-  return fields.map(
+  const lines = fields.map(
     (field) => `${field.label.padEnd(labelWidth)}  ${field.value}`,
   );
+
+  const historyHint = formatHistoryHint(lean, surface);
+  if (historyHint) lines.push(dim(`  ${historyHint}`, useColors));
+  return lines;
 }
 
 function formatGithubPopularity(
@@ -438,15 +497,44 @@ function formatGithubPopularity(
   return parts.length > 0 ? parts.join(", ") : undefined;
 }
 
-function formatVulnerabilityStatus(vulns: LeanVulnerabilities): string {
-  if (vulns.total === 0) {
-    return "No active vulnerabilities in latest published version";
+function formatVulnerabilityStatus(
+  vulns: LeanVulnerabilities | undefined,
+  history: LeanAdvisoryHistory,
+): string {
+  let latest: string;
+  if (!vulns) {
+    latest = "Latest: unavailable";
+  } else if (vulns.total === 0) {
+    latest = "Latest: none affected";
+  } else {
+    latest = `Latest: ${vulns.total} affected`;
   }
-  const noun = vulns.total === 1 ? "vulnerability" : "vulnerabilities";
-  if (vulns.affectsLatest) {
-    return `${vulns.total} active ${noun}; latest affected`;
+
+  const historyNoun = history.total === 1 ? "advisory" : "advisories";
+  const inconsistent = vulns !== undefined && history.total < vulns.total;
+  const historySuffix = inconsistent ? " (inconsistent backend evidence)" : "";
+  const historyText =
+    history.total === 0
+      ? `History: none known across all versions${historySuffix}`
+      : `History: ${history.total} known ${historyNoun} across all versions${historySuffix}`;
+  return `${latest} | ${historyText}`;
+}
+
+function formatHistoryHint(
+  lean: LeanPackageSummary,
+  surface: "cli" | "mcp",
+): string | undefined {
+  if (
+    !lean.advisoryHistory ||
+    !lean.vulnerabilities ||
+    lean.advisoryHistory.total <= lean.vulnerabilities.total
+  ) {
+    return undefined;
   }
-  return `${vulns.total} known ${noun}; latest not affected`;
+  if (surface === "mcp") {
+    return 'Inspect history: use pkg_vulns with advisory_scope="all".';
+  }
+  return `Inspect history: githits pkg vulns ${lean.registry}:${lean.name} --scope all`;
 }
 
 function buildVerboseSections(
