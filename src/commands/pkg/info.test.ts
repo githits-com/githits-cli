@@ -26,6 +26,7 @@ describe("pkg info help", () => {
     expect(help).toContain("published-version count");
     expect(help).toContain("download refresh date");
     expect(help).toContain("advisory history");
+    expect(help).toContain("advisory history (all versions)");
     expect(help).toContain("githits pkg vulns <registry>:<name> --scope all");
   });
 });

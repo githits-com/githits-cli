@@ -31,6 +31,10 @@ describe("createPackageSummaryTool — metadata", () => {
     expect(tool.description).toContain("published-version count");
     expect(tool.description).toContain("downloads.refreshedAt");
     expect(tool.description).toContain("advisoryHistory.total");
+    expect(tool.description).toContain("advisory history (all versions)");
+    expect(tool.schema.verbose?.description).toContain(
+      "advisory history (all versions)",
+    );
     expect(tool.description).toContain("pkg_vulns");
     expect(Object.keys(tool.schema)).toEqual([
       "registry",

@@ -41,7 +41,7 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe(
-      "Text only. Adds GitHub language/topics/last-pushed, published-version count, download refresh date, recent advisories, and recent changes. Latest affected and package-wide history counts are shown separately. Ignored for format=json.",
+      "Text only. Adds GitHub language/topics/last-pushed, published-version count, download refresh date, package-wide advisory history (all versions), and recent changes. Latest affected and package-wide history counts are shown separately. Ignored for format=json.",
     ),
   format: z
     .enum(["text-v1", "text", "json"])
@@ -59,7 +59,8 @@ export const DESCRIPTION_BASE: string =
   "publish age, latest affected count, and separate package-wide advisory " +
   "history count. These counts are shown separately. Set `verbose: true` for " +
   "GitHub language/topics/last-pushed, " +
-  "published-version count, download refresh date, recent advisories, " +
+  "published-version count, download refresh date, package-wide advisory " +
+  "history (all versions), " +
   'and recent changes. Pass `format: "json"` for structured fields ' +
   "including `versionCount`, `downloads.refreshedAt`, and " +
   "`advisoryHistory.total`. Use " +
