@@ -18,7 +18,8 @@ import {
 describe("pkg info help", () => {
   it("describes latest and package-wide advisory evidence plus verbose metadata", () => {
     const command = registerPkgInfoCommand(new Command().command("pkg"));
-    const help = command.helpInformation().replace(/\s+/g, " ");
+    const rawHelp = command.helpInformation();
+    const help = rawHelp.replace(/\s+/g, " ");
 
     expect(help).toContain("latest affected count");
     expect(help).toContain("package-wide advisory history count");
@@ -27,6 +28,12 @@ describe("pkg info help", () => {
     expect(help).toContain("download refresh date");
     expect(help).toContain("advisory history");
     expect(help).toContain("advisory history (all versions)");
+    expect(help).toContain("history (all versions), and recent changes");
+    expect(
+      rawHelp
+        .split("\n")
+        .some((line) => line.trim() === "history (all versions),"),
+    ).toBe(false);
     expect(help).toContain("githits pkg vulns <registry>:<name> --scope all");
   });
 });

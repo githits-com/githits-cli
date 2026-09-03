@@ -108,8 +108,7 @@ Default output shows license, description, repository popularity
 publish age, latest affected count, and separate package-wide advisory
 history count. --verbose adds GitHub language/topics/last-pushed,
 published-version count, download refresh date, package-wide advisory
-history (all versions),
-and recent changes. Inspect package history with:
+history (all versions), and recent changes. Inspect package history with:
 githits pkg vulns <registry>:<name> --scope all.
 
 Package spec: <registry>:<name>. Supported registries: ${PKGSEER_REGISTRY_LIST}.

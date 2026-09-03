@@ -34,7 +34,7 @@ const DOCS_READ_BULLET =
   "- `docs_read` — read a documentation page by pageId from `docs_list` or docs `search` results; text reads return 150 lines by default or up to 300 with an explicit range.";
 
 const PKG_INFO_BULLET =
-  "- `pkg_info` — latest package health/adoption overview: license, repo health, downloads, publish age, latest vulnerability status.";
+  "- `pkg_info` — latest package health/adoption overview: license, repo health, downloads, publish age, latest affected vulnerability count, and package-wide advisory history (all versions).";
 
 const PKG_VULNS_BULLET =
   "- `pkg_vulns` — known vulnerabilities/advisories for a package or pinned version; use `pkg_upgrade_review` for current-vs-target upgrades.";
