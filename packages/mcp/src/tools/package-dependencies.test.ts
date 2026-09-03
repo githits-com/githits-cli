@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from "bun:test";
 import type { DependencyReport } from "@githits/core-internal";
 import { PackageIntelligenceTargetNotFoundError } from "@githits/core-internal";
+import { z } from "zod";
 import {
   createMockPackageIntelligenceService,
   defaultDependencyReport,
@@ -40,6 +41,109 @@ const transitiveDependencyReport: DependencyReport = {
   },
 };
 
+function issueDependencyReport(): DependencyReport {
+  const report = structuredClone(transitiveDependencyReport);
+  const transitive = report.dependencies?.transitive;
+  if (!transitive) throw new Error("expected transitive fixture");
+  transitive.dependencyIssues = {
+    totalCount: 16,
+    deprecatedCount: 4,
+    outdatedCount: 4,
+    duplicateCount: 4,
+    conflictCount: 4,
+    deprecatedPackages: [
+      {
+        registry: "NPM",
+        name: "alpha-deprecated",
+        versions: ["1.0.0"],
+        reasons: [],
+      },
+      {
+        registry: "NPM",
+        name: "beta-deprecated",
+        versions: ["1.0.0"],
+        reasons: [],
+      },
+      {
+        registry: "NPM",
+        name: "gamma-deprecated",
+        versions: ["1.0.0"],
+        reasons: [],
+      },
+      {
+        registry: "NPM",
+        name: "zeta-deprecated",
+        versions: ["1.0.0"],
+        reasons: [],
+      },
+    ],
+    outdatedPackages: [
+      {
+        registry: "NPM",
+        name: "alpha-outdated",
+        latestVersion: "2.0.0",
+        severity: "HIGH",
+        versions: [{ version: "1.0.0", severity: "HIGH" }],
+      },
+      {
+        registry: "NPM",
+        name: "beta-outdated",
+        severity: "LOW",
+        versions: [{ version: "1.0.0", severity: "LOW" }],
+      },
+      {
+        registry: "NPM",
+        name: "gamma-outdated",
+        severity: "MEDIUM",
+        versions: [{ version: "1.0.0", severity: "MEDIUM" }],
+      },
+      {
+        registry: "NPM",
+        name: "zeta-outdated",
+        severity: "UNKNOWN",
+        versions: [{ version: "1.0.0", severity: "UNKNOWN" }],
+      },
+    ],
+    duplicatePackages: [
+      { registry: "NPM", name: "alpha-duplicate", versions: ["1.0.0"] },
+      { registry: "NPM", name: "beta-duplicate", versions: ["1.0.0"] },
+      { registry: "NPM", name: "gamma-duplicate", versions: ["1.0.0"] },
+      { registry: "NPM", name: "zeta-duplicate", versions: ["1.0.0"] },
+    ],
+    conflicts: [
+      {
+        registry: "NPM",
+        name: "alpha-conflict",
+        versions: ["1.0.0", "2.0.0"],
+        requiredVersions: ["^1.0.0"],
+        conflictingEdges: [],
+      },
+      {
+        registry: "NPM",
+        name: "beta-conflict",
+        versions: ["1.0.0", "2.0.0"],
+        requiredVersions: ["^1.0.0"],
+        conflictingEdges: [],
+      },
+      {
+        registry: "NPM",
+        name: "gamma-conflict",
+        versions: ["1.0.0", "2.0.0"],
+        requiredVersions: ["^1.0.0"],
+        conflictingEdges: [],
+      },
+      {
+        registry: "NPM",
+        name: "zeta-conflict",
+        versions: ["1.0.0", "2.0.0"],
+        requiredVersions: ["^1.0.0"],
+        conflictingEdges: [],
+      },
+    ],
+  };
+  return report;
+}
+
 describe("createPackageDependenciesTool — metadata", () => {
   it("registers the correct tool name, description, and schema keys", () => {
     const tool = createPackageDependenciesTool(
@@ -54,15 +158,24 @@ describe("createPackageDependenciesTool — metadata", () => {
     expect(tool.description).toContain(
       "Inspect what a package depends on, directly or transitively",
     );
+    expect(tool.description).toContain("include_issues: true");
+    expect(tool.description).toContain(
+      "deprecated, outdated, duplicate, and conflict analysis",
+    );
     expect(Object.keys(tool.schema).sort()).toEqual([
       "format",
       "include_importers",
+      "include_issues",
       "lifecycle",
       "max_depth",
       "package_name",
       "registry",
       "version",
     ]);
+    const schema = z.toJSONSchema(z.object(tool.schema));
+    expect(schema.properties?.include_issues).toMatchObject({
+      type: "boolean",
+    });
     expect(tool.annotations?.readOnlyHint).toBe(true);
   });
 
@@ -336,6 +449,166 @@ describe("createPackageDependenciesTool — happy path", () => {
       version: "2.0.0",
     });
     expect(payload.transitive).toBeUndefined();
+  });
+
+  it("requests unbounded issue analysis without exposing ordinary transitive output", async () => {
+    const packageDependencies = mock(() =>
+      Promise.resolve(issueDependencyReport()),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageDependencies,
+    });
+    const tool = createPackageDependenciesTool(service);
+
+    const result = await tool.handler(
+      {
+        registry: "npm",
+        package_name: "express",
+        include_issues: true,
+        format: "json",
+      },
+      {},
+    );
+
+    const calls = packageDependencies.mock.calls as unknown as Array<
+      [
+        {
+          includeDependencyIssues?: boolean;
+          includeTransitive?: boolean;
+          includeTransitiveDetails?: boolean;
+          includeGroups?: boolean;
+          maxDepth?: number;
+        },
+      ]
+    >;
+    expect(calls[0]?.[0]?.includeDependencyIssues).toBe(true);
+    expect(calls[0]?.[0]?.includeTransitive).toBe(true);
+    expect(calls[0]?.[0]?.includeTransitiveDetails).toBe(false);
+    expect(calls[0]?.[0]?.includeGroups).toBe(false);
+    expect(calls[0]?.[0]?.maxDepth).toBeUndefined();
+
+    const payload = parseText(result) as {
+      transitive?: unknown;
+      issues?: {
+        total: number;
+        scope: { mode: string; maxDepth?: number };
+        deprecated: { count: number; items: unknown[] };
+        outdated: { count: number; items: unknown[] };
+        duplicates: { count: number; items: unknown[] };
+        conflicts: { count: number; items: unknown[] };
+      };
+    };
+    expect(payload.transitive).toBeUndefined();
+    expect(payload.issues?.total).toBe(16);
+    expect(payload.issues?.scope).toEqual({ mode: "full" });
+    expect(payload.issues?.deprecated).toMatchObject({
+      count: 4,
+      items: expect.any(Array),
+    });
+    expect(payload.issues?.outdated.count).toBe(4);
+    expect(payload.issues?.duplicates.count).toBe(4);
+    expect(payload.issues?.conflicts.count).toBe(4);
+  });
+
+  it("uses a bounded issue graph and ordinary transitive output when max_depth is supplied", async () => {
+    const packageDependencies = mock(() =>
+      Promise.resolve(issueDependencyReport()),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageDependencies,
+    });
+    const tool = createPackageDependenciesTool(service);
+
+    const result = await tool.handler(
+      {
+        registry: "npm",
+        package_name: "express",
+        include_issues: true,
+        max_depth: 4,
+        format: "json",
+      },
+      {},
+    );
+
+    const calls = packageDependencies.mock.calls as unknown as Array<
+      [{ includeDependencyIssues?: boolean; maxDepth?: number }]
+    >;
+    expect(calls[0]?.[0]?.includeDependencyIssues).toBe(true);
+    expect(calls[0]?.[0]?.maxDepth).toBe(4);
+    const payload = parseText(result) as {
+      transitive?: unknown;
+      issues?: { scope: { mode: string; maxDepth?: number } };
+    };
+    expect(payload.transitive).toBeDefined();
+    expect(payload.issues?.scope).toEqual({
+      mode: "depth_limited",
+      maxDepth: 4,
+    });
+  });
+
+  it.each([undefined, false] as const)(
+    "does not request issue analysis when include_issues is %s",
+    async (includeIssues) => {
+      const packageDependencies = mock(() =>
+        Promise.resolve(defaultDependencyReport),
+      );
+      const service = createMockPackageIntelligenceService({
+        packageDependencies,
+      });
+      const tool = createPackageDependenciesTool(service);
+      const args = {
+        registry: "npm",
+        package_name: "express",
+        format: "json" as const,
+        ...(includeIssues === undefined
+          ? {}
+          : { include_issues: includeIssues }),
+      };
+
+      const result = await tool.handler(args, {});
+      const calls = packageDependencies.mock.calls as unknown as Array<
+        [
+          {
+            includeDependencyIssues?: boolean;
+            includeTransitive?: boolean;
+            maxDepth?: number;
+          },
+        ]
+      >;
+      expect(calls[0]?.[0]?.includeDependencyIssues).toBe(includeIssues);
+      expect(calls[0]?.[0]?.includeTransitive).toBe(true);
+      expect(calls[0]?.[0]?.maxDepth).toBe(1);
+      expect(
+        (parseText(result) as { issues?: unknown }).issues,
+      ).toBeUndefined();
+    },
+  );
+
+  it("adds the exact MCP JSON hint only when compact issue output is truncated", async () => {
+    const tool = createPackageDependenciesTool(
+      createMockPackageIntelligenceService({
+        packageDependencies: mock(() =>
+          Promise.resolve(issueDependencyReport()),
+        ),
+      }),
+    );
+    const result = await tool.handler(
+      {
+        registry: "npm",
+        package_name: "express",
+        include_issues: true,
+      },
+      {},
+    );
+
+    const text = result.content[0]?.text ?? "";
+    const hint = 'Pass format: "json" for complete issue details.';
+    expect(text).toContain("Dependency issues: 16 issues (full graph)");
+    expect(text).toContain(
+      "4 deprecated dependencies | 4 outdated dependencies | 4 duplicate dependencies | 4 conflicts",
+    );
+    expect(text.split(hint).length - 1).toBe(1);
+    expect(text).not.toContain("zeta-deprecated");
   });
 });
 
