@@ -3,6 +3,7 @@ import type { CodeNavigationTarget } from "@githits/core-internal";
 import {
   buildGrepRepoParams,
   GREP_REPO_PATTERN_NOTE,
+  GREP_REPO_SYMBOL_FIELDS,
 } from "./grep-repo-request.js";
 
 const target: CodeNavigationTarget = {
@@ -104,6 +105,36 @@ describe("buildGrepRepoParams", () => {
     expect(params.symbolFields).toEqual(["name", "qualified_path", "kind"]);
     expect(explicit.symbolFields).toBe(true);
   });
+
+  it("matches the grepRepo symbol hydration contract", () => {
+    expect(GREP_REPO_SYMBOL_FIELDS).toEqual([
+      "symbol_ref",
+      "name",
+      "qualified_path",
+      "kind",
+      "category",
+      "arity",
+      "is_public",
+      "file_path",
+      "start_line",
+      "end_line",
+      "content_hash",
+      "parent_path",
+    ]);
+  });
+
+  it.each(["code", "caller_count", "parent_symbol_ref"])(
+    "rejects underivable grep symbol field %s",
+    (symbolField) => {
+      expect(() =>
+        buildGrepRepoParams({
+          target,
+          pattern: "middleware",
+          symbolFields: [symbolField],
+        }),
+      ).toThrow(/symbol_fields.*must be one of/);
+    },
+  );
 
   it("rejects unknown symbol fields", () => {
     expect(() =>

@@ -735,6 +735,24 @@ export interface GrepRepoPathSelector {
   value: string;
 }
 
+/** Symbol metadata that PkgSeer repository grep can hydrate on each match. */
+export const GREP_REPO_SYMBOL_FIELDS = [
+  "symbol_ref",
+  "name",
+  "qualified_path",
+  "kind",
+  "category",
+  "arity",
+  "is_public",
+  "file_path",
+  "start_line",
+  "end_line",
+  "content_hash",
+  "parent_path",
+] as const;
+
+export type GrepRepoSymbolField = (typeof GREP_REPO_SYMBOL_FIELDS)[number];
+
 export interface GrepRepoParams {
   target: CodeNavigationTarget;
   pattern: string;
@@ -750,7 +768,7 @@ export interface GrepRepoParams {
   maxMatches?: number;
   maxMatchesPerFile?: number;
   cursor?: string;
-  symbolFields?: string[];
+  symbolFields?: GrepRepoSymbolField[];
   waitTimeoutMs?: number;
 }
 
@@ -765,10 +783,7 @@ export interface NavigationSymbol {
   filePath?: string;
   startLine?: number;
   endLine?: number;
-  code?: string;
-  callerCount?: number;
   contentHash?: string;
-  parentSymbolRef?: string;
   parentPath?: string;
 }
 
@@ -2210,10 +2225,7 @@ const grepRepoMatchSchema = z.object({
       filePath: z.string().nullable().optional(),
       startLine: z.number().int().nullable().optional(),
       endLine: z.number().int().nullable().optional(),
-      code: z.string().nullable().optional(),
-      callerCount: z.number().int().nullable().optional(),
       contentHash: z.string().nullable().optional(),
-      parentSymbolRef: z.string().nullable().optional(),
       parentPath: z.string().nullable().optional(),
     })
     .nullable()
@@ -2256,7 +2268,7 @@ const grepRepoGraphQLResponseSchema = z.object({
   errors: z.array(graphQLErrorSchema).optional(),
 });
 
-const GREP_REPO_SYMBOL_SELECTIONS: Record<string, string> = {
+const GREP_REPO_SYMBOL_SELECTIONS: Record<GrepRepoSymbolField, string> = {
   symbol_ref: "symbolRef",
   name: "name",
   qualified_path: "qualifiedPath",
@@ -2267,15 +2279,12 @@ const GREP_REPO_SYMBOL_SELECTIONS: Record<string, string> = {
   file_path: "filePath",
   start_line: "startLine",
   end_line: "endLine",
-  code: "code",
-  caller_count: "callerCount",
   content_hash: "contentHash",
-  parent_symbol_ref: "parentSymbolRef",
   parent_path: "parentPath",
 };
 
 function buildGrepRepoQuery(
-  symbolFields: readonly string[] | undefined,
+  symbolFields: readonly GrepRepoSymbolField[] | undefined,
 ): string {
   const symbolSelection = (symbolFields ?? [])
     .map((field) => GREP_REPO_SYMBOL_SELECTIONS[field])
@@ -3461,10 +3470,7 @@ export class CodeNavigationServiceImpl
               filePath: entry.symbol.filePath ?? undefined,
               startLine: entry.symbol.startLine ?? undefined,
               endLine: entry.symbol.endLine ?? undefined,
-              code: entry.symbol.code ?? undefined,
-              callerCount: entry.symbol.callerCount ?? undefined,
               contentHash: entry.symbol.contentHash ?? undefined,
-              parentSymbolRef: entry.symbol.parentSymbolRef ?? undefined,
               parentPath: entry.symbol.parentPath ?? undefined,
             }
           : undefined,

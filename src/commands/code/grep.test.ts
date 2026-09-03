@@ -5,11 +5,29 @@ import {
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
 } from "@githits/core-internal";
+import { Command } from "commander";
 import {
   createMockCodeNavigationService,
   defaultGrepRepoResult,
 } from "../../services/test-helpers.js";
-import { type PkgGrepCommandDependencies, pkgGrepAction } from "./grep.js";
+import {
+  type PkgGrepCommandDependencies,
+  pkgGrepAction,
+  registerCodeGrepCommand,
+} from "./grep.js";
+
+describe("code grep help", () => {
+  it("lists only backend-supported symbol fields", () => {
+    const command = registerCodeGrepCommand(new Command().command("code"));
+    const help = command.helpInformation().replace(/\s+/g, " ");
+
+    expect(help).toContain(
+      "Valid values: symbol_ref, name, qualified_path, kind, category, arity, is_public, file_path, start_line, end_line, content_hash, parent_path.",
+    );
+    expect(help).not.toContain("code, caller_count");
+    expect(help).not.toContain("parent_symbol_ref");
+  });
+});
 
 describe("pkgGrepAction", () => {
   const mcpUrl = "https://mcp.githits.com";
