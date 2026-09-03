@@ -3,6 +3,7 @@ import {
   AuthRequiredError,
   formatAuthRequiredForTerminal,
 } from "@githits/mcp/internal";
+import { InvalidArgumentError } from "commander";
 import { AuthConfigError } from "../services/auth-config.js";
 import { ExperimentalToolsDisabledError } from "../services/experimental-cli-policy.js";
 import { ExperimentalConfigError } from "../services/experimental-config.js";
@@ -31,7 +32,7 @@ export function handleCliError(
   error: unknown,
   deps: CliErrorHandlerDeps,
 ): never {
-  if (deps.json && isJsonConfigError(error)) {
+  if (deps.json && isJsonUserFacingError(error)) {
     deps.stderr.write(
       `${JSON.stringify({
         error: error.message,
@@ -72,14 +73,16 @@ function isUserFacingError(error: unknown): error is Error {
     error instanceof ExperimentalConfigError ||
     error instanceof ExperimentalToolsDisabledError ||
     error instanceof AuthStorageLockTimeoutError ||
-    error instanceof AuthStoragePolicyError
+    error instanceof AuthStoragePolicyError ||
+    error instanceof InvalidArgumentError
   );
 }
 
-function isJsonConfigError(error: unknown): error is Error {
+function isJsonUserFacingError(error: unknown): error is Error {
   return (
     error instanceof AuthConfigError ||
     error instanceof ExperimentalConfigError ||
-    error instanceof ExperimentalToolsDisabledError
+    error instanceof ExperimentalToolsDisabledError ||
+    error instanceof InvalidArgumentError
   );
 }

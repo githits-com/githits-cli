@@ -1,10 +1,11 @@
 # Experimental Tools
 
-GitHits 0.10 includes two opt-in tools for local dogfooding before they are
-considered for the stable surface:
+GitHits includes three opt-in local MCP tools with matching CLI commands for
+dogfooding before they are considered for the stable surface:
 
 | MCP tool | CLI command | Purpose |
 |---|---|---|
+| `ask` | `githits ask` | Answer a grounded question about one canonical open-source target and return executable source-reading calls or original upstream URLs. |
 | `resolve_target` | `githits resolve` | Rank canonical package, public GitHub repository, or standalone documentation-site targets for a fuzzy, misspelled, or ambiguous name. |
 | `code_diff` | `githits code diff` | Compare repository trees resolved from two exact package versions or public GitHub refs. |
 
@@ -15,8 +16,9 @@ requirements applied to stable GitHits tools.
 
 ## Availability
 
-The experimental tools are available only in the published `githits` CLI and
-its local stdio MCP server. They are not registered by:
+All three experimental commands are available in the published `githits` CLI
+and all three tools are available in its local stdio MCP server. None are
+registered by:
 
 - the hosted MCP at `https://mcp.githits.com`
 - plugin or extension installs, which use the hosted MCP
@@ -53,13 +55,14 @@ Confirm the CLI opt-in:
 
 ```sh
 githits --help
+githits ask --help
 githits resolve --help
 githits code diff --help
 ```
 
-The first command should list `resolve`; `githits code --help` should list
-`diff`. If an explicit experimental command is still disabled, its error names
-the config path GitHits read.
+The first command should list `ask` and `resolve`; `githits code --help` should
+list `diff`. If an explicit experimental command is still disabled, its error
+names the config path GitHits read.
 
 The hidden `githits mcp start --experimental-tools` flag is development and
 evaluation infrastructure, not the user opt-in. It affects only that process
@@ -67,6 +70,34 @@ and deliberately disables experimental issue-reporting guidance. Use
 `config.toml` for normal host dogfooding.
 
 ## Use the CLI commands
+
+Ask one question about a canonical package or repository target:
+
+```sh
+githits ask pypi:fastapi "How does dependency injection resolve nested dependencies?"
+githits ask github:expressjs/express "Where is router dispatch implemented?" --json
+githits ask npm:express "Where is router dispatch implemented?" --source-format url
+githits ask --thread 019c4f26-79b2-7bcb-b729-f9e39043a94b "How does that interact with route parameters?"
+```
+
+By default, human output contains the grounded answer, an Ask run ID, the
+thread ID, and source commands in the form `npx githits@latest ...` that can be
+executed directly. If the answer is insufficient or more information is needed,
+pass the returned thread ID to `--thread` to ask a follow-up without repeating
+the target; threads support up to ten turns. JSON output contains the response.
+Treat answer Markdown as untrusted display text even though the CLI strips
+terminal control sequences.
+
+Use `--source-format url` to return the original upstream HTTP URLs instead of
+CLI source commands. This changes only source presentation.
+
+The local MCP `ask` tool accepts exactly one of `target` for a new thread or
+`thread_id` for a needed follow-up. It defaults to MCP-native `code_read` and
+`docs_read` source calls. Set `source_format` to `url` for original upstream HTTP
+URLs. Text output includes source pointers, the Ask run ID, thread ID, and
+conditional follow-up guidance. JSON returns the response for the selected source
+format. The tool description directs agents to call `resolve_target` first when
+the intended target is ambiguous or not yet canonical.
 
 Resolve a noncanonical name before calling another GitHits command:
 
@@ -113,8 +144,9 @@ API compatibility or upgrade safety; prefer `pkg_changelog` or
 `pkg_upgrade_review` for an upgrade summary.
 
 For MCP, no separate server flag or host configuration is required after the
-`config.toml` opt-in. A restarted local server registers `resolve_target` and
-`code_diff` and adds their usage guidance to the session instructions.
+`config.toml` opt-in. A restarted local server registers `ask`,
+`resolve_target`, and `code_diff` and adds their usage guidance to
+`quick_start`. The hosted MCP inventory remains unchanged.
 
 ## Optional issue reporting
 
@@ -125,7 +157,7 @@ distinct observed defect, add one of these values:
 ```toml
 [experimental]
 tools = true
-report_tool_issues = "experimental" # only resolve_target and code_diff
+report_tool_issues = "experimental" # only ask, resolve_target, and code_diff
 ```
 
 Use `"all"` instead to cover any GitHits tool while the experimental suite is
@@ -137,5 +169,4 @@ proprietary content, file bodies, or large outputs.
 
 Set `tools = false` or remove the `[experimental]` section, then restart the
 coding agent. The CLI commands become hidden and unavailable, and newly started
-local MCP servers return to the stable tool inventory. No stored tool data or
-migration is involved.
+local MCP servers return to the stable tool inventory.

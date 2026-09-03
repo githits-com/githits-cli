@@ -485,10 +485,12 @@ describe("CLI root help smoke contract", () => {
       EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
     );
     expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).toContain("uninstall");
+    expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).not.toContain("ask");
     expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).not.toContain("resolve");
+    expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toContain("ask");
     expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toContain("resolve");
     expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toHaveLength(
-      EXPECTED_STABLE_TOP_LEVEL_COMMANDS.length + 1,
+      EXPECTED_STABLE_TOP_LEVEL_COMMANDS.length + 2,
     );
   });
 
@@ -542,6 +544,7 @@ describe("MCP smoke cohorts", () => {
   it("keeps experimental inventory local and additive to the stable baseline", () => {
     expect(EXPECTED_EXPERIMENTAL_MCP_TOOLS).toEqual([
       ...EXPECTED_MCP_TOOLS,
+      "ask",
       "resolve_target",
       "code_diff",
     ]);

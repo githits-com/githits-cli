@@ -89,6 +89,7 @@ describe("experimental CLI process policy", () => {
     await withMissingConfig(async (xdgConfigHome, isolatedHome) => {
       const root = await runCli(xdgConfigHome, ["--help"], isolatedHome);
       expect(root.exitCode).toBe(0);
+      expect(root.stdout).not.toContain("ask");
       expect(root.stdout).not.toContain("resolve");
 
       const code = await runCli(
@@ -106,6 +107,7 @@ describe("experimental CLI process policy", () => {
       await withConfig(contents, async (xdgConfigHome) => {
         const root = await runCli(xdgConfigHome, ["--help"]);
         expect(root.exitCode).toBe(0);
+        expect(root.stdout).not.toContain("ask");
         expect(root.stdout).not.toContain("resolve");
 
         const code = await runCli(xdgConfigHome, ["code", "--help"]);
@@ -125,7 +127,16 @@ describe("experimental CLI process policy", () => {
       async (xdgConfigHome) => {
         const root = await runCli(xdgConfigHome, ["--help"]);
         expect(root.exitCode).toBe(0);
+        expect(root.stdout).toContain("ask");
+        expect(root.stdout).toContain('githits ask npm:express "question"');
         expect(root.stdout).toContain("resolve");
+
+        const ask = await runCli(xdgConfigHome, ["ask", "--help"]);
+        expect(ask.exitCode).toBe(0);
+        expect(ask.stdout).toContain("<target> <question>");
+        expect(ask.stdout).toContain("--source-format <format>");
+        expect(ask.stdout).toContain('choices: "cli", "url"');
+        expect(ask.stdout).toContain("--json");
 
         const code = await runCli(xdgConfigHome, ["code", "--help"]);
         expect(code.exitCode).toBe(0);
@@ -140,9 +151,11 @@ describe("experimental CLI process policy", () => {
       "[experimental]\ntools = false\n",
       async (xdgConfigHome) => {
         for (const args of [
+          ["ask", "--help"],
           ["resolve", "--help"],
           ["code", "diff", "--help"],
           ["help", "resolve"],
+          ["help", "ask"],
           ["help", "code", "diff"],
         ]) {
           const result = await runCli(xdgConfigHome, args);
@@ -157,16 +170,15 @@ describe("experimental CLI process policy", () => {
           expect(result.stderr).not.toContain("Authentication");
         }
         const directJson = await runCli(xdgConfigHome, [
-          "code",
-          "diff",
+          "ask",
           "npm:express",
-          "5.2.0..5.2.1",
+          "How is routing implemented?",
           "--json",
         ]);
         expect(directJson.exitCode).toBe(1);
         expect(directJson.stdout).toBe("");
         expect(JSON.parse(directJson.stderr)).toEqual({
-          error: `Experimental CLI command "code diff" is disabled. Enable it in ${join(xdgConfigHome, "githits", "config.toml")} by adding:\n[experimental]\ntools = true`,
+          error: `Experimental CLI command "ask" is disabled. Enable it in ${join(xdgConfigHome, "githits", "config.toml")} by adding:\n[experimental]\ntools = true`,
           code: "INVALID_ARGUMENT",
           retryable: false,
         });
@@ -186,6 +198,7 @@ describe("experimental CLI process policy", () => {
         const result = await runCli(xdgConfigHome, args);
         expect(result.exitCode).toBe(0);
         expect(result.stdout).not.toContain("resolve");
+        expect(result.stdout).not.toContain("ask");
         expect(result.stdout).not.toContain("diff");
       }
 

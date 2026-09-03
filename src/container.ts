@@ -1,5 +1,8 @@
 import {
+  AGENTIC_ASK_REQUEST_TIMEOUT_MS,
   type AgentInfo,
+  type AgenticAskService,
+  AgenticAskServiceImpl,
   type CodeDiffService,
   type CodeNavigationService,
   CodeNavigationServiceImpl,
@@ -284,6 +287,8 @@ export interface Dependencies {
   packageIntelligenceService: PackageIntelligenceService;
   /** Resolves fuzzy package/repository names for the CLI dogfood surface. */
   resolveTargetService: ResolveTargetService;
+  /** Private experimental Ask service used by the root CLI and local MCP. */
+  agenticAskService: AgenticAskService;
   /** GitHits REST API service */
   githitsService: GitHitsService;
   /** Active credential provider shared by CLI-only account services. */
@@ -360,6 +365,12 @@ export async function createContainer(
         fetchFn,
         serviceRuntime,
       );
+      const agenticAskService = new AgenticAskServiceImpl(
+        apiUrl,
+        tokenProvider,
+        fetchFn,
+        { ...serviceRuntime, timeoutMs: AGENTIC_ASK_REQUEST_TIMEOUT_MS },
+      );
 
       return {
         authStorage,
@@ -375,6 +386,7 @@ export async function createContainer(
         codeNavigationService,
         packageIntelligenceService,
         resolveTargetService,
+        agenticAskService,
         githitsService: new GitHitsServiceImpl(
           apiUrl,
           envToken,
@@ -423,6 +435,12 @@ export async function createContainer(
       fetchFn,
       serviceRuntime,
     );
+    const agenticAskService = new AgenticAskServiceImpl(
+      apiUrl,
+      tokenManager,
+      fetchFn,
+      { ...serviceRuntime, timeoutMs: AGENTIC_ASK_REQUEST_TIMEOUT_MS },
+    );
 
     return {
       authStorage,
@@ -438,6 +456,7 @@ export async function createContainer(
       codeNavigationService,
       packageIntelligenceService,
       resolveTargetService,
+      agenticAskService,
       githitsService: new RefreshingGitHitsService(
         apiUrl,
         tokenManager,

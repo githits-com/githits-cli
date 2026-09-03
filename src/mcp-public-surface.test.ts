@@ -22,6 +22,7 @@ import type {
   ServerNotification,
   ServerRequest,
 } from "@modelcontextprotocol/sdk/types.js";
+import * as publicMcpClient from "../packages/mcp/src/client.js";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
@@ -126,8 +127,10 @@ describe("public MCP package surface", () => {
     ]) {
       expect(inventory).not.toContain("resolve_target");
       expect(inventory).not.toContain("code_diff");
+      expect(inventory).not.toContain("ask");
     }
     expect("createLocalMcpServer" in publicMcp).toBe(false);
+    expect("AgenticAskServiceImpl" in publicMcpClient).toBe(false);
   });
 
   it("contains the APIs needed by a remote MCP server without internal imports", () => {

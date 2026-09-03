@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AuthRequiredError } from "@githits/mcp/internal";
+import { InvalidArgumentError } from "commander";
 import { AuthConfigError } from "../services/auth-config.js";
 import { ExperimentalToolsDisabledError } from "../services/experimental-cli-policy.js";
 import { ExperimentalConfigError } from "../services/experimental-config.js";
@@ -142,6 +143,27 @@ describe("handleCliError", () => {
       code: "INVALID_ARGUMENT",
       retryable: false,
     });
+
+    const invalidArgument = captureCliError(
+      new InvalidArgumentError("Provide a question to continue the thread."),
+      true,
+    );
+    expect(JSON.parse(invalidArgument.output)).toEqual({
+      error: "Provide a question to continue the thread.",
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    });
+  });
+
+  it("renders action argument errors without the unexpected-error footer", () => {
+    const result = captureCliError(
+      new InvalidArgumentError("Provide a question to continue the thread."),
+    );
+
+    expect(result.output).toBe(
+      "Provide a question to continue the thread.\n\n",
+    );
+    expect(result.output).not.toContain("githits doctor");
   });
 
   for (const error of [

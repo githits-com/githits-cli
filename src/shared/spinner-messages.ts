@@ -3,6 +3,11 @@
  * a command waits on the GitHits backend, so long requests feel alive.
  */
 export const SPINNER_MESSAGES = {
+  ask: [
+    "Investigating indexed sources...",
+    "Tracing the relevant implementation...",
+    "Grounding the answer...",
+  ],
   example: [
     "Searching real implementations...",
     "Exploring open-source code...",

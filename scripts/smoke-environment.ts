@@ -37,6 +37,7 @@ export function createScopedSmokeEnvironment(
     if (value !== undefined) env[key] = value;
   }
   env.XDG_CONFIG_HOME = join(root, ".config");
+  env.APPDATA = join(root, "AppData", "Roaming");
   env.GITHITS_DISABLE_UPDATE_CHECK = "1";
   return {
     env,
@@ -49,9 +50,10 @@ export function writeSmokeConfig(
   env: Record<string, string | undefined>,
   contents: string,
 ): string {
-  const configHome = env.XDG_CONFIG_HOME;
+  const configHome =
+    process.platform === "win32" ? env.APPDATA : env.XDG_CONFIG_HOME;
   if (!configHome)
-    throw new Error("Smoke config environment has no XDG_CONFIG_HOME");
+    throw new Error("Smoke config environment has no platform config root");
   const configDir = join(configHome, "githits");
   mkdirSync(configDir, { recursive: true });
   const configPath = join(configDir, "config.toml");
