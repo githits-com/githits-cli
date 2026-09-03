@@ -153,7 +153,7 @@ Use the tools in these roles:
 | `docs_read` | `page_id`, `start_line?`, `end_line?`, `format?` | Read a package documentation page by ID; use `docs_list` to browse and `search` to find topics. Text output returns 150 lines by default or up to 300 with an explicit range; repo-backed pages include exact `code_read` metadata. |
 | `pkg_info` | `registry`, `package_name`, `verbose?`, `format?` | Assess latest package health and adoption through license, downloads, and activity. Use `pkg_vulns` for advisory detail, `pkg_deps` for dependency graphs, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison. |
 | `pkg_vulns` | `registry`, `package_name`, `version?`, `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `verbose?`, `format?` | Check current package advisories instead of trusting memory for vulnerabilities. Advisories can be published or revised after training, so a cutoff disclaimer is not current evidence. Covers pinned releases, latest-version risk, and vague questions about vulnerability volume or a package's security track record. Use `pkg_info` for a latest health overview or `pkg_upgrade_review` for current-vs-target evidence. |
-| `pkg_deps` | `registry`, `package_name`, `version?`, `lifecycle?`, `include_importers?`, `max_depth?`, `format?` | Inspect what a package depends on, directly or transitively. Use `pkg_info` for health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence. |
+| `pkg_deps` | `registry`, `package_name`, `version?`, `lifecycle?`, `include_importers?`, `include_issues?`, `max_depth?`, `format?` | Inspect direct/transitive dependencies or opt into deprecated, outdated, duplicate, and conflict analysis. Use `pkg_info` for health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence. |
 | `pkg_changelog` | `registry?`, `package_name?`, `repo_url?`, `from_version?`, `to_version?`, `limit?`, `git_ref?`, `omit_bodies?`, `verbose?`, `body_lines?`, `format?` | Find release notes and changelog history for a package or public GitHub repository. Latest mode returns recent entries without promising date order; range mode covers `(from_version, to_version]`. Use latest mode with `to_version` and `limit: 1` for one exact release. Use `pkg_info` for a quick health view or `pkg_upgrade_review` for upgrade evidence. |
 | `pkg_upgrade_review` | `registry?`, `package_name?`, `current_version?`, `target_version?`, `packages?`, `skip_transitive_security?`, `include_dependency_issues?`, `min_severity?`, `verbose?`, `format?` | Review a package upgrade using vulnerability, release, peer, and dependency-change evidence. Use `pkg_info` for health, `pkg_changelog` for release notes, `pkg_vulns` for advisory detail, or `pkg_deps` for dependency graphs. |
 | `code_files` | `target`, `path?`, `path_prefix?`, `globs?`, `extensions?`, `file_types?`, `languages?`, `file_intent?`, `file_intents?`, `exclude_file_intents?`, `exclude_doc_files?`, `exclude_test_files?`, `include_hidden?`, `limit?`, `wait_timeout_ms?`, `format?` | List indexed files and paths in any public GitHub repository or package, then hand off to `code_read` or `code_grep`. Selectors narrow the listing; `INDEXING` errors expose available retry candidates when known. |
@@ -277,11 +277,46 @@ contributors are not copied onto generic progress targets, and
 
 ### `pkg_deps` response shape
 
-**Data-first envelope.** `runtime`, `groups`, and `transitive` are three independent blocks emitted based on what the backend returned and what the caller asked for, not on additional caller flags. Agents branch on the envelope's shape rather than inferring from inputs.
+**Data-first envelope.** `runtime`, `groups`, and `transitive` are three independent blocks emitted based on what the backend returned and what the caller asked for, not on additional caller flags. Agents branch on the envelope's shape rather than inferring from inputs. `include_issues: true` adds a separate top-level `issues` block; issue analysis alone does not expose `transitive` unless `max_depth` or `include_importers` independently requests that output.
 
 - `runtime` block: emitted whenever the service returned `dependencies.direct` (including `{count: 0, items: []}` for zero-dep packages). `runtime.count` is computed client-side from `runtime.items.length`. The source `direct[]` is always runtime-only: dev / peer / build / optional deps live in the groups block instead.
 - `groups` block: emitted when the caller requested a lifecycle view and the service returned `dependencyGroups` — including when a lifecycle filter matched nothing (`{items: []}`). Omitted when the service returned `dependencyGroups: null` (e.g. on zero-dep packages), or when the caller used the default runtime view. Each group carries its members under `items`, matching `runtime.items` so dependency lists share one key throughout the envelope. Duplicate `{name, constraint}` entries inside a group are preserved verbatim; the terminal formatter dedups for scannability but JSON is lossless.
-- `transitive` block: emitted only when the caller set `max_depth` or requested importer provenance. Carries aggregates (`edges`, `uniquePackages`, `depth?`) plus preprocessed arrays: `packages[]` (each `{name, version, importers[]}` with importer name / version / constraint pulled from the service graph), `conflicts[]` (typed `{name, requiredVersions}`), `circularDependencies[]` (typed `{cycle: string[]}`). The raw graph is not exposed — the preprocessing happens in the envelope builder so agents consume the same signal the terminal `--verbose` renderer reads without re-implementing the decoder.
+- `transitive` block: emitted only when the caller set `max_depth` or requested importer provenance. Carries aggregates (`edges`, `uniquePackages`, `depth?`) plus preprocessed arrays: `packages[]` (each `{name, version, importers[]}` with importer name / version / constraint pulled from the service graph), `conflicts[]` (typed `{name, requiredVersions, requirements}`), and `circularDependencies[]` (typed `{cycle: string[]}`). Each conflict requirement preserves one backend edge in its original multiplicity/order as `{constraint, dependencyType, importer, target}`. Importer and target identities carry registry/name/version; a synthetic root importer is the inspected package with `root: true`. Graph indices never cross this boundary. The raw graph is not exposed — preprocessing happens in the envelope builder so agents consume the same signal the terminal `--verbose` renderer reads without re-implementing the decoder.
+
+**Dependency issue analysis.** `include_issues: true` requests the backend's lazy
+`dependencyIssues` summary and the companion graph needed to resolve conflict
+edges. Without `max_depth`, the analysis covers the full resolved graph and
+emits `issues.scope: {mode: "full"}`; with `max_depth`, it is bounded and echoes
+`{mode: "depth_limited", maxDepth}`. The additive `issues` envelope contains
+`total`, `scope`, and four category records:
+
+```text
+deprecated: {count, items: [{registry, name, versions, reasons}]}
+outdated: {count, items: [{registry, name, latestVersion?, severity, versions, repositoryUrl?}]}
+duplicates: {count, items: [{registry?, name, versions}]}
+conflicts: {count, items: [{registry?, name, versions, requiredVersions, requirements}]}
+```
+
+Counts are backend facts and item arrays are complete for the selected graph;
+zero analysis still emits all four empty category records. Issue conflicts use
+the same lossless requirement projection as existing transitive conflicts, so
+constraints, dependency types, resolved targets, and contributing importers
+remain actionable without exposing graph indices. Omitted or explicit-false
+`include_issues` preserves the existing issue selection and request cost;
+`dependencyIssues` is selected only for an explicit true value. The companion
+graph is an internal service input and is never exposed as raw graph data.
+
+**Issue text.** MCP text stays compact and bounded: it reports the total,
+`full graph` or `max depth N`, all four category counts, and at most three
+deterministically sorted examples per non-empty category. Conflict examples
+also cap constraint groups and importer/type labels at three each. If any
+selected rows or conflict evidence are omitted, text emits the caller-owned
+hint `Pass format: "json" for complete issue details.`; complete JSON remains
+the MCP route for all rows. Zero is rendered as positive checked evidence.
+CLI uses the same formatter with `--verbose` to render every issue row and
+conflict requirement, and its corresponding hint is `Use --verbose for complete
+issue details.`. Sorting, grouping, and deduplication are presentation-only;
+JSON retains backend order and multiplicity.
 
 **`filter.lifecycles` echo.** Canonicalised lowercase array (deduplicated, sorted in canonical display order: `runtime` → `development` → `build` → `peer` → `optional`). Emitted only when the caller supplied a non-empty lifecycle input. Matches what the backend actually received — the raw CSV string is not echoed.
 
@@ -293,7 +328,7 @@ contributors are not copied onto generic progress targets, and
 
 **Version validation.** Same rule as `pkg_vulns`: tag-style `v`-prefixed inputs are rejected client-side with `INVALID_ARGUMENT` before the backend call.
 
-**MCP schema notes.** Permissive (`registry: z.string()`, `package_name: z.string()`, …) with validation in-handler via `buildPackageDependenciesParams`. Deliberately no `include_groups` input — with the data-first envelope emitting `groups` unconditionally when the backend returns `dependencyGroups`, the flag would be a silently ignored no-op. `max_depth` / CLI `--depth` is optional; when omitted the surface shows direct dependencies only while still fetching depth 1 on the wire to resolve direct dependency versions. Passing `max_depth` requests the transitive block and caps traversal. `include_importers` adds importer provenance; if used without `max_depth`, it also requests transitive output.
+**MCP schema notes.** Permissive (`registry: z.string()`, `package_name: z.string()`, …) with validation in-handler via `buildPackageDependenciesParams`. Deliberately no `include_groups` input — with the data-first envelope emitting `groups` unconditionally when the backend returns `dependencyGroups`, the flag would be a silently ignored no-op. `max_depth` / CLI `--depth` is optional; when omitted the surface shows direct dependencies only while still fetching depth 1 on the wire to resolve direct dependency versions. Passing `max_depth` requests the transitive block and caps traversal. `include_importers` adds importer provenance; if used without `max_depth`, it also requests transitive output. `include_issues` is an independent opt-in: it requests the issue summary and companion graph, uses full traversal when `max_depth` is omitted, and does not expose the ordinary transitive block unless `max_depth` or `include_importers` is also supplied. Omitted and explicit `false` preserve the current selections and cost, including conditional omission of the issue subtree.
 
 `pkg_deps` shares its envelope builder and text formatter with the CLI `githits pkg deps` command via `packages/mcp/src/shared/package-dependencies-request.ts` and `packages/mcp/src/shared/package-dependencies-response.ts`. MCP defaults to compact text and uses MCP-native hints such as `pass lifecycle="all"`; CLI hints remain CLI-native. The parity test (`src/tools/package-dependencies-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across every service-sourced success / error fixture (runtime, zero-dep, full-view, optional-lifecycle, multi-lifecycle, filter-matched-nothing, Crates-target-cfg dedup round-trip, transitive, versioned match / diff, NOT_FOUND, VERSION_NOT_FOUND, BACKEND_ERROR), and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT` (unsupported registry, tag-style version, unknown lifecycle).
 
