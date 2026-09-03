@@ -980,8 +980,12 @@ function wrapHighlightedText(
       continue;
     }
 
-    const available = Math.max(1, width - leading.length);
+    const continuationMarker =
+      content.match(/^(?:\/\/[!/]?|#|--|\*)\s+/)?.[0] ?? "";
     let consumed = 0;
+    let isFirstSegment = true;
+    let segmentLeading = leading;
+    let available = Math.max(1, width - segmentLeading.length);
     while (content.length - consumed > available) {
       let breakAt = content.lastIndexOf(" ", consumed + available);
       if (breakAt <= consumed) {
@@ -991,7 +995,7 @@ function wrapHighlightedText(
       const chunk = content.slice(consumed, breakAt).trimEnd();
       output.push(
         highlightWrappedSegment(
-          leading,
+          segmentLeading,
           chunk,
           lineOffset + leading.length + consumed,
           ranges,
@@ -1000,10 +1004,13 @@ function wrapHighlightedText(
       );
       consumed = breakAt;
       while (content[consumed] === " ") consumed += 1;
+      isFirstSegment = false;
+      segmentLeading = `${leading}${continuationMarker}`;
+      available = Math.max(1, width - segmentLeading.length);
     }
     output.push(
       highlightWrappedSegment(
-        leading,
+        isFirstSegment ? leading : segmentLeading,
         content.slice(consumed),
         lineOffset + leading.length + consumed,
         ranges,
@@ -1075,10 +1082,16 @@ function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
       titleHighlights: hit.highlights?.title,
     };
   }
-  const location = loc.filePath
-    ? `${loc.filePath}${formatLineRange(loc.startLine, loc.endLine)}`
+  const evidence = formatRepositoryEvidence(hit);
+  const location = evidence.filePath
+    ? `${evidence.filePath}${formatLineRange(evidence.startLine, evidence.endLine)}`
     : "location unavailable";
   const type = `[${shortType(hit.type)}]`;
+  const title = formatRepositoryHitTitle(
+    hit,
+    evidence.startLine,
+    evidence.endLine,
+  );
   return {
     prefix: `${hit.target} ${location} ${type}`,
     segments: [
@@ -1088,9 +1101,155 @@ function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
       { text: " ", style: "plain" },
       { text: type, style: "secondary" },
     ],
-    title: hit.title || undefined,
-    titleHighlights: hit.highlights?.title,
+    title: title.text,
+    titleHighlights: offsetHighlightRanges(
+      hit.highlights?.title,
+      title.highlightOffset,
+    ),
   };
+}
+
+interface RepositoryEvidence {
+  filePath?: string;
+  startLine?: number;
+  endLine?: number;
+}
+
+function formatRepositoryEvidence(
+  hit: UnifiedSearchHitPayload,
+): RepositoryEvidence {
+  const loc = hit.locator;
+  return {
+    filePath: loc.filePath,
+    startLine: loc.evidenceRange?.startLine ?? loc.startLine,
+    endLine: loc.evidenceRange?.endLine ?? loc.endLine,
+  };
+}
+
+interface RepositoryHitTitle {
+  text?: string;
+  highlightOffset: number;
+}
+
+function formatRepositoryHitTitle(
+  hit: UnifiedSearchHitPayload,
+  evidenceStartLine: number | undefined,
+  evidenceEndLine: number | undefined,
+): RepositoryHitTitle {
+  if (hit.type !== "repository_code" && hit.type !== "repository_symbol") {
+    return {
+      text: hit.title || undefined,
+      highlightOffset: 0,
+    };
+  }
+
+  const identity = formatRepositorySymbolIdentity(hit);
+  const context = hit.locator.symbolContext;
+  const definition = context?.definitionRange;
+  const definitionSharesEvidenceFile =
+    definition?.filePath === hit.locator.filePath;
+  const definitionDiffers =
+    definition !== undefined &&
+    definitionSharesEvidenceFile &&
+    (definition.startLine !== evidenceStartLine ||
+      definition.endLine !== evidenceEndLine);
+  const indexed = hit.locator.indexedRange;
+  const indexedDiffers =
+    indexed !== undefined &&
+    (indexed.startLine !== evidenceStartLine ||
+      indexed.endLine !== evidenceEndLine);
+  const kind = context?.kind;
+  const annotation = definition
+    ? definitionDiffers
+      ? formatRangeAnnotation(kind ?? "definition", definition)
+      : kind
+    : indexedDiffers
+      ? formatRangeAnnotation("chunk", indexed)
+      : kind;
+  const text = identity.text
+    ? annotation
+      ? `${identity.text} (${annotation})`
+      : identity.text
+    : annotation;
+
+  return {
+    text,
+    highlightOffset: identity.highlightOffset,
+  };
+}
+
+interface RepositorySymbolIdentity {
+  text?: string;
+  highlightOffset: number;
+}
+
+function formatRepositorySymbolIdentity(
+  hit: UnifiedSearchHitPayload,
+): RepositorySymbolIdentity {
+  const title = hit.title || undefined;
+  const context = hit.locator.symbolContext;
+  const qualifiedPath = context?.qualifiedPath;
+  const name = context?.name;
+
+  if (!title) {
+    return {
+      text:
+        qualifiedPath && !qualifiedPath.startsWith("<")
+          ? qualifiedPath
+          : undefined,
+      highlightOffset: 0,
+    };
+  }
+
+  if (
+    !qualifiedPath ||
+    !name ||
+    qualifiedPath.startsWith("<") ||
+    !hasQualifiedNameSuffix(qualifiedPath, name)
+  ) {
+    return { text: title, highlightOffset: 0 };
+  }
+
+  const titleSuffix = title.startsWith(name)
+    ? title.slice(name.length)
+    : undefined;
+  if (titleSuffix === undefined || !isSymbolSignatureSuffix(titleSuffix)) {
+    return { text: title, highlightOffset: 0 };
+  }
+
+  return {
+    text: `${qualifiedPath}${titleSuffix}`,
+    highlightOffset: qualifiedPath.length - name.length,
+  };
+}
+
+function isSymbolSignatureSuffix(suffix: string): boolean {
+  return suffix === "" || /^\/\d+$/.test(suffix) || /^\([^\n]*\)$/.test(suffix);
+}
+
+function hasQualifiedNameSuffix(qualifiedPath: string, name: string): boolean {
+  return (
+    qualifiedPath === name ||
+    [".", "::", "#", "/"].some((separator) =>
+      qualifiedPath.endsWith(`${separator}${name}`),
+    )
+  );
+}
+
+function formatRangeAnnotation(
+  label: string,
+  range: { startLine: number; endLine: number },
+): string {
+  const lineLabel = range.startLine === range.endLine ? "line" : "lines";
+  return `${label} at ${lineLabel} ${formatBareLineRange(range.startLine, range.endLine)}`;
+}
+
+function offsetHighlightRanges(
+  ranges: ReadonlyArray<readonly [number, number]> | undefined,
+  offset: number,
+): ReadonlyArray<readonly [number, number]> | undefined {
+  if (!ranges || offset === 0) return ranges;
+  return ranges.map(([from, to]) => [from + offset, to + offset] as const);
 }
 
 function renderHitHeaderPrefix(
@@ -1195,6 +1354,15 @@ function formatLineRange(start?: number, end?: number): string {
   if (typeof start !== "number") return "";
   if (typeof end !== "number" || end === start) return `:${start}`;
   return `:${start}-${end}`;
+}
+
+function formatBareLineRange(
+  start: number | undefined,
+  end: number | undefined,
+): string {
+  if (typeof start !== "number") return "an unavailable range";
+  if (typeof end !== "number" || end === start) return `${start}`;
+  return `${start}-${end}`;
 }
 
 function formatDocumentationSiteIdentity(

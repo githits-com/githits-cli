@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { once } from "node:events";
 import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { getAuthLockDir } from "./app-config-paths.js";
 import {
   AuthStorageImpl,
@@ -154,6 +154,125 @@ describe("LockedAuthStorage", () => {
 
     expect(ownerDeleteCount).toBe(2);
     expect(await fs.exists(lockPath)).toBe(false);
+  });
+
+  it("lets a successor acquire while the previous release path is cleaning up", async () => {
+    const { fs, fsWithHome, lockPath } = await createStoragePaths();
+    const firstEntered = createDeferred();
+    const releaseFirst = createDeferred();
+    const secondObservedFirst = createDeferred();
+    const secondEntered = createDeferred();
+    const cleanupStarted = createDeferred();
+    const continueCleanup = createDeferred();
+    const renamePath = fsWithHome.rename.bind(fsWithHome);
+    const deleteDirIfEmpty = fsWithHome.deleteDirIfEmpty.bind(fsWithHome);
+    let firstReleasePath = "";
+    const firstFs = Object.assign(Object.create(fsWithHome), {
+      rename: mock(async (source: string, destination: string) => {
+        if (source === lockPath) firstReleasePath = destination;
+        await renamePath(source, destination);
+      }),
+      deleteDirIfEmpty: mock(async (path: string) => {
+        if (firstReleasePath !== "" && path === firstReleasePath) {
+          cleanupStarted.resolve();
+          await continueCleanup.promise;
+        }
+        await deleteDirIfEmpty(path);
+      }),
+    }) as FileSystemServiceImpl;
+    const first = new LockedAuthStorage(createMockAuthStorage(), firstFs, {
+      lockTimeoutMs: 1_000,
+      getProcessStartedAt: testProcessStartedAt,
+    });
+    const second = new LockedAuthStorage(createMockAuthStorage(), fsWithHome, {
+      lockTimeoutMs: 1_000,
+      getProcessStartedAt: testProcessStartedAt,
+      isOwnerAlive: async () => {
+        secondObservedFirst.resolve();
+        return true;
+      },
+    });
+    let activeCriticalSections = 0;
+    let maxActiveCriticalSections = 0;
+    let secondDidEnter = false;
+    let firstDidComplete = false;
+
+    const firstRun = first
+      .withAuthStorageLock(async () => {
+        activeCriticalSections += 1;
+        maxActiveCriticalSections = Math.max(
+          maxActiveCriticalSections,
+          activeCriticalSections,
+        );
+        firstEntered.resolve();
+        await releaseFirst.promise;
+        activeCriticalSections -= 1;
+      })
+      .then(() => {
+        firstDidComplete = true;
+      });
+    await firstEntered.promise;
+    const firstOwnerId = (
+      JSON.parse(await fs.readFile(join(lockPath, "owner.json"))) as {
+        id: string;
+      }
+    ).id;
+    const expectedReleasePath = join(
+      dirname(lockPath),
+      `auth.lock.release-${createHash("sha256").update(firstOwnerId).digest("hex")}`,
+    );
+    const secondRun = second.withAuthStorageLock(async () => {
+      activeCriticalSections += 1;
+      maxActiveCriticalSections = Math.max(
+        maxActiveCriticalSections,
+        activeCriticalSections,
+      );
+      secondDidEnter = true;
+      secondEntered.resolve();
+      activeCriticalSections -= 1;
+    });
+
+    try {
+      await secondObservedFirst.promise;
+      expect(secondDidEnter).toBe(false);
+
+      releaseFirst.resolve();
+      await cleanupStarted.promise;
+      await secondEntered.promise;
+      await secondRun;
+
+      expect(firstReleasePath).toBe(expectedReleasePath);
+      expect(firstDidComplete).toBe(false);
+      expect(maxActiveCriticalSections).toBe(1);
+    } finally {
+      releaseFirst.resolve();
+      continueCleanup.resolve();
+    }
+
+    await firstRun;
+    expect(await fs.exists(lockPath)).toBe(false);
+  });
+
+  it("retains an ownerless directory when release rename fails", async () => {
+    const { fs, fsWithHome, lockPath } = await createStoragePaths();
+    const ownerPath = join(lockPath, "owner.json");
+    const rename = mock(async () => {
+      const error = new Error(
+        "lock directory cannot be renamed",
+      ) as NodeJS.ErrnoException;
+      error.code = "EPERM";
+      throw error;
+    });
+    fsWithHome.rename = rename;
+    const storage = new LockedAuthStorage(createMockAuthStorage(), fsWithHome, {
+      getProcessStartedAt: testProcessStartedAt,
+    });
+
+    await storage.withAuthStorageLock(async () => undefined);
+
+    expect(rename).toHaveBeenCalledTimes(1);
+    expect(await fs.exists(lockPath)).toBe(true);
+    expect(await fs.exists(ownerPath)).toBe(false);
   });
 
   it("keeps a concurrent holder when another acquisition loses owner creation", async () => {
@@ -819,6 +938,10 @@ describe("LockedAuthStorage", () => {
     const ownerPath = join(lockPath, "owner.json");
     const deadOwnerId = "dead-owner";
     const deadOwnerPid = 999_999_999;
+    const claimPath = join(
+      lockPath,
+      `reclaim-${createHash("sha256").update(deadOwnerId).digest("hex")}`,
+    );
     await mkdir(lockPath, { recursive: true, mode: 0o700 });
     await writeFile(
       ownerPath,
@@ -832,21 +955,19 @@ describe("LockedAuthStorage", () => {
 
     const delayedOwnerCheckStarted = createDeferred();
     const continueDelayedOwnerCheck = createDeferred();
-    const delayedCleanupFinished = createDeferred();
+    const delayedClaimCleanupFinished = createDeferred();
     const successorEntered = createDeferred();
     const releaseSuccessor = createDeferred();
     const deleteFile = fsWithHome.deleteFile.bind(fsWithHome);
-    const deleteDirIfEmpty = fsWithHome.deleteDirIfEmpty.bind(fsWithHome);
+    const deleteDirIfEmpty = mock(fsWithHome.deleteDirIfEmpty.bind(fsWithHome));
     let delayedOwnerDeleteCount = 0;
     const delayedFs = Object.assign(Object.create(fsWithHome), {
       deleteFile: mock(async (path: string) => {
         if (path === ownerPath) delayedOwnerDeleteCount += 1;
         await deleteFile(path);
+        if (path === claimPath) delayedClaimCleanupFinished.resolve();
       }),
-      deleteDirIfEmpty: mock(async (path: string) => {
-        await deleteDirIfEmpty(path);
-        delayedCleanupFinished.resolve();
-      }),
+      deleteDirIfEmpty,
     }) as FileSystemServiceImpl;
     const delayed = new LockedAuthStorage(
       new AuthStorageImpl(fs, configDir),
@@ -890,13 +1011,14 @@ describe("LockedAuthStorage", () => {
     await successorEntered.promise;
 
     continueDelayedOwnerCheck.resolve();
-    await delayedCleanupFinished.promise;
+    await delayedClaimCleanupFinished.promise;
 
     const successorOwner = JSON.parse(await fs.readFile(ownerPath)) as {
       id: string;
     };
     expect(successorOwner.id).not.toBe(deadOwnerId);
     expect(delayedOwnerDeleteCount).toBe(0);
+    expect(deleteDirIfEmpty).not.toHaveBeenCalled();
 
     releaseSuccessor.resolve();
     await Promise.all([delayedRun, winnerRun]);

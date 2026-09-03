@@ -46,6 +46,7 @@ import {
   parseArgs,
   prepareFullGuidanceWorkspace,
   prepareSkillsWorkspace,
+  readObservedStdout,
   redactText,
   runAgentEval,
   runWithTimeout,
@@ -653,7 +654,7 @@ describe("agent eval harness", () => {
         intentFragmentHash: GITHITS_INTENT_FRAGMENT_HASH,
       });
       expect(metrics).toMatchObject({
-        schemaVersion: 2,
+        schemaVersion: 3,
         records: [
           {
             scenario: "intent",
@@ -730,6 +731,35 @@ describe("agent eval harness", () => {
     expect(result.stdout).toBe("complete");
     expect(process.listenerCount("SIGINT")).toBe(before.sigint);
     expect(process.listenerCount("SIGTERM")).toBe(before.sigterm);
+  });
+
+  it("observes complete JSONL lines across chunks and a final unterminated line", async () => {
+    const timestamps = [
+      "2026-08-28T10:00:00.000Z",
+      "2026-08-28T10:00:01.000Z",
+      "2026-08-28T10:00:02.000Z",
+    ];
+    let timestampIndex = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode('{"event":"first"}\n{"event":"sec'),
+        );
+        controller.enqueue(new TextEncoder().encode('ond"}\n{"event":"last"}'));
+        controller.close();
+      },
+    });
+
+    await expect(
+      readObservedStdout(stream, () => timestamps[timestampIndex++] ?? ""),
+    ).resolves.toEqual({
+      stdout: '{"event":"first"}\n{"event":"second"}\n{"event":"last"}',
+      lines: [
+        { line: '{"event":"first"}', observedAt: timestamps[0]! },
+        { line: '{"event":"second"}', observedAt: timestamps[1]! },
+        { line: '{"event":"last"}', observedAt: timestamps[2]! },
+      ],
+    });
   });
 
   it("kills a timed-out POSIX subprocess process group", async () => {
@@ -2250,6 +2280,98 @@ describe("agent eval harness", () => {
     }
   });
 
+  it("persists streamed observation timestamps in raw and normalized artifacts", async () => {
+    const codexHome = mkdtempSync(join(tmpdir(), "agent-eval-codex-home-"));
+    const outDir = mkdtempSync(join(tmpdir(), "agent-eval-observed-tools-"));
+    const workload = resolve("eval/agentic/workloads/express-router.md");
+    const startedAt = "2026-08-28T10:00:00.100Z";
+    const completedAt = "2026-08-28T10:00:00.300Z";
+    const events = [
+      {
+        type: "item.started",
+        item: {
+          type: "mcp_tool_call",
+          id: "mcp-1",
+          server: "githits",
+          tool: "search",
+          status: "in_progress",
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "mcp_tool_call",
+          id: "mcp-1",
+          server: "githits",
+          tool: "search",
+          status: "completed",
+        },
+      },
+      { status: "success", answer: "done", confidence: "high" },
+    ];
+    const stdout = events.map((event) => JSON.stringify(event)).join("\n");
+    try {
+      await runAgentEval(
+        parseArgs(
+          ["--agent", "codex", "--out", outDir, "--workload", workload],
+          process.cwd(),
+        ),
+        {
+          baseEnv: { PATH: "/bin", CODEX_HOME: codexHome },
+          assertAgentAvailable: async () => {},
+          collectAgentVersions: async () => [
+            undefined,
+            "codex-test",
+            undefined,
+          ],
+          runCommand: async () => ({
+            stdout,
+            stderr: "",
+            exitCode: 0,
+            timedOut: false,
+            observedStdoutLines: events.map((event, index) => ({
+              line: JSON.stringify(event),
+              observedAt:
+                index === 0
+                  ? startedAt
+                  : index === 1
+                    ? completedAt
+                    : "2026-08-28T10:00:00.400Z",
+            })),
+          }),
+        },
+      );
+
+      const workloadDir = join(outDir, "workloads", "express-router");
+      const rawToolCalls = JSON.parse(
+        readFileSync(join(workloadDir, "tool-calls.json"), "utf8"),
+      ) as Array<{ observedAt?: string }>;
+      expect(rawToolCalls.map((call) => call.observedAt)).toEqual([
+        startedAt,
+        completedAt,
+      ]);
+      const metrics = JSON.parse(
+        readFileSync(join(outDir, "metrics.json"), "utf8"),
+      ) as {
+        records: Array<{
+          tools: { sequence: Array<Record<string, unknown>> };
+        }>;
+      };
+      expect(metrics.records[0]?.tools.sequence).toEqual([
+        {
+          tool: "search",
+          surface: "mcp",
+          status: "completed",
+          startedAt,
+          completedAt,
+        },
+      ]);
+    } finally {
+      rmSync(codexHome, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
   it("creates disposable per-workload homes and preserves caller CODEX_HOME", () => {
     const isolation = createWorkloadIsolation({
       PATH: "/bin",
@@ -2819,8 +2941,20 @@ describe("agent eval harness", () => {
       },
     });
     expect(metrics.records[0]?.tools.sequence).toEqual([
-      { tool: "search", surface: "cli", status: "started" },
-      { tool: "pkg_info", surface: "mcp", status: "completed" },
+      {
+        tool: "search",
+        surface: "cli",
+        status: "started",
+        startedAt: null,
+        completedAt: null,
+      },
+      {
+        tool: "pkg_info",
+        surface: "mcp",
+        status: "completed",
+        startedAt: null,
+        completedAt: null,
+      },
     ]);
     expect(metrics.aggregates).toMatchObject({
       durationMs: 3000,
@@ -3507,6 +3641,30 @@ describe("agent eval harness", () => {
     ]);
   });
 
+  it("propagates harness observation timestamps into extracted tool calls", () => {
+    const observedAt = "2026-08-28T10:00:00.000Z";
+    expect(
+      extractToolCalls(
+        [
+          {
+            line: JSON.stringify({
+              type: "item.started",
+              item: {
+                type: "mcp_tool_call",
+                id: "mcp-1",
+                server: "githits",
+                tool: "search",
+                status: "in_progress",
+              },
+            }),
+            observedAt,
+          },
+        ],
+        "codex",
+      ),
+    ).toMatchObject([{ providerCallId: "mcp-1", observedAt }]);
+  });
+
   it("preserves Codex provider IDs and statuses for paired MCP and CLI events", () => {
     const events = [
       {
@@ -3923,15 +4081,41 @@ describe("agent eval harness", () => {
 
   it("reports calls by tool with status totals and surface separation", () => {
     const sequence: Parameters<typeof summarizeCallsByTool>[0] = [
-      { tool: "mcp__githits__pkg_info", surface: "mcp", status: "started" },
+      {
+        tool: "mcp__githits__pkg_info",
+        surface: "mcp",
+        status: "started",
+        startedAt: null,
+        completedAt: null,
+      },
       {
         tool: "mcp__githits__.pkg_info",
         surface: "mcp",
         status: "completed",
+        startedAt: null,
+        completedAt: null,
       },
-      { tool: "pkg_info", surface: "mcp", status: "unknown" },
-      { tool: "githits.pkg_info", surface: "cli", status: "failed" },
-      { tool: "search", surface: "cli", status: "completed" },
+      {
+        tool: "pkg_info",
+        surface: "mcp",
+        status: "unknown",
+        startedAt: null,
+        completedAt: null,
+      },
+      {
+        tool: "githits.pkg_info",
+        surface: "cli",
+        status: "failed",
+        startedAt: null,
+        completedAt: null,
+      },
+      {
+        tool: "search",
+        surface: "cli",
+        status: "completed",
+        startedAt: null,
+        completedAt: null,
+      },
     ];
 
     expect(summarizeCallsByTool(sequence, 5)).toEqual([
@@ -3967,7 +4151,13 @@ describe("agent eval harness", () => {
 
   it("keeps calls by tool unknown when logical telemetry is unavailable", () => {
     const sequence: Parameters<typeof summarizeCallsByTool>[0] = [
-      { tool: "pkg_info", surface: "mcp", status: "completed" },
+      {
+        tool: "pkg_info",
+        surface: "mcp",
+        status: "completed",
+        startedAt: null,
+        completedAt: null,
+      },
     ];
     expect(summarizeCallsByTool(sequence, null)).toBeNull();
     expect(summarizeCallsByTool(sequence, 0)).toBeNull();
@@ -3977,6 +4167,7 @@ describe("agent eval harness", () => {
   it("summarizes final reports without treating expected tools as actual calls", () => {
     const summary = summarizeFinalReport({
       status: "success",
+      answer: "The package has no active vulnerabilities.",
       githitsUsefulness: "helped",
       githitsUsefulnessReason: "useful",
       confidence: "high",
@@ -3989,10 +4180,22 @@ describe("agent eval harness", () => {
     expect(summary?.expectedToolUse).toEqual(["pkg_vulns"]);
     expect(summary?.unexpectedToolUse).toEqual(["pkg_info"]);
     expect(summary?.toolIssues).toEqual(["issue", "pkg_vulns: unclear range"]);
+    expect(summary?.answer).toBe("The package has no active vulnerabilities.");
+    expect(
+      summarizeFinalReport({ status: "success", confidence: "low", answer: 42 })
+        ?.answer,
+    ).toBeUndefined();
+    expect(
+      summarizeFinalReport({ status: "success", confidence: "low" })?.answer,
+    ).toBeUndefined();
   });
 
   it("builds a portable run report from persisted artifacts", () => {
     const runDir = createRunFixture();
+    writeFileSync(
+      join(runDir, "workloads", "pkg-vulns", "prompt.md"),
+      "Check this package for active vulnerabilities.\n",
+    );
     const run = JSON.parse(readFileSync(join(runDir, "run.json"), "utf8"));
     const report = buildRunReportFromMetadata(runDir, run);
 
@@ -4000,10 +4203,16 @@ describe("agent eval harness", () => {
     expect(report.workloads[0]?.artifacts.toolCalls).toBe(
       "workloads/pkg-vulns/tool-calls.json",
     );
+    expect(report.workloads[0]?.artifacts.prompt).toBe(
+      "workloads/pkg-vulns/prompt.md",
+    );
     expect(report.workloads[0]?.toolCalls.rawCount).toBe(2);
     expect(report.workloads[0]?.finalReport?.instructionIssues).toEqual([
       "Package aliases were unclear",
     ]);
+    expect(report.workloads[0]?.finalReport?.answer).toBe(
+      "No active vulnerabilities.",
+    );
     const formatted = formatRunReport(report);
     expect(formatted).toContain(
       "pkg-vulns success 1.2s uniqueTools=1 rawEvents=2",
@@ -4014,6 +4223,14 @@ describe("agent eval harness", () => {
     expect(formatted).toContain(
       "Inspect raw calls: workloads/pkg-vulns/tool-calls.json",
     );
+  });
+
+  it("omits the optional prompt artifact when it is absent", () => {
+    const runDir = createRunFixture();
+    const run = JSON.parse(readFileSync(join(runDir, "run.json"), "utf8"));
+    const report = buildRunReportFromMetadata(runDir, run);
+
+    expect(report.workloads[0]?.artifacts.prompt).toBeUndefined();
   });
 
   it("reports only the selected agent CLI version", () => {
@@ -4810,6 +5027,31 @@ describe("agent eval harness", () => {
     expect(report.workloads[0]?.toolCalls.rawCount).toBe(0);
     expect(report.workloads[0]?.warnings[0]).toContain(
       "artifact path outside run directory ignored",
+    );
+  });
+
+  it("does not expose a prompt symlink outside the run directory", () => {
+    const runDir = mkdtempSync(join(tmpdir(), "agent-eval-prompt-symlink-"));
+    const workloadDir = join(runDir, "workloads", "unsafe-prompt");
+    const outsideDir = mkdtempSync(
+      join(tmpdir(), "agent-eval-prompt-outside-"),
+    );
+    mkdirSync(workloadDir, { recursive: true });
+    writeJson(join(workloadDir, "tool-calls.json"), []);
+    writeFileSync(join(workloadDir, "stderr.txt"), "");
+    writeFileSync(join(outsideDir, "prompt.md"), "outside prompt\n");
+    symlinkSync(join(outsideDir, "prompt.md"), join(workloadDir, "prompt.md"));
+
+    const report = buildRunReportFromMetadata(runDir, {
+      workloads: [{ id: "unsafe-prompt", status: "success", workloadDir }],
+    });
+
+    expect(report.workloads[0]?.artifacts.prompt).toBeUndefined();
+    expect(report.workloads[0]?.warnings).toContain(
+      `artifact path outside run directory ignored: prompt: ${join(
+        workloadDir,
+        "prompt.md",
+      )}`,
     );
   });
 

@@ -55,6 +55,13 @@ host MCP files as reviewable build artifacts, not authoring locations.
   Codex, Cursor, and VS Code/GitHub Copilot OpenPlugin share generated
   `.mcp.json`; Gemini uses `gemini-extension.json` with `httpUrl`; and
   Antigravity uses `mcp_config.json` with `serverUrl`.
+- The hosted server lives in the separate `remote-mcp` repository and consumes
+  released `@githits/mcp` for tool registration, descriptors, `quick_start`,
+  and tool logic. Keep transport, request-scoped service composition,
+  auth/session handling, deployment, and observability in `remote-mcp`; never
+  reimplement package-owned MCP behavior there. Hosted descriptor changes take
+  effect only after the package release is adopted and deployed by
+  `remote-mcp`.
 - Direct `githits init` configuration retains stdio except for Cursor, which is
   remote-only. Claude and Gemini CLI setup remove legacy plugin or extension
   state before installing the user-scoped stdio server.

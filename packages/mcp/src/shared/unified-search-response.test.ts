@@ -3,6 +3,7 @@ import {
   CodeNavigationIndexingError,
   CodeNavigationRefNotFoundError,
   CodeNavigationTargetNotFoundError,
+  type UnifiedSearchHit,
   type UnifiedSearchOutcome,
   type UnifiedSearchParams,
 } from "@githits/core-internal";
@@ -13,6 +14,25 @@ import {
   buildUnifiedSearchStatusPayload,
   buildUnifiedSearchSuccessPayload,
 } from "./unified-search-response.js";
+
+function completedOutcomeWithHits(
+  hits: UnifiedSearchHit[],
+): UnifiedSearchOutcome {
+  if (defaultUnifiedSearchOutcome.state !== "completed") {
+    throw new Error("expected completed outcome fixture");
+  }
+  return {
+    ...defaultUnifiedSearchOutcome,
+    result: {
+      ...defaultUnifiedSearchOutcome.result,
+      results: hits,
+      page: {
+        ...defaultUnifiedSearchOutcome.result.page,
+        returned: hits.length,
+      },
+    },
+  };
+}
 
 describe("buildUnifiedSearchErrorPayload", () => {
   it("preserves backend indexing guidance, estimates, and alternatives", () => {
@@ -76,7 +96,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     waitTimeoutMs: 20_000,
   };
 
-  it("normalises completed results into the shared envelope", () => {
+  it("keeps legacy completed results compatible with the shared envelope", () => {
     const payload = buildUnifiedSearchSuccessPayload(
       params,
       "router middleware",
@@ -105,6 +125,494 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       'code_read target="npm:express@4.18.2" path="lib/router/index.js" start_line=42 end_line=57',
     );
     expect(payload.results[0]).not.toHaveProperty("score");
+  });
+
+  it("preserves the pi-mono evidence contract and prefers its exact definition follow-up", () => {
+    const commitSha = "853a80d0000000000000000000000000000000000";
+    const filePath = "packages/coding-agent/src/core/compaction/compaction.ts";
+    const hit: UnifiedSearchHit = {
+      id: "pi-mono-compact",
+      resultType: "REPOSITORY_CODE",
+      targetLabel: "badlogic/pi-mono@main",
+      title: "compact",
+      summary: "// Merge into single summary",
+      locator: {
+        repoUrl: "https://github.com/badlogic/pi-mono",
+        gitRef: "served-ref",
+        commitSha,
+        requestedRef: "requested-ref-must-not-win",
+        filePath,
+        repositoryFilePath: filePath,
+        startLine: 920,
+        endLine: 930,
+        evidenceRange: {
+          startLine: 920,
+          endLine: 930,
+          matchLine: 924,
+          rangeKind: "match_window",
+          matchSpansTruncated: false,
+        },
+        indexedRange: { startLine: 900, endLine: 940 },
+        symbolContext: {
+          name: "compact",
+          qualifiedPath: "Compaction.compact",
+          kind: "function",
+          relation: "encloses_match",
+          definitionRange: {
+            filePath,
+            repositoryFilePath: filePath,
+            startLine: 858,
+            endLine: 964,
+          },
+        },
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits([hit]),
+    );
+
+    expect(payload.results[0]?.locator).toEqual({
+      repoUrl: "https://github.com/badlogic/pi-mono",
+      gitRef: "served-ref",
+      commitSha,
+      requestedRef: "requested-ref-must-not-win",
+      filePath,
+      repositoryFilePath: filePath,
+      startLine: 920,
+      endLine: 930,
+      evidenceRange: {
+        startLine: 920,
+        endLine: 930,
+        matchLine: 924,
+        rangeKind: "match_window",
+        matchSpansTruncated: false,
+      },
+      indexedRange: { startLine: 900, endLine: 940 },
+      symbolContext: {
+        name: "compact",
+        qualifiedPath: "Compaction.compact",
+        kind: "function",
+        relation: "encloses_match",
+        definitionRange: {
+          filePath,
+          repositoryFilePath: filePath,
+          startLine: 858,
+          endLine: 964,
+        },
+      },
+    });
+    expect(payload.results[0]?.followUp).toBe(
+      `code_read target="github:badlogic/pi-mono#${commitSha}" path="${filePath}" start_line=858 end_line=964`,
+    );
+    expect(payload.results[0]?.followUp).not.toContain("requested-ref");
+  });
+
+  it("keeps associated and truncated evidence as the focused follow-up", () => {
+    const commitSha = "0123456789abcdef0123456789abcdef01234567";
+    const hit: UnifiedSearchHit = {
+      id: "associated",
+      resultType: "REPOSITORY_CODE",
+      targetLabel: "owner/repo@main",
+      title: "primarySymbol",
+      locator: {
+        repoUrl: "https://github.com/owner/repo",
+        gitRef: "served-ref",
+        commitSha,
+        requestedRef: "main",
+        filePath: "src/feature.ts",
+        repositoryFilePath: "src/feature.ts",
+        startLine: 44,
+        endLine: 48,
+        evidenceRange: {
+          startLine: 44,
+          endLine: 48,
+          matchLine: 46,
+          rangeKind: "match_window",
+          matchSpansTruncated: true,
+        },
+        indexedRange: { startLine: 1, endLine: 120 },
+        symbolContext: {
+          name: "primarySymbol",
+          kind: "function",
+          relation: "associated_with_indexed_chunk",
+          definitionRange: {
+            filePath: "src/feature.ts",
+            repositoryFilePath: "src/feature.ts",
+            startLine: 1,
+            endLine: 90,
+          },
+        },
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits([hit]),
+    );
+
+    expect(payload.results[0]?.locator.symbolContext).toMatchObject({
+      relation: "associated_with_indexed_chunk",
+      definitionRange: { startLine: 1, endLine: 90 },
+    });
+    expect(payload.results[0]?.locator.evidenceRange?.matchSpansTruncated).toBe(
+      true,
+    );
+    expect(payload.results[0]?.followUp).toBe(
+      `code_read target="github:owner/repo#${commitSha}" path="src/feature.ts" start_line=44 end_line=48`,
+    );
+  });
+
+  it("retains equal structured ranges when invalid spans leave the symbol associated", () => {
+    const hit: UnifiedSearchHit = {
+      id: "invalid-span-association",
+      resultType: "REPOSITORY_CODE",
+      targetLabel: "owner/repo@main",
+      locator: {
+        repoUrl: "https://github.com/owner/repo",
+        gitRef: "exact-ref",
+        filePath: "src/boundary.ts",
+        repositoryFilePath: "src/boundary.ts",
+        startLine: 1,
+        endLine: 1,
+        evidenceRange: {
+          startLine: 1,
+          endLine: 1,
+          matchLine: 1,
+          rangeKind: "match_window",
+          matchSpansTruncated: false,
+        },
+        indexedRange: { startLine: 1, endLine: 1 },
+        symbolContext: {
+          name: "boundary",
+          relation: "associated_with_indexed_chunk",
+          definitionRange: {
+            filePath: "src/boundary.ts",
+            repositoryFilePath: "src/boundary.ts",
+            startLine: 1,
+            endLine: 1,
+          },
+        },
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits([hit]),
+    );
+
+    expect(payload.results[0]?.locator).toMatchObject({
+      startLine: 1,
+      endLine: 1,
+      evidenceRange: { startLine: 1, endLine: 1 },
+      indexedRange: { startLine: 1, endLine: 1 },
+      symbolContext: {
+        relation: "associated_with_indexed_chunk",
+        definitionRange: { startLine: 1, endLine: 1 },
+      },
+    });
+    expect(payload.results[0]?.followUp).toContain(
+      'path="src/boundary.ts" start_line=1 end_line=1',
+    );
+  });
+
+  it("uses repository-root paths for package-monorepo evidence and definition follow-ups", () => {
+    const commitSha = "0123456789abcdef0123456789abcdef01234567";
+    const baseLocator = {
+      registry: "npm",
+      packageName: "workspace-package",
+      version: "1.0.0",
+      repoUrl: "https://github.com/owner/monorepo",
+      gitRef: "v1.0.0",
+      commitSha,
+      requestedRef: "v1.0.0",
+      filePath: "src/index.ts",
+      repositoryFilePath: "packages/workspace-package/src/index.ts",
+      startLine: 20,
+      endLine: 24,
+      evidenceRange: {
+        startLine: 20,
+        endLine: 24,
+        matchLine: 22,
+        rangeKind: "match_window",
+        matchSpansTruncated: false,
+      },
+      indexedRange: { startLine: 1, endLine: 60 },
+    } as const;
+    const hits: UnifiedSearchHit[] = [
+      {
+        id: "package-evidence",
+        resultType: "REPOSITORY_CODE",
+        targetLabel: "npm:workspace-package@1.0.0",
+        title: "associated",
+        locator: {
+          ...baseLocator,
+          symbolContext: {
+            name: "associated",
+            relation: "associated_with_indexed_chunk",
+          },
+        },
+      },
+      {
+        id: "package-definition",
+        resultType: "REPOSITORY_CODE",
+        targetLabel: "npm:workspace-package@1.0.0",
+        title: "defined",
+        locator: {
+          ...baseLocator,
+          symbolContext: {
+            name: "defined",
+            kind: "function",
+            relation: "encloses_match",
+            definitionRange: {
+              filePath: "src/index.ts",
+              repositoryFilePath: "packages/workspace-package/src/index.ts",
+              startLine: 10,
+              endLine: 40,
+            },
+          },
+        },
+      },
+    ];
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits(hits),
+    );
+
+    expect(payload.results.map((result) => result.followUp)).toEqual([
+      `code_read target="github:owner/monorepo#${commitSha}" path="packages/workspace-package/src/index.ts" start_line=20 end_line=24`,
+      `code_read target="github:owner/monorepo#${commitSha}" path="packages/workspace-package/src/index.ts" start_line=10 end_line=40`,
+    ]);
+    expect(payload.results[0]?.locator.filePath).toBe("src/index.ts");
+    expect(payload.results[0]?.locator.repositoryFilePath).toBe(
+      "packages/workspace-package/src/index.ts",
+    );
+  });
+
+  it("centres a capped large-definition follow-up on evidence without changing its structured range", () => {
+    const hit: UnifiedSearchHit = {
+      id: "large-definition",
+      resultType: "REPOSITORY_CODE",
+      targetLabel: "owner/repo@main",
+      title: "largeFunction",
+      locator: {
+        repoUrl: "https://github.com/owner/repo",
+        gitRef: "exact-served-ref",
+        filePath: "src/large.ts",
+        repositoryFilePath: "src/large.ts",
+        startLine: 984,
+        endLine: 994,
+        evidenceRange: {
+          startLine: 984,
+          endLine: 994,
+          matchLine: 989,
+          matchSpansTruncated: false,
+        },
+        symbolContext: {
+          name: "largeFunction",
+          relation: "encloses_match",
+          definitionRange: {
+            filePath: "src/large.ts",
+            repositoryFilePath: "src/large.ts",
+            startLine: 269,
+            endLine: 1286,
+          },
+        },
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits([hit]),
+    );
+
+    expect(
+      payload.results[0]?.locator.symbolContext?.definitionRange?.endLine,
+    ).toBe(1286);
+    expect(payload.results[0]?.followUp).toBe(
+      'code_read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=840 end_line=1139',
+    );
+
+    const endEvidenceHit: UnifiedSearchHit = {
+      ...hit,
+      id: "large-definition-end-evidence",
+      locator: {
+        ...hit.locator,
+        startLine: 1200,
+        endLine: 1210,
+        evidenceRange: {
+          startLine: 1200,
+          endLine: 1210,
+          matchLine: 1205,
+          matchSpansTruncated: false,
+        },
+      },
+    };
+    const endEvidencePayload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits([endEvidenceHit]),
+    );
+    expect(endEvidencePayload.results[0]?.followUp).toBe(
+      'code_read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=987 end_line=1286',
+    );
+
+    const oversizedEvidenceHit: UnifiedSearchHit = {
+      ...hit,
+      id: "large-definition-oversized-evidence",
+      locator: {
+        ...hit.locator,
+        startLine: 600,
+        endLine: 950,
+        evidenceRange: {
+          startLine: 600,
+          endLine: 950,
+          matchLine: 900,
+          matchSpansTruncated: true,
+        },
+      },
+    };
+    const oversizedEvidencePayload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits([oversizedEvidenceHit]),
+    );
+    expect(oversizedEvidencePayload.results[0]?.followUp).toBe(
+      'code_read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=751 end_line=1050',
+    );
+  });
+
+  it("does not generate a repository follow-up without an exact served revision", () => {
+    const hit: UnifiedSearchHit = {
+      id: "missing-exact-revision",
+      resultType: "REPOSITORY_CODE",
+      targetLabel: "owner/repo@main",
+      locator: {
+        repoUrl: "https://github.com/owner/repo",
+        requestedRef: "main",
+        filePath: "src/index.ts",
+        repositoryFilePath: "src/index.ts",
+        startLine: 10,
+        endLine: 12,
+        evidenceRange: {
+          startLine: 10,
+          endLine: 12,
+          matchLine: 11,
+          matchSpansTruncated: false,
+        },
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits([hit]),
+    );
+
+    expect(payload.results[0]?.followUp).toBe(
+      "follow-up unavailable: missing exact revision",
+    );
+    expect(payload.results[0]?.followUp).not.toContain("requestedRef");
+  });
+
+  it("keeps the match in capped oversized evidence without an enclosing definition", () => {
+    const hit: UnifiedSearchHit = {
+      id: "oversized-associated-evidence",
+      resultType: "REPOSITORY_CODE",
+      targetLabel: "owner/repo@main",
+      locator: {
+        repoUrl: "https://github.com/owner/repo",
+        gitRef: "exact-served-ref",
+        filePath: "src/evidence.ts",
+        repositoryFilePath: "src/evidence.ts",
+        startLine: 600,
+        endLine: 950,
+        evidenceRange: {
+          startLine: 600,
+          endLine: 950,
+          matchLine: 940,
+          matchSpansTruncated: true,
+        },
+        symbolContext: {
+          name: "associated",
+          relation: "associated_with_indexed_chunk",
+        },
+      },
+    };
+
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits([hit]),
+    );
+
+    expect(payload.results[0]?.followUp).toBe(
+      'code_read target="github:owner/repo#exact-served-ref" path="src/evidence.ts" start_line=651 end_line=950',
+    );
+  });
+
+  it("preserves identity-only and absent symbol context without changing legacy locators", () => {
+    const baseHit: UnifiedSearchHit = {
+      id: "identity-only",
+      resultType: "REPOSITORY_CODE",
+      targetLabel: "npm:express@4.18.2",
+      locator: {
+        registry: "npm",
+        packageName: "express",
+        version: "4.18.2",
+        filePath: "lib/router/index.js",
+        startLine: 1,
+        endLine: 1,
+        symbolContext: {
+          name: "router",
+          relation: "associated_with_indexed_chunk",
+        },
+      },
+    };
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits([
+        baseHit,
+        {
+          ...baseHit,
+          id: "absent-symbol",
+          locator: { ...baseHit.locator, symbolContext: undefined },
+        },
+      ]),
+    );
+
+    expect(payload.results[0]?.locator.symbolContext).toEqual({
+      name: "router",
+      relation: "associated_with_indexed_chunk",
+    });
+    expect(Object.keys(payload.results[0]!.locator.symbolContext!)).toEqual([
+      "name",
+      "relation",
+    ]);
+    expect(payload.results[1]?.locator).not.toHaveProperty("symbolContext");
+    expect(payload.results[0]?.locator).toMatchObject({
+      filePath: "lib/router/index.js",
+      startLine: 1,
+      endLine: 1,
+    });
   });
 
   it("allows repository doc hits without gitRef", () => {

@@ -2,12 +2,14 @@ import { describe, expect, it } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { QUICK_START_PREREQUISITE } from "@githits/mcp/internal";
 import { CLAUDE_MCP_ALLOWED_TOOLS } from "./drivers/claude-cli.js";
 import {
   buildPass3Prompt,
   LEGITIMATE_SIGNALS,
 } from "./fixtures/legit-signals.js";
 import { detectFixtureTool, formatFixtureOutput } from "./mock-cli/githits.js";
+import { composeEvalMcpDescription } from "./mock-mcp/descriptions.js";
 import {
   EVAL_MCP_REGISTERED_TOOL_NAMES,
   writeState,
@@ -15,6 +17,15 @@ import {
 import { prepareSkillsFixtureWorkspace } from "./skills-workspace.js";
 
 describe("security eval skills surface", () => {
+  it("keeps mock evidence descriptions aligned with MCP session composition", () => {
+    expect(composeEvalMcpDescription("base", "guardrail", false)).toBe(
+      `base\n\n${QUICK_START_PREREQUISITE}`,
+    );
+    expect(composeEvalMcpDescription("base", "guardrail", true)).toBe(
+      `base\n\nguardrail\n\n${QUICK_START_PREREQUISITE}`,
+    );
+  });
+
   it("allows Claude to call every registered mock MCP tool", () => {
     expect(EVAL_MCP_REGISTERED_TOOL_NAMES).toEqual([
       "quick_start",

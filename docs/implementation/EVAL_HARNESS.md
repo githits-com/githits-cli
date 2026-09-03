@@ -195,7 +195,8 @@ Before any empirical pass runs:
   refuse to run otherwise — they only use subscription auth).
 - `eval/mock-mcp/server.ts` imports each tool's guardrail-free
   `DESCRIPTION_BASE` plus the live guardrail constants, then composes the
-  selected layers per cell. Verify by inspecting its imports.
+  selected layers per cell and appends the production stable MCP-session
+  `quick_start` prerequisite. Verify with `eval/security-eval.test.ts`.
 - Claude's strict MCP allowlist is derived from the canonical registered-tool
   list, and `eval/security-eval.test.ts` guards its exact contents. The mock
   server uses typed literal registrations so list reordering cannot remap tools.

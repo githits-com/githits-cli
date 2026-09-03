@@ -2,41 +2,56 @@
 
 ## Purpose
 
-The CLI exposes MCP tools that mirror the backend's MCP server. This document explains the tool architecture, the parity requirement with the backend, and how to add or modify tools.
+This document explains the shared MCP tool architecture, its host boundaries,
+and how to add or modify tools.
 
 ## Background
 
-GitHits has two MCP server implementations:
+GitHits has one shared MCP tool implementation and two server hosts. The public
+`@githits/mcp` package owns stable tool registration, descriptors,
+`quick_start`, schemas, handlers, and response formatting. The hosts are:
 
-- **Backend** (`githits-backend`) — Python/FastMCP, runs as hosted MCP services. Production exposes both the core example-search workflow (`get_example`, `search_language`, `feedback`) and indexed package/source tooling.
-- **CLI** (`githits-cli`) — TypeScript/MCP SDK, runs locally via `githits mcp start`. Surfaces the same public tool families, including unified `search`, package intelligence (`pkg_*`), docs (`docs_*`), and code navigation (`code_*`).
+- **Hosted** (`remote-mcp`) — serves `https://mcp.githits.com` and consumes a
+  released `@githits/mcp` version. It owns HTTP transport, request-scoped
+  service composition, auth/session handling, deployment, and observability.
+- **Local** (`githits-cli`) — runs via `githits mcp start` over stdio and adds
+  local auth/storage, CLI startup, and config-gated experimental tools around
+  the shared stable package surface.
 
-The CLI mirrors the production MCP tool contract where equivalent tools exist. Core example-search tool descriptions are kept aligned with GitHits backend wording; indexed package/source tool descriptions are kept aligned with the backend contract.
+Do not copy or independently implement package-owned MCP behavior in
+`remote-mcp`. A change here reaches hosted clients after `@githits/mcp` is
+released, `remote-mcp` updates the dependency, and the hosted server is
+deployed; no second tool implementation change is required.
 
 ## Tool-selection contract
 
 MCP clients may receive only a truncated catalog before loading a tool
-definition. Every tool description therefore starts with a compact,
-benefit-specific verb/object phrase. Do not spend that prefix on generic
-phrasing such as “Use when the user asks” or “Use when the user needs”. The
-first 80 characters prioritize the user's likely question and the tool's
-distinct role; treat that boundary as a ceiling, not a target. Keep registry
-counts and enumerations in the loaded definition because they crowd out trigger
-language and can imply incomplete or inconsistent catalog boundaries. The
-loaded definition owns the complete use/avoid boundary, argument constraints,
-and the exact name of each immediate follow-up tool; repeat those handoffs on
-both sides of a workflow so a client can recover when it loads only one tool.
+definition. The verified claude.ai deferred-tool catalog renders the first
+description sentence, capped at 80 displayed characters: sentences longer than
+79 characters appear as their first 79 plus an ellipsis. Every tool description
+therefore starts with a compact, benefit-specific sentence. Do not spend that
+sentence on generic phrasing such as “Use when the user asks” or “Use when the
+user needs”. The first sentence prioritizes the user's likely question and the
+tool's distinct role; keep it within 79 characters when it must render whole.
+Keep the first 80 raw characters useful for clients that expose a raw prefix.
+Keep registry counts and enumerations in the loaded definition because they
+crowd out trigger language and can imply incomplete or inconsistent catalog
+boundaries. The loaded definition owns the complete use/avoid boundary,
+argument constraints, and the exact name of each immediate follow-up tool.
+Repeat those handoffs on both sides of a workflow so a client can recover when
+it loads only one tool.
 
-The 80-character boundary comes from an August 2026 Claude Desktop connector
+The raw 80-character boundary comes from an August 2026 Claude Desktop connector
 session with no GitHits memories or user instruction to use GitHits. Its
 unguided selection context contained the tool name and first 80 description
 characters; the connector description and MCP server instructions were absent.
-That observation is host-specific rather than an MCP protocol guarantee, but it
-defines the minimum catalog surface GitHits designs and tests. Other clients
-may expose different amounts or kinds of discovery context; 80 characters is
-GitHits' verified Claude Desktop design target, not a cross-client guarantee.
+A separate September 2026 claude.ai session exposed the first-sentence renderer
+described above. These observations are host-specific rather than MCP protocol
+guarantees, but together define the catalog surfaces GitHits designs and tests.
+Other clients may expose different amounts or kinds of discovery context.
 
-Write the prefix as the answer to “why would an agent choose this tool now?”:
+Write the opening sentence as the answer to “why would an agent choose this tool
+now?”:
 
 - Match natural questions such as “is this version vulnerable?” or “what does
   this package depend on?”, rather than catalog taxonomy or implementation
@@ -50,25 +65,47 @@ Write the prefix as the answer to “why would an agent choose this tool now?”
 - Distinguish sibling tools before adding shared corpus terms. For example,
   package health, advisory detail, dependency graphs, changelog history, and
   upgrade review need visibly different openings.
-- Make every prefix stand alone. Do not assume ordering, adjacency, a shared
-  connector description, `quick_start`, or server instructions supply context.
+- Make every opening sentence stand alone. Do not assume ordering, adjacency, a
+  shared connector description, `quick_start`, or server instructions supply
+  context.
 - Keep exhaustive registry coverage, schemas, limits, handoffs, and safety
-  detail in the remainder of the loaded definition. Do not fill unused prefix
-  characters merely because the client permits 80.
+  detail in the remainder of the loaded definition. Do not pad the opening
+  sentence toward the catalog limit.
+- Avoid internal periods in the opening sentence, including abbreviations,
+  version literals, and filenames; the observed host sentence boundary is
+  otherwise ambiguous, and the descriptor contract rejects it.
 
 GitHits intentionally omits MCP initialize instructions because clients treat
 them inconsistently: some hide them, some promote them, and some repeat them
 with every tool. Guidance has two delivery paths: a loaded `githits-mcp` skill
-already carries the stable guide and skips a normal `quick_start` call, while
-plain MCP clients use the no-argument, read-only `quick_start` tool as their
-fallback. Current tool descriptions remain authoritative; a material mismatch
-with a stale skill snapshot or an exposed `Experimental` descriptor can still
-require `quick_start` for runtime-specific guidance. The stable guide is owned
-by `packages/mcp/src/mcp/instructions.ts`; the terminal skill section must stay
+already carries the stable guide and skips `quick_start`,
+while plain MCP clients use the no-argument, read-only `quick_start` tool once
+per session. The `quick_start` catalog sentence states the required first call
+and the untrusted-content safety rules it loads in 72 characters, so claude.ai
+renders it whole; the skill-loaded exception remains in the full description.
+Every evidence or preparatory descriptor repeats the prerequisite as an
+MCP-composed footer without changing its distinct opening sentence or raw
+prefix; `feedback` is excluded because it is a post-result write. There are no
+tool-specific exceptions. The stable guide is owned by
+`packages/mcp/src/mcp/instructions.ts`; the terminal skill section must stay
 byte-for-byte aligned under `src/skills-packaging.test.ts`. Local
 `buildLocalMcpQuickStart()` appendices are runtime-only and excluded from that
-public copy. Individual tool descriptions remain self-contained so direct
-tool selection does not depend on the bootstrap.
+public copy; they do not change when `quick_start` is called. Individual tool
+descriptions remain self-contained so direct tool selection can still find the
+right evidence tool before the bootstrap.
+Transport-neutral callable descriptions do not receive the footer because that
+surface does not guarantee a `quick_start` tool exists.
+
+The `quick_start` catalog sentence was corrected after a September 2026
+claude.ai session skipped `quick_start`: exact-name retrieval matched the
+prerequisite footer repeated by the dependent tools, while `quick_start`'s own
+catalog sentence included the loaded-skill exception and omitted both the
+literal `quick_start` token and the safety consequence. The replacement
+sentence includes both because the
+observed retrieval matched description bodies rather than tool names. The
+transcript-derived probe in
+`eval/agentic/probes/claude-ai-deferred-catalog.md` preserves that catalog layout
+and substitutes the current rendered `quick_start` sentence.
 
 Use the tools in these roles:
 
@@ -106,7 +143,7 @@ Use the tools in these roles:
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `quick_start` | none | Load the canonical guide for public GitHub/package search, grep, code, docs, examples, routing, and external-content safety without querying GitHits evidence. Plain MCP clients call it once per session before other GitHits tools; skip it when the loaded `githits-mcp` skill already carries the guide. |
+| `quick_start` | none | Required first call for a plain GitHits MCP session. Loads untrusted-content safety rules, cross-tool routing, target syntax, and compact-output rules. A plain session that skips it lacks those rules; skip only when the `githits-mcp` skill is loaded. |
 | `get_example` | `query`, `language?`, `license_mode?`, `format?` | Find canonical cross-project examples when no single target is the answer or target-scoped search came up short. For a known package or repository, use `search`, `docs_*`, or `code_*`. Defaults to markdown with source provenance and an optional `solution_id` for `feedback`; pass `format: "json"` for `{result, solution_id?}`. |
 | `search_language` | `query`, `format?` | Resolve a supported language name or alias for `get_example`; do not use it for source search. Defaults to one compact line per match; pass `format: "json"` for structured matches. |
 | `feedback` | `solution_id?`, `accepted`, `feedback_text?`, `tool_name?` | Submit feedback when a GitHits result or the overall experience was helpful, unhelpful, wrong, incomplete, slow, or confusing. Pass `solution_id` to rate an example or `tool_name` to identify a result. |
@@ -146,6 +183,12 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 **Unified `search` query syntax.** The `search.query` field is the backend discovery query syntax, not a raw pass-through to a per-source search engine. It supports implicit `AND`, uppercase `OR`, parentheses, unary `-`, quoted phrases, semantic qualifiers (`kind:`, `category:`, `path:`, `lang:`, `name:`, `intent:`), and routing qualifiers (`registry:`, `package:`, `version:`, `repo:`). The backend parses the query once and compiles it per source. Structured `name` and `language` inputs are compiled into `name:` / `lang:` qualifiers and AND-ed with the query before sending. Per-source support, ignored features, and incompatibilities are reported in `sourceStatus`.
 
 **Partial-result truth.** Every result-bearing initial `search` payload and stored `search_status.result` carries the backend's exact `partialResults: boolean`, including `false` for an atomic serveable interim snapshot and `true` for a subset of requested evidence. A progress-only response with no result snapshot omits the field. This additive field is retained unchanged in CLI `--json` and MCP `format: "json"`; text-v1 uses it only to label active results as interim or partial.
+
+**Repository search evidence locators.** Repository code and symbol hits keep the legacy target-relative `locator.filePath` and evidence `startLine` / `endLine` while also exposing the repository-root `repositoryFilePath`, exact served `commitSha`, explicit `evidenceRange`, original `indexedRange`, and optional `symbolContext`. Evidence includes `matchLine`, backend `rangeKind`, and `matchSpansTruncated`; symbol context keeps backend identity/kind plus the fixed lowercase relation `encloses_match` or `associated_with_indexed_chunk`. A proven enclosing relation always has one complete `definitionRange` containing both target-relative and repository-root paths. Associated or identity-only context may omit that range. Malformed partial definition locators invalidate the search response instead of being repaired or dropped.
+
+JSON retains all ranges even when their coordinates are equal. Compact text uses one repository-hit header shape whose path suffix is always the focused evidence range. A meaningful symbol `qualifiedPath` replaces the local name while keeping signature detail carried only by the hit title, such as Elixir arity. Symbol kind follows the identity, with a differing same-file definition range rendered as `(function at lines 100-115)`; a differing indexed range without a definition is labelled as a chunk. Equal ranges are printed once. The single `followUp` uses the definition only for proven enclosure and otherwise uses the evidence range. Repository reads pair `repoUrl` with `commitSha`, falling back only to the exact served `gitRef`, and always use `repositoryFilePath`; they never combine a repository target with a package-relative path, substitute `requestedRef`, or generate an unpinned repository action. A definition wider than the MCP `code_read` 300-line cap keeps its true structured range while the generated action requests a bounded window centred on the focused evidence or `matchLine`. This client contract requires the deployed Phase 1A GraphQL schema; no legacy retry query or schema probe is attempted. Compact repository source summaries retain source line boundaries; when a long source comment must wrap, continuation lines repeat its comment marker so the snippet stays legible.
+
+The current evidence body is one contiguous backend-authored excerpt. If search later returns selected non-contiguous lines or multiple relevant enclosing blocks, the wire contract must carry each line's original coordinate and each block boundary. Text can then add line-number gutters and grouped blocks; it must not infer consecutive line numbers from `evidenceRange` for that shape.
 
 **Promoted `warnings[]`.** Noteworthy `sourceStatus` entries — sources reporting `incompatibleQueryFeatures`, `ignoredQueryFeatures`, `incompatibleFilters`, `ignoredFilters`, lifecycle anomalies (`indexingStatus`, `codeIndexState`), or a free-form `note` — are also surfaced as a top-level `warnings: string[]` in the completed/incomplete payloads (and appended after parser warnings inside the `search_status` result block). The structured detail still lives in `sourceStatus`; `warnings[]` is the agent-visible signal that something about execution did not match the request. On completed empty results, healthy non-contributor source entries are also retained with zero `resultCount` and served identity; requested/fresh labels emit only when they materially differ from served. Contributor-bearing DOCS rows retain their physical contributors instead of duplicating healthy served/current resolution metadata. Healthy `INDEXED` / `CURRENT` / non-divergent `STALE` states never become warnings. `PROVISIONAL` is queryable but remains a visible non-healthy indexing signal, including on completed responses. Successful non-empty responses keep the prior compact projection. JSON keeps promoted warnings and source-status detail lossless; MCP text classifies parser/query and structured constraint facts once below the outcome and does not repeat promoted lifecycle/freshness warning prose or opaque notes. Implementation in `buildSourceStatusWarnings` and empty-result compaction (`packages/mcp/src/shared/unified-search-response.ts`).
 
@@ -356,7 +399,7 @@ Backend GraphQL errors preserve the backend message verbatim and carry its `hint
 
 **Exact-path authority errors**: `code_read` / `code_grep` distinguish a missing path (`FILE_NOT_FOUND`) from a path deliberately omitted from the index (`FILE_PATH_EXCLUDED`) and an index whose source-file inventory cannot authoritatively answer the path query (`SOURCE_FILE_INVENTORY_UNKNOWN`). The latter two become stable top-level CLI/MCP codes and preserve `filePath`, optional `exclusionReason`, retryability, and target-resolution metadata. All three preserve the backend message and add surface-native `details.action` guidance for inspecting indexed paths. MCP names `code_files`, `path_prefix`, `code_read`, and `code_grep`; CLI JSON names `githits code files`, a path-prefix positional, `githits code read`, and `githits code grep --path`. CLI terminal output names `code files`. `code_read` still supports generic `NOT_FOUND` from older/backend paths, and its structured recovery is likewise rendered with MCP or CLI-native names without classifying unrelated target misses as file errors.
 
-**`code_read` span bounds (MCP-only)**: real session traces showed agents requesting 300-600 line windows (and occasional unbounded full-file reads) which dominated context cost, while a later Claude Desktop session showed that a fixed 150-line ceiling can waste context by forcing pagination for a known 248-line file. Calls without `end_line` therefore remain bounded to `MCP_READ_DEFAULT_SPAN` (150 lines), while deliberate explicit ranges may request up to `MCP_READ_MAX_SPAN` (300 lines). Both are defined in `packages/mcp/src/tools/read-file.ts` and enforced before the backend call.
+**`code_read` span bounds (MCP-only)**: real session traces showed agents requesting 300-600 line windows (and occasional unbounded full-file reads) which dominated context cost, while a later Claude Desktop session showed that a fixed 150-line ceiling can waste context by forcing pagination for a known 248-line file. Calls without `end_line` therefore remain bounded to `MCP_READ_DEFAULT_SPAN` (150 lines), while deliberate explicit ranges may request up to `MCP_READ_MAX_SPAN` (300 lines). Both are defined in `packages/mcp/src/shared/code-navigation-defaults.ts` and enforced before the backend call.
 
 The `hint` field is emitted only when the cap *actually truncated* the response — i.e., the returned range comes up short of available content. `shouldEmitCappedHint` (in `packages/mcp/src/tools/read-file.ts`) suppresses the hint in three cases the agent doesn't need it: (a) the cap clamp didn't fire (caller's range was already within the cap); (b) the file fits within the cap, so the response is the whole file even though the request was clamped; (c) the returned range reaches end of file. Binary files always skip the hint. When emitted, the hint reads from `payload.startLine` / `endLine` / `totalLines` (the actual returned range, not the pre-clamp request) and includes the original request for the agent to learn from. The CLI command `githits code read` does not apply the cap; humans piping whole files to disk continue to work.
 
@@ -531,9 +574,17 @@ The MCP server deliberately omits protocol-level `instructions`. Clients have
 handled that field as hidden guidance, privileged guidance, namespace metadata,
 or a prefix repeated on every tool. Plain MCP clients use the `quick_start`
 tool to expose shared guidance once, on demand. The loaded `githits-mcp` skill
-contains the same stable guide and therefore needs no normal bootstrap call;
+contains the same stable guide and therefore makes no bootstrap call;
 current tool descriptions remain the source of truth for tool-specific
-routing, arguments, output, and recovery.
+routing, arguments, output, and recovery. The bootstrap descriptor's complete
+catalog sentence identifies it as the required first call, includes the literal
+`quick_start` retrieval token, and states the untrusted-content safety benefit;
+the skill-loaded exception follows later. Every evidence and preparatory
+descriptor repeats the same prerequisite
+in a centrally composed footer, so selecting a direct tool still routes a plain
+MCP agent through `quick_start`. The footer is absent from transport-neutral
+callable tools, which may not expose a bootstrap tool. There are no
+tool-specific exceptions.
 
 The concrete Codex failure was verified in August 2026. Codex PR
 [#21053](https://github.com/openai/codex/pull/21053) intentionally preserved
@@ -572,9 +623,7 @@ payload whose privilege, visibility, and repetition vary by host.
 The stable guide embedded in `skills/githits-mcp/SKILL.md` is an exact copy of
 `buildMcpQuickStart()` and is checked by `src/skills-packaging.test.ts`. The
 local experimental appendices from `buildLocalMcpQuickStart()` are not copied
-into the public skill; an exposed local `Experimental` descriptor or a material
-stale-snapshot mismatch is the bounded case where that client may call
-`quick_start` after loading the skill.
+into the public skill and do not override the loaded-skill rule.
 
 The reporting contract is validated structurally in the focused instruction
 tests: one concise `accepted: false` report per distinct issue, exact enabled
@@ -686,17 +735,24 @@ Each tool follows the same structure. See `packages/mcp/src/tools/search.ts` for
 
 1. Define an `Args` interface for the handler input
 2. Define a `schema` object with Zod validators (these become the MCP tool's input schema)
-3. Define a `DESCRIPTION` constant whose first 80 characters satisfy the
-   standalone selection contract above and whose complete text matches the
-   backend tool description
+3. Define a `DESCRIPTION` constant whose first sentence satisfies claude.ai's
+   rendered catalog contract and whose first 80 raw characters remain useful to
+   clients that expose a raw prefix. Do not use internal periods in that opening
+   sentence; abbreviations, version literals, and filenames make the observed
+   host boundary ambiguous. MCP session composition appends the shared
+   `quick_start` prerequisite to evidence and preparatory tools.
 4. Export a `createXxxTool(service)` factory function returning a `ToolDefinition`
 5. The handler calls the service and wraps the result with `textResult()` or lets `withErrorHandling()` catch errors
 
-> **Descriptions are kept in sync with the backend MCP server.** Changes happen through coordinated PRs — the frontend may lead wording, but the backend mirrors before public release. Add an exact first-80 catalog test in `packages/mcp/src/mcp/server.test.ts`, then use descriptor-only agent evals to inspect discovery and actual calls. Even small wording differences can change tool selection behaviour.
+> **Descriptions and session composition are owned by `@githits/mcp`.** Do not
+> duplicate them in `remote-mcp`. Add a rendered first-sentence contract and an
+> exact first-80 raw-prefix test in `packages/mcp/src/mcp/server.test.ts`, then
+> use descriptor-only agent evals to inspect discovery and actual calls. Even
+> small wording differences can change tool selection behaviour.
 
 ## Adding a New Tool
 
-When the backend adds a new tool, follow this checklist:
+When adding a new public MCP tool, follow this checklist:
 
 1. **Create tool file** — `packages/mcp/src/tools/new-tool.ts` with `Args` interface, `schema`, `DESCRIPTION`, and `createNewTool(service)` factory
 2. **Add service method** — Add the method to the relevant service interface and implementation in `packages/core-internal/src/services/`
@@ -708,19 +764,15 @@ When the backend adds a new tool, follow this checklist:
 8. **Update registration smoke** — Add the tool name to `EXPECTED_MCP_TOOLS` in `packages/mcp/src/smoke-test.ts`
 9. **Update CLI structure smoke** — If this adds a top-level CLI command, add it to `EXPECTED_TOP_LEVEL_COMMANDS` in `scripts/cli-smoke.ts`
 
-## Behavioral Differences from Backend
+## Host Boundaries
 
-While the contract (names, params, descriptions) is identical, some implementation details differ:
-
-| Aspect | Backend | CLI |
-|---|---|---|
-| `search_language` | Server-side search via `mcp_service.search_language()` | Client-side substring filter: fetches all languages from `/languages`, filters locally by name/display_name/aliases using case-insensitive `includes()` |
-| `get_example` response | Backend builds markdown from structured `McpSearchResponse` | CLI receives pre-formatted markdown from REST `/search` endpoint |
-| unified `search` response | Backend returns structured indexed-search hits and follow-up refs | CLI and MCP share JSON envelope builders over the code-navigation service result |
-| `feedback` response | Backend returns different messages for accepted/rejected | CLI hard-codes "Feedback submitted successfully" on success; the REST API response body is not used for the message |
-| Error handling | Catches specific exception types, logs to PostHog | Uses shared mapped-error helpers for consistent `ToolResult` errors |
-
-These differences exist because the CLI hits the REST API (which does its own formatting) rather than calling internal backend services directly.
+The hosted and local stable MCP servers do not maintain separate tool
+definitions or formatters. Both register the `@githits/mcp` surface and inject
+services through its `McpToolServices` boundary. `remote-mcp` owns hosted
+transport, request auth/session state, deployment, and observability; the CLI
+owns stdio startup, local auth/storage, and local configuration. The CLI may
+compose config-gated experimental tools, but those do not change the public or
+hosted stable inventory.
 
 ## Testing Tools
 
@@ -755,7 +807,8 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 
 ## Related Documentation
 
-- Backend tool definitions: `githits-backend/githits/api/mcp/server.py`
+- [`packages/mcp/README.md`](../../packages/mcp/README.md) — public package and
+  remote-host integration boundary
 - [`mcp-cli-parity.md`](./mcp-cli-parity.md) — rules for dual-surface tools (CLI ↔ MCP)
 - [`cli-commands.md`](./cli-commands.md) — CLI commands that mirror these MCP tools
 - `docs/guidelines/ARCHITECTURAL_GUIDELINES.md` — service isolation and testing patterns

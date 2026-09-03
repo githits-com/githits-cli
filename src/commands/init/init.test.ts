@@ -2290,7 +2290,10 @@ describe("initAction", () => {
       "GitHits is installed for public OSS/package evidence",
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
-      "call GitHits `quick_start` once",
+      "When the `githits-mcp` skill is loaded, follow it and do not call `quick_start`",
+    );
+    expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
+      "call GitHits `quick_start` once per session before any other GitHits tool",
     );
 
     const logCalls = getLogOutput();

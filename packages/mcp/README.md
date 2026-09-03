@@ -4,6 +4,13 @@ Reusable MCP server APIs and tool registrations for GitHits.
 
 This package exposes transport-neutral helpers for servers that want the GitHits MCP tool surface without the local `githits` CLI startup, auth storage, or Commander wiring.
 
+The production server at `https://mcp.githits.com` lives in the separate
+`remote-mcp` repository and consumes a released version of this package for
+tool registration, descriptors, `quick_start`, and tool logic. That host owns
+HTTP transport, request-scoped service composition, auth/session handling,
+deployment, and observability; package behavior reaches it after a dependency
+update and deployment rather than through a parallel implementation.
+
 > **Browser boundary:** only the selected `@githits/mcp/tools` resolved runtime
 > graph is browser-safe. Installing `@githits/mcp` still installs its MCP SDK
 > and other Node-oriented dependencies; the package root and

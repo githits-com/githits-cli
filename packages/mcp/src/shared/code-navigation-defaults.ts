@@ -19,6 +19,10 @@ export const DEFAULT_WAIT_TIMEOUT_MS = 20_000;
  */
 export const MAX_WAIT_TIMEOUT_MS = 60_000;
 
+/** Default and maximum line spans enforced by the MCP `code_read` surface. */
+export const MCP_READ_DEFAULT_SPAN = 150;
+export const MCP_READ_MAX_SPAN = 300;
+
 /**
  * Sentinel: the caller explicitly asked for "all intents" (CLI
  * `--intent all`, MCP `file_intent: "all"`). Distinct from `undefined`

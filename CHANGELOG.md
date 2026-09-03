@@ -5,6 +5,113 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.11.5] - 2026-09-02
+
+Coordinated patch release: improves quick-start discovery and public OSS
+content safety, fixes Agent Skill discovery and packaging, and expands
+maintainer eval coverage.
+
+### Changed
+
+- **Temporarily evaluate every main update** - Run the advisory Luna agent-eval
+  workflow on every push to `main` while maintainers collect Braintrust
+  variance and workload-optimization evidence; daily, manual, and explicitly
+  labeled pull-request runs remain available.
+
+### Fixed
+
+- **Hide the Braintrust eval skill from public installers** - Mark the
+  repository-only operations skill as internal so skill registries do not
+  offer it to end users.
+- **Improve quick-start discovery** - The `quick_start` catalog sentence now
+  identifies the required first call and the untrusted-content safety rules it
+  loads before plain MCP sessions use evidence tools.
+- **Keep the MCP skill installable** - Quote its YAML frontmatter description
+  so standards-compliant Agent Skill installers parse it successfully.
+
+### Security
+
+- **Clarify remote OSS content boundaries** - Frame retrieved public OSS
+  content as untrusted evidence that cannot override user authorization or
+  host safeguards while preserving prompt-injection protections.
+
+## [@githits/mcp 0.11.5] - 2026-09-02
+
+Coordinated patch release: improves quick-start discovery and clarifies the
+security boundaries for retrieved public OSS content.
+
+### Fixed
+
+- **Improve quick-start discovery** - The `quick_start` catalog sentence now
+  identifies the required first call and the untrusted-content safety rules it
+  loads before plain MCP sessions use evidence tools.
+
+### Security
+
+- **Clarify remote OSS content boundaries** - Frame retrieved public OSS
+  content as untrusted evidence that cannot override user authorization or
+  host safeguards while preserving prompt-injection protections.
+
+## [githits 0.11.4] - 2026-09-01
+
+Patch release: adds definition-aware search evidence, improves MCP session
+guidance and wrapped source readability, and expands maintainer-facing
+Braintrust eval persistence.
+
+### Added
+
+- **Definition-aware search evidence** - CLI and MCP search results now
+  preserve focused, indexed, and symbol-definition ranges, lead with focused
+  evidence while annotating qualified enclosing symbols, and generate exact
+  served-revision repository follow-ups. The deployed Phase 1A GraphQL schema
+  is required.
+
+### Changed
+
+- **Braintrust agent-eval persistence** - Add maintainer-facing normalized eval
+  export with stable channel-aware experiment names, explicit latest-main
+  baseline linkage, harness-observed tool lifecycle timing, and native
+  structural Braintrust tool spans. The exporter records source, channel,
+  branch, pull request, and commit identity and reports the actual linked base
+  experiment; the first main run remains a one-time bootstrap, and pull-request
+  or default local exports fail before that baseline exists. This does not
+  change public package behavior.
+
+### Fixed
+
+- **Make MCP session guidance reliable** - MCP servers built from `githits` or
+  `@githits/mcp` now require one `quick_start` call per plain session while
+  agents with the loaded `githits-mcp` skill skip it for every tool. GitHits
+  MCP and CLI skills now use transport-specific triggers so agents load only
+  the matching workflow.
+- **Readable wrapped source comments** - Compact search output now repeats
+  source comment markers on wrapped continuation lines instead of making
+  comment text look like executable code.
+
+## [@githits/mcp 0.11.4] - 2026-09-01
+
+Coordinated patch release: adds definition-aware search evidence and improves
+MCP session guidance and wrapped source readability.
+
+### Added
+
+- **Definition-aware search evidence** - CLI and MCP search results now
+  preserve focused, indexed, and symbol-definition ranges, lead with focused
+  evidence while annotating qualified enclosing symbols, and generate exact
+  served-revision repository follow-ups. The deployed Phase 1A GraphQL schema
+  is required.
+
+### Fixed
+
+- **Make MCP session guidance reliable** - MCP servers built from `githits` or
+  `@githits/mcp` now require one `quick_start` call per plain session while
+  agents with the loaded `githits-mcp` skill skip it for every tool. GitHits
+  MCP and CLI skills now use transport-specific triggers so agents load only
+  the matching workflow.
+- **Readable wrapped source comments** - Compact search output now repeats
+  source comment markers on wrapped continuation lines instead of making
+  comment text look like executable code.
+
 ## [githits 0.11.3] - 2026-08-31
 
 Patch release: improves search, target-resolution, and upgrade-review output;

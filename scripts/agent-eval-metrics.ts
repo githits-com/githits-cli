@@ -112,6 +112,7 @@ export interface PersistedToolCall {
   providerCallId?: string;
   status?: string;
   error?: unknown;
+  observedAt?: string;
 }
 
 export interface AgentEvalRecordInput {
@@ -191,10 +192,26 @@ const targetGitSchema = z.object({
   dirty: z.boolean().nullable(),
 });
 
-const toolSequenceEntrySchema = z.object({
+const legacyToolSequenceEntrySchema = z.object({
   tool: z.string(),
   surface: z.enum(["mcp", "cli"]),
   status: z.enum(["started", "completed", "failed", "unknown"]),
+});
+
+const observedTimestampSchema = z.string().datetime({ offset: true });
+
+const toolSequenceEntrySchema = legacyToolSequenceEntrySchema.extend({
+  startedAt: observedTimestampSchema.nullable(),
+  completedAt: observedTimestampSchema.nullable(),
+});
+
+const legacyToolsMetricsSchema = z.object({
+  rawEventCount: nonNegativeInteger,
+  logicalCallCount: nonNegativeInteger.nullable(),
+  completedCount: nonNegativeInteger,
+  failedCount: nonNegativeInteger,
+  uniqueTools: z.array(z.string()),
+  sequence: z.array(legacyToolSequenceEntrySchema),
 });
 
 const toolsMetricsSchema = z.object({
@@ -245,7 +262,7 @@ const legacyAgentEvalRecordSchema = z.object({
   exitCode: z.number().int().nullable(),
   timedOut: z.boolean().nullable(),
   usage: agentUsageMetricsSchema,
-  tools: toolsMetricsSchema,
+  tools: legacyToolsMetricsSchema,
   artifacts: z.record(z.string(), relativeArtifactPathSchema),
   warnings: z.array(z.string()),
 });
@@ -329,8 +346,40 @@ export const agentEvalRecordSchema = z
     }
   });
 
+const priorAgentEvalRecordSchema = z.object({
+  workloadId: z.string().min(1),
+  requestedModel: z.string().nullable(),
+  resolvedModel: z.string().nullable(),
+  agent: z.enum(["claude", "codex", "opencode"]),
+  agentVersion: z.string().nullable(),
+  reasoningEffort: z.string().nullable(),
+  surface: z.enum(["mcp", "skills"]),
+  server: z.enum(["local", "published"]),
+  guidanceProfile: z.enum(["descriptors", "full"]).nullable(),
+  scenario: scenarioSchema.nullable(),
+  intentProfile: intentProfileSchema,
+  intentFragmentHash: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .nullable(),
+  experimentalTools: z.boolean(),
+  publishedPackage: z.string().nullable(),
+  targetGit: targetGitSchema,
+  startedAt: z.string().nullable(),
+  completedAt: z.string().nullable(),
+  durationMs: nonNegativeInteger.nullable(),
+  processStatus: z.enum(["dry-run", "success", "failed", "timeout"]),
+  finalStatus: z.enum(["success", "failure", "inconclusive"]).nullable(),
+  exitCode: z.number().int().nullable(),
+  timedOut: z.boolean().nullable(),
+  usage: agentUsageMetricsSchema,
+  tools: legacyToolsMetricsSchema,
+  artifacts: z.record(z.string(), relativeArtifactPathSchema),
+  warnings: z.array(z.string()),
+});
+
 export const agentEvalMetricsSchema = z.object({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   runId: z.string().min(1),
   startedAt: z.string().min(1),
   completedAt: z.string().min(1),
@@ -341,6 +390,16 @@ export const agentEvalMetricsSchema = z.object({
 
 export type AgentEvalRecord = z.infer<typeof agentEvalRecordSchema>;
 export type AgentEvalMetrics = z.infer<typeof agentEvalMetricsSchema>;
+
+const priorAgentEvalMetricsSchema = z.object({
+  schemaVersion: z.literal(2),
+  runId: z.string().min(1),
+  startedAt: z.string().min(1),
+  completedAt: z.string().min(1),
+  records: z.array(priorAgentEvalRecordSchema),
+  aggregates: aggregateMetricsSchema,
+  warnings: z.array(z.string()),
+});
 
 const LONG_CONTEXT_INPUT_LIMIT = 272_000;
 
@@ -571,6 +630,26 @@ interface NormalizedToolObservation {
   tool: string;
   surface: "mcp" | "cli";
   status: NormalizedToolStatus;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+interface ParsedObservedTimestamp {
+  value: string;
+  milliseconds: number;
+}
+
+function parseObservedTimestamp(
+  value: string | undefined,
+): ParsedObservedTimestamp | undefined {
+  if (
+    value === undefined ||
+    !observedTimestampSchema.safeParse(value).success
+  ) {
+    return undefined;
+  }
+  const milliseconds = Date.parse(value);
+  return Number.isFinite(milliseconds) ? { value, milliseconds } : undefined;
 }
 
 interface AgentEvalIdentity {
@@ -617,11 +696,64 @@ function normalizeAgentEvalIdentity(input: {
 function normalizeToolObservation(
   call: PersistedToolCall,
 ): NormalizedToolObservation {
+  const status = normalizeToolStatus(call.status, call.error);
+  const observedAt = parseObservedTimestamp(call.observedAt);
   return {
     tool: normalizeToolName(call.tool),
     surface: call.server === "githits-cli" ? "cli" : "mcp",
-    status: normalizeToolStatus(call.status, call.error),
+    status,
+    startedAt: status === "started" ? (observedAt?.value ?? null) : null,
+    completedAt:
+      status === "completed" || status === "failed"
+        ? (observedAt?.value ?? null)
+        : null,
   };
+}
+
+function rejectToolTiming(
+  observation: NormalizedToolObservation,
+): NormalizedToolObservation {
+  return { ...observation, startedAt: null, completedAt: null };
+}
+
+function mergeCodexToolObservation(
+  previous: NormalizedToolObservation,
+  current: NormalizedToolObservation,
+  currentObservedAt: ParsedObservedTimestamp | undefined,
+): NormalizedToolObservation {
+  const merged: NormalizedToolObservation = {
+    ...current,
+    startedAt: previous.startedAt,
+    completedAt: previous.completedAt,
+  };
+  const previousStarted = parseObservedTimestamp(
+    previous.startedAt ?? undefined,
+  );
+  if (current.status === "started") {
+    if (
+      previous.status === "completed" ||
+      previous.status === "failed" ||
+      merged.completedAt !== null
+    ) {
+      return rejectToolTiming(merged);
+    }
+    if (currentObservedAt !== undefined && merged.startedAt === null) {
+      merged.startedAt = currentObservedAt.value;
+    }
+  }
+  if (
+    (current.status === "completed" || current.status === "failed") &&
+    currentObservedAt !== undefined
+  ) {
+    if (
+      previousStarted !== undefined &&
+      currentObservedAt.milliseconds < previousStarted.milliseconds
+    ) {
+      return rejectToolTiming(merged);
+    }
+    merged.completedAt = currentObservedAt.value;
+  }
+  return merged;
 }
 
 function normalizeLogicalToolObservations(
@@ -649,7 +781,11 @@ function normalizeLogicalToolObservations(
       indexesByIdentity.set(identity, observations.length);
       observations.push(observation);
     } else {
-      observations[previousIndex] = observation;
+      observations[previousIndex] = mergeCodexToolObservation(
+        observations[previousIndex] as NormalizedToolObservation,
+        observation,
+        parseObservedTimestamp(call.observedAt),
+      );
     }
   }
   return observations;
@@ -660,11 +796,15 @@ function buildAgentEvalRecord(input: AgentEvalRecordInput): AgentEvalRecord {
   const identity = normalizeAgentEvalIdentity(input);
   const observations: NormalizedToolObservation[] =
     normalizeLogicalToolObservations(input.agent, input.toolCalls);
-  const sequence = observations.map(({ tool, surface, status }) => ({
-    tool,
-    surface,
-    status,
-  }));
+  const sequence = observations.map(
+    ({ tool, surface, status, startedAt, completedAt }) => ({
+      tool,
+      surface,
+      status,
+      startedAt,
+      completedAt,
+    }),
+  );
   const warnings = [...usage.warnings];
   if (input.agent !== "codex") {
     warnings.push("tool_logical_count_not_implemented");
@@ -765,7 +905,7 @@ export function buildAgentEvalMetrics(
     ),
   };
   return agentEvalMetricsSchema.parse({
-    schemaVersion: 2,
+    schemaVersion: 3,
     runId: input.runId,
     startedAt: input.startedAt,
     completedAt: input.completedAt,
@@ -784,10 +924,29 @@ export function parseAgentEvalMetrics(value: unknown): AgentEvalMetrics {
   const current = agentEvalMetricsSchema.safeParse(value);
   if (current.success) return current.data;
 
+  const prior = priorAgentEvalMetricsSchema.safeParse(value);
+  if (prior.success) {
+    return agentEvalMetricsSchema.parse({
+      ...prior.data,
+      schemaVersion: 3,
+      records: prior.data.records.map((record) => ({
+        ...record,
+        tools: {
+          ...record.tools,
+          sequence: record.tools.sequence.map((call) => ({
+            ...call,
+            startedAt: null,
+            completedAt: null,
+          })),
+        },
+      })),
+    });
+  }
+
   const legacy = legacyAgentEvalMetricsSchema.parse(value);
   return agentEvalMetricsSchema.parse({
     ...legacy,
-    schemaVersion: 2,
+    schemaVersion: 3,
     records: legacy.records.map((record) => ({
       ...record,
       guidanceProfile:
@@ -801,6 +960,14 @@ export function parseAgentEvalMetrics(value: unknown): AgentEvalMetrics {
           : null,
       intentProfile: "neutral",
       intentFragmentHash: null,
+      tools: {
+        ...record.tools,
+        sequence: record.tools.sequence.map((call) => ({
+          ...call,
+          startedAt: null,
+          completedAt: null,
+        })),
+      },
     })),
   });
 }

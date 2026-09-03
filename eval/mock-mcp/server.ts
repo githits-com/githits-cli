@@ -19,7 +19,8 @@
  *   via the `EVAL_MCP_GUARDRAIL` env var so we can measure
  *   guardrail-on vs guardrail-off cleanly.
  * - Imports each tool's guardrail-free base description so the mock matches
- *   production verbatim after composing the selected addenda here.
+ *   production after composing the selected addenda and stable MCP-session
+ *   prerequisite here.
  */
 
 import { readFileSync } from "node:fs";
@@ -41,6 +42,7 @@ import {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { composeEvalMcpDescription } from "./descriptions.js";
 import type { EvalMcpFixtureToolName } from "./state.js";
 
 const STATE_FILE = process.env.EVAL_MCP_STATE_FILE;
@@ -63,10 +65,6 @@ const guardrailMode = process.env.EVAL_MCP_GUARDRAIL ?? "off";
 const includeShared =
   guardrailMode === "instructions" || guardrailMode === "both";
 const includeToolAddenda = guardrailMode === "tool" || guardrailMode === "both";
-
-function withGuardrail(base: string, addendum: string): string {
-  return includeToolAddenda ? `${base}\n\n${addendum}` : base;
-}
 
 // Build the production-shaped quick-start guide WITHOUT the shared
 // external-content posture so we can control whether it's included
@@ -119,7 +117,11 @@ server.registerTool(
 server.registerTool(
   "pkg_vulns",
   {
-    description: withGuardrail(PKG_VULNS_DESCRIPTION, PKG_VULNS_GUARDRAIL),
+    description: composeEvalMcpDescription(
+      PKG_VULNS_DESCRIPTION,
+      PKG_VULNS_GUARDRAIL,
+      includeToolAddenda,
+    ),
     inputSchema: {
       registry: z.string(),
       package_name: z.string(),
@@ -139,7 +141,11 @@ server.registerTool(
 server.registerTool(
   "pkg_info",
   {
-    description: withGuardrail(PKG_INFO_DESCRIPTION, PKG_INFO_GUARDRAIL),
+    description: composeEvalMcpDescription(
+      PKG_INFO_DESCRIPTION,
+      PKG_INFO_GUARDRAIL,
+      includeToolAddenda,
+    ),
     inputSchema: {
       registry: z.string(),
       package_name: z.string(),
@@ -156,9 +162,10 @@ server.registerTool(
 server.registerTool(
   "pkg_changelog",
   {
-    description: withGuardrail(
+    description: composeEvalMcpDescription(
       PKG_CHANGELOG_DESCRIPTION,
       PKG_CHANGELOG_GUARDRAIL,
+      includeToolAddenda,
     ),
     inputSchema: {
       registry: z.string().optional(),
@@ -183,7 +190,11 @@ server.registerTool(
 server.registerTool(
   "docs_read",
   {
-    description: withGuardrail(DOCS_READ_DESCRIPTION, DOCS_GUARDRAIL),
+    description: composeEvalMcpDescription(
+      DOCS_READ_DESCRIPTION,
+      DOCS_GUARDRAIL,
+      includeToolAddenda,
+    ),
     inputSchema: {
       page_id: z.string(),
       start_line: z.number().int().optional(),
@@ -201,7 +212,11 @@ server.registerTool(
 server.registerTool(
   "code_read",
   {
-    description: withGuardrail(CODE_READ_DESCRIPTION, CODE_READ_GUARDRAIL),
+    description: composeEvalMcpDescription(
+      CODE_READ_DESCRIPTION,
+      CODE_READ_GUARDRAIL,
+      includeToolAddenda,
+    ),
     inputSchema: {
       registry: z.string().optional(),
       package_name: z.string().optional(),

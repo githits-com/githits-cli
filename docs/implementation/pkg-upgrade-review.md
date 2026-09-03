@@ -80,7 +80,7 @@ Validation rules:
 - Reject tag-style `v` versions for package-addressed registry versions, matching `pkg_vulns`, `pkg_deps`, and `pkg_changelog`.
 - Keep transitive security evidence enabled by default because direct-only security hides important dependency-tree evidence. Allow callers to pass `skip_transitive_security: true` when latency is more important than transitive vulnerability context.
 - Keep `include_dependency_issues` default `false` initially for the same reason. Turn it on automatically only when the caller explicitly asks for lockfile/dependency-tree evidence, or document that agents should pass it for lockfile reviews.
-- Changelog keyword detection scans the full backend range response and keyword-hit entries are surfaced separately so relevant signals are not hidden by the ordinary sample limit. The ordinary non-keyword sample cap is internal; agents should not need to tune it.
+- Changelog keyword detection scans the full backend range response and keyword-hit entries are surfaced separately so relevant signals are not hidden by the ordinary sample limit. The sampled-entry cap is internal; agents should not need to tune it.
 - `min_severity` maps to the same CVSS thresholds as `pkg_vulns` (`low=0`, `medium=4`, `high=7`, `critical=9`). It filters direct current/target vulnerability queries and transitive `vulnerabilitySummary(minSeverity:)` aggregates.
 
 CLI shape:
@@ -340,10 +340,15 @@ summary retains `Target: deprecation unknown`.
 Default samples remain bounded: direct advisories and transitive vulnerable
 package details and dependency-issue locators show up to five rows per category,
 peer changes up to ten, and dependency change details use the existing
-compact/verbose limits. Changelog keyword hits remain visible; ordinary entries
-are sampled. `--verbose` expands the bounded row groups in place without
-changing the JSON response. Backend truncation and unknown evidence remain
-explicit rather than being presented as complete.
+compact/verbose limits. Changelog keyword evidence renders first, followed by
+each distinct sampled release not already represented by keyword evidence, in
+sample source order. Identity-only samples retain their available version,
+publication date, URL, and headline without inventing a body. The existing
+`changelogEntryKey` identity prevents repeats across keyword, sampled, and
+verbose other tiers; verbose other entries remain body-preview-backed.
+`--verbose` expands the bounded row groups in place without changing the JSON
+response. Backend truncation and unknown evidence remain explicit rather than
+being presented as complete.
 
 ## Fact Reporting Rules
 

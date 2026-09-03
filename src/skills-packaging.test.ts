@@ -1,7 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildMcpQuickStart } from "@githits/mcp";
+import { parse as parseYaml } from "yaml";
 
 const root = join(import.meta.dir, "..");
 const onboardingSkillPath = join(
@@ -38,6 +39,13 @@ const pluginMaintenanceSkillPath = join(
   ".agents",
   "skills",
   "githits-plugin-maintenance",
+  "SKILL.md",
+);
+const braintrustAgentEvalsSkillPath = join(
+  root,
+  ".agents",
+  "skills",
+  "braintrust-agent-evals",
   "SKILL.md",
 );
 async function read(path: string): Promise<string> {
@@ -99,12 +107,14 @@ describe("agent skills packaging", () => {
 
     expectContainsAll(content, [
       "name: githits-onboarding",
-      "Set up GitHits from an agent session",
+      "Use when the user asks to",
       "install",
       "connect",
-      "set up",
+      "configure",
+      "sign in",
       "sign up",
       "start using GitHits",
+      "setup recovery",
       "compatibility:",
     ]);
   });
@@ -275,29 +285,49 @@ describe("agent skills packaging", () => {
 
     expectContainsAllIgnoringWhitespace(publicContent, [
       "name: githits-mcp",
-      "OSS context layer",
+      "Use whenever invoking GitHits MCP tools for public OSS/package evidence",
+      "Load before any GitHits MCP tool call",
+      "package, dependency, release, security, documentation",
+      "repository source/code search",
+      "canonical examples",
       "public OSS/package evidence",
       "discovery, planning, research, implementation, debugging, or maintenance",
       "repository source",
       "vulnerabilities",
-      "changelogs",
-      "upgrade-review evidence",
-      "before relying on model memory or generic web search",
+      "upgrade review",
       "this skill already includes the stable\nquick-start guide below",
-      "Current tool descriptions are authoritative over a stale installed skill\nsnapshot",
-      "If any GitHits tool description exposed to the agent is marked\n`Experimental`, call `quick_start` before the first GitHits evidence tool",
-      "Otherwise, call it only when needed to resolve a\nmaterial mismatch between the loaded guide",
+      "Do not call `quick_start` when this skill is loaded",
+      "this rule applies to every GitHits tool",
       "for routing, scope, target syntax,\noutput, safety, citations, and recovery",
-      "If GitHits MCP tools are unavailable",
-      "switch to the `githits-code` or `githits-package` skill",
-      "Do not treat missing MCP registration as evidence",
     ]);
     expect(embeddedGuide).toBe(buildMcpQuickStart());
     expect(publicContent).toContain("External-content posture");
     expectNotContainsAllIgnoringWhitespace(publicContent, [
       "call `quick_start` once per session",
+      "Experimental",
+      "githits-code",
+      "githits-package",
       "**Local experimental tools",
       "**Issue reporting",
+    ]);
+  });
+
+  it("keeps CLI skill triggers transport-specific and domain-separated", async () => {
+    const [codeContent, packageContent] = await Promise.all([
+      read(githitsCodeSkillPath),
+      read(join(root, "skills", "githits-package", "SKILL.md")),
+    ]);
+
+    expectContainsAllIgnoringWhitespace(codeContent, [
+      "Use whenever invoking the GitHits CLI",
+      "source, documentation, or example evidence",
+      "For GitHits CLI package, dependency, security, release, or upgrade evidence, use githits-package",
+    ]);
+    expectContainsAllIgnoringWhitespace(packageContent, [
+      "Use whenever invoking the GitHits CLI",
+      "package or dependency evidence",
+      "vulnerabilities",
+      "upgrade reviews",
     ]);
   });
 
@@ -341,5 +371,63 @@ describe("agent skills packaging", () => {
       "internal, repository-only skill",
       "Do not publish or package it",
     ]);
+  });
+
+  it("keeps the Braintrust eval skill repository-internal", async () => {
+    const content = await read(braintrustAgentEvalsSkillPath);
+    const match = content.match(/^---\r?\n(.*?)\r?\n---/s);
+
+    expect(match).not.toBe(null);
+
+    const parsed = parseYaml(match?.[1] ?? "") as {
+      metadata?: { internal?: boolean };
+    };
+
+    expect(parsed.metadata?.internal).toBe(true);
+  });
+
+  it("has valid YAML frontmatter in every public skill SKILL.md", async () => {
+    const skillsDir = join(root, "skills");
+    const entries = await readdir(skillsDir, { withFileTypes: true });
+    const skillDirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+
+    expect(skillDirs.length).toBeGreaterThanOrEqual(4);
+
+    for (const dir of skillDirs) {
+      const skillPath = join(skillsDir, dir, "SKILL.md");
+      const content = await read(skillPath);
+
+      const match = content.match(/^---\r?\n(.*?)\r?\n---/s);
+      expect(
+        match,
+        `${dir}/SKILL.md must start with YAML frontmatter`,
+      ).not.toBe(null);
+
+      const frontmatter = match?.[1] ?? "";
+      let parsed: unknown;
+      try {
+        parsed = parseYaml(frontmatter);
+      } catch (e) {
+        throw new Error(
+          `${dir}/SKILL.md has invalid YAML frontmatter: ${(e as Error).message}`,
+        );
+      }
+
+      expect(
+        typeof parsed,
+        `${dir}/SKILL.md frontmatter must parse to an object`,
+      ).toBe("object");
+      const record = parsed as Record<string, unknown>;
+      expect(record.name, `${dir}/SKILL.md must have a name`).toBeDefined();
+      expect(
+        record.description,
+        `${dir}/SKILL.md must have a description`,
+      ).toBeDefined();
+      const metadata = record.metadata as Record<string, unknown> | undefined;
+      expect(
+        metadata?.internal,
+        `${dir}/SKILL.md must remain publicly discoverable`,
+      ).not.toBe(true);
+    }
   });
 });

@@ -1,3 +1,4 @@
+import { MCP_READ_MAX_SPAN } from "./code-navigation-defaults.js";
 import { formatRepositoryTarget } from "./repository-target.js";
 import { shellQuote } from "./shell-quote.js";
 import type { UnifiedSearchHitPayload } from "./unified-search-response.js";
@@ -8,7 +9,6 @@ interface CodeReadCommandInput {
   version?: string;
   repoUrl?: string;
   gitRef?: string;
-  requestedRef?: string;
   filePath?: string;
   startLine?: number;
   endLine?: number;
@@ -25,19 +25,17 @@ export function buildSearchHitFollowUpCommand(
       ? buildCliDocsReadCommand(loc.pageId, loc.startLine, loc.endLine)
       : buildDocsReadCommand(loc.pageId, loc.startLine, loc.endLine);
   }
-  if (loc.filePath) {
-    const input: CodeReadCommandInput = {
-      registry: loc.registry,
-      packageName: loc.packageName,
-      version: loc.version,
-      repoUrl: loc.repoUrl,
-      gitRef: loc.gitRef,
-      requestedRef: loc.requestedRef,
-      filePath: loc.filePath,
-      startLine: loc.startLine,
-      endLine: loc.endLine,
-      preferPackageTarget: isPackageTarget(hit),
-    };
+  if (
+    (hit.type === "repository_code" || hit.type === "repository_symbol") &&
+    loc.repoUrl &&
+    !loc.commitSha &&
+    !loc.gitRef &&
+    !isPackageTarget(hit)
+  ) {
+    return "follow-up unavailable: missing exact revision";
+  }
+  const input = buildSearchHitCodeReadInput(hit, syntax);
+  if (input) {
     return syntax === "cli"
       ? buildCliCodeReadCommand(input)
       : buildCodeReadCommand(input);
@@ -47,6 +45,106 @@ export function buildSearchHitFollowUpCommand(
   }
   if (loc.sourceUrl) return loc.sourceUrl;
   return "";
+}
+
+function buildSearchHitCodeReadInput(
+  hit: UnifiedSearchHitPayload,
+  syntax: "mcp" | "cli",
+): CodeReadCommandInput | undefined {
+  const loc = hit.locator;
+  const definition =
+    loc.symbolContext?.relation === "encloses_match"
+      ? loc.symbolContext.definitionRange
+      : undefined;
+  const evidence = loc.evidenceRange;
+  const targetFilePath = definition?.filePath ?? loc.filePath;
+  const repositoryFilePath =
+    definition?.repositoryFilePath ?? loc.repositoryFilePath;
+  let startLine = definition?.startLine ?? evidence?.startLine ?? loc.startLine;
+  const trueEndLine = definition?.endLine ?? evidence?.endLine ?? loc.endLine;
+  let endLine = trueEndLine;
+  if (
+    syntax === "mcp" &&
+    typeof startLine === "number" &&
+    typeof trueEndLine === "number" &&
+    trueEndLine - startLine + 1 > MCP_READ_MAX_SPAN
+  ) {
+    if (definition) {
+      ({ startLine, endLine } = boundLargeReadRange(definition, evidence));
+    } else if (evidence) {
+      ({ startLine, endLine } = boundLargeReadRange(evidence, evidence));
+    } else {
+      endLine = startLine + MCP_READ_MAX_SPAN - 1;
+    }
+  }
+  const exactRef = loc.commitSha ?? loc.gitRef;
+
+  if (loc.repoUrl && exactRef && repositoryFilePath) {
+    return {
+      repoUrl: loc.repoUrl,
+      gitRef: exactRef,
+      filePath: repositoryFilePath,
+      startLine,
+      endLine,
+    };
+  }
+
+  const filePath =
+    !isPackageTarget(hit) && repositoryFilePath
+      ? repositoryFilePath
+      : targetFilePath;
+  if (!filePath) return undefined;
+  return {
+    registry: loc.registry,
+    packageName: loc.packageName,
+    version: loc.version,
+    repoUrl: loc.repoUrl,
+    gitRef: exactRef,
+    filePath,
+    startLine,
+    endLine,
+    preferPackageTarget: isPackageTarget(hit),
+  };
+}
+
+function boundLargeReadRange(
+  bounds: { startLine: number; endLine: number },
+  evidence:
+    | { startLine: number; endLine: number; matchLine?: number }
+    | undefined,
+): { startLine: number; endLine: number } {
+  const latestStart = bounds.endLine - MCP_READ_MAX_SPAN + 1;
+  const evidenceSpan = evidence
+    ? evidence.endLine - evidence.startLine + 1
+    : undefined;
+  if (
+    evidence &&
+    typeof evidenceSpan === "number" &&
+    evidenceSpan <= MCP_READ_MAX_SPAN
+  ) {
+    const leadingContext = Math.floor((MCP_READ_MAX_SPAN - evidenceSpan) / 2);
+    const startLine = Math.min(
+      Math.max(bounds.startLine, evidence.startLine - leadingContext),
+      latestStart,
+    );
+    return { startLine, endLine: startLine + MCP_READ_MAX_SPAN - 1 };
+  }
+
+  const focusedLine = evidence?.matchLine ?? evidence?.startLine;
+  const leadingContext = Math.floor((MCP_READ_MAX_SPAN - 1) / 2);
+  const startLine = Math.min(
+    Math.max(
+      bounds.startLine,
+      focusedLine === undefined
+        ? bounds.startLine
+        : focusedLine - leadingContext,
+    ),
+    latestStart,
+  );
+  return {
+    startLine,
+    endLine: startLine + MCP_READ_MAX_SPAN - 1,
+  };
 }
 
 function buildCliDocsReadCommand(
@@ -70,8 +168,7 @@ function buildCliCodeReadCommand(input: CodeReadCommandInput): string {
     !(input.preferPackageTarget && input.registry && input.packageName)
   ) {
     parts.push("--repo-url", shellQuote(input.repoUrl));
-    const ref = input.gitRef ?? input.requestedRef;
-    if (ref) parts.push("--git-ref", shellQuote(ref));
+    if (input.gitRef) parts.push("--git-ref", shellQuote(input.gitRef));
   } else {
     parts.push(shellQuote(target));
   }
@@ -107,8 +204,7 @@ function buildTargetSpec(input: CodeReadCommandInput): string | undefined {
     return `${input.registry}:${input.packageName}${input.version ? `@${input.version}` : ""}`;
   }
   if (input.repoUrl) {
-    const ref = input.gitRef ?? input.requestedRef;
-    return formatRepositoryTarget(input.repoUrl, ref);
+    return formatRepositoryTarget(input.repoUrl, input.gitRef);
   }
   if (input.registry && input.packageName) {
     return `${input.registry}:${input.packageName}${input.version ? `@${input.version}` : ""}`;

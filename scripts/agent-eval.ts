@@ -176,6 +176,11 @@ interface WorkloadRunExecution {
   artifacts: Record<string, string>;
 }
 
+export interface ObservedStdoutLine {
+  line: string;
+  observedAt: string;
+}
+
 export interface AgentEvalMetricsExecutionInput
   extends Omit<AgentEvalRecordInput, "usage"> {
   stdout?: string;
@@ -209,6 +214,7 @@ interface ExtractedToolCall {
   status?: string;
   arguments?: unknown;
   error?: unknown;
+  observedAt?: string;
 }
 
 export type DiscoveryObservation = "observed" | "not_observed" | "not_exposed";
@@ -1502,6 +1508,7 @@ function extractTextFromContent(content: unknown): string | undefined {
 
 function extractClaudeToolCalls(
   event: Record<string, unknown>,
+  observedAt?: string,
 ): ExtractedToolCall[] {
   const message = event.message;
   if (message === null || typeof message !== "object") return [];
@@ -1524,6 +1531,7 @@ function extractClaudeToolCalls(
         tool,
         status: "started",
         arguments: record.input,
+        ...(observedAt ? { observedAt } : {}),
       },
     ];
   });
@@ -1531,6 +1539,7 @@ function extractClaudeToolCalls(
 
 function extractCodexToolCall(
   event: Record<string, unknown>,
+  observedAt?: string,
 ): ExtractedToolCall | undefined {
   const item = event.item;
   if (item === null || typeof item !== "object") return undefined;
@@ -1550,11 +1559,13 @@ function extractCodexToolCall(
     status: typeof record.status === "string" ? record.status : undefined,
     arguments: record.arguments,
     error: record.error,
+    ...(observedAt ? { observedAt } : {}),
   };
 }
 
 function extractOpenCodeToolCall(
   event: Record<string, unknown>,
+  observedAt?: string,
 ): ExtractedToolCall | undefined {
   if (event.type !== "tool_use") return undefined;
   const part = event.part;
@@ -1577,6 +1588,7 @@ function extractOpenCodeToolCall(
     status: typeof state?.status === "string" ? state.status : undefined,
     arguments: state?.input,
     error: state?.error ?? outputError,
+    ...(observedAt ? { observedAt } : {}),
   };
 }
 
@@ -1658,6 +1670,7 @@ function cliToolNameFromCommand(command: string): string | undefined {
 function extractCliToolCalls(
   event: Record<string, unknown>,
   agent: AgentName,
+  observedAt?: string,
 ): ExtractedToolCall[] {
   const commands = collectCommandStrings(event);
   const item = event.item;
@@ -1691,30 +1704,35 @@ function extractCliToolCalls(
         ...(providerCallId ? { providerCallId } : {}),
         status: itemStatus ?? "started",
         arguments: { command },
+        ...(observedAt ? { observedAt } : {}),
       },
     ];
   });
 }
 
 export function extractToolCalls(
-  stdout: string,
+  stdout: string | readonly ObservedStdoutLine[],
   agent: AgentName,
 ): ExtractedToolCall[] {
   const calls: ExtractedToolCall[] = [];
-  for (const line of stdout.split("\n")) {
+  const lines: Array<{ line: string; observedAt?: string }> =
+    typeof stdout === "string"
+      ? stdout.split("\n").map((line) => ({ line }))
+      : stdout.map(({ line, observedAt }) => ({ line, observedAt }));
+  for (const { line, observedAt } of lines) {
     if (line.trim().length === 0) continue;
     try {
       const event = JSON.parse(line) as Record<string, unknown>;
       if (agent === "claude") {
-        calls.push(...extractCliToolCalls(event, agent));
-        calls.push(...extractClaudeToolCalls(event));
+        calls.push(...extractCliToolCalls(event, agent, observedAt));
+        calls.push(...extractClaudeToolCalls(event, observedAt));
       } else if (agent === "codex") {
-        calls.push(...extractCliToolCalls(event, agent));
-        const call = extractCodexToolCall(event);
+        calls.push(...extractCliToolCalls(event, agent, observedAt));
+        const call = extractCodexToolCall(event, observedAt);
         if (call) calls.push(call);
       } else {
-        calls.push(...extractCliToolCalls(event, agent));
-        const call = extractOpenCodeToolCall(event);
+        calls.push(...extractCliToolCalls(event, agent, observedAt));
+        const call = extractOpenCodeToolCall(event, observedAt);
         if (call) calls.push(call);
       }
     } catch {
@@ -2020,6 +2038,46 @@ async function killProcessTree(
   }
 }
 
+export async function readObservedStdout(
+  stream: ReadableStream<Uint8Array>,
+  observe: () => string = () => new Date().toISOString(),
+): Promise<{ stdout: string; lines: ObservedStdoutLine[] }> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  const lines: ObservedStdoutLine[] = [];
+  let stdout = "";
+  let pending = "";
+
+  const consume = (text: string): void => {
+    stdout += text;
+    pending += text;
+    while (true) {
+      const newline = pending.indexOf("\n");
+      if (newline < 0) return;
+      lines.push({
+        line: pending.slice(0, newline),
+        observedAt: observe(),
+      });
+      pending = pending.slice(newline + 1);
+    }
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      consume(decoder.decode(value, { stream: true }));
+    }
+    consume(decoder.decode());
+    if (pending.length > 0) {
+      lines.push({ line: pending, observedAt: observe() });
+    }
+    return { stdout, lines };
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export async function runWithTimeout(
   command: string[],
   cwd: string,
@@ -2030,6 +2088,7 @@ export async function runWithTimeout(
   stderr: string;
   exitCode?: number;
   timedOut: boolean;
+  observedStdoutLines?: ObservedStdoutLine[];
 }> {
   const proc = Bun.spawn(command, {
     cwd,
@@ -2074,14 +2133,20 @@ export async function runWithTimeout(
   }, timeoutSeconds * 1_000);
 
   try {
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
+    const [observed, stderr, exitCode] = await Promise.all([
+      readObservedStdout(proc.stdout),
       new Response(proc.stderr).text(),
       proc.exited.catch(() => undefined),
     ]);
     clearTimeout(timer);
     if (cleanupPromise !== undefined) await cleanupPromise;
-    return { stdout, stderr, exitCode, timedOut };
+    return {
+      stdout: observed.stdout,
+      stderr,
+      exitCode,
+      timedOut,
+      observedStdoutLines: observed.lines,
+    };
   } finally {
     clearTimeout(timer);
     if (cleanupPromise !== undefined) await cleanupPromise;
@@ -2477,7 +2542,10 @@ async function runWorkload(
       redactText(result.stderr, secretValues),
     );
 
-    const toolCalls = extractToolCalls(result.stdout, options.agent);
+    const toolCalls = extractToolCalls(
+      result.observedStdoutLines ?? result.stdout,
+      options.agent,
+    );
     writeJson(
       join(workloadDir, "tool-calls.json"),
       redactValue(toolCalls, secretValues),
@@ -2562,12 +2630,13 @@ async function runWorkload(
       },
       stdout: result.stdout,
       toolCalls: toolCalls.map(
-        ({ tool, server, providerCallId, status, error }) => ({
+        ({ tool, server, providerCallId, status, error, observedAt }) => ({
           tool,
           server,
           ...(providerCallId ? { providerCallId } : {}),
           status,
           error,
+          ...(observedAt ? { observedAt } : {}),
         }),
       ),
       artifacts: existingWorkloadArtifacts(runDir, workloadDir),

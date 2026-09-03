@@ -255,6 +255,7 @@ export function createMockFileSystemService(
       return Promise.resolve();
     }),
     deleteDirIfEmpty: mock(() => Promise.resolve()),
+    rename: mock(() => Promise.resolve()),
     exists: mock(() => Promise.resolve(false)),
     ensureDir: mock(() => Promise.resolve()),
     createTempDir: mock(() => Promise.resolve("/tmp/githits-init-probe-test")),

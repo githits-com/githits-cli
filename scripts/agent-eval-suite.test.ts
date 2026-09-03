@@ -897,8 +897,8 @@ describe("agent eval suites", () => {
         parsed.cells.every((cell) => cell.intentProfile === "neutral"),
       ).toBe(true);
       const imported = loadImportedSuite(suitePath);
-      expect(imported.shards.discovery.metrics?.schemaVersion).toBe(2);
-      expect(imported.shards.full.metrics?.schemaVersion).toBe(2);
+      expect(imported.shards.discovery.metrics?.schemaVersion).toBe(3);
+      expect(imported.shards.full.metrics?.schemaVersion).toBe(3);
 
       const nullProfile = {
         ...v1,

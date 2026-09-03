@@ -4,6 +4,8 @@ on:
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
     types: [labeled]
@@ -18,9 +20,10 @@ jobs:
   scenario:
     name: ${{ matrix.label }} agent eval
     if: >-
-      github.event_name != 'pull_request' ||
+      (github.event_name != 'workflow_dispatch' || github.ref_name == 'main') &&
+      (github.event_name != 'pull_request' ||
       (github.event.label.name == 'agent-eval' &&
-      github.event.pull_request.head.repo.full_name == github.repository)
+      github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
@@ -108,6 +111,7 @@ jobs:
     name: Agent eval summary
     if: >-
       always() &&
+      (github.event_name != 'workflow_dispatch' || github.ref_name == 'main') &&
       (github.event_name != 'pull_request' ||
       (github.event.label.name == 'agent-eval' &&
       github.event.pull_request.head.repo.full_name == github.repository))
@@ -151,6 +155,7 @@ jobs:
 
       - name: Render agent eval summary
         id: report
+        continue-on-error: true
         env:
           REPORT_OUT: ${{ runner.temp }}/agent-eval-summary.md
         run: |
@@ -175,3 +180,72 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
           exit "$report_status"
+
+      - name: Export agent eval metrics to Braintrust
+        id: braintrust
+        if: always()
+        continue-on-error: true
+        env:
+          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+          RESULT_OUT: ${{ runner.temp }}/agent-eval-braintrust-result.json
+          BRAINTRUST_EVENT_NAME: ${{ github.event_name }}
+          BRAINTRUST_CHANNEL: ${{ github.event_name == 'pull_request' && 'pr' || 'main' }}
+          BRAINTRUST_BRANCH: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
+          BRAINTRUST_PR_NUMBER: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || '' }}
+          BRAINTRUST_RUN_ID: ${{ github.run_id }}
+          BRAINTRUST_RUN_ATTEMPT: ${{ github.run_attempt }}
+          BRAINTRUST_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          braintrust_args=(
+            --suite "discovery=$RUNNER_TEMP/agent-eval-artifacts/discovery/suite.json"
+            --suite "intent=$RUNNER_TEMP/agent-eval-artifacts/intent/suite.json"
+            --project "githits-cli-agent-evals"
+            --source github
+            --channel "$BRAINTRUST_CHANNEL"
+            --branch "$BRAINTRUST_BRANCH"
+            --run-id "$BRAINTRUST_RUN_ID"
+            --run-attempt "$BRAINTRUST_RUN_ATTEMPT"
+            --run-url "$BRAINTRUST_RUN_URL"
+            --result-out "$RESULT_OUT"
+          )
+          if [ "$BRAINTRUST_EVENT_NAME" = "pull_request" ]; then
+            braintrust_args+=(--pr-number "$BRAINTRUST_PR_NUMBER")
+          fi
+          bun run agent:e2e:braintrust "${braintrust_args[@]}"
+          if [ -f "$RESULT_OUT" ]; then
+            node -e '
+              const fs = require("node:fs");
+              const result = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+              const lines = [];
+              if (typeof result.experiment === "string") lines.push(`- Braintrust experiment: ${result.experiment}`);
+              if (typeof result.url === "string") lines.push(`- Braintrust link: ${result.url}`);
+              const base = result.baseExperiment;
+              if (base === null) lines.push("- Braintrust base: none (bootstrap/no base)");
+              else if (base && typeof base.id === "string" && typeof base.name === "string") lines.push(`- Braintrust base: ${base.name} (${base.id})`);
+              if (lines.length > 0) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\n${lines.join("\n")}\n`);
+            ' "$RESULT_OUT"
+          fi
+
+      - name: Finalize agent eval status
+        if: always()
+        env:
+          SCENARIO_RESULT: ${{ needs.scenario.result }}
+          REPORT_OUTCOME: ${{ steps.report.outcome }}
+          BRAINTRUST_OUTCOME: ${{ steps.braintrust.outcome }}
+        run: |
+          set -euo pipefail
+          failed_stages=()
+          if [ "$SCENARIO_RESULT" != "success" ]; then
+            failed_stages+=("scenario=$SCENARIO_RESULT")
+          fi
+          if [ "$REPORT_OUTCOME" != "success" ]; then
+            failed_stages+=("report=$REPORT_OUTCOME")
+          fi
+          if [ "$BRAINTRUST_OUTCOME" != "success" ]; then
+            failed_stages+=("braintrust=$BRAINTRUST_OUTCOME")
+          fi
+          if [ "${#failed_stages[@]}" -gt 0 ]; then
+            printf 'Agent eval failed stages: %s\n' "${failed_stages[*]}"
+            exit 1
+          fi
