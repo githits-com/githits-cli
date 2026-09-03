@@ -1945,6 +1945,79 @@ describe("PackageIntelligenceServiceImpl — packageDependencies", () => {
     expect(parsed.variables.maxDepth).toBe(3);
   });
 
+  it.each([
+    ["omitted", undefined, undefined, false, false],
+    ["explicit false", false, undefined, false, false],
+    ["explicit true", true, true, true, true],
+  ])(
+    "uses a strict issue-analysis selection for %s",
+    async (_label, includeDependencyIssues, expectedIncludeTransitive, expectedIncludeDependencyIssues, expectedIncludeDependencyGraph) => {
+      let capturedBody: string | undefined;
+      const fetchFn = mock((_url: string, init?: RequestInit) => {
+        capturedBody = init?.body as string;
+        return Promise.resolve(jsonResponse(EXPRESS_BODY));
+      });
+      const service = new PackageIntelligenceServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(fetchFn),
+      );
+
+      await service.packageDependencies({
+        registry: "NPM",
+        packageName: "express",
+        ...(includeDependencyIssues === undefined
+          ? {}
+          : { includeDependencyIssues }),
+      });
+
+      const parsed = JSON.parse(capturedBody ?? "{}");
+      expect(parsed.query).toContain(
+        "$includeDependencyIssues: Boolean! = false",
+      );
+      expect(parsed.query).toContain(
+        "dependencyIssues @include(if: $includeDependencyIssues)",
+      );
+      expect(parsed.variables.includeTransitive).toBe(
+        expectedIncludeTransitive,
+      );
+      expect(parsed.variables.includeDependencyIssues).toBe(
+        expectedIncludeDependencyIssues,
+      );
+      expect(parsed.variables.includeDependencyGraph).toBe(
+        expectedIncludeDependencyGraph,
+      );
+    },
+  );
+
+  it("keeps bounded issue analysis on the requested transitive graph", async () => {
+    let capturedBody: string | undefined;
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return Promise.resolve(jsonResponse(EXPRESS_BODY));
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await service.packageDependencies({
+      registry: "NPM",
+      packageName: "express",
+      includeDependencyIssues: true,
+      maxDepth: 4,
+    });
+
+    const parsed = JSON.parse(capturedBody ?? "{}");
+    expect(parsed.variables).toMatchObject({
+      includeTransitive: true,
+      includeDependencyIssues: true,
+      includeDependencyGraph: true,
+      maxDepth: 4,
+    });
+  });
+
   it("can skip dependency groups and transitive details while keeping the graph", async () => {
     let capturedBody: string | undefined;
     const fetchFn = mock((_url: string, init?: RequestInit) => {
@@ -1969,6 +2042,143 @@ describe("PackageIntelligenceServiceImpl — packageDependencies", () => {
     expect(parsed.variables.includeDependencyGraph).toBe(true);
     expect(parsed.variables.includeTransitiveDetails).toBe(false);
     expect(parsed.variables.includeGroups).toBe(false);
+  });
+
+  it("normalizes selected dependency issue categories and conflict edges", async () => {
+    const body = {
+      data: {
+        packageDependencies: {
+          package: { name: "express", registry: "NPM", version: "5.2.1" },
+          dependencies: {
+            direct: [],
+            transitive: {
+              dependencyIssues: {
+                totalCount: 4,
+                deprecatedCount: 1,
+                outdatedCount: 1,
+                duplicateCount: 1,
+                conflictCount: 1,
+                deprecatedPackages: [
+                  {
+                    registry: "NPM",
+                    name: "old-package",
+                    versions: ["1.0.0"],
+                    reasons: [{ version: "1.0.0", reason: "Use new-package" }],
+                  },
+                ],
+                outdatedPackages: [
+                  {
+                    registry: "NPM",
+                    name: "stale-package",
+                    latestVersion: "2.0.0",
+                    severity: "HIGH",
+                    versions: [{ version: "1.0.0", severity: "HIGH" }],
+                    repositoryUrl: "https://example.test/stale-package",
+                  },
+                ],
+                duplicatePackages: [
+                  {
+                    registry: "NPM",
+                    name: "duplicate-package",
+                    versions: ["1.0.0", "2.0.0"],
+                  },
+                ],
+                conflicts: [
+                  {
+                    registry: "NPM",
+                    name: "conflicted-package",
+                    versions: ["1.0.0", "2.0.0"],
+                    requiredVersions: ["^1.0.0", "^2.0.0"],
+                    conflictingEdges: [
+                      {
+                        fromIndex: null,
+                        toIndex: 2,
+                        versionConstraint: "^1.0.0",
+                        dependencyType: "runtime",
+                      },
+                      {
+                        fromIndex: 1,
+                        toIndex: 3,
+                        versionConstraint: "^2.0.0",
+                        dependencyType: "peer",
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+          dependencyGroups: null,
+        },
+      },
+    };
+    const fetchFn = mock(() => Promise.resolve(jsonResponse(body)));
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const report = await service.packageDependencies({
+      registry: "NPM",
+      packageName: "express",
+      includeDependencyIssues: true,
+    });
+
+    expect(report.dependencies?.transitive?.dependencyIssues).toEqual({
+      totalCount: 4,
+      deprecatedCount: 1,
+      outdatedCount: 1,
+      duplicateCount: 1,
+      conflictCount: 1,
+      deprecatedPackages: [
+        {
+          registry: "NPM",
+          name: "old-package",
+          versions: ["1.0.0"],
+          reasons: [{ version: "1.0.0", reason: "Use new-package" }],
+        },
+      ],
+      outdatedPackages: [
+        {
+          registry: "NPM",
+          name: "stale-package",
+          latestVersion: "2.0.0",
+          severity: "HIGH",
+          versions: [{ version: "1.0.0", severity: "HIGH" }],
+          repositoryUrl: "https://example.test/stale-package",
+        },
+      ],
+      duplicatePackages: [
+        {
+          registry: "NPM",
+          name: "duplicate-package",
+          versions: ["1.0.0", "2.0.0"],
+        },
+      ],
+      conflicts: [
+        {
+          registry: "NPM",
+          name: "conflicted-package",
+          versions: ["1.0.0", "2.0.0"],
+          requiredVersions: ["^1.0.0", "^2.0.0"],
+          conflictingEdges: [
+            {
+              fromIndex: undefined,
+              toIndex: 2,
+              versionConstraint: "^1.0.0",
+              dependencyType: "runtime",
+            },
+            {
+              fromIndex: 1,
+              toIndex: 3,
+              versionConstraint: "^2.0.0",
+              dependencyType: "peer",
+            },
+          ],
+        },
+      ],
+    });
   });
 
   it("omits lifecycle when empty array (treated as 'no filter')", async () => {
