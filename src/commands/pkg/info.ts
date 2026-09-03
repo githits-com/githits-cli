@@ -78,7 +78,6 @@ export async function pkgInfoAction(
     const output = formatPackageSummaryTerminal(summary, {
       verbose: options.verbose,
       useColors: shouldUseColors(),
-      surface: "cli",
     });
     process.stdout.write(output);
   } catch (error) {

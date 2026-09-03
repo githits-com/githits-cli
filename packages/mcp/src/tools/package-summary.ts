@@ -64,7 +64,7 @@ export const DESCRIPTION_BASE: string =
   'and recent changes. Pass `format: "json"` for structured fields ' +
   "including `versionCount`, `downloads.refreshedAt`, and " +
   "`advisoryHistory.total`. Use " +
-  "`pkg_vulns` for version-specific vulnerability details, `pkg_deps` for the dependency graph, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison.";
+  '`pkg_vulns` for version-specific vulnerability details, or pass `advisory_scope: "all"` for package-wide history; use `pkg_deps` for the dependency graph, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison.';
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_INFO_GUARDRAIL}`;
 
@@ -93,7 +93,6 @@ export function createPackageSummaryTool(
             formatPackageSummaryTerminal(summary, {
               verbose: args.verbose,
               useColors: false,
-              surface: "mcp",
             }).trimEnd(),
           );
         }

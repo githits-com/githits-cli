@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { PackageSummary } from "@githits/core-internal";
 import { defaultPackageSummary } from "../services/test-helpers.js";
+import { colors } from "./colors.js";
 import {
   buildPackageSummarySuccessPayload,
   formatPackageSummaryTerminal,
@@ -23,12 +24,7 @@ function getVulnerabilityLines(output: string): string[] {
   if (first === undefined) return [];
   const result: string[] = [first];
   for (const line of lines.slice(start + 1)) {
-    if (
-      !line.startsWith(continuationPrefix) ||
-      line.trimStart().startsWith("Inspect history:")
-    ) {
-      break;
-    }
+    if (!line.startsWith(continuationPrefix)) break;
     result.push(line);
   }
   return result;
@@ -373,6 +369,26 @@ describe("formatPackageSummaryTerminal", () => {
     expect(output).not.toContain("\x1b[");
   });
 
+  it("uses non-bold cyan for URL substrings without coloring repository statistics", () => {
+    const colored = formatPackageSummaryTerminal(defaultPackageSummary, {
+      useColors: true,
+      now: FIXED_NOW,
+    });
+    const plain = formatPackageSummaryTerminal(defaultPackageSummary, {
+      useColors: false,
+      now: FIXED_NOW,
+    });
+
+    expect(colored).toContain(
+      `${colors.cyan}https://github.com/expressjs/express${colors.reset} (63k stars, 14k forks, 123 issues)`,
+    );
+    expect(colored).toContain(
+      `${colors.cyan}https://expressjs.com${colors.reset}`,
+    );
+    expect(colored).not.toContain(`${colors.dim}https://`);
+    expect(colored.replace(ANSI_SGR_PATTERN, "")).toBe(plain);
+  });
+
   it("vulnerability status uses singular form for total = 1", () => {
     const fixture = happyFixture();
     fixture.security = {
@@ -505,7 +521,7 @@ describe("formatPackageSummaryTerminal", () => {
     );
   });
 
-  it("adds surface-native history guidance when history exceeds numeric latest", () => {
+  it("keeps the vulnerability field evidence-only when history exceeds latest", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: 0,
@@ -514,29 +530,17 @@ describe("formatPackageSummaryTerminal", () => {
       recentVulnerabilities: [],
     };
 
-    const cliOutput = formatPackageSummaryTerminal(fixture, {
+    const output = formatPackageSummaryTerminal(fixture, {
       useColors: false,
       now: FIXED_NOW,
-      surface: "cli",
     });
-    expect(vulnerabilityText(cliOutput)).toBe(
+    expect(vulnerabilityText(output)).toBe(
       "Latest: none affected History: 5 known advisories across all versions",
     );
-    expect(cliOutput).toContain(
-      "Inspect history: githits pkg vulns npm:express --scope all",
-    );
-
-    const mcpOutput = formatPackageSummaryTerminal(fixture, {
-      useColors: false,
-      now: FIXED_NOW,
-      surface: "mcp",
-    });
-    expect(mcpOutput).toContain(
-      'Inspect history: use pkg_vulns with advisory_scope="all".',
-    );
+    expect(output).not.toContain("Inspect history");
   });
 
-  it("adds surface-native history guidance when latest evidence is unavailable", () => {
+  it("does not append an action when latest evidence is unavailable", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: undefined,
@@ -545,65 +549,18 @@ describe("formatPackageSummaryTerminal", () => {
       recentVulnerabilities: [],
     };
 
-    const cliOutput = formatPackageSummaryTerminal(fixture, {
-      useColors: false,
-      now: FIXED_NOW,
-      surface: "cli",
-    });
-    expect(cliOutput).toContain(
-      "Inspect history: githits pkg vulns npm:express --scope all",
-    );
-
-    const mcpOutput = formatPackageSummaryTerminal(fixture, {
-      useColors: false,
-      now: FIXED_NOW,
-      surface: "mcp",
-    });
-    expect(mcpOutput).toContain(
-      'Inspect history: use pkg_vulns with advisory_scope="all".',
-    );
-
-    fixture.security.allVulnerabilityCount = 0;
-    const cliZeroHistory = formatPackageSummaryTerminal(fixture, {
-      useColors: false,
-      now: FIXED_NOW,
-      surface: "cli",
-    });
-    const mcpZeroHistory = formatPackageSummaryTerminal(fixture, {
-      useColors: false,
-      now: FIXED_NOW,
-      surface: "mcp",
-    });
-    expect(cliZeroHistory).not.toContain("Inspect history");
-    expect(mcpZeroHistory).not.toContain("Inspect history");
-  });
-
-  it("wraps a long package-name CLI history hint within the terminal width", () => {
-    const fixture = happyFixture();
-    fixture.package.name = "a".repeat(100);
-    fixture.security = {
-      vulnerabilityCount: 0,
-      allVulnerabilityCount: 5,
-      hasCurrentVulnerabilities: false,
-      recentVulnerabilities: [],
-    };
     const output = formatPackageSummaryTerminal(fixture, {
       useColors: false,
       now: FIXED_NOW,
-      surface: "cli",
-      terminalWidth: 60,
     });
-    const lines = output.trimEnd().split("\n");
-    const hintPrefix = " ".repeat("Vulnerabilities".length + 2);
-    const hintIndex = lines.findIndex((line) =>
-      line.startsWith(`${hintPrefix}Inspect history:`),
-    );
-    const hintLines = hintIndex < 0 ? [] : lines.slice(hintIndex);
-    expect(hintLines.length).toBeGreaterThan(1);
-    expect(hintLines.every((line) => displayWidth(line) <= 60)).toBe(true);
-    expect(hintLines.every((line) => line.startsWith(hintPrefix))).toBe(true);
-    expect(hintLines.join("\n")).toContain("npm:");
-    expect(hintLines.join(" ").replace(/\s+/g, " ")).toContain("--scope all");
+    expect(output).not.toContain("Inspect history");
+
+    fixture.security.allVulnerabilityCount = 0;
+    const zeroHistory = formatPackageSummaryTerminal(fixture, {
+      useColors: false,
+      now: FIXED_NOW,
+    });
+    expect(zeroHistory).not.toContain("Inspect history");
   });
 
   it("does not render refresh metadata when no download count exists", () => {

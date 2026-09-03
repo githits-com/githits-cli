@@ -23,7 +23,7 @@ import type {
   VulnerabilityOverview,
 } from "@githits/core-internal";
 import { toPkgseerRegistryLowercase } from "@githits/core-internal";
-import { colorize, dim, highlight } from "./colors.js";
+import { colorize, highlight } from "./colors.js";
 import { toIsoDate, toRelativeDate } from "./format-date.js";
 import { formatCompactNumber } from "./format-number.js";
 
@@ -298,7 +298,6 @@ function stripMarkdownHeading(line: string): string {
 export interface FormatTerminalOptions {
   verbose?: boolean;
   useColors?: boolean;
-  surface?: "cli" | "mcp";
   /** Column width for wrapping the description line. Defaults to 80. */
   terminalWidth?: number;
   /**
@@ -319,7 +318,6 @@ export function formatPackageSummaryTerminal(
   const useColors = options.useColors ?? false;
   const width = resolveWidth(options.terminalWidth);
   const now = options.now ?? new Date();
-  const surface = options.surface ?? "cli";
 
   const sections: string[] = [];
 
@@ -341,7 +339,6 @@ export function formatPackageSummaryTerminal(
     useColors,
     now,
     options.verbose ?? false,
-    surface,
     width,
   );
   if (fields.length > 0) {
@@ -414,13 +411,12 @@ function buildFieldList(
   useColors: boolean,
   now: Date,
   verbose: boolean,
-  surface: "cli" | "mcp",
   width: number,
 ): string[] {
   const fields: LabelledField[] = [];
 
   if (lean.repository) {
-    const repositoryParts = [dim(lean.repository, useColors)];
+    const repositoryParts = [colorize(lean.repository, "cyan", useColors)];
     const githubPopularity = formatGithubPopularity(lean.github);
     if (githubPopularity) repositoryParts.push(`(${githubPopularity})`);
     fields.push({
@@ -434,7 +430,10 @@ function buildFieldList(
     }
   }
   if (lean.homepage) {
-    fields.push({ label: "Homepage", value: dim(lean.homepage, useColors) });
+    fields.push({
+      label: "Homepage",
+      value: colorize(lean.homepage, "cyan", useColors),
+    });
   }
 
   const publishedRelative = toRelativeDate(
@@ -502,16 +501,6 @@ function buildFieldList(
     );
   });
 
-  const historyHint = formatHistoryHint(lean, surface);
-  if (historyHint) {
-    const wrappedHint = wrapText(historyHint, valueWidth).split("\n");
-    lines.push(
-      dim(
-        wrappedHint.map((line) => `${valueIndent}${line}`).join("\n"),
-        useColors,
-      ),
-    );
-  }
   return lines;
 }
 
@@ -556,25 +545,6 @@ function formatVulnerabilityStatus(
       ? `History: none known across all versions${historySuffix}`
       : `History: ${history.total} known ${historyNoun} across all versions${historySuffix}`;
   return `${latest}\n${historyText}`;
-}
-
-function formatHistoryHint(
-  lean: LeanPackageSummary,
-  surface: "cli" | "mcp",
-): string | undefined {
-  if (!lean.advisoryHistory || lean.advisoryHistory.total <= 0) {
-    return undefined;
-  }
-  if (
-    lean.vulnerabilities &&
-    lean.advisoryHistory.total <= lean.vulnerabilities.total
-  ) {
-    return undefined;
-  }
-  if (surface === "mcp") {
-    return 'Inspect history: use pkg_vulns with advisory_scope="all".';
-  }
-  return `Inspect history: githits pkg vulns ${lean.registry}:${lean.name} --scope all`;
 }
 
 function buildVerboseSections(

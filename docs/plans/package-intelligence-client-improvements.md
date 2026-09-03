@@ -4,7 +4,8 @@
 
 - Overall: **IN PROGRESS**
 - Phase 1 — package overview distinguishes current-version and package-history
-  evidence: **COMPLETE — draft PR #350**
+  evidence: **IN PROGRESS — data contract implemented in draft PR #350; UX
+  correction READY**
 - Phase 2 — dependency analysis exposes actionable issue and conflict evidence:
   **READY**
 - Phase 3 — vulnerability inspection optionally audits resolved transitive
@@ -90,6 +91,26 @@ Authenticated source CLI probes on 2026-09-03 established the current baseline:
 - The live JSON envelope likewise returned `vulnerabilities.total: 0` alongside
   the historical `recent` rows.
 
+Post-implementation product review of the live color-enabled CLI on 2026-09-03
+found two presentation defects in the otherwise-correct data contract:
+
+- `Repository` and `Homepage` values are wrapped with the shared `dim()` style,
+  which makes URLs dark grey and low-contrast in the reviewed terminal. The color
+  module already exposes non-bold cyan through `colorize(..., "cyan", ...)`; no
+  dedicated link abstraction exists.
+- `Inspect history` is appended as an indented third vulnerability row. That makes
+  an action look like evidence owned by the `Vulnerabilities` field and weakens the
+  output hierarchy. CLI help already names the all-version `pkg_vulns` command. The
+  MCP descriptor routes version-specific vulnerability-detail questions to
+  `pkg_vulns`, but does not currently name `advisory_scope: "all"`; removing the inline
+  hint therefore requires that small descriptor correction to preserve history
+  discoverability.
+
+The user explicitly accepted URL highlighting but rejected dark-grey highlighting,
+and preferred removing `Inspect history` over retaining it as an inline row. This
+supersedes the earlier plan decision that compact output needed a direct history
+hint. The `Latest:` / `History:` evidence itself was accepted and remains unchanged.
+
 The existing `includeVerboseFields` wire variable is the correct cost boundary:
 package-wide advisory count is compact/default evidence; version count and download
 refresh time are verbose/JSON evidence. The backend declares
@@ -142,7 +163,9 @@ Direct package history is already implemented:
 
 Authenticated `pkg vulns npm:next` on 2026-09-03 reported zero affecting the latest
 version and 64 historical advisories. `--scope all --json` returned all 64 rows.
-This capability needs a direct follow-up hint, not another history flag or query.
+The capability is already discoverable through CLI help. The MCP tool descriptor must
+name the all-version `pkg_vulns` route as part of this correction; `pkg_info` does not
+need to repeat that routing action inside its evidence table.
 
 For transitive risk, the backend already exposes lazy
 `packageDependencies.dependencies.transitive.vulnerabilitySummary(minSeverity:)`.
@@ -156,10 +179,16 @@ are not supported by the current dependency client.
 ### Contradictions resolved during planning
 
 - The original concern that `pkg_vulns` cannot inspect package history is stale:
-  current CLI/MCP behavior supports it and live evidence verifies it. The remaining
-  issue is making the follow-up action obvious from default output.
+  current CLI/MCP behavior supports it and live evidence verifies it. CLI help and
+  the MCP descriptor provide sufficient discovery; default `pkg_info` output should
+  stay focused on the evidence it owns.
 - The original concern that dependency conflict details are absent from GraphQL is
   false. Typed edges already exist. Current output hides or drops them.
+- The original Phase 1 plan treated an inline `Inspect history` action as necessary.
+  Product review of the implemented output rejected that hierarchy. The action will
+  be removed from `pkg_info` text rather than moved into another section; CLI help
+  and the MCP descriptor are the routing owners. The descriptor needs a small wording
+  correction because it currently mentions only version-specific details.
 - Repository code statistics exist in `codeOverview`, but composing `targetInfo`
   and a potentially index-triggering query inside `pkg_info` would be a temporary,
   latest-only client workaround. This plan waits for the backend-owned no-side-effect
@@ -169,12 +198,14 @@ are not supported by the current dependency client.
 
 1. Enrich `pkg_info` with already-available advisory-scope, version-count, and
    download-freshness evidence.
-2. Add explicit dependency issue analysis to `pkg_deps` and make current conflict
+2. Finish the `pkg_info` presentation with readable URL emphasis and a vulnerability
+   block containing evidence only.
+3. Add explicit dependency issue analysis to `pkg_deps` and make current conflict
    evidence actionable.
-3. Add explicit transitive vulnerability audit mode to `pkg_vulns`.
-4. Preserve shared CLI/MCP JSON parity, compact text hierarchy, typed errors,
+4. Add explicit transitive vulnerability audit mode to `pkg_vulns`.
+5. Preserve shared CLI/MCP JSON parity, compact text hierarchy, typed errors,
    minimal GraphQL selections, smoke coverage, and agent discoverability.
-5. Update permanent implementation documentation and add one independent changes
+6. Update permanent implementation documentation and add one independent changes
    fragment per delivered phase.
 
 ## Non-goals
@@ -195,6 +226,9 @@ are not supported by the current dependency client.
 - Documentation availability, monorepo sibling-package discovery, and new package
   commands. These are separate product surfaces, not required to close the verified
   gaps above.
+- A repository-wide URL-color redesign. Phase 1 changes only the two URL values in
+  `pkg_info`; other formatters retain their current presentation until separately
+  reviewed.
 
 ## Target architecture
 
@@ -234,9 +268,11 @@ client view consumes. Callers never have to discover and combine coupled flags.
   be named so a future selected-version `pkg_info` remains unambiguous.
 - JSON remains lossless for every selected backend fact, but expensive analysis is
   absent unless explicitly requested.
-- Text remains bounded and outcome-first. Default text includes decisive counts and
-  a stable follow-up action; verbose text expands rows already present in the
-  normalized response.
+- Text remains bounded and outcome-first. Default text includes decisive counts;
+  verbose text expands rows already present in the normalized response. Follow-up
+  actions belong after evidence only when the current output needs them to complete
+  the task. `pkg_info` needs no inline action because CLI help routes history today and
+  the corrected MCP descriptor will route all-version callers to `pkg_vulns`.
 - Backend registry/version matching and advisory classification remain authoritative.
 
 ### Error and partial-result behavior
@@ -264,12 +300,17 @@ client view consumes. Callers never have to discover and combine coupled flags.
   analysis is materially more expensive than current defaults.
 - `text-v1` can evolve in place while JSON fields remain additive and existing field
   meanings remain stable.
+- Non-bold cyan is the Phase 1 URL emphasis color. This is an explicit planning
+  assumption based on the user's acceptance of URL highlighting and rejection of
+  dark grey; it uses an existing color primitive, preserves ordinary text weight,
+  and does not make color carry meaning.
 - Each phase is a separate implementation/review/PR increment to keep tool behavior,
   output review, and release impact bounded.
 
 ### Overall unknowns or product decisions
 
-- None for Phases 1 and 2.
+- None for Phases 1 and 2. This plan fixes non-bold cyan and removal of the inline
+  action as the Phase 1 product contract.
 - Phase 3 tactical detail will be refreshed after Phase 2 merges, but its product
   outcome, opt-in behavior, scope semantics, and error behavior are decided here.
 
@@ -330,20 +371,26 @@ client view consumes. Callers never have to discover and combine coupled flags.
 
 ### Phase 1 — package overview distinguishes version risk from package history
 
-- **Status:** COMPLETE — draft PR #350
+- **Status:** COMPLETE — data contract and UX correction implemented and reviewed in
+  draft PR #350
 - **Expected outcome:** `pkg_info` reports affecting-latest and package-wide advisory
-  counts without contradiction, and verbose/JSON callers receive version-count and
-  download-freshness evidence already available from the summary resolver.
+  counts without contradiction; its URL values remain readable in color-enabled
+  terminals; its vulnerability field contains evidence rather than an embedded action;
+  and verbose/JSON callers receive version-count and download-freshness evidence already
+  available from the summary resolver.
 - **Assumptions:** Existing `PackageSummaryResult` field semantics remain deployed;
-  no new backend request is needed.
+  no new backend request is needed. Existing non-bold cyan is an acceptable URL accent
+  based on the user's stated color direction.
 - **Unknowns or product decisions:** none.
 - **Dependencies:** current package-summary query, shared response builder/formatter,
   CLI/MCP parity, and existing compact/verbose field directive.
 - **Acceptance criteria:** default text distinguishes latest-version affected count
   from package-wide history; JSON adds scope-explicit package-history evidence without
   changing existing field meanings; verbose/JSON surface version/freshness fields;
-  default wire selection remains minimal; deterministic, parity, smoke, build,
-  documentation, release-fragment, and targeted agent-eval checks pass.
+  repository and homepage URLs use the same non-dim cyan treatment when ANSI is enabled;
+  no `Inspect history` row appears in compact or verbose CLI/MCP text; default wire
+  selection remains minimal; deterministic, parity, smoke, build, documentation,
+  release-fragment, and targeted agent-eval checks pass.
 
 ### Phase 2 — dependency issues and conflicts become actionable
 
@@ -418,9 +465,14 @@ Vulnerabilities  Latest: none affected
 Use singular/plural grammar and preserve an explicit unavailable distinction. If the
 latest count is null but the security block exists, render `Latest: unavailable`
 alongside the verified history count; do not invent `vulnerabilities.total`. If the
-history count is greater than the latest affected count, include a surface-native
-follow-up to inspect `pkg_vulns` history; never print the historical rows in compact
-`pkg_info`.
+history count is greater than the latest affected count, preserve both facts without
+adding an inline action or printing historical rows in compact `pkg_info`. CLI help and
+the corrected MCP descriptor own the route to `pkg_vulns`.
+
+In color-enabled CLI output, render the repository and homepage URL substrings in
+existing non-bold cyan rather than with `dim()`. Keep attached repository statistics in
+the normal foreground color. No-color CLI and MCP text retain identical characters,
+ordering, and wrapping, so the emphasis never carries information.
 
 Verbose text adds compact trust facts rather than another prose section:
 
@@ -437,12 +489,14 @@ request `includeVerboseFields`; compact text does not fetch them.
   `versionCount` and `downloadsRefreshedAt`; assert compact versus verbose wire
   selections and variables.
 - `packages/mcp/src/shared/package-summary-response.ts` and its test: add the lean
-  fields, scope-correct formatting, null omission, grammar, and surface-native history
-  hint support.
-- `packages/mcp/src/tools/package-summary.ts` and its test: pass the MCP surface to the
-  formatter and update the description without weakening its first-sentence/first-80
-  selection contract.
-- `src/commands/pkg/info.ts` and its test: pass the CLI surface and update help wording.
+  fields, scope-correct formatting, null omission, grammar, readable URL emphasis, and
+  evidence-only vulnerability layout.
+- `packages/mcp/src/tools/package-summary.ts` and its test: remove formatter surface
+  threading and make the descriptor explicitly route package-wide history to
+  `pkg_vulns` with `advisory_scope: "all"`, without weakening its
+  first-sentence/first-80 selection contract.
+- `src/commands/pkg/info.ts` and its test: remove formatter surface threading while
+  retaining the history command in CLI help.
 - `packages/mcp/src/services/test-helpers.ts` and directly related fixtures/parity
   tests: add deterministic available, zero, absent-security, and malformed-security
   cases.
@@ -457,12 +511,12 @@ request `includeVerboseFields`; compact text does not fetch them.
    verbose/JSON selection behavior.
 2. Extend the service Zod/types/query/normalization with no unrelated summary fields.
 3. Add failing pure response tests for independent latest/history combinations, zero
-   values, absent security, recent historical rows, date normalization, and CLI/MCP
-   hint wording.
+   values, absent security, recent historical rows, date normalization, URL color
+   projection, and the absence of an inline history action.
 4. Extend the lean envelope and shared formatter, preserving existing keys and output
    order.
-5. Thread only the surface discriminator needed for the follow-up hint through the
-   thin CLI/MCP entrypoints; update help/descriptor contract tests.
+5. Remove the now-unused surface discriminator from the formatter and thin CLI/MCP
+   entrypoints; retain and test history routing in CLI help and the MCP descriptor.
 6. Update parity fixtures, smoke assertions, implementation docs, and the release
    fragment.
 7. Run focused tests, then the full verification set below and targeted package
@@ -481,6 +535,9 @@ request `includeVerboseFields`; compact text does not fetch them.
 - A history total below the latest-version total is contradictory backend data.
   Preserve both JSON facts, avoid a misleading text comparison, and cover the
   conservative text behavior.
+- URL emphasis changes only the repository/homepage substrings when colors are enabled;
+  missing URLs, repository statistics, wrapping, no-color output, and MCP output retain
+  their existing behavior.
 - Refresh timestamp without a download count is omitted from text but retained in JSON.
 - Version count zero is retained in JSON; released packages normally have at least one,
   but the client does not add an unverified guard.
@@ -505,7 +562,7 @@ request `includeVerboseFields`; compact text does not fetch them.
 
 ### Phase 1 implementation record
 
-Implemented on 2026-09-03 in nine bounded product commits:
+Implemented to date on 2026-09-03 in bounded product commits, including:
 
 - `77bdbc6` adds the minimal GraphQL selections, normalized service types, strict
   security-block validation, and compact-versus-detailed wire tests;
@@ -519,7 +576,9 @@ Implemented on 2026-09-03 in nine bounded product commits:
   and labels verbose rows explicitly as all-version history; and
 - `6a68469` applies the same scope label to CLI/MCP help and discovery text; and
 - `087f43a` aligns the authored package skill, stable MCP quick-start copy, and CLI
-  help layout with the final advisory-scope contract.
+  help layout with the advisory-scope contract; and
+- `5e33dc7` separates and aligns the `Latest:` and `History:` evidence after the first
+  live-output review.
 
 Verified results:
 
@@ -538,14 +597,110 @@ Verified results:
   an eval-environment limitation, not product evidence.
 
 The implementation required no backend change, new infrastructure, fallback, or
-ownership move. Phase 2 remains a separate ready increment; Phase 3 still requires
-the planned post-Phase-2 reorientation.
+ownership move. Subsequent product review of `5e33dc7` accepted the evidence lines but
+reopened Phase 1 for URL contrast and action hierarchy. Phase 2 remains a separate ready
+increment; Phase 3 still requires the planned post-Phase-2 reorientation.
 
 Review closed one terminal-width defect in the internal runtime pass. Three external
 Claude Opus rounds then closed independent-history action gating, all-version scope
 labels across formatter/help/skills, CLI help reflow, and the public Agent Skill
 release clause. The round-3 code verdict was clean; its final release-metadata note
-was fixed directly under the three-round limit. No review finding remains deferred.
+was fixed directly under the three-round limit. No automated review finding remained
+at that point; the later user product feedback above supersedes the accepted inline-hint
+decision and is not a deferred review finding.
+
+### Phase 1 UX correction implementation record
+
+**Ownership:** the shared package-summary response formatter naturally owns URL styling
+and field hierarchy because it is the single CLI/MCP text renderer. CLI help and the MCP
+descriptor own surface-specific command routing, so removing the formatter's `surface`
+option restores the simpler boundary. The MCP tool definition owns its one missing
+all-version routing phrase; no new helper or abstraction is needed.
+
+Expected terminal anatomy:
+
+```text
+Repository       https://github.com/expressjs/express (69k stars, 24k forks, 235 issues)
+Homepage         https://expressjs.com/
+Published        9 months ago
+Downloads        529M / month
+Vulnerabilities  Latest: none affected
+                 History: 5 known advisories across all versions
+```
+
+The two URLs are non-bold cyan only when colors are enabled. The example intentionally
+contains no `Inspect history` row. Verbose sections continue after a blank line exactly
+as they do now.
+
+#### Implemented result
+
+- Response tests now lock non-bold cyan URL substrings, normal-color repository
+  statistics, ANSI-stripped/no-color equivalence, the unchanged aligned vulnerability
+  lines, and absence of `Inspect history` for positive, zero, and unavailable evidence.
+- The shared formatter colors only repository and homepage URLs with existing cyan,
+  removes the inline history action, and no longer accepts a surface discriminator.
+- Thin CLI/MCP entrypoints no longer pass surface identity. CLI help retains
+  `githits pkg vulns <registry>:<name> --scope all`; the MCP descriptor unambiguously
+  routes version-specific details to `pkg_vulns` and package-wide history to
+  `pkg_vulns` with `advisory_scope: "all"`.
+- Permanent implementation docs and the existing Phase 1 changes fragment describe the
+  final evidence-only output and discovery routes.
+- Live compact, verbose, and narrow-width output confirms the accepted hierarchy and
+  cyan contrast without changing the existing URL-row wrapping behavior.
+
+#### Increment boundaries and failure behavior
+
+- Do not change GraphQL selections, service types, JSON, vulnerability counts, verbose
+  advisory rows, line wrapping, labels, or section ordering.
+- Do not introduce terminal hyperlinks, underline escapes, a new brand token, or a
+  repository-wide link helper. Existing cyan is sufficient for this scoped correction.
+- Missing URLs remain omitted. ANSI-disabled and MCP output contain plain URL text and
+  remain semantically complete.
+- The reviewed live terminal accepted existing non-bold cyan; no new palette token or
+  repository-wide styling rule was introduced.
+
+#### Increment acceptance criteria
+
+- Color-enabled `pkg_info` renders repository and homepage URL substrings with existing
+  non-bold cyan and never applies ANSI dim to them; repository statistics retain normal
+  weight/color.
+- Removing ANSI produces the same characters, line order, and meaning as no-color/MCP
+  text.
+- Compact and verbose CLI/MCP text contain exactly the accepted `Latest:` and `History:`
+  vulnerability evidence and no `Inspect history` row.
+- CLI help still names `githits pkg vulns <registry>:<name> --scope all`; the MCP
+  descriptor explicitly names `pkg_vulns` with `advisory_scope: "all"` for package-wide
+  history, without weakening descriptor first-sentence/first-80 contracts.
+- The formatter surface discriminator and its entrypoint plumbing are removed rather
+  than retained unused.
+- Focused formatter/tool/command/parity tests, full tests, typecheck, lint, formatting,
+  build, public-package validation, all source/built CLI/MCP smokes, live output review,
+  and available targeted agent evaluations pass.
+
+#### Correction verification
+
+- Test-first focused coverage produced eight expected failures before the formatter
+  change; the completed focused set passed 71 tests with no failures.
+- The full suite passed 3,829 tests with no failures. Typecheck, lint, formatting,
+  build, and public-package validation also passed.
+- Source and built CLI/MCP smoke suites passed. The first source-smoke run reached the
+  changed `pkg_info` assertions, then encountered an Express code snapshot actively
+  indexing in a later step; an immediate full rerun passed all 93 CLI and 50 MCP steps.
+- Live `npm:express` compact, verbose, and 40-column output was inspected with colors
+  enabled: URLs use cyan, vulnerability evidence remains aligned, and no inline action
+  appears.
+- Final descriptor-only Codex evaluations passed both package overview and package-wide
+  history workloads with high confidence. Both used `pkg_info` and `pkg_vulns` with
+  `advisory_scope: "all"`; no isolation violation was reported. One history workload
+  call combined the invalid `version: "latest"` sentinel with package-wide scope, then
+  self-corrected to the documented no-version call and returned the correct result. The
+  Claude eval harness remains unavailable because it is not logged in.
+- Internal review found one ambiguous MCP routing sentence. The one-line wording fix and
+  exact descriptor assertions make the two vulnerability routes explicit; the same
+  reviewer then reported the correction clean. External review then found one
+  low-severity argument-notation mismatch (`=` instead of the descriptor convention's
+  `:`); source, assertions, and docs were corrected, focused tests and the targeted eval
+  were repeated, and the retained reviewer reported the final correction clean.
 
 ### Phase 1 acceptance criteria
 
@@ -553,11 +708,12 @@ was fixed directly under the three-round limit. No review finding remains deferr
 - Additive fields accurately distinguish returned-version affectedness from
   package-wide history and preserve null-versus-zero.
 - Compact text no longer juxtaposes zero latest risk and historical rows without a
-  package-history count/action.
+  package-history count.
 - Compact text does not fetch version count, download freshness, recent advisories,
   or recent changes; verbose/JSON do.
-- CLI and MCP JSON deep-equal; text differs only in surface-native history guidance
-  and ANSI/width inputs.
+- CLI and MCP JSON deep-equal; package-summary text differs only in ANSI/width inputs.
+- URL emphasis is non-dim, optional, and semantically redundant; `Inspect history` is
+  absent from compact and verbose package-summary text.
 - No new backend call, fallback, cache, or broad package-summary field dump is added.
 - Required tests, smoke, build/package validation, docs, changes fragment, and
   available targeted agent evaluations complete successfully; any unavailable agent

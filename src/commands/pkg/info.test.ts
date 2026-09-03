@@ -142,7 +142,7 @@ describe("pkgInfoAction", () => {
     writeSpy.mockRestore();
   });
 
-  it("uses CLI-specific history guidance without leaking MCP syntax", async () => {
+  it("keeps package history evidence in output without an inline action", async () => {
     const summary = structuredClone(defaultPackageSummary);
     summary.security = {
       vulnerabilityCount: 0,
@@ -169,9 +169,9 @@ describe("pkgInfoAction", () => {
       createDeps({ packageIntelligenceService: service }),
     );
     const output = writes.join("");
-    expect(output).toContain(
-      "Inspect history: githits pkg vulns npm:express --scope all",
-    );
+    expect(output).toContain("Latest: none affected");
+    expect(output).toContain("History: 5 known advisories across all versions");
+    expect(output).not.toContain("Inspect history");
     expect(output).not.toContain("advisory_scope");
     writeSpy.mockRestore();
   });

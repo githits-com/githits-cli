@@ -529,12 +529,14 @@ When a new tool lands with both MCP and CLI surfaces:
   `vulnerabilities.total` is latest-version affectedness and
   `advisoryHistory.total` is package-wide non-withdrawn, deduplicated history.
   History remains renderable when the nullable latest count is unavailable.
-- **Surface-native history follow-up.** Both compact text surfaces use the same
-  `Latest:` and `History:` labels and show a history follow-up when history
-  exceeds numeric latest evidence, or when latest is unavailable and history is
-  positive. CLI uses `githits pkg vulns <registry>:<name> --scope all`;
-  MCP uses `pkg_vulns` with `advisory_scope="all"`. No other text semantics
-  diverge.
+- **Evidence-only vulnerability field.** Both compact text surfaces use the same
+  `Latest:` and `History:` labels and do not append an inline action. CLI help
+  routes full-history inspection to
+  `githits pkg vulns <registry>:<name> --scope all`; the MCP descriptor routes it
+  to `pkg_vulns` with `advisory_scope: "all"`. Package-summary text otherwise
+  differs only through ANSI and width inputs: color-enabled CLI output uses
+  non-bold cyan for repository/homepage URL substrings, while no-color CLI and
+  MCP retain identical content and hierarchy.
 - **Compact versus detailed fetching.** Default text requests
   `includeVerboseFields: false`; verbose text and JSON request `true` on both
   surfaces. `allVulnerabilityCount` is selected for every package summary,
