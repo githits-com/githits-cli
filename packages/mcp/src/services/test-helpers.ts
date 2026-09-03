@@ -370,6 +370,8 @@ export const defaultPackageSummary: PackageSummary = {
     description: "Fast, unopinionated, minimalist web framework for Node.js",
     latestVersion: "4.18.2",
     latestVersionPublishedAt: "2023-05-28T00:00:00Z",
+    versionCount: 214,
+    downloadsRefreshedAt: "2024-06-15T00:00:00Z",
     homepage: "https://expressjs.com",
     repositoryUrl: "https://github.com/expressjs/express",
     license: "MIT",
@@ -387,6 +389,7 @@ export const defaultPackageSummary: PackageSummary = {
   },
   security: {
     vulnerabilityCount: 5,
+    allVulnerabilityCount: 5,
     hasCurrentVulnerabilities: true,
     recentVulnerabilities: [
       {

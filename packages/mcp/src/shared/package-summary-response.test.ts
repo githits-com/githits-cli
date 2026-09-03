@@ -92,6 +92,7 @@ describe("buildPackageSummarySuccessPayload — omission rules", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: 0,
+      allVulnerabilityCount: 0,
       hasCurrentVulnerabilities: false,
       recentVulnerabilities: [],
     };
@@ -106,6 +107,7 @@ describe("buildPackageSummarySuccessPayload — omission rules", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: undefined,
+      allVulnerabilityCount: 5,
       hasCurrentVulnerabilities: false,
       recentVulnerabilities: [],
     };
@@ -123,6 +125,7 @@ describe("buildPackageSummarySuccessPayload — omission rules", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: 3,
+      allVulnerabilityCount: 3,
       hasCurrentVulnerabilities: true,
       recentVulnerabilities: [],
     };
@@ -187,6 +190,7 @@ describe("buildPackageSummarySuccessPayload — data transformations", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: 1,
+      allVulnerabilityCount: 1,
       hasCurrentVulnerabilities: true,
       recentVulnerabilities: [
         {
@@ -285,6 +289,7 @@ describe("formatPackageSummaryTerminal", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: 1,
+      allVulnerabilityCount: 1,
       hasCurrentVulnerabilities: true,
       recentVulnerabilities: [],
     };
@@ -299,6 +304,7 @@ describe("formatPackageSummaryTerminal", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: 0,
+      allVulnerabilityCount: 0,
       hasCurrentVulnerabilities: false,
       recentVulnerabilities: [],
     };
