@@ -282,7 +282,7 @@ describe("buildPackageDependenciesSuccessPayload — transitive block", () => {
       includeTransitive: true,
     });
     expect(payload.transitive?.conflicts).toEqual([
-      { name: "lodash", requiredVersions: ["^4", "^5"] },
+      { name: "lodash", requiredVersions: ["^4", "^5"], requirements: [] },
     ]);
     expect(payload.transitive?.circularDependencies).toEqual([
       { cycle: ["a", "b", "a"] },
@@ -322,6 +322,365 @@ describe("buildPackageDependenciesSuccessPayload — version echo", () => {
       { requestedVersion: "5.2" },
     );
     expect(payload.requestedVersion).toBe("5.2");
+  });
+});
+
+describe("buildPackageDependenciesSuccessPayload — dependency issues", () => {
+  it("emits the complete issue envelope with depth scope and lossless conflict requirements", () => {
+    const fixture: DependencyReport = {
+      package: { name: "express", registry: "NPM", version: "5.2.1" },
+      dependencies: {
+        direct: [],
+        transitive: {
+          dependencyGraph: {
+            formatVersion: 4,
+            nodes: [
+              { registry: "NPM", name: "express", version: "5.2.1" },
+              { registry: "NPM", name: "importer-a", version: "1.0.0" },
+              { registry: "NPM", name: "shared", version: "1.0.0" },
+              { registry: "NPM", name: "importer-b", version: "2.0.0" },
+              { registry: "NPM", name: "shared", version: "2.0.0" },
+            ],
+            edges: [
+              {
+                toIndex: 2,
+                constraint: "^1.0.0",
+                dependencyType: "runtime",
+              },
+              {
+                fromIndex: 1,
+                toIndex: 2,
+                constraint: "^1.0.0",
+                dependencyType: "runtime",
+              },
+              {
+                fromIndex: 3,
+                toIndex: 4,
+                constraint: "^2.0.0",
+                dependencyType: "optional",
+              },
+              {
+                fromIndex: 1,
+                toIndex: 4,
+                constraint: "^2.0.0",
+                dependencyType: "peer",
+              },
+            ],
+          },
+          dependencyConflicts: [
+            {
+              packageName: "shared",
+              requiredVersions: ["^1.0.0", "^2.0.0"],
+              conflictingEdges: [
+                {
+                  toIndex: 2,
+                  versionConstraint: "^1.0.0",
+                  dependencyType: "runtime",
+                },
+                {
+                  fromIndex: 1,
+                  toIndex: 2,
+                  versionConstraint: "^1.0.0",
+                  dependencyType: "runtime",
+                },
+              ],
+            },
+          ],
+          dependencyIssues: {
+            totalCount: 4,
+            deprecatedCount: 1,
+            outdatedCount: 1,
+            duplicateCount: 1,
+            conflictCount: 1,
+            deprecatedPackages: [
+              {
+                registry: "NPM",
+                name: "old-package",
+                versions: ["1.0.0", "1.1.0"],
+                reasons: [
+                  { version: "1.0.0", reason: "Use new-package" },
+                  { version: "1.1.0" },
+                ],
+              },
+            ],
+            outdatedPackages: [
+              {
+                registry: "NPM",
+                name: "stale-package",
+                severity: "HIGH",
+                versions: [
+                  { version: "1.0.0", severity: "HIGH" },
+                  { version: "1.1.0", severity: "MEDIUM" },
+                ],
+              },
+            ],
+            duplicatePackages: [
+              {
+                name: "duplicate-package",
+                versions: ["1.0.0", "2.0.0"],
+              },
+            ],
+            conflicts: [
+              {
+                name: "shared",
+                versions: ["1.0.0", "2.0.0"],
+                requiredVersions: ["^1.0.0", "^2.0.0"],
+                conflictingEdges: [
+                  {
+                    toIndex: 2,
+                    versionConstraint: "^1.0.0",
+                    dependencyType: "runtime",
+                  },
+                  {
+                    fromIndex: 1,
+                    toIndex: 2,
+                    versionConstraint: "^1.0.0",
+                    dependencyType: "runtime",
+                  },
+                  {
+                    fromIndex: 3,
+                    toIndex: 4,
+                    versionConstraint: "^2.0.0",
+                    dependencyType: "optional",
+                  },
+                  {
+                    fromIndex: 1,
+                    toIndex: 4,
+                    versionConstraint: "^2.0.0",
+                    dependencyType: "peer",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    const payload = buildPackageDependenciesSuccessPayload(fixture, {
+      includeTransitive: true,
+      includeIssues: true,
+      maxDepth: 3,
+    });
+
+    expect(payload.issues).toEqual({
+      total: 4,
+      scope: { mode: "depth_limited", maxDepth: 3 },
+      deprecated: {
+        count: 1,
+        items: [
+          {
+            registry: "npm",
+            name: "old-package",
+            versions: ["1.0.0", "1.1.0"],
+            reasons: [
+              { version: "1.0.0", reason: "Use new-package" },
+              { version: "1.1.0" },
+            ],
+          },
+        ],
+      },
+      outdated: {
+        count: 1,
+        items: [
+          {
+            registry: "npm",
+            name: "stale-package",
+            severity: "HIGH",
+            versions: [
+              { version: "1.0.0", severity: "HIGH" },
+              { version: "1.1.0", severity: "MEDIUM" },
+            ],
+          },
+        ],
+      },
+      duplicates: {
+        count: 1,
+        items: [
+          {
+            name: "duplicate-package",
+            versions: ["1.0.0", "2.0.0"],
+          },
+        ],
+      },
+      conflicts: {
+        count: 1,
+        items: [
+          {
+            name: "shared",
+            versions: ["1.0.0", "2.0.0"],
+            requiredVersions: ["^1.0.0", "^2.0.0"],
+            requirements: [
+              {
+                constraint: "^1.0.0",
+                dependencyType: "runtime",
+                importer: {
+                  registry: "npm",
+                  name: "express",
+                  version: "5.2.1",
+                  root: true,
+                },
+                target: {
+                  registry: "npm",
+                  name: "shared",
+                  version: "1.0.0",
+                },
+              },
+              {
+                constraint: "^1.0.0",
+                dependencyType: "runtime",
+                importer: {
+                  registry: "npm",
+                  name: "importer-a",
+                  version: "1.0.0",
+                },
+                target: {
+                  registry: "npm",
+                  name: "shared",
+                  version: "1.0.0",
+                },
+              },
+              {
+                constraint: "^2.0.0",
+                dependencyType: "optional",
+                importer: {
+                  registry: "npm",
+                  name: "importer-b",
+                  version: "2.0.0",
+                },
+                target: {
+                  registry: "npm",
+                  name: "shared",
+                  version: "2.0.0",
+                },
+              },
+              {
+                constraint: "^2.0.0",
+                dependencyType: "peer",
+                importer: {
+                  registry: "npm",
+                  name: "importer-a",
+                  version: "1.0.0",
+                },
+                target: {
+                  registry: "npm",
+                  name: "shared",
+                  version: "2.0.0",
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(payload.transitive?.conflicts).toEqual([
+      {
+        name: "shared",
+        requiredVersions: ["^1.0.0", "^2.0.0"],
+        requirements: [
+          {
+            constraint: "^1.0.0",
+            dependencyType: "runtime",
+            importer: {
+              registry: "npm",
+              name: "express",
+              version: "5.2.1",
+              root: true,
+            },
+            target: {
+              registry: "npm",
+              name: "shared",
+              version: "1.0.0",
+            },
+          },
+          {
+            constraint: "^1.0.0",
+            dependencyType: "runtime",
+            importer: {
+              registry: "npm",
+              name: "importer-a",
+              version: "1.0.0",
+            },
+            target: {
+              registry: "npm",
+              name: "shared",
+              version: "1.0.0",
+            },
+          },
+        ],
+      },
+    ]);
+
+    const serialized = JSON.stringify(payload);
+    expect(serialized).not.toContain("fromIndex");
+    expect(serialized).not.toContain("toIndex");
+    expect(serialized).not.toContain("dependencyGraph");
+  });
+
+  it("emits verified zero issue categories and full scope", () => {
+    const fixture: DependencyReport = {
+      package: { name: "x", registry: "NPM", version: "1.0.0" },
+      dependencies: {
+        transitive: {
+          dependencyIssues: {
+            totalCount: 0,
+            deprecatedCount: 0,
+            outdatedCount: 0,
+            duplicateCount: 0,
+            conflictCount: 0,
+            deprecatedPackages: [],
+            outdatedPackages: [],
+            duplicatePackages: [],
+            conflicts: [],
+          },
+        },
+      },
+    };
+
+    expect(
+      buildPackageDependenciesSuccessPayload(fixture, {
+        includeIssues: true,
+      }).issues,
+    ).toEqual({
+      total: 0,
+      scope: { mode: "full" },
+      deprecated: { count: 0, items: [] },
+      outdated: { count: 0, items: [] },
+      duplicates: { count: 0, items: [] },
+      conflicts: { count: 0, items: [] },
+    });
+  });
+
+  it("omits issue data by default while keeping the graph internal", () => {
+    const fixture: DependencyReport = {
+      package: { name: "x", registry: "NPM", version: "1.0.0" },
+      dependencies: {
+        transitive: {
+          dependencyGraph: {
+            formatVersion: 4,
+            nodes: [{ registry: "NPM", name: "x", version: "1.0.0" }],
+            edges: [],
+          },
+          dependencyIssues: {
+            totalCount: 0,
+            deprecatedCount: 0,
+            outdatedCount: 0,
+            duplicateCount: 0,
+            conflictCount: 0,
+            deprecatedPackages: [],
+            outdatedPackages: [],
+            duplicatePackages: [],
+            conflicts: [],
+          },
+        },
+      },
+    };
+
+    const payload = buildPackageDependenciesSuccessPayload(fixture, {
+      includeTransitive: true,
+    });
+    expect(payload.issues).toBeUndefined();
+    expect(payload.transitive).toEqual({});
   });
 });
 

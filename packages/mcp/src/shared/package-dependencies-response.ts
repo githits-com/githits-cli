@@ -19,8 +19,9 @@
  *   declared — the same signal the terminal `--verbose` view
  *   renders, derived client-side from the typed dependency graph
  *   so agents never see the graph directly.
- * - **Typed conflicts / cycles.** `transitive.conflicts` is
- *   `{name, requiredVersions}[]`; `transitive.circularDependencies`
+ * - **Typed conflicts / cycles.** `transitive.conflicts` keeps the
+ *   `{name, requiredVersions}` compatibility keys and adds complete
+ *   importer/target requirements; `transitive.circularDependencies`
  *   is `{cycle: string[]}[]`. Both map from the backend's typed
  *   `DependencyConflict` / `CircularDependencyCycle` shapes — no
  *   raw-fallback path.
@@ -44,8 +45,12 @@
  */
 
 import type {
+  DependencyConflict,
+  DependencyConflictEdge,
   DependencyGraph,
   DependencyGroup,
+  DependencyIssueConflict,
+  DependencyIssuesSummary,
   DependencyReport,
   EnvironmentMarker,
 } from "@githits/core-internal";
@@ -126,6 +131,70 @@ export interface LeanTransitivePackage {
 export interface LeanTypedConflict {
   name: string;
   requiredVersions: string[];
+  requirements: LeanConflictRequirement[];
+}
+
+export interface LeanDependencyIssueScope {
+  mode: "full" | "depth_limited";
+  maxDepth?: number;
+}
+
+export interface LeanIssueCategory<T> {
+  count: number;
+  items: T[];
+}
+
+export interface LeanDeprecatedDependencyIssue {
+  registry: string;
+  name: string;
+  versions: string[];
+  reasons: Array<{ version: string; reason?: string }>;
+}
+
+export interface LeanOutdatedDependencyIssue {
+  registry: string;
+  name: string;
+  latestVersion?: string;
+  severity: string;
+  versions: Array<{ version: string; severity: string }>;
+  repositoryUrl?: string;
+}
+
+export interface LeanDuplicateDependencyIssue {
+  registry?: string;
+  name: string;
+  versions: string[];
+}
+
+export interface LeanDependencyNodeIdentity {
+  registry: string;
+  name: string;
+  version?: string;
+  root?: true;
+}
+
+export interface LeanConflictRequirement {
+  constraint: string;
+  dependencyType: string;
+  importer: LeanDependencyNodeIdentity;
+  target: LeanDependencyNodeIdentity;
+}
+
+export interface LeanDependencyConflictIssue {
+  registry?: string;
+  name: string;
+  versions: string[];
+  requiredVersions: string[];
+  requirements: LeanConflictRequirement[];
+}
+
+export interface LeanDependencyIssues {
+  total: number;
+  scope: LeanDependencyIssueScope;
+  deprecated: LeanIssueCategory<LeanDeprecatedDependencyIssue>;
+  outdated: LeanIssueCategory<LeanOutdatedDependencyIssue>;
+  duplicates: LeanIssueCategory<LeanDuplicateDependencyIssue>;
+  conflicts: LeanIssueCategory<LeanDependencyConflictIssue>;
 }
 
 export interface LeanTypedCycle {
@@ -163,6 +232,7 @@ export interface LeanDependencyReport {
   runtime?: LeanRuntimeBlock;
   groups?: LeanGroupsBlock;
   transitive?: LeanTransitiveBlock;
+  issues?: LeanDependencyIssues;
   filter?: LeanFilterBlock;
 }
 
@@ -187,6 +257,8 @@ export interface BuildDependenciesPayloadOptions {
    * CLI `--verbose` view renders.
    */
   includeImporters?: boolean;
+  /** Whether to emit the additive transitive dependency issue envelope. */
+  includeIssues?: boolean;
 }
 
 // --------------------------------------------------------------------
@@ -283,10 +355,9 @@ export function buildPackageDependenciesSuccessPayload(
         transitive.dependencyConflicts &&
         transitive.dependencyConflicts.length > 0
       ) {
-        block.conflicts = transitive.dependencyConflicts.map((c) => ({
-          name: c.packageName,
-          requiredVersions: c.requiredVersions.slice().sort(),
-        }));
+        block.conflicts = transitive.dependencyConflicts.map((c) =>
+          projectTransitiveConflict(c, graph, payload),
+        );
       }
       if (
         transitive.circularDependencyCycles &&
@@ -300,11 +371,182 @@ export function buildPackageDependenciesSuccessPayload(
     }
   }
 
+  const issueSummary = bundle?.transitive?.dependencyIssues;
+  if (options.includeIssues === true && issueSummary) {
+    payload.issues = projectDependencyIssues(
+      issueSummary,
+      graph,
+      payload,
+      options.maxDepth,
+    );
+  }
+
   if (options.canonicalLifecycles && options.canonicalLifecycles.length > 0) {
     payload.filter = { lifecycles: options.canonicalLifecycles.slice() };
   }
 
   return payload;
+}
+
+function projectDependencyIssues(
+  issues: DependencyIssuesSummary,
+  graph: DependencyGraph | null,
+  payload: LeanDependencyReport,
+  maxDepth: number | undefined,
+): LeanDependencyIssues {
+  return {
+    total: issues.totalCount,
+    scope:
+      maxDepth === undefined
+        ? { mode: "full" }
+        : { mode: "depth_limited", maxDepth },
+    deprecated: {
+      count: issues.deprecatedCount,
+      items: issues.deprecatedPackages.map(projectDeprecatedIssue),
+    },
+    outdated: {
+      count: issues.outdatedCount,
+      items: issues.outdatedPackages.map(projectOutdatedIssue),
+    },
+    duplicates: {
+      count: issues.duplicateCount,
+      items: issues.duplicatePackages.map(projectDuplicateIssue),
+    },
+    conflicts: {
+      count: issues.conflictCount,
+      items: issues.conflicts.map((conflict) =>
+        projectIssueConflict(conflict, graph, payload),
+      ),
+    },
+  };
+}
+
+function projectDeprecatedIssue(
+  issue: DependencyIssuesSummary["deprecatedPackages"][number],
+): LeanDeprecatedDependencyIssue {
+  return {
+    registry: lowerRegistry(issue.registry),
+    name: issue.name,
+    versions: issue.versions.slice(),
+    reasons: issue.reasons.map((reason) => {
+      const out: { version: string; reason?: string } = {
+        version: reason.version,
+      };
+      if (reason.reason !== undefined) out.reason = reason.reason;
+      return out;
+    }),
+  };
+}
+
+function projectOutdatedIssue(
+  issue: DependencyIssuesSummary["outdatedPackages"][number],
+): LeanOutdatedDependencyIssue {
+  const out: LeanOutdatedDependencyIssue = {
+    registry: lowerRegistry(issue.registry),
+    name: issue.name,
+    severity: issue.severity,
+    versions: issue.versions.map((version) => ({
+      version: version.version,
+      severity: version.severity,
+    })),
+  };
+  if (issue.latestVersion !== undefined) {
+    out.latestVersion = issue.latestVersion;
+  }
+  if (issue.repositoryUrl !== undefined) {
+    out.repositoryUrl = issue.repositoryUrl;
+  }
+  return out;
+}
+
+function projectDuplicateIssue(
+  issue: DependencyIssuesSummary["duplicatePackages"][number],
+): LeanDuplicateDependencyIssue {
+  const out: LeanDuplicateDependencyIssue = {
+    name: issue.name,
+    versions: issue.versions.slice(),
+  };
+  if (issue.registry !== undefined) {
+    out.registry = lowerRegistry(issue.registry);
+  }
+  return out;
+}
+
+function projectTransitiveConflict(
+  conflict: DependencyConflict,
+  graph: DependencyGraph | null,
+  payload: LeanDependencyReport,
+): LeanTypedConflict {
+  return {
+    name: conflict.packageName,
+    // Preserve the established transitive-conflict ordering used by
+    // the terminal formatter; issue conflicts below retain the backend
+    // order because they are a lossless JSON contract.
+    requiredVersions: conflict.requiredVersions.slice().sort(),
+    requirements: projectConflictRequirements(
+      conflict.conflictingEdges,
+      graph,
+      payload,
+    ),
+  };
+}
+
+function projectIssueConflict(
+  conflict: DependencyIssueConflict,
+  graph: DependencyGraph | null,
+  payload: LeanDependencyReport,
+): LeanDependencyConflictIssue {
+  const out: LeanDependencyConflictIssue = {
+    name: conflict.name,
+    versions: conflict.versions.slice(),
+    requiredVersions: conflict.requiredVersions.slice(),
+    requirements: projectConflictRequirements(
+      conflict.conflictingEdges,
+      graph,
+      payload,
+    ),
+  };
+  if (conflict.registry !== undefined) {
+    out.registry = lowerRegistry(conflict.registry);
+  }
+  return out;
+}
+
+function projectConflictRequirements(
+  edges: DependencyConflictEdge[],
+  graph: DependencyGraph | null,
+  payload: LeanDependencyReport,
+): LeanConflictRequirement[] {
+  return edges.map((edge) => ({
+    constraint: edge.versionConstraint,
+    dependencyType: edge.dependencyType,
+    importer:
+      edge.fromIndex === undefined || edge.fromIndex === null
+        ? {
+            registry: payload.registry,
+            name: payload.name,
+            version: payload.version,
+            root: true,
+          }
+        : projectGraphNode(graph, edge.fromIndex),
+    target: projectGraphNode(graph, edge.toIndex),
+  }));
+}
+
+function projectGraphNode(
+  graph: DependencyGraph | null,
+  index: number,
+): LeanDependencyNodeIdentity {
+  // Graph edge indices are a service/schema invariant. This projection
+  // assumes that contract and deliberately does not add a presentation-
+  // layer recovery path.
+  const node = graph!.nodes[index]!;
+  const identity: LeanDependencyNodeIdentity = {
+    registry: lowerRegistry(node.registry),
+    name: node.name,
+  };
+  if (node.version !== undefined) identity.version = node.version;
+  return identity;
 }
 
 function shouldEmitGroups(
