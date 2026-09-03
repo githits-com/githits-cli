@@ -16,11 +16,13 @@ import {
 } from "./local-agentic-ask.js";
 
 const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
+const CONVERSATION_ID = "018f47a6-7b32-7b1e-8f45-6a2d39c81720";
 
 function response(): AgenticAskMcpResponse {
   return {
     source_format: "mcp",
     tool_call_id: TOOL_CALL_ID,
+    thread_id: CONVERSATION_ID,
     answer_markdown: "Use the documented API.",
     sources: [
       {
@@ -48,6 +50,7 @@ function urlResponse(): AgenticAskUrlResponse {
   return {
     source_format: "url",
     tool_call_id: TOOL_CALL_ID,
+    thread_id: CONVERSATION_ID,
     answer_markdown: "Use the documented API.",
     sources: [
       {
@@ -59,7 +62,10 @@ function urlResponse(): AgenticAskUrlResponse {
 }
 
 type McpAsk = (
-  request: { target: string; question: string; sourceFormat: "mcp" | "url" },
+  request: ({ target: string } | { threadId: string }) & {
+    question: string;
+    sourceFormat: "mcp" | "url";
+  },
   options?: { signal?: AbortSignal },
 ) => Promise<AgenticAskMcpResponse | AgenticAskUrlResponse>;
 
@@ -83,8 +89,8 @@ describe("local ask MCP adapter", () => {
     const jsonSchema = z.toJSONSchema(z.object(tool.schema));
 
     expect(tool.name).toBe("ask");
-    expect(DESCRIPTION.slice(0, 80)).toBe(
-      "Ask one grounded question about a canonical public package or repository target.",
+    expect(DESCRIPTION).toContain(
+      "Ask one grounded question about a canonical public package or repository target",
     );
     expect(tool.annotations).toEqual({
       readOnlyHint: false,
@@ -93,6 +99,7 @@ describe("local ask MCP adapter", () => {
     });
     expect(Object.keys(tool.schema)).toEqual([
       "target",
+      "thread_id",
       "question",
       "source_format",
       "format",
@@ -126,8 +133,45 @@ describe("local ask MCP adapter", () => {
       content: [{ type: "text", text: formatAgenticAskMcpText(response()) }],
     });
     expect(result.content[0]?.text).toBe(
-      'Use the documented API.\n\nSources:\n  1. code_read({"target":"npm:example","path":"src/index.ts","start_line":10,"end_line":20})\n  2. docs_read({"page_id":"docs:example:guide","start_line":3,"end_line":8})\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\n',
+      'Use the documented API.\n\nSources:\n  1. code_read({"target":"npm:example","path":"src/index.ts","start_line":10,"end_line":20})\n  2. docs_read({"page_id":"docs:example:guide","start_line":3,"end_line":8})\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nFollow up using this thread ID only if the answer is insufficient.\n',
     );
+  });
+
+  it("continues a thread without resending a target", async () => {
+    const ask = mock(() => Promise.resolve(response()));
+    await invoke(createLocalAgenticAskTool(createService(ask)), {
+      thread_id: CONVERSATION_ID,
+      question: "Where is that checked?",
+    });
+
+    expect(ask).toHaveBeenCalledWith(
+      {
+        threadId: CONVERSATION_ID,
+        question: "Where is that checked?",
+        sourceFormat: "mcp",
+      },
+      undefined,
+    );
+  });
+
+  it("rejects ambiguous, missing, and malformed selectors before the service call", async () => {
+    const ask = mock(() => Promise.resolve(response()));
+    const tool = createLocalAgenticAskTool(createService(ask));
+    const invalidArgs: AgenticAskMcpArgs[] = [
+      { target: "npm:example", thread_id: CONVERSATION_ID, question: "How?" },
+      { question: "How?" },
+      { thread_id: "not-a-uuid", question: "How?" },
+    ];
+
+    for (const args of invalidArgs) {
+      const result = await invoke(tool, args);
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0]?.text ?? "{}")).toMatchObject({
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      });
+    }
+    expect(ask).not.toHaveBeenCalled();
   });
 
   it("returns only the validated MCP envelope for JSON", async () => {
@@ -159,7 +203,7 @@ describe("local ask MCP adapter", () => {
       undefined,
     );
     expect(result.content[0]?.text).toBe(
-      "Use the documented API.\n\nSources:\n  1. https://github.com/example/project/blob/main/src/index.ts#L10-L20\n  2. https://example.com/docs/guide#L3-L8\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\n",
+      "Use the documented API.\n\nSources:\n  1. https://github.com/example/project/blob/main/src/index.ts#L10-L20\n  2. https://example.com/docs/guide#L3-L8\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nFollow up using this thread ID only if the answer is insufficient.\n",
     );
   });
 
@@ -189,6 +233,7 @@ describe("local ask MCP adapter", () => {
       TOOL_CALL_ID,
       12,
       true,
+      CONVERSATION_ID,
     );
     const ask = mock(() => Promise.reject(error));
     const result = await invoke(createLocalAgenticAskTool(createService(ask)), {
@@ -203,6 +248,7 @@ describe("local ask MCP adapter", () => {
       retryable: true,
       details: { status: 429, retryAfterSeconds: 12 },
       tool_call_id: TOOL_CALL_ID,
+      thread_id: CONVERSATION_ID,
     });
   });
 

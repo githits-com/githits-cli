@@ -11,16 +11,19 @@ import {
   AgenticAskServiceImpl,
   type AgenticAskUrlResponse,
   MalformedAgenticAskResponseError,
+  normalizeAgenticAskThreadId,
   parseAgenticAskToolCallId,
 } from "./agentic-ask-service.js";
 import { createMockTokenProvider } from "./test-helpers.js";
 
 const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
+const CONVERSATION_ID = "018f47a6-7b32-7b1e-8f45-6a2d39c81720";
 
 function responseBody(overrides: Record<string, unknown> = {}) {
   return {
     source_format: "cli",
     tool_call_id: TOOL_CALL_ID,
+    conversation_id: CONVERSATION_ID,
     answer_markdown: "Use the documented API.",
     sources: [
       {
@@ -57,6 +60,7 @@ function mcpResponseBody(overrides: Record<string, unknown> = {}) {
   return {
     source_format: "mcp",
     tool_call_id: TOOL_CALL_ID,
+    conversation_id: CONVERSATION_ID,
     answer_markdown: "Use the documented API.",
     sources: [
       {
@@ -85,6 +89,7 @@ function urlResponseBody(overrides: Record<string, unknown> = {}) {
   return {
     source_format: "url",
     tool_call_id: TOOL_CALL_ID,
+    conversation_id: CONVERSATION_ID,
     answer_markdown: "Use the documented API.",
     sources: [
       {
@@ -94,6 +99,11 @@ function urlResponseBody(overrides: Record<string, unknown> = {}) {
     ],
     ...overrides,
   };
+}
+
+function withPublicThreadId(body: Record<string, unknown>) {
+  const { conversation_id: thread_id, ...response } = body;
+  return { ...response, thread_id };
 }
 
 function jsonResponse(
@@ -145,7 +155,9 @@ describe("AgenticAskServiceImpl", () => {
       question: "How is the client created?",
     });
 
-    expect(result).toEqual(responseBody() as AgenticAskCliResponse);
+    expect(result).toEqual(
+      withPublicThreadId(responseBody()) as unknown as AgenticAskCliResponse,
+    );
     expect(capturedUrl).toBe("https://api.githits.test/ask");
     expect(capturedInit?.method).toBe("POST");
     expect(capturedInit?.signal).toBeInstanceOf(AbortSignal);
@@ -177,11 +189,32 @@ describe("AgenticAskServiceImpl", () => {
       sourceFormat: "mcp",
     });
 
-    expect(result).toEqual(mcpResponseBody() as AgenticAskMcpResponse);
+    expect(result).toEqual(
+      withPublicThreadId(mcpResponseBody()) as unknown as AgenticAskMcpResponse,
+    );
     expect(JSON.parse(String(capturedInit?.body))).toEqual({
       target: "npm:example",
       question: "How is the client created?",
       source_format: "mcp",
+    });
+  });
+
+  it("continues a conversation without resending its target", async () => {
+    let capturedInit: RequestInit | undefined;
+    const fetchFn = mock((_url: string | URL | Request, init?: RequestInit) => {
+      capturedInit = init;
+      return Promise.resolve(jsonResponse());
+    }) as unknown as typeof fetch;
+
+    await createService(fetchFn).ask({
+      threadId: CONVERSATION_ID,
+      question: "Where is that choice checked?",
+    });
+
+    expect(JSON.parse(String(capturedInit?.body))).toEqual({
+      conversation_id: CONVERSATION_ID,
+      question: "Where is that choice checked?",
+      source_format: "cli",
     });
   });
 
@@ -205,7 +238,9 @@ describe("AgenticAskServiceImpl", () => {
       sourceFormat: "url",
     });
 
-    expect(result).toEqual(urlResponseBody() as AgenticAskUrlResponse);
+    expect(result).toEqual(
+      withPublicThreadId(urlResponseBody()) as unknown as AgenticAskUrlResponse,
+    );
     expect(result).not.toHaveProperty("usage");
     expect(JSON.parse(String(capturedInit?.body))).toEqual({
       target: "npm:example",
@@ -524,6 +559,7 @@ describe("AgenticAskServiceImpl", () => {
           status,
           headers: {
             "X-GitHits-Tool-Call-Id": TOOL_CALL_ID,
+            "X-GitHits-Conversation-Id": CONVERSATION_ID,
             ...(status === 429 ? { "Retry-After": "17" } : {}),
           },
         }),
@@ -544,6 +580,7 @@ describe("AgenticAskServiceImpl", () => {
         status,
         retryable,
         toolCallId: TOOL_CALL_ID,
+        threadId: CONVERSATION_ID,
         ...(status === 429 ? { retryAfterSeconds: 17 } : {}),
       });
       expect((error as Error).message).not.toContain("private backend");
@@ -663,5 +700,26 @@ describe("parseAgenticAskToolCallId", () => {
     ` ${TOOL_CALL_ID}`,
   ])("rejects unsafe or ambiguous value %s", (value) => {
     expect(parseAgenticAskToolCallId(value)).toBeUndefined();
+  });
+});
+
+describe("normalizeAgenticAskThreadId", () => {
+  it("accepts one UUIDv7 and normalizes case", () => {
+    expect(normalizeAgenticAskThreadId(CONVERSATION_ID.toUpperCase())).toBe(
+      CONVERSATION_ID,
+    );
+  });
+
+  it.each([
+    undefined,
+    null,
+    "",
+    "not-a-uuid",
+    "018f47a6-7b32-4b1e-8f45-6a2d39c81720",
+    `${CONVERSATION_ID}, ${CONVERSATION_ID}`,
+    `${CONVERSATION_ID}\nspoofed`,
+    ` ${CONVERSATION_ID}`,
+  ])("rejects unsafe or ambiguous value %s", (value) => {
+    expect(normalizeAgenticAskThreadId(value)).toBeUndefined();
   });
 });

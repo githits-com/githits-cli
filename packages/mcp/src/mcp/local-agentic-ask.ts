@@ -4,6 +4,7 @@ import type {
   AgenticAskService,
   AgenticAskUrlResponse,
 } from "@githits/core-internal";
+import { normalizeAgenticAskThreadId } from "@githits/core-internal";
 import { z } from "zod";
 import { mapAgenticAskError } from "../shared/agentic-ask-error-map.js";
 import {
@@ -19,7 +20,8 @@ import {
 } from "../tools/types.js";
 
 export interface AgenticAskMcpArgs {
-  target: string;
+  target?: string;
+  thread_id?: string;
   question: string;
   source_format?: "mcp" | "url";
   format?: "text-v1" | "text" | "json";
@@ -29,8 +31,16 @@ const schema: ZodRawShape = {
   target: z
     .string()
     .min(1)
+    .optional()
     .describe(
       "One canonical public OSS package or GitHub repository target, such as npm:express or github:expressjs/express.",
+    ),
+  thread_id: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "Thread UUID returned by an earlier ask call. Provide exactly one of target or thread_id, and reuse a thread only when the prior answer is insufficient or additional information is needed.",
     ),
   question: z
     .string()
@@ -53,7 +63,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION =
-  "Ask one grounded question about a canonical public package or repository target. Experimental local tool that uses the backend-controlled prompt, model, budgets, and evidence validation. Each call is retained for replay and evaluation. Sources default to backend-built MCP calls in deterministic order; request source_format=url for original upstream URLs. Model usage is not returned.";
+  "Ask one grounded question about a canonical public package or repository target, or continue a prior thread by its returned thread_id when the earlier answer is insufficient or additional information is needed. Experimental local tool that uses the backend-controlled prompt, model, budgets, and evidence validation. Each call is retained for replay and evaluation. Sources default to backend-built MCP calls in deterministic order; request source_format=url for original upstream URLs. Model usage is not returned.";
 
 export function createLocalAgenticAskTool(
   service: AgenticAskService,
@@ -64,6 +74,16 @@ export function createLocalAgenticAskTool(
     schema,
     annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
+      const subject = resolveMcpAskSubject(args);
+      if ("error" in subject) {
+        return errorResult(
+          JSON.stringify({
+            error: subject.error,
+            code: "INVALID_ARGUMENT",
+            retryable: false,
+          }),
+        );
+      }
       try {
         const requestOptions = context?.signal
           ? { signal: context.signal }
@@ -72,7 +92,7 @@ export function createLocalAgenticAskTool(
           args.source_format === "url"
             ? await service.ask(
                 {
-                  target: args.target,
+                  ...subject,
                   question: args.question,
                   sourceFormat: "url",
                 },
@@ -80,7 +100,7 @@ export function createLocalAgenticAskTool(
               )
             : await service.ask(
                 {
-                  target: args.target,
+                  ...subject,
                   question: args.question,
                   sourceFormat: "mcp",
                 },
@@ -98,6 +118,7 @@ export function createLocalAgenticAskTool(
           JSON.stringify({
             ...buildMcpErrorPayload(failure.mapped, context),
             ...(failure.toolCallId ? { tool_call_id: failure.toolCallId } : {}),
+            ...(failure.threadId ? { thread_id: failure.threadId } : {}),
           }),
         );
       }
@@ -121,7 +142,9 @@ export function formatAgenticAskMcpText(
           );
     sections.push(["Sources:", ...sourceLines].join("\n"));
   }
-  sections.push(`Ask run ID: ${response.tool_call_id}`);
+  sections.push(
+    `Ask run ID: ${response.tool_call_id}\nThread ID: ${response.thread_id}\nFollow up using this thread ID only if the answer is insufficient.`,
+  );
   return `${sections.join("\n\n")}\n`;
 }
 
@@ -131,4 +154,18 @@ function formatMcpSourceCall(source: AgenticAskMcpSourceCall): string {
 
 function isTextFormat(format: AgenticAskMcpArgs["format"]): boolean {
   return format === undefined || format === "text" || format === "text-v1";
+}
+
+function resolveMcpAskSubject(
+  args: AgenticAskMcpArgs,
+): { target: string } | { threadId: string } | { error: string } {
+  if ((args.target === undefined) === (args.thread_id === undefined)) {
+    return { error: "Provide exactly one of target or thread_id." };
+  }
+  if (args.target !== undefined) return { target: args.target };
+
+  const threadId = normalizeAgenticAskThreadId(args.thread_id);
+  return threadId
+    ? { threadId }
+    : { error: "thread_id must be one valid thread UUID." };
 }

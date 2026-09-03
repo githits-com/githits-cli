@@ -12,6 +12,7 @@ import { mapTermsAcceptanceError } from "./terms-acceptance-error-map.js";
 export interface AgenticAskMappedError {
   mapped: MappedError;
   toolCallId?: string;
+  threadId?: string;
 }
 
 /** Map transport-neutral Ask failures for both CLI and local MCP surfaces. */
@@ -36,6 +37,7 @@ export function mapAgenticAskError(error: unknown): AgenticAskMappedError {
         },
       },
       toolCallId: error.toolCallId,
+      threadId: error.threadId,
     };
   }
   if (error instanceof AuthenticationError) {

@@ -250,6 +250,7 @@ describe("createContainer", () => {
                   JSON.stringify({
                     source_format: "cli",
                     tool_call_id: "018f47a6-7b32-7a1e-8f45-6a2d39c81720",
+                    conversation_id: "018f47a6-7b32-7b1e-8f45-6a2d39c81720",
                     answer_markdown: "Grounded answer.",
                     sources: [],
                   }),
@@ -377,6 +378,7 @@ describe("createContainer", () => {
                   ? {
                       source_format: "mcp",
                       tool_call_id: "018f47a6-7b32-7a1e-8f45-6a2d39c81720",
+                      conversation_id: "018f47a6-7b32-7b1e-8f45-6a2d39c81720",
                       answer_markdown: "Grounded answer.",
                       sources: [],
                     }

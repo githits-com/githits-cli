@@ -3,6 +3,7 @@ import type {
   AgenticAskService,
   AgenticAskUrlResponse,
 } from "@githits/core-internal";
+import { normalizeAgenticAskThreadId } from "@githits/core-internal";
 import {
   AuthRequiredError,
   buildAuthRequiredErrorPayload,
@@ -11,7 +12,7 @@ import {
   sanitizeTerminalText,
   shellQuote,
 } from "@githits/mcp/internal";
-import { type Command, Option } from "commander";
+import { type Command, InvalidArgumentError, Option } from "commander";
 import { createContainer } from "../container.js";
 import type { Spinner } from "../shared/spinner.js";
 import { startSpinner } from "../shared/spinner.js";
@@ -22,6 +23,7 @@ import {
 } from "./format-mapped-error.js";
 
 export interface AskCommandOptions {
+  thread?: string;
   json?: boolean;
   sourceFormat?: "cli" | "url";
 }
@@ -35,11 +37,12 @@ export interface AskCommandDependencies {
 }
 
 export async function askAction(
-  target: string,
+  target: string | undefined,
   question: string,
   options: AskCommandOptions,
   deps: AskCommandDependencies,
 ): Promise<void> {
+  const subject = resolveAskSubject(target, options.thread);
   try {
     requireAuth(deps);
   } catch (error) {
@@ -57,11 +60,11 @@ export async function askAction(
     const result =
       options.sourceFormat === "url"
         ? await deps.agenticAskService.ask(
-            { target, question, sourceFormat: "url" },
+            { ...subject, question, sourceFormat: "url" },
             requestOptions,
           )
         : await deps.agenticAskService.ask(
-            { target, question },
+            { ...subject, question },
             requestOptions,
           );
     spinner.stop();
@@ -79,6 +82,7 @@ export async function askAction(
         JSON.stringify({
           ...buildCliMappedErrorPayload(failure.mapped),
           ...(failure.toolCallId ? { tool_call_id: failure.toolCallId } : {}),
+          ...(failure.threadId ? { thread_id: failure.threadId } : {}),
         }),
       );
     } else {
@@ -86,11 +90,11 @@ export async function askAction(
         ...failure.mapped,
         message: sanitizeTerminalText(failure.mapped.message),
       });
-      console.error(
-        failure.toolCallId
-          ? `${diagnostic}\nAsk run ID: ${failure.toolCallId}`
-          : diagnostic,
-      );
+      const identifiers = [
+        ...(failure.toolCallId ? [`Ask run ID: ${failure.toolCallId}`] : []),
+        ...(failure.threadId ? [`Thread ID: ${failure.threadId}`] : []),
+      ];
+      console.error([diagnostic, ...identifiers].join("\n"));
     }
     process.exit(1);
   }
@@ -114,7 +118,9 @@ export function formatAgenticAskHumanResponse(
           );
     sections.push(["Sources:", ...sourceLines].join("\n"));
   }
-  sections.push(`Ask run ID: ${response.tool_call_id}`);
+  sections.push(
+    `Ask run ID: ${response.tool_call_id}\nThread ID: ${response.thread_id}\nFollow up using this thread ID only if the answer is insufficient.`,
+  );
   return `${sections.join("\n\n")}\n`;
 }
 
@@ -158,18 +164,71 @@ function isCallerCancellation(
   );
 }
 
+function resolveAskSubject(
+  target: string | undefined,
+  thread: string | undefined,
+): { target: string } | { threadId: string } {
+  if ((target === undefined) === (thread === undefined)) {
+    throw new InvalidArgumentError(
+      "Provide exactly one of a target or --thread <UUID>.",
+    );
+  }
+  if (target !== undefined) return { target };
+
+  const threadId = normalizeAgenticAskThreadId(thread);
+  if (!threadId) {
+    throw new InvalidArgumentError("--thread must be one valid thread UUID.");
+  }
+  return { threadId };
+}
+
+export function resolveAskCommandPositionals(
+  targetOrQuestion: string | undefined,
+  question: string | undefined,
+  thread: string | undefined,
+): { target: string | undefined; question: string } {
+  if (thread !== undefined) {
+    if (question !== undefined) {
+      throw new InvalidArgumentError(
+        "Do not provide a target together with --thread.",
+      );
+    }
+    if (targetOrQuestion === undefined) {
+      throw new InvalidArgumentError(
+        "Provide a question to continue the thread.",
+      );
+    }
+    return { target: undefined, question: targetOrQuestion };
+  }
+
+  if (targetOrQuestion === undefined || question === undefined) {
+    throw new InvalidArgumentError(
+      "Provide a target and question, or --thread <UUID> and question.",
+    );
+  }
+  return { target: targetOrQuestion, question };
+}
+
 const DESCRIPTION = `Ask a grounded question about one open-source package or repository.
 
 The backend controls the prompt, model, budgets, and validation policy. The
-response includes replayable source pointers and an Ask run ID for later review.`;
+response includes replayable source pointers, an Ask run ID, and a thread ID
+that can be passed to --thread when a follow-up is needed.`;
 
 export function registerAskCommand(program: Command): Command {
   return program
     .command("ask")
     .summary("Ask a grounded question about one open-source target")
     .description(DESCRIPTION)
-    .argument("<target>", "Canonical package or GitHub repository target")
-    .argument("<question>", "Question to answer from indexed public sources")
+    .usage(
+      "[options] <target> <question>\n       githits ask --thread <UUID> <question>",
+    )
+    .argument("[target-or-question]", "Target, or question with --thread")
+    .argument("[question]", "Question to answer from indexed public sources")
+    .option(
+      "--thread <UUID>",
+      "Continue an existing Agentic Ask thread when a follow-up is needed",
+    )
     .addOption(
       new Option(
         "--source-format <format>",
@@ -178,9 +237,18 @@ export function registerAskCommand(program: Command): Command {
     )
     .option("--json", "Output the validated backend response as JSON")
     .action(
-      async (target: string, question: string, options: AskCommandOptions) => {
+      async (
+        targetOrQuestion: string | undefined,
+        question: string | undefined,
+        options: AskCommandOptions,
+      ) => {
+        const input = resolveAskCommandPositionals(
+          targetOrQuestion,
+          question,
+          options.thread,
+        );
         const deps = await createContainer();
-        await askAction(target, question, options, {
+        await askAction(input.target, input.question, options, {
           agenticAskService: deps.agenticAskService,
           hasValidToken: deps.hasValidToken,
           mcpUrl: deps.mcpUrl,

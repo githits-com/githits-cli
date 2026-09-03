@@ -77,27 +77,32 @@ Ask one question about a canonical package or repository target:
 githits ask pypi:fastapi "How does dependency injection resolve nested dependencies?"
 githits ask github:expressjs/express "Where is router dispatch implemented?" --json
 githits ask npm:express "Where is router dispatch implemented?" --source-format url
+githits ask --thread 019c4f26-79b2-7bcb-b729-f9e39043a94b "How does that interact with route parameters?"
 ```
 
-By default, human output contains the grounded answer, an Ask run ID, and source
-commands in the form `npx githits@latest ...` that can be executed directly.
-JSON output is the validated backend response and intentionally omits model
-usage. Questions, answers, and selected source pointers are retained by the
-backend for replay and evaluation. Treat answer Markdown as untrusted display
-text even though the CLI strips terminal control sequences.
+By default, human output contains the grounded answer, an Ask run ID, the
+thread ID, and source commands in the form `npx githits@latest ...` that can be
+executed directly. If the answer is insufficient or more information is needed,
+pass the returned thread ID to `--thread` to ask a follow-up without repeating
+the target; threads are limited by the backend to ten turns. JSON output is the
+validated response and intentionally omits model usage. Questions, answers, and
+selected source pointers are retained by the backend for replay and evaluation.
+Treat answer Markdown as untrusted display text even though the CLI strips
+terminal control sequences.
 
 Use `--source-format url` to return the original upstream HTTP URLs instead of
 CLI source commands. This changes only source presentation; the backend still
 selects the evidence and appends the source section deterministically.
 
 The command does not expose prompt, model, budget, or timeout controls. The
-local MCP `ask` tool uses the same backend path and defaults to MCP-native
-`code_read` and `docs_read` source calls. Set `source_format` to `url` for
-original upstream HTTP URLs. Text output appends the selected backend-built
-source pointers in their returned order, followed by the Ask run ID. The model
-does not generate or format this source section. JSON returns the validated
-response envelope for the selected source format. Neither surface returns model
-usage.
+local MCP `ask` tool uses the same backend path and accepts exactly one of
+`target` for a new thread or `thread_id` for a needed follow-up. It defaults to
+MCP-native `code_read` and `docs_read` source calls. Set `source_format` to `url`
+for original upstream HTTP URLs. Text output appends the selected backend-built
+source pointers in their returned order, followed by the Ask run ID, thread ID,
+and conditional follow-up guidance. The model does not generate or format this
+source section. JSON returns the validated response for the selected source
+format. Neither surface returns model usage.
 
 Resolve a noncanonical name before calling another GitHits command:
 

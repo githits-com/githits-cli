@@ -396,13 +396,19 @@ async function runExperimentalLiveSmoke(
           askText,
           "experimental ask default text",
         );
+        const askThreadMatch = askTextBody.match(
+          /\nThread ID: ([0-9a-f-]+)\nFollow up using this thread ID only if the answer is insufficient\./,
+        );
         assert(
           askTextBody.includes("\n\nSources:\n") &&
             /\n\s+\d+\. (?:code_read|docs_read)\(\{[^\n]+\}\)/.test(
               askTextBody,
             ) &&
-            /\n\nAsk run ID: [0-9a-f-]+\n$/.test(askTextBody),
-          "experimental ask text should append callable sources and the run ID",
+            /\n\nAsk run ID: [0-9a-f-]+\nThread ID: [0-9a-f-]+\n/.test(
+              askTextBody,
+            ) &&
+            askThreadMatch?.[1] !== undefined,
+          "experimental ask text should append callable sources, replay IDs, and conditional follow-up guidance",
         );
 
         const askUrlJson = (await trackSmokeStep(
@@ -411,8 +417,9 @@ async function runExperimentalLiveSmoke(
             client.callTool({
               name: "ask",
               arguments: {
-                target: "npm:express",
-                question: "Where is router dispatch implemented?",
+                thread_id: askThreadMatch[1],
+                question:
+                  "How is the matched route handler invoked after dispatch?",
                 source_format: "url",
                 format: "json",
               },
@@ -432,6 +439,7 @@ async function runExperimentalLiveSmoke(
         assert(
           askUrlRecord.source_format === "url" &&
             typeof askUrlRecord.tool_call_id === "string" &&
+            typeof askUrlRecord.thread_id === "string" &&
             typeof askUrlRecord.answer_markdown === "string" &&
             Array.isArray(askUrlRecord.sources) &&
             askUrlRecord.sources.every(

@@ -48,12 +48,18 @@ const cliSourceCallSchema = z.object({
   arguments: cliSourceArgumentsSchema,
 });
 
-const cliResponseSchema = z.object({
-  source_format: z.literal("cli"),
-  tool_call_id: z.string().regex(UUID_V7_PATTERN),
-  answer_markdown: z.string().min(1),
-  sources: z.array(cliSourceCallSchema),
-});
+const cliResponseSchema = z
+  .object({
+    source_format: z.literal("cli"),
+    tool_call_id: z.string().regex(UUID_V7_PATTERN),
+    conversation_id: z.string().regex(UUID_V7_PATTERN),
+    answer_markdown: z.string().min(1),
+    sources: z.array(cliSourceCallSchema),
+  })
+  .transform(({ conversation_id, ...response }) => ({
+    ...response,
+    thread_id: conversation_id,
+  }));
 
 const mcpCodeReadSourceCallSchema = z.object({
   name: z.literal("code_read"),
@@ -74,17 +80,23 @@ const mcpDocumentationReadSourceCallSchema = z.object({
   }),
 });
 
-const mcpResponseSchema = z.object({
-  source_format: z.literal("mcp"),
-  tool_call_id: z.string().regex(UUID_V7_PATTERN),
-  answer_markdown: z.string().min(1),
-  sources: z.array(
-    z.discriminatedUnion("name", [
-      mcpCodeReadSourceCallSchema,
-      mcpDocumentationReadSourceCallSchema,
-    ]),
-  ),
-});
+const mcpResponseSchema = z
+  .object({
+    source_format: z.literal("mcp"),
+    tool_call_id: z.string().regex(UUID_V7_PATTERN),
+    conversation_id: z.string().regex(UUID_V7_PATTERN),
+    answer_markdown: z.string().min(1),
+    sources: z.array(
+      z.discriminatedUnion("name", [
+        mcpCodeReadSourceCallSchema,
+        mcpDocumentationReadSourceCallSchema,
+      ]),
+    ),
+  })
+  .transform(({ conversation_id, ...response }) => ({
+    ...response,
+    thread_id: conversation_id,
+  }));
 
 const upstreamUrlSchema = z
   .string()
@@ -96,29 +108,35 @@ const upstreamUrlSchema = z
     return protocol === "http:" || protocol === "https:";
   });
 
-const urlResponseSchema = z.object({
-  source_format: z.literal("url"),
-  tool_call_id: z.string().regex(UUID_V7_PATTERN),
-  answer_markdown: z.string().min(1),
-  sources: z.array(z.object({ url: upstreamUrlSchema })),
-});
+const urlResponseSchema = z
+  .object({
+    source_format: z.literal("url"),
+    tool_call_id: z.string().regex(UUID_V7_PATTERN),
+    conversation_id: z.string().regex(UUID_V7_PATTERN),
+    answer_markdown: z.string().min(1),
+    sources: z.array(z.object({ url: upstreamUrlSchema })),
+  })
+  .transform(({ conversation_id, ...response }) => ({
+    ...response,
+    thread_id: conversation_id,
+  }));
 
-interface AgenticAskRequestBase {
-  target: string;
+interface AgenticAskQuestion {
   question: string;
 }
 
-export interface AgenticAskCliRequest extends AgenticAskRequestBase {
-  sourceFormat?: "cli";
-}
+type AgenticAskSubject =
+  | { target: string; threadId?: never }
+  | { target?: never; threadId: string };
 
-export interface AgenticAskMcpRequest extends AgenticAskRequestBase {
-  sourceFormat: "mcp";
-}
+export type AgenticAskCliRequest = AgenticAskQuestion &
+  AgenticAskSubject & { sourceFormat?: "cli" };
 
-export interface AgenticAskUrlRequest extends AgenticAskRequestBase {
-  sourceFormat: "url";
-}
+export type AgenticAskMcpRequest = AgenticAskQuestion &
+  AgenticAskSubject & { sourceFormat: "mcp" };
+
+export type AgenticAskUrlRequest = AgenticAskQuestion &
+  AgenticAskSubject & { sourceFormat: "url" };
 
 export type AgenticAskRequest =
   | AgenticAskCliRequest
@@ -148,6 +166,7 @@ export interface AgenticAskCliSourceCall {
 export interface AgenticAskCliResponse {
   source_format: "cli";
   tool_call_id: string;
+  thread_id: string;
   answer_markdown: string;
   sources: AgenticAskCliSourceCall[];
 }
@@ -178,6 +197,7 @@ export type AgenticAskMcpSourceCall =
 export interface AgenticAskMcpResponse {
   source_format: "mcp";
   tool_call_id: string;
+  thread_id: string;
   answer_markdown: string;
   sources: AgenticAskMcpSourceCall[];
 }
@@ -189,6 +209,7 @@ export interface AgenticAskUrlSource {
 export interface AgenticAskUrlResponse {
   source_format: "url";
   tool_call_id: string;
+  thread_id: string;
   answer_markdown: string;
   sources: AgenticAskUrlSource[];
 }
@@ -235,6 +256,7 @@ export class AgenticAskHttpError extends Error {
     readonly toolCallId?: string,
     readonly retryAfterSeconds?: number,
     retryable = false,
+    readonly threadId?: string,
   ) {
     super(message);
     this.name = "AgenticAskHttpError";
@@ -354,7 +376,9 @@ export class AgenticAskServiceImpl implements AgenticAskService {
           "User-Agent": this.runtime.userAgent ?? "githits-cli",
         },
         body: JSON.stringify({
-          target: request.target,
+          ...(request.target !== undefined
+            ? { target: request.target }
+            : { conversation_id: request.threadId }),
           question: request.question,
           source_format: request.sourceFormat ?? "cli",
         }),
@@ -371,6 +395,9 @@ export class AgenticAskServiceImpl implements AgenticAskService {
     const toolCallId = parseAgenticAskToolCallId(
       response.headers.get("X-GitHits-Tool-Call-Id"),
     );
+    const threadId = normalizeAgenticAskThreadId(
+      response.headers.get("X-GitHits-Conversation-Id"),
+    );
     if (!response.ok) {
       if (response.status === 403) {
         let body = "";
@@ -383,7 +410,7 @@ export class AgenticAskServiceImpl implements AgenticAskService {
       } else {
         await response.body?.cancel().catch(() => undefined);
       }
-      throw createHttpError(response, toolCallId);
+      throw createHttpError(response, toolCallId, threadId);
     }
 
     let body: string;
@@ -420,6 +447,17 @@ export class AgenticAskServiceImpl implements AgenticAskService {
 export function parseAgenticAskToolCallId(
   value: string | null,
 ): string | undefined {
+  return normalizeUuidV7(value);
+}
+
+/** Validate and normalize one UUIDv7 thread reference. */
+export function normalizeAgenticAskThreadId(
+  value: string | null | undefined,
+): string | undefined {
+  return normalizeUuidV7(value);
+}
+
+function normalizeUuidV7(value: string | null | undefined): string | undefined {
   if (!value || value !== value.trim()) return undefined;
   if (value.includes(",") || hasControlCharacters(value)) return undefined;
   return UUID_V7_PATTERN.test(value) ? value.toLowerCase() : undefined;
@@ -466,6 +504,7 @@ function isDeclaredBodyTooLarge(value: string | null): boolean {
 function createHttpError(
   response: Response,
   toolCallId: string | undefined,
+  threadId: string | undefined,
 ): AgenticAskHttpError {
   const status = response.status;
   switch (status) {
@@ -475,6 +514,9 @@ function createHttpError(
         "GitHits rejected the Agentic Ask target.",
         status,
         toolCallId,
+        undefined,
+        false,
+        threadId,
       );
     case 401:
       return new AgenticAskHttpError(
@@ -482,6 +524,9 @@ function createHttpError(
         "GitHits could not accept the authentication token.",
         status,
         toolCallId,
+        undefined,
+        false,
+        threadId,
       );
     case 403:
       return new AgenticAskHttpError(
@@ -489,6 +534,9 @@ function createHttpError(
         "Access to Agentic Ask is denied.",
         status,
         toolCallId,
+        undefined,
+        false,
+        threadId,
       );
     case 422:
       return new AgenticAskHttpError(
@@ -496,6 +544,9 @@ function createHttpError(
         "GitHits rejected the Agentic Ask request.",
         status,
         toolCallId,
+        undefined,
+        false,
+        threadId,
       );
     case 429:
       return new AgenticAskHttpError(
@@ -505,6 +556,7 @@ function createHttpError(
         toolCallId,
         parseRetryAfterSeconds(response.headers.get("Retry-After"), Date.now()),
         true,
+        threadId,
       );
     case 500:
       return new AgenticAskHttpError(
@@ -512,6 +564,9 @@ function createHttpError(
         "Agentic Ask failed.",
         status,
         toolCallId,
+        undefined,
+        false,
+        threadId,
       );
     case 503:
       return new AgenticAskHttpError(
@@ -521,6 +576,7 @@ function createHttpError(
         toolCallId,
         undefined,
         true,
+        threadId,
       );
     case 504:
       return new AgenticAskHttpError(
@@ -530,6 +586,7 @@ function createHttpError(
         toolCallId,
         undefined,
         true,
+        threadId,
       );
     default:
       return new AgenticAskHttpError(
@@ -539,6 +596,7 @@ function createHttpError(
         toolCallId,
         undefined,
         status >= 500,
+        threadId,
       );
   }
 }

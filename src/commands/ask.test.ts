@@ -13,9 +13,11 @@ import {
   askAction,
   formatAgenticAskHumanResponse,
   formatAgenticAskSourceCommand,
+  resolveAskCommandPositionals,
 } from "./ask.js";
 
 const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
+const CONVERSATION_ID = "018f47a6-7b32-7b1e-8f45-6a2d39c81720";
 
 function result(
   overrides: Partial<AgenticAskCliResponse> = {},
@@ -23,6 +25,7 @@ function result(
   return {
     source_format: "cli",
     tool_call_id: TOOL_CALL_ID,
+    thread_id: CONVERSATION_ID,
     answer_markdown: "Use the public factory.",
     sources: [
       {
@@ -59,6 +62,7 @@ function urlResult(): AgenticAskUrlResponse {
   return {
     source_format: "url",
     tool_call_id: TOOL_CALL_ID,
+    thread_id: CONVERSATION_ID,
     answer_markdown: "Use the public factory.",
     sources: [
       {
@@ -70,8 +74,7 @@ function urlResult(): AgenticAskUrlResponse {
 }
 
 type CliAsk = (
-  request: {
-    target: string;
+  request: ({ target: string } | { threadId: string }) & {
     question: string;
     sourceFormat?: "cli" | "url";
   },
@@ -123,6 +126,47 @@ describe("askAction", () => {
       "npx githits@latest docs read --lines 3-8 -- docs:example:guide",
     );
     expect(write.mock.calls[0]?.[0]).toContain(`Ask run ID: ${TOOL_CALL_ID}`);
+    expect(write.mock.calls[0]?.[0]).toContain(`Thread ID: ${CONVERSATION_ID}`);
+  });
+
+  it("continues a thread without a target", async () => {
+    const ask = mock(() => Promise.resolve(result()));
+    spyOn(process.stdout, "write").mockImplementation(() => true);
+
+    await askAction(
+      undefined,
+      "Where is that choice checked?",
+      { thread: CONVERSATION_ID },
+      createDeps(ask),
+    );
+
+    expect(ask).toHaveBeenCalledWith(
+      {
+        threadId: CONVERSATION_ID,
+        question: "Where is that choice checked?",
+      },
+      undefined,
+    );
+  });
+
+  it("rejects ambiguous, missing, and malformed thread selectors", async () => {
+    const ask = mock(() => Promise.resolve(result()));
+
+    await expect(
+      askAction(
+        "npm:example",
+        "How?",
+        { thread: CONVERSATION_ID },
+        createDeps(ask),
+      ),
+    ).rejects.toThrow("exactly one");
+    await expect(
+      askAction(undefined, "How?", {}, createDeps(ask)),
+    ).rejects.toThrow("exactly one");
+    await expect(
+      askAction(undefined, "How?", { thread: "not-a-uuid" }, createDeps(ask)),
+    ).rejects.toThrow("thread UUID");
+    expect(ask).not.toHaveBeenCalled();
   });
 
   it("emits only the validated response on JSON stdout", async () => {
@@ -163,7 +207,7 @@ describe("askAction", () => {
       undefined,
     );
     expect(write.mock.calls[0]?.[0]).toBe(
-      "Use the public factory.\n\nSources:\n  1. https://github.com/example/project/blob/main/src/index.ts#L10-L20\n  2. https://example.com/docs/guide#L3-L8\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\n",
+      "Use the public factory.\n\nSources:\n  1. https://github.com/example/project/blob/main/src/index.ts#L10-L20\n  2. https://example.com/docs/guide#L3-L8\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nFollow up using this thread ID only if the answer is insufficient.\n",
     );
   });
 
@@ -251,6 +295,7 @@ describe("askAction", () => {
       TOOL_CALL_ID,
       12,
       true,
+      CONVERSATION_ID,
     );
 
     await expect(
@@ -263,7 +308,7 @@ describe("askAction", () => {
     ).rejects.toThrow("process.exit");
 
     expect(error.mock.calls[0]?.[0]).toBe(
-      `Agentic Ask is rate limited. Try again in 12 seconds.\nAsk run ID: ${TOOL_CALL_ID}`,
+      `Agentic Ask is rate limited. Try again in 12 seconds.\nAsk run ID: ${TOOL_CALL_ID}\nThread ID: ${CONVERSATION_ID}`,
     );
   });
 
@@ -426,5 +471,35 @@ describe("Agentic Ask human formatting", () => {
     ).toBe(
       `npx githits@latest code read --lines 1-2 -- github:owner/repo 'path with '"'"'quote'"'"'and control.ts'`,
     );
+  });
+});
+
+describe("Agentic Ask positional parsing", () => {
+  it("keeps the initial target and question form", () => {
+    expect(
+      resolveAskCommandPositionals("npm:example", "How?", undefined),
+    ).toEqual({ target: "npm:example", question: "How?" });
+  });
+
+  it("treats the only positional as the question with --thread", () => {
+    expect(
+      resolveAskCommandPositionals(
+        "Where is that checked?",
+        undefined,
+        CONVERSATION_ID,
+      ),
+    ).toEqual({ target: undefined, question: "Where is that checked?" });
+  });
+
+  it("rejects ambiguous and incomplete positional forms", () => {
+    expect(() =>
+      resolveAskCommandPositionals("npm:example", "How?", CONVERSATION_ID),
+    ).toThrow("Do not provide a target");
+    expect(() =>
+      resolveAskCommandPositionals("npm:example", undefined, undefined),
+    ).toThrow("Provide a target and question");
+    expect(() =>
+      resolveAskCommandPositionals(undefined, undefined, CONVERSATION_ID),
+    ).toThrow("Provide a question");
   });
 });

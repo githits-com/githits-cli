@@ -923,6 +923,7 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
     assert(
       askHelp.exitCode === 0 &&
         askHelp.stdout.includes("<target> <question>") &&
+        askHelp.stdout.includes("--thread <UUID>") &&
         askHelp.stdout.includes("--source-format <format>") &&
         askHelp.stdout.includes('choices: "cli", "url"') &&
         askHelp.stdout.includes("--json"),
