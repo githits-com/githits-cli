@@ -592,7 +592,7 @@ numeric summary of `totalPackagesAnalyzed`, `affectedPackageCount`, and
 `affectedOccurrenceCount`, followed by `packages[]` containing resolved
 dependency versions, matched affected ranges, and all higher-fix candidates.
 The service performs one field-minimal query after direct pagination using the
-resolved root version and fails closed on malformed identity/count evidence;
+resolved root version and fails closed on malformed identity/count/fix evidence;
 there is no graph payload, occurrence cap, or partial direct-only fallback.
 Compact text renders at most five transitive rows globally and ends with the
 CLI-native `use -v` hint when rows are hidden; `--verbose` renders all rows.

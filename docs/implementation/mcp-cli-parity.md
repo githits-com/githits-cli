@@ -562,7 +562,7 @@ When a new tool lands with both MCP and CLI surfaces:
   `affectedOccurrenceCount`), and `packages[]` with every affected resolved
   dependency-version/advisory occurrence, matched ranges, and higher-fix
   candidates. The raw graph and occurrence cap are not returned; malformed
-  identity/count evidence fails closed rather than producing partial direct-only
+  identity/count/fix evidence fails closed rather than producing partial direct-only
   success.
 
 - **Filter boundary and surface text.** `min_severity` / `--severity` applies
