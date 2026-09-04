@@ -134,6 +134,14 @@ describe("createReadPackageDocTool", () => {
       endLine: 2,
       content: "two",
     });
+
+    const textResult = await tool.handler(
+      { page_id: docsReadTarget, start_line: 2, end_line: 2 },
+      {},
+    );
+    const text = textResult.content[0]?.text ?? "";
+    expect(text.match(/expressjs\.com/g)).toHaveLength(1);
+    expect(text).not.toContain(`source: ${docsReadTarget}`);
   });
 
   it("returns JSON-stringified lean envelope when format=json", async () => {

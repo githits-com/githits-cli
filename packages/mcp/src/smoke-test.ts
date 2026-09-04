@@ -898,18 +898,6 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     );
   }
 
-  const docsText = assertDefaultText(
-    await callTool(caller, "docs_list", {
-      ...SMOKE_PACKAGE_TARGET,
-      limit: 2,
-    }),
-    "docs_list default",
-  );
-  assert(
-    docsText.includes("docs_read page_id="),
-    "docs_list default missing docs_read follow-up",
-  );
-
   const docsJson = assertJsonResult(
     await callTool(caller, "docs_list", {
       ...SMOKE_PACKAGE_TARGET,
@@ -954,6 +942,33 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   assert(
     repoPage.docsReadTarget === repoPage.pageId,
     "docs_list json repo-backed docsReadTarget should remain snapshot-pinned",
+  );
+
+  const crawledPageIndex = docsPages.indexOf(crawledPage);
+  let crawledPageAfter: string | undefined;
+  if (crawledPageIndex > 0) {
+    const precedingDocs = assertJsonResult(
+      await callTool(caller, "docs_list", {
+        ...SMOKE_PACKAGE_TARGET,
+        limit: crawledPageIndex,
+        format: "json",
+      }),
+      "docs_list crawled target cursor",
+    );
+    assertRecord(precedingDocs, "docs_list crawled target cursor");
+    assert(
+      typeof precedingDocs.nextCursor === "string",
+      "docs_list crawled target cursor missing nextCursor",
+    );
+    crawledPageAfter = precedingDocs.nextCursor;
+  }
+  const docsText = assertDefaultText(
+    await callTool(caller, "docs_list", {
+      ...SMOKE_PACKAGE_TARGET,
+      limit: 1,
+      ...(crawledPageAfter ? { after: crawledPageAfter } : {}),
+    }),
+    "docs_list crawled target default",
   );
   assert(
     docsText.includes(

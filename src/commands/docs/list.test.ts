@@ -40,6 +40,7 @@ describe("docsListAction", () => {
     expect(output).toContain(
       "githits docs read 'https://hexdocs.pm/express/getting-started.html'",
     );
+    expect(output.match(/hexdocs\.pm/g)).toHaveLength(1);
     writeSpy.mockRestore();
   });
 

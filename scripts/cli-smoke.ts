@@ -1624,15 +1624,6 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     );
   }
 
-  const docsText = assertTerminalOutput(
-    await runCli(["docs", "list", SMOKE_PACKAGE_SPEC, "--limit", "2"]),
-    "docs list terminal",
-  );
-  assert(
-    docsText.includes("docs") || docsText.includes("page"),
-    "docs list terminal missing docs context",
-  );
-
   const docsJson = assertJsonOutput(
     await runCli([
       "docs",
@@ -1680,6 +1671,34 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   assert(
     repoPage.docsReadTarget === repoPage.pageId,
     "docs list json repo-backed docsReadTarget should remain snapshot-pinned",
+  );
+
+  const crawledPageIndex = docsPages.indexOf(crawledPage);
+  let crawledPageAfter: string | undefined;
+  if (crawledPageIndex > 0) {
+    const precedingDocs = assertJsonOutput(
+      await runCli([
+        "docs",
+        "list",
+        SMOKE_PACKAGE_SPEC,
+        "--limit",
+        String(crawledPageIndex),
+        "--json",
+      ]),
+      "docs list crawled target cursor",
+    );
+    assertRecord(precedingDocs, "docs list crawled target cursor");
+    assert(
+      typeof precedingDocs.nextCursor === "string",
+      "docs list crawled target cursor missing nextCursor",
+    );
+    crawledPageAfter = precedingDocs.nextCursor;
+  }
+  const docsListArgs = ["docs", "list", SMOKE_PACKAGE_SPEC, "--limit", "1"];
+  if (crawledPageAfter) docsListArgs.push("--after", crawledPageAfter);
+  const docsText = assertTerminalOutput(
+    await runCli(docsListArgs),
+    "docs list crawled target terminal",
   );
   assert(
     docsText.includes(buildCliDocsReadCommand(crawledPage.docsReadTarget)),

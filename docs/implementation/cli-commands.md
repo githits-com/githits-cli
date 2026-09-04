@@ -721,7 +721,7 @@ githits docs list npm:express --limit 20
 githits docs list npm:express --json
 ```
 
-Lists hosted/crawled and repository-backed documentation pages for a package. Each row includes the stable page ID, a source badge, provenance, and a shell-quoted `docs read` command using the emitted `docsReadTarget`. Active crawled pages therefore use their publisher HTTP(S) URL, while retired crawled and snapshot-pinned repository pages use stable IDs. JSON retains all three locator roles and includes repo URL / git ref / file path for repository-backed docs so callers can follow up with `code read` when source context is needed.
+Lists hosted/crawled and repository-backed documentation pages for a package. Each row includes the stable page ID, a source badge, any distinct provenance, and a shell-quoted `docs read` command using the emitted `docsReadTarget`. Active crawled pages therefore use their publisher HTTP(S) URL, while retired crawled and snapshot-pinned repository pages use stable IDs. JSON retains all three locator roles and includes repo URL / git ref / file path for repository-backed docs so callers can follow up with `code read` when source context is needed.
 
 **Version validation.** Exact Go versions may include or omit their canonical lowercase `v`; the backend always receives the `v`-prefixed form. Unlike the package-analysis commands, `docs list` preserves its existing pass-through for other registries' version strings, including a leading `v`, so their backend validation behavior does not change. Swift package-name normalization remains separate.
 

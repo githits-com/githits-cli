@@ -939,6 +939,27 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("[1] aider/edit-formats [docs page]");
   });
 
+  it("deduplicates target provenance while preserving a source fragment", () => {
+    const docsReadTarget = "https://expressjs.com/en/5x/guide/routing/";
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        docsHit({
+          target: "npm:express@5.2.1",
+          locator: {
+            pageId: "legacy-routing-id",
+            docsReadTarget,
+            sourceUrl: `${docsReadTarget}#route-handlers`,
+          },
+        }),
+      ]),
+    );
+
+    expect(text).toContain(
+      `[1] ${docsReadTarget} [docs page] npm:express - #route-handlers -`,
+    );
+    expect(text.match(/expressjs\.com/g)).toHaveLength(1);
+  });
+
   it("keeps docs follow-up locators before a free-form title tail", () => {
     const text = renderUnifiedSearchSuccess(
       completed([

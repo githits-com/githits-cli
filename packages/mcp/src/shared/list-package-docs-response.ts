@@ -180,7 +180,7 @@ function formatPageMeta(
   verbose: boolean,
 ): string[] {
   const lines: string[] = [];
-  if (page.sourceUrl) {
+  if (page.sourceUrl && page.sourceUrl !== page.docsReadTarget) {
     lines.push(`  ${dim("source:", useColors)} ${page.sourceUrl}`);
   }
   if (page.filePath) {

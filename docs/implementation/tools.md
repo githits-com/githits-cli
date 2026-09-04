@@ -534,8 +534,10 @@ Hit headers are numbered so ranked results can be referenced as `[1]` through
 for `code_read` before a bracketed type tag (`[repo doc]`, `[repo code]`, or
 `[repo symbol]`); their free-form title is the final header tail. Documentation
 hits prefer the emitted `docsReadTarget` needed for `docs_read`, a stable
-package target, human-readable source URL, and title in that order. The docs URL uses
-`host/path#anchor` without the protocol; unavailable fields are rendered as
+package target, human-readable source URL, and title in that order. Distinct
+source provenance uses `host/path#anchor` without the protocol; when it differs
+from the target only by fragment, only `#anchor` is repeated. Exact duplicate
+locators are omitted. Unavailable fields are rendered as
 explicit `documentation target unavailable`, `target unavailable`,
 `source URL unavailable`, or `title unavailable` values. Executable
 `docs_read` / `code_read` command
@@ -559,7 +561,7 @@ Breakdowns use `repo code hit(s)` and `repo symbol(s)` alongside `repo doc(s)`
 and `docs page(s)`. When more results exist without a next offset, the final field is
 `more available`. Pagination is not repeated as a bottom paragraph.
 
-**Follow-up — crawled-doc section anchors.** Unified search can label a crawled documentation hit with a matching section title while returning its emitted read target and stable page ID. Without a line anchor, `docs_read` must start at the beginning of the page. Carrying section ranges through search results requires backend/search-location support and is outside the CLI response-formatting slice.
+**Follow-up — crawled-doc section anchors.** Unified search can label a crawled documentation hit with a matching section title while returning its emitted read target and stable page ID. A source URL fragment is retained beside the target, but without a line range `docs_read` must start at the beginning of the page. Carrying section ranges through search results requires backend/search-location support and is outside the CLI response-formatting slice.
 
 Completed-empty action selection is target-aware: exact terminal lanes with no
 searched/indexing peer get local recovery, while searched-empty evidence can get

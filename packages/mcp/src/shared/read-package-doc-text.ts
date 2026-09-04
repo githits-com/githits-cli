@@ -7,7 +7,9 @@ export function renderReadPackageDocText(
 ): string {
   const lines: string[] = [];
   lines.push(buildHeader(envelope));
-  if (envelope.sourceUrl) lines.push(`source: ${envelope.sourceUrl}`);
+  if (envelope.sourceUrl && envelope.sourceUrl !== envelope.docsReadTarget) {
+    lines.push(`source: ${envelope.sourceUrl}`);
+  }
   if (envelope.filePath) {
     const ref = envelope.gitRef;
     lines.push(`file: ${envelope.filePath}${ref ? ` @ ${ref}` : ""}`);

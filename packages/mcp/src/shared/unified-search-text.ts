@@ -1067,17 +1067,25 @@ function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
       loc.docsReadTarget ?? loc.pageId ?? "documentation target unavailable";
     const type = "[docs page]";
     const target = formatDocumentationTarget(hit);
-    const sourceUrl = formatDocumentationSourceUrl(loc.sourceUrl);
+    const sourceUrl = formatDocumentationSourceUrl(
+      loc.sourceUrl,
+      docsReadTarget,
+    );
+    const sourceSuffix = sourceUrl ? ` - ${sourceUrl}` : "";
     return {
-      prefix: `${docsReadTarget} ${type} ${target} - ${sourceUrl}`,
+      prefix: `${docsReadTarget} ${type} ${target}${sourceSuffix}`,
       segments: [
         { text: docsReadTarget, style: "locator" },
         { text: " ", style: "plain" },
         { text: type, style: "secondary" },
         { text: " ", style: "plain" },
         { text: target, style: "secondary" },
-        { text: " - ", style: "plain" },
-        { text: sourceUrl, style: "secondary" },
+        ...(sourceUrl
+          ? ([
+              { text: " - ", style: "plain" },
+              { text: sourceUrl, style: "secondary" },
+            ] satisfies HitHeaderSegment[])
+          : []),
       ],
       title: hit.title || "title unavailable",
       titleHighlights: hit.highlights?.title,
@@ -1278,9 +1286,21 @@ function formatDocumentationTarget(hit: UnifiedSearchHitPayload): string {
   );
 }
 
-function formatDocumentationSourceUrl(value: string | undefined): string {
+function formatDocumentationSourceUrl(
+  value: string | undefined,
+  docsReadTarget?: string,
+): string {
   if (!value) return "source URL unavailable";
-  return value.replace(/^https?:\/\//, "");
+  const sourceUrl = value.replace(/^https?:\/\//, "");
+  const target = docsReadTarget?.replace(/^https?:\/\//, "");
+  if (!target) return sourceUrl;
+  if (sourceUrl === target) return "";
+
+  const fragmentIndex = sourceUrl.indexOf("#");
+  if (fragmentIndex > 0 && sourceUrl.slice(0, fragmentIndex) === target) {
+    return sourceUrl.slice(fragmentIndex);
+  }
+  return sourceUrl;
 }
 
 function stripVersionFromTarget(value: string | undefined): string {
