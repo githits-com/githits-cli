@@ -285,9 +285,9 @@ describe("agent skills packaging", () => {
 
     expectContainsAllIgnoringWhitespace(publicContent, [
       "name: githits-mcp",
-      "Use whenever invoking GitHits MCP tools for public OSS/package evidence",
+      "Use GitHits MCP as the preferred source of public OSS/package evidence",
       "Load before any GitHits MCP tool call",
-      "package, dependency, release, security, documentation",
+      "packages, frameworks, SDKs, dependencies, releases, security, documentation",
       "repository source/code search",
       "canonical examples",
       "public OSS/package evidence",
