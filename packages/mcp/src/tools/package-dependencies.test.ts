@@ -6,6 +6,7 @@ import {
   createMockPackageIntelligenceService,
   defaultDependencyReport,
 } from "../services/test-helpers.js";
+import { SUPPORTED_DEPS_REGISTRIES_LIST } from "../shared/package-dependencies-request.js";
 import { createPackageDependenciesTool } from "./package-dependencies.js";
 
 function parseText(result: { content: Array<{ text: string }> }): unknown {
@@ -150,10 +151,11 @@ describe("createPackageDependenciesTool — metadata", () => {
       createMockPackageIntelligenceService(),
     );
     expect(tool.name).toBe("pkg_deps");
-    // Canonical registry order from PKGSEER_REGISTRY_ARGS, restricted
-    // to the deps-supported subset.
     expect(tool.description).toContain(
-      "npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, Go, and Swift",
+      `Supports ${SUPPORTED_DEPS_REGISTRIES_LIST}.`,
+    );
+    expect(tool.description).not.toContain(
+      "Supports npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, Go, and Swift.",
     );
     expect(tool.description).toContain(
       "Inspect what a package depends on, directly or transitively",
