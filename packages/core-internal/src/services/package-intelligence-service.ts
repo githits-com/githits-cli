@@ -111,7 +111,7 @@ export interface PackageVulnerabilitiesParams {
   minSeverity?: number;
   /** Optional — backend defaults to false when omitted. */
   includeWithdrawn?: boolean;
-  /** Optional — audit vulnerabilities affecting resolved dependencies. */
+  /** Optional — only true enables the extra graph-analysis request; omission/false preserve direct-only behavior. */
   includeTransitive?: boolean;
   /** Advisory rows to return; counts always include all scopes. */
   advisoryScope?: VulnerabilityScope;

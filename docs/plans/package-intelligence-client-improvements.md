@@ -2,13 +2,13 @@
 
 ## Status
 
-- Overall: **IN PROGRESS**
+- Overall: **COMPLETE**
 - Phase 1 — package overview distinguishes current-version and package-history
   evidence: **COMPLETE — released in 0.12.1 after PR #350**
 - Phase 2 — dependency analysis exposes actionable issue and conflict evidence:
   **COMPLETE — released in 0.12.1 after PR #351**
 - Phase 3 — vulnerability inspection audits resolved transitive dependencies on
-  explicit request: **READY**
+  explicit request: **COMPLETE — implementation and final verification finished**
 - Last verified: 2026-09-04
 
 ## Problem and overall expected outcome
@@ -58,6 +58,13 @@ bounded, outcome-first, and backed by the same normalized service data.
 - A live `pkg vulns npm:express --scope all` call on 2026-09-04 resolved
   `express@5.2.1`, reported no active vulnerability for that version, and returned
   five historical package advisories.
+
+### Phase 3 completion evidence
+
+- The final `bun test` gate passed 4,044 tests.
+- Targeted agent evaluation was unavailable: the isolated Claude environment was
+  unauthenticated, and the dedicated Codex evaluation home was not provisioned.
+  This is an unavailable-harness result, not a passing evaluation.
 
 ### Available transitive vulnerability contract
 
@@ -506,7 +513,7 @@ filter semantics, error behavior, and public response shape are defined above.
 
 ### Phase 3 — vulnerability inspection audits resolved dependencies
 
-- **Status:** READY.
+- **Status:** COMPLETE — implementation and final verification finished.
 - **Expected outcome:** an explicit transitive mode reports complete vulnerability
   occurrences affecting resolved dependency versions while direct-only behavior and
   cost remain unchanged; `pkg_deps` accepts every deployed dependency registry.
@@ -679,9 +686,10 @@ package safe.
 - `pkg_deps` accepts NuGet, Maven, and Packagist, and the shared capability source,
   docs, and ecosystem audit match the deployed registry sets.
 - Focused/full tests, wire assertions, typecheck, lint, formatting, build, package
-  validation, all four smoke modes, authenticated probes, permanent docs, release
-  fragments, and targeted agent evaluation complete successfully or any unavailable
-  live harness is explicitly evidenced.
+  validation, all four smoke modes, authenticated probes, permanent docs, and release
+  fragments complete successfully. Targeted agent evaluation was unavailable because
+  the isolated Claude environment was unauthenticated and the dedicated Codex
+  evaluation home was not provisioned.
 
 ## Phase-boundary reorientation
 

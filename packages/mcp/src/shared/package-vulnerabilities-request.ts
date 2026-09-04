@@ -86,7 +86,7 @@ export interface PackageVulnerabilitiesRequestInput {
   minSeverity?: string;
   /** Optional flag to include withdrawn advisories. */
   includeWithdrawn?: boolean;
-  /** Optional flag to audit vulnerabilities in resolved dependencies. */
+  /** Optional flag; only true enables the extra graph-analysis request. Omission/false preserve direct-only behavior. */
   includeTransitive?: boolean;
   /** Advisory rows to return. Defaults to advisories affecting the inspected version. */
   advisoryScope?: string;
