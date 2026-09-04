@@ -118,8 +118,9 @@ Use the tools in these roles:
   focused matched-file window, and `code_files` for path enumeration.
 - **Navigation and documentation:** Use `code_files` to enumerate paths,
   `code_read` to read an exact source window, `docs_list` to browse package
-  pages, and `docs_read` to read a page by ID. These tools advertise their
-  immediate exact-name handoffs reciprocally. `get_example` is for canonical
+  pages, and `docs_read` to read a page by emitted target or historical ID.
+  These tools advertise their immediate exact-name handoffs reciprocally.
+  `get_example` is for canonical
   cross-project examples and unknown-target/global patterns; for a known
   package or repository, use `search`, `docs_*`, or `code_*` instead.
 - **Conditional search continuation:** Call `search_status` only when the
@@ -149,8 +150,8 @@ Use the tools in these roles:
 | `feedback` | `solution_id?`, `accepted`, `feedback_text?`, `tool_name?` | Submit feedback when a GitHits result or the overall experience was helpful, unhelpful, wrong, incomplete, slow, or confusing. Pass `solution_id` to rate an example or `tool_name` to identify a result. |
 | `search` | `query`, `target?`, `targets?`, `source?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Discover relevant evidence in a known target before exact grep: docs, specs, code, symbols, tests, and examples ranked by relevance. Open-ended “how does”, “where is”, “find”, “locate”, or loosely phrased “grep the source” questions start here; omit `source` for broad discovery. A `search` call can return complete results directly; use `search_status` only when the response explicitly supplies a `searchRef` and action. |
 | `search_status` | `search_ref`, `wait_timeout_ms?`, `format?` | Continue an explicit `search` reference only after that response supplies a `searchRef` and `search_status` action. Inspect progress or retrieve interim, partial, or final hits; terminal and unrecognized statuses end that reference, so use a later `search` for a fresh session. |
-| `docs_list` | `registry`, `package_name`, `version?`, `limit?`, `after?`, `format?` | List package documentation pages and hand off to `docs_read`; use `search` for topic discovery. Exact Go versions accept both `v`-prefixed and unprefixed forms. Repo-backed entries include exact source metadata for `code_read` when available. |
-| `docs_read` | `page_id`, `start_line?`, `end_line?`, `format?` | Read a package documentation page by ID; use `docs_list` to browse and `search` to find topics. Text output returns 150 lines by default or up to 300 with an explicit range; repo-backed pages include exact `code_read` metadata. |
+| `docs_list` | `registry`, `package_name`, `version?`, `limit?`, `after?`, `format?` | List package documentation targets and hand off to `docs_read`; use `search` for topic discovery. Entries retain `docsReadTarget`, stable `pageId`, and provenance `sourceUrl`. Exact Go versions accept both `v`-prefixed and unprefixed forms. Repo-backed entries include exact source metadata for `code_read` when available. |
+| `docs_read` | `page_id`, `start_line?`, `end_line?`, `format?` | Read a package documentation page by emitted `docsReadTarget` or historical `pageId`; the compatible schema key remains `page_id`. Text output returns 150 lines by default or up to 300 with an explicit range; repo-backed pages include exact `code_read` metadata. |
 | `pkg_info` | `registry`, `package_name`, `verbose?`, `format?` | Assess latest package health and adoption through license, downloads, and activity. Use `pkg_vulns` for advisory detail, `pkg_deps` for dependency graphs, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison. |
 | `pkg_vulns` | `registry`, `package_name`, `version?`, `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `verbose?`, `format?` | Check current package advisories instead of trusting memory for vulnerabilities. Advisories can be published or revised after training, so a cutoff disclaimer is not current evidence. Covers pinned releases, latest-version risk, and vague questions about vulnerability volume or a package's security track record. Use `pkg_info` for a latest health overview or `pkg_upgrade_review` for current-vs-target evidence. |
 | `pkg_deps` | `registry`, `package_name`, `version?`, `lifecycle?`, `include_importers?`, `include_issues?`, `max_depth?`, `format?` | Inspect direct/transitive dependencies or opt into deprecated, outdated, duplicate, and conflict analysis. Use `pkg_info` for health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence. |
@@ -524,7 +525,7 @@ The representative CLI n8n example is maintained in
   <summary line 1>
   <summary line 2 (wrapped at output width)>
 [blank]
-[2] <page-id> [docs page] <target> - <host/path#anchor> - <title>
+[2] <docs-read-target> [docs page] <target> - <host/path#anchor> - <title>
   <summary, when informative>
 ```
 
@@ -532,16 +533,21 @@ Hit headers are numbered so ranked results can be referenced as `[1]` through
 `[N]`. Repository and code hits keep the exact target and file location needed
 for `code_read` before a bracketed type tag (`[repo doc]`, `[repo code]`, or
 `[repo symbol]`); their free-form title is the final header tail. Documentation
-hits keep the actual `page-id` needed for `docs_read`, a stable package target,
-human-readable source URL, and title in that order. The docs URL uses
-`host/path#anchor` without the protocol; unavailable fields are rendered as
-explicit `page ID unavailable`, `target unavailable`, `source URL unavailable`,
-or `title unavailable` values. Executable `docs_read` / `code_read` command
+hits prefer the emitted `docsReadTarget` needed for `docs_read`, a stable
+package target, human-readable source URL, and title in that order. Distinct
+source provenance uses `host/path#anchor` without the protocol; when it differs
+from the target only by fragment, only `#anchor` is repeated. Exact duplicate
+locators are omitted. Unavailable fields are rendered as
+explicit `documentation target unavailable`, `target unavailable`,
+`source URL unavailable`, or `title unavailable` values. Executable
+`docs_read` / `code_read` command
 lines, qualified non-follow-up internal result IDs, and kind/category tails are
-omitted from default text; the documentation page ID remains because it is the
-`docs_read` follow-up locator, and JSON keeps the full locator and follow-up
-fields unchanged. Repository hits without a file path use the explicit
-`location unavailable` value and do not claim to be follow-up readable. A
+omitted from default text; the emitted target remains because it is the
+`docs_read` follow-up locator, and JSON keeps `docsReadTarget`, stable `pageId`,
+provenance `sourceUrl`, and the generated follow-up. Discovery falls back to
+`pageId` only when its nullable `docsReadTarget` is absent. Repository hits
+without a file path use the explicit `location unavailable` value and do not
+claim to be follow-up readable. A
 summary's first line is omitted when it repeats the title
 after removing Markdown heading markers, as is an immediately following
 setext underline. Source indentation is retained when summaries wrap, with a
@@ -555,7 +561,7 @@ Breakdowns use `repo code hit(s)` and `repo symbol(s)` alongside `repo doc(s)`
 and `docs page(s)`. When more results exist without a next offset, the final field is
 `more available`. Pagination is not repeated as a bottom paragraph.
 
-**Follow-up — crawled-doc section anchors.** Unified search can label a crawled documentation hit with a matching section title while returning only its page ID. Without a line anchor, `docs_read` must start at the beginning of the page. Carrying section ranges through search results requires backend/search-location support and is outside the CLI response-formatting slice.
+**Follow-up — crawled-doc section anchors.** Unified search can label a crawled documentation hit with a matching section title while returning its emitted read target and stable page ID. A source URL fragment is retained beside the target, but without a line range `docs_read` must start at the beginning of the page. Carrying section ranges through search results requires backend/search-location support and is outside the CLI response-formatting slice.
 
 Completed-empty action selection is target-aware: exact terminal lanes with no
 searched/indexing peer get local recovery, while searched-empty evidence can get
@@ -610,6 +616,12 @@ Empty grep adds scanned/in-scope counts, served target/ref context when known, a
 `context_lines`, `context_lines_before`, and `context_lines_after` accept integers from 0 through 10. The MCP JSON Schema advertises the range so agent clients reject invalid calls before dispatch; direct CLI/internal callers retain the same request-builder validation. The asymmetric fields override the corresponding side of `context_lines`.
 
 **Docs read bounds.** `docs_read` text output returns 150 lines when `end_line` is omitted and honors explicit ranges up to 300 lines. Its response reports the actual returned range and total line count for the next bounded read; JSON mode preserves explicitly requested ranges.
+
+`docs_read` passes the existing `page_id` string through unchanged, whether it
+is an emitted HTTP(S) `docsReadTarget` or a historical page ID. Successful JSON
+reads retain `docsReadTarget`, stable replay `pageId`, and provenance
+`sourceUrl`. Unknown URL targets use the existing non-retryable `NOT_FOUND`
+envelope, and URL reads never enqueue crawling.
 
 The current package-doc backend returns the complete page and `docs_read` applies
 the text range locally. Move this slicing into the backend when that API is next

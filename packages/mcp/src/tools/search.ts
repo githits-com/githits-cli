@@ -276,7 +276,7 @@ const DESCRIPTION =
   'Structured parameters combine with the `query` using AND semantics. For `source:"docs"`, code/symbol-only filters (`category`, `kind`, `file_intent`, `public_only`) are ignored because docs search does not support them. ' +
   "A `search` call can return complete results directly. Only when its response supplies both a `searchRef` and a `search_status` action, follow that action with `search_status`; never repeat `search` to poll. Terminal or unrecognized statuses are not polled; follow the response's recovery guidance instead. If the response includes advisory `sourceStatus[].suggestedSiteTargets`, retry one explicitly; do not treat suggestions as aliases or retry automatically. " +
   "Set `allow_partial_results: true` to permit a serveable subset of target/source pairs while others remain unavailable. " +
-  "After discovery, use `code_grep` when you know an exact pattern and need deterministic paginated occurrences. Each hit's `type` tells you the reading tool: `documentation_page` and `repository_doc` → `docs_read` with `locator.pageId`; `repository_code` and `repository_symbol` → `code_read` with `locator.filePath` (and `locator.startLine`/`endLine` when present)." +
+  "After discovery, use `code_grep` when you know an exact pattern and need deterministic paginated occurrences. Each hit's `type` tells you the reading tool: `documentation_page` and `repository_doc` → `docs_read` with `locator.docsReadTarget` when present, otherwise stable `locator.pageId`; `repository_code` and `repository_symbol` → `code_read` with `locator.filePath` (and `locator.startLine`/`endLine` when present)." +
   `\n\n${SEARCH_GUARDRAIL}`;
 
 export function createSearchTool(

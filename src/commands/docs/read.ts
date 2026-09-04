@@ -91,20 +91,24 @@ function handleDocsReadError(error: unknown, json: boolean): never {
   process.exit(1);
 }
 
-const DOCS_READ_DESCRIPTION = `Read a documentation page by page ID.
+const DOCS_READ_DESCRIPTION = `Read a documentation page by emitted target or page ID.
 
-Use page IDs from githits docs list, githits search --json, or MCP doc/search
-results. Default output is content-only for easy piping; pass --verbose for a
-metadata header. Use --lines for a bounded line range (e.g. \`--lines 10-40\`,
+Prefer docsReadTarget from githits docs list, githits search --json, or MCP
+doc/search results. Historical page IDs remain accepted. Default output is
+content-only for easy piping; pass --verbose for a metadata header. Use --lines
+for a bounded line range (e.g. \`--lines 10-40\`,
 \`--lines 10-\` for open-ended, or \`--lines -40\` for the first 40 lines) —
 useful when a page is too long to read whole.`;
 
 export function registerDocsReadCommand(docsCommand: Command): Command {
   return docsCommand
     .command("read")
-    .summary("Read a documentation page by page ID")
+    .summary("Read a documentation page by target or page ID")
     .description(DOCS_READ_DESCRIPTION)
-    .argument("<page-id>", "Documentation page ID from docs/search results")
+    .argument(
+      "<target>",
+      "Emitted docsReadTarget or historical page ID from docs/search results",
+    )
     .option(
       "--lines <range>",
       "Bounded line range, e.g. 10-40, 10-, or -40 (1-indexed inclusive)",

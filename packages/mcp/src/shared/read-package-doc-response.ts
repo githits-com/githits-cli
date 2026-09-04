@@ -10,6 +10,7 @@ export interface LeanPackageDocEnvelope {
   name?: string;
   version?: string;
   pageId: string;
+  docsReadTarget: string;
   title?: string;
   format?: string;
   content?: string;
@@ -44,6 +45,13 @@ export function buildReadPackageDocSuccessPayload(
     );
   }
 
+  const docsReadTarget = result.page?.docsReadTarget;
+  if (!docsReadTarget) {
+    throw new MalformedPackageIntelligenceResponseError(
+      `Documentation page '${requestedPageId}' missing required docsReadTarget in response.`,
+    );
+  }
+
   if (
     (result.page?.sourceKind ?? result.sourceKind) === "REPOSITORY" &&
     (!result.page?.repoUrl || !result.page?.gitRef || !result.page?.filePath)
@@ -53,7 +61,7 @@ export function buildReadPackageDocSuccessPayload(
     );
   }
 
-  const envelope: LeanPackageDocEnvelope = { pageId };
+  const envelope: LeanPackageDocEnvelope = { pageId, docsReadTarget };
 
   if (result.registry) envelope.registry = result.registry.toLowerCase();
   if (result.packageName) envelope.name = result.packageName;
@@ -153,8 +161,13 @@ export function formatReadPackageDocTerminal(
 
   const lines: string[] = [];
   lines.push(buildHeader(envelope, options.useColors));
+  if (envelope.docsReadTarget !== envelope.pageId) {
+    lines.push(`docsReadTarget: ${envelope.docsReadTarget}`);
+  }
   lines.push(`pageId: ${envelope.pageId}`);
-  if (envelope.sourceUrl) lines.push(`source: ${envelope.sourceUrl}`);
+  if (envelope.sourceUrl && envelope.sourceUrl !== envelope.docsReadTarget) {
+    lines.push(`source: ${envelope.sourceUrl}`);
+  }
   if (envelope.filePath) {
     const ref = envelope.requestedRef ?? envelope.gitRef;
     lines.push(`file: ${envelope.filePath}${ref ? ` @ ${ref}` : ""}`);

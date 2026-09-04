@@ -85,6 +85,7 @@ export interface UnifiedSearchHitPayload {
     packageName?: string;
     version?: string;
     pageId?: string;
+    docsReadTarget?: string;
     sourceKind?: string;
     sourceUrl?: string;
     repoUrl?: string;
@@ -559,6 +560,7 @@ function buildLocatorPayload(
   if (src.packageName) locator.packageName = src.packageName;
   if (src.version) locator.version = src.version;
   if (src.pageId) locator.pageId = src.pageId;
+  if (src.docsReadTarget) locator.docsReadTarget = src.docsReadTarget;
   if (src.sourceKind) locator.sourceKind = src.sourceKind;
   if (src.sourceUrl) locator.sourceUrl = src.sourceUrl;
   if (src.repoUrl) locator.repoUrl = src.repoUrl;

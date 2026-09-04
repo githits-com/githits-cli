@@ -609,6 +609,10 @@ describe("runMcpSmoke", () => {
   });
 });
 
+const SMOKE_CRAWLED_DOC_TARGET = "https://expressjs.com/en/guide/routing.html";
+const SMOKE_CRAWLED_DOC_ID = "legacy-routing-id";
+const SMOKE_REPO_DOC_ID = "github:expressjs/express@abc123/README.md";
+
 function smokeResponse(
   name: string,
   args: Record<string, unknown>,
@@ -665,7 +669,12 @@ function smokeResponse(
           "  Repository releases | 1 entry | 1 with release notes",
       );
     case "docs_list":
-      return textResult("docs_read page_id=page-1");
+      if (args.after !== "smoke-doc-cursor") {
+        throw new Error("docs_list text smoke missing crawled-page cursor");
+      }
+      return textResult(
+        `docs_read page_id=${JSON.stringify(SMOKE_CRAWLED_DOC_TARGET)}`,
+      );
     case "docs_read":
       return textResult("documentation content");
     case "code_files":
@@ -742,9 +751,46 @@ function smokeJsonResponse(
     case "pkg_upgrade_review":
       return jsonResult({ summary: {}, reviews: [{}] });
     case "docs_list":
-      return jsonResult({ pages: [{ pageId: "page-1" }] });
-    case "docs_read":
-      return jsonResult({ content: "documentation content" });
+      return jsonResult({
+        pages: [
+          {
+            docsReadTarget: SMOKE_REPO_DOC_ID,
+            pageId: SMOKE_REPO_DOC_ID,
+            sourceKind: "repo",
+            sourceUrl:
+              "https://github.com/expressjs/express/blob/abc123/README.md",
+          },
+          ...(args.limit === 1
+            ? []
+            : [
+                {
+                  docsReadTarget: SMOKE_CRAWLED_DOC_TARGET,
+                  pageId: SMOKE_CRAWLED_DOC_ID,
+                  sourceKind: "crawled",
+                  sourceUrl: SMOKE_CRAWLED_DOC_TARGET,
+                },
+              ]),
+        ],
+        ...(args.limit === 1 ? { nextCursor: "smoke-doc-cursor" } : {}),
+      });
+    case "docs_read": {
+      if (
+        args.page_id === "https://docs.example.invalid/githits-smoke-unknown"
+      ) {
+        return errorResult("NOT_FOUND");
+      }
+      const repoBacked = args.page_id === SMOKE_REPO_DOC_ID;
+      return jsonResult({
+        docsReadTarget: repoBacked
+          ? SMOKE_REPO_DOC_ID
+          : SMOKE_CRAWLED_DOC_TARGET,
+        pageId: repoBacked ? SMOKE_REPO_DOC_ID : SMOKE_CRAWLED_DOC_ID,
+        sourceUrl: repoBacked
+          ? "https://github.com/expressjs/express/blob/abc123/README.md"
+          : SMOKE_CRAWLED_DOC_TARGET,
+        content: "documentation content",
+      });
+    }
     case "code_files":
       return jsonResult({ files: [{ path: "package.json" }] });
     case "code_read":

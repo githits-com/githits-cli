@@ -40,8 +40,8 @@ Indexed package/source tools inspect third-party dependency source, docs, and re
 - `code_files` — list/discover file paths; first choice for directory enumeration before `code_read` or scoped `code_grep`.
 - `code_grep` — deterministic text/regex grep when you already know the pattern; use matches as `code_read` follow-ups.
 - `code_read` — read one exact file path; never use it to list/probe directories. Read only the needed lines: 150 lines by default, or up to 300 with an explicit range.
-- `docs_list` — browse documentation pages available for a package, not standalone `site:` targets. For a package or site docs topic, use `search` with `source:"docs"`; request `format:"json"` when exact `pageId` and line locators are needed, then pass them to `docs_read`.
-- `docs_read` — read a documentation page by pageId from `docs_list` or docs `search` results; text reads return 150 lines by default or up to 300 with an explicit range.
+- `docs_list` — browse documentation pages available for a package, not standalone `site:` targets. For a package or site docs topic, use `search` with `source:"docs"`; request `format:"json"` when exact `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, and line locators are needed, then pass `docsReadTarget` to `docs_read`.
+- `docs_read` — read a documentation page by emitted `docsReadTarget` or historical `pageId` from `docs_list` or docs `search` results; text reads return 150 lines by default or up to 300 with an explicit range.
 - `pkg_info` — latest package health/adoption overview: license, repo health, downloads, publish age, latest affected vulnerability count, and package-wide advisory history (all versions).
 - `pkg_vulns` — known vulnerabilities/advisories for a package or pinned version; use `pkg_upgrade_review` for current-vs-target upgrades.
 - `pkg_deps` — direct dependencies, dependency groups, or bounded transitive dependency footprint.

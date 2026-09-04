@@ -653,6 +653,48 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
   });
 
+  it("retains documentation locators and prefers docsReadTarget follow-ups", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const hit = defaultUnifiedSearchOutcome.result.results[0]!;
+    const docsReadTarget =
+      "https://expressjs.com/en/guide/routing.html?publisher=express";
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      {
+        ...defaultUnifiedSearchOutcome,
+        result: {
+          ...defaultUnifiedSearchOutcome.result,
+          results: [
+            {
+              ...hit,
+              resultType: "DOCUMENTATION_PAGE",
+              locator: {
+                pageId: "legacy-routing-id",
+                docsReadTarget,
+                sourceUrl: "https://expressjs.com/en/guide/routing.html",
+                startLine: 20,
+                endLine: 35,
+              },
+            },
+          ],
+        },
+      },
+    );
+
+    expect(payload.results[0]?.locator).toMatchObject({
+      docsReadTarget,
+      pageId: "legacy-routing-id",
+      sourceUrl: "https://expressjs.com/en/guide/routing.html",
+    });
+    expect(payload.results[0]?.followUp).toBe(
+      `docs_read page_id=${JSON.stringify(docsReadTarget)} start_line=20 end_line=35`,
+    );
+  });
+
   it("canonicalizes repository hit target labels containing @ in refs", () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");

@@ -129,8 +129,10 @@ describe("buildMcpQuickStart", () => {
     );
     expect(instructions).toContain("not standalone `site:` targets");
     expect(instructions).toContain('`search` with `source:"docs"`');
-    expect(instructions).toContain("exact `pageId` and line locators");
-    expect(instructions).toContain("pass them to `docs_read`");
+    expect(instructions).toContain(
+      "exact `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, and line locators",
+    );
+    expect(instructions).toContain("pass `docsReadTarget` to `docs_read`");
   });
 
   it("keeps the core block first", () => {

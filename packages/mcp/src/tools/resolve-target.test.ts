@@ -136,6 +136,7 @@ describe("resolve_target MCP adapter", () => {
       "standalone documentation-site",
       'source: "docs"',
       'format: "json"',
+      "docsReadTarget",
       "pageId",
       "returned line range",
       "docs_read",

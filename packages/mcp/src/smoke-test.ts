@@ -898,57 +898,154 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     );
   }
 
-  const docsText = assertDefaultText(
-    await callTool(caller, "docs_list", {
-      ...SMOKE_PACKAGE_TARGET,
-      limit: 2,
-    }),
-    "docs_list default",
-  );
-  assert(
-    docsText.includes("docs_read page_id="),
-    "docs_list default missing docs_read follow-up",
-  );
-
   const docsJson = assertJsonResult(
     await callTool(caller, "docs_list", {
       ...SMOKE_PACKAGE_TARGET,
-      limit: 2,
+      limit: 500,
       format: "json",
     }),
     "docs_list json",
   );
   assertRecord(docsJson, "docs_list json");
   assert(Array.isArray(docsJson.pages), "docs_list json missing pages array");
-  const firstPage = docsJson.pages[0] as Record<string, unknown> | undefined;
+  const docsPages = docsJson.pages as unknown[];
+  const crawledPage = docsPages.find(
+    (page) =>
+      typeof page === "object" &&
+      page !== null &&
+      (page as Record<string, unknown>).sourceKind === "crawled" &&
+      typeof (page as Record<string, unknown>).docsReadTarget === "string" &&
+      /^https?:\/\//.test(
+        (page as Record<string, unknown>).docsReadTarget as string,
+      ),
+  ) as Record<string, unknown> | undefined;
+  const repoPage = docsPages.find(
+    (page) =>
+      typeof page === "object" &&
+      page !== null &&
+      (page as Record<string, unknown>).sourceKind === "repo",
+  ) as Record<string, unknown> | undefined;
   assert(
-    firstPage && typeof firstPage.pageId === "string",
-    "docs_list json missing readable page id",
+    crawledPage &&
+      typeof crawledPage.docsReadTarget === "string" &&
+      typeof crawledPage.pageId === "string" &&
+      typeof crawledPage.sourceUrl === "string",
+    "docs_list json missing crawled URL target, stable page ID, or source URL",
+  );
+  assert(
+    repoPage &&
+      typeof repoPage.docsReadTarget === "string" &&
+      typeof repoPage.pageId === "string" &&
+      typeof repoPage.sourceUrl === "string",
+    "docs_list json missing repo-backed target, stable page ID, or source URL",
+  );
+  assert(
+    repoPage.docsReadTarget === repoPage.pageId,
+    "docs_list json repo-backed docsReadTarget should remain snapshot-pinned",
+  );
+
+  const crawledPageIndex = docsPages.indexOf(crawledPage);
+  let crawledPageAfter: string | undefined;
+  if (crawledPageIndex > 0) {
+    const precedingDocs = assertJsonResult(
+      await callTool(caller, "docs_list", {
+        ...SMOKE_PACKAGE_TARGET,
+        limit: crawledPageIndex,
+        format: "json",
+      }),
+      "docs_list crawled target cursor",
+    );
+    assertRecord(precedingDocs, "docs_list crawled target cursor");
+    assert(
+      typeof precedingDocs.nextCursor === "string",
+      "docs_list crawled target cursor missing nextCursor",
+    );
+    crawledPageAfter = precedingDocs.nextCursor;
+  }
+  const docsText = assertDefaultText(
+    await callTool(caller, "docs_list", {
+      ...SMOKE_PACKAGE_TARGET,
+      limit: 1,
+      ...(crawledPageAfter ? { after: crawledPageAfter } : {}),
+    }),
+    "docs_list crawled target default",
+  );
+  assert(
+    docsText.includes(
+      `docs_read page_id=${JSON.stringify(crawledPage.docsReadTarget)}`,
+    ),
+    "docs_list default missing crawled URL follow-up",
   );
 
   const docReadText = assertDefaultText(
     await callTool(caller, "docs_read", {
-      page_id: firstPage.pageId,
+      page_id: crawledPage.docsReadTarget,
       start_line: 1,
       end_line: 5,
     }),
-    "docs_read default",
+    "docs_read crawled URL default",
   );
-  assert(docReadText.length > 0, "docs_read default missing content");
+  assert(
+    docReadText.length > 0,
+    "docs_read crawled URL default missing content",
+  );
 
   const docReadJson = assertJsonResult(
     await callTool(caller, "docs_read", {
-      page_id: firstPage.pageId,
+      page_id: crawledPage.docsReadTarget,
       start_line: 1,
       end_line: 5,
       format: "json",
     }),
-    "docs_read json",
+    "docs_read crawled URL json",
   );
-  assertRecord(docReadJson, "docs_read json");
+  assertRecord(docReadJson, "docs_read crawled URL json");
   assert(
-    typeof docReadJson.content === "string",
-    "docs_read json missing content",
+    docReadJson.docsReadTarget === crawledPage.docsReadTarget &&
+      docReadJson.pageId === crawledPage.pageId &&
+      docReadJson.sourceUrl === crawledPage.sourceUrl &&
+      typeof docReadJson.content === "string",
+    "docs_read crawled URL json missing target, page ID, source URL, or content",
+  );
+
+  const legacyCrawledRead = assertJsonResult(
+    await callTool(caller, "docs_read", {
+      page_id: crawledPage.pageId,
+      start_line: 1,
+      end_line: 5,
+      format: "json",
+    }),
+    "docs_read legacy crawled ID json",
+  );
+  assertRecord(legacyCrawledRead, "docs_read legacy crawled ID json");
+  assert(
+    legacyCrawledRead.pageId === docReadJson.pageId &&
+      legacyCrawledRead.content === docReadJson.content,
+    "docs_read URL and legacy crawled ID returned different ranged content",
+  );
+
+  const repoRead = assertJsonResult(
+    await callTool(caller, "docs_read", {
+      page_id: repoPage.docsReadTarget,
+      format: "json",
+    }),
+    "docs_read repo-backed ID json",
+  );
+  assertRecord(repoRead, "docs_read repo-backed ID json");
+  assert(
+    repoRead.docsReadTarget === repoPage.docsReadTarget &&
+      repoRead.pageId === repoPage.pageId &&
+      typeof repoRead.content === "string",
+    "docs_read repo-backed ID json missing snapshot target, page ID, or content",
+  );
+
+  assertErrorCode(
+    await callTool(caller, "docs_read", {
+      page_id: "https://docs.example.invalid/githits-smoke-unknown",
+      format: "json",
+    }),
+    "docs_read unknown URL",
+    "NOT_FOUND",
   );
 
   const codeFilesText = assertDefaultText(
