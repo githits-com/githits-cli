@@ -679,8 +679,8 @@ as they do now.
 ## Phase 2 merged result
 
 Phase 2 merged in PR #351 at `16ecf75`. It delivered CLI `--issues` and MCP
-`include_issues`, conditional issue and
-companion-graph selection with full-graph versus depth-bounded cost, exact lossless
+`include_issues`, conditional issue and companion-graph selection with full-graph
+versus depth-bounded cost, exact lossless
 issue/conflict JSON requirements, bounded compact and complete wrapped verbose text,
 and fail-closed validation for missing issue/graph data and edge-backed ordinary
 transitive conflicts. Edge-free conflict summaries remain valid without a graph.
