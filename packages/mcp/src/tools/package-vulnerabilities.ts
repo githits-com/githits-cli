@@ -22,6 +22,7 @@ export interface PackageVulnerabilitiesArgs {
   min_severity?: string;
   advisory_scope?: string;
   include_withdrawn?: boolean;
+  include_transitive?: boolean;
   verbose?: boolean;
   format?: "json" | "text" | "text-v1";
 }
@@ -57,6 +58,12 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe("Include retracted advisories (default: false)."),
+  include_transitive: z
+    .boolean()
+    .optional()
+    .describe(
+      "Opt in to npm-audit-style evidence for vulnerabilities affecting versions resolved in the dependency graph. Adds graph-analysis cost; this is resolved dependency evidence, not package-history scope. min_severity applies to both; advisory_scope and include_withdrawn affect direct rows only, and transitive withdrawn advisories remain excluded.",
+    ),
   advisory_scope: z
     .string()
     .optional()
@@ -95,6 +102,7 @@ export const DESCRIPTION_BASE: string =
   "`critical`) and `include_withdrawn` to also see retracted " +
   'advisories. Use `advisory_scope:"non_affecting"` to list ' +
   "historical advisories that do not affect the inspected version. " +
+  "Use `include_transitive:true` for npm-audit-style evidence covering vulnerabilities in versions resolved by the dependency graph; this is opt-in because it adds graph-analysis cost and is distinct from package-wide advisory history. `min_severity` applies to direct and transitive rows, while `advisory_scope` and `include_withdrawn` affect direct rows only and transitive withdrawn advisories remain excluded. " +
   "Use `pkg_info` for a latest-version health overview or `pkg_upgrade_review` for current-vs-target upgrade evidence.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_VULNS_GUARDRAIL}`;
@@ -115,6 +123,7 @@ export function createPackageVulnerabilitiesTool(
           version: args.version,
           minSeverity: args.min_severity,
           includeWithdrawn: args.include_withdrawn,
+          includeTransitive: args.include_transitive,
           advisoryScope: args.advisory_scope,
         });
         const report = await service.packageVulnerabilities(params);

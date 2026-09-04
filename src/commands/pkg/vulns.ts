@@ -21,6 +21,7 @@ export interface PkgVulnsCommandOptions {
   severity?: string;
   scope?: string;
   includeWithdrawn?: boolean;
+  transitive?: boolean;
   verbose?: boolean;
   json?: boolean;
 }
@@ -35,8 +36,9 @@ export interface PkgVulnsCommandDependencies {
 /**
  * Core `pkg vulns` action. Accepts `<spec>@<version>` (unlike `pkg
  * info`, which always returns latest). Version flows through to the
- * backend; `minSeverity` and `includeWithdrawn` likewise go to the
- * wire. No client-side filtering — backend is single source of truth.
+ * backend; `minSeverity`, `includeWithdrawn`, and opt-in `includeTransitive`
+ * likewise go to the wire. No client-side filtering — backend is single
+ * source of truth.
  */
 export async function pkgVulnsAction(
   spec: string,
@@ -64,6 +66,7 @@ export async function pkgVulnsAction(
       version: parsed.version,
       minSeverity: options.severity,
       includeWithdrawn: options.includeWithdrawn,
+      includeTransitive: options.transitive,
       advisoryScope: options.scope,
     });
     const report =
@@ -162,7 +165,13 @@ Severity filter (--severity) and withdrawn-advisory visibility
 returned count reflects whatever survived the filter and active filters
 are echoed in text and JSON output. Use --scope non_affecting to list
 historical advisories that do not affect the inspected version, or --scope all
-to list affected and historical package advisories together.`;
+to list affected and historical package advisories together.
+
+Use --transitive for npm-audit-style evidence covering vulnerabilities in versions
+resolved by the dependency graph. This opt-in adds graph-analysis cost and is
+distinct from package-wide advisory history. --severity applies to direct and
+transitive rows; --scope and --include-withdrawn affect direct package rows only,
+and transitive withdrawn advisories remain excluded.`;
 
 export function registerPkgVulnsCommand(pkgCommand: Command): Command {
   return pkgCommand
@@ -181,6 +190,10 @@ export function registerPkgVulnsCommand(pkgCommand: Command): Command {
     .option(
       "--include-withdrawn",
       "Include retracted advisories (default: off)",
+    )
+    .option(
+      "--transitive",
+      "Audit vulnerabilities in versions resolved by the dependency graph (opt-in; adds graph-analysis cost)",
     )
     .option(
       "-v, --verbose",
