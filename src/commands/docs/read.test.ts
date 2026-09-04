@@ -94,6 +94,47 @@ describe("docsReadAction", () => {
     }
   });
 
+  it("renders distinct URL target and stable ID once in verbose output", async () => {
+    const docsReadTarget = "https://expressjs.com/en/guide/routing.html";
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+    const service = createMockPackageIntelligenceService({
+      readPackageDoc: mock(() =>
+        Promise.resolve({
+          page: {
+            id: "legacy-routing-id",
+            docsReadTarget,
+            content: "routing",
+            source: { url: docsReadTarget },
+          },
+        }),
+      ),
+    });
+
+    try {
+      await docsReadAction(
+        docsReadTarget,
+        { verbose: true },
+        createDeps({ packageIntelligenceService: service }),
+      );
+
+      const output = writes.join("");
+      expect(output).toContain(`docsReadTarget: ${docsReadTarget}`);
+      expect(output).toContain("pageId: legacy-routing-id");
+      expect(output.match(/expressjs\.com/g)).toHaveLength(1);
+      expect(output).not.toContain(`source: ${docsReadTarget}`);
+    } finally {
+      writeSpy.mockRestore();
+    }
+  });
+
   it("routes service classification through --json error envelope", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {

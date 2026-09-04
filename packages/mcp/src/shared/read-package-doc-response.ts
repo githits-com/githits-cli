@@ -161,9 +161,13 @@ export function formatReadPackageDocTerminal(
 
   const lines: string[] = [];
   lines.push(buildHeader(envelope, options.useColors));
-  lines.push(`docsReadTarget: ${envelope.docsReadTarget}`);
+  if (envelope.docsReadTarget !== envelope.pageId) {
+    lines.push(`docsReadTarget: ${envelope.docsReadTarget}`);
+  }
   lines.push(`pageId: ${envelope.pageId}`);
-  if (envelope.sourceUrl) lines.push(`source: ${envelope.sourceUrl}`);
+  if (envelope.sourceUrl && envelope.sourceUrl !== envelope.docsReadTarget) {
+    lines.push(`source: ${envelope.sourceUrl}`);
+  }
   if (envelope.filePath) {
     const ref = envelope.requestedRef ?? envelope.gitRef;
     lines.push(`file: ${envelope.filePath}${ref ? ` @ ${ref}` : ""}`);
