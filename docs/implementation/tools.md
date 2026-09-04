@@ -179,9 +179,10 @@ The additive JSON `transitive` object has `scope: "resolved_dependencies"`,
 `affectedOccurrenceCount`, and a `packages` array. Each package row preserves
 complete affected dependency-version/advisory occurrences, including the
 resolved version, matched affected ranges, and higher-fix candidates. Each
-occurrence always includes `matchedAffectedVersionRanges` and
-`fixVersionsAboveResolved`, which may be empty when no higher fix is known;
-`nearestFixedVersion` is omitted in that case. JSON is complete and lossless;
+occurrence always includes non-empty `matchedAffectedVersionRanges` as its
+affectedness proof. The required `fixVersionsAboveResolved` array may be empty
+when no higher fix is known; `nearestFixedVersion` is omitted in that case.
+JSON is complete and lossless;
 compact text shows at most five transitive rows globally,
 while verbose text shows every selected occurrence and places one
 surface-native continuation hint after the evidence. CLI `--json` and MCP
