@@ -289,6 +289,55 @@ describe("pkgDepsAction", () => {
     writeSpy.mockRestore();
   });
 
+  it("uses the canonical Go version for wire and response comparisons", async () => {
+    const goReport = structuredClone(defaultDependencyReport);
+    goReport.package = {
+      name: "example.com/mod",
+      registry: "GO",
+      version: "v1.2.3",
+    };
+    const packageDependencies = mock(() => Promise.resolve(goReport));
+    const service = createMockPackageIntelligenceService({
+      packageDependencies,
+    });
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+
+    await pkgDepsAction(
+      "go:example.com/mod@1.2.3",
+      { json: true },
+      createDeps({ packageIntelligenceService: service }),
+    );
+    await pkgDepsAction(
+      "go:example.com/mod@1.2.3",
+      {},
+      createDeps({ packageIntelligenceService: service }),
+    );
+
+    const calls = packageDependencies.mock.calls as unknown as Array<
+      [{ version?: string }]
+    >;
+    expect(calls.map(([params]) => params.version)).toEqual([
+      "v1.2.3",
+      "v1.2.3",
+    ]);
+    const payload = JSON.parse(logSpy.mock.calls[0]?.[0] as string) as {
+      requestedVersion?: string;
+    };
+    expect(payload.requestedVersion).toBeUndefined();
+    expect(writes.join("")).not.toContain("(requested");
+    logSpy.mockRestore();
+    writeSpy.mockRestore();
+  });
+
   it("skips groups for default JSON deps mode", async () => {
     const packageDependencies = mock(() =>
       Promise.resolve(defaultDependencyReport),
@@ -351,6 +400,9 @@ describe("pkgDepsAction", () => {
     const help = depsCommand.helpInformation();
 
     expect(depsCommand.description()).toContain("--issues");
+    expect(depsCommand.description()).toContain(
+      "Exact Go versions may include or omit their canonical lowercase `v`; the backend receives the `v`-prefixed form",
+    );
     expect(help).toContain("--issues");
     expect(help).toContain("deprecated");
     expect(help).toContain("outdated");

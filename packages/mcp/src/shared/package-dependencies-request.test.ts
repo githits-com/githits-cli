@@ -85,6 +85,15 @@ describe("buildPackageDependenciesParams — version handling", () => {
     expect(params.version).toBe("v3.11.0");
   });
 
+  it("sends canonical Go versions to the backend", () => {
+    const { params } = buildPackageDependenciesParams({
+      registry: "go",
+      packageName: "golang.org/x/text",
+      version: "0.28.0",
+    });
+    expect(params.version).toBe("v0.28.0");
+  });
+
   it("rejects a bare 'v' (would be ambiguous as 'latest')", () => {
     expect(() =>
       buildPackageDependenciesParams({

@@ -143,6 +143,49 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     expect(calls[0]?.[0]?.advisoryScope).toBe("ALL");
   });
 
+  it("uses the canonical Go version for wire and response comparisons", async () => {
+    const goReport = structuredClone(defaultVulnerabilityReport);
+    goReport.package = {
+      name: "example.com/mod",
+      registry: "GO",
+      version: "v1.2.3",
+    };
+    const packageVulnerabilities = mock(() => Promise.resolve(goReport));
+    const tool = createPackageVulnerabilitiesTool(
+      createMockPackageIntelligenceService({ packageVulnerabilities }),
+    );
+
+    const jsonResult = await tool.handler(
+      {
+        registry: "go",
+        package_name: "example.com/mod",
+        version: "1.2.3",
+        format: "json",
+      },
+      {},
+    );
+    const textResult = await tool.handler(
+      {
+        registry: "go",
+        package_name: "example.com/mod",
+        version: "1.2.3",
+      },
+      {},
+    );
+
+    const calls = packageVulnerabilities.mock.calls as unknown as Array<
+      [{ version?: string }]
+    >;
+    expect(calls.map(([params]) => params.version)).toEqual([
+      "v1.2.3",
+      "v1.2.3",
+    ]);
+    expect(
+      (parseText(jsonResult) as { requestedVersion?: string }).requestedVersion,
+    ).toBeUndefined();
+    expect(textResult.content[0]?.text).not.toContain("(requested");
+  });
+
   it("returns compact text on success by default", async () => {
     const tool = createPackageVulnerabilitiesTool(
       createMockPackageIntelligenceService(),

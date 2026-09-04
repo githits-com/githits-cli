@@ -36,9 +36,9 @@
  * - **Typed environment markers.** `groups.environmentMarkers` maps
  *   the backend's typed `{type, value, raw}` marker list. No raw-JSON
  *   passthrough.
- * - **No v-prefix normalisation.** Tag-style inputs are rejected in
- *   the request builder before we get here, except for Swift where the
- *   backend owns `v`-prefixed release tag normalization.
+ * - **Request-owned version normalisation.** The shared request boundary
+ *   canonicalizes exact Go versions and rejects unsupported tag-style inputs
+ *   before this formatter; Swift normalization remains backend-owned.
  * - **Terminal-only dedup.** JSON preserves every tuple the backend
  *   sent (including Crates target-cfg duplicates). Terminal
  *   rendering strips duplicates inside each group for scannability.
@@ -238,7 +238,7 @@ export interface LeanDependencyReport {
 }
 
 export interface BuildDependenciesPayloadOptions {
-  /** Raw caller-supplied version string (pre-normalisation). */
+  /** Canonical requested version sent to the backend. */
   requestedVersion?: string;
   /** Lifecycles that went on the wire. Empty → no filter. */
   canonicalLifecycles?: DependencyLifecycleInput[];

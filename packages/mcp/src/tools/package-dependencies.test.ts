@@ -271,6 +271,49 @@ describe("createPackageDependenciesTool — happy path", () => {
     },
   );
 
+  it("uses the canonical Go version for wire and response comparisons", async () => {
+    const goReport = structuredClone(defaultDependencyReport);
+    goReport.package = {
+      name: "example.com/mod",
+      registry: "GO",
+      version: "v1.2.3",
+    };
+    const packageDependencies = mock(() => Promise.resolve(goReport));
+    const tool = createPackageDependenciesTool(
+      createMockPackageIntelligenceService({ packageDependencies }),
+    );
+
+    const jsonResult = await tool.handler(
+      {
+        registry: "go",
+        package_name: "example.com/mod",
+        version: "1.2.3",
+        format: "json",
+      },
+      {},
+    );
+    const textResult = await tool.handler(
+      {
+        registry: "go",
+        package_name: "example.com/mod",
+        version: "1.2.3",
+      },
+      {},
+    );
+
+    const calls = packageDependencies.mock.calls as unknown as Array<
+      [{ version?: string }]
+    >;
+    expect(calls.map(([params]) => params.version)).toEqual([
+      "v1.2.3",
+      "v1.2.3",
+    ]);
+    expect(
+      (parseText(jsonResult) as { requestedVersion?: string }).requestedVersion,
+    ).toBeUndefined();
+    expect(textResult.content[0]?.text).not.toContain("(requested");
+  });
+
   it("fetches groups for default text so hidden group hints can render", async () => {
     const packageDependencies = mock(() =>
       Promise.resolve(defaultDependencyReport),

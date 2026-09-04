@@ -46,7 +46,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Specific version to check. Defaults to latest when omitted. Tag-style `v`-prefixed inputs are rejected except for Swift.",
+      "Specific version to check. Defaults to latest when omitted. Go accepts versions with or without its canonical `v` prefix; tag-style `v` prefixes are rejected for other registries except Swift.",
     ),
   min_severity: z
     .string()
@@ -120,14 +120,14 @@ export function createPackageVulnerabilitiesTool(
         });
         const report = await service.packageVulnerabilities(params);
         const payload = buildPackageVulnerabilitiesSuccessPayload(report, {
-          requestedVersion: args.version,
+          requestedVersion: params.version,
           filter,
         });
         if (isTextFormat(args.format)) {
           return textResult(
             formatPackageVulnerabilitiesTerminal(report, {
               useColors: false,
-              requestedVersion: args.version,
+              requestedVersion: params.version,
               filter,
               verbose: args.verbose,
               surface: "mcp",

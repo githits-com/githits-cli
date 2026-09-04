@@ -69,7 +69,7 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--transitive`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift), optionally including affected versions resolved in its dependency graph |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--depth`, `--issues`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional capped transitive graph, and opt-in dependency issue analysis (npm/pypi/hex/crates/nuget/maven/zig/vcpkg/packagist/rubygems/go/swift) |
 | `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or GitHub repo (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
-| `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. Reports facts only. |
+| `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, positional package range, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. Reports facts only. |
 | `docs list <spec>` | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | List hosted/crawled and repository-backed documentation pages for a package. Entries include page IDs for `docs read`; JSON includes exact repo-file follow-up metadata when available. |
 | `docs read <page-id>` | page ID from `docs list` or search results | `--lines`, `--verbose`, `--json` | Read a documentation page by page ID. Default output is content-only; `--lines` fetches a bounded range for long pages. |
 | `code diff <target> <from>..<to>` *(experimental; config-gated)* | unversioned package/repository target and exact range, or `--repo-url` and range | `--patch`, `--stat`, `--name-only`, `--name-status`, `--max-files`, `--max-patch-bytes`, `--verbose`, `--json`, one glob after `--` | Silently dogfood bounded repository-wide tree diffs resolved from package versions or repository refs; local-only MCP `code_diff` is available when experimental tools are enabled, while public/remote MCP and shared Agent Skill guidance remain unchanged |
@@ -604,7 +604,7 @@ MCP `include_transitive: true` and CLI `--transitive` share this JSON contract.
 
 **Zero-vulns hot path.** The common case (clean package) renders as header + one-line summary body (`No active vulnerabilities affect this version.`) — no breakdown, no advisory list, no footer. Filtered zero-results say `No vulnerabilities matching the filter affect this version.` so callers do not confuse a thresholded query with a clean package.
 
-**Version validation.** `pkg vulns` expects canonical package versions. Tag-style inputs such as `@v4.18.0` are rejected client-side with `INVALID_ARGUMENT` and an actionable message telling the caller to drop the leading `v`, instead of forwarding the request and surfacing an opaque upstream failure.
+**Version validation.** `pkg vulns` accepts exact Go versions with or without their canonical lowercase `v` and sends the backend the `v`-prefixed form. Tag-style inputs such as npm `@v4.18.0` remain rejected client-side with `INVALID_ARGUMENT` for other registries except Swift.
 
 **Malware marker.** Advisories with `isMalicious: true` render with a red/bold `MALWARE` column (optionally combined as `MALWARE | crit` when both flags exist). Count surfaces in the summary breakdown line as `N MALWARE | N crit | ...`. Buckets partition every returned advisory: `MALWARE + crit + high + medium + low + unrated = advisories.length`, which equals `summary.total` when the upstream count and list stay consistent. Non-malicious advisories without a CVSS score bucket under `unrated` so the breakdown reconciles with the header total (common for PyPI / Rust advisories where CVSS may be absent).
 
@@ -639,7 +639,7 @@ githits pkg deps npm:express --issues --json
 
 Analyses dependencies for a package on npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, Go, or Swift. Default terminal output is a flat list of direct runtime dependencies with a hint summarising hidden groups. `--issues` is an explicit opt-in for deprecated, outdated, duplicate, and conflict analysis across the resolved dependency graph; it does not expose the ordinary transitive block unless `--depth` is also supplied.
 
-**Package spec.** `<registry>:<name>[@<version>]`. `@<version>` is accepted (same as `pkg vulns`); defaults to latest. Tag-style inputs such as `@v4.18.0` are rejected client-side with `INVALID_ARGUMENT` except for Swift, where `v`-prefixed release tags are accepted. All known registries are supported: `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `zig`, `vcpkg`, `packagist`, `rubygems`, `go`, and `swift`.
+**Package spec.** `<registry>:<name>[@<version>]`. `@<version>` is accepted (same as `pkg vulns`); defaults to latest. Exact Go versions may include or omit their canonical lowercase `v`; the backend always receives the `v`-prefixed form. Tag-style inputs such as `@v4.18.0` are rejected client-side with `INVALID_ARGUMENT` for other registries except Swift, where `v`-prefixed release tags are accepted. All 12 known registries are supported: `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `zig`, `vcpkg`, `packagist`, `rubygems`, `go`, and `swift`.
 
 **Two views.** The default runtime view renders a labelled `Runtime dependencies:` list from `dependencies.direct` — the flat answer to "what does this pull in?". The structured groups view (`--lifecycle all` or a concrete non-runtime lifecycle) renders a labelled `Dependency groups:` block and preserves registry-specific condition metadata (PyPI extras, Crates features). Dev / peer / build / optional deps live only in the groups view — the wire's `direct[]` is always runtime-only. The groups view does not repeat the resolved runtime list above the group block; runtime group rows include resolved versions when available.
 
@@ -698,11 +698,15 @@ Fetches release notes or changelog entries for a package or GitHub repository. O
 ### `githits pkg upgrade-review`
 
 ```
+githits pkg upgrade-review npm:express@5.0.0..5.2.1
 githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1
 githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-staged@16.2.7..16.4.0
 githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1 --verbose
 githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1 --json
 ```
+
+Use `..` for positional and repeatable `--package` ranges. The legacy `->`
+delimiter is rejected with guidance to use `..`.
 
 The human-readable CLI and MCP `pkg_upgrade_review` output use one shared
 formatter. It starts with `Upgrade review - N package(s)`, adds one
@@ -738,6 +742,8 @@ githits docs list npm:express --json
 ```
 
 Lists hosted/crawled and repository-backed documentation pages for a package. Each row includes a stable page ID for `docs read`, a source badge, and the source location. JSON output also includes repo URL / git ref / file path for repository-backed docs so callers can follow up with `code read` when source context is needed.
+
+**Version validation.** Exact Go versions may include or omit their canonical lowercase `v`; the backend always receives the `v`-prefixed form. Unlike the package-analysis commands, `docs list` preserves its existing pass-through for other registries' version strings, including a leading `v`, so their backend validation behavior does not change. Swift package-name normalization remains separate.
 
 **Pagination.** `--limit <n>` accepts 1-500. When `hasMore` is true, pass the returned `nextCursor` to `--after`.
 

@@ -59,6 +59,15 @@ describe("buildPackageVulnerabilitiesParams", () => {
     expect(params.version).toBe("v3.11.0");
   });
 
+  it("sends canonical Go versions to the backend", () => {
+    const { params } = buildPackageVulnerabilitiesParams({
+      registry: "go",
+      packageName: "golang.org/x/text",
+      version: "0.28.0",
+    });
+    expect(params.version).toBe("v0.28.0");
+  });
+
   it("omits version when not supplied", () => {
     const { params } = buildPackageVulnerabilitiesParams({
       registry: "npm",

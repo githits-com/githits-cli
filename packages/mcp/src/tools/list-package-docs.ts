@@ -30,7 +30,12 @@ const schema: ZodRawShape = {
   package_name: z
     .string()
     .describe("Package name (scoped names ok: @types/node)."),
-  version: z.string().optional().describe("Optional package version."),
+  version: z
+    .string()
+    .optional()
+    .describe(
+      "Optional exact package version. Go accepts either v-prefixed or unprefixed versions.",
+    ),
   limit: z
     .number()
     .optional()

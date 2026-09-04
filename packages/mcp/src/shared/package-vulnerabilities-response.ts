@@ -28,11 +28,10 @@
  *   bucket so every returned advisory is accounted for. The buckets
  *   always partition `security.vulnerabilities[]` after dedup.
  * - `requestedVersion` surfaces whenever the backend-resolved
- *   `version` differs from the caller's (trimmed) input. `v`-prefix
- *   normalisation is intentionally *not* applied here: non-Swift
- *   registries reject tag-style versions client-side, while Swift
- *   normalization is backend-owned and should remain visible as
- *   `requestedVersion` when it differs from the resolved version.
+ *   `version` differs from the normalized request. Exact Go versions
+ *   are canonicalized by the shared request boundary; Swift normalization
+ *   remains backend-owned and should stay visible as `requestedVersion`
+ *   when it differs from the resolved version.
  * - `modifiedAt` is included only when it differs from `publishedAt`.
  * - Sort order: malware bucket first; within a bucket, severity desc,
  *   then `publishedAt` desc, then `osvId` asc (deterministic
@@ -137,7 +136,7 @@ export interface LeanVulnerabilityReport {
 }
 
 export interface BuildVulnerabilitiesPayloadOptions {
-  /** Raw caller-supplied version string (pre-normalisation). */
+  /** Canonical requested version sent to the backend. */
   requestedVersion?: string;
   /** Caller-supplied filters, echoed from shared request parsing. */
   filter?: PackageVulnerabilitiesFilterEcho;
@@ -919,13 +918,9 @@ function deriveRequestedVersion(
   if (requested === undefined) return undefined;
   const trimmed = requested.trim();
   if (trimmed.length === 0) return undefined;
-  // Any non-empty divergence from the resolved version surfaces as
-  // `requestedVersion`. No `v`-prefix suppression: a registry that
-  // accepts a version-only input never treats `v4.17.0` as a valid
-  // canonical version — the `v` prefix is a git-tag convention, not
-  // a semver/PEP 440/Cargo version. If the backend resolved to
-  // something different, that divergence is a real signal the caller
-  // should see.
+  // The request builder already canonicalized registry-specific syntax.
+  // Any remaining divergence from the backend-resolved version is a real
+  // signal the caller should see.
   if (trimmed === resolved) return undefined;
   return trimmed;
 }

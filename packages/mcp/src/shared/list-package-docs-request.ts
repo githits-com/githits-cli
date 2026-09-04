@@ -10,6 +10,7 @@ import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,
 } from "./package-spec.js";
+import { normalisePackageVersion } from "./package-version.js";
 
 export interface ListPackageDocsRequestInput {
   registry: string;
@@ -46,8 +47,8 @@ export function buildListPackageDocsParams(
     packageName: normalisePackageName(rawPackageName, backendRegistry),
   };
 
-  const version = input.version?.trim();
-  if (version) params.version = version;
+  const version = normalisePackageVersion(input.version, backendRegistry);
+  if (version !== undefined) params.version = version;
 
   const after = input.after?.trim();
   if (after) params.after = after;

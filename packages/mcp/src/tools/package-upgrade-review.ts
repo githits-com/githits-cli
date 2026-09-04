@@ -45,12 +45,12 @@ const packageSchema = z.object({
   current_version: z
     .string()
     .describe(
-      "Currently used package version. Tag-style v-prefixes are rejected except for Swift.",
+      "Currently used package version. Go accepts versions with or without its canonical v prefix; tag-style v prefixes are rejected for other registries except Swift.",
     ),
   target_version: z
     .string()
     .describe(
-      "Target package version. Tag-style v-prefixes are rejected except for Swift.",
+      "Target package version. Go accepts versions with or without its canonical v prefix; tag-style v prefixes are rejected for other registries except Swift.",
     ),
 });
 
@@ -69,13 +69,13 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Currently used version for single-package mode. Tag-style v-prefixes are rejected except for Swift.",
+      "Currently used version for single-package mode. Go accepts versions with or without its canonical v prefix; tag-style v prefixes are rejected for other registries except Swift.",
     ),
   target_version: z
     .string()
     .optional()
     .describe(
-      "Target version for single-package mode. Tag-style v-prefixes are rejected except for Swift.",
+      "Target version for single-package mode. Go accepts versions with or without its canonical v prefix; tag-style v prefixes are rejected for other registries except Swift.",
     ),
   packages: z
     .array(packageSchema)
