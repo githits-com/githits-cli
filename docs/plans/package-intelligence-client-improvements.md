@@ -6,9 +6,9 @@
 - Phase 1 — package overview distinguishes current-version and package-history
   evidence: **COMPLETE — merged in PR #350 at `9d267a2`**
 - Phase 2 — dependency analysis exposes actionable issue and conflict evidence:
-  **IMPLEMENTED — draft PR #351, awaiting merge**
+  **COMPLETE — merged in PR #351 at `16ecf75`**
 - Phase 3 — vulnerability inspection optionally audits resolved transitive
-  dependencies: **PENDING REORIENTATION — blocked on Phase 2 merge and `$next-steps`**
+  dependencies: **PENDING REPLAN**
 - Last verified: 2026-09-04
 
 ## Problem and expected outcome
@@ -402,7 +402,7 @@ client view consumes. Callers never have to discover and combine coupled flags.
 
 ### Phase 2 — dependency issues and conflicts become actionable
 
-- **Status:** IMPLEMENTED — draft PR #351, awaiting merge
+- **Status:** COMPLETE — merged in PR #351 at `16ecf75`
 - **Expected outcome:** callers can explicitly request deprecated, outdated,
   duplicate, and conflict analysis, and every visible conflict can identify the
   target package, incompatible constraints, and contributing importers without
@@ -422,7 +422,7 @@ client view consumes. Callers never have to discover and combine coupled flags.
 
 ### Phase 3 — vulnerability inspection optionally audits transitive risk
 
-- **Status:** PENDING REORIENTATION — blocked on Phase 2 merge and `$next-steps`
+- **Status:** PENDING REPLAN
 - **Expected outcome:** an explicit `pkg_vulns` transitive mode reports direct
   package affectedness plus vulnerabilities affecting resolved dependency versions,
   with severity, package/version, matched-range, and nearest-fix evidence and without
@@ -676,10 +676,10 @@ as they do now.
   available targeted agent evaluations complete successfully; any unavailable agent
   harness is verified and recorded explicitly.
 
-## Phase 2 implemented result
+## Phase 2 merged result
 
-Phase 2 is implemented in the client repository and is awaiting merge as draft PR
-#351. It delivered CLI `--issues` and MCP `include_issues`, conditional issue and
+Phase 2 merged in PR #351 at `16ecf75`. It delivered CLI `--issues` and MCP
+`include_issues`, conditional issue and
 companion-graph selection with full-graph versus depth-bounded cost, exact lossless
 issue/conflict JSON requirements, bounded compact and complete wrapped verbose text,
 and fail-closed validation for missing issue/graph data and edge-backed ordinary
@@ -704,240 +704,8 @@ graph validation.
 Phase 2 commits, grouped compactly: feature work `56eed9f`, `ddde860`, `df37442`,
 `942278d`, `e5d9e9e`, `003141f`; tests/smoke/docs `4e1900a`, `aa1a3af`, `258c352`;
 corrections `07e11f5`, `e4fe879`, `01df950`, `2b4ef01`, `4bd9110`, `16dc4ca`,
-`d38b8c3`. The implementation is carried by draft PR #351 and is not yet merged,
-released, or deployed.
-
-## Phase 2 detailed implementation plan
-
-### Readiness recheck after Phase 1 merge
-
-Reverified on 2026-09-03 against fresh `origin/main` at `9d267a2`. No merged change
-altered the normal package-dependency request, response, tool, command, or service
-paths. The local backend GraphQL schema still exposes lazy `dependencyIssues`, typed
-`dependencyConflicts`, graph nodes, and indexed conflict edges with the shapes below.
-A live `npm:express` dependency probe still reports one conflict without importer
-detail, while a live upgrade-review probe with dependency issues successfully returned
-current and target issue totals from the deployed backend. Phase 2 therefore remained
-relevant and implementation-ready at that recheck, with no product decision or
-missing contract detail; it is now implemented and awaiting the merge recorded above.
-
-### Behavioral contract
-
-Add one explicit issue-analysis option:
-
-- CLI: `--issues`;
-- MCP: optional `include_issues: boolean`.
-
-Omission and explicit `false` preserve current behavior. `true` internally requests
-transitive analysis, the lazy `dependencyIssues` result, and the companion graph used
-to preserve current direct resolved versions and resolve conflict endpoints; it does
-not require `max_depth` or `include_importers`. If `max_depth` is also supplied,
-analysis and the selected graph cover only that bounded depth and the response echoes
-the depth. Without a depth, issue analysis and its graph payload cover the full
-resolved graph. This potentially large payload is an explicit opt-in cost.
-
-Add this exact additive top-level lean contract. The scope discriminator makes an
-uncapped resolved-graph analysis distinguishable from a caller-bounded one:
-
-```ts
-interface LeanDependencyIssueScope {
-  mode: "full" | "depth_limited";
-  maxDepth?: number; // present exactly when mode is "depth_limited"
-}
-
-interface LeanIssueCategory<T> {
-  count: number;
-  items: T[];
-}
-
-interface LeanDeprecatedDependencyIssue {
-  registry: string;
-  name: string;
-  versions: string[];
-  reasons: Array<{ version: string; reason?: string }>;
-}
-
-interface LeanOutdatedDependencyIssue {
-  registry: string;
-  name: string;
-  latestVersion?: string;
-  severity: string;
-  versions: Array<{ version: string; severity: string }>;
-  repositoryUrl?: string;
-}
-
-interface LeanDuplicateDependencyIssue {
-  registry?: string;
-  name: string;
-  versions: string[];
-}
-
-interface LeanDependencyNodeIdentity {
-  registry: string;
-  name: string;
-  version?: string;
-  root?: true;
-}
-
-interface LeanConflictRequirement {
-  constraint: string;
-  dependencyType: string;
-  importer: LeanDependencyNodeIdentity;
-  target: LeanDependencyNodeIdentity;
-}
-
-interface LeanDependencyConflictIssue {
-  registry?: string;
-  name: string;
-  versions: string[];
-  requiredVersions: string[];
-  requirements: LeanConflictRequirement[];
-}
-
-interface LeanDependencyIssues {
-  total: number;
-  scope: LeanDependencyIssueScope;
-  deprecated: LeanIssueCategory<LeanDeprecatedDependencyIssue>;
-  outdated: LeanIssueCategory<LeanOutdatedDependencyIssue>;
-  duplicates: LeanIssueCategory<LeanDuplicateDependencyIssue>;
-  conflicts: LeanIssueCategory<LeanDependencyConflictIssue>;
-}
-```
-
-Category counts and item arrays map from their same-named backend facts; they are not
-recomputed. Registry identities use the existing envelope convention of canonical
-lowercase values; preserve package names, resolved versions, latest versions,
-severity, repositories, reasons, and conflict-edge evidence exactly. Reasons remain
-untrusted prose and outdated evidence does not become an upgrade recommendation.
-
-The existing `LeanTypedConflict` keeps `name` and `requiredVersions` and adds required
-`requirements: LeanConflictRequirement[]`. Issue conflicts use the fuller interface
-above because their backend rows also carry registry and resolved target versions.
-
-The dependency resolver does not expose resolved direct versions outside the graph:
-the client needs root outgoing edges to map direct constraints to the correct node
-when several versions of one package exist. Preserve the current single-query path
-instead of adding a second depth-one alias/query merely to shrink issue-mode output.
-The resulting wire contract is:
-
-| Effective client view | `dependencyIssues` | Graph nodes | Graph edges | `vulnerabilitySummary` |
-| --- | --- | --- | --- | --- |
-| Direct/default | no | yes, depth 1 | yes, depth 1 | no |
-| Transitive footprint and conflicts | no | yes, requested depth | yes, requested depth | no |
-| Transitive importer provenance | no | yes, requested depth | yes, requested depth | no |
-| Dependency issues | yes | yes, issue depth | yes, issue depth | no |
-| Transitive vulnerability audit | no | no | no | yes |
-
-Project conflict edges into stable importer evidence while the typed graph is present:
-
-```text
-content-type
-  ^1.0.5 required by express@5.2.1
-  ^2.0.0 required by body-parser@2.3.0, type-is@2.1.0
-  ^2.1.0 required by negotiator@1.1.0
-```
-
-Use the same one-edge-to-one-requirement projection for existing
-`transitive.conflicts` and issue-analysis conflicts so internal graph indices never
-escape the shared client envelope. Retain existing `name` and `requiredVersions` keys;
-add `requirements` additively. Each requirement preserves edge multiplicity,
-`versionConstraint`, and `dependencyType`, replacing `fromIndex`/`toIndex` with the
-complete referenced node identities. A null `fromIndex` becomes the inspected package
-identity with `root: true`; no JSON deduplication is allowed. Deterministic sorting and
-deduplication are presentation-only for compact text.
-
-Default text shows category counts and bounded examples. Compact issue evidence stays
-within the resolved terminal width with formatter-authored ASCII `...`; any shortened
-row uses one caller-supplied complete-detail hint. CLI `--verbose` expands all selected
-issue rows and importer details, wrapping long prose/lists without dropping evidence.
-MCP compact text remains bounded and directs callers to `format:"json"` for complete
-rows; no generic MCP verbose flag is added in this phase. Correct the existing CLI
-`--verbose` help, which currently mentions only group metadata despite also controlling
-importer and conflict detail.
-
-### Likely affected components
-
-- `packages/core-internal/src/services/package-intelligence-service.ts` and its test:
-  add a neutral `includeDependencyIssues` package-dependency parameter, conditionally
-  select the already-typed `dependencyIssues` subtree, retain the existing graph
-  selection needed for direct versions/conflict endpoints, and prove issue omission on
-  default requests. Do not route normal dependency callers through the
-  upgrade-review-specific service method.
-- `packages/mcp/src/shared/package-dependencies-request.ts` and its test: normalize
-  `includeIssues`, make it imply internal graph analysis, and preserve current registry,
-  depth, lifecycle, and version validation.
-- `packages/mcp/src/shared/package-dependencies-response.ts` and its test: add the
-  exact issue interfaces above, graph-index resolution, lossless JSON projection,
-  text-only deduplication/sorting, and bounded text.
-- `packages/mcp/src/tools/package-dependencies.ts` and its test: add `include_issues`,
-  update selection/routing copy, and retain the first-sentence/first-80 contract.
-- `src/commands/pkg/deps.ts` and its test: add `--issues`, correct verbose help, and
-  pass the shared option.
-- Shared service fixtures, parity tests, smoke assertions, docs, and one independent
-  `changes/*.added.md` fragment.
-
-### Ordered implementation steps
-
-1. Add failing request/service tests proving `include_issues`/`--issues` requests
-   `dependencyIssues` and uses the existing graph selection at the issue-analysis
-   depth, while omission/false leaves issue computation and current graph depth
-   unchanged. Cover default depth-one, issues-only unbounded/bounded, transitive, and
-   combined selections independently.
-2. Extend the neutral package-dependency service path with conditional issue selection;
-   reuse existing schemas/normalizers and remove no upgrade-review behavior.
-3. Add failing pure projection tests for the exact four category shapes, zero/empty
-   categories, full versus depth-limited scope, multiple resolved versions, repeated
-   edges, distinct lifecycle types, multiple importers per constraint, and
-   synthetic-root edges.
-4. Implement one graph-edge-to-importer projection helper owned by the dependency
-   response module and use it for both current conflicts and issue conflicts.
-5. Add the issue envelope and bounded formatter sections; update CLI/MCP options,
-   descriptions, and surface-native detail hints.
-6. Update parity/smoke fixtures, permanent docs, and the release fragment.
-7. Run focused and full verification plus the package-dependencies agent workload.
-
-### Edge cases and failure behavior
-
-- Zero issues is positive checked evidence and emits `issues.total: 0` plus empty
-  category shapes; it is not omitted after explicit issue analysis.
-- Multiple versions of one dependency stay one registry/name row with all versions.
-- Synthetic-root conflict edges have no dependency importer node; label the root from
-  the inspected package identity rather than dropping the constraint.
-- Treat the backend's documented conflict-edge indices as an invariant. Do not add a
-  fallback for out-of-range indices without a reproduction; a verified violation belongs
-  at the service/schema boundary rather than in presentation.
-- Registry identities are canonical lowercase in the envelope; package names and
-  versions plus every conflict edge's constraint and dependency type remain exact
-  backend facts. Sorting/deduplication is text presentation only; JSON keeps one
-  requirement per backend conflict edge.
-- Unsupported dependency registries continue to fail in the existing request builder
-  before a network call.
-
-### Phase 2 verification
-
-- Focused request/service/response/tool/command/parity tests.
-- `bun test`.
-- `bun run typecheck`, `bun run lint`, and `bun run format:check`.
-- `bun run build` and `bun run validate:packages`.
-- All four CLI/MCP source and built smoke commands.
-- Targeted Claude and Codex agent evaluation with `package-dependencies.md`; inspect
-  whether agents request issue analysis for deprecation/outdated/conflict questions,
-  consume importer evidence, and avoid unsupported verdicts.
-
-### Phase 2 acceptance criteria
-
-- One uncoupled option requests issue analysis on both public surfaces.
-- Default calls and explicit false do not select or compute `dependencyIssues`.
-- Issue JSON follows the exact contract above and is additive, typed, deterministic,
-  and complete for selected backend rows and conflict-edge evidence.
-- Conflict output names contributing importers and constraints without exposing graph
-  indices, while preserving existing keys for callers.
-- Text stays bounded, surfaces verified zero, and provides a useful complete-detail
-  action.
-- Scope/depth is explicit.
-- No upgrade-review-specific method becomes the owner of normal dependency analysis.
-- Required deterministic tests, smoke, build/package validation, docs, changes
-  fragment, and targeted evals complete successfully.
+`d38b8c3`. The implementation is merged but not yet released, published, or
+deployed; its independent release fragment remains pending.
 
 ## Phase-boundary reorientation
 
