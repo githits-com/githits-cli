@@ -1397,6 +1397,64 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     });
   });
 
+  it("sends the canonical registry while accepting lowercase response identities", async () => {
+    const directBody = structuredClone(VULNS_HAPPY_BODY);
+    directBody.data.packageVulnerabilities.package.registry = "npm";
+    const auditBody = structuredClone(TRANSITIVE_AUDIT_BODY);
+    auditBody.data.packageDependencies.package.registry = "npm";
+    const requests: Array<{
+      query: string;
+      variables: Record<string, unknown>;
+    }> = [];
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      const body = JSON.parse((init?.body as string | undefined) ?? "{}");
+      requests.push(body);
+      return Promise.resolve(
+        jsonResponse(
+          body.query.includes("PackageTransitiveVulnerabilityAudit")
+            ? auditBody
+            : directBody,
+        ),
+      );
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "express",
+      version: "4.17.1",
+      minSeverity: 7.0,
+      includeTransitive: true,
+    });
+
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(requests[0]?.variables).toMatchObject({
+      registry: "NPM",
+      name: "express",
+      version: "4.17.1",
+      minSeverity: 7.0,
+    });
+    expect(requests[1]?.variables).toEqual({
+      registry: "NPM",
+      name: "express",
+      version: "4.18.0",
+      minSeverity: 7.0,
+    });
+    expect(result.package).toMatchObject({
+      name: "express",
+      registry: "npm",
+      version: "4.18.0",
+    });
+    expect(result.transitive).toMatchObject({
+      affectedPackageCount: 1,
+      affectedOccurrenceCount: 2,
+    });
+  });
+
   it("selects only the field-minimal transitive audit contract", async () => {
     const { service, fetchFn } = createAuditService(TRANSITIVE_AUDIT_BODY);
 

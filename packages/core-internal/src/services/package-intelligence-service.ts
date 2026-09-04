@@ -2880,7 +2880,7 @@ export class PackageIntelligenceServiceImpl
         token,
         query: PACKAGE_TRANSITIVE_VULNERABILITY_AUDIT_QUERY,
         variables: {
-          registry: directIdentity.registry,
+          registry: params.registry,
           name: directIdentity.name,
           version: directIdentity.version,
           minSeverity,
