@@ -22,6 +22,7 @@ export interface PkgDepsCommandOptions {
   lifecycle?: string;
   depth?: string;
   verbose?: boolean;
+  issues?: boolean;
   json?: boolean;
 }
 
@@ -37,7 +38,9 @@ export interface PkgDepsCommandDependencies {
  * `--lifecycle` filter is server-side (filters `dependencyGroups`
  * only) and implies the groups view. `--lifecycle all` renders the
  * structured view without filtering. `--depth N` opts into the
- * transitive block and caps traversal to that depth.
+ * transitive block and caps traversal to that depth. `--issues` opts into
+ * dependency issue analysis without exposing the transitive block unless
+ * `--depth` is also supplied.
  */
 export async function pkgDepsAction(
   spec: string,
@@ -61,15 +64,17 @@ export async function pkgDepsAction(
     const parsed = parsePackageSpec(spec);
 
     const userDepth = resolveDepth(options);
+    const includeIssues = options.issues;
     const includeTransitiveOutput = userDepth !== undefined;
     // Always fetch the transitive DAG on the wire — even in plain
     // mode we need it to resolve the concrete version for each
     // direct dep (`name@version` in display), and for `--verbose`
     // to annotate per-entry importer provenance. When the user
-    // didn't request transitive output, cap at depth 1 so the payload
-    // stays lean.
+    // didn't request transitive output or issue analysis, cap at depth 1
+    // so the payload stays lean.
     const wireIncludeTransitive = true;
-    const wireMaxDepth = includeTransitiveOutput ? userDepth : 1;
+    const wireMaxDepth =
+      includeTransitiveOutput || includeIssues === true ? userDepth : 1;
 
     const { params, canonicalLifecycles } = buildPackageDependenciesParams({
       registry: parsed.registry,
@@ -78,6 +83,7 @@ export async function pkgDepsAction(
       lifecycle: options.lifecycle,
       includeTransitive: wireIncludeTransitive,
       maxDepth: wireMaxDepth,
+      includeIssues,
     });
     const showGroups = canonicalLifecycles.some((entry) => entry !== "runtime");
     const needsGroupsForTextHint = options.json !== true;
@@ -99,6 +105,7 @@ export async function pkgDepsAction(
         // output. Default `--json` keeps the payload lean (~4×
         // smaller on large graphs like jest).
         includeImporters: options.verbose ?? false,
+        includeIssues,
       });
       console.log(JSON.stringify(payload));
       return;
@@ -113,6 +120,9 @@ export async function pkgDepsAction(
       includeTransitive: includeTransitiveOutput,
       maxDepth: userDepth,
       showGroups,
+      includeIssues,
+      issuesDetailHint: "Use --verbose for complete issue details.",
+      terminalWidth: process.stdout.columns,
     });
     process.stdout.write(output);
   } catch (error) {
@@ -193,6 +203,8 @@ direct runtime dependencies. Use --lifecycle all for the structured view
 groups). Runtime group rows include resolved versions when available.
 --depth opts into aggregate edge / unique-package counts, conflict detection,
 and circular-dependency flags capped to that traversal depth.
+--issues computes deprecated, outdated, duplicate, and conflict analysis across
+the resolved dependency graph. Use --verbose for complete issue details.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
 ${SUPPORTED_DEPS_REGISTRIES_LIST}. Omit @<version> for the latest release. v-prefixed versions are accepted for Swift only.`;
@@ -212,8 +224,12 @@ export function registerPkgDepsCommand(pkgCommand: Command): Command {
       "Show transitive output and cap traversal depth (1-10). Omit for direct dependencies only.",
     )
     .option(
+      "--issues",
+      "Compute deprecated, outdated, duplicate, and conflict analysis across the resolved dependency graph.",
+    )
+    .option(
       "-v, --verbose",
-      "Show conditionType / selectionMode / environmentConstraints metadata in the groups view",
+      "Show complete group metadata, issue rows, and conflict importer details",
     )
     .option("--json", "Emit the lean JSON envelope")
     .action(async (spec: string, options: PkgDepsCommandOptions) => {

@@ -114,6 +114,8 @@ export interface PackageDependenciesRequestInput {
   includeTransitiveDetails?: boolean;
   /** Optional flag to include dependency group metadata. */
   includeGroups?: boolean;
+  /** Optional flag to include transitive dependency issue analysis. */
+  includeIssues?: boolean;
   /** Optional traversal depth (1–10). */
   maxDepth?: number;
   /**
@@ -184,9 +186,11 @@ export function buildPackageDependenciesParams(
       registry,
       packageName: trimmedName,
       version,
-      includeTransitive: input.includeTransitive,
+      includeTransitive:
+        input.includeIssues === true ? true : input.includeTransitive,
       includeTransitiveDetails: input.includeTransitiveDetails,
       includeGroups: input.includeGroups,
+      includeDependencyIssues: input.includeIssues,
       maxDepth,
       lifecycle: wireLifecycles.length > 0 ? wireLifecycles : undefined,
     },

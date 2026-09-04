@@ -170,10 +170,12 @@ export interface PackageDependenciesParams {
   includeTransitiveDetails?: boolean;
   /** Include dependency group metadata. */
   includeGroups?: boolean;
+  /** Include transitive dependency issue analysis. */
+  includeDependencyIssues?: boolean;
   /**
-   * Optional transitive-traversal depth (1–10). Omit for the backend
-   * default (full graph) — note the CLI applies a 3-deep guardrail but
-   * the MCP surface deliberately does not.
+   * Optional transitive-traversal depth (1–10). Omit for the backend's full
+   * graph default. Normal direct-only CLI/MCP calls send depth 1 explicitly;
+   * issue-only calls omit depth for full analysis unless the caller bounds it.
    */
   maxDepth?: number;
   /**
@@ -1373,6 +1375,7 @@ query PackageDependencies(
   $includeTransitiveDetails: Boolean! = true
   $includeDependencyGraph: Boolean! = true
   $includeGroups: Boolean! = true
+  $includeDependencyIssues: Boolean! = false
   $maxDepth: Int
   $lifecycle: [String!]
 ) {
@@ -1430,6 +1433,50 @@ query PackageDependencies(
             toIndex
             constraint
             dependencyType
+          }
+        }
+        dependencyIssues @include(if: $includeDependencyIssues) {
+          totalCount
+          deprecatedCount
+          outdatedCount
+          duplicateCount
+          conflictCount
+          deprecatedPackages {
+            registry
+            name
+            versions
+            reasons {
+              version
+              reason
+            }
+          }
+          outdatedPackages {
+            registry
+            name
+            latestVersion
+            severity
+            versions {
+              version
+              severity
+            }
+            repositoryUrl
+          }
+          duplicatePackages {
+            registry
+            name
+            versions
+          }
+          conflicts {
+            registry
+            name
+            versions
+            requiredVersions
+            conflictingEdges {
+              fromIndex
+              toIndex
+              versionConstraint
+              dependencyType
+            }
           }
         }
       }
@@ -2855,9 +2902,15 @@ export class PackageIntelligenceServiceImpl
           registry: params.registry,
           name: params.packageName,
           version: params.version,
-          includeTransitive: params.includeTransitive,
+          includeTransitive:
+            params.includeDependencyIssues === true
+              ? true
+              : params.includeTransitive,
           includeTransitiveDetails: params.includeTransitiveDetails !== false,
-          includeDependencyGraph: params.includeTransitive === true,
+          includeDependencyGraph:
+            params.includeTransitive === true ||
+            params.includeDependencyIssues === true,
+          includeDependencyIssues: params.includeDependencyIssues === true,
           includeGroups: params.includeGroups !== false,
           maxDepth: params.maxDepth,
           lifecycle:
@@ -2904,7 +2957,33 @@ export class PackageIntelligenceServiceImpl
       );
     }
 
-    return this.normaliseDependencyReport(data);
+    const report = this.normaliseDependencyReport(data);
+    if (params.includeDependencyIssues === true) {
+      const transitive = report.dependencies?.transitive;
+      if (!transitive?.dependencyIssues) {
+        throw new MalformedPackageIntelligenceResponseError(
+          "Dependency issue analysis response missing dependency issues.",
+        );
+      }
+      if (!transitive.dependencyGraph) {
+        throw new MalformedPackageIntelligenceResponseError(
+          "Dependency issue analysis response missing dependency graph.",
+        );
+      }
+    }
+    if (params.includeTransitive === true) {
+      const transitive = report.dependencies?.transitive;
+      const hasConflictEdges = transitive?.dependencyConflicts?.some(
+        (conflict) => conflict.conflictingEdges.length > 0,
+      );
+      if (hasConflictEdges && !transitive?.dependencyGraph) {
+        throw new MalformedPackageIntelligenceResponseError(
+          "Transitive dependency conflict edges response missing dependency graph.",
+        );
+      }
+    }
+
+    return report;
   }
 
   private normaliseDependencyReport(

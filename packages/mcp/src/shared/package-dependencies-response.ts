@@ -1,8 +1,8 @@
 /**
  * Hand-crafted response envelope for the `package_dependencies` tool.
  * Shared by CLI `--json` output and MCP `content[0].text`. The terminal
- * formatter is CLI-only; it reads from the same envelope shape agents
- * consume so the two surfaces can never drift.
+ * formatter reads from the same envelope shape agents consume so the two
+ * surfaces can never drift.
  *
  * Key design commitments:
  *
@@ -19,8 +19,9 @@
  *   declared — the same signal the terminal `--verbose` view
  *   renders, derived client-side from the typed dependency graph
  *   so agents never see the graph directly.
- * - **Typed conflicts / cycles.** `transitive.conflicts` is
- *   `{name, requiredVersions}[]`; `transitive.circularDependencies`
+ * - **Typed conflicts / cycles.** `transitive.conflicts` keeps the
+ *   `{name, requiredVersions}` compatibility keys and adds complete
+ *   importer/target requirements; `transitive.circularDependencies`
  *   is `{cycle: string[]}[]`. Both map from the backend's typed
  *   `DependencyConflict` / `CircularDependencyCycle` shapes — no
  *   raw-fallback path.
@@ -44,8 +45,12 @@
  */
 
 import type {
+  DependencyConflict,
+  DependencyConflictEdge,
   DependencyGraph,
   DependencyGroup,
+  DependencyIssueConflict,
+  DependencyIssuesSummary,
   DependencyReport,
   EnvironmentMarker,
 } from "@githits/core-internal";
@@ -55,6 +60,7 @@ import type {
   DependencyLifecycle,
   DependencyLifecycleInput,
 } from "./package-dependencies-request.js";
+import { terminalWidth as measureTerminalWidth } from "./terminal-width.js";
 
 export interface LeanDirectDependency {
   name: string;
@@ -126,6 +132,70 @@ export interface LeanTransitivePackage {
 export interface LeanTypedConflict {
   name: string;
   requiredVersions: string[];
+  requirements: LeanConflictRequirement[];
+}
+
+export interface LeanDependencyIssueScope {
+  mode: "full" | "depth_limited";
+  maxDepth?: number;
+}
+
+export interface LeanIssueCategory<T> {
+  count: number;
+  items: T[];
+}
+
+export interface LeanDeprecatedDependencyIssue {
+  registry: string;
+  name: string;
+  versions: string[];
+  reasons: Array<{ version: string; reason?: string }>;
+}
+
+export interface LeanOutdatedDependencyIssue {
+  registry: string;
+  name: string;
+  latestVersion?: string;
+  severity: string;
+  versions: Array<{ version: string; severity: string }>;
+  repositoryUrl?: string;
+}
+
+export interface LeanDuplicateDependencyIssue {
+  registry?: string;
+  name: string;
+  versions: string[];
+}
+
+export interface LeanDependencyNodeIdentity {
+  registry: string;
+  name: string;
+  version?: string;
+  root?: true;
+}
+
+export interface LeanConflictRequirement {
+  constraint: string;
+  dependencyType: string;
+  importer: LeanDependencyNodeIdentity;
+  target: LeanDependencyNodeIdentity;
+}
+
+export interface LeanDependencyConflictIssue {
+  registry?: string;
+  name: string;
+  versions: string[];
+  requiredVersions: string[];
+  requirements: LeanConflictRequirement[];
+}
+
+export interface LeanDependencyIssues {
+  total: number;
+  scope: LeanDependencyIssueScope;
+  deprecated: LeanIssueCategory<LeanDeprecatedDependencyIssue>;
+  outdated: LeanIssueCategory<LeanOutdatedDependencyIssue>;
+  duplicates: LeanIssueCategory<LeanDuplicateDependencyIssue>;
+  conflicts: LeanIssueCategory<LeanDependencyConflictIssue>;
 }
 
 export interface LeanTypedCycle {
@@ -163,6 +233,7 @@ export interface LeanDependencyReport {
   runtime?: LeanRuntimeBlock;
   groups?: LeanGroupsBlock;
   transitive?: LeanTransitiveBlock;
+  issues?: LeanDependencyIssues;
   filter?: LeanFilterBlock;
 }
 
@@ -187,6 +258,8 @@ export interface BuildDependenciesPayloadOptions {
    * CLI `--verbose` view renders.
    */
   includeImporters?: boolean;
+  /** Whether to emit the additive transitive dependency issue envelope. */
+  includeIssues?: boolean;
 }
 
 // --------------------------------------------------------------------
@@ -283,10 +356,9 @@ export function buildPackageDependenciesSuccessPayload(
         transitive.dependencyConflicts &&
         transitive.dependencyConflicts.length > 0
       ) {
-        block.conflicts = transitive.dependencyConflicts.map((c) => ({
-          name: c.packageName,
-          requiredVersions: c.requiredVersions.slice().sort(),
-        }));
+        block.conflicts = transitive.dependencyConflicts.map((c) =>
+          projectTransitiveConflict(c, graph as DependencyGraph, payload),
+        );
       }
       if (
         transitive.circularDependencyCycles &&
@@ -300,11 +372,182 @@ export function buildPackageDependenciesSuccessPayload(
     }
   }
 
+  const issueSummary = bundle?.transitive?.dependencyIssues;
+  if (options.includeIssues === true && issueSummary) {
+    payload.issues = projectDependencyIssues(
+      issueSummary,
+      graph as DependencyGraph,
+      payload,
+      options.maxDepth,
+    );
+  }
+
   if (options.canonicalLifecycles && options.canonicalLifecycles.length > 0) {
     payload.filter = { lifecycles: options.canonicalLifecycles.slice() };
   }
 
   return payload;
+}
+
+function projectDependencyIssues(
+  issues: DependencyIssuesSummary,
+  graph: DependencyGraph,
+  payload: LeanDependencyReport,
+  maxDepth: number | undefined,
+): LeanDependencyIssues {
+  return {
+    total: issues.totalCount,
+    scope:
+      maxDepth === undefined
+        ? { mode: "full" }
+        : { mode: "depth_limited", maxDepth },
+    deprecated: {
+      count: issues.deprecatedCount,
+      items: issues.deprecatedPackages.map(projectDeprecatedIssue),
+    },
+    outdated: {
+      count: issues.outdatedCount,
+      items: issues.outdatedPackages.map(projectOutdatedIssue),
+    },
+    duplicates: {
+      count: issues.duplicateCount,
+      items: issues.duplicatePackages.map(projectDuplicateIssue),
+    },
+    conflicts: {
+      count: issues.conflictCount,
+      items: issues.conflicts.map((conflict) =>
+        projectIssueConflict(conflict, graph, payload),
+      ),
+    },
+  };
+}
+
+function projectDeprecatedIssue(
+  issue: DependencyIssuesSummary["deprecatedPackages"][number],
+): LeanDeprecatedDependencyIssue {
+  return {
+    registry: lowerRegistry(issue.registry),
+    name: issue.name,
+    versions: issue.versions.slice(),
+    reasons: issue.reasons.map((reason) => {
+      const out: { version: string; reason?: string } = {
+        version: reason.version,
+      };
+      if (reason.reason !== undefined) out.reason = reason.reason;
+      return out;
+    }),
+  };
+}
+
+function projectOutdatedIssue(
+  issue: DependencyIssuesSummary["outdatedPackages"][number],
+): LeanOutdatedDependencyIssue {
+  const out: LeanOutdatedDependencyIssue = {
+    registry: lowerRegistry(issue.registry),
+    name: issue.name,
+    severity: issue.severity,
+    versions: issue.versions.map((version) => ({
+      version: version.version,
+      severity: version.severity,
+    })),
+  };
+  if (issue.latestVersion !== undefined) {
+    out.latestVersion = issue.latestVersion;
+  }
+  if (issue.repositoryUrl !== undefined) {
+    out.repositoryUrl = issue.repositoryUrl;
+  }
+  return out;
+}
+
+function projectDuplicateIssue(
+  issue: DependencyIssuesSummary["duplicatePackages"][number],
+): LeanDuplicateDependencyIssue {
+  const out: LeanDuplicateDependencyIssue = {
+    name: issue.name,
+    versions: issue.versions.slice(),
+  };
+  if (issue.registry !== undefined) {
+    out.registry = lowerRegistry(issue.registry);
+  }
+  return out;
+}
+
+function projectTransitiveConflict(
+  conflict: DependencyConflict,
+  graph: DependencyGraph,
+  payload: LeanDependencyReport,
+): LeanTypedConflict {
+  return {
+    name: conflict.packageName,
+    // Preserve the established transitive-conflict ordering used by
+    // the terminal formatter; issue conflicts below retain the backend
+    // order because they are a lossless JSON contract.
+    requiredVersions: conflict.requiredVersions.slice().sort(),
+    requirements: projectConflictRequirements(
+      conflict.conflictingEdges,
+      graph,
+      payload,
+    ),
+  };
+}
+
+function projectIssueConflict(
+  conflict: DependencyIssueConflict,
+  graph: DependencyGraph,
+  payload: LeanDependencyReport,
+): LeanDependencyConflictIssue {
+  const out: LeanDependencyConflictIssue = {
+    name: conflict.name,
+    versions: conflict.versions.slice(),
+    requiredVersions: conflict.requiredVersions.slice(),
+    requirements: projectConflictRequirements(
+      conflict.conflictingEdges,
+      graph,
+      payload,
+    ),
+  };
+  if (conflict.registry !== undefined) {
+    out.registry = lowerRegistry(conflict.registry);
+  }
+  return out;
+}
+
+function projectConflictRequirements(
+  edges: DependencyConflictEdge[],
+  graph: DependencyGraph,
+  payload: LeanDependencyReport,
+): LeanConflictRequirement[] {
+  return edges.map((edge) => ({
+    constraint: edge.versionConstraint,
+    dependencyType: edge.dependencyType,
+    importer:
+      edge.fromIndex === undefined || edge.fromIndex === null
+        ? {
+            registry: payload.registry,
+            name: payload.name,
+            version: payload.version,
+            root: true,
+          }
+        : projectGraphNode(graph, edge.fromIndex),
+    target: projectGraphNode(graph, edge.toIndex),
+  }));
+}
+
+function projectGraphNode(
+  graph: DependencyGraph,
+  index: number,
+): LeanDependencyNodeIdentity {
+  // Graph edge indices are a service/schema invariant. This projection
+  // assumes that contract and deliberately does not add a presentation-
+  // layer recovery path.
+  const node = graph.nodes[index] as DependencyGraph["nodes"][number];
+  const identity: LeanDependencyNodeIdentity = {
+    registry: lowerRegistry(node.registry),
+    name: node.name,
+  };
+  if (node.version !== undefined) identity.version = node.version;
+  return identity;
 }
 
 function shouldEmitGroups(
@@ -558,7 +801,7 @@ function lowerRegistry(value: string | undefined): string {
 }
 
 // --------------------------------------------------------------------
-// Terminal formatter (CLI-only)
+// Terminal formatter (shared by CLI and MCP text surfaces)
 // --------------------------------------------------------------------
 
 /**
@@ -593,6 +836,12 @@ export interface FormatDependenciesTerminalOptions {
   /** If true, render the groups block beneath the deps list. */
   showGroups?: boolean;
   hiddenGroupsHint?: string;
+  /** Whether to render the dependency issue analysis section. */
+  includeIssues?: boolean;
+  /** Caller-owned action for complete issue details when compact output truncates. */
+  issuesDetailHint?: string;
+  /** Terminal column width for compact issue evidence; defaults to 80. */
+  terminalWidth?: number;
 }
 
 export function formatPackageDependenciesTerminal(
@@ -610,8 +859,10 @@ export function formatPackageDependenciesTerminal(
     includeTransitive: options.includeTransitive,
     maxDepth: options.maxDepth,
     includeImporters: verbose,
+    includeIssues: options.includeIssues,
   });
   const useColors = options.useColors ?? false;
+  const terminalWidth = resolveIssueTerminalWidth(options.terminalWidth);
   const showGroups = options.showGroups ?? false;
   const includeTransitive = options.includeTransitive ?? false;
 
@@ -621,7 +872,12 @@ export function formatPackageDependenciesTerminal(
 
   if (includeTransitive) {
     blocks.push(formatTransitiveDepsList(payload, verbose, useColors));
-    const issues = formatConflictsAndCycles(payload, verbose, useColors);
+    const issues = formatConflictsAndCycles(
+      payload,
+      verbose,
+      useColors,
+      terminalWidth,
+    );
     if (issues) blocks.push(issues);
   } else if (!showGroups) {
     blocks.push(formatDirectDepsList(payload, verbose, useColors));
@@ -630,6 +886,15 @@ export function formatPackageDependenciesTerminal(
   if (showGroups) {
     blocks.push(formatGroupsBlock(payload, verbose, useColors));
   }
+
+  const dependencyIssues = formatDependencyIssues(
+    payload.issues,
+    verbose,
+    useColors,
+    options.issuesDetailHint,
+    terminalWidth,
+  );
+  if (dependencyIssues) blocks.push(dependencyIssues);
 
   return `${blocks.filter((b) => b.length > 0).join("\n\n")}\n`;
 }
@@ -850,6 +1115,413 @@ function formatImporterBullets(
 }
 
 // --------------------------------------------------------------------
+// Dependency issues
+// --------------------------------------------------------------------
+
+function formatDependencyIssues(
+  issues: LeanDependencyIssues | undefined,
+  verbose: boolean,
+  useColors: boolean,
+  detailHint: string | undefined,
+  terminalWidth: number,
+): string {
+  if (!issues) return "";
+
+  const scope =
+    issues.scope.mode === "full"
+      ? "full graph"
+      : `max depth ${issues.scope.maxDepth}`;
+  const countLine = formatDependencyIssueCounts(issues);
+  const count = verbose
+    ? { lines: wrapIssueEvidence(countLine, terminalWidth), truncated: false }
+    : boundCompactIssueLines([countLine], terminalWidth);
+  const lines = [
+    `${colorize("Dependency issues", "yellow", useColors)}: ${issues.total} (${scope})`,
+    ...count.lines,
+  ];
+
+  if (issues.total === 0 && issueCategoryEvidenceCount(issues) === 0) {
+    lines.push("No dependency issues detected.");
+    return lines.join("\n");
+  }
+
+  if (verbose) {
+    lines.push(
+      ...formatVerboseIssueCategories(issues, useColors, terminalWidth),
+    );
+    return lines.join("\n");
+  }
+
+  const compact = formatCompactIssueCategories(
+    issues,
+    useColors,
+    terminalWidth,
+  );
+  compact.truncated ||= count.truncated;
+  lines.push(...compact.lines);
+  if (compact.truncated && detailHint) {
+    lines.push(...wrapIssueEvidence(detailHint, terminalWidth));
+  }
+  return lines.join("\n");
+}
+
+function formatDependencyIssueCounts(issues: LeanDependencyIssues): string {
+  return `  Deprecated ${issues.deprecated.count} | Outdated ${issues.outdated.count} | Duplicates ${issues.duplicates.count} | Conflicts ${issues.conflicts.count}`;
+}
+
+function issueCategoryEvidenceCount(issues: LeanDependencyIssues): number {
+  return (
+    issues.deprecated.items.length +
+    issues.outdated.items.length +
+    issues.duplicates.items.length +
+    issues.conflicts.items.length
+  );
+}
+
+interface FormattedIssueCategories {
+  lines: string[];
+  truncated: boolean;
+}
+
+function formatCompactIssueCategories(
+  issues: LeanDependencyIssues,
+  useColors: boolean,
+  terminalWidth: number,
+): FormattedIssueCategories {
+  const lines: string[] = [];
+  let truncated = false;
+
+  const appendBounded = (values: string[]): void => {
+    const bounded = boundCompactIssueLines(values, terminalWidth);
+    lines.push(...bounded.lines);
+    truncated ||= bounded.truncated;
+  };
+
+  const deprecated = sortIssueItems(issues.deprecated.items);
+  if (deprecated.length > 0) {
+    const shown = deprecated.slice(0, 3);
+    lines.push(colorize("Deprecated dependencies:", "yellow", useColors));
+    appendBounded(shown.map((item) => `  - ${formatDeprecatedIssue(item)}`));
+    truncated ||= issueCategoryTruncated(
+      issues.deprecated.count,
+      deprecated.length,
+      shown.length,
+    );
+  } else {
+    truncated ||= issues.deprecated.count > 0;
+  }
+
+  const outdated = sortIssueItems(issues.outdated.items);
+  if (outdated.length > 0) {
+    const shown = outdated.slice(0, 3);
+    lines.push(colorize("Outdated dependencies:", "yellow", useColors));
+    appendBounded(shown.map((item) => `  - ${formatOutdatedIssue(item)}`));
+    truncated ||= issueCategoryTruncated(
+      issues.outdated.count,
+      outdated.length,
+      shown.length,
+    );
+  } else {
+    truncated ||= issues.outdated.count > 0;
+  }
+
+  const duplicates = sortIssueItems(issues.duplicates.items);
+  if (duplicates.length > 0) {
+    const shown = duplicates.slice(0, 3);
+    lines.push(colorize("Duplicate dependencies:", "yellow", useColors));
+    appendBounded(shown.map((item) => `  - ${formatDuplicateIssue(item)}`));
+    truncated ||= issueCategoryTruncated(
+      issues.duplicates.count,
+      duplicates.length,
+      shown.length,
+    );
+  } else {
+    truncated ||= issues.duplicates.count > 0;
+  }
+
+  const conflicts = sortIssueItems(issues.conflicts.items);
+  if (conflicts.length > 0) {
+    lines.push(colorize("Conflicts:", "yellow", useColors));
+    for (const conflict of conflicts.slice(0, 3)) {
+      const formatted = formatCompactIssueConflict(conflict, terminalWidth);
+      lines.push(...formatted.lines);
+      truncated ||= formatted.truncated;
+    }
+    truncated ||= issueCategoryTruncated(
+      issues.conflicts.count,
+      conflicts.length,
+      Math.min(3, conflicts.length),
+    );
+  } else {
+    truncated ||= issues.conflicts.count > 0;
+  }
+  return { lines, truncated };
+}
+
+interface BoundedIssueLines {
+  lines: string[];
+  truncated: boolean;
+}
+
+function resolveIssueTerminalWidth(width: number | undefined): number {
+  return typeof width === "number" && Number.isFinite(width) && width > 0
+    ? Math.max(1, Math.floor(width))
+    : 80;
+}
+
+function boundCompactIssueLines(
+  values: string[],
+  width: number,
+): BoundedIssueLines {
+  let truncated = false;
+  const lines = values.map((value) => {
+    if (measureTerminalWidth(value) <= width) return value;
+    truncated = true;
+    const suffix = width >= 3 ? "..." : ".".repeat(width);
+    return `${truncateIssueText(value, width - suffix.length)}${suffix}`;
+  });
+  return { lines, truncated };
+}
+
+function truncateIssueText(value: string, width: number): string {
+  let result = "";
+  for (const character of value) {
+    if (measureTerminalWidth(result + character) > width) break;
+    result += character;
+  }
+  return result;
+}
+
+function wrapIssueEvidence(value: string, width: number): string[] {
+  if (measureTerminalWidth(value) <= width) return [value];
+  const prefix = value.match(/^\s*-\s/)?.[0] ?? value.match(/^\s*/)?.[0] ?? "";
+  const continuation = prefix.endsWith("- ")
+    ? `${prefix.slice(0, -2)}  `
+    : prefix;
+  const words = value.slice(prefix.length).split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let firstLine = true;
+  let current = truncateIssueText(prefix, width);
+  for (const word of words) {
+    const separator = current === prefix ? "" : " ";
+    if (measureTerminalWidth(current + separator + word) <= width) {
+      current += `${separator}${word}`;
+      continue;
+    }
+    const startsWithBullet = current === prefix && firstLine;
+    if (current !== prefix) lines.push(current);
+    current = truncateIssueText(
+      startsWithBullet ? prefix : continuation,
+      width,
+    );
+    firstLine = false;
+    for (const character of Array.from(word)) {
+      if (measureTerminalWidth(current + character) > width) {
+        lines.push(current);
+        current = `${truncateIssueText(continuation, width)}${character}`;
+      } else {
+        current += character;
+      }
+    }
+  }
+  if (current !== prefix) lines.push(current);
+  return lines;
+}
+
+function issueCategoryTruncated(
+  backendCount: number,
+  itemCount: number,
+  shownCount: number,
+): boolean {
+  return Math.max(backendCount, itemCount) > shownCount;
+}
+
+function formatVerboseIssueCategories(
+  issues: LeanDependencyIssues,
+  useColors: boolean,
+  terminalWidth: number,
+): string[] {
+  const lines: string[] = [];
+  const deprecated = sortIssueItems(issues.deprecated.items);
+  if (deprecated.length > 0) {
+    lines.push(colorize("Deprecated dependencies:", "yellow", useColors));
+    for (const item of deprecated) {
+      lines.push(
+        ...wrapIssueEvidence(
+          `  - ${formatDeprecatedIssue(item)}`,
+          terminalWidth,
+        ),
+      );
+    }
+  }
+  const outdated = sortIssueItems(issues.outdated.items);
+  if (outdated.length > 0) {
+    lines.push(colorize("Outdated dependencies:", "yellow", useColors));
+    for (const item of outdated) {
+      lines.push(
+        ...wrapIssueEvidence(`  - ${formatOutdatedIssue(item)}`, terminalWidth),
+      );
+    }
+  }
+  const duplicates = sortIssueItems(issues.duplicates.items);
+  if (duplicates.length > 0) {
+    lines.push(colorize("Duplicate dependencies:", "yellow", useColors));
+    for (const item of duplicates) {
+      lines.push(
+        ...wrapIssueEvidence(
+          `  - ${formatDuplicateIssue(item)}`,
+          terminalWidth,
+        ),
+      );
+    }
+  }
+  const conflicts = sortIssueItems(issues.conflicts.items);
+  if (conflicts.length > 0) {
+    lines.push(colorize("Issue conflicts:", "yellow", useColors));
+    for (const conflict of conflicts) {
+      lines.push(
+        ...wrapIssueEvidence(
+          `  - ${formatIssueConflict(conflict)}`,
+          terminalWidth,
+        ),
+      );
+      for (const line of formatConflictRequirements(conflict.requirements)
+        .lines) {
+        lines.push(...wrapIssueEvidence(line, terminalWidth));
+      }
+    }
+  }
+  return lines;
+}
+
+interface FormattedConflictRequirements {
+  lines: string[];
+  truncated: boolean;
+}
+
+function formatDeprecatedIssue(issue: LeanDeprecatedDependencyIssue): string {
+  const versions = issue.versions.join(", ");
+  const versionsByReason = new Map<string, string[]>();
+  for (const reason of issue.reasons) {
+    if (reason.reason === undefined) continue;
+    const matchingVersions = versionsByReason.get(reason.reason);
+    if (matchingVersions) matchingVersions.push(reason.version);
+    else versionsByReason.set(reason.reason, [reason.version]);
+  }
+  const reasons = [...versionsByReason.entries()]
+    .map(
+      ([reason, matchingVersions]) =>
+        `${matchingVersions.join(", ")}: ${reason}`,
+    )
+    .join("; ");
+  return `${issue.name} [${versions}]${reasons ? ` - ${reasons}` : ""}`;
+}
+
+function formatOutdatedIssue(issue: LeanOutdatedDependencyIssue): string {
+  const versions = issue.versions
+    .map((version) => `${version.version} (${version.severity})`)
+    .join(", ");
+  const latest =
+    issue.latestVersion === undefined ? "" : ` (latest ${issue.latestVersion})`;
+  return `${issue.name} [${versions}]${latest}`;
+}
+
+function formatDuplicateIssue(issue: LeanDuplicateDependencyIssue): string {
+  return `${issue.name} [${issue.versions.join(", ")}]`;
+}
+
+function formatIssueConflict(conflict: LeanDependencyConflictIssue): string {
+  const versions =
+    conflict.versions.length > 0 ? ` [${conflict.versions.join(", ")}]` : "";
+  const constraints = conflict.requiredVersions.join(", ");
+  return `${conflict.name}${versions}: ${constraints}`;
+}
+
+function formatCompactIssueConflict(
+  conflict: LeanDependencyConflictIssue,
+  terminalWidth: number,
+): FormattedConflictRequirements {
+  const requirements = formatConflictRequirements(conflict.requirements, {
+    maxGroups: 3,
+    maxImporters: 3,
+  });
+  const bounded = boundCompactIssueLines(
+    [`  - ${formatIssueConflict(conflict)}`, ...requirements.lines],
+    terminalWidth,
+  );
+  return {
+    lines: bounded.lines,
+    truncated: requirements.truncated || bounded.truncated,
+  };
+}
+
+function sortIssueItems<T extends { name: string; registry?: string }>(
+  items: T[],
+): T[] {
+  return items.slice().sort((a, b) => {
+    if (a.name !== b.name) return a.name < b.name ? -1 : 1;
+    const ar = a.registry ?? "";
+    const br = b.registry ?? "";
+    return ar < br ? -1 : ar > br ? 1 : 0;
+  });
+}
+
+function formatConflictRequirements(
+  requirements: LeanConflictRequirement[],
+  limits: { maxGroups?: number; maxImporters?: number } = {},
+): FormattedConflictRequirements {
+  const byConstraint = new Map<string, LeanConflictRequirement[]>();
+  for (const requirement of requirements) {
+    const existing = byConstraint.get(requirement.constraint);
+    if (existing) existing.push(requirement);
+    else byConstraint.set(requirement.constraint, [requirement]);
+  }
+
+  const lines: string[] = [];
+  const constraints = [...byConstraint.keys()].sort();
+  const maxGroups = limits.maxGroups ?? Number.POSITIVE_INFINITY;
+  const maxImporters = limits.maxImporters ?? Number.POSITIVE_INFINITY;
+  let truncated = constraints.length > maxGroups;
+  for (const constraint of constraints.slice(0, maxGroups)) {
+    const entries = byConstraint.get(constraint) ?? [];
+    const dependencyTypes = new Set(
+      entries.map((entry) => entry.dependencyType),
+    );
+    const includeDependencyType = dependencyTypes.size > 1;
+    const seen = new Set<string>();
+    const importers: Array<{ label: string; dependencyType: string }> = [];
+    for (const entry of entries) {
+      const importer = entry.importer;
+      const label = importer.version
+        ? `${importer.name}@${importer.version}`
+        : importer.name;
+      const key = `${label}\u0000${entry.dependencyType}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      importers.push({ label, dependencyType: entry.dependencyType });
+    }
+    importers.sort((a, b) => {
+      if (a.label !== b.label) return a.label < b.label ? -1 : 1;
+      return a.dependencyType < b.dependencyType
+        ? -1
+        : a.dependencyType > b.dependencyType
+          ? 1
+          : 0;
+    });
+    const labels = importers
+      .slice(0, maxImporters)
+      .map((importer) =>
+        includeDependencyType
+          ? `${importer.label} (${importer.dependencyType})`
+          : importer.label,
+      );
+    truncated ||= importers.length > maxImporters;
+    lines.push(`    - ${constraint} required by ${labels.join(", ")}`);
+  }
+  return { lines, truncated };
+}
+
+// --------------------------------------------------------------------
 // Conflicts + cycles (only when transitive output is requested)
 // --------------------------------------------------------------------
 
@@ -857,6 +1529,7 @@ function formatConflictsAndCycles(
   payload: LeanDependencyReport,
   verbose: boolean,
   useColors: boolean,
+  terminalWidth: number,
 ): string {
   const t = payload.transitive;
   if (!t) return "";
@@ -883,6 +1556,18 @@ function formatConflictsAndCycles(
       a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
     );
     for (const c of sorted) {
+      if (c.requirements.length > 0) {
+        lines.push(
+          ...wrapIssueEvidence(
+            `  ${c.name}: ${c.requiredVersions.join(", ")}`,
+            terminalWidth,
+          ),
+        );
+        for (const line of formatConflictRequirements(c.requirements).lines) {
+          lines.push(...wrapIssueEvidence(line, terminalWidth));
+        }
+        continue;
+      }
       const padded = `${c.name}:`.padEnd(nameWidth + 2);
       lines.push(`  ${padded}  ${c.requiredVersions.join(", ")}`);
     }

@@ -4,25 +4,24 @@
 
 - Overall: **IN PROGRESS**
 - Phase 1 — package overview distinguishes current-version and package-history
-  evidence: **IN PROGRESS — data contract implemented in draft PR #350; UX
-  correction READY**
+  evidence: **COMPLETE — merged in PR #350 at `9d267a2`**
 - Phase 2 — dependency analysis exposes actionable issue and conflict evidence:
-  **READY**
+  **IMPLEMENTED — draft PR #351, awaiting merge**
 - Phase 3 — vulnerability inspection optionally audits resolved transitive
-  dependencies: **PENDING REORIENTATION**
-- Last verified: 2026-09-03
+  dependencies: **PENDING REORIENTATION — blocked on Phase 2 merge and `$next-steps`**
+- Last verified: 2026-09-04
 
 ## Problem and expected outcome
 
-The package-intelligence backend already returns more decision-relevant data than
-the shared CLI/MCP clients expose. The largest gaps do not require a new backend
-contract:
+At planning time, the package-intelligence backend already returned more
+decision-relevant data than the shared CLI/MCP clients exposed. The largest gaps did
+not require a new backend contract:
 
-- `pkg_info` reports only the count affecting the latest version while verbose
+- `pkg_info` reported only the count affecting the latest version while verbose
   output immediately lists package-wide historical advisories. On the live
   `npm:express` response this renders “No active vulnerabilities” followed by
   five recent historical advisories, without stating the package-wide total.
-- `pkg_info` omits the already-available published-version count and download
+- `pkg_info` omitted the already-available published-version count and download
   refresh timestamp.
 - `pkg_deps` reports a conflict count in compact output but requires undocumented
   `--verbose` use to show even the conflicting package and constraints. It never
@@ -69,19 +68,19 @@ wire selections or service calls, but do not replace these user-facing distincti
 It does not mean terminal-only behavior: shared CLI and MCP surfaces change together
 unless a surface-native hint or option spelling requires a deliberate difference.
 
-### `pkg_info`
+### `pkg_info` baseline and merged result
 
-The backend `PackageSummaryResult` already exposes:
+The backend `PackageSummaryResult` exposed:
 
 - `PackageIdentity.versionCount`;
 - `PackageIdentity.downloadsRefreshedAt`; and
 - `PackageSecurityOverview.allVulnerabilityCount`.
 
-The client GraphQL document does not select or type these fields. Its lean
-`vulnerabilities.total` is the backend's latest-version affected count, while
-`recent` contains package-wide advisories. The current default text labels the
-former correctly as latest-version risk, but verbose output does not state why
-historical rows follow a zero count.
+Before Phase 1, the client GraphQL document did not select or type these fields. Its
+lean `vulnerabilities.total` held the backend's latest-version affected count, while
+`recent` contained package-wide advisories. Default text labeled the former correctly
+as latest-version risk, but verbose output did not state why historical rows followed
+a zero count.
 
 Authenticated source CLI probes on 2026-09-03 established the current baseline:
 
@@ -111,7 +110,7 @@ and preferred removing `Inspect history` over retaining it as an inline row. Thi
 supersedes the earlier plan decision that compact output needed a direct history
 hint. The `Latest:` / `History:` evidence itself was accepted and remains unchanged.
 
-The existing `includeVerboseFields` wire variable is the correct cost boundary:
+The merged implementation retains `includeVerboseFields` as the cost boundary:
 package-wide advisory count is compact/default evidence; version count and download
 refresh time are verbose/JSON evidence. The backend declares
 `allVulnerabilityCount` non-null inside the optional security block, so the client
@@ -269,10 +268,12 @@ client view consumes. Callers never have to discover and combine coupled flags.
 - JSON remains lossless for every selected backend fact, but expensive analysis is
   absent unless explicitly requested.
 - Text remains bounded and outcome-first. Default text includes decisive counts;
-  verbose text expands rows already present in the normalized response. Follow-up
-  actions belong after evidence only when the current output needs them to complete
-  the task. `pkg_info` needs no inline action because CLI help routes history today and
-  the corrected MCP descriptor will route all-version callers to `pkg_vulns`.
+  compact issue evidence is bounded to the resolved terminal width with ASCII
+  ellipses and a single complete-detail hint, while verbose text wraps without
+  dropping selected rows or requirements. Follow-up actions belong after evidence
+  only when the current output needs them to complete the task. `pkg_info` needs no
+  inline action because CLI help routes history today and the corrected MCP
+  descriptor will route all-version callers to `pkg_vulns`.
 - Backend registry/version matching and advisory classification remain authoritative.
 
 ### Error and partial-result behavior
@@ -337,6 +338,13 @@ client view consumes. Callers never have to discover and combine coupled flags.
   the existing single-query graph selection because root edges are required to map
   direct constraints to resolved versions; an uncapped issue analysis therefore has
   an explicit full-graph payload cost.
+- Ordinary transitive conflict projections also fail closed when a returned conflict
+  contains indexed `conflictingEdges` but the nullable companion graph is absent.
+  Edge-free conflict summaries remain valid without a graph because they require no
+  index resolution.
+- When issue analysis is explicitly selected, the service fails closed if either the
+  nullable `dependencyIssues` result or its companion graph is absent; default and
+  explicit-false calls retain their existing nullable transitive behavior.
 - `pkg_vulns` selects transitive vulnerability fields only for explicit transitive
   audit and does not select the dependency graph.
 - Wire tests assert variables, directives, and omitted subtrees for default and
@@ -371,8 +379,8 @@ client view consumes. Callers never have to discover and combine coupled flags.
 
 ### Phase 1 — package overview distinguishes version risk from package history
 
-- **Status:** COMPLETE — data contract and UX correction implemented and reviewed in
-  draft PR #350
+- **Status:** COMPLETE — data contract and UX correction merged in PR #350 at
+  `9d267a2`
 - **Expected outcome:** `pkg_info` reports affecting-latest and package-wide advisory
   counts without contradiction; its URL values remain readable in color-enabled
   terminals; its vulnerability field contains evidence rather than an embedded action;
@@ -394,7 +402,7 @@ client view consumes. Callers never have to discover and combine coupled flags.
 
 ### Phase 2 — dependency issues and conflicts become actionable
 
-- **Status:** READY
+- **Status:** IMPLEMENTED — draft PR #351, awaiting merge
 - **Expected outcome:** callers can explicitly request deprecated, outdated,
   duplicate, and conflict analysis, and every visible conflict can identify the
   target package, incompatible constraints, and contributing importers without
@@ -414,7 +422,7 @@ client view consumes. Callers never have to discover and combine coupled flags.
 
 ### Phase 3 — vulnerability inspection optionally audits transitive risk
 
-- **Status:** PENDING REORIENTATION
+- **Status:** PENDING REORIENTATION — blocked on Phase 2 merge and `$next-steps`
 - **Expected outcome:** an explicit `pkg_vulns` transitive mode reports direct
   package affectedness plus vulnerabilities affecting resolved dependency versions,
   with severity, package/version, matched-range, and nearest-fix evidence and without
@@ -432,7 +440,7 @@ client view consumes. Callers never have to discover and combine coupled flags.
   occurrence truncation are explicit; default query cost/output remain unchanged;
   parity, wire, smoke, build, docs, release-fragment, and agent-eval checks pass.
 
-## Phase 1 detailed implementation plan
+## Phase 1 implemented contract
 
 ### Behavioral contract
 
@@ -482,46 +490,6 @@ Verbose text adds compact trust facts rather than another prose section:
 JSON always includes selected verbose fields because MCP JSON and CLI `--json` already
 request `includeVerboseFields`; compact text does not fetch them.
 
-### Likely affected components
-
-- `packages/core-internal/src/services/package-intelligence-service.ts` and its test:
-  select/type/normalize `allVulnerabilityCount`; conditionally select/type/normalize
-  `versionCount` and `downloadsRefreshedAt`; assert compact versus verbose wire
-  selections and variables.
-- `packages/mcp/src/shared/package-summary-response.ts` and its test: add the lean
-  fields, scope-correct formatting, null omission, grammar, readable URL emphasis, and
-  evidence-only vulnerability layout.
-- `packages/mcp/src/tools/package-summary.ts` and its test: remove formatter surface
-  threading and make the descriptor explicitly route package-wide history to
-  `pkg_vulns` with `advisory_scope: "all"`, without weakening its
-  first-sentence/first-80 selection contract.
-- `src/commands/pkg/info.ts` and its test: remove formatter surface threading while
-  retaining the history command in CLI help.
-- `packages/mcp/src/services/test-helpers.ts` and directly related fixtures/parity
-  tests: add deterministic available, zero, absent-security, and malformed-security
-  cases.
-- `packages/mcp/src/smoke-test.ts` and smoke-helper tests: structurally assert the two
-  vulnerability scopes and JSON metadata when authenticated data provides them; keep
-  unauthenticated behavior unchanged.
-- Permanent implementation docs and one independent `changes/*.added.md` fragment.
-
-### Ordered implementation steps
-
-1. Add failing service tests for the three existing backend fields and compact versus
-   verbose/JSON selection behavior.
-2. Extend the service Zod/types/query/normalization with no unrelated summary fields.
-3. Add failing pure response tests for independent latest/history combinations, zero
-   values, absent security, recent historical rows, date normalization, URL color
-   projection, and the absence of an inline history action.
-4. Extend the lean envelope and shared formatter, preserving existing keys and output
-   order.
-5. Remove the now-unused surface discriminator from the formatter and thin CLI/MCP
-   entrypoints; retain and test history routing in CLI help and the MCP descriptor.
-6. Update parity fixtures, smoke assertions, implementation docs, and the release
-   fragment.
-7. Run focused tests, then the full verification set below and targeted package
-   overview/history agent workloads.
-
 ### Edge cases
 
 - `advisoryHistory.total: 0` must be emitted and rendered as verified zero, not
@@ -542,27 +510,9 @@ request `includeVerboseFields`; compact text does not fetch them.
 - Version count zero is retained in JSON; released packages normally have at least one,
   but the client does not add an unverified guard.
 
-### Phase 1 verification
-
-- Focused unit/service/tool/command/parity tests with `bun test <affected files>`.
-- `bun test`.
-- `bun run typecheck`.
-- `bun run lint` and `bun run format:check`.
-- `bun run build` and `bun run validate:packages`.
-- `bun run smoke:cli` and `bun run smoke:mcp`; authenticated evidence when available,
-  with the suites still passing unauthenticated.
-- `bun run smoke:cli:built` and `bun run smoke:mcp:built` after the build because the
-  public package and smoke-visible output both change.
-- Targeted Codex agent evaluations, plus Claude when a harness-preserved
-  non-interactive authentication input is available, using
-  `package-overview-vulnerabilities.md` and `package-vulnerability-history.md`.
-  Record an unavailable harness explicitly; otherwise inspect tool calls, final
-  answers, metrics, and isolation violations rather than treating harness completion
-  as a quality verdict.
-
 ### Phase 1 implementation record
 
-Implemented to date on 2026-09-03 in bounded product commits, including:
+Implemented and merged on 2026-09-03 in bounded product commits, including:
 
 - `77bdbc6` adds the minimal GraphQL selections, normalized service types, strict
   security-block validation, and compact-versus-detailed wire tests;
@@ -578,7 +528,13 @@ Implemented to date on 2026-09-03 in bounded product commits, including:
 - `087f43a` aligns the authored package skill, stable MCP quick-start copy, and CLI
   help layout with the advisory-scope contract; and
 - `5e33dc7` separates and aligns the `Latest:` and `History:` evidence after the first
-  live-output review.
+  live-output review; and
+- `ba5dc73` applies the final URL contrast, evidence-only hierarchy, surface cleanup,
+  and unambiguous MCP history route.
+
+PR #350 merged to `main` as `9d267a2` on 2026-09-03. The release fragment remains
+pending: the merged CLI and MCP behavior has not yet been released, published, or
+deployed to the hosted MCP server.
 
 Verified results:
 
@@ -598,8 +554,9 @@ Verified results:
 
 The implementation required no backend change, new infrastructure, fallback, or
 ownership move. Subsequent product review of `5e33dc7` accepted the evidence lines but
-reopened Phase 1 for URL contrast and action hierarchy. Phase 2 remains a separate ready
-increment; Phase 3 still requires the planned post-Phase-2 reorientation.
+reopened Phase 1 for URL contrast and action hierarchy. At that point Phase 2 was a
+separate ready increment; it is now implemented as recorded above. Phase 3 still
+requires the planned post-Phase-2 reorientation.
 
 Review closed one terminal-width defect in the internal runtime pass. Three external
 Claude Opus rounds then closed independent-history action gating, all-version scope
@@ -719,7 +676,50 @@ as they do now.
   available targeted agent evaluations complete successfully; any unavailable agent
   harness is verified and recorded explicitly.
 
+## Phase 2 implemented result
+
+Phase 2 is implemented in the client repository and is awaiting merge as draft PR
+#351. It delivered CLI `--issues` and MCP `include_issues`, conditional issue and
+companion-graph selection with full-graph versus depth-bounded cost, exact lossless
+issue/conflict JSON requirements, bounded compact and complete wrapped verbose text,
+and fail-closed validation for missing issue/graph data and edge-backed ordinary
+transitive conflicts. Edge-free conflict summaries remain valid without a graph.
+There was no backend change and no new infrastructure.
+
+Live representative inspection covered `npm:express` (69 graph nodes and issue total
+8) and `npm:is-number` (one root graph node and issue total 0). Final gates covered
+3,976 tests plus typecheck, lint, format, build, and package validation; source smoke
+passed with CLI 103 and MCP 54, and built smoke passed with CLI 23 and MCP 8.
+The final Codex descriptor evaluation reported high confidence after 9 MCP calls,
+with correct issue, importer, lifecycle, and full-versus-bounded routing. Claude
+evaluation was unavailable because its harness was not logged in.
+
+Internal full-delta review was clean. Three external Opus rounds found valid issues
+and all were fixed; the round-3 graph fix received a final internal clean result, and
+no round 4 was run because the review cap was reached. No unresolved findings remain.
+The final review also corrected the earlier contradiction: edge-backed ordinary
+transitive conflicts were added in Phase 2 and are now covered by both width and
+graph validation.
+
+Phase 2 commits, grouped compactly: feature work `56eed9f`, `ddde860`, `df37442`,
+`942278d`, `e5d9e9e`, `003141f`; tests/smoke/docs `4e1900a`, `aa1a3af`, `258c352`;
+corrections `07e11f5`, `e4fe879`, `01df950`, `2b4ef01`, `4bd9110`, `16dc4ca`,
+`d38b8c3`. The implementation is carried by draft PR #351 and is not yet merged,
+released, or deployed.
+
 ## Phase 2 detailed implementation plan
+
+### Readiness recheck after Phase 1 merge
+
+Reverified on 2026-09-03 against fresh `origin/main` at `9d267a2`. No merged change
+altered the normal package-dependency request, response, tool, command, or service
+paths. The local backend GraphQL schema still exposes lazy `dependencyIssues`, typed
+`dependencyConflicts`, graph nodes, and indexed conflict edges with the shapes below.
+A live `npm:express` dependency probe still reports one conflict without importer
+detail, while a live upgrade-review probe with dependency issues successfully returned
+current and target issue totals from the deployed backend. Phase 2 therefore remained
+relevant and implementation-ready at that recheck, with no product decision or
+missing contract detail; it is now implemented and awaiting the merge recorded above.
 
 ### Behavioral contract
 
@@ -805,9 +805,10 @@ interface LeanDependencyIssues {
 ```
 
 Category counts and item arrays map from their same-named backend facts; they are not
-recomputed. Preserve registry, package, resolved-version, latest-version, severity,
-repository, and reason evidence exactly. Reasons remain untrusted prose and outdated
-evidence does not become an upgrade recommendation.
+recomputed. Registry identities use the existing envelope convention of canonical
+lowercase values; preserve package names, resolved versions, latest versions,
+severity, repositories, reasons, and conflict-edge evidence exactly. Reasons remain
+untrusted prose and outdated evidence does not become an upgrade recommendation.
 
 The existing `LeanTypedConflict` keeps `name` and `requiredVersions` and adds required
 `requirements: LeanConflictRequirement[]`. Issue conflicts use the fuller interface
@@ -845,11 +846,14 @@ complete referenced node identities. A null `fromIndex` becomes the inspected pa
 identity with `root: true`; no JSON deduplication is allowed. Deterministic sorting and
 deduplication are presentation-only for compact text.
 
-Default text shows category counts and bounded examples. CLI `--verbose` expands all
-selected issue rows and importer details. MCP compact text remains bounded and directs
-callers to `format:"json"` for complete rows; no generic MCP verbose flag is added in
-this phase. Correct the existing CLI `--verbose` help, which currently mentions only
-group metadata despite also controlling importer and conflict detail.
+Default text shows category counts and bounded examples. Compact issue evidence stays
+within the resolved terminal width with formatter-authored ASCII `...`; any shortened
+row uses one caller-supplied complete-detail hint. CLI `--verbose` expands all selected
+issue rows and importer details, wrapping long prose/lists without dropping evidence.
+MCP compact text remains bounded and directs callers to `format:"json"` for complete
+rows; no generic MCP verbose flag is added in this phase. Correct the existing CLI
+`--verbose` help, which currently mentions only group metadata despite also controlling
+importer and conflict detail.
 
 ### Likely affected components
 
@@ -902,9 +906,10 @@ group metadata despite also controlling importer and conflict detail.
 - Treat the backend's documented conflict-edge indices as an invariant. Do not add a
   fallback for out-of-range indices without a reproduction; a verified violation belongs
   at the service/schema boundary rather than in presentation.
-- Registry/name/version values and every conflict edge's constraint and dependency
-  type remain exact backend facts. Sorting/deduplication is text presentation only;
-  JSON keeps one requirement per backend conflict edge.
+- Registry identities are canonical lowercase in the envelope; package names and
+  versions plus every conflict edge's constraint and dependency type remain exact
+  backend facts. Sorting/deduplication is text presentation only; JSON keeps one
+  requirement per backend conflict edge.
 - Unsupported dependency registries continue to fail in the existing request builder
   before a network call.
 

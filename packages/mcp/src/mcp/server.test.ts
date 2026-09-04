@@ -192,7 +192,12 @@ const DESCRIPTION_ROUTING: Record<
     prefix: /^Inspect what a package depends on, directly or transitively/,
     exactPrefix:
       "Inspect what a package depends on, directly or transitively. Lists direct runtim",
-    body: ["`pkg_info`", "`pkg_vulns`", "`pkg_upgrade_review`"],
+    body: [
+      "`pkg_info`",
+      "`pkg_vulns`",
+      "`pkg_upgrade_review`",
+      "`include_issues: true`",
+    ],
   },
   pkg_changelog: {
     prefix: /^Find release notes and changelog history/,

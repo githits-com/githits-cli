@@ -571,7 +571,16 @@ When a new tool lands with both MCP and CLI surfaces:
 - **Data-first envelope.** `runtime`, `groups`, and `transitive` are
   three independent blocks emitted based on what the backend
   returned and what the caller asked for, not on additional caller
-  flags.
+  flags. `include_issues: true` adds a separate top-level `issues`
+  block; issue analysis alone does not expose `transitive` unless
+  `max_depth` or `include_importers` independently requests that output.
+- **Issue-analysis request.** CLI `--issues` and MCP
+  `include_issues: true` use the shared request builder and service
+  parameter. The option is uncoupled and opt-in: omission/false preserve
+  existing selections and cost. A true value selects the lazy
+  `dependencyIssues` subtree and the companion graph; omitted depth means
+  full graph analysis, while `--depth N` / `max_depth: N` bounds both the
+  issue scope and graph.
 - **No `include_groups` input.** The data-first envelope emits the
   `groups` block unconditionally when the backend returned
   `dependencyGroups`, so an `include_groups: true` input would be a
@@ -594,9 +603,41 @@ When a new tool lands with both MCP and CLI surfaces:
   every duplicate the backend emitted.
 - **Preprocessed transitive.** `transitive.packages[]` carries
   `{name, version, importers[]}` records; `conflicts[]` is typed
-  `{name, requiredVersions}` when decodable; `circularDependencies[]`
-  is typed `{cycle: string[]}` when decodable. The raw DAG is
-  deliberately dropped from this tool's envelope.
+  `{name, requiredVersions, requirements}` when decodable;
+  `circularDependencies[]` is typed `{cycle: string[]}` when decodable.
+  Each conflict requirement preserves one backend edge in its original
+  multiplicity/order as `{constraint, dependencyType, importer, target}`.
+  Importer and target identities carry registry/name/version; synthetic-root
+  edges use the inspected package identity with `root: true`. Graph indices
+  never escape the envelope and the raw DAG is deliberately dropped.
+- **Dependency issue envelope.** `issues` contains `total`, `scope`
+  (`{mode: "full"}` or `{mode: "depth_limited", maxDepth}`), and
+  `deprecated`, `outdated`, `duplicates`, and `conflicts` records, each
+  shaped as `{count, items}`. Registry fields on issue rows and importer/target
+  identities are canonical lowercase in the envelope. Names, resolved/latest
+  versions, deprecation reasons, severity, repository URLs, required versions,
+  declared constraints, dependency types, and edge multiplicity/order retain
+  their backend values. Zero analysis emits `total: 0` and all four empty
+  category records. JSON preserves backend order/multiplicity; text-only
+  sorting, grouping, and bounds do not alter parity JSON.
+- **Issue text and cost boundary.** Both surfaces use the shared formatter.
+  Compact output reports total/scope and all four counts, then caps examples
+  at three per category and conflict constraint/importer groups at three each.
+  Every compact issue evidence line is bounded to the resolved terminal width
+  with formatter-authored ASCII `...`; verbose output wraps long evidence and
+  remains complete. MCP uses the formatter's 80-column default; CLI supplies its
+  current terminal width. MCP's descriptor signals that omitted `max_depth` traverses
+  the full graph and that `max_depth` bounds analysis cost and scope.
+  CLI `--verbose` renders all selected issue rows and requirements; MCP keeps
+  text compact and supplies `Pass format: "json" for complete issue details.`
+  when bounded evidence is omitted. The service query selects
+  `dependencyIssues` through `@include(if: $includeDependencyIssues)` with
+  default false, so normal/false calls do not compute or fetch that subtree;
+  issue mode fetches the internal companion graph but never exposes it. Because
+  the selected backend fields are nullable, explicit issue mode fails closed when
+  either `dependencyIssues` or the companion graph is absent. Ordinary transitive
+  conflicts fail closed when indexed `conflictingEdges` are present without the
+  companion graph; edge-free conflict summaries remain valid without it.
 
 ### `pkg_changelog`
 

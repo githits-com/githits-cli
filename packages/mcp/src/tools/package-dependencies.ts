@@ -23,6 +23,7 @@ export interface PackageDependenciesArgs {
   version?: string;
   lifecycle?: string | string[];
   include_importers?: boolean;
+  include_issues?: boolean;
   max_depth?: number;
   format?: "json" | "text" | "text-v1";
 }
@@ -63,6 +64,12 @@ const schema: ZodRawShape = {
     .describe(
       "When true, each entry in `transitive.packages[]` also carries an `importers` array — every upstream package that pulls it in, with that importer's own resolved version and the constraint it declared. Off by default because adding provenance roughly quadruples the envelope size on heavy graphs. If `max_depth` is omitted, this also requests the full transitive block.",
     ),
+  include_issues: z
+    .boolean()
+    .optional()
+    .describe(
+      'When true, computes deprecated, outdated, duplicate, and conflict analysis across the resolved dependency graph. Without `max_depth`, this traverses the full graph; set `max_depth` to bound analysis cost and scope. Off by default; use `format: "json"` for complete issue rows.',
+    ),
   max_depth: z
     .number()
     .int()
@@ -90,7 +97,11 @@ const DESCRIPTION =
   "install footprint, conflict detection, and circular-dependency " +
   "flags; layer `include_importers: true` on top when you also need " +
   "per-package provenance. Supports npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, " +
-  "Go, and Swift. Use `pkg_info` for latest package health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence.";
+  "Go, and Swift. Use `include_issues: true` for deprecated, outdated, duplicate, " +
+  'and conflict analysis across the resolved dependency graph; use `format: "json"` ' +
+  "for complete issue rows. Without `max_depth`, issues scan the full graph; " +
+  "`max_depth` bounds cost and scope. " +
+  "Use `pkg_info` for latest package health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence.";
 
 export function createPackageDependenciesTool(
   service: PackageIntelligenceService,
@@ -102,13 +113,17 @@ export function createPackageDependenciesTool(
     annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       try {
+        const includeIssues = args.include_issues;
         const includeTransitiveOutput =
           args.max_depth !== undefined || args.include_importers === true;
         // Always fetch the transitive DAG on the wire — even without
         // a transitive output block we need it at depth 1 to resolve each
         // direct dep's constraint to a concrete version (surfaced as
         // `runtime.items[].version`). Mirrors the CLI path.
-        const wireMaxDepth = includeTransitiveOutput ? args.max_depth : 1;
+        const wireMaxDepth =
+          includeTransitiveOutput || includeIssues === true
+            ? args.max_depth
+            : 1;
         const { params, canonicalLifecycles } = buildPackageDependenciesParams({
           registry: args.registry,
           packageName: args.package_name,
@@ -116,6 +131,7 @@ export function createPackageDependenciesTool(
           includeTransitive: true,
           maxDepth: wireMaxDepth,
           lifecycle: args.lifecycle,
+          includeIssues,
         });
         const showGroups =
           canonicalLifecycles.length > 0 &&
@@ -125,13 +141,6 @@ export function createPackageDependenciesTool(
           ...params,
           includeTransitiveDetails: includeTransitiveOutput,
           includeGroups: showGroups || textFormat,
-        });
-        const payload = buildPackageDependenciesSuccessPayload(report, {
-          requestedVersion: args.version,
-          canonicalLifecycles,
-          includeTransitive: includeTransitiveOutput,
-          maxDepth: args.max_depth,
-          includeImporters: args.include_importers ?? false,
         });
         if (textFormat) {
           const textLifecycles =
@@ -147,9 +156,20 @@ export function createPackageDependenciesTool(
               maxDepth: args.max_depth,
               showGroups,
               hiddenGroupsHint: 'pass lifecycle="all".',
+              includeIssues,
+              issuesDetailHint:
+                'Pass format: "json" for complete issue details.',
             }).trimEnd(),
           );
         }
+        const payload = buildPackageDependenciesSuccessPayload(report, {
+          requestedVersion: args.version,
+          canonicalLifecycles,
+          includeTransitive: includeTransitiveOutput,
+          maxDepth: args.max_depth,
+          includeImporters: args.include_importers ?? false,
+          includeIssues,
+        });
         return textResult(JSON.stringify(payload));
       } catch (error) {
         throwIfCallerCancellation(error, context?.signal);

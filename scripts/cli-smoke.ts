@@ -109,6 +109,17 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     mcpArgs: { registry: "npm", package_name: "express", format: "json" },
   },
   {
+    name: "pkg_deps_issues",
+    cliArgs: ["pkg", "deps", "npm:express", "--issues", "--json"],
+    mcpTool: "pkg_deps",
+    mcpArgs: {
+      registry: "npm",
+      package_name: "express",
+      include_issues: true,
+      format: "json",
+    },
+  },
+  {
     name: "pkg_vulns",
     cliArgs: ["pkg", "vulns", "npm:express", "--json"],
     mcpTool: "pkg_vulns",
@@ -1409,6 +1420,50 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   );
   assertRecord(depsJson, "pkg deps json");
   assertRecord(depsJson.runtime, "pkg deps json runtime");
+
+  const depsIssuesText = assertTerminalOutput(
+    await runCli(["pkg", "deps", "npm:express", "--issues"]),
+    "pkg deps issues terminal",
+  );
+  assert(
+    depsIssuesText.includes("Dependency issues"),
+    "pkg deps issues terminal missing issue heading",
+  );
+
+  const depsIssuesJson = assertJsonOutput(
+    await runCli(["pkg", "deps", "npm:express", "--issues", "--json"]),
+    "pkg deps issues json",
+  );
+  assertRecord(depsIssuesJson, "pkg deps issues json");
+  assert(
+    !("transitive" in depsIssuesJson),
+    "pkg deps issues json should not expose ordinary transitive output",
+  );
+  assertRecord(depsIssuesJson.issues, "pkg deps issues json issues");
+  assertRecord(depsIssuesJson.issues.scope, "pkg deps issues json scope");
+  assert(
+    depsIssuesJson.issues.scope.mode === "full",
+    "pkg deps issues json should report full scope",
+  );
+  for (const category of [
+    "deprecated",
+    "outdated",
+    "duplicates",
+    "conflicts",
+  ]) {
+    assertRecord(
+      depsIssuesJson.issues[category],
+      `pkg deps issues json ${category}`,
+    );
+    assert(
+      typeof depsIssuesJson.issues[category].count === "number",
+      `pkg deps issues json ${category} missing count`,
+    );
+    assert(
+      Array.isArray(depsIssuesJson.issues[category].items),
+      `pkg deps issues json ${category} missing items`,
+    );
+  }
 
   const vulnsText = assertTerminalOutput(
     await runCli(["pkg", "vulns", "npm:express"]),
