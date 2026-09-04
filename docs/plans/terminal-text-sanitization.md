@@ -11,6 +11,13 @@ This work follows the local `sanitizeTerminalText` fix added for `githits
 resolve`. It remains a separate increment because it spans existing CLI and
 public MCP formatter contracts beyond target resolution.
 
+Scope coordination on 2026-09-04: the vulnerability formatter plus extraction of
+the shared helper moved into Phase 3 of
+`docs/plans/package-intelligence-client-improvements.md`, where new transitive
+security text otherwise would repeat the verified control-sequence flaw. This plan
+now owns the remaining package formatters and later non-package surfaces; it must not
+repeat that vulnerability work after Phase 3 merges.
+
 ## Verified issue
 
 `packages/mcp/src/shared/resolve-target-response.ts` strips complete CSI, OSC,
@@ -58,11 +65,12 @@ JSON escaping.
 
 ### PR 1: Package-intelligence text metadata
 
-Extract the proven sanitizer and apply it to package-intelligence text
+After the package-intelligence Phase 3 increment extracts the proven sanitizer and
+applies it to vulnerability text, apply it to the remaining package-intelligence
 formatters. This is the next detailed increment and should remain below roughly
-1,500 changed lines including tests and docs. Measure the delta before review;
-if it approaches the limit, stop and split by package formatter rather than
-weakening field coverage or tests.
+1,500–2,000 changed lines of implementation code. Measure the delta before review;
+if it approaches the limit, stop and split by package formatter rather than weakening
+field coverage or tests.
 
 ### Later direction: Code, docs, search, and CLI errors
 
@@ -77,12 +85,14 @@ changing round-trip content. Do not design a raw-content mode or new flag in PR
 
 ### Shared helper
 
-Move the existing regex and `sanitizeTerminalText(value: string): string` into
-`packages/mcp/src/shared/terminal-text.ts`. The resolve CLI now consumes the
-helper through the workspace-only `packages/mcp/src/internal.ts` entrypoint for
-terminal error messages. Preserve that internal export in PR 1, but do not
-expose the helper through `packages/mcp/src/index.ts` or the public package
-export map.
+Phase 3 of `package-intelligence-client-improvements.md` moves the existing regex and
+`sanitizeTerminalText(value: string): string` into
+`packages/mcp/src/shared/terminal-text.ts`, migrates existing consumers, and preserves
+the workspace-only `packages/mcp/src/internal.ts` export. This plan consumes that
+helper after Phase 3 merges; it does not expose the helper through
+`packages/mcp/src/index.ts` or the public package export map. If this plan is selected
+for implementation first, reorient both plans rather than duplicating or moving the
+helper twice.
 
 The helper remains a pure string transform. It strips complete ANSI CSI/OSC and
 two-byte escape sequences before residual C0/C1/DEL controls so payload text
@@ -102,12 +112,11 @@ formatter-owned colors or raw content.
 
 ### Formatter integration
 
-Replace the resolver-local helper with the shared helper without changing
-resolver output. Then derive sanitized local display values for all untrusted
-backend and caller/request strings in these shared package formatters:
+With the helper and resolver migration already delivered by package-intelligence
+Phase 3, derive sanitized local display values for all untrusted backend and
+caller/request strings in these remaining shared package formatters:
 
 - `package-summary-response.ts`;
-- `package-vulnerabilities-response.ts`;
 - `package-dependencies-response.ts`;
 - `package-upgrade-review-response.ts`;
 - `package-changelog-response.ts`.
@@ -139,39 +148,29 @@ exact output contracts.
 
 ### Release boundary
 
-This changes both the root CLI and public `@githits/mcp` package tool text. Bump
-the root `githits` patch version in `package.json` and `server.json`, then run
-`bun run plugins:generate` to align `.plugin/plugin.json`,
-`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`,
-`.cursor-plugin/plugin.json`, `.claude-plugin/marketplace.json`,
-`gemini-extension.json`, and the versionless Antigravity `plugin.json` and
-`mcp_config.json` assets. Bump the `@githits/mcp` patch version in
-`packages/mcp/package.json`; for a new root minor, follow the coordinated-release
-rule and start the MCP package at `X.Y.0`. Add the security hardening and explicit
-pending bumps in an independent `changes/` fragment. Review public Agent Skills
-for wording impact, but do not change them unless their documented output behavior
-is now inaccurate. Run `bun run plugins:check` after generation.
+This changes both root CLI and public `@githits/mcp` text behavior. Add one
+independent `changes/` fragment with explicit pending patch impact for both artifacts.
+Feature work does not edit package versions or `CHANGELOG.md`; release preparation
+owns version and generated-manifest alignment. Review public Agent Skills for wording
+impact, but do not change them unless their documented output behavior is inaccurate.
 
 ## Tests
 
-1. Add focused helper tests covering CSI, OSC terminated by BEL and ST,
-   two-byte escapes, residual C0/C1/DEL controls, incomplete sequences, benign
-   Unicode, and ordinary printable text.
-2. Keep the existing resolver hostile-text regression and change only its
-   import path if needed.
-3. Add one hostile metadata integration case per package formatter. Populate
+1. Retain the focused helper and resolver regressions delivered with the
+   package-intelligence Phase 3 increment.
+2. Add one hostile metadata integration case per remaining package formatter. Populate
    every rendered untrusted string category across compact and verbose paths,
    including caller/request echoes. With colors disabled, remove or account for
    expected formatter-owned line breaks before proving no untrusted escape or
    control characters remain; separately assert that expected line structure and
    ordinary text are unchanged. With colors enabled, prove hostile sequences are
    absent and only expected formatter-owned SGR sequences and line breaks remain.
-4. Add changelog/upgrade-review coverage proving backend preview lines are
+3. Add changelog/upgrade-review coverage proving backend preview lines are
    sanitized while formatter-owned line structure remains intact.
-5. Add a JSON regression proving corresponding backend and caller-derived
+4. Add a JSON regression proving corresponding backend and caller-derived
    strings remain present in structured output; sanitization belongs only to
    text rendering.
-6. Assert public package declarations and manifests do not expose the helper or
+5. Assert public package declarations and manifests do not expose the helper or
    private aliases.
 
 Use existing fixtures and formatter tests. Do not add a sanitizer parity harness

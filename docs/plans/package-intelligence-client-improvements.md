@@ -4,734 +4,705 @@
 
 - Overall: **IN PROGRESS**
 - Phase 1 — package overview distinguishes current-version and package-history
-  evidence: **COMPLETE — merged in PR #350 at `9d267a2`**
+  evidence: **COMPLETE — released in 0.12.1 after PR #350**
 - Phase 2 — dependency analysis exposes actionable issue and conflict evidence:
-  **COMPLETE — merged in PR #351 at `16ecf75`**
-- Phase 3 — vulnerability inspection optionally audits resolved transitive
-  dependencies: **PENDING REPLAN**
+  **COMPLETE — released in 0.12.1 after PR #351**
+- Phase 3 — vulnerability inspection audits resolved transitive dependencies on
+  explicit request: **READY**
 - Last verified: 2026-09-04
 
-## Problem and expected outcome
+## Problem and overall expected outcome
 
-At planning time, the package-intelligence backend already returned more
-decision-relevant data than the shared CLI/MCP clients exposed. The largest gaps did
-not require a new backend contract:
+The package-intelligence backend exposes decision-relevant facts that the shared
+CLI/MCP clients historically omitted. Phases 1 and 2 closed the package-summary and
+dependency-issue gaps. The remaining gap is vulnerability inspection:
+`pkg_vulns` can report advisories affecting one package version or its package-wide
+history, but cannot answer which advisories affect the versions actually resolved in
+that package's dependency graph.
 
-- `pkg_info` reported only the count affecting the latest version while verbose
-  output immediately lists package-wide historical advisories. On the live
-  `npm:express` response this renders “No active vulnerabilities” followed by
-  five recent historical advisories, without stating the package-wide total.
-- `pkg_info` omitted the already-available published-version count and download
-  refresh timestamp.
-- `pkg_deps` reports a conflict count in compact output but requires undocumented
-  `--verbose` use to show even the conflicting package and constraints. It never
-  exposes the backend's deprecated, outdated, duplicate, and richer conflict
-  analysis.
-- `pkg_vulns` can inspect all direct package advisories through `scope=all`, but
-  cannot include vulnerabilities affecting resolved transitive dependencies even
-  though the dependency GraphQL contract already provides that analysis.
+When this plan is complete:
 
-When this plan is complete, CLI and MCP callers receive the same durable package
-evidence:
+- `pkg_info` distinguishes latest-version risk from package-wide advisory history;
+- `pkg_deps` exposes actionable dependency issues and conflict provenance across
+  every registry the deployed dependency resolver supports; and
+- `pkg_vulns` retains its direct-only default while an explicit transitive mode
+  reports affected resolved dependency versions, matched ranges, severity, and the
+  nearest known higher fix.
 
-- `pkg_info` distinguishes advisories affecting the returned version from all
-  known package advisories and includes bounded metadata/freshness facts;
-- `pkg_deps` can explicitly request dependency health analysis and turns conflict
-  counts into package, constraint, and importer evidence; and
-- `pkg_vulns` can explicitly request an npm-audit-style view of vulnerabilities
-  affecting the resolved dependency graph while retaining its existing direct
-  package history mode.
-
-These are client contracts, not temporary backend workarounds. Future backend
-summary, version, code-index, license, and version-history improvements may replace
-wire selections or service calls, but do not replace these user-facing distinctions.
+These are shared CLI/MCP contracts. JSON is additive and audit-grade; human text is
+bounded, outcome-first, and backed by the same normalized service data.
 
 ## Verified current state and evidence
 
-### Shared ownership
+### Completed client behavior
 
-- Root `src/commands/pkg/*.ts` owns Commander arguments, auth checks, terminal
-  environment inputs, and CLI-native error presentation.
-- `packages/mcp/src/tools/package-*.ts` owns MCP schemas/descriptions and thin tool
-  orchestration.
-- `packages/mcp/src/shared/package-*-request.ts` owns validation and normalized
-  request construction shared by CLI and MCP.
-- `packages/core-internal/src/services/package-intelligence-service.ts` owns the
-  transport-neutral GraphQL documents, mode-sensitive selections, Zod validation,
-  normalized service types, and typed backend errors.
-- `packages/mcp/src/shared/package-*-response.ts` owns lean JSON projection and the
-  single shared CLI/MCP text formatter for each tool.
-- CLI `--json` and MCP `format: "json"` have parity tests and must continue to
-  deep-equal for service-sourced results.
+- Reorientation is based on fresh `origin/main` at `3debd53` after PR #353.
+- PR #350 merged the `pkg_info` advisory-scope, version-count, freshness, and final
+  URL/action hierarchy contract.
+- PR #351 merged `pkg_deps --issues` / MCP `include_issues`, typed issue rows,
+  conflict importer provenance, and fail-closed companion-graph validation.
+- PR #353 consumed both change fragments into the 0.12.1 changelog and package
+  versions. npm reports `githits@0.12.1` and `@githits/mcp@0.12.1`; Phase 3 must
+  create new fragments rather than reusing the released records.
 
-“CLI-only” in this plan means client-repository work requiring no backend change.
-It does not mean terminal-only behavior: shared CLI and MCP surfaces change together
-unless a surface-native hint or option spelling requires a deliberate difference.
+### Direct vulnerability behavior
 
-### `pkg_info` baseline and merged result
+- CLI `pkg vulns <spec> --scope affected|non_affecting|all` and MCP
+  `advisory_scope` already distinguish current affectedness from package history.
+- `--severity` / `min_severity` maps labels to backend CVSS thresholds.
+  `--include-withdrawn` / `include_withdrawn` applies to the direct package query.
+- The service paginates direct advisory rows in pages of 100 and rejects incomplete
+  pagination.
+- The shared response module owns the lean JSON envelope and the only CLI/MCP text
+  formatter. CLI and MCP JSON parity is already tested.
+- A live `pkg vulns npm:express --scope all` call on 2026-09-04 resolved
+  `express@5.2.1`, reported no active vulnerability for that version, and returned
+  five historical package advisories.
 
-The backend `PackageSummaryResult` exposed:
+### Available transitive vulnerability contract
 
-- `PackageIdentity.versionCount`;
-- `PackageIdentity.downloadsRefreshedAt`; and
-- `PackageSecurityOverview.allVulnerabilityCount`.
+The backend at local commit `278cbb6d9` and the deployed GraphQL service expose the
+lazy field:
 
-Before Phase 1, the client GraphQL document did not select or type these fields. Its
-lean `vulnerabilities.total` held the backend's latest-version affected count, while
-`recent` contained package-wide advisories. Default text labeled the former correctly
-as latest-version risk, but verbose output did not state why historical rows followed
-a zero count.
-
-Authenticated source CLI probes on 2026-09-03 established the current baseline:
-
-- `pkg info npm:express` returned version 5.2.1, 529M monthly downloads, zero
-  vulnerabilities affecting latest, and no package-history count.
-- `pkg info npm:express --verbose` then listed five historical advisories.
-- The live JSON envelope likewise returned `vulnerabilities.total: 0` alongside
-  the historical `recent` rows.
-
-Post-implementation product review of the live color-enabled CLI on 2026-09-03
-found two presentation defects in the otherwise-correct data contract:
-
-- `Repository` and `Homepage` values are wrapped with the shared `dim()` style,
-  which makes URLs dark grey and low-contrast in the reviewed terminal. The color
-  module already exposes non-bold cyan through `colorize(..., "cyan", ...)`; no
-  dedicated link abstraction exists.
-- `Inspect history` is appended as an indented third vulnerability row. That makes
-  an action look like evidence owned by the `Vulnerabilities` field and weakens the
-  output hierarchy. CLI help already names the all-version `pkg_vulns` command. The
-  MCP descriptor routes version-specific vulnerability-detail questions to
-  `pkg_vulns`, but does not currently name `advisory_scope: "all"`; removing the inline
-  hint therefore requires that small descriptor correction to preserve history
-  discoverability.
-
-The user explicitly accepted URL highlighting but rejected dark-grey highlighting,
-and preferred removing `Inspect history` over retaining it as an inline row. This
-supersedes the earlier plan decision that compact output needed a direct history
-hint. The `Latest:` / `History:` evidence itself was accepted and remains unchanged.
-
-The merged implementation retains `includeVerboseFields` as the cost boundary:
-package-wide advisory count is compact/default evidence; version count and download
-refresh time are verbose/JSON evidence. The backend declares
-`allVulnerabilityCount` non-null inside the optional security block, so the client
-must reject a present security block that omits it rather than treating the field as
-optional.
-
-### `pkg_deps`
-
-The normal dependency query already selects typed `dependencyConflicts`, including
-`conflictingEdges`, and the typed dependency graph needed to resolve edge indices
-to importer identities. The lean response discards those edges and retains only
-`{name, requiredVersions}`.
-
-The backend also already exposes lazy `TransitiveDependencySummary.dependencyIssues`
-with:
-
-- aggregate deprecated, outdated, duplicate, and conflict counts;
-- exact registry/name/version rows and deprecation reasons;
-- latest-version and semver-delta evidence for outdated rows; and
-- richer conflicts containing target versions, declared constraints, and graph
-  edge indices.
-
-The service Zod schemas and normalized `DependencyIssuesSummary` types exist because
-`pkg_upgrade_review` consumes them, but the normal `PACKAGE_DEPENDENCIES_QUERY` and
-`pkg_deps` request path never select them.
-
-Authenticated `pkg deps npm:express --depth 3` on 2026-09-03 reported one conflict
-but no detail. Adding `--verbose` revealed only:
-
-```text
-Conflicts (1):
-  content-type:   ^1.0.5, ^2.0.0, ^2.1.0
+```graphql
+packageDependencies(..., includeTransitive: true) {
+  dependencies {
+    transitive {
+      vulnerabilitySummary(minSeverity: $minSeverity) {
+        affected { totalVulnerabilities ... }
+        totalPackagesAnalyzed
+        affectedPackageCount
+        packages {
+          registry
+          name
+          affectedCount
+          advisoryOccurrences(
+            scope: AFFECTED
+            minSeverity: $minSeverity
+          ) {
+            version
+            affectsResolvedVersion
+            matchedAffectedVersionRanges
+            fixVersionsAboveResolved
+            nearestFixedVersion
+            advisory { ... }
+          }
+        }
+      }
+    }
+  }
+}
 ```
 
-The same verbose transitive listing already proved the graph contains the missing
-importer evidence: Express requires `^1.0.5`; body-parser and type-is require
-`^2.0.0`; negotiator requires `^2.1.0`. The gap is projection/discoverability, not
-backend data.
+Verified semantics:
 
-### `pkg_vulns`
+- the inspected root package is excluded from resolved dependency totals;
+- `affectedCount` and `totalVulnerabilities` count package-version/advisory
+  occurrences, not merely unique advisory IDs;
+- affected occurrences carry the resolved version, exact matching ranges, higher
+  fixed-version candidates, and nearest candidate;
+- `minSeverity` filters aggregates, package rows, and occurrences consistently;
+- transitive analysis excludes withdrawn advisories unconditionally;
+- `advisoryOccurrences` returns every matching row when `limit` is omitted; a
+  supplied limit is capped at 500; and
+- `packages` can contain non-affecting-only rows, so the client must retain only
+  rows with positive `affectedCount` for the affected audit.
 
-Direct package history is already implemented:
+The current core client already validates and normalizes the broader transitive
+summary for upgrade-review probes, but that query hard-caps affected occurrences at
+five per package and selects additional upgrade evidence. It is not a complete audit
+contract and is not the right normal `pkg_vulns` path.
 
-- CLI uses `--scope affected|non_affecting|all`;
-- MCP uses `advisory_scope` with the same values;
-- counts always distinguish affected, non-affecting, and all advisories; and
-- descriptors, help, tests, and the `package-vulnerability-history` agent workload
-  cover package-wide history.
+Authenticated production probes on 2026-09-04 established the intended selection:
 
-Authenticated `pkg vulns npm:next` on 2026-09-03 reported zero affecting the latest
-version and 64 historical advisories. `--scope all --json` returned all 64 rows.
-The capability is already discoverable through CLI help. The MCP tool descriptor must
-name the all-version `pkg_vulns` route as part of this correction; `pkg_info` does not
-need to repeat that routing action inside its evidence table.
+| Package | Resolved package versions checked | Affected packages | Affected occurrences | Observed duration |
+| --- | ---: | ---: | ---: | ---: |
+| `npm:express@4.17.1` | 49 | 6 | 11 | 0.6 s |
+| `npm:webpack@5.75.0` | 101 | 0 | 0 | 3.1 s |
+| `npm:react-scripts@5.0.1` | 1,235 | 9 | 21 | 23.7 s |
 
-For transitive risk, the backend already exposes lazy
-`packageDependencies.dependencies.transitive.vulnerabilitySummary(minSeverity:)`.
-The core client already validates and normalizes its affected/non-affecting counts,
-severity buckets, affected package rows, advisory IDs, most-critical advisory, and
-bounded affected-version occurrences for `pkg_upgrade_review`. Transitive summaries
-always exclude withdrawn advisories; the direct package query can optionally include
-withdrawn rows. NuGet, Maven, and Packagist support direct vulnerability queries but
-are not supported by the current dependency client.
+The uncapped `react-scripts` response included six occurrences for one package,
+proving that omission of `limit` returns evidence the existing upgrade probe drops.
+All three calls selected no dependency graph. These are representative observations,
+not latency guarantees.
 
-### Contradictions resolved during planning
+A Crates probe of `reqwest@0.11.20` returned one affected `h2@0.3.27`
+occurrence keyed by `RUSTSEC-2026-0258` with `GHSA-q83h-524g-xf6h` as its alias,
+not two occurrences. `cargo-edit@0.11.11` likewise returned each GHSA/RUSTSEC alias
+pair once. This verifies that the backend transitive classifier performs the logical
+alias deduplication that the direct client currently has to apply itself.
 
-- The original concern that `pkg_vulns` cannot inspect package history is stale:
-  current CLI/MCP behavior supports it and live evidence verifies it. CLI help and
-  the MCP descriptor provide sufficient discovery; default `pkg_info` output should
-  stay focused on the evidence it owns.
-- The original concern that dependency conflict details are absent from GraphQL is
-  false. Typed edges already exist. Current output hides or drops them.
-- The original Phase 1 plan treated an inline `Inspect history` action as necessary.
-  Product review of the implemented output rejected that hierarchy. The action will
-  be removed from `pkg_info` text rather than moved into another section; CLI help
-  and the MCP descriptor are the routing owners. The descriptor needs a small wording
-  correction because it currently mentions only version-specific details.
-- Repository code statistics exist in `codeOverview`, but composing `targetInfo`
-  and a potentially index-triggering query inside `pkg_info` would be a temporary,
-  latest-only client workaround. This plan waits for the backend-owned no-side-effect
-  contract instead.
+### Registry capability drift
+
+The deployed dependency resolver now accepts npm, PyPI, Hex, Crates, vcpkg, Zig,
+NuGet, Maven, Packagist, RubyGems, Go, and Swift. Live typed-client probes resolved:
+
+- `nuget:Newtonsoft.Json@13.0.4`;
+- `maven:org.apache.commons:commons-lang3@3.20.0`; and
+- `packagist:monolog/monolog@3.11.0`.
+
+Their transitive vulnerability summaries also completed successfully. The client
+`pkg_deps` request builder and ecosystem audit still classify NuGet, Maven, and
+Packagist as unsupported. This is stale client capability data, not a backend gap.
+
+Direct vulnerability data remains unavailable for vcpkg and Zig. Therefore the
+current transitive-vulnerability registry set is exactly the direct-vulnerability
+set: npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift.
+
+### Contradictions resolved by reorientation
+
+- The earlier plan treated NuGet, Maven, and Packagist as unsupported dependency
+  registries. That is now false in the deployed backend and must be corrected in the
+  client, docs, and ecosystem audit.
+- The earlier acceptance criterion required explicit occurrence truncation. The
+  backend supports complete affected occurrences by omitting `limit`, and production
+  probes verified that shape. Phase 3 will return complete JSON instead of inventing
+  a client cap or truncation metadata.
+- Reusing the upgrade-review dependency probe would silently retain its five-row
+  limit and broader query. Phase 3 needs a dedicated minimal query.
 
 ## Scope
 
-1. Enrich `pkg_info` with already-available advisory-scope, version-count, and
-   download-freshness evidence.
-2. Finish the `pkg_info` presentation with readable URL emphasis and a vulnerability
-   block containing evidence only.
-3. Add explicit dependency issue analysis to `pkg_deps` and make current conflict
-   evidence actionable.
-4. Add explicit transitive vulnerability audit mode to `pkg_vulns`.
-5. Preserve shared CLI/MCP JSON parity, compact text hierarchy, typed errors,
-   minimal GraphQL selections, smoke coverage, and agent discoverability.
-6. Update permanent implementation documentation and add one independent changes
-   fragment per delivered phase.
+1. Add CLI `--transitive` and MCP `include_transitive: boolean` to
+   `pkg_vulns`. Omission and explicit `false` retain direct-only behavior.
+2. Return complete affected transitive occurrences in CLI `--json` and MCP
+   `format: "json"`; bound only human-readable text.
+3. Apply the existing severity threshold to both direct and transitive queries.
+   Keep direct advisory scope and withdrawn controls direct-only and state that
+   boundary in output metadata and text.
+4. Add a field-minimal transitive vulnerability query that selects neither the
+   dependency DAG nor direct/group/issue dependency data.
+5. Centralize client registry capability ownership and enable NuGet, Maven, and
+   Packagist for `pkg_deps`, matching the deployed resolver.
+6. Preserve CLI/MCP parity, typed errors, smoke coverage, agent discoverability,
+   permanent documentation, and per-artifact release fragments.
 
 ## Non-goals
 
-- `pkg_quality` and package comparison. The user postponed both on 2026-09-03
-  because their product contracts need more work.
-- Version-aware `pkg_info`; tracked by private backend issue #2211.
-- Exact-version, non-triggering code-index availability and repository statistics;
-  tracked by private backend issue #2212.
-- Transitive dependency licenses; tracked by private backend issue #2213.
-- Package version listing/history; tracked by private backend issue #2214.
-- Client-side N+1 fallbacks for version, license, code-index, or repository data.
-- A new aggregate backend query, cache, queue, feature flag, retry loop, or local
-  vulnerability/semver evaluator.
-- Changing default direct-package vulnerability scope from affected to all.
-- Treating historical or transitive advisory presence as an approval, rejection,
-  or risk verdict.
-- Documentation availability, monorepo sibling-package discovery, and new package
-  commands. These are separate product surfaces, not required to close the verified
-  gaps above.
-- A repository-wide URL-color redesign. Phase 1 changes only the two URL values in
-  `pkg_info`; other formatters retain their current presentation until separately
-  reviewed.
+- Changing the default direct advisory scope from affected to all.
+- Reporting non-affecting transitive history or withdrawn transitive advisories.
+- Adding an occurrence limit, pagination option, dependency depth option, or partial
+  transitive result.
+- Returning the raw dependency graph, dependency groups, dependency issues, or
+  transitive license data from `pkg_vulns`.
+- Reusing or changing `pkg_upgrade_review` behavior.
+- Adding a backend aggregate query, cache, retry, queue, feature flag, or local
+  version/vulnerability evaluator.
+- Assigning safety, upgrade approval, compatibility, or risk verdicts.
+- Version-aware `pkg_info`, code-index availability, repository-quality scoring,
+  package comparison, or transitive licenses. Those remain outside this client phase.
+- Changing a public REST/GraphQL API. This phase consumes the deployed GraphQL
+  contract and changes the public CLI/MCP package surfaces only.
 
 ## Target architecture
 
 ### Boundaries and ownership
 
-Package summary owns root-package identity and overview facts. Dependency analysis
-owns the resolved graph and its health evidence. Vulnerability presentation owns the
-user's direct-plus-transitive audit question, but consumes dependency analysis rather
-than reimplementing graph traversal.
+- **Registry capabilities:** a new
+  `packages/mcp/src/shared/pkgseer-capabilities.ts` owns client-known
+  dependency and vulnerability registry sets, predicates, and human-readable lists.
+  Multiple package request builders and the ecosystem audit consume that source. This
+  is the right level because these are client feature capabilities, not registry
+  taxonomy and not formatter policy. Keeping a second set inside
+  `package-vulnerabilities-request.ts` would preserve the drift already observed.
+- **Request semantics:** `package-vulnerabilities-request.ts` owns
+  `includeTransitive` normalization alongside existing version, severity, scope, and
+  withdrawn inputs. CLI and MCP keep surface-native spellings but produce one
+  `PackageVulnerabilitiesParams`.
+- **Data access:** `PackageIntelligenceService.packageVulnerabilities` owns the
+  complete direct-plus-optional-transitive vulnerability report. It first completes
+  the existing direct query/pagination, then—only when requested—executes one
+  dedicated transitive query using the exact backend-resolved root version. This
+  prevents a latest-release race and preserves Swift's backend-owned version
+  normalization.
+- **Graph analysis:** the backend `packageDependencies` resolver continues to own
+  dependency traversal and advisory classification. The client neither requests nor
+  reconstructs the graph.
+- **Presentation:** `package-vulnerabilities-response.ts` owns the additive lean
+  transitive envelope, deterministic presentation ordering, and the shared
+  CLI/MCP text formatter. Entrypoints remain thin.
+- **Terminal-text safety:** `packages/mcp/src/shared/terminal-text.ts` owns the
+  existing proven control-sequence sanitizer after it is extracted from the
+  resolve-target response module. The vulnerability formatter sanitizes local
+  display values before width measurement, wrapping, interpolation, or color; JSON
+  builders remain lossless. This is the right shared boundary because terminal
+  controls are a cross-formatter text concern. Importing the helper from a
+  resolve-target module or duplicating its regex would preserve misplaced ownership.
 
-The durable data flow remains:
+The sequential second query is deliberate. Reusing
+`PackageIntelligenceService.packageDependencies` would over-fetch direct
+dependencies, groups, or graph data; combining the transitive root field with the
+paginated direct query would either repeat expensive transitive work on later pages
+or add page-dependent query behavior. One dedicated query after direct version
+resolution is the smallest consistent boundary.
+
+### Data flow
 
 ```text
-CLI command / MCP tool
+CLI pkg vulns / MCP pkg_vulns
   -> shared request builder
-  -> PackageIntelligenceService
-       -> field-minimal GraphQL query selected by requested mode
-       -> Zod validation and neutral normalized types
+  -> PackageIntelligenceService.packageVulnerabilities
+       -> existing direct vulnerability query and pagination
+       -> if includeTransitive === true:
+            dedicated packageDependencies vulnerabilitySummary query
+            using the resolved direct-package version
+  -> VulnerabilityReport { package, security?, transitive? }
   -> shared lean response builder
-  -> JSON, or one shared text formatter
-       CLI: colors, terminal width, CLI-native hints
-       MCP: no colors, bounded fallback width, MCP-native hints
+  -> JSON, or shared text formatter with surface/width/color inputs
 ```
 
-No entrypoint owns response semantics independently. New booleans are explicit
-opt-ins and work when sent as `true`; omission and explicit `false` retain current
-behavior. A flag that requests graph analysis drives the necessary backend
-computation internally, while the service selects only the result fields the chosen
-client view consumes. Callers never have to discover and combine coupled flags.
+An explicit transitive request is atomic at the client boundary. If the second query
+fails or violates its contract, the command/tool returns the existing mapped error;
+it does not silently return direct-only evidence.
 
-### Stable public response principles
+### Service contract
 
-- Keep existing fields and meanings. In particular,
-  `pkg_info.vulnerabilities.total` continues to mean advisories affecting the
-  returned/latest version; it is never silently redefined as package-wide history.
-- Add scope-explicit fields. Package-wide history and dependency audit evidence must
-  be named so a future selected-version `pkg_info` remains unambiguous.
-- JSON remains lossless for every selected backend fact, but expensive analysis is
-  absent unless explicitly requested.
-- Text remains bounded and outcome-first. Default text includes decisive counts;
-  compact issue evidence is bounded to the resolved terminal width with ASCII
-  ellipses and a single complete-detail hint, while verbose text wraps without
-  dropping selected rows or requirements. Follow-up actions belong after evidence
-  only when the current output needs them to complete the task. `pkg_info` needs no
-  inline action because CLI help routes history today and the corrected MCP
-  descriptor will route all-version callers to `pkg_vulns`.
-- Backend registry/version matching and advisory classification remain authoritative.
+Extend the neutral types additively:
 
-### Error and partial-result behavior
+```ts
+interface PackageVulnerabilitiesParams {
+  // existing fields unchanged
+  includeTransitive?: boolean;
+}
 
-- Existing direct-only behavior and errors are unchanged when new flags are absent.
-- An explicitly requested dependency issue or transitive vulnerability analysis does
-  not silently degrade to direct-only output. Unsupported registries and failed graph
-  analysis return the existing typed client/backend error envelope.
-- Direct `include_withdrawn` applies only to direct package advisories because the
-  existing transitive backend summary excludes withdrawn advisories. Text and JSON
-  state that distinction; no client-side approximation is added.
-- `min_severity` applies to both direct and transitive advisories when transitive
-  audit is requested. Direct `advisory_scope` continues to control direct advisory
-  rows; transitive audit reports only advisories affecting resolved dependency
-  versions.
+interface TransitiveVulnerabilityAudit {
+  /** Number of resolved package-version graph nodes checked. */
+  totalPackagesAnalyzed: number;
+  /** Number of registry/name dependency package rows with affected occurrences. */
+  affectedPackageCount: number;
+  affectedOccurrenceCount: number;
+  calculatedAt?: string;
+  packages: TransitiveVulnerabilityAuditPackage[];
+}
+
+interface TransitiveVulnerabilityAuditPackage {
+  registry: string;
+  name: string;
+  affectedOccurrenceCount: number;
+  occurrences: TransitiveDependencyVulnerability[];
+}
+
+interface VulnerabilityReport {
+  package: PackageVersionIdentity;
+  security?: VulnerabilitySecurityDetails;
+  transitive?: TransitiveVulnerabilityAudit;
+}
+```
+
+The dedicated GraphQL document selects:
+
+- root package `name`, `registry`, and `version` for identity validation;
+- affected total only, `totalPackagesAnalyzed`, `affectedPackageCount`, and
+  `calculatedAt`;
+- package `registry`, `name`, and `affectedCount`; and
+- all `advisoryOccurrences(scope: AFFECTED, minSeverity: $minSeverity)` with no
+  `limit`, including resolved version, affectedness proof, matched ranges, higher
+  fix candidates, nearest fix, ID/aliases, summary, severity, dates, and malicious
+  marker.
+
+It does not select `nonAffecting`, `combined`, `versions`, `advisoryIds`,
+`mostCritical`, advisory-wide affected/fixed arrays, dependency graph, direct
+dependencies, groups, conflicts, issues, or cycles.
+
+For an explicit audit, the service fails closed when:
+
+- the nullable transitive summary is absent;
+- returned root identity/version differs from the direct report;
+- an affected occurrence claims `affectsResolvedVersion: false` or has no matched
+  range;
+- an affected package's complete occurrence length differs from its
+  `affectedCount`;
+- the retained positive-count package rows differ from
+  `affectedPackageCount`; or
+- their occurrence-count sum differs from the affected aggregate total.
+
+Non-affecting-only package rows are valid backend output and are omitted from the
+normalized affected audit. No fallback or partial-result state is added.
+
+### Public JSON contract
+
+Existing top-level fields and meanings remain unchanged. Explicit transitive mode
+adds:
+
+```ts
+interface LeanTransitiveVulnerabilityAudit {
+  scope: "resolved_dependencies";
+  withdrawnAdvisoriesIncluded: false;
+  summary: {
+    totalPackagesAnalyzed: number;
+    affectedPackageCount: number;
+    affectedOccurrenceCount: number;
+    bySeverity?: Partial<Record<VulnBucket, number>>;
+  };
+  calculatedAt?: string;
+  packages: LeanTransitiveVulnerablePackage[];
+}
+
+interface LeanTransitiveVulnerablePackage {
+  registry: string;
+  name: string;
+  affectedOccurrenceCount: number;
+  occurrences: LeanTransitiveVulnerabilityOccurrence[];
+}
+
+interface LeanTransitiveVulnerabilityOccurrence {
+  resolvedVersion: string;
+  id?: string;
+  aliases?: string[];
+  summary?: string;
+  severity?: number;
+  severityLabel?: VulnSeverityLabel;
+  matchedAffectedVersionRanges: string[];
+  fixVersionsAboveResolved: string[];
+  nearestFixedVersion?: string;
+  publishedAt?: string;
+  modifiedAt?: string;
+  isMalicious?: true;
+}
+
+interface LeanVulnerabilityReport {
+  // existing fields unchanged
+  transitive?: LeanTransitiveVulnerabilityAudit;
+}
+```
+
+`packages` is present as an empty array after a successful zero-result audit so
+callers can distinguish checked-clean from not requested. Severity buckets partition
+the complete affected occurrence rows using the existing disjoint
+`malware | critical | high | medium | low | unrated` vocabulary; their sum equals
+`affectedOccurrenceCount`. Backend aggregate and package counts remain the source
+of truth and are validated against the complete selected rows. No transitive alias
+deduplication is added because the backend advisory classifier already deduplicates
+logical advisories before producing occurrences.
+
+The existing top-level `filter` continues to echo caller input. Documentation and
+text state that `advisoryScope` and `includeWithdrawn` affect direct package rows
+only, while `minSeverity` affects both direct and transitive rows.
+
+### Human-readable contract
+
+Direct-only text remains byte-for-byte unchanged for control-free values. Hostile
+control-bearing values are intentionally sanitized. With transitive mode, the
+existing direct package evidence remains first, followed by one final section:
+
+```text
+Resolved dependencies
+11 affected advisory occurrences in 6 dependency packages; 49 resolved package
+versions checked
+  4 high | 3 medium | 4 low
+
+  high  body-parser@1.19.0  GHSA-...  summary
+        matched      >=1.19.0 <1.20.3
+        nearest fix  1.20.3
+
+... (+6 more; use -v)
+```
+
+- A zero result says:
+  `No affected advisory occurrences found; N resolved package versions checked.`
+- Compact text shows at most five occurrence rows across all packages, ordered by
+  malware/severity first and then stable package/advisory identity.
+- `--verbose` / `verbose:true` shows every selected occurrence and all matched
+  ranges/fix candidates.
+- Each row states the nearest known higher fix, or explicitly says that no higher
+  fixed version is known.
+- Long summaries and range/fix lists wrap to the supplied terminal width without
+  splitting package coordinates, versions, advisory IDs, or URLs.
+- One surface-native completion hint appears after all truncated transitive evidence,
+  not inside an evidence row.
+- Formatter-authored punctuation remains ASCII, backend Unicode is preserved, and
+  color never carries unique meaning.
+- Every backend/caller-derived direct and transitive display value is sanitized for
+  ANSI, OSC, C0, C1, and DEL controls before layout or formatter-owned color is
+  applied. JSON preserves the original strings through normal JSON escaping.
+- If direct `include_withdrawn` is active, the transitive section states once that
+  withdrawn advisories are excluded from dependency analysis.
 
 ## Assumptions and unknowns
 
 ### Overall assumptions
 
-- The currently deployed GraphQL fields match the committed backend schema inspected
-  on 2026-09-03; authenticated live probes confirmed the existing summary, history,
-  and conflict paths.
-- Additive CLI flags and MCP arguments are appropriate because issue/security graph
-  analysis is materially more expensive than current defaults.
-- `text-v1` can evolve in place while JSON fields remain additive and existing field
-  meanings remain stable.
-- Non-bold cyan is the Phase 1 URL emphasis color. This is an explicit planning
-  assumption based on the user's acceptance of URL highlighting and rejection of
-  dark grey; it uses an existing color primitive, preserves ordinary text weight,
-  and does not make color carry meaning.
-- Each phase is a separate implementation/review/PR increment to keep tool behavior,
-  output review, and release impact bounded.
+- The deployed GraphQL contract and registry support verified on 2026-09-04 remain
+  available through implementation.
+- A complete transitive audit may be slow for very large graphs; explicit opt-in is
+  the product cost boundary.
+- `text-v1` may evolve in place while JSON remains additive.
+- Phases remain separate merged increments; Phase 3 does not rewrite Phases 1 or 2.
 
 ### Overall unknowns or product decisions
 
-- None for Phases 1 and 2. This plan fixes non-bold cyan and removal of the inline
-  action as the Phase 1 product contract.
-- Phase 3 tactical detail will be refreshed after Phase 2 merges, but its product
-  outcome, opt-in behavior, scope semantics, and error behavior are decided here.
+None. Registry scope, option names, full-occurrence behavior, direct/transitive
+filter semantics, error behavior, and public response shape are defined above.
 
 ## Cross-cutting considerations
 
 ### Security and trust
 
-- Package descriptions, advisory summaries, deprecation reasons, repository URLs,
-  and dependency metadata remain untrusted backend text. Reuse existing guardrails
-  and sanitization boundaries; do not interpolate them into executable commands.
-- Counts, affectedness, constraints, versions, and importer edges are evidence, not
-  advice. Formatters must not declare a package safe, compatible, legally acceptable,
-  or suitable for upgrade.
-- No credentials or raw GraphQL/auth payloads enter fixtures, docs, diagnostics, or
-  review evidence.
+- Advisory summaries, package names, versions, ranges, aliases, and fix strings are
+  untrusted backend text. Human/agent text strips terminal-control sequences before
+  layout and never interpolates values into executable commands; JSON stays
+  lossless.
+- Counts and nearest fixed versions are evidence, not safety or upgrade
+  recommendations. `nearestFixedVersion` is an advisory-level candidate above the
+  resolved version, not proof that every matched range is fixed there.
+- No credentials, raw authorization headers, or raw GraphQL bodies enter fixtures,
+  diagnostics, documentation, or review evidence.
 
-### Performance and data fetching
+### Performance and compatibility
 
-- This is not an optimization; no performance benchmark is required. Graph analysis
-  cost is nevertheless part of the public contract.
-- `pkg_info` selects compact/default fields unconditionally and gates verbose/JSON-only
-  metadata with the existing directive variable.
-- `pkg_deps` selects `dependencyIssues` only for explicit issue analysis. It preserves
-  the existing single-query graph selection because root edges are required to map
-  direct constraints to resolved versions; an uncapped issue analysis therefore has
-  an explicit full-graph payload cost.
-- Ordinary transitive conflict projections also fail closed when a returned conflict
-  contains indexed `conflictingEdges` but the nullable companion graph is absent.
-  Edge-free conflict summaries remain valid without a graph because they require no
-  index resolution.
-- When issue analysis is explicitly selected, the service fails closed if either the
-  nullable `dependencyIssues` result or its companion graph is absent; default and
-  explicit-false calls retain their existing nullable transitive behavior.
-- `pkg_vulns` selects transitive vulnerability fields only for explicit transitive
-  audit and does not select the dependency graph.
-- Wire tests assert variables, directives, and omitted subtrees for default and
-  detailed modes. No field is selected solely for possible future use.
-- Text samples are bounded; JSON reports complete selected aggregate/package rows and
-  explicit truncation whenever advisory occurrence samples are capped.
+- Default and explicit-false requests execute only the existing direct query path;
+  tests assert there is no transitive request.
+- Explicit transitive mode performs one additional field-minimal request after
+  direct pagination and may traverse the full resolved graph. No graph payload is
+  returned.
+- JSON is complete and can be large. Text is locally bounded without changing JSON.
+- There is no state migration. CLI/MCP options and JSON fields are additive, and
+  rollback is a normal code revert.
+- The `pkg_deps` registry expansion removes only stale client-side rejections; its
+  existing response contract is unchanged.
 
-### Compatibility, migration, and rollback
+### Testing, documentation, and release
 
-- There is no stored state or migration. Each phase is an additive option/field plus
-  intentional `text-v1` wording improvement.
-- Existing commands, MCP calls, JSON fields, default network cost, and typed errors
-  remain compatible when new options are omitted or explicitly false.
-- Each phase can be reverted independently; no rollout flag or dual path is needed.
-- Every phase changes both root `githits` and public `@githits/mcp` behavior and adds
-  an independent changes fragment with explicit pending SemVer impact. Feature PRs
-  do not edit versioned changelogs or bump package versions.
-
-### Documentation and release lifecycle
-
-- Update `docs/implementation/tools.md`, `docs/implementation/cli-commands.md`, and
-  `docs/implementation/mcp-cli-parity.md` with the final request, response, fetching,
-  and text contracts.
-- Update MCP descriptions/instructions only where routing behavior changes. If stable
-  MCP quick-start guidance changes, update its public Agent Skill copy through the
-  repository plugin-generation workflow and preserve exact parity.
-- After all phases are implemented and their durable contracts are transferred to
-  implementation docs, delete this plan. Backend issues remain the durable record for
-  excluded backend work.
+- All pure projection and formatting behavior is covered with deterministic fixtures;
+  service tests mock GraphQL at the transport boundary.
+- GraphQL tests assert both request sequencing and exact default/transitive field
+  selections.
+- Update `docs/implementation/tools.md`,
+  `docs/implementation/cli-commands.md`, and
+  `docs/implementation/mcp-cli-parity.md`. Record the shared text-output trust
+  boundary in `docs/implementation/TOOL_GUARDRAILS.md`. Update ecosystem-audit
+  documentation and fixtures to stop treating NuGet, Maven, and Packagist dependency
+  calls as expected failures.
+- Add a targeted `package-vulnerability-transitive.md` agent workload because the
+  MCP schema and descriptor change.
+- Add three independent release fragments: transitive vulnerability audit and
+  dependency-registry parity each record pending minor impact for both `githits` and
+  `@githits/mcp`; vulnerability terminal-text safety records pending patch impact for
+  both. Do not edit `CHANGELOG.md` or package versions.
 
 ## Phase map
 
 ### Phase 1 — package overview distinguishes version risk from package history
 
-- **Status:** COMPLETE — data contract and UX correction merged in PR #350 at
-  `9d267a2`
-- **Expected outcome:** `pkg_info` reports affecting-latest and package-wide advisory
-  counts without contradiction; its URL values remain readable in color-enabled
-  terminals; its vulnerability field contains evidence rather than an embedded action;
-  and verbose/JSON callers receive version-count and download-freshness evidence already
-  available from the summary resolver.
-- **Assumptions:** Existing `PackageSummaryResult` field semantics remain deployed;
-  no new backend request is needed. Existing non-bold cyan is an acceptable URL accent
-  based on the user's stated color direction.
+- **Status:** COMPLETE — merged in PR #350 at `9d267a2`.
+- **Expected outcome:** latest-version and package-history evidence is explicit;
+  version/freshness facts are available; URL and action hierarchy is readable.
+- **Assumptions:** merged backend summary fields remain available.
 - **Unknowns or product decisions:** none.
-- **Dependencies:** current package-summary query, shared response builder/formatter,
-  CLI/MCP parity, and existing compact/verbose field directive.
-- **Acceptance criteria:** default text distinguishes latest-version affected count
-  from package-wide history; JSON adds scope-explicit package-history evidence without
-  changing existing field meanings; verbose/JSON surface version/freshness fields;
-  repository and homepage URLs use the same non-dim cyan treatment when ANSI is enabled;
-  no `Inspect history` row appears in compact or verbose CLI/MCP text; default wire
-  selection remains minimal; deterministic, parity, smoke, build, documentation,
-  release-fragment, and targeted agent-eval checks pass.
+- **Dependencies:** none remaining.
+- **Acceptance criteria:** satisfied by the merged implementation and permanent
+  documentation.
 
 ### Phase 2 — dependency issues and conflicts become actionable
 
-- **Status:** COMPLETE — merged in PR #351 at `16ecf75`
-- **Expected outcome:** callers can explicitly request deprecated, outdated,
-  duplicate, and conflict analysis, and every visible conflict can identify the
-  target package, incompatible constraints, and contributing importers without
-  decoding graph indices.
-- **Assumptions:** `dependencyIssues` and conflict-edge indices refer to the selected
-  companion dependency graph; current schemas and upgrade-review consumption verify
-  those shapes.
+- **Status:** COMPLETE — merged in PR #351 at `16ecf75`.
+- **Expected outcome:** explicit issue analysis exposes deprecated, outdated,
+  duplicate, and conflict evidence with importer provenance.
+- **Assumptions:** merged dependency issue/graph contracts remain available.
 - **Unknowns or product decisions:** none.
-- **Dependencies:** Phase 1 merged only for sequencing; technically independent.
-- **Acceptance criteria:** one effective option requests issue analysis and the graph
-  evidence needed to preserve direct resolved versions and conflict provenance;
-  default calls do not
-  select/compute issues; bounded text and additive JSON expose
-  typed issue evidence; current conflict-only transitive output gains importer
-  provenance; graph scope/depth is explicit; parity, wire, smoke, build,
-  documentation, release-fragment, and targeted agent-eval checks pass.
+- **Dependencies:** none remaining.
+- **Acceptance criteria:** satisfied by the merged implementation, 3,976-test final
+  gate, source/built smoke suites, agent evaluation, and permanent documentation.
 
-### Phase 3 — vulnerability inspection optionally audits transitive risk
+### Phase 3 — vulnerability inspection audits resolved dependencies
 
-- **Status:** PENDING REPLAN
-- **Expected outcome:** an explicit `pkg_vulns` transitive mode reports direct
-  package affectedness plus vulnerabilities affecting resolved dependency versions,
-  with severity, package/version, matched-range, and nearest-fix evidence and without
-  changing direct-only defaults.
-- **Assumptions:** The backend retains the current lazy transitive vulnerability
-  summary and affected-occurrence semantics.
-- **Unknowns or product decisions:** none. Exact file/fixture detail is intentionally
-  deferred until the post-Phase-2 reorientation.
-- **Dependencies:** Phase 2 merged and `$next-steps` reorientation against current
-  `origin/main`; neutral package-dependency service ownership remains intact.
-- **Acceptance criteria:** one explicit option requests the full resolved dependency
-  audit without selecting the dependency graph payload; unsupported graph registries
-  fail honestly; severity applies to both scopes;
-  direct history and transitive affectedness remain distinct; withdrawn semantics and
-  occurrence truncation are explicit; default query cost/output remain unchanged;
-  parity, wire, smoke, build, docs, release-fragment, and agent-eval checks pass.
+- **Status:** READY.
+- **Expected outcome:** an explicit transitive mode reports complete vulnerability
+  occurrences affecting resolved dependency versions while direct-only behavior and
+  cost remain unchanged; `pkg_deps` accepts every deployed dependency registry.
+- **Assumptions:** the verified deployed transitive summary, occurrence, and registry
+  contracts remain stable during implementation.
+- **Unknowns or product decisions:** none.
+- **Dependencies:** Phases 1 and 2 merged; deployed GraphQL probes above passed.
+- **Acceptance criteria:** the detailed criteria below.
 
-## Phase 1 implemented contract
+## Phase 3 detailed implementation plan
 
-### Behavioral contract
+### Likely affected components
 
-Extend normalized summary types and the lean envelope additively:
+- `packages/mcp/src/shared/pkgseer-capabilities.ts` and a focused test: establish
+  one client capability source for dependency and vulnerability registries.
+- `packages/mcp/src/shared/package-dependencies-request.ts` and tests: consume the
+  shared dependency predicate/list and accept NuGet, Maven, and Packagist.
+- `packages/mcp/src/shared/package-vulnerabilities-request.ts` and tests: consume
+  the shared vulnerability predicate/list and normalize `includeTransitive`.
+- `packages/core-internal/src/services/package-intelligence-service.ts` and tests:
+  extend the neutral report, add the dedicated query and cross-field validation, and
+  preserve the default wire path.
+- `packages/mcp/src/shared/package-vulnerabilities-response.ts` and tests: build
+  the exact additive JSON block and transitive text section, and sanitize every
+  direct/transitive display value without mutating JSON.
+- `packages/mcp/src/shared/terminal-text.ts`, its focused test, and existing sanitizer
+  consumers: move the proven helper out of resolve-target ownership without changing
+  existing output.
+- `packages/mcp/src/tools/package-vulnerabilities.ts` and tests: add
+  `include_transitive`, update first-sentence/first-80-safe discovery text, and pass
+  the normalized option.
+- `src/commands/pkg/vulns.ts` and tests: add `--transitive`, help, and formatter
+  inputs.
+- `packages/mcp/src/internal.ts`, test helpers, and
+  `src/tools/package-vulnerabilities-parity.test.ts`: retain root CLI access and
+  prove JSON/error parity.
+- CLI/MCP smoke suites, `scripts/pkg-ecosystem-audit.ts`, permanent docs, the
+  targeted agent workload, and three changes fragments.
 
-- `PackageIdentity.versionCount?: number`;
-- `PackageIdentity.downloadsRefreshedAt?: string`;
-- `PackageSecurityOverview.allVulnerabilityCount: number` whenever the optional
-  security block exists;
-- lean top-level `versionCount?: number`;
-- `downloads.refreshedAt?: string`; and
-- additive top-level `advisoryHistory?: { total: number }`.
+No container or backend change is expected.
 
-Keep `vulnerabilities.total` and `affectsLatest` unchanged for compatibility.
-Continue emitting `vulnerabilities` only when the backend's nullable
-`vulnerabilityCount` exists. Independently emit `advisoryHistory.total` whenever the
-security block exists; it is the package-wide, deduplicated, non-withdrawn count and
-remains valid if `vulnerabilityCount` is null. `vulnerabilities.recent` remains
-package-wide for compatibility. Do not emit an absent security block as zero. Treat a
-present security block without its schema-required package-wide count as a malformed
-service response.
+### Ordered implementation steps
 
-Default text uses scope-explicit wording from the two independent blocks:
+1. Add failing capability/request tests for the deployed 12-registry dependency set,
+   the 10-registry vulnerability set, transitive omission/false/true normalization,
+   severity propagation, and version validation including Swift.
+2. Introduce the shared capability module, re-export existing internal names where
+   needed, migrate both request builders and the ecosystem audit, and make
+   `pkg_deps` accept NuGet, Maven, and Packagist without changing its output.
+3. Add failing core service tests for:
+   - unchanged direct-only query count and variables;
+   - direct pagination followed by exactly one transitive request;
+   - use of the backend-resolved root version;
+   - `minSeverity` propagation and direct-only withdrawn/scope variables;
+   - absence of graph/direct/group/issue/non-affecting/limited occurrence fields;
+   - zero-result normalization; and
+   - every fail-closed identity/count/occurrence invariant above.
+4. Extend `PackageVulnerabilitiesParams` / `VulnerabilityReport`, implement the
+   dedicated query and normalizer, and keep all existing error classification and
+   token-refresh behavior.
+5. Extract `sanitizeTerminalText` into the neutral terminal-text module, migrate its
+   existing consumers, and add focused helper regressions without changing their
+   output. Add hostile direct/transitive vulnerability text fixtures proving every
+   displayed untrusted field is sanitized before layout/color while JSON preserves
+   the original strings. Preserve the order-sensitive normalize-then-sanitize-then-
+   collapse contract and the `a\nb`, `a\tb`, and `a <BEL> b` cases specified in
+   `docs/plans/terminal-text-sanitization.md`.
+6. Add failing pure response tests for the exact JSON contract: positive and zero
+   audits, lowercase registries, complete occurrences, severity/malware partitioning,
+   missing nearest fixes, ISO date omission rules, filter-scope semantics, and stable
+   ordering.
+7. Implement the lean projection and shared formatter section. Cover 20/40/80/120
+   column widths, Unicode preservation, no-color/color word parity, compact five-row
+   cap, verbose completeness, one final surface-native hint, and direct-only text
+   regression snapshots/structural assertions.
+8. Wire the CLI and MCP options and update their descriptions. Test omitted, explicit
+   false, explicit true, `--json`, `--verbose`, combined direct scope/withdrawn
+   filters, cancellation/error mapping, and first-sentence/first-80 descriptor
+   contracts.
+9. Update parity fixtures, source/built smoke checks, ecosystem registry audit,
+   permanent documentation, agent workload, and the three release fragments.
+10. Run focused tests, then the full verification matrix and targeted agent
+   evaluation. Inspect actual agent tool calls and final evidence use, not only
+   harness exit status.
 
-```text
-Vulnerabilities  Latest: none affected
-                 History: 5 known across all versions
+### Edge cases and failure behavior
+
+- No dependencies: return a checked transitive block with zero package/occurrence
+  counts and `packages: []`.
+- Dependencies but no affected advisories: retain `totalPackagesAnalyzed` and show
+  checked-clean text.
+- Multiple affected versions of one dependency: preserve one package row with one
+  occurrence per resolved version/advisory pair.
+- Multiple advisories for one resolved version: preserve every backend occurrence.
+- Missing higher fixed version: retain an empty `fixVersionsAboveResolved`, omit
+  `nearestFixedVersion`, and state the absence in text.
+- Null severity: classify as `unrated`; malicious rows use the disjoint
+  `malware` bucket.
+- Direct `advisory_scope=all|non_affecting`: affects only the direct advisory list;
+  transitive remains affected-only.
+- Direct `include_withdrawn=true`: withdrawn direct rows may appear; transitive
+  metadata remains `withdrawnAdvisoriesIncluded: false`.
+- Explicit transitive request with malformed/missing backend evidence: return the
+  existing typed backend/protocol error, never a partial direct-only success.
+- Known unsupported vulnerability registries vcpkg and Zig still fail before any
+  network call. NuGet, Maven, and Packagist succeed for both dependency and
+  vulnerability request construction.
+
+### Verification
+
+Run:
+
+```bash
+bun test packages/mcp/src/shared/pkgseer-capabilities.test.ts
+bun test packages/mcp/src/shared/terminal-text.test.ts
+bun test packages/mcp/src/shared/package-dependencies-request.test.ts
+bun test packages/mcp/src/shared/package-vulnerabilities-request.test.ts
+bun test packages/core-internal/src/services/package-intelligence-service.test.ts
+bun test packages/mcp/src/shared/package-vulnerabilities-response.test.ts
+bun test packages/mcp/src/tools/package-vulnerabilities.test.ts
+bun test src/commands/pkg/vulns.test.ts
+bun test src/tools/package-vulnerabilities-parity.test.ts
+bun test
+bun run typecheck
+bun run lint
+bun run format:check
+bun run build
+bun run validate:packages
+bun run smoke:cli
+bun run smoke:mcp
+bun run smoke:cli:built
+bun run smoke:mcp:built
 ```
 
-Use singular/plural grammar and preserve an explicit unavailable distinction. If the
-latest count is null but the security block exists, render `Latest: unavailable`
-alongside the verified history count; do not invent `vulnerabilities.total`. If the
-history count is greater than the latest affected count, preserve both facts without
-adding an inline action or printing historical rows in compact `pkg_info`. CLI help and
-the corrected MCP descriptor own the route to `pkg_vulns`.
+When authenticated, re-run representative source CLI/MCP probes for:
 
-In color-enabled CLI output, render the repository and homepage URL substrings in
-existing non-bold cyan rather than with `dim()`. Keep attached repository statistics in
-the normal foreground color. No-color CLI and MCP text retain identical characters,
-ordering, and wrapping, so the emphasis never carries information.
+- `npm:express@4.17.1` positive transitive evidence;
+- a zero-result transitive audit;
+- `--severity high` alignment across direct and transitive counts;
+- direct `--scope all --include-withdrawn` plus transitive semantics;
+- a Crates dependency with a GHSA/RUSTSEC alias pair, confirming one logical
+  transitive occurrence; and
+- NuGet, Maven, and Packagist `pkg_deps` calls.
 
-Verbose text adds compact trust facts rather than another prose section:
+Run the targeted `package-vulnerability-transitive.md` workload with Claude and
+Codex when practical. Verify agents select transitive mode for dependency-tree/audit
+questions, retain direct-only mode for root-package questions, distinguish history
+from resolved affectedness, and cite matched-range/fix evidence without declaring the
+package safe.
 
-- published version count when present; and
-- download refresh date when download counts and refresh evidence are present.
+### Phase 3 acceptance criteria
 
-JSON always includes selected verbose fields because MCP JSON and CLI `--json` already
-request `includeVerboseFields`; compact text does not fetch them.
-
-### Edge cases
-
-- `advisoryHistory.total: 0` must be emitted and rendered as verified zero, not
-  omitted.
-- An absent security block is unavailable, not zero; a present block missing the
-  required package-wide count fails service validation.
-- A null latest-version count with a valid history count emits only
-  `advisoryHistory` in JSON and renders latest evidence as unavailable in text.
-- `vulnerabilities.total > 0` with `affectsLatest: false` is tolerated as backend drift evidence and
-  rendered from counts without inventing a stronger boolean claim.
-- A history total below the latest-version total is contradictory backend data.
-  Preserve both JSON facts, avoid a misleading text comparison, and cover the
-  conservative text behavior.
-- URL emphasis changes only the repository/homepage substrings when colors are enabled;
-  missing URLs, repository statistics, wrapping, no-color output, and MCP output retain
-  their existing behavior.
-- Refresh timestamp without a download count is omitted from text but retained in JSON.
-- Version count zero is retained in JSON; released packages normally have at least one,
-  but the client does not add an unverified guard.
-
-### Phase 1 implementation record
-
-Implemented and merged on 2026-09-03 in bounded product commits, including:
-
-- `77bdbc6` adds the minimal GraphQL selections, normalized service types, strict
-  security-block validation, and compact-versus-detailed wire tests;
-- `9254dac` adds the additive JSON evidence and shared scope-explicit formatter;
-- `77a6928` connects CLI/MCP surface-native hints and preserves JSON parity;
-- `8e46c27` adds authenticated and deterministic smoke assertions; and
-- `ac3e2b0` records the permanent contract and pending release impact; and
-- `418e480` wraps the vulnerability evidence and history action to the caller's
-  terminal width after implementation review found the initial rows could overflow;
-- `050ed54` keeps the history action available when latest evidence is unavailable
-  and labels verbose rows explicitly as all-version history; and
-- `6a68469` applies the same scope label to CLI/MCP help and discovery text; and
-- `087f43a` aligns the authored package skill, stable MCP quick-start copy, and CLI
-  help layout with the advisory-scope contract; and
-- `5e33dc7` separates and aligns the `Latest:` and `History:` evidence after the first
-  live-output review; and
-- `ba5dc73` applies the final URL contrast, evidence-only hierarchy, surface cleanup,
-  and unambiguous MCP history route.
-
-PR #350 merged to `main` as `9d267a2` on 2026-09-03. The release fragment remains
-pending: the merged CLI and MCP behavior has not yet been released, published, or
-deployed to the hosted MCP server.
-
-Verified results:
-
-- affected focused suites passed, including 63 core-service tests, 35 response
-  tests, 32 entrypoint/parity tests, and 131 smoke-helper tests;
-- the final full suite passed: 3,829 tests, 0 failures;
-- typecheck, lint, formatting, build, and public-package validation passed;
-- plugin generation produced no derived diff and plugin consistency checks passed;
-- authenticated source CLI and MCP smoke suites passed against the deployed backend;
-- built unauthenticated CLI and MCP smoke suites passed;
-- Codex full-guidance evaluations passed both target workloads with high confidence,
-  used the intended `pkg_info`/`pkg_vulns` tools, and produced no isolation-violation
-  artifact; raw calls and final answers were inspected; and
-- the Claude workload harness was present but not logged in, so its overview run
-  stopped before any tool call. The identical history run was not repeated. This is
-  an eval-environment limitation, not product evidence.
-
-The implementation required no backend change, new infrastructure, fallback, or
-ownership move. Subsequent product review of `5e33dc7` accepted the evidence lines but
-reopened Phase 1 for URL contrast and action hierarchy. At that point Phase 2 was a
-separate ready increment; it is now implemented as recorded above. Phase 3 still
-requires the planned post-Phase-2 reorientation.
-
-Review closed one terminal-width defect in the internal runtime pass. Three external
-Claude Opus rounds then closed independent-history action gating, all-version scope
-labels across formatter/help/skills, CLI help reflow, and the public Agent Skill
-release clause. The round-3 code verdict was clean; its final release-metadata note
-was fixed directly under the three-round limit. No automated review finding remained
-at that point; the later user product feedback above supersedes the accepted inline-hint
-decision and is not a deferred review finding.
-
-### Phase 1 UX correction implementation record
-
-**Ownership:** the shared package-summary response formatter naturally owns URL styling
-and field hierarchy because it is the single CLI/MCP text renderer. CLI help and the MCP
-descriptor own surface-specific command routing, so removing the formatter's `surface`
-option restores the simpler boundary. The MCP tool definition owns its one missing
-all-version routing phrase; no new helper or abstraction is needed.
-
-Expected terminal anatomy:
-
-```text
-Repository       https://github.com/expressjs/express (69k stars, 24k forks, 235 issues)
-Homepage         https://expressjs.com/
-Published        9 months ago
-Downloads        529M / month
-Vulnerabilities  Latest: none affected
-                 History: 5 known advisories across all versions
-```
-
-The two URLs are non-bold cyan only when colors are enabled. The example intentionally
-contains no `Inspect history` row. Verbose sections continue after a blank line exactly
-as they do now.
-
-#### Implemented result
-
-- Response tests now lock non-bold cyan URL substrings, normal-color repository
-  statistics, ANSI-stripped/no-color equivalence, the unchanged aligned vulnerability
-  lines, and absence of `Inspect history` for positive, zero, and unavailable evidence.
-- The shared formatter colors only repository and homepage URLs with existing cyan,
-  removes the inline history action, and no longer accepts a surface discriminator.
-- Thin CLI/MCP entrypoints no longer pass surface identity. CLI help retains
-  `githits pkg vulns <registry>:<name> --scope all`; the MCP descriptor unambiguously
-  routes version-specific details to `pkg_vulns` and package-wide history to
-  `pkg_vulns` with `advisory_scope: "all"`.
-- Permanent implementation docs and the existing Phase 1 changes fragment describe the
-  final evidence-only output and discovery routes.
-- Live compact, verbose, and narrow-width output confirms the accepted hierarchy and
-  cyan contrast without changing the existing URL-row wrapping behavior.
-
-#### Increment boundaries and failure behavior
-
-- Do not change GraphQL selections, service types, JSON, vulnerability counts, verbose
-  advisory rows, line wrapping, labels, or section ordering.
-- Do not introduce terminal hyperlinks, underline escapes, a new brand token, or a
-  repository-wide link helper. Existing cyan is sufficient for this scoped correction.
-- Missing URLs remain omitted. ANSI-disabled and MCP output contain plain URL text and
-  remain semantically complete.
-- The reviewed live terminal accepted existing non-bold cyan; no new palette token or
-  repository-wide styling rule was introduced.
-
-#### Increment acceptance criteria
-
-- Color-enabled `pkg_info` renders repository and homepage URL substrings with existing
-  non-bold cyan and never applies ANSI dim to them; repository statistics retain normal
-  weight/color.
-- Removing ANSI produces the same characters, line order, and meaning as no-color/MCP
-  text.
-- Compact and verbose CLI/MCP text contain exactly the accepted `Latest:` and `History:`
-  vulnerability evidence and no `Inspect history` row.
-- CLI help still names `githits pkg vulns <registry>:<name> --scope all`; the MCP
-  descriptor explicitly names `pkg_vulns` with `advisory_scope: "all"` for package-wide
-  history, without weakening descriptor first-sentence/first-80 contracts.
-- The formatter surface discriminator and its entrypoint plumbing are removed rather
-  than retained unused.
-- Focused formatter/tool/command/parity tests, full tests, typecheck, lint, formatting,
-  build, public-package validation, all source/built CLI/MCP smokes, live output review,
-  and available targeted agent evaluations pass.
-
-#### Correction verification
-
-- Test-first focused coverage produced eight expected failures before the formatter
-  change; the completed focused set passed 71 tests with no failures.
-- The full suite passed 3,829 tests with no failures. Typecheck, lint, formatting,
-  build, and public-package validation also passed.
-- Source and built CLI/MCP smoke suites passed. The first source-smoke run reached the
-  changed `pkg_info` assertions, then encountered an Express code snapshot actively
-  indexing in a later step; an immediate full rerun passed all 93 CLI and 50 MCP steps.
-- Live `npm:express` compact, verbose, and 40-column output was inspected with colors
-  enabled: URLs use cyan, vulnerability evidence remains aligned, and no inline action
-  appears.
-- Final descriptor-only Codex evaluations passed both package overview and package-wide
-  history workloads with high confidence. Both used `pkg_info` and `pkg_vulns` with
-  `advisory_scope: "all"`; no isolation violation was reported. One history workload
-  call combined the invalid `version: "latest"` sentinel with package-wide scope, then
-  self-corrected to the documented no-version call and returned the correct result. The
-  Claude eval harness remains unavailable because it is not logged in.
-- Internal review found one ambiguous MCP routing sentence. The one-line wording fix and
-  exact descriptor assertions make the two vulnerability routes explicit; the same
-  reviewer then reported the correction clean. External review then found one
-  low-severity argument-notation mismatch (`=` instead of the descriptor convention's
-  `:`); source, assertions, and docs were corrected, focused tests and the targeted eval
-  were repeated, and the retained reviewer reported the final correction clean.
-
-### Phase 1 acceptance criteria
-
-- Existing JSON keys retain their values and meanings.
-- Additive fields accurately distinguish returned-version affectedness from
-  package-wide history and preserve null-versus-zero.
-- Compact text no longer juxtaposes zero latest risk and historical rows without a
-  package-history count.
-- Compact text does not fetch version count, download freshness, recent advisories,
-  or recent changes; verbose/JSON do.
-- CLI and MCP JSON deep-equal; package-summary text differs only in ANSI/width inputs.
-- URL emphasis is non-dim, optional, and semantically redundant; `Inspect history` is
-  absent from compact and verbose package-summary text.
-- No new backend call, fallback, cache, or broad package-summary field dump is added.
-- Required tests, smoke, build/package validation, docs, changes fragment, and
-  available targeted agent evaluations complete successfully; any unavailable agent
-  harness is verified and recorded explicitly.
-
-## Phase 2 merged result
-
-Phase 2 merged in PR #351 at `16ecf75`. It delivered CLI `--issues` and MCP
-`include_issues`, conditional issue and companion-graph selection with full-graph
-versus depth-bounded cost, exact lossless
-issue/conflict JSON requirements, bounded compact and complete wrapped verbose text,
-and fail-closed validation for missing issue/graph data and edge-backed ordinary
-transitive conflicts. Edge-free conflict summaries remain valid without a graph.
-There was no backend change and no new infrastructure.
-
-Live representative inspection covered `npm:express` (69 graph nodes and issue total
-8) and `npm:is-number` (one root graph node and issue total 0). Final gates covered
-3,976 tests plus typecheck, lint, format, build, and package validation; source smoke
-passed with CLI 103 and MCP 54, and built smoke passed with CLI 23 and MCP 8.
-The final Codex descriptor evaluation reported high confidence after 9 MCP calls,
-with correct issue, importer, lifecycle, and full-versus-bounded routing. Claude
-evaluation was unavailable because its harness was not logged in.
-
-Internal full-delta review was clean. Three external Opus rounds found valid issues
-and all were fixed; the round-3 graph fix received a final internal clean result, and
-no round 4 was run because the review cap was reached. No unresolved findings remain.
-The final review also corrected the earlier contradiction: edge-backed ordinary
-transitive conflicts were added in Phase 2 and are now covered by both width and
-graph validation.
-
-Phase 2 commits, grouped compactly: feature work `56eed9f`, `ddde860`, `df37442`,
-`942278d`, `e5d9e9e`, `003141f`; tests/smoke/docs `4e1900a`, `aa1a3af`, `258c352`;
-corrections `07e11f5`, `e4fe879`, `01df950`, `2b4ef01`, `4bd9110`, `16dc4ca`,
-`d38b8c3`. The implementation is merged but not yet released, published, or
-deployed; its independent release fragment remains pending.
+- CLI `--transitive` and MCP `include_transitive:true` are one effective opt-in;
+  omission and explicit false preserve direct-only behavior and network cost.
+- Direct JSON fields, meanings, text, filters, pagination, and errors remain
+  compatible.
+- Explicit mode queries the exact resolved root version and returns complete affected
+  occurrences without a graph payload, occurrence limit, or silent partial result.
+- JSON matches the exact additive contract above, preserves empty checked evidence,
+  and passes CLI/MCP deep-equality parity.
+- Aggregate, package, and occurrence counts reconcile; malformed selected evidence
+  fails closed.
+- Severity applies to both scopes; direct advisory scope/withdrawn controls remain
+  direct-only and that distinction is explicit.
+- Compact text leads with direct outcome, follows with resolved-dependency evidence,
+  stays width-bounded, and puts its single completion hint after evidence. Verbose
+  text and JSON retain all selected occurrences.
+- Direct and transitive text strips hostile terminal-control sequences before layout
+  while JSON preserves the same source strings losslessly.
+- `pkg_deps` accepts NuGet, Maven, and Packagist, and the shared capability source,
+  docs, and ecosystem audit match the deployed registry sets.
+- Focused/full tests, wire assertions, typecheck, lint, formatting, build, package
+  validation, all four smoke modes, authenticated probes, permanent docs, release
+  fragments, and targeted agent evaluation complete successfully or any unavailable
+  live harness is explicitly evidenced.
 
 ## Phase-boundary reorientation
 
-After each phase merges, run `$next-steps` against current `origin/main` before
-detailing or implementing the next phase. Record merged behavior and validation,
-re-check the deployed backend schema and live representative outputs, update changed
-assumptions/contracts, and add tactical detail only for the next one or two phases.
-
-Do not continue if reorientation reports `REPLAN` or `PRODUCT INPUT NEEDED`. In
-particular, Phase 3 must re-check transitive registry support, withdrawn semantics,
-occurrence bounds, and any backend changes that landed with private issues #2211–#2214.
+Phase 3 is the final implementation phase. If backend schema or deployed behavior
+changes before implementation begins, run `$next-steps` and replan rather than adding
+a fallback. If Phase 3 is split during implementation because production code grows
+past the repository's simplicity threshold, split only at the capability-parity
+boundary: registry parity first, transitive audit second, with both preserving the
+same target contract.
 
 ## Completion and plan cleanup
 
-This effort is complete when all three client phases are merged, released behavior is
-documented under `docs/implementation/`, relevant changes fragments remain available
-for release preparation, default network cost is unchanged, and CLI/MCP parity plus
-agent routing are verified.
+The effort is complete when Phase 3 merges, all final request/response, registry,
+filter, fetching, formatter, and verification contracts are durable under
+`docs/implementation/`, and pending changes fragments remain available for release
+preparation.
 
-Before deleting this plan:
+Before deleting this temporary plan:
 
-1. transfer final request/response shapes, formatter anatomy, GraphQL selection rules,
-   supported-registry caveats, and verification commands to permanent implementation
-   documentation;
-2. confirm no backend-owned work or review finding exists only in this temporary file;
-3. leave private backend issues #2211–#2214 as the durable backlog for their excluded
-   contracts; and
-4. delete this plan in the final implementation PR rather than leaving stale phase
-   instructions behind.
+1. confirm the final code and permanent docs contain every active contract above;
+2. confirm no backend-owned work or review finding exists only here;
+3. retain private backend issues #2211–#2214 as the durable backlog for excluded
+   package-summary/version/license/index work; and
+4. delete this file in the final Phase 3 implementation PR.
