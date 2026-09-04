@@ -1,6 +1,14 @@
 import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import {
+  type PkgseerRegistryArg,
+  toPkgseerRegistry,
+} from "@githits/core-internal";
+import {
+  supportsDependenciesRegistry,
+  supportsVulnerabilitiesRegistry,
+} from "../packages/mcp/src/shared/pkgseer-capabilities.js";
 
 interface PackageFixture {
   registry: Registry;
@@ -62,31 +70,6 @@ type Registry =
   | "swift";
 
 type ToolName = "pkg_info" | "pkg_changelog" | "pkg_vulns" | "pkg_deps";
-
-const VULN_SUPPORTED_REGISTRIES = new Set<Registry>([
-  "npm",
-  "pypi",
-  "hex",
-  "crates",
-  "nuget",
-  "maven",
-  "packagist",
-  "rubygems",
-  "go",
-  "swift",
-]);
-
-const DEPS_SUPPORTED_REGISTRIES = new Set<Registry>([
-  "npm",
-  "pypi",
-  "hex",
-  "crates",
-  "zig",
-  "vcpkg",
-  "rubygems",
-  "go",
-  "swift",
-]);
 
 const DEFAULT_FIXTURES: PackageFixture[] = [
   { registry: "npm", name: "express" },
@@ -267,8 +250,13 @@ function buildCommand(fixture: PackageFixture, tool: ToolName): string[] {
 }
 
 function isExpectedUnsupported(registry: Registry, tool: ToolName): boolean {
-  if (tool === "pkg_vulns") return !VULN_SUPPORTED_REGISTRIES.has(registry);
-  if (tool === "pkg_deps") return !DEPS_SUPPORTED_REGISTRIES.has(registry);
+  const backendRegistry = toPkgseerRegistry(registry as PkgseerRegistryArg);
+  if (tool === "pkg_vulns") {
+    return !supportsVulnerabilitiesRegistry(backendRegistry);
+  }
+  if (tool === "pkg_deps") {
+    return !supportsDependenciesRegistry(backendRegistry);
+  }
   return false;
 }
 

@@ -166,7 +166,7 @@ Use the tools in these roles:
 
 Use `bun run audit:pkg-ecosystems` to run a live CLI audit across representative packages from every package registry supported by package metadata tools. The script checks `pkg_info`, `pkg_changelog`, `pkg_vulns`, and `pkg_deps` with JSON output so ecosystem regressions are visible without hand-running dozens of commands.
 
-The fixture matrix lives in `scripts/pkg-ecosystem-audit.ts` and covers npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift. Each registry has three representative packages. `pkg_vulns` failures for vcpkg and Zig are expected and are reported as `expected-unsupported`; `pkg_deps` failures for NuGet, Maven, and Packagist are expected and are reported the same way. Any other failure exits non-zero, including backend data anomalies that should be fixed and rechecked later.
+The fixture matrix lives in `scripts/pkg-ecosystem-audit.ts` and covers npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift. Each registry has three representative packages. `pkg_vulns` failures for vcpkg and Zig are expected and are reported as `expected-unsupported`; all 12 registries are expected to work for `pkg_deps`. Any other failure exits non-zero, including backend data anomalies that should be fixed and rechecked later.
 
 Useful invocations:
 
@@ -271,7 +271,7 @@ contributors are not copied onto generic progress targets, and
 
 **Omission rules.** Null scalars omitted; empty arrays dropped; zero-count `bySeverity` keys dropped; the `bySeverity` block itself dropped when `total === 0`. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
 
-**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift have vulnerability data. vcpkg and Zig are rejected client-side with a tool-specific message (`pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: ${registry}.`) — rejection predicate lives in `packages/mcp/src/shared/package-vulnerabilities-request.ts` rather than the shared registry module, since it is a tool-specific capability matrix.
+**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift have vulnerability data. vcpkg and Zig are rejected client-side with a tool-specific message (`pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: ${registry}.`) — the tool-specific capability predicate lives in `packages/mcp/src/shared/pkgseer-capabilities.ts` alongside the dependency capability matrix.
 
 `pkg_vulns` shares its envelope builder and text formatter with the CLI `githits pkg vulns` command via `packages/mcp/src/shared/package-vulnerabilities-request.ts` and `packages/mcp/src/shared/package-vulnerabilities-response.ts`. MCP defaults to compact text and uses `format: "json"` for structured output. The shared text formatter is surface-aware so MCP hints never mention CLI flags. The parity test (`src/tools/package-vulnerabilities-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across the service-sourced success/filter/typed-error fixtures, and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT` fixtures such as unsupported registries and tag-style `v`-prefixed versions.
 
@@ -337,7 +337,7 @@ JSON retains backend order and multiplicity.
 
 **Typed dependency graph projection.** Backend exposes typed `dependencyGraph`, `dependencyConflicts`, `circularDependencyCycles`, and `environmentMarkers`; `pkg_deps` consumes those typed fields and projects them into a lean agent-facing envelope. Deprecated raw fields (`dag`, `conflicts`, `circularDependencies`, `environmentConstraints`) are intentionally not queried. The raw graph is deliberately not exposed by this tool.
 
-**Registry coverage.** npm, PyPI, Hex, Crates, vcpkg, Zig, RubyGems, Go, and Swift support the `packageDependencies` query. NuGet / Maven / Packagist are rejected client-side with a tool-specific message (`pkg deps only supports npm, pypi, hex, crates, vcpkg, zig, rubygems, go, swift. Got: ${registry}.`). Predicate lives in `packages/mcp/src/shared/package-dependencies-request.ts`.
+**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift support the `packageDependencies` query. The shared capability matrix in `packages/mcp/src/shared/pkgseer-capabilities.ts` is the source for the request builder and ecosystem audit; its dependency list follows canonical `PKGSEER_REGISTRY_ARGS` order.
 
 **Version validation.** Same rule as `pkg_vulns`: tag-style `v`-prefixed inputs are rejected client-side with `INVALID_ARGUMENT` before the backend call.
 

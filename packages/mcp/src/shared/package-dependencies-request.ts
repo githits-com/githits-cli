@@ -8,9 +8,8 @@
  * - Trim + validate `packageName`.
  * - Normalise registry case and restrict to the registries that the
  *   upstream `packageDependencies` resolver supports (see
- *   `SUPPORTED_DEPS_REGISTRIES`). Other known registries are rejected
- *   with a tool-specific message; truly unknown registries fall
- *   through to the shared `UnsupportedRegistryError`.
+ *   `SUPPORTED_DEPS_REGISTRIES`). Truly unknown registries fall through
+ *   to the shared `UnsupportedRegistryError`.
  * - Reject tag-style versions (`v4.18.0`) client-side — the `v` prefix
  *   is a git-tag convention, not a canonical version on most supported
  *   registries. Swift is the exception: SwiftPM packages commonly use
@@ -23,7 +22,6 @@
 import type { PackageDependenciesParams } from "@githits/core-internal";
 import {
   isKnownPkgseerRegistryArg,
-  PKGSEER_REGISTRY_ARGS,
   PKGSEER_REGISTRY_LIST,
   type PkgseerRegistry,
   type PkgseerRegistryArg,
@@ -33,6 +31,10 @@ import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,
 } from "./package-spec.js";
+import {
+  SUPPORTED_DEPS_REGISTRIES_LIST,
+  supportsDependenciesRegistry,
+} from "./pkgseer-capabilities.js";
 
 /**
  * Raised when the caller targets a registry that is unsupported by
@@ -72,34 +74,11 @@ const LIFECYCLE_ORDER: Readonly<Record<DependencyLifecycle, number>> = {
   optional: 4,
 };
 
-export const SUPPORTED_DEPS_REGISTRIES: ReadonlySet<PkgseerRegistry> = new Set([
-  "NPM",
-  "PYPI",
-  "HEX",
-  "CRATES",
-  "VCPKG",
-  "ZIG",
-  "RUBYGEMS",
-  "GO",
-  "SWIFT",
-]);
-
-/**
- * Lowercase deps-supported registries, comma-separated, in the
- * canonical order defined by `PKGSEER_REGISTRY_ARGS`. Derived rather
- * than hand-rolled so the order propagates from the single source of
- * truth and a future registry addition shows up here automatically.
- */
-export const SUPPORTED_DEPS_REGISTRIES_LIST: string =
-  PKGSEER_REGISTRY_ARGS.filter((arg) =>
-    SUPPORTED_DEPS_REGISTRIES.has(toPkgseerRegistry(arg)),
-  ).join(", ");
-
-export function supportsDependenciesRegistry(
-  registry: PkgseerRegistry,
-): boolean {
-  return SUPPORTED_DEPS_REGISTRIES.has(registry);
-}
+export {
+  SUPPORTED_DEPS_REGISTRIES,
+  SUPPORTED_DEPS_REGISTRIES_LIST,
+  supportsDependenciesRegistry,
+} from "./pkgseer-capabilities.js";
 
 export interface PackageDependenciesRequestInput {
   /** Lowercase registry surface value (`npm`, `pypi`, …). */

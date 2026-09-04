@@ -42,6 +42,10 @@ import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,
 } from "./package-spec.js";
+import {
+  SUPPORTED_VULN_REGISTRIES_HUMAN,
+  supportsVulnerabilitiesRegistry,
+} from "./pkgseer-capabilities.js";
 
 /**
  * Raised when the caller targets a registry that is unsupported by
@@ -70,33 +74,7 @@ export const SEVERITY_LABEL_TO_CVSS: Readonly<Record<SeverityLabel, number>> = {
   critical: 9.0,
 };
 
-const SUPPORTED_VULN_REGISTRIES: ReadonlySet<PkgseerRegistry> = new Set([
-  "NPM",
-  "PYPI",
-  "HEX",
-  "CRATES",
-  "NUGET",
-  "MAVEN",
-  "PACKAGIST",
-  "RUBYGEMS",
-  "GO",
-  "SWIFT",
-]);
-
-const SUPPORTED_VULN_REGISTRIES_HUMAN =
-  "npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift";
-
-/**
- * Tool-local capability predicate. Vulnerability data is unavailable
- * for vcpkg and zig on the backend.
- * When a second tool needs per-tool registry restrictions, extract to
- * a dedicated `pkgseer-capabilities.ts` module.
- */
-export function supportsVulnerabilitiesRegistry(
-  registry: PkgseerRegistry,
-): boolean {
-  return SUPPORTED_VULN_REGISTRIES.has(registry);
-}
+export { supportsVulnerabilitiesRegistry } from "./pkgseer-capabilities.js";
 
 export interface PackageVulnerabilitiesRequestInput {
   /** Lowercase registry surface value (`npm`, `pypi`, …). */
