@@ -55,13 +55,26 @@ describe("parseUpgradeReviewPackageOption", () => {
 
   it("preserves delimiter-like package names in batch ranges", () => {
     expect(
-      parseUpgradeReviewPackageOption("npm:@scope/pkg..legacy@1.2.3..1.3.0"),
+      parseUpgradeReviewPackageOption(
+        "npm:@scope/pkg..legacy->compat@1.2.3..1.3.0",
+      ),
     ).toEqual({
       registry: "npm",
-      packageName: "@scope/pkg..legacy",
+      packageName: "@scope/pkg..legacy->compat",
       currentVersion: "1.2.3",
       targetVersion: "1.3.0",
     });
+  });
+
+  it("rejects mixed legacy and double-dot range delimiters", () => {
+    for (const spec of [
+      "npm:foo@1.0.0->2.0.0..3.0.0",
+      "npm:foo@1.0.0..2.0.0->3.0.0",
+    ]) {
+      expect(() => parseUpgradeReviewPackageOption(spec)).toThrow(
+        "The '->' delimiter is not supported",
+      );
+    }
   });
 
   it("rejects adjacent dots in a batch range suffix", () => {
@@ -135,17 +148,19 @@ describe("pkgUpgradeReviewAction", () => {
   });
 
   it("rejects a legacy positional arrow range with replacement guidance", async () => {
-    const service = createMockPackageIntelligenceService();
-    const output = await expectActionError(
+    for (const spec of [
       "npm:@scope/pkg@1.2.3->1.3.0",
-      { json: true },
-      service,
-    );
+      "npm:foo@1.0.0->2.0.0..3.0.0",
+      "npm:foo@1.0.0..2.0.0->3.0.0",
+    ]) {
+      const service = createMockPackageIntelligenceService();
+      const output = await expectActionError(spec, { json: true }, service);
 
-    expect(service.packageUpgradeReview).not.toHaveBeenCalled();
-    expect(output).toMatchObject({ code: "INVALID_ARGUMENT" });
-    expect(output.error).toContain("The '->' delimiter is not supported");
-    expect(output.error).toContain("<registry>:<name>@<current>..<target>");
+      expect(service.packageUpgradeReview).not.toHaveBeenCalled();
+      expect(output).toMatchObject({ code: "INVALID_ARGUMENT" });
+      expect(output.error).toContain("The '->' delimiter is not supported");
+      expect(output.error).toContain("<registry>:<name>@<current>..<target>");
+    }
   });
 
   it("preserves delimiter-like package names with --to", async () => {
@@ -153,7 +168,7 @@ describe("pkgUpgradeReviewAction", () => {
     process.stdout.write = (() => true) as typeof process.stdout.write;
 
     await pkgUpgradeReviewAction(
-      "npm:@scope/pkg..legacy@1.2.3",
+      "npm:@scope/pkg..legacy->compat@1.2.3",
       { to: "1.3.0", json: true },
       {
         packageIntelligenceService: service,
@@ -168,7 +183,7 @@ describe("pkgUpgradeReviewAction", () => {
         packages: [
           {
             registry: "NPM",
-            name: "@scope/pkg..legacy",
+            name: "@scope/pkg..legacy->compat",
             currentVersion: "1.2.3",
             targetVersion: "1.3.0",
           },
