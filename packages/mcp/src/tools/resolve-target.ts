@@ -20,8 +20,8 @@ import {
   isResolveTargetActionable,
   isResolveTargetIdentityActionable,
   type ResolveTargetEvidenceOptions,
-  sanitizeTerminalText,
 } from "../shared/resolve-target-response.js";
+import { sanitizeTerminalText } from "../shared/terminal-text.js";
 import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
   READ_ONLY_TOOL_ANNOTATIONS,

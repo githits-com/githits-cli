@@ -73,6 +73,7 @@ export * from "./shared/resolve-target-request.js";
 export * from "./shared/resolve-target-response.js";
 export * from "./shared/shell-quote.js";
 export * from "./shared/target-resolution.js";
+export { sanitizeTerminalText } from "./shared/terminal-text.js";
 export * from "./shared/unified-search-request.js";
 export * from "./shared/unified-search-response.js";
 export * from "./shared/unified-search-status-text.js";

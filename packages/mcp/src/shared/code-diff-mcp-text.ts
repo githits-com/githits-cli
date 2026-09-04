@@ -4,7 +4,7 @@ import type {
   LeanCodeDiffPatchFile,
   LeanCodeDiffStatFile,
 } from "./code-diff-response.js";
-import { sanitizeTerminalText } from "./resolve-target-response.js";
+import { sanitizeTerminalText } from "./terminal-text.js";
 
 const MAX_FILE_ROWS = 20;
 const MAX_PATCH_PREVIEW_BYTES = 320;
