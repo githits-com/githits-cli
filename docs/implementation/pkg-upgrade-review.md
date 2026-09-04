@@ -109,10 +109,9 @@ instead of `--package` guidance.
 Range delimiters are interpreted only in the version suffix after the final
 version-separating `@`; delimiter-like text in a package name remains opaque.
 
-Use `..` as the shell-safe range delimiter. The older `->` delimiter remains
-accepted when quoted for compatibility; unquoted `>` is shell redirection in
-zsh/bash, and a truncated positional value receives guidance to quote the
-arrow. A JSON input file can be added later if repeatable flags are too awkward
+Use `..` as the range delimiter for positional and repeatable `--package`
+forms. The legacy `->` delimiter is rejected locally with guidance to use
+`..`. A JSON input file can be added later if repeatable flags are too awkward
 in real use.
 
 ## JSON Shape

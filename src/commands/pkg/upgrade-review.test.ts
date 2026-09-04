@@ -44,15 +44,13 @@ describe("parseUpgradeReviewPackageOption", () => {
     });
   });
 
-  it("keeps quoted arrow package ranges compatible", () => {
-    expect(
+  it("rejects legacy arrow package ranges with replacement guidance", () => {
+    expect(() =>
       parseUpgradeReviewPackageOption("npm:@scope/pkg@1.2.3->1.3.0"),
-    ).toEqual({
-      registry: "npm",
-      packageName: "@scope/pkg",
-      currentVersion: "1.2.3",
-      targetVersion: "1.3.0",
-    });
+    ).toThrow("The '->' delimiter is not supported");
+    expect(() =>
+      parseUpgradeReviewPackageOption("npm:@scope/pkg@1.2.3->1.3.0"),
+    ).toThrow("<registry>:<name>@<current>..<target>");
   });
 
   it("preserves delimiter-like package names in batch ranges", () => {
@@ -70,15 +68,6 @@ describe("parseUpgradeReviewPackageOption", () => {
     expect(() =>
       parseUpgradeReviewPackageOption("npm:foo@1.0.0...2.0.0"),
     ).toThrow(InvalidPackageSpecError);
-  });
-
-  it("explains likely shell redirection for truncated arrow ranges", () => {
-    expect(() => parseUpgradeReviewPackageOption("npm:zod@4.3.6-")).toThrow(
-      InvalidPackageSpecError,
-    );
-    expect(() => parseUpgradeReviewPackageOption("npm:zod@4.3.6-")).toThrow(
-      "The shell likely treated '>' as output redirection",
-    );
   });
 });
 
@@ -111,7 +100,7 @@ describe("pkg upgrade-review help", () => {
     expect(help).toContain(
       "--package npm:zod@4.3.6..4.4.3 --package npm:lint-staged@16.2.7..16.4.0",
     );
-    expect(help).toContain("unquoted > is shell redirection");
+    expect(help).not.toContain("->");
   });
 });
 
@@ -145,33 +134,18 @@ describe("pkgUpgradeReviewAction", () => {
     );
   });
 
-  it("accepts a quoted scoped positional arrow range", async () => {
+  it("rejects a legacy positional arrow range with replacement guidance", async () => {
     const service = createMockPackageIntelligenceService();
-    process.stdout.write = (() => true) as typeof process.stdout.write;
-
-    await pkgUpgradeReviewAction(
+    const output = await expectActionError(
       "npm:@scope/pkg@1.2.3->1.3.0",
       { json: true },
-      {
-        packageIntelligenceService: service,
-        codeNavigationUrl: "https://pkgseer.dev",
-        hasValidToken: true,
-        mcpUrl: "https://mcp.githits.com",
-      },
+      service,
     );
 
-    expect(service.packageUpgradeReview).toHaveBeenCalledWith(
-      expect.objectContaining({
-        packages: [
-          {
-            registry: "NPM",
-            name: "@scope/pkg",
-            currentVersion: "1.2.3",
-            targetVersion: "1.3.0",
-          },
-        ],
-      }),
-    );
+    expect(service.packageUpgradeReview).not.toHaveBeenCalled();
+    expect(output).toMatchObject({ code: "INVALID_ARGUMENT" });
+    expect(output.error).toContain("The '->' delimiter is not supported");
+    expect(output.error).toContain("<registry>:<name>@<current>..<target>");
   });
 
   it("preserves delimiter-like package names with --to", async () => {
@@ -223,7 +197,6 @@ describe("pkgUpgradeReviewAction", () => {
       "npm:@scope/pkg@1.2.3..",
       "npm:foo@1.0.0...2.0.0",
       "npm:@scope/pkg@1.2.3..1.3.0..1.4.0",
-      "npm:@scope/pkg@1.2.3->1.3.0..1.4.0",
       "npm:@scope/pkg@..1.3.0",
     ];
 
@@ -256,23 +229,6 @@ describe("pkgUpgradeReviewAction", () => {
     expect(output.error).toContain("positional <spec>@<current>..<target>");
     expect(output.error).toContain("repeatable --package entries");
     expect(output.error).toContain("Choose one form.");
-  });
-
-  it("explains shell redirection for a truncated positional arrow range", async () => {
-    const service = createMockPackageIntelligenceService();
-    const output = await expectActionError(
-      "npm:@scope/pkg@1.2.3-",
-      { json: true },
-      service,
-    );
-
-    expect(service.packageUpgradeReview).not.toHaveBeenCalled();
-    expect(output).toMatchObject({ code: "INVALID_ARGUMENT" });
-    expect(output.error).toContain(
-      "The shell likely treated '>' as output redirection",
-    );
-    expect(output.error).toContain("<registry>:<name>@<current>-><target>");
-    expect(output.error).not.toContain("--package");
   });
 
   it("rejects over-cap batches before calling the service", async () => {

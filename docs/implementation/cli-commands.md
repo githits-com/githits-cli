@@ -685,8 +685,8 @@ githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1 --verbose
 githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1 --json
 ```
 
-Use `..` for shell-safe positional ranges; quote the older `->` form because
-unquoted `>` is shell redirection.
+Use `..` for positional and repeatable `--package` ranges. The legacy `->`
+delimiter is rejected with guidance to use `..`.
 
 The human-readable CLI and MCP `pkg_upgrade_review` output use one shared
 formatter. It starts with `Upgrade review - N package(s)`, adds one

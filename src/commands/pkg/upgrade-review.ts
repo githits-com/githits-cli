@@ -107,11 +107,11 @@ function parseSingleSpec(
   if (spec === undefined) return {};
   if (options.package && options.package.length > 0) {
     throw new InvalidPackageSpecError(
-      "Pass one of these forms: positional <spec>@<current> --to <target>; positional <spec>@<current>..<target> (or quoted ->) range; or repeatable --package entries. Choose one form.",
+      "Pass one of these forms: positional <spec>@<current> --to <target>; positional <spec>@<current>..<target> range; or repeatable --package entries. Choose one form.",
     );
   }
-  if (spec.endsWith("-")) {
-    throw new InvalidPackageSpecError(invalidPositionalSpecMessage(spec));
+  if (hasUnsupportedArrowRangeIntent(spec)) {
+    throw new InvalidPackageSpecError(unsupportedArrowRangeMessage(spec));
   }
   if (hasPackageRangeIntent(spec)) {
     const parsedRange = splitPackageRange(spec);
@@ -154,19 +154,25 @@ function hasPackageRangeIntent(value: string): boolean {
   const versionSeparatorIndex = findVersionSeparatorIndex(value);
   if (versionSeparatorIndex === undefined) return false;
   const versionSuffix = value.slice(versionSeparatorIndex + 1);
-  return versionSuffix.includes("..") || versionSuffix.includes("->");
+  return versionSuffix.includes("..");
+}
+
+function hasUnsupportedArrowRangeIntent(value: string): boolean {
+  const versionSeparatorIndex = findVersionSeparatorIndex(value);
+  if (versionSeparatorIndex === undefined) return false;
+  return value.slice(versionSeparatorIndex + 1).includes("->");
 }
 
 function positionalRangeGrammar(): string {
-  return "Expected <registry>:<name>@<current>..<target> or quoted <registry>:<name>@<current>-><target>.";
+  return "Expected <registry>:<name>@<current>..<target>.";
 }
 
 function invalidPositionalRangeMessage(value: string): string {
   return `Invalid positional range '${value}'. ${positionalRangeGrammar()}`;
 }
 
-function invalidPositionalSpecMessage(value: string): string {
-  return `Invalid positional package '${value}'. The shell likely treated '>' as output redirection. ${positionalRangeGrammar()} You can also use <registry>:<name>@<current> --to <target>.`;
+function unsupportedArrowRangeMessage(value: string): string {
+  return `Invalid positional range '${value}'. The '->' delimiter is not supported; use <registry>:<name>@<current>..<target>.`;
 }
 
 function parsePackageOptions(values: string[] | undefined):
@@ -189,6 +195,9 @@ export function parseUpgradeReviewPackageOption(value: string): {
   currentVersion: string;
   targetVersion: string;
 } {
+  if (hasUnsupportedArrowRangeIntent(value)) {
+    throw new InvalidPackageSpecError(invalidPackageOptionMessage(value));
+  }
   const parsedRange = splitPackageRange(value);
   if (!parsedRange) {
     throw new InvalidPackageSpecError(invalidPackageOptionMessage(value));
@@ -209,13 +218,7 @@ function splitPackageRange(
   if (versionSeparatorIndex === undefined) return undefined;
   const versionSuffix = value.slice(versionSeparatorIndex + 1);
   if (versionSuffix.includes("...")) return undefined;
-  const delimiters = (["->", ".."] as const).filter((delimiter) =>
-    versionSuffix.includes(delimiter),
-  );
-  if (delimiters.length !== 1) return undefined;
-  const delimiter = delimiters[0];
-  if (!delimiter) return undefined;
-  const parts = versionSuffix.split(delimiter);
+  const parts = versionSuffix.split("..");
   if (parts.length === 2 && parts[0] && parts[1]) {
     return {
       left: `${value.slice(0, versionSeparatorIndex + 1)}${parts[0]}`,
@@ -233,12 +236,10 @@ function findVersionSeparatorIndex(value: string): number | undefined {
 }
 
 function invalidPackageOptionMessage(value: string): string {
-  const expected =
-    "Expected <registry>:<name>@<current>..<target> or quoted <registry>:<name>@<current>-><target>.";
-  if (value.endsWith("-")) {
-    return `Invalid --package '${value}'. The shell likely treated '>' as output redirection. ${expected}`;
+  if (hasUnsupportedArrowRangeIntent(value)) {
+    return `Invalid --package '${value}'. The '->' delimiter is not supported; use <registry>:<name>@<current>..<target>.`;
   }
-  return `Invalid --package '${value}'. ${expected}`;
+  return `Invalid --package '${value}'. Expected <registry>:<name>@<current>..<target>.`;
 }
 
 const DESCRIPTION = `Report evidence for a package upgrade without assigning risk.
@@ -248,9 +249,7 @@ Single package with separate target: githits pkg upgrade-review npm:zod@4.3.6 --
 Batch: githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-staged@16.2.7..16.4.0
 Batch accepts at most ${PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES} upgrades.
 
-The older -> delimiter is still accepted when quoted for single-package and
-batch ranges, but unquoted > is shell redirection in zsh/bash. Prefer .. for
-positional and repeatable --package ranges.
+Use .. for positional and repeatable --package ranges.
 
 The review checks current and target vulnerabilities, target deprecation metadata,
 the changelog range, peer dependency changes, and optional transitive security /
