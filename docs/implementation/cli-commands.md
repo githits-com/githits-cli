@@ -69,7 +69,7 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift) |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--depth`, `--issues`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional capped transitive graph, and opt-in dependency issue analysis (npm/pypi/hex/crates/vcpkg/zig/rubygems/go/swift) |
 | `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or GitHub repo (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
-| `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. Reports facts only. |
+| `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, positional package range, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. Reports facts only. |
 | `docs list <spec>` | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | List hosted/crawled and repository-backed documentation pages for a package. Entries include page IDs for `docs read`; JSON includes exact repo-file follow-up metadata when available. |
 | `docs read <page-id>` | page ID from `docs list` or search results | `--lines`, `--verbose`, `--json` | Read a documentation page by page ID. Default output is content-only; `--lines` fetches a bounded range for long pages. |
 | `code diff <target> <from>..<to>` *(experimental; config-gated)* | unversioned package/repository target and exact range, or `--repo-url` and range | `--patch`, `--stat`, `--name-only`, `--name-status`, `--max-files`, `--max-patch-bytes`, `--verbose`, `--json`, one glob after `--` | Silently dogfood bounded repository-wide tree diffs resolved from package versions or repository refs; local-only MCP `code_diff` is available when experimental tools are enabled, while public/remote MCP and shared Agent Skill guidance remain unchanged |
@@ -678,11 +678,15 @@ Fetches release notes or changelog entries for a package or GitHub repository. O
 ### `githits pkg upgrade-review`
 
 ```
+githits pkg upgrade-review npm:express@5.0.0..5.2.1
 githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1
 githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-staged@16.2.7..16.4.0
 githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1 --verbose
 githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1 --json
 ```
+
+Use `..` for shell-safe positional ranges; quote the older `->` form because
+unquoted `>` is shell redirection.
 
 The human-readable CLI and MCP `pkg_upgrade_review` output use one shared
 formatter. It starts with `Upgrade review - N package(s)`, adds one

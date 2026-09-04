@@ -87,11 +87,33 @@ Validation rules:
 CLI shape:
 
 ```bash
+githits pkg upgrade-review npm:@modelcontextprotocol/sdk@1.26.0..1.29.0
 githits pkg upgrade-review npm:@modelcontextprotocol/sdk@1.26.0 --to 1.29.0
 githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-staged@16.2.7..16.4.0
 ```
 
-The repeatable `--package` form is the CLI parity path for MCP `packages[]`. Use `..` as the CLI range delimiter because unquoted `>` is shell redirection in zsh/bash. The older `->` delimiter remains accepted when quoted for compatibility. A JSON input file can be added later if repeatable flags are too awkward in real use.
+The positional range is the concise single-package form. The positional
+`<registry>:<name>@<current> --to <target>` form remains available when the
+target is supplied separately, and repeatable `--package` entries remain the
+batch form and the CLI parity path for MCP `packages[]`.
+
+The CLI command owns parsing of positional compact ranges and normalises either
+single-package spelling into the existing structured request. A positional
+range already contains its target, so combining it with `--to` is rejected
+locally with both valid alternatives. Any positional argument combined with a
+repeatable `--package` entry is also rejected locally; choose one positional
+single-package form or the batch form. Empty range sides, multiple or adjacent
+delimiters, and explicit empty-current ranges receive positional range grammar
+instead of `--package` guidance.
+
+Range delimiters are interpreted only in the version suffix after the final
+version-separating `@`; delimiter-like text in a package name remains opaque.
+
+Use `..` as the shell-safe range delimiter. The older `->` delimiter remains
+accepted when quoted for compatibility; unquoted `>` is shell redirection in
+zsh/bash, and a truncated positional value receives guidance to quote the
+arrow. A JSON input file can be added later if repeatable flags are too awkward
+in real use.
 
 ## JSON Shape
 
@@ -383,6 +405,9 @@ There is deliberately no compatibility fallback to the old client-side fanout. B
 
 - `packages/mcp/src/tools/package-upgrade-review.ts` is the MCP entrypoint.
 - `src/commands/pkg/upgrade-review.ts` is the CLI entrypoint.
+- The CLI command owns positional range parsing and normalisation; the shared
+  request builder continues to receive structured single-package fields or
+  `packages[]` and does not parse CLI shorthand.
 - `packages/mcp/src/shared/package-upgrade-review-request.ts` owns validation and backend param construction.
 - `packages/mcp/src/shared/package-upgrade-review-response.ts` owns backend response normalisation and text/JSON formatting.
 - `packages/core-internal/src/services/package-intelligence-service.ts` owns the aggregate GraphQL query and typed service method.
