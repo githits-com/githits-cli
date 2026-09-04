@@ -50,7 +50,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Specific version to inspect. Defaults to latest when omitted. Tag-style inputs with a leading `v` (for example `v4.18.0`) are rejected except for Swift — pass the canonical version (`4.18.0`) for other registries.",
+      "Specific version to inspect. Defaults to latest when omitted. Go accepts `v1.2.3` or `1.2.3` and sends canonical `v1.2.3`; tag-style inputs with a leading `v` are rejected for other registries except Swift.",
     ),
   lifecycle: z
     .union([z.string(), z.array(z.string())])

@@ -19,12 +19,11 @@
  * - Map `minSeverity` label → CVSS float threshold (backend takes a
  *   `Float`; CLI/MCP accept a label for discoverability). Uppercase
  *   input is tolerated.
- * - Reject tag-style versions with a leading `v` (`v1.2.3`) except
- *   for Swift, where `v`-prefixed release tags are accepted and
- *   normalized by the backend. For other registries, this tool accepts
- *   canonical package versions, not git refs; the live backend currently
- *   answers these with an unhelpful generic error, so we fail fast with
- *   an actionable client-side message instead.
+ * - Normalise exact Go versions to their canonical `v`-prefixed form.
+ *   Reject tag-style versions with a leading `v` (`v1.2.3`) for other
+ *   registries except Swift, where `v`-prefixed release tags are accepted.
+ *   The live backend currently answers other tag-style inputs with an
+ *   unhelpful generic error, so we fail fast with an actionable message.
  *   TODO(backend): replace this narrow guard with typed,
  *   ecosystem-aware version validation from the backend. Do not grow
  *   ad hoc normalization rules here.
@@ -42,6 +41,7 @@ import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,
 } from "./package-spec.js";
+import { normalisePackageVersion } from "./package-version.js";
 
 /**
  * Raised when the caller targets a registry that is unsupported by
@@ -161,14 +161,7 @@ export function buildPackageVulnerabilitiesParams(
     severityLabel !== undefined
       ? SEVERITY_LABEL_TO_CVSS[severityLabel]
       : undefined;
-  const trimmedVersion = input.version?.trim();
-  // Temporary guard until the backend returns a typed invalid-version
-  // error with per-ecosystem version semantics.
-  if (trimmedVersion && registry !== "SWIFT" && /^v\d/i.test(trimmedVersion)) {
-    throw new InvalidPackageSpecError(
-      `Invalid version '${trimmedVersion}'. Use the canonical package version without a leading 'v' (for example '4.18.0', not 'v4.18.0').`,
-    );
-  }
+  const version = normalisePackageVersion(input.version, registry);
 
   const advisoryScope = resolveAdvisoryScope(input.advisoryScope);
   const filterWithScope = buildFilterEcho(
@@ -181,10 +174,7 @@ export function buildPackageVulnerabilitiesParams(
     params: {
       registry,
       packageName: trimmedName,
-      version:
-        trimmedVersion && trimmedVersion.length > 0
-          ? trimmedVersion
-          : undefined,
+      version,
       minSeverity,
       includeWithdrawn: input.includeWithdrawn,
       advisoryScope: advisoryScope

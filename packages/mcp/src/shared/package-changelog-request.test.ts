@@ -162,6 +162,17 @@ describe("buildPackageChangelogParams — version validation", () => {
     expect(params.toVersion).toBe("v3.11.0");
   });
 
+  it("sends canonical Go range bounds to the backend", () => {
+    const { params } = buildPackageChangelogParams({
+      registry: "go",
+      packageName: "golang.org/x/text",
+      fromVersion: "0.27.0",
+      toVersion: "v0.28.0",
+    });
+    expect(params.fromVersion).toBe("v0.27.0");
+    expect(params.toVersion).toBe("v0.28.0");
+  });
+
   it.each([
     "5.0.0-rc.1",
     "2.32.0.dev0",

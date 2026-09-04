@@ -178,6 +178,21 @@ describe("buildPackageUpgradeReviewRequest", () => {
     });
   });
 
+  it("sends canonical Go upgrade endpoints to the backend", () => {
+    const { packages } = buildPackageUpgradeReviewRequest({
+      registry: "go",
+      packageName: "golang.org/x/text",
+      currentVersion: "0.27.0",
+      targetVersion: "v0.28.0",
+    });
+
+    expect(packages[0]).toMatchObject({
+      registry: "GO",
+      currentVersion: "v0.27.0",
+      targetVersion: "v0.28.0",
+    });
+  });
+
   it("still rejects v-prefixed versions for non-Swift registries", () => {
     expect(() =>
       buildPackageUpgradeReviewRequest({

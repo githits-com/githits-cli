@@ -45,7 +45,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Specific version to check. Defaults to latest when omitted. Tag-style `v`-prefixed inputs are rejected except for Swift.",
+      "Specific version to check. Defaults to latest when omitted. Go accepts versions with or without its canonical `v` prefix; tag-style `v` prefixes are rejected for other registries except Swift.",
     ),
   min_severity: z
     .string()

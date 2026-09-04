@@ -11,10 +11,9 @@
  *   `SUPPORTED_DEPS_REGISTRIES`). Other known registries are rejected
  *   with a tool-specific message; truly unknown registries fall
  *   through to the shared `UnsupportedRegistryError`.
- * - Reject tag-style versions (`v4.18.0`) client-side — the `v` prefix
- *   is a git-tag convention, not a canonical version on most supported
- *   registries. Swift is the exception: SwiftPM packages commonly use
- *   `v`-prefixed release tags and the backend normalizes them.
+ * - Normalise exact Go versions to their canonical `v`-prefixed form.
+ *   Reject tag-style versions (`v4.18.0`) for other registries except
+ *   Swift, where `v`-prefixed release tags are accepted.
  * - Parse the comma-separated lifecycle list into the canonical
  *   lowercase enum set; reject unknown tokens.
  * - Enforce `maxDepth` bounds (1–10).
@@ -33,6 +32,7 @@ import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,
 } from "./package-spec.js";
+import { normalisePackageVersion } from "./package-version.js";
 
 /**
  * Raised when the caller targets a registry that is unsupported by
@@ -162,7 +162,7 @@ export function buildPackageDependenciesParams(
     );
   }
 
-  const version = normaliseVersion(input.version, registry);
+  const version = normalisePackageVersion(input.version, registry);
 
   const canonicalLifecycles = resolveLifecycles(input.lifecycle);
   const wireLifecycles = canonicalLifecycles.filter(
@@ -195,21 +195,6 @@ export function buildPackageDependenciesParams(
       lifecycle: wireLifecycles.length > 0 ? wireLifecycles : undefined,
     },
   };
-}
-
-function normaliseVersion(
-  raw: string | undefined,
-  registry: PkgseerRegistry,
-): string | undefined {
-  if (raw === undefined) return undefined;
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) return undefined;
-  if (registry !== "SWIFT" && /^v[0-9]/i.test(trimmed)) {
-    throw new InvalidPackageSpecError(
-      `Version '${trimmed}' looks like a git tag. Use the canonical version without a leading 'v' (e.g. ${trimmed.slice(1)}).`,
-    );
-  }
-  return trimmed;
 }
 
 function resolveLifecycles(

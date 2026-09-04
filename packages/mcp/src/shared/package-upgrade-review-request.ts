@@ -10,6 +10,7 @@ import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,
 } from "./package-spec.js";
+import { normalisePackageVersion } from "./package-version.js";
 import {
   SEVERITY_LABEL_TO_CVSS,
   type SeverityLabel,
@@ -168,18 +169,19 @@ function parsePackageInput(
   if (packageName.length === 0) {
     throw new InvalidPackageSpecError("Package name is required.");
   }
+  const registry = toPkgseerRegistry(registryArg as PkgseerRegistryArg);
   const currentVersion = normaliseVersion(
     input.currentVersion,
     "current_version",
-    registryArg,
+    registry,
   );
   const targetVersion = normaliseVersion(
     input.targetVersion,
     "target_version",
-    registryArg,
+    registry,
   );
   return {
-    registry: toPkgseerRegistry(registryArg as PkgseerRegistryArg),
+    registry,
     registryLabel: registryArg,
     packageName,
     currentVersion,
@@ -190,16 +192,11 @@ function parsePackageInput(
 function normaliseVersion(
   raw: string | undefined,
   fieldName: string,
-  registryArg: string,
+  registry: PkgseerRegistry,
 ): string {
-  const version = raw?.trim() ?? "";
-  if (version.length === 0) {
+  const version = normalisePackageVersion(raw, registry);
+  if (version === undefined) {
     throw new InvalidPackageSpecError(`${fieldName} is required.`);
-  }
-  if (registryArg !== "swift" && /^v[0-9]/i.test(version)) {
-    throw new InvalidPackageSpecError(
-      `Invalid ${fieldName} '${version}'. Use the canonical package version without a leading 'v'.`,
-    );
   }
   return version;
 }

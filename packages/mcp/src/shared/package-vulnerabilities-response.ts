@@ -28,11 +28,10 @@
  *   bucket so every returned advisory is accounted for. The buckets
  *   always partition `security.vulnerabilities[]` after dedup.
  * - `requestedVersion` surfaces whenever the backend-resolved
- *   `version` differs from the caller's (trimmed) input. `v`-prefix
- *   normalisation is intentionally *not* applied here: non-Swift
- *   registries reject tag-style versions client-side, while Swift
- *   normalization is backend-owned and should remain visible as
- *   `requestedVersion` when it differs from the resolved version.
+ *   `version` differs from the normalized request. Exact Go versions
+ *   are canonicalized by the shared request boundary; Swift normalization
+ *   remains backend-owned and should stay visible as `requestedVersion`
+ *   when it differs from the resolved version.
  * - `modifiedAt` is included only when it differs from `publishedAt`.
  * - Sort order: malware bucket first; within a bucket, severity desc,
  *   then `publishedAt` desc, then `osvId` asc (deterministic

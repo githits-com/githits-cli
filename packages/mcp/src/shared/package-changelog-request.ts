@@ -8,10 +8,9 @@
  * - Enforce addressing XOR: exactly one of (a) `<spec>` (registry +
  *   packageName) or (b) `repoUrl`. Reject both-present, none-present,
  *   and malformed `<spec>`.
- * - Reject tag-style versions (`v4.18.0`) on `fromVersion` /
- *   `toVersion` for most registries — leading `v` is a git-tag
- *   convention, not a canonical version. Swift is the exception because
- *   SwiftPM packages commonly publish `v`-prefixed release tags.
+ * - Normalise exact Go `fromVersion` / `toVersion` bounds to their
+ *   canonical `v`-prefixed form. Reject tag-style versions for other
+ *   registries except Swift, where `v`-prefixed release tags are accepted.
  * - Reject `<spec>@<version>`: the `pkg changelog` family does not
  *   give `@version` a meaning (unlike `pkg vulns` and `pkg deps`).
  *   Redirect callers to `--to` / `to_version`.
@@ -27,7 +26,6 @@ import type { PackageChangelogParams } from "@githits/core-internal";
 import {
   isKnownPkgseerRegistryArg,
   PKGSEER_REGISTRY_LIST,
-  type PkgseerRegistry,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
 } from "@githits/core-internal";
@@ -35,6 +33,7 @@ import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,
 } from "./package-spec.js";
+import { normalisePackageVersion } from "./package-version.js";
 
 /**
  * Raw inputs from either CLI or MCP, pre-normalisation. Keep every
@@ -91,14 +90,12 @@ export function buildPackageChangelogParams(
 
   const addressing = resolveAddressing(input);
   const gitRef = normaliseGitRef(input.gitRef);
-  const fromVersion = normaliseVersion(
+  const fromVersion = normalisePackageVersion(
     input.fromVersion,
-    "from",
     addressing.registry,
   );
-  const toVersion = normaliseVersion(
+  const toVersion = normalisePackageVersion(
     input.toVersion,
-    "to",
     addressing.registry,
   );
   const limit = normaliseLimit(input.limit);
@@ -189,23 +186,6 @@ function normaliseGitRef(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined;
   const trimmed = raw.trim();
   return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function normaliseVersion(
-  raw: string | undefined,
-  field: "from" | "to",
-  registry: PkgseerRegistry | undefined,
-): string | undefined {
-  if (raw === undefined) return undefined;
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) return undefined;
-  if (registry !== "SWIFT" && /^v[0-9]/i.test(trimmed)) {
-    const flag = field === "from" ? "--from" : "--to";
-    throw new InvalidPackageSpecError(
-      `Version '${trimmed}' looks like a git tag. Use the canonical version without a leading 'v' (e.g. ${flag} ${trimmed.slice(1)}).`,
-    );
-  }
-  return trimmed;
 }
 
 function normaliseLimit(raw: number | undefined): number | undefined {
