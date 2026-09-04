@@ -22,6 +22,8 @@ describe("createReadPackageDocTool", () => {
     ]);
     expect(tool.description).toContain("150 lines by default");
     expect(tool.description).toContain("up to 300 lines");
+    expect(tool.description).toContain("`docsReadTarget`");
+    expect(tool.schema.page_id?.description).toContain("`docsReadTarget`");
     expect(tool.schema.start_line?.description).toContain("at most 150 lines");
     expect(tool.schema.end_line?.description).toContain("up to 300 lines");
     expect(tool.schema.end_line?.description).toContain(
@@ -34,6 +36,7 @@ describe("createReadPackageDocTool", () => {
       Promise.resolve({
         page: {
           id: "abc",
+          docsReadTarget: "abc",
           content: "line\n".repeat(400),
         },
       }),
@@ -54,6 +57,7 @@ describe("createReadPackageDocTool", () => {
       Promise.resolve({
         page: {
           id: "abc",
+          docsReadTarget: "abc",
           content: "line\n".repeat(400),
         },
       }),
@@ -77,6 +81,7 @@ describe("createReadPackageDocTool", () => {
       Promise.resolve({
         page: {
           id: "abc",
+          docsReadTarget: "abc",
           content: "line\n".repeat(248),
         },
       }),
@@ -93,15 +98,42 @@ describe("createReadPackageDocTool", () => {
     expect(result.content[0]?.text).not.toContain("MCP explicit-range ceiling");
   });
 
-  it("calls service.readPackageDoc with the page ID", async () => {
-    const readPackageDoc = mock(() => Promise.resolve({ page: { id: "abc" } }));
+  it("passes an emitted URL target through and preserves read locators and range", async () => {
+    const docsReadTarget =
+      "https://expressjs.com/en/guide/routing.html?publisher=express";
+    const readPackageDoc = mock(() =>
+      Promise.resolve({
+        page: {
+          id: "legacy-routing-id",
+          docsReadTarget,
+          content: "one\ntwo\nthree",
+          source: { url: docsReadTarget },
+        },
+      }),
+    );
     const tool = createReadPackageDocTool(
       createMockPackageIntelligenceService({ readPackageDoc }),
     );
 
-    await tool.handler({ page_id: "abc" }, {});
+    const result = await tool.handler(
+      {
+        page_id: docsReadTarget,
+        start_line: 2,
+        end_line: 2,
+        format: "json",
+      },
+      {},
+    );
 
-    expect(readPackageDoc).toHaveBeenCalledWith({ pageId: "abc" });
+    expect(readPackageDoc).toHaveBeenCalledWith({ pageId: docsReadTarget });
+    expect(parseText(result)).toMatchObject({
+      docsReadTarget,
+      pageId: "legacy-routing-id",
+      sourceUrl: docsReadTarget,
+      startLine: 2,
+      endLine: 2,
+      content: "two",
+    });
   });
 
   it("returns JSON-stringified lean envelope when format=json", async () => {
@@ -123,6 +155,7 @@ describe("createReadPackageDocTool", () => {
           Promise.resolve({
             page: {
               id: "github:expressjs/express@abc123/README.md",
+              docsReadTarget: "github:expressjs/express@abc123/README.md",
               content: "line\n".repeat(400),
             },
           }),
@@ -151,7 +184,8 @@ describe("createReadPackageDocTool", () => {
     expect(payload.code).toBe("INVALID_ARGUMENT");
   });
 
-  it("classifies target-not-found errors as NOT_FOUND", async () => {
+  it("classifies unknown URL targets as non-retryable NOT_FOUND", async () => {
+    const unknownUrl = "https://docs.example.test/unknown";
     const tool = createReadPackageDocTool(
       createMockPackageIntelligenceService({
         readPackageDoc: mock(() =>
@@ -161,9 +195,10 @@ describe("createReadPackageDocTool", () => {
         ),
       }),
     );
-    const result = await tool.handler({ page_id: "missing" }, {});
-    const payload = parseText(result) as { code: string };
+    const result = await tool.handler({ page_id: unknownUrl }, {});
+    const payload = parseText(result) as { code: string; retryable: boolean };
     expect(result.isError).toBe(true);
     expect(payload.code).toBe("NOT_FOUND");
+    expect(payload.retryable).toBe(false);
   });
 });

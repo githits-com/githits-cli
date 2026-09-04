@@ -22,7 +22,7 @@ export function renderReadPackageDocText(
 }
 
 function buildHeader(envelope: LeanPackageDocEnvelope): string {
-  const parts = [`docs_read${SEP}${envelope.pageId}`];
+  const parts = [`docs_read${SEP}${envelope.docsReadTarget}`];
   if (envelope.title) parts.push(envelope.title);
   const range = buildRange(envelope);
   if (range) parts.push(range);

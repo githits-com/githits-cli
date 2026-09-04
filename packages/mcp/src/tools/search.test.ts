@@ -29,6 +29,7 @@ describe("searchTool", () => {
     expect(descriptor?.description.slice(0, 80)).toBe(
       "Discover relevant evidence in a known target before exact grep: docs, specs, cod",
     );
+    expect(descriptor?.description).toContain("locator.docsReadTarget");
   });
 
   it("keeps the common path simple and delegates continuation details", () => {

@@ -1950,8 +1950,20 @@ describe("CodeNavigationServiceImpl", () => {
         query: "router",
         queryWarnings: [],
         sources: ["DOCS"],
-        results: [],
-        page: { offset: 0, limit: 20, returned: 0, hasMore: false },
+        results: [
+          {
+            id: "express-routing",
+            resultType: "DOCUMENTATION_PAGE",
+            targetLabel: "npm:express@5.1.0",
+            title: "Routing",
+            locator: {
+              pageId: "legacy-routing-id",
+              docsReadTarget: "https://expressjs.com/en/guide/routing.html",
+              sourceUrl: "https://expressjs.com/en/guide/routing.html",
+            },
+          },
+        ],
+        page: { offset: 0, limit: 20, returned: 1, hasMore: false },
         partialResults: false,
         evidenceNotice:
           "Pending work may change the disclosed documentation evidence.",
@@ -2062,6 +2074,11 @@ describe("CodeNavigationServiceImpl", () => {
       expect(outcome.result.evidenceNotice).toBe(
         "Pending work may change the disclosed documentation evidence.",
       );
+      expect(outcome.result.results[0]?.locator).toMatchObject({
+        pageId: "legacy-routing-id",
+        docsReadTarget: "https://expressjs.com/en/guide/routing.html",
+        sourceUrl: "https://expressjs.com/en/guide/routing.html",
+      });
       expect(outcome.result.sourceStatus[0]?.contributors).toEqual(
         result.sourceStatus[0]
           ?.contributors as UnifiedSearchDocumentationContributor[],
@@ -2088,6 +2105,7 @@ describe("CodeNavigationServiceImpl", () => {
         "siteUrl",
         "artifactOverflowPageCount",
         "evidenceNotice",
+        "docsReadTarget",
       ]) {
         expect(query).toContain(field);
       }

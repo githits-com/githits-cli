@@ -125,7 +125,7 @@ Browse and read package documentation:
 
 ```sh
 npx githits@latest docs list npm:express
-npx githits@latest docs read <page-id> --lines 20-80
+npx githits@latest docs read <docs-read-target> --lines 20-80
 ```
 
 ## Experimental Tools

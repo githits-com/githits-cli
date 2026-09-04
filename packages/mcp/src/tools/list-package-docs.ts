@@ -53,10 +53,10 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "List package documentation pages and hand off to `docs_read`; use `search` for topic discovery. " +
-  'This browses hosted and repository-backed pages. For topic search, use `search` with `source: "docs"`. ' +
-  "Every entry includes a stable `pageId`, `sourceKind` (`crawled` or `repo`), and source URL; repo-backed entries also expose `repoUrl` / `gitRef` / `filePath` for exact file reads. " +
-  "Pass a returned `pageId` to `docs_read`, or repo-backed file metadata to `code_read`." +
+  "List package documentation targets for follow-up reads. " +
+  'Pass them to `docs_read`; use `search` with `source: "docs"` for topics. ' +
+  "Each entry includes preferred `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, and `sourceKind`; repo-backed entries add exact `repoUrl` / `gitRef` / `filePath` for `code_read`. " +
+  "Historical IDs remain readable." +
   `\n\n${DOCS_GUARDRAIL}`;
 
 export function createListPackageDocsTool(

@@ -675,6 +675,8 @@ export interface ReadPackageDocParams {
 
 export interface PackageDocPageSummary {
   id?: string;
+  /** Preferred read target emitted by the backend. */
+  docsReadTarget: string;
   title?: string;
   slug?: string;
   order?: number;
@@ -710,6 +712,8 @@ export interface PackageDocSource {
 
 export interface PackageDocPage {
   id?: string;
+  /** Preferred read target emitted by the backend. */
+  docsReadTarget: string;
   title?: string;
   content?: string;
   contentFormat?: string;
@@ -2171,6 +2175,7 @@ const packageDocSourceKindSchema = z.enum(["CRAWLED", "REPOSITORY"]);
 
 const packageDocPageSummarySchema = z.object({
   id: z.string().nullable().optional(),
+  docsReadTarget: z.string(),
   title: z.string().nullable().optional(),
   slug: z.string().nullable().optional(),
   order: z.number().int().nullable().optional(),
@@ -2213,6 +2218,7 @@ const packageDocSourceSchema = z
 const packageDocPageSchema = z
   .object({
     id: z.string().nullable().optional(),
+    docsReadTarget: z.string(),
     title: z.string().nullable().optional(),
     content: z.string().nullable().optional(),
     contentFormat: z.string().nullable().optional(),
@@ -2279,6 +2285,7 @@ query ListPackageDocs(
     stale
     pages {
       id
+      docsReadTarget
       title
       slug
       order
@@ -2308,6 +2315,7 @@ query ReadPackageDoc($pageId: String!) {
     sourceKind
     page {
       id
+      docsReadTarget
       title
       content
       contentFormat
@@ -3441,6 +3449,7 @@ export class PackageIntelligenceServiceImpl
       pages:
         data.pages?.map((page) => ({
           id: page.id ?? undefined,
+          docsReadTarget: page.docsReadTarget,
           title: page.title ?? undefined,
           slug: page.slug ?? undefined,
           order: page.order ?? undefined,
@@ -3543,6 +3552,7 @@ export class PackageIntelligenceServiceImpl
       page: data.page
         ? {
             id: data.page.id ?? undefined,
+            docsReadTarget: data.page.docsReadTarget,
             title: data.page.title ?? undefined,
             content: data.page.content ?? undefined,
             contentFormat: data.page.contentFormat ?? undefined,
