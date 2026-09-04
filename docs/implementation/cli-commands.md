@@ -744,7 +744,7 @@ Reads a documentation page returned by `docs list` or search results. Prefer the
 
 **Line ranges.** `--lines 10-40`, `--lines 10-`, and `--lines -40` are supported. Use ranges to inspect long pages incrementally.
 
-**Output envelope.** `{docsReadTarget, pageId, title?, sourceKind?, sourceUrl?, repoUrl?, gitRef?, filePath?, totalLines?, startLine?, endLine?, content}`. `pageId` remains the stable replay pointer and `sourceUrl` remains provenance. Repo-backed docs include exact source metadata for `code read` follow-up.
+**Output envelope.** `{docsReadTarget, pageId, title?, sourceKind?, sourceUrl?, repoUrl?, gitRef?, filePath?, totalLines?, startLine?, endLine?, content}`. `pageId` remains the stable replay pointer and `sourceUrl` remains provenance. Verbose text prints each distinct locator once. Repo-backed docs include exact source metadata for `code read` follow-up.
 
 **Troubleshooting.** Same debug areas as the `pkg` family.
 

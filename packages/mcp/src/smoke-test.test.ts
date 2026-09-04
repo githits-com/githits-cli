@@ -669,6 +669,9 @@ function smokeResponse(
           "  Repository releases | 1 entry | 1 with release notes",
       );
     case "docs_list":
+      if (args.after !== "smoke-doc-cursor") {
+        throw new Error("docs_list text smoke missing crawled-page cursor");
+      }
       return textResult(
         `docs_read page_id=${JSON.stringify(SMOKE_CRAWLED_DOC_TARGET)}`,
       );
@@ -751,19 +754,24 @@ function smokeJsonResponse(
       return jsonResult({
         pages: [
           {
-            docsReadTarget: SMOKE_CRAWLED_DOC_TARGET,
-            pageId: SMOKE_CRAWLED_DOC_ID,
-            sourceKind: "crawled",
-            sourceUrl: SMOKE_CRAWLED_DOC_TARGET,
-          },
-          {
             docsReadTarget: SMOKE_REPO_DOC_ID,
             pageId: SMOKE_REPO_DOC_ID,
             sourceKind: "repo",
             sourceUrl:
               "https://github.com/expressjs/express/blob/abc123/README.md",
           },
+          ...(args.limit === 1
+            ? []
+            : [
+                {
+                  docsReadTarget: SMOKE_CRAWLED_DOC_TARGET,
+                  pageId: SMOKE_CRAWLED_DOC_ID,
+                  sourceKind: "crawled",
+                  sourceUrl: SMOKE_CRAWLED_DOC_TARGET,
+                },
+              ]),
         ],
+        ...(args.limit === 1 ? { nextCursor: "smoke-doc-cursor" } : {}),
       });
     case "docs_read": {
       if (
