@@ -29,6 +29,7 @@ describe("createListPackageDocsTool", () => {
       "after",
       "format",
     ]);
+    expect(tool.schema.version?.description).toContain("Go accepts either");
   });
 
   it("calls service.listPackageDocs with normalised params", async () => {

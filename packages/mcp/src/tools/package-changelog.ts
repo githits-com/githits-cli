@@ -72,13 +72,13 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Exclusive start of version range. When set, the response returns every entry after `from_version` through `to_version` (or latest) with no count cap — range mode. Mutually exclusive with `limit`. Use latest mode with `to_version` and `limit: 1` to fetch one exact release. Tag-style `v`-prefixed inputs are rejected except for Swift.",
+      "Exclusive start of version range. When set, the response returns every entry after `from_version` through `to_version` (or latest) with no count cap — range mode. Mutually exclusive with `limit`. Use latest mode with `to_version` and `limit: 1` to fetch one exact release. Go accepts versions with or without its canonical `v` prefix; tag-style `v` prefixes are rejected for other registries except Swift.",
     ),
   to_version: z
     .string()
     .optional()
     .describe(
-      "End of range / latest-mode cap. Works in either mode. Defaults to latest on the wire. Tag-style `v`-prefixed inputs are rejected except for Swift.",
+      "End of range / latest-mode cap. Works in either mode. Defaults to latest on the wire. Go accepts versions with or without its canonical `v` prefix; tag-style `v` prefixes are rejected for other registries except Swift.",
     ),
   limit: z
     .number()

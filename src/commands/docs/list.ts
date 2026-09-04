@@ -116,7 +116,8 @@ Docs are mixed by default: hosted/crawled docs and repository-backed docs
 appear together. Every entry shows its page ID, source badge, and source
 location. Repo-backed docs also carry exact file follow-up metadata in JSON.
 
-Package spec: <registry>:<name>[@version].`;
+Package spec: <registry>:<name>[@version]. Go accepts exact versions with or
+without the canonical v prefix.`;
 
 export function registerDocsListCommand(docsCommand: Command): Command {
   return docsCommand

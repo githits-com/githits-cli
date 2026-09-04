@@ -58,7 +58,7 @@ githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-sta
 
 - Vulnerability data is not available for `vcpkg` or `zig`.
 - Dependency graphs support npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, Go, and Swift; NuGet/Maven/Packagist are not dependency-graph targets.
-- Changelog range inputs are canonical versions without a leading `v`.
+- Go exact-version inputs accept either `v1.2.3` or `1.2.3` (including pseudo versions) and are sent in canonical `v`-prefixed form. Other changelog range inputs omit a leading `v`, except Swift release tags.
 - For repeatable `pkg upgrade-review --package` entries, prefer `<registry>:<name>@<current>..<target>`; quoted `<current>-><target>` is accepted, but unquoted `>` is shell redirection in zsh/bash.
 - Prefer structured JSON for final comparisons; terminal text is optimized for human scanning.
 
