@@ -87,23 +87,15 @@ const schema: ZodRawShape = {
 export const DESCRIPTION_BASE: string =
   "Check current package advisories. Do not trust your memory for vulnerabilities. " +
   "Advisories can be published or revised after training; a cutoff disclaimer is not current evidence. " +
-  "Covers pinned releases, latest-version risk, and vague questions about vulnerability volume or a package's security track record. " +
-  'For package-wide questions, omit `version` and pass `advisory_scope:"all"`: `{"registry":"npm","package_name":"next","advisory_scope":"all"}`. ' +
-  "Supports npm, PyPI, Hex, " +
-  "Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift (vcpkg and Zig " +
-  "are not supported for vulnerability data). Returns a count summary and advisory details: identifiers and aliases, including CVEs when available, " +
-  "severity, affected ranges, and fix versions. Malicious-package " +
-  "advisories surface in a separate bucket. Pinned lookup: " +
-  '`{"registry":"npm","package_name":"lodash","version":"4.17.20","min_severity":"high"}`. ' +
-  "Pass `version` to inspect a pinned release; omit it for latest. Default text is capped for " +
-  "readability; use `verbose:true` for all selected advisory rows and identifier aliases (including CVEs), or " +
-  '`format:"json"` for the complete envelope. Use ' +
-  "`min_severity` to filter to a threshold (`low`, `medium`, `high`, " +
-  "`critical`) and `include_withdrawn` to also see retracted " +
-  'advisories. Use `advisory_scope:"non_affecting"` to list ' +
-  "historical advisories that do not affect the inspected version. " +
+  "Covers pinned releases, latest-version risk, and package security history. " +
+  'For package-wide history, omit `version` and pass `advisory_scope:"all"`: `{"registry":"npm","package_name":"next","advisory_scope":"all"}`. ' +
+  "Supports npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift; vcpkg and Zig unsupported. " +
+  "Returns counts/details: identifiers and aliases, including CVEs when available, severity, affected ranges, and fixes; malicious advisories are separate. " +
+  "Pinned lookup: pass `version`; omit it for latest. " +
+  "Default text is capped; `verbose:true` shows all selected rows and identifier aliases (including CVEs), while " +
+  '`format:"json"` returns the complete envelope. `min_severity` filters thresholds (`low`, `medium`, `high`, `critical`); `include_withdrawn` includes retracted advisories. ' +
   "Use `include_transitive:true` for npm-audit-style evidence covering vulnerabilities in versions resolved by the dependency graph; this is opt-in because it adds graph-analysis cost and is distinct from package-wide advisory history. `min_severity` applies to direct and transitive rows, while `advisory_scope` and `include_withdrawn` affect direct rows only and transitive withdrawn advisories remain excluded. " +
-  "Use `pkg_info` for a latest-version health overview or `pkg_upgrade_review` for current-vs-target upgrade evidence.";
+  "Use `pkg_info` for latest health overview or `pkg_upgrade_review` for current-vs-target upgrade evidence.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_VULNS_GUARDRAIL}`;
 
