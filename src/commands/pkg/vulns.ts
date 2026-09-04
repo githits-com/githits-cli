@@ -71,7 +71,7 @@ export async function pkgVulnsAction(
 
     if (options.json) {
       const payload = buildPackageVulnerabilitiesSuccessPayload(report, {
-        requestedVersion: parsed.version,
+        requestedVersion: params.version,
         filter,
       });
       console.log(JSON.stringify(payload));
@@ -81,7 +81,7 @@ export async function pkgVulnsAction(
     const output = formatPackageVulnerabilitiesTerminal(report, {
       verbose: options.verbose,
       useColors: shouldUseColors(),
-      requestedVersion: parsed.version,
+      requestedVersion: params.version,
       filter,
       surface: "cli",
       terminalWidth: process.stdout.columns,

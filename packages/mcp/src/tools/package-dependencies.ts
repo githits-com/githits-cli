@@ -150,7 +150,7 @@ export function createPackageDependenciesTool(
           return textResult(
             formatPackageDependenciesTerminal(report, {
               useColors: false,
-              requestedVersion: args.version,
+              requestedVersion: params.version,
               canonicalLifecycles: textLifecycles,
               includeTransitive: includeTransitiveOutput,
               maxDepth: args.max_depth,
@@ -163,7 +163,7 @@ export function createPackageDependenciesTool(
           );
         }
         const payload = buildPackageDependenciesSuccessPayload(report, {
-          requestedVersion: args.version,
+          requestedVersion: params.version,
           canonicalLifecycles,
           includeTransitive: includeTransitiveOutput,
           maxDepth: args.max_depth,

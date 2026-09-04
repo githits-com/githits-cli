@@ -119,14 +119,14 @@ export function createPackageVulnerabilitiesTool(
         });
         const report = await service.packageVulnerabilities(params);
         const payload = buildPackageVulnerabilitiesSuccessPayload(report, {
-          requestedVersion: args.version,
+          requestedVersion: params.version,
           filter,
         });
         if (isTextFormat(args.format)) {
           return textResult(
             formatPackageVulnerabilitiesTerminal(report, {
               useColors: false,
-              requestedVersion: args.version,
+              requestedVersion: params.version,
               filter,
               verbose: args.verbose,
               surface: "mcp",

@@ -186,6 +186,55 @@ describe("pkgVulnsAction", () => {
     writeSpy.mockRestore();
   });
 
+  it("uses the canonical Go version for wire and response comparisons", async () => {
+    const goReport = structuredClone(defaultVulnerabilityReport);
+    goReport.package = {
+      name: "example.com/mod",
+      registry: "GO",
+      version: "v1.2.3",
+    };
+    const packageVulnerabilities = mock(() => Promise.resolve(goReport));
+    const service = createMockPackageIntelligenceService({
+      packageVulnerabilities,
+    });
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+
+    await pkgVulnsAction(
+      "go:example.com/mod@1.2.3",
+      { json: true },
+      createDeps({ packageIntelligenceService: service }),
+    );
+    await pkgVulnsAction(
+      "go:example.com/mod@1.2.3",
+      {},
+      createDeps({ packageIntelligenceService: service }),
+    );
+
+    const calls = packageVulnerabilities.mock.calls as unknown as Array<
+      [{ version?: string }]
+    >;
+    expect(calls.map(([params]) => params.version)).toEqual([
+      "v1.2.3",
+      "v1.2.3",
+    ]);
+    const payload = JSON.parse(logSpy.mock.calls[0]?.[0] as string) as {
+      requestedVersion?: string;
+    };
+    expect(payload.requestedVersion).toBeUndefined();
+    expect(writes.join("")).not.toContain("(requested");
+    logSpy.mockRestore();
+    writeSpy.mockRestore();
+  });
+
   it("passes --severity → minSeverity float on the wire", async () => {
     const packageVulnerabilities = mock(() =>
       Promise.resolve(defaultVulnerabilityReport),
