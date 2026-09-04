@@ -13,9 +13,9 @@
  *   (backend currently excludes vcpkg and zig). Known-
  *   but-unsupported registries are rejected client-side with a
  *   tool-specific message so the backend never sees them. The
- *   predicate `supportsVulnerabilitiesRegistry` lives here (not in
- *   `pkgseer-registry.ts`) because it is a tool-specific capability
- *   matrix, not a registry-taxonomy concern.
+ *   predicate `supportsVulnerabilitiesRegistry` lives in
+ *   `pkgseer-capabilities.ts` (not `pkgseer-registry.ts`) because it is a
+ *   tool-specific capability matrix, not a registry-taxonomy concern.
  * - Map `minSeverity` label → CVSS float threshold (backend takes a
  *   `Float`; CLI/MCP accept a label for discoverability). Uppercase
  *   input is tolerated.
@@ -87,6 +87,8 @@ export interface PackageVulnerabilitiesRequestInput {
   minSeverity?: string;
   /** Optional flag to include withdrawn advisories. */
   includeWithdrawn?: boolean;
+  /** Optional flag to audit vulnerabilities in resolved dependencies. */
+  includeTransitive?: boolean;
   /** Advisory rows to return. Defaults to advisories affecting the inspected version. */
   advisoryScope?: string;
 }
@@ -165,6 +167,7 @@ export function buildPackageVulnerabilitiesParams(
           : undefined,
       minSeverity,
       includeWithdrawn: input.includeWithdrawn,
+      includeTransitive: input.includeTransitive,
       advisoryScope: advisoryScope
         ? ADVISORY_SCOPE_TO_GRAPHQL[advisoryScope]
         : undefined,

@@ -10,7 +10,7 @@
  *   VERSION_NOT_FOUND responses.
  * - GraphQL-error classification on structured responses.
  * - Zod schemas for each query's response shape (packageSummary,
- *   packageVulnerabilities).
+ *   packageVulnerabilities, and transitive vulnerability audits).
  * - Outer `executeWithTokenRefresh` wrapper so GraphQL-level
  *   `UNAUTHORIZED` errors — classified after the POST — continue to
  *   trigger token refresh.
@@ -111,6 +111,8 @@ export interface PackageVulnerabilitiesParams {
   minSeverity?: number;
   /** Optional — backend defaults to false when omitted. */
   includeWithdrawn?: boolean;
+  /** Optional — audit vulnerabilities affecting resolved dependencies. */
+  includeTransitive?: boolean;
   /** Advisory rows to return; counts always include all scopes. */
   advisoryScope?: VulnerabilityScope;
 }
@@ -157,6 +159,25 @@ export interface VulnerabilitySecurityDetails {
 export interface VulnerabilityReport {
   package: PackageVersionIdentity;
   security?: VulnerabilitySecurityDetails;
+  transitive?: TransitiveVulnerabilityAudit;
+}
+
+export interface TransitiveVulnerabilityAudit {
+  /** Number of resolved package-version graph nodes checked. */
+  totalPackagesAnalyzed: number;
+  /** Number of dependency package rows with affected occurrences. */
+  affectedPackageCount: number;
+  /** Number of affected advisory occurrences across dependency rows. */
+  affectedOccurrenceCount: number;
+  calculatedAt?: string;
+  packages: TransitiveVulnerabilityAuditPackage[];
+}
+
+export interface TransitiveVulnerabilityAuditPackage {
+  registry: string;
+  name: string;
+  affectedOccurrenceCount: number;
+  occurrences: TransitiveDependencyVulnerability[];
 }
 
 export interface PackageDependenciesParams {
@@ -1065,6 +1086,74 @@ const vulnerabilitiesGraphQLResponseSchema = z.object({
   errors: z.array(graphQLErrorSchema).optional(),
 });
 
+const transitiveAuditAdvisorySchema = z.object({
+  osvId: z.string().nullable().optional(),
+  registry: z.string().nullable().optional(),
+  packageName: z.string().nullable().optional(),
+  summary: z.string().nullable().optional(),
+  severityScore: z.number().nullable().optional(),
+  severityType: z.string().nullable().optional(),
+  publishedAt: z.string().nullable().optional(),
+  modifiedAt: z.string().nullable().optional(),
+  withdrawnAt: z.string().nullable().optional(),
+  aliases: z.array(z.string()).nullable().optional(),
+  isMalicious: z.boolean().nullable().optional(),
+});
+
+const transitiveAuditOccurrenceSchema = z.object({
+  version: z.string(),
+  affectsResolvedVersion: z.boolean(),
+  matchedAffectedVersionRanges: z.array(z.string()),
+  fixVersionsAboveResolved: z.array(z.string()),
+  nearestFixedVersion: z.string().nullable().optional(),
+  advisory: transitiveAuditAdvisorySchema,
+});
+
+const transitiveAuditPackageSchema = z.object({
+  registry: z.string(),
+  name: z.string(),
+  affectedCount: z.number().int(),
+  advisoryOccurrences: z
+    .array(transitiveAuditOccurrenceSchema)
+    .nullable()
+    .optional(),
+});
+
+const transitiveAuditSummarySchema = z.object({
+  affected: z.object({ totalVulnerabilities: z.number().int() }),
+  totalPackagesAnalyzed: z.number().int(),
+  affectedPackageCount: z.number().int(),
+  packages: z.array(transitiveAuditPackageSchema),
+  calculatedAt: z.string().nullable().optional(),
+});
+
+const transitiveAuditResponseSchema = z.object({
+  package: packageVersionIdentitySchema.nullable().optional(),
+  dependencies: z
+    .object({
+      transitive: z
+        .object({
+          vulnerabilitySummary: transitiveAuditSummarySchema
+            .nullable()
+            .optional(),
+        })
+        .nullable()
+        .optional(),
+    })
+    .nullable()
+    .optional(),
+});
+
+const transitiveAuditGraphQLResponseSchema = z.object({
+  data: z
+    .object({
+      packageDependencies: transitiveAuditResponseSchema.nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  errors: z.array(graphQLErrorSchema).optional(),
+});
+
 const PACKAGE_VULNERABILITIES_QUERY = `
 query PackageVulnerabilities(
   $registry: Registry!
@@ -1116,6 +1205,64 @@ query PackageVulnerabilities(
           hasNextPage
           endCursor
           totalCount
+        }
+      }
+    }
+  }
+}`;
+
+const PACKAGE_TRANSITIVE_VULNERABILITY_AUDIT_QUERY = `
+query PackageTransitiveVulnerabilityAudit(
+  $registry: Registry!
+  $name: String!
+  $version: String!
+  $minSeverity: Float
+) {
+  packageDependencies(
+    registry: $registry
+    name: $name
+    version: $version
+    includeTransitive: true
+  ) {
+    package {
+      name
+      registry
+      version
+    }
+    dependencies {
+      transitive {
+        vulnerabilitySummary(minSeverity: $minSeverity) {
+          affected {
+            totalVulnerabilities
+          }
+          totalPackagesAnalyzed
+          affectedPackageCount
+          calculatedAt
+          packages {
+            registry
+            name
+            affectedCount
+            advisoryOccurrences(scope: AFFECTED, minSeverity: $minSeverity) {
+              version
+              affectsResolvedVersion
+              matchedAffectedVersionRanges
+              fixVersionsAboveResolved
+              nearestFixedVersion
+              advisory {
+                osvId
+                registry
+                packageName
+                summary
+                severityScore
+                severityType
+                publishedAt
+                modifiedAt
+                withdrawnAt
+                aliases
+                isMalicious
+              }
+            }
+          }
         }
       }
     }
@@ -2592,7 +2739,16 @@ export class PackageIntelligenceServiceImpl
         }
       : firstPage;
 
-    return this.normaliseVulnerabilityReport(data);
+    const report = this.normaliseVulnerabilityReport(data);
+    if (params.includeTransitive === true) {
+      report.transitive = await this.fetchTransitiveVulnerabilityAudit(
+        token,
+        report.package,
+        params.minSeverity,
+        params,
+      );
+    }
+    return report;
   }
 
   private async fetchPackageVulnerabilitiesPage(
@@ -2710,6 +2866,157 @@ export class PackageIntelligenceServiceImpl
     return {
       package: identity,
       security,
+    };
+  }
+
+  private async fetchTransitiveVulnerabilityAudit(
+    token: string,
+    directIdentity: PackageVersionIdentity,
+    minSeverity: number | undefined,
+    params: PackageVulnerabilitiesParams,
+  ): Promise<TransitiveVulnerabilityAudit> {
+    if (!directIdentity.registry) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Vulnerability report response missing registry for transitive audit.",
+      );
+    }
+
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await postPkgseerGraphql({
+        endpointUrl: this.endpointUrl,
+        token,
+        query: PACKAGE_TRANSITIVE_VULNERABILITY_AUDIT_QUERY,
+        variables: {
+          registry: directIdentity.registry,
+          name: directIdentity.name,
+          version: directIdentity.version,
+          minSeverity,
+        },
+        fetchFn: this.fetchFn,
+        clientHeaders: this.runtime.clientHeaders,
+        userAgent: this.runtime.userAgent,
+        diagnostics: this.runtime.diagnostics,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError) {
+        throw this.createTransportError(cause);
+      }
+      throw cause;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
+    }
+
+    const parsed = transitiveAuditGraphQLResponseSchema.safeParse(
+      response.parsedBody,
+    );
+    if (!parsed.success) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Malformed response from the package-intelligence service.",
+      );
+    }
+
+    if (parsed.data.errors && parsed.data.errors.length > 0) {
+      throw promoteGenericVersionNotFound(
+        this.createGraphQLError(parsed.data.errors),
+        params,
+      );
+    }
+
+    const data = parsed.data.data?.packageDependencies;
+    if (!data) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Empty response from the package-intelligence service.",
+      );
+    }
+
+    const packageIdentity = data.package;
+    if (
+      packageIdentity?.name !== directIdentity.name ||
+      packageIdentity.registry !== directIdentity.registry ||
+      packageIdentity.version !== directIdentity.version
+    ) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Transitive vulnerability audit response package identity differs from the direct report.",
+      );
+    }
+
+    const summary = data.dependencies?.transitive?.vulnerabilitySummary;
+    if (!summary) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Transitive vulnerability audit response missing vulnerability summary.",
+      );
+    }
+
+    return this.normaliseTransitiveVulnerabilityAudit(summary);
+  }
+
+  private normaliseTransitiveVulnerabilityAudit(
+    summary: z.infer<typeof transitiveAuditSummarySchema>,
+  ): TransitiveVulnerabilityAudit {
+    const packages = summary.packages
+      .filter((pkg) => pkg.affectedCount > 0)
+      .map((pkg) => {
+        const occurrences = pkg.advisoryOccurrences ?? [];
+        if (occurrences.length !== pkg.affectedCount) {
+          throw new MalformedPackageIntelligenceResponseError(
+            "Transitive vulnerability audit package occurrence count differs from affected count.",
+          );
+        }
+
+        return {
+          registry: pkg.registry,
+          name: pkg.name,
+          affectedOccurrenceCount: pkg.affectedCount,
+          occurrences: occurrences.map((occurrence) => {
+            if (
+              !occurrence.affectsResolvedVersion ||
+              occurrence.matchedAffectedVersionRanges.length === 0
+            ) {
+              throw new MalformedPackageIntelligenceResponseError(
+                "Transitive vulnerability audit occurrence lacks affectedness proof.",
+              );
+            }
+            return {
+              version: occurrence.version,
+              affectsResolvedVersion: occurrence.affectsResolvedVersion,
+              matchedAffectedVersionRanges:
+                occurrence.matchedAffectedVersionRanges,
+              fixVersionsAboveResolved: occurrence.fixVersionsAboveResolved,
+              nearestFixedVersion: occurrence.nearestFixedVersion ?? undefined,
+              advisory: this.normaliseTransitiveAuditAdvisory(
+                occurrence.advisory,
+              ),
+            };
+          }),
+        };
+      });
+
+    if (packages.length !== summary.affectedPackageCount) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Transitive vulnerability audit package count differs from affected package count.",
+      );
+    }
+
+    const affectedOccurrenceCount = summary.affected.totalVulnerabilities;
+    const occurrenceCount = packages.reduce(
+      (total, pkg) => total + pkg.occurrences.length,
+      0,
+    );
+    if (occurrenceCount !== affectedOccurrenceCount) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Transitive vulnerability audit occurrence count differs from affected total.",
+      );
+    }
+
+    return {
+      totalPackagesAnalyzed: summary.totalPackagesAnalyzed,
+      affectedPackageCount: summary.affectedPackageCount,
+      affectedOccurrenceCount,
+      calculatedAt: summary.calculatedAt ?? undefined,
+      packages,
     };
   }
 
@@ -3171,6 +3478,24 @@ export class PackageIntelligenceServiceImpl
       severityType: advisory.severityType ?? undefined,
       affectedVersionRanges: advisory.affectedVersionRanges ?? undefined,
       fixedInVersions: advisory.fixedInVersions ?? undefined,
+      publishedAt: advisory.publishedAt ?? undefined,
+      modifiedAt: advisory.modifiedAt ?? undefined,
+      withdrawnAt: advisory.withdrawnAt ?? undefined,
+      aliases: advisory.aliases ?? undefined,
+      isMalicious: advisory.isMalicious ?? undefined,
+    };
+  }
+
+  private normaliseTransitiveAuditAdvisory(
+    advisory: z.infer<typeof transitiveAuditAdvisorySchema>,
+  ): VulnerabilitySummaryDetail {
+    return {
+      osvId: advisory.osvId ?? undefined,
+      registry: advisory.registry ?? undefined,
+      packageName: advisory.packageName ?? undefined,
+      summary: advisory.summary ?? undefined,
+      severityScore: advisory.severityScore ?? undefined,
+      severityType: advisory.severityType ?? undefined,
       publishedAt: advisory.publishedAt ?? undefined,
       modifiedAt: advisory.modifiedAt ?? undefined,
       withdrawnAt: advisory.withdrawnAt ?? undefined,

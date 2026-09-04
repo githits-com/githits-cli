@@ -870,9 +870,175 @@ const VULNS_HAPPY_BODY = {
   },
 };
 
+const TRANSITIVE_AUDIT_BODY = {
+  data: {
+    packageDependencies: {
+      package: { name: "express", registry: "NPM", version: "4.18.0" },
+      dependencies: {
+        transitive: {
+          vulnerabilitySummary: {
+            affected: { totalVulnerabilities: 2 },
+            totalPackagesAnalyzed: 4,
+            affectedPackageCount: 1,
+            calculatedAt: "2025-01-01T00:00:00Z",
+            packages: [
+              {
+                registry: "NPM",
+                name: "cookie",
+                affectedCount: 2,
+                advisoryOccurrences: [
+                  {
+                    version: "0.7.0",
+                    affectsResolvedVersion: true,
+                    matchedAffectedVersionRanges: [">= 0.0.0, < 0.7.1"],
+                    fixVersionsAboveResolved: ["0.7.1"],
+                    nearestFixedVersion: "0.7.1",
+                    advisory: {
+                      osvId: "GHSA-cookie-1111-1111",
+                      registry: "NPM",
+                      packageName: "cookie",
+                      summary: "Cookie issue",
+                      severityScore: 7.5,
+                      severityType: "CVSS_V3",
+                      publishedAt: "2024-01-01T00:00:00Z",
+                      modifiedAt: null,
+                      withdrawnAt: null,
+                      aliases: ["CVE-2024-1111"],
+                      isMalicious: false,
+                    },
+                  },
+                  {
+                    version: "0.7.0",
+                    affectsResolvedVersion: true,
+                    matchedAffectedVersionRanges: [">= 0.0.0, < 0.7.2"],
+                    fixVersionsAboveResolved: ["0.7.2"],
+                    nearestFixedVersion: "0.7.2",
+                    advisory: {
+                      osvId: "GHSA-cookie-2222-2222",
+                      registry: "NPM",
+                      packageName: "cookie",
+                      summary: "Another cookie issue",
+                      severityScore: null,
+                      severityType: null,
+                      publishedAt: "2024-02-01T00:00:00Z",
+                      modifiedAt: null,
+                      withdrawnAt: null,
+                      aliases: [],
+                      isMalicious: true,
+                    },
+                  },
+                ],
+              },
+              {
+                registry: "NPM",
+                name: "clean-package",
+                affectedCount: 0,
+                advisoryOccurrences: [],
+              },
+            ],
+          },
+        },
+      },
+    },
+  },
+};
+
+interface MutableTransitiveAuditOccurrence {
+  affectsResolvedVersion: boolean;
+  matchedAffectedVersionRanges: string[];
+}
+
+interface MutableTransitiveAuditPackage {
+  affectedCount: number;
+  advisoryOccurrences: MutableTransitiveAuditOccurrence[];
+}
+
+interface MutableTransitiveAuditSummary {
+  affected: { totalVulnerabilities: number };
+  totalPackagesAnalyzed: number;
+  affectedPackageCount: number;
+  packages: MutableTransitiveAuditPackage[];
+}
+
+interface MutableTransitiveAuditBody {
+  data: {
+    packageDependencies: {
+      package: {
+        name: string;
+        registry: string;
+        version: string;
+      };
+      dependencies: {
+        transitive: {
+          vulnerabilitySummary?: MutableTransitiveAuditSummary;
+        };
+      };
+    };
+  };
+}
+
+function mutableTransitiveAuditBody(): MutableTransitiveAuditBody {
+  return structuredClone(TRANSITIVE_AUDIT_BODY) as MutableTransitiveAuditBody;
+}
+
+function mutableTransitiveAuditSummary(
+  body: MutableTransitiveAuditBody,
+): MutableTransitiveAuditSummary {
+  const summary =
+    body.data.packageDependencies.dependencies.transitive.vulnerabilitySummary;
+  if (!summary) throw new Error("fixture missing vulnerability summary");
+  return summary;
+}
+
+function mutableFirstAuditPackage(
+  body: MutableTransitiveAuditBody,
+): MutableTransitiveAuditPackage {
+  const pkg = mutableTransitiveAuditSummary(body).packages[0];
+  if (!pkg) throw new Error("fixture missing vulnerable package");
+  return pkg;
+}
+
+function mutableFirstAuditOccurrence(
+  body: MutableTransitiveAuditBody,
+): MutableTransitiveAuditOccurrence {
+  const occurrence = mutableFirstAuditPackage(body).advisoryOccurrences[0];
+  if (!occurrence) throw new Error("fixture missing advisory occurrence");
+  return occurrence;
+}
+
 describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
   const ENDPOINT = "https://pkgseer.dev";
   let originalFetch: typeof globalThis.fetch;
+
+  function createAuditService(auditBody: unknown) {
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      const body = JSON.parse((init?.body as string | undefined) ?? "{}");
+      if (body.query.includes("PackageTransitiveVulnerabilityAudit")) {
+        return Promise.resolve(jsonResponse(auditBody));
+      }
+      return Promise.resolve(jsonResponse(VULNS_HAPPY_BODY));
+    });
+    return {
+      fetchFn,
+      service: new PackageIntelligenceServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(fetchFn),
+      ),
+    };
+  }
+
+  async function expectMalformedAudit(auditBody: unknown): Promise<void> {
+    const { service, fetchFn } = createAuditService(auditBody);
+    await expect(
+      service.packageVulnerabilities({
+        registry: "NPM",
+        packageName: "express",
+        includeTransitive: true,
+      }),
+    ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  }
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -912,6 +1078,42 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
       result.security?.vulnerabilities?.[0]?.matchedAffectedVersionRanges,
     ).toEqual([">= 4.0.0, < 4.18.2"]);
   });
+
+  it.each([undefined, false] as const)(
+    "keeps direct-only query and result unchanged when includeTransitive=%s",
+    async (includeTransitive) => {
+      let captured: string | undefined;
+      const fetchFn = mock((_url: string, init?: RequestInit) => {
+        captured = init?.body as string;
+        return Promise.resolve(jsonResponse(VULNS_HAPPY_BODY));
+      });
+      const service = new PackageIntelligenceServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(fetchFn),
+      );
+
+      await service.packageVulnerabilities({
+        registry: "NPM",
+        packageName: "express",
+        ...(includeTransitive === undefined ? {} : { includeTransitive }),
+      });
+
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(captured ?? "{}");
+      expect(parsed.variables).toEqual({
+        registry: "NPM",
+        name: "express",
+        version: undefined,
+        minSeverity: undefined,
+        includeWithdrawn: undefined,
+        scope: undefined,
+        after: null,
+      });
+      expect(parsed.query).toContain("packageVulnerabilities(");
+      expect(parsed.query).not.toContain("PackageTransitiveVulnerabilityAudit");
+    },
+  );
 
   it("sends packageVulnerabilities query with wire variables", async () => {
     let captured: string | undefined;
@@ -1124,6 +1326,246 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     expect(result.security?.vulnerabilities?.map((vuln) => vuln.osvId)).toEqual(
       ["GHSA-xxxx-xxxx-xxxx", "GHSA-mmmm-mmmm-mmmm", "GHSA-last-last-last"],
     );
+  });
+
+  it("runs one minimal transitive audit after direct pagination", async () => {
+    const firstPage = structuredClone(VULNS_HAPPY_BODY);
+    if (!firstPage.data.packageVulnerabilities.security) {
+      throw new Error("fixture missing security block");
+    }
+    const firstPageInfo = firstPage.data.packageVulnerabilities.security
+      .advisories.pageInfo as {
+      hasNextPage: boolean;
+      endCursor: string | null;
+      totalCount: number;
+    };
+    firstPageInfo.hasNextPage = true;
+    firstPageInfo.endCursor = "cursor-1";
+    firstPageInfo.totalCount = 3;
+    const secondPage = structuredClone(VULNS_HAPPY_BODY);
+    if (!secondPage.data.packageVulnerabilities.security) {
+      throw new Error("fixture missing security block");
+    }
+    const firstEntry =
+      firstPage.data.packageVulnerabilities.security.advisories.entries[0];
+    if (!firstEntry) throw new Error("fixture missing first advisory entry");
+    secondPage.data.packageVulnerabilities.security.advisories.entries = [
+      firstEntry,
+    ];
+    secondPage.data.packageVulnerabilities.security.advisories.pageInfo = {
+      hasNextPage: false,
+      endCursor: null,
+      totalCount: 3,
+    };
+
+    const requests: Array<{
+      query: string;
+      variables: Record<string, unknown>;
+    }> = [];
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      const body = JSON.parse((init?.body as string | undefined) ?? "{}");
+      requests.push(body);
+      if (body.query.includes("PackageTransitiveVulnerabilityAudit")) {
+        return Promise.resolve(jsonResponse(TRANSITIVE_AUDIT_BODY));
+      }
+      if (body.variables.after === "cursor-1") {
+        return Promise.resolve(jsonResponse(secondPage));
+      }
+      return Promise.resolve(jsonResponse(firstPage));
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "express",
+      version: "4.17.0",
+      minSeverity: 7.0,
+      includeTransitive: true,
+    });
+
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+    expect(requests[2]?.variables).toEqual({
+      registry: "NPM",
+      name: "express",
+      version: "4.18.0",
+      minSeverity: 7.0,
+    });
+    expect(requests[2]?.query).toContain("includeTransitive: true");
+    expect(requests[2]?.query).toContain(
+      "advisoryOccurrences(scope: AFFECTED, minSeverity: $minSeverity)",
+    );
+    expect(result.transitive).toMatchObject({
+      totalPackagesAnalyzed: 4,
+      affectedPackageCount: 1,
+      affectedOccurrenceCount: 2,
+    });
+  });
+
+  it("selects only the field-minimal transitive audit contract", async () => {
+    const { service, fetchFn } = createAuditService(TRANSITIVE_AUDIT_BODY);
+
+    await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "express",
+      minSeverity: 4.0,
+      includeTransitive: true,
+    });
+
+    const captured = JSON.parse(
+      ((fetchFn.mock.calls as unknown as Array<[string, RequestInit]>)[1]?.[1]
+        ?.body as string) ?? "{}",
+    );
+    const query = captured.query as string;
+    expect(query).toContain("name");
+    expect(query).toContain("registry");
+    expect(query).toContain("version");
+    expect(query).toContain("totalVulnerabilities");
+    expect(query).toContain("totalPackagesAnalyzed");
+    expect(query).toContain("affectedPackageCount");
+    expect(query).toContain("affectedCount");
+    expect(query).toContain("matchedAffectedVersionRanges");
+    expect(query).toContain("fixVersionsAboveResolved");
+    expect(query).toContain("nearestFixedVersion");
+    expect(query).not.toContain("limit");
+    for (const forbidden of [
+      "nonAffecting",
+      "combined",
+      "versions",
+      "advisoryIds",
+      "mostCritical",
+      "affectedVersionRanges",
+      "fixedInVersions",
+      "direct",
+      "dependencyGraph",
+      "dependencyGroups",
+      "dependencyIssues",
+      "conflicts",
+      "circularDependencyCycles",
+    ]) {
+      if (forbidden === "affectedVersionRanges") {
+        expect(query).not.toMatch(/\baffectedVersionRanges\b/);
+      } else {
+        expect(query).not.toContain(forbidden);
+      }
+    }
+    expect(captured.variables).toEqual({
+      registry: "NPM",
+      name: "express",
+      version: "4.18.0",
+      minSeverity: 4.0,
+    });
+  });
+
+  it("normalizes positive affected packages and preserves occurrence evidence", async () => {
+    const { service } = createAuditService(TRANSITIVE_AUDIT_BODY);
+
+    const result = await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "express",
+      includeTransitive: true,
+    });
+
+    expect(result.transitive).toMatchObject({
+      totalPackagesAnalyzed: 4,
+      affectedPackageCount: 1,
+      affectedOccurrenceCount: 2,
+      calculatedAt: "2025-01-01T00:00:00Z",
+    });
+    const packageResult = result.transitive?.packages[0];
+    expect(packageResult).toMatchObject({
+      registry: "NPM",
+      name: "cookie",
+      affectedOccurrenceCount: 2,
+    });
+    expect(packageResult?.occurrences).toHaveLength(2);
+    expect(packageResult?.occurrences[0]).toMatchObject({
+      version: "0.7.0",
+      affectsResolvedVersion: true,
+      matchedAffectedVersionRanges: [">= 0.0.0, < 0.7.1"],
+      fixVersionsAboveResolved: ["0.7.1"],
+      nearestFixedVersion: "0.7.1",
+      advisory: {
+        osvId: "GHSA-cookie-1111-1111",
+        aliases: ["CVE-2024-1111"],
+      },
+    });
+  });
+
+  it("normalizes a checked clean transitive audit with an empty package list", async () => {
+    const cleanBody = mutableTransitiveAuditBody();
+    const summary = mutableTransitiveAuditSummary(cleanBody);
+    summary.affected.totalVulnerabilities = 0;
+    summary.affectedPackageCount = 0;
+    summary.packages = [];
+    summary.totalPackagesAnalyzed = 0;
+    const { service } = createAuditService(cleanBody);
+
+    const result = await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "express",
+      includeTransitive: true,
+    });
+
+    expect(result.transitive).toEqual({
+      totalPackagesAnalyzed: 0,
+      affectedPackageCount: 0,
+      affectedOccurrenceCount: 0,
+      calculatedAt: "2025-01-01T00:00:00Z",
+      packages: [],
+    });
+  });
+
+  it("fails closed when the transitive summary is absent", async () => {
+    const body = mutableTransitiveAuditBody();
+    delete body.data.packageDependencies.dependencies.transitive
+      .vulnerabilitySummary;
+    await expectMalformedAudit(body);
+  });
+
+  it.each(["name", "registry", "version"] as const)(
+    "fails closed when the transitive root %s differs",
+    async (field) => {
+      const body = mutableTransitiveAuditBody();
+      body.data.packageDependencies.package[field] =
+        field === "version" ? "9.9.9" : `different-${field}`;
+      await expectMalformedAudit(body);
+    },
+  );
+
+  it("fails closed when an occurrence lacks resolved-version affectedness", async () => {
+    const body = mutableTransitiveAuditBody();
+    mutableFirstAuditOccurrence(body).affectsResolvedVersion = false;
+    await expectMalformedAudit(body);
+  });
+
+  it("fails closed when an occurrence has no matched affected range", async () => {
+    const body = mutableTransitiveAuditBody();
+    mutableFirstAuditOccurrence(body).matchedAffectedVersionRanges = [];
+    await expectMalformedAudit(body);
+  });
+
+  it("fails closed when a package occurrence count differs from affectedCount", async () => {
+    const body = mutableTransitiveAuditBody();
+    mutableFirstAuditPackage(body).affectedCount = 1;
+    await expectMalformedAudit(body);
+  });
+
+  it("fails closed when positive package rows differ from affectedPackageCount", async () => {
+    const body = mutableTransitiveAuditBody();
+    const summary = mutableTransitiveAuditSummary(body);
+    summary.affectedPackageCount = 2;
+    await expectMalformedAudit(body);
+  });
+
+  it("fails closed when occurrence sum differs from affected total", async () => {
+    const body = mutableTransitiveAuditBody();
+    const summary = mutableTransitiveAuditSummary(body);
+    summary.affected.totalVulnerabilities = 1;
+    await expectMalformedAudit(body);
   });
 
   it("rejects incomplete advisory pagination", async () => {
