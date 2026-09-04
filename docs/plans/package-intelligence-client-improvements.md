@@ -6,9 +6,9 @@
 - Phase 1 — package overview distinguishes current-version and package-history
   evidence: **COMPLETE — merged in PR #350 at `9d267a2`**
 - Phase 2 — dependency analysis exposes actionable issue and conflict evidence:
-  **IMPLEMENTED — draft PR #351, awaiting merge**
+  **COMPLETE — merged in PR #351 at `16ecf75`**
 - Phase 3 — vulnerability inspection optionally audits resolved transitive
-  dependencies: **PENDING REORIENTATION — blocked on Phase 2 merge and `$next-steps`**
+  dependencies: **PENDING REORIENTATION — awaiting `$next-steps` after Phase 2 merge**
 - Last verified: 2026-09-04
 
 ## Problem and expected outcome
@@ -312,7 +312,7 @@ client view consumes. Callers never have to discover and combine coupled flags.
 
 - None for Phases 1 and 2. This plan fixes non-bold cyan and removal of the inline
   action as the Phase 1 product contract.
-- Phase 3 tactical detail will be refreshed after Phase 2 merges, but its product
+- Phase 3 tactical detail will be refreshed now that Phase 2 has merged, but its product
   outcome, opt-in behavior, scope semantics, and error behavior are decided here.
 
 ## Cross-cutting considerations
@@ -402,7 +402,7 @@ client view consumes. Callers never have to discover and combine coupled flags.
 
 ### Phase 2 — dependency issues and conflicts become actionable
 
-- **Status:** IMPLEMENTED — draft PR #351, awaiting merge
+- **Status:** COMPLETE — merged in PR #351 at `16ecf75`
 - **Expected outcome:** callers can explicitly request deprecated, outdated,
   duplicate, and conflict analysis, and every visible conflict can identify the
   target package, incompatible constraints, and contributing importers without
@@ -422,7 +422,7 @@ client view consumes. Callers never have to discover and combine coupled flags.
 
 ### Phase 3 — vulnerability inspection optionally audits transitive risk
 
-- **Status:** PENDING REORIENTATION — blocked on Phase 2 merge and `$next-steps`
+- **Status:** PENDING REORIENTATION — awaiting `$next-steps` after Phase 2 merge
 - **Expected outcome:** an explicit `pkg_vulns` transitive mode reports direct
   package affectedness plus vulnerabilities affecting resolved dependency versions,
   with severity, package/version, matched-range, and nearest-fix evidence and without
@@ -678,8 +678,8 @@ as they do now.
 
 ## Phase 2 implemented result
 
-Phase 2 is implemented in the client repository and is awaiting merge as draft PR
-#351. It delivered CLI `--issues` and MCP `include_issues`, conditional issue and
+Phase 2 is complete and merged in PR #351 at `16ecf75`. It delivered CLI `--issues`
+and MCP `include_issues`, conditional issue and
 companion-graph selection with full-graph versus depth-bounded cost, exact lossless
 issue/conflict JSON requirements, bounded compact and complete wrapped verbose text,
 and fail-closed validation for missing issue/graph data and edge-backed ordinary
@@ -704,8 +704,8 @@ graph validation.
 Phase 2 commits, grouped compactly: feature work `56eed9f`, `ddde860`, `df37442`,
 `942278d`, `e5d9e9e`, `003141f`; tests/smoke/docs `4e1900a`, `aa1a3af`, `258c352`;
 corrections `07e11f5`, `e4fe879`, `01df950`, `2b4ef01`, `4bd9110`, `16dc4ca`,
-`d38b8c3`. The implementation is carried by draft PR #351 and is not yet merged,
-released, or deployed.
+`d38b8c3`. The implementation was merged by PR #351 and is not yet released or
+deployed.
 
 ## Phase 2 detailed implementation plan
 
@@ -719,7 +719,7 @@ A live `npm:express` dependency probe still reports one conflict without importe
 detail, while a live upgrade-review probe with dependency issues successfully returned
 current and target issue totals from the deployed backend. Phase 2 therefore remained
 relevant and implementation-ready at that recheck, with no product decision or
-missing contract detail; it is now implemented and awaiting the merge recorded above.
+missing contract detail; it is now merged as recorded above.
 
 ### Behavioral contract
 

@@ -5,6 +5,45 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.12.1] - 2026-09-04
+
+Patch release: adds opt-in dependency issue analysis and expanded package
+overview evidence, and improves GitHits skill discovery.
+
+### Added
+
+- **Dependency issue analysis** - Opt into deprecated, outdated, duplicate, and
+  conflict analysis with `pkg deps --issues` or MCP `include_issues: true`,
+  including actionable conflict constraints and importer provenance in text and
+  JSON.
+- **Clarify package overview evidence** - `pkg_info` separates latest-version
+  affected vulnerabilities from package-wide advisory history, keeps that
+  summary evidence-only, improves URL contrast, and exposes published-version
+  count plus download freshness in verbose text and JSON. Full-history routing
+  remains available in CLI help and the MCP descriptor.
+
+### Fixed
+
+- **Improve GitHits skill discovery** - Make the MCP skill describe the OSS and
+  package tasks that should trigger it instead of assuming GitHits was already
+  selected.
+
+## [@githits/mcp 0.12.1] - 2026-09-04
+
+Coordinated patch release: adds opt-in dependency issue analysis and expanded
+package overview evidence.
+
+### Added
+
+- **Dependency issue analysis** - Opt into deprecated, outdated, duplicate, and
+  conflict analysis with MCP `include_issues: true`, including actionable
+  conflict constraints and importer provenance in text and JSON.
+- **Clarify package overview evidence** - `pkg_info` separates latest-version
+  affected vulnerabilities from package-wide advisory history, keeps that
+  summary evidence-only, improves URL contrast, and exposes published-version
+  count plus download freshness in verbose text and JSON. Full-history routing
+  remains available in the MCP descriptor.
+
 ## [githits 0.12.0] - 2026-09-03
 
 Minor release: adds opt-in Agentic Ask and improves repository grep,
