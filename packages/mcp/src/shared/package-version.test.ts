@@ -27,9 +27,13 @@ describe("normalisePackageVersion", () => {
   });
 
   it("rejects v-prefixed versions for other registries", () => {
-    expect(() => normalisePackageVersion("v5.2.1", "NPM")).toThrow(
-      "canonical package version without a leading 'v'",
-    );
+    expect(() =>
+      normalisePackageVersion("v5.2.1", "NPM", { rejectLeadingV: true }),
+    ).toThrow("canonical package version without a leading 'v'");
+  });
+
+  it("preserves non-Go v-prefixed versions when the boundary allows them", () => {
+    expect(normalisePackageVersion("v5.2.1", "NPM")).toBe("v5.2.1");
   });
 
   it("treats blank optional versions as absent", () => {

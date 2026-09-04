@@ -194,7 +194,10 @@ function normaliseVersion(
   fieldName: string,
   registry: PkgseerRegistry,
 ): string {
-  const version = normalisePackageVersion(raw, registry);
+  const version = normalisePackageVersion(raw, registry, {
+    rejectLeadingV: true,
+    fieldName,
+  });
   if (version === undefined) {
     throw new InvalidPackageSpecError(`${fieldName} is required.`);
   }

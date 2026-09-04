@@ -201,6 +201,15 @@ describe("buildPackageUpgradeReviewRequest", () => {
         currentVersion: "v4.18.0",
         targetVersion: "5.2.1",
       }),
-    ).toThrow(InvalidPackageSpecError);
+    ).toThrow("Invalid current_version 'v4.18.0'");
+
+    expect(() =>
+      buildPackageUpgradeReviewRequest({
+        registry: "npm",
+        packageName: "express",
+        currentVersion: "4.18.0",
+        targetVersion: "v5.2.1",
+      }),
+    ).toThrow("Invalid target_version 'v5.2.1'");
   });
 });

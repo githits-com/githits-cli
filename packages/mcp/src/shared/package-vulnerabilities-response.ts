@@ -97,7 +97,7 @@ export interface LeanVulnerabilityReport {
 }
 
 export interface BuildVulnerabilitiesPayloadOptions {
-  /** Raw caller-supplied version string (pre-normalisation). */
+  /** Canonical requested version sent to the backend. */
   requestedVersion?: string;
   /** Caller-supplied filters, echoed from shared request parsing. */
   filter?: PackageVulnerabilitiesFilterEcho;
@@ -716,13 +716,9 @@ function deriveRequestedVersion(
   if (requested === undefined) return undefined;
   const trimmed = requested.trim();
   if (trimmed.length === 0) return undefined;
-  // Any non-empty divergence from the resolved version surfaces as
-  // `requestedVersion`. No `v`-prefix suppression: a registry that
-  // accepts a version-only input never treats `v4.17.0` as a valid
-  // canonical version — the `v` prefix is a git-tag convention, not
-  // a semver/PEP 440/Cargo version. If the backend resolved to
-  // something different, that divergence is a real signal the caller
-  // should see.
+  // The request builder already canonicalized registry-specific syntax.
+  // Any remaining divergence from the backend-resolved version is a real
+  // signal the caller should see.
   if (trimmed === resolved) return undefined;
   return trimmed;
 }

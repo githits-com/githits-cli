@@ -238,7 +238,7 @@ export interface LeanDependencyReport {
 }
 
 export interface BuildDependenciesPayloadOptions {
-  /** Raw caller-supplied version string (pre-normalisation). */
+  /** Canonical requested version sent to the backend. */
   requestedVersion?: string;
   /** Lifecycles that went on the wire. Empty → no filter. */
   canonicalLifecycles?: DependencyLifecycleInput[];

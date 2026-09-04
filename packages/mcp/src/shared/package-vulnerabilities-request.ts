@@ -161,7 +161,9 @@ export function buildPackageVulnerabilitiesParams(
     severityLabel !== undefined
       ? SEVERITY_LABEL_TO_CVSS[severityLabel]
       : undefined;
-  const version = normalisePackageVersion(input.version, registry);
+  const version = normalisePackageVersion(input.version, registry, {
+    rejectLeadingV: true,
+  });
 
   const advisoryScope = resolveAdvisoryScope(input.advisoryScope);
   const filterWithScope = buildFilterEcho(

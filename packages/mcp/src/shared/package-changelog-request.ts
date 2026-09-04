@@ -93,10 +93,18 @@ export function buildPackageChangelogParams(
   const fromVersion = normalisePackageVersion(
     input.fromVersion,
     addressing.registry,
+    {
+      rejectLeadingV: true,
+      fieldName: "--from / from_version",
+    },
   );
   const toVersion = normalisePackageVersion(
     input.toVersion,
     addressing.registry,
+    {
+      rejectLeadingV: true,
+      fieldName: "--to / to_version",
+    },
   );
   const limit = normaliseLimit(input.limit);
 

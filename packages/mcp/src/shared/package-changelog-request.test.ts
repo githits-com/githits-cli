@@ -137,7 +137,7 @@ describe("buildPackageChangelogParams — version validation", () => {
         packageName: "express",
         fromVersion: "v4.18.0",
       }),
-    ).toThrow(/git tag/);
+    ).toThrow(/--from \/ from_version/);
   });
 
   it("rejects tag-style toVersion", () => {
@@ -147,7 +147,7 @@ describe("buildPackageChangelogParams — version validation", () => {
         packageName: "express",
         toVersion: "V5.0.0",
       }),
-    ).toThrow(/git tag/);
+    ).toThrow(/--to \/ to_version/);
   });
 
   it("allows v-prefixed Swift versions", () => {

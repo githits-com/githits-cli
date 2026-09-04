@@ -162,7 +162,9 @@ export function buildPackageDependenciesParams(
     );
   }
 
-  const version = normalisePackageVersion(input.version, registry);
+  const version = normalisePackageVersion(input.version, registry, {
+    rejectLeadingV: true,
+  });
 
   const canonicalLifecycles = resolveLifecycles(input.lifecycle);
   const wireLifecycles = canonicalLifecycles.filter(
