@@ -1519,8 +1519,10 @@ function formatTransitiveSummaryLine(
   if (summary.affectedOccurrenceCount === 0) {
     return `No affected advisory occurrences found; ${summary.totalPackagesAnalyzed} ${versionNoun} checked.`;
   }
-  return `${summary.affectedOccurrenceCount} ${occurrenceNoun} in ${summary.affectedPackageCount} ${packageNoun}; ${summary.totalPackagesAnalyzed} ${versionNoun} checked`;
+  return `${summary.affectedOccurrenceCount} ${occurrenceNoun} in ${summary.affectedPackageCount} ${packageNoun}; ${summary.totalPackagesAnalyzed} ${versionNoun} checked.`;
 }
+
+const TRANSITIVE_SEVERITY_LABEL_WIDTH = "critical".length;
 
 function formatTransitiveBreakdown(
   summary: LeanTransitiveVulnerabilityAudit["summary"],
@@ -1625,9 +1627,10 @@ function formatTransitiveOccurrence(
 ): string[] {
   const occurrence = row.occurrence;
   const label = transitiveSeverityColumnLabel(occurrence);
+  const paddedLabel = label.padEnd(TRANSITIVE_SEVERITY_LABEL_WIDTH);
   const coordinate = `${sanitizeIdentity(row.name)}@${sanitizeIdentity(occurrence.resolvedVersion)}`;
   const identity = occurrence.id ? sanitizeIdentity(occurrence.id) : undefined;
-  const headlineParts = [label, coordinate];
+  const headlineParts = [paddedLabel, coordinate];
   if (identity) headlineParts.push(identity);
   const headline = `  ${headlineParts.join("  ")}`;
   const lines = formatTransitiveHeadline(
@@ -1640,8 +1643,8 @@ function formatTransitiveOccurrence(
     transitiveLabelColor(label),
     options.useColors,
   );
-  const labelStart = lines[0]?.indexOf(label) ?? 0;
-  lines[0] = `${lines[0]?.slice(0, labelStart) ?? ""}${coloredLabel}${lines[0]?.slice(labelStart + label.length) ?? ""}`;
+  const labelStart = lines[0]?.indexOf(paddedLabel) ?? 0;
+  lines[0] = `${lines[0]?.slice(0, labelStart) ?? ""}${coloredLabel}${" ".repeat(paddedLabel.length - label.length)}${lines[0]?.slice(labelStart + paddedLabel.length) ?? ""}`;
 
   lines.push(
     ...formatAtomicDetail(

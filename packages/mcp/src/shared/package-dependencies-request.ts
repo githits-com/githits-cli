@@ -6,10 +6,9 @@
  *
  * Responsibilities:
  * - Trim + validate `packageName`.
- * - Normalise registry case and restrict to the registries that the
- *   upstream `packageDependencies` resolver supports (see
- *   `SUPPORTED_DEPS_REGISTRIES`). Truly unknown registries fall through
- *   to the shared `UnsupportedRegistryError`.
+ * - Normalise registry case and reject truly unknown registries with the
+ *   shared `UnsupportedRegistryError`. All known registries are supported by
+ *   the upstream `packageDependencies` resolver.
  * - Reject tag-style versions (`v4.18.0`) client-side — the `v` prefix
  *   is a git-tag convention, not a canonical version on most supported
  *   registries. Swift is the exception: SwiftPM packages commonly use
@@ -31,24 +30,6 @@ import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,
 } from "./package-spec.js";
-import {
-  SUPPORTED_DEPS_REGISTRIES_LIST,
-  supportsDependenciesRegistry,
-} from "./pkgseer-capabilities.js";
-
-/**
- * Raised when the caller targets a registry that is unsupported by
- * the `packageDependencies` query specifically. Name-prefix
- * `Unsupported` routes via the shared classifier to
- * `INVALID_ARGUMENT`. Message is tool-specific.
- */
-export class UnsupportedDependenciesRegistryError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "UnsupportedDependenciesRegistryError";
-  }
-}
-
 export type DependencyLifecycle =
   | "runtime"
   | "development"
@@ -74,11 +55,7 @@ const LIFECYCLE_ORDER: Readonly<Record<DependencyLifecycle, number>> = {
   optional: 4,
 };
 
-export {
-  SUPPORTED_DEPS_REGISTRIES,
-  SUPPORTED_DEPS_REGISTRIES_LIST,
-  supportsDependenciesRegistry,
-} from "./pkgseer-capabilities.js";
+export { SUPPORTED_DEPS_REGISTRIES_LIST } from "./pkgseer-capabilities.js";
 
 export interface PackageDependenciesRequestInput {
   /** Lowercase registry surface value (`npm`, `pypi`, …). */
@@ -135,11 +112,6 @@ export function buildPackageDependenciesParams(
   const registry = toPkgseerRegistry(
     normalisedRegistryArg as PkgseerRegistryArg,
   );
-  if (!supportsDependenciesRegistry(registry)) {
-    throw new UnsupportedDependenciesRegistryError(
-      `pkg deps only supports ${SUPPORTED_DEPS_REGISTRIES_LIST}. Got: ${normalisedRegistryArg}.`,
-    );
-  }
 
   const version = normaliseVersion(input.version, registry);
 

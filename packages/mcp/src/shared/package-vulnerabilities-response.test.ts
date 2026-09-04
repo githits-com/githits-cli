@@ -1087,12 +1087,13 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
       "No active vulnerabilities affect this version.\n\nResolved dependencies",
     );
     expect(output).toContain(
-      "7 affected advisory occurrences in 3 dependency packages; 49 resolved package versions checked",
+      "7 affected advisory occurrences in 3 dependency packages; 49 resolved package versions checked.",
     );
     expect(output).toContain(
       "1 MALWARE | 1 critical | 1 high | 1 medium | 2 low | 1 unrated",
     );
-    expect(output).toContain("MALWARE  body-parser@1.19.0  GHSA-body-mal");
+    expect(output).toContain("MALWARE   body-parser@1.19.0  GHSA-body-mal");
+    expect(output).toContain("critical  accepts@1.3.8  GHSA-accept-critical");
     expect(output).toContain("matched      >= 1.0.0, < 2.0.0");
     expect(output).toContain("nearest fix  2.0.0");
     expect(output.indexOf("Resolved dependencies")).toBeGreaterThan(
@@ -1139,7 +1140,7 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
       terminalWidth: 120,
     });
     expect(singularOutput).toContain(
-      "1 affected advisory occurrence in 1 dependency package; 1 resolved package version checked",
+      "1 affected advisory occurrence in 1 dependency package; 1 resolved package version checked.",
     );
   });
 

@@ -11,12 +11,12 @@ This work follows the local `sanitizeTerminalText` fix added for `githits
 resolve`. It remains a separate increment because it spans existing CLI and
 public MCP formatter contracts beyond target resolution.
 
-Scope coordination on 2026-09-04: the vulnerability formatter plus extraction of
-the shared helper moved into Phase 3 of
-`docs/plans/package-intelligence-client-improvements.md`, where new transitive
-security text otherwise would repeat the verified control-sequence flaw. This plan
-now owns the remaining package formatters and later non-package surfaces; it must not
-repeat that vulnerability work after Phase 3 merges.
+Scope coordination on 2026-09-04: the vulnerability formatter and extraction of
+the shared helper were completed as part of the package-intelligence Phase 3
+implementation. The permanent package-tool trust-boundary rules are recorded in
+`docs/implementation/tools.md`. This plan now owns the remaining package
+formatters and later non-package surfaces; it must not repeat the completed
+vulnerability work.
 
 ## Verified issue
 
@@ -63,14 +63,14 @@ JSON escaping.
 
 ## High-level split
 
-### PR 1: Package-intelligence text metadata
+### PR 1: Remaining package-intelligence text metadata
 
-After the package-intelligence Phase 3 increment extracts the proven sanitizer and
-applies it to vulnerability text, apply it to the remaining package-intelligence
-formatters. This is the next detailed increment and should remain below roughly
-1,500–2,000 changed lines of implementation code. Measure the delta before review;
-if it approaches the limit, stop and split by package formatter rather than weakening
-field coverage or tests.
+The shared sanitizer extraction and vulnerability formatter integration are
+complete. Apply the same field-level rule to the remaining package-intelligence
+formatters in this plan. This is the next detailed increment and should remain
+below roughly 1,500–2,000 changed lines of implementation code. Measure the delta
+before review; if it approaches the limit, stop and split by package formatter
+rather than weakening field coverage or tests.
 
 ### Later direction: Code, docs, search, and CLI errors
 
@@ -85,14 +85,14 @@ changing round-trip content. Do not design a raw-content mode or new flag in PR
 
 ### Shared helper
 
-Phase 3 of `package-intelligence-client-improvements.md` moves the existing regex and
+The completed package-intelligence Phase 3 work moved the existing regex and
 `sanitizeTerminalText(value: string): string` into
-`packages/mcp/src/shared/terminal-text.ts`, migrates existing consumers, and preserves
-the workspace-only `packages/mcp/src/internal.ts` export. This plan consumes that
-helper after Phase 3 merges; it does not expose the helper through
-`packages/mcp/src/index.ts` or the public package export map. If this plan is selected
-for implementation first, reorient both plans rather than duplicating or moving the
-helper twice.
+`packages/mcp/src/shared/terminal-text.ts`, migrated the existing consumers, and
+preserved the workspace-only `packages/mcp/src/internal.ts` export. The vulnerability
+formatter now consumes that helper at its field-level display boundary. This plan
+consumes the same helper for the remaining formatters; it does not expose the helper
+through `packages/mcp/src/index.ts` or the public package export map, and must not
+duplicate or move it again.
 
 The helper remains a pure string transform. It strips complete ANSI CSI/OSC and
 two-byte escape sequences before residual C0/C1/DEL controls so payload text

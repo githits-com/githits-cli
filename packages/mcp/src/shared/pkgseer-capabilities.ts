@@ -2,23 +2,17 @@
  * Client-side capability matrices for package-intelligence registries.
  *
  * The registry taxonomy in `@githits/core-internal` describes every known
- * backend registry. These sets describe which package-intelligence queries
- * the client can call today, so request builders and ecosystem audits share
- * one capability source instead of drifting independently.
+ * backend registry. These definitions describe which package-intelligence
+ * queries the client can call today, so request builders and ecosystem audits
+ * share one capability source instead of drifting independently.
  */
 
 import {
   PKGSEER_REGISTRY_ARGS,
-  PKGSEER_REGISTRY_VALUES,
   type PkgseerRegistry,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
 } from "@githits/core-internal";
-
-/** Every known registry supports the dependency graph query. */
-export const SUPPORTED_DEPS_REGISTRIES: ReadonlySet<PkgseerRegistry> = new Set(
-  PKGSEER_REGISTRY_VALUES,
-);
 
 /** Lowercase dependency registries in canonical `PKGSEER_REGISTRY_ARGS` order. */
 export const SUPPORTED_DEPS_REGISTRY_ARGS: readonly PkgseerRegistryArg[] =
@@ -53,12 +47,6 @@ export const SUPPORTED_VULN_REGISTRIES_LIST: string =
 /** Vulnerability registry list with the existing error-message conjunction. */
 export const SUPPORTED_VULN_REGISTRIES_HUMAN: string =
   "npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift";
-
-export function supportsDependenciesRegistry(
-  registry: PkgseerRegistry,
-): boolean {
-  return SUPPORTED_DEPS_REGISTRIES.has(registry);
-}
 
 export function supportsVulnerabilitiesRegistry(
   registry: PkgseerRegistry,

@@ -2975,13 +2975,29 @@ export class PackageIntelligenceServiceImpl
                 "Transitive vulnerability audit occurrence lacks affectedness proof.",
               );
             }
+            const hasHigherFixes =
+              occurrence.fixVersionsAboveResolved.length > 0;
+            const nearestFixedVersion =
+              occurrence.nearestFixedVersion ?? undefined;
+            const hasNearestFix = nearestFixedVersion !== undefined;
+            if (
+              hasHigherFixes !== hasNearestFix ||
+              (hasNearestFix &&
+                !occurrence.fixVersionsAboveResolved.includes(
+                  nearestFixedVersion,
+                ))
+            ) {
+              throw new MalformedPackageIntelligenceResponseError(
+                "Transitive vulnerability audit fix metadata is inconsistent.",
+              );
+            }
             return {
               version: occurrence.version,
               affectsResolvedVersion: occurrence.affectsResolvedVersion,
               matchedAffectedVersionRanges:
                 occurrence.matchedAffectedVersionRanges,
               fixVersionsAboveResolved: occurrence.fixVersionsAboveResolved,
-              nearestFixedVersion: occurrence.nearestFixedVersion ?? undefined,
+              nearestFixedVersion,
               advisory: this.normaliseTransitiveAuditAdvisory(
                 occurrence.advisory,
               ),

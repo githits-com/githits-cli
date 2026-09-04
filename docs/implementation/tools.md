@@ -178,14 +178,17 @@ The additive JSON `transitive` object has `scope: "resolved_dependencies"`,
 `totalPackagesAnalyzed`, `affectedPackageCount`, and
 `affectedOccurrenceCount`, and a `packages` array. Each package row preserves
 complete affected dependency-version/advisory occurrences, including the
-resolved version, matched affected ranges, and higher-fix candidates. JSON is
-complete and lossless; compact text shows at most five transitive rows globally,
+resolved version, matched affected ranges, and higher-fix candidates. Each
+occurrence always includes `matchedAffectedVersionRanges` and
+`fixVersionsAboveResolved`, which may be empty when no higher fix is known;
+`nearestFixedVersion` is omitted in that case. JSON is complete and lossless;
+compact text shows at most five transitive rows globally,
 while verbose text shows every selected occurrence and places one
 surface-native continuation hint after the evidence. CLI `--json` and MCP
 `format: "json"` use the same envelope. The service performs a sequential,
 field-minimal dependency query with the resolved root version and fails closed
-on malformed identity/count evidence instead of returning partial direct-only
-results.
+on malformed identity/count/fix evidence instead of returning partial
+direct-only results.
 
 ## Ecosystem Audit
 
@@ -294,9 +297,16 @@ contributors are not copied onto generic progress targets, and
 
 **Typed `VERSION_NOT_FOUND`.** Mirrors the code-nav precedent: a dedicated `PackageIntelligenceVersionNotFoundError` carries structured `{ packageName, requestedVersion, availableVersions? }` fields. Classifier routes it to `VERSION_NOT_FOUND` with a structured `details` block. When the service only gets a generic "no matching version" error, it promotes that into the typed error so CLI / MCP surfaces still render an actionable envelope. `availableVersions` remains undefined in the fallback path unless the service supplied them.
 
-**Omission rules.** Null scalars omitted; empty arrays dropped; zero-count `bySeverity` keys dropped; the `bySeverity` block itself dropped when `total === 0`. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
+**Omission rules.** Null scalars and optional empty arrays/blocks are omitted;
+zero-count `bySeverity` keys are dropped, and the `bySeverity` block itself is
+dropped when `total === 0`. The successful transitive audit is an intentional
+exception: `packages` is always present (including `[]` for a checked-clean
+graph), and each transitive occurrence always retains the required
+`matchedAffectedVersionRanges` and `fixVersionsAboveResolved` arrays (including
+`[]`). `modifiedAt` is included only when it differs from `publishedAt`, and
+`isMalicious` is included only when `true`.
 
-**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift have vulnerability data. vcpkg and Zig are rejected client-side with a tool-specific message (`pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: ${registry}.`) — the tool-specific capability predicate lives in `packages/mcp/src/shared/pkgseer-capabilities.ts` alongside the dependency capability matrix.
+**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift have vulnerability data. vcpkg and Zig are rejected client-side with a tool-specific message (`pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: ${registry}.`) — the tool-specific vulnerability predicate lives in `packages/mcp/src/shared/pkgseer-capabilities.ts`.
 
 `pkg_vulns` shares its envelope builder and text formatter with the CLI `githits pkg vulns` command via `packages/mcp/src/shared/package-vulnerabilities-request.ts` and `packages/mcp/src/shared/package-vulnerabilities-response.ts`. MCP defaults to compact text and uses `format: "json"` for structured output. The shared text formatter is surface-aware so MCP hints never mention CLI flags. The parity test (`src/tools/package-vulnerabilities-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across the service-sourced success/filter/typed-error fixtures, and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT` fixtures such as unsupported registries and tag-style `v`-prefixed versions.
 
@@ -362,13 +372,13 @@ JSON retains backend order and multiplicity.
 
 **Typed dependency graph projection.** Backend exposes typed `dependencyGraph`, `dependencyConflicts`, `circularDependencyCycles`, and `environmentMarkers`; `pkg_deps` consumes those typed fields and projects them into a lean agent-facing envelope. Deprecated raw fields (`dag`, `conflicts`, `circularDependencies`, `environmentConstraints`) are intentionally not queried. The raw graph is deliberately not exposed by this tool.
 
-**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift support the `packageDependencies` query. The shared capability matrix in `packages/mcp/src/shared/pkgseer-capabilities.ts` is the source for the request builder and ecosystem audit; its dependency list follows canonical `PKGSEER_REGISTRY_ARGS` order.
+**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift support the `packageDependencies` query. The shared registry capability module in `packages/mcp/src/shared/pkgseer-capabilities.ts` supplies the canonical dependency list used by request/help text and the ecosystem audit; it follows `PKGSEER_REGISTRY_ARGS` order. There is no known unsupported dependency registry in this set; only an unknown registry is rejected.
 
 **Version validation.** Same rule as `pkg_vulns`: tag-style `v`-prefixed inputs are rejected client-side with `INVALID_ARGUMENT` before the backend call.
 
 **MCP schema notes.** Permissive (`registry: z.string()`, `package_name: z.string()`, …) with validation in-handler via `buildPackageDependenciesParams`. Deliberately no `include_groups` input — with the data-first envelope emitting `groups` unconditionally when the backend returns `dependencyGroups`, the flag would be a silently ignored no-op. `max_depth` / CLI `--depth` is optional; when omitted the surface shows direct dependencies only while still fetching depth 1 on the wire to resolve direct dependency versions. Passing `max_depth` requests the transitive block and caps traversal. `include_importers` adds importer provenance; if used without `max_depth`, it also requests transitive output. `include_issues` is an independent opt-in: it requests the issue summary and companion graph, uses full traversal when `max_depth` is omitted, and does not expose the ordinary transitive block unless `max_depth` or `include_importers` is also supplied. Omitted and explicit `false` preserve the current selections and cost, including conditional omission of the issue subtree.
 
-`pkg_deps` shares its envelope builder and text formatter with the CLI `githits pkg deps` command via `packages/mcp/src/shared/package-dependencies-request.ts` and `packages/mcp/src/shared/package-dependencies-response.ts`. MCP defaults to compact text and uses MCP-native hints such as `pass lifecycle="all"`; CLI hints remain CLI-native. The parity test (`src/tools/package-dependencies-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across every service-sourced success / error fixture (runtime, zero-dep, full-view, optional-lifecycle, multi-lifecycle, filter-matched-nothing, Crates-target-cfg dedup round-trip, transitive, versioned match / diff, NOT_FOUND, VERSION_NOT_FOUND, BACKEND_ERROR), and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT` (unsupported registry, tag-style version, unknown lifecycle).
+`pkg_deps` shares its envelope builder and text formatter with the CLI `githits pkg deps` command via `packages/mcp/src/shared/package-dependencies-request.ts` and `packages/mcp/src/shared/package-dependencies-response.ts`. MCP defaults to compact text and uses MCP-native hints such as `pass lifecycle="all"`; CLI hints remain CLI-native. The parity test (`src/tools/package-dependencies-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across every service-sourced success / error fixture (runtime, zero-dep, full-view, optional-lifecycle, multi-lifecycle, filter-matched-nothing, Crates-target-cfg dedup round-trip, transitive, versioned match / diff, NOT_FOUND, VERSION_NOT_FOUND, BACKEND_ERROR), and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT` (unknown registry, tag-style version, unknown lifecycle).
 
 ### `pkg_changelog` response shape
 

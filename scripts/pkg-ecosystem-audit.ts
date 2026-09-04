@@ -5,10 +5,7 @@ import {
   type PkgseerRegistryArg,
   toPkgseerRegistry,
 } from "@githits/core-internal";
-import {
-  supportsDependenciesRegistry,
-  supportsVulnerabilitiesRegistry,
-} from "../packages/mcp/src/shared/pkgseer-capabilities.js";
+import { supportsVulnerabilitiesRegistry } from "@githits/mcp/internal";
 
 interface PackageFixture {
   registry: Registry;
@@ -253,9 +250,6 @@ function isExpectedUnsupported(registry: Registry, tool: ToolName): boolean {
   const backendRegistry = toPkgseerRegistry(registry as PkgseerRegistryArg);
   if (tool === "pkg_vulns") {
     return !supportsVulnerabilitiesRegistry(backendRegistry);
-  }
-  if (tool === "pkg_deps") {
-    return !supportsDependenciesRegistry(backendRegistry);
   }
   return false;
 }

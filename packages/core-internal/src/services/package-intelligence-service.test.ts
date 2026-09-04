@@ -938,6 +938,8 @@ const TRANSITIVE_AUDIT_BODY = {
 interface MutableTransitiveAuditOccurrence {
   affectsResolvedVersion: boolean;
   matchedAffectedVersionRanges: string[];
+  fixVersionsAboveResolved: string[];
+  nearestFixedVersion?: string | null;
 }
 
 interface MutableTransitiveAuditPackage {
@@ -1684,6 +1686,44 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     const body = mutableTransitiveAuditBody();
     mutableFirstAuditOccurrence(body).matchedAffectedVersionRanges = [];
     await expectMalformedAudit(body);
+  });
+
+  it.each([
+    "higher fixes without nearest fix",
+    "nearest fix without higher fixes",
+    "nearest fix absent from higher fixes",
+  ])("fails closed when fix metadata is inconsistent: %s", async (shape) => {
+    const body = mutableTransitiveAuditBody();
+    const occurrence = mutableFirstAuditOccurrence(body);
+    if (shape === "higher fixes without nearest fix") {
+      occurrence.nearestFixedVersion = null;
+    } else if (shape === "nearest fix without higher fixes") {
+      occurrence.fixVersionsAboveResolved = [];
+    } else {
+      occurrence.nearestFixedVersion = "0.7.9";
+    }
+    await expectMalformedAudit(body);
+  });
+
+  it("preserves an occurrence with no higher fix metadata", async () => {
+    const body = mutableTransitiveAuditBody();
+    const occurrence = mutableFirstAuditOccurrence(body);
+    occurrence.fixVersionsAboveResolved = [];
+    occurrence.nearestFixedVersion = null;
+    const { service } = createAuditService(body);
+
+    const result = await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "express",
+      includeTransitive: true,
+    });
+
+    expect(result.transitive?.packages[0]?.occurrences[0]).toMatchObject({
+      fixVersionsAboveResolved: [],
+    });
+    expect(
+      result.transitive?.packages[0]?.occurrences[0]?.nearestFixedVersion,
+    ).toBeUndefined();
   });
 
   it("fails closed when a package occurrence count differs from affectedCount", async () => {
