@@ -30,6 +30,7 @@ import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,
 } from "./package-spec.js";
+
 export type DependencyLifecycle =
   | "runtime"
   | "development"
