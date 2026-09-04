@@ -56,6 +56,44 @@ describe("docsReadAction", () => {
     logSpy.mockRestore();
   });
 
+  it("passes URL targets through and returns target, ID, provenance, and range", async () => {
+    const docsReadTarget =
+      "https://expressjs.com/en/guide/routing.html?publisher=express";
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    const readPackageDoc = mock(() =>
+      Promise.resolve({
+        page: {
+          id: "legacy-routing-id",
+          docsReadTarget,
+          content: "one\ntwo\nthree",
+          source: { url: docsReadTarget },
+        },
+      }),
+    );
+    const service = createMockPackageIntelligenceService({ readPackageDoc });
+
+    try {
+      await docsReadAction(
+        docsReadTarget,
+        { lines: "2-2", json: true },
+        createDeps({ packageIntelligenceService: service }),
+      );
+
+      expect(readPackageDoc).toHaveBeenCalledWith({ pageId: docsReadTarget });
+      const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0]));
+      expect(payload).toMatchObject({
+        docsReadTarget,
+        pageId: "legacy-routing-id",
+        sourceUrl: docsReadTarget,
+        startLine: 2,
+        endLine: 2,
+        content: "two",
+      });
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
   it("routes service classification through --json error envelope", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {

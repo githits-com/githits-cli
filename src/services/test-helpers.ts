@@ -904,6 +904,7 @@ export const defaultPackageDocsList: PackageDocsList = {
   pages: [
     {
       id: "123-getting-started",
+      docsReadTarget: "https://hexdocs.pm/express/getting-started.html",
       title: "Getting Started",
       slug: "getting-started",
       order: 0,
@@ -914,6 +915,7 @@ export const defaultPackageDocsList: PackageDocsList = {
     },
     {
       id: "github:expressjs/express@abc123/README.md",
+      docsReadTarget: "github:expressjs/express@abc123/README.md",
       title: "README.md",
       slug: "github:expressjs/express@abc123/README.md",
       order: 1,
@@ -938,6 +940,7 @@ export const defaultPackageDocResult: PackageDocResult = {
   sourceKind: "REPOSITORY",
   page: {
     id: "github:expressjs/express@abc123/README.md",
+    docsReadTarget: "github:expressjs/express@abc123/README.md",
     title: "README.md",
     content: "# Express\n\nFast, unopinionated web framework.",
     contentFormat: "markdown",

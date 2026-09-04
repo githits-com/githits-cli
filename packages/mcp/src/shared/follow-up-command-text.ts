@@ -21,9 +21,10 @@ export function buildSearchHitFollowUpCommand(
 ): string {
   const loc = hit.locator;
   if (loc.pageId) {
+    const docsReadTarget = loc.docsReadTarget ?? loc.pageId;
     return syntax === "cli"
-      ? buildCliDocsReadCommand(loc.pageId, loc.startLine, loc.endLine)
-      : buildDocsReadCommand(loc.pageId, loc.startLine, loc.endLine);
+      ? buildCliDocsReadCommand(docsReadTarget, loc.startLine, loc.endLine)
+      : buildDocsReadCommand(docsReadTarget, loc.startLine, loc.endLine);
   }
   if (
     (hit.type === "repository_code" || hit.type === "repository_symbol") &&
@@ -147,12 +148,12 @@ function boundLargeReadRange(
   };
 }
 
-function buildCliDocsReadCommand(
-  pageId: string,
+export function buildCliDocsReadCommand(
+  target: string,
   startLine?: number,
   endLine?: number,
 ): string {
-  const parts = [`githits docs read ${shellQuote(pageId)}`];
+  const parts = [`githits docs read ${shellQuote(target)}`];
   appendCliRange(parts, startLine, endLine);
   return parts.join(" ");
 }
@@ -178,11 +179,11 @@ function buildCliCodeReadCommand(input: CodeReadCommandInput): string {
 }
 
 export function buildDocsReadCommand(
-  pageId: string,
+  target: string,
   startLine?: number,
   endLine?: number,
 ): string {
-  const parts = [`docs_read page_id=${quote(pageId)}`];
+  const parts = [`docs_read page_id=${quote(target)}`];
   appendRange(parts, startLine, endLine);
   return parts.join(" ");
 }

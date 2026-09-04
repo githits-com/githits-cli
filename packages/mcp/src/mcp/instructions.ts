@@ -28,10 +28,10 @@ const CODE_FILES_BULLET =
   "- `code_files` — list/discover file paths; first choice for directory enumeration before `code_read` or scoped `code_grep`.";
 
 const DOCS_LIST_BULLET =
-  '- `docs_list` — browse documentation pages available for a package, not standalone `site:` targets. For a package or site docs topic, use `search` with `source:"docs"`; request `format:"json"` when exact `pageId` and line locators are needed, then pass them to `docs_read`.';
+  '- `docs_list` — browse documentation pages available for a package, not standalone `site:` targets. For a package or site docs topic, use `search` with `source:"docs"`; request `format:"json"` when exact `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, and line locators are needed, then pass `docsReadTarget` to `docs_read`.';
 
 const DOCS_READ_BULLET =
-  "- `docs_read` — read a documentation page by pageId from `docs_list` or docs `search` results; text reads return 150 lines by default or up to 300 with an explicit range.";
+  "- `docs_read` — read a documentation page by emitted `docsReadTarget` or historical `pageId` from `docs_list` or docs `search` results; text reads return 150 lines by default or up to 300 with an explicit range.";
 
 const PKG_INFO_BULLET =
   "- `pkg_info` — latest package health/adoption overview: license, repo health, downloads, publish age, latest affected vulnerability count, and package-wide advisory history (all versions).";
@@ -155,7 +155,7 @@ const LOCAL_AGENTIC_ASK_GUIDANCE_END =
   ' Reuse a returned `thread_id` only when the previous answer is insufficient or more information is needed. Sources default to directly callable MCP tools; use `source_format:"url"` for original upstream URLs. Do not invent or rewrite sources. Use the returned Ask run ID when reporting a defect. Prefer the default text output; use JSON only when exact response fields are needed.';
 
 const LOCAL_RESOLVE_TARGET_GUIDANCE =
-  '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` target is docs-only: pass it to `search` with `source:"docs"`; request `format:"json"` when exact locator fields are needed, then pass a relevant `pageId` and returned line range to `docs_read`.';
+  '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` target is docs-only: pass it to `search` with `source:"docs"`; request `format:"json"` for exact locators, then pass its `docsReadTarget` and line range to `docs_read`.';
 
 const LOCAL_CODE_DIFF_GUIDANCE =
   "- `code_diff` — compare exact package versions or public GitHub refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text-v1` unless exact fields or the full returned patch are needed. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";

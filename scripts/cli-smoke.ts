@@ -1,3 +1,4 @@
+import { buildCliDocsReadCommand } from "@githits/mcp/internal";
 import { isResolveDirectTargetUnwarned } from "./resolve-smoke-guidance.ts";
 import {
   createIsolatedSmokeEnvironment,
@@ -1638,40 +1639,127 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
       "list",
       SMOKE_PACKAGE_SPEC,
       "--limit",
-      "2",
+      "500",
       "--json",
     ]),
     "docs list json",
   );
   assertRecord(docsJson, "docs list json");
   assert(Array.isArray(docsJson.pages), "docs list json missing pages array");
-  const firstPage = docsJson.pages[0] as Record<string, unknown> | undefined;
+  const docsPages = docsJson.pages as unknown[];
+  const crawledPage = docsPages.find(
+    (page) =>
+      typeof page === "object" &&
+      page !== null &&
+      (page as Record<string, unknown>).sourceKind === "crawled" &&
+      typeof (page as Record<string, unknown>).docsReadTarget === "string" &&
+      /^https?:\/\//.test(
+        (page as Record<string, unknown>).docsReadTarget as string,
+      ),
+  ) as Record<string, unknown> | undefined;
+  const repoPage = docsPages.find(
+    (page) =>
+      typeof page === "object" &&
+      page !== null &&
+      (page as Record<string, unknown>).sourceKind === "repo",
+  ) as Record<string, unknown> | undefined;
   assert(
-    firstPage && typeof firstPage.pageId === "string",
-    "docs list json missing readable page id",
+    crawledPage &&
+      typeof crawledPage.docsReadTarget === "string" &&
+      typeof crawledPage.pageId === "string" &&
+      typeof crawledPage.sourceUrl === "string",
+    "docs list json missing crawled URL target, stable page ID, or source URL",
+  );
+  assert(
+    repoPage &&
+      typeof repoPage.docsReadTarget === "string" &&
+      typeof repoPage.pageId === "string" &&
+      typeof repoPage.sourceUrl === "string",
+    "docs list json missing repo-backed target, stable page ID, or source URL",
+  );
+  assert(
+    repoPage.docsReadTarget === repoPage.pageId,
+    "docs list json repo-backed docsReadTarget should remain snapshot-pinned",
+  );
+  assert(
+    docsText.includes(buildCliDocsReadCommand(crawledPage.docsReadTarget)),
+    "docs list terminal missing shell-quoted crawled URL follow-up",
   );
 
   const docsReadText = assertTerminalOutput(
-    await runCli(["docs", "read", firstPage.pageId, "--lines", "1-5"]),
-    "docs read terminal",
+    await runCli([
+      "docs",
+      "read",
+      crawledPage.docsReadTarget,
+      "--lines",
+      "1-5",
+    ]),
+    "docs read crawled URL terminal",
   );
-  assert(docsReadText.length > 0, "docs read terminal missing content");
+  assert(
+    docsReadText.length > 0,
+    "docs read crawled URL terminal missing content",
+  );
 
   const docsReadJson = assertJsonOutput(
     await runCli([
       "docs",
       "read",
-      firstPage.pageId,
+      crawledPage.docsReadTarget,
       "--lines",
       "1-5",
       "--json",
     ]),
-    "docs read json",
+    "docs read crawled URL json",
   );
-  assertRecord(docsReadJson, "docs read json");
+  assertRecord(docsReadJson, "docs read crawled URL json");
   assert(
-    typeof docsReadJson.content === "string",
-    "docs read json missing content",
+    docsReadJson.docsReadTarget === crawledPage.docsReadTarget &&
+      docsReadJson.pageId === crawledPage.pageId &&
+      docsReadJson.sourceUrl === crawledPage.sourceUrl &&
+      typeof docsReadJson.content === "string",
+    "docs read crawled URL json missing target, page ID, source URL, or content",
+  );
+
+  const legacyCrawledRead = assertJsonOutput(
+    await runCli([
+      "docs",
+      "read",
+      crawledPage.pageId,
+      "--lines",
+      "1-5",
+      "--json",
+    ]),
+    "docs read legacy crawled ID json",
+  );
+  assertRecord(legacyCrawledRead, "docs read legacy crawled ID json");
+  assert(
+    legacyCrawledRead.pageId === docsReadJson.pageId &&
+      legacyCrawledRead.content === docsReadJson.content,
+    "docs read URL and legacy crawled ID returned different ranged content",
+  );
+
+  const repoRead = assertJsonOutput(
+    await runCli(["docs", "read", repoPage.docsReadTarget, "--json"]),
+    "docs read repo-backed ID json",
+  );
+  assertRecord(repoRead, "docs read repo-backed ID json");
+  assert(
+    repoRead.docsReadTarget === repoPage.docsReadTarget &&
+      repoRead.pageId === repoPage.pageId &&
+      typeof repoRead.content === "string",
+    "docs read repo-backed ID json missing snapshot target, page ID, or content",
+  );
+
+  assertJsonErrorCode(
+    await runCli([
+      "docs",
+      "read",
+      "https://docs.example.invalid/githits-smoke-unknown",
+      "--json",
+    ]),
+    "docs read unknown URL",
+    "NOT_FOUND",
   );
 
   const codeFilesText = assertTerminalOutput(

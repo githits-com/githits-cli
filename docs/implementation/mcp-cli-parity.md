@@ -369,6 +369,13 @@ CLI. ANSI-stripped CLI output shares the same hierarchy and wording as no-color
 MCP text apart from those supplied command dialects; line breaks can differ
 because CLI uses the terminal width while MCP uses the 80-column default.
 
+Documentation discovery and list envelopes retain three distinct locator roles:
+preferred `docsReadTarget`, stable replay `pageId`, and provenance `sourceUrl`.
+Text and generated read follow-ups prefer `docsReadTarget` and fall back to
+`pageId` only for discovery results where the target is absent. The compatible
+MCP argument remains `page_id`; both MCP and CLI pass URL or ID values through
+unchanged and return the same ranged content.
+
 CLI `--json` output and MCP `format: "json"` output remain the structured parity
 boundary: every
 result-bearing initial payload and stored `search_status.result` carries the

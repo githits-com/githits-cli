@@ -2,10 +2,12 @@ import type { PackageDocsList } from "@githits/core-internal";
 import { MalformedPackageIntelligenceResponseError } from "@githits/core-internal";
 import { colorize, dim } from "./colors.js";
 import { lowerDocSourceKind } from "./docs-follow-up.js";
+import { buildCliDocsReadCommand } from "./follow-up-command-text.js";
 import { toIsoDate } from "./format-date.js";
 
 export interface LeanPackageDocListEntry {
   pageId: string;
+  docsReadTarget: string;
   title?: string;
   sourceKind?: "crawled" | "repo";
   sourceUrl?: string;
@@ -50,7 +52,10 @@ export function buildListPackageDocsSuccessPayload(
       assertDocListEntry(page);
       const pageId = page.id as string;
       const lastUpdatedAt = toIsoDate(page.lastUpdatedAt);
-      const entry: LeanPackageDocListEntry = { pageId };
+      const entry: LeanPackageDocListEntry = {
+        pageId,
+        docsReadTarget: page.docsReadTarget,
+      };
       if (page.title) entry.title = page.title;
       const sourceKind = lowerDocSourceKind(page.sourceKind);
       if (sourceKind) entry.sourceKind = sourceKind;
@@ -86,6 +91,12 @@ function assertDocListEntry(page: PackageDocsList["pages"][number]): void {
   if (!page.id) {
     throw new MalformedPackageIntelligenceResponseError(
       "Documentation page list entry missing required id.",
+    );
+  }
+
+  if (!page.docsReadTarget) {
+    throw new MalformedPackageIntelligenceResponseError(
+      "Documentation page list entry missing required docsReadTarget.",
     );
   }
 
@@ -126,13 +137,9 @@ export function formatListPackageDocsTerminal(
       options.verbose ?? false,
     );
     if (meta.length > 0) lines.push(...meta);
+    lines.push(`  ${buildCliDocsReadCommand(page.docsReadTarget)}`);
     lines.push("");
   }
-
-  lines.push(
-    dim("Read a page: githits docs read '<pageId>'", options.useColors),
-  );
-  lines.push("");
 
   if (envelope.nextCursor) {
     lines.push(dim(`Next cursor: ${envelope.nextCursor}`, options.useColors));

@@ -1063,14 +1063,15 @@ interface FormattedHitHeader {
 function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
   const loc = hit.locator;
   if (hit.type === "documentation_page") {
-    const pageId = loc.pageId ?? "page ID unavailable";
+    const docsReadTarget =
+      loc.docsReadTarget ?? loc.pageId ?? "documentation target unavailable";
     const type = "[docs page]";
     const target = formatDocumentationTarget(hit);
     const sourceUrl = formatDocumentationSourceUrl(loc.sourceUrl);
     return {
-      prefix: `${pageId} ${type} ${target} - ${sourceUrl}`,
+      prefix: `${docsReadTarget} ${type} ${target} - ${sourceUrl}`,
       segments: [
-        { text: pageId, style: "locator" },
+        { text: docsReadTarget, style: "locator" },
         { text: " ", style: "plain" },
         { text: type, style: "secondary" },
         { text: " ", style: "plain" },

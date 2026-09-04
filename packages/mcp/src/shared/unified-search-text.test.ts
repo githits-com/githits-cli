@@ -918,6 +918,27 @@ describe("renderUnifiedSearchSuccess", () => {
     );
   });
 
+  it("renders docsReadTarget as the documentation follow-up locator", () => {
+    const docsReadTarget =
+      "https://aider.chat/docs/more/edit-formats.html?publisher=aider";
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        docsHit({
+          locator: {
+            pageId: "aider/edit-formats",
+            docsReadTarget,
+            sourceUrl: "https://aider.chat/docs/more/edit-formats.html",
+          },
+        }),
+      ]),
+    );
+
+    expect(text).toContain(
+      `[1] ${docsReadTarget} [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -`,
+    );
+    expect(text).not.toContain("[1] aider/edit-formats [docs page]");
+  });
+
   it("keeps docs follow-up locators before a free-form title tail", () => {
     const text = renderUnifiedSearchSuccess(
       completed([
