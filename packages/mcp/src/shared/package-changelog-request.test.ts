@@ -137,7 +137,7 @@ describe("buildPackageChangelogParams — version validation", () => {
         packageName: "express",
         fromVersion: "v4.18.0",
       }),
-    ).toThrow(/git tag/);
+    ).toThrow(/--from \/ from_version/);
   });
 
   it("rejects tag-style toVersion", () => {
@@ -147,7 +147,7 @@ describe("buildPackageChangelogParams — version validation", () => {
         packageName: "express",
         toVersion: "V5.0.0",
       }),
-    ).toThrow(/git tag/);
+    ).toThrow(/--to \/ to_version/);
   });
 
   it("allows v-prefixed Swift versions", () => {
@@ -160,6 +160,17 @@ describe("buildPackageChangelogParams — version validation", () => {
     expect(params.registry).toBe("SWIFT");
     expect(params.fromVersion).toBe("v3.10.0");
     expect(params.toVersion).toBe("v3.11.0");
+  });
+
+  it("sends canonical Go range bounds to the backend", () => {
+    const { params } = buildPackageChangelogParams({
+      registry: "go",
+      packageName: "golang.org/x/text",
+      fromVersion: "0.27.0",
+      toVersion: "v0.28.0",
+    });
+    expect(params.fromVersion).toBe("v0.27.0");
+    expect(params.toVersion).toBe("v0.28.0");
   });
 
   it.each([

@@ -96,7 +96,7 @@ export async function pkgDepsAction(
 
     if (options.json) {
       const payload = buildPackageDependenciesSuccessPayload(report, {
-        requestedVersion: parsed.version,
+        requestedVersion: params.version,
         canonicalLifecycles,
         includeTransitive: includeTransitiveOutput,
         maxDepth: userDepth,
@@ -114,7 +114,7 @@ export async function pkgDepsAction(
     const output = formatPackageDependenciesTerminal(report, {
       verbose: options.verbose,
       useColors: shouldUseColors(),
-      requestedVersion: parsed.version,
+      requestedVersion: params.version,
       canonicalLifecycles:
         canonicalLifecycles.length > 0 ? canonicalLifecycles : undefined,
       includeTransitive: includeTransitiveOutput,
