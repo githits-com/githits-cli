@@ -152,7 +152,7 @@ Use the tools in these roles:
 | `docs_list` | `registry`, `package_name`, `version?`, `limit?`, `after?`, `format?` | List package documentation pages and hand off to `docs_read`; use `search` for topic discovery. Repo-backed entries include exact source metadata for `code_read` when available. |
 | `docs_read` | `page_id`, `start_line?`, `end_line?`, `format?` | Read a package documentation page by ID; use `docs_list` to browse and `search` to find topics. Text output returns 150 lines by default or up to 300 with an explicit range; repo-backed pages include exact `code_read` metadata. |
 | `pkg_info` | `registry`, `package_name`, `verbose?`, `format?` | Assess latest package health and adoption through license, downloads, and activity. Use `pkg_vulns` for advisory detail, `pkg_deps` for dependency graphs, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison. |
-| `pkg_vulns` | `registry`, `package_name`, `version?`, `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `verbose?`, `format?` | Check current package advisories instead of trusting memory for vulnerabilities. Advisories can be published or revised after training, so a cutoff disclaimer is not current evidence. Covers pinned releases, latest-version risk, and vague questions about vulnerability volume or a package's security track record. Use `pkg_info` for a latest health overview or `pkg_upgrade_review` for current-vs-target evidence. |
+| `pkg_vulns` | `registry`, `package_name`, `version?`, `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `include_transitive?`, `verbose?`, `format?` | Check current package advisories instead of trusting memory for vulnerabilities. Advisories can be published or revised after training, so a cutoff disclaimer is not current evidence. Covers pinned releases, latest-version risk, and vague questions about vulnerability volume or a package's security track record. Use `include_transitive: true` for npm-audit-style evidence about vulnerabilities affecting versions resolved in the dependency graph. Use `pkg_info` for a latest health overview or `pkg_upgrade_review` for current-vs-target evidence. |
 | `pkg_deps` | `registry`, `package_name`, `version?`, `lifecycle?`, `include_importers?`, `include_issues?`, `max_depth?`, `format?` | Inspect direct/transitive dependencies or opt into deprecated, outdated, duplicate, and conflict analysis. Use `pkg_info` for health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence. |
 | `pkg_changelog` | `registry?`, `package_name?`, `repo_url?`, `from_version?`, `to_version?`, `limit?`, `git_ref?`, `omit_bodies?`, `verbose?`, `body_lines?`, `format?` | Find release notes and changelog history for a package or public GitHub repository. Latest mode returns recent entries without promising date order; range mode covers `(from_version, to_version]`. Use latest mode with `to_version` and `limit: 1` for one exact release. Use `pkg_info` for a quick health view or `pkg_upgrade_review` for upgrade evidence. |
 | `pkg_upgrade_review` | `registry?`, `package_name?`, `current_version?`, `target_version?`, `packages?`, `skip_transitive_security?`, `include_dependency_issues?`, `min_severity?`, `verbose?`, `format?` | Review a package upgrade using vulnerability, release, peer, and dependency-change evidence. Use `pkg_info` for health, `pkg_changelog` for release notes, `pkg_vulns` for advisory detail, or `pkg_deps` for dependency graphs. |
@@ -161,6 +161,31 @@ Use the tools in these roles:
 | `code_grep` | `target`, `pattern`, `path?`, `path_prefix?`, `globs?`, `extensions?`, `pattern_type?`, `case_sensitive?`, `exclude_doc_files?`, `exclude_test_files?`, `context_lines?`, `context_lines_before?`, `context_lines_after?`, `max_matches?`, `max_matches_per_file?`, `cursor?`, `symbol_fields?`, `wait_timeout_ms?`, `format?` | Enumerate text, regex, or identifier matches in any public GitHub repository or package; results are deterministic and paginated. `max_matches_per_file` defaults to `max_matches`. |
 
 `quick_start`, `search`, `search_status`, `docs_list`, `docs_read`, `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review`, `code_files`, `code_read`, and `code_grep` are registered by default. The package/source service URL defaults to the GitHits-managed endpoint and can be overridden via `GITHITS_CODE_NAV_URL` for local development.
+
+## Transitive vulnerability audits
+
+`pkg_vulns` remains direct-only by default. Set MCP `include_transitive: true`
+or CLI `--transitive` to opt into npm-audit-style evidence for vulnerabilities
+affecting versions resolved in the dependency graph; the extra graph analysis is
+intentional and can cost more. The mode is distinct from package-wide advisory
+history: `advisory_scope` / `--scope` and `include_withdrawn` /
+`--include-withdrawn` apply only to direct package rows, while transitive
+withdrawn advisories are always excluded. `min_severity` / `--severity` applies
+to both direct and transitive evidence.
+
+The additive JSON `transitive` object has `scope: "resolved_dependencies"`,
+`withdrawnAdvisoriesIncluded: false`, a numeric `summary` containing
+`totalPackagesAnalyzed`, `affectedPackageCount`, and
+`affectedOccurrenceCount`, and a `packages` array. Each package row preserves
+complete affected dependency-version/advisory occurrences, including the
+resolved version, matched affected ranges, and higher-fix candidates. JSON is
+complete and lossless; compact text shows at most five transitive rows globally,
+while verbose text shows every selected occurrence and places one
+surface-native continuation hint after the evidence. CLI `--json` and MCP
+`format: "json"` use the same envelope. The service performs a sequential,
+field-minimal dependency query with the resolved root version and fails closed
+on malformed identity/count evidence instead of returning partial direct-only
+results.
 
 ## Ecosystem Audit
 

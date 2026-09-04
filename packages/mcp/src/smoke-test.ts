@@ -63,6 +63,11 @@ const SMOKE_PACKAGE_TARGET = {
   package_name: "express",
   version: SMOKE_PACKAGE_VERSION,
 } as const;
+const SMOKE_TRANSITIVE_VULNERABILITY_TARGET = {
+  registry: "npm",
+  package_name: "express",
+  version: "4.17.1",
+} as const;
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -95,6 +100,57 @@ function assertRecord(
   assert(
     value !== null && typeof value === "object" && !Array.isArray(value),
     `${context}: expected object`,
+  );
+}
+
+function assertTransitiveVulnerabilityText(
+  text: string,
+  context: string,
+): void {
+  assert(
+    text.includes("Resolved dependencies"),
+    `${context}: missing resolved-dependencies section`,
+  );
+  assert(
+    !text.includes("use -v"),
+    `${context}: CLI-native transitive hint leaked into MCP output`,
+  );
+  if (text.includes("... (+")) {
+    assert(
+      text.includes("use verbose=true or format=json"),
+      `${context}: capped transitive output missing MCP-native hint`,
+    );
+  }
+}
+
+function assertTransitiveVulnerabilityJson(
+  value: unknown,
+  context: string,
+): void {
+  assertRecord(value, context);
+  assertRecord(value.transitive, `${context}.transitive`);
+  assert(
+    value.transitive.scope === "resolved_dependencies",
+    `${context}: unexpected transitive scope`,
+  );
+  assert(
+    value.transitive.withdrawnAdvisoriesIncluded === false,
+    `${context}: transitive withdrawn-advisory flag must be false`,
+  );
+  assertRecord(value.transitive.summary, `${context}.transitive.summary`);
+  for (const key of [
+    "totalPackagesAnalyzed",
+    "affectedPackageCount",
+    "affectedOccurrenceCount",
+  ]) {
+    assert(
+      typeof value.transitive.summary[key] === "number",
+      `${context}: transitive summary missing numeric ${key}`,
+    );
+  }
+  assert(
+    Array.isArray(value.transitive.packages),
+    `${context}: transitive packages must be an array`,
   );
 }
 
@@ -680,6 +736,31 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_vulns default missing context",
   );
   assert(!vulnsText.includes("use -v"), "pkg_vulns leaked CLI -v hint");
+
+  const transitiveVulnsText = assertDefaultText(
+    await callTool(caller, "pkg_vulns", {
+      ...SMOKE_TRANSITIVE_VULNERABILITY_TARGET,
+      include_transitive: true,
+    }),
+    "pkg_vulns transitive default",
+  );
+  assertTransitiveVulnerabilityText(
+    transitiveVulnsText,
+    "pkg_vulns transitive default",
+  );
+
+  const transitiveVulnsJson = assertJsonResult(
+    await callTool(caller, "pkg_vulns", {
+      ...SMOKE_TRANSITIVE_VULNERABILITY_TARGET,
+      include_transitive: true,
+      format: "json",
+    }),
+    "pkg_vulns transitive json",
+  );
+  assertTransitiveVulnerabilityJson(
+    transitiveVulnsJson,
+    "pkg_vulns transitive json",
+  );
 
   const filteredVulnsText = assertDefaultText(
     await callTool(caller, "pkg_vulns", {

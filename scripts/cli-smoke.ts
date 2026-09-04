@@ -65,6 +65,7 @@ const TARGET_DETAIL_STATE_PATTERN =
   /^ {2}(?:(?:indexing|searched|available|unavailable|using):|(?:ready|pending|provisional|older snapshot)$|(?:not found|unresolved|version unavailable|repository ref unresolved|(?:package|repository|site|target) (?:not found|unresolved)):)/;
 const JSON_PARITY_CONCURRENCY = 2;
 const SMOKE_PACKAGE_SPEC = "npm:express@5.2.1";
+const SMOKE_TRANSITIVE_VULNERABILITY_SPEC = "npm:express@4.17.1";
 let cliLaunchTarget = SOURCE_CLI_LAUNCH_TARGET;
 
 export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
@@ -578,6 +579,57 @@ function assertJsonOutput(result: CommandResult, context: string): unknown {
   );
   assert(result.stdout.trim().length > 0, `${context}: expected stdout`);
   return parseJson(result.stdout, context);
+}
+
+function assertTransitiveVulnerabilityText(
+  text: string,
+  context: string,
+): void {
+  assert(
+    text.includes("Resolved dependencies"),
+    `${context}: missing resolved-dependencies section`,
+  );
+  assert(
+    !text.includes("use verbose=true or format=json"),
+    `${context}: MCP-native transitive hint leaked into CLI output`,
+  );
+  if (text.includes("... (+")) {
+    assert(
+      text.includes("use -v"),
+      `${context}: capped transitive output missing CLI-native hint`,
+    );
+  }
+}
+
+function assertTransitiveVulnerabilityJson(
+  value: unknown,
+  context: string,
+): void {
+  assertRecord(value, context);
+  assertRecord(value.transitive, `${context}.transitive`);
+  assert(
+    value.transitive.scope === "resolved_dependencies",
+    `${context}: unexpected transitive scope`,
+  );
+  assert(
+    value.transitive.withdrawnAdvisoriesIncluded === false,
+    `${context}: transitive withdrawn-advisory flag must be false`,
+  );
+  assertRecord(value.transitive.summary, `${context}.transitive.summary`);
+  for (const key of [
+    "totalPackagesAnalyzed",
+    "affectedPackageCount",
+    "affectedOccurrenceCount",
+  ]) {
+    assert(
+      typeof value.transitive.summary[key] === "number",
+      `${context}: transitive summary missing numeric ${key}`,
+    );
+  }
+  assert(
+    Array.isArray(value.transitive.packages),
+    `${context}: transitive packages must be an array`,
+  );
 }
 
 function assertJsonErrorCode(
@@ -1509,6 +1561,35 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   assert(
     filteredVulnsJson.filter.minSeverity === "high",
     "pkg vulns filtered json missing severity filter echo",
+  );
+
+  const transitiveVulnsText = assertTerminalOutput(
+    await runCli([
+      "pkg",
+      "vulns",
+      SMOKE_TRANSITIVE_VULNERABILITY_SPEC,
+      "--transitive",
+    ]),
+    "pkg vulns transitive terminal",
+  );
+  assertTransitiveVulnerabilityText(
+    transitiveVulnsText,
+    "pkg vulns transitive terminal",
+  );
+
+  const transitiveVulnsJson = assertJsonOutput(
+    await runCli([
+      "pkg",
+      "vulns",
+      SMOKE_TRANSITIVE_VULNERABILITY_SPEC,
+      "--transitive",
+      "--json",
+    ]),
+    "pkg vulns transitive json",
+  );
+  assertTransitiveVulnerabilityJson(
+    transitiveVulnsJson,
+    "pkg vulns transitive json",
   );
 
   const scopedVulnsText = assertTerminalOutput(

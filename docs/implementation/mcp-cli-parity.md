@@ -550,6 +550,29 @@ When a new tool lands with both MCP and CLI surfaces:
 - **Filter-aware summary.** `minSeverity` + `includeWithdrawn` go
   straight to the service; the returned `vulnerabilityCount`
   reflects the filtered set. No client-side filtering.
+
+- **Opt-in transitive audit.** CLI `--transitive` and MCP
+  `include_transitive: true` enable the same additional graph-analysis request;
+  omission and explicit `false` retain the direct-only path and its cost. The
+  request first completes direct pagination, then performs one field-minimal
+  dependency query using the exact resolved root version. The additive JSON
+  `transitive` block is complete and lossless: it contains
+  `scope: "resolved_dependencies"`, `withdrawnAdvisoriesIncluded: false`, a
+  numeric summary (`totalPackagesAnalyzed`, `affectedPackageCount`,
+  `affectedOccurrenceCount`), and `packages[]` with every affected resolved
+  dependency-version/advisory occurrence, matched ranges, and higher-fix
+  candidates. The raw graph and occurrence cap are not returned; malformed
+  identity/count evidence fails closed rather than producing partial direct-only
+  success.
+
+- **Filter boundary and surface text.** `min_severity` / `--severity` applies
+  to both direct and transitive evidence. `advisory_scope` / `--scope` and
+  `include_withdrawn` / `--include-withdrawn` apply only to direct package rows;
+  transitive withdrawn advisories remain excluded. Compact transitive text shows
+  at most five rows globally, verbose text shows all rows, and the final hint is
+  surface-native (`use verbose=true or format=json` for MCP, `use -v` for CLI).
+  The parity test deep-compares equivalent direct and transitive JSON payloads
+  across both surfaces.
 - **Partitioning bySeverity buckets.** `summary.bySeverity` carries
   a `malware` key for `isMalicious === true` advisories; severity
   bands for non-malicious advisories with a positive CVSS score;
