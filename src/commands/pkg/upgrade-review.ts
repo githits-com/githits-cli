@@ -107,8 +107,29 @@ function parseSingleSpec(
   if (spec === undefined) return {};
   if (options.package && options.package.length > 0) {
     throw new InvalidPackageSpecError(
-      "Pass either a single <spec>@<current> with --to or repeatable --package entries, not both.",
+      "Pass one of these forms: positional <spec>@<current> --to <target>; positional <spec>@<current>..<target> range; or repeatable --package entries. Choose one form.",
     );
+  }
+  if (hasUnsupportedArrowRangeIntent(spec)) {
+    throw new InvalidPackageSpecError(unsupportedArrowRangeMessage(spec));
+  }
+  if (hasPackageRangeIntent(spec)) {
+    const parsedRange = splitPackageRange(spec);
+    if (!parsedRange) {
+      throw new InvalidPackageSpecError(invalidPositionalRangeMessage(spec));
+    }
+    if (options.to !== undefined) {
+      throw new InvalidPackageSpecError(
+        `Positional range '${spec}' already contains the target version. Use '${spec}' without --to, or split it as '${parsedRange.left}' --to '${parsedRange.target}'.`,
+      );
+    }
+    const parsed = parsePackageSpec(parsedRange.left);
+    return {
+      registry: parsed.registry,
+      packageName: parsed.name,
+      currentVersion: parsedRange.currentVersion,
+      targetVersion: parsedRange.target,
+    };
   }
   const parsed = parsePackageSpec(spec);
   if (!parsed.version) {
@@ -127,6 +148,31 @@ function parseSingleSpec(
     currentVersion: parsed.version,
     targetVersion: options.to,
   };
+}
+
+function hasPackageRangeIntent(value: string): boolean {
+  const versionSeparatorIndex = findVersionSeparatorIndex(value);
+  if (versionSeparatorIndex === undefined) return false;
+  const versionSuffix = value.slice(versionSeparatorIndex + 1);
+  return versionSuffix.includes("..");
+}
+
+function hasUnsupportedArrowRangeIntent(value: string): boolean {
+  const versionSeparatorIndex = findVersionSeparatorIndex(value);
+  if (versionSeparatorIndex === undefined) return false;
+  return value.slice(versionSeparatorIndex + 1).includes("->");
+}
+
+function positionalRangeGrammar(): string {
+  return "Expected <registry>:<name>@<current>..<target>.";
+}
+
+function invalidPositionalRangeMessage(value: string): string {
+  return `Invalid positional range '${value}'. ${positionalRangeGrammar()}`;
+}
+
+function unsupportedArrowRangeMessage(value: string): string {
+  return `Invalid positional range '${value}'. The '->' delimiter is not supported; use <registry>:<name>@<current>..<target>.`;
 }
 
 function parsePackageOptions(values: string[] | undefined):
@@ -149,53 +195,61 @@ export function parseUpgradeReviewPackageOption(value: string): {
   currentVersion: string;
   targetVersion: string;
 } {
+  if (hasUnsupportedArrowRangeIntent(value)) {
+    throw new InvalidPackageSpecError(invalidPackageOptionMessage(value));
+  }
   const parsedRange = splitPackageRange(value);
   if (!parsedRange) {
     throw new InvalidPackageSpecError(invalidPackageOptionMessage(value));
   }
   const parsed = parsePackageSpec(parsedRange.left);
-  if (!parsed.version) {
-    throw new InvalidPackageSpecError(
-      `Invalid --package '${value}'. The left side must include @<current>.`,
-    );
-  }
   return {
     registry: parsed.registry,
     packageName: parsed.name,
-    currentVersion: parsed.version,
+    currentVersion: parsedRange.currentVersion,
     targetVersion: parsedRange.target,
   };
 }
 
 function splitPackageRange(
   value: string,
-): { left: string; target: string } | undefined {
-  for (const delimiter of ["->", ".."] as const) {
-    const parts = value.split(delimiter);
-    if (parts.length === 2 && parts[0] && parts[1]) {
-      return { left: parts[0], target: parts[1] };
-    }
+): { left: string; currentVersion: string; target: string } | undefined {
+  const versionSeparatorIndex = findVersionSeparatorIndex(value);
+  if (versionSeparatorIndex === undefined) return undefined;
+  const versionSuffix = value.slice(versionSeparatorIndex + 1);
+  if (versionSuffix.includes("...")) return undefined;
+  const parts = versionSuffix.split("..");
+  if (parts.length === 2 && parts[0] && parts[1]) {
+    return {
+      left: `${value.slice(0, versionSeparatorIndex + 1)}${parts[0]}`,
+      currentVersion: parts[0],
+      target: parts[1],
+    };
   }
   return undefined;
 }
 
+function findVersionSeparatorIndex(value: string): number | undefined {
+  const colonIndex = value.indexOf(":");
+  const atIndex = value.lastIndexOf("@");
+  return atIndex > colonIndex + 1 ? atIndex : undefined;
+}
+
 function invalidPackageOptionMessage(value: string): string {
-  const expected =
-    "Expected <registry>:<name>@<current>..<target> or quoted <registry>:<name>@<current>-><target>.";
-  if (value.endsWith("-")) {
-    return `Invalid --package '${value}'. The shell likely treated '>' as output redirection. ${expected}`;
+  if (hasUnsupportedArrowRangeIntent(value)) {
+    return `Invalid --package '${value}'. The '->' delimiter is not supported; use <registry>:<name>@<current>..<target>.`;
   }
-  return `Invalid --package '${value}'. ${expected}`;
+  return `Invalid --package '${value}'. Expected <registry>:<name>@<current>..<target>.`;
 }
 
 const DESCRIPTION = `Report evidence for a package upgrade without assigning risk.
 
-Single package: githits pkg upgrade-review npm:zod@4.3.6 --to 4.4.3
+Single package range: githits pkg upgrade-review npm:zod@4.3.6..4.4.3
+Single package with separate target: githits pkg upgrade-review npm:zod@4.3.6 --to 4.4.3
 Batch: githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-staged@16.2.7..16.4.0
 Batch accepts at most ${PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES} upgrades.
 
-The older -> delimiter is still accepted when quoted, but unquoted > is shell
-redirection in zsh/bash. Prefer .. for repeatable --package entries.
+Use .. for positional and repeatable --package ranges.
 
 The review checks current and target vulnerabilities, target deprecation metadata,
 the changelog range, peer dependency changes, and optional transitive security /
@@ -207,7 +261,10 @@ export function registerPkgUpgradeReviewCommand(pkgCommand: Command): Command {
     .command("upgrade-review")
     .summary("Report dependency upgrade evidence")
     .description(DESCRIPTION)
-    .argument("[spec]", "Package spec with current version, e.g. npm:zod@4.3.6")
+    .argument(
+      "[spec]",
+      "Package spec with current version; use a .. range for an inline target or --to for a separate target, e.g. npm:zod@4.3.6..4.4.3",
+    )
     .option("--to <version>", "Target version for single-package mode")
     .option(
       "--package <spec>",

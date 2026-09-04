@@ -1566,9 +1566,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     await runCli([
       "pkg",
       "upgrade-review",
-      "npm:express@5.0.0",
-      "--to",
-      "5.2.1",
+      "npm:express@5.0.0..5.2.1",
       "--no-transitive-security",
     ]),
     "pkg upgrade-review terminal",
