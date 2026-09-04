@@ -719,7 +719,7 @@ githits docs list npm:express --json
 
 Lists hosted/crawled and repository-backed documentation pages for a package. Each row includes a stable page ID for `docs read`, a source badge, and the source location. JSON output also includes repo URL / git ref / file path for repository-backed docs so callers can follow up with `code read` when source context is needed.
 
-**Version validation.** Exact Go versions may include or omit their canonical lowercase `v`; the backend always receives the `v`-prefixed form. Other registries retain the shared package-version rules, including Swift's accepted `v`-prefixed release tags.
+**Version validation.** Exact Go versions may include or omit their canonical lowercase `v`; the backend always receives the `v`-prefixed form. Unlike the package-analysis commands, `docs list` preserves its existing pass-through for other registries' version strings, including a leading `v`, so their backend validation behavior does not change. Swift package-name normalization remains separate.
 
 **Pagination.** `--limit <n>` accepts 1-500. When `hasMore` is true, pass the returned `nextCursor` to `--after`.
 
