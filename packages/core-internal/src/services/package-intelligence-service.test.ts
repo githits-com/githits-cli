@@ -895,14 +895,10 @@ const TRANSITIVE_AUDIT_BODY = {
                     nearestFixedVersion: "0.7.1",
                     advisory: {
                       osvId: "GHSA-cookie-1111-1111",
-                      registry: "NPM",
-                      packageName: "cookie",
                       summary: "Cookie issue",
                       severityScore: 7.5,
-                      severityType: "CVSS_V3",
                       publishedAt: "2024-01-01T00:00:00Z",
                       modifiedAt: null,
-                      withdrawnAt: null,
                       aliases: ["CVE-2024-1111"],
                       isMalicious: false,
                     },
@@ -915,14 +911,10 @@ const TRANSITIVE_AUDIT_BODY = {
                     nearestFixedVersion: "0.7.2",
                     advisory: {
                       osvId: "GHSA-cookie-2222-2222",
-                      registry: "NPM",
-                      packageName: "cookie",
                       summary: "Another cookie issue",
                       severityScore: null,
-                      severityType: null,
                       publishedAt: "2024-02-01T00:00:00Z",
                       modifiedAt: null,
-                      withdrawnAt: null,
                       aliases: [],
                       isMalicious: true,
                     },
@@ -1430,6 +1422,8 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     expect(query).toContain("matchedAffectedVersionRanges");
     expect(query).toContain("fixVersionsAboveResolved");
     expect(query).toContain("nearestFixedVersion");
+    expect(query).toMatch(/package \{\s*name\s+registry\s+version/s);
+    expect(query).toMatch(/packages \{\s*registry\s+name\s+affectedCount/s);
     expect(query).not.toContain("limit");
     for (const forbidden of [
       "nonAffecting",
@@ -1451,6 +1445,19 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
       } else {
         expect(query).not.toContain(forbidden);
       }
+    }
+    const advisoryFields =
+      query.match(/^ {14}advisory \{\n([\s\S]*?)^ {14}\}/m)?.[1] ?? "";
+    expect(advisoryFields).not.toBe("");
+    for (const forbidden of [
+      "registry",
+      "packageName",
+      "severityType",
+      "withdrawnAt",
+    ]) {
+      expect(advisoryFields).not.toMatch(
+        new RegExp(`^ {16}${forbidden}$`, "m"),
+      );
     }
     expect(captured.variables).toEqual({
       registry: "NPM",

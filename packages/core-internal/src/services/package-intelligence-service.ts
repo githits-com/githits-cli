@@ -1088,14 +1088,10 @@ const vulnerabilitiesGraphQLResponseSchema = z.object({
 
 const transitiveAuditAdvisorySchema = z.object({
   osvId: z.string().nullable().optional(),
-  registry: z.string().nullable().optional(),
-  packageName: z.string().nullable().optional(),
   summary: z.string().nullable().optional(),
   severityScore: z.number().nullable().optional(),
-  severityType: z.string().nullable().optional(),
   publishedAt: z.string().nullable().optional(),
   modifiedAt: z.string().nullable().optional(),
-  withdrawnAt: z.string().nullable().optional(),
   aliases: z.array(z.string()).nullable().optional(),
   isMalicious: z.boolean().nullable().optional(),
 });
@@ -1250,14 +1246,10 @@ query PackageTransitiveVulnerabilityAudit(
               nearestFixedVersion
               advisory {
                 osvId
-                registry
-                packageName
                 summary
                 severityScore
-                severityType
                 publishedAt
                 modifiedAt
-                withdrawnAt
                 aliases
                 isMalicious
               }
@@ -3491,14 +3483,10 @@ export class PackageIntelligenceServiceImpl
   ): VulnerabilitySummaryDetail {
     return {
       osvId: advisory.osvId ?? undefined,
-      registry: advisory.registry ?? undefined,
-      packageName: advisory.packageName ?? undefined,
       summary: advisory.summary ?? undefined,
       severityScore: advisory.severityScore ?? undefined,
-      severityType: advisory.severityType ?? undefined,
       publishedAt: advisory.publishedAt ?? undefined,
       modifiedAt: advisory.modifiedAt ?? undefined,
-      withdrawnAt: advisory.withdrawnAt ?? undefined,
       aliases: advisory.aliases ?? undefined,
       isMalicious: advisory.isMalicious ?? undefined,
     };
