@@ -1011,6 +1011,7 @@ export function formatPackageVulnerabilitiesTerminal(
           useColors,
           rangeLimit,
           surface,
+          options.terminalWidth,
         ),
       );
     }
@@ -1032,7 +1033,7 @@ export function formatPackageVulnerabilitiesTerminal(
   if (selectedCountLine) headerBlock.push(selectedCountLine);
   const breakdown =
     scope === undefined
-      ? formatBreakdownLine(payload.summary, useColors)
+      ? formatBreakdownLine(payload.summary, useColors, options.terminalWidth)
       : undefined;
   if (breakdown) headerBlock.push(breakdown);
   blocks.push(headerBlock.join("\n"));
@@ -1046,6 +1047,7 @@ export function formatPackageVulnerabilitiesTerminal(
         useColors,
         rangeLimit,
         surface,
+        options.terminalWidth,
       ),
     );
   }
@@ -1156,6 +1158,7 @@ function formatSelectedAdvisoryCountLine(
 function formatBreakdownLine(
   summary: LeanVulnerabilitySummary,
   useColors: boolean,
+  terminalWidth: number | undefined,
 ): string | undefined {
   // One-advisory case doesn't need a breakdown.
   if (summary.total <= 1) return undefined;
@@ -1169,18 +1172,57 @@ function formatBreakdownLine(
     low: "low",
     unrated: "unrated",
   };
-  const parts: string[] = [];
+  const parts: BreakdownPart[] = [];
   for (const key of BUCKET_ORDER) {
     const count = bucket[key];
     if (typeof count === "number" && count > 0) {
       const segment = `${count} ${labels[key]}`;
-      parts.push(
-        key === "malware" ? colorize(segment, "red", useColors) : segment,
-      );
+      parts.push({
+        text: segment,
+        color: key === "malware" ? "red" : undefined,
+      });
     }
   }
   if (parts.length === 0) return undefined;
-  return `  ${parts.join(" | ")}`;
+  return formatBreakdownParts(parts, useColors, terminalWidth);
+}
+
+interface BreakdownPart {
+  text: string;
+  color?: "red";
+}
+
+function formatBreakdownParts(
+  parts: readonly BreakdownPart[],
+  useColors: boolean,
+  terminalWidth: number | undefined,
+): string {
+  const width = normaliseTerminalWidth(terminalWidth);
+  const lines: BreakdownPart[][] = [];
+  let current: BreakdownPart[] = [];
+  for (const part of parts) {
+    const candidate = [...current, part].map(({ text }) => text).join(" | ");
+    if (
+      current.length === 0 ||
+      measureTerminalWidth(`  ${candidate}`) <= width
+    ) {
+      current.push(part);
+    } else {
+      lines.push(current);
+      current = [part];
+    }
+  }
+  if (current.length > 0) lines.push(current);
+  return lines
+    .map(
+      (line) =>
+        `  ${line
+          .map(({ text, color }) =>
+            color ? colorize(text, color, useColors) : text,
+          )
+          .join(" | ")}`,
+    )
+    .join("\n");
 }
 
 // --------------------------------------------------------------------
@@ -1193,6 +1235,7 @@ function formatAdvisoryList(
   useColors: boolean,
   rangeLimit: number,
   surface: VulnerabilitiesTextSurface,
+  terminalWidth: number | undefined,
 ): string {
   const renderedAdvisories = verbose
     ? advisories
@@ -1216,7 +1259,12 @@ function formatAdvisoryList(
   }
   const hidden = advisories.length - renderedAdvisories.length;
   if (hidden > 0) {
-    lines.push(dim(formatAdvisoryCapHint(hidden, surface), useColors));
+    lines.push(
+      ...wrapFreeText(
+        formatAdvisoryCapHint(hidden, surface),
+        normaliseTerminalWidth(terminalWidth),
+      ).map((line) => dim(line, useColors)),
+    );
   }
   return lines.join("\n").trimEnd();
 }
@@ -1429,7 +1477,11 @@ function formatTransitiveAuditTerminal(
     ...wrapFreeText(formatTransitiveSummaryLine(audit.summary), width),
   );
 
-  const breakdown = formatTransitiveBreakdown(audit.summary, options.useColors);
+  const breakdown = formatTransitiveBreakdown(
+    audit.summary,
+    options.useColors,
+    width,
+  );
   if (breakdown) lines.push(breakdown);
   if (options.includeWithdrawn) {
     lines.push(
@@ -1473,6 +1525,7 @@ function formatTransitiveSummaryLine(
 function formatTransitiveBreakdown(
   summary: LeanTransitiveVulnerabilityAudit["summary"],
   useColors: boolean,
+  terminalWidth: number,
 ): string | undefined {
   if (!summary.bySeverity) return undefined;
   const labels: Record<VulnBucket, string> = {
@@ -1483,15 +1536,20 @@ function formatTransitiveBreakdown(
     low: "low",
     unrated: "unrated",
   };
-  const parts: string[] = [];
+  const parts: BreakdownPart[] = [];
   for (const key of BUCKET_ORDER) {
     const count = summary.bySeverity[key];
     if (typeof count === "number" && count > 0) {
       const part = `${count} ${labels[key]}`;
-      parts.push(key === "malware" ? colorize(part, "red", useColors) : part);
+      parts.push({
+        text: part,
+        color: key === "malware" ? "red" : undefined,
+      });
     }
   }
-  return parts.length > 0 ? `  ${parts.join(" | ")}` : undefined;
+  return parts.length > 0
+    ? formatBreakdownParts(parts, useColors, terminalWidth)
+    : undefined;
 }
 
 function flattenTransitiveRows(
@@ -1551,7 +1609,12 @@ function formatTransitiveRows(
   if (hidden > 0) {
     const hint =
       options.surface === "mcp" ? "use verbose=true or format=json" : "use -v";
-    lines.push(dim(`... (+${hidden} more; ${hint})`, options.useColors));
+    lines.push(
+      ...wrapFreeText(
+        `... (+${hidden} more; ${hint})`,
+        normaliseTerminalWidth(options.terminalWidth),
+      ).map((line) => dim(line, options.useColors)),
+    );
   }
   return lines;
 }

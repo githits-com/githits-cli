@@ -1455,6 +1455,50 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     });
   });
 
+  it("promotes transitive generic version errors using the resolved latest identity", async () => {
+    const requests: Array<{
+      query: string;
+      variables: Record<string, unknown>;
+    }> = [];
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      const body = JSON.parse((init?.body as string | undefined) ?? "{}");
+      requests.push(body);
+      if (body.query.includes("PackageTransitiveVulnerabilityAudit")) {
+        return Promise.resolve(
+          jsonResponse({
+            errors: [{ message: "No matching version found" }],
+          }),
+        );
+      }
+      return Promise.resolve(jsonResponse(VULNS_HAPPY_BODY));
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    try {
+      await service.packageVulnerabilities({
+        registry: "NPM",
+        packageName: "express",
+        includeTransitive: true,
+      });
+      throw new Error("expected typed version error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(PackageIntelligenceVersionNotFoundError);
+      const typed = error as PackageIntelligenceVersionNotFoundError;
+      expect(typed.packageName).toBe("npm:express");
+      expect(typed.requestedVersion).toBe("4.18.0");
+    }
+    expect(requests[1]?.variables).toEqual({
+      registry: "NPM",
+      name: "express",
+      version: "4.18.0",
+      minSeverity: undefined,
+    });
+  });
+
   it("selects only the field-minimal transitive audit contract", async () => {
     const { service, fetchFn } = createAuditService(TRANSITIVE_AUDIT_BODY);
 
@@ -1588,6 +1632,35 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     const body = mutableTransitiveAuditBody();
     delete body.data.packageDependencies.dependencies.transitive
       .vulnerabilitySummary;
+    await expectMalformedAudit(body);
+  });
+
+  it.each([
+    "totalVulnerabilities",
+    "totalPackagesAnalyzed",
+    "affectedPackageCount",
+  ] as const)("fails closed when transitive %s is negative", async (field) => {
+    const body = mutableTransitiveAuditBody();
+    const summary = mutableTransitiveAuditSummary(body);
+    if (field === "totalVulnerabilities") {
+      summary.affected.totalVulnerabilities = -1;
+    } else if (field === "totalPackagesAnalyzed") {
+      summary.totalPackagesAnalyzed = -1;
+    } else {
+      summary.affectedPackageCount = -1;
+    }
+    await expectMalformedAudit(body);
+  });
+
+  it("fails closed when a negative package count would be filtered away", async () => {
+    const body = mutableTransitiveAuditBody();
+    const summary = mutableTransitiveAuditSummary(body);
+    const firstPackage = summary.packages[0];
+    if (!firstPackage) throw new Error("fixture missing transitive package");
+    summary.affected.totalVulnerabilities = 0;
+    summary.affectedPackageCount = 0;
+    firstPackage.affectedCount = -1;
+    firstPackage.advisoryOccurrences = [];
     await expectMalformedAudit(body);
   });
 

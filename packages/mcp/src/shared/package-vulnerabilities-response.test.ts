@@ -1165,6 +1165,31 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     expect(mcp).not.toContain("use -v");
   });
 
+  it("wraps mixed-severity breakdowns and capped-row hints at narrow widths", () => {
+    const output = formatPackageVulnerabilitiesTerminal(
+      transitiveVulnerabilityFixture(),
+      { useColors: false, terminalWidth: 20 },
+    );
+    const sectionLines = output
+      .slice(output.indexOf("Resolved dependencies"))
+      .split("\n");
+    const breakdownLines = sectionLines.filter((line) =>
+      /^ {2}\d+ (?:MALWARE|critical|high|medium|low|unrated)(?: |$)/.test(line),
+    );
+    expect(breakdownLines.length).toBeGreaterThan(1);
+    expect(breakdownLines.every((line) => line.length <= 20)).toBe(true);
+
+    const hintIndex = sectionLines.findIndex((line) =>
+      line.startsWith("... (+2"),
+    );
+    expect(hintIndex).toBeGreaterThan(-1);
+    const hintLines = sectionLines.slice(hintIndex);
+    expect(hintLines.every((line) => line.length <= 20)).toBe(true);
+    expect(hintLines.join(" ").replace(/\s+/g, " ")).toContain(
+      "... (+2 more; use -v)",
+    );
+  });
+
   it("shows every transitive occurrence and verbose fixes, aliases, and missing-fix evidence", () => {
     const output = formatPackageVulnerabilitiesTerminal(
       transitiveVulnerabilityFixture(),

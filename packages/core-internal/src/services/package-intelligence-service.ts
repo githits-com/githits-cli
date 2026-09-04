@@ -1108,7 +1108,7 @@ const transitiveAuditOccurrenceSchema = z.object({
 const transitiveAuditPackageSchema = z.object({
   registry: z.string(),
   name: z.string(),
-  affectedCount: z.number().int(),
+  affectedCount: z.number().int().nonnegative(),
   advisoryOccurrences: z
     .array(transitiveAuditOccurrenceSchema)
     .nullable()
@@ -1116,9 +1116,9 @@ const transitiveAuditPackageSchema = z.object({
 });
 
 const transitiveAuditSummarySchema = z.object({
-  affected: z.object({ totalVulnerabilities: z.number().int() }),
-  totalPackagesAnalyzed: z.number().int(),
-  affectedPackageCount: z.number().int(),
+  affected: z.object({ totalVulnerabilities: z.number().int().nonnegative() }),
+  totalPackagesAnalyzed: z.number().int().nonnegative(),
+  affectedPackageCount: z.number().int().nonnegative(),
   packages: z.array(transitiveAuditPackageSchema),
   calculatedAt: z.string().nullable().optional(),
 });
@@ -2913,7 +2913,11 @@ export class PackageIntelligenceServiceImpl
     if (parsed.data.errors && parsed.data.errors.length > 0) {
       throw promoteGenericVersionNotFound(
         this.createGraphQLError(parsed.data.errors),
-        params,
+        {
+          registry: params.registry,
+          packageName: directIdentity.name,
+          version: directIdentity.version,
+        },
       );
     }
 
