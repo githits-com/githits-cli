@@ -561,6 +561,10 @@ Surface-native pivots name `source="symbol"` / `code_grep` in MCP and
 The representative CLI n8n example is maintained in
 `docs/implementation/cli-commands.md` as the output source of truth.
 
+Repository-code hits with structural evidence omit standalone indexed titles;
+semantic scope rows supply kind, qualified name, and declaration range when
+available. Repository documentation retains its heading. JSON retains titles.
+
 **Hit anatomy within unified search text-v1:**
 
 ```

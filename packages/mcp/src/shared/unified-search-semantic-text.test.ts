@@ -106,6 +106,25 @@ function render(hit: UnifiedSearchHitPayload, useColors = false): string {
 }
 
 describe("semantic search text", () => {
+  it("omits unverified code titles with and without semantic scopes", () => {
+    for (const title of ["r", "layer"]) {
+      const hit = semanticHit();
+      hit.title = title;
+      expect(render(hit)).not.toContain(` - ${title}`);
+      expect(render(hit)).not.toMatch(new RegExp(`^\\s+${title}$`, "m"));
+      hit.repositoryEvidence!.semanticContext = null;
+      expect(render(hit)).not.toContain(` - ${title}`);
+      expect(render(hit)).not.toMatch(new RegExp(`^\\s+${title}$`, "m"));
+    }
+  });
+
+  it("preserves repository documentation headings", () => {
+    const hit = semanticHit();
+    hit.type = "repository_doc";
+    hit.title = "Session storage";
+    expect(render(hit)).toContain("Session storage");
+  });
+
   it("renders readable scopes and literal numbered source without a redundant command", () => {
     const text = render(semanticHit());
     expect(text).toContain(

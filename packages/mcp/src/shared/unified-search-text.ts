@@ -1236,7 +1236,10 @@ function formatRepositoryHitTitle(
       (scope) => hit.title === scope.name || hit.title === scope.qualifiedPath,
     );
     return {
-      text: duplicateTitle ? undefined : hit.title || undefined,
+      text:
+        hit.type === "repository_code" || duplicateTitle
+          ? undefined
+          : hit.title || undefined,
       highlightOffset: 0,
     };
   }

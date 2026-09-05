@@ -234,3 +234,90 @@ After closure, `bun test` over follow-up commands, semantic text, existing searc
 text, and CLI/MCP search parity passed 114 tests with 397 assertions. No finding
 remains unresolved. The same reviewer terminal is retained for inspection:
 `term_3ede4784-0153-42a3-8f75-8a359088cce0`.
+
+
+## Three CI / Braintrust repetitions against main
+
+On September 5, 2026, PR #359 ran the existing Agent Evals pipeline three
+complete times: [run 33987516988](https://github.com/githits-com/githits-cli/actions/runs/33987516988),
+attempts 1–3. All evaluated commit `3a265c5d2d98c36a68de77aa38c4e0a3bbfb0b6a`.
+Each exported 23 cells (2 discovery, 21 intent) and linked to
+[main-r33941231621-a1](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/main-r33941231621-a1),
+at main commit `c9cfa8d9939c921e7379888e310bd7942e372bae`.
+The runs used the pipeline's existing service configuration, not local dev
+endpoint overrides. Model, reasoning, prompt hashes, guidance, reporting schemas,
+and Codex CLI version (0.153.4) matched the baseline. Rows were compared by
+`metadata.cellId`.
+
+| Experiment | Total tokens | MCP calls | Failed tool calls | Estimated cost |
+| --- | ---: | ---: | ---: | ---: |
+| Main | 4,046,854 | 125 | 1 | $0.27498 |
+| [PR attempt 1](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-359-r33987516988-a1) | 3,424,995 | 114 | 6 | $0.26261 |
+| [PR attempt 2](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-359-r33987516988-a2) | 3,047,158 | 113 | 1 | $0.24473 |
+| [PR attempt 3](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-359-r33987516988-a3) | 2,839,717 | 108 | 0 | $0.24159 |
+
+These totals include input (including cached input) and output, unlike the
+input-only local layout table above. The PR mean is 3,103,957 tokens (-23.3%),
+111.7 MCP calls (-10.7%), and $0.24965 estimated cost (-9.2%). This is a descriptive
+comparison against one matched main run, not a demonstrated causal improvement.
+
+The OpenCode workload dominates the apparent saving: main used 1,273,760 tokens
+and 27 calls, versus 381,952/16, 309,358/13, and 216,374/12. Main never called
+search in that cell. Excluding OpenCode, PR token deltas are +9.7%, -1.3%, and
+-5.4%; their mean is approximately +1.0%. An earlier main run at the same SHA
+used only 3,065,615 total tokens and 221,924 for OpenCode, but used Codex 0.153.2,
+so it is additional evidence of variability rather than a matched control.
+The intent Express Router and search-source-ergonomics cells used more tokens
+than the primary main baseline in all three PR attempts. The file-navigation
+cell was stable at about 97.6k tokens and three calls, versus main's 104.0k
+and three calls. The evidence is mixed at the workload level.
+
+Actual intent traces contained 36 successful JSON search/search_status responses
+and 11 text responses across the three attempts. Structural semantic/focused
+fields were present in live JSON results. These runs exercise the feature but
+mostly do not exercise its text layout; they cannot settle dash versus Scope,
+parameter display, or omission of a Read context command.
+
+Every cell reported successful process/report/final completion in all three
+runs and main. There is no independent quality scorer. Two low-call cells are
+particularly unsuitable as evidence of feature efficiency: attempt 1's explicit
+site-search task used web search and no GitHits calls; attempt 3's discovery
+Express task also made no GitHits calls and reported consulting Express 4.21.2
+public source. The exported discovery field is `not_exposed`, so actual tool
+traces/counts are needed to assess use.
+
+Four attempt-1 OpenCode read failures were indexing responses; two other
+attempt-1 failures were discovery Express reads. The original attempt-1
+discovery artifact was no longer available after workflow reruns (the original
+artifact ID returned 404), so their exact error causes were not reconstructed.
+Attempt 2's failed call was pkg_vulns in package-changelog; attempt 3 had none.
+Tool failures and self-reported final success are separate observations.
+Normalized Braintrust rows and available downloaded traces were retained under
+ignored `.agent-eval/semantic-search/pipeline/`; no anomalous results were deleted.
+
+## User-supplied Fable feedback and heading cleanup
+
+Fable reported two concrete benefits: reading an enclosing method's exact
+89–161 range instead of guessing from match lines 114–118, and skipping an
+irrelevant S3 load method from its kind and qualified name. This supports the
+navigation design qualitatively; it is not a scored pipeline quality result.
+
+Accepted: bare code headings such as `r` or `layer` can imply a verified symbol
+identity. Backend titles originate from the indexed result name or filename,
+while the scope chain owns semantic identity. The shared text formatter now
+omits standalone titles on repository-code hits using the structural evidence
+contract, including hits with null semantic context. Repository documentation
+headings, legacy output, and lossless JSON titles retain their existing behavior.
+This also removes the reported two-layout inconsistency for those code hits.
+There is no separate provisional/ready heading state: the prior behavior only
+suppressed a title when it matched a scope name. This small cleanup was made
+**after** the three pipeline attempts; their metrics apply to `3a265c5`, not
+the heading cleanup. Focused formatter/follow-up/parity tests passed: 116 tests,
+406 assertions. Typecheck, build, changed-file Biome checks, and authenticated
+development CLI/MCP smoke suites also passed after this cleanup.
+
+The over-300-line scope observation is valid. code_read already enforces its
+300-line explicit-range ceiling and returns a continuation start_line when it
+truncates. Earlier live evaluation exercised this behavior. A symbol-reference
+read API is a broader product change; this increment retains true scope ranges
+and the existing continuation behavior rather than adding that API.
