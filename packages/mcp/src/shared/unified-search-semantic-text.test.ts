@@ -138,6 +138,22 @@ describe("semantic search text", () => {
     expect(render(hit)).not.toContain("#main");
   });
 
+  it.each(["github:owner/monorepo#main", "owner/monorepo@main"])(
+    "keeps header %s pinned when package metadata contains a synthetic version",
+    (targetLabel) => {
+      const hit = semanticHit();
+      const read = hit.repositoryEvidence!.semanticContext!.preferredRead;
+      read.targetLabel = targetLabel;
+      read.version = sha;
+      const text = render(hit);
+      expect(text).toContain(
+        `github:owner/monorepo#${sha} packages/pkg/src/client.ts:142-145`,
+      );
+      expect(text).not.toContain("npm:pkg");
+      expect(text).not.toContain("#main");
+    },
+  );
+
   it("renders nullable semantic and source branches independently", () => {
     const sourceOnly = semanticHit();
     sourceOnly.repositoryEvidence!.semanticContext = null;

@@ -77,6 +77,24 @@ describe("semantic preferred reads", () => {
     });
   });
 
+  it.each(["github:owner/monorepo#main", "owner/monorepo@main"])(
+    "honors repository label %s even when synthetic package metadata is populated",
+    (targetLabel) => {
+      const read = {
+        ...preferredRead,
+        targetLabel,
+        version: commitSha,
+      };
+      const target = `github:owner/monorepo#${commitSha}`;
+      expect(buildSearchHitFollowUpCommand(hit(read))).toBe(
+        `code_read target="${target}" path="packages/pkg/src/client.ts" start_line=120 end_line=165`,
+      );
+      expect(buildSearchHitFollowUpCommand(hit(read), "cli")).toBe(
+        `githits code read '${target}' 'packages/pkg/src/client.ts' --lines 120-165`,
+      );
+    },
+  );
+
   it("bounds only the MCP action around the focused evidence and retains true bounds", () => {
     const read = { ...preferredRead, startLine: 1, endLine: 600 };
     const value = hit(read);

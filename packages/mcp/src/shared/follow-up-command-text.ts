@@ -87,7 +87,15 @@ interface SemanticReadLocation {
 export function semanticReadLocation(
   read: UnifiedSearchSemanticPreferredRead,
 ): SemanticReadLocation {
-  if (read.registry && read.packageName && read.version) {
+  // Repository-attributed hits can also carry synthetic package metadata.
+  if (
+    read.registry &&
+    read.packageName &&
+    read.version &&
+    read.targetLabel
+      .toLowerCase()
+      .startsWith(`${read.registry}:${read.packageName}`.toLowerCase())
+  ) {
     return {
       target: `${read.registry.toLowerCase()}:${read.packageName}@${read.version}`,
       path: read.filePath,

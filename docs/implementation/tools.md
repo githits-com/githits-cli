@@ -209,7 +209,8 @@ facts in the new evidence structure.
 The text header supplies the read target, path, and focused range; scope rows
 supply enclosing declaration ranges. No per-hit read command is printed. With
 semantic context, both header attribution and JSON `followUp` come from
-`preferredRead`: package attribution pairs registry/package/version with
+`preferredRead`: its target label determines repository attribution even when
+synthetic package metadata is populated. Package attribution pairs registry/package/version with
 package-relative `filePath`, while repository attribution pairs `repoUrl` and
 `commitSha` with `repositoryFilePath`. The preferred source read takes precedence
 also for repository docs with page IDs. Crawled docs keep `docs_read`. The JSON
@@ -227,6 +228,11 @@ content but does not add another CAS batch. The client requires the backend's
 September 5 structural-evidence schema; it does not probe or retry older schemas.
 Hosted clients receive this behavior only after an MCP package release and the
 separate remote-mcp dependency update/deployment.
+
+The current text uses `-` scope markers and omits parameter names and return
+types; JSON retains them. See [the semantic-context evaluation](search-semantic-context-evaluation.md)
+for the controlled comparisons, attribution regression, and measured limitations.
+The compact layout is not a demonstrated task-token optimization.
 
 **Promoted `warnings[]`.** Noteworthy `sourceStatus` entries — sources reporting `incompatibleQueryFeatures`, `ignoredQueryFeatures`, `incompatibleFilters`, `ignoredFilters`, lifecycle anomalies (`indexingStatus`, `codeIndexState`), or a free-form `note` — are also surfaced as a top-level `warnings: string[]` in the completed/incomplete payloads (and appended after parser warnings inside the `search_status` result block). The structured detail still lives in `sourceStatus`; `warnings[]` is the agent-visible signal that something about execution did not match the request. On completed empty results, healthy non-contributor source entries are also retained with zero `resultCount` and served identity; requested/fresh labels emit only when they materially differ from served. Contributor-bearing DOCS rows retain their physical contributors instead of duplicating healthy served/current resolution metadata. Healthy `INDEXED` / `CURRENT` / non-divergent `STALE` states never become warnings. `PROVISIONAL` is queryable but remains a visible non-healthy indexing signal, including on completed responses. Successful non-empty responses keep the prior compact projection. JSON keeps promoted warnings and source-status detail lossless; MCP text classifies parser/query and structured constraint facts once below the outcome and does not repeat promoted lifecycle/freshness warning prose or opaque notes. Implementation in `buildSourceStatusWarnings` and empty-result compaction (`packages/mcp/src/shared/unified-search-response.ts`).
 

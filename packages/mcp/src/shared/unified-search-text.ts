@@ -1020,6 +1020,10 @@ function appendStructuralEvidence(
     lines.push("  Some matches are not highlighted");
 }
 
+const sourceGraphemeSegmenter = new Intl.Segmenter(undefined, {
+  granularity: "grapheme",
+});
+
 /** New source offsets count graphemes; legacy title/summary offsets count JS units. */
 function highlightSourceGraphemes(
   text: string,
@@ -1028,7 +1032,7 @@ function highlightSourceGraphemes(
 ): string {
   if (!useColors || ranges.length === 0) return text;
   const offsets = Array.from(
-    new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text),
+    sourceGraphemeSegmenter.segment(text),
     (segment) => segment.index,
   );
   offsets.push(text.length);
