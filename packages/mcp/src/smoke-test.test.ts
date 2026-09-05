@@ -464,6 +464,28 @@ describe("runMcpSmoke", () => {
     await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
   });
 
+  it("accepts structural search evidence text", async () => {
+    const structuralText =
+      "1 result | 1 repo code hit\n\n" +
+      "[1] npm:express@4.18.2 lib/client.ts:142-145 [repo code]\n" +
+      "  - class Client | lines 20-220\n" +
+      "    - method Client.send | lines 120-165\n" +
+      "  ... lines omitted before\n" +
+      "  142 |     const indexingRef = request;\n" +
+      "> 143 | ...    if (response.status === 429) {...\n" +
+      "  144 |       return retry(request);\n" +
+      "  145 | \n" +
+      "  ... lines omitted after";
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(structuralText);
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+  });
+
   it.each([
     [
       "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
