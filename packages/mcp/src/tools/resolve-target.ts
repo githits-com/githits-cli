@@ -85,12 +85,12 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Default `text` is token-efficient. Use `json` only for programmatic follow-up or exact structured details.",
+      "Use `text` (default) for reading and tool follow-ups; it is token-efficient. Use `json` only to parse responses in code or obtain fields absent from text.",
     ),
 };
 
 export const DESCRIPTION =
-  'Resolve package, repository, or documentation-site names into canonical targets. Experimental tool for fuzzy, ambiguous, misspelled, or human-friendly public OSS names. Do not call for canonical `registry:name`, `github:owner/repo`, or `site:<host[/path]>` targets; use those directly with the next MCP tool. Pass a selected standalone documentation-site target to `search` with `source: "docs"`; request `format: "json"` when exact locator fields are needed, then pass a relevant `pageId` and returned line range to `docs_read`. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text` gives bounded ranked candidates; pass `verbose: true` to include coarse lexical name-similarity evidence. Only a non-ambiguous EXACT or HIGH best result with CLEAR or NOT_APPLICABLE malicious-content status gets a direct follow-up; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. MEDIUM and LOW require narrowing or an explicit choice. Use `json` for the structured result.';
+  'Resolve package, repository, or documentation-site names into canonical targets. Experimental tool for fuzzy, ambiguous, misspelled, or human-friendly public OSS names. Do not call for canonical `registry:name`, `github:owner/repo`, or `site:<host[/path]>` targets; use those directly with the next MCP tool. Pass a selected standalone documentation-site target to `search` with `source: "docs"`; request `format: "json"` only if required locator fields are absent from text, then pass a relevant `pageId` and returned line range to `docs_read`. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text` gives bounded ranked candidates; pass `verbose: true` to include coarse lexical name-similarity evidence. Only a non-ambiguous EXACT or HIGH best result with CLEAR or NOT_APPLICABLE malicious-content status gets a direct follow-up; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. MEDIUM and LOW require narrowing or an explicit choice. Use `json` for the structured result.';
 
 export function createResolveTargetTool(
   service: ResolveTargetService,

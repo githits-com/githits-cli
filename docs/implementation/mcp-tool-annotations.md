@@ -59,7 +59,7 @@ explicitly selected JSON in 86 of 91 GitHits calls.
 
 For that reason, every format-selectable MCP tool now advertises `text` as
 both the first enum value and the explicit schema default. The only public values are `text` and `json`; the format description reserves
-JSON for programmatic follow-up or exact structured details. If structured output is added later, it should use a
+JSON for parsing responses in code or obtaining fields absent from text. If structured output is added later, it should use a
 small per-tool control-plane contract (status, IDs, cursors, counts,
 truncation, and next actions) rather than duplicate code, docs, examples, or
 other large result bodies.

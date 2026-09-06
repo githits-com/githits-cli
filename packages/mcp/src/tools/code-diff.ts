@@ -87,7 +87,7 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Default `text` is token-efficient. Use `json` only for programmatic follow-up or exact structured details. Text patch previews are bounded at 320 UTF-8 bytes; JSON includes the full returned patch, still subject to backend limits and content coverage.",
+      "Use `text` (default) for reading and tool follow-ups; it is token-efficient. Use `json` only to parse responses in code or obtain fields absent from text. Text patch previews are bounded at 320 UTF-8 bytes; JSON includes the full returned patch, still subject to backend limits and content coverage.",
     ),
 };
 

@@ -47,7 +47,7 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Default `text` is token-efficient. Use `json` only for programmatic follow-up or exact structured details. JSON includes `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total`.",
+      "Use `text` (default) for reading and tool follow-ups; it is token-efficient. Use `json` only to parse responses in code or obtain fields absent from text. JSON includes `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total`.",
     ),
 };
 

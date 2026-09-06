@@ -350,7 +350,7 @@ describe("MCP output format", () => {
         "token-efficient",
       );
       expect(JSON.stringify(formatSchema), descriptor.name).toContain(
-        "programmatic follow-up",
+        "parse responses in code",
       );
       expect(descriptor.schema.format?.parse(undefined)).toBe("text");
       expect(descriptor.schema.format?.safeParse("text-v1").success).toBe(

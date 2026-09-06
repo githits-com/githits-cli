@@ -67,7 +67,9 @@ describe("code_diff MCP adapter", () => {
     expect(tool.schema.format?.parse(undefined)).toBe("text");
     expect(tool.schema.format?.safeParse("text-v1").success).toBe(false);
     expect(tool.schema.format?.description).toContain("token-efficient");
-    expect(tool.schema.format?.description).toContain("programmatic follow-up");
+    expect(tool.schema.format?.description).toContain(
+      "parse responses in code",
+    );
     expect(schema.properties?.view).toMatchObject({
       default: "name-status",
       enum: ["name-status", "name-only", "stat", "patch"],

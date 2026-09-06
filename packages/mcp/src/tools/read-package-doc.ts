@@ -45,7 +45,7 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      `Default \`text\` is token-efficient. Use \`json\` only for programmatic follow-up or exact structured details. Text omitting \`end_line\` returns at most ${MCP_DOC_READ_DEFAULT_SPAN} lines; explicit ranges may request up to ${MCP_DOC_READ_MAX_SPAN} lines, while JSON omitting it reads to page end and explicit ranges still slice content.`,
+      `Use \`text\` (default) for reading and tool follow-ups; it is token-efficient. Use \`json\` only to parse responses in code or obtain fields absent from text. Text omitting \`end_line\` returns at most ${MCP_DOC_READ_DEFAULT_SPAN} lines; explicit ranges may request up to ${MCP_DOC_READ_MAX_SPAN} lines, while JSON omitting it reads to page end and explicit ranges still slice content.`,
     ),
 };
 

@@ -407,3 +407,49 @@ removed. Safe normalized rows, downloaded artifacts, comparison output, and
 trace-format counting scripts are retained under ignored
 `.agent-eval/semantic-search/format-guidance/`. No additional Braintrust runs were
 created beyond the three requested pipeline repetitions.
+
+
+## Sharpened text-first guidance
+
+The next wording revision removes the ambiguous phrase "programmatic follow-up":
+normal agent tool chaining should use text. All 17 format parameters now say:
+"Use `text` (default) for reading and tool follow-ups; it is token-efficient.
+Use `json` only to parse responses in code or obtain fields absent from text."
+The shared quick-start core and exact skill copy explicitly say returned paths,
+IDs, and line ranges can be passed directly to subsequent tools. Docs-routing
+hints now condition JSON on needed locators being absent from text. Known
+JSON-only data remains a valid reason to request JSON immediately; the guide
+does not require an extra text request before every JSON request.
+
+Two targeted live development runs exercised code-file-navigation with
+Codex 0.153.4 / gpt-5.6-luna / low reasoning on the working-tree revision over
+`8a9d3b3` (the guidance edits were present; this is separate from the three
+pipeline experiments above):
+
+- Descriptor/intent: quick_start, search, code_read. Search and read both omitted
+  format and received text. Read lib/express.js lines 30–70. The final answer
+  identified createApplication, Object.create(req/res), and the app reference.
+- Full guide: search, code_read, both default text. The read pinned Express 5.2.1
+  and requested lib/express.js lines 1–80. The final answer identified the same
+  factory/prototype behavior. The guide was installed through the skill, so
+  quick_start was not called.
+
+Both completed with no tool failures or reported isolation violations. The
+first run did call quick_start, so this does not isolate the format-parameter
+wording from the guide wording. One run per profile on one task is navigation
+and guidance evidence, not proof of an aggregate token or JSON-selection gain.
+No new Braintrust export was requested or made for these local checks.
+
+The attempted Claude full-guide check exited before tool use with "Not logged
+in" / "Please run /login". It had no final report and is excluded from behavior
+conclusions; authentication state was not read or modified. Its artifacts and
+both Luna traces remain under ignored
+`.agent-eval/semantic-search/sharpen-guidance/`.
+
+
+Validation after this wording revision passed 4,034 tests / 13,928 assertions,
+build, typecheck, plugin generation/check, exact quick-start/skill parity, and
+103 CLI / 54 MCP live smoke steps. One intermediate full run hit the existing
+stale-auth-lock fixture's 100 ms timeout while live workloads were running;
+its isolated 33-test suite passed, followed by a clean full run without those
+live workloads. Auth-lock behavior was not modified by this guidance revision.

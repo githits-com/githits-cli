@@ -502,8 +502,10 @@ The `hint` field is emitted only when the cap *actually truncated* the response 
 Every format-selectable MCP tool accepts only `text` and `json`, with `text` as
 the default. This includes stable tools and the local experimental `ask`,
 `resolve_target`, and `code_diff` tools. The format parameter recommends:
-"Default `text` is token-efficient. Use `json` only for programmatic follow-up
-or exact structured details." Tool-specific JSON-only details remain documented.
+"Use `text` (default) for reading and tool follow-ups; it is token-efficient.
+Use `json` only to parse responses in code or obtain fields absent from text." Tool-specific JSON-only details remain documented. The shared quick-start guide
+and its skill copy explicitly allow passing returned paths, IDs, and line ranges
+directly to subsequent tools without requesting JSON.
 Explicit `format: "text-v1"` is rejected by the public schema; existing callers
 should omit `format` or send `text`. The internal renderer name does not select
 a public format. JSON remains the lossless structured representation.

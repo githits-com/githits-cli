@@ -120,7 +120,9 @@ describe("local ask MCP adapter", () => {
     expect(tool.schema.format?.parse(undefined)).toBe("text");
     expect(tool.schema.format?.safeParse("text-v1").success).toBe(false);
     expect(tool.schema.format?.description).toContain("token-efficient");
-    expect(tool.schema.format?.description).toContain("programmatic follow-up");
+    expect(tool.schema.format?.description).toContain(
+      "parse responses in code",
+    );
   });
 
   it("always requests MCP sources and renders them in backend order", async () => {
