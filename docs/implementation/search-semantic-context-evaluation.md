@@ -453,3 +453,49 @@ build, typecheck, plugin generation/check, exact quick-start/skill parity, and
 stale-auth-lock fixture's 100 ms timeout while live workloads were running;
 its isolated 33-test suite passed, followed by a clean full run without those
 live workloads. Auth-lock behavior was not modified by this guidance revision.
+
+
+## Sharpened guidance: pipeline follow-up round
+
+The user requested one new pipeline round after the wording change.
+[Run 34015685915](https://github.com/githits-com/githits-cli/actions/runs/34015685915)
+at `d6b13a9e5a8b63d19258ecbae60a1dae3e876413` completed successfully and exported
+[pr-359-r34015685915-a1](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-359-r34015685915-a1)
+(ID `6b7ef1d8-935c-49f7-b135-e08e1a48e495`). Its linked baseline remains
+main-r34008443071-a1 (ID `dcd02a00-add5-4f39-baa3-a43c638c76a2`). All 23 row
+inputs/prompt hashes, model/reasoning, Codex CLI version, and reporting/result
+schema hashes matched that main baseline. Both discovery cells made no GitHits
+calls; the format-selection figures below cover intent only.
+
+| Measurement | Previous three format-guidance runs | Sharpened wording, one run |
+| --- | ---: | ---: |
+| Successful selectable calls using JSON | 105 / 271 (38.7%) | 22 / 102 (21.6%) |
+| Successful search calls using JSON | 28 / 43 (65.1%) | 3 / 14 (21.4%) |
+
+The new run had 80 text calls (30 explicit, 50 omitted format). All six explicit
+code searches, one auto-source search, and four documentation searches used text.
+The remaining three searches used JSON immediately for documentation:
+docs-search-followup, docs-search-noise, and site-search-explicit. None of the
+22 successful JSON calls followed a successful text call to the same tool in
+that task. Format choices moved toward text, but this is one run rather than a
+replicated causal estimate.
+
+Total tokens were 3,109,895 versus main's 3,026,831 (+2.7%), with 124 MCP calls
+versus 107. Estimated cost was $0.24476 versus $0.25389 (-3.6%). Excluding
+OpenCode, tokens were 2,731,660 versus 2,738,504 (-0.25%). The previous PR run
+mean was 3,099,557 tokens, almost unchanged from this new run. Smaller response
+formats still do not establish smaller task totals.
+
+All 23 cells reported successful completion and had empty normalized validation
+categories. One failed tool call was pkg_vulns rejecting `version: "latest"`;
+no format-validation failure occurred. Spot inspection found an answer-quality
+error despite the successful report: search-source-ergonomics described
+z.flattenError() as returning `{ errors, properties }`, while its own text
+search results showed `{ formErrors, fieldErrors }`. The needed evidence was
+present in text. This is a model answer error, not evidence that JSON was
+required or a reason to change the formatter. There is still no independent
+quality scorer, and this round is not claimed as a quality improvement.
+
+The safe Braintrust rows, native comparison, both scenario artifacts, format
+counts, and JSON sequence classification are retained under ignored
+`.agent-eval/semantic-search/sharpen-pipeline/`.
