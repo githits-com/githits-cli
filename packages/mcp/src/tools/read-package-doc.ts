@@ -17,7 +17,7 @@ export interface ReadPackageDocArgs {
   page_id: string;
   start_line?: number;
   end_line?: number;
-  format?: "json" | "text" | "text-v1";
+  format?: "text" | "json";
 }
 
 const MCP_DOC_READ_DEFAULT_SPAN = 150;
@@ -42,10 +42,10 @@ const schema: ZodRawShape = {
       `Ending line (inclusive). In text mode, omitting it returns at most ${MCP_DOC_READ_DEFAULT_SPAN} lines from \`start_line\`; an explicit range may request up to ${MCP_DOC_READ_MAX_SPAN} lines. In JSON mode, omitting it reads to the end of the page. Must be ≥ \`start_line\` when both are set.`,
     ),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      `Response format. Default \`text-v1\` — raw markdown content capped to ${MCP_DOC_READ_DEFAULT_SPAN} lines by default. Pass \`format: "json"\` for the structured envelope; explicit ranges still slice JSON content.`,
+      `Default \`text\` is token-efficient. Use \`json\` only for programmatic follow-up or exact structured details. Text omitting \`end_line\` returns at most ${MCP_DOC_READ_DEFAULT_SPAN} lines; explicit ranges may request up to ${MCP_DOC_READ_MAX_SPAN} lines, while JSON omitting it reads to page end and explicit ranges still slice content.`,
     ),
 };
 
@@ -95,7 +95,7 @@ export function createReadPackageDocTool(
 }
 
 function isTextFormat(format: ReadPackageDocArgs["format"]): boolean {
-  return format === undefined || format === "text" || format === "text-v1";
+  return format === undefined || format === "text";
 }
 
 function buildRange(

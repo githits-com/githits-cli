@@ -10,7 +10,7 @@ GitHits indexes public OSS/package evidence, not local workspaces, private repos
 
 When presenting \`get_example\` output, include source repository provenance/citations from GitHits' generated references/provenance section whenever present.`;
 
-const PACKAGE_TOOLS_PREAMBLE = `Indexed package/source tools inspect third-party dependency source, docs, and registry metadata. Package targets use \`registry:name[@version]\` and inspect an indexed artifact/manifest root; Swift packages use \`swift:github.com/<owner>/<repo>\` and Zig packages use \`zig:gh/<owner>/<repo>\`. Use public GitHub repository targets for full repositories or sibling packages; repo targets use GitHub URLs. Prefer the default compact \`text-v1\` output; request JSON only when exact structured fields are necessary.`;
+const PACKAGE_TOOLS_PREAMBLE = `Indexed package/source tools inspect third-party dependency source, docs, and registry metadata. Package targets use \`registry:name[@version]\` and inspect an indexed artifact/manifest root; Swift packages use \`swift:github.com/<owner>/<repo>\` and Zig packages use \`zig:gh/<owner>/<repo>\`. Use public GitHub repository targets for full repositories or sibling packages; repo targets use GitHub URLs. Prefer the default compact \`text\` output; request JSON only when exact structured fields are necessary.`;
 
 const SEARCH_BULLET =
   "- `search` — discover relevant docs, code, tests, examples, and symbols in known packages/repos or exact `site:<host[/path]>` documentation targets before reading exact files; retry advisory `suggestedSiteTargets` explicitly when returned.";
@@ -158,7 +158,7 @@ const LOCAL_RESOLVE_TARGET_GUIDANCE =
   '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` target is docs-only: pass it to `search` with `source:"docs"`; request `format:"json"` when exact locator fields are needed, then pass a relevant `pageId` and returned line range to `docs_read`.';
 
 const LOCAL_CODE_DIFF_GUIDANCE =
-  "- `code_diff` — compare exact package versions or public GitHub refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text-v1` unless exact fields or the full returned patch are needed. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";
+  "- `code_diff` — compare exact package versions or public GitHub refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text` unless exact fields or the full returned patch are needed. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";
 
 /**
  * Compose local-only experimental guidance without changing the public

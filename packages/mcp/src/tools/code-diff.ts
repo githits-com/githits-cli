@@ -24,7 +24,7 @@ export interface CodeDiffMcpArgs {
   path_glob?: string;
   max_files?: number;
   max_patch_bytes?: number;
-  format?: "text-v1" | "text" | "json";
+  format?: "text" | "json";
 }
 
 const schema: ZodRawShape = {
@@ -84,15 +84,15 @@ const schema: ZodRawShape = {
       "Optional aggregate patch-byte bound from 1024 through 2097152; patch view only.",
     ),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      "Response format. Default `text-v1` is compact MCP-native evidence with patch previews bounded at 320 UTF-8 bytes; `text` is an alias. Use `json` for the complete structured projection and full returned patch, still subject to backend limits and content coverage.",
+      "Default `text` is token-efficient. Use `json` only for programmatic follow-up or exact structured details. Text patch previews are bounded at 320 UTF-8 bytes; JSON includes the full returned patch, still subject to backend limits and content coverage.",
     ),
 };
 
 export const DESCRIPTION =
-  'Experimental source diff between two explicit package versions or public GitHub refs for an already-canonical target. Pass `target` without a version or ref: either a compact string such as `npm:express` / `github:expressjs/express`, or one structured `{registry, package_name}` / `{repo_url}` object. Pass the endpoints separately as `from` and `to`. Package targets still return repository-wide diffs: sibling paths may appear, and a bounded result with no package paths does not prove the package unchanged. The default `name-status` view is bounded inventory; use `stat` for magnitude or `patch` for content. In `text-v1`, patch previews are bounded at 320 UTF-8 bytes; use `format: "json"` for the exact full returned patch, still subject to `max_patch_bytes` and backend content coverage. Incomplete, filtered, byte-escaped, omitted, or unavailable patch evidence is not authoritative or safely applicable. Raw diffs never prove compatibility or upgrade safety. Do not include credentials, personal data, private code, or proprietary content in inputs.';
+  'Experimental source diff between two explicit package versions or public GitHub refs for an already-canonical target. Pass `target` without a version or ref: either a compact string such as `npm:express` / `github:expressjs/express`, or one structured `{registry, package_name}` / `{repo_url}` object. Pass the endpoints separately as `from` and `to`. Package targets still return repository-wide diffs: sibling paths may appear, and a bounded result with no package paths does not prove the package unchanged. The default `name-status` view is bounded inventory; use `stat` for magnitude or `patch` for content. In `text`, patch previews are bounded at 320 UTF-8 bytes; use `format: "json"` for the exact full returned patch, still subject to `max_patch_bytes` and backend content coverage. Incomplete, filtered, byte-escaped, omitted, or unavailable patch evidence is not authoritative or safely applicable. Raw diffs never prove compatibility or upgrade safety. Do not include credentials, personal data, private code, or proprietary content in inputs.';
 
 export function createCodeDiffTool(
   service: CodeDiffService,
@@ -131,5 +131,5 @@ export function createCodeDiffTool(
 }
 
 function isTextFormat(format: CodeDiffMcpArgs["format"]): boolean {
-  return format === undefined || format === "text" || format === "text-v1";
+  return format === undefined || format === "text";
 }

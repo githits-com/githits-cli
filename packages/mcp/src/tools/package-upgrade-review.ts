@@ -34,7 +34,7 @@ export interface PackageUpgradeReviewArgs {
   include_dependency_issues?: boolean;
   min_severity?: string;
   verbose?: boolean;
-  format?: "json" | "text" | "text-v1";
+  format?: "text" | "json";
 }
 
 const packageSchema = z.object({
@@ -108,10 +108,10 @@ const schema: ZodRawShape = {
       "Text output only. Include dependency change examples, including transitive version changes.",
     ),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      "Response format. Default `text-v1`; pass `json` for structured output.",
+      "Default `text` is token-efficient. Use `json` only for programmatic follow-up or exact structured details.",
     ),
 };
 

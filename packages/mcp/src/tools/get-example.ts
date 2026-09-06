@@ -13,7 +13,7 @@ export interface GetExampleInput {
   query: string;
   language?: string;
   license_mode?: "strict" | "yolo" | "custom";
-  format?: "json" | "text" | "text-v1";
+  format?: "text" | "json";
 }
 
 /** Search parameters required by the browser-callable example tool. */
@@ -58,10 +58,10 @@ const schema: ZodRawShape = {
       "License filtering: `strict` (default) excludes copyleft or undeclared licenses; `custom` uses your account blocklist; `yolo` disables filtering and may return incompatible licenses.",
     ),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      'Response format. Default `text-v1` returns markdown directly with source repository provenance when available and a trailing `solution_id` line when available. Pass `format: "json"` for `{result, solution_id?}`.',
+      "Default `text` is token-efficient. Use `json` only for programmatic follow-up or exact structured details.",
     ),
 };
 
@@ -112,5 +112,5 @@ export function createGetExampleTool(
 }
 
 function isTextFormat(format: GetExampleInput["format"]): boolean {
-  return format === undefined || format === "text" || format === "text-v1";
+  return format === undefined || format === "text";
 }

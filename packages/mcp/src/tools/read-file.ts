@@ -46,7 +46,7 @@ export interface ReadFileArgs {
   start_line?: number;
   end_line?: number;
   wait_timeout_ms?: number;
-  format?: "json" | "text" | "text-v1";
+  format?: "text" | "json";
 }
 
 const schema: ZodRawShape = {
@@ -75,10 +75,10 @@ const schema: ZodRawShape = {
       "Max milliseconds to wait for indexing (0-60000, default 20000). On an `INDEXING` error envelope, use `details.indexingEstimate` when present to decide whether to wait longer, or pass an already-indexed version/ref from `details.availableVersions` / `details.availableRefs`; `suggestedRefs` are fuzzy hints and may need indexing first.",
     ),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      'Response format. Default `text-v1` — line-numbered source content. Pass `format: "json"` for the structured envelope.',
+      "Default `text` is token-efficient. Use `json` only for programmatic follow-up or exact structured details.",
     ),
 };
 
@@ -216,7 +216,7 @@ export function createReadFileTool(
 }
 
 function isTextFormat(format: ReadFileArgs["format"]): boolean {
-  return format === undefined || format === "text" || format === "text-v1";
+  return format === undefined || format === "text";
 }
 
 /**

@@ -21,7 +21,7 @@ import {
 export interface SearchStatusArgs {
   search_ref: string;
   wait_timeout_ms?: number;
-  format?: "json" | "text" | "text-v1";
+  format?: "text" | "json";
 }
 
 const schema: ZodRawShape = {
@@ -41,10 +41,10 @@ const schema: ZodRawShape = {
       "Milliseconds to wait for progress or completion before returning the latest status (0-60000; default 20000).",
     ),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      'Response format. Default `text-v1` — compact line-oriented output matching `search`. Pass `format: "json"` for the structured envelope.',
+      "Default `text` is token-efficient. Use `json` only for programmatic follow-up or exact structured details.",
     ),
 };
 
@@ -88,5 +88,5 @@ export function createSearchStatusTool(
 }
 
 function isTextFormat(format: SearchStatusArgs["format"]): boolean {
-  return format === undefined || format === "text" || format === "text-v1";
+  return format === undefined || format === "text";
 }

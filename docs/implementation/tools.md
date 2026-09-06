@@ -497,11 +497,24 @@ Backend GraphQL errors preserve the backend message verbatim and carry its `hint
 
 The `hint` field is emitted only when the cap *actually truncated* the response — i.e., the returned range comes up short of available content. `shouldEmitCappedHint` (in `packages/mcp/src/tools/read-file.ts`) suppresses the hint in three cases the agent doesn't need it: (a) the cap clamp didn't fire (caller's range was already within the cap); (b) the file fits within the cap, so the response is the whole file even though the request was clamped; (c) the returned range reaches end of file. Binary files always skip the hint. When emitted, the hint reads from `payload.startLine` / `endLine` / `totalLines` (the actual returned range, not the pre-clamp request) and includes the original request for the agent to learn from. The CLI command `githits code read` does not apply the cap; humans piping whole files to disk continue to work.
 
-## Text response format (`format: "text-v1"`)
+## Text response format (`format: "text"`)
 
-`get_example`, `search_language`, `search`, `search_status`, `docs_list`, `docs_read`, `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review`, `code_files`, `code_read`, and `code_grep` accept a `format` parameter on the MCP surface. The default is `"text-v1"` — a compact line-oriented format that drops JSON scaffolding to stay lean in agent context. Programmatic callers (parity tests, scripts that parse responses) pass `format: "json"` explicitly. `"text"` is accepted as an alias for `"text-v1"` to keep agent prompts terse.
+Every format-selectable MCP tool accepts only `text` and `json`, with `text` as
+the default. This includes stable tools and the local experimental `ask`,
+`resolve_target`, and `code_diff` tools. The format parameter recommends:
+"Default `text` is token-efficient. Use `json` only for programmatic follow-up
+or exact structured details." Tool-specific JSON-only details remain documented.
+Explicit `format: "text-v1"` is rejected by the public schema; existing callers
+should omit `format` or send `text`. The internal renderer name does not select
+a public format. JSON remains the lossless structured representation.
 
-**Why text-v1 default.** A 10-hit `search` JSON envelope runs 5–7 KB after compaction; the same hits in `text-v1` land around 3–4 KB. The savings come from dropped quoting, dropped key repetition, and dropped fields that an agent does not need at the per-call decision point (highlights byte offsets, repeated locator scaffolding). The token budget belongs to the agent's reasoning, not to JSON structure.
+**Measured response sizes.** Three live development queries with three hits each
+on September 6, 2026 compared compact JSON with text from identical payloads.
+Using `o200k_base` as a token-count proxy: Express router code was 2,037 vs 274
+tokens, OpenCode compaction code 2,072 vs 260, and Express routing documentation
+902 vs 490. These response-size reductions (86.5%, 87.5%, 45.7%) are not task-level
+cost savings. Captures and reproduction scripts are under ignored
+`.agent-eval/semantic-search/output-size/`.
 
 **In-place evolution.** `text-v1` names the compact line-oriented representation; it is not an exact-prose compatibility boundary. Search and `search_status` may tighten human/agent copy in place as long as their structural lifecycle, ordering, action, and hit-anatomy invariants remain covered by tests (`packages/mcp/src/shared/unified-search-text.test.ts`, `packages/mcp/src/tools/search-status.test.ts`). JSON is the stable structured boundary for programmatic callers. Other text-v1 renderers retain their own contracts and are not changed by the search presentation work.
 

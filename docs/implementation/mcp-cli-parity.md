@@ -9,7 +9,7 @@ retryability, and non-remediation details are aligned; documented
 surface-specific defaults plus host-owned recovery prose and actions remain
 surface-native exceptions.
 Human/agent default rendering may differ from JSON envelopes: MCP tools
-default to compact `text-v1` where available, while CLI has human
+default to compact `text` where available, while CLI has human
 terminal output and `--json`. Structured parity is enforced through CLI
 `--json` and MCP `format: "json"`.
 
@@ -427,7 +427,7 @@ surface-native follow-up and pagination syntax plus ANSI differ.
   useful to both humans and agents.
 - Shared formatters must accept surface-specific hints so MCP never emits
   CLI-only instructions like `--verbose` or `--lifecycle all`.
-- Default MCP success output should be compact `text-v1`; programmatic
+- Default MCP success output should be compact `text`; programmatic
   parity tests must pass `format: "json"` explicitly.
 - Empty `code_grep` decision guidance is shared between MCP text and CLI
   terminal stderr, with surface-native cursor syntax. Incomplete empty pages

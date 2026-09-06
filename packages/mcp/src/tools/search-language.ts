@@ -11,7 +11,7 @@ import {
 
 interface SearchLanguageArgs {
   query: string;
-  format?: "json" | "text" | "text-v1";
+  format?: "text" | "json";
 }
 
 const schema: ZodRawShape = {
@@ -22,14 +22,14 @@ const schema: ZodRawShape = {
       'Language name or partial name to search for (e.g., "python", "type", "java")',
     ),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      'Response format. Default `text-v1` returns one language per line. Pass `format: "json"` for the structured array.',
+      "Default `text` is token-efficient. Use `json` only for programmatic follow-up or exact structured details.",
     ),
 };
 
-const DESCRIPTION = `Resolve a supported language name or alias for \`get_example\`; use only when forcing that tool's language filter. Do not use this for source search. Returns up to 5 matches. Default output is one language per line; pass \`format: "json"\` for the structured array.`;
+const DESCRIPTION = `Resolve a supported language name or alias for \`get_example\`; use only when forcing that tool's language filter. Do not use this for source search. Returns up to 5 matches. Default \`text\` output is one language per line; use \`format: "json"\` for the structured array.`;
 
 export function createSearchLanguageTool(
   service: GitHitsService,
@@ -66,7 +66,7 @@ function toLanguageMatch({
 }
 
 function isTextFormat(format: SearchLanguageArgs["format"]): boolean {
-  return format === undefined || format === "text" || format === "text-v1";
+  return format === undefined || format === "text";
 }
 
 function renderLanguageMatches(

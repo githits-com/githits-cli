@@ -23,7 +23,7 @@ export interface PackageVulnerabilitiesArgs {
   advisory_scope?: string;
   include_withdrawn?: boolean;
   verbose?: boolean;
-  format?: "json" | "text" | "text-v1";
+  format?: "text" | "json";
 }
 
 /**
@@ -70,10 +70,10 @@ const schema: ZodRawShape = {
       "Text output only. Show every advisory and full detail rows; format=json always returns the complete structured envelope.",
     ),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      'Response format. Default `text-v1` — compact advisory summary. Pass `format: "json"` for the structured envelope.',
+      "Default `text` is token-efficient. Use `json` only for programmatic follow-up or exact structured details.",
     ),
 };
 
@@ -144,5 +144,5 @@ export function createPackageVulnerabilitiesTool(
 }
 
 function isTextFormat(format: PackageVulnerabilitiesArgs["format"]): boolean {
-  return format === undefined || format === "text" || format === "text-v1";
+  return format === undefined || format === "text";
 }

@@ -24,7 +24,7 @@ export interface AgenticAskMcpArgs {
   thread_id?: string;
   question: string;
   source_format?: "mcp" | "url";
-  format?: "text-v1" | "text" | "json";
+  format?: "text" | "json";
 }
 
 const schema: ZodRawShape = {
@@ -55,10 +55,10 @@ const schema: ZodRawShape = {
       "Source pointer format. `mcp` returns directly callable code_read/docs_read calls; `url` returns original upstream HTTP URLs.",
     ),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      "Response format. `text-v1` and `text` return the answer followed by source pointers and identifiers; `json` returns the response as JSON.",
+      "Default `text` is token-efficient. Use `json` only for programmatic follow-up or exact structured details.",
     ),
 };
 
@@ -153,7 +153,7 @@ function formatMcpSourceCall(source: AgenticAskMcpSourceCall): string {
 }
 
 function isTextFormat(format: AgenticAskMcpArgs["format"]): boolean {
-  return format === undefined || format === "text" || format === "text-v1";
+  return format === undefined || format === "text";
 }
 
 function resolveMcpAskSubject(

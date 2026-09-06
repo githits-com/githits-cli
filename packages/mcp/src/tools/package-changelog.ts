@@ -31,7 +31,7 @@ export interface PackageChangelogArgs {
   omit_bodies?: boolean;
   verbose?: boolean;
   body_lines?: number;
-  format?: "json" | "text" | "text-v1";
+  format?: "text" | "json";
 }
 
 /**
@@ -111,10 +111,10 @@ const schema: ZodRawShape = {
       "Text output only. Number of body lines to preview per entry (1-50, default 10). Ignored for format=json and omit_bodies:true. Mutually exclusive with verbose:true.",
     ),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      'Response format. Default `text-v1` — compact entry timeline with body previews. Pass `format: "json"` for the structured envelope with full markdown bodies.',
+      "Default `text` is token-efficient. Use `json` only for programmatic follow-up or exact structured details. JSON includes full markdown bodies.",
     ),
 };
 
@@ -225,5 +225,5 @@ function validateTextOptions(args: PackageChangelogArgs): number | undefined {
 }
 
 function isTextFormat(format: PackageChangelogArgs["format"]): boolean {
-  return format === undefined || format === "text" || format === "text-v1";
+  return format === undefined || format === "text";
 }

@@ -90,7 +90,7 @@ interface McpArgs {
   path?: string;
   path_prefix?: string;
   wait_timeout_ms?: number;
-  format?: "json" | "text" | "text-v1";
+  format?: "json" | "text";
 }
 
 async function mcpJson(
@@ -104,7 +104,7 @@ async function mcpJson(
     codeNavigationService: service,
   });
   // Parity is asserted against the JSON envelope. The MCP default is
-  // text-v1, so this helper opts into JSON to match the CLI `--json`
+  // text, so this helper opts into JSON to match the CLI `--json`
   // payload shape.
   const result = await tool.handler({ ...args, format: "json" }, {});
   return JSON.parse(result.content[0]?.text ?? "");

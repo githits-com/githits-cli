@@ -20,7 +20,7 @@ export interface PackageSummaryArgs {
   registry: string;
   package_name: string;
   verbose?: boolean;
-  format?: "json" | "text" | "text-v1";
+  format?: "text" | "json";
 }
 
 /**
@@ -44,10 +44,10 @@ const schema: ZodRawShape = {
       "Text only. Adds GitHub language/topics/last-pushed, published-version count, download refresh date, package-wide advisory history (all versions), and recent changes. Latest affected and package-wide history counts are shown separately. Ignored for format=json.",
     ),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      'Response format. Default `text-v1` — compact package overview. Pass `format: "json"` for structured fields including `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total`.',
+      "Default `text` is token-efficient. Use `json` only for programmatic follow-up or exact structured details. JSON includes `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total`.",
     ),
 };
 
@@ -107,5 +107,5 @@ export function createPackageSummaryTool(
 }
 
 function isTextFormat(format: PackageSummaryArgs["format"]): boolean {
-  return format === undefined || format === "text" || format === "text-v1";
+  return format === undefined || format === "text";
 }
