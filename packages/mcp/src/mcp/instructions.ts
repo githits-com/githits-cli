@@ -154,13 +154,13 @@ const LOCAL_AGENTIC_ASK_RESOLVE_GUIDANCE =
   " Call `resolve_target` first when the intended target is ambiguous or noncanonical.";
 
 const LOCAL_AGENTIC_ASK_GUIDANCE_END =
-  ' Reuse a returned `thread_id` only when the previous answer is insufficient or more information is needed. Sources default to directly callable MCP tools; use `source_format:"url"` for original upstream URLs. Do not invent or rewrite sources. Use the returned Ask run ID when reporting a defect. Prefer the default text output; use JSON only when exact response fields are needed.';
+  ' Reuse a returned `thread_id` only when the previous answer is insufficient or more information is needed. Sources default to directly callable MCP tools; use `source_format:"url"` for original upstream URLs. Do not invent or rewrite sources. Use the returned Ask run ID when reporting a defect. Keep text; use JSON only for required fields absent from text.';
 
 const LOCAL_RESOLVE_TARGET_GUIDANCE =
   '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` target is docs-only: pass it to `search` with `source:"docs"`; request `format:"json"` only if required locator fields are absent from text, then pass a relevant `pageId` and returned line range to `docs_read`.';
 
 const LOCAL_CODE_DIFF_GUIDANCE =
-  "- `code_diff` — compare exact package versions or public GitHub refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text` unless exact fields or the full returned patch are needed. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";
+  "- `code_diff` — compare exact package versions or public GitHub refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text`; use `json` only for required fields absent from text or the full returned patch. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";
 
 /**
  * Compose local-only experimental guidance without changing the public

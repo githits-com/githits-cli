@@ -145,6 +145,14 @@ describe("semantic search text", () => {
     expect(text).not.toContain("wrong-relative-path");
   });
 
+  it("uses singular line for a single-line declaration", () => {
+    const hit = semanticHit();
+    hit.repositoryEvidence!.semanticContext!.scopes[1]!.declarationEndLine =
+      120;
+    expect(render(hit)).toContain("    - method Client.send | line 120");
+    expect(render(hit)).toContain("  - class Client | lines 20-620");
+  });
+
   it("uses a repository-root path with its exact commit when package attribution is absent", () => {
     const hit = semanticHit();
     const read = hit.repositoryEvidence!.semanticContext!.preferredRead;

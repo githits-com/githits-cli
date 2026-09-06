@@ -189,8 +189,8 @@ and explicit false flags. Legacy locator, summary, and highlight fields remain.
 Initial and stored results share the same path.
 
 CLI and MCP text render the same enclosing declarations, inclusive ranges, and
-literal numbered source lines. The header remains the target/path locator, with
-no repeated per-hit read command. Color is optional and the `>` match gutter
+literal numbered source lines. The header carries the target/path locator and
+focused source range, with no repeated per-hit read command. Color is optional and the `>` match gutter
 retains meaning in plain text. Source grapheme highlights, whole-line omissions,
 inline crops, missing source, and truncated scope chains have the same semantics
 on both surfaces.

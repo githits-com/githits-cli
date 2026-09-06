@@ -991,9 +991,13 @@ function appendStructuralEvidence(
     if (context.scopeChainTruncated) lines.push("  ... outer scopes omitted");
     context.scopes.forEach((scope, index) => {
       const prefix = "  ".repeat(index + 1);
+      const lineLabel =
+        scope.declarationStartLine === scope.declarationEndLine
+          ? "line"
+          : "lines";
       // Kind, identity and source coordinates form one locator, never prose.
       lines.push(
-        `${prefix}- ${scope.kind} ${scope.qualifiedPath} | lines ${formatBareLineRange(scope.declarationStartLine, scope.declarationEndLine)}`,
+        `${prefix}- ${scope.kind} ${scope.qualifiedPath} | ${lineLabel} ${formatBareLineRange(scope.declarationStartLine, scope.declarationEndLine)}`,
       );
     });
   }

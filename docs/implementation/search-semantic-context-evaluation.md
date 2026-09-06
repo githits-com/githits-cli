@@ -499,3 +499,48 @@ quality scorer, and this round is not claimed as a quality improvement.
 The safe Braintrust rows, native comparison, both scenario artifacts, format
 counts, and JSON sequence classification are retained under ignored
 `.agent-eval/semantic-search/sharpen-pipeline/`.
+
+
+## Final Fable copywriting and agent-experience review
+
+A single Claude Fable 5 review of `c9cfa8d...e5fffe6`, including the captured
+real outputs, found no blocking issues. It judged focused source ranges,
+enclosing declaration ranges, and lexical match markers distinguishable and
+reusable, and found the response-size versus task-token claims appropriately
+limited.
+
+Closure corrects singular `line` for one-line declarations and aligns the local
+experimental ask JSON condition with required fields absent from text. A bounded
+sibling check aligned code_diff while retaining its full-patch exception. The
+stable guide already covers parsing in code; local appendices stay within their
+existing 1,900-character budget. Tests cover singular and plural declarations
+and the instruction boundary.
+
+The review's doc nit quoted wording absent from the current parity document;
+the actual paragraph was clarified to name the focused source range. Raw
+content-safety modification names remain the documented backend identifiers.
+Semantic-only hits remain unmarked when lexical highlight spans are absent;
+inventing a lexical marker would overstate the evidence. These observations do
+not establish defects and require no follow-up mechanism.
+
+The report and validation logs are retained under ignored
+`.agent-eval/semantic-search/final-fable-review/`. The reviewer terminal remains
+retained as `term_2bd035d2-c2ac-4985-aa90-e049fe37cc98` for inspection. Small
+closure edits were checked inline, without another review round.
+
+
+Closure validation: 4,035 tests passed (13,930 assertions), with typecheck,
+build, plugin generation/check, and stable plus experimental unauthenticated
+CLI and MCP registration smokes passing. The full suite caught an outdated
+copy assertion and enforced the unchanged appendix length budget; both were
+resolved before the clean run.
+
+Additional live validation was inconclusive: dev MCP timed out after 60 seconds
+on search_language; CLI stalled on the same language operation and was stopped
+after more than five minutes. An unauthenticated direct endpoint probe returned
+401 promptly, which does not establish why authenticated calls stalled. The
+extra experimental/full-guide Luna run exited without final, metrics, tool-call,
+or isolation artifacts, so its exit status is not success evidence. Its leftover
+local server was stopped. No agent-behavior claim is made from this attempt;
+the preceding pipeline remains the latest usable evidence. The final compact
+local appendix wording was validated by tests, not a completed agent run.
