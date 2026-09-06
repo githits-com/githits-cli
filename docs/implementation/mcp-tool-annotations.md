@@ -51,15 +51,15 @@ OpenAI likewise recommends an output schema for tools that return structured
 content.
 
 Mirroring the existing JSON envelopes into `structuredContent` would make the
-default compact response carry both `text-v1` and the full structured payload.
+default compact response carry both text and the full structured payload.
 That would increase model context use, especially for code reads, grep matches,
 documentation, changelog bodies, and dependency graphs. A published user trace
 already showed the practical cost of large structured responses: the agent
 explicitly selected JSON in 86 of 91 GitHits calls.
 
-For that reason, every format-selectable MCP tool now advertises `text-v1` as
-both the first enum value and the explicit schema default. JSON remains an
-opt-in compatibility mode. If structured output is added later, it should use a
+For that reason, every format-selectable MCP tool now advertises `text` as
+both the first enum value and the explicit schema default. The only public values are `text` and `json`; the format description reserves
+JSON for parsing responses in code or obtaining fields absent from text. If structured output is added later, it should use a
 small per-tool control-plane contract (status, IDs, cursors, counts,
 truncation, and next actions) rather than duplicate code, docs, examples, or
 other large result bodies.

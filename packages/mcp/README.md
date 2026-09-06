@@ -65,7 +65,7 @@ const tool = toCallableTool(createGetExampleTool(service));
 
 `toCallableTool()` wraps the tool's Zod object schema, emits input-mode JSON
 Schema, and validates/defaults input before calling the service. The omitted
-`format` field remains optional in the schema and defaults to `"text-v1"`.
+`format` field remains optional in the schema and defaults to `"text"`. The only format values are `"text"` and `"json"`.
 Unknown object properties follow the normal Zod object behavior. Successful
 and structured error results are returned as the serializable `ToolResult`
 shape. If the caller supplies an `AbortSignal`, it is forwarded unchanged to

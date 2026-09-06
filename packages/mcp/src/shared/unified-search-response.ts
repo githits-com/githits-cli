@@ -1,4 +1,5 @@
 import type {
+  ContentSafety,
   DocCoverage,
   UnifiedSearchCompleted,
   UnifiedSearchEvidenceRange,
@@ -7,6 +8,7 @@ import type {
   UnifiedSearchOutcome,
   UnifiedSearchParams,
   UnifiedSearchProgress,
+  UnifiedSearchRepositoryEvidence,
   UnifiedSearchSourceStatus,
   UnifiedSearchSymbolContext,
 } from "@githits/core-internal";
@@ -79,6 +81,8 @@ export interface UnifiedSearchHitPayload {
   title?: string;
   summary?: string;
   highlights?: UnifiedSearchHighlightsPayload;
+  repositoryEvidence?: UnifiedSearchRepositoryEvidence | null;
+  contentSafety?: ContentSafety;
   followUp?: string;
   locator: {
     registry?: string;
@@ -541,6 +545,12 @@ function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPayload {
   if (hit.summary) payload.summary = hit.summary;
   const highlights = buildHighlights(hit.highlights);
   if (highlights) payload.highlights = highlights;
+  if (hit.repositoryEvidence !== undefined) {
+    payload.repositoryEvidence = hit.repositoryEvidence;
+  }
+  if (hit.contentSafety !== undefined) {
+    payload.contentSafety = hit.contentSafety;
+  }
   const followUp = buildSearchHitFollowUpCommand(payload);
   if (followUp) payload.followUp = followUp;
   return payload;

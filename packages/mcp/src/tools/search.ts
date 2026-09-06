@@ -97,7 +97,7 @@ export interface SearchArgs {
   limit?: number;
   offset?: number;
   wait_timeout_ms?: number;
-  format?: "json" | "text" | "text-v1";
+  format?: "text" | "json";
 }
 
 interface StructuredSearchTargetArg extends StructuredCodeTargetArg {
@@ -261,10 +261,10 @@ const schema: ZodRawShape = {
       "Milliseconds to wait for initial indexing or search completion before returning current progress (0-60000; default 20000).",
     ),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      'Response format. Default `text-v1` — compact line-oriented output. Pass `format: "json"` for the structured envelope. `text` is an alias for `text-v1`. The text format is a public, snapshot-tested contract.',
+      "Use `text` (default) for reading and tool follow-ups; it is token-efficient. Use `json` only to parse responses in code or obtain fields absent from text.",
     ),
 };
 
@@ -470,10 +470,10 @@ function invalidSearchTargetResult(message: string): ToolResult {
 }
 
 /**
- * Default response format is text-v1 — agents consume the MCP surface
+ * Default response format is text — agents consume the MCP surface
  * and benefit from the compact form. Programmatic / parity callers
  * opt into JSON explicitly.
  */
 function isTextFormat(format: SearchArgs["format"]): boolean {
-  return format === undefined || format === "text" || format === "text-v1";
+  return format === undefined || format === "text";
 }

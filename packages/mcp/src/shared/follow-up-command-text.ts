@@ -1,3 +1,4 @@
+import type { UnifiedSearchSemanticPreferredRead } from "@githits/core-internal";
 import { MCP_READ_MAX_SPAN } from "./code-navigation-defaults.js";
 import { formatRepositoryTarget } from "./repository-target.js";
 import { shellQuote } from "./shell-quote.js";
@@ -19,6 +20,36 @@ export function buildSearchHitFollowUpCommand(
   hit: UnifiedSearchHitPayload,
   syntax: "mcp" | "cli" = "mcp",
 ): string {
+  const preferredRead = hit.repositoryEvidence?.semanticContext?.preferredRead;
+  if (preferredRead) {
+    const location = semanticReadLocation(preferredRead);
+    const source = hit.repositoryEvidence?.focusedSource;
+    const range =
+      syntax === "mcp" &&
+      preferredRead.endLine - preferredRead.startLine + 1 > MCP_READ_MAX_SPAN
+        ? boundLargeReadRange(
+            preferredRead,
+            source
+              ? {
+                  startLine: source.startLine,
+                  endLine: source.endLine,
+                  matchLine: source.matchLine ?? undefined,
+                }
+              : undefined,
+          )
+        : preferredRead;
+    const parts =
+      syntax === "cli"
+        ? [
+            `githits code read ${shellQuote(location.target)} ${shellQuote(location.path)}`,
+          ]
+        : [
+            `code_read target=${quote(location.target)} path=${quote(location.path)}`,
+          ];
+    if (syntax === "cli") appendCliRange(parts, range.startLine, range.endLine);
+    else appendRange(parts, range.startLine, range.endLine);
+    return parts.join(" ");
+  }
   const loc = hit.locator;
   if (loc.pageId) {
     return syntax === "cli"
@@ -45,6 +76,35 @@ export function buildSearchHitFollowUpCommand(
   }
   if (loc.sourceUrl) return loc.sourceUrl;
   return "";
+}
+
+interface SemanticReadLocation {
+  target: string;
+  path: string;
+}
+
+/** Keep display and read actions paired to the backend's attributed snapshot. */
+export function semanticReadLocation(
+  read: UnifiedSearchSemanticPreferredRead,
+): SemanticReadLocation {
+  // Repository-attributed hits can also carry synthetic package metadata.
+  if (
+    read.registry &&
+    read.packageName &&
+    read.version &&
+    read.targetLabel
+      .toLowerCase()
+      .startsWith(`${read.registry}:${read.packageName}`.toLowerCase())
+  ) {
+    return {
+      target: `${read.registry.toLowerCase()}:${read.packageName}@${read.version}`,
+      path: read.filePath,
+    };
+  }
+  return {
+    target: formatRepositoryTarget(read.repoUrl, read.commitSha),
+    path: read.repositoryFilePath,
+  };
 }
 
 function buildSearchHitCodeReadInput(

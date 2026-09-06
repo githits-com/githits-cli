@@ -186,9 +186,53 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Repository search evidence locators.** Repository code and symbol hits keep the legacy target-relative `locator.filePath` and evidence `startLine` / `endLine` while also exposing the repository-root `repositoryFilePath`, exact served `commitSha`, explicit `evidenceRange`, original `indexedRange`, and optional `symbolContext`. Evidence includes `matchLine`, backend `rangeKind`, and `matchSpansTruncated`; symbol context keeps backend identity/kind plus the fixed lowercase relation `encloses_match` or `associated_with_indexed_chunk`. A proven enclosing relation always has one complete `definitionRange` containing both target-relative and repository-root paths. Associated or identity-only context may omit that range. Malformed partial definition locators invalidate the search response instead of being repaired or dropped.
 
-JSON retains all ranges even when their coordinates are equal. Compact text uses one repository-hit header shape whose path suffix is always the focused evidence range. A meaningful symbol `qualifiedPath` replaces the local name while keeping signature detail carried only by the hit title, such as Elixir arity. Symbol kind follows the identity, with a differing same-file definition range rendered as `(function at lines 100-115)`; a differing indexed range without a definition is labelled as a chunk. Equal ranges are printed once. The single `followUp` uses the definition only for proven enclosure and otherwise uses the evidence range. Repository reads pair `repoUrl` with `commitSha`, falling back only to the exact served `gitRef`, and always use `repositoryFilePath`; they never combine a repository target with a package-relative path, substitute `requestedRef`, or generate an unpinned repository action. A definition wider than the MCP `code_read` 300-line cap keeps its true structured range while the generated action requests a bounded window centred on the focused evidence or `matchLine`. This client contract requires the deployed Phase 1A GraphQL schema; no legacy retry query or schema probe is attempted. Compact repository source summaries retain source line boundaries; when a long source comment must wrap, continuation lines repeat its comment marker so the snippet stays legible.
+JSON retains all legacy ranges and summaries, and adds `repositoryEvidence` and
+`contentSafety` for initial and stored search results. Repository code and
+repository docs render `semanticContext.scopes` outer-to-inner as declaration
+metadata, followed by `focusedSource.lines` with their supplied absolute line
+numbers. Scope ranges are inclusive and are not reconstructed source signatures.
+Source indentation and line boundaries are preserved without prose wrapping or
+client-side cropping; long source lines may exceed terminal width. A `>` gutter
+marks lines with returned matches even without color. Source highlights use
+line-relative grapheme offsets, converted only for coloring; legacy title/summary
+highlight coordinates are unchanged. Whole-line omissions, inline crops,
+truncated scope chains, and incomplete highlights have separate ASCII markers.
 
-The current evidence body is one contiguous backend-authored excerpt. If search later returns selected non-contiguous lines or multiple relevant enclosing blocks, the wire contract must carry each line's original coordinate and each block boundary. Text can then add line-number gutters and grouped blocks; it must not infer consecutive line numbers from `evidenceRange` for that shape.
+Semantic metadata and focused source are independently nullable. Available source
+renders without scopes; unavailable source retains the hit and locator with
+`Exact source unavailable`. No declaration body is invented. Crawled docs and
+explicit symbol hits retain their existing summary presentation. Legacy service
+mocks without the new field retain legacy rendering. Filtered content carries a
+compact notice with the backend modification kinds; JSON preserves false/null
+facts in the new evidence structure.
+
+The text header supplies the read target, path, and focused range; scope rows
+supply enclosing declaration ranges. No per-hit read command is printed. With
+semantic context, both header attribution and JSON `followUp` come from
+`preferredRead`: its target label determines repository attribution even when
+synthetic package metadata is populated. Package attribution pairs registry/package/version with
+package-relative `filePath`, while repository attribution pairs `repoUrl` and
+`commitSha` with `repositoryFilePath`. The preferred source read takes precedence
+also for repository docs with page IDs. Crawled docs keep `docs_read`. The JSON
+follow-up respects the MCP 300-line cap around focused evidence without changing
+true declaration or preferred-read bounds. Without semantic context, existing
+relation-aware follow-up logic remains: only proven enclosure selects a wider
+definition, and repository reads stay pinned to the served revision.
+
+The core service selects structural evidence for both search-result paths.
+`semanticContext` and its preferred-read locator require no source hydration;
+`focusedSource` and content safety use the backend's batched exact-file read.
+Rendering never fetches the preferred range. Legacy summary selections remain
+for JSON compatibility and mixed crawled-doc/symbol results; this duplicates wire
+content but does not add another CAS batch. The client requires the backend's
+September 5 structural-evidence schema; it does not probe or retry older schemas.
+Hosted clients receive this behavior only after an MCP package release and the
+separate remote-mcp dependency update/deployment.
+
+The current text uses `-` scope markers and omits parameter names and return
+types; JSON retains them. See [the semantic-context evaluation](search-semantic-context-evaluation.md)
+for the controlled comparisons, attribution regression, and measured limitations.
+The compact layout is not a demonstrated task-token optimization.
 
 **Promoted `warnings[]`.** Noteworthy `sourceStatus` entries — sources reporting `incompatibleQueryFeatures`, `ignoredQueryFeatures`, `incompatibleFilters`, `ignoredFilters`, lifecycle anomalies (`indexingStatus`, `codeIndexState`), or a free-form `note` — are also surfaced as a top-level `warnings: string[]` in the completed/incomplete payloads (and appended after parser warnings inside the `search_status` result block). The structured detail still lives in `sourceStatus`; `warnings[]` is the agent-visible signal that something about execution did not match the request. On completed empty results, healthy non-contributor source entries are also retained with zero `resultCount` and served identity; requested/fresh labels emit only when they materially differ from served. Contributor-bearing DOCS rows retain their physical contributors instead of duplicating healthy served/current resolution metadata. Healthy `INDEXED` / `CURRENT` / non-divergent `STALE` states never become warnings. `PROVISIONAL` is queryable but remains a visible non-healthy indexing signal, including on completed responses. Successful non-empty responses keep the prior compact projection. JSON keeps promoted warnings and source-status detail lossless; MCP text classifies parser/query and structured constraint facts once below the outcome and does not repeat promoted lifecycle/freshness warning prose or opaque notes. Implementation in `buildSourceStatusWarnings` and empty-result compaction (`packages/mcp/src/shared/unified-search-response.ts`).
 
@@ -453,11 +497,26 @@ Backend GraphQL errors preserve the backend message verbatim and carry its `hint
 
 The `hint` field is emitted only when the cap *actually truncated* the response — i.e., the returned range comes up short of available content. `shouldEmitCappedHint` (in `packages/mcp/src/tools/read-file.ts`) suppresses the hint in three cases the agent doesn't need it: (a) the cap clamp didn't fire (caller's range was already within the cap); (b) the file fits within the cap, so the response is the whole file even though the request was clamped; (c) the returned range reaches end of file. Binary files always skip the hint. When emitted, the hint reads from `payload.startLine` / `endLine` / `totalLines` (the actual returned range, not the pre-clamp request) and includes the original request for the agent to learn from. The CLI command `githits code read` does not apply the cap; humans piping whole files to disk continue to work.
 
-## Text response format (`format: "text-v1"`)
+## Text response format (`format: "text"`)
 
-`get_example`, `search_language`, `search`, `search_status`, `docs_list`, `docs_read`, `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review`, `code_files`, `code_read`, and `code_grep` accept a `format` parameter on the MCP surface. The default is `"text-v1"` — a compact line-oriented format that drops JSON scaffolding to stay lean in agent context. Programmatic callers (parity tests, scripts that parse responses) pass `format: "json"` explicitly. `"text"` is accepted as an alias for `"text-v1"` to keep agent prompts terse.
+Every format-selectable MCP tool accepts only `text` and `json`, with `text` as
+the default. This includes stable tools and the local experimental `ask`,
+`resolve_target`, and `code_diff` tools. The format parameter recommends:
+"Use `text` (default) for reading and tool follow-ups; it is token-efficient.
+Use `json` only to parse responses in code or obtain fields absent from text." Tool-specific JSON-only details remain documented. The shared quick-start guide
+and its skill copy explicitly allow passing returned paths, IDs, and line ranges
+directly to subsequent tools without requesting JSON.
+Explicit `format: "text-v1"` is rejected by the public schema; existing callers
+should omit `format` or send `text`. The internal renderer name does not select
+a public format. JSON remains the lossless structured representation.
 
-**Why text-v1 default.** A 10-hit `search` JSON envelope runs 5–7 KB after compaction; the same hits in `text-v1` land around 3–4 KB. The savings come from dropped quoting, dropped key repetition, and dropped fields that an agent does not need at the per-call decision point (highlights byte offsets, repeated locator scaffolding). The token budget belongs to the agent's reasoning, not to JSON structure.
+**Measured response sizes.** Three live development queries with three hits each
+on September 6, 2026 compared compact JSON with text from identical payloads.
+Using `o200k_base` as a token-count proxy: Express router code was 2,037 vs 274
+tokens, OpenCode compaction code 2,072 vs 260, and Express routing documentation
+902 vs 490. These response-size reductions (86.5%, 87.5%, 45.7%) are not task-level
+cost savings. Captures and reproduction scripts are under ignored
+`.agent-eval/semantic-search/output-size/`.
 
 **In-place evolution.** `text-v1` names the compact line-oriented representation; it is not an exact-prose compatibility boundary. Search and `search_status` may tighten human/agent copy in place as long as their structural lifecycle, ordering, action, and hit-anatomy invariants remain covered by tests (`packages/mcp/src/shared/unified-search-text.test.ts`, `packages/mcp/src/tools/search-status.test.ts`). JSON is the stable structured boundary for programmatic callers. Other text-v1 renderers retain their own contracts and are not changed by the search presentation work.
 
@@ -516,6 +575,10 @@ Surface-native pivots name `source="symbol"` / `code_grep` in MCP and
 
 The representative CLI n8n example is maintained in
 `docs/implementation/cli-commands.md` as the output source of truth.
+
+Repository-code hits with structural evidence omit standalone indexed titles;
+semantic scope rows supply kind, qualified name, and declaration range when
+available. Repository documentation retains its heading. JSON retains titles.
 
 **Hit anatomy within unified search text-v1:**
 

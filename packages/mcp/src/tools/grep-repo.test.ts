@@ -301,13 +301,13 @@ describe("createGrepRepoTool — text format", () => {
     expect(() => JSON.parse(text)).toThrow();
   });
 
-  it("renders text output when format=text-v1", async () => {
+  it("renders text output when format=text", async () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
         target: { registry: "npm", package_name: "express" },
         pattern: "middleware",
-        format: "text-v1",
+        format: "text",
       },
       {},
     );
@@ -315,7 +315,7 @@ describe("createGrepRepoTool — text format", () => {
     expect(text).toContain("code_grep | ");
   });
 
-  it("accepts format=text as an alias for text-v1", async () => {
+  it("accepts explicit format=text", async () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {

@@ -25,7 +25,7 @@ export interface PackageDependenciesArgs {
   include_importers?: boolean;
   include_issues?: boolean;
   max_depth?: number;
-  format?: "json" | "text" | "text-v1";
+  format?: "text" | "json";
 }
 
 /**
@@ -80,10 +80,10 @@ const schema: ZodRawShape = {
       "Add a `transitive` block and cap traversal at this depth (1-10). Omit for direct dependencies only.",
     ),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      'Response format. Default `text-v1` — compact dependency listing. Pass `format: "json"` for the structured envelope.',
+      "Use `text` (default) for reading and tool follow-ups; it is token-efficient. Use `json` only to parse responses in code or obtain fields absent from text. JSON includes complete issue rows.",
     ),
 };
 
@@ -181,5 +181,5 @@ export function createPackageDependenciesTool(
 }
 
 function isTextFormat(format: PackageDependenciesArgs["format"]): boolean {
-  return format === undefined || format === "text" || format === "text-v1";
+  return format === undefined || format === "text";
 }

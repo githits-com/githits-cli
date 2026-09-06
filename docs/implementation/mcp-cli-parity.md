@@ -9,7 +9,7 @@ retryability, and non-remediation details are aligned; documented
 surface-specific defaults plus host-owned recovery prose and actions remain
 surface-native exceptions.
 Human/agent default rendering may differ from JSON envelopes: MCP tools
-default to compact `text-v1` where available, while CLI has human
+default to compact `text` where available, while CLI has human
 terminal output and `--json`. Structured parity is enforced through CLI
 `--json` and MCP `format: "json"`.
 
@@ -182,17 +182,24 @@ One deliberate exception: `search_status` does not echo the original
 structured request because the backend follow-up endpoint does not
 expose the caller's original targets or filters.
 
-Unified `search` evidence is not an exception. Core normalization validates and
-normalizes the additive repository locator once, then the shared response
-projection and formatter serve CLI `--json`, MCP `format: "json"`, CLI text, and
-MCP text. Structured parity includes legacy `filePath` / `startLine` / `endLine`
-plus `commitSha`, `repositoryFilePath`, `evidenceRange`, `indexedRange`, and
-relation-aware `symbolContext`; equal ranges remain distinct in JSON. Text
-parity uses one repository-hit header shape with the focused evidence range in
-the locator and a differing definition/indexed range after the qualified title.
-The single structured `followUp` is MCP syntax on both JSON surfaces and prefers a
-proven definition at the exact served repository identity, with the 300-line
-MCP read cap applied without changing the true structured definition range.
+Unified `search` evidence is not an exception. Core decoding carries structural
+`repositoryEvidence` and `contentSafety` through the shared response projection
+for CLI `--json` and MCP `format: "json"`, including independent null branches
+and explicit false flags. Legacy locator, summary, and highlight fields remain.
+Initial and stored results share the same path.
+
+CLI and MCP text render the same enclosing declarations, inclusive ranges, and
+literal numbered source lines. The header carries the target/path locator and
+focused source range, with no repeated per-hit read command. Color is optional and the `>` match gutter
+retains meaning in plain text. Source grapheme highlights, whole-line omissions,
+inline crops, missing source, and truncated scope chains have the same semantics
+on both surfaces.
+
+The single structured `followUp` remains MCP syntax in both JSON outputs. It
+prefers semantic `preferredRead`, with package-relative paths for package
+attribution or repository-root paths pinned to the exact commit for repository
+attribution. Its 300-line MCP cap never changes true structured range bounds.
+Without semantic evidence, existing relation-aware follow-ups remain unchanged.
 
 ## Rule IDs
 
@@ -420,7 +427,7 @@ surface-native follow-up and pagination syntax plus ANSI differ.
   useful to both humans and agents.
 - Shared formatters must accept surface-specific hints so MCP never emits
   CLI-only instructions like `--verbose` or `--lifecycle all`.
-- Default MCP success output should be compact `text-v1`; programmatic
+- Default MCP success output should be compact `text`; programmatic
   parity tests must pass `format: "json"` explicitly.
 - Empty `code_grep` decision guidance is shared between MCP text and CLI
   terminal stderr, with surface-native cursor syntax. Incomplete empty pages

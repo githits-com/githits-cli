@@ -13,6 +13,7 @@ import {
   CodeNavigationTargetNotFoundError,
   CodeNavigationValidationError,
   CodeNavigationVersionNotFoundError,
+  type ContentModification,
   GREP_REPO_SYMBOL_FIELDS,
   MalformedCodeNavigationResponseError,
   type UnifiedSearchDocumentationContributor,
@@ -197,6 +198,216 @@ function expectBalancedSelectionBraces(query: string): void {
   }
 
   expect(depth).toBe(0);
+}
+
+function buildStructuralSearchFixture() {
+  const preferredRead = {
+    targetLabel: "owner/repo@v1.2.3",
+    registry: null,
+    packageName: null,
+    version: null,
+    repoUrl: "https://github.com/owner/repo",
+    gitRef: "853a80d0000000000000000000000000000000000",
+    commitSha: "853a80d0000000000000000000000000000000000",
+    requestedRef: null,
+    filePath: "src/example.ts",
+    repositoryFilePath: "src/example.ts",
+    startLine: 40,
+    endLine: 48,
+  };
+  const scopes = [
+    {
+      name: "Example",
+      qualifiedPath: "Example",
+      kind: "class",
+      parentQualifiedPath: null,
+      declarationStartLine: 10,
+      declarationEndLine: 80,
+      parameterNames: [],
+      returnType: null,
+      symbolRef: "repo:Example",
+    },
+    {
+      name: "render",
+      qualifiedPath: "Example.render",
+      kind: "method",
+      parentQualifiedPath: "Example",
+      declarationStartLine: 40,
+      declarationEndLine: 48,
+      parameterNames: ["café"],
+      returnType: "string",
+      symbolRef: "repo:Example.render",
+    },
+  ];
+  const focusedSource = {
+    startLine: 42,
+    endLine: 43,
+    matchLine: null,
+    rangeKind: null,
+    matchSpansTruncated: false,
+    lines: [
+      {
+        lineNumber: 42,
+        text: 'const café = "🙂";',
+        highlights: [[6, 10] as const],
+        prefixTruncated: false,
+        suffixTruncated: true,
+      },
+    ],
+    linesOmittedBefore: false,
+    linesOmittedAfter: true,
+  };
+  const populatedEvidence = {
+    semanticContext: {
+      scopes,
+      scopeChainTruncated: false,
+      preferredRead,
+    },
+    focusedSource,
+  };
+  const sourceOnlyEvidence = {
+    semanticContext: null,
+    focusedSource,
+  };
+  const scopesOnlyEvidence = {
+    semanticContext: {
+      scopes,
+      scopeChainTruncated: false,
+      preferredRead,
+    },
+    focusedSource: null,
+  };
+  const safety: Array<{
+    filtered: boolean;
+    modifications: ContentModification[];
+  }> = [
+    { filtered: false, modifications: [] },
+    { filtered: true, modifications: ["HTML_COMMENTS_STRIPPED"] },
+    { filtered: false, modifications: [] },
+    { filtered: true, modifications: ["UNSAFE_LINKS_NEUTRALIZED"] },
+  ];
+  const evidence = [
+    populatedEvidence,
+    sourceOnlyEvidence,
+    scopesOnlyEvidence,
+    null,
+  ];
+  const searchResult = {
+    query: "café",
+    queryWarnings: [],
+    sources: ["CODE"],
+    results: evidence.map((repositoryEvidence, index) => ({
+      id: `structural-${index}`,
+      resultType: "REPOSITORY_CODE",
+      targetLabel: "owner/repo@v1.2.3",
+      title: "render",
+      summary: 'const café = "🙂";',
+      repositoryEvidence,
+      contentSafety: safety[index],
+      highlights: { title: [[0, 6]], summary: [[0, 4]] },
+      locator: {
+        repoUrl: "https://github.com/owner/repo",
+        gitRef: "853a80d0000000000000000000000000000000000",
+        commitSha: "853a80d0000000000000000000000000000000000",
+        filePath: "src/example.ts",
+        repositoryFilePath: "src/example.ts",
+        startLine: 42,
+        endLine: 43,
+      },
+    })),
+    page: { offset: 0, limit: 10, returned: 4, hasMore: false },
+    partialResults: false,
+    sourceStatus: [],
+  };
+
+  return { searchResult, evidence, safety };
+}
+
+function buildStructuralSearchResponse(
+  operation: "search" | "searchStatus",
+  searchResult: ReturnType<typeof buildStructuralSearchFixture>["searchResult"],
+): Record<string, unknown> {
+  return {
+    data:
+      operation === "search"
+        ? {
+            search: {
+              completed: true,
+              searchRef: "structural-search-ref",
+              result: searchResult,
+              progress: null,
+            },
+          }
+        : {
+            discoverySearchProgress: {
+              searchRef: "structural-search-ref",
+              status: "COMPLETED",
+              targetsTotal: 1,
+              targetsReady: 1,
+              elapsedMs: 12,
+              query: searchResult.query,
+              queryWarnings: [],
+              sources: ["CODE"],
+              results: searchResult,
+            },
+          },
+  };
+}
+
+async function assertStructuralSearchRoundTrip(
+  baseUrl: string,
+  operation: "search" | "searchStatus",
+): Promise<void> {
+  const fixture = buildStructuralSearchFixture();
+  const fn = mockFetch(() =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify(
+          buildStructuralSearchResponse(operation, fixture.searchResult),
+        ),
+        { headers: { "Content-Type": "application/json" } },
+      ),
+    ),
+  );
+  const service = new CodeNavigationServiceImpl(
+    baseUrl,
+    createMockTokenProvider(),
+    globalThis.fetch,
+  );
+
+  const outcome =
+    operation === "search"
+      ? await service.search({
+          targets: [{ repoUrl: "https://github.com/owner/repo" }],
+          query: "café",
+        })
+      : await service.searchStatus("structural-search-ref");
+
+  expect(outcome.state).toBe("completed");
+  if (outcome.state !== "completed") {
+    throw new Error("expected completed search outcome");
+  }
+  expect(
+    outcome.result.results.map(({ repositoryEvidence, contentSafety }) => ({
+      repositoryEvidence,
+      contentSafety,
+    })),
+  ).toEqual(
+    fixture.evidence.map((repositoryEvidence, index) => ({
+      repositoryEvidence,
+      contentSafety: fixture.safety[index],
+    })),
+  );
+  expect(fn).toHaveBeenCalledTimes(1);
+
+  const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+  const query = JSON.parse(init.body as string).query as string;
+  const normalizedQuery = query.replace(/\s+/g, " ").trim();
+  expect(normalizedQuery).toContain(
+    "repositoryEvidence { semanticContext { scopes { name qualifiedPath kind parentQualifiedPath declarationStartLine declarationEndLine parameterNames returnType symbolRef } scopeChainTruncated preferredRead { targetLabel registry packageName version repoUrl gitRef commitSha requestedRef filePath repositoryFilePath startLine endLine } } focusedSource { startLine endLine matchLine rangeKind matchSpansTruncated linesOmittedBefore linesOmittedAfter lines { lineNumber text highlights prefixTruncated suffixTruncated } } } contentSafety { filtered modifications }",
+  );
+  expect(normalizedQuery).toContain("summary score");
+  expect(normalizedQuery).toContain("highlights { title summary }");
 }
 
 const UNPROJECTABLE_CODE_DIFF_PATH = `packages/old/${"a".repeat(4_085)}`;
@@ -1024,6 +1235,111 @@ describe("CodeNavigationServiceImpl", () => {
     const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
     const body = JSON.parse(init.body as string);
     expect(body.variables.allowPartialResults).toBe(true);
+  });
+
+  it("structural search evidence round-trip from search", async () => {
+    await assertStructuralSearchRoundTrip(BASE_URL, "search");
+  });
+
+  it("structural search evidence round-trip from searchStatus", async () => {
+    await assertStructuralSearchRoundTrip(BASE_URL, "searchStatus");
+  });
+
+  it("rejects malformed structural search ranges", async () => {
+    const fixture = buildStructuralSearchFixture();
+    const firstHit = fixture.searchResult.results[0];
+    if (!firstHit?.repositoryEvidence) {
+      throw new Error("expected populated structural evidence fixture");
+    }
+    if (
+      !firstHit.repositoryEvidence.semanticContext ||
+      !firstHit.repositoryEvidence.focusedSource
+    ) {
+      throw new Error("expected populated structural evidence branches");
+    }
+    const baseEvidence = firstHit.repositoryEvidence;
+    const cases = [
+      {
+        name: "zero preferred-read start",
+        repositoryEvidence: {
+          ...baseEvidence,
+          semanticContext: {
+            ...baseEvidence.semanticContext,
+            preferredRead: {
+              ...baseEvidence.semanticContext.preferredRead,
+              startLine: 0,
+            },
+          },
+        },
+      },
+      {
+        name: "reversed focused-source range",
+        repositoryEvidence: {
+          ...baseEvidence,
+          focusedSource: {
+            ...baseEvidence.focusedSource,
+            startLine: 43,
+            endLine: 42,
+          },
+        },
+      },
+      {
+        name: "reversed highlight tuple",
+        repositoryEvidence: {
+          ...baseEvidence,
+          focusedSource: {
+            ...baseEvidence.focusedSource,
+            lines: [
+              {
+                ...baseEvidence.focusedSource.lines[0]!,
+                highlights: [[10, 6] as const],
+              },
+            ],
+          },
+        },
+      },
+    ];
+
+    for (const malformed of cases) {
+      const fn = mockFetch(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              data: {
+                search: {
+                  completed: true,
+                  searchRef: "malformed-structural-search",
+                  result: {
+                    ...fixture.searchResult,
+                    results: [
+                      {
+                        ...firstHit,
+                        repositoryEvidence: malformed.repositoryEvidence,
+                      },
+                    ],
+                  },
+                  progress: null,
+                },
+              },
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          ),
+        ),
+      );
+      const service = new CodeNavigationServiceImpl(
+        BASE_URL,
+        createMockTokenProvider(),
+        globalThis.fetch,
+      );
+
+      await expect(
+        service.search({
+          targets: [{ repoUrl: "https://github.com/owner/repo" }],
+          query: malformed.name,
+        }),
+      ).rejects.toBeInstanceOf(MalformedCodeNavigationResponseError);
+      expect(fn).toHaveBeenCalledTimes(1);
+    }
   });
 
   for (const operation of ["search", "searchStatus"] as const) {

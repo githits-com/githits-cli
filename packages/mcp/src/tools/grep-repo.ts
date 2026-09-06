@@ -47,7 +47,7 @@ export interface GrepRepoArgs {
   cursor?: string;
   symbol_fields?: GrepRepoSymbolField[];
   wait_timeout_ms?: number;
-  format?: "json" | "text" | "text-v1";
+  format?: "text" | "json";
 }
 
 const schema: ZodRawShape = {
@@ -128,10 +128,10 @@ const schema: ZodRawShape = {
       "Max milliseconds to wait for indexing (0-60000, default 20000). On an `INDEXING` error envelope, use `details.indexingEstimate` when present to decide whether to wait longer, or pass an already-indexed version/ref from `details.availableVersions` / `details.availableRefs`; `suggestedRefs` are fuzzy hints and may need indexing first.",
     ),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      'Response format. Default `text-v1` — compact line-oriented output (matches grouped by file with grep -A/-B notation for context). Pass `format: "json"` for the structured envelope. `text` is an alias for `text-v1`. Errors stay JSON-formatted in either mode for now.',
+      "Use `text` (default) for reading and tool follow-ups; it is token-efficient. Use `json` only to parse responses in code or obtain fields absent from text.",
     ),
 };
 
@@ -220,9 +220,9 @@ export function createGrepRepoTool(
 }
 
 /**
- * Default response format is text-v1; programmatic callers opt into
+ * Default response format is text; programmatic callers opt into
  * JSON explicitly via `format: "json"`.
  */
 function isTextFormat(format: GrepRepoArgs["format"]): boolean {
-  return format === undefined || format === "text" || format === "text-v1";
+  return format === undefined || format === "text";
 }

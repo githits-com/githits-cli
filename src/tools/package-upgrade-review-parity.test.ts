@@ -153,7 +153,7 @@ async function mcpText(
   const tool = createParityMcpTool("pkg_upgrade_review", {
     packageIntelligenceService: service,
   });
-  const result = await tool.handler({ ...args, format: "text-v1" }, {});
+  const result = await tool.handler({ ...args, format: "text" }, {});
   return result.content[0]?.text ?? "";
 }
 

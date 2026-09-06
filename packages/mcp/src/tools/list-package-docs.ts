@@ -20,7 +20,7 @@ export interface ListPackageDocsArgs {
   version?: string;
   limit?: number;
   after?: string;
-  format?: "json" | "text" | "text-v1";
+  format?: "text" | "json";
 }
 
 const schema: ZodRawShape = {
@@ -45,10 +45,10 @@ const schema: ZodRawShape = {
     .optional()
     .describe("Pagination cursor from a prior response."),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      'Response format. Default `text-v1` — compact page list with ready-to-call `docs_read` follow-ups. Pass `format: "json"` for the structured envelope.',
+      "Use `text` (default) for reading and tool follow-ups; it is token-efficient. Use `json` only to parse responses in code or obtain fields absent from text.",
     ),
 };
 
@@ -97,5 +97,5 @@ export function createListPackageDocsTool(
 }
 
 function isTextFormat(format: ListPackageDocsArgs["format"]): boolean {
-  return format === undefined || format === "text" || format === "text-v1";
+  return format === undefined || format === "text";
 }

@@ -100,9 +100,15 @@ describe("resolve_target MCP adapter", () => {
       "format",
     ]);
     expect(schema.properties?.format).toMatchObject({
-      default: "text-v1",
-      enum: ["text-v1", "text", "json"],
+      default: "text",
+      enum: ["text", "json"],
     });
+    expect(tool.schema.format?.parse(undefined)).toBe("text");
+    expect(tool.schema.format?.safeParse("text-v1").success).toBe(false);
+    expect(tool.schema.format?.description).toContain("token-efficient");
+    expect(tool.schema.format?.description).toContain(
+      "parse responses in code",
+    );
     expect(schema.properties?.query).toMatchObject({
       description: expect.stringContaining(
         "rank retrieved candidates and does not expand candidate retrieval",
@@ -143,7 +149,7 @@ describe("resolve_target MCP adapter", () => {
       "personal data",
       "private code",
       "proprietary content",
-      "text-v1",
+      "text",
       "json",
       "EXACT",
       "HIGH",
@@ -167,7 +173,7 @@ describe("resolve_target MCP adapter", () => {
       registries: [],
       preferred_kind: "",
       intent_hints: [" server", "server", " "],
-      format: "text-v1",
+      format: "text",
     });
 
     expect(resolveTarget).toHaveBeenCalledWith({

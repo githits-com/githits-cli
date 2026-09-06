@@ -114,9 +114,15 @@ describe("local ask MCP adapter", () => {
       enum: ["mcp", "url"],
     });
     expect(jsonSchema.properties?.format).toMatchObject({
-      default: "text-v1",
-      enum: ["text-v1", "text", "json"],
+      default: "text",
+      enum: ["text", "json"],
     });
+    expect(tool.schema.format?.parse(undefined)).toBe("text");
+    expect(tool.schema.format?.safeParse("text-v1").success).toBe(false);
+    expect(tool.schema.format?.description).toContain("token-efficient");
+    expect(tool.schema.format?.description).toContain(
+      "parse responses in code",
+    );
   });
 
   it("always requests MCP sources and renders them in backend order", async () => {
