@@ -321,3 +321,89 @@ The over-300-line scope observation is valid. code_read already enforces its
 truncates. Earlier live evaluation exercised this behavior. A symbol-reference
 read API is a broader product change; this increment retains true scope ranges
 and the existing continuation behavior rather than adding that API.
+
+
+## Public format guidance: three follow-up CI repetitions
+
+On September 6, 2026, the user requested all format-selectable tools expose only
+`text` and `json`, default to `text`, and reserve JSON for programmatic follow-up
+or exact structured details. Commit `d5987f0fd3c39a02e15c86b3f4b90b7e52328925`
+applies this to 14 stable tools and 3 local experimental tools. `text-v1` is no
+longer an accepted public argument. The tool schemas own format selection;
+renderers and JSON payloads are unchanged by this selection change. The stable
+MCP guide and its public skill copy use `text`. Tool-specific patch/body/range
+and structured-detail distinctions remain documented.
+
+One Luna implementation dispatch handled the mechanical edits in 17 modules.
+The root agent owned scope, tests, guidance, verification, and eval interpretation.
+The root requested shorter descriptions before accepting the checkpoint; no
+extra reviewer or review round ran for this schema/copy delta. Full validation
+passed 4,034 tests across 195 files, typecheck, build, plugin generation/check,
+and authenticated dev smokes (103 CLI steps, 54 MCP steps). The initial test run
+found two stale expectations, corrected before the successful full rerun: Zod's
+invalid-option message and duplicated provenance wording formerly in the format
+parameter. Provenance guidance remains in the example tool description.
+
+[Pipeline run 34013308656](https://github.com/githits-com/githits-cli/actions/runs/34013308656)
+ran three complete attempts at that immutable commit, each exporting 23 cells.
+All linked to the newer
+[main-r34008443071-a1](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/main-r34008443071-a1)
+at main SHA `c9cfa8d9939c921e7379888e310bd7942e372bae`. Stable row inputs (including
+prompt hashes), Codex CLI 0.153.4, requested model gpt-5.6-luna, low reasoning,
+descriptor guidance, and reporting/result schema hashes matched main across
+all cells. The pipeline service configuration was unchanged. Both scenario
+artifacts were retained before each rerun, avoiding the earlier artifact loss.
+
+| Experiment | Total tokens | MCP calls | Failed tool calls | Estimated cost |
+| --- | ---: | ---: | ---: | ---: |
+| Main September 6 | 3,026,831 | 107 | 0 | $0.25389 |
+| [New attempt 1](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-359-r34013308656-a1) | 2,920,349 | 108 | 2 | $0.24250 |
+| [New attempt 2](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-359-r34013308656-a2) | 3,462,117 | 129 | 1 | $0.26228 |
+| [New attempt 3](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-359-r34013308656-a3) | 2,916,206 | 107 | 0 | $0.24280 |
+
+Total tokens include input (including cached input) and output. The new mean is
+3,099,557 tokens (+2.4% versus the newer main), 114.7 calls (+7.2%), and $0.24919
+estimated cost (-1.8%). Excluding OpenCode, mean tokens are 2,680,473 versus main's
+2,738,504 (-2.1%). Attempt 2's OpenCode task used 644,103 tokens/27 calls versus
+main's 288,327/17; discovery Express also used seven calls versus main's zero.
+Task paths vary, so smaller responses do not establish lower total task cost.
+The older PR mean was 3,103,957 tokens: the new mean differs by only -0.14%.
+
+### Observed format selection
+
+Count successful calls to format-selectable tools in the **intent** artifacts;
+exclude failed calls and tools without a format parameter. Omitted format is
+text. Search counts combine search and search_status responses. This is a
+selection-frequency measurement, not a quality score.
+
+| Runs | JSON / all selectable calls | JSON share | JSON / search calls | Search JSON share |
+| --- | ---: | ---: | ---: | ---: |
+| Previous PR attempts 1–3 | 145 / 254 | 57.1% | 36 / 47 | 76.6% |
+| Newer main baseline | 49 / 86 | 57.0% | 11 / 12 | 91.7% |
+| New attempt 1 | 34 / 85 | 40.0% | 8 / 13 | 61.5% |
+| New attempt 2 | 37 / 100 | 37.0% | 11 / 17 | 64.7% |
+| New attempt 3 | 34 / 86 | 39.5% | 9 / 13 | 69.2% |
+| New attempts combined | 105 / 271 | 38.7% | 28 / 43 | 65.1% |
+
+The new intent calls included 70 explicit text selections and 96 omitted-format
+selections. No new call selected text-v1. The JSON share fell in every repetition,
+but most search calls still selected JSON. These are observations of the combined
+format-schema/guidance change (and intervening heading cleanup), not isolated
+causal estimates for one sentence or proof that JSON was unnecessary in each call.
+The stable-full pipeline does not exercise the three experimental tools; their
+schemas and behavior were covered by local tests and live smoke cohorts.
+
+All 69 new cells reported successful process/report/final/cell completion;
+normalized validation categories were empty. There is no independent quality
+scorer. The two attempt-1 failures were pkg_vulns rejecting `version: "latest"`
+and code_grep rejecting context_lines_after=12 (maximum 10). Attempt 2's failure
+was code_read on a nonexistent indexed OpenCode path. Attempt 3 had no failed
+calls. None was a format-validation failure. These invalid requests do not
+justify loosening the existing tool contracts.
+
+The implementation and repeat runs are complete. Current operational guidance
+lives in tools.md and mcp-tool-annotations.md; the temporary format plan was
+removed. Safe normalized rows, downloaded artifacts, comparison output, and
+trace-format counting scripts are retained under ignored
+`.agent-eval/semantic-search/format-guidance/`. No additional Braintrust runs were
+created beyond the three requested pipeline repetitions.
