@@ -392,10 +392,10 @@ describe("agent eval suites", () => {
   it("loads the checked-in manifest with the exact initial inventory", () => {
     const manifest = loadSuiteManifest();
     expect(manifest.schemaVersion).toBe(1);
-    expect(manifest.workloads).toHaveLength(25);
+    expect(manifest.workloads).toHaveLength(26);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stable"),
-    ).toHaveLength(21);
+    ).toHaveLength(22);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stateful"),
     ).toHaveLength(1);
@@ -439,6 +439,7 @@ describe("agent eval suites", () => {
       "package-vulnerability-filter",
       "package-vulnerability-history",
       "package-vulnerability-rubygems",
+      "package-vulnerability-transitive",
       "search-source-ergonomics",
       "site-search-explicit",
       "unified-search-investigation",

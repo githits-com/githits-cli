@@ -16,7 +16,8 @@
 //     builder via the in-handler pattern. Same envelope shape,
 //     potentially surface-specific error text.
 //
-// Fixture count: ten (eight `toEqual` + two `toMatchObject`).
+// Coverage includes direct-only defaults, transitive parity, filter/error
+// envelopes, and permissive validation cases.
 
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import type { VulnerabilityReport } from "@githits/core-internal";
@@ -85,6 +86,7 @@ async function mcpJson(
     min_severity?: string;
     advisory_scope?: string;
     include_withdrawn?: boolean;
+    include_transitive?: boolean;
   },
   packageVulnerabilitiesMock?: () => Promise<VulnerabilityReport>,
 ): Promise<{ json: unknown; isError: boolean | undefined }> {
@@ -115,6 +117,37 @@ function zeroVulnsReport(): VulnerabilityReport {
   };
 }
 
+function transitiveVulnerabilityReport(): VulnerabilityReport {
+  const report = structuredClone(defaultVulnerabilityReport);
+  report.transitive = {
+    totalPackagesAnalyzed: 2,
+    affectedPackageCount: 1,
+    affectedOccurrenceCount: 1,
+    packages: [
+      {
+        registry: "NPM",
+        name: "body-parser",
+        affectedOccurrenceCount: 1,
+        occurrences: [
+          {
+            version: "1.19.0",
+            affectsResolvedVersion: true,
+            matchedAffectedVersionRanges: ["< 2.0.0"],
+            fixVersionsAboveResolved: ["2.0.0"],
+            nearestFixedVersion: "2.0.0",
+            advisory: {
+              osvId: "GHSA-body-parser",
+              summary: "Body parser issue",
+              severityScore: 8.0,
+            },
+          },
+        ],
+      },
+    ],
+  };
+  return report;
+}
+
 describe("package_vulnerabilities parity", () => {
   it("PARITY-JSON-KEYS: happy path CLI === MCP", async () => {
     const cli = await cliJson("npm:express");
@@ -124,6 +157,93 @@ describe("package_vulnerabilities parity", () => {
     });
     expect(isError).toBeUndefined();
     expect(cli).toEqual(json);
+  });
+
+  it.each([undefined, false] as const)(
+    "PARITY-DIRECT-DEFAULT: transitive=%s keeps direct-only JSON and service params aligned",
+    async (transitive) => {
+      const cliFn = mock(() => Promise.resolve(defaultVulnerabilityReport));
+      const cli = await cliJson(
+        "npm:express",
+        transitive === undefined ? {} : { transitive },
+        cliDeps({
+          packageIntelligenceService: createMockPackageIntelligenceService({
+            packageVulnerabilities: cliFn as never,
+          }),
+        }),
+      );
+      const mcpFn = mock(() => Promise.resolve(defaultVulnerabilityReport));
+      const { json, isError } = await mcpJson(
+        {
+          registry: "npm",
+          package_name: "express",
+          ...(transitive === undefined
+            ? {}
+            : { include_transitive: transitive }),
+        },
+        mcpFn as never,
+      );
+      expect(isError).toBeUndefined();
+      expect(cli).toEqual(json);
+      expect(
+        (
+          cliFn.mock.calls as unknown as Array<[Record<string, unknown>]>
+        )[0]?.[0].includeTransitive,
+      ).toBe(transitive);
+      expect(
+        (
+          mcpFn.mock.calls as unknown as Array<[Record<string, unknown>]>
+        )[0]?.[0].includeTransitive,
+      ).toBe(transitive);
+      expect((cli as { transitive?: unknown }).transitive).toBeUndefined();
+    },
+  );
+
+  it("PARITY-TRANSITIVE: CLI and MCP deep-equal complete audits with direct filter semantics", async () => {
+    const report = transitiveVulnerabilityReport();
+    const cliFn = mock(() => Promise.resolve(report));
+    const cli = await cliJson(
+      "npm:express",
+      {
+        severity: "HIGH",
+        scope: "all",
+        includeWithdrawn: true,
+        transitive: true,
+      },
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageVulnerabilities: cliFn as never,
+        }),
+      }),
+    );
+    const mcpFn = mock(() => Promise.resolve(report));
+    const { json, isError } = await mcpJson(
+      {
+        registry: "npm",
+        package_name: "express",
+        min_severity: "HIGH",
+        advisory_scope: "all",
+        include_withdrawn: true,
+        include_transitive: true,
+      },
+      mcpFn as never,
+    );
+    expect(isError).toBeUndefined();
+    expect(cli).toEqual(json);
+    expect((cli as { transitive?: unknown }).transitive).toBeDefined();
+    expect((cli as { filter?: unknown }).filter).toEqual({
+      minSeverity: "high",
+      advisoryScope: "all",
+      includeWithdrawn: true,
+    });
+    expect(
+      (cliFn.mock.calls as unknown as Array<[Record<string, unknown>]>)[0]?.[0]
+        .includeTransitive,
+    ).toBe(true);
+    expect(
+      (mcpFn.mock.calls as unknown as Array<[Record<string, unknown>]>)[0]?.[0]
+        .includeTransitive,
+    ).toBe(true);
   });
 
   it("PARITY-JSON-KEYS: include_withdrawn filter echo CLI === MCP", async () => {

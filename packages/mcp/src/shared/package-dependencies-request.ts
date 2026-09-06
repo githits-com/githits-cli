@@ -6,14 +6,12 @@
  *
  * Responsibilities:
  * - Trim + validate `packageName`.
- * - Normalise registry case and restrict to the registries that the
- *   upstream `packageDependencies` resolver supports (see
- *   `SUPPORTED_DEPS_REGISTRIES`). Other known registries are rejected
- *   with a tool-specific message; truly unknown registries fall
- *   through to the shared `UnsupportedRegistryError`.
+ * - Normalise registry case and reject truly unknown registries with the
+ *   shared `UnsupportedRegistryError`. All known registries are supported by
+ *   the upstream `packageDependencies` resolver.
  * - Normalise exact Go versions to their canonical `v`-prefixed form.
- *   Reject tag-style versions (`v4.18.0`) for other registries except
- *   Swift, where `v`-prefixed release tags are accepted.
+ *   Reject tag-style versions (`v4.18.0`) client-side for other registries;
+ *   Swift is the exception, where `v`-prefixed release tags are accepted.
  * - Parse the comma-separated lifecycle list into the canonical
  *   lowercase enum set; reject unknown tokens.
  * - Enforce `maxDepth` bounds (1–10).
@@ -22,9 +20,7 @@
 import type { PackageDependenciesParams } from "@githits/core-internal";
 import {
   isKnownPkgseerRegistryArg,
-  PKGSEER_REGISTRY_ARGS,
   PKGSEER_REGISTRY_LIST,
-  type PkgseerRegistry,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
 } from "@githits/core-internal";
@@ -33,19 +29,6 @@ import {
   UnsupportedRegistryError,
 } from "./package-spec.js";
 import { normalisePackageVersion } from "./package-version.js";
-
-/**
- * Raised when the caller targets a registry that is unsupported by
- * the `packageDependencies` query specifically. Name-prefix
- * `Unsupported` routes via the shared classifier to
- * `INVALID_ARGUMENT`. Message is tool-specific.
- */
-export class UnsupportedDependenciesRegistryError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "UnsupportedDependenciesRegistryError";
-  }
-}
 
 export type DependencyLifecycle =
   | "runtime"
@@ -72,34 +55,7 @@ const LIFECYCLE_ORDER: Readonly<Record<DependencyLifecycle, number>> = {
   optional: 4,
 };
 
-export const SUPPORTED_DEPS_REGISTRIES: ReadonlySet<PkgseerRegistry> = new Set([
-  "NPM",
-  "PYPI",
-  "HEX",
-  "CRATES",
-  "VCPKG",
-  "ZIG",
-  "RUBYGEMS",
-  "GO",
-  "SWIFT",
-]);
-
-/**
- * Lowercase deps-supported registries, comma-separated, in the
- * canonical order defined by `PKGSEER_REGISTRY_ARGS`. Derived rather
- * than hand-rolled so the order propagates from the single source of
- * truth and a future registry addition shows up here automatically.
- */
-export const SUPPORTED_DEPS_REGISTRIES_LIST: string =
-  PKGSEER_REGISTRY_ARGS.filter((arg) =>
-    SUPPORTED_DEPS_REGISTRIES.has(toPkgseerRegistry(arg)),
-  ).join(", ");
-
-export function supportsDependenciesRegistry(
-  registry: PkgseerRegistry,
-): boolean {
-  return SUPPORTED_DEPS_REGISTRIES.has(registry);
-}
+export { SUPPORTED_DEPS_REGISTRIES_LIST } from "./pkgseer-capabilities.js";
 
 export interface PackageDependenciesRequestInput {
   /** Lowercase registry surface value (`npm`, `pypi`, …). */
@@ -156,11 +112,6 @@ export function buildPackageDependenciesParams(
   const registry = toPkgseerRegistry(
     normalisedRegistryArg as PkgseerRegistryArg,
   );
-  if (!supportsDependenciesRegistry(registry)) {
-    throw new UnsupportedDependenciesRegistryError(
-      `pkg deps only supports ${SUPPORTED_DEPS_REGISTRIES_LIST}. Got: ${normalisedRegistryArg}.`,
-    );
-  }
 
   const version = normalisePackageVersion(input.version, registry, {
     rejectLeadingV: true,

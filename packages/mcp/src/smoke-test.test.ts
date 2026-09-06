@@ -173,6 +173,25 @@ describe("runMcpSmoke", () => {
         format: "json",
       },
     });
+    expect(calls).toContainEqual({
+      name: "pkg_vulns",
+      args: {
+        registry: "npm",
+        package_name: "express",
+        version: "4.17.1",
+        include_transitive: true,
+      },
+    });
+    expect(calls).toContainEqual({
+      name: "pkg_vulns",
+      args: {
+        registry: "npm",
+        package_name: "express",
+        version: "4.17.1",
+        include_transitive: true,
+        format: "json",
+      },
+    });
   });
 
   it("rejects search action references outside a Next line", async () => {
@@ -661,6 +680,22 @@ function smokeResponse(
           : 'Runtime dependencies:\npass lifecycle="all"',
       );
     case "pkg_vulns":
+      if (args.include_transitive === true) {
+        return textResult(
+          "express vulnerabilities\n\n" +
+            "Resolved dependencies\n" +
+            "1 affected advisory occurrence in 1 dependency package; " +
+            "6 resolved package versions checked\n" +
+            "  high  body-parser@1.19.0  GHSA-body-parser\n" +
+            "    matched       < 2.0.0\n" +
+            "    nearest fix   2.0.0\n" +
+            "  high  cookie@0.7.0  GHSA-cookie\n" +
+            "  high  qs@6.5.2  GHSA-qs\n" +
+            "  high  path-to-regexp@0.1.12  GHSA-path\n" +
+            "  high  set-function-length@1.2.2  GHSA-set-length\n" +
+            "... (+1 more; use verbose=true or format=json)",
+        );
+      }
       if (args.min_severity === "high") {
         return textResult("Filter  severity >= high\nvulnerabilities");
       }
@@ -752,6 +787,36 @@ function smokeJsonResponse(
       }
       return jsonResult({ runtime: {} });
     case "pkg_vulns":
+      if (args.include_transitive === true) {
+        return jsonResult({
+          summary: { total: 0 },
+          transitive: {
+            scope: "resolved_dependencies",
+            withdrawnAdvisoriesIncluded: false,
+            summary: {
+              totalPackagesAnalyzed: 6,
+              affectedPackageCount: 1,
+              affectedOccurrenceCount: 1,
+            },
+            packages: [
+              {
+                registry: "npm",
+                name: "body-parser",
+                affectedOccurrenceCount: 1,
+                occurrences: [
+                  {
+                    resolvedVersion: "1.19.0",
+                    id: "GHSA-body-parser",
+                    matchedAffectedVersionRanges: ["< 2.0.0"],
+                    fixVersionsAboveResolved: ["2.0.0"],
+                    nearestFixedVersion: "2.0.0",
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
       return jsonResult({
         summary: {},
         filter: {

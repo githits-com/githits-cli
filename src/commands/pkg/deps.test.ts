@@ -192,6 +192,43 @@ describe("pkgDepsAction", () => {
     logSpy.mockRestore();
   });
 
+  it.each([
+    ["nuget:Newtonsoft.Json", "NUGET", "Newtonsoft.Json"],
+    [
+      "maven:org.apache.commons:commons-lang3",
+      "MAVEN",
+      "org.apache.commons:commons-lang3",
+    ],
+    ["packagist:monolog/monolog", "PACKAGIST", "monolog/monolog"],
+  ] as const)(
+    "accepts %s and sends the canonical backend registry",
+    async (spec, expectedRegistry, expectedName) => {
+      const packageDependencies = mock(() =>
+        Promise.resolve(defaultDependencyReport),
+      );
+      const logSpy = spyOn(console, "log").mockImplementation(() => {});
+
+      await pkgDepsAction(
+        spec,
+        { json: true },
+        createDeps({
+          packageIntelligenceService: createMockPackageIntelligenceService({
+            packageDependencies,
+          }),
+        }),
+      );
+
+      const calls = packageDependencies.mock.calls as unknown as Array<
+        [{ registry: string; packageName: string }]
+      >;
+      expect(calls[0]?.[0]).toMatchObject({
+        registry: expectedRegistry,
+        packageName: expectedName,
+      });
+      logSpy.mockRestore();
+    },
+  );
+
   it("shows groups when a non-runtime lifecycle is set", async () => {
     const writes: string[] = [];
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
@@ -363,6 +400,9 @@ describe("pkgDepsAction", () => {
     const help = depsCommand.helpInformation();
 
     expect(depsCommand.description()).toContain("--issues");
+    expect(depsCommand.description()).toContain(
+      "Exact Go versions may include or omit their canonical lowercase `v`; the backend receives the `v`-prefixed form",
+    );
     expect(help).toContain("--issues");
     expect(help).toContain("deprecated");
     expect(help).toContain("outdated");
@@ -603,25 +643,6 @@ describe("pkgDepsAction", () => {
       exitSpy.mockRestore();
     },
   );
-
-  it("rejects unsupported registry (nuget) with tool-specific message", async () => {
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("process.exit");
-    });
-
-    try {
-      await pkgDepsAction("nuget:Newtonsoft.Json", {}, createDeps());
-    } catch {
-      /* expected */
-    }
-
-    expect(errorSpy.mock.calls[0]?.[0]).toBe(
-      "pkg deps only supports npm, pypi, hex, crates, zig, vcpkg, rubygems, go, swift. Got: nuget.",
-    );
-    errorSpy.mockRestore();
-    exitSpy.mockRestore();
-  });
 
   it("rejects tag-style versions with INVALID_ARGUMENT hint", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});

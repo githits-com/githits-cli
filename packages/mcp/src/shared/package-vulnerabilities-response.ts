@@ -39,6 +39,7 @@
  */
 
 import type {
+  TransitiveDependencyVulnerability,
   VulnerabilityDetail,
   VulnerabilityReport,
 } from "@githits/core-internal";
@@ -46,6 +47,8 @@ import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { colorize, dim } from "./colors.js";
 import { toIsoDate } from "./format-date.js";
 import type { PackageVulnerabilitiesFilterEcho } from "./package-vulnerabilities-request.js";
+import { sanitizeTerminalText } from "./terminal-text.js";
+import { terminalWidth as measureTerminalWidth } from "./terminal-width.js";
 
 export type VulnSeverityLabel = "critical" | "high" | "medium" | "low";
 
@@ -75,6 +78,41 @@ export interface LeanAdvisory {
   isMalicious?: boolean;
 }
 
+export interface LeanTransitiveVulnerabilityAudit {
+  scope: "resolved_dependencies";
+  withdrawnAdvisoriesIncluded: false;
+  summary: {
+    totalPackagesAnalyzed: number;
+    affectedPackageCount: number;
+    affectedOccurrenceCount: number;
+    bySeverity?: Partial<Record<VulnBucket, number>>;
+  };
+  calculatedAt?: string;
+  packages: LeanTransitiveVulnerablePackage[];
+}
+
+export interface LeanTransitiveVulnerablePackage {
+  registry: string;
+  name: string;
+  affectedOccurrenceCount: number;
+  occurrences: LeanTransitiveVulnerabilityOccurrence[];
+}
+
+export interface LeanTransitiveVulnerabilityOccurrence {
+  resolvedVersion: string;
+  id?: string;
+  aliases?: string[];
+  summary?: string;
+  severity?: number;
+  severityLabel?: VulnSeverityLabel;
+  matchedAffectedVersionRanges: string[];
+  fixVersionsAboveResolved: string[];
+  nearestFixedVersion?: string;
+  publishedAt?: string;
+  modifiedAt?: string;
+  isMalicious?: true;
+}
+
 export interface LeanVulnerabilitySummary {
   /** Affected advisories for the inspected version. Kept for compatibility. */
   total: number;
@@ -94,6 +132,7 @@ export interface LeanVulnerabilityReport {
   filter?: PackageVulnerabilitiesFilterEcho;
   advisories?: LeanAdvisory[];
   upgradePaths?: string[];
+  transitive?: LeanTransitiveVulnerabilityAudit;
 }
 
 export interface BuildVulnerabilitiesPayloadOptions {
@@ -161,6 +200,10 @@ export function buildPackageVulnerabilitiesSuccessPayload(
     const unique = Array.from(new Set(upgradePaths));
     unique.sort(compareVersionsAscending);
     payload.upgradePaths = unique;
+  }
+
+  if (report.transitive !== undefined) {
+    payload.transitive = buildTransitiveAudit(report.transitive);
   }
 
   return payload;
@@ -237,6 +280,165 @@ function buildSummary(
   }
 
   return summary;
+}
+
+function buildTransitiveAudit(
+  audit: NonNullable<VulnerabilityReport["transitive"]>,
+): LeanTransitiveVulnerabilityAudit {
+  const packages = audit.packages
+    .map((pkg) => ({
+      registry: lowerRegistry(pkg.registry),
+      name: pkg.name,
+      affectedOccurrenceCount: pkg.affectedOccurrenceCount,
+      occurrences: pkg.occurrences
+        .map(buildTransitiveOccurrence)
+        .sort(compareTransitiveOccurrences),
+    }))
+    .sort(compareTransitivePackages);
+
+  const occurrences = packages.flatMap((pkg) => pkg.occurrences);
+  const bySeverity = computeTransitiveBySeverity(occurrences);
+  const hasCountedSeverity = Object.values(bySeverity).some(
+    (count) => count > 0,
+  );
+
+  return {
+    scope: "resolved_dependencies",
+    withdrawnAdvisoriesIncluded: false,
+    summary: {
+      totalPackagesAnalyzed: audit.totalPackagesAnalyzed,
+      affectedPackageCount: audit.affectedPackageCount,
+      affectedOccurrenceCount: audit.affectedOccurrenceCount,
+      ...(hasCountedSeverity
+        ? { bySeverity: trimSeverityBuckets(bySeverity) }
+        : {}),
+    },
+    ...(audit.calculatedAt !== undefined
+      ? { calculatedAt: audit.calculatedAt }
+      : {}),
+    packages,
+  };
+}
+
+function buildTransitiveOccurrence(
+  occurrence: TransitiveDependencyVulnerability,
+): LeanTransitiveVulnerabilityOccurrence {
+  const advisory = occurrence.advisory;
+  const publishedAt = toIsoDate(advisory.publishedAt);
+  const modifiedAt = toIsoDate(advisory.modifiedAt);
+  const lean: LeanTransitiveVulnerabilityOccurrence = {
+    resolvedVersion: occurrence.version,
+    matchedAffectedVersionRanges:
+      occurrence.matchedAffectedVersionRanges.slice(),
+    fixVersionsAboveResolved: occurrence.fixVersionsAboveResolved.slice(),
+  };
+
+  if (advisory.osvId) lean.id = advisory.osvId;
+  if (advisory.aliases && advisory.aliases.length > 0) {
+    lean.aliases = advisory.aliases.slice();
+  }
+  if (advisory.summary && !isPlaceholderSummary(advisory.summary)) {
+    lean.summary = advisory.summary;
+  }
+  if (
+    typeof advisory.severityScore === "number" &&
+    advisory.severityScore > 0
+  ) {
+    lean.severity = advisory.severityScore;
+    const severityLabel = vulnSeverityLabel(advisory.severityScore);
+    if (severityLabel !== undefined) lean.severityLabel = severityLabel;
+  }
+  if (occurrence.nearestFixedVersion) {
+    lean.nearestFixedVersion = occurrence.nearestFixedVersion;
+  }
+  if (publishedAt) lean.publishedAt = publishedAt;
+  if (modifiedAt && modifiedAt !== publishedAt) lean.modifiedAt = modifiedAt;
+  if (advisory.isMalicious === true) lean.isMalicious = true;
+
+  return lean;
+}
+
+function computeTransitiveBySeverity(
+  occurrences: readonly LeanTransitiveVulnerabilityOccurrence[],
+): Record<VulnBucket, number> {
+  const histogram: Record<VulnBucket, number> = {
+    malware: 0,
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    unrated: 0,
+  };
+  for (const occurrence of occurrences) {
+    if (occurrence.isMalicious === true) {
+      histogram.malware += 1;
+      continue;
+    }
+    if (occurrence.severityLabel !== undefined) {
+      histogram[occurrence.severityLabel] += 1;
+    } else {
+      histogram.unrated += 1;
+    }
+  }
+  return histogram;
+}
+
+function trimSeverityBuckets(
+  histogram: Record<VulnBucket, number>,
+): Partial<Record<VulnBucket, number>> {
+  const trimmed: Partial<Record<VulnBucket, number>> = {};
+  for (const key of BUCKET_ORDER) {
+    if (histogram[key] > 0) trimmed[key] = histogram[key];
+  }
+  return trimmed;
+}
+
+function compareTransitivePackages(
+  a: LeanTransitiveVulnerablePackage,
+  b: LeanTransitiveVulnerablePackage,
+): number {
+  const registry = compareStrings(a.registry, b.registry);
+  return registry !== 0 ? registry : compareStrings(a.name, b.name);
+}
+
+function compareTransitiveOccurrences(
+  a: LeanTransitiveVulnerabilityOccurrence,
+  b: LeanTransitiveVulnerabilityOccurrence,
+): number {
+  const risk = transitiveRiskRank(b) - transitiveRiskRank(a);
+  if (risk !== 0) return risk;
+  const version = compareStrings(a.resolvedVersion, b.resolvedVersion);
+  if (version !== 0) return version;
+  const identity = compareStrings(
+    transitiveAdvisoryIdentity(a),
+    transitiveAdvisoryIdentity(b),
+  );
+  if (identity !== 0) return identity;
+  const aliases = compareStrings(
+    (a.aliases ?? []).join("\u0000"),
+    (b.aliases ?? []).join("\u0000"),
+  );
+  if (aliases !== 0) return aliases;
+  return compareStrings(JSON.stringify(a), JSON.stringify(b));
+}
+
+function transitiveAdvisoryIdentity(
+  occurrence: LeanTransitiveVulnerabilityOccurrence,
+): string {
+  return occurrence.id ?? occurrence.aliases?.[0] ?? occurrence.summary ?? "";
+}
+
+function transitiveRiskRank(
+  occurrence: LeanTransitiveVulnerabilityOccurrence,
+): number {
+  const severityRank = occurrence.severityLabel
+    ? SEVERITY_RANK[occurrence.severityLabel]
+    : 0;
+  return (occurrence.isMalicious === true ? 100 : 0) + severityRank;
+}
+
+function compareStrings(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /**
@@ -773,9 +975,21 @@ export function formatPackageVulnerabilitiesTerminal(
 
   const headerLine = formatHeader(payload, useColors);
   const requestedLine = payload.requestedVersion
-    ? dim(`(requested ${payload.requestedVersion})`, useColors)
+    ? dim(
+        `(requested ${sanitizeIdentity(payload.requestedVersion)})`,
+        useColors,
+      )
     : undefined;
   const filterLines = formatFilterLines(payload.filter);
+  const transitiveBlock = payload.transitive
+    ? formatTransitiveAuditTerminal(payload.transitive, {
+        verbose,
+        useColors,
+        surface,
+        terminalWidth: options.terminalWidth,
+        includeWithdrawn: payload.filter?.includeWithdrawn === true,
+      })
+    : undefined;
 
   if (payload.summary.total === 0) {
     const lines = [headerLine];
@@ -792,9 +1006,11 @@ export function formatPackageVulnerabilitiesTerminal(
           useColors,
           rangeLimit,
           surface,
+          options.terminalWidth,
         ),
       );
     }
+    if (transitiveBlock) lines.push("", transitiveBlock);
     return `${lines.join("\n")}\n`;
   }
 
@@ -812,7 +1028,7 @@ export function formatPackageVulnerabilitiesTerminal(
   if (selectedCountLine) headerBlock.push(selectedCountLine);
   const breakdown =
     scope === undefined
-      ? formatBreakdownLine(payload.summary, useColors)
+      ? formatBreakdownLine(payload.summary, useColors, options.terminalWidth)
       : undefined;
   if (breakdown) headerBlock.push(breakdown);
   blocks.push(headerBlock.join("\n"));
@@ -826,12 +1042,14 @@ export function formatPackageVulnerabilitiesTerminal(
         useColors,
         rangeLimit,
         surface,
+        options.terminalWidth,
       ),
     );
   }
 
   const upgradeFooter = formatUpgradeFooter(payload.upgradePaths);
   if (upgradeFooter) blocks.push(upgradeFooter);
+  if (transitiveBlock) blocks.push(transitiveBlock);
 
   return `${blocks.join("\n\n")}\n`;
 }
@@ -840,8 +1058,8 @@ function formatHeader(
   payload: LeanVulnerabilityReport,
   useColors: boolean,
 ): string {
-  const name = colorize(payload.name, "bold", useColors);
-  return `${name} @ ${payload.version} | ${payload.registry}`;
+  const name = colorize(sanitizeIdentity(payload.name), "bold", useColors);
+  return `${name} @ ${sanitizeIdentity(payload.version)} | ${sanitizeIdentity(payload.registry)}`;
 }
 
 function formatFilterLines(
@@ -850,10 +1068,12 @@ function formatFilterLines(
   if (!filter) return [];
   const lines: string[] = [];
   if (filter.advisoryScope) {
-    lines.push(`Scope   ${formatAdvisoryScope(filter.advisoryScope)}`);
+    lines.push(
+      `Scope   ${sanitizeIdentity(formatAdvisoryScope(filter.advisoryScope))}`,
+    );
   }
   if (filter.minSeverity) {
-    lines.push(`Filter  severity >= ${filter.minSeverity}`);
+    lines.push(`Filter  severity >= ${sanitizeIdentity(filter.minSeverity)}`);
   }
   if (filter.includeWithdrawn === true) {
     lines.push("Filter  include withdrawn");
@@ -933,6 +1153,7 @@ function formatSelectedAdvisoryCountLine(
 function formatBreakdownLine(
   summary: LeanVulnerabilitySummary,
   useColors: boolean,
+  terminalWidth: number | undefined,
 ): string | undefined {
   // One-advisory case doesn't need a breakdown.
   if (summary.total <= 1) return undefined;
@@ -946,18 +1167,57 @@ function formatBreakdownLine(
     low: "low",
     unrated: "unrated",
   };
-  const parts: string[] = [];
+  const parts: BreakdownPart[] = [];
   for (const key of BUCKET_ORDER) {
     const count = bucket[key];
     if (typeof count === "number" && count > 0) {
       const segment = `${count} ${labels[key]}`;
-      parts.push(
-        key === "malware" ? colorize(segment, "red", useColors) : segment,
-      );
+      parts.push({
+        text: segment,
+        color: key === "malware" ? "red" : undefined,
+      });
     }
   }
   if (parts.length === 0) return undefined;
-  return `  ${parts.join(" | ")}`;
+  return formatBreakdownParts(parts, useColors, terminalWidth);
+}
+
+interface BreakdownPart {
+  text: string;
+  color?: "red";
+}
+
+function formatBreakdownParts(
+  parts: readonly BreakdownPart[],
+  useColors: boolean,
+  terminalWidth: number | undefined,
+): string {
+  const width = normaliseTerminalWidth(terminalWidth);
+  const lines: BreakdownPart[][] = [];
+  let current: BreakdownPart[] = [];
+  for (const part of parts) {
+    const candidate = [...current, part].map(({ text }) => text).join(" | ");
+    if (
+      current.length === 0 ||
+      measureTerminalWidth(`  ${candidate}`) <= width
+    ) {
+      current.push(part);
+    } else {
+      lines.push(current);
+      current = [part];
+    }
+  }
+  if (current.length > 0) lines.push(current);
+  return lines
+    .map(
+      (line) =>
+        `  ${line
+          .map(({ text, color }) =>
+            color ? colorize(text, color, useColors) : text,
+          )
+          .join(" | ")}`,
+    )
+    .join("\n");
 }
 
 // --------------------------------------------------------------------
@@ -970,6 +1230,7 @@ function formatAdvisoryList(
   useColors: boolean,
   rangeLimit: number,
   surface: VulnerabilitiesTextSurface,
+  terminalWidth: number | undefined,
 ): string {
   const renderedAdvisories = verbose
     ? advisories
@@ -993,7 +1254,12 @@ function formatAdvisoryList(
   }
   const hidden = advisories.length - renderedAdvisories.length;
   if (hidden > 0) {
-    lines.push(dim(formatAdvisoryCapHint(hidden, surface), useColors));
+    lines.push(
+      ...wrapFreeText(
+        formatAdvisoryCapHint(hidden, surface),
+        normaliseTerminalWidth(terminalWidth),
+      ).map((line) => dim(line, useColors)),
+    );
   }
   return lines.join("\n").trimEnd();
 }
@@ -1070,9 +1336,9 @@ function formatAdvisoryLines(
   const colouredLabel = severityColumnColor(advisory, useColors, padded);
 
   const parts: string[] = [colouredLabel];
-  if (advisory.id) parts.push(advisory.id);
-  if (advisory.publishedAt) parts.push(advisory.publishedAt);
-  if (advisory.summary) parts.push(advisory.summary);
+  if (advisory.id) parts.push(sanitizeIdentity(advisory.id));
+  if (advisory.publishedAt) parts.push(sanitizeIdentity(advisory.publishedAt));
+  if (advisory.summary) parts.push(sanitizeProse(advisory.summary));
 
   const lines: string[] = [`  ${parts.join("  ")}`];
 
@@ -1097,24 +1363,24 @@ function formatAdvisoryLines(
     );
   }
   if (advisory.fixedIn && advisory.fixedIn.length > 0) {
-    pushRow("fixed in", advisory.fixedIn.join(", "));
+    pushRow("fixed in", advisory.fixedIn.map(sanitizeIdentity).join(", "));
   }
 
   if (verbose) {
     if (advisory.aliases && advisory.aliases.length > 0) {
-      pushRow("aliases", advisory.aliases.join(", "));
+      pushRow("aliases", advisory.aliases.map(sanitizeIdentity).join(", "));
     }
     if (typeof advisory.severity === "number") {
       pushRow("severity", `${advisory.severity} (CVSS)`);
     }
     if (advisory.publishedAt) {
-      pushRow("published", advisory.publishedAt);
+      pushRow("published", sanitizeIdentity(advisory.publishedAt));
     }
     if (advisory.modifiedAt) {
-      pushRow("modified", advisory.modifiedAt);
+      pushRow("modified", sanitizeIdentity(advisory.modifiedAt));
     }
     if (advisory.withdrawnAt) {
-      pushRow("withdrawn", advisory.withdrawnAt);
+      pushRow("withdrawn", sanitizeIdentity(advisory.withdrawnAt));
     }
     if (advisory.isMalicious === true) {
       pushRow("malicious", "yes");
@@ -1140,9 +1406,13 @@ function formatRangeList(
   totalCount: number | undefined,
   backendTruncated: boolean | undefined,
 ): string {
-  const actualTotal = Math.max(totalCount ?? ranges.length, ranges.length);
+  const safeRanges = ranges.map(sanitizeIdentity);
+  const actualTotal = Math.max(
+    totalCount ?? safeRanges.length,
+    safeRanges.length,
+  );
   const backendHidden =
-    backendTruncated === true ? actualTotal - ranges.length : 0;
+    backendTruncated === true ? actualTotal - safeRanges.length : 0;
   const appendBackendHint = (shown: string): string => {
     if (backendHidden > 0) {
       const hint = dim(
@@ -1154,11 +1424,11 @@ function formatRangeList(
     return shown;
   };
 
-  if (verbose || ranges.length <= limit) {
-    return appendBackendHint(ranges.join(", "));
+  if (verbose || safeRanges.length <= limit) {
+    return appendBackendHint(safeRanges.join(", "));
   }
-  const shown = ranges.slice(0, limit).join(", ");
-  const localHidden = ranges.length - limit;
+  const shown = safeRanges.slice(0, limit).join(", ");
+  const localHidden = safeRanges.length - limit;
   const localHint = surface === "mcp" ? "use verbose=true" : "use -v";
   const hintText =
     backendHidden > 0
@@ -1166,6 +1436,364 @@ function formatRangeList(
       : `... (+${localHidden} more; ${localHint})`;
   const hint = dim(hintText, useColors);
   return `${shown}, ${hint}`;
+}
+
+function sanitizeIdentity(value: string): string {
+  return sanitizeTerminalText(value);
+}
+
+function sanitizeProse(value: string): string {
+  return sanitizeTerminalText(value.replace(/\s+/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+interface FormatTransitiveAuditOptions {
+  verbose: boolean;
+  useColors: boolean;
+  surface: VulnerabilitiesTextSurface;
+  terminalWidth?: number;
+  includeWithdrawn: boolean;
+}
+
+interface TransitiveTextRow {
+  registry: string;
+  name: string;
+  occurrence: LeanTransitiveVulnerabilityOccurrence;
+}
+
+function formatTransitiveAuditTerminal(
+  audit: LeanTransitiveVulnerabilityAudit,
+  options: FormatTransitiveAuditOptions,
+): string {
+  const width = normaliseTerminalWidth(options.terminalWidth);
+  const lines = ["Resolved dependencies"];
+  lines.push(
+    ...wrapFreeText(formatTransitiveSummaryLine(audit.summary), width),
+  );
+
+  const breakdown = formatTransitiveBreakdown(
+    audit.summary,
+    options.useColors,
+    width,
+  );
+  if (breakdown) lines.push(breakdown);
+  if (options.includeWithdrawn) {
+    lines.push(
+      ...wrapFreeText(
+        "Dependency analysis excludes withdrawn advisories.",
+        width,
+        "  ",
+      ),
+    );
+  }
+
+  const rows = flattenTransitiveRows(audit);
+  if (rows.length > 0) {
+    lines.push("", ...formatTransitiveRows(rows, options));
+  }
+
+  return lines.join("\n");
+}
+
+function formatTransitiveSummaryLine(
+  summary: LeanTransitiveVulnerabilityAudit["summary"],
+): string {
+  const occurrenceNoun =
+    summary.affectedOccurrenceCount === 1
+      ? "affected advisory occurrence"
+      : "affected advisory occurrences";
+  const packageNoun =
+    summary.affectedPackageCount === 1
+      ? "dependency package"
+      : "dependency packages";
+  const versionNoun =
+    summary.totalPackagesAnalyzed === 1
+      ? "resolved package version"
+      : "resolved package versions";
+  if (summary.affectedOccurrenceCount === 0) {
+    return `No affected advisory occurrences found; ${summary.totalPackagesAnalyzed} ${versionNoun} checked.`;
+  }
+  return `${summary.affectedOccurrenceCount} ${occurrenceNoun} in ${summary.affectedPackageCount} ${packageNoun}; ${summary.totalPackagesAnalyzed} ${versionNoun} checked.`;
+}
+
+const TRANSITIVE_SEVERITY_LABEL_WIDTH = "critical".length;
+
+function formatTransitiveBreakdown(
+  summary: LeanTransitiveVulnerabilityAudit["summary"],
+  useColors: boolean,
+  terminalWidth: number,
+): string | undefined {
+  if (!summary.bySeverity) return undefined;
+  const labels: Record<VulnBucket, string> = {
+    malware: "MALWARE",
+    critical: "critical",
+    high: "high",
+    medium: "medium",
+    low: "low",
+    unrated: "unrated",
+  };
+  const parts: BreakdownPart[] = [];
+  for (const key of BUCKET_ORDER) {
+    const count = summary.bySeverity[key];
+    if (typeof count === "number" && count > 0) {
+      const part = `${count} ${labels[key]}`;
+      parts.push({
+        text: part,
+        color: key === "malware" ? "red" : undefined,
+      });
+    }
+  }
+  return parts.length > 0
+    ? formatBreakdownParts(parts, useColors, terminalWidth)
+    : undefined;
+}
+
+function flattenTransitiveRows(
+  audit: LeanTransitiveVulnerabilityAudit,
+): TransitiveTextRow[] {
+  return audit.packages
+    .flatMap((pkg) =>
+      pkg.occurrences.map((occurrence) => ({
+        registry: pkg.registry,
+        name: pkg.name,
+        occurrence,
+      })),
+    )
+    .sort(compareTransitiveTextRows);
+}
+
+function compareTransitiveTextRows(
+  a: TransitiveTextRow,
+  b: TransitiveTextRow,
+): number {
+  const risk =
+    transitiveRiskRank(b.occurrence) - transitiveRiskRank(a.occurrence);
+  if (risk !== 0) return risk;
+  const registry = compareStrings(a.registry, b.registry);
+  if (registry !== 0) return registry;
+  const name = compareStrings(a.name, b.name);
+  if (name !== 0) return name;
+  const version = compareStrings(
+    a.occurrence.resolvedVersion,
+    b.occurrence.resolvedVersion,
+  );
+  if (version !== 0) return version;
+  const identity = compareStrings(
+    transitiveAdvisoryIdentity(a.occurrence),
+    transitiveAdvisoryIdentity(b.occurrence),
+  );
+  if (identity !== 0) return identity;
+  return compareStrings(
+    JSON.stringify(a.occurrence),
+    JSON.stringify(b.occurrence),
+  );
+}
+
+function formatTransitiveRows(
+  rows: TransitiveTextRow[],
+  options: FormatTransitiveAuditOptions,
+): string[] {
+  const shownRows = options.verbose
+    ? rows
+    : rows.slice(0, DEFAULT_ADVISORY_CAP);
+  const lines: string[] = [];
+  for (const row of shownRows) {
+    lines.push(...formatTransitiveOccurrence(row, options));
+  }
+
+  const hidden = rows.length - shownRows.length;
+  if (hidden > 0) {
+    const hint =
+      options.surface === "mcp" ? "use verbose=true or format=json" : "use -v";
+    lines.push(
+      ...wrapFreeText(
+        `... (+${hidden} more; ${hint})`,
+        normaliseTerminalWidth(options.terminalWidth),
+      ).map((line) => dim(line, options.useColors)),
+    );
+  }
+  return lines;
+}
+
+function formatTransitiveOccurrence(
+  row: TransitiveTextRow,
+  options: FormatTransitiveAuditOptions,
+): string[] {
+  const occurrence = row.occurrence;
+  const label = transitiveSeverityColumnLabel(occurrence);
+  const paddedLabel = label.padEnd(TRANSITIVE_SEVERITY_LABEL_WIDTH);
+  const coordinate = `${sanitizeIdentity(row.name)}@${sanitizeIdentity(occurrence.resolvedVersion)}`;
+  const identity = occurrence.id ? sanitizeIdentity(occurrence.id) : undefined;
+  const headlineParts = [paddedLabel, coordinate];
+  if (identity) headlineParts.push(identity);
+  const headline = `  ${headlineParts.join("  ")}`;
+  const lines = formatTransitiveHeadline(
+    headline,
+    occurrence.summary,
+    options.terminalWidth,
+  );
+  const coloredLabel = colorize(
+    label,
+    transitiveLabelColor(label),
+    options.useColors,
+  );
+  const labelStart = lines[0]?.indexOf(paddedLabel) ?? 0;
+  lines[0] = `${lines[0]?.slice(0, labelStart) ?? ""}${coloredLabel}${" ".repeat(paddedLabel.length - label.length)}${lines[0]?.slice(labelStart + paddedLabel.length) ?? ""}`;
+
+  lines.push(
+    ...formatAtomicDetail(
+      "matched",
+      occurrence.matchedAffectedVersionRanges,
+      options.terminalWidth,
+    ),
+  );
+
+  if (options.verbose && occurrence.fixVersionsAboveResolved.length > 0) {
+    lines.push(
+      ...formatAtomicDetail(
+        "higher fixes",
+        occurrence.fixVersionsAboveResolved,
+        options.terminalWidth,
+      ),
+    );
+  }
+
+  if (options.verbose && occurrence.aliases && occurrence.aliases.length > 0) {
+    lines.push(
+      ...formatAtomicDetail(
+        "aliases",
+        occurrence.aliases,
+        options.terminalWidth,
+      ),
+    );
+  }
+
+  const nearest = occurrence.nearestFixedVersion
+    ? sanitizeIdentity(occurrence.nearestFixedVersion)
+    : "no higher fixed version known";
+  lines.push(
+    ...formatFreeDetail("nearest fix", nearest, options.terminalWidth),
+  );
+  return lines;
+}
+
+function formatTransitiveHeadline(
+  headline: string,
+  summary: string | undefined,
+  terminalWidth: number | undefined,
+): string[] {
+  const cleanSummary = summary ? sanitizeProse(summary) : "";
+  if (!cleanSummary) return [headline];
+  const words = cleanSummary.split(" ").filter(Boolean);
+  const width = normaliseTerminalWidth(terminalWidth);
+  const lines: string[] = [];
+  let current = headline;
+  for (const word of words) {
+    const separator = current === headline ? "  " : " ";
+    const candidate = `${current}${separator}${word}`;
+    if (measureTerminalWidth(candidate) <= width) {
+      current = candidate;
+      continue;
+    }
+    lines.push(current.trimEnd());
+    current = `        ${word}`;
+  }
+  lines.push(current.trimEnd());
+  return lines;
+}
+
+function formatAtomicDetail(
+  label: string,
+  values: readonly string[],
+  terminalWidth: number | undefined,
+): string[] {
+  const width = normaliseTerminalWidth(terminalWidth);
+  const prefix = `    ${label.padEnd(12)} `;
+  const continuation = " ".repeat(prefix.length);
+  const lines: string[] = [];
+  let current = prefix;
+  for (const [index, rawValue] of values.entries()) {
+    const value = sanitizeIdentity(rawValue);
+    const addition = index === 0 ? value : `, ${value}`;
+    if (index === 0 || measureTerminalWidth(`${current}${addition}`) <= width) {
+      current += addition;
+      continue;
+    }
+    lines.push(current.trimEnd());
+    current = `${continuation}${value}`;
+  }
+  if (current !== prefix) lines.push(current.trimEnd());
+  return lines;
+}
+
+function formatFreeDetail(
+  label: string,
+  value: string,
+  terminalWidth: number | undefined,
+): string[] {
+  const prefix = `    ${label.padEnd(12)} `;
+  const width = normaliseTerminalWidth(terminalWidth);
+  const words = sanitizeProse(value).split(" ").filter(Boolean);
+  if (words.length === 0) return [prefix.trimEnd()];
+  const continuation = " ".repeat(prefix.length);
+  const lines: string[] = [];
+  let current = prefix;
+  for (const word of words) {
+    if (
+      current === prefix ||
+      measureTerminalWidth(
+        `${current}${current === prefix ? "" : " "}${word}`,
+      ) <= width
+    ) {
+      current += `${current === prefix ? "" : " "}${word}`;
+      continue;
+    }
+    lines.push(current.trimEnd());
+    current = `${continuation}${word}`;
+  }
+  lines.push(current.trimEnd());
+  return lines;
+}
+
+function wrapFreeText(
+  value: string,
+  width: number,
+  continuationPrefix = "  ",
+): string[] {
+  const words = value.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+  const lines: string[] = [];
+  let current = words[0] ?? "";
+  for (const word of words.slice(1)) {
+    const candidate = `${current} ${word}`;
+    if (measureTerminalWidth(candidate) <= width) {
+      current = candidate;
+    } else {
+      lines.push(current);
+      current = `${continuationPrefix}${word}`;
+    }
+  }
+  lines.push(current);
+  return lines;
+}
+
+function transitiveSeverityColumnLabel(
+  occurrence: LeanTransitiveVulnerabilityOccurrence,
+): string {
+  if (occurrence.isMalicious === true) return "MALWARE";
+  return occurrence.severityLabel ?? "unrated";
+}
+
+function transitiveLabelColor(label: string): "red" | "yellow" | "dim" {
+  if (label === "MALWARE" || label === "critical") return "red";
+  if (label === "high" || label === "medium") return "yellow";
+  return "dim";
+}
+
+function normaliseTerminalWidth(width: number | undefined): number {
+  if (width === undefined || !Number.isFinite(width)) return 80;
+  return Math.max(20, Math.floor(width));
 }
 
 /**
@@ -1188,6 +1816,7 @@ function resolveAffectedRangesLimit(terminalWidth: number | undefined): number {
 
 function formatUpgradeFooter(paths: string[] | undefined): string | undefined {
   if (!paths || paths.length === 0) return undefined;
-  if (paths.length === 1) return `Fix version: ${paths[0]}.`;
-  return `Fix versions: ${paths.join(", ")}.`;
+  const safePaths = paths.map(sanitizeIdentity);
+  if (safePaths.length === 1) return `Fix version: ${safePaths[0]}.`;
+  return `Fix versions: ${safePaths.join(", ")}.`;
 }

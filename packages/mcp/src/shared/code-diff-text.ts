@@ -6,7 +6,7 @@ import type {
   LeanCodeDiffStatFile,
 } from "./code-diff-response.js";
 import { colorize, warning } from "./colors.js";
-import { sanitizeTerminalText } from "./resolve-target-response.js";
+import { sanitizeTerminalText } from "./terminal-text.js";
 import { padTerminalEnd, terminalWidth } from "./terminal-width.js";
 
 export interface FormatCodeDiffTerminalOptions {

@@ -13,9 +13,9 @@
  *   (backend currently excludes vcpkg and zig). Known-
  *   but-unsupported registries are rejected client-side with a
  *   tool-specific message so the backend never sees them. The
- *   predicate `supportsVulnerabilitiesRegistry` lives here (not in
- *   `pkgseer-registry.ts`) because it is a tool-specific capability
- *   matrix, not a registry-taxonomy concern.
+ *   predicate `supportsVulnerabilitiesRegistry` lives in
+ *   `pkgseer-capabilities.ts` (not `pkgseer-registry.ts`) because it is a
+ *   tool-specific capability matrix, not a registry-taxonomy concern.
  * - Map `minSeverity` label → CVSS float threshold (backend takes a
  *   `Float`; CLI/MCP accept a label for discoverability). Uppercase
  *   input is tolerated.
@@ -33,7 +33,6 @@ import type { PackageVulnerabilitiesParams } from "@githits/core-internal";
 import {
   isKnownPkgseerRegistryArg,
   PKGSEER_REGISTRY_LIST,
-  type PkgseerRegistry,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
 } from "@githits/core-internal";
@@ -42,6 +41,10 @@ import {
   UnsupportedRegistryError,
 } from "./package-spec.js";
 import { normalisePackageVersion } from "./package-version.js";
+import {
+  SUPPORTED_VULN_REGISTRIES_HUMAN,
+  supportsVulnerabilitiesRegistry,
+} from "./pkgseer-capabilities.js";
 
 /**
  * Raised when the caller targets a registry that is unsupported by
@@ -70,33 +73,7 @@ export const SEVERITY_LABEL_TO_CVSS: Readonly<Record<SeverityLabel, number>> = {
   critical: 9.0,
 };
 
-const SUPPORTED_VULN_REGISTRIES: ReadonlySet<PkgseerRegistry> = new Set([
-  "NPM",
-  "PYPI",
-  "HEX",
-  "CRATES",
-  "NUGET",
-  "MAVEN",
-  "PACKAGIST",
-  "RUBYGEMS",
-  "GO",
-  "SWIFT",
-]);
-
-const SUPPORTED_VULN_REGISTRIES_HUMAN =
-  "npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift";
-
-/**
- * Tool-local capability predicate. Vulnerability data is unavailable
- * for vcpkg and zig on the backend.
- * When a second tool needs per-tool registry restrictions, extract to
- * a dedicated `pkgseer-capabilities.ts` module.
- */
-export function supportsVulnerabilitiesRegistry(
-  registry: PkgseerRegistry,
-): boolean {
-  return SUPPORTED_VULN_REGISTRIES.has(registry);
-}
+export { supportsVulnerabilitiesRegistry } from "./pkgseer-capabilities.js";
 
 export interface PackageVulnerabilitiesRequestInput {
   /** Lowercase registry surface value (`npm`, `pypi`, …). */
@@ -109,6 +86,8 @@ export interface PackageVulnerabilitiesRequestInput {
   minSeverity?: string;
   /** Optional flag to include withdrawn advisories. */
   includeWithdrawn?: boolean;
+  /** Optional flag; only true enables the extra graph-analysis request. Omission/false preserve direct-only behavior. */
+  includeTransitive?: boolean;
   /** Advisory rows to return. Defaults to advisories affecting the inspected version. */
   advisoryScope?: string;
 }
@@ -179,6 +158,7 @@ export function buildPackageVulnerabilitiesParams(
       version,
       minSeverity,
       includeWithdrawn: input.includeWithdrawn,
+      includeTransitive: input.includeTransitive,
       advisoryScope: advisoryScope
         ? ADVISORY_SCOPE_TO_GRAPHQL[advisoryScope]
         : undefined,

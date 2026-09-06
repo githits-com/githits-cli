@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
+import type { VulnerabilityReport } from "@githits/core-internal";
 import { PackageIntelligenceTargetNotFoundError } from "@githits/core-internal";
 import {
   createMockPackageIntelligenceService,
@@ -8,6 +9,38 @@ import { createPackageVulnerabilitiesTool } from "./package-vulnerabilities.js";
 
 function parseText(result: { content: Array<{ text: string }> }): unknown {
   return JSON.parse(result.content[0]?.text ?? "");
+}
+
+function transitiveVulnerabilityReport(): VulnerabilityReport {
+  const report = structuredClone(defaultVulnerabilityReport);
+  report.transitive = {
+    totalPackagesAnalyzed: 2,
+    affectedPackageCount: 1,
+    affectedOccurrenceCount: 1,
+    packages: [
+      {
+        registry: "NPM",
+        name: "body-parser",
+        affectedOccurrenceCount: 1,
+        occurrences: [
+          {
+            version: "1.19.0",
+            affectsResolvedVersion: true,
+            matchedAffectedVersionRanges: ["< 2.0.0"],
+            fixVersionsAboveResolved: ["2.0.0"],
+            nearestFixedVersion: "2.0.0",
+            advisory: {
+              osvId: "GHSA-body-parser",
+              aliases: ["CVE-body-parser"],
+              summary: "Body parser issue",
+              severityScore: 8.0,
+            },
+          },
+        ],
+      },
+    ],
+  };
+  return report;
 }
 
 describe("createPackageVulnerabilitiesTool — metadata", () => {
@@ -32,9 +65,19 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
       "identifiers and aliases, including CVEs when available",
     );
     expect(tool.description).toContain("identifier aliases (including CVEs)");
+    expect(tool.description).toContain(
+      "npm-audit-style evidence covering vulnerabilities in versions resolved by the dependency graph",
+    );
+    expect(tool.description).toContain(
+      "distinct from package-wide advisory history",
+    );
+    expect(tool.description).toContain(
+      "`advisory_scope` and `include_withdrawn` affect direct rows only",
+    );
     expect(Object.keys(tool.schema).sort()).toEqual([
       "advisory_scope",
       "format",
+      "include_transitive",
       "include_withdrawn",
       "min_severity",
       "package_name",
@@ -43,6 +86,18 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
       "version",
     ]);
     expect(tool.annotations?.readOnlyHint).toBe(true);
+  });
+
+  it("keeps the discovery sentence and first 80 characters stable", () => {
+    const tool = createPackageVulnerabilitiesTool(
+      createMockPackageIntelligenceService(),
+    );
+    const firstSentence = tool.description.match(/^[^.]+\./)?.[0] ?? "";
+    expect(firstSentence).toBe("Check current package advisories.");
+    expect(firstSentence.length).toBeLessThanOrEqual(79);
+    expect(tool.description.slice(0, 80)).toBe(
+      "Check current package advisories. Do not trust your memory for vulnerabilities. ",
+    );
   });
 });
 
@@ -160,6 +215,107 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     expect(text).not.toContain("... (+1 more");
   });
 
+  it.each([undefined, false, true] as const)(
+    "passes include_transitive=%s to the service without changing the direct request",
+    async (includeTransitive) => {
+      const packageVulnerabilities = mock(() =>
+        Promise.resolve(defaultVulnerabilityReport),
+      );
+      const tool = createPackageVulnerabilitiesTool(
+        createMockPackageIntelligenceService({ packageVulnerabilities }),
+      );
+      await tool.handler(
+        {
+          registry: "npm",
+          package_name: "express",
+          min_severity: "high",
+          advisory_scope: "all",
+          include_withdrawn: true,
+          ...(includeTransitive === undefined
+            ? {}
+            : { include_transitive: includeTransitive }),
+        },
+        {},
+      );
+      const params = (
+        packageVulnerabilities.mock.calls as unknown as Array<
+          [
+            {
+              registry: string;
+              packageName: string;
+              minSeverity?: number;
+              advisoryScope?: string;
+              includeWithdrawn?: boolean;
+              includeTransitive?: boolean;
+            },
+          ]
+        >
+      )[0]?.[0] as {
+        registry: string;
+        packageName: string;
+        minSeverity?: number;
+        advisoryScope?: string;
+        includeWithdrawn?: boolean;
+        includeTransitive?: boolean;
+      };
+      expect(params).toMatchObject({
+        registry: "NPM",
+        packageName: "express",
+        minSeverity: 7.0,
+        advisoryScope: "ALL",
+        includeWithdrawn: true,
+      });
+      expect(params.includeTransitive).toBe(includeTransitive);
+    },
+  );
+
+  it("renders and returns the complete transitive audit when requested", async () => {
+    const report = transitiveVulnerabilityReport();
+    const packageVulnerabilities = mock(() => Promise.resolve(report));
+    const tool = createPackageVulnerabilitiesTool(
+      createMockPackageIntelligenceService({ packageVulnerabilities }),
+    );
+    const textResult = await tool.handler(
+      { registry: "npm", package_name: "express", include_transitive: true },
+      {},
+    );
+    expect(textResult.content[0]?.text).toContain("Resolved dependencies");
+    expect(textResult.content[0]?.text).toContain("body-parser@1.19.0");
+    const verboseResult = await tool.handler(
+      {
+        registry: "npm",
+        package_name: "express",
+        include_transitive: true,
+        verbose: true,
+      },
+      {},
+    );
+    expect(verboseResult.content[0]?.text).toContain("higher fixes 2.0.0");
+
+    const jsonResult = await tool.handler(
+      {
+        registry: "npm",
+        package_name: "express",
+        include_transitive: true,
+        format: "json",
+      },
+      {},
+    );
+    const payload = parseText(jsonResult) as {
+      transitive?: { packages: Array<{ name: string }> };
+    };
+    expect(payload.transitive?.packages[0]?.name).toBe("body-parser");
+    expect(
+      (
+        packageVulnerabilities.mock.calls as unknown as Array<
+          [Record<string, unknown>]
+        >
+      )[0]?.[0],
+    ).toMatchObject({
+      includeTransitive: true,
+    });
+  });
+
   it("uses MCP-native cap hint in default text", async () => {
     const tool = createPackageVulnerabilitiesTool(
       createMockPackageIntelligenceService(),
@@ -208,6 +364,54 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
       minSeverity: "high",
       advisoryScope: "non_affecting",
       includeWithdrawn: true,
+    });
+  });
+
+  it("keeps direct filters direct-only while transitive mode remains opted in", async () => {
+    const report = transitiveVulnerabilityReport();
+    report.transitive = {
+      totalPackagesAnalyzed: 0,
+      affectedPackageCount: 0,
+      affectedOccurrenceCount: 0,
+      packages: [],
+    };
+    const packageVulnerabilities = mock(() => Promise.resolve(report));
+    const tool = createPackageVulnerabilitiesTool(
+      createMockPackageIntelligenceService({ packageVulnerabilities }),
+    );
+    const result = await tool.handler(
+      {
+        registry: "npm",
+        package_name: "express",
+        min_severity: "high",
+        advisory_scope: "all",
+        include_withdrawn: true,
+        include_transitive: true,
+        format: "json",
+      },
+      {},
+    );
+    expect(parseText(result)).toMatchObject({
+      filter: {
+        minSeverity: "high",
+        advisoryScope: "all",
+        includeWithdrawn: true,
+      },
+      transitive: {
+        withdrawnAdvisoriesIncluded: false,
+      },
+    });
+    expect(
+      (
+        packageVulnerabilities.mock.calls as unknown as Array<
+          [Record<string, unknown>]
+        >
+      )[0]?.[0],
+    ).toMatchObject({
+      minSeverity: 7.0,
+      advisoryScope: "ALL",
+      includeWithdrawn: true,
+      includeTransitive: true,
     });
   });
 
@@ -344,5 +548,26 @@ describe("createPackageVulnerabilitiesTool — service errors", () => {
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("UNKNOWN");
+  });
+
+  it("rethrows caller cancellation while transitive mode is requested", async () => {
+    const controller = new AbortController();
+    const reason = new Error("caller cancelled");
+    controller.abort(reason);
+    const tool = createPackageVulnerabilitiesTool(
+      createMockPackageIntelligenceService({
+        packageVulnerabilities: mock(() => Promise.reject(reason)),
+      }),
+    );
+    await expect(
+      tool.handler(
+        {
+          registry: "npm",
+          package_name: "express",
+          include_transitive: true,
+        },
+        { signal: controller.signal },
+      ),
+    ).rejects.toBe(reason);
   });
 });

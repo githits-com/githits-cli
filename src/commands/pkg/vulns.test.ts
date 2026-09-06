@@ -4,11 +4,63 @@ import {
   PackageIntelligenceVersionNotFoundError,
 } from "@githits/core-internal";
 import { AuthRequiredError } from "@githits/mcp/internal";
+import { Command } from "commander";
 import {
   createMockPackageIntelligenceService,
   defaultVulnerabilityReport,
 } from "../../services/test-helpers.js";
-import { type PkgVulnsCommandDependencies, pkgVulnsAction } from "./vulns.js";
+import {
+  type PkgVulnsCommandDependencies,
+  pkgVulnsAction,
+  registerPkgVulnsCommand,
+} from "./vulns.js";
+
+function transitiveVulnerabilityReport() {
+  const report = structuredClone(defaultVulnerabilityReport);
+  report.transitive = {
+    totalPackagesAnalyzed: 2,
+    affectedPackageCount: 1,
+    affectedOccurrenceCount: 1,
+    packages: [
+      {
+        registry: "NPM",
+        name: "body-parser",
+        affectedOccurrenceCount: 1,
+        occurrences: [
+          {
+            version: "1.19.0",
+            affectsResolvedVersion: true,
+            matchedAffectedVersionRanges: ["< 2.0.0"],
+            fixVersionsAboveResolved: ["2.0.0"],
+            nearestFixedVersion: "2.0.0",
+            advisory: {
+              osvId: "GHSA-body-parser",
+              aliases: ["CVE-body-parser"],
+              summary: "Body parser issue",
+              severityScore: 8.0,
+            },
+          },
+        ],
+      },
+    ],
+  };
+  return report;
+}
+
+describe("pkg vulns help", () => {
+  it("registers --transitive with truthful opt-in guidance", () => {
+    const command = registerPkgVulnsCommand(new Command().command("pkg"));
+    const help = command.helpInformation();
+    expect(help).toContain("--transitive");
+    expect(command.description()).toContain(
+      "npm-audit-style evidence covering vulnerabilities in versions",
+    );
+    expect(command.description()).toContain("adds graph-analysis cost");
+    expect(command.description()).toContain(
+      "--scope and --include-withdrawn affect direct package rows only",
+    );
+  });
+});
 
 describe("pkgVulnsAction", () => {
   const mcpUrl = "https://mcp.githits.com";
@@ -64,6 +116,165 @@ describe("pkgVulnsAction", () => {
     expect(combined).toContain("GHSA-nnnn-nnnn-nnnn");
     expect(combined).not.toContain("... (+1 more; use -v)");
     writeSpy.mockRestore();
+  });
+
+  it.each([undefined, false, true] as const)(
+    "passes transitive=%s to the service without changing direct filters",
+    async (transitive) => {
+      const packageVulnerabilities = mock(() =>
+        Promise.resolve(defaultVulnerabilityReport),
+      );
+      const service = createMockPackageIntelligenceService({
+        packageVulnerabilities,
+      });
+      const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+        (() => true) as typeof process.stdout.write,
+      );
+
+      await pkgVulnsAction(
+        "npm:express",
+        {
+          severity: "high",
+          scope: "all",
+          includeWithdrawn: true,
+          ...(transitive === undefined ? {} : { transitive }),
+        },
+        createDeps({ packageIntelligenceService: service }),
+      );
+
+      const params = (
+        packageVulnerabilities.mock.calls as unknown as Array<
+          [
+            {
+              minSeverity?: number;
+              advisoryScope?: string;
+              includeWithdrawn?: boolean;
+              includeTransitive?: boolean;
+            },
+          ]
+        >
+      )[0]?.[0] as {
+        minSeverity?: number;
+        advisoryScope?: string;
+        includeWithdrawn?: boolean;
+        includeTransitive?: boolean;
+      };
+      expect(params).toMatchObject({
+        minSeverity: 7.0,
+        advisoryScope: "ALL",
+        includeWithdrawn: true,
+      });
+      expect(params.includeTransitive).toBe(transitive);
+      writeSpy.mockRestore();
+    },
+  );
+
+  it("renders and emits the additive transitive audit for --transitive", async () => {
+    const report = transitiveVulnerabilityReport();
+    const packageVulnerabilities = mock(() => Promise.resolve(report));
+    const service = createMockPackageIntelligenceService({
+      packageVulnerabilities,
+    });
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      (chunk: string | Uint8Array) => {
+        writes.push(
+          typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+        );
+        return true;
+      },
+    );
+
+    await pkgVulnsAction(
+      "npm:express",
+      { transitive: true, verbose: true },
+      createDeps({ packageIntelligenceService: service }),
+    );
+    expect(writes.join("")).toContain("Resolved dependencies");
+    expect(writes.join("")).toContain("body-parser@1.19.0");
+    expect(writes.join("")).toContain("higher fixes 2.0.0");
+    expect(
+      (
+        packageVulnerabilities.mock.calls as unknown as Array<
+          [Record<string, unknown>]
+        >
+      )[0]?.[0],
+    ).toMatchObject({
+      includeTransitive: true,
+    });
+    writeSpy.mockRestore();
+
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    await pkgVulnsAction(
+      "npm:express",
+      { transitive: true, json: true },
+      createDeps({ packageIntelligenceService: service }),
+    );
+    const payload = JSON.parse(logSpy.mock.calls[0]?.[0] as string) as {
+      transitive?: { packages: Array<{ name: string }> };
+    };
+    expect(payload.transitive?.packages[0]?.name).toBe("body-parser");
+    logSpy.mockRestore();
+  });
+
+  it("passes combined filters through and preserves transitive withdrawal semantics", async () => {
+    const report = transitiveVulnerabilityReport();
+    report.transitive = {
+      totalPackagesAnalyzed: 0,
+      affectedPackageCount: 0,
+      affectedOccurrenceCount: 0,
+      packages: [],
+    };
+    const packageVulnerabilities = mock(() => Promise.resolve(report));
+    const service = createMockPackageIntelligenceService({
+      packageVulnerabilities,
+    });
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    await pkgVulnsAction(
+      "npm:express",
+      {
+        severity: "HIGH",
+        scope: "all",
+        includeWithdrawn: true,
+        transitive: true,
+        json: true,
+      },
+      createDeps({ packageIntelligenceService: service }),
+    );
+    const params = (
+      packageVulnerabilities.mock.calls as unknown as Array<
+        [Record<string, unknown>]
+      >
+    )[0]?.[0] as {
+      registry: string;
+      packageName: string;
+      version?: string;
+      minSeverity?: number;
+      advisoryScope?: string;
+      includeWithdrawn?: boolean;
+      includeTransitive?: boolean;
+    };
+    expect(params).toEqual({
+      registry: "NPM",
+      packageName: "express",
+      version: undefined,
+      minSeverity: 7.0,
+      includeWithdrawn: true,
+      includeTransitive: true,
+      advisoryScope: "ALL",
+    });
+    const payload = JSON.parse(logSpy.mock.calls[0]?.[0] as string) as {
+      filter?: unknown;
+      transitive?: { withdrawnAdvisoriesIncluded: boolean };
+    };
+    expect(payload.filter).toEqual({
+      minSeverity: "high",
+      advisoryScope: "all",
+      includeWithdrawn: true,
+    });
+    expect(payload.transitive?.withdrawnAdvisoriesIncluded).toBe(false);
+    logSpy.mockRestore();
   });
 
   it("prints the lean JSON envelope when --json is set", async () => {
@@ -380,7 +591,7 @@ describe("pkgVulnsAction", () => {
     try {
       await pkgVulnsAction(
         "npm:ghost",
-        { json: true },
+        { json: true, transitive: true },
         createDeps({ packageIntelligenceService: service }),
       );
     } catch {

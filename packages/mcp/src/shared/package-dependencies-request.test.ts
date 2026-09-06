@@ -1,8 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-  buildPackageDependenciesParams,
-  UnsupportedDependenciesRegistryError,
-} from "./package-dependencies-request.js";
+import { buildPackageDependenciesParams } from "./package-dependencies-request.js";
 import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,
@@ -14,6 +11,9 @@ describe("buildPackageDependenciesParams — registry matrix", () => {
     ["pypi", "PYPI"],
     ["hex", "HEX"],
     ["crates", "CRATES"],
+    ["nuget", "NUGET"],
+    ["maven", "MAVEN"],
+    ["packagist", "PACKAGIST"],
     ["vcpkg", "VCPKG"],
     ["zig", "ZIG"],
     ["rubygems", "RUBYGEMS"],
@@ -27,14 +27,16 @@ describe("buildPackageDependenciesParams — registry matrix", () => {
     expect(result.params.registry).toBe(expected);
   });
 
-  it.each([["nuget"], ["maven"], ["packagist"]] as const)(
-    "rejects registry %s with tool-specific message",
-    (arg) => {
-      expect(() =>
-        buildPackageDependenciesParams({ registry: arg, packageName: "x" }),
-      ).toThrow(UnsupportedDependenciesRegistryError);
-    },
-  );
+  it.each([
+    ["nuget", "NUGET"],
+    ["maven", "MAVEN"],
+    ["packagist", "PACKAGIST"],
+  ] as const)("accepts registry %s", (arg, expected) => {
+    expect(
+      buildPackageDependenciesParams({ registry: arg, packageName: "x" }).params
+        .registry,
+    ).toBe(expected);
+  });
 
   it("rejects truly unknown registries via the shared UnsupportedRegistryError", () => {
     expect(() =>
