@@ -157,13 +157,15 @@ const SEARCH_DESCRIPTION = `Search code, docs, and symbols across indexed depend
 Repeatable --in targets accept explicit package form (registry:name[@version],
 for example npm:express[@version]). Package targets inspect an indexed
 artifact/manifest root, not a full repository. Swift packages use
-swift:github.com/<owner>/<repo>; Zig packages use zig:gh/<owner>/<repo>.
-Use public GitHub repository targets for full repositories or sibling packages.
-Repository targets use github:org/repo[#ref|@ref],
-github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref].
+swift:github.com/<owner>/<repo> or swift:gitlab.com/<group>/<project>;
+Zig packages use zig:gh/<owner>/<repo> or zig:cb/<owner>/<repo>.
+Use public repository targets for full repositories or sibling packages.
+Repository targets use github:org/repo[#ref|@ref], codeberg:owner/repo[#ref|@ref], gitlab:group[/subgroup...]/project[#ref|@ref],
+approved full HTTPS URLs on github.com, codeberg.org, or gitlab.com;
+GitHub also accepts github.com/org/repo and HTTP.
 Exact documentation sites use site:<host[/path]>. Missing or
 ambiguous sites may return advisory site targets to retry explicitly.
-Output uses canonical github:org/repo#ref formatting. Structured flags are
+Output uses canonical provider:path#ref formatting. Structured flags are
 AND-combined with the query. Complete by default. Active PENDING, INDEXING, or
 SEARCHING progress returns a searchRef. Active progress may include
 stale-but-serveable evidence. Follow an explicit \`githits search-status\`
@@ -206,7 +208,7 @@ export function registerSearchCommand(program: Command) {
     .argument("<query>", "Search query")
     .requiredOption(
       "--in <target>",
-      "Search target: registry:name[@version] (artifact/manifest-root scope; Swift: swift:github.com/<owner>/<repo>, Zig: zig:gh/<owner>/<repo>), public GitHub repo github:org/repo[#ref|@ref] for full/sibling-package scope, or site:<host[/path]>",
+      "Search target: registry:name[@version] (artifact/manifest-root scope; Swift: swift:github.com/<owner>/<repo>, Zig: zig:gh/<owner>/<repo>), repository github:owner/repo, codeberg:owner/repo, gitlab:group/subgroup/project (optional #ref or @ref), or an approved full HTTPS URL for full/sibling-package scope, or site:<host[/path]>",
       collectRepeatable,
       [] as string[],
     )

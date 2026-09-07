@@ -535,15 +535,19 @@ function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPayload {
   assertSearchFollowUpInvariant(hit);
   const payload: UnifiedSearchHitPayload = {
     type: hit.resultType.toLowerCase(),
-    target: formatTargetLabel(hit.targetLabel),
+    target: formatTargetLabel(hit.targetLabel, hit.locator.repoUrl),
     locator: buildLocatorPayload(hit),
   };
-  appendFreshness(payload, {
-    requestedTargetLabel: hit.requestedTargetLabel,
-    freshTargetLabel: hit.freshTargetLabel,
-    servedTargetLabel: hit.servedTargetLabel,
-    freshness: hit.freshness,
-  });
+  appendFreshness(
+    payload,
+    {
+      requestedTargetLabel: hit.requestedTargetLabel,
+      freshTargetLabel: hit.freshTargetLabel,
+      servedTargetLabel: hit.servedTargetLabel,
+      freshness: hit.freshness,
+    },
+    hit.locator.repoUrl,
+  );
   if (hit.title) payload.title = hit.title;
   if (hit.summary) payload.summary = hit.summary;
   const highlights = buildHighlights(hit.highlights);
@@ -562,8 +566,8 @@ function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPayload {
   return payload;
 }
 
-function formatTargetLabel(label: string): string {
-  return formatRepositoryTargetLabel(label) ?? label;
+function formatTargetLabel(label: string, repoUrl?: string): string {
+  return formatRepositoryTargetLabel(label, repoUrl) ?? label;
 }
 
 function buildLocatorPayload(
@@ -690,6 +694,7 @@ function appendFreshness(
     servedTargetLabel?: string;
     freshness?: string;
   },
+  repoUrl?: string,
 ): void {
   if (
     !isTrustRelevantFreshness(source.freshness) ||
@@ -702,11 +707,14 @@ function appendFreshness(
     return;
   }
   if (source.requestedTargetLabel)
-    payload.requestedTarget = formatTargetLabel(source.requestedTargetLabel);
+    payload.requestedTarget = formatTargetLabel(
+      source.requestedTargetLabel,
+      repoUrl,
+    );
   if (source.freshTargetLabel)
-    payload.freshTarget = formatTargetLabel(source.freshTargetLabel);
+    payload.freshTarget = formatTargetLabel(source.freshTargetLabel, repoUrl);
   if (source.servedTargetLabel)
-    payload.servedTarget = formatTargetLabel(source.servedTargetLabel);
+    payload.servedTarget = formatTargetLabel(source.servedTargetLabel, repoUrl);
   if (source.freshness) payload.freshness = source.freshness;
 }
 
@@ -715,10 +723,21 @@ function compactProgressTarget(
 ): NonNullable<UnifiedSearchProgressPayload["targets"]>[number] | undefined {
   const payload: NonNullable<UnifiedSearchProgressPayload["targets"]>[number] =
     {};
-  if (target.requested) payload.requested = formatTargetLabel(target.requested);
+  if (target.requested)
+    payload.requested = formatTargetLabel(
+      target.requested,
+      target.targetResolution?.requested?.repoUrl,
+    );
   if (target.resolvedRequested)
-    payload.resolvedRequested = formatTargetLabel(target.resolvedRequested);
-  if (target.served) payload.served = formatTargetLabel(target.served);
+    payload.resolvedRequested = formatTargetLabel(
+      target.resolvedRequested,
+      target.targetResolution?.resolvedRequested?.repoUrl,
+    );
+  if (target.served)
+    payload.served = formatTargetLabel(
+      target.served,
+      target.targetResolution?.served?.repoUrl,
+    );
   if (target.freshness) payload.freshness = target.freshness;
   if (target.indexingRef) payload.indexingRef = target.indexingRef;
   if (target.requestedRefKind)
@@ -1109,7 +1128,10 @@ function compactSourceStatusEntry(
 ): UnifiedSearchSourceStatusPayload | undefined {
   const payload: UnifiedSearchSourceStatusPayload = {
     source: entry.source.toLowerCase(),
-    targetLabel: formatTargetLabel(entry.targetLabel),
+    targetLabel: formatTargetLabel(
+      entry.targetLabel,
+      entry.targetResolution?.requested?.repoUrl,
+    ),
   };
   let interesting = false;
   const contributors = projectDocumentationContributors(entry.contributors);
@@ -1120,14 +1142,25 @@ function compactSourceStatusEntry(
 
   if (options.includeEmptyResultContext) {
     const servedTarget = entry.servedTargetLabel
-      ? formatTargetLabel(entry.servedTargetLabel)
+      ? formatTargetLabel(
+          entry.servedTargetLabel,
+          entry.targetResolution?.served?.repoUrl ??
+            entry.targetResolution?.requested?.repoUrl,
+        )
       : undefined;
     const comparisonTarget = servedTarget ?? payload.targetLabel;
     const requestedTarget = entry.requestedTargetLabel
-      ? formatTargetLabel(entry.requestedTargetLabel)
+      ? formatTargetLabel(
+          entry.requestedTargetLabel,
+          entry.targetResolution?.requested?.repoUrl,
+        )
       : undefined;
     const freshTarget = entry.freshTargetLabel
-      ? formatTargetLabel(entry.freshTargetLabel)
+      ? formatTargetLabel(
+          entry.freshTargetLabel,
+          entry.targetResolution?.resolvedRequested?.repoUrl ??
+            entry.targetResolution?.requested?.repoUrl,
+        )
       : undefined;
     if (
       requestedTarget &&
@@ -1173,11 +1206,22 @@ function compactSourceStatusEntry(
     });
   if (staleDiverges) {
     if (entry.requestedTargetLabel)
-      payload.requestedTarget = formatTargetLabel(entry.requestedTargetLabel);
+      payload.requestedTarget = formatTargetLabel(
+        entry.requestedTargetLabel,
+        entry.targetResolution?.requested?.repoUrl,
+      );
     if (entry.freshTargetLabel)
-      payload.freshTarget = formatTargetLabel(entry.freshTargetLabel);
+      payload.freshTarget = formatTargetLabel(
+        entry.freshTargetLabel,
+        entry.targetResolution?.resolvedRequested?.repoUrl ??
+          entry.targetResolution?.requested?.repoUrl,
+      );
     if (entry.servedTargetLabel)
-      payload.servedTarget = formatTargetLabel(entry.servedTargetLabel);
+      payload.servedTarget = formatTargetLabel(
+        entry.servedTargetLabel,
+        entry.targetResolution?.served?.repoUrl ??
+          entry.targetResolution?.requested?.repoUrl,
+      );
     payload.codeIndexState = entry.codeIndexState;
     interesting = true;
   }

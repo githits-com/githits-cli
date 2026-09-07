@@ -122,53 +122,60 @@ describe("code_diff parity", () => {
     });
   });
 
-  it("PARITY-EXPERIMENTAL-LOCAL: explicit repository refs share normalized params", async () => {
-    const cliCodeDiff = mock((_params: CodeDiffParams) =>
-      Promise.resolve(defaultCodeDiffResult),
-    );
-    const mcpCodeDiff = mock((_params: CodeDiffParams) =>
-      Promise.resolve(defaultCodeDiffResult),
-    );
-    await cliJson(
-      "main..release",
-      "src/**",
-      undefined,
-      { repoUrl: "https://github.com/expressjs/express", nameOnly: true },
-      cliDeps({
-        codeNavigationService: createMockCodeNavigationService({
-          codeDiff: cliCodeDiff,
+  it.each([
+    "https://github.com/expressjs/express",
+    "https://codeberg.org/zigil/decimal",
+    "https://gitlab.com/group/subgroup/project",
+  ])(
+    "PARITY-EXPERIMENTAL-LOCAL: explicit repository refs share normalized params %s",
+    async (repoUrl) => {
+      const cliCodeDiff = mock((_params: CodeDiffParams) =>
+        Promise.resolve(defaultCodeDiffResult),
+      );
+      const mcpCodeDiff = mock((_params: CodeDiffParams) =>
+        Promise.resolve(defaultCodeDiffResult),
+      );
+      await cliJson(
+        "main..release",
+        "src/**",
+        undefined,
+        { repoUrl: repoUrl, nameOnly: true },
+        cliDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            codeDiff: cliCodeDiff,
+          }),
         }),
-      }),
-      true,
-    );
-    const mcpTool = createParityExperimentalMcpTool("code_diff", {
-      codeNavigationService: createMockCodeNavigationService({
-        codeDiff: mcpCodeDiff,
-      }),
-    });
-    await mcpTool.handler(
-      {
-        target: { repo_url: "https://github.com/expressjs/express" },
+        true,
+      );
+      const mcpTool = createParityExperimentalMcpTool("code_diff", {
+        codeNavigationService: createMockCodeNavigationService({
+          codeDiff: mcpCodeDiff,
+        }),
+      });
+      await mcpTool.handler(
+        {
+          target: { repo_url: repoUrl },
+          from: "main",
+          to: "release",
+          view: "name-only",
+          path_glob: "src/**",
+          format: "json",
+        },
+        {},
+      );
+
+      expect(cliCodeDiff.mock.calls[0]?.[0]).toEqual(
+        mcpCodeDiff.mock.calls[0]?.[0],
+      );
+      expect(cliCodeDiff.mock.calls[0]?.[0]).toEqual({
+        target: { repoUrl: repoUrl },
         from: "main",
         to: "release",
-        view: "name-only",
-        path_glob: "src/**",
-        format: "json",
-      },
-      {},
-    );
-
-    expect(cliCodeDiff.mock.calls[0]?.[0]).toEqual(
-      mcpCodeDiff.mock.calls[0]?.[0],
-    );
-    expect(cliCodeDiff.mock.calls[0]?.[0]).toEqual({
-      target: { repoUrl: "https://github.com/expressjs/express" },
-      from: "main",
-      to: "release",
-      mode: "inventory",
-      options: { pathGlob: "src/**" },
-    });
-  });
+        mode: "inventory",
+        options: { pathGlob: "src/**" },
+      });
+    },
+  );
 
   it("PARITY-JSON-KEYS: shared success result is CLI JSON === MCP JSON", async () => {
     const result = structuredClone(defaultCodeDiffResult);

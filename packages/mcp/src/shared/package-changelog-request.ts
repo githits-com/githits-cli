@@ -45,7 +45,7 @@ export interface PackageChangelogRequestInput {
   registry?: string;
   /** Raw package name — trimmed before validation. */
   packageName?: string;
-  /** GitHub repo URL. Mutex with `registry` + `packageName`. */
+  /** Full HTTPS repository URL. Mutex with `registry` + `packageName`. */
   repoUrl?: string;
   /** Optional git branch/tag for CHANGELOG.md. */
   gitRef?: string;
@@ -163,7 +163,7 @@ function resolveAddressing(
     const repoUrl = (input.repoUrl as string).trim();
     if (!isUrlShape(repoUrl)) {
       throw new InvalidPackageSpecError(
-        `'${repoUrl}' does not look like a URL. Pass a full GitHub URL (e.g. https://github.com/expressjs/express).`,
+        `'${repoUrl}' does not look like a URL. Pass a full HTTPS repository URL (e.g. https://github.com/expressjs/express).`,
       );
     }
     return { repoUrl };
@@ -210,7 +210,7 @@ function normaliseLimit(raw: number | undefined): number | undefined {
  * Minimal URL-shape test. We want to reject obvious non-URLs like
  * `"not a url"` client-side so agents get an actionable error instead
  * of an opaque `BACKEND_ERROR`. Backend handles host-specific
- * validation (GitHub-only enforcement etc.).
+ * validation (supported repository hosts, for example).
  */
 function isUrlShape(raw: string): boolean {
   try {

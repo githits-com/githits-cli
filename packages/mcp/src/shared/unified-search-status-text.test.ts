@@ -173,10 +173,10 @@ describe("renderUnifiedSearchStatusText", () => {
     const text = renderUnifiedSearchStatusText(payload);
 
     expect(text).toContain(
-      "Fix: verify registry coordinate/version; use its public GitHub repo for",
+      "Fix: verify registry coordinate/version; use its public repository for",
     );
     expect(text).toContain("repo-wide search.");
-    expect(text).toContain("Fix: verify public GitHub repository/ref.");
+    expect(text).toContain("Fix: verify public repository/ref.");
     expect(text).toContain("Fix: verify site host/path.");
     expect(text).toContain("Fix: verify or replace target.");
     expect(text).not.toContain("rerun search later");

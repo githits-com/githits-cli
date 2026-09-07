@@ -1487,7 +1487,6 @@ function familyForTarget(
   ) {
     return "package";
   }
-  if (target.startsWith("github:")) return "repository";
   try {
     parseRepositoryTargetSpec(target);
     return "repository";
@@ -1532,7 +1531,7 @@ function classifyTargetFamily(
     return "package";
   }
   if (
-    target.startsWith("github:") ||
+    familyForTarget(target) === "repository" ||
     entry.targetResolution?.requested?.repoUrl ||
     entry.targetResolution?.resolvedRequested?.repoUrl ||
     entry.targetResolution?.served?.repoUrl

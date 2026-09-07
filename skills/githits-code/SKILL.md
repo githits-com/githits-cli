@@ -24,7 +24,7 @@ Use GitHits for evidence from real open-source code instead of guessing from mod
 - Need a canonical cross-project example or pattern: `githits example "<focused question>"`; include source repositories/citations from GitHits' generated references/provenance section whenever present.
 - Need package metadata, vulnerability/advisory status, dependency graphs, or release notes: stop and use the `githits-package` skill instead.
 - Exact language name uncertain for `example --lang`: run `githits languages <query>` first.
-- Inspecting a known dependency or GitHub repo: start with `githits search` scoped by `--in`.
+- Inspecting a known dependency or public repository: start with `githits search` scoped by `--in`.
 - Searching an exact standalone documentation site: use `githits search "<topic>" --source docs --in site:<host[/path]>`. If the result reports suggested site targets, retry one explicitly; suggestions are advisory targets, not aliases.
 - Need file/path enumeration: use `githits code files`; do not probe directories with `code read`.
 - Know the exact text to match: use `githits code grep` (literal by default). Pass `--regex` for RE2 syntax; lookaround and backreferences are unsupported. Use `githits search` for discovery.

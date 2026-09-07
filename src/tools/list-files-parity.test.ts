@@ -148,32 +148,39 @@ describe("list_files parity", () => {
     expect(envelope.total).toBe(2);
   });
 
-  it("PARITY-JSON-KEYS: repo-URL addressing CLI === MCP", async () => {
-    const fn = mock(() => Promise.resolve(defaultListFilesResult));
-    const cli = await cliJson(
-      undefined,
-      undefined,
-      {
-        repoUrl: "https://github.com/expressjs/express",
-        gitRef: "main",
-      },
-      cliDeps({
-        codeNavigationService: createMockCodeNavigationService({
-          listFiles: fn as never,
-        }),
-      }),
-    );
-    const mcp = await mcpJson(
-      {
-        target: {
-          repo_url: "https://github.com/expressjs/express",
-          git_ref: "main",
+  it.each([
+    "https://github.com/expressjs/express",
+    "https://codeberg.org/zigil/decimal",
+    "https://gitlab.com/group/subgroup/project",
+  ])(
+    "PARITY-JSON-KEYS: repo-URL addressing CLI === MCP %s",
+    async (repoUrl) => {
+      const fn = mock(() => Promise.resolve(defaultListFilesResult));
+      const cli = await cliJson(
+        undefined,
+        undefined,
+        {
+          repoUrl: repoUrl,
+          gitRef: "main",
         },
-      },
-      fn as never,
-    );
-    expect(cli).toEqual(mcp);
-  });
+        cliDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            listFiles: fn as never,
+          }),
+        }),
+      );
+      const mcp = await mcpJson(
+        {
+          target: {
+            repo_url: repoUrl,
+            git_ref: "main",
+          },
+        },
+        fn as never,
+      );
+      expect(cli).toEqual(mcp);
+    },
+  );
 
   it("PARITY-JSON-KEYS: path_prefix echoes in filter block on both surfaces", async () => {
     const fn = mock(() => Promise.resolve(defaultListFilesResult));

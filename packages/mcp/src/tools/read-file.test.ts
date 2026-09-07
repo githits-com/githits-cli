@@ -25,7 +25,7 @@ describe("createReadFileTool — metadata", () => {
     const tool = createReadFileTool(createMockCodeNavigationService());
     expect(tool.name).toBe("code_read");
     expect(tool.description).toContain(
-      "Read an exact indexed file or focused window in any public GitHub repo/package",
+      "Read an exact indexed file or focused window in a public repo or package",
     );
     expect(tool.description).toContain("150 lines by default");
     expect(tool.description).toContain("up to 300 lines");

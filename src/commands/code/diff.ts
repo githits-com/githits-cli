@@ -338,7 +338,10 @@ export function registerCodeDiffCommand(
       "[path-glob]",
       "One repository-relative glob; must be passed after `--`.",
     )
-    .option("--repo-url <url>", "Public GitHub repository URL addressing")
+    .option(
+      "--repo-url <url>",
+      "Full HTTPS repository URL (GitHub, Codeberg, or GitLab)",
+    )
     .option("-p, --patch", "Emit bounded patches (default)")
     .option("--stat", "Emit per-file line statistics")
     .option("--name-only", "Emit changed paths only")

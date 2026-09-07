@@ -162,31 +162,35 @@ describe("package_changelog parity", () => {
     expect(envelope.filter?.fromVersion).toBe("5.0.0");
   });
 
-  it("PARITY-JSON-KEYS: repo-URL addressing (CLI --repo-url === MCP repo_url)", async () => {
-    const fn = mock(() => Promise.resolve(defaultChangelogReport));
-    const cli = await cliJson(
-      undefined,
-      { repoUrl: "https://github.com/expressjs/express" },
-      cliDeps({
-        packageIntelligenceService: createMockPackageIntelligenceService({
-          packageChangelog: fn as never,
+  it.each([
+    "https://github.com/expressjs/express",
+    "https://codeberg.org/zigil/decimal",
+    "https://gitlab.com/group/subgroup/project",
+  ])(
+    "PARITY-JSON-KEYS: repo-URL addressing (CLI --repo-url === MCP repo_url) %s",
+    async (repoUrl) => {
+      const fn = mock(() => Promise.resolve(defaultChangelogReport));
+      const cli = await cliJson(
+        undefined,
+        { repoUrl: repoUrl },
+        cliDeps({
+          packageIntelligenceService: createMockPackageIntelligenceService({
+            packageChangelog: fn as never,
+          }),
         }),
-      }),
-    );
-    const { json } = await mcpJson(
-      { repo_url: "https://github.com/expressjs/express" },
-      fn as never,
-    );
-    expect(cli).toEqual(json);
-    const envelope = cli as {
-      repoUrl?: string;
-      registry?: string;
-      name?: string;
-    };
-    expect(envelope.repoUrl).toBe("https://github.com/expressjs/express");
-    expect(envelope.registry).toBeUndefined();
-    expect(envelope.name).toBeUndefined();
-  });
+      );
+      const { json } = await mcpJson({ repo_url: repoUrl }, fn as never);
+      expect(cli).toEqual(json);
+      const envelope = cli as {
+        repoUrl?: string;
+        registry?: string;
+        name?: string;
+      };
+      expect(envelope.repoUrl).toBe(repoUrl);
+      expect(envelope.registry).toBeUndefined();
+      expect(envelope.name).toBeUndefined();
+    },
+  );
 
   it("PARITY-JSON-KEYS: no-body (CLI --no-body === MCP omit_bodies: true)", async () => {
     const fn = mock(() => Promise.resolve(defaultChangelogReport));

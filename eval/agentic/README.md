@@ -1032,3 +1032,13 @@ the exec-only `--ignore-rules` flag.
 Malformed final JSON, schema mismatches, external guidance reads, MCP CLI
 fallbacks, Claude failures, and timeouts are harness failures. Raw stdout and
 stderr are preserved for diagnosis with known credential secrets redacted.
+
+### Multi-provider repository navigation probe
+
+`probes/multi-provider-navigation.md` exercises direct Codeberg and nested
+GitLab source navigation with exact commit/path citations. Run it with
+`--server local --workload eval/agentic/probes/multi-provider-navigation.md`.
+The neutral descriptor-only scenario measures autonomous selection; add
+`--intent-profile githits` for the existing intent scenario. Keep those results
+separate: a successful answer without GitHits calls is not tool-use evidence.
+This targeted probe is outside the fixed named-suite inventory.

@@ -112,7 +112,7 @@ const structuredSearchTargetSchema: z.ZodType<StructuredSearchTargetArg> =
       site: z.string().optional(),
     })
     .describe(
-      "Target: provide registry + package_name (indexed artifact/manifest-root package scope), repo_url with optional git_ref (public GitHub repository scope for the full repository or sibling packages; omitted ref means default branch intent), or site as site:<host[/path]> for an exact documentation site. Swift package targets use swift:github.com/<owner>/<repo>; Zig package targets use zig:gh/<owner>/<repo>.",
+      "Target: provide registry + package_name (indexed artifact/manifest-root package scope), repo_url with optional git_ref (public repository scope for the full repository or sibling packages; omitted ref means default branch intent), or site as site:<host[/path]> for an exact documentation site. Swift package targets use swift:github.com/<owner>/<repo> or swift:gitlab.com/<group>/<project>; Zig package targets use zig:gh/<owner>/<repo> or zig:cb/<owner>/<repo>.",
     );
 
 const searchTargetSchema = z.union([
@@ -121,7 +121,7 @@ const searchTargetSchema = z.union([
     .string()
     .min(1)
     .describe(
-      "Compact discovery target string. Package targets inspect an indexed artifact/manifest root: `npm:react@18.2.0` or `npm:react` for latest release; Swift uses `swift:github.com/<owner>/<repo>` and Zig uses `zig:gh/<owner>/<repo>`. Use a public GitHub repository target for the full repository or sibling packages: `github:facebook/react`, `github.com/facebook/react`, `https://github.com/facebook/react`, or any repo form with `#HEAD` / `@HEAD` for a git ref. Exact documentation site: `site:<host[/path]>`. Output uses canonical `github:owner/repo#ref` form.",
+      "Compact discovery target string. Package targets inspect an indexed artifact/manifest root: `npm:react@18.2.0` or `npm:react` for latest release; Swift uses `swift:github.com/<owner>/<repo>` or `swift:gitlab.com/<group>/<project>` and Zig uses `zig:gh/<owner>/<repo>` or `zig:cb/<owner>/<repo>`. Use a public repository target for the full repository or sibling packages: `github:facebook/react`, `codeberg:zigil/decimal`, `gitlab:group/subgroup/project`, or approved full HTTPS URLs (GitHub also accepts `github.com/owner/repo` and HTTP), or any repo form with `#HEAD` / `@HEAD` for a git ref. Exact documentation site: `site:<host[/path]>`. Output uses canonical `provider:path#ref` form. Codeberg requires owner/repo; GitLab allows nested namespaces. Bare owner/repo, self-hosted URLs, web subpaths, credentials, query strings, empty refs, and mixed suffixes are rejected. Refs may contain / and @.",
     ),
 ]);
 

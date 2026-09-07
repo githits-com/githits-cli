@@ -12,7 +12,7 @@ GitHits indexes public OSS/package evidence, not local workspaces, private repos
 
 When presenting \`get_example\` output, include source repository provenance/citations from GitHits' generated references/provenance section whenever present.`;
 
-const PACKAGE_TOOLS_PREAMBLE = `Indexed package/source tools inspect third-party dependency source, docs, and registry metadata. Package targets use \`registry:name[@version]\` and inspect an indexed artifact/manifest root; Swift packages use \`swift:github.com/<owner>/<repo>\` and Zig packages use \`zig:gh/<owner>/<repo>\`. Use public GitHub repository targets for full repositories or sibling packages; repo targets use GitHub URLs.`;
+const PACKAGE_TOOLS_PREAMBLE = `Indexed package/source tools inspect third-party dependency source, docs, and registry metadata. Package targets use \`registry:name[@version]\` and inspect an indexed artifact/manifest root; Swift packages use \`swift:github.com/<owner>/<repo>\` and Zig packages use \`zig:gh/<owner>/<repo>\`. Use public repository targets for full repositories or sibling packages; repo targets use \`github:owner/repo\`, \`codeberg:owner/repo\`, or \`gitlab:group[/subgroup...]/project\`, or full HTTPS URLs on those providers. Codeberg requires exactly owner/repo; GitLab permits nested namespaces. Add #ref (preferred) or @ref; refs may contain / and @. Never use bare owner/repo or infer a provider. Only GitHub also accepts github.com/owner/repo shorthand and HTTP. Package coordinates remain registry-native: zig:gh/owner/repo, zig:cb/owner/repo, swift:github.com/owner/repo, and swift:gitlab.com/group/project.`;
 
 const SEARCH_BULLET =
   "- `search` — discover relevant docs, code, tests, examples, and symbols in known packages/repos or exact `site:<host[/path]>` documentation targets before reading exact files; retry advisory `suggestedSiteTargets` explicitly when returned.";
@@ -45,7 +45,7 @@ const PKG_DEPS_BULLET =
   "- `pkg_deps` — direct dependencies, dependency groups, or bounded transitive dependency footprint.";
 
 const PKG_CHANGELOG_BULLET =
-  "- `pkg_changelog` — release notes/changelog evidence for a package or GitHub repo.";
+  "- `pkg_changelog` — release notes/changelog evidence for a package or public repository.";
 
 const PKG_UPGRADE_REVIEW_BULLET =
   "- `pkg_upgrade_review` — preferred evidence tool for dependency updates; compares current vs target facts and reports no risk score.";
@@ -157,10 +157,10 @@ const LOCAL_AGENTIC_ASK_GUIDANCE_END =
   ' Reuse a returned `thread_id` only when the previous answer is insufficient or more information is needed. Sources default to directly callable MCP tools; use `source_format:"url"` for original upstream URLs. Do not invent or rewrite sources. Use the returned Ask run ID when reporting a defect. Keep text; use JSON only for required fields absent from text.';
 
 const LOCAL_RESOLVE_TARGET_GUIDANCE =
-  '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` target is docs-only: pass it to `search` with `source:"docs"`; request `format:"json"` only if required locator fields are absent from text, then use its `docsReadTarget` (or `pageId`) and range with `docs_read`.';
+  '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, `codeberg:owner/repo`, `gitlab:group/subgroup/project`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` target is docs-only: pass it to `search` with `source:"docs"`; request `format:"json"` only if required locator fields are absent from text, then use its `docsReadTarget` (or `pageId`) and range with `docs_read`.';
 
 const LOCAL_CODE_DIFF_GUIDANCE =
-  "- `code_diff` — compare exact package versions or public GitHub refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text`; use `json` only for required fields absent from text or the full returned patch. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";
+  "- `code_diff` — compare exact package versions or public repository refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text`; use `json` only for required fields absent from text or the full returned patch. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";
 
 /**
  * Compose local-only experimental guidance without changing the public

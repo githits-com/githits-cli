@@ -88,7 +88,7 @@ describe("parseCodeNavigationTargetSpec", () => {
       "Expected package target <registry>:<name>[@<version>]",
     );
     expect(() => parseCodeNavigationTargetSpec("express")).toThrow(
-      "repository target github:owner/repo[#ref|@ref]",
+      "repository target github:owner/repo",
     );
   });
 
@@ -103,7 +103,7 @@ describe("parseCodeNavigationTargetSpec", () => {
       "Expected package target <registry>:<name>[@<version>]",
     );
     expect(() => parseCodeNavigationTargetSpec("gitlab.com/org/repo")).toThrow(
-      "repository target github:owner/repo[#ref|@ref]",
+      "repository target github:owner/repo",
     );
   });
 });

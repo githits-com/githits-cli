@@ -33,7 +33,7 @@ const schema: ZodRawShape = {
     .min(1)
     .optional()
     .describe(
-      "One canonical public OSS package or GitHub repository target, such as npm:express or github:expressjs/express. Call resolve_target first when the intended target is ambiguous or not canonical.",
+      "One canonical public OSS package or repository target, such as npm:express or github:expressjs/express. Call resolve_target first when the intended target is ambiguous or not canonical.",
     ),
   thread_id: z
     .string()

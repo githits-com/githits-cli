@@ -1275,10 +1275,10 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "Fix: verify registry coordinate/version; use its public GitHub repo for",
+      "Fix: verify registry coordinate/version; use its public repository for",
     );
     expect(text).toContain("repo-wide search.");
-    expect(text).toContain("Fix: verify public GitHub repository/ref.");
+    expect(text).toContain("Fix: verify public repository/ref.");
     expect(text).toContain("Fix: verify site host/path.");
     expect(text).toContain("Fix: verify or replace target.");
     expect(text).not.toContain("rerun search later");
@@ -1297,7 +1297,7 @@ describe("renderUnifiedSearchSuccess", () => {
       { actionSyntax: "cli" },
     );
     expect(cliText).toContain(
-      "Fix: verify registry coordinate/version; use its public GitHub repo for",
+      "Fix: verify registry coordinate/version; use its public repository for",
     );
     expect(cliText).toContain("repo-wide search.");
     expect(cliText).not.toContain("search_status");
@@ -1322,9 +1322,9 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "Fix: verify registry coordinate/version; use its public GitHub repo for",
+      "Fix: verify registry coordinate/version; use its public repository for",
     );
-    expect(text).not.toContain("Fix: verify public GitHub repository/ref.");
+    expect(text).not.toContain("Fix: verify public repository/ref.");
   });
 
   it("renders a canonical recovery target for a latest package display identity", () => {

@@ -193,35 +193,42 @@ describe("read_file parity", () => {
     expect(envelope.content).toBeUndefined();
   });
 
-  it("PARITY-JSON-KEYS: repo-URL addressing CLI === MCP", async () => {
-    const fn = mock(() => Promise.resolve(defaultReadFileResult));
-    // Commander binds the sole positional to the first argument in
-    // repo-URL mode; action interprets it as the path.
-    const cli = await cliJson(
-      "src/index.js",
-      undefined,
-      {
-        repoUrl: "https://github.com/expressjs/express",
-        gitRef: "main",
-      },
-      cliDeps({
-        codeNavigationService: createMockCodeNavigationService({
-          readFile: fn as never,
-        }),
-      }),
-    );
-    const mcp = await mcpJson(
-      {
-        target: {
-          repo_url: "https://github.com/expressjs/express",
-          git_ref: "main",
+  it.each([
+    "https://github.com/expressjs/express",
+    "https://codeberg.org/zigil/decimal",
+    "https://gitlab.com/group/subgroup/project",
+  ])(
+    "PARITY-JSON-KEYS: repo-URL addressing CLI === MCP %s",
+    async (repoUrl) => {
+      const fn = mock(() => Promise.resolve(defaultReadFileResult));
+      // Commander binds the sole positional to the first argument in
+      // repo-URL mode; action interprets it as the path.
+      const cli = await cliJson(
+        "src/index.js",
+        undefined,
+        {
+          repoUrl: repoUrl,
+          gitRef: "main",
         },
-        path: "src/index.js",
-      },
-      fn as never,
-    );
-    expect(cli).toEqual(mcp);
-  });
+        cliDeps({
+          codeNavigationService: createMockCodeNavigationService({
+            readFile: fn as never,
+          }),
+        }),
+      );
+      const mcp = await mcpJson(
+        {
+          target: {
+            repo_url: repoUrl,
+            git_ref: "main",
+          },
+          path: "src/index.js",
+        },
+        fn as never,
+      );
+      expect(cli).toEqual(mcp);
+    },
+  );
 
   it("PARITY-ERROR-ENVELOPE: FILE_NOT_FOUND shares data with surface-native actions", async () => {
     const fn = mock(() =>

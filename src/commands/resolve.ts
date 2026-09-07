@@ -121,9 +121,9 @@ function collectIntentHint(value: string, previous: string[] = []): string[] {
   return [...previous, value];
 }
 
-const DESCRIPTION = `Resolve a human-provided name to ranked package, GitHub repository, or standalone documentation-site targets.
+const DESCRIPTION = `Resolve a human-provided name to ranked package, public repository, or standalone documentation-site targets.
 
-Pass canonical registry:name, github:owner/repo, or site:<host[/path]> targets
+Pass canonical registry:name, github:owner/repo, codeberg:owner/repo, gitlab:group/subgroup/project, or site:<host[/path]> targets
 directly to the next GitHits command; resolve rejects them locally.
 
 The optional --query and --intent-hint values are sent to the service as ranking
@@ -138,7 +138,7 @@ export function registerResolveCommand(program: Command): Command {
     .description(DESCRIPTION)
     .argument(
       "<name>",
-      "Package, GitHub repository, or documentation-site name",
+      "Package, public repository, or documentation-site name",
     )
     .option("-q, --query <text>", "Task context used as a soft ranking hint")
     .option(
