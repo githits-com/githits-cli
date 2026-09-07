@@ -882,33 +882,14 @@ function printTask(
 
 /** Capabilities GitHits exposes, rendered as a two-column intro table. */
 const GITHITS_CAPABILITIES: ReadonlyArray<{
-  name: string;
-  description: string;
+  family: string;
+  tools: ReadonlyArray<string>;
 }> = [
+  { family: "CODE", tools: ["files", "grep", "read", "example", "languages"] },
+  { family: "DOCS", tools: ["list", "read"] },
   {
-    name: "Code Navigation",
-    description:
-      "Search, grep, list files, and read exact line ranges across packages and repos.",
-  },
-  {
-    name: "Documentation Access",
-    description:
-      "Read hosted and repository documentation for a specific version.",
-  },
-  {
-    name: "Package Intelligence",
-    description:
-      "Inspect dependencies, versions, vulnerabilities, changelogs, and upgrade changes.",
-  },
-  {
-    name: "Dependency Graph",
-    description:
-      "Relationships and transitive dependencies across packages and versions.",
-  },
-  {
-    name: "Examples",
-    description:
-      "Prior art and implementation patterns from public repositories, issues, discussions, and pull requests.",
+    family: "PACKAGE",
+    tools: ["info", "deps", "vulns", "changelog", "upgrade"],
   },
 ];
 
@@ -934,11 +915,22 @@ function wrapToWidth(text: string, width: number): string[] {
 
 /** Largest width the capability table is allowed to occupy. */
 const MAX_CAPABILITY_TABLE_WIDTH = 84;
-/** Minimum description column before the table degrades to a stacked list. */
-const MIN_CAPABILITY_DESC_WIDTH = 24;
+/** Minimum tools column before the table degrades to a stacked list. */
+const MIN_CAPABILITY_TOOLS_WIDTH = 24;
+
+/** Column headers for the capability table. */
+const CAPABILITY_HEADERS = { context: "CONTEXT", tools: "TOOLS" } as const;
+
+/** Comma-separated tool list shown in the family's second column. */
+function familyTools(
+  capability: (typeof GITHITS_CAPABILITIES)[number],
+): string {
+  return capability.tools.join(", ");
+}
 
 /**
- * Print the capabilities in two columns. On terminals wide enough it renders a
+ * Print the capabilities as a two-column table: the family in the left column
+ * and its tools listed in the right. On terminals wide enough it renders a
  * bordered ASCII table (rules use `-` and `|`, no corner characters), capped at
  * a maximum width so it never spans the whole screen. On narrow terminals,
  * where borders would wrap and break, it falls back to a stacked, borderless
@@ -947,63 +939,78 @@ const MIN_CAPABILITY_DESC_WIDTH = 24;
 function printCapabilityTable(useColors: boolean): void {
   const indent = "  ";
   const nameWidth = Math.max(
-    ...GITHITS_CAPABILITIES.map((capability) => capability.name.length),
+    CAPABILITY_HEADERS.context.length,
+    ...GITHITS_CAPABILITIES.map((capability) => capability.family.length),
   );
   const columns = process.stdout.columns ?? DEFAULT_INIT_PROSE_WIDTH;
   const width = Math.min(columns, MAX_CAPABILITY_TABLE_WIDTH);
-  // Each row renders as "| <name> | <desc> |": two padding spaces per cell
+  // Each row renders as "| <context> | <tools> |": two padding spaces per cell
   // plus the three separators account for seven fixed columns.
   const overhead = indent.length + 7;
-  const descWidth = width - overhead - nameWidth;
+  const toolsWidth = width - overhead - nameWidth;
 
-  if (descWidth < MIN_CAPABILITY_DESC_WIDTH) {
+  if (toolsWidth < MIN_CAPABILITY_TOOLS_WIDTH) {
     printCapabilityList(useColors, width);
     return;
   }
 
-  const rule = `${indent}${"-".repeat(nameWidth + descWidth + 7)}`;
+  const rule = `${indent}${"-".repeat(nameWidth + toolsWidth + 7)}`;
+  const row = (name: string, tools: string): string =>
+    `${indent}| ${name} | ${tools} |`;
+  const header = (text: string, columnWidth: number): string =>
+    colorizeBrand(text.padEnd(columnWidth), "primary", useColors, {
+      bold: true,
+    });
+
+  console.log(rule);
+  console.log(
+    row(
+      header(CAPABILITY_HEADERS.context, nameWidth),
+      header(CAPABILITY_HEADERS.tools, toolsWidth),
+    ),
+  );
   console.log(rule);
   for (const capability of GITHITS_CAPABILITIES) {
-    const descLines = wrapToWidth(capability.description, descWidth);
-    descLines.forEach((descLine, rowIndex) => {
-      const namePlain = (rowIndex === 0 ? capability.name : "").padEnd(
+    const toolLines = wrapToWidth(familyTools(capability), toolsWidth);
+    toolLines.forEach((toolLine, rowIndex) => {
+      const namePlain = (rowIndex === 0 ? capability.family : "").padEnd(
         nameWidth,
       );
       const nameCell =
         rowIndex === 0
           ? colorizeBrand(namePlain, "primary", useColors, { bold: true })
           : namePlain;
-      console.log(`${indent}| ${nameCell} | ${descLine.padEnd(descWidth)} |`);
+      console.log(row(nameCell, toolLine.padEnd(toolsWidth)));
     });
-    console.log(rule);
   }
+  console.log(rule);
 }
 
 /** Stacked, borderless capability layout for narrow terminals. */
 function printCapabilityList(useColors: boolean, width: number): void {
   const nameIndent = "  ";
-  const descIndent = "    ";
-  const descWidth = Math.max(20, width - descIndent.length);
+  const toolsIndent = "    ";
+  const toolsWidth = Math.max(20, width - toolsIndent.length);
   for (const capability of GITHITS_CAPABILITIES) {
     console.log(
-      `${nameIndent}${colorizeBrand(capability.name, "primary", useColors, { bold: true })}`,
+      `${nameIndent}${colorizeBrand(capability.family, "primary", useColors, { bold: true })}`,
     );
-    for (const line of wrapToWidth(capability.description, descWidth)) {
-      console.log(`${descIndent}${line}`);
+    for (const line of wrapToWidth(familyTools(capability), toolsWidth)) {
+      console.log(`${toolsIndent}${line}`);
     }
   }
 }
 
 function printInitIntro(useColors: boolean): void {
   console.log(renderLogoWithVersion(useColors));
-  printInitProse("  Let your agents see beyond your codebase.");
   printInitProse(
-    "  GitHits connects them to a version-aware open-source dependency index.",
+    "  GitHits – The code discovery infrastructure for software factories and agents",
   );
   console.log();
-  console.log(
-    `  ${colorize("With GitHits, your agents get access to:", "white", useColors)}`,
+  printInitProse(
+    "  A version-pinned index of open-source packages and their dependency graphs, giving agents access to the source, documentation, package metadata, vulnerabilities, licenses, changelogs, upgrade evidence, and real-world implementation patterns for the exact versions your software depends on, with every result traceable and auditable. API, MCP, CLI.",
   );
+  console.log();
   printCapabilityTable(useColors);
   console.log();
   printInitProse(
@@ -1021,6 +1028,8 @@ function printInitIntro(useColors: boolean): void {
     console.log(line);
   }
   printInitProse("  More info: https://docs.githits.com");
+  printInitProse("  Questions? Visit https://githits.com/faq/");
+  printInitProse("  Support: support@githits.com");
   console.log();
 }
 
