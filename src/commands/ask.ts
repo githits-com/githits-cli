@@ -163,13 +163,14 @@ function isCallerCancellation(
 function resolveAskSubject(
   target: string | undefined,
   thread: string | undefined,
-): { target: string } | { threadId: string } {
-  if ((target === undefined) === (thread === undefined)) {
+): { target?: string; threadId?: never } | { threadId: string } {
+  if (target !== undefined && thread !== undefined) {
     throw new InvalidArgumentError(
-      "Provide exactly one of a target or --thread <UUID>.",
+      "Do not provide a target together with --thread.",
     );
   }
   if (target !== undefined) return { target };
+  if (thread === undefined) return {};
 
   const threadId = normalizeAgenticAskThreadId(thread);
   if (!threadId) {
@@ -178,6 +179,7 @@ function resolveAskSubject(
   return { threadId };
 }
 
+/** One positional is the question; two preserve the explicit-target form. */
 export function resolveAskCommandPositionals(
   targetOrQuestion: string | undefined,
   question: string | undefined,
@@ -197,10 +199,13 @@ export function resolveAskCommandPositionals(
     return { target: undefined, question: targetOrQuestion };
   }
 
-  if (targetOrQuestion === undefined || question === undefined) {
+  if (targetOrQuestion === undefined) {
     throw new InvalidArgumentError(
-      "Provide a target and question, or --thread <UUID> and question.",
+      "Provide a question, optionally preceded by a target.",
     );
+  }
+  if (question === undefined) {
+    return { target: undefined, question: targetOrQuestion };
   }
   return { target: targetOrQuestion, question };
 }
@@ -224,6 +229,9 @@ export function validateAskCommandBeforeAction(command: Command): void {
 
 const DESCRIPTION = `Ask a public repository or package question and receive a source-cited answer.
 
+Omit the target to let GitHits infer one public repository or package from your
+question. Quote multi-word questions. An explicit target keeps the search scoped.
+
 Use a returned thread ID with --thread only when the previous answer is
 insufficient or more information is needed.`;
 
@@ -233,9 +241,12 @@ export function registerAskCommand(program: Command): Command {
     .summary("Ask a public repository or package question")
     .description(DESCRIPTION)
     .usage(
-      "[options] <target> <question>\n       githits ask --thread <UUID> <question>",
+      "[options] [target] <question>\n       githits ask --thread <UUID> <question>",
     )
-    .argument("[target-or-question]", "Target, or question with --thread")
+    .argument(
+      "[target-or-question]",
+      "Question, or target when followed by a question",
+    )
     .argument("[question]", "Question to answer from indexed public sources")
     .option(
       "--thread <UUID>",

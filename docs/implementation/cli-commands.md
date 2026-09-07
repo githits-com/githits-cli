@@ -288,6 +288,30 @@ same projection and documentation-source formatter for both commands; contributo
 duplicated onto generic progress targets. JSON remains the stable, lossless
 follow-up contract even when text collapses healthy sources or groups recovery inline.
 
+### `githits ask` (experimental)
+
+```sh
+githits ask "How does Express routing work?"
+githits ask npm:express "How is routing implemented?"
+githits ask --thread <UUID> "Where is that checked?"
+githits ask "How does Express routing work?" --source-format url --json
+```
+
+Requires experimental tools to be enabled in local configuration. One positional
+argument is the question; two are target and question. Quote multi-word questions.
+With neither a target nor `--thread`, the CLI sends only `question` and
+`source_format` to `POST /ask`. The backend pre-evaluator validates the question
+and resolves one canonical public package or repository; the CLI does not infer a
+target or substitute a documentation site.
+
+Explicit targets remain supported, including documentation-site targets supported
+by the backend. `--thread` continues the existing bound scope and cannot be
+combined with an explicit target. Use it only when the previous answer needs a
+follow-up. Source formatting, run/thread IDs, authentication, and the existing
+210-second client timeout are unchanged. Question-only calls require the backend
+pipeline that accepts an omitted target (backend PR #390); older backends may
+reject them. This CLI change does not change the local MCP Ask schema.
+
 ### `githits languages`
 
 ```

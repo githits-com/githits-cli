@@ -71,14 +71,23 @@ and deliberately disables experimental issue-reporting guidance. Use
 
 ## Use the CLI commands
 
-Ask one question about a canonical package or repository target:
+Ask a question about a public package or repository, optionally supplying a
+canonical target:
 
 ```sh
+githits ask "How does FastAPI dependency injection resolve nested dependencies?"
 githits ask pypi:fastapi "How does dependency injection resolve nested dependencies?"
 githits ask github:expressjs/express "Where is router dispatch implemented?" --json
 githits ask npm:express "Where is router dispatch implemented?" --source-format url
 githits ask --thread 019c4f26-79b2-7bcb-b729-f9e39043a94b "How does that interact with route parameters?"
 ```
+
+With one positional argument, the CLI sends the question without a target.
+The backend pre-evaluator validates the question and resolves one canonical
+public package or repository. The CLI does not guess a target or choose a docs
+site. With two positional arguments, the first remains an explicit target and
+the second is the question. Quote multi-word questions. Question-only calls
+require the optional-target backend pipeline; older backends may reject them.
 
 By default, human output contains the grounded answer, an Ask run ID, the
 thread ID, and source commands in the form `npx githits@latest ...` that can be

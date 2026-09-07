@@ -136,6 +136,69 @@ function createService(
 }
 
 describe("AgenticAskServiceImpl", () => {
+  it.each([
+    {
+      subject: {},
+      message:
+        "GitHits could not answer this question for a supported target. Clarify the question or specify a public package or repository.",
+    },
+    {
+      subject: { target: "npm:example" },
+      message: "GitHits rejected the Agentic Ask target.",
+    },
+    {
+      subject: { threadId: THREAD_ID },
+      message: "GitHits rejected the Agentic Ask target.",
+    },
+  ])(
+    "keeps 400 guidance accurate for the supplied subject: %j",
+    async ({ subject, message }) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(
+          jsonResponse({ detail: "private provider detail" }, { status: 400 }),
+        ),
+      ) as unknown as typeof fetch;
+      await expect(
+        createService(fetchFn).ask({ ...subject, question: "How?" }),
+      ).rejects.toMatchObject({
+        code: "INVALID_TARGET",
+        status: 400,
+        message,
+        retryable: false,
+      });
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["cli", "url"] as const)(
+    "omits target and thread_id for a question-only %s request",
+    async (sourceFormat) => {
+      let capturedInit: RequestInit | undefined;
+      const fetchFn = mock(
+        (_url: string | URL | Request, init?: RequestInit) => {
+          capturedInit = init;
+          return Promise.resolve(
+            jsonResponse(
+              sourceFormat === "url" ? urlResponseBody() : responseBody(),
+            ),
+          );
+        },
+      ) as unknown as typeof fetch;
+
+      const service = createService(fetchFn);
+      const question = "How does Express routing work?";
+      if (sourceFormat === "url") {
+        await service.ask({ question, sourceFormat });
+      } else {
+        await service.ask({ question });
+      }
+      expect(JSON.parse(String(capturedInit?.body))).toEqual({
+        question,
+        source_format: sourceFormat,
+      });
+    },
+  );
+
   it("sends the CLI source format with standard identity headers", async () => {
     let capturedUrl: string | undefined;
     let capturedInit: RequestInit | undefined;
