@@ -1800,6 +1800,15 @@ function externalGuidancePaths(value: string): string[] {
     /(?:[A-Za-z]:[\\/]|\\\\|\/|~\/|\$[A-Za-z_][A-Za-z0-9_]*\/|\.\.?[\\/]|(?:[A-Za-z0-9_.-]+[\\/])+)[^"'`\s),;]*?(?:AGENTS|CLAUDE|GEMINI|SKILL)\.md|(?:^|[\s"'`(=])(?:AGENTS|CLAUDE|GEMINI|SKILL)\.md/gi;
   for (const match of value.matchAll(pattern)) {
     const path = match[0]?.replace(/^[\s"'`(=]+/, "");
+    // rg --files globs select filenames without reading guidance contents.
+    // Stop at shell operators/substitutions so subsequent reads remain checked.
+    const prefix = value.slice(0, match.index + match[0].length - path.length);
+    if (
+      /(?:^|[\s"'])rg\s+--files(?=\s)[^;&|()`\n$<>]*\s(?:-g\s+|--glob(?:\s+|=))["']?$/.test(
+        prefix,
+      )
+    )
+      continue;
     if (path) paths.push(path);
   }
   return paths;
