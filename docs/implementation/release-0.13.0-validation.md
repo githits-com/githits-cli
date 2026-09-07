@@ -18,8 +18,9 @@ were reconciled against both complete tag ranges:
 The root tag `v0.12.1` resolves to `08ea9c084cc398db991f165d51e0b40653b4625d`;
 `mcp-v0.12.1` resolves to `3debd53e6061c9d401d87a638d756f6efec84b1d`.
 Both match the remote tags. The Go fragment was already present at the root
-release tag, so its entry belongs only in the new MCP section. Historical
-changelog text is unchanged. All six fragments are consumed atomically by
+release tag. The new root section explicitly records it as already shipped in
+CLI 0.12.1, closing the missing release note without implying a new CLI fix.
+The MCP section records its first MCP release. Historical changelog text is unchanged. All six fragments are consumed atomically by
 this coordinated release, accounting for that already-shipped CLI fix.
 
 An initial `git fetch origin --tags` rejected a conflicting historical local
@@ -28,8 +29,9 @@ An initial `git fetch origin --tags` rejected a conflicting historical local
 
 Canonical package and registry versions were updated and plugin assets
 regenerated. The current generator includes a version in portable `plugin.json`,
-contrary to the older versionless wording in agent guidance; the generated
-manifest follows the verified generator and existing published layout.
+contrary to the older versionless wording in agent guidance. That wording is
+corrected in `AGENTS.md` and the internal release skill; the generated manifest
+follows the verified generator and existing published layout.
 
 Public CLI code/docs guidance now uses emitted `docsReadTarget` values and
 separates them from provenance `sourceUrl`. The MCP guide already had this
@@ -60,7 +62,10 @@ Live calls used the repository defaults: `pkgseer.dev`, `api.githits.com`, and
 `mcp.githits.com`. Local MCP ran the candidate's `dist/cli.js` under Node.
 Code search responses contained focused source and semantic context, verifying
 the required backend schema on the default endpoint. Hosted MCP itself was
-not upgraded or used as the candidate tool implementation.
+not upgraded or used as the candidate tool implementation. A direct unauthenticated
+HTTP check returned 200 for hosted OAuth protected-resource metadata (matching
+resource and nonempty authorization servers) and 401 with a `resource_metadata`
+challenge for an MCP initialize request.
 
 ## Search consistency matrix
 
@@ -164,6 +169,34 @@ The controlled workload is recorded in its local artifact:
 > explaining how route handlers are defined. Search package documentation, read
 > a returned documentation target, and cite the evidence in your answer. This
 > task specifically checks the CLI documentation search-to-read handoff.
+
+## Review closure
+
+One Claude Opus review examined commit `097528e`, the complete release delta
+against `origin/main`. No reviewer subagents or additional review rounds ran.
+Findings were adjudicated against the actual tags and release rules:
+
+- Accepted the missing CLI Go release note. The root cause was treating
+  already-shipped behavior as grounds to discard its still-unrecorded note.
+  Both package sections, all consumed fragments, their tag ranges, and the PR
+  description were checked. The new CLI section labels it as already shipped
+  in 0.12.1; MCP lists the new fix. Rejected the suggested edit to historical
+  0.12.1 notes: an omitted detail does not satisfy the repository's explicit
+  historical-edit exception. This decision is dated September 7, 2026.
+- Accepted the CLI summary omission. Its intro now calls out the `->` to `..`
+  migration, consistent with its existing detailed bullet. Both artifact
+  summaries and their compatibility notes were checked.
+- The reviewer correctly observed pending guidance/report edits outside the
+  reviewed commit. Those were ongoing coordinator work, not a release defect;
+  they are included in the final closure commit. The versionless-wording fix
+  was checked in both canonical guidance files and against generated assets.
+
+Codex verified the small documentation closure inline. Generated-asset checks,
+format checking, a fresh root build, and 24 focused skill-packaging/release
+boundary tests (229 assertions) passed. Historical changelog sections remain
+byte-for-byte identical to the base. No finding remains unresolved.
+The reviewer remains available in terminal
+`term_a29891a0-1a5a-4211-a41a-dbb71291e0fd` until merge approval.
 
 ## Delivery boundary
 

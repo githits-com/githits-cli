@@ -7,8 +7,8 @@ are historical records and change only to correct blatant factual errors.
 
 ## [githits 0.13.0] - 2026-09-07
 
-Minor release: adds semantic search context, documentation read targets, and
-simplifies MCP output formats.
+Minor release: adds semantic search context and documentation read targets,
+simplifies MCP output formats, and replaces legacy `->` upgrade ranges with `..`.
 
 ### Added
 
@@ -32,6 +32,14 @@ simplifies MCP output formats.
 - **Text follow-up guidance** - Tool format descriptions, quick_start, and the GitHits
   MCP skill explicitly recommend text for reading and subsequent tool calls, reserving
   JSON for parsing in code or required fields absent from text.
+
+### Fixed
+
+- **Go version compatibility (already shipped in CLI 0.12.1)** - Package
+  documentation, dependency, vulnerability, changelog, and upgrade-review inputs
+  accept exact Go versions with or without `v` and send the canonical
+  `v`-prefixed form. This records the previously omitted CLI release note;
+  the matching MCP fix first ships in 0.13.0.
 
 ## [@githits/mcp 0.13.0] - 2026-09-07
 
