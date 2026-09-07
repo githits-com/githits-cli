@@ -179,13 +179,32 @@ Fuzzy resolve calls completed with the same discovery limitation described
 above. Local replay evidence is under `/tmp/r3b-live-dev-codeberg` and
 `/tmp/r3b-live-dev-gitlab`.
 
-### Remaining acceptance evidence
+### GitLab Swift package regression
 
-The specific stable GitLab Swift fixture coordinate remains unidentified.
-That live regression is pending the coordinate; no stable GitLab Swift live
-pass is claimed. Registry-native Swift GitLab parsing is covered
-deterministically. The draft PR records this remaining check explicitly
-rather than substituting a guessed fixture.
+The public [CoreKit repository](https://gitlab.com/corekit/corekit) supplies
+an independently verified, pinned Swift fixture:
+`swift:gitlab.com/corekit/corekit@1.0.0-rc.2`, resolving to
+`14df5f6fd76f579124a26c6ce03bd08d0446e6de`. The tag is a prerelease; the
+fixture is pinned for reproducibility, not presented as a stable release.
+Its `Package.swift` was read at that exact commit.
+
+Built CLI and built stdio MCP CODE searches completed on both dev and
+production, returning two Swift source hits per surface. Assertions verified
+the registry-native package target, canonical GitLab URL, exact commit, and
+emitted compact `gitlab:corekit/corekit#<sha>` read follow-ups. Both hits were
+read through each surface, and the served commit matched exactly. Initial
+indexing returned provisional hits; the final pinned replay completed with
+current exact reads. Local evidence is under
+`/tmp/r3b-swift-package-production` and `/tmp/r3b-swift-package-dev`.
+The shared consumer parity test includes the real package coordinate
+(20 tests passed after adding this row).
+
+Additional direct CoreKit checks passed files, grep, read, CODE/DOCS search,
+exact code follow-ups, and same-commit CodeDiff on both environments at HEAD
+`bf062e154dc59394bc32a7c7c1fbf1c6e6c3ccd7`. Its changelog probe returned
+`NO_CHANGELOG_ENTRIES`; body preservation is covered by the Codeberg changelog
+and Express upgrade-review fixtures above. The Swift source regression is
+complete and requires no user-supplied fixture coordinate.
 
 To repeat the live direct-target checks with the unpublished build, use
 `node dist/cli.js` for CLI commands and a Node stdio MCP client launching

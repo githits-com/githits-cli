@@ -158,6 +158,7 @@ describe("provider target consumer parity", () => {
     ["zig:cb/zigil/decimal", "ZIG", "cb/zigil/decimal"],
     ["swift:github.com/owner/repo", "SWIFT", "github.com/owner/repo"],
     ["swift:gitlab.com/group/project", "SWIFT", "gitlab.com/group/project"],
+    ["swift:gitlab.com/corekit/corekit", "SWIFT", "gitlab.com/corekit/corekit"],
   ] as const)(
     "preserves registry-native package grammar %s",
     (spec, registry, packageName) => {
