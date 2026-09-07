@@ -93,4 +93,8 @@ longer assumes docs availability, the edited paragraph is wrapped, and the
 completed temporary plan is retired. A bounded scan of the changed resolver docs
 found no other always-available assumption. Positive retained page counts do not
 prove readability; readable stale docs have `docsAvailable: true`.
-The external closure review follows these documentation-only corrections.
+External round 2 confirmed those closures and unchanged runtime/tests. Its
+additional wrapping and page-count wording notes were fixed. The deleted plan
+had included a local source-plan path; that non-credential reference remains in
+commit history, which was not rewritten. The final tree uses durable contract
+and evidence documentation only. Round 3 checks final documentation closure.

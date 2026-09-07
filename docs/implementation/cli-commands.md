@@ -351,20 +351,21 @@ lowercase `mit` spelling renders canonically as `MIT`; other license strings are
 preserved. JSON remains lossless and does not apply presentation ownership.
 Human text renders available docs/code evidence when the corresponding
 availability flag is true. Site rows with `docsAvailable: false` instead say
-`documentation not currently ready`, even when retained page counts are positive
+`documentation not currently ready`, whether a page count is positive, zero,
 or absent. This readiness fact does not block search: a safe, unambiguous
-EXACT/HIGH site best keeps its normal docs-search continuation. Search can initiate
-ordinary backend preparation for admitted sites; resolution does not claim that
-a crawl is queued or preparing. Identity, confidence and candidate order remain
-unchanged, with no substitution of another product. For available evidence,
-positive counts render when supplied; missing counts produce no placeholder.
-Available package and repository code renders as an indexed snapshot at that
-identity's scope, with a file count in parentheses when
+EXACT/HIGH site best keeps its normal docs-search continuation. Search can
+initiate ordinary backend preparation for admitted sites; resolution does not
+claim that a crawl is queued or preparing. Identity, confidence and candidate
+order remain unchanged, with no substitution of another product. For available
+evidence, positive counts render when supplied; missing counts produce no
+placeholder. Available package and repository code renders as an indexed
+snapshot at that identity's scope, with a file count in parentheses when
 present. Unavailable package docs/code and repository code evidence remain
 omitted even when a recorded count is present. Resolver readiness does not
 determine whether a later docs or code command can follow up. Structurally
-inapplicable evidence dimensions are also omitted. `targetsTruncated` produces one note
-that additional related targets were omitted and direct matches are complete.
+inapplicable evidence dimensions are also omitted. `targetsTruncated` produces
+one note that additional related targets were omitted and direct matches are
+complete.
 The backend bounds the complete presentation list to 40 entries: up to 20 ranked
 direct matches, 12 additional protected matches, and 8 related targets. CLI and
 MCP text render that complete bounded list; only backend `targetsTruncated`
@@ -503,9 +504,10 @@ standalone documentation sites.
 `resolveTarget` returns `SITE` targets for standalone documentation sites.
 Without `KNOWN_KIND_VALUES` carrying `site`, those targets would render with
 the unknown-kind `target` label. Site targets report current documentation
-readiness through `docsAvailable`; terminal output shows available docs evidence
-or `documentation not currently ready`, without code, stars, or downloads. `--prefer-kind site` is a soft ranking preference rather
-than a filter, matching the package/repository kind contract.
+readiness through `docsAvailable`; terminal output shows available docs
+evidence or `documentation not currently ready`, without code, stars, or
+downloads. `--prefer-kind site` is a soft ranking preference rather than a
+filter, matching the package/repository kind contract.
 
 The config-gated CLI help, local `resolve_target` description/schema, and local
 experimental server instructions advertise the site kind. Cross-tool guidance
