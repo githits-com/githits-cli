@@ -583,11 +583,12 @@ When a new tool lands with both MCP and CLI surfaces:
 - **Filter boundary and surface text.** `min_severity` / `--severity` applies
   to both direct and transitive evidence, as does `advisory_scope` / `--scope`.
   `include_withdrawn` / `--include-withdrawn` applies only to direct package
-  rows; transitive withdrawn advisories remain excluded. Compact transitive text shows
-  at most five rows globally, verbose text shows all rows, and the final hint is
-  surface-native (`use verbose=true or format=json` for MCP, `use -v` for CLI).
-  The parity test deep-compares equivalent direct and transitive JSON payloads
-  across both surfaces.
+  rows; transitive withdrawn advisories remain excluded. CLI compact text shows
+  every selected direct and transitive row, while MCP compact text shows at most
+  five rows and uses `use verbose=true or format=json` when rows are hidden.
+  Verbose text adds detail without changing CLI row completeness and shows all
+  MCP rows. The parity test deep-compares equivalent direct and transitive JSON
+  payloads across both surfaces.
 - **Partitioning bySeverity buckets.** `summary.bySeverity` carries
   a `malware` key for `isMalicious === true` advisories; severity
   bands for non-malicious advisories with a positive CVSS score;

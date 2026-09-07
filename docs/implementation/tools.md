@@ -194,10 +194,9 @@ rows show `advisory ranges`, `advisory fixes`, then aliases. CLI `--json` and
 MCP `format: "json"` use the same envelope. Compact transitive text omits the
 transitive advisory-wide arrays from the wire; verbose text and JSON
 conditionally select, validate, and preserve them in the field-minimal
-transitive query. The service performs a
-sequential dependency query with the resolved root version and fails closed on
-malformed identity/count/fix evidence instead of returning partial direct-only
-results.
+transitive query. The service performs one sequential dependency query with the
+resolved root version and fails closed on malformed identity/count/fix evidence
+instead of returning partial direct-only results.
 
 ## Ecosystem Audit
 

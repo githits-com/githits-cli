@@ -189,10 +189,10 @@ a second numeric constant. Long atomic package coordinates, advisory IDs, ranges
 fixes, and URLs retain the existing no-split behavior.
 
 For affected occurrences, compact text continues to show `matched` and `nearest fix`;
-verbose adds `higher fixes` and aliases. For historical occurrences, verbose renders
-available `advisory ranges`, `advisory fixes`, and aliases. The word `advisory` is
-required on historical range/fix labels: unqualified `affected` or `fixed in` could
-wrongly imply that the resolved dependency version needs remediation.
+verbose adds non-redundant `higher fixes` and aliases. For historical occurrences,
+verbose renders available `advisory ranges`, `advisory fixes`, and aliases. The word
+`advisory` is required on historical range/fix labels: unqualified `affected` or
+`fixed in` could wrongly imply that the resolved dependency version needs remediation.
 
 ### Structured contract and fetching
 
@@ -396,7 +396,7 @@ Also verify real packages without snapshotting unstable counts:
 
 - `npm:jest --transitive --scope all` in compact and verbose CLI text;
 - one package with currently affected transitive occurrences to verify `matched`,
-  `nearest fix`, and `higher fixes`; and
+  `nearest fix`, and non-redundant `higher fixes`; and
 - one direct package history with more than five advisories to verify the direct CLI
   cap is gone while MCP compact remains bounded.
 
