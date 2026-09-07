@@ -2519,6 +2519,46 @@ describe("agent eval harness", () => {
     }
   });
 
+  it("distinguishes rg filename globs from guidance content reads", () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "agent-eval-globs-"));
+    const violations = (command: string) =>
+      extractEvalValidationViolations(
+        JSON.stringify({ item: { type: "command_execution", command } }),
+        { surface: "mcp", guidanceProfile: "descriptors" },
+        workspaceDir,
+        "codex",
+      );
+    try {
+      for (const command of [
+        `/bin/bash -lc "pwd && rg --files -g 'SKILL.md' -g '*git*' | head -50 && rg -n 'GitHits|githits' . -S --hidden -g '!node_modules' | head -50"`,
+        "rg --files -g SKILL.md",
+        'rg --files --glob="SKILL.md"',
+        "rg --files --glob SKILL.md",
+      ]) {
+        expect(violations(command)).toEqual([]);
+      }
+      for (const command of [
+        "rg --files -g 'SKILL.md' && cat SKILL.md",
+        "rg --files -g 'SKILL.md'; cat SKILL.md",
+        "rg --files -g 'SKILL.md' | xargs cat SKILL.md",
+        'rg --files -g "$(cat SKILL.md)"',
+        "rg --files -g `cat SKILL.md`",
+        "rg -n instructions SKILL.md",
+        "rg instructions -g SKILL.md",
+        "rg --files-with-matches instructions -g SKILL.md",
+      ]) {
+        expect(violations(command)).toEqual([
+          {
+            category: "descriptor-guidance-read",
+            path: "<workspace>/SKILL.md",
+          },
+        ]);
+      }
+    } finally {
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
   it("normalizes delimiters from bare guidance references", () => {
     const workspaceDir = mkdtempSync(
       join(tmpdir(), "agent-eval-bare-guidance-"),
