@@ -128,6 +128,12 @@
       "suites": ["stable-full"]
     },
     {
+      "id": "package-vulnerability-transitive",
+      "path": "eval/agentic/workloads/package-vulnerability-transitive.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
       "id": "package-vulnerability-rubygems",
       "path": "eval/agentic/workloads/package-vulnerability-rubygems.md",
       "safety": "stable",

@@ -11,6 +11,20 @@ import {
   vulnSeverityLabel,
 } from "./package-vulnerabilities-response.js";
 
+const ESC = "\u001b";
+const ANSI_SGR_PATTERN = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
+
+function stripAnsi(value: string): string {
+  return value.replace(ANSI_SGR_PATTERN, "");
+}
+
+function containsTerminalControl(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const code = character.codePointAt(0) ?? 0;
+    return (code >= 0 && code <= 0x1f) || (code >= 0x7f && code <= 0x9f);
+  });
+}
+
 function cloneFixture(): VulnerabilityReport {
   return structuredClone(defaultVulnerabilityReport);
 }
@@ -25,6 +39,147 @@ function zeroVulnsFixture(): VulnerabilityReport {
       currentVersionAffected: false,
       upgradePaths: [],
       vulnerabilities: [],
+    },
+  };
+}
+
+function transitiveVulnerabilityFixture(): VulnerabilityReport {
+  return {
+    package: { name: "express", registry: "NPM", version: "5.2.1" },
+    security: {
+      affectedVulnerabilityCount: 0,
+      nonAffectingVulnerabilityCount: 0,
+      allVulnerabilityCount: 0,
+      currentVersionAffected: false,
+      vulnerabilities: [],
+      upgradePaths: [],
+    },
+    transitive: {
+      advisoryScope: "AFFECTED",
+      totalPackagesAnalyzed: 49,
+      packageCount: 3,
+      occurrenceCount: 7,
+      calculatedAt: "2025-01-01T12:00:00Z",
+      packages: [
+        {
+          registry: "PYPI",
+          name: "zeta",
+          occurrenceCount: 2,
+          occurrences: [
+            {
+              version: "2.0.0",
+              affectsResolvedVersion: true,
+              matchedAffectedVersionRanges: [">= 1.0.0, < 2.1.0"],
+              fixVersionsAboveResolved: ["2.1.0"],
+              nearestFixedVersion: "2.1.0",
+              advisory: {
+                osvId: "GHSA-zeta-medium",
+                aliases: [],
+                summary: "Medium zeta issue",
+                severityScore: 5.5,
+                publishedAt: "2024-03-01T00:00:00Z",
+                modifiedAt: "2024-03-02T00:00:00Z",
+              },
+            },
+            {
+              version: "2.0.0",
+              affectsResolvedVersion: true,
+              matchedAffectedVersionRanges: ["< 2.0.2"],
+              fixVersionsAboveResolved: ["2.0.2"],
+              nearestFixedVersion: "2.0.2",
+              advisory: {
+                osvId: "GHSA-zeta-low",
+                summary: "Low zeta issue",
+                severityScore: 1.1,
+                publishedAt: "2024-02-01T00:00:00Z",
+                modifiedAt: "2024-02-01T00:00:00Z",
+              },
+            },
+          ],
+        },
+        {
+          registry: "NPM",
+          name: "body-parser",
+          occurrenceCount: 3,
+          occurrences: [
+            {
+              version: "1.19.0",
+              affectsResolvedVersion: true,
+              matchedAffectedVersionRanges: [">= 1.0.0, < 2.0.0"],
+              fixVersionsAboveResolved: ["2.0.0"],
+              nearestFixedVersion: "2.0.0",
+              advisory: {
+                osvId: "GHSA-body-mal",
+                aliases: ["CVE-shared", "CVE-malware"],
+                summary: "Malware body-parser issue",
+                severityScore: 9.8,
+                publishedAt: "2024-05-01T00:00:00Z",
+                modifiedAt: "2024-05-01T00:00:00Z",
+                isMalicious: true,
+              },
+            },
+            {
+              version: "1.19.0",
+              affectsResolvedVersion: true,
+              matchedAffectedVersionRanges: [">= 1.0.0, < 1.20.3"],
+              fixVersionsAboveResolved: ["1.20.3", "2.0.0"],
+              nearestFixedVersion: "1.20.3",
+              advisory: {
+                osvId: "GHSA-body-high",
+                aliases: ["CVE-shared"],
+                summary: "High body-parser issue",
+                severityScore: 8.0,
+                publishedAt: "2024-04-01T00:00:00Z",
+                modifiedAt: "2024-06-02T00:00:00Z",
+              },
+            },
+            {
+              version: "1.19.1",
+              affectsResolvedVersion: true,
+              matchedAffectedVersionRanges: ["< 1.19.2"],
+              fixVersionsAboveResolved: [],
+              advisory: {
+                aliases: ["CVE-unrated"],
+                summary: "No score body-parser issue",
+                publishedAt: "2024-01-01T00:00:00Z",
+              },
+            },
+          ],
+        },
+        {
+          registry: "NPM",
+          name: "accepts",
+          occurrenceCount: 2,
+          occurrences: [
+            {
+              version: "1.3.8",
+              affectsResolvedVersion: true,
+              matchedAffectedVersionRanges: ["< 1.3.9"],
+              fixVersionsAboveResolved: ["1.3.9"],
+              nearestFixedVersion: "1.3.9",
+              advisory: {
+                osvId: "GHSA-accept-critical",
+                summary: "Critical accepts issue",
+                severityScore: 9.1,
+                publishedAt: "2024-07-01T00:00:00Z",
+              },
+            },
+            {
+              version: "1.3.8",
+              affectsResolvedVersion: true,
+              matchedAffectedVersionRanges: ["< 1.3.9"],
+              fixVersionsAboveResolved: ["1.3.9"],
+              nearestFixedVersion: "1.3.9",
+              advisory: {
+                osvId: "GHSA-accept-low",
+                summary: "Low accepts issue",
+                severityScore: 3.2,
+                publishedAt: "2024-01-15T00:00:00Z",
+              },
+            },
+          ],
+        },
+      ],
     },
   };
 }
@@ -147,6 +302,274 @@ describe("buildPackageVulnerabilitiesSuccessPayload — happy path", () => {
       "GHSA-zzzz-zzzz-zzzz", // low 3.2
       "GHSA-nnnn-nnnn-nnnn", // null severity
     ]);
+  });
+});
+
+describe("buildPackageVulnerabilitiesSuccessPayload — transitive audit", () => {
+  it("maps a positive audit completely, lowercases registries, and keeps occurrence aliases distinct", () => {
+    const payload = buildPackageVulnerabilitiesSuccessPayload(
+      transitiveVulnerabilityFixture(),
+    );
+
+    expect(payload.transitive).toEqual({
+      scope: "resolved_dependencies",
+      advisoryScope: "affected",
+      withdrawnAdvisoriesIncluded: false,
+      summary: {
+        totalPackagesAnalyzed: 49,
+        packageCount: 3,
+        occurrenceCount: 7,
+        bySeverity: {
+          malware: 1,
+          critical: 1,
+          high: 1,
+          medium: 1,
+          low: 2,
+          unrated: 1,
+        },
+      },
+      calculatedAt: "2025-01-01T12:00:00Z",
+      packages: [
+        {
+          registry: "npm",
+          name: "accepts",
+          occurrenceCount: 2,
+          occurrences: [
+            {
+              resolvedVersion: "1.3.8",
+              affectsResolvedVersion: true,
+              id: "GHSA-accept-critical",
+              summary: "Critical accepts issue",
+              severity: 9.1,
+              severityLabel: "critical",
+              matchedAffectedVersionRanges: ["< 1.3.9"],
+              fixVersionsAboveResolved: ["1.3.9"],
+              nearestFixedVersion: "1.3.9",
+              publishedAt: "2024-07-01",
+            },
+            {
+              resolvedVersion: "1.3.8",
+              affectsResolvedVersion: true,
+              id: "GHSA-accept-low",
+              summary: "Low accepts issue",
+              severity: 3.2,
+              severityLabel: "low",
+              matchedAffectedVersionRanges: ["< 1.3.9"],
+              fixVersionsAboveResolved: ["1.3.9"],
+              nearestFixedVersion: "1.3.9",
+              publishedAt: "2024-01-15",
+            },
+          ],
+        },
+        {
+          registry: "npm",
+          name: "body-parser",
+          occurrenceCount: 3,
+          occurrences: [
+            {
+              resolvedVersion: "1.19.0",
+              affectsResolvedVersion: true,
+              id: "GHSA-body-mal",
+              aliases: ["CVE-shared", "CVE-malware"],
+              summary: "Malware body-parser issue",
+              severity: 9.8,
+              severityLabel: "critical",
+              matchedAffectedVersionRanges: [">= 1.0.0, < 2.0.0"],
+              fixVersionsAboveResolved: ["2.0.0"],
+              nearestFixedVersion: "2.0.0",
+              publishedAt: "2024-05-01",
+              isMalicious: true,
+            },
+            {
+              resolvedVersion: "1.19.0",
+              affectsResolvedVersion: true,
+              id: "GHSA-body-high",
+              aliases: ["CVE-shared"],
+              summary: "High body-parser issue",
+              severity: 8,
+              severityLabel: "high",
+              matchedAffectedVersionRanges: [">= 1.0.0, < 1.20.3"],
+              fixVersionsAboveResolved: ["1.20.3", "2.0.0"],
+              nearestFixedVersion: "1.20.3",
+              publishedAt: "2024-04-01",
+              modifiedAt: "2024-06-02",
+            },
+            {
+              resolvedVersion: "1.19.1",
+              affectsResolvedVersion: true,
+              aliases: ["CVE-unrated"],
+              summary: "No score body-parser issue",
+              matchedAffectedVersionRanges: ["< 1.19.2"],
+              fixVersionsAboveResolved: [],
+              publishedAt: "2024-01-01",
+            },
+          ],
+        },
+        {
+          registry: "pypi",
+          name: "zeta",
+          occurrenceCount: 2,
+          occurrences: [
+            {
+              resolvedVersion: "2.0.0",
+              affectsResolvedVersion: true,
+              id: "GHSA-zeta-medium",
+              summary: "Medium zeta issue",
+              severity: 5.5,
+              severityLabel: "medium",
+              matchedAffectedVersionRanges: [">= 1.0.0, < 2.1.0"],
+              fixVersionsAboveResolved: ["2.1.0"],
+              nearestFixedVersion: "2.1.0",
+              publishedAt: "2024-03-01",
+              modifiedAt: "2024-03-02",
+            },
+            {
+              resolvedVersion: "2.0.0",
+              affectsResolvedVersion: true,
+              id: "GHSA-zeta-low",
+              summary: "Low zeta issue",
+              severity: 1.1,
+              severityLabel: "low",
+              matchedAffectedVersionRanges: ["< 2.0.2"],
+              fixVersionsAboveResolved: ["2.0.2"],
+              nearestFixedVersion: "2.0.2",
+              publishedAt: "2024-02-01",
+            },
+          ],
+        },
+      ],
+    });
+    expect(payload.transitive?.packages[1]?.occurrences).toHaveLength(3);
+    expect(payload.transitive?.packages[1]?.occurrences[0]?.aliases).toContain(
+      "CVE-shared",
+    );
+    expect(payload.transitive?.packages[1]?.occurrences[1]?.aliases).toContain(
+      "CVE-shared",
+    );
+  });
+
+  it("preserves transitive advisory-wide details in JSON", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const sourceOccurrence = fixture.transitive?.packages[0]?.occurrences[0];
+    if (!sourceOccurrence) throw new Error("fixture missing source occurrence");
+    const advisoryRanges = [">= 0.0.0, < 2.0.0"];
+    const advisoryFixes = ["2.2.0"];
+    sourceOccurrence.advisory.affectedVersionRanges = advisoryRanges;
+    sourceOccurrence.advisory.fixedInVersions = advisoryFixes;
+
+    const payload = buildPackageVulnerabilitiesSuccessPayload(fixture);
+    const projectedOccurrence = payload.transitive?.packages
+      .find((pkg) => pkg.name === "zeta")
+      ?.occurrences.find((occurrence) => occurrence.id === "GHSA-zeta-medium");
+    if (!projectedOccurrence) {
+      throw new Error("projected advisory-wide details are missing");
+    }
+
+    expect(projectedOccurrence.affectedRanges).toEqual(advisoryRanges);
+    expect(projectedOccurrence.fixedIn).toEqual(advisoryFixes);
+    expect(projectedOccurrence.affectedRanges).not.toBe(advisoryRanges);
+    expect(projectedOccurrence.fixedIn).not.toBe(advisoryFixes);
+    expect(projectedOccurrence.matchedAffectedVersionRanges).toEqual([
+      ">= 1.0.0, < 2.1.0",
+    ]);
+    expect(projectedOccurrence.fixVersionsAboveResolved).toEqual(["2.1.0"]);
+  });
+
+  it("omits unavailable transitive advisory-wide details from JSON", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const sourceOccurrences = fixture.transitive?.packages[0]?.occurrences;
+    if (!sourceOccurrences?.[0] || !sourceOccurrences[1]) {
+      throw new Error("fixture missing source occurrences");
+    }
+    sourceOccurrences[0].advisory.affectedVersionRanges = [];
+    sourceOccurrences[0].advisory.fixedInVersions = [];
+    sourceOccurrences[1].advisory.affectedVersionRanges = undefined;
+    sourceOccurrences[1].advisory.fixedInVersions = undefined;
+
+    const payload = buildPackageVulnerabilitiesSuccessPayload(fixture);
+    const projectedOccurrences =
+      payload.transitive?.packages.flatMap((pkg) => pkg.occurrences) ?? [];
+    expect(projectedOccurrences).toHaveLength(7);
+    for (const occurrence of projectedOccurrences) {
+      expect(Object.hasOwn(occurrence, "affectedRanges")).toBe(false);
+      expect(Object.hasOwn(occurrence, "fixedIn")).toBe(false);
+    }
+  });
+
+  it("emits an exact checked-clean transitive block with an empty package list", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    fixture.transitive = {
+      advisoryScope: "AFFECTED",
+      totalPackagesAnalyzed: 101,
+      packageCount: 0,
+      occurrenceCount: 0,
+      packages: [],
+    };
+    expect(
+      buildPackageVulnerabilitiesSuccessPayload(fixture).transitive,
+    ).toEqual({
+      scope: "resolved_dependencies",
+      advisoryScope: "affected",
+      withdrawnAdvisoriesIncluded: false,
+      summary: {
+        totalPackagesAnalyzed: 101,
+        packageCount: 0,
+        occurrenceCount: 0,
+      },
+      packages: [],
+    });
+  });
+
+  it("preserves and labels historical dependency occurrences under all scope", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const sourceOccurrence = fixture.transitive?.packages[1]?.occurrences[1];
+    if (!sourceOccurrence) throw new Error("fixture missing occurrence");
+    const historical = structuredClone(sourceOccurrence);
+    historical.affectsResolvedVersion = false;
+    historical.matchedAffectedVersionRanges = [];
+    historical.fixVersionsAboveResolved = [];
+    delete historical.nearestFixedVersion;
+    fixture.transitive = {
+      advisoryScope: "ALL",
+      totalPackagesAnalyzed: 49,
+      packageCount: 1,
+      occurrenceCount: 1,
+      packages: [
+        {
+          registry: "NPM",
+          name: "body-parser",
+          occurrenceCount: 1,
+          occurrences: [historical],
+        },
+      ],
+    };
+
+    const payload = buildPackageVulnerabilitiesSuccessPayload(fixture);
+    expect(payload.transitive).toMatchObject({
+      advisoryScope: "all",
+      summary: { packageCount: 1, occurrenceCount: 1 },
+      packages: [
+        {
+          occurrences: [
+            {
+              affectsResolvedVersion: false,
+              matchedAffectedVersionRanges: [],
+              fixVersionsAboveResolved: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      verbose: true,
+      useColors: false,
+      terminalWidth: 120,
+    });
+    expect(output).toContain(
+      "1 advisory occurrence (0 affected, 1 historical) in 1 dependency package",
+    );
+    expect(output).toContain("body-parser@1.19.0  [historical]");
   });
 });
 
@@ -766,6 +1189,553 @@ describe("buildPackageVulnerabilitiesSuccessPayload — alias-cluster dedup inte
 });
 
 describe("formatPackageVulnerabilitiesTerminal", () => {
+  it("appends positive resolved-dependency evidence after direct clean evidence", () => {
+    const output = formatPackageVulnerabilitiesTerminal(
+      transitiveVulnerabilityFixture(),
+      { useColors: false, terminalWidth: 120 },
+    );
+    expect(output).toContain(
+      "No active vulnerabilities affect this version.\n\nResolved dependencies",
+    );
+    expect(output).toContain(
+      "7 affected advisory occurrences in 3 dependency packages; 49 resolved package versions checked.",
+    );
+    expect(output).toContain(
+      "1 MALWARE | 1 critical | 1 high | 1 medium | 2 low | 1 unrated",
+    );
+    expect(output).toContain("MALWARE   body-parser@1.19.0  GHSA-body-mal");
+    expect(output).toContain("critical  accepts@1.3.8  GHSA-accept-critical");
+    expect(output).toContain("            matched         >= 1.0.0, < 2.0.0");
+    expect(output).toContain("            nearest fix     2.0.0");
+    expect(output.indexOf("Resolved dependencies")).toBeGreaterThan(
+      output.indexOf("No active vulnerabilities affect this version."),
+    );
+  });
+
+  it("renders exact zero and singular transitive wording", () => {
+    const zero = transitiveVulnerabilityFixture();
+    zero.transitive = {
+      advisoryScope: "AFFECTED",
+      totalPackagesAnalyzed: 1,
+      packageCount: 0,
+      occurrenceCount: 0,
+      packages: [],
+    };
+    const zeroOutput = formatPackageVulnerabilitiesTerminal(zero, {
+      useColors: false,
+      terminalWidth: 120,
+    });
+    expect(zeroOutput).toContain(
+      "No affected advisory occurrences found; 1 resolved package version checked.",
+    );
+
+    const singular = transitiveVulnerabilityFixture();
+    const firstPackage = singular.transitive?.packages[0];
+    const firstOccurrence = firstPackage?.occurrences[0];
+    if (!firstPackage || !firstOccurrence) {
+      throw new Error("fixture missing singular transitive occurrence");
+    }
+    singular.transitive = {
+      advisoryScope: "AFFECTED",
+      totalPackagesAnalyzed: 1,
+      packageCount: 1,
+      occurrenceCount: 1,
+      packages: [
+        {
+          ...firstPackage,
+          occurrenceCount: 1,
+          occurrences: [firstOccurrence],
+        },
+      ],
+    };
+    const singularOutput = formatPackageVulnerabilitiesTerminal(singular, {
+      useColors: false,
+      terminalWidth: 120,
+    });
+    expect(singularOutput).toContain(
+      "1 affected advisory occurrence in 1 dependency package; 1 resolved package version checked.",
+    );
+  });
+
+  it("keeps CLI compact transitive rows complete while MCP compact remains capped", () => {
+    const cli = formatPackageVulnerabilitiesTerminal(
+      transitiveVulnerabilityFixture(),
+      { useColors: false, surface: "cli", terminalWidth: 120 },
+    );
+    expect(cli).toContain("GHSA-body-mal");
+    expect(cli).toContain("GHSA-accept-critical");
+    expect(cli).toContain("GHSA-body-high");
+    expect(cli).toContain("GHSA-zeta-medium");
+    expect(cli).toContain("GHSA-accept-low");
+    expect(cli).toContain("GHSA-zeta-low");
+    expect(cli).toContain("No score body-parser issue");
+    expect(cli).not.toContain("... (+2 more; use -v)");
+
+    const mcp = formatPackageVulnerabilitiesTerminal(
+      transitiveVulnerabilityFixture(),
+      { useColors: false, surface: "mcp", terminalWidth: 120 },
+    );
+    expect(mcp).not.toContain("No score body-parser issue");
+    expect(mcp).toContain("... (+2 more; use verbose=true or format=json)");
+    expect(mcp).not.toContain("use -v");
+  });
+
+  it("wraps mixed-severity breakdowns and capped-row hints at narrow widths", () => {
+    const output = formatPackageVulnerabilitiesTerminal(
+      transitiveVulnerabilityFixture(),
+      { useColors: false, surface: "mcp", terminalWidth: 20 },
+    );
+    const sectionLines = output
+      .slice(output.indexOf("Resolved dependencies"))
+      .split("\n");
+    const breakdownLines = sectionLines.filter((line) =>
+      /^ {2}\d+ (?:MALWARE|critical|high|medium|low|unrated)(?: |$)/.test(line),
+    );
+    expect(breakdownLines.length).toBeGreaterThan(1);
+    expect(breakdownLines.every((line) => line.length <= 20)).toBe(true);
+
+    const hintIndex = sectionLines.findIndex((line) =>
+      line.startsWith("... (+2"),
+    );
+    expect(hintIndex).toBeGreaterThan(-1);
+    const hintLines = sectionLines.slice(hintIndex);
+    expect(hintLines.every((line) => line.length <= 20)).toBe(true);
+    expect(hintLines.join(" ").replace(/\s+/g, " ")).toContain(
+      "... (+2 more; use verbose=true or format=json)",
+    );
+  });
+
+  it("shows every transitive occurrence and verbose fixes, aliases, and missing-fix evidence", () => {
+    const output = formatPackageVulnerabilitiesTerminal(
+      transitiveVulnerabilityFixture(),
+      { useColors: false, verbose: true, terminalWidth: 120 },
+    );
+    expect(output).toContain("GHSA-zeta-low");
+    expect(output).toContain("CVE-shared");
+    const highBlockStart = output.indexOf("GHSA-body-high");
+    const highBlockEnd = output.indexOf("  medium", highBlockStart);
+    const highBlock = output.slice(highBlockStart, highBlockEnd);
+    expect(highBlock).toContain("higher fixes    1.20.3, 2.0.0");
+    expect(highBlock.indexOf("matched")).toBeLessThan(
+      highBlock.indexOf("nearest fix"),
+    );
+    expect(highBlock.indexOf("nearest fix")).toBeLessThan(
+      highBlock.indexOf("higher fixes"),
+    );
+    expect(highBlock.indexOf("higher fixes")).toBeLessThan(
+      highBlock.indexOf("aliases"),
+    );
+    expect(output).toContain("no higher fixed version known");
+    expect(output).not.toContain("+2 more; use -v");
+  });
+
+  it("omits a singleton higher fix that repeats the nearest fix", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const audit = fixture.transitive;
+    const sourcePackage = audit?.packages[0];
+    const sourceOccurrence = sourcePackage?.occurrences[0];
+    if (!audit || !sourcePackage || !sourceOccurrence) {
+      throw new Error("fixture missing singleton transitive occurrence");
+    }
+    const occurrence = structuredClone(sourceOccurrence);
+    occurrence.fixVersionsAboveResolved = ["2.1.0"];
+    occurrence.nearestFixedVersion = "2.1.0";
+    fixture.transitive = {
+      ...audit,
+      packageCount: 1,
+      occurrenceCount: 1,
+      packages: [
+        {
+          ...sourcePackage,
+          occurrenceCount: 1,
+          occurrences: [occurrence],
+        },
+      ],
+    };
+
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: false,
+      verbose: true,
+      terminalWidth: 120,
+    });
+    expect(output).toContain("nearest fix     2.1.0");
+    expect(output).not.toContain("higher fixes");
+  });
+
+  it("retains multiple higher fixes beyond the nearest fix", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const audit = fixture.transitive;
+    const sourcePackage = audit?.packages[0];
+    const sourceOccurrence = sourcePackage?.occurrences[0];
+    if (!audit || !sourcePackage || !sourceOccurrence) {
+      throw new Error("fixture missing multi-candidate transitive occurrence");
+    }
+    const occurrence = structuredClone(sourceOccurrence);
+    occurrence.fixVersionsAboveResolved = ["2.1.0", "3.0.0"];
+    occurrence.nearestFixedVersion = "2.1.0";
+    fixture.transitive = {
+      ...audit,
+      packageCount: 1,
+      occurrenceCount: 1,
+      packages: [
+        {
+          ...sourcePackage,
+          occurrenceCount: 1,
+          occurrences: [occurrence],
+        },
+      ],
+    };
+
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: false,
+      verbose: true,
+      terminalWidth: 120,
+    });
+    expect(output).toContain("nearest fix     2.1.0");
+    expect(output).toContain("higher fixes    2.1.0, 3.0.0");
+  });
+
+  it("renders aligned verbose historical advisory evidence", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const sourceOccurrence = fixture.transitive?.packages[1]?.occurrences[1];
+    if (!sourceOccurrence) throw new Error("fixture missing occurrence");
+    const historical = structuredClone(sourceOccurrence);
+    historical.affectsResolvedVersion = false;
+    historical.matchedAffectedVersionRanges = [];
+    historical.fixVersionsAboveResolved = [];
+    delete historical.nearestFixedVersion;
+    historical.advisory.affectedVersionRanges = [">= 1.0.0, < 1.20.3"];
+    historical.advisory.fixedInVersions = ["1.20.3", "2.0.0"];
+    historical.advisory.aliases = ["CVE-history", "GHSA-history"];
+    fixture.transitive = {
+      advisoryScope: "ALL",
+      totalPackagesAnalyzed: 49,
+      packageCount: 1,
+      occurrenceCount: 1,
+      packages: [
+        {
+          registry: "NPM",
+          name: "body-parser",
+          occurrenceCount: 1,
+          occurrences: [historical],
+        },
+      ],
+    };
+
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      verbose: true,
+      useColors: false,
+      terminalWidth: 120,
+    });
+    const lines = output.split("\n");
+    const headlineIndex = lines.findIndex((line) =>
+      line.includes("body-parser@1.19.0  [historical]"),
+    );
+    expect(headlineIndex).toBeGreaterThan(-1);
+    const historicalLines = lines.slice(headlineIndex + 1).filter(Boolean);
+    expect(historicalLines).toEqual([
+      "            advisory ranges >= 1.0.0, < 1.20.3",
+      "            advisory fixes  1.20.3, 2.0.0",
+      "            aliases         CVE-history, GHSA-history",
+    ]);
+    expect(historicalLines.join("\n")).not.toContain("matched");
+    expect(historicalLines.join("\n")).not.toContain("nearest fix");
+    expect(historicalLines.join("\n")).not.toContain("higher fixes");
+    expect(historicalLines.join("\n")).not.toContain(
+      "no higher fixed version known",
+    );
+  });
+
+  it("states transitive withdrawn-advisory semantics once", () => {
+    const output = formatPackageVulnerabilitiesTerminal(
+      transitiveVulnerabilityFixture(),
+      {
+        useColors: false,
+        filter: { includeWithdrawn: true },
+        terminalWidth: 120,
+      },
+    );
+    expect(output).toContain("Filter  include withdrawn");
+    expect(output).toContain(
+      "Dependency analysis excludes withdrawn advisories.",
+    );
+    expect(
+      output.match(/Dependency analysis excludes withdrawn advisories\./g),
+    ).toHaveLength(1);
+  });
+
+  it("sorts flattened transitive rows by risk then stable package identity", () => {
+    const output = formatPackageVulnerabilitiesTerminal(
+      transitiveVulnerabilityFixture(),
+      { useColors: false, verbose: true, terminalWidth: 120 },
+    );
+    const ordered = [
+      "GHSA-body-mal",
+      "GHSA-accept-critical",
+      "GHSA-body-high",
+      "GHSA-zeta-medium",
+      "GHSA-accept-low",
+      "GHSA-zeta-low",
+      "CVE-unrated",
+    ];
+    const positions = ordered.map((id) => output.indexOf(id));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
+
+  it("aligns transitive detail hierarchy across terminal widths", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const coordinateIndent = "  ".length + "critical".length + "  ".length;
+    const valueIndent = coordinateIndent + "advisory ranges".length + 1;
+    fixture.transitive = {
+      advisoryScope: "AFFECTED",
+      totalPackagesAnalyzed: 1,
+      packageCount: 1,
+      occurrenceCount: 1,
+      packages: [
+        {
+          registry: "NPM",
+          name: "x",
+          occurrenceCount: 1,
+          occurrences: [
+            {
+              version: "1",
+              affectsResolvedVersion: true,
+              matchedAffectedVersionRanges: Array.from(
+                { length: 11 },
+                (_, index) => `range-${index + 1}`,
+              ),
+              fixVersionsAboveResolved: Array.from(
+                { length: 11 },
+                (_, index) => `fix-${index + 1}`,
+              ),
+              nearestFixedVersion: "2",
+              advisory: {
+                osvId: "A",
+                summary:
+                  "summary-one summary-two summary-three summary-four summary-five summary-six summary-seven summary-eight summary-nine summary-ten summary-eleven summary-twelve",
+                severityScore: 8,
+              },
+            },
+          ],
+        },
+      ],
+    };
+    for (const width of [20, 40, 80, 120]) {
+      const output = formatPackageVulnerabilitiesTerminal(fixture, {
+        useColors: false,
+        verbose: true,
+        terminalWidth: width,
+      });
+      const section = output.slice(output.indexOf("Resolved dependencies"));
+      const [heading, ...sectionLines] = section.split("\n");
+      expect(heading).toBe("Resolved dependencies");
+      const detailLines = sectionLines.filter((line) =>
+        /^( +)(?:matched|nearest fix|higher fixes|aliases)\s/.test(line),
+      );
+      expect(detailLines.length).toBeGreaterThan(0);
+      expect(
+        detailLines.every((line) =>
+          line.startsWith(" ".repeat(coordinateIndent)),
+        ),
+      ).toBe(true);
+
+      const wrappedValueLines = sectionLines.filter(
+        (line) =>
+          line.startsWith(" ".repeat(valueIndent)) &&
+          /(?:range-|fix-)/.test(line),
+      );
+      expect(wrappedValueLines.length).toBeGreaterThan(0);
+      expect(
+        wrappedValueLines.every((line) =>
+          line.startsWith(" ".repeat(valueIndent)),
+        ),
+      ).toBe(true);
+
+      const wrappedSummaryLines = sectionLines.filter((line) =>
+        line.startsWith(`${" ".repeat(coordinateIndent)}summary-`),
+      );
+      expect(wrappedSummaryLines.length).toBeGreaterThan(0);
+      expect(
+        wrappedSummaryLines.every((line) =>
+          line.startsWith(" ".repeat(coordinateIndent)),
+        ),
+      ).toBe(true);
+
+      if (width >= 40) {
+        expect(sectionLines.every((line) => line.length <= width)).toBe(true);
+      } else {
+        expect(sectionLines.some((line) => line.length > width)).toBe(true);
+        expect(
+          sectionLines.some((line) =>
+            line.startsWith(" ".repeat(coordinateIndent)),
+          ),
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("does not split atomic coordinates, advisory IDs, or URLs", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const firstPackage = fixture.transitive?.packages[0];
+    const firstOccurrence = firstPackage?.occurrences[0];
+    if (!firstPackage || !firstOccurrence) {
+      throw new Error("fixture missing atomic transitive occurrence");
+    }
+    firstPackage.name = "package-with-a-long-coordinate";
+    firstOccurrence.version = "123456789.0.0";
+    firstOccurrence.advisory.osvId =
+      "GHSA-very-long-advisory-identity-123456789";
+    firstOccurrence.advisory.summary =
+      "See https://example.com/advisories/very-long-advisory-reference";
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: false,
+      verbose: true,
+      terminalWidth: 20,
+    });
+    expect(output).toContain("package-with-a-long-coordinate@123456789.0.0");
+    expect(output).toContain("GHSA-very-long-advisory-identity-123456789");
+    expect(output).toContain(
+      "https://example.com/advisories/very-long-advisory-reference",
+    );
+  });
+
+  it("keeps color and no-color words identical and preserves Unicode", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const firstPackage = fixture.transitive?.packages[0];
+    if (!firstPackage) throw new Error("fixture missing Unicode package");
+    firstPackage.name = "zéta-日本";
+    const plain = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: false,
+      verbose: true,
+      terminalWidth: 120,
+    });
+    const colored = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: true,
+      verbose: true,
+      terminalWidth: 120,
+    });
+    expect(colored).toContain("\u001b[");
+    expect(stripAnsi(colored)).toBe(plain);
+    expect(plain).toContain("zéta-日本@2.0.0");
+  });
+
+  it("sanitizes direct and transitive display fields while JSON retains source strings", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    fixture.package.name = "express\u001b[31m";
+    fixture.package.version = "5.2.1\u001b]0;owned\u0007";
+    fixture.security = {
+      affectedVulnerabilityCount: 1,
+      nonAffectingVulnerabilityCount: 0,
+      allVulnerabilityCount: 1,
+      currentVersionAffected: true,
+      upgradePaths: ["6.0.0\u001bM"],
+      vulnerabilities: [
+        {
+          osvId: "GHSA-direct\u001b[31m",
+          aliases: ["CVE-direct\u009b"],
+          summary: "direct\nsummary\u0007",
+          severityScore: 7.5,
+          affectedVersionRanges: [">= 5.0.0\u001b[31m, < 6.0.0"],
+          affectedVersionRangesCount: 1,
+          affectedVersionRangesTruncated: false,
+          fixedInVersions: ["6.0.0\u001b]8;;evil\u0007"],
+          publishedAt: "2024-01-01T00:00:00Z",
+          modifiedAt: "2024-01-02T00:00:00Z",
+          affectsInspectedVersion: true,
+          matchedAffectedVersionRanges: [],
+          duplicateIds: [],
+        },
+      ],
+    };
+    const transitivePackage = fixture.transitive?.packages[0];
+    const transitiveOccurrence = transitivePackage?.occurrences[0];
+    if (!transitivePackage || !transitiveOccurrence) {
+      throw new Error("fixture missing hostile transitive occurrence");
+    }
+    transitivePackage.name = "dep\u0080";
+    transitiveOccurrence.version = "2.0.0\u001b8";
+    transitiveOccurrence.matchedAffectedVersionRanges = ["< 2.1.0\u0000"];
+    transitiveOccurrence.fixVersionsAboveResolved = ["2.1.0\u001b[32m"];
+    transitiveOccurrence.nearestFixedVersion = "2.1.0\u009f";
+    transitiveOccurrence.advisory.osvId = "GHSA-transitive\u001b]0;x\u0007";
+    transitiveOccurrence.advisory.aliases = ["CVE-transitive\u0007"];
+    transitiveOccurrence.advisory.summary = "transitive\tadvisory\u001bM";
+
+    const requestedVersion = "5.0.0\u0007";
+    const filter = {
+      minSeverity: "high\u001b[31m" as "high",
+      includeWithdrawn: true as const,
+    };
+    const payload = buildPackageVulnerabilitiesSuccessPayload(fixture, {
+      requestedVersion,
+      filter,
+    });
+    expect(payload.name).toBe(fixture.package.name);
+    expect(payload.version).toBe(fixture.package.version);
+    expect(payload.advisories?.[0]?.id).toBe("GHSA-direct\u001b[31m");
+    expect(payload.advisories?.[0]?.summary).toBe("direct\nsummary\u0007");
+    const hostilePackage = payload.transitive?.packages.find(
+      (pkg) => pkg.name === "dep\u0080",
+    );
+    expect(hostilePackage?.name).toBe("dep\u0080");
+    expect(hostilePackage?.occurrences[0]?.id).toBe(
+      "GHSA-transitive\u001b]0;x\u0007",
+    );
+
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      requestedVersion,
+      filter,
+      useColors: false,
+      verbose: true,
+      terminalWidth: 120,
+    });
+    const withoutLineBreaks = output.replace(/\n/g, "");
+    expect(containsTerminalControl(withoutLineBreaks)).toBe(false);
+    expect(output).toContain("direct summary");
+    expect(output).toContain("dep@2.0.0");
+    expect(output).toContain("CVE-transitive");
+    expect(output).toContain("Filter  severity >= high");
+    expect(output).toContain("(requested 5.0.0)");
+  });
+
+  it("sanitizes historical advisory-wide details", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const sourceOccurrence = fixture.transitive?.packages[1]?.occurrences[1];
+    if (!sourceOccurrence)
+      throw new Error("fixture missing historical occurrence");
+    sourceOccurrence.affectsResolvedVersion = false;
+    sourceOccurrence.matchedAffectedVersionRanges = [];
+    sourceOccurrence.fixVersionsAboveResolved = [];
+    delete sourceOccurrence.nearestFixedVersion;
+    const advisoryRanges = [">= 1.0.0, < 1.20.3\u001b[31m", "< 2.0.0\u009b"];
+    const advisoryFixes = ["1.20.3\u001b]8;;evil\u0007", "2.0.0\u0007"];
+    sourceOccurrence.advisory.affectedVersionRanges = advisoryRanges;
+    sourceOccurrence.advisory.fixedInVersions = advisoryFixes;
+
+    const payload = buildPackageVulnerabilitiesSuccessPayload(fixture);
+    const jsonPayload = JSON.parse(JSON.stringify(payload)) as typeof payload;
+    const projectedOccurrence = jsonPayload.transitive?.packages
+      .find((pkg) => pkg.name === "body-parser")
+      ?.occurrences.find((occurrence) => occurrence.id === "GHSA-body-high");
+    expect(projectedOccurrence?.affectedRanges).toEqual(advisoryRanges);
+    expect(projectedOccurrence?.fixedIn).toEqual(advisoryFixes);
+
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: false,
+      verbose: true,
+      terminalWidth: 120,
+    });
+    expect(output).toContain("advisory ranges >= 1.0.0, < 1.20.3");
+    expect(output).toContain("advisory fixes  1.20.3, 2.0.0");
+    const withoutLineBreaks = output.replace(/\n/g, "");
+    expect(containsTerminalControl(withoutLineBreaks)).toBe(false);
+    expect(output).not.toContain("\u001b");
+    expect(output).not.toContain("\u009b");
+    expect(output).not.toContain("\u0007");
+    expect(output).not.toContain("evil");
+  });
+
   it("renders zero-vulns hot path as header + one summary body line", () => {
     const output = formatPackageVulnerabilitiesTerminal(zeroVulnsFixture(), {
       useColors: false,
@@ -1015,18 +1985,26 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     expect(output).not.toContain("+2 more");
   });
 
-  it("caps default advisory rows and bases hidden count on rendered advisories", () => {
+  it("keeps CLI compact direct rows complete while MCP compact remains capped", () => {
     const fixture = cloneFixture();
     if (fixture.security) {
       fixture.security.affectedVulnerabilityCount = 99;
     }
-    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+
+    const cli = formatPackageVulnerabilitiesTerminal(fixture, {
       useColors: false,
+      surface: "cli",
     });
     expect(DEFAULT_ADVISORY_CAP).toBe(5);
-    expect(output).toContain("... (+1 more; use -v)");
-    expect(output).not.toContain("... (+94 more");
-    expect(output).not.toContain("GHSA-nnnn-nnnn-nnnn");
+    expect(cli).toContain("GHSA-nnnn-nnnn-nnnn");
+    expect(cli).not.toContain("... (+1 more; use -v)");
+
+    const mcp = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: false,
+      surface: "mcp",
+    });
+    expect(mcp).not.toContain("GHSA-nnnn-nnnn-nnnn");
+    expect(mcp).toContain("... (+1 more; use verbose=true or format=json)");
   });
 
   it("verbose mode shows all advisory rows", () => {

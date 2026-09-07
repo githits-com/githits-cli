@@ -6,6 +6,7 @@ import {
   createMockPackageIntelligenceService,
   defaultDependencyReport,
 } from "../services/test-helpers.js";
+import { SUPPORTED_DEPS_REGISTRIES_LIST } from "../shared/package-dependencies-request.js";
 import { createPackageDependenciesTool } from "./package-dependencies.js";
 
 function parseText(result: { content: Array<{ text: string }> }): unknown {
@@ -150,10 +151,11 @@ describe("createPackageDependenciesTool — metadata", () => {
       createMockPackageIntelligenceService(),
     );
     expect(tool.name).toBe("pkg_deps");
-    // Canonical registry order from PKGSEER_REGISTRY_ARGS, restricted
-    // to the deps-supported subset.
     expect(tool.description).toContain(
-      "npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, Go, and Swift",
+      `Supports ${SUPPORTED_DEPS_REGISTRIES_LIST}.`,
+    );
+    expect(tool.description).not.toContain(
+      "Supports npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, Go, and Swift.",
     );
     expect(tool.description).toContain(
       "Inspect what a package depends on, directly or transitively",
@@ -238,6 +240,36 @@ describe("createPackageDependenciesTool — happy path", () => {
     expect(calls[0]?.[0]?.includeGroups).toBe(true);
     expect(calls[0]?.[0]?.maxDepth).toBe(3);
   });
+
+  it.each([
+    ["nuget", "NUGET"],
+    ["maven", "MAVEN"],
+    ["packagist", "PACKAGIST"],
+  ] as const)(
+    "accepts %s and sends the canonical backend registry",
+    async (registry, expectedRegistry) => {
+      const packageDependencies = mock(() =>
+        Promise.resolve(defaultDependencyReport),
+      );
+      const tool = createPackageDependenciesTool(
+        createMockPackageIntelligenceService({ packageDependencies }),
+      );
+
+      const result = await tool.handler(
+        { registry, package_name: "example", format: "json" },
+        {},
+      );
+
+      expect(result.isError).toBeUndefined();
+      const calls = packageDependencies.mock.calls as unknown as Array<
+        [{ registry: string; packageName: string }]
+      >;
+      expect(calls[0]?.[0]).toMatchObject({
+        registry: expectedRegistry,
+        packageName: "example",
+      });
+    },
+  );
 
   it("uses the canonical Go version for wire and response comparisons", async () => {
     const goReport = structuredClone(defaultDependencyReport);
@@ -687,22 +719,6 @@ describe("createPackageDependenciesTool — silent-noop rejection", () => {
 });
 
 describe("createPackageDependenciesTool — validation errors via in-handler builder", () => {
-  it("returns INVALID_ARGUMENT for unsupported registry (nuget)", async () => {
-    const tool = createPackageDependenciesTool(
-      createMockPackageIntelligenceService(),
-    );
-    const result = await tool.handler(
-      { registry: "nuget", package_name: "Newtonsoft.Json" },
-      {},
-    );
-    expect(result.isError).toBe(true);
-    const payload = parseText(result) as { code: string; error: string };
-    expect(payload.code).toBe("INVALID_ARGUMENT");
-    expect(payload.error).toBe(
-      "pkg deps only supports npm, pypi, hex, crates, zig, vcpkg, rubygems, go, swift. Got: nuget.",
-    );
-  });
-
   it("returns INVALID_ARGUMENT for tag-style version", async () => {
     const tool = createPackageDependenciesTool(
       createMockPackageIntelligenceService(),

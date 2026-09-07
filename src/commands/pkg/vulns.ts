@@ -21,6 +21,7 @@ export interface PkgVulnsCommandOptions {
   severity?: string;
   scope?: string;
   includeWithdrawn?: boolean;
+  transitive?: boolean;
   verbose?: boolean;
   json?: boolean;
 }
@@ -35,8 +36,9 @@ export interface PkgVulnsCommandDependencies {
 /**
  * Core `pkg vulns` action. Accepts `<spec>@<version>` (unlike `pkg
  * info`, which always returns latest). Version flows through to the
- * backend; `minSeverity` and `includeWithdrawn` likewise go to the
- * wire. No client-side filtering — backend is single source of truth.
+ * backend; `minSeverity`, `includeWithdrawn`, and opt-in `includeTransitive`
+ * likewise go to the wire. No client-side filtering — backend is single
+ * source of truth.
  */
 export async function pkgVulnsAction(
   spec: string,
@@ -58,14 +60,22 @@ export async function pkgVulnsAction(
     }
 
     const parsed = parsePackageSpec(spec);
-    const { params, filter } = buildPackageVulnerabilitiesParams({
+    const { params: builtParams, filter } = buildPackageVulnerabilitiesParams({
       registry: parsed.registry,
       packageName: parsed.name,
       version: parsed.version,
       minSeverity: options.severity,
       includeWithdrawn: options.includeWithdrawn,
+      includeTransitive: options.transitive,
       advisoryScope: options.scope,
     });
+    const params = {
+      ...builtParams,
+      includeTransitiveAdvisoryDetails:
+        options.json === true ||
+        (options.verbose === true &&
+          (builtParams.advisoryScope ?? "AFFECTED") !== "AFFECTED"),
+    };
     const report =
       await deps.packageIntelligenceService.packageVulnerabilities(params);
 
@@ -148,9 +158,10 @@ function formatVulnsTerminalError(mapped: MappedError): string {
 }
 
 const PKG_VULNS_DESCRIPTION = `Show known vulnerabilities for a package. Lists CVE / OSV advisories
-with severity, affected version ranges, and fix versions. Default text is
-capped for readability; use --verbose for all selected advisory rows or --json
-for the complete structured envelope.
+with severity, affected version ranges, and fix versions. CLI text shows every
+selected direct and transitive advisory row. --verbose adds aliases, dates where
+relevant, malicious-advisory markers, and complete range/fix evidence without
+changing row completeness. --json emits the complete structured envelope.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
 npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift. vcpkg and zig are not supported.
@@ -162,7 +173,13 @@ Severity filter (--severity) and withdrawn-advisory visibility
 returned count reflects whatever survived the filter and active filters
 are echoed in text and JSON output. Use --scope non_affecting to list
 historical advisories that do not affect the inspected version, or --scope all
-to list affected and historical package advisories together.`;
+to list affected and historical package advisories together.
+
+Use --transitive for npm-audit-style evidence covering vulnerabilities in versions
+resolved by the dependency graph. This opt-in adds graph-analysis cost and is
+distinct from package-wide advisory history. --severity and --scope apply to direct
+and transitive rows. --include-withdrawn affects direct package rows only; transitive
+withdrawn advisories remain excluded.`;
 
 export function registerPkgVulnsCommand(pkgCommand: Command): Command {
   return pkgCommand
@@ -183,8 +200,12 @@ export function registerPkgVulnsCommand(pkgCommand: Command): Command {
       "Include retracted advisories (default: off)",
     )
     .option(
+      "--transitive",
+      "Audit vulnerabilities in versions resolved by the dependency graph (opt-in; adds graph-analysis cost)",
+    )
+    .option(
       "-v, --verbose",
-      "Show aliases, modified/withdrawn dates, and malicious-advisory markers",
+      "Add aliases, dates where relevant, malicious-advisory markers, and complete range/fix evidence; row count is unchanged",
     )
     .option("--json", "Emit the lean JSON envelope")
     .action(async (spec: string, options: PkgVulnsCommandOptions) => {

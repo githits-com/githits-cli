@@ -7,6 +7,7 @@ import {
   assertExperimentalCliResolveText,
   assertRootHelpStructure,
   assertSearchTerminalText,
+  assertTransitiveVulnerabilityText,
   buildMcpParityCommand,
   EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS,
   EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
@@ -385,6 +386,57 @@ Next: shorten or broaden query; use githits code grep.`;
       "  search_ref=payload text";
 
     expect(() => assertSearchTerminalText(hitText, "search")).not.toThrow();
+  });
+});
+
+describe("CLI transitive vulnerability smoke contract", () => {
+  it("accepts positive results and composite MALWARE headlines", () => {
+    const output = `Resolved dependencies
+2 affected advisory occurrences in 2 dependency packages; 2 resolved package versions checked.
+  MALWARE | critical  body-parser@1.19.0  GHSA-malware
+  high  debug@2.6.9  [historical]  GHSA-history`;
+
+    expect(() =>
+      assertTransitiveVulnerabilityText(output, "positive transitive audit"),
+    ).not.toThrow();
+  });
+
+  it("accepts the clean zero-result summary", () => {
+    const output =
+      "Resolved dependencies\nNo affected advisory occurrences found; 2 resolved package versions checked.";
+
+    expect(() =>
+      assertTransitiveVulnerabilityText(output, "clean transitive audit"),
+    ).not.toThrow();
+  });
+
+  it("accepts clean historical and all-scope summaries with wrapping", () => {
+    const historical =
+      "Resolved dependencies\nNo historical advisory occurrences found; 1 resolved package version checked.";
+    const allScope =
+      "Resolved dependencies\nNo affected\n  or historical advisory occurrences found; 2 resolved package\n  versions checked.";
+
+    expect(() =>
+      assertTransitiveVulnerabilityText(
+        historical,
+        "historical transitive audit",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertTransitiveVulnerabilityText(allScope, "all-scope transitive audit"),
+    ).not.toThrow();
+  });
+
+  it("rejects an unrecognized advisory summary", () => {
+    const output =
+      "Resolved dependencies\nNo selected advisory rows; 2 resolved package versions checked.";
+
+    expect(() =>
+      assertTransitiveVulnerabilityText(
+        output,
+        "unrecognized transitive audit",
+      ),
+    ).toThrow("missing recognized advisory occurrence summary");
   });
 });
 

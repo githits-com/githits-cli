@@ -66,6 +66,7 @@ const TARGET_DETAIL_STATE_PATTERN =
   /^ {2}(?:(?:indexing|searched|available|unavailable|using):|(?:ready|pending|provisional|older snapshot)$|(?:not found|unresolved|version unavailable|repository ref unresolved|(?:package|repository|site|target) (?:not found|unresolved)):)/;
 const JSON_PARITY_CONCURRENCY = 2;
 const SMOKE_PACKAGE_SPEC = "npm:express@5.2.1";
+const SMOKE_TRANSITIVE_VULNERABILITY_SPEC = "npm:express@4.17.1";
 let cliLaunchTarget = SOURCE_CLI_LAUNCH_TARGET;
 
 export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
@@ -579,6 +580,84 @@ function assertJsonOutput(result: CommandResult, context: string): unknown {
   );
   assert(result.stdout.trim().length > 0, `${context}: expected stdout`);
   return parseJson(result.stdout, context);
+}
+
+export function assertTransitiveVulnerabilityText(
+  text: string,
+  context: string,
+): void {
+  const resolvedIndex = text.indexOf("Resolved dependencies");
+  assert(
+    resolvedIndex >= 0,
+    `${context}: missing resolved-dependencies section`,
+  );
+  assert(
+    !text.includes("use verbose=true or format=json"),
+    `${context}: MCP-native transitive hint leaked into CLI output`,
+  );
+  const resolvedText = text.slice(resolvedIndex);
+  const summaryMatch = resolvedText.match(
+    /(?:^|\n)\s*(\d+)\s+(?:(?:affected|historical)\s+)?advisory\s+occurrences?\b/,
+  );
+  const headlinePattern =
+    /^ {2}(?:MALWARE(?: \| (?:critical|high|medium|low|unrated))?|critical|high|medium|low|unrated)\s+\S+@\S+(?:\s+\[(?:affected|historical)\])?/gm;
+  const renderedRows = [...resolvedText.matchAll(headlinePattern)].length;
+  if (summaryMatch !== null) {
+    const expectedRows = Number(summaryMatch[1]);
+    assert(
+      renderedRows === expectedRows,
+      `${context}: expected ${expectedRows} transitive rows from summary, rendered ${renderedRows}`,
+    );
+    return;
+  }
+
+  assert(
+    /(?:^|\n)\s*No\s+(?:affected|historical|affected\s+or\s+historical)\s+advisory\s+occurrences\s+found;\s+\d+\s+resolved\s+package\s+versions?\s+checked\./.test(
+      resolvedText,
+    ),
+    `${context}: missing recognized advisory occurrence summary`,
+  );
+  assert(
+    renderedRows === 0,
+    `${context}: expected zero transitive rows from clean summary, rendered ${renderedRows}`,
+  );
+}
+
+function assertTransitiveVulnerabilityJson(
+  value: unknown,
+  context: string,
+): void {
+  assertRecord(value, context);
+  assertRecord(value.transitive, `${context}.transitive`);
+  assert(
+    value.transitive.scope === "resolved_dependencies",
+    `${context}: unexpected transitive scope`,
+  );
+  assert(
+    ["affected", "non_affecting", "all"].includes(
+      value.transitive.advisoryScope as string,
+    ),
+    `${context}: unexpected transitive advisory scope`,
+  );
+  assert(
+    value.transitive.withdrawnAdvisoriesIncluded === false,
+    `${context}: transitive withdrawn-advisory flag must be false`,
+  );
+  assertRecord(value.transitive.summary, `${context}.transitive.summary`);
+  for (const key of [
+    "totalPackagesAnalyzed",
+    "packageCount",
+    "occurrenceCount",
+  ]) {
+    assert(
+      typeof value.transitive.summary[key] === "number",
+      `${context}: transitive summary missing numeric ${key}`,
+    );
+  }
+  assert(
+    Array.isArray(value.transitive.packages),
+    `${context}: transitive packages must be an array`,
+  );
 }
 
 function assertJsonErrorCode(
@@ -1510,6 +1589,43 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   assert(
     filteredVulnsJson.filter.minSeverity === "high",
     "pkg vulns filtered json missing severity filter echo",
+  );
+
+  const transitiveVulnsText = assertTerminalOutput(
+    await runCli([
+      "pkg",
+      "vulns",
+      SMOKE_TRANSITIVE_VULNERABILITY_SPEC,
+      "--transitive",
+    ]),
+    "pkg vulns transitive terminal",
+  );
+  assertTransitiveVulnerabilityText(
+    transitiveVulnsText,
+    "pkg vulns transitive terminal",
+  );
+
+  const transitiveVulnsJson = assertJsonOutput(
+    await runCli([
+      "pkg",
+      "vulns",
+      SMOKE_TRANSITIVE_VULNERABILITY_SPEC,
+      "--transitive",
+      "--scope",
+      "all",
+      "--json",
+    ]),
+    "pkg vulns transitive json",
+  );
+  assertTransitiveVulnerabilityJson(
+    transitiveVulnsJson,
+    "pkg vulns transitive json",
+  );
+  assertRecord(transitiveVulnsJson, "pkg vulns transitive json");
+  assert(
+    (transitiveVulnsJson.transitive as Record<string, unknown>)
+      .advisoryScope === "all",
+    "pkg vulns transitive json did not apply all advisory scope",
   );
 
   const scopedVulnsText = assertTerminalOutput(

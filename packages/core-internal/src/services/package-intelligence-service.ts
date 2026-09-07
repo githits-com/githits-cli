@@ -10,7 +10,7 @@
  *   VERSION_NOT_FOUND responses.
  * - GraphQL-error classification on structured responses.
  * - Zod schemas for each query's response shape (packageSummary,
- *   packageVulnerabilities).
+ *   packageVulnerabilities, and transitive vulnerability audits).
  * - Outer `executeWithTokenRefresh` wrapper so GraphQL-level
  *   `UNAUTHORIZED` errors — classified after the POST — continue to
  *   trigger token refresh.
@@ -111,7 +111,11 @@ export interface PackageVulnerabilitiesParams {
   minSeverity?: number;
   /** Optional — backend defaults to false when omitted. */
   includeWithdrawn?: boolean;
-  /** Advisory rows to return; counts always include all scopes. */
+  /** Optional — only true enables the extra graph-analysis request; omission/false preserve direct-only behavior. */
+  includeTransitive?: boolean;
+  /** Optional internal breadth for advisory-wide transitive detail fields. */
+  includeTransitiveAdvisoryDetails?: boolean;
+  /** Advisory rows to return for the root and opt-in transitive audit; direct counts always include all scopes. */
   advisoryScope?: VulnerabilityScope;
 }
 
@@ -157,6 +161,27 @@ export interface VulnerabilitySecurityDetails {
 export interface VulnerabilityReport {
   package: PackageVersionIdentity;
   security?: VulnerabilitySecurityDetails;
+  transitive?: TransitiveVulnerabilityAudit;
+}
+
+export interface TransitiveVulnerabilityAudit {
+  /** Advisory scope applied to dependency-package occurrences. */
+  advisoryScope: VulnerabilityScope;
+  /** Number of resolved package-version graph nodes checked. */
+  totalPackagesAnalyzed: number;
+  /** Number of dependency package rows with occurrences in the selected scope. */
+  packageCount: number;
+  /** Number of advisory occurrences across dependency rows in the selected scope. */
+  occurrenceCount: number;
+  calculatedAt?: string;
+  packages: TransitiveVulnerabilityAuditPackage[];
+}
+
+export interface TransitiveVulnerabilityAuditPackage {
+  registry: string;
+  name: string;
+  occurrenceCount: number;
+  occurrences: TransitiveDependencyVulnerability[];
 }
 
 export interface PackageDependenciesParams {
@@ -1069,6 +1094,71 @@ const vulnerabilitiesGraphQLResponseSchema = z.object({
   errors: z.array(graphQLErrorSchema).optional(),
 });
 
+const transitiveAuditAdvisorySchema = z.object({
+  osvId: z.string().nullable().optional(),
+  summary: z.string().nullable().optional(),
+  severityScore: z.number().nullable().optional(),
+  affectedVersionRanges: z.array(z.string()).nullable().optional(),
+  fixedInVersions: z.array(z.string()).nullable().optional(),
+  publishedAt: z.string().nullable().optional(),
+  modifiedAt: z.string().nullable().optional(),
+  aliases: z.array(z.string()).nullable().optional(),
+  isMalicious: z.boolean().nullable().optional(),
+});
+
+const transitiveAuditOccurrenceSchema = z.object({
+  version: z.string(),
+  affectsResolvedVersion: z.boolean(),
+  matchedAffectedVersionRanges: z.array(z.string()),
+  fixVersionsAboveResolved: z.array(z.string()),
+  nearestFixedVersion: z.string().nullable().optional(),
+  advisory: transitiveAuditAdvisorySchema,
+});
+
+const transitiveAuditPackageSchema = z.object({
+  registry: z.string(),
+  name: z.string(),
+  selectedCount: z.number().int().nonnegative(),
+  advisoryOccurrences: z
+    .array(transitiveAuditOccurrenceSchema)
+    .nullable()
+    .optional(),
+});
+
+const transitiveAuditSummarySchema = z.object({
+  selected: z.object({ totalVulnerabilities: z.number().int().nonnegative() }),
+  totalPackagesAnalyzed: z.number().int().nonnegative(),
+  packages: z.array(transitiveAuditPackageSchema),
+  calculatedAt: z.string().nullable().optional(),
+});
+
+const transitiveAuditResponseSchema = z.object({
+  package: packageVersionIdentitySchema.nullable().optional(),
+  dependencies: z
+    .object({
+      transitive: z
+        .object({
+          vulnerabilitySummary: transitiveAuditSummarySchema
+            .nullable()
+            .optional(),
+        })
+        .nullable()
+        .optional(),
+    })
+    .nullable()
+    .optional(),
+});
+
+const transitiveAuditGraphQLResponseSchema = z.object({
+  data: z
+    .object({
+      packageDependencies: transitiveAuditResponseSchema.nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  errors: z.array(graphQLErrorSchema).optional(),
+});
+
 const PACKAGE_VULNERABILITIES_QUERY = `
 query PackageVulnerabilities(
   $registry: Registry!
@@ -1125,6 +1215,79 @@ query PackageVulnerabilities(
     }
   }
 }`;
+
+const TRANSITIVE_AUDIT_SCOPE_FIELDS: Readonly<
+  Record<VulnerabilityScope, { summary: string; packageCount: string }>
+> = {
+  AFFECTED: { summary: "affected", packageCount: "affectedCount" },
+  NON_AFFECTING: {
+    summary: "nonAffecting",
+    packageCount: "nonAffectingCount",
+  },
+  ALL: { summary: "combined", packageCount: "totalCount" },
+};
+
+function buildPackageTransitiveVulnerabilityAuditQuery(
+  scope: VulnerabilityScope,
+): string {
+  const fields = TRANSITIVE_AUDIT_SCOPE_FIELDS[scope];
+  return `
+query PackageTransitiveVulnerabilityAudit(
+  $registry: Registry!
+  $name: String!
+  $version: String!
+  $minSeverity: Float
+  $scope: VulnerabilityScope!
+  $includeTransitiveAdvisoryDetails: Boolean! = false
+) {
+  packageDependencies(
+    registry: $registry
+    name: $name
+    version: $version
+    includeTransitive: true
+  ) {
+    package {
+      name
+      registry
+      version
+    }
+    dependencies {
+      transitive {
+        vulnerabilitySummary(minSeverity: $minSeverity) {
+          selected: ${fields.summary} {
+            totalVulnerabilities
+          }
+          totalPackagesAnalyzed
+          calculatedAt
+          packages {
+            registry
+            name
+            selectedCount: ${fields.packageCount}
+            advisoryOccurrences(scope: $scope, minSeverity: $minSeverity) {
+              version
+              affectsResolvedVersion
+              matchedAffectedVersionRanges
+              fixVersionsAboveResolved
+              nearestFixedVersion
+              advisory {
+                osvId
+                summary
+                severityScore
+                affectedVersionRanges @include(if: $includeTransitiveAdvisoryDetails)
+                fixedInVersions @include(if: $includeTransitiveAdvisoryDetails)
+                publishedAt
+                modifiedAt
+                aliases
+                isMalicious
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`;
+}
 
 // --------------------------------------------------------------------
 // Zod schema + query for packageDependencies
@@ -2600,7 +2763,17 @@ export class PackageIntelligenceServiceImpl
         }
       : firstPage;
 
-    return this.normaliseVulnerabilityReport(data);
+    const report = this.normaliseVulnerabilityReport(data);
+    if (params.includeTransitive === true) {
+      report.transitive = await this.fetchTransitiveVulnerabilityAudit(
+        token,
+        report.package,
+        params.minSeverity,
+        params.advisoryScope ?? "AFFECTED",
+        params,
+      );
+    }
+    return report;
   }
 
   private async fetchPackageVulnerabilitiesPage(
@@ -2718,6 +2891,186 @@ export class PackageIntelligenceServiceImpl
     return {
       package: identity,
       security,
+    };
+  }
+
+  private async fetchTransitiveVulnerabilityAudit(
+    token: string,
+    directIdentity: PackageVersionIdentity,
+    minSeverity: number | undefined,
+    advisoryScope: VulnerabilityScope,
+    params: PackageVulnerabilitiesParams,
+  ): Promise<TransitiveVulnerabilityAudit> {
+    if (!directIdentity.registry) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Vulnerability report response missing registry for transitive audit.",
+      );
+    }
+
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await postPkgseerGraphql({
+        endpointUrl: this.endpointUrl,
+        token,
+        query: buildPackageTransitiveVulnerabilityAuditQuery(advisoryScope),
+        variables: {
+          registry: params.registry,
+          name: directIdentity.name,
+          version: directIdentity.version,
+          minSeverity,
+          scope: advisoryScope,
+          includeTransitiveAdvisoryDetails:
+            params.includeTransitiveAdvisoryDetails === true,
+        },
+        fetchFn: this.fetchFn,
+        clientHeaders: this.runtime.clientHeaders,
+        userAgent: this.runtime.userAgent,
+        diagnostics: this.runtime.diagnostics,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError) {
+        throw this.createTransportError(cause);
+      }
+      throw cause;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
+    }
+
+    const parsed = transitiveAuditGraphQLResponseSchema.safeParse(
+      response.parsedBody,
+    );
+    if (!parsed.success) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Malformed response from the package-intelligence service.",
+      );
+    }
+
+    if (parsed.data.errors && parsed.data.errors.length > 0) {
+      throw promoteGenericVersionNotFound(
+        this.createGraphQLError(parsed.data.errors),
+        {
+          registry: params.registry,
+          packageName: directIdentity.name,
+          version: directIdentity.version,
+        },
+      );
+    }
+
+    const data = parsed.data.data?.packageDependencies;
+    if (!data) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Empty response from the package-intelligence service.",
+      );
+    }
+
+    const packageIdentity = data.package;
+    if (
+      packageIdentity?.name !== directIdentity.name ||
+      packageIdentity.registry !== directIdentity.registry ||
+      packageIdentity.version !== directIdentity.version
+    ) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Transitive vulnerability audit response package identity differs from the direct report.",
+      );
+    }
+
+    const summary = data.dependencies?.transitive?.vulnerabilitySummary;
+    if (!summary) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Transitive vulnerability audit response missing vulnerability summary.",
+      );
+    }
+
+    return this.normaliseTransitiveVulnerabilityAudit(summary, advisoryScope);
+  }
+
+  private normaliseTransitiveVulnerabilityAudit(
+    summary: z.infer<typeof transitiveAuditSummarySchema>,
+    advisoryScope: VulnerabilityScope,
+  ): TransitiveVulnerabilityAudit {
+    const packages = summary.packages
+      .filter((pkg) => pkg.selectedCount > 0)
+      .map((pkg) => {
+        const occurrences = pkg.advisoryOccurrences ?? [];
+        if (occurrences.length !== pkg.selectedCount) {
+          throw new MalformedPackageIntelligenceResponseError(
+            "Transitive vulnerability audit package occurrence count differs from selected count.",
+          );
+        }
+
+        return {
+          registry: pkg.registry,
+          name: pkg.name,
+          occurrenceCount: pkg.selectedCount,
+          occurrences: occurrences.map((occurrence) => {
+            const isAffected = occurrence.affectsResolvedVersion;
+            if (
+              (advisoryScope === "AFFECTED" && !isAffected) ||
+              (advisoryScope === "NON_AFFECTING" && isAffected)
+            ) {
+              throw new MalformedPackageIntelligenceResponseError(
+                "Transitive vulnerability audit occurrence differs from the requested scope.",
+              );
+            }
+            const hasMatchedAffectedRange =
+              occurrence.matchedAffectedVersionRanges.length > 0;
+            if (isAffected !== hasMatchedAffectedRange) {
+              throw new MalformedPackageIntelligenceResponseError(
+                "Transitive vulnerability audit occurrence has inconsistent affectedness proof.",
+              );
+            }
+            const hasHigherFixes =
+              occurrence.fixVersionsAboveResolved.length > 0;
+            const nearestFixedVersion =
+              occurrence.nearestFixedVersion ?? undefined;
+            const hasNearestFix = nearestFixedVersion !== undefined;
+            if (
+              (!isAffected && (hasHigherFixes || hasNearestFix)) ||
+              hasHigherFixes !== hasNearestFix ||
+              (hasNearestFix &&
+                !occurrence.fixVersionsAboveResolved.includes(
+                  nearestFixedVersion,
+                ))
+            ) {
+              throw new MalformedPackageIntelligenceResponseError(
+                "Transitive vulnerability audit fix metadata is inconsistent.",
+              );
+            }
+            return {
+              version: occurrence.version,
+              affectsResolvedVersion: occurrence.affectsResolvedVersion,
+              matchedAffectedVersionRanges:
+                occurrence.matchedAffectedVersionRanges,
+              fixVersionsAboveResolved: occurrence.fixVersionsAboveResolved,
+              nearestFixedVersion,
+              advisory: this.normaliseTransitiveAuditAdvisory(
+                occurrence.advisory,
+              ),
+            };
+          }),
+        };
+      });
+
+    const normalisedOccurrenceCount = packages.reduce(
+      (total, pkg) => total + pkg.occurrences.length,
+      0,
+    );
+    const occurrenceCount = summary.selected.totalVulnerabilities;
+    if (normalisedOccurrenceCount !== occurrenceCount) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Transitive vulnerability audit occurrence count differs from selected total.",
+      );
+    }
+
+    return {
+      advisoryScope,
+      totalPackagesAnalyzed: summary.totalPackagesAnalyzed,
+      packageCount: packages.length,
+      occurrenceCount,
+      calculatedAt: summary.calculatedAt ?? undefined,
+      packages,
     };
   }
 
@@ -3182,6 +3535,26 @@ export class PackageIntelligenceServiceImpl
       publishedAt: advisory.publishedAt ?? undefined,
       modifiedAt: advisory.modifiedAt ?? undefined,
       withdrawnAt: advisory.withdrawnAt ?? undefined,
+      aliases: advisory.aliases ?? undefined,
+      isMalicious: advisory.isMalicious ?? undefined,
+    };
+  }
+
+  private normaliseTransitiveAuditAdvisory(
+    advisory: z.infer<typeof transitiveAuditAdvisorySchema>,
+  ): VulnerabilitySummaryDetail {
+    return {
+      osvId: advisory.osvId ?? undefined,
+      summary: advisory.summary ?? undefined,
+      severityScore: advisory.severityScore ?? undefined,
+      affectedVersionRanges: advisory.affectedVersionRanges?.length
+        ? advisory.affectedVersionRanges
+        : undefined,
+      fixedInVersions: advisory.fixedInVersions?.length
+        ? advisory.fixedInVersions
+        : undefined,
+      publishedAt: advisory.publishedAt ?? undefined,
+      modifiedAt: advisory.modifiedAt ?? undefined,
       aliases: advisory.aliases ?? undefined,
       isMalicious: advisory.isMalicious ?? undefined,
     };

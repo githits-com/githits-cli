@@ -96,8 +96,9 @@ const DESCRIPTION =
   "Pass `max_depth` to add a `transitive` block with the capped " +
   "install footprint, conflict detection, and circular-dependency " +
   "flags; layer `include_importers: true` on top when you also need " +
-  "per-package provenance. Supports npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, " +
-  "Go, and Swift. Use `include_issues: true` for deprecated, outdated, duplicate, " +
+  "per-package provenance. Supports " +
+  `${SUPPORTED_DEPS_REGISTRIES_LIST}. Use ` +
+  "`include_issues: true` for deprecated, outdated, duplicate, " +
   'and conflict analysis across the resolved dependency graph; use `format: "json"` ' +
   "for complete issue rows. Without `max_depth`, issues scan the full graph; " +
   "`max_depth` bounds cost and scope. " +

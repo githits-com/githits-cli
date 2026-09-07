@@ -194,6 +194,27 @@ describe("package_dependencies parity", () => {
     expect(cli).toEqual(json);
   });
 
+  it.each([
+    ["nuget:Newtonsoft.Json", "nuget", "Newtonsoft.Json"],
+    [
+      "maven:org.apache.commons:commons-lang3",
+      "maven",
+      "org.apache.commons:commons-lang3",
+    ],
+    ["packagist:monolog/monolog", "packagist", "monolog/monolog"],
+  ] as const)(
+    "PARITY-JSON-KEYS: %s accepted registry CLI === MCP",
+    async (spec, registry, packageName) => {
+      const cli = await cliJson(spec);
+      const { json, isError } = await mcpJson({
+        registry,
+        package_name: packageName,
+      });
+      expect(isError).toBeUndefined();
+      expect(cli).toEqual(json);
+    },
+  );
+
   it("PARITY-JSON-KEYS: zero-dep hot path CLI === MCP (omits groups block)", async () => {
     const zeroFn = mock(() => Promise.resolve(zeroDepDependencyReport));
     const cli = await cliJson(
@@ -702,10 +723,10 @@ describe("package_dependencies parity", () => {
     });
   });
 
-  it("PARITY-ERROR-ENVELOPE: INVALID_ARGUMENT (unsupported registry) — shape match", async () => {
-    const cli = await cliJson("nuget:foo");
+  it("PARITY-ERROR-ENVELOPE: INVALID_ARGUMENT (unknown registry) — shape match", async () => {
+    const cli = await cliJson("cargo:foo");
     const { json, isError } = await mcpJson({
-      registry: "nuget",
+      registry: "cargo",
       package_name: "foo",
     });
     expect(isError).toBe(true);

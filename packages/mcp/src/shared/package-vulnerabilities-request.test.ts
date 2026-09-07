@@ -207,6 +207,30 @@ describe("buildPackageVulnerabilitiesParams", () => {
     expect(params.includeWithdrawn).toBe(true);
   });
 
+  it.each([undefined, false, true] as const)(
+    "preserves includeTransitive=%s without changing existing filters",
+    (includeTransitive) => {
+      const { params, filter } = buildPackageVulnerabilitiesParams({
+        registry: "npm",
+        packageName: "express",
+        minSeverity: "high",
+        includeWithdrawn: true,
+        advisoryScope: "all",
+        ...(includeTransitive === undefined ? {} : { includeTransitive }),
+      });
+
+      expect(params.includeTransitive).toBe(includeTransitive);
+      expect(params.minSeverity).toBe(7.0);
+      expect(params.includeWithdrawn).toBe(true);
+      expect(params.advisoryScope).toBe("ALL");
+      expect(filter).toEqual({
+        minSeverity: "high",
+        includeWithdrawn: true,
+        advisoryScope: "all",
+      });
+    },
+  );
+
   it("rejects empty packageName", () => {
     expect(() =>
       buildPackageVulnerabilitiesParams({ registry: "npm", packageName: "" }),

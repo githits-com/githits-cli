@@ -66,8 +66,8 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `settings terms` | — | `--json` | Show the current Terms of Service acceptance state |
 | `settings terms accept` | — | `--yes`, `--json` | Confirm and accept the current Terms of Service |
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
-| `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift) |
-| `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--depth`, `--issues`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional capped transitive graph, and opt-in dependency issue analysis (npm/pypi/hex/crates/vcpkg/zig/rubygems/go/swift) |
+| `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--transitive`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift), optionally including affected versions resolved in its dependency graph |
+| `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--depth`, `--issues`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional capped transitive graph, and opt-in dependency issue analysis (npm/pypi/hex/crates/nuget/maven/zig/vcpkg/packagist/rubygems/go/swift) |
 | `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or GitHub repo (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
 | `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, positional package range, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. Reports facts only. |
 | `docs list <spec>` | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | List hosted/crawled and repository-backed documentation pages. Text emits target-based read commands; JSON retains `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, and exact repo-file metadata when available. |
@@ -584,9 +584,56 @@ githits pkg vulns pypi:requests --severity high
 githits pkg vulns crates:serde --json
 githits pkg vulns npm:minimatch --include-withdrawn --verbose
 githits pkg vulns npm:express --scope non_affecting
+githits pkg vulns npm:express@4.17.1 --transitive
 ```
 
-Lists known CVE / OSV advisories for a package: severity, affected version ranges, fix versions, and upgrade targets. Default text is capped at 5 advisory rows for readability; use `--verbose` for all selected rows or `--json` for the complete structured envelope. Malicious-package advisories (supply-chain attacks flagged by OSV) surface in a separate `MALWARE` bucket that sorts above all CVE advisories.
+Lists known CVE / OSV advisories for a package: severity, affected version
+ranges, fix versions, and upgrade targets. CLI text shows every selected direct
+and transitive advisory row. `--verbose` adds aliases, dates where relevant,
+malicious-advisory markers, and complete range/fix evidence without changing row
+completeness. `--json` emits the complete structured envelope. MCP compact text
+retains its five-row cap and MCP-native completion hint; MCP verbose text is
+complete. Malicious-package advisories (supply-chain attacks flagged by OSV)
+surface in a separate `MALWARE` bucket that sorts above all CVE advisories.
+
+`--transitive` is an explicit opt-in for npm-audit-style evidence about
+vulnerabilities affecting dependency versions resolved in the package graph. It
+adds graph-analysis cost and is separate from package-wide advisory history.
+Without it, the command remains direct-only. `--severity` and `--scope` apply
+to both direct and transitive evidence. `--scope all` therefore includes
+historical advisories for dependency packages as well as advisories affecting
+their resolved versions. `--include-withdrawn` applies only to direct package
+rows, and transitive withdrawn advisories remain excluded.
+
+Transitive `--json` output adds a complete `transitive` object with
+`scope: "resolved_dependencies"`, `advisoryScope`,
+`withdrawnAdvisoriesIncluded: false`, and a numeric summary of
+`totalPackagesAnalyzed`, `packageCount`, `occurrenceCount`, and an optional
+`bySeverity` partition of all rows selected by `advisoryScope`, followed by
+`packages[]` containing resolved dependency versions, explicit affectedness,
+matched affected ranges, and all higher-fix candidates when applicable. The
+severity partition is not affected-only under `all` or `non_affecting`; use each
+occurrence's `affectsResolvedVersion` for that distinction. The
+occurrence-specific `matchedAffectedVersionRanges` and
+`fixVersionsAboveResolved` fields remain distinct from optional advisory-wide
+`affectedRanges` and `fixedIn` arrays; the latter are omitted when unavailable.
+The service performs one field-minimal query after direct pagination using the
+resolved root version and fails closed on malformed identity/count/fix evidence;
+there is no graph payload, occurrence cap, or partial direct-only fallback.
+CLI compact text renders every selected transitive row and has no advisory-row
+cap. MCP compact text renders at most five selected rows and ends with the
+MCP-native `use verbose=true or format=json` hint when rows are hidden; verbose
+text renders every row. For transitive verbose text, detail labels align beneath
+the package coordinate. Affected rows show `matched`, `nearest fix`, and only
+non-redundant `higher fixes`, then verbose aliases. Historical verbose rows show
+advisory-wide `advisory ranges`, `advisory fixes`, and aliases without implying
+that the resolved version is affected. MCP `include_transitive: true` and CLI
+`--transitive` share this JSON contract.
+
+Compact text and affected-only verbose text request only the field-minimal
+transitive audit. Advisory-wide range/fix arrays are conditionally selected for
+historical/all-scope verbose text or JSON and are validated and preserved at
+that boundary.
 
 **Package spec.** `<registry>:<name>[@<version>]`. Unlike `pkg info`, `pkg vulns` supports `@<version>` so callers can inspect older pinned releases. `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `packagist`, `rubygems`, `go`, and `swift` support vulnerability data; vcpkg and Zig are rejected client-side with `pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: ${registry}.` Swift accepts `v`-prefixed release tags because SwiftPM packages commonly publish them.
 
@@ -606,7 +653,7 @@ Lists known CVE / OSV advisories for a package: severity, affected version range
 
 **Upgrade-path ordering.** `upgradePaths` are de-duplicated and sorted ascending by semver-ish comparison (pre-release suffixes rank below the matching base release), so the footer presents the minimum-churn upgrade first: `Upgrade options: 3.11.0, 4.0.0-rc1, 4.5.0, 4.19.2, …` rather than the backend's advisory-iteration order.
 
-**Output envelope.** `{registry, name, version, requestedVersion?, filter?, summary: {total, affected?, bySeverity?}, advisories?, upgradePaths?}`. `filter` echoes only explicit caller filters and non-default advisory scope. Each advisory: `{id?, aliases?, summary?, severity?, severityLabel?, affectedRanges?, affectsInspectedVersion?, matchedAffectedVersionRanges?, fixedIn?, publishedAt?, modifiedAt?, withdrawnAt?, isMalicious?}`. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
+**Output envelope.** `{registry, name, version, requestedVersion?, filter?, summary: {total, affected?, bySeverity?}, advisories?, upgradePaths?}`. `filter` echoes only explicit caller filters and non-default advisory scope. Each direct advisory: `{id?, aliases?, summary?, severity?, severityLabel?, affectedRanges?, affectsInspectedVersion?, matchedAffectedVersionRanges?, fixedIn?, publishedAt?, modifiedAt?, withdrawnAt?, isMalicious?}`. Transitive occurrences additionally use optional advisory-wide `affectedRanges` and `fixedIn`, while required `matchedAffectedVersionRanges` and `fixVersionsAboveResolved` remain occurrence-specific evidence. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
 
 **Exit codes.** 0 on success including zero-vulns; 1 on any error. Under `--json`, the error envelope is written to **stderr**.
 
@@ -627,9 +674,9 @@ githits pkg deps npm:express --json
 githits pkg deps npm:express --issues --json
 ```
 
-Analyses dependencies for a package on npm, PyPI, Hex, Crates, vcpkg, Zig, RubyGems, Go, or Swift. Default terminal output is a flat list of direct runtime dependencies with a hint summarising hidden groups. `--issues` is an explicit opt-in for deprecated, outdated, duplicate, and conflict analysis across the resolved dependency graph; it does not expose the ordinary transitive block unless `--depth` is also supplied.
+Analyses dependencies for a package on npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, Go, or Swift. Default terminal output is a flat list of direct runtime dependencies with a hint summarising hidden groups. `--issues` is an explicit opt-in for deprecated, outdated, duplicate, and conflict analysis across the resolved dependency graph; it does not expose the ordinary transitive block unless `--depth` is also supplied.
 
-**Package spec.** `<registry>:<name>[@<version>]`. `@<version>` is accepted (same as `pkg vulns`); defaults to latest. Exact Go versions may include or omit their canonical lowercase `v`; the backend always receives the `v`-prefixed form. Tag-style inputs such as npm `@v4.18.0` remain client-side `INVALID_ARGUMENT` errors for other registries except Swift, where `v`-prefixed release tags are accepted. Only `npm`, `pypi`, `hex`, `crates`, `vcpkg`, `zig`, `rubygems`, `go`, and `swift` are supported; other registries are rejected client-side with `pkg deps only supports npm, pypi, hex, crates, vcpkg, zig, rubygems, go, swift. Got: ${registry}.`
+**Package spec.** `<registry>:<name>[@<version>]`. `@<version>` is accepted (same as `pkg vulns`); defaults to latest. Exact Go versions may include or omit their canonical lowercase `v`; the backend always receives the `v`-prefixed form. Tag-style inputs such as `@v4.18.0` are rejected client-side with `INVALID_ARGUMENT` for other registries except Swift, where `v`-prefixed release tags are accepted. All 12 known registries are supported: `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `zig`, `vcpkg`, `packagist`, `rubygems`, `go`, and `swift`.
 
 **Two views.** The default runtime view renders a labelled `Runtime dependencies:` list from `dependencies.direct` — the flat answer to "what does this pull in?". The structured groups view (`--lifecycle all` or a concrete non-runtime lifecycle) renders a labelled `Dependency groups:` block and preserves registry-specific condition metadata (PyPI extras, Crates features). Dev / peer / build / optional deps live only in the groups view — the wire's `direct[]` is always runtime-only. The groups view does not repeat the resolved runtime list above the group block; runtime group rows include resolved versions when available.
 

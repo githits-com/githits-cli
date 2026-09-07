@@ -7,6 +7,7 @@ import { colorize, dim, highlight } from "./colors.js";
 import { formatCompactNumber } from "./format-number.js";
 import { formatRepositoryTarget } from "./repository-target.js";
 import { shellQuote } from "./shell-quote.js";
+import { sanitizeTerminalText } from "./terminal-text.js";
 
 export interface ResolveTargetCandidatePayload {
   target: string;
@@ -679,18 +680,6 @@ function compactDescription(value: string | undefined): string | undefined {
   return normalized.length > 240
     ? `${normalized.slice(0, 237).trimEnd()}...`
     : normalized;
-}
-
-const ESC = String.fromCharCode(0x1b);
-// Whole ANSI CSI/OSC/two-byte escape sequences, then any remaining C0/C1/DEL
-// control characters that could re-style or spoof the caller's terminal.
-const TERMINAL_CONTROL_PATTERN = new RegExp(
-  `${ESC}(?:\\[[0-?]*[ -/]*[@-~]|\\][^\\u0007${ESC}]*(?:\\u0007|${ESC}\\\\)?|[@-_])|[\\u0000-\\u001f\\u007f-\\u009f]`,
-  "g",
-);
-
-export function sanitizeTerminalText(value: string): string {
-  return value.replace(TERMINAL_CONTROL_PATTERN, "");
 }
 
 function dedupeTargets<Target extends ResolveTargetReference>(
