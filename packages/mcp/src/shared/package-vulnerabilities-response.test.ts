@@ -448,6 +448,54 @@ describe("buildPackageVulnerabilitiesSuccessPayload — transitive audit", () =>
     );
   });
 
+  it("preserves transitive advisory-wide details in JSON", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const sourceOccurrence = fixture.transitive?.packages[0]?.occurrences[0];
+    if (!sourceOccurrence) throw new Error("fixture missing source occurrence");
+    const advisoryRanges = [">= 0.0.0, < 2.0.0"];
+    const advisoryFixes = ["2.2.0"];
+    sourceOccurrence.advisory.affectedVersionRanges = advisoryRanges;
+    sourceOccurrence.advisory.fixedInVersions = advisoryFixes;
+
+    const payload = buildPackageVulnerabilitiesSuccessPayload(fixture);
+    const projectedOccurrence = payload.transitive?.packages
+      .find((pkg) => pkg.name === "zeta")
+      ?.occurrences.find((occurrence) => occurrence.id === "GHSA-zeta-medium");
+    if (!projectedOccurrence) {
+      throw new Error("projected advisory-wide details are missing");
+    }
+
+    expect(projectedOccurrence.affectedRanges).toEqual(advisoryRanges);
+    expect(projectedOccurrence.fixedIn).toEqual(advisoryFixes);
+    expect(projectedOccurrence.affectedRanges).not.toBe(advisoryRanges);
+    expect(projectedOccurrence.fixedIn).not.toBe(advisoryFixes);
+    expect(projectedOccurrence.matchedAffectedVersionRanges).toEqual([
+      ">= 1.0.0, < 2.1.0",
+    ]);
+    expect(projectedOccurrence.fixVersionsAboveResolved).toEqual(["2.1.0"]);
+  });
+
+  it("omits unavailable transitive advisory-wide details from JSON", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const sourceOccurrences = fixture.transitive?.packages[0]?.occurrences;
+    if (!sourceOccurrences?.[0] || !sourceOccurrences[1]) {
+      throw new Error("fixture missing source occurrences");
+    }
+    sourceOccurrences[0].advisory.affectedVersionRanges = [];
+    sourceOccurrences[0].advisory.fixedInVersions = [];
+    sourceOccurrences[1].advisory.affectedVersionRanges = undefined;
+    sourceOccurrences[1].advisory.fixedInVersions = undefined;
+
+    const payload = buildPackageVulnerabilitiesSuccessPayload(fixture);
+    const projectedOccurrences =
+      payload.transitive?.packages.flatMap((pkg) => pkg.occurrences) ?? [];
+    expect(projectedOccurrences).toHaveLength(7);
+    for (const occurrence of projectedOccurrences) {
+      expect(Object.hasOwn(occurrence, "affectedRanges")).toBe(false);
+      expect(Object.hasOwn(occurrence, "fixedIn")).toBe(false);
+    }
+  });
+
   it("emits an exact checked-clean transitive block with an empty package list", () => {
     const fixture = transitiveVulnerabilityFixture();
     fixture.transitive = {

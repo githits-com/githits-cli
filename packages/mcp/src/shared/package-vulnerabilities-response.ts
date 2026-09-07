@@ -110,6 +110,8 @@ export interface LeanTransitiveVulnerabilityOccurrence {
   summary?: string;
   severity?: number;
   severityLabel?: VulnSeverityLabel;
+  affectedRanges?: string[];
+  fixedIn?: string[];
   matchedAffectedVersionRanges: string[];
   fixVersionsAboveResolved: string[];
   nearestFixedVersion?: string;
@@ -354,6 +356,15 @@ function buildTransitiveOccurrence(
     lean.severity = advisory.severityScore;
     const severityLabel = vulnSeverityLabel(advisory.severityScore);
     if (severityLabel !== undefined) lean.severityLabel = severityLabel;
+  }
+  if (
+    advisory.affectedVersionRanges &&
+    advisory.affectedVersionRanges.length > 0
+  ) {
+    lean.affectedRanges = advisory.affectedVersionRanges.slice();
+  }
+  if (advisory.fixedInVersions && advisory.fixedInVersions.length > 0) {
+    lean.fixedIn = advisory.fixedInVersions.slice();
   }
   if (occurrence.nearestFixedVersion) {
     lean.nearestFixedVersion = occurrence.nearestFixedVersion;
