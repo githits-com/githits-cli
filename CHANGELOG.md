@@ -5,6 +5,67 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.13.0] - 2026-09-07
+
+Minor release: adds semantic search context, documentation read targets, and
+simplifies MCP output formats.
+
+### Added
+
+- **Semantic search context** - Search and search-status show enclosing declarations and
+  numbered focused source, with precise attributed read coordinates and additive
+  structural evidence in JSON. Requires the backend structural-evidence schema; hosted
+  MCP adoption also requires updating and deploying remote-mcp after the package
+  release.
+
+### Changed
+
+- **Upgrade-review range syntax** - Accept positional `..` ranges, including scoped
+  packages, and remove the legacy `->` delimiter; use `..` for all compact ranges.
+- **Read documentation through emitted targets** - Docs list and search now
+  retain `docsReadTarget`, stable `pageId`, and provenance `sourceUrl`, prefer
+  clickable URL targets in follow-ups, and keep historical ID reads compatible.
+- **MCP output formats** - All format-selectable tools now expose only `text` (default)
+  and `json`, with guidance to reserve JSON for programmatic follow-up or exact
+  structured details. Explicit `text-v1` callers must switch to `text` or omit the
+  format parameter; rendering and JSON payloads are unchanged.
+- **Text follow-up guidance** - Tool format descriptions, quick_start, and the GitHits
+  MCP skill explicitly recommend text for reading and subsequent tool calls, reserving
+  JSON for parsing in code or required fields absent from text.
+
+## [@githits/mcp 0.13.0] - 2026-09-07
+
+Minor release: adds semantic search context, documentation read targets, and
+simplifies MCP output formats.
+
+### Added
+
+- **Semantic search context** - Search and search-status show enclosing declarations and
+  numbered focused source, with precise attributed read coordinates and additive
+  structural evidence in JSON. Requires the backend structural-evidence schema; hosted
+  MCP adoption also requires updating and deploying remote-mcp after the package
+  release.
+
+### Changed
+
+- **Read documentation through emitted targets** - Docs list and search now
+  retain `docsReadTarget`, stable `pageId`, and provenance `sourceUrl`, prefer
+  clickable URL targets in follow-ups, and keep historical ID reads compatible.
+- **MCP output formats** - All format-selectable tools now expose only `text` (default)
+  and `json`, with guidance to reserve JSON for programmatic follow-up or exact
+  structured details. Explicit `text-v1` callers must switch to `text` or omit the
+  format parameter; rendering and JSON payloads are unchanged.
+- **Text follow-up guidance** - Tool format descriptions, quick_start, and the GitHits
+  MCP skill explicitly recommend text for reading and subsequent tool calls, reserving
+  JSON for parsing in code or required fields absent from text.
+
+### Fixed
+
+- **Accept canonical Go module versions** - Package documentation, dependency,
+  vulnerability, changelog, and upgrade-review inputs now accept exact Go
+  versions with or without `v` and send the backend the canonical `v`-prefixed
+  form.
+
 ## [githits 0.12.1] - 2026-09-04
 
 Patch release: adds opt-in dependency issue analysis and expanded package
