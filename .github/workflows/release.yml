@@ -93,7 +93,9 @@ jobs:
             # See: https://docs.npmjs.com/trusted-publishers
             - name: Publish to npm
               if: steps.version.outputs.should_release == 'true' && steps.version.outputs.npm_published == 'false'
-              run: npm publish --access public
+              # Includes up to 20 minutes for npm's asynchronous scanning.
+              timeout-minutes: 25
+              run: bun run scripts/publish-npm.ts
 
             - name: Install MCP publisher
               if: steps.version.outputs.should_release == 'true'
@@ -210,6 +212,7 @@ jobs:
                       --generate-notes
                   else
                     gh release create "$TAG" \
+                      --target "$(git rev-parse HEAD)" \
                       --title "$TAG" \
                       --generate-notes
                   fi

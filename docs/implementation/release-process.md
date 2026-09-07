@@ -141,3 +141,52 @@ The release-boundary tests validate fragment names, front matter, and body
 shape during development, and require release sections for the versions
 currently declared in both public package manifests. A version bump without a
 matching changelog section must fail before release.
+
+## npm Publication Completion and Recovery
+
+Both release workflows use `scripts/publish-npm.ts` from the package's working
+directory. It runs `npm publish --access public` with the existing trusted
+publishing configuration, then verifies that the exact package name and version
+are publicly readable from `registry.npmjs.org`. Successful upload alone does
+not complete the step. The root workflow waits before MCP registry registration;
+both workflows wait before creating their GitHub release.
+When creating a new root release tag, the workflow targets its checked-out
+commit explicitly so commits arriving on `main` during scanning do not change
+which source revision the tag identifies. MCP tags are already created from
+the checked-out commit before uploading.
+
+npm scans new uploads before making them available. Its
+[publish-time scanning announcement](https://github.blog/changelog/2026-07-28-npm-publish-time-malware-scanning-and-dual-use-metadata/)
+describes typical delays around five minutes and sometimes 15 minutes or more,
+without a timing guarantee. This caused the `githits` 0.12.1 and 0.14.0 release
+failures: npm accepted the uploads, but MCP registry validation still received
+404 for those versions.
+
+The shared script checks availability every 15 seconds after a 404, for at most
+20 minutes after upload. Each HTTP request has a timeout of at most 15 seconds,
+bounded by the remaining deadline. The check uses public metadata without npm
+credentials. Unexpected HTTP statuses, transport errors, malformed metadata,
+and mismatched identities fail immediately. Each workflow allows 25 minutes for
+the combined upload and availability step.
+
+Existing public versions continue to skip the upload. An immediate rerun while
+scanning is pending can instead receive npm E409 with `Cannot publish over
+previously staged version` for the exact version. The script recognizes that
+specific response and checks availability without retrying the upload. It does
+not suppress unrelated publishing errors or count a staged upload as completion.
+Recognition uses the modern npm error output shipped with the pinned Node
+runtime; incompatible output changes fail the release rather than silently
+accepting the upload.
+
+If the availability deadline expires, downstream publication stays stopped.
+Inspect npm's package status and any maintainer notifications: a public 404
+cannot distinguish pending scanning, manual review, or a blocked package. Do not
+bump the version or republish repeatedly to bypass this state. Once npm makes
+the version public, rerun the failed release job to finish the remaining
+artifacts. A rerun that publishes registry entries or creates tags/releases
+still requires the normal explicit human authorization.
+
+The availability deadline is an operational bound, not a promise that npm will
+finish scanning within 20 minutes. Unit tests simulate pending uploads and error
+states with injected HTTP, process, and clock dependencies; workflow contract
+tests verify both downstream release paths depend on publication completion.

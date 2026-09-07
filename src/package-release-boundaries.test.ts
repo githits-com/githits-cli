@@ -212,4 +212,71 @@ describe("package release boundaries", () => {
       expect(instructions).toContain("does not authorize merging");
     }
   });
+
+  it("gates downstream releases on npm publication availability in both workflows", async () => {
+    interface WorkflowStep {
+      name: string;
+      run?: string;
+      if?: string;
+      "working-directory"?: string;
+      "continue-on-error"?: boolean;
+      "timeout-minutes"?: number;
+    }
+    interface ReleaseWorkflow {
+      on: { pull_request?: { paths: string[] } };
+      jobs: Record<string, { steps: WorkflowStep[] }>;
+    }
+
+    const cases = [
+      {
+        file: "release.yml",
+        job: "release",
+        publish: "Publish to npm",
+        command: "bun run scripts/publish-npm.ts",
+        downstream: ["Publish to MCP registry", "Create GitHub Release"],
+      },
+      {
+        file: "mcp-release.yml",
+        job: "publish",
+        publish: "Publish @githits/mcp to npm",
+        command: "bun run ../../scripts/publish-npm.ts",
+        downstream: ["Create MCP GitHub Release"],
+      },
+    ];
+    for (const entry of cases) {
+      const workflow = parseYaml(
+        await readFile(
+          join(import.meta.dir, "..", ".github", "workflows", entry.file),
+          "utf8",
+        ),
+      ) as ReleaseWorkflow;
+      const steps = workflow.jobs[entry.job]!.steps;
+      const publishIndex = steps.findIndex(
+        (step) => step.name === entry.publish,
+      );
+      expect(publishIndex).toBeGreaterThan(-1);
+      const publish = steps[publishIndex]!;
+      expect(publish.run).toBe(entry.command);
+      expect(publish["continue-on-error"]).not.toBe(true);
+      expect(publish["timeout-minutes"]).toBeGreaterThan(20);
+      expect(publish.if).toContain("npm_published == 'false'");
+      for (const name of entry.downstream) {
+        const index = steps.findIndex((step) => step.name === name);
+        expect(index).toBeGreaterThan(publishIndex);
+        expect(steps[index]!.if).not.toMatch(/always\(|failure\(/);
+      }
+      if (entry.file === "mcp-release.yml") {
+        expect(publish["working-directory"]).toBe("packages/mcp");
+        expect(workflow.on.pull_request?.paths).toContain(
+          "scripts/publish-npm*",
+        );
+      } else {
+        expect(publish["working-directory"]).toBeUndefined();
+        const release = steps.find(
+          (step) => step.name === "Create GitHub Release",
+        )!;
+        expect(release.run).toContain('--target "$(git rev-parse HEAD)"');
+      }
+    }
+  });
 });

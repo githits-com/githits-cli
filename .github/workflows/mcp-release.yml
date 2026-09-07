@@ -15,6 +15,7 @@ on:
       - "packages/core-internal/**"
       - "packages/mcp/**"
       - "scripts/validate-public-packages.ts"
+      - "scripts/publish-npm*"
       - "src/package-release-boundaries.test.ts"
       - "tsconfig.json"
   workflow_dispatch:
@@ -178,7 +179,9 @@ jobs:
       - name: Publish @githits/mcp to npm
         if: steps.mcp_version.outputs.npm_published == 'false'
         working-directory: packages/mcp
-        run: npm publish --access public
+        # Includes up to 20 minutes for npm's asynchronous scanning.
+        timeout-minutes: 25
+        run: bun run ../../scripts/publish-npm.ts
 
       - name: Create MCP GitHub Release
         if: steps.mcp_version.outputs.release_exists == 'false'
