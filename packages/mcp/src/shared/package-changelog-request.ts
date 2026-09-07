@@ -210,7 +210,7 @@ function normaliseLimit(raw: number | undefined): number | undefined {
  * Minimal URL-shape test. We want to reject obvious non-URLs like
  * `"not a url"` client-side so agents get an actionable error instead
  * of an opaque `BACKEND_ERROR`. Backend handles host-specific
- * validation (GitHub-only enforcement etc.).
+ * validation (supported repository hosts, for example).
  */
 function isUrlShape(raw: string): boolean {
   try {

@@ -121,3 +121,69 @@ describe("direct repository grammar", () => {
     });
   });
 });
+
+it.each([
+  ["https://github.com:443/owner/repo", "https://github.com/owner/repo"],
+  ["http://github.com:80/owner/repo", "https://github.com/owner/repo"],
+  ["https://codeberg.org:443/owner/repo", "https://codeberg.org/owner/repo"],
+  [
+    "https://gitlab.com:443/group/subgroup/project",
+    "https://gitlab.com/group/subgroup/project",
+  ],
+])("normalizes the protocol default port in %s", (spec, repoUrl) => {
+  expect(parseRepositoryTargetSpec(spec!)).toEqual({ repoUrl });
+});
+
+it.each([
+  "https://github.com\\other/owner/repo",
+  "https://codeberg.org?other/owner/repo",
+  "https://gitlab.com#other/group/project",
+])(
+  "rejects authority strings that URL would reinterpret as paths: %s",
+  (spec) => {
+    expect(() => parseRepositoryTargetSpec(spec)).toThrow();
+  },
+);
+
+describe("GitLab reserved web routes", () => {
+  it.each([
+    "tree/main",
+    "blob/main/README.md",
+    "raw/main",
+    "commits/main",
+    "blame/main/file",
+    "-/issues",
+    "environments/folders/staging",
+    "gitlab-lfs/objects/oid",
+    "info/lfs/objects/oid",
+  ])("rejects a reserved web route %s", (route) => {
+    for (const root of [
+      "gitlab:group/project",
+      "https://gitlab.com/group/subgroup/project",
+    ]) {
+      expect(() => parseRepositoryTargetSpec(`${root}/${route}`)).toThrow(
+        "GitLab web subpaths",
+      );
+    }
+  });
+  it.each([
+    "api/v4/projects",
+    "explore/projects",
+    "groups/group/project",
+    "users/name",
+  ])("rejects top-level web route %s", (path) => {
+    expect(() =>
+      parseRepositoryTargetSpec(`https://gitlab.com/${path}`),
+    ).toThrow();
+  });
+  it.each([
+    "group/issues",
+    "group/subgroup/merge_requests",
+    "tree/group/project",
+    "group/tree-tools/project",
+  ])("preserves unreserved repository identity %s", (path) => {
+    expect(parseRepositoryTargetSpec(`gitlab:${path}`)).toEqual({
+      repoUrl: `https://gitlab.com/${path}`,
+    });
+  });
+});

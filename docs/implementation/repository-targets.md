@@ -20,10 +20,16 @@ uses `provider:path#ref` and preserves repository path/ref case.
 
 The parser validates raw paths before URL normalization: dot traversal,
 percent-encoded components, backslashes, empty components, credentials,
-query strings, unsupported hosts/ports, and provider web subpaths are rejected.
-GitLab's `/-/` web-route separator is not a namespace component. A path such
+query strings, unsupported hosts/nondefault ports, and provider web subpaths are rejected.
+GitLab's `/-/` separator and published reserved top-level/project routes
+(such as `tree`, `blob`, and `raw`) are rejected by its path validator.
+The reserved route rules come from [GitLab's path rules](https://docs.gitlab.com/user/reserved_names/).
+Unreserved names such as `issues` or `merge_requests` remain valid repository
+path components; without `/-/` they cannot be distinguished from nested
+repository identity. The client does not guess a repository boundary. A path such
 as `gitlab:group/subgroup/project` is repository identity, never an inferred ref.
-A single trailing slash on the repository path is accepted.
+A single trailing slash on the repository path is accepted. Protocol-default
+ports normalize away (HTTPS 443 and GitHub HTTP 80).
 
 Packages retain registry-native coordinates: `zig:gh/owner/repo`,
 `zig:cb/owner/repo`, `swift:github.com/owner/repo`, and
@@ -96,3 +102,75 @@ confidence, and a concrete Express navigation answer. The Claude eval failed
 before tool use because its isolated session was not logged in; it provides no
 agent-quality evidence. Raw local artifacts are under `.agent-eval/r3b-codex`
 and `.agent-eval/r3b-claude` (ignored, not published).
+
+The production nested GitLab matrix also passed on
+`gitlab:gitlab-org/security-products/analyzers/secrets` at
+`68ba274f1f283b93e85ba490bc16ea16f60cbfb5`: files, grep, read, CODE/DOCS
+search (two hits each), exact source follow-ups, emitted repository-doc
+locators through both `docs read` and `docs_read`, same-commit CodeDiff,
+and changelog. The corresponding Codeberg repository-doc reads passed too.
+`npm:express@4.18.1..4.18.2` upgrade review retained changelog body fields
+on CLI and MCP. Fuzzy resolve calls completed but did not discover either
+fixture as a matching repository; these calls do not prove provider-specific
+fuzzy discovery. Direct canonical targets bypass fuzzy resolve by contract.
+
+## Review disposition (2026-09-07)
+
+One fresh Claude Opus review inspected the full delta and reported no runtime
+correctness regression. Valid findings were closed in the same increment:
+
+- GitLab web routes: verified upstream reserved paths, added provider-local
+  route checks and rejection/valid-namespace tests, and documented the
+  irreducible ambiguity of unreserved names. No provider branches were added
+  to consumers.
+- Corrected the `repositorysitory` typo in both documentation locations;
+  scanned changed prose for the same replacement error.
+- Formatted all changed source/tests and included the residual fixes in the
+  delivered commit; retained the existing CI formatting contract.
+- Trimmed duplicated negative rules in the stable preamble and its exact
+  public skill copy, and completed the Codeberg/GitLab full-URL help.
+- Rejected the speculative providerless Go/Swift label concern: no backend
+  trigger was demonstrated; verified registry-prefixed package labels remain
+  package scope. Do not add a new guard for that hypothetical output shape.
+
+The inline compatibility audit additionally restored URL normalization of
+protocol-default ports and tested authority strings that URL would otherwise
+reinterpret as paths. A redundant GitHub owner check was removed; provider
+validation remains centralized. No broader refactor was needed.
+
+Final deterministic validation after review fixes: `bun test` passed 4,358
+cases across 198 files (19.35 s), `bun run typecheck` passed,
+`bun run format:check` passed, and build/public-package validation passed.
+Plugin generation/check passed with no generated metadata changes.
+
+The targeted `eval/agentic/probes/multi-provider-navigation.md` probe was run
+in two distinct descriptor-only conditions. The neutral run answered without
+GitHits (zero MCP calls), so it provides no tool-use evidence. Under the existing
+GitHits-intent profile, Codex completed with 12 MCP calls: one quick_start,
+one code_files, four code_grep, four code_read, and two search calls. The final
+answer cited the exact Codeberg and nested GitLab commits above and inspected
+source lines; reported confidence was high. Tool calls, final answers, and
+metrics were inspected. No isolation-violations artifact was emitted and the
+reports had no validation warnings; this is not a claim of independently graded
+answer quality. Artifacts: `.agent-eval/r3b-providers-codex` and
+`.agent-eval/r3b-providers-intent`.
+
+### Remaining acceptance evidence
+
+The handoff requested a dev replay and a specific stable GitLab Swift fixture,
+but neither the dev endpoint nor that fixture's coordinate was supplied or
+found in this checkout. These checks remain pending that information; no dev
+or stable GitLab Swift live pass is claimed. Registry-native Swift GitLab
+parsing is covered deterministically. The draft PR records these remaining
+checks explicitly rather than substituting a guessed fixture or endpoint.
+
+To repeat the live direct-target checks with the unpublished build, use
+`node dist/cli.js` for CLI commands and a Node stdio MCP client launching
+`node dist/cli.js mcp start --experimental-tools`. Exercise each compact
+fixture through `code files`, `code grep`, `code read`, CODE/DOCS `search`,
+emitted documentation locators, and `code diff <target> <sha>..<sha>
+--name-status`; MCP counterparts are `code_files`, `code_grep`, `code_read`,
+`search`, `docs_read`, and `code_diff`. Keep `pkg changelog --repo-url` /
+`pkg_changelog.repo_url` in full-URL form and inspect body fields rather than
+summary-only output. Set `GITHITS_CODE_NAV_URL` to the verified dev endpoint
+for its replay; never print authentication state or credential values.

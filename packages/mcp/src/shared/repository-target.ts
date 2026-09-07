@@ -33,10 +33,22 @@ function validCodebergPath(parts: string[]): boolean {
   );
 }
 
+// GitLab reserves these routes rather than allowing them as repository identity.
+// https://docs.gitlab.com/user/reserved_names/
+const GITLAB_TOP_LEVEL_ROUTE =
+  /^(?:-|\.well-known|404\.html|422\.html|500\.html|502\.html|503\.html|admin|api|apple-touch-icon\.png|assets|dashboard|deploy\.html|explore|favicon\.ico|favicon\.png|files|groups|health_check|help|import|jwt|login|oauth|profile|projects|public|robots\.txt|s|search|sitemap|sitemap\.xml|sitemap\.xml\.gz|slash-command-logo\.png|snippets|unsubscribes|uploads|users|v2)$/i;
+const GITLAB_PROJECT_ROUTE =
+  /^(?:-|badges|blame|blob|builds|commits|create|create_dir|edit|files|find_file|new|preview|raw|refs|tree|update|wikis)$/i;
+const GITLAB_MULTI_SEGMENT_ROUTE =
+  /(?:^|\/)(?:environments\/folders|gitlab-lfs\/objects|info\/lfs\/objects)(?:\/|$)/i;
+
 function validGitlabPath(parts: string[]): boolean {
   return (
     parts.length >= 2 &&
-    parts.every((part) => /^[A-Za-z0-9_][A-Za-z0-9._-]*$/.test(part))
+    parts.every((part) => /^[A-Za-z0-9_][A-Za-z0-9._-]*$/.test(part)) &&
+    !GITLAB_TOP_LEVEL_ROUTE.test(parts[0]!) &&
+    parts.slice(1).every((part) => !GITLAB_PROJECT_ROUTE.test(part)) &&
+    !GITLAB_MULTI_SEGMENT_ROUTE.test(parts.slice(1).join("/"))
   );
 }
 
@@ -107,12 +119,19 @@ export function parseRepositoryTargetSpec(spec: string): CodeNavigationTarget {
     throw new InvalidArgumentError(
       "Repository URL targets must not include credentials.",
     );
-  const provider = PROVIDERS.find(
-    (entry) => entry.host === authority.toLowerCase(),
-  );
+  if (/[\\?#\s]/.test(authority))
+    throw new InvalidArgumentError(REPOSITORY_TARGET_ERROR);
+  // Parse only the authority: URL handles default ports without rewriting paths.
+  let host: string;
+  try {
+    host = new URL(`${scheme}://${authority}`).host;
+  } catch {
+    throw new InvalidArgumentError(REPOSITORY_TARGET_ERROR);
+  }
+  const provider = PROVIDERS.find((entry) => entry.host === host);
   if (!provider)
     throw new InvalidArgumentError(
-      "Repository URL targets must use github.com, codeberg.org, or gitlab.com; unsupported/self-hosted hosts and ports are not accepted.",
+      "Repository URL targets must use github.com, codeberg.org, or gitlab.com; unsupported/self-hosted hosts and nondefault ports are not accepted.",
     );
   const guidance = `Use ${provider.prefix}${provider.path} with optional #gitRef or @gitRef, or https://${provider.host}/${provider.path}.`;
   if (scheme.toLowerCase() === "http" && !provider.allowHttp)
@@ -147,10 +166,6 @@ export function parseRepositoryTargetSpec(spec: string): CodeNavigationTarget {
     );
   const parts = path.split("/");
   if (!provider.validatePath(parts)) {
-    if (provider.prefix === "github:" && !GITHUB_OWNER_PATTERN.test(parts[0]!))
-      throw new InvalidArgumentError(
-        `Repository URL targets must use a valid GitHub owner name. ${guidance}`,
-      );
     if (provider.prefix === "github:" && parts.length === 2)
       throw new InvalidArgumentError(
         `Repository URL targets must use a valid GitHub repository name. ${guidance}`,

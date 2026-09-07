@@ -1,4 +1,8 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
+import {
+  buildCodeDiffMcpParams,
+  buildCodeDiffParams,
+} from "../../packages/mcp/src/shared/code-diff-request.js";
 import { buildSearchHitFollowUpCommand } from "../../packages/mcp/src/shared/follow-up-command-text.js";
 import { buildResolveTargetParams } from "../../packages/mcp/src/shared/resolve-target-request.js";
 import { parseUnifiedSearchTargetSpec } from "../../packages/mcp/src/shared/unified-search-target.js";
@@ -34,6 +38,24 @@ describe("provider target consumer parity", () => {
       expect(() =>
         buildResolveTargetParams({ name: spec, includeDetailedFields: false }),
       ).toThrow("does not need resolution");
+    });
+
+    it(`${compact} keeps CodeDiff endpoints separate from provider identity`, () => {
+      const cli = buildCodeDiffParams({
+        target: compact,
+        range: "release/v1@stable..release/v2@stable",
+        view: "name-status",
+      });
+      const mcp = buildCodeDiffMcpParams({
+        target: compact,
+        from: "release/v1@stable",
+        to: "release/v2@stable",
+        view: "name-status",
+      });
+      expect(cli.params).toEqual(mcp.params);
+      expect(cli.params.target).toEqual({ repoUrl });
+      expect(cli.params.from).toBe("release/v1@stable");
+      expect(cli.params.to).toBe("release/v2@stable");
     });
 
     it(`${compact} reaches all navigation tool services with canonical URL/ref only`, async () => {

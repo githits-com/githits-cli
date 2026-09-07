@@ -238,7 +238,8 @@ and \`githits code grep\`.
 filters intersect on top.
 
 Addressing: <target> (registry:name[@version], github:org/repo[#ref|@ref], codeberg:owner/repo[#ref|@ref], gitlab:group[/subgroup...]/project[#ref|@ref],
-github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]) OR
+approved full HTTPS URLs on github.com, codeberg.org, or gitlab.com;
+GitHub also accepts github.com/org/repo and HTTP) OR
 --repo-url <url> [--git-ref <ref>]. Omitted package version means latest release.
 Supported registries: ${PKGSEER_REGISTRY_LIST}.
 

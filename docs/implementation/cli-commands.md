@@ -57,7 +57,7 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `languages [query]` | — | `--json` | List or filter supported languages |
 | `feedback [solution_id]` | `--accept` or `--reject` | `-m, --message <text>`, `--tool <name>`, `--json` | Submit solution-tied or generic session feedback |
 | `doctor` | — | `--json` | Print redacted diagnostics for GitHits runtime, environment, service URLs, config, and auth storage |
-| `resolve <name>` *(experimental; config-gated)* | package or public repositorysitory name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--verbose`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
+| `resolve <name>` *(experimental; config-gated)* | package or public repository name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--verbose`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
 | `settings` | — | `--json` | Show canonical preferences, privacy and terms, and account limits |
 | `settings show` | — | `--json` | Explicit form of `settings` for showing all account settings |
 | `settings get <key>` | setting key | `--json` | Read one writable setting using its public CLI name |
@@ -708,7 +708,7 @@ githits pkg changelog npm:express --json
 githits pkg changelog pypi:requests --no-body --json       # lean timeline
 ```
 
-Fetches release notes or changelog entries for a package or public repositorysitory. Output preserves source ordering, which may interleave maintained release lines, and includes a summary header identifying the source (GitHub Releases, CHANGELOG.md, or HexDocs).
+Fetches release notes or changelog entries for a package or public repository. Output preserves source ordering, which may interleave maintained release lines, and includes a summary header identifying the source (GitHub Releases, CHANGELOG.md, or HexDocs).
 
 **Addressing.** `<spec>` (`registry:name`, same parser as `pkg info` / `pkg vulns` / `pkg deps`) **or** `--repo-url <url>`, mutually exclusive. Unlike the other `pkg` commands, `pkg changelog` is intrinsically repo-level, so repo-URL addressing is a first-class peer mode.
 

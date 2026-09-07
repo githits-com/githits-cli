@@ -63,3 +63,5 @@ Partial and capped documentation coverage are usable published evidence. Report 
 - `githits docs read` maps to MCP `docs_read`.
 
 Direct repository targets accept approved full HTTPS URLs on github.com, codeberg.org, and gitlab.com. Codeberg requires exactly owner/repo; GitLab allows nested namespaces. Only GitHub supports host shorthand and HTTP compatibility. Never infer a provider from bare owner/repo. Refs may contain / and @ after # or @; empty refs and mixed suffixes are invalid. Credentials, queries, provider web subpaths, and unsupported/self-hosted hosts are rejected. Package targets keep registry-native coordinates, including `zig:cb/owner/repo` and `swift:gitlab.com/group/project`. Changelog repo URL fields remain full HTTPS URLs.
+
+GitLab web paths with `/-/` or reserved routes such as `tree`, `blob`, and `raw` are rejected. Unreserved names such as `issues` can be repository path components; without a web-route marker, the client treats the complete nested path as repository identity.

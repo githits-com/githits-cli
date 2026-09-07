@@ -273,7 +273,7 @@ function parseTarget(raw: string): CodeNavigationTarget {
     return parseCodeNavigationTargetSpec(raw);
   } catch {
     throw invalid(
-      `Invalid Diff target. Expected an unversioned package target \`<registry>:<name>\` (for example \`npm:express\`; supported registries: ${KNOWN_REGISTRIES.join(", ")}) or an unversioned repository target (for example \`github:expressjs/express\`).`,
+      `Invalid Diff target. Expected an unversioned package target \`<registry>:<name>\` (for example \`npm:express\`; supported registries: ${KNOWN_REGISTRIES.join(", ")}) or an unversioned repository target (for example \`github:expressjs/express\`, \`codeberg:owner/repo\`, or \`gitlab:group/subgroup/project\`).`,
     );
   }
 }
