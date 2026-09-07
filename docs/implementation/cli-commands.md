@@ -357,8 +357,9 @@ EXACT/HIGH site best keeps its normal docs-search continuation. Search can initi
 ordinary backend preparation for admitted sites; resolution does not claim that
 a crawl is queued or preparing. Identity, confidence and candidate order remain
 unchanged, with no substitution of another product. For available evidence,
-positive counts render when supplied; missing counts produce no placeholder. Available package and repository code renders as an indexed
-snapshot at that identity's scope, with a file count in parentheses when
+positive counts render when supplied; missing counts produce no placeholder.
+Available package and repository code renders as an indexed snapshot at that
+identity's scope, with a file count in parentheses when
 present. Unavailable package docs/code and repository code evidence remain
 omitted even when a recorded count is present. Resolver readiness does not
 determine whether a later docs or code command can follow up. Structurally
@@ -501,9 +502,9 @@ standalone documentation sites.
 
 `resolveTarget` returns `SITE` targets for standalone documentation sites.
 Without `KNOWN_KIND_VALUES` carrying `site`, those targets would render with
-the unknown-kind `target` label. Site targets report `docsAvailable` true
-and `codeAvailable` false, so terminal output shows docs evidence without code,
-stars, or downloads. `--prefer-kind site` is a soft ranking preference rather
+the unknown-kind `target` label. Site targets report current documentation
+readiness through `docsAvailable`; terminal output shows available docs evidence
+or `documentation not currently ready`, without code, stars, or downloads. `--prefer-kind site` is a soft ranking preference rather
 than a filter, matching the package/repository kind contract.
 
 The config-gated CLI help, local `resolve_target` description/schema, and local

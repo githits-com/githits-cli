@@ -87,4 +87,10 @@ baseline SHA was rejected on 2026-09-07: the SHA is intentional verification
 provenance, not a runtime contract. Do not re-raise without new evidence.
 The coordinator reviewed the complete delta inline under the repository's
 single-file/small-runtime reviewer-sizing rule; no internal reviewer subagent or
-nested reviewer was needed. External code review follows before draft delivery.
+nested reviewer was needed. External Opus round 1 found no runtime issues.
+Accepted and fixed its documentation findings: the standalone-site section no
+longer assumes docs availability, the edited paragraph is wrapped, and the
+completed temporary plan is retired. A bounded scan of the changed resolver docs
+found no other always-available assumption. Positive retained page counts do not
+prove readability; readable stale docs have `docsAvailable: true`.
+The external closure review follows these documentation-only corrections.
