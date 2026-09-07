@@ -1329,6 +1329,72 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     expect(output).not.toContain("+2 more; use -v");
   });
 
+  it("omits a singleton higher fix that repeats the nearest fix", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const audit = fixture.transitive;
+    const sourcePackage = audit?.packages[0];
+    const sourceOccurrence = sourcePackage?.occurrences[0];
+    if (!audit || !sourcePackage || !sourceOccurrence) {
+      throw new Error("fixture missing singleton transitive occurrence");
+    }
+    const occurrence = structuredClone(sourceOccurrence);
+    occurrence.fixVersionsAboveResolved = ["2.1.0"];
+    occurrence.nearestFixedVersion = "2.1.0";
+    fixture.transitive = {
+      ...audit,
+      packageCount: 1,
+      occurrenceCount: 1,
+      packages: [
+        {
+          ...sourcePackage,
+          occurrenceCount: 1,
+          occurrences: [occurrence],
+        },
+      ],
+    };
+
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: false,
+      verbose: true,
+      terminalWidth: 120,
+    });
+    expect(output).toContain("nearest fix     2.1.0");
+    expect(output).not.toContain("higher fixes");
+  });
+
+  it("retains multiple higher fixes beyond the nearest fix", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const audit = fixture.transitive;
+    const sourcePackage = audit?.packages[0];
+    const sourceOccurrence = sourcePackage?.occurrences[0];
+    if (!audit || !sourcePackage || !sourceOccurrence) {
+      throw new Error("fixture missing multi-candidate transitive occurrence");
+    }
+    const occurrence = structuredClone(sourceOccurrence);
+    occurrence.fixVersionsAboveResolved = ["2.1.0", "3.0.0"];
+    occurrence.nearestFixedVersion = "2.1.0";
+    fixture.transitive = {
+      ...audit,
+      packageCount: 1,
+      occurrenceCount: 1,
+      packages: [
+        {
+          ...sourcePackage,
+          occurrenceCount: 1,
+          occurrences: [occurrence],
+        },
+      ],
+    };
+
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: false,
+      verbose: true,
+      terminalWidth: 120,
+    });
+    expect(output).toContain("nearest fix     2.1.0");
+    expect(output).toContain("higher fixes    2.1.0, 3.0.0");
+  });
+
   it("renders aligned verbose historical advisory evidence", () => {
     const fixture = transitiveVulnerabilityFixture();
     const sourceOccurrence = fixture.transitive?.packages[1]?.occurrences[1];

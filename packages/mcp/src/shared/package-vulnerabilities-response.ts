@@ -1698,7 +1698,15 @@ function formatTransitiveOccurrence(
     lines.push(
       ...formatFreeDetail("nearest fix", nearest, options.terminalWidth),
     );
-    if (options.verbose && occurrence.fixVersionsAboveResolved.length > 0) {
+    const higherFixesRepeatNearest =
+      occurrence.fixVersionsAboveResolved.length === 1 &&
+      occurrence.nearestFixedVersion !== undefined &&
+      occurrence.fixVersionsAboveResolved[0] === occurrence.nearestFixedVersion;
+    if (
+      options.verbose &&
+      occurrence.fixVersionsAboveResolved.length > 0 &&
+      !higherFixesRepeatNearest
+    ) {
       lines.push(
         ...formatAtomicDetail(
           "higher fixes",
