@@ -134,8 +134,8 @@ The shared vulnerability response formatter naturally owns row completeness and
 visual hierarchy because those are presentation decisions shared by CLI and MCP. The
 core package-intelligence service naturally owns conditional GraphQL field selection
 and neutral advisory metadata because transport facts must be validated before they
-reach either surface. CLI and MCP entrypoints own only the decision that verbose text
-or JSON needs detailed advisory fields.
+reach either surface. CLI and MCP entrypoints own only the decision that JSON or a
+verbose scope containing historical rows needs detailed advisory fields.
 
 A simpler formatter-only placement was considered. It can fix the cap and indentation
 but cannot give historical rows meaningful range/fix evidence because those fields are
@@ -151,7 +151,8 @@ CLI command / MCP tool
   -> PackageIntelligenceService
        -> direct advisory query
        -> opt-in transitive audit query
-            advisory ranges/fixes selected only for verbose text or JSON
+            advisory ranges/fixes selected only for historical/all-scope
+            verbose text or JSON
        -> Zod validation and neutral normalized types
   -> shared lean response builder
   -> JSON, or shared surface-aware text formatter
@@ -201,7 +202,8 @@ Extend each transitive occurrence additively with optional advisory-wide
 vocabulary. Existing occurrence-specific fields and meanings do not change.
 
 Add one internal request-breadth boolean to `PackageVulnerabilitiesParams`. CLI and
-MCP set it for verbose text or JSON; compact text leaves it false/omitted. The
+MCP set it for JSON or historical/all-scope verbose text; compact and affected-only
+verbose text leave it false/omitted. The
 transitive GraphQL query conditionally selects only
 `advisory.affectedVersionRanges` and `advisory.fixedInVersions` behind a clearly named
 directive variable. The direct query is unchanged because it already returns these
@@ -246,10 +248,10 @@ remains lossless through `JSON.stringify`.
 ### Performance and payload size
 
 This is not an optimization, so no benchmark is required. The default direct-only
-network path is unchanged. Compact transitive text keeps its existing graph-analysis
-cost and does not fetch advisory-wide detail arrays. Verbose/JSON callers explicitly
-request the two extra arrays in the already opt-in transitive query. No N+1 query is
-added.
+network path is unchanged. Compact and affected-only verbose transitive text keep their
+existing graph-analysis cost and do not fetch advisory-wide detail arrays. JSON and
+historical/all-scope verbose callers explicitly request the two extra arrays in the
+already opt-in transitive query. No N+1 query is added.
 
 CLI text can become long by design: the caller selected every matching row, and
 `--scope`, `--severity`, or omitting `--transitive` are the existing ways to narrow
@@ -295,8 +297,9 @@ and `@githits/mcp`; do not edit `CHANGELOG.md` or package versions.
   - Affected rows retain occurrence-specific match/fix evidence. Historical verbose
     rows use explicitly advisory-wide range/fix labels and never imply current
     affectedness.
-  - Compact text omits the two new advisory arrays on the wire; verbose text and JSON
-    select, validate, and preserve them when the backend supplies them.
+  - Compact and affected-only verbose text omit the two new advisory arrays on the
+    wire; historical/all-scope verbose text and JSON select, validate, and preserve
+    them when the backend supplies them.
   - CLI/MCP JSON parity remains exact and existing JSON meanings remain unchanged.
   - Focused/full tests, typecheck, lint, formatting, build/package validation, all
     four smoke suites, real Jest CLI verification, and the targeted package
@@ -314,11 +317,11 @@ and `@githits/mcp`; do not edit `CHANGELOG.md` or package versions.
   caps surface-specific, add the two optional lean fields, align detail helpers to the
   package-coordinate column, render historical advisory-wide evidence only in verbose
   mode, and preserve wrapping/sanitization/color parity.
-- `src/commands/pkg/vulns.ts` and tests: request detailed fields for `-v` and `--json`,
-  update CLI help, and prove normal text is row-complete.
+- `src/commands/pkg/vulns.ts` and tests: request detailed fields for historical/all-
+  scope `-v` and `--json`, update CLI help, and prove normal text is row-complete.
 - `packages/mcp/src/tools/package-vulnerabilities.ts` and tests: request detailed
-  fields for verbose text and JSON while preserving compact MCP selection and
-  descriptor truthfulness.
+  fields for historical/all-scope verbose text and JSON while preserving compact and
+  affected-only MCP selection plus descriptor truthfulness.
 - CLI/MCP parity fixtures, smoke assertions, permanent implementation docs, and one
   independent release fragment.
 

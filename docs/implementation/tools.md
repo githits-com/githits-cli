@@ -176,8 +176,11 @@ package rows; transitive withdrawn advisories are always excluded.
 
 The additive JSON `transitive` object has `scope: "resolved_dependencies"`,
 `advisoryScope`, `withdrawnAdvisoriesIncluded: false`, a numeric `summary`
-containing `totalPackagesAnalyzed`, `packageCount`, and `occurrenceCount`, and a
-`packages` array. Each occurrence preserves `affectsResolvedVersion`; affected
+containing `totalPackagesAnalyzed`, `packageCount`, `occurrenceCount`, and an
+optional `bySeverity` partition of every row selected by `advisoryScope`, plus a
+`packages` array. `bySeverity` is not an affected-only risk histogram under
+`all` or `non_affecting`; each occurrence preserves `affectsResolvedVersion` so
+callers can distinguish current from historical evidence. Affected
 rows include non-empty `matchedAffectedVersionRanges` plus higher-fix candidates,
 while historical rows have empty matched-range and fix arrays. The required
 `fixVersionsAboveResolved` array may also be empty on affected rows when no
@@ -191,12 +194,13 @@ not CLI row completeness, and shows every selected occurrence. Transitive
 detail labels align at the package coordinate: affected rows show `matched`,
 `nearest fix`, non-redundant `higher fixes`, then aliases; historical verbose
 rows show `advisory ranges`, `advisory fixes`, then aliases. CLI `--json` and
-MCP `format: "json"` use the same envelope. Compact transitive text omits the
-transitive advisory-wide arrays from the wire; verbose text and JSON
-conditionally select, validate, and preserve them in the field-minimal
-transitive query. The service performs one sequential dependency query with the
-resolved root version and fails closed on malformed identity/count/fix evidence
-instead of returning partial direct-only results.
+MCP `format: "json"` use the same envelope. Compact transitive text and
+affected-only verbose text omit the transitive advisory-wide arrays from the
+wire; historical/all-scope verbose text and JSON conditionally select,
+validate, and preserve them in the field-minimal transitive query. The service
+performs one sequential dependency query with the resolved root version and
+fails closed on malformed identity/count/fix evidence instead of returning
+partial direct-only results.
 
 ## Ecosystem Audit
 

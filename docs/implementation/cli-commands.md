@@ -608,9 +608,12 @@ rows, and transitive withdrawn advisories remain excluded.
 Transitive `--json` output adds a complete `transitive` object with
 `scope: "resolved_dependencies"`, `advisoryScope`,
 `withdrawnAdvisoriesIncluded: false`, and a numeric summary of
-`totalPackagesAnalyzed`, `packageCount`, and `occurrenceCount`, followed by
+`totalPackagesAnalyzed`, `packageCount`, `occurrenceCount`, and an optional
+`bySeverity` partition of all rows selected by `advisoryScope`, followed by
 `packages[]` containing resolved dependency versions, explicit affectedness,
 matched affected ranges, and all higher-fix candidates when applicable. The
+severity partition is not affected-only under `all` or `non_affecting`; use each
+occurrence's `affectsResolvedVersion` for that distinction. The
 occurrence-specific `matchedAffectedVersionRanges` and
 `fixVersionsAboveResolved` fields remain distinct from optional advisory-wide
 `affectedRanges` and `fixedIn` arrays; the latter are omitted when unavailable.
@@ -627,9 +630,10 @@ advisory-wide `advisory ranges`, `advisory fixes`, and aliases without implying
 that the resolved version is affected. MCP `include_transitive: true` and CLI
 `--transitive` share this JSON contract.
 
-Compact text requests only the field-minimal transitive audit; advisory-wide
-range/fix arrays are conditionally selected for verbose text or JSON and are
-validated and preserved at that boundary.
+Compact text and affected-only verbose text request only the field-minimal
+transitive audit. Advisory-wide range/fix arrays are conditionally selected for
+historical/all-scope verbose text or JSON and are validated and preserved at
+that boundary.
 
 **Package spec.** `<registry>:<name>[@<version>]`. Unlike `pkg info`, `pkg vulns` supports `@<version>` so callers can inspect older pinned releases. `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `packagist`, `rubygems`, `go`, and `swift` support vulnerability data; vcpkg and Zig are rejected client-side with `pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: ${registry}.` Swift accepts `v`-prefixed release tags because SwiftPM packages commonly publish them.
 
