@@ -97,4 +97,5 @@ External round 2 confirmed those closures and unchanged runtime/tests. Its
 additional wrapping and page-count wording notes were fixed. The deleted plan
 had included a local source-plan path; that non-credential reference remains in
 commit history, which was not rewritten. The final tree uses durable contract
-and evidence documentation only. Round 3 checks final documentation closure.
+and evidence documentation only. Round 3 confirmed final documentation closure at `d77fbf8` with no findings;
+the same Opus session is retained through PR approval.
