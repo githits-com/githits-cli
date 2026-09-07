@@ -76,7 +76,8 @@ Verification on the corrected delta:
 | `bun run plugins:check` | 10 assets validated |
 
 The complete suite preceded the test-only `limit: 8` correction; typecheck and
-the two affected service cases passed afterward. The subsequent copy correction below was verified separately. Live agent evals were not run: this increment's acceptance is
+the two affected service cases passed afterward. The subsequent copy correction below was verified separately. Live agent evals
+were not run: this increment's acceptance is
 deterministic and the existing harness has no reviewed unready-site fixture
 mode. Production smoke and actual backend preparation remain unclaimed.
 
@@ -100,10 +101,17 @@ commit history, which was not rewritten. The final tree uses durable contract
 and evidence documentation only. Round 3 confirmed final documentation closure at `d77fbf8` with no findings;
 the same Opus session is retained through PR approval.
 
-
 User wording correction: replaced the dead-end sounding readiness label with
 `docs: crawled on demand`. Search continuation remains unchanged. Verified with
 `bun test packages/mcp/src/shared/resolve-target-response.test.ts src/tools/resolve-target-parity.test.ts src/tools/search-parity.test.ts --test-name-pattern 'S2b readiness'`
 (33 pass, 0 fail, 657 assertions), plus typecheck, format, lint, build and the
 same secret-free CLI/MCP smoke commands above. Inline review confirmed only the
 label and matching tests/docs changed.
+
+Retained Opus reviewed the user-directed wording delta at `1007a55` with no
+functional findings. Informational notes were adjudicated: the colon separates
+the docs label from its capability; candidate rows describe capability without
+changing endorsement or backend admission. Both match the requested wording and
+existing gates. Prose wrapping and extra whitespace were corrected inline; the
+long exact evidence command is intentionally preserved. CI passed build, package
+validation, Linux/Windows tests and Bun/Node 20/22/24/26 compatibility at that head.
