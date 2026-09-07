@@ -327,7 +327,8 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
       },
       {},
     );
-    expect(verboseResult.content[0]?.text).toContain("higher fixes 2.0.0");
+    expect(verboseResult.content[0]?.text).toContain("nearest fix     2.0.0");
+    expect(verboseResult.content[0]?.text).not.toContain("higher fixes");
 
     const jsonResult = await tool.handler(
       {

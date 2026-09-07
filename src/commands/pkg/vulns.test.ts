@@ -261,7 +261,8 @@ describe("pkgVulnsAction", () => {
     );
     expect(writes.join("")).toContain("Resolved dependencies");
     expect(writes.join("")).toContain("body-parser@1.19.0");
-    expect(writes.join("")).toContain("higher fixes 2.0.0");
+    expect(writes.join("")).toContain("nearest fix     2.0.0");
+    expect(writes.join("")).not.toContain("higher fixes");
     expect(
       (
         packageVulnerabilities.mock.calls as unknown as Array<
