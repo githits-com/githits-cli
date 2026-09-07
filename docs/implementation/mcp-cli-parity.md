@@ -283,7 +283,12 @@ test suite anchors the doc.
   `text-v1`. Both resolve text renderers nevertheless use the same pure
   actionability rule: only a non-ambiguous `EXACT`/`HIGH` best result whose
   matching candidate has `CLEAR` or `NOT_APPLICABLE` latest-version
-  malicious-content status can emit a direct canonical next action. `AFFECTED`,
+  malicious-content status can emit a direct canonical next action. Site
+  `docsAvailable: false` is readiness, not a search prohibition: both surfaces
+  show `docs: crawled on demand` and retain normal continuation.
+  On-demand preparation remains backend search behavior; resolution never claims
+  a crawl was queued or is preparing. Best identity, confidence, candidate order
+  and ambiguity are preserved; no other product is substituted. `AFFECTED`,
   `UNKNOWN`, missing, and future statuses fail closed. `MEDIUM`/`LOW` results
   remain unconfirmed under that rule, while every non-empty list uses the neutral
   `Targets:` heading. Empty results point to spelling or filters rather than
@@ -294,7 +299,7 @@ test suite anchors the doc.
   whole percentage and explain that it is coarse lexical support while candidate
   order follows broader backend policy. JSON preserves the numeric fraction.
   Both label positive `codeAvailable` as an indexed package or repository
-  snapshot at the candidate's scope. False availability and its counts are
+  snapshot at the candidate's scope. False code availability and its counts are
   omitted because they do not decide whether a later code command can resolve
   and serve a commit SHA; JSON remains lossless.
   `code_diff` patch previews are bounded at 320 UTF-8 bytes, label each affected

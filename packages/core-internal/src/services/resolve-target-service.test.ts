@@ -790,3 +790,87 @@ describe("ResolveTargetServiceImpl", () => {
     ).rejects.toBeInstanceOf(AuthenticationError);
   });
 });
+
+describe("S2b readiness", () => {
+  for (const detailed of [false, true]) {
+    it(`preserves an unready site best and ordered alternatives in detailed=${detailed}`, async () => {
+      const best = {
+        kind: "SITE",
+        canonicalKey: "site:ai.pydantic.dev",
+        confidence: "EXACT",
+      };
+      const site = {
+        ...DETAILED_CANDIDATE,
+        kind: "SITE",
+        canonicalKey: best.canonicalKey,
+        displayName: "Pydantic AI",
+        latestVersionMaliciousStatus: "NOT_APPLICABLE",
+        docsAvailable: false,
+        docsPageCount: 12,
+        codeAvailable: false,
+        groupKey: null,
+        registry: null,
+        packageName: null,
+        latestVersion: null,
+        match: { ...DETAILED_CANDIDATE.match, matchedAliases: ["Pydantic AI"] },
+      };
+      const relatedPackage = {
+        ...DETAILED_CANDIDATE,
+        canonicalKey: "pypi:pydantic-ai",
+        registry: "PYPI",
+        packageName: "pydantic-ai",
+        match: null,
+      };
+      const relatedSite = {
+        ...site,
+        canonicalKey: "site:docs.pydantic.dev",
+        docsAvailable: true,
+        match: null,
+      };
+      const fetchFn = mock((_url: string, _init?: RequestInit) =>
+        Promise.resolve(
+          jsonResponse(
+            resultBody(site, {
+              best,
+              protectedMatches: [],
+              targets: [site, relatedPackage, relatedSite],
+              candidates: undefined,
+            }),
+          ),
+        ),
+      );
+      const service = new ResolveTargetServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(fetchFn),
+      );
+      const result = await service.resolveTarget({
+        name: "Pydantic AI",
+        limit: 8,
+        includeDetailedFields: detailed,
+        includeNameSimilarity: false,
+      });
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      const request = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body));
+      expect(request.query).toBe(RESOLVE_TARGET_QUERY);
+      expect(request.variables).toMatchObject({
+        includeDetailedFields: detailed,
+        includeNameSimilarity: false,
+      });
+      expect(result.best).toEqual(best);
+      expect(result.targets.map((target) => target.canonicalKey)).toEqual([
+        "site:ai.pydantic.dev",
+        "pypi:pydantic-ai",
+        "site:docs.pydantic.dev",
+      ]);
+      expect(result.targets[0]).toMatchObject({
+        docsAvailable: false,
+        docsPageCount: 12,
+        latestVersionMaliciousStatus: "NOT_APPLICABLE",
+        match: { confidence: "EXACT" },
+      });
+      expect(result.targets[1]?.match).toBeUndefined();
+      expect(result.targets[2]?.match).toBeUndefined();
+    });
+  }
+});

@@ -1,14 +1,21 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import type {
+  ResolveTargetResult,
   UnifiedSearchOutcome,
+  UnifiedSearchParams,
   UnifiedSearchRepositoryEvidence,
 } from "@githits/core-internal";
+import { resolveAction } from "../commands/resolve.js";
 import { searchAction } from "../commands/search.js";
 import {
   createMockCodeNavigationService,
+  createMockResolveTargetService,
   defaultUnifiedSearchOutcome,
 } from "../services/test-helpers.js";
-import { createParityMcpTool } from "./parity-test-helpers.js";
+import {
+  createParityExperimentalMcpTool,
+  createParityMcpTool,
+} from "./parity-test-helpers.js";
 
 function outcomeWithPartial(partialResults: boolean) {
   if (defaultUnifiedSearchOutcome.state !== "completed") {
@@ -458,4 +465,128 @@ describe("search parity", () => {
     expect(cli).not.toContain("Read context");
     expect(cli).not.toContain("code_read target=");
   });
+});
+
+describe("S2b readiness", () => {
+  for (const target of ["site:ai.pydantic.dev", "pypi:pydantic-ai"]) {
+    for (const surface of ["CLI", "MCP"]) {
+      it(`${surface} continues ${target} with unready docs into ordinary search before reporting indexing`, async () => {
+        const kind = target.startsWith("site:") ? "SITE" : "PACKAGE";
+        const best = { kind, canonicalKey: target, confidence: "EXACT" };
+        const resolved: ResolveTargetResult = {
+          best,
+          targets: [
+            {
+              ...best,
+              docsAvailable: false,
+              docsPageCount: 0,
+              codeAvailable: false,
+              latestVersionMaliciousStatus:
+                kind === "SITE" ? "NOT_APPLICABLE" : "CLEAR",
+              match: { confidence: "EXACT" },
+            },
+          ],
+          protectedMatches: [],
+          targetsTruncated: false,
+          ambiguous: false,
+          ambiguousReason: "NOT_AMBIGUOUS",
+        };
+        const resolveTarget = mock(() => Promise.resolve(resolved));
+        const resolveTargetService = createMockResolveTargetService({
+          resolveTarget,
+        });
+        const outcome: UnifiedSearchOutcome = {
+          state: "incomplete",
+          completed: false,
+          searchRef: "search-s2b",
+          progress: {
+            searchRef: "search-s2b",
+            status: "INDEXING",
+            targetsTotal: 1,
+            targetsReady: 0,
+            elapsedMs: 100,
+            query: "tools",
+            queryWarnings: [],
+            sources: ["DOCS"],
+          },
+        };
+        const search = mock((_params: UnifiedSearchParams) =>
+          Promise.resolve(outcome),
+        );
+        const codeNavigationService = createMockCodeNavigationService({
+          search,
+        });
+        let resolutionText: string;
+        let searchText: string;
+        if (surface === "CLI") {
+          const stdout = spyOn(process.stdout, "write").mockImplementation(
+            () => true,
+          );
+          const log = spyOn(console, "log").mockImplementation(() => {});
+          try {
+            await resolveAction(
+              "Pydantic AI",
+              {},
+              {
+                resolveTargetService,
+                hasValidToken: true,
+                mcpUrl: "https://mcp.example.com",
+              },
+            );
+            resolutionText = String(stdout.mock.calls[0]?.[0]);
+            expect(resolutionText).toContain(`--in '${target}'`);
+            expect(search).not.toHaveBeenCalled();
+            await searchAction(
+              "tools",
+              { in: [resolved.best!.canonicalKey], source: "docs" },
+              {
+                codeNavigationService,
+                codeNavigationUrl: "https://nav.example.com",
+                hasValidToken: true,
+                mcpUrl: "https://mcp.example.com",
+              },
+            );
+            searchText = String(log.mock.calls[0]?.[0]);
+          } finally {
+            stdout.mockRestore();
+            log.mockRestore();
+          }
+        } else {
+          const resolver = createParityExperimentalMcpTool("resolve_target", {
+            resolveTargetService,
+          });
+          const resolution = await resolver.handler(
+            { name: "Pydantic AI" },
+            {},
+          );
+          resolutionText = resolution.content[0]?.text ?? "";
+          expect(resolutionText).toContain(`"${target}"`);
+          expect(search).not.toHaveBeenCalled();
+          const tool = createParityMcpTool("search", { codeNavigationService });
+          const response = await tool.handler(
+            {
+              target: resolved.best!.canonicalKey,
+              query: "tools",
+              source: "docs",
+            },
+            {},
+          );
+          expect(response.isError).toBeUndefined();
+          searchText = response.content[0]?.text ?? "";
+        }
+        expect(resolveTarget).toHaveBeenCalledTimes(1);
+        expect(resolutionText).not.toMatch(/queued|preparing|indexing/i);
+        expect(search).toHaveBeenCalledTimes(1);
+        expect(search.mock.calls[0]?.[0]).toMatchObject({
+          targets:
+            kind === "SITE"
+              ? [{ site: target }]
+              : [{ registry: "PYPI", packageName: "pydantic-ai" }],
+          sources: ["DOCS"],
+        });
+        expect(searchText).toContain("indexing");
+        expect(searchText).toContain("search-s2b");
+      });
+    }
+  }
 });
