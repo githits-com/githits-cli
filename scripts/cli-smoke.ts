@@ -612,7 +612,7 @@ export function assertTransitiveVulnerabilityText(
   }
 
   assert(
-    /(?:^|\n)\s*No affected advisory occurrences found;\s+\d+\s+resolved package versions?\s+checked\./.test(
+    /(?:^|\n)\s*No\s+(?:affected|historical|affected\s+or\s+historical)\s+advisory\s+occurrences\s+found;\s+\d+\s+resolved\s+package\s+versions?\s+checked\./.test(
       resolvedText,
     ),
     `${context}: missing recognized advisory occurrence summary`,

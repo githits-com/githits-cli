@@ -410,6 +410,23 @@ describe("CLI transitive vulnerability smoke contract", () => {
     ).not.toThrow();
   });
 
+  it("accepts clean historical and all-scope summaries with wrapping", () => {
+    const historical =
+      "Resolved dependencies\nNo historical advisory occurrences found; 1 resolved package version checked.";
+    const allScope =
+      "Resolved dependencies\nNo affected\n  or historical advisory occurrences found; 2 resolved package\n  versions checked.";
+
+    expect(() =>
+      assertTransitiveVulnerabilityText(
+        historical,
+        "historical transitive audit",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertTransitiveVulnerabilityText(allScope, "all-scope transitive audit"),
+    ).not.toThrow();
+  });
+
   it("rejects an unrecognized advisory summary", () => {
     const output =
       "Resolved dependencies\nNo selected advisory rows; 2 resolved package versions checked.";
