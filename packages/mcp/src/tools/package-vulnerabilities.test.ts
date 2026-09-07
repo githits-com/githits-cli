@@ -270,6 +270,42 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     },
   );
 
+  it.each([
+    ["normal text", { include_transitive: true }, false],
+    ["verbose text", { include_transitive: true, verbose: true }, true],
+    ["JSON", { include_transitive: true, format: "json" }, true],
+  ] as const)(
+    "passes transitive advisory details for %s",
+    async (_label, args, expected) => {
+      const packageVulnerabilities = mock(() =>
+        Promise.resolve(defaultVulnerabilityReport),
+      );
+      const tool = createPackageVulnerabilitiesTool(
+        createMockPackageIntelligenceService({ packageVulnerabilities }),
+      );
+
+      await tool.handler(
+        { registry: "npm", package_name: "express", ...args },
+        {},
+      );
+
+      const params = (
+        packageVulnerabilities.mock.calls as unknown as Array<
+          [
+            {
+              includeTransitive?: boolean;
+              includeTransitiveAdvisoryDetails?: boolean;
+            },
+          ]
+        >
+      )[0]?.[0];
+      expect(params).toMatchObject({
+        includeTransitive: true,
+        includeTransitiveAdvisoryDetails: expected,
+      });
+    },
+  );
+
   it("renders and returns the complete transitive audit when requested", async () => {
     const report = transitiveVulnerabilityReport();
     const packageVulnerabilities = mock(() => Promise.resolve(report));

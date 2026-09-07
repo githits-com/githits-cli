@@ -109,15 +109,21 @@ export function createPackageVulnerabilitiesTool(
     annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       try {
-        const { params, filter } = buildPackageVulnerabilitiesParams({
-          registry: args.registry,
-          packageName: args.package_name,
-          version: args.version,
-          minSeverity: args.min_severity,
-          includeWithdrawn: args.include_withdrawn,
-          includeTransitive: args.include_transitive,
-          advisoryScope: args.advisory_scope,
-        });
+        const { params: builtParams, filter } =
+          buildPackageVulnerabilitiesParams({
+            registry: args.registry,
+            packageName: args.package_name,
+            version: args.version,
+            minSeverity: args.min_severity,
+            includeWithdrawn: args.include_withdrawn,
+            includeTransitive: args.include_transitive,
+            advisoryScope: args.advisory_scope,
+          });
+        const params = {
+          ...builtParams,
+          includeTransitiveAdvisoryDetails:
+            args.verbose === true || args.format === "json",
+        };
         const report = await service.packageVulnerabilities(params);
         const payload = buildPackageVulnerabilitiesSuccessPayload(report, {
           requestedVersion: params.version,

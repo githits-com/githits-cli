@@ -60,7 +60,7 @@ export async function pkgVulnsAction(
     }
 
     const parsed = parsePackageSpec(spec);
-    const { params, filter } = buildPackageVulnerabilitiesParams({
+    const { params: builtParams, filter } = buildPackageVulnerabilitiesParams({
       registry: parsed.registry,
       packageName: parsed.name,
       version: parsed.version,
@@ -69,6 +69,11 @@ export async function pkgVulnsAction(
       includeTransitive: options.transitive,
       advisoryScope: options.scope,
     });
+    const params = {
+      ...builtParams,
+      includeTransitiveAdvisoryDetails:
+        options.verbose === true || options.json === true,
+    };
     const report =
       await deps.packageIntelligenceService.packageVulnerabilities(params);
 

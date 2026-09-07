@@ -173,6 +173,52 @@ describe("pkgVulnsAction", () => {
     },
   );
 
+  it.each([
+    ["normal text", { transitive: true }, false],
+    ["verbose text", { transitive: true, verbose: true }, true],
+    ["JSON", { transitive: true, json: true }, true],
+  ] as const)(
+    "passes transitive advisory details for %s",
+    async (_label, options, expected) => {
+      const packageVulnerabilities = mock(() =>
+        Promise.resolve(defaultVulnerabilityReport),
+      );
+      const service = createMockPackageIntelligenceService({
+        packageVulnerabilities,
+      });
+      const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+        (() => true) as typeof process.stdout.write,
+      );
+      const logSpy = spyOn(console, "log").mockImplementation(() => {});
+
+      try {
+        await pkgVulnsAction(
+          "npm:express",
+          options,
+          createDeps({ packageIntelligenceService: service }),
+        );
+
+        const params = (
+          packageVulnerabilities.mock.calls as unknown as Array<
+            [
+              {
+                includeTransitive?: boolean;
+                includeTransitiveAdvisoryDetails?: boolean;
+              },
+            ]
+          >
+        )[0]?.[0];
+        expect(params).toMatchObject({
+          includeTransitive: true,
+          includeTransitiveAdvisoryDetails: expected,
+        });
+      } finally {
+        writeSpy.mockRestore();
+        logSpy.mockRestore();
+      }
+    },
+  );
+
   it("renders and emits the additive transitive audit for --transitive", async () => {
     const report = transitiveVulnerabilityReport();
     const packageVulnerabilities = mock(() => Promise.resolve(report));
@@ -259,6 +305,7 @@ describe("pkgVulnsAction", () => {
       advisoryScope?: string;
       includeWithdrawn?: boolean;
       includeTransitive?: boolean;
+      includeTransitiveAdvisoryDetails?: boolean;
     };
     expect(params).toEqual({
       registry: "NPM",
@@ -268,6 +315,7 @@ describe("pkgVulnsAction", () => {
       includeWithdrawn: true,
       includeTransitive: true,
       advisoryScope: "ALL",
+      includeTransitiveAdvisoryDetails: true,
     });
     const payload = JSON.parse(logSpy.mock.calls[0]?.[0] as string) as {
       filter?: unknown;
