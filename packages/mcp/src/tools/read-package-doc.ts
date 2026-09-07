@@ -27,7 +27,7 @@ const schema: ZodRawShape = {
   page_id: z
     .string()
     .describe(
-      "Documentation page ID from `docs_list` or `search` results. Pass through unchanged; repo-backed IDs are snapshot-pinned.",
+      "Emitted `docsReadTarget` or historical `pageId` from `docs_list` or `search`. Pass through unchanged; repo-backed targets are snapshot-pinned IDs.",
     ),
   start_line: z
     .number()
@@ -50,9 +50,10 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION_BASE: string =
-  "Read a package documentation page by ID; use `docs_list` to browse and `search` to find topics. " +
-  `Works for both hosted/crawled docs and repository-backed docs. Text reads return ${MCP_DOC_READ_DEFAULT_SPAN} lines by default; pass an explicit \`start_line\` / \`end_line\` range for only the lines needed, up to ${MCP_DOC_READ_MAX_SPAN} lines. Broader ranges truncate and report the returned range and \`totalLines\`. ` +
-  "Repo-backed results additionally include exact file follow-up metadata for `code_read`.";
+  "Read a package documentation page by emitted target or stable page ID. " +
+  "Pass `docsReadTarget` from `docs_list` or `search` to `page_id`; historical IDs remain accepted. " +
+  `Crawled and repo-backed docs are supported. Text returns ${MCP_DOC_READ_DEFAULT_SPAN} lines by default; explicit ranges can request up to ${MCP_DOC_READ_MAX_SPAN} lines and report the returned range and \`totalLines\`. ` +
+  "JSON retains `docsReadTarget`, `pageId`, and `sourceUrl`; repo-backed results include exact `code_read` metadata.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${DOCS_GUARDRAIL}`;
 

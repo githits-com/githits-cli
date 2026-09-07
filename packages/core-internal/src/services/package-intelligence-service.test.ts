@@ -1740,6 +1740,100 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
   });
 });
 
+describe("PackageIntelligenceServiceImpl — package docs targets", () => {
+  const ENDPOINT = "https://pkgseer.dev";
+
+  it("selects and normalises docsReadTarget for listed pages", async () => {
+    let capturedBody = "";
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      capturedBody = String(init?.body ?? "");
+      return Promise.resolve(
+        jsonResponse({
+          data: {
+            listPackageDocs: {
+              registry: "NPM",
+              packageName: "express",
+              pages: [
+                {
+                  id: "legacy-crawled-id",
+                  docsReadTarget: "https://expressjs.com/en/guide/routing.html",
+                  sourceKind: "CRAWLED",
+                  sourceUrl: "https://expressjs.com/en/guide/routing.html",
+                },
+              ],
+              pageInfo: { hasNextPage: false },
+            },
+          },
+        }),
+      );
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.listPackageDocs({
+      registry: "NPM",
+      packageName: "express",
+    });
+
+    const request = JSON.parse(capturedBody) as { query: string };
+    expect(request.query).toContain("docsReadTarget");
+    expect(result.pages[0]).toMatchObject({
+      id: "legacy-crawled-id",
+      docsReadTarget: "https://expressjs.com/en/guide/routing.html",
+      sourceUrl: "https://expressjs.com/en/guide/routing.html",
+    });
+  });
+
+  it("passes URL targets through getDocPage and retains all read locators", async () => {
+    const docsReadTarget =
+      "https://expressjs.com/en/guide/routing.html?publisher=express";
+    let capturedBody = "";
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      capturedBody = String(init?.body ?? "");
+      return Promise.resolve(
+        jsonResponse({
+          data: {
+            getDocPage: {
+              registry: "NPM",
+              packageName: "express",
+              sourceKind: "CRAWLED",
+              page: {
+                id: "legacy-crawled-id",
+                docsReadTarget,
+                content: "routing content",
+                sourceKind: "CRAWLED",
+                source: { url: docsReadTarget, label: "Routing" },
+              },
+            },
+          },
+        }),
+      );
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.readPackageDoc({ pageId: docsReadTarget });
+
+    const request = JSON.parse(capturedBody) as {
+      query: string;
+      variables: { pageId: string };
+    };
+    expect(request.query).toContain("docsReadTarget");
+    expect(request.variables.pageId).toBe(docsReadTarget);
+    expect(result.page).toMatchObject({
+      id: "legacy-crawled-id",
+      docsReadTarget,
+      source: { url: docsReadTarget },
+    });
+  });
+});
+
 describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
   const ENDPOINT = "https://pkgseer.dev";
 

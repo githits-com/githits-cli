@@ -342,6 +342,8 @@ export interface UnifiedSearchLocator {
   packageName?: string;
   version?: string;
   pageId?: string;
+  /** Preferred docs_read target; absent on legacy discovery results. */
+  docsReadTarget?: string;
   sourceKind?: string;
   sourceUrl?: string;
   repoUrl?: string;
@@ -1221,6 +1223,7 @@ registry
 packageName
 version
 pageId
+docsReadTarget
 sourceKind
 sourceUrl
 repoUrl
@@ -1707,6 +1710,7 @@ const unifiedSearchLocatorSchema = z.object({
   packageName: z.string().nullable().optional(),
   version: z.string().nullable().optional(),
   pageId: z.string().nullable().optional(),
+  docsReadTarget: z.string().nullable().optional(),
   sourceKind: z.string().nullable().optional(),
   sourceUrl: z.string().nullable().optional(),
   repoUrl: z.string().nullable().optional(),
@@ -3702,6 +3706,7 @@ function normaliseUnifiedSearchLocator(
     packageName: value.packageName ?? undefined,
     version: value.version ?? undefined,
     pageId: value.pageId ?? undefined,
+    docsReadTarget: value.docsReadTarget ?? undefined,
     sourceKind: value.sourceKind ?? undefined,
     sourceUrl: value.sourceUrl ?? undefined,
     repoUrl: value.repoUrl ?? undefined,

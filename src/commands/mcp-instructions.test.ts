@@ -132,9 +132,11 @@ describe("buildMcpQuickStart", () => {
     expect(instructions).toContain("not standalone `site:` targets");
     expect(instructions).toContain('`search` with `source:"docs"`');
     expect(instructions).toContain(
-      "required `pageId` or line locators are absent from text",
+      "required `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, or line locators are absent from text",
     );
-    expect(instructions).toContain("pass them to `docs_read`");
+    expect(instructions).toContain(
+      "pass the emitted `docsReadTarget` (or historical `pageId`) to `docs_read`",
+    );
   });
 
   it("keeps the core block first", () => {

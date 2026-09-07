@@ -27,7 +27,7 @@ export function renderListPackageDocsText(
         page.sourceUrl ?? "",
       ].join(SEP),
     );
-    lines.push(`  ${buildDocsReadCommand(page.pageId)}`);
+    lines.push(`  ${buildDocsReadCommand(page.docsReadTarget)}`);
     if (page.sourceKind === "repo" && page.repoUrl && page.filePath) {
       lines.push(
         `  ${buildCodeReadCommand({
