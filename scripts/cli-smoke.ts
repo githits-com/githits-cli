@@ -582,7 +582,7 @@ function assertJsonOutput(result: CommandResult, context: string): unknown {
   return parseJson(result.stdout, context);
 }
 
-function assertTransitiveVulnerabilityText(
+export function assertTransitiveVulnerabilityText(
   text: string,
   context: string,
 ): void {
@@ -599,17 +599,27 @@ function assertTransitiveVulnerabilityText(
   const summaryMatch = resolvedText.match(
     /(?:^|\n)\s*(\d+)\s+(?:(?:affected|historical)\s+)?advisory\s+occurrences?\b/,
   );
-  assert(
-    summaryMatch !== null,
-    `${context}: missing advisory occurrence count in resolved-dependencies summary`,
-  );
-  const expectedRows = Number(summaryMatch[1]);
   const headlinePattern =
     /^ {2}(?:MALWARE(?: \| (?:crit|high|medium|low|unrated))?|critical|high|medium|low|unrated)\s+\S+@\S+(?:\s+\[(?:affected|historical)\])?/gm;
   const renderedRows = [...resolvedText.matchAll(headlinePattern)].length;
+  if (summaryMatch !== null) {
+    const expectedRows = Number(summaryMatch[1]);
+    assert(
+      renderedRows === expectedRows,
+      `${context}: expected ${expectedRows} transitive rows from summary, rendered ${renderedRows}`,
+    );
+    return;
+  }
+
   assert(
-    renderedRows === expectedRows,
-    `${context}: expected ${expectedRows} transitive rows from summary, rendered ${renderedRows}`,
+    /(?:^|\n)\s*No affected advisory occurrences found;\s+\d+\s+resolved package versions?\s+checked\./.test(
+      resolvedText,
+    ),
+    `${context}: missing recognized advisory occurrence summary`,
+  );
+  assert(
+    renderedRows === 0,
+    `${context}: expected zero transitive rows from clean summary, rendered ${renderedRows}`,
   );
 }
 
