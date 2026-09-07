@@ -182,14 +182,22 @@ rows include non-empty `matchedAffectedVersionRanges` plus higher-fix candidates
 while historical rows have empty matched-range and fix arrays. The required
 `fixVersionsAboveResolved` array may also be empty on affected rows when no
 higher fix is known; `nearestFixedVersion` is omitted in that case.
-JSON is complete and lossless;
-compact text shows at most five transitive rows globally,
-while verbose text shows every selected occurrence and places one
-surface-native continuation hint after the evidence. CLI `--json` and MCP
-`format: "json"` use the same envelope. The service performs a sequential,
-field-minimal dependency query with the resolved root version and fails closed
-on malformed identity/count/fix evidence instead of returning partial
-direct-only results.
+Optional advisory-wide `affectedRanges` and `fixedIn` arrays are omitted when
+unavailable and remain distinct from those occurrence-specific fields. JSON is
+complete and lossless. CLI compact text shows every selected direct and
+transitive row; MCP compact text caps selected rows at five and uses the
+MCP-native `use verbose=true or format=json` hint. Verbose text changes detail,
+not CLI row completeness, and shows every selected occurrence. Transitive
+detail labels align at the package coordinate: affected rows show `matched`,
+`nearest fix`, non-redundant `higher fixes`, then aliases; historical verbose
+rows show `advisory ranges`, `advisory fixes`, then aliases. CLI `--json` and
+MCP `format: "json"` use the same envelope. Compact transitive text omits the
+transitive advisory-wide arrays from the wire; verbose text and JSON
+conditionally select, validate, and preserve them in the field-minimal
+transitive query. The service performs a
+sequential dependency query with the resolved root version and fails closed on
+malformed identity/count/fix evidence instead of returning partial direct-only
+results.
 
 ## Ecosystem Audit
 
@@ -332,7 +340,7 @@ contributors are not copied onto generic progress targets, and
 
 **Filter-aware summary.** `min_severity`, `advisory_scope`, and `include_withdrawn` are passed straight through to the service. `summary.total` always means advisories affecting the inspected version, preserving the risk signal even when `advisory_scope:"non_affecting"` returns only historical rows. `advisory_scope` defaults to `affected`; `non_affecting` lists historical package advisories that do not affect the inspected version; `all` lists affected + historical rows. Explicit filters and non-default scope are echoed as top-level `filter` in JSON (`{minSeverity?, advisoryScope?, includeWithdrawn?: true}`) and as `Filter` / `Scope` lines in text. Defaults and explicit `include_withdrawn:false` do not echo.
 
-**Compact text vs verbose/JSON.** Default text caps the advisory list at 5 rendered rows and appends a surface-native hint (`use -v` on CLI, `use verbose=true or format=json` on MCP). Hidden-advisory counts are derived from the rendered advisory array, not backend summary counts. `--verbose` / `verbose:true` shows all advisory rows and full detail rows. JSON is never capped and ignores `verbose`.
+**Compact text vs verbose/JSON.** CLI default text renders every selected direct and transitive advisory row with no advisory-row cap. MCP compact text caps the selected advisory list at 5 rendered rows and appends its surface-native hint (`use verbose=true or format=json`). Hidden-advisory counts are derived from the rendered advisory array, not backend summary counts. `--verbose` / `verbose:true` adds aliases, dates where relevant, and complete range/fix evidence without changing CLI row completeness; MCP verbose text shows all rows and full detail rows. JSON is never capped and ignores `verbose`.
 
 **Partitioning buckets.** Advisories with `isMalicious: true` count **only** under `summary.bySeverity.malware`; severity bands (`critical`/`high`/`medium`/`low`) count non-malicious advisories with a positive CVSS score; non-malicious advisories with no score count under `summary.bySeverity.unrated`. Every returned advisory lands in exactly one bucket. For default affected scope, the bucket sum equals `summary.total`. For `non_affecting` / `all`, the bucket sum describes the selected advisory rows while `summary.total` still describes affected-version risk. The malware bucket sorts to the top of the advisory list regardless of score. The `unrated` bucket keeps Rust / PyPI packages with missing CVSS values explicit.
 

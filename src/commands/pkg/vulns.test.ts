@@ -49,6 +49,25 @@ function transitiveVulnerabilityReport() {
 }
 
 describe("pkg vulns help", () => {
+  it("describes row-complete CLI text and additive verbose detail", () => {
+    const command = registerPkgVulnsCommand(new Command().command("pkg"));
+    const description = command.description();
+    const singleLineDescription = description.replace(/\s+/g, " ");
+    const verboseOption = command.options.find(
+      (option) => option.long === "--verbose",
+    );
+
+    expect(singleLineDescription).not.toContain("capped");
+    expect(singleLineDescription).toContain(
+      "CLI text shows every selected direct and transitive advisory row",
+    );
+    expect(singleLineDescription).toContain(
+      "without changing row completeness. --json emits the complete structured envelope",
+    );
+    expect(verboseOption?.description).toContain("complete range/fix evidence");
+    expect(verboseOption?.description).toContain("row count is unchanged");
+  });
+
   it("registers --transitive with truthful opt-in guidance", () => {
     const command = registerPkgVulnsCommand(new Command().command("pkg"));
     const help = command.helpInformation();
@@ -81,7 +100,7 @@ describe("pkgVulnsAction", () => {
     };
   }
 
-  it("renders the default terminal block via stdout.write", async () => {
+  it("renders every selected advisory row in the default terminal block", async () => {
     const writes: string[] = [];
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
       chunk: string | Uint8Array,
@@ -99,7 +118,7 @@ describe("pkgVulnsAction", () => {
     expect(combined).toContain("6 vulnerabilities affect this version");
     expect(combined).toContain("MALWARE");
     expect(combined).toContain("Fix version: 4.18.2.");
-    expect(combined).toContain("... (+1 more; use -v)");
+    expect(combined).toContain("GHSA-nnnn-nnnn-nnnn");
     writeSpy.mockRestore();
   });
 

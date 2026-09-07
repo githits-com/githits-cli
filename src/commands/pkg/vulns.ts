@@ -156,9 +156,10 @@ function formatVulnsTerminalError(mapped: MappedError): string {
 }
 
 const PKG_VULNS_DESCRIPTION = `Show known vulnerabilities for a package. Lists CVE / OSV advisories
-with severity, affected version ranges, and fix versions. Default text is
-capped for readability; use --verbose for all selected advisory rows or --json
-for the complete structured envelope.
+with severity, affected version ranges, and fix versions. CLI text shows every
+selected direct and transitive advisory row. --verbose adds aliases, dates where
+relevant, malicious-advisory markers, and complete range/fix evidence without
+changing row completeness. --json emits the complete structured envelope.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
 npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift. vcpkg and zig are not supported.
@@ -202,7 +203,7 @@ export function registerPkgVulnsCommand(pkgCommand: Command): Command {
     )
     .option(
       "-v, --verbose",
-      "Show aliases, modified/withdrawn dates, and malicious-advisory markers",
+      "Add aliases, dates where relevant, malicious-advisory markers, and complete range/fix evidence; row count is unchanged",
     )
     .option("--json", "Emit the lean JSON envelope")
     .action(async (spec: string, options: PkgVulnsCommandOptions) => {

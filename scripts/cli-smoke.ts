@@ -586,20 +586,31 @@ function assertTransitiveVulnerabilityText(
   text: string,
   context: string,
 ): void {
+  const resolvedIndex = text.indexOf("Resolved dependencies");
   assert(
-    text.includes("Resolved dependencies"),
+    resolvedIndex >= 0,
     `${context}: missing resolved-dependencies section`,
   );
   assert(
     !text.includes("use verbose=true or format=json"),
     `${context}: MCP-native transitive hint leaked into CLI output`,
   );
-  if (text.includes("... (+")) {
-    assert(
-      text.includes("use -v"),
-      `${context}: capped transitive output missing CLI-native hint`,
-    );
-  }
+  const resolvedText = text.slice(resolvedIndex);
+  const summaryMatch = resolvedText.match(
+    /(?:^|\n)\s*(\d+)\s+(?:(?:affected|historical)\s+)?advisory\s+occurrences?\b/,
+  );
+  assert(
+    summaryMatch !== null,
+    `${context}: missing advisory occurrence count in resolved-dependencies summary`,
+  );
+  const expectedRows = Number(summaryMatch[1]);
+  const headlinePattern =
+    /^ {2}(?:MALWARE(?: \| (?:crit|high|medium|low|unrated))?|critical|high|medium|low|unrated)\s+\S+@\S+(?:\s+\[(?:affected|historical)\])?/gm;
+  const renderedRows = [...resolvedText.matchAll(headlinePattern)].length;
+  assert(
+    renderedRows === expectedRows,
+    `${context}: expected ${expectedRows} transitive rows from summary, rendered ${renderedRows}`,
+  );
 }
 
 function assertTransitiveVulnerabilityJson(

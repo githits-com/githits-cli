@@ -587,7 +587,14 @@ githits pkg vulns npm:express --scope non_affecting
 githits pkg vulns npm:express@4.17.1 --transitive
 ```
 
-Lists known CVE / OSV advisories for a package: severity, affected version ranges, fix versions, and upgrade targets. Default text is capped at 5 advisory rows for readability; use `--verbose` for all selected rows or `--json` for the complete structured envelope. Malicious-package advisories (supply-chain attacks flagged by OSV) surface in a separate `MALWARE` bucket that sorts above all CVE advisories.
+Lists known CVE / OSV advisories for a package: severity, affected version
+ranges, fix versions, and upgrade targets. CLI text shows every selected direct
+and transitive advisory row. `--verbose` adds aliases, dates where relevant,
+malicious-advisory markers, and complete range/fix evidence without changing row
+completeness. `--json` emits the complete structured envelope. MCP compact text
+retains its five-row cap and MCP-native completion hint; MCP verbose text is
+complete. Malicious-package advisories (supply-chain attacks flagged by OSV)
+surface in a separate `MALWARE` bucket that sorts above all CVE advisories.
 
 `--transitive` is an explicit opt-in for npm-audit-style evidence about
 vulnerabilities affecting dependency versions resolved in the package graph. It
@@ -603,13 +610,26 @@ Transitive `--json` output adds a complete `transitive` object with
 `withdrawnAdvisoriesIncluded: false`, and a numeric summary of
 `totalPackagesAnalyzed`, `packageCount`, and `occurrenceCount`, followed by
 `packages[]` containing resolved dependency versions, explicit affectedness,
-matched affected ranges, and all higher-fix candidates when applicable.
+matched affected ranges, and all higher-fix candidates when applicable. The
+occurrence-specific `matchedAffectedVersionRanges` and
+`fixVersionsAboveResolved` fields remain distinct from optional advisory-wide
+`affectedRanges` and `fixedIn` arrays; the latter are omitted when unavailable.
 The service performs one field-minimal query after direct pagination using the
 resolved root version and fails closed on malformed identity/count/fix evidence;
 there is no graph payload, occurrence cap, or partial direct-only fallback.
-Compact text renders at most five transitive rows globally and ends with the
-CLI-native `use -v` hint when rows are hidden; `--verbose` renders all rows.
-MCP `include_transitive: true` and CLI `--transitive` share this JSON contract.
+CLI compact text renders every selected transitive row and has no advisory-row
+cap. MCP compact text renders at most five selected rows and ends with the
+MCP-native `use verbose=true or format=json` hint when rows are hidden; verbose
+text renders every row. For transitive verbose text, detail labels align beneath
+the package coordinate. Affected rows show `matched`, `nearest fix`, and only
+non-redundant `higher fixes`, then verbose aliases. Historical verbose rows show
+advisory-wide `advisory ranges`, `advisory fixes`, and aliases without implying
+that the resolved version is affected. MCP `include_transitive: true` and CLI
+`--transitive` share this JSON contract.
+
+Compact text requests only the field-minimal transitive audit; advisory-wide
+range/fix arrays are conditionally selected for verbose text or JSON and are
+validated and preserved at that boundary.
 
 **Package spec.** `<registry>:<name>[@<version>]`. Unlike `pkg info`, `pkg vulns` supports `@<version>` so callers can inspect older pinned releases. `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `packagist`, `rubygems`, `go`, and `swift` support vulnerability data; vcpkg and Zig are rejected client-side with `pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: ${registry}.` Swift accepts `v`-prefixed release tags because SwiftPM packages commonly publish them.
 
@@ -629,7 +649,7 @@ MCP `include_transitive: true` and CLI `--transitive` share this JSON contract.
 
 **Upgrade-path ordering.** `upgradePaths` are de-duplicated and sorted ascending by semver-ish comparison (pre-release suffixes rank below the matching base release), so the footer presents the minimum-churn upgrade first: `Upgrade options: 3.11.0, 4.0.0-rc1, 4.5.0, 4.19.2, …` rather than the backend's advisory-iteration order.
 
-**Output envelope.** `{registry, name, version, requestedVersion?, filter?, summary: {total, affected?, bySeverity?}, advisories?, upgradePaths?}`. `filter` echoes only explicit caller filters and non-default advisory scope. Each advisory: `{id?, aliases?, summary?, severity?, severityLabel?, affectedRanges?, affectsInspectedVersion?, matchedAffectedVersionRanges?, fixedIn?, publishedAt?, modifiedAt?, withdrawnAt?, isMalicious?}`. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
+**Output envelope.** `{registry, name, version, requestedVersion?, filter?, summary: {total, affected?, bySeverity?}, advisories?, upgradePaths?}`. `filter` echoes only explicit caller filters and non-default advisory scope. Each direct advisory: `{id?, aliases?, summary?, severity?, severityLabel?, affectedRanges?, affectsInspectedVersion?, matchedAffectedVersionRanges?, fixedIn?, publishedAt?, modifiedAt?, withdrawnAt?, isMalicious?}`. Transitive occurrences additionally use optional advisory-wide `affectedRanges` and `fixedIn`, while required `matchedAffectedVersionRanges` and `fixVersionsAboveResolved` remain occurrence-specific evidence. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
 
 **Exit codes.** 0 on success including zero-vulns; 1 on any error. Under `--json`, the error envelope is written to **stderr**.
 
