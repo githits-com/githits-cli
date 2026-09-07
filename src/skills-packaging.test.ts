@@ -91,7 +91,7 @@ describe("agent skills packaging", () => {
         "swift:github.com/<owner>/<repo>",
         "zig:gh/<owner>/<repo>",
         "artifact/manifest root",
-        "public GitHub repository",
+        "public repository",
         "full repositories or sibling packages",
       ]);
     }

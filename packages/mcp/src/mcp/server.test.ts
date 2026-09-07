@@ -123,12 +123,12 @@ const DESCRIPTION_ROUTING: Record<
     ],
   },
   code_files: {
-    prefix: /^List indexed files and paths in any public GitHub repo\/package;/,
+    prefix: /^List indexed files and paths in a public repo or package\./,
     body: ["`code_read`", "`code_grep`"],
   },
   code_read: {
     prefix:
-      /^Read an exact indexed file or focused window in any public GitHub repo\/package;/,
+      /^Read an exact indexed file or focused window in a public repo or package\./,
     body: [
       "`code_files`",
       "`code_grep`",
@@ -139,7 +139,7 @@ const DESCRIPTION_ROUTING: Record<
   },
   code_grep: {
     prefix:
-      /^Enumerate text, regex, or identifier matches in any public GitHub repo\/package\./,
+      /^Find text, regex, or identifier matches in a public repo or package\./,
     body: [
       "deterministic and paginated",
       "`search`",
@@ -204,7 +204,7 @@ const DESCRIPTION_ROUTING: Record<
   pkg_changelog: {
     prefix: /^Find release notes and changelog history/,
     exactPrefix:
-      "Find release notes and changelog history for a package or public GitHub repo. De",
+      "Find release notes and changelog history for a package or public repository. Def",
     body: [
       "`(from_version, to_version]`",
       "one exact release",
@@ -282,6 +282,16 @@ describe("MCP tool description catalog", () => {
       expect(catalogSummary, descriptor.name).toMatch(routing.prefix);
       if (routing.exactPrefix !== undefined) {
         expect(catalogPrefix, descriptor.name).toBe(routing.exactPrefix);
+      }
+      if (
+        ["code_files", "code_read", "code_grep", "pkg_changelog"].includes(
+          descriptor.name,
+        )
+      ) {
+        expect(
+          descriptor.description.split(".")[0]!.length + 1,
+        ).toBeLessThanOrEqual(79);
+        expect(catalogSummary).not.toEndWith("…");
       }
       if (descriptor.name === "quick_start") {
         expect(catalogSummary).toContain("quick_start");

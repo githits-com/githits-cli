@@ -73,7 +73,7 @@ describe("parseUnifiedSearchTargetSpec", () => {
       "Expected package target <registry>:<name>[@<version>]",
     );
     expect(() => parseUnifiedSearchTargetSpec("express")).toThrow(
-      "repository target github:owner/repo[#ref|@ref]",
+      "repository target github:owner/repo",
     );
   });
 
@@ -82,7 +82,7 @@ describe("parseUnifiedSearchTargetSpec", () => {
       "Expected package target <registry>:<name>[@<version>]",
     );
     expect(() => parseUnifiedSearchTargetSpec("gitlab.com/org/repo")).toThrow(
-      "repository target github:owner/repo[#ref|@ref]",
+      "repository target github:owner/repo",
     );
   });
 });

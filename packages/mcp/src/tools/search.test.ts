@@ -24,7 +24,7 @@ describe("searchTool", () => {
     expect(targetSchema).toContain("swift:github.com/<owner>/<repo>");
     expect(targetSchema).toContain("zig:gh/<owner>/<repo>");
     expect(targetSchema).toContain("artifact/manifest-root");
-    expect(targetSchema).toContain("public GitHub repository");
+    expect(targetSchema).toContain("public repository");
     expect(targetSchema).toContain("sibling packages");
     expect(descriptor?.description.slice(0, 80)).toBe(
       "Discover relevant evidence in a known target before exact grep: docs, specs, cod",

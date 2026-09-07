@@ -17,11 +17,10 @@ import {
  *
  * Package targets use the shared package spec grammar, e.g.
  * `npm:react@18.2.0` or `npm:react` for the latest release. Repository
- * targets are full URLs, `github.com/owner/repo` shorthands, or
- * `github:owner/repo` shorthands with an optional `#gitRef` or `@gitRef`
- * suffix, e.g.
- * `https://github.com/facebook/react#HEAD`, `github.com/facebook/react#HEAD`,
- * `github:facebook/react#HEAD`, or `github.com/facebook/react@HEAD`.
+ * targets use github:owner/repo, codeberg:owner/repo, or
+ * gitlab:group[/subgroup...]/project, and approved full HTTPS URLs.
+ * GitHub also supports github.com/owner/repo and HTTP compatibility.
+ * An optional #gitRef or @gitRef suffix preserves / and @ inside refs.
  * Omitted refs request the backend-resolved default branch.
  */
 export function parseCodeNavigationTargetSpec(

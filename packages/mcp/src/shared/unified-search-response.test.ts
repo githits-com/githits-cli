@@ -1079,6 +1079,10 @@ describe("buildUnifiedSearchSuccessPayload", () => {
           results: [
             {
               ...hit,
+              locator: {
+                ...hit.locator,
+                repoUrl: "https://github.com/n8n-io/n8n",
+              },
               targetLabel: "n8n-io/n8n@n8n@2.26.5",
             },
           ],
@@ -1361,6 +1365,10 @@ describe("buildUnifiedSearchSuccessPayload", () => {
         results: [
           {
             ...defaultUnifiedSearchOutcome.result.results[0]!,
+            locator: {
+              ...defaultUnifiedSearchOutcome.result.results[0]!.locator,
+              repoUrl: "https://github.com/n8n-io/n8n",
+            },
             targetLabel: "n8n-io/n8n@n8n@2.26.5",
             requestedTargetLabel: "n8n-io/n8n@n8n@2.26.5",
             freshTargetLabel: "n8n-io/n8n@n8n@2.26.9",
@@ -1609,6 +1617,13 @@ describe("buildUnifiedSearchSuccessPayload", () => {
           sourceStatus: [
             {
               ...defaultUnifiedSearchOutcome.result.sourceStatus[0]!,
+              targetResolution: {
+                availableVersions: [],
+                availableRefs: [],
+                requested: { repoUrl: "https://github.com/n8n-io/n8n" },
+                resolvedRequested: { repoUrl: "https://github.com/n8n-io/n8n" },
+                served: { repoUrl: "https://github.com/n8n-io/n8n" },
+              },
               targetLabel: "n8n-io/n8n@n8n@2.26.5",
               requestedTargetLabel: "n8n-io/n8n@n8n@2.26.5",
               freshTargetLabel: "n8n-io/n8n@n8n@2.26.9",
@@ -1752,6 +1767,13 @@ describe("buildUnifiedSearchSuccessPayload", () => {
           sources: ["CODE"],
           targets: [
             {
+              targetResolution: {
+                availableVersions: [],
+                availableRefs: [],
+                requested: { repoUrl: "https://github.com/n8n-io/n8n" },
+                resolvedRequested: { repoUrl: "https://github.com/n8n-io/n8n" },
+                served: { repoUrl: "https://github.com/n8n-io/n8n" },
+              },
               requested: "n8n-io/n8n@n8n@2.26.5",
               resolvedRequested: "n8n-io/n8n@n8n@2.26.9",
               served: "n8n-io/n8n@n8n@2.26.5",
@@ -2645,7 +2667,7 @@ describe("buildSourceStatusWarnings — sourceStatus → warnings promotion", ()
     ]);
   });
 
-  it("canonicalizes backend repo labels when structured target resolution is absent", () => {
+  it("preserves providerless backend repo labels when structured target resolution is absent", () => {
     const warnings = buildSourceStatusWarnings([
       {
         source: "code",
@@ -2657,7 +2679,7 @@ describe("buildSourceStatusWarnings — sourceStatus → warnings promotion", ()
     ]);
 
     expect(warnings).toEqual([
-      "Source 'code' for github:n8n-io/n8n#n8n@2.26.5: Repository ref cannot be resolved (UNRESOLVABLE)",
+      "Source 'code' for n8n-io/n8n@n8n@2.26.5: Repository ref cannot be resolved (UNRESOLVABLE)",
     ]);
   });
 

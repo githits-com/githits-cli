@@ -1,29 +1,91 @@
 import type { CodeNavigationTarget } from "@githits/core-internal";
 import { InvalidArgumentError, KNOWN_REGISTRIES } from "./package-spec.js";
 
-const GITHUB_HOST_SHORTHAND_PREFIX = "github.com/";
-const GITHUB_OWNER_REPO_SHORTHAND_PREFIX = "github:";
-const GITHUB_HOST = "github.com";
-const REPOSITORY_TARGET_ERROR =
-  "Repository target must be https://github.com/owner/repo, github.com/owner/repo, or github:owner/repo with optional #gitRef or @gitRef suffix.";
 const GITHUB_OWNER_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
-const GITHUB_REPO_PATTERN = /^[A-Za-z0-9._-]+$/;
+const REPO_PATTERN = /^[A-Za-z0-9._-]+$/;
 
+interface ProviderGrammar {
+  readonly prefix: string;
+  readonly host: string;
+  readonly name: string;
+  readonly path: string;
+  readonly allowHttp: boolean;
+  readonly hostShorthand: boolean;
+  readonly validatePath: (segments: string[]) => boolean;
+}
+
+function validComponent(value: string): boolean {
+  return value !== "." && value !== ".." && REPO_PATTERN.test(value);
+}
+
+function validGithubPath(parts: string[]): boolean {
+  return (
+    parts.length === 2 &&
+    GITHUB_OWNER_PATTERN.test(parts[0]!) &&
+    validComponent(parts[1]!)
+  );
+}
+
+function validCodebergPath(parts: string[]): boolean {
+  return (
+    parts.length === 2 &&
+    parts.every((part) => /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(part))
+  );
+}
+
+function validGitlabPath(parts: string[]): boolean {
+  return (
+    parts.length >= 2 &&
+    parts.every((part) => /^[A-Za-z0-9_][A-Za-z0-9._-]*$/.test(part))
+  );
+}
+
+/** Single authority for direct repository hosts, aliases, and path grammar. */
+const PROVIDERS: readonly ProviderGrammar[] = Object.freeze([
+  Object.freeze({
+    prefix: "github:",
+    host: "github.com",
+    name: "GitHub",
+    path: "owner/repo",
+    allowHttp: true,
+    hostShorthand: true,
+    validatePath: validGithubPath,
+  }),
+  Object.freeze({
+    prefix: "codeberg:",
+    host: "codeberg.org",
+    name: "Codeberg",
+    path: "owner/repo",
+    allowHttp: false,
+    hostShorthand: false,
+    validatePath: validCodebergPath,
+  }),
+  Object.freeze({
+    prefix: "gitlab:",
+    host: "gitlab.com",
+    name: "GitLab",
+    path: "group[/subgroup...]/project",
+    allowHttp: false,
+    hostShorthand: false,
+    validatePath: validGitlabPath,
+  }),
+]);
+const REPOSITORY_TARGET_ERROR =
+  "Repository target must be github:owner/repo, codeberg:owner/repo, or gitlab:group[/subgroup...]/project, or an approved full HTTPS URL, with optional #gitRef or @gitRef suffix.";
+
+/** Recognize explicit repository forms without guessing a provider. */
 export function normaliseRepositoryTargetSpec(
   spec: string,
 ): string | undefined {
   const trimmed = spec.trim();
   const lower = trimmed.toLowerCase();
-  if (lower.startsWith("http://") || lower.startsWith("https://")) {
+  if (lower.startsWith("http://") || lower.startsWith("https://"))
     return trimmed;
-  }
-  if (lower.startsWith(GITHUB_HOST_SHORTHAND_PREFIX)) {
-    return `https://${trimmed}`;
-  }
-  if (lower.startsWith(GITHUB_OWNER_REPO_SHORTHAND_PREFIX)) {
-    return `https://github.com/${trimmed.slice(
-      GITHUB_OWNER_REPO_SHORTHAND_PREFIX.length,
-    )}`;
+  for (const provider of PROVIDERS) {
+    if (lower.startsWith(provider.prefix))
+      return `https://${provider.host}/${trimmed.slice(provider.prefix.length)}`;
+    if (provider.hostShorthand && lower.startsWith(`${provider.host}/`))
+      return `https://${trimmed}`;
   }
   return undefined;
 }
@@ -32,143 +94,121 @@ export function isRepositoryTargetSpec(spec: string): boolean {
   return normaliseRepositoryTargetSpec(spec) !== undefined;
 }
 
+/** Split the suffix before URL parsing to preserve refs and reject path coercion. */
 export function parseRepositoryTargetSpec(spec: string): CodeNavigationTarget {
   const normalised = normaliseRepositoryTargetSpec(spec);
-  if (!normalised) {
-    throw new InvalidArgumentError(REPOSITORY_TARGET_ERROR);
-  }
-  if (normalised.endsWith("#")) {
-    throw new InvalidArgumentError(REPOSITORY_TARGET_ERROR);
-  }
-
-  let parsed: URL;
-  try {
-    parsed = new URL(normalised);
-  } catch {
-    throw new InvalidArgumentError(REPOSITORY_TARGET_ERROR);
-  }
-
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-    throw new InvalidArgumentError(REPOSITORY_TARGET_ERROR);
-  }
-  if (parsed.hostname.toLowerCase() !== GITHUB_HOST) {
-    throw new InvalidArgumentError(
-      "Repository URL targets must use github.com repositories.",
-    );
-  }
-  if (parsed.username || parsed.password) {
+  if (!normalised) throw new InvalidArgumentError(REPOSITORY_TARGET_ERROR);
+  const match = /^(https?):\/\/([^/]+)\/(.*)$/i.exec(normalised);
+  if (!match) throw new InvalidArgumentError(REPOSITORY_TARGET_ERROR);
+  const scheme = match[1]!;
+  const authority = match[2]!;
+  const rawPath = match[3]!;
+  if (authority.includes("@"))
     throw new InvalidArgumentError(
       "Repository URL targets must not include credentials.",
     );
-  }
-  if (parsed.search) {
+  const provider = PROVIDERS.find(
+    (entry) => entry.host === authority.toLowerCase(),
+  );
+  if (!provider)
     throw new InvalidArgumentError(
-      "Repository URL targets must not include query parameters.",
+      "Repository URL targets must use github.com, codeberg.org, or gitlab.com; unsupported/self-hosted hosts and ports are not accepted.",
     );
-  }
-
-  const rawPath = parsed.pathname.replace(/^\/+|\/+$/g, "");
-  const segments = rawPath.split("/");
-  const owner = segments[0];
-  const repoAndAtRef = segments[1];
-  if (!owner || !repoAndAtRef || segments.some((segment) => segment === "")) {
-    throw new InvalidArgumentError(REPOSITORY_TARGET_ERROR);
-  }
-
-  const atRefDelimiter = repoAndAtRef.indexOf("@");
-  const hasAtRef = atRefDelimiter !== -1;
-  if (hasAtRef && parsed.hash) {
+  const guidance = `Use ${provider.prefix}${provider.path} with optional #gitRef or @gitRef, or https://${provider.host}/${provider.path}.`;
+  if (scheme.toLowerCase() === "http" && !provider.allowHttp)
     throw new InvalidArgumentError(
-      "Repository URL targets must use only one ref suffix: #gitRef or @gitRef.",
+      `${provider.name} repository URLs require HTTPS. ${guidance}`,
     );
-  }
-  const repoName = hasAtRef
-    ? repoAndAtRef.slice(0, atRefDelimiter)
-    : repoAndAtRef;
-  const repoUrl = `https://${GITHUB_HOST}/${owner}/${repoName}`;
-  const gitRef = parsed.hash
-    ? parsed.hash.slice(1)
-    : hasAtRef
-      ? [repoAndAtRef.slice(atRefDelimiter + 1), ...segments.slice(2)].join("/")
-      : undefined;
-
-  if (!repoName || gitRef === "") {
-    throw new InvalidArgumentError(REPOSITORY_TARGET_ERROR);
-  }
-  validateGithubRepositoryComponents(owner, repoName);
-  if (!hasAtRef && segments.length > 2) {
+  if (rawPath.includes("?"))
     throw new InvalidArgumentError(
-      "Repository URL targets must point to github.com/owner/repo; pass refs with #gitRef or @gitRef.",
+      `Repository URL targets must not include query parameters. ${guidance}`,
     );
-  }
-
-  return gitRef ? { repoUrl, gitRef } : { repoUrl };
-}
-
-function validateGithubRepositoryComponents(
-  owner: string,
-  repoName: string,
-): void {
-  if (!GITHUB_OWNER_PATTERN.test(owner)) {
-    throw new InvalidArgumentError(
-      "Repository URL targets must use a valid GitHub owner name.",
-    );
-  }
   if (
-    repoName === "." ||
-    repoName === ".." ||
-    !GITHUB_REPO_PATTERN.test(repoName)
-  ) {
+    provider.prefix === "github:" &&
+    !GITHUB_OWNER_PATTERN.test(rawPath.split("/")[0]!)
+  )
     throw new InvalidArgumentError(
-      "Repository URL targets must use a valid GitHub repository name.",
+      `Repository URL targets must use a valid GitHub owner name. ${guidance}`,
+    );
+  const hash = rawPath.indexOf("#");
+  const at = rawPath.indexOf("@");
+  if (at !== -1 && hash !== -1 && at < hash)
+    throw new InvalidArgumentError(
+      `Repository URL targets must use only one ref suffix: #gitRef or @gitRef. ${guidance}`,
+    );
+  const delimiter = hash !== -1 ? hash : at;
+  const path = (
+    delimiter === -1 ? rawPath : rawPath.slice(0, delimiter)
+  ).replace(/\/$/, "");
+  const gitRef = delimiter === -1 ? undefined : rawPath.slice(delimiter + 1);
+  if (gitRef === "" || gitRef?.includes("#"))
+    throw new InvalidArgumentError(
+      `Repository refs must be nonempty and use only one ref suffix. ${guidance}`,
+    );
+  const parts = path.split("/");
+  if (!provider.validatePath(parts)) {
+    if (provider.prefix === "github:" && !GITHUB_OWNER_PATTERN.test(parts[0]!))
+      throw new InvalidArgumentError(
+        `Repository URL targets must use a valid GitHub owner name. ${guidance}`,
+      );
+    if (provider.prefix === "github:" && parts.length === 2)
+      throw new InvalidArgumentError(
+        `Repository URL targets must use a valid GitHub repository name. ${guidance}`,
+      );
+    throw new InvalidArgumentError(
+      `Repository URL targets must point to ${provider.host}/${provider.path}; pass refs with #gitRef or @gitRef. ${provider.name} web subpaths are not repository targets. ${guidance}`,
     );
   }
+  const repoUrl = `https://${provider.host}/${path}`;
+  return gitRef === undefined ? { repoUrl } : { repoUrl, gitRef };
 }
 
+/** Format only validated repository identities; unknown URLs remain unchanged. */
 export function formatRepositoryTarget(
   repoUrl: string,
   gitRef?: string,
 ): string {
-  const compact = compactGithubRepositoryUrl(repoUrl) ?? repoUrl;
+  let compact = repoUrl;
+  try {
+    const parsed = parseRepositoryTargetSpec(repoUrl);
+    if (parsed.repoUrl && parsed.gitRef === undefined) {
+      const url = new URL(parsed.repoUrl);
+      const provider = PROVIDERS.find((entry) => entry.host === url.host)!;
+      compact = `${provider.prefix}${url.pathname.slice(1)}`;
+    }
+  } catch {
+    /* Keep unsupported backend identities lossless. */
+  }
   return gitRef ? `${compact}#${gitRef}` : compact;
 }
 
-export function formatRepositoryTargetLabel(label: string): string | undefined {
-  const atRefDelimiter = label.indexOf("@");
-  const repoLabel =
-    atRefDelimiter === -1 ? label : label.slice(0, atRefDelimiter);
-  const [owner, repoName, ...rest] = repoLabel.split("/");
-  if (!owner || !repoName || rest.length > 0) return undefined;
-  if (owner.includes(":") || repoName.includes(":")) return undefined;
-  if (
-    !GITHUB_OWNER_PATTERN.test(owner) ||
-    !GITHUB_REPO_PATTERN.test(repoName)
-  ) {
-    return undefined;
+/** Bare backend labels require an explicit repository identity, never a default host. */
+export function formatRepositoryTargetLabel(
+  label: string,
+  repoUrl?: string,
+): string | undefined {
+  if (isRepositoryTargetSpec(label)) {
+    try {
+      const parsed = parseRepositoryTargetSpec(label);
+      return formatRepositoryTarget(parsed.repoUrl!, parsed.gitRef);
+    } catch {
+      return undefined;
+    }
   }
-  const gitRef =
-    atRefDelimiter === -1 ? undefined : label.slice(atRefDelimiter + 1);
-  if (gitRef === "") return undefined;
-  return formatRepositoryTarget(
-    `https://${GITHUB_HOST}/${owner}/${repoName}`,
-    gitRef,
-  );
-}
-
-function compactGithubRepositoryUrl(repoUrl: string): string | undefined {
-  let parsed: URL;
+  if (!repoUrl) return undefined;
   try {
-    parsed = new URL(repoUrl);
+    const parsed = parseRepositoryTargetSpec(repoUrl);
+    const path = new URL(parsed.repoUrl!).pathname.slice(1);
+    if (label === path) return formatRepositoryTarget(parsed.repoUrl!);
+    if (label.startsWith(`${path}@`) && label.length > path.length + 1)
+      return formatRepositoryTarget(
+        parsed.repoUrl!,
+        label.slice(path.length + 1),
+      );
   } catch {
     return undefined;
   }
-  if (parsed.hostname.toLowerCase() !== GITHUB_HOST) return undefined;
-  if (parsed.search || parsed.hash || parsed.username || parsed.password) {
-    return undefined;
-  }
-  const segments = parsed.pathname.replace(/^\/+|\/+$/g, "").split("/");
-  if (segments.length !== 2 || !segments[0] || !segments[1]) return undefined;
-  return `github:${segments[0]}/${segments[1]}`;
+  return undefined;
 }
 
 export function buildInvalidTargetSpecError(
@@ -181,6 +221,6 @@ export function buildInvalidTargetSpecError(
   return new InvalidArgumentError(
     `${prefix}Expected package target <registry>:<name>[@<version>] (supported registries: ${KNOWN_REGISTRIES.join(
       ", ",
-    )}) or repository target github:owner/repo[#ref|@ref] / github.com/owner/repo[#ref|@ref] / https://github.com/owner/repo[#ref|@ref].`,
+    )}) or repository target github:owner/repo, codeberg:owner/repo, or gitlab:group[/subgroup...]/project with optional #ref or @ref (approved full HTTPS URLs also accepted; GitHub additionally supports github.com/owner/repo and HTTP).`,
   );
 }

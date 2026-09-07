@@ -631,9 +631,9 @@ function formatTargetRecovery(
   if (recovery.kind === "fix") {
     switch (recovery.family) {
       case "package":
-        return "Fix: verify registry coordinate/version; use its public GitHub repo for repo-wide search.";
+        return "Fix: verify registry coordinate/version; use its public repository for repo-wide search.";
       case "repository":
-        return "Fix: verify public GitHub repository/ref.";
+        return "Fix: verify public repository/ref.";
       case "site":
         return "Fix: verify site host/path.";
       case "unknown":

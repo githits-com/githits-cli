@@ -83,7 +83,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION_BASE: string =
-  "Read an exact indexed file or focused window in any public GitHub repo/package; use `code_files` " +
+  "Read an exact indexed file or focused window in a public repo or package. Use `code_files` " +
   "to enumerate paths and `code_grep` or `search` to find the right window. " +
   `It does not list directories. Reads return ${MCP_READ_DEFAULT_SPAN} lines by default; pass an explicit ` +
   `\`start_line\` / \`end_line\` range for only the lines needed, up to ${MCP_READ_MAX_SPAN} lines. ` +

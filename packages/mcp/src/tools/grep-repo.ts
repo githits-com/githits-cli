@@ -136,7 +136,7 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "Enumerate text, regex, or identifier matches in any public GitHub repo/package. Results cover known exact literals, regexes, identifiers, and call sites; they are deterministic and paginated. " +
+  "Find text, regex, or identifier matches in a public repo or package. Results cover known exact literals, regexes, identifiers, and call sites; they are deterministic and paginated. " +
   'Use this when you know the pattern (literal by default; pass `pattern_type: "regex"` for RE2). ' +
   "Use `search` for conceptual or open-ended discovery; use `code_read` to inspect a matched file window and `code_files` to enumerate paths. " +
   "Whole-target grep is the default — narrow with `path`, `path_prefix`, `globs`, or `extensions` to keep responses small. " +

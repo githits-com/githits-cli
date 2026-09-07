@@ -364,7 +364,7 @@ Use --lines for a bounded range (e.g. \`--lines 10-40\`) or append a
 range directly to the path (e.g. \`src/index.js:10-40\`). The \`path\`
 comes directly from \`githits code files\`.
 
-Addressing: <target> (registry:name[@version], github:org/repo[#ref|@ref],
+Addressing: <target> (registry:name[@version], github:org/repo[#ref|@ref], codeberg:owner/repo[#ref|@ref], gitlab:group[/subgroup...]/project[#ref|@ref],
 github.com/org/repo[#ref|@ref], or https://github.com/org/repo[#ref|@ref]) OR
 --repo-url <url> [--git-ref <ref>]. <path> is package-relative for package targets
 and repo-relative for repo targets.

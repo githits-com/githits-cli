@@ -66,7 +66,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "GitHub repository URL (https://…). Mutually exclusive with `registry` + `package_name`. Use when agents have a repo URL without a registry mapping.",
+      "Full HTTPS repository URL (GitHub, Codeberg, or GitLab). Mutually exclusive with `registry` + `package_name`. Use when agents have a repo URL without a registry mapping.",
     ),
   from_version: z
     .string()
@@ -119,7 +119,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION_BASE: string =
-  "Find release notes and changelog history for a package or public GitHub repo. Default " +
+  "Find release notes and changelog history for a package or public repository. Default " +
   "latest mode returns up to ten entries (`limit` 1–50); source ordering may interleave maintained release lines. " +
   "With `from_version`, returns every entry in the " +
   "`(from_version, to_version]` range (range mode, no count cap); use latest mode with `to_version` and `limit: 1` for one exact release. " +

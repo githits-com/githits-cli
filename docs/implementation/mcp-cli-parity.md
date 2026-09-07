@@ -778,3 +778,5 @@ envelope shape.
   Exact-path `FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, and
   `SOURCE_FILE_INVENTORY_UNKNOWN` errors follow the same shared-data,
   surface-native-action contract as `code_read`.
+
+See [Repository target grammar](repository-targets.md) for the shared GitHub, Codeberg, and GitLab addressing contract and provider-preserving response identity.

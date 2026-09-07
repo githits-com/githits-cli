@@ -26,7 +26,7 @@ describe("buildLocalMcpQuickStart", () => {
     expect(quickStart).toContain("swift:github.com/<owner>/<repo>");
     expect(quickStart).toContain("zig:gh/<owner>/<repo>");
     expect(quickStart).toContain("artifact/manifest root");
-    expect(quickStart).toContain("public GitHub repository");
+    expect(quickStart).toContain("public repository");
     expect(quickStart).toContain("full repositories or sibling packages");
   });
 
@@ -90,7 +90,7 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("MEDIUM/LOW");
     expect(instructions).toContain("never auto-select");
     expect(instructions).toContain("`pkg_upgrade_review`");
-    expect(instructions).toContain("public GitHub refs repository-wide");
+    expect(instructions).toContain("public repository refs repository-wide");
     expect(instructions).toContain("name-status");
     expect(instructions).toContain("full returned patch");
     expect(instructions).toContain("diffs do not prove compatibility");
@@ -102,7 +102,7 @@ describe("buildLocalMcpQuickStart", () => {
     );
     expect(instructions).toContain("with `docs_read`.\n- `code_diff`");
     expect(instructions.length - buildMcpQuickStart().length).toBeLessThan(
-      1_900,
+      2_000,
     );
     expect(instructions).not.toContain("Issue reporting");
     expect(instructions).not.toContain("accepted: false");

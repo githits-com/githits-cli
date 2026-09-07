@@ -21,7 +21,7 @@ describe("createGrepRepoTool — metadata", () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     expect(tool.name).toBe("code_grep");
     expect(tool.description).toContain(
-      "Enumerate text, regex, or identifier matches in any public GitHub repo/package",
+      "Find text, regex, or identifier matches in a public repo or package",
     );
     expect(tool.description).toContain(
       "Use `search` for conceptual or open-ended discovery",

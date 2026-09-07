@@ -27,10 +27,10 @@ describe("createListFilesTool — metadata", () => {
     expect(targetSchema).toContain("swift:github.com/<owner>/<repo>");
     expect(targetSchema).toContain("zig:gh/<owner>/<repo>");
     expect(targetSchema).toContain("artifact/manifest-root");
-    expect(targetSchema).toContain("public GitHub repository");
+    expect(targetSchema).toContain("public repository");
     expect(targetSchema).toContain("sibling packages");
     expect(descriptor?.description.slice(0, 80)).toBe(
-      "List indexed files and paths in any public GitHub repo/package; then use `code_r",
+      "List indexed files and paths in a public repo or package. Then use `code_read` o",
     );
   });
 
@@ -38,7 +38,7 @@ describe("createListFilesTool — metadata", () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     expect(tool.name).toBe("code_files");
     expect(tool.description).toContain(
-      "List indexed files and paths in any public GitHub repo/package",
+      "List indexed files and paths in a public repo or package",
     );
     expect(tool.description).toContain("`code_read` or `code_grep`");
     expect(tool.description).toMatch(/\benumerat(?:e|ion)\b/i);
