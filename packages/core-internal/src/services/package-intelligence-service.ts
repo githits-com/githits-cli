@@ -113,6 +113,8 @@ export interface PackageVulnerabilitiesParams {
   includeWithdrawn?: boolean;
   /** Optional — only true enables the extra graph-analysis request; omission/false preserve direct-only behavior. */
   includeTransitive?: boolean;
+  /** Optional internal breadth for advisory-wide transitive detail fields. */
+  includeTransitiveAdvisoryDetails?: boolean;
   /** Advisory rows to return for the root and opt-in transitive audit; direct counts always include all scopes. */
   advisoryScope?: VulnerabilityScope;
 }
@@ -1096,6 +1098,8 @@ const transitiveAuditAdvisorySchema = z.object({
   osvId: z.string().nullable().optional(),
   summary: z.string().nullable().optional(),
   severityScore: z.number().nullable().optional(),
+  affectedVersionRanges: z.array(z.string()).nullable().optional(),
+  fixedInVersions: z.array(z.string()).nullable().optional(),
   publishedAt: z.string().nullable().optional(),
   modifiedAt: z.string().nullable().optional(),
   aliases: z.array(z.string()).nullable().optional(),
@@ -1234,6 +1238,7 @@ query PackageTransitiveVulnerabilityAudit(
   $version: String!
   $minSeverity: Float
   $scope: VulnerabilityScope!
+  $includeTransitiveAdvisoryDetails: Boolean! = false
 ) {
   packageDependencies(
     registry: $registry
@@ -1268,6 +1273,8 @@ query PackageTransitiveVulnerabilityAudit(
                 osvId
                 summary
                 severityScore
+                affectedVersionRanges @include(if: $includeTransitiveAdvisoryDetails)
+                fixedInVersions @include(if: $includeTransitiveAdvisoryDetails)
                 publishedAt
                 modifiedAt
                 aliases
@@ -2912,6 +2919,8 @@ export class PackageIntelligenceServiceImpl
           version: directIdentity.version,
           minSeverity,
           scope: advisoryScope,
+          includeTransitiveAdvisoryDetails:
+            params.includeTransitiveAdvisoryDetails === true,
         },
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
@@ -3538,6 +3547,12 @@ export class PackageIntelligenceServiceImpl
       osvId: advisory.osvId ?? undefined,
       summary: advisory.summary ?? undefined,
       severityScore: advisory.severityScore ?? undefined,
+      affectedVersionRanges: advisory.affectedVersionRanges?.length
+        ? advisory.affectedVersionRanges
+        : undefined,
+      fixedInVersions: advisory.fixedInVersions?.length
+        ? advisory.fixedInVersions
+        : undefined,
       publishedAt: advisory.publishedAt ?? undefined,
       modifiedAt: advisory.modifiedAt ?? undefined,
       aliases: advisory.aliases ?? undefined,

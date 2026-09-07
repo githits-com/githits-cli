@@ -939,6 +939,10 @@ interface MutableTransitiveAuditOccurrence {
   matchedAffectedVersionRanges: string[];
   fixVersionsAboveResolved: string[];
   nearestFixedVersion?: string | null;
+  advisory: {
+    affectedVersionRanges?: string[] | null;
+    fixedInVersions?: string[] | null;
+  };
 }
 
 interface MutableTransitiveAuditPackage {
@@ -1386,6 +1390,7 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
       version: "4.18.0",
       minSeverity: 7.0,
       scope: "AFFECTED",
+      includeTransitiveAdvisoryDetails: false,
     });
     expect(requests[2]?.query).toContain("includeTransitive: true");
     expect(requests[2]?.query).toContain(
@@ -1446,6 +1451,7 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
       version: "4.18.0",
       minSeverity: 7.0,
       scope: "AFFECTED",
+      includeTransitiveAdvisoryDetails: false,
     });
     expect(result.package).toMatchObject({
       name: "express",
@@ -1501,6 +1507,7 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
       version: "4.18.0",
       minSeverity: undefined,
       scope: "AFFECTED",
+      includeTransitiveAdvisoryDetails: false,
     });
   });
 
@@ -1529,6 +1536,12 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     expect(query).toContain("matchedAffectedVersionRanges");
     expect(query).toContain("fixVersionsAboveResolved");
     expect(query).toContain("nearestFixedVersion");
+    expect(query).toContain(
+      "affectedVersionRanges @include(if: $includeTransitiveAdvisoryDetails)",
+    );
+    expect(query).toContain(
+      "fixedInVersions @include(if: $includeTransitiveAdvisoryDetails)",
+    );
     expect(query).toMatch(/package \{\s*name\s+registry\s+version/s);
     expect(query).toMatch(
       /packages \{\s*registry\s+name\s+selectedCount: affectedCount/s,
@@ -1540,8 +1553,6 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
       "versions",
       "advisoryIds",
       "mostCritical",
-      "affectedVersionRanges",
-      "fixedInVersions",
       "direct",
       "dependencyGraph",
       "dependencyGroups",
@@ -1574,7 +1585,101 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
       version: "4.18.0",
       minSeverity: 4.0,
       scope: "AFFECTED",
+      includeTransitiveAdvisoryDetails: false,
     });
+  });
+
+  it.each([undefined, false] as const)(
+    "transitive advisory-wide details default to false and omit unavailable fields (%s)",
+    async (includeTransitiveAdvisoryDetails) => {
+      const body = mutableTransitiveAuditBody();
+      const firstOccurrence = mutableFirstAuditOccurrence(body);
+      firstOccurrence.advisory.affectedVersionRanges = null;
+      firstOccurrence.advisory.fixedInVersions = null;
+      const secondOccurrence =
+        mutableFirstAuditPackage(body).advisoryOccurrences[1];
+      if (!secondOccurrence)
+        throw new Error("fixture missing second occurrence");
+      secondOccurrence.advisory.affectedVersionRanges = [];
+      secondOccurrence.advisory.fixedInVersions = [];
+      const { service, fetchFn } = createAuditService(body);
+
+      const result = await service.packageVulnerabilities({
+        registry: "NPM",
+        packageName: "express",
+        includeTransitive: true,
+        ...(includeTransitiveAdvisoryDetails === undefined
+          ? {}
+          : { includeTransitiveAdvisoryDetails }),
+      });
+
+      const captured = JSON.parse(
+        ((fetchFn.mock.calls as unknown as Array<[string, RequestInit]>)[1]?.[1]
+          ?.body as string) ?? "{}",
+      );
+      const query = captured.query as string;
+      expect(captured.variables.includeTransitiveAdvisoryDetails).toBe(false);
+      expect(query).toMatch(
+        /\$includeTransitiveAdvisoryDetails: Boolean! = false/,
+      );
+      expect(query).toMatch(
+        /affectedVersionRanges\s+@include\(if: \$includeTransitiveAdvisoryDetails\)/,
+      );
+      expect(query).toMatch(
+        /fixedInVersions\s+@include\(if: \$includeTransitiveAdvisoryDetails\)/,
+      );
+      for (const occurrence of result.transitive?.packages[0]?.occurrences ??
+        []) {
+        expect(occurrence.advisory.affectedVersionRanges).toBeUndefined();
+        expect(occurrence.advisory.fixedInVersions).toBeUndefined();
+      }
+    },
+  );
+
+  it("transitive advisory-wide details preserve populated ranges and fixes when requested", async () => {
+    const body = mutableTransitiveAuditBody();
+    const firstOccurrence = mutableFirstAuditOccurrence(body);
+    firstOccurrence.advisory.affectedVersionRanges = [">= 0.0.0, < 0.7.1"];
+    firstOccurrence.advisory.fixedInVersions = ["0.7.1"];
+    const secondOccurrence =
+      mutableFirstAuditPackage(body).advisoryOccurrences[1];
+    if (!secondOccurrence) throw new Error("fixture missing second occurrence");
+    secondOccurrence.advisory.affectedVersionRanges = [">= 0.0.0, < 0.7.2"];
+    secondOccurrence.advisory.fixedInVersions = ["0.7.2"];
+    const { service, fetchFn } = createAuditService(body);
+
+    const result = await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "express",
+      includeTransitive: true,
+      includeTransitiveAdvisoryDetails: true,
+    });
+
+    const captured = JSON.parse(
+      ((fetchFn.mock.calls as unknown as Array<[string, RequestInit]>)[1]?.[1]
+        ?.body as string) ?? "{}",
+    );
+    expect(captured.variables.includeTransitiveAdvisoryDetails).toBe(true);
+    expect(result.transitive?.packages[0]?.occurrences).toMatchObject([
+      {
+        matchedAffectedVersionRanges: [">= 0.0.0, < 0.7.1"],
+        fixVersionsAboveResolved: ["0.7.1"],
+        nearestFixedVersion: "0.7.1",
+        advisory: {
+          affectedVersionRanges: [">= 0.0.0, < 0.7.1"],
+          fixedInVersions: ["0.7.1"],
+        },
+      },
+      {
+        matchedAffectedVersionRanges: [">= 0.0.0, < 0.7.2"],
+        fixVersionsAboveResolved: ["0.7.2"],
+        nearestFixedVersion: "0.7.2",
+        advisory: {
+          affectedVersionRanges: [">= 0.0.0, < 0.7.2"],
+          fixedInVersions: ["0.7.2"],
+        },
+      },
+    ]);
   });
 
   it("applies ALL scope to transitive counts and occurrence rows", async () => {
