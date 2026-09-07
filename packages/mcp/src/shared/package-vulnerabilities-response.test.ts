@@ -1209,24 +1209,25 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     );
   });
 
-  it("caps transitive compact rows globally and uses surface-native hints", () => {
+  it("keeps CLI compact transitive rows complete while MCP compact remains capped", () => {
     const cli = formatPackageVulnerabilitiesTerminal(
       transitiveVulnerabilityFixture(),
-      { useColors: false, terminalWidth: 120 },
+      { useColors: false, surface: "cli", terminalWidth: 120 },
     );
     expect(cli).toContain("GHSA-body-mal");
     expect(cli).toContain("GHSA-accept-critical");
     expect(cli).toContain("GHSA-body-high");
     expect(cli).toContain("GHSA-zeta-medium");
     expect(cli).toContain("GHSA-accept-low");
-    expect(cli).not.toContain("GHSA-zeta-low");
-    expect(cli).not.toContain("CVE-unrated");
-    expect(cli).toContain("... (+2 more; use -v)");
+    expect(cli).toContain("GHSA-zeta-low");
+    expect(cli).toContain("No score body-parser issue");
+    expect(cli).not.toContain("... (+2 more; use -v)");
 
     const mcp = formatPackageVulnerabilitiesTerminal(
       transitiveVulnerabilityFixture(),
       { useColors: false, surface: "mcp", terminalWidth: 120 },
     );
+    expect(mcp).not.toContain("No score body-parser issue");
     expect(mcp).toContain("... (+2 more; use verbose=true or format=json)");
     expect(mcp).not.toContain("use -v");
   });
@@ -1234,7 +1235,7 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
   it("wraps mixed-severity breakdowns and capped-row hints at narrow widths", () => {
     const output = formatPackageVulnerabilitiesTerminal(
       transitiveVulnerabilityFixture(),
-      { useColors: false, terminalWidth: 20 },
+      { useColors: false, surface: "mcp", terminalWidth: 20 },
     );
     const sectionLines = output
       .slice(output.indexOf("Resolved dependencies"))
@@ -1252,7 +1253,7 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     const hintLines = sectionLines.slice(hintIndex);
     expect(hintLines.every((line) => line.length <= 20)).toBe(true);
     expect(hintLines.join(" ").replace(/\s+/g, " ")).toContain(
-      "... (+2 more; use -v)",
+      "... (+2 more; use verbose=true or format=json)",
     );
   });
 
@@ -1720,18 +1721,26 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     expect(output).not.toContain("+2 more");
   });
 
-  it("caps default advisory rows and bases hidden count on rendered advisories", () => {
+  it("keeps CLI compact direct rows complete while MCP compact remains capped", () => {
     const fixture = cloneFixture();
     if (fixture.security) {
       fixture.security.affectedVulnerabilityCount = 99;
     }
-    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+
+    const cli = formatPackageVulnerabilitiesTerminal(fixture, {
       useColors: false,
+      surface: "cli",
     });
     expect(DEFAULT_ADVISORY_CAP).toBe(5);
-    expect(output).toContain("... (+1 more; use -v)");
-    expect(output).not.toContain("... (+94 more");
-    expect(output).not.toContain("GHSA-nnnn-nnnn-nnnn");
+    expect(cli).toContain("GHSA-nnnn-nnnn-nnnn");
+    expect(cli).not.toContain("... (+1 more; use -v)");
+
+    const mcp = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: false,
+      surface: "mcp",
+    });
+    expect(mcp).not.toContain("GHSA-nnnn-nnnn-nnnn");
+    expect(mcp).toContain("... (+1 more; use verbose=true or format=json)");
   });
 
   it("verbose mode shows all advisory rows", () => {

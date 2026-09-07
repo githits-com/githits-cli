@@ -1246,9 +1246,10 @@ function formatAdvisoryList(
   surface: VulnerabilitiesTextSurface,
   terminalWidth: number | undefined,
 ): string {
-  const renderedAdvisories = verbose
-    ? advisories
-    : advisories.slice(0, DEFAULT_ADVISORY_CAP);
+  const renderedAdvisories =
+    verbose || surface === "cli"
+      ? advisories
+      : advisories.slice(0, DEFAULT_ADVISORY_CAP);
   const labelWidth = Math.max(
     ...renderedAdvisories.map((a) => severityColumnLabel(a).length),
   );
@@ -1615,9 +1616,10 @@ function formatTransitiveRows(
   rows: TransitiveTextRow[],
   options: FormatTransitiveAuditOptions,
 ): string[] {
-  const shownRows = options.verbose
-    ? rows
-    : rows.slice(0, DEFAULT_ADVISORY_CAP);
+  const shownRows =
+    options.verbose || options.surface === "cli"
+      ? rows
+      : rows.slice(0, DEFAULT_ADVISORY_CAP);
   const lines: string[] = [];
   for (const row of shownRows) {
     lines.push(...formatTransitiveOccurrence(row, options));
