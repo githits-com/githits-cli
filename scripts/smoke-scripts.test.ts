@@ -393,7 +393,7 @@ describe("CLI transitive vulnerability smoke contract", () => {
   it("accepts positive results and composite MALWARE headlines", () => {
     const output = `Resolved dependencies
 2 affected advisory occurrences in 2 dependency packages; 2 resolved package versions checked.
-  MALWARE | crit  body-parser@1.19.0  GHSA-malware
+  MALWARE | critical  body-parser@1.19.0  GHSA-malware
   high  debug@2.6.9  [historical]  GHSA-history`;
 
     expect(() =>

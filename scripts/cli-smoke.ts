@@ -600,7 +600,7 @@ export function assertTransitiveVulnerabilityText(
     /(?:^|\n)\s*(\d+)\s+(?:(?:affected|historical)\s+)?advisory\s+occurrences?\b/,
   );
   const headlinePattern =
-    /^ {2}(?:MALWARE(?: \| (?:crit|high|medium|low|unrated))?|critical|high|medium|low|unrated)\s+\S+@\S+(?:\s+\[(?:affected|historical)\])?/gm;
+    /^ {2}(?:MALWARE(?: \| (?:critical|high|medium|low|unrated))?|critical|high|medium|low|unrated)\s+\S+@\S+(?:\s+\[(?:affected|historical)\])?/gm;
   const renderedRows = [...resolvedText.matchAll(headlinePattern)].length;
   if (summaryMatch !== null) {
     const expectedRows = Number(summaryMatch[1]);
