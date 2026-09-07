@@ -155,14 +155,37 @@ reports had no validation warnings; this is not a claim of independently graded
 answer quality. Artifacts: `.agent-eval/r3b-providers-codex` and
 `.agent-eval/r3b-providers-intent`.
 
+### Dev replay
+
+The built CLI and built stdio MCP replay passed with the user-supplied settings:
+
+```text
+GITHITS_MCP_URL=https://mcp-dev.githits.com
+GITHITS_API_URL=https://api-dev.githits.com
+PKGSEER_URL=https://pkgseer-backend-dev.fly.dev
+```
+
+Both direct repository fixtures passed files, grep, read, CODE/DOCS search,
+exact read follow-ups, same-commit CodeDiff, and full-URL changelog. Codeberg
+resolved to `6a5cfb379036e0506ceab5f45f4f45dcf3e6842b` and the nested GitLab
+fixture resolved to `68ba274f1f283b93e85ba490bc16ea16f60cbfb5`, matching the
+production replay. Each surface returned two CODE and two DOCS hits per
+repository; assertions verified their provider, exact commit, and emitted
+follow-up revision. Emitted documentation locators read successfully on both
+CLI and MCP. `zig:cb/zigil/decimal` CODE returned two hits on each surface.
+Codeberg changelog retained one nonempty body on CLI and MCP, and
+`npm:express@4.18.1..4.18.2` upgrade review retained two body fields on each.
+Fuzzy resolve calls completed with the same discovery limitation described
+above. Local replay evidence is under `/tmp/r3b-live-dev-codeberg` and
+`/tmp/r3b-live-dev-gitlab`.
+
 ### Remaining acceptance evidence
 
-The handoff requested a dev replay and a specific stable GitLab Swift fixture,
-but neither the dev endpoint nor that fixture's coordinate was supplied or
-found in this checkout. These checks remain pending that information; no dev
-or stable GitLab Swift live pass is claimed. Registry-native Swift GitLab
-parsing is covered deterministically. The draft PR records these remaining
-checks explicitly rather than substituting a guessed fixture or endpoint.
+The specific stable GitLab Swift fixture coordinate remains unidentified.
+That live regression is pending the coordinate; no stable GitLab Swift live
+pass is claimed. Registry-native Swift GitLab parsing is covered
+deterministically. The draft PR records this remaining check explicitly
+rather than substituting a guessed fixture.
 
 To repeat the live direct-target checks with the unpublished build, use
 `node dist/cli.js` for CLI commands and a Node stdio MCP client launching
