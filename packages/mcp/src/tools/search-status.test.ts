@@ -2,6 +2,7 @@ import { describe, expect, it, mock } from "bun:test";
 import type {
   UnifiedSearchIncomplete,
   UnifiedSearchProgress,
+  UnifiedSearchReadOptions,
   UnifiedSearchSessionStatus,
 } from "@githits/core-internal";
 import { AuthenticationError } from "@githits/core-internal";
@@ -150,22 +151,34 @@ describe("searchStatusTool", () => {
   });
 
   it("waits up to the shared default and forwards explicit wait windows", async () => {
-    const searchStatus = mock((_searchRef: string, _waitTimeoutMs?: number) =>
-      Promise.resolve(defaultUnifiedSearchOutcome),
+    const searchStatus = mock(
+      (
+        _searchRef: string,
+        _waitTimeoutMs?: number,
+        _options?: UnifiedSearchReadOptions,
+      ) => Promise.resolve(defaultUnifiedSearchOutcome),
     );
     const tool = createSearchStatusTool(
       createMockCodeNavigationService({ searchStatus }),
     );
 
     await tool.handler({ search_ref: "search-ref-default" }, {});
-    expect(searchStatus.mock.calls[0]).toEqual(["search-ref-default", 20_000]);
+    expect(searchStatus.mock.calls[0]).toEqual([
+      "search-ref-default",
+      20_000,
+      { omitFocusedSource: true },
+    ]);
 
     searchStatus.mockClear();
     await tool.handler(
       { search_ref: "search-ref-explicit", wait_timeout_ms: 45_000 },
       {},
     );
-    expect(searchStatus.mock.calls[0]).toEqual(["search-ref-explicit", 45_000]);
+    expect(searchStatus.mock.calls[0]).toEqual([
+      "search-ref-explicit",
+      45_000,
+      { omitFocusedSource: true },
+    ]);
   });
 
   it("bounds the wait timeout in the public schema", () => {
@@ -814,4 +827,19 @@ describe("searchStatusTool", () => {
     );
     expect(text).not.toContain("allow_partial_results: true");
   });
+});
+
+describe("v31 format selection", () => {
+  for (const format of [undefined, "text", "json"] as const) {
+    it(`selects MCP source fields for format=${format}`, async () => {
+      const call = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+      const tool = createSearchStatusTool(
+        createMockCodeNavigationService({ searchStatus: call }),
+      );
+      await tool.handler({ search_ref: "v31-ref", format }, {});
+      expect(call).toHaveBeenCalledWith("v31-ref", 20_000, {
+        omitFocusedSource: format !== "json",
+      });
+    });
+  }
 });

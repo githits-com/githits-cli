@@ -113,6 +113,24 @@ describe("semantic preferred reads", () => {
     ).toEndWith("start_line=1 end_line=300");
   });
 
+  it("bounds a wider read around matched source when compatibility source differs or is omitted", () => {
+    const value = hit({ ...preferredRead, startLine: 1, endLine: 1000 });
+    value.repositoryEvidence!.matchedSource = {
+      ...value.repositoryEvidence!.focusedSource!,
+      startLine: 700,
+      endLine: 705,
+      matchLine: 702,
+      rangeKind: "syntax_context",
+    };
+    const withCompatibility = buildSearchHitFollowUpCommand(value);
+    expect(withCompatibility).toEndWith("start_line=553 end_line=852");
+    value.repositoryEvidence!.focusedSource = null;
+    expect(buildSearchHitFollowUpCommand(value)).toBe(withCompatibility);
+    expect(
+      value.repositoryEvidence!.semanticContext!.preferredRead.endLine,
+    ).toBe(1000);
+  });
+
   it("keeps preferred reads usable without focused source", () => {
     const value = hit(preferredRead);
     value.repositoryEvidence!.focusedSource = null;

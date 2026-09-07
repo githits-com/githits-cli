@@ -226,48 +226,63 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Repository search evidence locators.** Repository code and symbol hits keep the legacy target-relative `locator.filePath` and evidence `startLine` / `endLine` while also exposing the repository-root `repositoryFilePath`, exact served `commitSha`, explicit `evidenceRange`, original `indexedRange`, and optional `symbolContext`. Evidence includes `matchLine`, backend `rangeKind`, and `matchSpansTruncated`; symbol context keeps backend identity/kind plus the fixed lowercase relation `encloses_match` or `associated_with_indexed_chunk`. A proven enclosing relation always has one complete `definitionRange` containing both target-relative and repository-root paths. Associated or identity-only context may omit that range. Malformed partial definition locators invalidate the search response instead of being repaired or dropped.
 
-JSON retains all legacy ranges and summaries, and adds `repositoryEvidence` and
-`contentSafety` for initial and stored search results. Repository code and
-repository docs render `semanticContext.scopes` outer-to-inner as declaration
-metadata, followed by `focusedSource.lines` with their supplied absolute line
-numbers. Scope ranges are inclusive and are not reconstructed source signatures.
-Source indentation and line boundaries are preserved without prose wrapping or
-client-side cropping; long source lines may exceed terminal width. A `>` gutter
-marks lines with returned matches even without color. Source highlights use
-line-relative grapheme offsets, converted only for coloring; legacy title/summary
-highlight coordinates are unchanged. Whole-line omissions, inline crops,
-truncated scope chains, and incomplete highlights have separate ASCII markers.
+JSON preserves legacy ranges, summaries, highlights, compatibility `focusedSource`,
+and content safety. Initial, partial, and stored search results additionally carry
+`repositoryEvidence.bm25MatchFields`, `repositoryEvidence.matchedSource`, and
+`documentationPreview`, including nulls and empty preview highlight lists.
 
-Semantic metadata and focused source are independently nullable. Available source
-renders without scopes; unavailable source retains the hit and locator with
-`Exact source unavailable`. No declaration body is invented. Crawled docs and
-explicit symbol hits retain their existing summary presentation. Legacy service
-mocks without the new field retain legacy rendering. Filtered content carries a
-compact notice with the backend modification kinds; JSON preserves false/null
-facts in the new evidence structure.
+`bm25MatchFields` names the indexed fields that contributed positive terms:
+`SYMBOL_NAME`, `FILE_PATH`, `DOCUMENTATION`, and `SOURCE_IDENTIFIER`. A known list
+is complete, ordered and nonempty; null means unknown/unsupported, not no matches.
+It is neither a term-to-field map nor proof of a source span. `matchedSource`
+independently carries producer-proven, numbered source: inclusive line bounds,
+nullable match anchor, non-null range kind, grapheme highlights, and crop flags.
+Compatibility source is navigation context and is never promoted into this proof.
 
-The text header supplies the read target, path, and focused range; scope rows
-supply enclosing declaration ranges. No per-hit read command is printed. With
-semantic context, both header attribution and JSON `followUp` come from
-`preferredRead`: its target label determines repository attribution even when
-synthetic package metadata is populated. Package attribution pairs registry/package/version with
-package-relative `filePath`, while repository attribution pairs `repoUrl` and
-`commitSha` with `repositoryFilePath`. The preferred source read takes precedence
-also for repository docs with page IDs. Crawled docs keep `docs_read`. The JSON
-follow-up respects the MCP 300-line cap around focused evidence without changing
-true declaration or preferred-read bounds. Without semantic context, existing
-relation-aware follow-up logic remains: only proven enclosure selects a wider
-definition, and repository reads stay pinned to the served revision.
+Repository code/docs text shows matched source with the existing outer-to-inner
+semantic scope hierarchy, without routine authority captions or field inventories.
+Scopes are declaration metadata, not reconstructed source signatures. Matched
+source bounds own the header range; source indentation, line numbering, and line
+boundaries are preserved without prose wrapping or client cropping. The `>` gutter
+marks highlighted lines without color. Whole-line omissions, inline crops,
+truncated scope chains, and incomplete highlights retain separate ASCII notices.
 
-The core service selects structural evidence for both search-result paths.
-`semanticContext` and its preferred-read locator require no source hydration;
-`focusedSource` and content safety use the backend's batched exact-file read.
-Rendering never fetches the preferred range. Legacy summary selections remain
-for JSON compatibility and mixed crawled-doc/symbol results; this duplicates wire
-content but does not add another CAS batch. The client requires the backend's
-September 5 structural-evidence schema; it does not probe or retry older schemas.
-Hosted clients receive this behavior only after an MCP package release and the
-separate remote-mcp dependency update/deployment.
+When fields are exactly `[FILE_PATH]` and matched source is absent, text shows only
+an actionable file-level header with `path match`: no arbitrary chunk range,
+symbol title, scope block, or compatibility snippet. A present matched snippet
+always wins, even with file-path-only or unknown provenance. Other repository hits
+without proven snippets retain locators and scope metadata with `Snippet unavailable`;
+they never render a legacy summary as source. Ranking and pagination remain backend-
+owned; the client does not deduplicate hits sharing a file.
+
+Crawled pages use `documentationPreview` text and zero-based half-open grapheme
+ranges. Convert offsets against the original preview before duplicate-heading
+removal and wrapping. A null preview leaves the actionable header; older injected
+data without the field can use its legacy summary. Repository docs use repository
+evidence, not the crawled preview. Explicit symbol lookup retains its summary.
+Filtered content keeps its existing notice and JSON safety facts.
+
+Header attribution and the JSON `followUp` use semantic `preferredRead` when
+available. Its target label determines package versus repository attribution:
+package reads use the package-relative path; repository reads use the root-relative
+path and exact commit. Preferred-read bounds are explicit-read coordinates, not
+display source. The 300-line MCP follow-up cap centers on matched source when
+available, with compatibility fallback for legacy results; original structured
+bounds remain intact. Text does not print redundant per-hit read commands.
+
+The service selects v31 evidence on both search paths. Text callers pass the
+optional service read option `omitFocusedSource: true`; JSON/default service calls
+retain compatibility source. The option changes field selection only, not query
+filters, session state, or public CLI/MCP arguments. Semantic metadata and BM25
+fields need no CAS, and crawled previews need no repository CAS. Matched source
+hydrates proven rows; identical source ranges selected together share a backend
+read. Legacy summary remains selected for symbol/legacy-preview consumers and can
+still cause repository hydration, so this is not a CAS or latency reduction claim.
+Rendering never fetches or stitches source. New clients require the producer's
+September 7 v31 additive schema; no older-schema retry is introduced. After client
+publication the producer must retain that schema during rollback. Hosted clients
+adopt it only after the MCP package release and a separate remote-server dependency
+update/deployment.
 
 The current text uses `-` scope markers and omits parameter names and return
 types; JSON retains them. See [the semantic-context evaluation](search-semantic-context-evaluation.md)

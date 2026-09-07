@@ -246,6 +246,17 @@ export function assertDefaultText(
 
 function assertSearchDefaultText(text: string, context: string): void {
   const lines = text.split("\n");
+  let pathOnlyBlock = false;
+  for (const line of lines) {
+    if (/^\[\d+\] /.test(line)) {
+      pathOnlyBlock = /\[repo (?:code|doc), path match\]$/.test(line);
+    } else if (pathOnlyBlock) {
+      assert(
+        !/^\s*>?\s*\d+ \|/.test(line),
+        `${context}: path-only hit contains an arbitrary source snippet`,
+      );
+    }
+  }
   const formatterLines = searchFormatterLines(lines);
   const formatterText = formatterLines.join("\n");
   const firstLine = lines[0]?.trim() ?? "";
@@ -409,7 +420,7 @@ function hasHumanSearchHitLocator(lines: string[]): boolean {
       return source.length > 0 && hasWrappedHitTitle(lines, index);
     }
     const match =
-      /^\[\d+\]\s+(.+?)\s+\[(repo doc|repo code|repo symbol)\](?: -(?: (.*))?)?$/.exec(
+      /^\[\d+\]\s+(.+?)\s+\[(repo doc|repo code|repo symbol)(?:, path match)?\](?: -(?: (.*))?)?$/.exec(
         line,
       );
     if (!match) return false;

@@ -544,3 +544,126 @@ or isolation artifacts, so its exit status is not success evidence. Its leftover
 local server was stopped. No agent-behavior claim is made from this attempt;
 the preceding pipeline remains the latest usable evidence. The final compact
 local appendix wording was validated by tests, not a completed agent run.
+
+## September 7, 2026: explicit match evidence
+
+PkgSeer [PR 2302](https://github.com/githits-com/pkgseer-backend/pull/2302)
+introduced the additive navrpc v31 contract. The authoritative
+[schema](https://github.com/githits-com/pkgseer-backend/blob/26c303c990bae6738582b249df6eaeceb55549d0/priv/graphql/schema.graphql)
+and [changelog](https://github.com/githits-com/pkgseer-backend/blob/26c303c990bae6738582b249df6eaeceb55549d0/priv/graphql/CHANGELOG.md)
+at merge `26c303c990bae6738582b249df6eaeceb55549d0` agree with the separately
+fetched producer main schema: SHA256
+`d9b5c561181e877640c2d1d7260eb958af46f96feae3c92f917900ff62800352`.
+The current client contract is documented in [tools.md](tools.md).
+
+Planning independently verified production availability. The handoff's release
+1118/image `60acaa5` had been superseded by release 1119/image `faaddfe`; both
+active web nodes reported navrpc API 31. Direct queries confirmed path-only
+null matched source, substantive matched source, crawled previews, and repository
+documentation evidence. Installed `githits@0.12.1` and `githits@latest` code/docs
+commands succeeded; latest had advanced to 0.13.0 for both public packages.
+The historical 852-855 sample was not reproduced because its exact request was
+not supplied; equivalent authoritative spans were verified. Express 5.2.1 now
+returns known provenance, so unknown/old-artifact semantics use deterministic
+fixtures grounded in the producer contract.
+
+Implementation validation uses development services only. A direct development
+query for `npm:express@4.21.2`, CODE, `route middleware`, limit 3, wait 0 returned
+HTTP 200 with no GraphQL errors. Its first hit, `examples/route-middleware/index.js`,
+had `[FILE_PATH]` and null matched source. The second had `[SOURCE_IDENTIFIER]`
+and matched `lib/router/index.js:303-307`. The third had mixed fields and matched
+`lib/router/route.js:47-51`. Development introspection is disabled; the actual
+field-selecting query, rather than introspection, establishes availability.
+
+The before/after builds share client base
+`d48415792499f61b3203e700267a21617269419c` and the same development producer.
+Saved Node baseline artifacts live in ignored `.agent-eval/v31/baseline/`; this
+nested directory inherits Git metadata and must not be identified by the
+harness's Git HEAD alone. Output comparisons measure bytes and lines, not tokens.
+Legacy summary remains selected, so omitting compatibility source does not prove
+fewer CAS reads. No runtime latency improvement is claimed.
+
+### Built output comparison
+
+The same three-hit requests ran through both built Node CLIs with `--wait 0`.
+All twelve commands (three cases, two formats, two builds) exited zero. A recursive
+comparison found every legacy JSON value preserved, with identical membership,
+ordering, and pagination in these samples. JSON grows because it is additive and
+retains compatibility source; this is intentional machine-output compatibility.
+
+| Request | Baseline text bytes / lines | Candidate text bytes / lines | Baseline / candidate JSON bytes |
+| --- | --- | --- | --- |
+| `npm:express@4.21.2`, code, `route middleware` | 1,045 / 29 | 796 / 20 | 8,723 / 10,613 |
+| `site:expressjs.com`, docs, `Router-level middleware` | 1,466 / 46 | 1,466 / 46 | 3,298 / 4,579 |
+| `npm:express@4.21.2`, docs, `middleware` | 2,062 / 39 | 2,062 / 39 | 9,508 / 13,649 |
+
+The path-only hit became one file header. Both substantive source snippets and
+scope hierarchies remained; no new authority caption appeared. The documentation
+samples retained their existing useful text while JSON exposed structural previews
+for crawled pages and matched source for repository docs. Unicode grapheme
+highlighting, heading removal, null/absent previews, and line cropping are covered
+by deterministic renderer tests rather than this uncolored ASCII sample.
+
+### Controlled agent check
+
+Settings match the earlier experiment: Codex, `gpt-5.6-luna`, low reasoning,
+descriptors plus GitHits intent, local MCP from saved Node artifacts, 300-second
+timeout, concurrency 1. Exact controlled workload:
+
+```text
+Explain how `npm:express@4.21.2` trims a route prefix before dispatching middleware,
+and distinguish implementation evidence from files that merely match the
+navigation query. Ground your explanation in exact source locations.
+
+For this output-presentation experiment, begin with `search` using target
+`npm:express@4.21.2`, source `code`, query `route middleware`, limit 3, and format
+`text`. After that first search, choose any follow-up evidence you need. Keep
+subsequent search responses in `text`.
+```
+
+This forces exposure to the changed text; it does not measure tool discovery.
+There is one run per build, so these are qualitative checks, not statistical
+performance evidence. Both used the prescribed text search, completed successfully,
+reported high confidence, and had no failed calls or isolation-violation artifacts.
+
+| Run | Duration | Calls / code reads | Uncached / cached input tokens | Output tokens | Base-rate cost estimate |
+| --- | --- | --- | --- | --- | --- |
+| Baseline | 30.3 s | 3 / 1 | 47,515 / 99,072 | 800 | $0.01244444 |
+| Candidate | 38.4 s | 5 / 3 | 29,797 / 143,616 | 846 | $0.00984692 |
+
+The coordinator separately checked both finals against returned source at
+`lib/router/index.js:279-330`: prefix equality, separator check, URL removal,
+leading-slash repair, base URL update, and middleware dispatch were grounded.
+The candidate explicitly recognized the path-match label, read the example file
+to establish what it contained, and did not treat its absent search snippet as
+source proof. It read matched bounds 293-330 first, then the example 1-120
+(returned 1-90) and routing context 200-292. The baseline read 270-331 once.
+All follow-up locators worked.
+
+The candidate used more reads and more total input tokens (173,413 versus 146,587),
+despite less search text and fewer uncached tokens. The workload explicitly asks
+to distinguish other hits, which can motivate inspecting the path-only file.
+This is not evidence of reduced task tokens or latency. Keep the compact design
+for its honest source authority and useful-evidence density; do not add prompt
+rules or read hints to optimize one small experiment. Artifacts are under
+`.agent-eval/v31/{baseline-controlled,candidate-controlled}`; build hashes are
+recorded in each saved target's `build-provenance.json`.
+
+The unmodified `docs-search-followup.md` workload also ran on the candidate:
+20.2 seconds, two successful calls (`quick_start`, then default-text `search`),
+28,279 uncached and 76,800 cached input tokens, 459 output tokens, estimated
+$0.0077426, and no isolation violations. The answer correctly described HTTP-method
+routes, callbacks, and `next()` and cited the returned Express 5 routing URL.
+The dedicated preview sufficed without a follow-up read. This checks ordinary
+documentation usability; there is no paired baseline or cost-improvement claim.
+
+### Delivery validation
+
+`bun test` passed 4,200 tests across 197 files. `bun run typecheck`, `bun run build`,
+`bun run validate:packages`, and formatting/lint checks on changed TypeScript files
+passed. After test-only cleanup, the affected three-file suite passed 184 tests.
+`bun run smoke:cli:built` and `bun run smoke:mcp:built` passed secret-free built
+validation. Both `bun run smoke:cli` and `bun run smoke:mcp` passed their stable
+and experimental live cohorts against the development endpoints. No implementation
+validation used production. No new deployment, feature flag, source read, source
+stitching, client deduplication, or agent-guidance change is part of this increment.

@@ -66,6 +66,7 @@ export function createSearchStatusTool(
         const outcome = await service.searchStatus(
           args.search_ref,
           args.wait_timeout_ms ?? DEFAULT_WAIT_TIMEOUT_MS,
+          { omitFocusedSource: isTextFormat(args.format) },
         );
         const payload = buildUnifiedSearchStatusPayload(outcome);
         if (isTextFormat(args.format)) {

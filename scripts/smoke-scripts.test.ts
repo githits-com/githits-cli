@@ -118,6 +118,25 @@ Next: shorten or broaden query; use githits code grep.`;
     ).not.toThrow();
   });
 
+  it("accepts compact path matches but rejects their arbitrary numbered snippets", () => {
+    const path =
+      "1 result | 1 repo code hit\n\n[1] npm:express@4.21.2 examples/route-middleware/index.js [repo code, path match]";
+    expect(() => assertSearchTerminalText(path, "search")).not.toThrow();
+    expect(() =>
+      assertSearchTerminalText(
+        `${path}\n  50 | function andRestrictTo(role) {`,
+        "search",
+      ),
+    ).toThrow("path-only hit contains an arbitrary source snippet");
+    expect(() =>
+      assertSearchTerminalText(
+        path +
+          "\n\n[2] npm:express@4.21.2 lib/router/index.js:303-307 [repo code]\n> 305 | // route",
+        "search",
+      ),
+    ).not.toThrow();
+  });
+
   it("accepts completed documentation hit text without a target group", () => {
     expect(() =>
       assertSearchTerminalText(completedDocs, "search"),

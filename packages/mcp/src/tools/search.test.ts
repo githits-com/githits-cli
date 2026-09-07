@@ -199,6 +199,7 @@ describe("searchTool", () => {
         limit: 10,
         filters: expect.objectContaining({ kind: "FUNCTION" }),
       }),
+      { omitFocusedSource: true },
     );
   });
 
@@ -219,6 +220,7 @@ describe("searchTool", () => {
 
     expect(search).toHaveBeenCalledWith(
       expect.objectContaining({ sources: ["DOCS"] }),
+      { omitFocusedSource: true },
     );
   });
 
@@ -247,6 +249,7 @@ describe("searchTool", () => {
         sources: ["DOCS"],
         filters: { pathPrefix: "guide/" },
       }),
+      { omitFocusedSource: true },
     );
   });
 
@@ -371,6 +374,7 @@ describe("searchTool", () => {
           }),
         ],
       }),
+      { omitFocusedSource: true },
     );
   });
 
@@ -397,6 +401,7 @@ describe("searchTool", () => {
           }),
         ],
       }),
+      { omitFocusedSource: true },
     );
   });
 
@@ -418,6 +423,7 @@ describe("searchTool", () => {
       expect.objectContaining({
         targets: [{ site: "site:expressjs.com" }],
       }),
+      { omitFocusedSource: true },
     );
   });
 
@@ -675,4 +681,23 @@ describe("searchTool", () => {
     const payload = JSON.parse(result.content[0]?.text ?? "{}");
     expect(payload.completed).toBe(true);
   });
+});
+
+describe("v31 format selection", () => {
+  for (const format of [undefined, "text", "json"] as const) {
+    it(`selects MCP source fields for format=${format}`, async () => {
+      const call = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+      const tool = createSearchTool(
+        createMockCodeNavigationService({ search: call }),
+      );
+      await tool.handler(
+        { query: "router", target: "npm:express", format },
+        {},
+      );
+      expect(call).toHaveBeenCalledWith(
+        expect.objectContaining({ query: "router" }),
+        { omitFocusedSource: format !== "json" },
+      );
+    });
+  }
 });

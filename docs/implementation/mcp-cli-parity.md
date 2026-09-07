@@ -186,11 +186,20 @@ Unified `search` evidence is not an exception. Core decoding carries structural
 `repositoryEvidence` and `contentSafety` through the shared response projection
 for CLI `--json` and MCP `format: "json"`, including independent null branches
 and explicit false flags. Legacy locator, summary, and highlight fields remain.
-Initial and stored results share the same path.
+Initial and stored results share the same path. The v31 additions preserve named
+BM25 fields, independent matched source, and crawled documentation previews;
+unknown/null evidence is never coerced to an empty list or inferred source proof.
 
 CLI and MCP text render the same enclosing declarations, inclusive ranges, and
 literal numbered source lines. The header carries the target/path locator and
-focused source range, with no repeated per-hit read command. Color is optional and the `>` match gutter
+matched source range, with no repeated per-hit read command or authority caption.
+Path-only hits without matched source instead show a file-level `path match` header
+and omit arbitrary chunk titles, ranges, scopes, and compatibility snippets.
+Other absent repository snippets use `Snippet unavailable`. A present matched
+snippet always survives regardless of provenance. Both text callers omit the
+unused compatibility source selection; JSON/default service calls retain it.
+Crawled previews use grapheme offsets before heading trimming and wrapping.
+Color is optional and the `>` match gutter
 retains meaning in plain text. Source grapheme highlights, whole-line omissions,
 inline crops, missing source, and truncated scope chains have the same semantics
 on both surfaces.

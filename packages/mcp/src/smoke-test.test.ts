@@ -195,6 +195,44 @@ describe("runMcpSmoke", () => {
     });
   });
 
+  it("rejects arbitrary snippets beneath path-only search hits", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(
+          "1 result | 1 repo code hit\n\n[1] npm:express@4.21.2 examples/route-middleware/index.js [repo code, path match]\n  50 | function andRestrictTo(role) {",
+        );
+      }
+      return smokeResponse(name, args);
+    });
+    await expect(runMcpSmoke(caller)).rejects.toThrow(
+      "path-only hit contains an arbitrary source snippet",
+    );
+  });
+
+  it("accepts a completed result containing only a compact path match", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(
+          "1 result | 1 repo code hit\n\n[1] npm:express@4.21.2 examples/route-middleware/index.js [repo code, path match]",
+        );
+      }
+      return smokeResponse(name, args);
+    });
+    await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+  });
+
+  it("accepts compact path matches followed by proven source", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(
+          "2 results | 2 repo code hits\n\n[1] npm:express@4.21.2 examples/route-middleware/index.js [repo code, path match]\n\n[2] npm:express@4.21.2 lib/router/index.js:303-307 [repo code]\n> 305 | // route",
+        );
+      }
+      return smokeResponse(name, args);
+    });
+    await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+  });
+
   it("rejects search action references outside a Next line", async () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {

@@ -35,6 +35,34 @@ function codeHit(
   };
 }
 
+function matchedEvidence(
+  startLine: number,
+  endLine: number,
+  text: string,
+): UnifiedSearchHitPayload["repositoryEvidence"] {
+  return {
+    semanticContext: null,
+    focusedSource: null,
+    bm25MatchFields: ["SOURCE_IDENTIFIER"],
+    matchedSource: {
+      startLine,
+      endLine,
+      matchLine: startLine,
+      rangeKind: "syntax_context",
+      matchSpansTruncated: false,
+      linesOmittedBefore: false,
+      linesOmittedAfter: false,
+      lines: text.split("\n").map((text, index) => ({
+        lineNumber: startLine + index,
+        text,
+        highlights: index === 0 ? [[0, 1]] : [],
+        prefixTruncated: false,
+        suffixTruncated: false,
+      })),
+    },
+  };
+}
+
 function docsHit(
   overrides: Partial<UnifiedSearchHitPayload> = {},
 ): UnifiedSearchHitPayload {
@@ -193,6 +221,7 @@ describe("renderUnifiedSearchSuccess", () => {
               target: "npm:express@5.2.1",
               title: "5.0.0-alpha.4 / 2017-03-01",
               summary: repoSummary,
+              repositoryEvidence: matchedEvidence(169, 179, repoSummary),
               locator: {
                 registry: "npm",
                 packageName: "express",
@@ -267,8 +296,10 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain(
       "[6] opaque-page-0 [docs page] npm:express - expressjs.com/en/api/router/0 -\n  router.use()",
     );
-    expect(text).toContain("    * remove:");
-    expect(text).toContain("      - Remove Express 3.x middleware error stubs");
+    expect(text).toContain("171 |   * remove:");
+    expect(text).toContain(
+      "172 |     - Remove Express 3.x middleware error stubs",
+    );
     expect(text).not.toContain("githits docs read");
     expect(text).not.toContain("docs_read");
     expect(text).toContain("opaque-page-0 [docs page]");
@@ -277,13 +308,18 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text.length).toBeLessThan(3459);
   });
 
-  it("renders the pi-mono evidence before its enclosing definition", () => {
+  it("renders pi-mono matched evidence after its exact locator", () => {
     const filePath = "packages/coding-agent/src/core/compaction/compaction.ts";
     const text = renderUnifiedSearchSuccess(
       completed([
         codeHit({
           target: "github:badlogic/pi-mono#853a80d",
           title: "compact",
+          repositoryEvidence: matchedEvidence(
+            920,
+            930,
+            "// Merge into single summary\nawait generateSummaryWithUsage();",
+          ),
           summary:
             "// Merge into single summary\nawait generateSummaryWithUsage();",
           locator: {
@@ -318,7 +354,7 @@ describe("renderUnifiedSearchSuccess", () => {
       { width: 200 },
     );
 
-    const header = `[1] github:badlogic/pi-mono#853a80d ${filePath}:920-930 [repo code] - compact (function at lines 858-964)`;
+    const header = `[1] github:badlogic/pi-mono#853a80d ${filePath}:920-930 [repo code]`;
     expect(text).toContain(header);
     expect(text.indexOf(header)).toBeLessThan(
       text.indexOf("// Merge into single summary"),
@@ -793,9 +829,8 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain(
       "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n  applyEdit",
     );
-    expect(text).toContain(
-      "  Search/replace block parser with fuzzy fallback when exact match fails.",
-    );
+    expect(text).toContain("Snippet unavailable");
+    expect(text).not.toContain("Search/replace block parser");
     expect(text).not.toContain("searchRef=");
   });
 
@@ -814,7 +849,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "1 result | 1 repo code hit\n\n" +
         "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n" +
         "  applyEdit\n" +
-        "  Search/replace block parser with fuzzy fallback when exact match fails.",
+        "  Snippet unavailable",
     );
     expect(text.endsWith("\n")).toBe(false);
   });
@@ -1004,11 +1039,15 @@ describe("renderUnifiedSearchSuccess", () => {
     const docsTitle =
       "Documentation title | API - deliberately long enough to wrap at terminal boundaries";
     const payload = completed([
-      codeHit({ title: repoTitle, summary: undefined }),
+      codeHit({
+        type: "repository_symbol",
+        title: repoTitle,
+        summary: undefined,
+      }),
       docsHit({ title: docsTitle, summary: undefined }),
     ]);
     const repoPrefix =
-      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -";
+      "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo symbol] -";
     const docsPrefix =
       "[2] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -";
 
@@ -2276,7 +2315,8 @@ describe("renderUnifiedSearchSuccess", () => {
     const actionLine = lines.findIndex((line) => line.startsWith("Next: "));
     expect(actionLine).toBeGreaterThan(0);
     expect(lines[actionLine - 1]).toBe("");
-    expect(text).toContain("Search/replace block parser");
+    expect(text).toContain("applyEdit");
+    expect(text).toContain("Snippet unavailable");
     expect(text).not.toContain("Evidence may change.");
     expect(text).not.toContain("Do not repeat");
   });
@@ -2555,7 +2595,7 @@ describe("renderUnifiedSearchSuccess", () => {
   it("wraps long summaries", () => {
     const text = renderUnifiedSearchSuccess(
       completed([
-        codeHit({
+        docsHit({
           summary:
             "This summary is intentionally long enough to force wrapping across multiple lines without using a non-ASCII separator.",
         }),
@@ -2569,7 +2609,7 @@ describe("renderUnifiedSearchSuccess", () => {
   it("retains source comment markers on wrapped continuation lines", () => {
     const text = renderUnifiedSearchSuccess(
       completed([
-        codeHit({
+        docsHit({
           summary:
             '/// The library calls this method when a log handler must emit a log message.\n/// <code lang="cs" source="Documentation/SerializationTests.cs" region="SerializeObject" />',
         }),
@@ -2591,7 +2631,7 @@ describe("renderUnifiedSearchSuccess", () => {
   it("does not split unbreakable summary tokens", () => {
     const token = `https://example.com/${"segment".repeat(20)}`;
     const text = renderUnifiedSearchSuccess(
-      completed([codeHit({ summary: `Reference ${token} after` })]),
+      completed([docsHit({ summary: `Reference ${token} after` })]),
       { width: 40 },
     );
 
