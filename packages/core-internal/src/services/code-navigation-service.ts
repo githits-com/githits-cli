@@ -238,6 +238,11 @@ export interface UnifiedSearchParams {
   waitTimeoutMs?: number;
 }
 
+export interface UnifiedSearchReadOptions {
+  /** Omit compatibility navigation source when the caller renders only matched evidence. */
+  omitFocusedSource?: boolean;
+}
+
 export interface UnifiedSearchEvidenceRange {
   startLine: number;
   endLine: number;
@@ -332,9 +337,30 @@ export interface UnifiedSearchFocusedSource {
   linesOmittedAfter: boolean;
 }
 
+export type UnifiedSearchBm25MatchField =
+  | "SYMBOL_NAME"
+  | "FILE_PATH"
+  | "DOCUMENTATION"
+  | "SOURCE_IDENTIFIER";
+
+/** Producer-proven focused source; independent of indexed-field provenance. */
+export interface UnifiedSearchMatchedSource
+  extends Omit<UnifiedSearchFocusedSource, "rangeKind"> {
+  rangeKind: string;
+}
+
+/** Normalized crawled-page preview with zero-based, half-open grapheme ranges. */
+export interface UnifiedSearchDocumentationPreview {
+  text: string;
+  highlights: Array<readonly [number, number]>;
+}
+
 export interface UnifiedSearchRepositoryEvidence {
-  focusedSource: UnifiedSearchFocusedSource | null;
+  focusedSource?: UnifiedSearchFocusedSource | null;
   semanticContext: UnifiedSearchSemanticContext | null;
+  /** Complete positive-term field list; null means unknown, not no matches. */
+  bm25MatchFields?: UnifiedSearchBm25MatchField[] | null;
+  matchedSource?: UnifiedSearchMatchedSource | null;
 }
 
 export interface UnifiedSearchLocator {
@@ -377,6 +403,7 @@ export interface UnifiedSearchHit {
     summary?: Array<readonly [number, number]>;
   };
   repositoryEvidence?: UnifiedSearchRepositoryEvidence | null;
+  documentationPreview?: UnifiedSearchDocumentationPreview | null;
   contentSafety?: ContentSafety;
   locator: UnifiedSearchLocator;
   requestedTargetLabel?: string;
@@ -888,10 +915,14 @@ export interface GrepRepoResult {
 }
 
 export interface CodeNavigationService {
-  search(params: UnifiedSearchParams): Promise<UnifiedSearchOutcome>;
+  search(
+    params: UnifiedSearchParams,
+    options?: UnifiedSearchReadOptions,
+  ): Promise<UnifiedSearchOutcome>;
   searchStatus(
     searchRef: string,
     waitTimeoutMs?: number,
+    options?: UnifiedSearchReadOptions,
   ): Promise<UnifiedSearchOutcome>;
   listFiles(params: ListFilesParams): Promise<ListFilesResult>;
   readFile(params: ReadFileParams): Promise<ReadFileResult>;
@@ -1266,6 +1297,7 @@ language`;
 
 const UNIFIED_SEARCH_REPOSITORY_EVIDENCE_SELECTION = `
 repositoryEvidence {
+  bm25MatchFields
   semanticContext {
     scopes {
       name
@@ -1294,7 +1326,23 @@ repositoryEvidence {
       endLine
     }
   }
-  focusedSource {
+  focusedSource @include(if: $includeFocusedSource) {
+    startLine
+    endLine
+    matchLine
+    rangeKind
+    matchSpansTruncated
+    linesOmittedBefore
+    linesOmittedAfter
+    lines {
+      lineNumber
+      text
+      highlights
+      prefixTruncated
+      suffixTruncated
+    }
+  }
+  matchedSource {
     startLine
     endLine
     matchLine
@@ -1326,6 +1374,7 @@ query UnifiedSearch(
   $limit: Int
   $offset: Int
   $waitTimeoutMs: Int
+  $includeFocusedSource: Boolean!
 ) {
   search(
     targets: $targets
@@ -1357,6 +1406,10 @@ query UnifiedSearch(
         highlights {
           title
           summary
+        }
+        documentationPreview {
+          text
+          highlights
         }
         ${UNIFIED_SEARCH_REPOSITORY_EVIDENCE_SELECTION}
         locator {
@@ -1439,7 +1492,7 @@ query UnifiedSearch(
 }`;
 
 const UNIFIED_SEARCH_STATUS_QUERY = `
-query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!, $waitTimeoutMs: Int) {
+query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!, $waitTimeoutMs: Int, $includeFocusedSource: Boolean!) {
   discoverySearchProgress(searchRef: $searchRef, includeResults: $includeResults, waitTimeoutMs: $waitTimeoutMs) {
     searchRef
     status
@@ -1499,6 +1552,10 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!, $waitT
           title
           summary
         }
+        documentationPreview {
+          text
+          highlights
+        }
         ${UNIFIED_SEARCH_REPOSITORY_EVIDENCE_SELECTION}
         locator {
           ${UNIFIED_SEARCH_LOCATOR_SELECTION}
@@ -1548,6 +1605,7 @@ function debugUnifiedSearchRequest(
     limit?: number;
     offset?: number;
     waitTimeoutMs?: number;
+    includeFocusedSource: boolean;
   },
   diagnostics?: ServiceDiagnostics,
 ): void {
@@ -1803,9 +1861,36 @@ const unifiedSearchFocusedSourceSchema = z
     message: "startLine must be less than or equal to endLine",
   });
 
+const unifiedSearchBm25MatchFieldSchema = z.enum([
+  "SYMBOL_NAME",
+  "FILE_PATH",
+  "DOCUMENTATION",
+  "SOURCE_IDENTIFIER",
+]);
+
+const unifiedSearchMatchedSourceSchema = unifiedSearchLineRangeSchema.extend({
+  matchLine: z.number().int().positive().nullable(),
+  rangeKind: z.string(),
+  matchSpansTruncated: z.boolean(),
+  lines: z.array(unifiedSearchFocusedSourceLineSchema),
+  linesOmittedBefore: z.boolean(),
+  linesOmittedAfter: z.boolean(),
+});
+
+const unifiedSearchDocumentationPreviewSchema = z.object({
+  text: z.string().min(1),
+  highlights: z.array(unifiedSearchHighlightSchema),
+});
+
 const unifiedSearchRepositoryEvidenceSchema = z.object({
-  focusedSource: unifiedSearchFocusedSourceSchema.nullable(),
+  focusedSource: unifiedSearchFocusedSourceSchema.nullable().optional(),
   semanticContext: unifiedSearchSemanticContextSchema.nullable(),
+  bm25MatchFields: z
+    .array(unifiedSearchBm25MatchFieldSchema)
+    .min(1)
+    .nullable()
+    .optional(),
+  matchedSource: unifiedSearchMatchedSourceSchema.nullable().optional(),
 });
 
 const contentSafetySchema = z.object({
@@ -1845,6 +1930,9 @@ const unifiedSearchHitSchema = z.object({
     .nullable()
     .optional(),
   repositoryEvidence: unifiedSearchRepositoryEvidenceSchema
+    .nullable()
+    .optional(),
+  documentationPreview: unifiedSearchDocumentationPreviewSchema
     .nullable()
     .optional(),
   contentSafety: contentSafetySchema.optional(),
@@ -2660,25 +2748,35 @@ export class CodeNavigationServiceImpl
     return response;
   }
 
-  async search(params: UnifiedSearchParams): Promise<UnifiedSearchOutcome> {
-    return executeWithTokenRefresh({
-      getToken: () => this.tokenProvider.getToken(),
-      forceRefresh: () => this.tokenProvider.forceRefresh(),
-      shouldRefresh: isTokenRefreshableError,
-      executeWithToken: (token) => this.executeUnifiedSearch(token, params),
-    });
-  }
-
-  async searchStatus(
-    searchRef: string,
-    waitTimeoutMs = 0,
+  async search(
+    params: UnifiedSearchParams,
+    options?: UnifiedSearchReadOptions,
   ): Promise<UnifiedSearchOutcome> {
     return executeWithTokenRefresh({
       getToken: () => this.tokenProvider.getToken(),
       forceRefresh: () => this.tokenProvider.forceRefresh(),
       shouldRefresh: isTokenRefreshableError,
       executeWithToken: (token) =>
-        this.executeUnifiedSearchStatus(token, searchRef, waitTimeoutMs),
+        this.executeUnifiedSearch(token, params, options),
+    });
+  }
+
+  async searchStatus(
+    searchRef: string,
+    waitTimeoutMs = 0,
+    options?: UnifiedSearchReadOptions,
+  ): Promise<UnifiedSearchOutcome> {
+    return executeWithTokenRefresh({
+      getToken: () => this.tokenProvider.getToken(),
+      forceRefresh: () => this.tokenProvider.forceRefresh(),
+      shouldRefresh: isTokenRefreshableError,
+      executeWithToken: (token) =>
+        this.executeUnifiedSearchStatus(
+          token,
+          searchRef,
+          waitTimeoutMs,
+          options,
+        ),
     });
   }
 
@@ -2790,6 +2888,7 @@ export class CodeNavigationServiceImpl
   private async executeUnifiedSearch(
     token: string,
     params: UnifiedSearchParams,
+    options?: UnifiedSearchReadOptions,
   ): Promise<UnifiedSearchOutcome> {
     if (params.targets.length === 0) {
       throw new CodeNavigationValidationError(
@@ -2814,6 +2913,7 @@ export class CodeNavigationServiceImpl
       limit: params.limit,
       offset: params.offset,
       waitTimeoutMs: params.waitTimeoutMs,
+      includeFocusedSource: options?.omitFocusedSource !== true,
     };
     debugUnifiedSearchRequest(variables, this.runtime.diagnostics);
     debugGraphqlWireRequest(
@@ -2866,6 +2966,7 @@ export class CodeNavigationServiceImpl
     token: string,
     searchRef: string,
     waitTimeoutMs: number,
+    options?: UnifiedSearchReadOptions,
   ): Promise<UnifiedSearchOutcome> {
     let response: PkgseerGraphqlResponse;
     try {
@@ -2876,6 +2977,7 @@ export class CodeNavigationServiceImpl
           searchRef,
           includeResults: true,
           waitTimeoutMs,
+          includeFocusedSource: options?.omitFocusedSource !== true,
         },
       });
     } catch (cause) {
@@ -3261,6 +3363,7 @@ export class CodeNavigationServiceImpl
             }
           : undefined,
         repositoryEvidence: entry.repositoryEvidence,
+        documentationPreview: entry.documentationPreview,
         contentSafety: entry.contentSafety,
         locator: normaliseUnifiedSearchLocator(entry.locator),
       })),

@@ -1,7 +1,7 @@
 /**
  * Line-oriented text renderer for unified `search` MCP responses.
  *
- * Designed for agent context efficiency: focused source with semantic scope
+ * Designed for agent context efficiency: matched source with semantic scope
  * coordinates and no JSON scaffolding. This is the tool's default response
  * format — programmatic / parity callers opt into the structured
  * JSON envelope by passing `format: "json"`.
@@ -960,19 +960,24 @@ function appendHit(
       ),
     );
   }
-  if (
-    (hit.type === "repository_code" || hit.type === "repository_doc") &&
-    hit.repositoryEvidence !== undefined
-  ) {
-    appendStructuralEvidence(lines, hit, options);
+  if (hit.type === "repository_code" || hit.type === "repository_doc") {
+    if (!isPathOnlyHit(hit)) appendStructuralEvidence(lines, hit, options);
     return;
   }
-  const summary = prepareSummary(hit.summary, hit.title);
+  const preview =
+    hit.type === "documentation_page" ? hit.documentationPreview : undefined;
+  const summary = prepareSummary(
+    preview?.text ?? (preview === null ? undefined : hit.summary),
+    hit.title,
+  );
+  const summaryHighlights = preview
+    ? graphemeHighlightRanges(preview.text, preview.highlights)
+    : hit.highlights?.summary;
   if (summary) {
     lines.push(
       ...wrapHighlightedText(
         summary.text,
-        shiftHighlightRanges(hit.highlights?.summary, summary.offset),
+        shiftHighlightRanges(summaryHighlights, summary.offset),
         Math.max(1, options.width - 2),
         options.useColors,
       ).map((line) => (line.length === 0 ? "" : `  ${line}`)),
@@ -1001,9 +1006,9 @@ function appendStructuralEvidence(
       );
     });
   }
-  const source = hit.repositoryEvidence?.focusedSource;
+  const source = hit.repositoryEvidence?.matchedSource;
   if (!source) {
-    lines.push("  Exact source unavailable");
+    lines.push("  Snippet unavailable");
     return;
   }
   if (source.linesOmittedBefore) lines.push("  ... lines omitted before");
@@ -1035,17 +1040,22 @@ function highlightSourceGraphemes(
   useColors: boolean,
 ): string {
   if (!useColors || ranges.length === 0) return text;
+  return highlightRanges(text, graphemeHighlightRanges(text, ranges), true);
+}
+
+/** Convert against the original text before heading removal or wrapping. */
+function graphemeHighlightRanges(
+  text: string,
+  ranges: ReadonlyArray<readonly [number, number]>,
+): ReadonlyArray<readonly [number, number]> {
+  if (ranges.length === 0) return ranges;
   const offsets = Array.from(
     sourceGraphemeSegmenter.segment(text),
     (segment) => segment.index,
   );
   offsets.push(text.length);
-  return highlightRanges(
-    text,
-    ranges.map(
-      ([from, to]) => [offsets[from], offsets[to]] as readonly [number, number],
-    ),
-    true,
+  return ranges.map(
+    ([from, to]) => [offsets[from], offsets[to]] as readonly [number, number],
   );
 }
 
@@ -1181,7 +1191,7 @@ function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
   const location = evidence.filePath
     ? `${evidence.filePath}${formatLineRange(evidence.startLine, evidence.endLine)}`
     : "location unavailable";
-  const type = `[${shortType(hit.type)}]`;
+  const type = `[${shortType(hit.type)}${isPathOnlyHit(hit) ? ", path match" : ""}]`;
   const preferredRead = hit.repositoryEvidence?.semanticContext?.preferredRead;
   const target = preferredRead
     ? semanticReadLocation(preferredRead).target
@@ -1208,6 +1218,17 @@ function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
   };
 }
 
+/** Field provenance never overrides independently proven source. */
+function isPathOnlyHit(hit: UnifiedSearchHitPayload): boolean {
+  const evidence = hit.repositoryEvidence;
+  return (
+    (hit.type === "repository_code" || hit.type === "repository_doc") &&
+    !evidence?.matchedSource &&
+    evidence?.bm25MatchFields?.length === 1 &&
+    evidence.bm25MatchFields[0] === "FILE_PATH"
+  );
+}
+
 interface RepositoryEvidence {
   filePath?: string;
   startLine?: number;
@@ -1218,15 +1239,18 @@ function formatRepositoryEvidence(
   hit: UnifiedSearchHitPayload,
 ): RepositoryEvidence {
   const loc = hit.locator;
-  const source = hit.repositoryEvidence?.focusedSource;
+  const source = hit.repositoryEvidence?.matchedSource;
   const preferredRead = hit.repositoryEvidence?.semanticContext?.preferredRead;
   return {
     filePath: preferredRead
       ? semanticReadLocation(preferredRead).path
       : loc.filePath,
-    startLine:
-      source?.startLine ?? loc.evidenceRange?.startLine ?? loc.startLine,
-    endLine: source?.endLine ?? loc.evidenceRange?.endLine ?? loc.endLine,
+    startLine: isPathOnlyHit(hit)
+      ? undefined
+      : (source?.startLine ?? loc.evidenceRange?.startLine ?? loc.startLine),
+    endLine: isPathOnlyHit(hit)
+      ? undefined
+      : (source?.endLine ?? loc.evidenceRange?.endLine ?? loc.endLine),
   };
 }
 
@@ -1240,6 +1264,7 @@ function formatRepositoryHitTitle(
   evidenceStartLine: number | undefined,
   evidenceEndLine: number | undefined,
 ): RepositoryHitTitle {
+  if (isPathOnlyHit(hit)) return { highlightOffset: 0 };
   if (
     hit.repositoryEvidence !== undefined &&
     (hit.type === "repository_code" || hit.type === "repository_doc")

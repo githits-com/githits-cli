@@ -168,6 +168,227 @@ function expectStructuralSearchJsonPreserved(
   );
 }
 
+function v31JsonProjectionHits(): UnifiedSearchHit[] {
+  const focusedSource: NonNullable<
+    UnifiedSearchRepositoryEvidence["focusedSource"]
+  > = {
+    startLine: 10,
+    endLine: 12,
+    matchLine: null,
+    rangeKind: null,
+    matchSpansTruncated: false,
+    lines: [
+      {
+        lineNumber: 10,
+        text: "function router() {}",
+        highlights: [],
+        prefixTruncated: false,
+        suffixTruncated: false,
+      },
+    ],
+    linesOmittedBefore: false,
+    linesOmittedAfter: false,
+  };
+  const matchedSource = {
+    ...focusedSource,
+    rangeKind: "match_window",
+    lines: [{ ...focusedSource.lines[0]!, highlights: [[9, 15] as const] }],
+  };
+  const populatedEvidence: UnifiedSearchRepositoryEvidence = {
+    semanticContext: null,
+    bm25MatchFields: ["DOCUMENTATION"],
+    focusedSource,
+    matchedSource,
+  };
+  const nullV31Evidence: UnifiedSearchRepositoryEvidence = {
+    semanticContext: null,
+    bm25MatchFields: null,
+    focusedSource,
+    matchedSource: null,
+  };
+
+  return [
+    {
+      id: "v31-projection-populated",
+      resultType: "DOCUMENTATION_PAGE",
+      targetLabel: "site:example.com",
+      title: "Guide",
+      summary: "legacy documentation summary",
+      highlights: { summary: [[0, 10]] },
+      documentationPreview: { text: "# Guide", highlights: [] },
+      repositoryEvidence: null,
+      locator: { pageId: "guide-page" },
+    },
+    {
+      id: "v31-projection-repository",
+      resultType: "REPOSITORY_DOC",
+      targetLabel: "owner/repo@main",
+      title: "README",
+      summary: "legacy repository summary",
+      documentationPreview: null,
+      repositoryEvidence: populatedEvidence,
+      locator: {
+        pageId: "repo-doc",
+        repoUrl: "https://github.com/owner/repo",
+        gitRef: "main",
+        filePath: "README.md",
+        startLine: 10,
+        endLine: 12,
+      },
+    },
+    {
+      id: "v31-projection-null",
+      resultType: "REPOSITORY_CODE",
+      targetLabel: "owner/repo@main",
+      title: "router",
+      summary: "legacy source summary",
+      highlights: { title: [[0, 6]] },
+      documentationPreview: null,
+      repositoryEvidence: nullV31Evidence,
+      locator: {
+        repoUrl: "https://github.com/owner/repo",
+        gitRef: "main",
+        filePath: "src/router.ts",
+        startLine: 10,
+        endLine: 12,
+      },
+    },
+    {
+      id: "v31-projection-absent",
+      resultType: "REPOSITORY_CODE",
+      targetLabel: "owner/repo@main",
+      title: "legacy",
+      summary: "legacy absent preview summary",
+      repositoryEvidence: null,
+      locator: {
+        repoUrl: "https://github.com/owner/repo",
+        gitRef: "main",
+        filePath: "src/legacy.ts",
+        startLine: 1,
+        endLine: 2,
+      },
+    },
+  ];
+}
+
+function incompleteOutcomeWithHits(
+  hits: UnifiedSearchHit[],
+): UnifiedSearchOutcome {
+  if (defaultUnifiedSearchOutcome.state !== "completed") {
+    throw new Error("expected completed outcome fixture");
+  }
+  return {
+    state: "incomplete",
+    completed: false,
+    searchRef: "search-ref-v31-projection",
+    progress: {
+      searchRef: "search-ref-v31-projection",
+      status: "INDEXING",
+      targetsTotal: 1,
+      targetsReady: 0,
+      elapsedMs: 200,
+      query: "router middleware",
+      queryWarnings: [],
+      sources: ["CODE", "DOCS"],
+    },
+    result: {
+      ...defaultUnifiedSearchOutcome.result,
+      results: hits,
+      page: {
+        ...defaultUnifiedSearchOutcome.result.page,
+        returned: hits.length,
+      },
+    },
+  };
+}
+
+function v31ProjectionFields(
+  entries: ReadonlyArray<{
+    summary?: string;
+    highlights?: unknown;
+    documentationPreview?: unknown;
+    repositoryEvidence?: unknown;
+  }>,
+): Array<{
+  hasDocumentationPreview: boolean;
+  documentationPreview: unknown;
+  repositoryEvidence: unknown;
+  summary: string | undefined;
+  highlights: unknown;
+}> {
+  return entries.map((entry) => ({
+    hasDocumentationPreview: Object.hasOwn(entry, "documentationPreview"),
+    documentationPreview: entry.documentationPreview,
+    repositoryEvidence: entry.repositoryEvidence,
+    summary: entry.summary,
+    highlights: entry.highlights,
+  }));
+}
+
+function expectedV31ProjectionFields(
+  hits: UnifiedSearchHit[],
+): ReturnType<typeof v31ProjectionFields> {
+  return hits.map((hit) => ({
+    hasDocumentationPreview: hit.documentationPreview !== undefined,
+    documentationPreview: hit.documentationPreview,
+    repositoryEvidence: hit.repositoryEvidence,
+    summary: hit.summary,
+    highlights: hit.highlights,
+  }));
+}
+
+describe("v31 JSON projection", () => {
+  const params: UnifiedSearchParams = {
+    targets: [{ registry: "NPM", packageName: "express" }],
+    query: "router middleware",
+  };
+
+  it("preserves completed preview, repository evidence, and legacy fields", () => {
+    const hits = v31JsonProjectionHits();
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits(hits),
+    );
+
+    expect(payload.completed).toBe(true);
+    if (!payload.completed) throw new Error("expected completed payload");
+    expect(v31ProjectionFields(payload.results)).toEqual(
+      expectedV31ProjectionFields(hits),
+    );
+  });
+
+  it("preserves incomplete preview and repository evidence branches", () => {
+    const hits = v31JsonProjectionHits();
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      incompleteOutcomeWithHits(hits),
+    );
+
+    expect(payload.completed).toBe(false);
+    expect(v31ProjectionFields(payload.results)).toEqual(
+      expectedV31ProjectionFields(hits),
+    );
+  });
+
+  it("preserves status preview and repository evidence branches", () => {
+    const hits = v31JsonProjectionHits();
+    const payload = buildUnifiedSearchStatusPayload(
+      completedOutcomeWithHits(hits),
+    );
+
+    expect(payload.completed).toBe(true);
+    if (!payload.completed)
+      throw new Error("expected completed status payload");
+    expect(v31ProjectionFields(payload.result.results)).toEqual(
+      expectedV31ProjectionFields(hits),
+    );
+  });
+});
+
 describe("buildUnifiedSearchErrorPayload", () => {
   it("preserves backend indexing guidance, estimates, and alternatives", () => {
     const payload = buildUnifiedSearchErrorPayload(

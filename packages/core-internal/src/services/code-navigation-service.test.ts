@@ -387,7 +387,7 @@ async function assertStructuralSearchRoundTrip(
   if (outcome.state !== "completed") {
     throw new Error("expected completed search outcome");
   }
-  expect(
+  expect<unknown>(
     outcome.result.results.map(({ repositoryEvidence, contentSafety }) => ({
       repositoryEvidence,
       contentSafety,
@@ -404,10 +404,352 @@ async function assertStructuralSearchRoundTrip(
   const query = JSON.parse(init.body as string).query as string;
   const normalizedQuery = query.replace(/\s+/g, " ").trim();
   expect(normalizedQuery).toContain(
-    "repositoryEvidence { semanticContext { scopes { name qualifiedPath kind parentQualifiedPath declarationStartLine declarationEndLine parameterNames returnType symbolRef } scopeChainTruncated preferredRead { targetLabel registry packageName version repoUrl gitRef commitSha requestedRef filePath repositoryFilePath startLine endLine } } focusedSource { startLine endLine matchLine rangeKind matchSpansTruncated linesOmittedBefore linesOmittedAfter lines { lineNumber text highlights prefixTruncated suffixTruncated } } } contentSafety { filtered modifications }",
+    "repositoryEvidence { bm25MatchFields semanticContext { scopes { name qualifiedPath kind parentQualifiedPath declarationStartLine declarationEndLine parameterNames returnType symbolRef } scopeChainTruncated preferredRead { targetLabel registry packageName version repoUrl gitRef commitSha requestedRef filePath repositoryFilePath startLine endLine } } focusedSource @include(if: $includeFocusedSource) { startLine endLine matchLine rangeKind matchSpansTruncated linesOmittedBefore linesOmittedAfter lines { lineNumber text highlights prefixTruncated suffixTruncated } } matchedSource { startLine endLine matchLine rangeKind matchSpansTruncated linesOmittedBefore linesOmittedAfter lines { lineNumber text highlights prefixTruncated suffixTruncated } } } contentSafety { filtered modifications }",
   );
   expect(normalizedQuery).toContain("summary score");
   expect(normalizedQuery).toContain("highlights { title summary }");
+}
+
+interface V31EvidenceSearchResultFixture {
+  query: string;
+  queryWarnings: string[];
+  sources: string[];
+  results: Array<Record<string, unknown>>;
+  page: {
+    offset: number;
+    limit: number;
+    returned: number;
+    hasMore: boolean;
+  };
+  partialResults: boolean;
+  sourceStatus: unknown[];
+}
+
+function buildV31EvidenceSearchResult(): V31EvidenceSearchResultFixture {
+  const matchedSource = {
+    startLine: 42,
+    endLine: 44,
+    matchLine: 43,
+    rangeKind: "partial_match_window",
+    matchSpansTruncated: false,
+    linesOmittedBefore: false,
+    linesOmittedAfter: true,
+    lines: [
+      {
+        lineNumber: 42,
+        text: "function render(value) {",
+        highlights: [[9, 15]],
+        prefixTruncated: false,
+        suffixTruncated: false,
+      },
+      {
+        lineNumber: 43,
+        text: "  return value;",
+        highlights: [[9, 14]],
+        prefixTruncated: false,
+        suffixTruncated: false,
+      },
+    ],
+  };
+  const compatibilitySource = {
+    startLine: 40,
+    endLine: 46,
+    matchLine: null,
+    rangeKind: null,
+    matchSpansTruncated: false,
+    linesOmittedBefore: false,
+    linesOmittedAfter: false,
+    lines: [],
+  };
+  const repositoryEvidence = (overrides: Record<string, unknown> = {}) => ({
+    focusedSource: compatibilitySource,
+    semanticContext: null,
+    ...overrides,
+  });
+
+  return {
+    query: "render",
+    queryWarnings: [],
+    sources: ["CODE", "DOCS"],
+    results: [
+      {
+        id: "v31-proven-source",
+        resultType: "REPOSITORY_CODE",
+        targetLabel: "owner/repo@v1.2.3",
+        title: "render",
+        summary: "function render(value) {",
+        repositoryEvidence: repositoryEvidence({
+          bm25MatchFields: ["SYMBOL_NAME", "SOURCE_IDENTIFIER"],
+          matchedSource,
+        }),
+        documentationPreview: null,
+        locator: { filePath: "src/example.ts", startLine: 42, endLine: 44 },
+      },
+      {
+        id: "v31-null-provenance",
+        resultType: "REPOSITORY_CODE",
+        targetLabel: "owner/repo@v1.2.3",
+        title: "render",
+        repositoryEvidence: repositoryEvidence({
+          bm25MatchFields: null,
+          matchedSource: { ...matchedSource, matchLine: null },
+        }),
+        documentationPreview: null,
+        locator: { filePath: "src/example.ts", startLine: 42, endLine: 44 },
+      },
+      {
+        id: "v31-named-without-source",
+        resultType: "REPOSITORY_DOC",
+        targetLabel: "owner/repo@v1.2.3",
+        title: "Documentation",
+        repositoryEvidence: repositoryEvidence({
+          bm25MatchFields: ["DOCUMENTATION"],
+          matchedSource: null,
+        }),
+        documentationPreview: null,
+        locator: { filePath: "README.md", startLine: 1, endLine: 4 },
+      },
+      {
+        id: "v31-documentation-preview",
+        resultType: "DOCUMENTATION_PAGE",
+        targetLabel: "site:example.com",
+        title: "Rendering",
+        repositoryEvidence: null,
+        documentationPreview: {
+          text: "## Rendering\nUse render to produce output.",
+          highlights: [
+            [3, 11],
+            [23, 29],
+          ],
+        },
+        locator: { pageId: "rendering" },
+      },
+      {
+        id: "v31-empty-documentation-highlights",
+        resultType: "DOCUMENTATION_PAGE",
+        targetLabel: "site:example.com",
+        title: "Overview",
+        repositoryEvidence: null,
+        documentationPreview: {
+          text: "## Overview",
+          highlights: [],
+        },
+        locator: { pageId: "overview" },
+      },
+    ],
+    page: { offset: 0, limit: 10, returned: 5, hasMore: false },
+    partialResults: false,
+    sourceStatus: [],
+  };
+}
+
+function buildV31EvidenceSearchResponse(
+  operation: "search" | "searchStatus",
+  result: V31EvidenceSearchResultFixture,
+): Record<string, unknown> {
+  return {
+    data:
+      operation === "search"
+        ? {
+            search: {
+              completed: true,
+              searchRef: "v31-evidence-search-ref",
+              result,
+              progress: null,
+            },
+          }
+        : {
+            discoverySearchProgress: {
+              searchRef: "v31-evidence-search-ref",
+              status: "COMPLETED",
+              targetsTotal: 1,
+              targetsReady: 1,
+              elapsedMs: 12,
+              query: result.query as string,
+              queryWarnings: [],
+              sources: ["CODE", "DOCS"],
+              results: result,
+            },
+          },
+  };
+}
+
+async function assertV31EvidenceRoundTrip(
+  baseUrl: string,
+  operation: "search" | "searchStatus",
+): Promise<void> {
+  const result = buildV31EvidenceSearchResult();
+  const fn = mockFetch(() =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify(buildV31EvidenceSearchResponse(operation, result)),
+        { headers: { "Content-Type": "application/json" } },
+      ),
+    ),
+  );
+  const service = new CodeNavigationServiceImpl(
+    baseUrl,
+    createMockTokenProvider(),
+    globalThis.fetch,
+  );
+
+  const outcome =
+    operation === "search"
+      ? await service.search({
+          targets: [{ repoUrl: "https://github.com/owner/repo" }],
+          query: "render",
+        })
+      : await service.searchStatus("v31-evidence-search-ref");
+
+  expect(outcome.state).toBe("completed");
+  if (outcome.state !== "completed") {
+    throw new Error("expected completed search outcome");
+  }
+
+  const resultEntries = result.results;
+  const expectedResults = resultEntries.map(
+    ({ repositoryEvidence, documentationPreview }) => ({
+      repositoryEvidence,
+      documentationPreview,
+    }),
+  );
+  expect<unknown>(
+    outcome.result.results.map(
+      ({ repositoryEvidence, documentationPreview }) => ({
+        repositoryEvidence,
+        documentationPreview,
+      }),
+    ),
+  ).toEqual(expectedResults);
+
+  expect(fn).toHaveBeenCalledTimes(1);
+  const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+  const query = JSON.parse(init.body as string).query as string;
+  const normalizedQuery = query.replace(/\s+/g, " ").trim();
+  expect(normalizedQuery).toContain("documentationPreview { text highlights }");
+  expect(normalizedQuery).toContain("bm25MatchFields");
+  expect(normalizedQuery).toContain(
+    "matchedSource { startLine endLine matchLine rangeKind matchSpansTruncated linesOmittedBefore linesOmittedAfter lines { lineNumber text highlights prefixTruncated suffixTruncated } }",
+  );
+}
+
+function buildV31SourceSelectionSearchResult(
+  includeFocusedSource: boolean,
+): V31EvidenceSearchResultFixture {
+  const result = buildV31EvidenceSearchResult();
+  result.results = result.results.map((entry) => {
+    const evidence = entry.repositoryEvidence;
+    if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) {
+      return entry;
+    }
+    const evidenceRecord = evidence as Record<string, unknown>;
+    if (!includeFocusedSource) {
+      return {
+        ...entry,
+        repositoryEvidence: Object.fromEntries(
+          Object.entries(evidenceRecord).filter(
+            ([key]) => key !== "focusedSource",
+          ),
+        ),
+      };
+    }
+    if (entry.id === "v31-named-without-source") {
+      return {
+        ...entry,
+        repositoryEvidence: { ...evidenceRecord, focusedSource: null },
+      };
+    }
+    return entry;
+  });
+  return result;
+}
+
+async function assertV31SourceSelectionRoundTrip(
+  baseUrl: string,
+  operation: "search" | "searchStatus",
+  mode: "default" | "explicit false" | "explicit true",
+): Promise<void> {
+  const includeFocusedSource = mode !== "explicit true";
+  const result = buildV31SourceSelectionSearchResult(includeFocusedSource);
+  const fn = mockFetch(() =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify(buildV31EvidenceSearchResponse(operation, result)),
+        { headers: { "Content-Type": "application/json" } },
+      ),
+    ),
+  );
+  const service = new CodeNavigationServiceImpl(
+    baseUrl,
+    createMockTokenProvider(),
+    globalThis.fetch,
+  );
+  const options =
+    mode === "default"
+      ? undefined
+      : { omitFocusedSource: mode === "explicit true" };
+
+  const outcome =
+    operation === "search"
+      ? await service.search(
+          {
+            targets: [{ repoUrl: "https://github.com/owner/repo" }],
+            query: "render",
+          },
+          options,
+        )
+      : await service.searchStatus("v31-evidence-search-ref", 0, options);
+
+  expect(outcome.state).toBe("completed");
+  if (outcome.state !== "completed") {
+    throw new Error("expected completed search outcome");
+  }
+
+  const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+  const body = JSON.parse(init.body as string) as {
+    query: string;
+    variables: Record<string, unknown>;
+  };
+  const normalizedQuery = body.query.replace(/\s+/g, " ").trim();
+  expect(normalizedQuery).toContain("$includeFocusedSource: Boolean!");
+  expect(normalizedQuery).toContain(
+    "focusedSource @include(if: $includeFocusedSource)",
+  );
+  expect(body.variables.includeFocusedSource).toBe(includeFocusedSource);
+
+  const firstEvidence = outcome.result.results[0]?.repositoryEvidence;
+  if (!firstEvidence || typeof firstEvidence !== "object") {
+    throw new Error("expected repository evidence fixture");
+  }
+  const expectedFirstEvidence = result.results[0]?.repositoryEvidence;
+  if (!expectedFirstEvidence || typeof expectedFirstEvidence !== "object") {
+    throw new Error("expected source selection evidence fixture");
+  }
+  const expectedMatchedSource = (
+    expectedFirstEvidence as Record<string, unknown>
+  ).matchedSource;
+  expect<unknown>(firstEvidence.matchedSource).toEqual(expectedMatchedSource);
+  if (includeFocusedSource) {
+    expect<unknown>(firstEvidence.focusedSource).toEqual(
+      (expectedFirstEvidence as Record<string, unknown>).focusedSource,
+    );
+  } else {
+    expect(firstEvidence.focusedSource).toBeUndefined();
+    expect(Object.hasOwn(firstEvidence, "focusedSource")).toBe(false);
+  }
+
+  const nullSourceEvidence = outcome.result.results.find(
+    (entry) => entry.id === "v31-named-without-source",
+  )?.repositoryEvidence;
+  if (!nullSourceEvidence || typeof nullSourceEvidence !== "object") {
+    throw new Error("expected null focused-source fixture");
+  }
+  if (includeFocusedSource) {
+    expect(nullSourceEvidence.focusedSource).toBeNull();
+  } else {
+    expect(nullSourceEvidence.focusedSource).toBeUndefined();
+    expect(Object.hasOwn(nullSourceEvidence, "focusedSource")).toBe(false);
+  }
 }
 
 const UNPROJECTABLE_CODE_DIFF_PATH = `packages/old/${"a".repeat(4_085)}`;
@@ -1245,6 +1587,125 @@ describe("CodeNavigationServiceImpl", () => {
     await assertStructuralSearchRoundTrip(BASE_URL, "searchStatus");
   });
 
+  describe("v31 evidence", () => {
+    it("round-trips additive evidence through search", async () => {
+      await assertV31EvidenceRoundTrip(BASE_URL, "search");
+    });
+
+    it("round-trips additive evidence through searchStatus", async () => {
+      await assertV31EvidenceRoundTrip(BASE_URL, "searchStatus");
+    });
+
+    for (const operation of ["search", "searchStatus"] as const) {
+      for (const malformed of [
+        {
+          name: "empty field list",
+          alter: (hit: Record<string, unknown>) => ({
+            ...hit,
+            repositoryEvidence: {
+              ...(hit.repositoryEvidence as Record<string, unknown>),
+              bm25MatchFields: [],
+            },
+          }),
+        },
+        {
+          name: "invalid field enum",
+          alter: (hit: Record<string, unknown>) => ({
+            ...hit,
+            repositoryEvidence: {
+              ...(hit.repositoryEvidence as Record<string, unknown>),
+              bm25MatchFields: ["NOT_A_FIELD"],
+            },
+          }),
+        },
+        {
+          name: "empty preview text",
+          alter: (hit: Record<string, unknown>) => ({
+            ...hit,
+            documentationPreview: { text: "", highlights: [] },
+          }),
+        },
+        {
+          name: "null matched range kind",
+          alter: (hit: Record<string, unknown>) => ({
+            ...hit,
+            repositoryEvidence: {
+              ...(hit.repositoryEvidence as Record<string, unknown>),
+              matchedSource: {
+                ...((hit.repositoryEvidence as Record<string, unknown>)
+                  .matchedSource as Record<string, unknown>),
+                rangeKind: null,
+              },
+            },
+          }),
+        },
+        {
+          name: "reversed source range",
+          alter: (hit: Record<string, unknown>) => ({
+            ...hit,
+            repositoryEvidence: {
+              ...(hit.repositoryEvidence as Record<string, unknown>),
+              matchedSource: {
+                ...((hit.repositoryEvidence as Record<string, unknown>)
+                  .matchedSource as Record<string, unknown>),
+                startLine: 44,
+                endLine: 42,
+              },
+            },
+          }),
+        },
+      ]) {
+        it(`rejects malformed values through ${operation}: ${malformed.name}`, async () => {
+          const result = buildV31EvidenceSearchResult();
+          const entries = result.results;
+          const firstHit = entries[0];
+          if (!firstHit) throw new Error("expected v31 evidence fixture hit");
+          result.results = [malformed.alter(firstHit), ...entries.slice(1)];
+
+          const fn = mockFetch(() =>
+            Promise.resolve(
+              new Response(
+                JSON.stringify(
+                  buildV31EvidenceSearchResponse(operation, result),
+                ),
+                { headers: { "Content-Type": "application/json" } },
+              ),
+            ),
+          );
+          const service = new CodeNavigationServiceImpl(
+            BASE_URL,
+            createMockTokenProvider(),
+            globalThis.fetch,
+          );
+
+          await expect(
+            operation === "search"
+              ? service.search({
+                  targets: [{ repoUrl: "https://github.com/owner/repo" }],
+                  query: "render",
+                })
+              : service.searchStatus("v31-evidence-search-ref"),
+          ).rejects.toBeInstanceOf(MalformedCodeNavigationResponseError);
+          expect(fn).toHaveBeenCalledTimes(1);
+        });
+      }
+    }
+  });
+
+  describe("v31 source selection", () => {
+    for (const operation of ["search", "searchStatus"] as const) {
+      for (const mode of [
+        "default",
+        "explicit false",
+        "explicit true",
+      ] as const) {
+        it(`v31 source selection ${operation} ${mode}`, async () => {
+          await assertV31SourceSelectionRoundTrip(BASE_URL, operation, mode);
+        });
+      }
+    }
+  });
+
   it("rejects malformed structural search ranges", async () => {
     const fixture = buildStructuralSearchFixture();
     const firstHit = fixture.searchResult.results[0];
@@ -1682,6 +2143,7 @@ describe("CodeNavigationServiceImpl", () => {
       searchRef: "search-ref-wait",
       includeResults: true,
       waitTimeoutMs: 25_000,
+      includeFocusedSource: true,
     });
   });
 
@@ -1893,6 +2355,7 @@ describe("CodeNavigationServiceImpl", () => {
       query: "router middleware secret text",
       allowPartialResults: false,
       waitTimeoutMs: 20_000,
+      includeFocusedSource: true,
     });
   });
 

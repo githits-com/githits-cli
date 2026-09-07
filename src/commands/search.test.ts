@@ -4,6 +4,7 @@ import type {
   UnifiedSearchOutcome,
   UnifiedSearchParams,
   UnifiedSearchProgress,
+  UnifiedSearchReadOptions,
   UnifiedSearchResult,
   UnifiedSearchSessionStatus,
 } from "@githits/core-internal";
@@ -343,6 +344,7 @@ describe("searchAction", () => {
         allowPartialResults: true,
         filters: expect.objectContaining({ kind: "FUNCTION" }),
       }),
+      { omitFocusedSource: true },
     );
     consoleSpy.mockRestore();
   });
@@ -369,6 +371,7 @@ describe("searchAction", () => {
       expect.objectContaining({
         sources: ["CODE"],
       }),
+      { omitFocusedSource: true },
     );
     consoleSpy.mockRestore();
   });
@@ -396,6 +399,7 @@ describe("searchAction", () => {
         targets: [{ site: "site:expressjs.com" }],
         sources: ["DOCS"],
       }),
+      { omitFocusedSource: true },
     );
     consoleSpy.mockRestore();
   });
@@ -1584,7 +1588,7 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
-  it("renders backend summaries verbatim in terminal output", async () => {
+  it("renders explicit symbol summaries verbatim in terminal output", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
     if (defaultUnifiedSearchOutcome.state !== "completed") {
@@ -1598,6 +1602,7 @@ describe("searchAction", () => {
         results: [
           {
             ...defaultUnifiedSearchOutcome.result.results[0]!,
+            resultType: "REPOSITORY_SYMBOL",
             summary: [
               "line 1",
               "line 2",
@@ -1649,9 +1654,7 @@ describe("searchAction", () => {
       expect(output).toContain(
         "[1] \u001b[1m\u001b[36mnpm:express@4.18.2\u001b[0m \u001b[1m\u001b[36mlib/router/index.js:42-57\u001b[0m \u001b[2m[repo code]\u001b[0m - router \u001b[1m\u001b[33mmiddleware\u001b[0m",
       );
-      expect(output).toContain(
-        "function \u001b[1m\u001b[33mrouter\u001b[0m(req, res, next) { ... }",
-      );
+      expect(output).toContain("Snippet unavailable");
       expect(output).toContain(
         "[1] \u001b[1m\u001b[36mnpm:express@4.18.2\u001b[0m \u001b[1m\u001b[36mlib/router/index.js:42-57\u001b[0m \u001b[2m[repo code]\u001b[0m - router \u001b[1m\u001b[33mmiddleware\u001b[0m",
       );
@@ -1729,6 +1732,7 @@ describe("searchAction", () => {
         results: [
           {
             ...defaultUnifiedSearchOutcome.result.results[0]!,
+            resultType: "REPOSITORY_SYMBOL",
             summary: "line 1\r\nline 2",
             highlights: {
               summary: [[8, 14]],
@@ -2095,8 +2099,15 @@ describe("searchStatusAction", () => {
   });
 
   it("waits up to the shared default and forwards an explicit status wait", async () => {
-    const searchStatus = mock((_searchRef: string, _waitTimeoutMs?: number) =>
-      Promise.resolve(createIncompleteOutcome("SEARCHING", "search-ref-wait")),
+    const searchStatus = mock(
+      (
+        _searchRef: string,
+        _waitTimeoutMs?: number,
+        _options?: UnifiedSearchReadOptions,
+      ) =>
+        Promise.resolve(
+          createIncompleteOutcome("SEARCHING", "search-ref-wait"),
+        ),
     );
     const deps = createDeps({
       codeNavigationService: createMockCodeNavigationService({ searchStatus }),
@@ -2104,11 +2115,19 @@ describe("searchStatusAction", () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
     await searchStatusAction("search-ref-wait", {}, deps);
-    expect(searchStatus.mock.calls[0]).toEqual(["search-ref-wait", 20_000]);
+    expect(searchStatus.mock.calls[0]).toEqual([
+      "search-ref-wait",
+      20_000,
+      { omitFocusedSource: true },
+    ]);
 
     searchStatus.mockClear();
     await searchStatusAction("search-ref-wait", { wait: "45" }, deps);
-    expect(searchStatus.mock.calls[0]).toEqual(["search-ref-wait", 45_000]);
+    expect(searchStatus.mock.calls[0]).toEqual([
+      "search-ref-wait",
+      45_000,
+      { omitFocusedSource: true },
+    ]);
 
     consoleSpy.mockRestore();
   });
@@ -2602,9 +2621,7 @@ describe("searchStatusAction", () => {
       await searchStatusAction("search-ref-123", {}, createDeps());
 
       const output = String(consoleSpy.mock.calls[0]?.[0]);
-      expect(output).toContain(
-        "function \u001b[1m\u001b[33mrouter\u001b[0m(req, res, next) { ... }",
-      );
+      expect(output).toContain("Snippet unavailable");
       expect(output).toContain(
         "[1] \u001b[1m\u001b[36mnpm:express@4.18.2\u001b[0m \u001b[1m\u001b[36mlib/router/index.js:42-57\u001b[0m \u001b[2m[repo code]\u001b[0m - router \u001b[1m\u001b[33mmiddleware\u001b[0m",
       );
@@ -2621,4 +2638,34 @@ describe("searchStatusAction", () => {
       }
     }
   });
+});
+
+describe("v31 format selection", () => {
+  for (const json of [undefined, false, true]) {
+    it(`selects CLI source fields for json=${json}`, async () => {
+      spyOn(console, "log").mockImplementation(() => {});
+      const search = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+      const searchStatus = mock(() =>
+        Promise.resolve(defaultUnifiedSearchOutcome),
+      );
+      const deps: SearchDependencies = {
+        codeNavigationService: createMockCodeNavigationService({
+          search,
+          searchStatus,
+        }),
+        codeNavigationUrl: "https://nav.example.com",
+        mcpUrl: "https://mcp.example.com",
+        hasValidToken: true,
+      };
+      await searchAction("router", { in: ["npm:express"], json }, deps);
+      await searchStatusAction("v31-ref", { json }, deps);
+      expect(search).toHaveBeenCalledWith(
+        expect.objectContaining({ query: "router" }),
+        { omitFocusedSource: json !== true },
+      );
+      expect(searchStatus).toHaveBeenCalledWith("v31-ref", 20_000, {
+        omitFocusedSource: json !== true,
+      });
+    });
+  }
 });

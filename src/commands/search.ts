@@ -100,7 +100,7 @@ export async function searchAction(
 
     const spinner = startSpinner(SPINNER_MESSAGES.search, !options.json);
     const outcome = await service
-      .search(built.params)
+      .search(built.params, { omitFocusedSource: options.json !== true })
       .finally(() => spinner.stop());
     const payload = buildUnifiedSearchSuccessPayload(
       built.params,
@@ -137,6 +137,7 @@ export async function searchStatusAction(
     const outcome = await service.searchStatus(
       searchRef,
       parseWaitMs(options.wait) ?? DEFAULT_WAIT_TIMEOUT_MS,
+      { omitFocusedSource: options.json !== true },
     );
     const payload = buildUnifiedSearchStatusPayload(outcome);
 

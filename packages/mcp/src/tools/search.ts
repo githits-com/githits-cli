@@ -337,7 +337,9 @@ export function createSearchTool(
           waitTimeoutMs: args.wait_timeout_ms,
         });
 
-        const outcome = await service.search(built.params);
+        const outcome = await service.search(built.params, {
+          omitFocusedSource: isTextFormat(args.format),
+        });
         const payload = buildUnifiedSearchSuccessPayload(
           built.params,
           built.rawQuery,

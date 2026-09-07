@@ -245,6 +245,11 @@ function structuralEvidenceOutcome(): UnifiedSearchOutcome {
       ],
     },
   };
+  repositoryEvidence.bm25MatchFields = ["SOURCE_IDENTIFIER"];
+  repositoryEvidence.matchedSource = {
+    ...repositoryEvidence.focusedSource!,
+    rangeKind: "match_window",
+  };
   return {
     ...outcome,
     result: {
@@ -298,6 +303,58 @@ function structuralEvidenceOutcome(): UnifiedSearchOutcome {
 }
 
 describe("search parity", () => {
+  it("PARITY-V31: compact path hits and grapheme previews preserve complete JSON", async () => {
+    const outcome = structuralEvidenceOutcome();
+    if (outcome.state !== "completed")
+      throw new Error("expected completed fixture");
+    const first = outcome.result.results[0]!;
+    first.repositoryEvidence!.bm25MatchFields = ["FILE_PATH"];
+    first.repositoryEvidence!.matchedSource = null;
+    first.documentationPreview = null;
+    const preview = { text: "Router é👩‍💻 preview", highlights: [] };
+    outcome.result.results.push({
+      id: "crawled",
+      resultType: "DOCUMENTATION_PAGE",
+      targetLabel: "site:example.com",
+      title: "Router",
+      summary: "legacy preview stays in JSON",
+      repositoryEvidence: null,
+      documentationPreview: preview,
+      locator: {
+        docsReadTarget: "https://example.com/router",
+        pageId: "page-1",
+        sourceUrl: "https://example.com/router",
+      },
+    });
+    outcome.result.page.returned = 2;
+    const cli = await cliJsonForOutcome(outcome);
+    expect(cli).toEqual(await mcpJsonForOutcome(outcome));
+    expect(cli).toMatchObject({
+      results: [
+        {
+          repositoryEvidence: {
+            bm25MatchFields: ["FILE_PATH"],
+            matchedSource: null,
+            focusedSource: first.repositoryEvidence!.focusedSource,
+          },
+          documentationPreview: null,
+        },
+        {
+          repositoryEvidence: null,
+          documentationPreview: preview,
+          summary: "legacy preview stays in JSON",
+        },
+      ],
+    });
+    const text = await cliTextForOutcome(outcome);
+    expect(text).toBe(await mcpTextForOutcome(outcome));
+    expect(text).toContain("lib/client.ts [repo code, path match]");
+    expect(text).not.toContain("response.status");
+    expect(text).not.toContain("Client.send");
+    expect(text).not.toContain("legacy preview");
+    expect(text).toContain("Router é👩‍💻 preview");
+  });
+
   it.each([false, true] as const)(
     "PARITY-JSON-KEYS: CLI === MCP with partialResults=%s",
     async (partialResults) => {

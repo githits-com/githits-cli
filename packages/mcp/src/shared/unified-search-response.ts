@@ -2,6 +2,7 @@ import type {
   ContentSafety,
   DocCoverage,
   UnifiedSearchCompleted,
+  UnifiedSearchDocumentationPreview,
   UnifiedSearchEvidenceRange,
   UnifiedSearchHit,
   UnifiedSearchIndexedRange,
@@ -82,6 +83,7 @@ export interface UnifiedSearchHitPayload {
   summary?: string;
   highlights?: UnifiedSearchHighlightsPayload;
   repositoryEvidence?: UnifiedSearchRepositoryEvidence | null;
+  documentationPreview?: UnifiedSearchDocumentationPreview | null;
   contentSafety?: ContentSafety;
   followUp?: string;
   locator: {
@@ -548,6 +550,9 @@ function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPayload {
   if (highlights) payload.highlights = highlights;
   if (hit.repositoryEvidence !== undefined) {
     payload.repositoryEvidence = hit.repositoryEvidence;
+  }
+  if (hit.documentationPreview !== undefined) {
+    payload.documentationPreview = hit.documentationPreview;
   }
   if (hit.contentSafety !== undefined) {
     payload.contentSafety = hit.contentSafety;
