@@ -7,6 +7,7 @@ import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
   PackageIntelligenceBackendError,
   type ResolveTargetParams,
+  type ResolveTargetResult,
 } from "@githits/core-internal";
 import {
   type ResolveCommandDependencies,
@@ -325,4 +326,221 @@ describe("resolve_target parity", () => {
       expect(cliResolveTarget.mock.calls[0]?.[0]).toMatchObject({ name });
     },
   );
+});
+
+function unreadySiteResult(): ResolveTargetResult {
+  return {
+    best: {
+      kind: "SITE",
+      canonicalKey: "site:ai.pydantic.dev",
+      confidence: "EXACT",
+    },
+    targets: [
+      {
+        kind: "SITE",
+        canonicalKey: "site:ai.pydantic.dev",
+        displayName: "Pydantic AI",
+        latestVersionMaliciousStatus: "NOT_APPLICABLE",
+        docsAvailable: false,
+        docsPageCount: 12,
+        codeAvailable: false,
+        match: { confidence: "EXACT", nameSimilarity: 1 },
+      },
+    ],
+    ambiguous: false,
+    ambiguousReason: "NOT_AMBIGUOUS",
+    protectedMatches: [],
+    targetsTruncated: false,
+  };
+}
+
+async function readinessText(
+  resolved: ResolveTargetResult,
+  verbose: boolean,
+): Promise<string[]> {
+  const resolveTarget = mock((_params: ResolveTargetParams) =>
+    Promise.resolve(resolved),
+  );
+  const service = createMockResolveTargetService({ resolveTarget });
+  const stdout = spyOn(process.stdout, "write").mockImplementation(() => true);
+  const previousExitCode = process.exitCode;
+  let cli: string;
+  try {
+    process.exitCode = 0;
+    await resolveAction(
+      "Pydantic AI",
+      { verbose },
+      cliDeps({ resolveTargetService: service }),
+    );
+    cli = String(stdout.mock.calls[0]?.[0]);
+    expect(process.exitCode).toBe(resolved.best ? 0 : 1);
+  } finally {
+    stdout.mockRestore();
+    process.exitCode = previousExitCode;
+  }
+  const tool = createParityExperimentalMcpTool("resolve_target", {
+    resolveTargetService: service,
+  });
+  const mcp = await tool.handler({ name: "Pydantic AI", verbose }, {});
+  expect(mcp.isError).toBeUndefined();
+  expect(resolveTarget).toHaveBeenCalledTimes(2);
+  for (const call of resolveTarget.mock.calls) {
+    expect(call[0]).toMatchObject({
+      includeDetailedFields: false,
+      includeNameSimilarity: verbose,
+    });
+  }
+  return [cli, mcp.content[0]?.text ?? ""];
+}
+
+describe("S2b readiness", () => {
+  const cases = [
+    "EXACT singleton",
+    "HIGH singleton",
+    "mixed alternatives",
+    "all-unready ambiguity",
+    "unknown empty",
+    "MEDIUM unready",
+    "LOW unready",
+    "readable stale",
+    "AFFECTED unready",
+    "UNKNOWN unready",
+    "missing full best",
+  ];
+  for (const scenario of cases) {
+    for (const verbose of [false, true]) {
+      it(`${scenario} preserves CLI/MCP identity and continuation with verbose=${verbose}`, async () => {
+        const resolved = unreadySiteResult();
+        const first = resolved.targets[0]!;
+        if (
+          scenario === "HIGH singleton" ||
+          scenario.startsWith("MEDIUM") ||
+          scenario.startsWith("LOW")
+        ) {
+          const confidence = scenario.split(" ")[0]!;
+          resolved.best!.confidence = confidence;
+          first.match!.confidence = confidence;
+        }
+        if (
+          scenario === "mixed alternatives" ||
+          scenario === "all-unready ambiguity"
+        ) {
+          resolved.targets.push(
+            {
+              kind: "PACKAGE",
+              canonicalKey: "pypi:pydantic-ai",
+              docsAvailable: true,
+              codeAvailable: false,
+              latestVersionMaliciousStatus: "CLEAR",
+            },
+            {
+              kind: "SITE",
+              canonicalKey: "site:docs.pydantic.dev",
+              docsAvailable: true,
+              codeAvailable: false,
+              latestVersionMaliciousStatus: "NOT_APPLICABLE",
+            },
+          );
+        }
+        if (scenario === "all-unready ambiguity") {
+          resolved.targets.splice(1, 1);
+          resolved.targets[1]!.docsAvailable = false;
+          resolved.targets[1]!.match = { confidence: "EXACT" };
+          resolved.ambiguous = true;
+          resolved.ambiguousReason = "CLOSE_CANDIDATES";
+        }
+        if (scenario === "unknown empty") {
+          resolved.best = undefined;
+          resolved.targets = [];
+        }
+        if (scenario === "missing full best") resolved.targets = [];
+        if (scenario === "readable stale") first.docsAvailable = true;
+        if (scenario.startsWith("AFFECTED") || scenario.startsWith("UNKNOWN"))
+          first.latestVersionMaliciousStatus = scenario.split(" ")[0]!;
+        const before = structuredClone(resolved);
+        const texts = await readinessText(resolved, verbose);
+        const direct = [
+          "EXACT singleton",
+          "HIGH singleton",
+          "mixed alternatives",
+          "readable stale",
+        ].includes(scenario);
+        for (const [index, text] of texts.entries()) {
+          expect(text).not.toMatch(/queued|preparing|retry time/i);
+          if (resolved.targets.length && scenario !== "readable stale")
+            expect(text).toContain("documentation not currently ready");
+          if (scenario === "readable stale") {
+            expect(text).toContain("docs 12 pages");
+            expect(text).not.toContain("documentation not currently ready");
+          } else expect(text).not.toContain("docs 12 pages");
+          if (scenario === "unknown empty") {
+            expect(text).toContain("No targets found");
+            expect(text).not.toContain("documentation not currently ready");
+          } else expect(text).not.toContain("No targets found");
+          if (resolved.ambiguous) expect(text).toContain("Ambiguous:");
+          if (scenario.startsWith("MEDIUM") || scenario.startsWith("LOW")) {
+            expect(text).toContain("narrow");
+            expect(text).not.toMatch(/Best (identity )?match:/);
+          }
+          const continuation =
+            index === 0
+              ? "--in 'site:ai.pydantic.dev' --source docs"
+              : 'Next: call search with target "site:ai.pydantic.dev" and source "docs"';
+          if (direct) {
+            expect(text).toContain(continuation);
+            expect(text).not.toContain("Warning:");
+          } else expect(text).not.toContain(continuation);
+          if (scenario.startsWith("AFFECTED"))
+            expect(text).toContain(
+              "Warning: Malicious content affects the latest version",
+            );
+          if (scenario.startsWith("UNKNOWN"))
+            expect(text).toContain(
+              "Warning: Malicious-content status is uncertain",
+            );
+          if (scenario === "missing full best")
+            expect(text).toContain(
+              "Malicious-content status is unavailable for the best match",
+            );
+          for (let i = 1; i < resolved.targets.length; i++)
+            expect(
+              text.indexOf(resolved.targets[i - 1]!.canonicalKey),
+            ).toBeLessThan(text.indexOf(resolved.targets[i]!.canonicalKey));
+          expect(text).not.toContain("--in 'pypi:pydantic-ai'");
+          expect(text).not.toContain(
+            'Next: call search with target "site:docs.pydantic.dev"',
+          );
+        }
+        const service = createMockResolveTargetService({
+          resolveTarget: mock(() => Promise.resolve(resolved)),
+        });
+        const cli = await cliJson(
+          "Pydantic AI",
+          { verbose },
+          cliDeps({ resolveTargetService: service }),
+        );
+        const tool = createParityExperimentalMcpTool("resolve_target", {
+          resolveTargetService: service,
+        });
+        const raw = await tool.handler(
+          { name: "Pydantic AI", verbose, format: "json" },
+          {},
+        );
+        const json = JSON.parse(raw.content[0]?.text ?? "{}");
+        expect(cli).toEqual(json);
+        expect(json.best).toBe(resolved.best?.canonicalKey);
+        expect(json.ambiguous).toBe(resolved.ambiguous);
+        expect(
+          json.candidates.map((entry: { target: string }) => entry.target),
+        ).toEqual(resolved.targets.map((target) => target.canonicalKey));
+        if (resolved.targets.length)
+          expect(json.candidates[0]).toMatchObject({
+            confidence: resolved.best!.confidence.toLowerCase(),
+            docsAvailable: first.docsAvailable,
+            docsPageCount: 12,
+          });
+        expect(resolved).toEqual(before);
+      });
+    }
+  }
 });

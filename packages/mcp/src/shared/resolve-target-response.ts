@@ -470,11 +470,14 @@ export function formatResolveTargetEvidence(
   }
   const license = options.license ? formatLicense(target.license) : undefined;
   if (license) fields.push(`license ${license}`);
-  const docs = formatDocsAvailability(
-    target.docsAvailable,
-    target.docsPageCount,
-    options.docs && target.kind !== "REPOSITORY",
-  );
+  const docs =
+    options.docs && target.kind === "SITE" && !target.docsAvailable
+      ? "documentation not currently ready"
+      : formatDocsAvailability(
+          target.docsAvailable,
+          target.docsPageCount,
+          options.docs && target.kind !== "REPOSITORY",
+        );
   if (docs) fields.push(docs);
   const code = formatResolveTargetCodeAvailability(
     target,

@@ -349,14 +349,20 @@ linked-repository identity when applicable.
 Repository license appears only when no package supplies one. The verified
 lowercase `mit` spelling renders canonically as `MIT`; other license strings are
 preserved. JSON remains lossless and does not apply presentation ownership.
-Human text renders docs/code evidence only when the corresponding availability
-flag is true. Positive counts render when supplied; missing counts produce no
-placeholder. Available package and repository code renders as an indexed
+Human text renders available docs/code evidence when the corresponding
+availability flag is true. Site rows with `docsAvailable: false` instead say
+`documentation not currently ready`, even when retained page counts are positive
+or absent. This readiness fact does not block search: a safe, unambiguous
+EXACT/HIGH site best keeps its normal docs-search continuation. Search can initiate
+ordinary backend preparation for admitted sites; resolution does not claim that
+a crawl is queued or preparing. Identity, confidence and candidate order remain
+unchanged, with no substitution of another product. For available evidence,
+positive counts render when supplied; missing counts produce no placeholder. Available package and repository code renders as an indexed
 snapshot at that identity's scope, with a file count in parentheses when
-present. Unavailable or unknown docs/code evidence is omitted even if a recorded
-count is present: resolver availability is not a decision about whether a later
-docs or code command can follow up. Structurally inapplicable evidence dimensions
-are also omitted. `targetsTruncated` produces one note
+present. Unavailable package docs/code and repository code evidence remain
+omitted even when a recorded count is present. Resolver readiness does not
+determine whether a later docs or code command can follow up. Structurally
+inapplicable evidence dimensions are also omitted. `targetsTruncated` produces one note
 that additional related targets were omitted and direct matches are complete.
 The backend bounds the complete presentation list to 40 entries: up to 20 ranked
 direct matches, 12 additional protected matches, and 8 related targets. CLI and

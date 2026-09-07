@@ -9,6 +9,7 @@ import {
   formatResolveTargetTerminal,
   groupResolveTargets,
   isResolveTargetActionable,
+  isResolveTargetIdentityActionable,
 } from "./resolve-target-response.js";
 
 interface CandidateOverrides extends Partial<ResolveTargetTarget> {
@@ -1167,5 +1168,71 @@ describe("formatResolveTargetTerminal", () => {
         useColors: true,
       }),
     ).toContain("\x1b[");
+  });
+});
+
+describe("S2b readiness", () => {
+  for (const confidence of ["EXACT", "HIGH"]) {
+    it(`keeps ${confidence} unready site identity actionable for on-demand search`, () => {
+      const best = candidate({
+        kind: "SITE",
+        canonicalKey: "site:ai.pydantic.dev",
+        confidence,
+        docsAvailable: false,
+        latestVersionMaliciousStatus: "NOT_APPLICABLE",
+      });
+      const resolved = result({ best, targets: [best], protectedMatches: [] });
+      expect(isResolveTargetIdentityActionable(resolved)).toBe(true);
+      expect(isResolveTargetActionable(resolved)).toBe(true);
+      expect(
+        formatResolveTargetTerminal(resolved, { name: "Pydantic AI" }),
+      ).toContain("--in 'site:ai.pydantic.dev' --source docs");
+    });
+  }
+  for (const count of [undefined, 0, 12]) {
+    it(`labels unready site documentation with page count ${count}`, () => {
+      const best = candidate({
+        kind: "SITE",
+        canonicalKey: "site:ai.pydantic.dev",
+        docsAvailable: false,
+        docsPageCount: count,
+        latestVersionMaliciousStatus: "NOT_APPLICABLE",
+      });
+      const text = formatResolveTargetTerminal(
+        result({ best, targets: [best], protectedMatches: [] }),
+        { name: "Pydantic AI" },
+      );
+      expect(text).toContain("documentation not currently ready");
+      expect(text).not.toMatch(
+        /docs \d+ pages|queued|preparing|retry|Warning:/i,
+      );
+    });
+  }
+  it("does not reinterpret missing or unsafe security evidence as search permission", () => {
+    for (const status of ["AFFECTED", "UNKNOWN", "FUTURE", undefined]) {
+      const best = candidate({
+        kind: "SITE",
+        canonicalKey: "site:ai.pydantic.dev",
+        docsAvailable: false,
+      });
+      if (status === undefined)
+        delete (best as Partial<ResolveTargetTarget>)
+          .latestVersionMaliciousStatus;
+      else best.latestVersionMaliciousStatus = status;
+      expect(isResolveTargetActionable(result({ best, targets: [best] }))).toBe(
+        false,
+      );
+    }
+    expect(isResolveTargetActionable(result({ targets: [] }))).toBe(false);
+  });
+  it("keeps safe packages and repositories actionable without site readiness wording", () => {
+    for (const kind of ["PACKAGE", "REPOSITORY"]) {
+      const best = candidate({ kind, docsAvailable: false, docsPageCount: 12 });
+      const resolved = result({ best, targets: [best] });
+      expect(isResolveTargetActionable(resolved)).toBe(true);
+      expect(
+        formatResolveTargetTerminal(resolved, { name: "express" }),
+      ).not.toContain("documentation not currently ready");
+    }
   });
 });
