@@ -1024,13 +1024,19 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     };
   }
 
-  async function expectMalformedAudit(auditBody: unknown): Promise<void> {
+  async function expectMalformedAudit(
+    auditBody: unknown,
+    includeTransitiveAdvisoryDetails = false,
+  ): Promise<void> {
     const { service, fetchFn } = createAuditService(auditBody);
     await expect(
       service.packageVulnerabilities({
         registry: "NPM",
         packageName: "express",
         includeTransitive: true,
+        ...(includeTransitiveAdvisoryDetails
+          ? { includeTransitiveAdvisoryDetails: true }
+          : {}),
       }),
     ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
     expect(fetchFn).toHaveBeenCalledTimes(2);
@@ -1864,6 +1870,22 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     const body = mutableTransitiveAuditBody();
     mutableFirstAuditOccurrence(body).matchedAffectedVersionRanges = [];
     await expectMalformedAudit(body);
+  });
+
+  it("fails closed when selected transitive affected ranges are not an array", async () => {
+    const body = mutableTransitiveAuditBody();
+    mutableFirstAuditOccurrence(body).advisory.affectedVersionRanges =
+      "not-an-array" as unknown as string[];
+    await expectMalformedAudit(body, true);
+  });
+
+  it("fails closed when selected transitive fixed versions contain a non-string", async () => {
+    const body = mutableTransitiveAuditBody();
+    mutableFirstAuditOccurrence(body).advisory.fixedInVersions = [
+      "0.7.1",
+      42,
+    ] as unknown as string[];
+    await expectMalformedAudit(body, true);
   });
 
   it.each([
