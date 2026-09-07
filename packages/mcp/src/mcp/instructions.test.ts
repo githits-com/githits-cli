@@ -77,7 +77,9 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("`site:<host[/path]>`");
     expect(instructions).toContain('`source:"docs"`');
     expect(instructions).toContain('`format:"json"`');
-    expect(instructions).toContain("relevant `pageId` and returned line range");
+    expect(instructions).toContain(
+      "its `docsReadTarget` (or `pageId`) and range",
+    );
     expect(instructions).toContain("to `docs_read`");
     expect(instructions).toContain("EXACT/HIGH");
     expect(instructions).toContain("CLEAR or NOT_APPLICABLE");
@@ -96,9 +98,9 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("private or proprietary content");
     expect(instructions).toContain("targets.\n\n- `ask`");
     expect(instructions).toContain(
-      "response fields are needed.\n- `resolve_target`",
+      "required fields absent from text.\n- `resolve_target`",
     );
-    expect(instructions).toContain("to `docs_read`.\n- `code_diff`");
+    expect(instructions).toContain("with `docs_read`.\n- `code_diff`");
     expect(instructions.length - buildMcpQuickStart().length).toBeLessThan(
       1_900,
     );

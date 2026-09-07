@@ -66,9 +66,11 @@ describe("buildMcpQuickStart", () => {
     expect(instructions).toContain("`search`");
     expect(instructions).toContain("`search_status`");
     expect(instructions).toContain("reference-first");
-    expect(instructions).toContain("Prefer the default compact `text-v1`");
     expect(instructions).toContain(
-      "request JSON only when exact structured fields are necessary",
+      "Output format: use default `text` for reading and tool follow-ups.",
+    );
+    expect(instructions).toContain(
+      "Use `json` only to parse responses in code or obtain required fields absent from text.",
     );
   });
 
@@ -129,8 +131,12 @@ describe("buildMcpQuickStart", () => {
     );
     expect(instructions).toContain("not standalone `site:` targets");
     expect(instructions).toContain('`search` with `source:"docs"`');
-    expect(instructions).toContain("exact `pageId` and line locators");
-    expect(instructions).toContain("pass them to `docs_read`");
+    expect(instructions).toContain(
+      "required `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, or line locators are absent from text",
+    );
+    expect(instructions).toContain(
+      "pass the emitted `docsReadTarget` (or historical `pageId`) to `docs_read`",
+    );
   });
 
   it("keeps the core block first", () => {

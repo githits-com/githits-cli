@@ -45,7 +45,7 @@ pkg_upgrade_review({
   skip_transitive_security: false,
   include_dependency_issues: true,
   min_severity: "low" | "medium" | "high" | "critical",
-  format: "text-v1" | "json"
+  format: "text" | "json"
 })
 ```
 
@@ -69,7 +69,7 @@ pkg_upgrade_review({
   ],
   skip_transitive_security: false,
   include_dependency_issues: true,
-  format: "text-v1"
+  format: "text"
 })
 ```
 

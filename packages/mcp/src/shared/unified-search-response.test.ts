@@ -3,9 +3,11 @@ import {
   CodeNavigationIndexingError,
   CodeNavigationRefNotFoundError,
   CodeNavigationTargetNotFoundError,
+  type ContentSafety,
   type UnifiedSearchHit,
   type UnifiedSearchOutcome,
   type UnifiedSearchParams,
+  type UnifiedSearchRepositoryEvidence,
 } from "@githits/core-internal";
 import { defaultUnifiedSearchOutcome } from "../services/test-helpers.js";
 import {
@@ -32,6 +34,138 @@ function completedOutcomeWithHits(
       },
     },
   };
+}
+
+function structuralSearchJsonHits(): UnifiedSearchHit[] {
+  const preferredRead = {
+    targetLabel: "owner/repo@v1.2.3",
+    registry: null,
+    packageName: null,
+    version: null,
+    repoUrl: "https://github.com/owner/repo",
+    gitRef: "853a80d0000000000000000000000000000000000",
+    commitSha: "853a80d0000000000000000000000000000000000",
+    requestedRef: null,
+    filePath: "src/example.ts",
+    repositoryFilePath: "src/example.ts",
+    startLine: 40,
+    endLine: 48,
+  };
+  const scope = {
+    name: "render",
+    qualifiedPath: "Example.render",
+    kind: "method",
+    parentQualifiedPath: null,
+    declarationStartLine: 40,
+    declarationEndLine: 48,
+    parameterNames: ["café"],
+    returnType: null,
+    symbolRef: "repo:Example.render",
+  };
+  const focusedSource = {
+    startLine: 42,
+    endLine: 43,
+    matchLine: null,
+    rangeKind: null,
+    matchSpansTruncated: false,
+    lines: [
+      {
+        lineNumber: 42,
+        text: 'const café = "🙂";',
+        highlights: [[6, 10] as const],
+        prefixTruncated: false,
+        suffixTruncated: false,
+      },
+    ],
+    linesOmittedBefore: false,
+    linesOmittedAfter: false,
+  };
+  const populatedEvidence: UnifiedSearchRepositoryEvidence = {
+    semanticContext: {
+      scopes: [scope],
+      scopeChainTruncated: false,
+      preferredRead,
+    },
+    focusedSource,
+  };
+  const sourceOnlyEvidence: UnifiedSearchRepositoryEvidence = {
+    semanticContext: null,
+    focusedSource,
+  };
+  const scopesOnlyEvidence: UnifiedSearchRepositoryEvidence = {
+    semanticContext: {
+      scopes: [scope],
+      scopeChainTruncated: false,
+      preferredRead,
+    },
+    focusedSource: null,
+  };
+  const safety: ContentSafety[] = [
+    { filtered: false, modifications: [] },
+    { filtered: false, modifications: [] },
+    { filtered: false, modifications: [] },
+    { filtered: false, modifications: [] },
+  ];
+  const evidence: Array<UnifiedSearchRepositoryEvidence | null> = [
+    populatedEvidence,
+    sourceOnlyEvidence,
+    scopesOnlyEvidence,
+    null,
+  ];
+
+  return evidence.map((repositoryEvidence, index) => ({
+    id: `structural-json-${index}`,
+    resultType: "REPOSITORY_CODE",
+    targetLabel: "owner/repo@v1.2.3",
+    title: "render",
+    summary: `legacy summary ${index}`,
+    repositoryEvidence,
+    contentSafety: safety[index],
+    locator: {
+      repoUrl: "https://github.com/owner/repo",
+      gitRef: "853a80d0000000000000000000000000000000000",
+      commitSha: "853a80d0000000000000000000000000000000000",
+      filePath: "src/example.ts",
+      repositoryFilePath: "src/example.ts",
+      startLine: 42,
+      endLine: 43,
+    },
+  }));
+}
+
+function expectStructuralSearchJsonPreserved(
+  payload:
+    | ReturnType<typeof buildUnifiedSearchSuccessPayload>
+    | ReturnType<typeof buildUnifiedSearchStatusPayload>,
+  hits: UnifiedSearchHit[],
+): void {
+  if (!payload.completed) {
+    throw new Error("expected completed payload");
+  }
+  const payloadResults =
+    "result" in payload ? payload.result.results : payload.results;
+  expect(
+    payloadResults.map(({ repositoryEvidence, contentSafety }) => ({
+      repositoryEvidence,
+      contentSafety,
+    })),
+  ).toEqual(
+    hits.map(({ repositoryEvidence, contentSafety }) => ({
+      repositoryEvidence,
+      contentSafety,
+    })),
+  );
+  expect(
+    payloadResults.map(({ summary, locator }) => ({
+      summary,
+      locator,
+    })),
+  ).toEqual(
+    hits.map(({ summary, locator }) => ({
+      summary,
+      locator,
+    })),
+  );
 }
 
 describe("buildUnifiedSearchErrorPayload", () => {
@@ -125,6 +259,19 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       'code_read target="npm:express@4.18.2" path="lib/router/index.js" start_line=42 end_line=57',
     );
     expect(payload.results[0]).not.toHaveProperty("score");
+  });
+
+  it("preserves structural search JSON for completed success builder", () => {
+    const hits = structuralSearchJsonHits();
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      params.query,
+      params.query,
+      completedOutcomeWithHits(hits),
+    );
+
+    expect(payload.completed).toBe(true);
+    expectStructuralSearchJsonPreserved(payload, hits);
   });
 
   it("preserves the pi-mono evidence contract and prefers its exact definition follow-up", () => {
@@ -650,6 +797,48 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.results[0]?.target).toBe("github:expressjs/express");
     expect(payload.results[0]?.followUp).toContain(
       'docs_read page_id="github:expressjs/express/README.md"',
+    );
+  });
+
+  it("retains documentation locators and prefers docsReadTarget follow-ups", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const hit = defaultUnifiedSearchOutcome.result.results[0]!;
+    const docsReadTarget =
+      "https://expressjs.com/en/guide/routing.html?publisher=express";
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      {
+        ...defaultUnifiedSearchOutcome,
+        result: {
+          ...defaultUnifiedSearchOutcome.result,
+          results: [
+            {
+              ...hit,
+              resultType: "DOCUMENTATION_PAGE",
+              locator: {
+                pageId: "legacy-routing-id",
+                docsReadTarget,
+                sourceUrl: "https://expressjs.com/en/guide/routing.html",
+                startLine: 20,
+                endLine: 35,
+              },
+            },
+          ],
+        },
+      },
+    );
+
+    expect(payload.results[0]?.locator).toMatchObject({
+      docsReadTarget,
+      pageId: "legacy-routing-id",
+      sourceUrl: "https://expressjs.com/en/guide/routing.html",
+    });
+    expect(payload.results[0]?.followUp).toBe(
+      `docs_read page_id=${JSON.stringify(docsReadTarget)} start_line=20 end_line=35`,
     );
   });
 
@@ -2876,6 +3065,16 @@ describe("buildUnifiedSearchStatusPayload", () => {
         }),
       ],
     });
+  });
+
+  it("preserves structural search JSON for stored searchStatus builder", () => {
+    const hits = structuralSearchJsonHits();
+    const payload = buildUnifiedSearchStatusPayload(
+      completedOutcomeWithHits(hits),
+    );
+
+    expect(payload.completed).toBe(true);
+    expectStructuralSearchJsonPreserved(payload, hits);
   });
 
   it("preserves false on an incomplete status result", () => {

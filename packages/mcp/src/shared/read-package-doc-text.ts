@@ -7,7 +7,9 @@ export function renderReadPackageDocText(
 ): string {
   const lines: string[] = [];
   lines.push(buildHeader(envelope));
-  if (envelope.sourceUrl) lines.push(`source: ${envelope.sourceUrl}`);
+  if (envelope.sourceUrl && envelope.sourceUrl !== envelope.docsReadTarget) {
+    lines.push(`source: ${envelope.sourceUrl}`);
+  }
   if (envelope.filePath) {
     const ref = envelope.gitRef;
     lines.push(`file: ${envelope.filePath}${ref ? ` @ ${ref}` : ""}`);
@@ -22,7 +24,7 @@ export function renderReadPackageDocText(
 }
 
 function buildHeader(envelope: LeanPackageDocEnvelope): string {
-  const parts = [`docs_read${SEP}${envelope.pageId}`];
+  const parts = [`docs_read${SEP}${envelope.docsReadTarget}`];
   if (envelope.title) parts.push(envelope.title);
   const range = buildRange(envelope);
   if (range) parts.push(range);

@@ -280,11 +280,70 @@ export type UnifiedSearchSymbolContext =
   | UnifiedSearchEnclosingSymbolContext
   | UnifiedSearchAssociatedSymbolContext;
 
+export interface UnifiedSearchSemanticPreferredRead {
+  targetLabel: string;
+  registry: string | null;
+  packageName: string | null;
+  version: string | null;
+  repoUrl: string;
+  gitRef: string;
+  commitSha: string;
+  requestedRef: string | null;
+  filePath: string;
+  repositoryFilePath: string;
+  startLine: number;
+  endLine: number;
+}
+
+export interface UnifiedSearchSemanticScope {
+  name: string;
+  qualifiedPath: string;
+  kind: string;
+  parentQualifiedPath: string | null;
+  declarationStartLine: number;
+  declarationEndLine: number;
+  parameterNames: string[];
+  returnType: string | null;
+  symbolRef: string;
+}
+
+export interface UnifiedSearchSemanticContext {
+  scopes: UnifiedSearchSemanticScope[];
+  scopeChainTruncated: boolean;
+  preferredRead: UnifiedSearchSemanticPreferredRead;
+}
+
+export interface UnifiedSearchFocusedSourceLine {
+  lineNumber: number;
+  text: string;
+  highlights: Array<readonly [number, number]>;
+  prefixTruncated: boolean;
+  suffixTruncated: boolean;
+}
+
+export interface UnifiedSearchFocusedSource {
+  startLine: number;
+  endLine: number;
+  matchLine: number | null;
+  rangeKind: string | null;
+  matchSpansTruncated: boolean;
+  lines: UnifiedSearchFocusedSourceLine[];
+  linesOmittedBefore: boolean;
+  linesOmittedAfter: boolean;
+}
+
+export interface UnifiedSearchRepositoryEvidence {
+  focusedSource: UnifiedSearchFocusedSource | null;
+  semanticContext: UnifiedSearchSemanticContext | null;
+}
+
 export interface UnifiedSearchLocator {
   registry?: string;
   packageName?: string;
   version?: string;
   pageId?: string;
+  /** Preferred docs_read target; absent on legacy discovery results. */
+  docsReadTarget?: string;
   sourceKind?: string;
   sourceUrl?: string;
   repoUrl?: string;
@@ -317,6 +376,8 @@ export interface UnifiedSearchHit {
     title?: Array<readonly [number, number]>;
     summary?: Array<readonly [number, number]>;
   };
+  repositoryEvidence?: UnifiedSearchRepositoryEvidence | null;
+  contentSafety?: ContentSafety;
   locator: UnifiedSearchLocator;
   requestedTargetLabel?: string;
   freshTargetLabel?: string;
@@ -1162,6 +1223,7 @@ registry
 packageName
 version
 pageId
+docsReadTarget
 sourceKind
 sourceUrl
 repoUrl
@@ -1201,6 +1263,58 @@ qualifiedPath
 kind
 category
 language`;
+
+const UNIFIED_SEARCH_REPOSITORY_EVIDENCE_SELECTION = `
+repositoryEvidence {
+  semanticContext {
+    scopes {
+      name
+      qualifiedPath
+      kind
+      parentQualifiedPath
+      declarationStartLine
+      declarationEndLine
+      parameterNames
+      returnType
+      symbolRef
+    }
+    scopeChainTruncated
+    preferredRead {
+      targetLabel
+      registry
+      packageName
+      version
+      repoUrl
+      gitRef
+      commitSha
+      requestedRef
+      filePath
+      repositoryFilePath
+      startLine
+      endLine
+    }
+  }
+  focusedSource {
+    startLine
+    endLine
+    matchLine
+    rangeKind
+    matchSpansTruncated
+    linesOmittedBefore
+    linesOmittedAfter
+    lines {
+      lineNumber
+      text
+      highlights
+      prefixTruncated
+      suffixTruncated
+    }
+  }
+}
+contentSafety {
+  filtered
+  modifications
+}`;
 
 const UNIFIED_SEARCH_QUERY = `
 query UnifiedSearch(
@@ -1244,6 +1358,7 @@ query UnifiedSearch(
           title
           summary
         }
+        ${UNIFIED_SEARCH_REPOSITORY_EVIDENCE_SELECTION}
         locator {
           ${UNIFIED_SEARCH_LOCATOR_SELECTION}
         }
@@ -1384,6 +1499,7 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!, $waitT
           title
           summary
         }
+        ${UNIFIED_SEARCH_REPOSITORY_EVIDENCE_SELECTION}
         locator {
           ${UNIFIED_SEARCH_LOCATOR_SELECTION}
         }
@@ -1594,6 +1710,7 @@ const unifiedSearchLocatorSchema = z.object({
   packageName: z.string().nullable().optional(),
   version: z.string().nullable().optional(),
   pageId: z.string().nullable().optional(),
+  docsReadTarget: z.string().nullable().optional(),
   sourceKind: z.string().nullable().optional(),
   sourceUrl: z.string().nullable().optional(),
   repoUrl: z.string().nullable().optional(),
@@ -1613,6 +1730,94 @@ const unifiedSearchLocatorSchema = z.object({
   kind: z.string().nullable().optional(),
   category: z.string().nullable().optional(),
   language: z.string().nullable().optional(),
+});
+
+const unifiedSearchSemanticPreferredReadSchema = z
+  .object({
+    targetLabel: z.string(),
+    registry: z.string().nullable(),
+    packageName: z.string().nullable(),
+    version: z.string().nullable(),
+    repoUrl: z.string(),
+    gitRef: z.string(),
+    commitSha: z.string(),
+    requestedRef: z.string().nullable(),
+    filePath: z.string(),
+    repositoryFilePath: z.string(),
+    startLine: unifiedSearchLineRangeSchema.shape.startLine,
+    endLine: unifiedSearchLineRangeSchema.shape.endLine,
+  })
+  .refine((range) => range.startLine <= range.endLine, {
+    message: "startLine must be less than or equal to endLine",
+  });
+
+const unifiedSearchSemanticScopeSchema = z
+  .object({
+    name: z.string(),
+    qualifiedPath: z.string(),
+    kind: z.string(),
+    parentQualifiedPath: z.string().nullable(),
+    declarationStartLine: z.number().int().positive(),
+    declarationEndLine: z.number().int().positive(),
+    parameterNames: z.array(z.string()),
+    returnType: z.string().nullable(),
+    symbolRef: z.string(),
+  })
+  .refine((range) => range.declarationStartLine <= range.declarationEndLine, {
+    message:
+      "declarationStartLine must be less than or equal to declarationEndLine",
+  });
+
+const unifiedSearchSemanticContextSchema = z.object({
+  scopes: z.array(unifiedSearchSemanticScopeSchema),
+  scopeChainTruncated: z.boolean(),
+  preferredRead: unifiedSearchSemanticPreferredReadSchema,
+});
+
+const unifiedSearchHighlightSchema = z
+  .tuple([z.number().int().nonnegative(), z.number().int().nonnegative()])
+  .refine(([start, end]) => start <= end, {
+    message: "highlight start must be less than or equal to end",
+  });
+
+const unifiedSearchFocusedSourceLineSchema = z.object({
+  lineNumber: z.number().int().positive(),
+  text: z.string(),
+  highlights: z.array(unifiedSearchHighlightSchema),
+  prefixTruncated: z.boolean(),
+  suffixTruncated: z.boolean(),
+});
+
+const unifiedSearchFocusedSourceSchema = z
+  .object({
+    startLine: z.number().int().positive(),
+    endLine: z.number().int().positive(),
+    matchLine: z.number().int().positive().nullable(),
+    rangeKind: z.string().nullable(),
+    matchSpansTruncated: z.boolean(),
+    lines: z.array(unifiedSearchFocusedSourceLineSchema),
+    linesOmittedBefore: z.boolean(),
+    linesOmittedAfter: z.boolean(),
+  })
+  .refine((range) => range.startLine <= range.endLine, {
+    message: "startLine must be less than or equal to endLine",
+  });
+
+const unifiedSearchRepositoryEvidenceSchema = z.object({
+  focusedSource: unifiedSearchFocusedSourceSchema.nullable(),
+  semanticContext: unifiedSearchSemanticContextSchema.nullable(),
+});
+
+const contentSafetySchema = z.object({
+  filtered: z.boolean(),
+  modifications: z.array(
+    z.enum([
+      "INVISIBLE_CONTROLS_STRIPPED",
+      "HTML_COMMENTS_STRIPPED",
+      "IMAGES_REPLACED",
+      "UNSAFE_LINKS_NEUTRALIZED",
+    ]),
+  ),
 });
 
 const unifiedSearchHitSchema = z.object({
@@ -1639,6 +1844,10 @@ const unifiedSearchHitSchema = z.object({
     })
     .nullable()
     .optional(),
+  repositoryEvidence: unifiedSearchRepositoryEvidenceSchema
+    .nullable()
+    .optional(),
+  contentSafety: contentSafetySchema.optional(),
   locator: unifiedSearchLocatorSchema,
 });
 
@@ -1834,18 +2043,6 @@ const rawCodeDiffContentFailureSchema = z.object({
   retryAfterMs: z.number().int().nullable().optional(),
   stage: z.string().nullable().optional(),
   limitKind: z.string().nullable().optional(),
-});
-
-const contentSafetySchema = z.object({
-  filtered: z.boolean(),
-  modifications: z.array(
-    z.enum([
-      "INVISIBLE_CONTROLS_STRIPPED",
-      "HTML_COMMENTS_STRIPPED",
-      "IMAGES_REPLACED",
-      "UNSAFE_LINKS_NEUTRALIZED",
-    ]),
-  ),
 });
 
 const rawCodeDiffFileSchema = z.object({
@@ -3063,6 +3260,8 @@ export class CodeNavigationServiceImpl
               summary: entry.highlights.summary ?? undefined,
             }
           : undefined,
+        repositoryEvidence: entry.repositoryEvidence,
+        contentSafety: entry.contentSafety,
         locator: normaliseUnifiedSearchLocator(entry.locator),
       })),
       page: {
@@ -3507,6 +3706,7 @@ function normaliseUnifiedSearchLocator(
     packageName: value.packageName ?? undefined,
     version: value.version ?? undefined,
     pageId: value.pageId ?? undefined,
+    docsReadTarget: value.docsReadTarget ?? undefined,
     sourceKind: value.sourceKind ?? undefined,
     sourceUrl: value.sourceUrl ?? undefined,
     repoUrl: value.repoUrl ?? undefined,

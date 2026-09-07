@@ -29,6 +29,7 @@ describe("searchTool", () => {
     expect(descriptor?.description.slice(0, 80)).toBe(
       "Discover relevant evidence in a known target before exact grep: docs, specs, cod",
     );
+    expect(descriptor?.description).toContain("locator.docsReadTarget");
   });
 
   it("keeps the common path simple and delegates continuation details", () => {
@@ -629,13 +630,13 @@ describe("searchTool", () => {
     expect(() => JSON.parse(text)).toThrow();
   });
 
-  it("renders text output when format=text-v1", async () => {
+  it("renders text output when format=text", async () => {
     const tool = createSearchTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
         query: "router middleware",
         target: { registry: "npm", package_name: "express" },
-        format: "text-v1",
+        format: "text",
       },
       {},
     );
@@ -647,7 +648,7 @@ describe("searchTool", () => {
     expect(() => JSON.parse(text)).toThrow();
   });
 
-  it("accepts format=text as an alias for text-v1", async () => {
+  it("accepts explicit format=text", async () => {
     const tool = createSearchTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {

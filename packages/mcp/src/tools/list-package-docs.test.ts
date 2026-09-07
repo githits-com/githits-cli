@@ -30,6 +30,7 @@ describe("createListPackageDocsTool", () => {
       "format",
     ]);
     expect(tool.schema.version?.description).toContain("Go accepts either");
+    expect(tool.description).toContain("`docsReadTarget`");
   });
 
   it("calls service.listPackageDocs with normalised params", async () => {
@@ -80,6 +81,62 @@ describe("createListPackageDocsTool", () => {
     expect(() => JSON.parse(text)).toThrow();
   });
 
+  it("prefers docsReadTarget in text follow-ups and retains all JSON locators", async () => {
+    const docsReadTarget =
+      "https://docs.example.test/guide with spaces;$(echo nope)?q='quoted'&x=*";
+    const listPackageDocs = mock(() =>
+      Promise.resolve({
+        registry: "npm",
+        packageName: "example",
+        pages: [
+          {
+            id: "legacy-crawled-id",
+            docsReadTarget,
+            title: "Publisher guide",
+            sourceKind: "CRAWLED" as const,
+            sourceUrl: "https://docs.example.test/guide with spaces",
+          },
+        ],
+        pageInfo: { hasNextPage: false },
+      }),
+    );
+    const tool = createListPackageDocsTool(
+      createMockPackageIntelligenceService({ listPackageDocs }),
+    );
+
+    const textResult = await tool.handler(
+      { registry: "npm", package_name: "example" },
+      {},
+    );
+    expect(textResult.content[0]?.text).toContain(
+      `docs_read page_id=${JSON.stringify(docsReadTarget)}`,
+    );
+    expect(textResult.content[0]?.text).not.toContain(
+      'docs_read page_id="legacy-crawled-id"',
+    );
+
+    const jsonResult = await tool.handler(
+      { registry: "npm", package_name: "example", format: "json" },
+      {},
+    );
+    const payload = parseText(jsonResult) as {
+      pages: Array<{
+        docsReadTarget: string;
+        pageId: string;
+        sourceKind: string;
+        sourceUrl: string;
+        title: string;
+      }>;
+    };
+    expect(payload.pages[0]).toEqual({
+      docsReadTarget,
+      pageId: "legacy-crawled-id",
+      sourceKind: "crawled",
+      sourceUrl: "https://docs.example.test/guide with spaces",
+      title: "Publisher guide",
+    });
+  });
+
   it("uses served gitRef for repo-backed docs text follow-ups", async () => {
     const tool = createListPackageDocsTool(
       createMockPackageIntelligenceService({
@@ -91,6 +148,7 @@ describe("createListPackageDocsTool", () => {
             pages: [
               {
                 id: "github:vercel/ms@sha/readme.md",
+                docsReadTarget: "github:vercel/ms@sha/readme.md",
                 title: "readme.md",
                 sourceKind: "REPOSITORY",
                 sourceUrl: "https://github.com/vercel/ms/blob/sha/readme.md",
@@ -126,6 +184,7 @@ describe("createListPackageDocsTool", () => {
             pages: [
               {
                 id: "github:vercel/ms@sha/readme.md",
+                docsReadTarget: "github:vercel/ms@sha/readme.md",
                 title: "readme.md",
                 sourceKind: "REPOSITORY",
                 sourceUrl: "https://github.com/vercel/ms/blob/sha/readme.md",

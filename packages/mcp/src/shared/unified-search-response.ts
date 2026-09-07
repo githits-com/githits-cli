@@ -1,4 +1,5 @@
 import type {
+  ContentSafety,
   DocCoverage,
   UnifiedSearchCompleted,
   UnifiedSearchEvidenceRange,
@@ -7,6 +8,7 @@ import type {
   UnifiedSearchOutcome,
   UnifiedSearchParams,
   UnifiedSearchProgress,
+  UnifiedSearchRepositoryEvidence,
   UnifiedSearchSourceStatus,
   UnifiedSearchSymbolContext,
 } from "@githits/core-internal";
@@ -79,12 +81,15 @@ export interface UnifiedSearchHitPayload {
   title?: string;
   summary?: string;
   highlights?: UnifiedSearchHighlightsPayload;
+  repositoryEvidence?: UnifiedSearchRepositoryEvidence | null;
+  contentSafety?: ContentSafety;
   followUp?: string;
   locator: {
     registry?: string;
     packageName?: string;
     version?: string;
     pageId?: string;
+    docsReadTarget?: string;
     sourceKind?: string;
     sourceUrl?: string;
     repoUrl?: string;
@@ -541,6 +546,12 @@ function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPayload {
   if (hit.summary) payload.summary = hit.summary;
   const highlights = buildHighlights(hit.highlights);
   if (highlights) payload.highlights = highlights;
+  if (hit.repositoryEvidence !== undefined) {
+    payload.repositoryEvidence = hit.repositoryEvidence;
+  }
+  if (hit.contentSafety !== undefined) {
+    payload.contentSafety = hit.contentSafety;
+  }
   const followUp = buildSearchHitFollowUpCommand(payload);
   if (followUp) payload.followUp = followUp;
   return payload;
@@ -559,6 +570,7 @@ function buildLocatorPayload(
   if (src.packageName) locator.packageName = src.packageName;
   if (src.version) locator.version = src.version;
   if (src.pageId) locator.pageId = src.pageId;
+  if (src.docsReadTarget) locator.docsReadTarget = src.docsReadTarget;
   if (src.sourceKind) locator.sourceKind = src.sourceKind;
   if (src.sourceUrl) locator.sourceUrl = src.sourceUrl;
   if (src.repoUrl) locator.repoUrl = src.repoUrl;

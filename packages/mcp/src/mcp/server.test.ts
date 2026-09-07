@@ -148,15 +148,17 @@ const DESCRIPTION_ROUTING: Record<
     ],
   },
   docs_list: {
-    prefix: /^List package documentation pages/,
-    body: ["`docs_read`", "`search`", "`code_read`"],
+    prefix: /^List package documentation targets for follow-up reads\./,
+    body: ["`docs_read`", "`search`", "`code_read`", "`docsReadTarget`"],
   },
   docs_read: {
-    prefix: /^Read a package documentation page by ID/,
+    prefix:
+      /^Read a package documentation page by emitted target or stable page ID\./,
     body: [
       "`docs_list`",
       "`search`",
       "`code_read`",
+      "`docsReadTarget`",
       "150 lines by default",
       "up to 300 lines",
     ],
@@ -333,7 +335,7 @@ describe("MCP tool description catalog", () => {
 });
 
 describe("MCP output format", () => {
-  it("advertises token-efficient text-v1 as the explicit default", () => {
+  it("advertises token-efficient text as the explicit default", () => {
     const descriptors = getMcpToolDescriptors();
 
     for (const descriptor of descriptors) {
@@ -343,9 +345,19 @@ describe("MCP output format", () => {
       const formatSchema = inputSchema.properties?.format;
 
       expect(formatSchema, descriptor.name).toMatchObject({
-        default: "text-v1",
-        enum: ["text-v1", "text", "json"],
+        default: "text",
+        enum: ["text", "json"],
       });
+      expect(JSON.stringify(formatSchema), descriptor.name).toContain(
+        "token-efficient",
+      );
+      expect(JSON.stringify(formatSchema), descriptor.name).toContain(
+        "parse responses in code",
+      );
+      expect(descriptor.schema.format?.parse(undefined)).toBe("text");
+      expect(descriptor.schema.format?.safeParse("text-v1").success).toBe(
+        false,
+      );
     }
   });
 });

@@ -13,9 +13,7 @@ describe("getExampleTool", () => {
     expect(tool.description).toContain(
       "GitHits' generated references/provenance section",
     );
-    expect(tool.schema.format?.description).toContain(
-      "source repository provenance",
-    );
+    expect(tool.schema.format?.description).toContain("token-efficient");
     expect(tool.schema.license_mode?.description).toContain(
       "`yolo` disables filtering",
     );

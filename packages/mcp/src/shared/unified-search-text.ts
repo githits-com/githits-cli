@@ -1,8 +1,8 @@
 /**
  * Line-oriented text renderer for unified `search` MCP responses.
  *
- * Designed for agent context efficiency: roughly 3-5 lines per hit
- * and no JSON scaffolding. This is the tool's default response
+ * Designed for agent context efficiency: focused source with semantic scope
+ * coordinates and no JSON scaffolding. This is the tool's default response
  * format — programmatic / parity callers opt into the structured
  * JSON envelope by passing `format: "json"`.
  *
@@ -17,6 +17,7 @@
 
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { colors, dim, highlight, highlightRanges } from "./colors.js";
+import { semanticReadLocation } from "./follow-up-command-text.js";
 import { formatRepositoryTarget } from "./repository-target.js";
 import {
   projectUnifiedSearchPresentation,
@@ -950,6 +951,22 @@ function appendHit(
     );
   }
 
+  if (hit.contentSafety?.filtered) {
+    lines.push(
+      ...wrapHangingText(
+        `Content filtered: ${hit.contentSafety.modifications.join(", ")}`,
+        "  ",
+        options.width,
+      ),
+    );
+  }
+  if (
+    (hit.type === "repository_code" || hit.type === "repository_doc") &&
+    hit.repositoryEvidence !== undefined
+  ) {
+    appendStructuralEvidence(lines, hit, options);
+    return;
+  }
   const summary = prepareSummary(hit.summary, hit.title);
   if (summary) {
     lines.push(
@@ -961,6 +978,75 @@ function appendHit(
       ).map((line) => (line.length === 0 ? "" : `  ${line}`)),
     );
   }
+}
+
+/** Render backend scope facts separately from source-exact numbered lines. */
+function appendStructuralEvidence(
+  lines: string[],
+  hit: UnifiedSearchHitPayload,
+  options: NormalizedTextOptions,
+): void {
+  const context = hit.repositoryEvidence?.semanticContext;
+  if (context) {
+    if (context.scopeChainTruncated) lines.push("  ... outer scopes omitted");
+    context.scopes.forEach((scope, index) => {
+      const prefix = "  ".repeat(index + 1);
+      const lineLabel =
+        scope.declarationStartLine === scope.declarationEndLine
+          ? "line"
+          : "lines";
+      // Kind, identity and source coordinates form one locator, never prose.
+      lines.push(
+        `${prefix}- ${scope.kind} ${scope.qualifiedPath} | ${lineLabel} ${formatBareLineRange(scope.declarationStartLine, scope.declarationEndLine)}`,
+      );
+    });
+  }
+  const source = hit.repositoryEvidence?.focusedSource;
+  if (!source) {
+    lines.push("  Exact source unavailable");
+    return;
+  }
+  if (source.linesOmittedBefore) lines.push("  ... lines omitted before");
+  const gutterWidth = String(source.endLine).length;
+  for (const line of source.lines) {
+    const marker = line.highlights.some(([from, to]) => to > from) ? ">" : " ";
+    const text = highlightSourceGraphemes(
+      line.text,
+      line.highlights,
+      options.useColors,
+    );
+    lines.push(
+      `${marker} ${String(line.lineNumber).padStart(gutterWidth)} | ${line.prefixTruncated ? "..." : ""}${text}${line.suffixTruncated ? "..." : ""}`,
+    );
+  }
+  if (source.linesOmittedAfter) lines.push("  ... lines omitted after");
+  if (source.matchSpansTruncated)
+    lines.push("  Some matches are not highlighted");
+}
+
+const sourceGraphemeSegmenter = new Intl.Segmenter(undefined, {
+  granularity: "grapheme",
+});
+
+/** New source offsets count graphemes; legacy title/summary offsets count JS units. */
+function highlightSourceGraphemes(
+  text: string,
+  ranges: ReadonlyArray<readonly [number, number]>,
+  useColors: boolean,
+): string {
+  if (!useColors || ranges.length === 0) return text;
+  const offsets = Array.from(
+    sourceGraphemeSegmenter.segment(text),
+    (segment) => segment.index,
+  );
+  offsets.push(text.length);
+  return highlightRanges(
+    text,
+    ranges.map(
+      ([from, to]) => [offsets[from], offsets[to]] as readonly [number, number],
+    ),
+    true,
+  );
 }
 
 function wrapHighlightedText(
@@ -1063,20 +1149,29 @@ interface FormattedHitHeader {
 function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
   const loc = hit.locator;
   if (hit.type === "documentation_page") {
-    const pageId = loc.pageId ?? "page ID unavailable";
+    const docsReadTarget =
+      loc.docsReadTarget ?? loc.pageId ?? "documentation target unavailable";
     const type = "[docs page]";
     const target = formatDocumentationTarget(hit);
-    const sourceUrl = formatDocumentationSourceUrl(loc.sourceUrl);
+    const sourceUrl = formatDocumentationSourceUrl(
+      loc.sourceUrl,
+      docsReadTarget,
+    );
+    const sourceSuffix = sourceUrl ? ` - ${sourceUrl}` : "";
     return {
-      prefix: `${pageId} ${type} ${target} - ${sourceUrl}`,
+      prefix: `${docsReadTarget} ${type} ${target}${sourceSuffix}`,
       segments: [
-        { text: pageId, style: "locator" },
+        { text: docsReadTarget, style: "locator" },
         { text: " ", style: "plain" },
         { text: type, style: "secondary" },
         { text: " ", style: "plain" },
         { text: target, style: "secondary" },
-        { text: " - ", style: "plain" },
-        { text: sourceUrl, style: "secondary" },
+        ...(sourceUrl
+          ? ([
+              { text: " - ", style: "plain" },
+              { text: sourceUrl, style: "secondary" },
+            ] satisfies HitHeaderSegment[])
+          : []),
       ],
       title: hit.title || "title unavailable",
       titleHighlights: hit.highlights?.title,
@@ -1087,15 +1182,19 @@ function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
     ? `${evidence.filePath}${formatLineRange(evidence.startLine, evidence.endLine)}`
     : "location unavailable";
   const type = `[${shortType(hit.type)}]`;
+  const preferredRead = hit.repositoryEvidence?.semanticContext?.preferredRead;
+  const target = preferredRead
+    ? semanticReadLocation(preferredRead).target
+    : hit.target;
   const title = formatRepositoryHitTitle(
     hit,
     evidence.startLine,
     evidence.endLine,
   );
   return {
-    prefix: `${hit.target} ${location} ${type}`,
+    prefix: `${target} ${location} ${type}`,
     segments: [
-      { text: hit.target, style: "locator" },
+      { text: target, style: "locator" },
       { text: " ", style: "plain" },
       { text: location, style: "locator" },
       { text: " ", style: "plain" },
@@ -1119,10 +1218,15 @@ function formatRepositoryEvidence(
   hit: UnifiedSearchHitPayload,
 ): RepositoryEvidence {
   const loc = hit.locator;
+  const source = hit.repositoryEvidence?.focusedSource;
+  const preferredRead = hit.repositoryEvidence?.semanticContext?.preferredRead;
   return {
-    filePath: loc.filePath,
-    startLine: loc.evidenceRange?.startLine ?? loc.startLine,
-    endLine: loc.evidenceRange?.endLine ?? loc.endLine,
+    filePath: preferredRead
+      ? semanticReadLocation(preferredRead).path
+      : loc.filePath,
+    startLine:
+      source?.startLine ?? loc.evidenceRange?.startLine ?? loc.startLine,
+    endLine: source?.endLine ?? loc.evidenceRange?.endLine ?? loc.endLine,
   };
 }
 
@@ -1136,6 +1240,22 @@ function formatRepositoryHitTitle(
   evidenceStartLine: number | undefined,
   evidenceEndLine: number | undefined,
 ): RepositoryHitTitle {
+  if (
+    hit.repositoryEvidence !== undefined &&
+    (hit.type === "repository_code" || hit.type === "repository_doc")
+  ) {
+    const scopes = hit.repositoryEvidence?.semanticContext?.scopes ?? [];
+    const duplicateTitle = scopes.some(
+      (scope) => hit.title === scope.name || hit.title === scope.qualifiedPath,
+    );
+    return {
+      text:
+        hit.type === "repository_code" || duplicateTitle
+          ? undefined
+          : hit.title || undefined,
+      highlightOffset: 0,
+    };
+  }
   if (hit.type !== "repository_code" && hit.type !== "repository_symbol") {
     return {
       text: hit.title || undefined,
@@ -1277,9 +1397,21 @@ function formatDocumentationTarget(hit: UnifiedSearchHitPayload): string {
   );
 }
 
-function formatDocumentationSourceUrl(value: string | undefined): string {
+function formatDocumentationSourceUrl(
+  value: string | undefined,
+  docsReadTarget?: string,
+): string {
   if (!value) return "source URL unavailable";
-  return value.replace(/^https?:\/\//, "");
+  const sourceUrl = value.replace(/^https?:\/\//, "");
+  const target = docsReadTarget?.replace(/^https?:\/\//, "");
+  if (!target) return sourceUrl;
+  if (sourceUrl === target) return "";
+
+  const fragmentIndex = sourceUrl.indexOf("#");
+  if (fragmentIndex > 0 && sourceUrl.slice(0, fragmentIndex) === target) {
+    return sourceUrl.slice(fragmentIndex);
+  }
+  return sourceUrl;
 }
 
 function stripVersionFromTarget(value: string | undefined): string {

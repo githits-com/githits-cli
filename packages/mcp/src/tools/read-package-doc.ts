@@ -17,7 +17,7 @@ export interface ReadPackageDocArgs {
   page_id: string;
   start_line?: number;
   end_line?: number;
-  format?: "json" | "text" | "text-v1";
+  format?: "text" | "json";
 }
 
 const MCP_DOC_READ_DEFAULT_SPAN = 150;
@@ -27,7 +27,7 @@ const schema: ZodRawShape = {
   page_id: z
     .string()
     .describe(
-      "Documentation page ID from `docs_list` or `search` results. Pass through unchanged; repo-backed IDs are snapshot-pinned.",
+      "Emitted `docsReadTarget` or historical `pageId` from `docs_list` or `search`. Pass through unchanged; repo-backed targets are snapshot-pinned IDs.",
     ),
   start_line: z
     .number()
@@ -42,17 +42,18 @@ const schema: ZodRawShape = {
       `Ending line (inclusive). In text mode, omitting it returns at most ${MCP_DOC_READ_DEFAULT_SPAN} lines from \`start_line\`; an explicit range may request up to ${MCP_DOC_READ_MAX_SPAN} lines. In JSON mode, omitting it reads to the end of the page. Must be ≥ \`start_line\` when both are set.`,
     ),
   format: z
-    .enum(["text-v1", "text", "json"])
-    .default("text-v1")
+    .enum(["text", "json"])
+    .default("text")
     .describe(
-      `Response format. Default \`text-v1\` — raw markdown content capped to ${MCP_DOC_READ_DEFAULT_SPAN} lines by default. Pass \`format: "json"\` for the structured envelope; explicit ranges still slice JSON content.`,
+      `Use \`text\` (default) for reading and tool follow-ups; it is token-efficient. Use \`json\` only to parse responses in code or obtain fields absent from text. Text omitting \`end_line\` returns at most ${MCP_DOC_READ_DEFAULT_SPAN} lines; explicit ranges may request up to ${MCP_DOC_READ_MAX_SPAN} lines, while JSON omitting it reads to page end and explicit ranges still slice content.`,
     ),
 };
 
 export const DESCRIPTION_BASE: string =
-  "Read a package documentation page by ID; use `docs_list` to browse and `search` to find topics. " +
-  `Works for both hosted/crawled docs and repository-backed docs. Text reads return ${MCP_DOC_READ_DEFAULT_SPAN} lines by default; pass an explicit \`start_line\` / \`end_line\` range for only the lines needed, up to ${MCP_DOC_READ_MAX_SPAN} lines. Broader ranges truncate and report the returned range and \`totalLines\`. ` +
-  "Repo-backed results additionally include exact file follow-up metadata for `code_read`.";
+  "Read a package documentation page by emitted target or stable page ID. " +
+  "Pass `docsReadTarget` from `docs_list` or `search` to `page_id`; historical IDs remain accepted. " +
+  `Crawled and repo-backed docs are supported. Text returns ${MCP_DOC_READ_DEFAULT_SPAN} lines by default; explicit ranges can request up to ${MCP_DOC_READ_MAX_SPAN} lines and report the returned range and \`totalLines\`. ` +
+  "JSON retains `docsReadTarget`, `pageId`, and `sourceUrl`; repo-backed results include exact `code_read` metadata.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${DOCS_GUARDRAIL}`;
 
@@ -95,7 +96,7 @@ export function createReadPackageDocTool(
 }
 
 function isTextFormat(format: ReadPackageDocArgs["format"]): boolean {
-  return format === undefined || format === "text" || format === "text-v1";
+  return format === undefined || format === "text";
 }
 
 function buildRange(

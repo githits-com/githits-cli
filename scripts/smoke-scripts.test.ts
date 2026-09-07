@@ -100,6 +100,23 @@ Next: shorten or broaden query; use githits code grep.`;
     ).not.toThrow();
   });
 
+  it("accepts structural search evidence text", () => {
+    const structuralText =
+      "1 result | 1 repo code hit\n\n" +
+      "[1] npm:express@4.18.2 lib/client.ts:142-145 [repo code]\n" +
+      "  - class Client | lines 20-220\n" +
+      "    - method Client.send | lines 120-165\n" +
+      "  ... lines omitted before\n" +
+      "  142 |     const indexingRef = request;\n" +
+      "> 143 | ...    if (response.status === 429) {...\n" +
+      "  144 |       return retry(request);\n" +
+      "  145 | \n" +
+      "  ... lines omitted after";
+    expect(() =>
+      assertSearchTerminalText(structuralText, "search"),
+    ).not.toThrow();
+  });
+
   it("accepts completed documentation hit text without a target group", () => {
     expect(() =>
       assertSearchTerminalText(completedDocs, "search"),

@@ -42,8 +42,8 @@ describe("toCallableTool", () => {
     });
     expect(schema.properties?.format).toMatchObject({
       type: "string",
-      enum: ["text-v1", "text", "json"],
-      default: "text-v1",
+      enum: ["text", "json"],
+      default: "text",
     });
     expect(callable.description).not.toContain(QUICK_START_PREREQUISITE);
   });
@@ -67,15 +67,24 @@ describe("toCallableTool", () => {
     });
   });
 
+  it("rejects internal renderer names before making a service call", async () => {
+    const search = mock(async () => "result");
+    const callable = toCallableTool(createGetExampleTool({ search }));
+    await expect(
+      callable.execute({ query: "router", format: "text-v1" }),
+    ).rejects.toThrow("Invalid option");
+    expect(search).not.toHaveBeenCalled();
+  });
+
   it("applies schema defaults before invoking a handler", async () => {
-    const handler = mock(async (args: { format: "text-v1" | "json" }) =>
+    const handler = mock(async (args: { format: "text" | "json" }) =>
       textResult(args.format),
     );
     const schema = {
-      format: z.enum(["text-v1", "json"]).default("text-v1"),
+      format: z.enum(["text", "json"]).default("text"),
     };
     const definition: ToolDefinition<
-      { format: "text-v1" | "json" },
+      { format: "text" | "json" },
       typeof schema
     > = {
       name: "default-test",
@@ -87,10 +96,10 @@ describe("toCallableTool", () => {
     const callable = toCallableTool(definition);
 
     await expect(callable.execute({})).resolves.toEqual({
-      content: [{ type: "text", text: "text-v1" }],
+      content: [{ type: "text", text: "text" }],
     });
     expect(handler).toHaveBeenCalledWith(
-      { format: "text-v1" },
+      { format: "text" },
       { authAction: "Authenticate with GitHits, then retry." },
     );
   });
