@@ -1550,7 +1550,15 @@ function formatTransitiveSummaryLine(
   return `${summary.occurrenceCount} ${occurrenceNoun} in ${summary.packageCount} ${packageNoun}; ${summary.totalPackagesAnalyzed} ${versionNoun} checked.`;
 }
 
+const TRANSITIVE_ROW_MARGIN = "  ";
+const TRANSITIVE_COLUMN_SEPARATOR = "  ";
 const TRANSITIVE_SEVERITY_LABEL_WIDTH = "critical".length;
+const TRANSITIVE_COORDINATE_INDENT =
+  TRANSITIVE_ROW_MARGIN.length +
+  TRANSITIVE_SEVERITY_LABEL_WIDTH +
+  TRANSITIVE_COLUMN_SEPARATOR.length;
+const TRANSITIVE_DETAIL_LABEL_WIDTH = "advisory ranges".length;
+const TRANSITIVE_COORDINATE_PREFIX = " ".repeat(TRANSITIVE_COORDINATE_INDENT);
 
 function formatTransitiveBreakdown(
   summary: LeanTransitiveVulnerabilityAudit["summary"],
@@ -1662,7 +1670,7 @@ function formatTransitiveOccurrence(
   const headlineParts = [paddedLabel, coordinate];
   if (!occurrence.affectsResolvedVersion) headlineParts.push("[historical]");
   if (identity) headlineParts.push(identity);
-  const headline = `  ${headlineParts.join("  ")}`;
+  const headline = `${TRANSITIVE_ROW_MARGIN}${headlineParts.join(TRANSITIVE_COLUMN_SEPARATOR)}`;
   const lines = formatTransitiveHeadline(
     headline,
     occurrence.summary,
@@ -1684,35 +1692,62 @@ function formatTransitiveOccurrence(
         options.terminalWidth,
       ),
     );
-  }
-
-  if (options.verbose && occurrence.fixVersionsAboveResolved.length > 0) {
-    lines.push(
-      ...formatAtomicDetail(
-        "higher fixes",
-        occurrence.fixVersionsAboveResolved,
-        options.terminalWidth,
-      ),
-    );
-  }
-
-  if (options.verbose && occurrence.aliases && occurrence.aliases.length > 0) {
-    lines.push(
-      ...formatAtomicDetail(
-        "aliases",
-        occurrence.aliases,
-        options.terminalWidth,
-      ),
-    );
-  }
-
-  if (occurrence.affectsResolvedVersion) {
     const nearest = occurrence.nearestFixedVersion
       ? sanitizeIdentity(occurrence.nearestFixedVersion)
       : "no higher fixed version known";
     lines.push(
       ...formatFreeDetail("nearest fix", nearest, options.terminalWidth),
     );
+    if (options.verbose && occurrence.fixVersionsAboveResolved.length > 0) {
+      lines.push(
+        ...formatAtomicDetail(
+          "higher fixes",
+          occurrence.fixVersionsAboveResolved,
+          options.terminalWidth,
+        ),
+      );
+    }
+    if (
+      options.verbose &&
+      occurrence.aliases &&
+      occurrence.aliases.length > 0
+    ) {
+      lines.push(
+        ...formatAtomicDetail(
+          "aliases",
+          occurrence.aliases,
+          options.terminalWidth,
+        ),
+      );
+    }
+  } else if (options.verbose) {
+    if (occurrence.affectedRanges && occurrence.affectedRanges.length > 0) {
+      lines.push(
+        ...formatAtomicDetail(
+          "advisory ranges",
+          occurrence.affectedRanges,
+          options.terminalWidth,
+        ),
+      );
+    }
+    if (occurrence.fixedIn && occurrence.fixedIn.length > 0) {
+      lines.push(
+        ...formatAtomicDetail(
+          "advisory fixes",
+          occurrence.fixedIn,
+          options.terminalWidth,
+        ),
+      );
+    }
+    if (occurrence.aliases && occurrence.aliases.length > 0) {
+      lines.push(
+        ...formatAtomicDetail(
+          "aliases",
+          occurrence.aliases,
+          options.terminalWidth,
+        ),
+      );
+    }
   }
   return lines;
 }
@@ -1736,7 +1771,7 @@ function formatTransitiveHeadline(
       continue;
     }
     lines.push(current.trimEnd());
-    current = `        ${word}`;
+    current = `${TRANSITIVE_COORDINATE_PREFIX}${word}`;
   }
   lines.push(current.trimEnd());
   return lines;
@@ -1748,7 +1783,7 @@ function formatAtomicDetail(
   terminalWidth: number | undefined,
 ): string[] {
   const width = normaliseTerminalWidth(terminalWidth);
-  const prefix = `    ${label.padEnd(12)} `;
+  const prefix = `${TRANSITIVE_COORDINATE_PREFIX}${label.padEnd(TRANSITIVE_DETAIL_LABEL_WIDTH)} `;
   const continuation = " ".repeat(prefix.length);
   const lines: string[] = [];
   let current = prefix;
@@ -1771,7 +1806,7 @@ function formatFreeDetail(
   value: string,
   terminalWidth: number | undefined,
 ): string[] {
-  const prefix = `    ${label.padEnd(12)} `;
+  const prefix = `${TRANSITIVE_COORDINATE_PREFIX}${label.padEnd(TRANSITIVE_DETAIL_LABEL_WIDTH)} `;
   const width = normaliseTerminalWidth(terminalWidth);
   const words = sanitizeProse(value).split(" ").filter(Boolean);
   if (words.length === 0) return [prefix.trimEnd()];

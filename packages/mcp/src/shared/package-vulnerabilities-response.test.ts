@@ -1205,8 +1205,8 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     );
     expect(output).toContain("MALWARE   body-parser@1.19.0  GHSA-body-mal");
     expect(output).toContain("critical  accepts@1.3.8  GHSA-accept-critical");
-    expect(output).toContain("matched      >= 1.0.0, < 2.0.0");
-    expect(output).toContain("nearest fix  2.0.0");
+    expect(output).toContain("            matched         >= 1.0.0, < 2.0.0");
+    expect(output).toContain("            nearest fix     2.0.0");
     expect(output.indexOf("Resolved dependencies")).toBeGreaterThan(
       output.indexOf("No active vulnerabilities affect this version."),
     );
@@ -1312,9 +1312,72 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     );
     expect(output).toContain("GHSA-zeta-low");
     expect(output).toContain("CVE-shared");
-    expect(output).toContain("higher fixes 1.20.3, 2.0.0");
+    const highBlockStart = output.indexOf("GHSA-body-high");
+    const highBlockEnd = output.indexOf("  medium", highBlockStart);
+    const highBlock = output.slice(highBlockStart, highBlockEnd);
+    expect(highBlock).toContain("higher fixes    1.20.3, 2.0.0");
+    expect(highBlock.indexOf("matched")).toBeLessThan(
+      highBlock.indexOf("nearest fix"),
+    );
+    expect(highBlock.indexOf("nearest fix")).toBeLessThan(
+      highBlock.indexOf("higher fixes"),
+    );
+    expect(highBlock.indexOf("higher fixes")).toBeLessThan(
+      highBlock.indexOf("aliases"),
+    );
     expect(output).toContain("no higher fixed version known");
     expect(output).not.toContain("+2 more; use -v");
+  });
+
+  it("renders aligned verbose historical advisory evidence", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const sourceOccurrence = fixture.transitive?.packages[1]?.occurrences[1];
+    if (!sourceOccurrence) throw new Error("fixture missing occurrence");
+    const historical = structuredClone(sourceOccurrence);
+    historical.affectsResolvedVersion = false;
+    historical.matchedAffectedVersionRanges = [];
+    historical.fixVersionsAboveResolved = [];
+    delete historical.nearestFixedVersion;
+    historical.advisory.affectedVersionRanges = [">= 1.0.0, < 1.20.3"];
+    historical.advisory.fixedInVersions = ["1.20.3", "2.0.0"];
+    historical.advisory.aliases = ["CVE-history", "GHSA-history"];
+    fixture.transitive = {
+      advisoryScope: "ALL",
+      totalPackagesAnalyzed: 49,
+      packageCount: 1,
+      occurrenceCount: 1,
+      packages: [
+        {
+          registry: "NPM",
+          name: "body-parser",
+          occurrenceCount: 1,
+          occurrences: [historical],
+        },
+      ],
+    };
+
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      verbose: true,
+      useColors: false,
+      terminalWidth: 120,
+    });
+    const lines = output.split("\n");
+    const headlineIndex = lines.findIndex((line) =>
+      line.includes("body-parser@1.19.0  [historical]"),
+    );
+    expect(headlineIndex).toBeGreaterThan(-1);
+    const historicalLines = lines.slice(headlineIndex + 1).filter(Boolean);
+    expect(historicalLines).toEqual([
+      "            advisory ranges >= 1.0.0, < 1.20.3",
+      "            advisory fixes  1.20.3, 2.0.0",
+      "            aliases         CVE-history, GHSA-history",
+    ]);
+    expect(historicalLines.join("\n")).not.toContain("matched");
+    expect(historicalLines.join("\n")).not.toContain("nearest fix");
+    expect(historicalLines.join("\n")).not.toContain("higher fixes");
+    expect(historicalLines.join("\n")).not.toContain(
+      "no higher fixed version known",
+    );
   });
 
   it("states transitive withdrawn-advisory semantics once", () => {
@@ -1354,8 +1417,10 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
   });
 
-  it("keeps splittable transitive prose and detail lines within narrow widths", () => {
+  it("aligns transitive detail hierarchy across terminal widths", () => {
     const fixture = transitiveVulnerabilityFixture();
+    const coordinateIndent = "  ".length + "critical".length + "  ".length;
+    const valueIndent = coordinateIndent + "advisory ranges".length + 1;
     fixture.transitive = {
       advisoryScope: "AFFECTED",
       totalPackagesAnalyzed: 1,
@@ -1370,12 +1435,19 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
             {
               version: "1",
               affectsResolvedVersion: true,
-              matchedAffectedVersionRanges: ["r1", "r2"],
-              fixVersionsAboveResolved: ["2", "3"],
+              matchedAffectedVersionRanges: Array.from(
+                { length: 11 },
+                (_, index) => `range-${index + 1}`,
+              ),
+              fixVersionsAboveResolved: Array.from(
+                { length: 11 },
+                (_, index) => `fix-${index + 1}`,
+              ),
               nearestFixedVersion: "2",
               advisory: {
                 osvId: "A",
-                summary: "one two three four five six seven",
+                summary:
+                  "summary-one summary-two summary-three summary-four summary-five summary-six summary-seven summary-eight summary-nine summary-ten summary-eleven summary-twelve",
                 severityScore: 8,
               },
             },
@@ -1390,9 +1462,50 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
         terminalWidth: width,
       });
       const section = output.slice(output.indexOf("Resolved dependencies"));
-      const [heading, ...wrappedLines] = section.split("\n");
+      const [heading, ...sectionLines] = section.split("\n");
       expect(heading).toBe("Resolved dependencies");
-      expect(wrappedLines.every((line) => line.length <= width)).toBe(true);
+      const detailLines = sectionLines.filter((line) =>
+        /^( +)(?:matched|nearest fix|higher fixes|aliases)\s/.test(line),
+      );
+      expect(detailLines.length).toBeGreaterThan(0);
+      expect(
+        detailLines.every((line) =>
+          line.startsWith(" ".repeat(coordinateIndent)),
+        ),
+      ).toBe(true);
+
+      const wrappedValueLines = sectionLines.filter(
+        (line) =>
+          line.startsWith(" ".repeat(valueIndent)) &&
+          /(?:range-|fix-)/.test(line),
+      );
+      expect(wrappedValueLines.length).toBeGreaterThan(0);
+      expect(
+        wrappedValueLines.every((line) =>
+          line.startsWith(" ".repeat(valueIndent)),
+        ),
+      ).toBe(true);
+
+      const wrappedSummaryLines = sectionLines.filter((line) =>
+        line.startsWith(`${" ".repeat(coordinateIndent)}summary-`),
+      );
+      expect(wrappedSummaryLines.length).toBeGreaterThan(0);
+      expect(
+        wrappedSummaryLines.every((line) =>
+          line.startsWith(" ".repeat(coordinateIndent)),
+        ),
+      ).toBe(true);
+
+      if (width >= 40) {
+        expect(sectionLines.every((line) => line.length <= width)).toBe(true);
+      } else {
+        expect(sectionLines.some((line) => line.length > width)).toBe(true);
+        expect(
+          sectionLines.some((line) =>
+            line.startsWith(" ".repeat(coordinateIndent)),
+          ),
+        ).toBe(true);
+      }
     }
   });
 
@@ -1518,6 +1631,43 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     expect(output).toContain("CVE-transitive");
     expect(output).toContain("Filter  severity >= high");
     expect(output).toContain("(requested 5.0.0)");
+  });
+
+  it("sanitizes historical advisory-wide details", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const sourceOccurrence = fixture.transitive?.packages[1]?.occurrences[1];
+    if (!sourceOccurrence)
+      throw new Error("fixture missing historical occurrence");
+    sourceOccurrence.affectsResolvedVersion = false;
+    sourceOccurrence.matchedAffectedVersionRanges = [];
+    sourceOccurrence.fixVersionsAboveResolved = [];
+    delete sourceOccurrence.nearestFixedVersion;
+    const advisoryRanges = [">= 1.0.0, < 1.20.3\u001b[31m", "< 2.0.0\u009b"];
+    const advisoryFixes = ["1.20.3\u001b]8;;evil\u0007", "2.0.0\u0007"];
+    sourceOccurrence.advisory.affectedVersionRanges = advisoryRanges;
+    sourceOccurrence.advisory.fixedInVersions = advisoryFixes;
+
+    const payload = buildPackageVulnerabilitiesSuccessPayload(fixture);
+    const jsonPayload = JSON.parse(JSON.stringify(payload)) as typeof payload;
+    const projectedOccurrence = jsonPayload.transitive?.packages
+      .find((pkg) => pkg.name === "body-parser")
+      ?.occurrences.find((occurrence) => occurrence.id === "GHSA-body-high");
+    expect(projectedOccurrence?.affectedRanges).toEqual(advisoryRanges);
+    expect(projectedOccurrence?.fixedIn).toEqual(advisoryFixes);
+
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      useColors: false,
+      verbose: true,
+      terminalWidth: 120,
+    });
+    expect(output).toContain("advisory ranges >= 1.0.0, < 1.20.3");
+    expect(output).toContain("advisory fixes  1.20.3, 2.0.0");
+    const withoutLineBreaks = output.replace(/\n/g, "");
+    expect(containsTerminalControl(withoutLineBreaks)).toBe(false);
+    expect(output).not.toContain("\u001b");
+    expect(output).not.toContain("\u009b");
+    expect(output).not.toContain("\u0007");
+    expect(output).not.toContain("evil");
   });
 
   it("renders zero-vulns hot path as header + one summary body line", () => {
