@@ -120,14 +120,15 @@ function zeroVulnsReport(): VulnerabilityReport {
 function transitiveVulnerabilityReport(): VulnerabilityReport {
   const report = structuredClone(defaultVulnerabilityReport);
   report.transitive = {
+    advisoryScope: "AFFECTED",
     totalPackagesAnalyzed: 2,
-    affectedPackageCount: 1,
-    affectedOccurrenceCount: 1,
+    packageCount: 1,
+    occurrenceCount: 1,
     packages: [
       {
         registry: "NPM",
         name: "body-parser",
-        affectedOccurrenceCount: 1,
+        occurrenceCount: 1,
         occurrences: [
           {
             version: "1.19.0",
@@ -199,8 +200,9 @@ describe("package_vulnerabilities parity", () => {
     },
   );
 
-  it("PARITY-TRANSITIVE: CLI and MCP deep-equal complete audits with direct filter semantics", async () => {
+  it("PARITY-TRANSITIVE: CLI and MCP deep-equal complete audits with shared scope semantics", async () => {
     const report = transitiveVulnerabilityReport();
+    if (report.transitive) report.transitive.advisoryScope = "ALL";
     const cliFn = mock(() => Promise.resolve(report));
     const cli = await cliJson(
       "npm:express",

@@ -582,15 +582,18 @@ Lists known CVE / OSV advisories for a package: severity, affected version range
 `--transitive` is an explicit opt-in for npm-audit-style evidence about
 vulnerabilities affecting dependency versions resolved in the package graph. It
 adds graph-analysis cost and is separate from package-wide advisory history.
-Without it, the command remains direct-only. `--severity` applies to both
-direct and transitive evidence; `--scope` and `--include-withdrawn` apply only
-to direct package rows, and transitive withdrawn advisories remain excluded.
+Without it, the command remains direct-only. `--severity` and `--scope` apply
+to both direct and transitive evidence. `--scope all` therefore includes
+historical advisories for dependency packages as well as advisories affecting
+their resolved versions. `--include-withdrawn` applies only to direct package
+rows, and transitive withdrawn advisories remain excluded.
 
 Transitive `--json` output adds a complete `transitive` object with
-`scope: "resolved_dependencies"`, `withdrawnAdvisoriesIncluded: false`, and a
-numeric summary of `totalPackagesAnalyzed`, `affectedPackageCount`, and
-`affectedOccurrenceCount`, followed by `packages[]` containing resolved
-dependency versions, matched affected ranges, and all higher-fix candidates.
+`scope: "resolved_dependencies"`, `advisoryScope`,
+`withdrawnAdvisoriesIncluded: false`, and a numeric summary of
+`totalPackagesAnalyzed`, `packageCount`, and `occurrenceCount`, followed by
+`packages[]` containing resolved dependency versions, explicit affectedness,
+matched affected ranges, and all higher-fix candidates when applicable.
 The service performs one field-minimal query after direct pagination using the
 resolved root version and fails closed on malformed identity/count/fix evidence;
 there is no graph payload, occurrence cap, or partial direct-only fallback.

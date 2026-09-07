@@ -62,7 +62,7 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe(
-      "Opt in to npm-audit-style evidence for vulnerabilities affecting versions resolved in the dependency graph. Adds graph-analysis cost; this is resolved dependency evidence, not package-history scope. min_severity applies to both; advisory_scope and include_withdrawn affect direct rows only, and transitive withdrawn advisories remain excluded.",
+      "Opt in to dependency vulnerability evidence for the resolved graph. Adds graph-analysis cost; min_severity and advisory_scope apply to direct and transitive rows, while include_withdrawn affects direct rows only.",
     ),
   advisory_scope: z
     .string()
@@ -94,7 +94,7 @@ export const DESCRIPTION_BASE: string =
   "Pinned lookup: pass `version`; omit it for latest. " +
   "Default text is capped; `verbose:true` shows all selected rows and identifier aliases (including CVEs), while " +
   '`format:"json"` returns the complete envelope. `min_severity` filters thresholds (`low`, `medium`, `high`, `critical`); `include_withdrawn` includes retracted advisories. ' +
-  "Use `include_transitive:true` for npm-audit-style evidence covering vulnerabilities in versions resolved by the dependency graph; this is opt-in because it adds graph-analysis cost and is distinct from package-wide advisory history. `min_severity` applies to direct and transitive rows, while `advisory_scope` and `include_withdrawn` affect direct rows only and transitive withdrawn advisories remain excluded. " +
+  "Use `include_transitive:true` for dependency vulnerability evidence covering the resolved graph; this is opt-in because it adds graph-analysis cost. `min_severity` and `advisory_scope` apply to direct and transitive rows, while `include_withdrawn` affects direct rows only and transitive withdrawn advisories remain excluded. " +
   "Use `pkg_info` for latest health overview or `pkg_upgrade_review` for current-vs-target upgrade evidence.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_VULNS_GUARDRAIL}`;

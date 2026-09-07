@@ -18,14 +18,15 @@ import {
 function transitiveVulnerabilityReport() {
   const report = structuredClone(defaultVulnerabilityReport);
   report.transitive = {
+    advisoryScope: "AFFECTED",
     totalPackagesAnalyzed: 2,
-    affectedPackageCount: 1,
-    affectedOccurrenceCount: 1,
+    packageCount: 1,
+    occurrenceCount: 1,
     packages: [
       {
         registry: "NPM",
         name: "body-parser",
-        affectedOccurrenceCount: 1,
+        occurrenceCount: 1,
         occurrences: [
           {
             version: "1.19.0",
@@ -57,7 +58,10 @@ describe("pkg vulns help", () => {
     );
     expect(command.description()).toContain("adds graph-analysis cost");
     expect(command.description()).toContain(
-      "--scope and --include-withdrawn affect direct package rows only",
+      "--severity and --scope apply to direct",
+    );
+    expect(command.description()).toContain(
+      "--include-withdrawn affects direct package rows only",
     );
   });
 });
@@ -217,12 +221,13 @@ describe("pkgVulnsAction", () => {
     logSpy.mockRestore();
   });
 
-  it("passes combined filters through and preserves transitive withdrawal semantics", async () => {
+  it("passes combined filters through and preserves transitive scope and withdrawal semantics", async () => {
     const report = transitiveVulnerabilityReport();
     report.transitive = {
+      advisoryScope: "ALL",
       totalPackagesAnalyzed: 0,
-      affectedPackageCount: 0,
-      affectedOccurrenceCount: 0,
+      packageCount: 0,
+      occurrenceCount: 0,
       packages: [],
     };
     const packageVulnerabilities = mock(() => Promise.resolve(report));
@@ -266,13 +271,17 @@ describe("pkgVulnsAction", () => {
     });
     const payload = JSON.parse(logSpy.mock.calls[0]?.[0] as string) as {
       filter?: unknown;
-      transitive?: { withdrawnAdvisoriesIncluded: boolean };
+      transitive?: {
+        advisoryScope: string;
+        withdrawnAdvisoriesIncluded: boolean;
+      };
     };
     expect(payload.filter).toEqual({
       minSeverity: "high",
       advisoryScope: "all",
       includeWithdrawn: true,
     });
+    expect(payload.transitive?.advisoryScope).toBe("all");
     expect(payload.transitive?.withdrawnAdvisoriesIncluded).toBe(false);
     logSpy.mockRestore();
   });

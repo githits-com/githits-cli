@@ -189,6 +189,7 @@ describe("runMcpSmoke", () => {
         package_name: "express",
         version: "4.17.1",
         include_transitive: true,
+        advisory_scope: "all",
         format: "json",
       },
     });
@@ -770,20 +771,22 @@ function smokeJsonResponse(
           summary: { total: 0 },
           transitive: {
             scope: "resolved_dependencies",
+            advisoryScope: args.advisory_scope ?? "affected",
             withdrawnAdvisoriesIncluded: false,
             summary: {
               totalPackagesAnalyzed: 6,
-              affectedPackageCount: 1,
-              affectedOccurrenceCount: 1,
+              packageCount: 1,
+              occurrenceCount: 1,
             },
             packages: [
               {
                 registry: "npm",
                 name: "body-parser",
-                affectedOccurrenceCount: 1,
+                occurrenceCount: 1,
                 occurrences: [
                   {
                     resolvedVersion: "1.19.0",
+                    affectsResolvedVersion: true,
                     id: "GHSA-body-parser",
                     matchedAffectedVersionRanges: ["< 2.0.0"],
                     fixVersionsAboveResolved: ["2.0.0"],

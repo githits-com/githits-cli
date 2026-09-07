@@ -134,14 +134,20 @@ function assertTransitiveVulnerabilityJson(
     `${context}: unexpected transitive scope`,
   );
   assert(
+    ["affected", "non_affecting", "all"].includes(
+      value.transitive.advisoryScope as string,
+    ),
+    `${context}: unexpected transitive advisory scope`,
+  );
+  assert(
     value.transitive.withdrawnAdvisoriesIncluded === false,
     `${context}: transitive withdrawn-advisory flag must be false`,
   );
   assertRecord(value.transitive.summary, `${context}.transitive.summary`);
   for (const key of [
     "totalPackagesAnalyzed",
-    "affectedPackageCount",
-    "affectedOccurrenceCount",
+    "packageCount",
+    "occurrenceCount",
   ]) {
     assert(
       typeof value.transitive.summary[key] === "number",
@@ -753,6 +759,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     await callTool(caller, "pkg_vulns", {
       ...SMOKE_TRANSITIVE_VULNERABILITY_TARGET,
       include_transitive: true,
+      advisory_scope: "all",
       format: "json",
     }),
     "pkg_vulns transitive json",
@@ -760,6 +767,12 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   assertTransitiveVulnerabilityJson(
     transitiveVulnsJson,
     "pkg_vulns transitive json",
+  );
+  assertRecord(transitiveVulnsJson, "pkg_vulns transitive json");
+  assert(
+    (transitiveVulnsJson.transitive as Record<string, unknown>)
+      .advisoryScope === "all",
+    "pkg_vulns transitive json did not apply all advisory scope",
   );
 
   const filteredVulnsText = assertDefaultText(

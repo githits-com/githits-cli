@@ -55,15 +55,16 @@ function transitiveVulnerabilityFixture(): VulnerabilityReport {
       upgradePaths: [],
     },
     transitive: {
+      advisoryScope: "AFFECTED",
       totalPackagesAnalyzed: 49,
-      affectedPackageCount: 3,
-      affectedOccurrenceCount: 7,
+      packageCount: 3,
+      occurrenceCount: 7,
       calculatedAt: "2025-01-01T12:00:00Z",
       packages: [
         {
           registry: "PYPI",
           name: "zeta",
-          affectedOccurrenceCount: 2,
+          occurrenceCount: 2,
           occurrences: [
             {
               version: "2.0.0",
@@ -99,7 +100,7 @@ function transitiveVulnerabilityFixture(): VulnerabilityReport {
         {
           registry: "NPM",
           name: "body-parser",
-          affectedOccurrenceCount: 3,
+          occurrenceCount: 3,
           occurrences: [
             {
               version: "1.19.0",
@@ -148,7 +149,7 @@ function transitiveVulnerabilityFixture(): VulnerabilityReport {
         {
           registry: "NPM",
           name: "accepts",
-          affectedOccurrenceCount: 2,
+          occurrenceCount: 2,
           occurrences: [
             {
               version: "1.3.8",
@@ -312,11 +313,12 @@ describe("buildPackageVulnerabilitiesSuccessPayload — transitive audit", () =>
 
     expect(payload.transitive).toEqual({
       scope: "resolved_dependencies",
+      advisoryScope: "affected",
       withdrawnAdvisoriesIncluded: false,
       summary: {
         totalPackagesAnalyzed: 49,
-        affectedPackageCount: 3,
-        affectedOccurrenceCount: 7,
+        packageCount: 3,
+        occurrenceCount: 7,
         bySeverity: {
           malware: 1,
           critical: 1,
@@ -331,10 +333,11 @@ describe("buildPackageVulnerabilitiesSuccessPayload — transitive audit", () =>
         {
           registry: "npm",
           name: "accepts",
-          affectedOccurrenceCount: 2,
+          occurrenceCount: 2,
           occurrences: [
             {
               resolvedVersion: "1.3.8",
+              affectsResolvedVersion: true,
               id: "GHSA-accept-critical",
               summary: "Critical accepts issue",
               severity: 9.1,
@@ -346,6 +349,7 @@ describe("buildPackageVulnerabilitiesSuccessPayload — transitive audit", () =>
             },
             {
               resolvedVersion: "1.3.8",
+              affectsResolvedVersion: true,
               id: "GHSA-accept-low",
               summary: "Low accepts issue",
               severity: 3.2,
@@ -360,10 +364,11 @@ describe("buildPackageVulnerabilitiesSuccessPayload — transitive audit", () =>
         {
           registry: "npm",
           name: "body-parser",
-          affectedOccurrenceCount: 3,
+          occurrenceCount: 3,
           occurrences: [
             {
               resolvedVersion: "1.19.0",
+              affectsResolvedVersion: true,
               id: "GHSA-body-mal",
               aliases: ["CVE-shared", "CVE-malware"],
               summary: "Malware body-parser issue",
@@ -377,6 +382,7 @@ describe("buildPackageVulnerabilitiesSuccessPayload — transitive audit", () =>
             },
             {
               resolvedVersion: "1.19.0",
+              affectsResolvedVersion: true,
               id: "GHSA-body-high",
               aliases: ["CVE-shared"],
               summary: "High body-parser issue",
@@ -390,6 +396,7 @@ describe("buildPackageVulnerabilitiesSuccessPayload — transitive audit", () =>
             },
             {
               resolvedVersion: "1.19.1",
+              affectsResolvedVersion: true,
               aliases: ["CVE-unrated"],
               summary: "No score body-parser issue",
               matchedAffectedVersionRanges: ["< 1.19.2"],
@@ -401,10 +408,11 @@ describe("buildPackageVulnerabilitiesSuccessPayload — transitive audit", () =>
         {
           registry: "pypi",
           name: "zeta",
-          affectedOccurrenceCount: 2,
+          occurrenceCount: 2,
           occurrences: [
             {
               resolvedVersion: "2.0.0",
+              affectsResolvedVersion: true,
               id: "GHSA-zeta-medium",
               summary: "Medium zeta issue",
               severity: 5.5,
@@ -417,6 +425,7 @@ describe("buildPackageVulnerabilitiesSuccessPayload — transitive audit", () =>
             },
             {
               resolvedVersion: "2.0.0",
+              affectsResolvedVersion: true,
               id: "GHSA-zeta-low",
               summary: "Low zeta issue",
               severity: 1.1,
@@ -442,23 +451,77 @@ describe("buildPackageVulnerabilitiesSuccessPayload — transitive audit", () =>
   it("emits an exact checked-clean transitive block with an empty package list", () => {
     const fixture = transitiveVulnerabilityFixture();
     fixture.transitive = {
+      advisoryScope: "AFFECTED",
       totalPackagesAnalyzed: 101,
-      affectedPackageCount: 0,
-      affectedOccurrenceCount: 0,
+      packageCount: 0,
+      occurrenceCount: 0,
       packages: [],
     };
     expect(
       buildPackageVulnerabilitiesSuccessPayload(fixture).transitive,
     ).toEqual({
       scope: "resolved_dependencies",
+      advisoryScope: "affected",
       withdrawnAdvisoriesIncluded: false,
       summary: {
         totalPackagesAnalyzed: 101,
-        affectedPackageCount: 0,
-        affectedOccurrenceCount: 0,
+        packageCount: 0,
+        occurrenceCount: 0,
       },
       packages: [],
     });
+  });
+
+  it("preserves and labels historical dependency occurrences under all scope", () => {
+    const fixture = transitiveVulnerabilityFixture();
+    const sourceOccurrence = fixture.transitive?.packages[1]?.occurrences[1];
+    if (!sourceOccurrence) throw new Error("fixture missing occurrence");
+    const historical = structuredClone(sourceOccurrence);
+    historical.affectsResolvedVersion = false;
+    historical.matchedAffectedVersionRanges = [];
+    historical.fixVersionsAboveResolved = [];
+    delete historical.nearestFixedVersion;
+    fixture.transitive = {
+      advisoryScope: "ALL",
+      totalPackagesAnalyzed: 49,
+      packageCount: 1,
+      occurrenceCount: 1,
+      packages: [
+        {
+          registry: "NPM",
+          name: "body-parser",
+          occurrenceCount: 1,
+          occurrences: [historical],
+        },
+      ],
+    };
+
+    const payload = buildPackageVulnerabilitiesSuccessPayload(fixture);
+    expect(payload.transitive).toMatchObject({
+      advisoryScope: "all",
+      summary: { packageCount: 1, occurrenceCount: 1 },
+      packages: [
+        {
+          occurrences: [
+            {
+              affectsResolvedVersion: false,
+              matchedAffectedVersionRanges: [],
+              fixVersionsAboveResolved: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      verbose: true,
+      useColors: false,
+      terminalWidth: 120,
+    });
+    expect(output).toContain(
+      "1 advisory occurrence (0 affected, 1 historical) in 1 dependency package",
+    );
+    expect(output).toContain("body-parser@1.19.0  [historical]");
   });
 });
 
@@ -1104,9 +1167,10 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
   it("renders exact zero and singular transitive wording", () => {
     const zero = transitiveVulnerabilityFixture();
     zero.transitive = {
+      advisoryScope: "AFFECTED",
       totalPackagesAnalyzed: 1,
-      affectedPackageCount: 0,
-      affectedOccurrenceCount: 0,
+      packageCount: 0,
+      occurrenceCount: 0,
       packages: [],
     };
     const zeroOutput = formatPackageVulnerabilitiesTerminal(zero, {
@@ -1124,13 +1188,14 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
       throw new Error("fixture missing singular transitive occurrence");
     }
     singular.transitive = {
+      advisoryScope: "AFFECTED",
       totalPackagesAnalyzed: 1,
-      affectedPackageCount: 1,
-      affectedOccurrenceCount: 1,
+      packageCount: 1,
+      occurrenceCount: 1,
       packages: [
         {
           ...firstPackage,
-          affectedOccurrenceCount: 1,
+          occurrenceCount: 1,
           occurrences: [firstOccurrence],
         },
       ],
@@ -1243,14 +1308,15 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
   it("keeps splittable transitive prose and detail lines within narrow widths", () => {
     const fixture = transitiveVulnerabilityFixture();
     fixture.transitive = {
+      advisoryScope: "AFFECTED",
       totalPackagesAnalyzed: 1,
-      affectedPackageCount: 1,
-      affectedOccurrenceCount: 1,
+      packageCount: 1,
+      occurrenceCount: 1,
       packages: [
         {
           registry: "NPM",
           name: "x",
-          affectedOccurrenceCount: 1,
+          occurrenceCount: 1,
           occurrences: [
             {
               version: "1",

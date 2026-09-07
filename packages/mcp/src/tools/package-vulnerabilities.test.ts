@@ -14,14 +14,15 @@ function parseText(result: { content: Array<{ text: string }> }): unknown {
 function transitiveVulnerabilityReport(): VulnerabilityReport {
   const report = structuredClone(defaultVulnerabilityReport);
   report.transitive = {
+    advisoryScope: "AFFECTED",
     totalPackagesAnalyzed: 2,
-    affectedPackageCount: 1,
-    affectedOccurrenceCount: 1,
+    packageCount: 1,
+    occurrenceCount: 1,
     packages: [
       {
         registry: "NPM",
         name: "body-parser",
-        affectedOccurrenceCount: 1,
+        occurrenceCount: 1,
         occurrences: [
           {
             version: "1.19.0",
@@ -66,13 +67,13 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
     );
     expect(tool.description).toContain("identifier aliases (including CVEs)");
     expect(tool.description).toContain(
-      "npm-audit-style evidence covering vulnerabilities in versions resolved by the dependency graph",
+      "dependency vulnerability evidence covering the resolved graph",
     );
     expect(tool.description).toContain(
-      "distinct from package-wide advisory history",
+      "`min_severity` and `advisory_scope` apply to direct and transitive rows",
     );
     expect(tool.description).toContain(
-      "`advisory_scope` and `include_withdrawn` affect direct rows only",
+      "`include_withdrawn` affects direct rows only",
     );
     expect(Object.keys(tool.schema).sort()).toEqual([
       "advisory_scope",
@@ -367,12 +368,13 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     });
   });
 
-  it("keeps direct filters direct-only while transitive mode remains opted in", async () => {
+  it("applies advisory scope to direct and transitive rows while withdrawal remains direct-only", async () => {
     const report = transitiveVulnerabilityReport();
     report.transitive = {
+      advisoryScope: "ALL",
       totalPackagesAnalyzed: 0,
-      affectedPackageCount: 0,
-      affectedOccurrenceCount: 0,
+      packageCount: 0,
+      occurrenceCount: 0,
       packages: [],
     };
     const packageVulnerabilities = mock(() => Promise.resolve(report));

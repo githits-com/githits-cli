@@ -46,7 +46,10 @@ import type {
 import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { colorize, dim } from "./colors.js";
 import { toIsoDate } from "./format-date.js";
-import type { PackageVulnerabilitiesFilterEcho } from "./package-vulnerabilities-request.js";
+import type {
+  AdvisoryScopeLabel,
+  PackageVulnerabilitiesFilterEcho,
+} from "./package-vulnerabilities-request.js";
 import { sanitizeTerminalText } from "./terminal-text.js";
 import { terminalWidth as measureTerminalWidth } from "./terminal-width.js";
 
@@ -80,11 +83,12 @@ export interface LeanAdvisory {
 
 export interface LeanTransitiveVulnerabilityAudit {
   scope: "resolved_dependencies";
+  advisoryScope: AdvisoryScopeLabel;
   withdrawnAdvisoriesIncluded: false;
   summary: {
     totalPackagesAnalyzed: number;
-    affectedPackageCount: number;
-    affectedOccurrenceCount: number;
+    packageCount: number;
+    occurrenceCount: number;
     bySeverity?: Partial<Record<VulnBucket, number>>;
   };
   calculatedAt?: string;
@@ -94,12 +98,13 @@ export interface LeanTransitiveVulnerabilityAudit {
 export interface LeanTransitiveVulnerablePackage {
   registry: string;
   name: string;
-  affectedOccurrenceCount: number;
+  occurrenceCount: number;
   occurrences: LeanTransitiveVulnerabilityOccurrence[];
 }
 
 export interface LeanTransitiveVulnerabilityOccurrence {
   resolvedVersion: string;
+  affectsResolvedVersion: boolean;
   id?: string;
   aliases?: string[];
   summary?: string;
@@ -289,7 +294,7 @@ function buildTransitiveAudit(
     .map((pkg) => ({
       registry: lowerRegistry(pkg.registry),
       name: pkg.name,
-      affectedOccurrenceCount: pkg.affectedOccurrenceCount,
+      occurrenceCount: pkg.occurrenceCount,
       occurrences: pkg.occurrences
         .map(buildTransitiveOccurrence)
         .sort(compareTransitiveOccurrences),
@@ -304,11 +309,12 @@ function buildTransitiveAudit(
 
   return {
     scope: "resolved_dependencies",
+    advisoryScope: toAdvisoryScopeLabel(audit.advisoryScope),
     withdrawnAdvisoriesIncluded: false,
     summary: {
       totalPackagesAnalyzed: audit.totalPackagesAnalyzed,
-      affectedPackageCount: audit.affectedPackageCount,
-      affectedOccurrenceCount: audit.affectedOccurrenceCount,
+      packageCount: audit.packageCount,
+      occurrenceCount: audit.occurrenceCount,
       ...(hasCountedSeverity
         ? { bySeverity: trimSeverityBuckets(bySeverity) }
         : {}),
@@ -328,6 +334,7 @@ function buildTransitiveOccurrence(
   const modifiedAt = toIsoDate(advisory.modifiedAt);
   const lean: LeanTransitiveVulnerabilityOccurrence = {
     resolvedVersion: occurrence.version,
+    affectsResolvedVersion: occurrence.affectsResolvedVersion,
     matchedAffectedVersionRanges:
       occurrence.matchedAffectedVersionRanges.slice(),
     fixVersionsAboveResolved: occurrence.fixVersionsAboveResolved.slice(),
@@ -356,6 +363,13 @@ function buildTransitiveOccurrence(
   if (advisory.isMalicious === true) lean.isMalicious = true;
 
   return lean;
+}
+
+function toAdvisoryScopeLabel(
+  scope: NonNullable<VulnerabilityReport["transitive"]>["advisoryScope"],
+): AdvisoryScopeLabel {
+  if (scope === "NON_AFFECTING") return "non_affecting";
+  return scope === "ALL" ? "all" : "affected";
 }
 
 function computeTransitiveBySeverity(
@@ -1468,9 +1482,7 @@ function formatTransitiveAuditTerminal(
 ): string {
   const width = normaliseTerminalWidth(options.terminalWidth);
   const lines = ["Resolved dependencies"];
-  lines.push(
-    ...wrapFreeText(formatTransitiveSummaryLine(audit.summary), width),
-  );
+  lines.push(...wrapFreeText(formatTransitiveSummaryLine(audit), width));
 
   const breakdown = formatTransitiveBreakdown(
     audit.summary,
@@ -1497,24 +1509,33 @@ function formatTransitiveAuditTerminal(
 }
 
 function formatTransitiveSummaryLine(
-  summary: LeanTransitiveVulnerabilityAudit["summary"],
+  audit: LeanTransitiveVulnerabilityAudit,
 ): string {
-  const occurrenceNoun =
-    summary.affectedOccurrenceCount === 1
-      ? "affected advisory occurrence"
-      : "affected advisory occurrences";
+  const summary = audit.summary;
+  const scopeLabel =
+    audit.advisoryScope === "affected" ? "affected" : "historical";
+  const occurrenceNoun = `${scopeLabel} advisory ${summary.occurrenceCount === 1 ? "occurrence" : "occurrences"}`;
   const packageNoun =
-    summary.affectedPackageCount === 1
-      ? "dependency package"
-      : "dependency packages";
+    summary.packageCount === 1 ? "dependency package" : "dependency packages";
   const versionNoun =
     summary.totalPackagesAnalyzed === 1
       ? "resolved package version"
       : "resolved package versions";
-  if (summary.affectedOccurrenceCount === 0) {
-    return `No affected advisory occurrences found; ${summary.totalPackagesAnalyzed} ${versionNoun} checked.`;
+  if (summary.occurrenceCount === 0) {
+    const emptyLabel =
+      audit.advisoryScope === "all" ? "affected or historical" : scopeLabel;
+    return `No ${emptyLabel} advisory occurrences found; ${summary.totalPackagesAnalyzed} ${versionNoun} checked.`;
   }
-  return `${summary.affectedOccurrenceCount} ${occurrenceNoun} in ${summary.affectedPackageCount} ${packageNoun}; ${summary.totalPackagesAnalyzed} ${versionNoun} checked.`;
+  if (audit.advisoryScope === "all") {
+    const occurrences = audit.packages.flatMap((pkg) => pkg.occurrences);
+    const affected = occurrences.filter(
+      (occurrence) => occurrence.affectsResolvedVersion,
+    ).length;
+    const historical = occurrences.length - affected;
+    const noun = summary.occurrenceCount === 1 ? "occurrence" : "occurrences";
+    return `${summary.occurrenceCount} advisory ${noun} (${affected} affected, ${historical} historical) in ${summary.packageCount} ${packageNoun}; ${summary.totalPackagesAnalyzed} ${versionNoun} checked.`;
+  }
+  return `${summary.occurrenceCount} ${occurrenceNoun} in ${summary.packageCount} ${packageNoun}; ${summary.totalPackagesAnalyzed} ${versionNoun} checked.`;
 }
 
 const TRANSITIVE_SEVERITY_LABEL_WIDTH = "critical".length;
@@ -1626,6 +1647,7 @@ function formatTransitiveOccurrence(
   const coordinate = `${sanitizeIdentity(row.name)}@${sanitizeIdentity(occurrence.resolvedVersion)}`;
   const identity = occurrence.id ? sanitizeIdentity(occurrence.id) : undefined;
   const headlineParts = [paddedLabel, coordinate];
+  if (!occurrence.affectsResolvedVersion) headlineParts.push("[historical]");
   if (identity) headlineParts.push(identity);
   const headline = `  ${headlineParts.join("  ")}`;
   const lines = formatTransitiveHeadline(
@@ -1641,13 +1663,15 @@ function formatTransitiveOccurrence(
   const labelStart = lines[0]?.indexOf(paddedLabel) ?? 0;
   lines[0] = `${lines[0]?.slice(0, labelStart) ?? ""}${coloredLabel}${" ".repeat(paddedLabel.length - label.length)}${lines[0]?.slice(labelStart + paddedLabel.length) ?? ""}`;
 
-  lines.push(
-    ...formatAtomicDetail(
-      "matched",
-      occurrence.matchedAffectedVersionRanges,
-      options.terminalWidth,
-    ),
-  );
+  if (occurrence.affectsResolvedVersion) {
+    lines.push(
+      ...formatAtomicDetail(
+        "matched",
+        occurrence.matchedAffectedVersionRanges,
+        options.terminalWidth,
+      ),
+    );
+  }
 
   if (options.verbose && occurrence.fixVersionsAboveResolved.length > 0) {
     lines.push(
@@ -1669,12 +1693,14 @@ function formatTransitiveOccurrence(
     );
   }
 
-  const nearest = occurrence.nearestFixedVersion
-    ? sanitizeIdentity(occurrence.nearestFixedVersion)
-    : "no higher fixed version known";
-  lines.push(
-    ...formatFreeDetail("nearest fix", nearest, options.terminalWidth),
-  );
+  if (occurrence.affectsResolvedVersion) {
+    const nearest = occurrence.nearestFixedVersion
+      ? sanitizeIdentity(occurrence.nearestFixedVersion)
+      : "no higher fixed version known";
+    lines.push(
+      ...formatFreeDetail("nearest fix", nearest, options.terminalWidth),
+    );
+  }
   return lines;
 }
 

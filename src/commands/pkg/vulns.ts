@@ -169,9 +169,9 @@ to list affected and historical package advisories together.
 
 Use --transitive for npm-audit-style evidence covering vulnerabilities in versions
 resolved by the dependency graph. This opt-in adds graph-analysis cost and is
-distinct from package-wide advisory history. --severity applies to direct and
-transitive rows; --scope and --include-withdrawn affect direct package rows only,
-and transitive withdrawn advisories remain excluded.`;
+distinct from package-wide advisory history. --severity and --scope apply to direct
+and transitive rows. --include-withdrawn affects direct package rows only; transitive
+withdrawn advisories remain excluded.`;
 
 export function registerPkgVulnsCommand(pkgCommand: Command): Command {
   return pkgCommand
