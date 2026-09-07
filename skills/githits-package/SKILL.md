@@ -32,6 +32,7 @@ githits pkg info npm:express --verbose --json
 githits pkg vulns npm:lodash@4.17.20 --severity high
 githits pkg vulns npm:lodash --scope all --include-withdrawn --json
 githits pkg vulns npm:lodash@4.17.21 --scope non_affecting
+githits pkg vulns npm:express@4.17.1 --transitive --scope all --json
 
 githits pkg deps npm:express
 githits pkg deps npm:express --lifecycle all
@@ -49,6 +50,7 @@ githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-sta
 
 - Need current package health: start with `githits pkg info <registry:name>`.
 - Need security status for a specific installed version: use `githits pkg vulns <registry:name@version>`.
+- Need vulnerabilities in resolved dependency versions: add `pkg vulns --transitive`; this opt-in adds graph-analysis cost and audits the resolved graph, not a local application lockfile.
 - Need historical advisories that do not affect the inspected version: use `pkg vulns --scope non_affecting`; use `--scope all` for affected plus historical rows.
 - Need dependency footprint: start with `pkg deps`; add `--lifecycle all` for non-runtime groups and `--depth <n>` for aggregate transitive graph data.
 - Need upgrade evidence for dependency updates, outdated package bumps, or lockfile changes: prefer `pkg upgrade-review` because it compares current vs target vulnerabilities, changelog range evidence, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. It reports facts only; you still own the final assessment.
@@ -57,7 +59,7 @@ githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-sta
 ## Gotchas
 
 - Vulnerability data is not available for `vcpkg` or `zig`.
-- Dependency graphs support npm, PyPI, Hex, Crates, Zig, vcpkg, RubyGems, Go, and Swift; NuGet/Maven/Packagist are not dependency-graph targets.
+- Dependency graphs support npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, Zig, vcpkg, RubyGems, Go, and Swift.
 - Go exact-version inputs accept either `v1.2.3` or `1.2.3` (including pseudo versions) and are sent in canonical `v`-prefixed form. Other changelog range inputs omit a leading `v`, except Swift release tags.
 - For repeatable `pkg upgrade-review --package` entries, use `<registry>:<name>@<current>..<target>`.
 - Prefer structured JSON for final comparisons; terminal text is optimized for human scanning.
