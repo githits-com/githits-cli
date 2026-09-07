@@ -536,6 +536,31 @@ describe("Agentic Ask positional parsing", () => {
 
 describe("Agentic Ask registration", () => {
   it.each(
+    ["", " ", "\t\n"].flatMap((question) => [
+      { args: ["ask", question] },
+      { args: ["ask", "npm:example", question] },
+      { args: ["ask", "--thread", THREAD_ID, question] },
+    ]),
+  )(
+    "rejects blank questions before root command work: %j",
+    async ({ args }) => {
+      const program = new Command().name("githits").exitOverride();
+      let rootWorkStarted = false;
+      const action = mock(() => undefined);
+      program.hook("preAction", (_thisCommand, actionCommand) => {
+        validateAskCommandBeforeAction(actionCommand);
+        rootWorkStarted = true;
+      });
+      registerAskCommand(program).action(action);
+      await expect(
+        program.parseAsync(["node", "githits", ...args]),
+      ).rejects.toThrow("non-empty question");
+      expect(rootWorkStarted).toBe(false);
+      expect(action).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(
     [
       ["ask", "How does Express routing work?"],
       [

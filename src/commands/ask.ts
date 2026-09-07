@@ -185,6 +185,14 @@ export function resolveAskCommandPositionals(
   question: string | undefined,
   thread: string | undefined,
 ): { target: string | undefined; question: string } {
+  const effectiveQuestion = question ?? targetOrQuestion;
+  if (
+    effectiveQuestion !== undefined &&
+    effectiveQuestion.trim().length === 0
+  ) {
+    throw new InvalidArgumentError("Provide a non-empty question.");
+  }
+
   if (thread !== undefined) {
     if (question !== undefined) {
       throw new InvalidArgumentError(
