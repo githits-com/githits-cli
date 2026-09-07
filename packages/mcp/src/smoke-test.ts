@@ -420,7 +420,7 @@ function hasHumanSearchHitLocator(lines: string[]): boolean {
       return source.length > 0 && hasWrappedHitTitle(lines, index);
     }
     const match =
-      /^\[\d+\]\s+(.+?)\s+\[(repo doc|repo code|repo symbol)\](?: -(?: (.*))?)?$/.exec(
+      /^\[\d+\]\s+(.+?)\s+\[(repo doc|repo code|repo symbol)(?:, path match)?\](?: -(?: (.*))?)?$/.exec(
         line,
       );
     if (!match) return false;

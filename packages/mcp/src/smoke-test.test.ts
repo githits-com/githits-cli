@@ -209,6 +209,18 @@ describe("runMcpSmoke", () => {
     );
   });
 
+  it("accepts a completed result containing only a compact path match", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.format !== "json") {
+        return textResult(
+          "1 result | 1 repo code hit\n\n[1] npm:express@4.21.2 examples/route-middleware/index.js [repo code, path match]",
+        );
+      }
+      return smokeResponse(name, args);
+    });
+    await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+  });
+
   it("accepts compact path matches followed by proven source", async () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
