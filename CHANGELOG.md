@@ -5,6 +5,73 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.14.0] - 2026-09-07
+
+Minor release: changes default search text to authoritative match evidence and
+adds opt-in resolved-dependency vulnerability audits and dependency registries.
+
+### Added
+
+- **Expand dependency registry support** - CLI `pkg deps` and MCP `pkg_deps` now accept
+  NuGet, Maven, and Packagist alongside the other deployed dependency registries.
+- **Discovery match evidence** - Search JSON adds indexed-field provenance,
+  authoritative matched source, and crawled-documentation previews. Default search text
+  renders path-only matches as compact file headers instead of arbitrary source chunks,
+  shows proven source snippets, and uses structural documentation previews. Requires the
+  deployed additive v31 producer schema.
+- **Audit resolved dependency vulnerabilities** - Add opt-in transitive vulnerability
+  evidence to `pkg vulns` and `pkg_vulns` while preserving direct-only defaults and
+  applying advisory scope consistently to root and dependency rows.
+
+### Changed
+
+- **Complete CLI vulnerability rows** - CLI compact text now shows every selected direct
+  and transitive advisory row; verbose mode adds clearer transitive evidence and JSON
+  preserves advisory-wide affected-range and fixed-version fields.
+
+### Fixed
+
+- **Agent eval isolation validation** - Stop treating `rg --files` guidance filename
+  globs as guidance content reads, while retaining checks for actual reads in the same
+  command.
+
+### Security
+
+- **Sanitize vulnerability terminal text** - Strip hostile terminal control sequences
+  from vulnerability display values while preserving lossless JSON evidence.
+
+## [@githits/mcp 0.14.0] - 2026-09-07
+
+Minor release: changes default search text to authoritative match evidence and
+adds opt-in resolved-dependency vulnerability audits and dependency registries.
+
+### Added
+
+- **Expand dependency registry support** - `pkg_deps` now accepts NuGet, Maven, and
+  Packagist alongside the other deployed dependency registries.
+- **Discovery match evidence** - Search JSON adds indexed-field provenance,
+  authoritative matched source, and crawled-documentation previews. Default search text
+  renders path-only matches as compact file headers instead of arbitrary source chunks,
+  shows proven source snippets, and uses structural documentation previews. Requires the
+  deployed additive v31 producer schema.
+- **Audit resolved dependency vulnerabilities** - Add opt-in transitive vulnerability
+  evidence to `pkg vulns` and `pkg_vulns` while preserving direct-only defaults and
+  applying advisory scope consistently to root and dependency rows.
+
+### Changed
+
+- **Detailed vulnerability evidence** - Verbose text adds clearer transitive evidence
+  and JSON preserves advisory-wide affected-range and fixed-version fields. Compact MCP
+  text remains capped; use verbose mode for all selected advisory rows.
+
+### Security
+
+- **Sanitize vulnerability terminal text** - Strip hostile terminal control sequences
+  from vulnerability display values while preserving lossless JSON evidence.
+
+Hosted MCP clients receive these changes after remote-mcp updates this package
+and deploys the hosted server.
+
 ## [githits 0.13.0] - 2026-09-07
 
 Minor release: adds semantic search context and documentation read targets,

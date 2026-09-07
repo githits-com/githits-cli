@@ -11,7 +11,11 @@ Swift package targets use `swift:github.com/<owner>/<repo>`; Zig package targets
 
 `githits pkg vulns <registry:name[@version]>` lists known OSV/CVE advisories. Omit the version for latest.
 
-Flags: `--severity low|medium|high|critical`, `--scope affected|non_affecting|all`, `--include-withdrawn`, `--verbose`, `--json`.
+Flags: `--severity low|medium|high|critical`, `--scope affected|non_affecting|all`, `--include-withdrawn`, `--transitive`, `--verbose`, `--json`.
+
+Direct-only is the default. `--transitive` adds vulnerability evidence for versions in the resolved dependency graph, at additional graph-analysis cost; it does not inspect a local application lockfile. `--severity` and `--scope` apply to root and dependency rows. `--include-withdrawn` affects direct rows only; transitive withdrawn advisories remain excluded. Use `--scope all` for affected plus historical dependency advisories, or `--scope non_affecting` for historical rows.
+
+CLI text shows every selected direct and transitive advisory row. `--verbose` adds aliases, dates, malicious-advisory markers, and complete range/fix evidence; `--json` retains structured advisory-wide affected ranges and fixed versions. Compact MCP text remains capped; use `verbose:true` for all selected rows.
 
 Supported registries: npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift. vcpkg and Zig are unsupported for vulnerability data.
 
@@ -20,6 +24,8 @@ Supported registries: npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems,
 `githits pkg deps <registry:name[@version]>` lists direct runtime dependencies by default.
 
 Flags: `--lifecycle runtime|development|build|peer|optional|all`, `--depth 1-10`, `--verbose`, `--json`.
+
+Supported dependency registries: npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, vcpkg, and Zig.
 
 Use `--depth` to request transitive output capped to that traversal depth. Omit it for direct dependencies only.
 
@@ -46,7 +52,7 @@ Use `pkg upgrade-review` for dependency update assessment instead of inferring s
 ## Command Name Mapping
 
 - `githits pkg info` maps to MCP `pkg_info`.
-- `githits pkg vulns` maps to MCP `pkg_vulns`.
+- `githits pkg vulns` maps to MCP `pkg_vulns`; CLI `--transitive` maps to `include_transitive:true`.
 - `githits pkg deps` maps to MCP `pkg_deps`.
 - `githits pkg changelog` maps to MCP `pkg_changelog`.
 - `githits pkg upgrade-review` maps to MCP `pkg_upgrade_review`.

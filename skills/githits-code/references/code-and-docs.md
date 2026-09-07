@@ -6,6 +6,8 @@ Package target syntax requires an explicit registry: `registry:name[@version]`, 
 
 `githits search "<query>" --in <target>` searches indexed dependency code, docs, symbols, and exact standalone documentation sites. Repeat `--in` for multiple targets. Use `--source code`, `--source docs`, or `--source symbol` to force a source; omit it for auto-routing. For a standalone site, pass `--source docs --in site:<host[/path]>`.
 
+Search text shows producer-proven matched source and structural documentation previews. Path-only matches render as compact file headers; they do not prove a source-content match. Follow the emitted read locator when source context is needed. JSON preserves compatibility evidence and adds indexed-field provenance, matched source, and documentation previews.
+
 Useful filters: `--kind`, `--category`, `--path-prefix`, `--intent`, `--public`, `--name`, `--lang`, `--limit`, `--offset`, `--wait`, `--allow-partial`, `--json`.
 
 If search returns a `searchRef`, continue with `githits search-status <searchRef> [--wait <seconds>]` only when the output explicitly supplies that follow-up, including for active `PENDING`, `INDEXING`, or `SEARCHING` progress or a completed result with an evidence notice. The bounded wait defaults to 20 seconds, and the explicit value must be an integer from 0 to 60. Terminal `DEFERRED`, `TIMEOUT`, or `FAILED` progress, and unrecognized statuses, do not advance: keep any disclosed evidence, do not poll the same reference, and follow the rendered new-search action.
