@@ -194,8 +194,18 @@ describe("pkgVulnsAction", () => {
 
   it.each([
     ["normal text", { transitive: true }, false],
-    ["verbose text", { transitive: true, verbose: true }, true],
-    ["JSON", { transitive: true, json: true }, true],
+    ["verbose affected text", { transitive: true, verbose: true }, false],
+    [
+      "verbose all text",
+      { transitive: true, verbose: true, scope: "all" },
+      true,
+    ],
+    [
+      "verbose historical text",
+      { transitive: true, verbose: true, scope: "non_affecting" },
+      true,
+    ],
+    ["JSON affected", { transitive: true, json: true }, true],
   ] as const)(
     "passes transitive advisory details for %s",
     async (_label, options, expected) => {

@@ -272,8 +272,26 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
 
   it.each([
     ["normal text", { include_transitive: true }, false],
-    ["verbose text", { include_transitive: true, verbose: true }, true],
-    ["JSON", { include_transitive: true, format: "json" }, true],
+    [
+      "verbose affected text",
+      { include_transitive: true, verbose: true },
+      false,
+    ],
+    [
+      "verbose all text",
+      { include_transitive: true, verbose: true, advisory_scope: "all" },
+      true,
+    ],
+    [
+      "verbose historical text",
+      {
+        include_transitive: true,
+        verbose: true,
+        advisory_scope: "non_affecting",
+      },
+      true,
+    ],
+    ["JSON affected", { include_transitive: true, format: "json" }, true],
   ] as const)(
     "passes transitive advisory details for %s",
     async (_label, args, expected) => {

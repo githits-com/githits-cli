@@ -72,7 +72,9 @@ export async function pkgVulnsAction(
     const params = {
       ...builtParams,
       includeTransitiveAdvisoryDetails:
-        options.verbose === true || options.json === true,
+        options.json === true ||
+        (options.verbose === true &&
+          (builtParams.advisoryScope ?? "AFFECTED") !== "AFFECTED"),
     };
     const report =
       await deps.packageIntelligenceService.packageVulnerabilities(params);

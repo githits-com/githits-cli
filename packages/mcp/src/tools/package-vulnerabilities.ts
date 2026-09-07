@@ -122,7 +122,9 @@ export function createPackageVulnerabilitiesTool(
         const params = {
           ...builtParams,
           includeTransitiveAdvisoryDetails:
-            args.verbose === true || args.format === "json",
+            args.format === "json" ||
+            (args.verbose === true &&
+              (builtParams.advisoryScope ?? "AFFECTED") !== "AFFECTED"),
         };
         const report = await service.packageVulnerabilities(params);
         const payload = buildPackageVulnerabilitiesSuccessPayload(report, {
