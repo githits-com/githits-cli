@@ -1,8 +1,9 @@
 # Resolver readiness and on-demand search
 
 `docsAvailable: false` is current readiness, not a prohibition on search.
-GitHits displays `documentation not currently ready` on SITE rows, regardless
-of whether page counts are absent, zero or positive. Package/repository evidence
+GitHits displays `docs: crawled on demand` on SITE rows, regardless
+of whether page counts are absent, zero or positive. This describes on-demand
+capability, not a claim that a crawl has started. Package/repository evidence
 and the JSON projection retain their existing behavior.
 
 The shared evidence formatter owns this label because both CLI and MCP renderers
@@ -75,8 +76,7 @@ Verification on the corrected delta:
 | `bun run plugins:check` | 10 assets validated |
 
 The complete suite preceded the test-only `limit: 8` correction; typecheck and
-the two affected service cases passed afterward. No production behavior changed
-after that suite. Live agent evals were not run: this increment's acceptance is
+the two affected service cases passed afterward. The subsequent copy correction below was verified separately. Live agent evals were not run: this increment's acceptance is
 deterministic and the existing harness has no reviewed unready-site fixture
 mode. Production smoke and actual backend preparation remain unclaimed.
 
@@ -99,3 +99,11 @@ had included a local source-plan path; that non-credential reference remains in
 commit history, which was not rewritten. The final tree uses durable contract
 and evidence documentation only. Round 3 confirmed final documentation closure at `d77fbf8` with no findings;
 the same Opus session is retained through PR approval.
+
+
+User wording correction: replaced the dead-end sounding readiness label with
+`docs: crawled on demand`. Search continuation remains unchanged. Verified with
+`bun test packages/mcp/src/shared/resolve-target-response.test.ts src/tools/resolve-target-parity.test.ts src/tools/search-parity.test.ts --test-name-pattern 'S2b readiness'`
+(33 pass, 0 fail, 657 assertions), plus typecheck, format, lint, build and the
+same secret-free CLI/MCP smoke commands above. Inline review confirmed only the
+label and matching tests/docs changed.

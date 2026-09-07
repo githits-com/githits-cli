@@ -276,7 +276,7 @@ test suite anchors the doc.
   matching candidate has `CLEAR` or `NOT_APPLICABLE` latest-version
   malicious-content status can emit a direct canonical next action. Site
   `docsAvailable: false` is readiness, not a search prohibition: both surfaces
-  show `documentation not currently ready` and retain normal continuation.
+  show `docs: crawled on demand` and retain normal continuation.
   On-demand preparation remains backend search behavior; resolution never claims
   a crawl was queued or is preparing. Best identity, confidence, candidate order
   and ambiguity are preserved; no other product is substituted. `AFFECTED`,

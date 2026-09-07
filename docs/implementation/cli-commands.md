@@ -351,7 +351,7 @@ lowercase `mit` spelling renders canonically as `MIT`; other license strings are
 preserved. JSON remains lossless and does not apply presentation ownership.
 Human text renders available docs/code evidence when the corresponding
 availability flag is true. Site rows with `docsAvailable: false` instead say
-`documentation not currently ready`, whether a page count is positive, zero,
+`docs: crawled on demand`, whether a page count is positive, zero,
 or absent. This readiness fact does not block search: a safe, unambiguous
 EXACT/HIGH site best keeps its normal docs-search continuation. Search can
 initiate ordinary backend preparation for admitted sites; resolution does not
@@ -505,7 +505,7 @@ standalone documentation sites.
 Without `KNOWN_KIND_VALUES` carrying `site`, those targets would render with
 the unknown-kind `target` label. Site targets report current documentation
 readiness through `docsAvailable`; terminal output shows available docs
-evidence or `documentation not currently ready`, without code, stars, or
+evidence or `docs: crawled on demand`, without code, stars, or
 downloads. `--prefer-kind site` is a soft ranking preference rather than a
 filter, matching the package/repository kind contract.
 

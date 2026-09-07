@@ -1202,7 +1202,7 @@ describe("S2b readiness", () => {
         result({ best, targets: [best], protectedMatches: [] }),
         { name: "Pydantic AI" },
       );
-      expect(text).toContain("documentation not currently ready");
+      expect(text).toContain("docs: crawled on demand");
       expect(text).not.toMatch(
         /docs \d+ pages|queued|preparing|retry|Warning:/i,
       );
@@ -1232,7 +1232,7 @@ describe("S2b readiness", () => {
       expect(isResolveTargetActionable(resolved)).toBe(true);
       expect(
         formatResolveTargetTerminal(resolved, { name: "express" }),
-      ).not.toContain("documentation not currently ready");
+      ).not.toContain("docs: crawled on demand");
     }
   });
 });

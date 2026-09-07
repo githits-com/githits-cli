@@ -468,14 +468,14 @@ describe("S2b readiness", () => {
         for (const [index, text] of texts.entries()) {
           expect(text).not.toMatch(/queued|preparing|retry time/i);
           if (resolved.targets.length && scenario !== "readable stale")
-            expect(text).toContain("documentation not currently ready");
+            expect(text).toContain("docs: crawled on demand");
           if (scenario === "readable stale") {
             expect(text).toContain("docs 12 pages");
-            expect(text).not.toContain("documentation not currently ready");
+            expect(text).not.toContain("docs: crawled on demand");
           } else expect(text).not.toContain("docs 12 pages");
           if (scenario === "unknown empty") {
             expect(text).toContain("No targets found");
-            expect(text).not.toContain("documentation not currently ready");
+            expect(text).not.toContain("docs: crawled on demand");
           } else expect(text).not.toContain("No targets found");
           if (resolved.ambiguous) expect(text).toContain("Ambiguous:");
           if (scenario.startsWith("MEDIUM") || scenario.startsWith("LOW")) {

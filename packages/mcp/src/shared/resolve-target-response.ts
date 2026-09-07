@@ -472,7 +472,7 @@ export function formatResolveTargetEvidence(
   if (license) fields.push(`license ${license}`);
   const docs =
     options.docs && target.kind === "SITE" && !target.docsAvailable
-      ? "documentation not currently ready"
+      ? "docs: crawled on demand"
       : formatDocsAvailability(
           target.docsAvailable,
           target.docsPageCount,
