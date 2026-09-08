@@ -67,6 +67,43 @@ describe("createListPackageDocsTool", () => {
     expect(Array.isArray(payload.pages)).toBe(true);
   });
 
+  it("renders active empty results as in progress and preserves JSON state", async () => {
+    const tool = createListPackageDocsTool(
+      createMockPackageIntelligenceService({
+        listPackageDocs: mock(() =>
+          Promise.resolve({
+            registry: "NPM",
+            packageName: "express",
+            version: "5.2.1",
+            codeIndexState: "INDEXING",
+            pages: [],
+            pageInfo: { hasNextPage: false, totalCount: 0 },
+          }),
+        ),
+      }),
+    );
+
+    const textResult = await tool.handler(
+      { registry: "npm", package_name: "express" },
+      {},
+    );
+    expect(textResult.content[0]?.text).toContain(
+      "indexing is still in progress",
+    );
+    expect(textResult.content[0]?.text).not.toContain(
+      "No documentation pages found.",
+    );
+
+    const jsonResult = await tool.handler(
+      { registry: "npm", package_name: "express", format: "json" },
+      {},
+    );
+    expect(parseText(jsonResult)).toMatchObject({
+      codeIndexState: "INDEXING",
+      pages: [],
+    });
+  });
+
   it("defaults to compact text output", async () => {
     const tool = createListPackageDocsTool(
       createMockPackageIntelligenceService(),

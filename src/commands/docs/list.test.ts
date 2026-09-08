@@ -56,6 +56,44 @@ describe("docsListAction", () => {
     logSpy.mockRestore();
   });
 
+  it("renders active empty documentation as retryable preparation", async () => {
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+    const service = createMockPackageIntelligenceService({
+      listPackageDocs: mock(() =>
+        Promise.resolve({
+          registry: "NPM",
+          packageName: "express",
+          version: "5.2.1",
+          codeIndexState: "PENDING",
+          pages: [],
+          pageInfo: { hasNextPage: false, totalCount: 0 },
+        }),
+      ),
+    });
+
+    try {
+      await docsListAction(
+        "npm:express@5.2.1",
+        {},
+        createDeps({ packageIntelligenceService: service }),
+      );
+      const output = writes.join("");
+      expect(output).toContain("No documentation pages yet.");
+      expect(output).toContain("githits docs list 'npm:express@5.2.1'");
+      expect(output).not.toContain("No documentation pages found.");
+    } finally {
+      writeSpy.mockRestore();
+    }
+  });
+
   it("shell-quotes publisher URL targets in per-page terminal follow-ups", async () => {
     const docsReadTarget =
       "https://docs.example.test/guide with spaces;$(echo nope)?q='quoted'&x=*";
