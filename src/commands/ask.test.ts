@@ -77,7 +77,7 @@ function urlResult(): AgenticAskUrlResponse {
 }
 
 type CliAsk = (
-  request: ({ target: string } | { threadId: string }) & {
+  request: ({ target?: string; threadId?: never } | { threadId: string }) & {
     question: string;
     sourceFormat?: "cli" | "url";
   },
@@ -152,15 +152,35 @@ describe("askAction", () => {
     );
   });
 
-  it("rejects ambiguous, missing, and malformed thread selectors", async () => {
+  it.each([undefined, "url"] as const)(
+    "forwards a question without target or thread with source format %s",
+    async (sourceFormat) => {
+      const ask = mock(() =>
+        Promise.resolve(sourceFormat === "url" ? urlResult() : result()),
+      );
+      spyOn(console, "log").mockImplementation(() => undefined);
+      await askAction(
+        undefined,
+        "How does Express routing work?",
+        { json: true, sourceFormat },
+        createDeps(ask),
+      );
+      expect(ask).toHaveBeenCalledWith(
+        {
+          question: "How does Express routing work?",
+          ...(sourceFormat ? { sourceFormat } : {}),
+        },
+        undefined,
+      );
+    },
+  );
+
+  it("rejects ambiguous and malformed thread selectors", async () => {
     const ask = mock(() => Promise.resolve(result()));
 
     await expect(
       askAction("npm:example", "How?", { thread: THREAD_ID }, createDeps(ask)),
-    ).rejects.toThrow("exactly one");
-    await expect(
-      askAction(undefined, "How?", {}, createDeps(ask)),
-    ).rejects.toThrow("exactly one");
+    ).rejects.toThrow("Do not provide a target");
     await expect(
       askAction(undefined, "How?", { thread: "not-a-uuid" }, createDeps(ask)),
     ).rejects.toThrow("thread UUID");
@@ -440,6 +460,41 @@ describe("askAction", () => {
 });
 
 describe("Agentic Ask human formatting", () => {
+  it.each([
+    {
+      target: "https://docs.example/page?lang=en&view=full#section",
+      argument: "'https://docs.example/page?lang=en&view=full#section'",
+    },
+    { target: "repo-doc:sha:pinned", argument: "repo-doc:sha:pinned" },
+    { target: "docs:example:guide", argument: "docs:example:guide" },
+  ])(
+    "renders documentation read targets unchanged: $target",
+    ({ target, argument }) => {
+      const formatted = formatAgenticAskHumanResponse(
+        result({
+          sources: [
+            {
+              command: "npx",
+              arguments: [
+                "githits@latest",
+                "docs",
+                "read",
+                "--lines",
+                "3-8",
+                "--",
+                target,
+              ],
+            },
+          ],
+        }),
+      );
+
+      expect(formatted).toContain(
+        `Sources:\n  1. npx githits@latest docs read --lines 3-8 -- ${argument}\n`,
+      );
+    },
+  );
+
   it("preserves markdown newlines while stripping terminal controls", () => {
     const formatted = formatAgenticAskHumanResponse(
       result({
@@ -473,6 +528,18 @@ describe("Agentic Ask human formatting", () => {
 });
 
 describe("Agentic Ask positional parsing", () => {
+  it.each(["How does Express routing work?", "express", "npm:example"])(
+    "treats one positional as the question without guessing target syntax: %s",
+    (question) => {
+      expect(
+        resolveAskCommandPositionals(question, undefined, undefined),
+      ).toEqual({
+        target: undefined,
+        question,
+      });
+    },
+  );
+
   it("keeps the initial target and question form", () => {
     expect(
       resolveAskCommandPositionals("npm:example", "How?", undefined),
@@ -494,8 +561,8 @@ describe("Agentic Ask positional parsing", () => {
       resolveAskCommandPositionals("npm:example", "How?", THREAD_ID),
     ).toThrow("Do not provide a target");
     expect(() =>
-      resolveAskCommandPositionals("npm:example", undefined, undefined),
-    ).toThrow("Provide a target and question");
+      resolveAskCommandPositionals(undefined, undefined, undefined),
+    ).toThrow("Provide a question");
     expect(() =>
       resolveAskCommandPositionals(undefined, undefined, THREAD_ID),
     ).toThrow("Provide a question");
@@ -503,9 +570,58 @@ describe("Agentic Ask positional parsing", () => {
 });
 
 describe("Agentic Ask registration", () => {
+  it.each(
+    ["", " ", "\t\n"].flatMap((question) => [
+      { args: ["ask", question] },
+      { args: ["ask", "npm:example", question] },
+      { args: ["ask", "--thread", THREAD_ID, question] },
+    ]),
+  )(
+    "rejects blank questions before root command work: %j",
+    async ({ args }) => {
+      const program = new Command().name("githits").exitOverride();
+      let rootWorkStarted = false;
+      const action = mock(() => undefined);
+      program.hook("preAction", (_thisCommand, actionCommand) => {
+        validateAskCommandBeforeAction(actionCommand);
+        rootWorkStarted = true;
+      });
+      registerAskCommand(program).action(action);
+      await expect(
+        program.parseAsync(["node", "githits", ...args]),
+      ).rejects.toThrow("non-empty question");
+      expect(rootWorkStarted).toBe(false);
+      expect(action).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(
+    [
+      ["ask", "How does Express routing work?"],
+      [
+        "ask",
+        "--json",
+        "How does Express routing work?",
+        "--source-format",
+        "url",
+      ],
+      ["ask", "npm:express", "How is routing implemented?"],
+      ["ask", "--thread", THREAD_ID, "Where is that checked?"],
+    ].map((args) => ({ args })),
+  )("accepts valid positionals through Commander: %j", async ({ args }) => {
+    const program = new Command().name("githits").exitOverride();
+    const action = mock(() => undefined);
+    program.hook("preAction", (_thisCommand, actionCommand) => {
+      validateAskCommandBeforeAction(actionCommand);
+    });
+    registerAskCommand(program).action(action);
+    await program.parseAsync(["node", "githits", ...args]);
+    expect(action).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ["missing follow-up question", ["ask", "--thread", THREAD_ID]],
-    ["missing initial question", ["ask", "npm:example"]],
+    ["missing initial question", ["ask"]],
     [
       "target combined with thread",
       ["ask", "npm:example", "How?", "--thread", THREAD_ID],

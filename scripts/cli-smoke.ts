@@ -1024,7 +1024,8 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
     const askHelp = await runCliWithEnv(["ask", "--help"], env);
     assert(
       askHelp.exitCode === 0 &&
-        askHelp.stdout.includes("<target> <question>") &&
+        askHelp.stdout.includes("[target] <question>") &&
+        askHelp.stdout.includes("Omit the target") &&
         askHelp.stdout.includes("--thread <UUID>") &&
         askHelp.stdout.includes("--source-format <format>") &&
         askHelp.stdout.includes('choices: "cli", "url"') &&
@@ -1082,6 +1083,15 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
     assertJsonErrorCode(
       askJson,
       "experimental unauthenticated ask",
+      "AUTH_REQUIRED",
+    );
+    const targetlessAskJson = await runCliWithEnv(
+      ["ask", "How does Express routing work?", "--json"],
+      env,
+    );
+    assertJsonErrorCode(
+      targetlessAskJson,
+      "experimental unauthenticated targetless ask",
       "AUTH_REQUIRED",
     );
     const codeDiffJson = await runCliWithEnv(

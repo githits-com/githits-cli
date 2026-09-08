@@ -111,7 +111,7 @@ interface AgenticAskQuestion {
 }
 
 type AgenticAskSubject =
-  | { target: string; threadId?: never }
+  | { target?: string; threadId?: never }
   | { target?: never; threadId: string };
 
 export type AgenticAskCliRequest = AgenticAskQuestion &
@@ -396,7 +396,7 @@ export class AgenticAskServiceImpl implements AgenticAskService {
       } else {
         await response.body?.cancel().catch(() => undefined);
       }
-      throw createHttpError(response, toolCallId, threadId);
+      throw createHttpError(response, toolCallId, threadId, request);
     }
 
     let body: string;
@@ -491,13 +491,16 @@ function createHttpError(
   response: Response,
   toolCallId: string | undefined,
   threadId: string | undefined,
+  request: AgenticAskRequest,
 ): AgenticAskHttpError {
   const status = response.status;
   switch (status) {
     case 400:
       return new AgenticAskHttpError(
         "INVALID_TARGET",
-        "GitHits rejected the Agentic Ask target.",
+        request.target === undefined && request.threadId === undefined
+          ? "GitHits could not answer this question for a supported target. Clarify the question or specify a public package or repository."
+          : "GitHits rejected the Agentic Ask target.",
         status,
         toolCallId,
         undefined,

@@ -71,14 +71,20 @@ and deliberately disables experimental issue-reporting guidance. Use
 
 ## Use the CLI commands
 
-Ask one question about a canonical package or repository target:
+Ask a question about a public package or repository, optionally supplying a
+canonical target:
 
 ```sh
+githits ask "How does FastAPI dependency injection resolve nested dependencies?"
 githits ask pypi:fastapi "How does dependency injection resolve nested dependencies?"
 githits ask github:expressjs/express "Where is router dispatch implemented?" --json
 githits ask npm:express "Where is router dispatch implemented?" --source-format url
 githits ask --thread 019c4f26-79b2-7bcb-b729-f9e39043a94b "How does that interact with route parameters?"
 ```
+
+With one positional argument, GitHits uses the question to identify a public
+package or repository. With two positional arguments, the first is an explicit
+target and the second is the question. Quote multi-word questions.
 
 By default, human output contains the grounded answer, an Ask run ID, the
 thread ID, and source commands in the form `npx githits@latest ...` that can be

@@ -136,6 +136,131 @@ function createService(
 }
 
 describe("AgenticAskServiceImpl", () => {
+  it.each([
+    "https://docs.example/page?lang=en&view=full#section",
+    "repo-doc:sha:pinned",
+    "docs:example:guide",
+  ])("preserves emitted CLI documentation read targets: %s", async (target) => {
+    const body: AgenticAskCliResponse = {
+      ...responseBody(),
+      source_format: "cli",
+      sources: [
+        {
+          command: "npx",
+          arguments: [
+            "githits@latest",
+            "docs",
+            "read",
+            "--lines",
+            "3-8",
+            "--",
+            target,
+          ],
+        },
+      ],
+    };
+    const fetchFn = mock(() =>
+      Promise.resolve(jsonResponse(body)),
+    ) as unknown as typeof fetch;
+
+    const result = await createService(fetchFn).ask({
+      question: "How does Express routing work?",
+    });
+
+    expect(result).toEqual(body);
+  });
+
+  it.each([
+    "https://docs.example/page?lang=en&view=full#section",
+    "repo-doc:sha:pinned",
+    "docs:example:guide",
+  ])("preserves emitted MCP documentation read targets: %s", async (target) => {
+    const body: AgenticAskMcpResponse = {
+      ...mcpResponseBody(),
+      source_format: "mcp",
+      sources: [
+        {
+          name: "docs_read",
+          arguments: { page_id: target, start_line: 3, end_line: 8 },
+        },
+      ],
+    };
+    const fetchFn = mock(() =>
+      Promise.resolve(jsonResponse(body)),
+    ) as unknown as typeof fetch;
+
+    const result = await createService(fetchFn).ask({
+      target: "npm:express",
+      question: "How does routing work?",
+      sourceFormat: "mcp",
+    });
+
+    expect(result).toEqual(body);
+  });
+
+  it.each([
+    {
+      subject: {},
+      message:
+        "GitHits could not answer this question for a supported target. Clarify the question or specify a public package or repository.",
+    },
+    {
+      subject: { target: "npm:example" },
+      message: "GitHits rejected the Agentic Ask target.",
+    },
+    {
+      subject: { threadId: THREAD_ID },
+      message: "GitHits rejected the Agentic Ask target.",
+    },
+  ])(
+    "keeps 400 guidance accurate for the supplied subject: %j",
+    async ({ subject, message }) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(
+          jsonResponse({ detail: "private provider detail" }, { status: 400 }),
+        ),
+      ) as unknown as typeof fetch;
+      await expect(
+        createService(fetchFn).ask({ ...subject, question: "How?" }),
+      ).rejects.toMatchObject({
+        code: "INVALID_TARGET",
+        status: 400,
+        message,
+        retryable: false,
+      });
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["cli", "url"] as const)(
+    "omits target and thread_id for a question-only %s request",
+    async (sourceFormat) => {
+      let capturedInit: RequestInit | undefined;
+      const fetchFn = mock(
+        (_url: string | URL | Request, init?: RequestInit) => {
+          capturedInit = init;
+          return Promise.resolve(
+            jsonResponse(
+              sourceFormat === "url" ? urlResponseBody() : responseBody(),
+            ),
+          );
+        },
+      ) as unknown as typeof fetch;
+
+      const service = createService(fetchFn);
+      const question = "How does Express routing work?";
+      if (sourceFormat === "url") {
+        await service.ask({ question, sourceFormat });
+      } else {
+        await service.ask({ question });
+      }
+      expect(JSON.parse(String(capturedInit?.body))).toEqual({
+        question,
+        source_format: sourceFormat,
+      });
+    },
+  );
+
   it("sends the CLI source format with standard identity headers", async () => {
     let capturedUrl: string | undefined;
     let capturedInit: RequestInit | undefined;

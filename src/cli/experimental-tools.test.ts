@@ -133,7 +133,7 @@ describe("experimental CLI process policy", () => {
 
         const ask = await runCli(xdgConfigHome, ["ask", "--help"]);
         expect(ask.exitCode).toBe(0);
-        expect(ask.stdout).toContain("<target> <question>");
+        expect(ask.stdout).toContain("[target] <question>");
         expect(ask.stdout).toContain("--source-format <format>");
         expect(ask.stdout).toContain('choices: "cli", "url"');
         expect(ask.stdout).toContain("--json");
