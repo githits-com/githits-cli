@@ -2,12 +2,15 @@ import { describe, expect, it, mock } from "bun:test";
 import {
   AgenticAskHttpError,
   type AgenticAskMcpResponse,
+  type AgenticAskNeedsTargetResponse,
   type AgenticAskService,
   type AgenticAskUrlResponse,
   AuthenticationError,
+  parseCompactResolveTargetResult,
 } from "@githits/core-internal";
 import { TermsAcceptanceRequiredError } from "@githits/core-internal/browser";
 import { z } from "zod";
+import { ASK_NEEDS_TARGET_WIRE } from "../../../core-internal/src/services/ask-needs-target.fixture.js";
 import {
   type AgenticAskMcpArgs,
   createLocalAgenticAskTool,
@@ -62,12 +65,14 @@ function urlResponse(): AgenticAskUrlResponse {
 }
 
 type McpAsk = (
-  request: ({ target: string } | { threadId: string }) & {
+  request: ({ target?: string } | { threadId: string }) & {
     question: string;
     sourceFormat: "mcp" | "url";
   },
   options?: { signal?: AbortSignal },
-) => Promise<AgenticAskMcpResponse | AgenticAskUrlResponse>;
+) => Promise<
+  AgenticAskMcpResponse | AgenticAskUrlResponse | AgenticAskNeedsTargetResponse
+>;
 
 function createService(
   ask: McpAsk = mock(() => Promise.resolve(response())),
@@ -94,9 +99,20 @@ describe("local ask MCP adapter", () => {
       "Ask a public repository or package question and receive a source-cited answer.",
     );
     expect(firstSentence.length).toBeLessThanOrEqual(79);
+    expect(DESCRIPTION.slice(0, 80)).toStartWith(firstSentence);
     expect(DESCRIPTION).toContain(
-      "Call resolve_target first when the intended target is ambiguous",
+      "Omit target and thread_id to identify the target from the question",
     );
+    expect(DESCRIPTION).toContain(
+      "ask the user to select a target before retrying",
+    );
+    expect(
+      z.object(tool.schema).parse({ question: "How does codex work?" }),
+    ).toEqual({
+      question: "How does codex work?",
+      source_format: "mcp",
+      format: "text",
+    });
     expect(tool.annotations).toEqual({
       readOnlyHint: false,
       openWorldHint: false,
@@ -118,6 +134,8 @@ describe("local ask MCP adapter", () => {
       enum: ["text", "json"],
     });
     expect(tool.schema.format?.parse(undefined)).toBe("text");
+    expect(tool.schema.target?.safeParse("").success).toBe(false);
+    expect(tool.schema.thread_id?.safeParse("").success).toBe(false);
     expect(tool.schema.format?.safeParse("text-v1").success).toBe(false);
     expect(tool.schema.format?.description).toContain("token-efficient");
     expect(tool.schema.format?.description).toContain(
@@ -165,12 +183,11 @@ describe("local ask MCP adapter", () => {
     );
   });
 
-  it("rejects ambiguous, missing, and malformed selectors before the service call", async () => {
+  it("rejects conflicting and malformed selectors before the service call", async () => {
     const ask = mock(() => Promise.resolve(response()));
     const tool = createLocalAgenticAskTool(createService(ask));
     const invalidArgs: AgenticAskMcpArgs[] = [
       { target: "npm:example", thread_id: THREAD_ID, question: "How?" },
-      { question: "How?" },
       { thread_id: "not-a-uuid", question: "How?" },
     ];
 
@@ -184,6 +201,74 @@ describe("local ask MCP adapter", () => {
     }
     expect(ask).not.toHaveBeenCalled();
   });
+
+  it.each(["mcp", "url"] as const)(
+    "answers a question-only request with %s sources",
+    async (sourceFormat) => {
+      const answer = sourceFormat === "mcp" ? response() : urlResponse();
+      const ask = mock(() => Promise.resolve(answer));
+      const signal = new AbortController().signal;
+      const result = await invoke(
+        createLocalAgenticAskTool(createService(ask)),
+        {
+          question: "How does express routing work?",
+          source_format: sourceFormat,
+        },
+        signal,
+      );
+      expect(ask).toHaveBeenCalledWith(
+        {
+          question: "How does express routing work?",
+          sourceFormat,
+        },
+        { signal },
+      );
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0]?.text).toBe(formatAgenticAskMcpText(answer));
+    },
+  );
+
+  it.each(["text", "json"] as const)(
+    "returns question-only clarification as successful %s without retrying",
+    async (format) => {
+      const resolution = parseCompactResolveTargetResult(
+        ASK_NEEDS_TARGET_WIRE.resolution,
+      );
+      if (!resolution) throw new Error("Invalid clarification fixture");
+      const clarification: AgenticAskNeedsTargetResponse = {
+        outcome: "needs_target",
+        message: ASK_NEEDS_TARGET_WIRE.message,
+        resolution,
+      };
+      const ask = mock(() => Promise.resolve(clarification));
+      const result = await invoke(
+        createLocalAgenticAskTool(createService(ask)),
+        {
+          question: "How does codex handle chat compaction?",
+          format,
+        },
+      );
+      expect(ask).toHaveBeenCalledTimes(1);
+      expect(ask).toHaveBeenCalledWith(
+        {
+          question: "How does codex handle chat compaction?",
+          sourceFormat: "mcp",
+        },
+        undefined,
+      );
+      expect(result.isError).toBeUndefined();
+      const text = result.content[0]?.text ?? "";
+      if (format === "json") {
+        expect(JSON.parse(text)).toEqual(clarification);
+        expect(JSON.parse(text)).not.toHaveProperty("thread_id");
+      } else {
+        expect(text).toContain("github:openai/codex [medium]");
+        expect(text).toContain("Related targets:");
+        expect(text).toContain("protected exact-name match");
+        expect(text).not.toContain("Thread ID:");
+      }
+    },
+  );
 
   it("returns only the validated MCP envelope for JSON", async () => {
     const result = await invoke(createLocalAgenticAskTool(createService()), {
@@ -294,19 +379,30 @@ describe("local ask MCP adapter", () => {
     },
   );
 
-  it("omits a missing failure run ID", async () => {
+  it("preserves question-only service failures without inventing identifiers", async () => {
     const ask = mock(() =>
       Promise.reject(
-        new AgenticAskHttpError("EXECUTION_FAILED", "Agentic Ask failed.", 500),
+        new AgenticAskHttpError(
+          "SERVICE_UNAVAILABLE",
+          "Agentic Ask is temporarily unavailable.",
+          503,
+        ),
       ),
     );
     const result = await invoke(createLocalAgenticAskTool(createService(ask)), {
-      target: "npm:example",
-      question: "How?",
+      question: "How does Express routing work?",
     });
 
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toMatchObject({
+      code: "BACKEND_ERROR",
+      details: { status: 503 },
+    });
     expect(JSON.parse(result.content[0]?.text ?? "{}")).not.toHaveProperty(
       "tool_call_id",
+    );
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).not.toHaveProperty(
+      "thread_id",
     );
   });
 

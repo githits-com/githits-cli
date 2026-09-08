@@ -262,9 +262,9 @@ Canary has `express-router` and
 `package-upgrade-safety`; stable-full contains all 22 stable workloads.
 `stateful-manual` contains only `githits-onboarding` and is dry-run-only in
 this phase. `experimental` contains only
-`experimental-code-diff`, `experimental-resolution-follow-up`, and
+`experimental-code-diff`, `experimental-question-only-ask`, `experimental-resolution-follow-up`, and
 `experimental-site-resolution-follow-up`. The manifest therefore classifies
-26 workloads: 22 stable, one stateful, and three experimental. Canary is a
+27 workloads: 22 stable, one stateful, and four experimental. Canary is a
 subset of smoke, smoke is a subset of stable-full, and stateful or experimental
 workloads never enter those stable suites.
 
@@ -836,7 +836,12 @@ add the workload from the table. Compare
 `tool-calls.json`, `metrics.json`, and the final JSON's answer/confidence across
 branches or against a published run.
 
-For local experimental tool changes, run both new workloads and the
+For question-only Ask parity, use `experimental-question-only-ask.md` with
+`--experimental-tools` and descriptor-only guidance. Inspect whether calls omit
+both selectors and whether returned candidates remain choices for the user;
+do not count authentication failures as behavioral evidence.
+
+For local experimental tool changes, run the relevant workloads and the
 `express-router.md` regression cohort with Claude and Codex:
 
 ```bash

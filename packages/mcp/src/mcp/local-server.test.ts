@@ -263,7 +263,7 @@ describe("createLocalMcpServer", () => {
     )._registeredTools.resolve_target!;
 
     const askResult = await registeredTools(server).ask!.handler(
-      { target: "npm:express", question: "How?", format: "json" },
+      { question: "How does Express routing work?", format: "json" },
       undefined as unknown as RequestHandlerExtra<
         ServerRequest,
         ServerNotification
@@ -272,8 +272,7 @@ describe("createLocalMcpServer", () => {
     expect(askResult.isError).toBeUndefined();
     expect(ask).toHaveBeenCalledWith(
       {
-        target: "npm:express",
-        question: "How?",
+        question: "How does Express routing work?",
         sourceFormat: "mcp",
       },
       undefined,
