@@ -3225,6 +3225,7 @@ export class CodeNavigationServiceImpl
       case "FEATURE_FLAG_REQUIRED":
         return new CodeNavigationFeatureFlagRequiredError(message);
 
+      case "AUTHENTICATION_REQUIRED":
       case "UNAUTHORIZED":
         return new AuthenticationError(
           SERVER_AUTHENTICATION_REJECTED_MESSAGE,

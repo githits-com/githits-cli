@@ -659,6 +659,40 @@ describe("AuthServiceImpl", () => {
       expect(classifyTerminalRefreshError(error)).toBeUndefined();
     });
 
+    it("preserves bounded legacy Supabase error details", async () => {
+      const fetchFn = mock(async () =>
+        jsonResponse(
+          {
+            code: 503,
+            error_code: "unexpected_failure",
+            msg: `Database connection failed\n${"x".repeat(600)}`,
+          },
+          503,
+        ),
+      );
+      const operation = new AuthServiceImpl(
+        asFetchFn(fetchFn),
+      ).refreshAccessToken({
+        tokenEndpoint: "https://auth.example.com/oauth/token",
+        clientId: "client-id",
+        clientSecret: "client-secret",
+        refreshToken: "refresh-token",
+      });
+
+      try {
+        await operation;
+        throw new Error("Expected refresh to fail");
+      } catch (error) {
+        expect(error).toBeInstanceOf(TokenRefreshError);
+        expect((error as Error).message).toContain(
+          "Token refresh failed with HTTP 503: Database connection failed ",
+        );
+        expect((error as Error).message).not.toContain("\n");
+        expect((error as Error).message.length).toBeLessThan(550);
+        expect(classifyTerminalRefreshError(error)).toBeUndefined();
+      }
+    });
+
     it("does not classify terminal-shaped 3xx refresh errors as terminal", () => {
       const error = new TokenRefreshError(
         302,
@@ -786,6 +820,120 @@ describe("AuthServiceImpl", () => {
         "Sign-in could not be verified for security reasons.",
       );
     });
+  });
+});
+
+describe("refresh grant classification", () => {
+  // Supabase Auth emits both HTTPError (error_code/msg) and the versioned
+  // HTTPErrorResponse20240101 (code/message) envelopes from its refresh handler.
+  it.each([
+    "refresh_token_not_found",
+    "refresh_token_already_used",
+    "session_not_found",
+    "session_expired",
+  ])("recognizes Supabase refresh rejection %s in both envelopes", (code) => {
+    for (const body of [
+      { code: 400, error_code: code, msg: "Refresh rejected" },
+      { code, message: "Refresh rejected" },
+    ]) {
+      expect(
+        classifyTerminalRefreshError(
+          new TokenRefreshError(400, JSON.stringify(body)),
+        ),
+      ).toBe("invalid_refresh_token");
+    }
+  });
+
+  it.each([
+    { code: 429, error_code: "over_request_rate_limit", msg: "Slow down" },
+    { code: "request_timeout", message: "Try again later" },
+    { code: "conflict", message: "Another refresh is running" },
+    { code: 400, msg: "Invalid Refresh Token: Already Used" },
+  ])(
+    "retains credentials for nonterminal or uncoded Supabase errors: %j",
+    (body) => {
+      expect(
+        classifyTerminalRefreshError(
+          new TokenRefreshError(400, JSON.stringify(body)),
+        ),
+      ).toBeUndefined();
+    },
+  );
+
+  it("does not treat a Supabase server failure as terminal", () => {
+    expect(
+      classifyTerminalRefreshError(
+        new TokenRefreshError(
+          503,
+          JSON.stringify({ error_code: "session_expired" }),
+        ),
+      ),
+    ).toBeUndefined();
+  });
+
+  it.each([
+    "Client authentication required for OAuth session",
+    "Client does not match the session's OAuth client",
+  ])(
+    "recognizes Supabase's OAuth invalid_client response: %s",
+    (description) => {
+      expect(
+        classifyTerminalRefreshError(
+          new TokenRefreshError(
+            400,
+            JSON.stringify({
+              error: "invalid_client",
+              error_description: description,
+            }),
+          ),
+        ),
+      ).toBe("invalid_client");
+    },
+  );
+
+  it.each([
+    undefined,
+    "",
+    "This grant cannot be renewed.",
+    "Client does not match the supplied grant.",
+  ])("recognizes invalid_grant with description %j", (description) => {
+    const failure = new TokenRefreshError(
+      400,
+      JSON.stringify({
+        error: "invalid_grant",
+        error_description: description,
+      }),
+    );
+
+    expect(classifyTerminalRefreshError(failure)).toBe("invalid_refresh_token");
+  });
+
+  it.each([302, 503])("ignores invalid_grant on HTTP %i", (status) => {
+    const failure = new TokenRefreshError(
+      status,
+      JSON.stringify({ error: "invalid_grant" }),
+    );
+
+    expect(classifyTerminalRefreshError(failure)).toBeUndefined();
+  });
+
+  it.each([
+    "Already used",
+    JSON.stringify({ error_description: "Invalid refresh token" }),
+    JSON.stringify({
+      error: "invalid_request",
+      error_description: "Session expired",
+    }),
+  ])("does not infer grant rejection from wording: %s", (body) => {
+    expect(
+      classifyTerminalRefreshError(new TokenRefreshError(400, body)),
+    ).toBeUndefined();
+  });
+
+  it("ignores untyped errors containing the OAuth code", () => {
+    expect(
+      classifyTerminalRefreshError(new Error("invalid_grant")),
+    ).toBeUndefined();
   });
 });
 

@@ -804,6 +804,71 @@ describe("CodeNavigationServiceImpl", () => {
     globalThis.fetch = originalFetch;
   });
 
+  it.each(["AUTHENTICATION_REQUIRED", "UNAUTHORIZED"])(
+    "refreshes once for backend %s even when retryable is false",
+    async (code) => {
+      const forceRefresh = mock(() => Promise.resolve("renewed-access-token"));
+      const fetchFn = mockFetch(
+        async () =>
+          new Response(
+            JSON.stringify({
+              data: { listRepoFiles: null },
+              errors: [
+                {
+                  message: "Authentication required",
+                  extensions: { code, retryable: false },
+                },
+              ],
+            }),
+            { status: 200 },
+          ),
+      );
+      const service = new CodeNavigationServiceImpl(
+        BASE_URL,
+        createMockTokenProvider({ forceRefresh }),
+      );
+
+      await expect(
+        service.listFiles({
+          target: { registry: "NPM", packageName: "express" },
+        }),
+      ).rejects.toBeInstanceOf(AuthenticationError);
+      expect(forceRefresh).toHaveBeenCalledTimes(1);
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("does not refresh credentials for backend FORBIDDEN", async () => {
+    const forceRefresh = mock(() => Promise.resolve("renewed-access-token"));
+    const fetchFn = mockFetch(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: { listRepoFiles: null },
+            errors: [
+              {
+                message: "Access denied",
+                extensions: { code: "FORBIDDEN", retryable: false },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider({ forceRefresh }),
+    );
+
+    await expect(
+      service.listFiles({
+        target: { registry: "NPM", packageName: "express" },
+      }),
+    ).rejects.toBeInstanceOf(CodeNavigationAccessError);
+    expect(forceRefresh).not.toHaveBeenCalled();
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
   // ------------------------------------------------------------------
   // listFiles
   // ------------------------------------------------------------------
