@@ -1,5 +1,6 @@
 import {
   type AgenticAskCliResponse,
+  type AgenticAskNeedsTargetResponse,
   type AgenticAskService,
   type AgenticAskUrlResponse,
   normalizeAgenticAskThreadId,
@@ -7,6 +8,7 @@ import {
 import {
   AuthRequiredError,
   buildAuthRequiredErrorPayload,
+  formatAgenticAskClarification,
   mapAgenticAskError,
   requireAuth,
   sanitizeTerminalText,
@@ -102,8 +104,14 @@ export async function askAction(
 
 /** Render the Ask answer, selected source pointers, and identifiers. */
 export function formatAgenticAskHumanResponse(
-  response: AgenticAskCliResponse | AgenticAskUrlResponse,
+  response:
+    | AgenticAskCliResponse
+    | AgenticAskUrlResponse
+    | AgenticAskNeedsTargetResponse,
 ): string {
+  if ("outcome" in response) {
+    return formatAgenticAskClarification(response);
+  }
   const sections = [sanitizeTerminalMarkdown(response.answer_markdown).trim()];
   if (response.sources.length > 0) {
     const sourceLines =

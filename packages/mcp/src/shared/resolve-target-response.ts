@@ -277,8 +277,6 @@ export function formatResolveTargetTerminal(
   const blockedBest = identityActionable && !actionable;
   const lines: string[] = [];
   if (result.ambiguous) lines.push(ambiguityMessage(result.ambiguousReason));
-  const protectedKeys = new Set(result.protectedMatches.map(targetKey));
-  const groups = groupResolveTargets(result.targets);
   const hasBlockedDirectTarget = result.targets.some(
     (target) =>
       target.match !== undefined &&
@@ -286,32 +284,7 @@ export function formatResolveTargetTerminal(
         target.latestVersionMaliciousStatus,
       ),
   );
-  lines.push("Targets:");
-  lines.push(
-    ...groups.flatMap((group, index) =>
-      formatTerminalGroup(
-        group,
-        index + 1,
-        protectedKeys,
-        useColors,
-        options.verbose === true,
-      ),
-    ),
-  );
-  if (result.targetsTruncated) {
-    lines.push(
-      "",
-      dim(
-        "Note: Additional related targets were omitted; direct matches are complete.",
-        useColors,
-      ),
-    );
-  }
-  const evidenceNotes = formatResolveTargetEvidenceNotes(
-    result.targets,
-    options.verbose === true,
-  );
-  if (evidenceNotes.length > 0) lines.push("", ...evidenceNotes);
+  lines.push(formatResolveTargetCandidates(result, options).trimEnd());
 
   const query = sanitizeTerminalText(options.query?.trim() || "<query>");
   if (blockedBest) {
@@ -357,6 +330,48 @@ export function formatResolveTargetTerminal(
       `Next: narrow the name or filters, or explicitly choose a candidate before running githits search ${shellQuote(query)} --in ${shellQuote("<target>")}`,
     );
   }
+  return `${lines.join("\n")}\n`;
+}
+
+/** Render provider-ordered candidates without selecting a target or a next tool. */
+export function formatResolveTargetCandidates(
+  result: ResolveTargetResult,
+  options: Pick<
+    FormatResolveTargetTerminalOptions,
+    "useColors" | "verbose"
+  > = {},
+): string {
+  if (result.targets.length === 0) return "";
+  const useColors = options.useColors ?? false;
+  const protectedKeys = new Set(result.protectedMatches.map(targetKey));
+  const groups = groupResolveTargets(result.targets);
+  const lines: string[] = ["Targets:"];
+  lines.push(
+    ...groups.flatMap((group, index) =>
+      formatTerminalGroup(
+        group,
+        index + 1,
+        protectedKeys,
+        useColors,
+        options.verbose === true,
+      ),
+    ),
+  );
+  if (result.targetsTruncated) {
+    lines.push(
+      "",
+      dim(
+        "Note: Additional related targets were omitted; direct matches are complete.",
+        useColors,
+      ),
+    );
+  }
+  const evidenceNotes = formatResolveTargetEvidenceNotes(
+    result.targets,
+    options.verbose === true,
+  );
+  if (evidenceNotes.length > 0) lines.push("", ...evidenceNotes);
+
   return `${lines.join("\n")}\n`;
 }
 

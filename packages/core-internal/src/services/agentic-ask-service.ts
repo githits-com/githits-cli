@@ -8,6 +8,10 @@ import {
   parseRetryAfterSeconds,
 } from "./githits-service.js";
 import {
+  parseCompactResolveTargetResult,
+  type ResolveTargetResult,
+} from "./resolve-target-service.js";
+import {
   type ServiceDiagnostics,
   withServiceDiagnostics,
 } from "./runtime-diagnostics.js";
@@ -54,6 +58,12 @@ const cliResponseSchema = z.object({
   thread_id: z.string().regex(UUID_V7_PATTERN),
   answer_markdown: z.string().min(1),
   sources: z.array(cliSourceCallSchema),
+});
+
+const needsTargetResponseSchema = z.object({
+  outcome: z.literal("needs_target"),
+  message: z.string().min(1),
+  resolution: z.unknown(),
 });
 
 const mcpCodeReadSourceCallSchema = z.object({
@@ -199,7 +209,15 @@ export interface AgenticAskUrlResponse {
   sources: AgenticAskUrlSource[];
 }
 
+/** A completed lookup requiring an explicit target before an answer can run. */
+export interface AgenticAskNeedsTargetResponse {
+  outcome: "needs_target";
+  message: string;
+  resolution: ResolveTargetResult;
+}
+
 export type AgenticAskResponse =
+  | AgenticAskNeedsTargetResponse
   | AgenticAskCliResponse
   | AgenticAskMcpResponse
   | AgenticAskUrlResponse;
@@ -208,15 +226,15 @@ export interface AgenticAskService {
   ask(
     request: AgenticAskMcpRequest,
     options?: AgenticAskRequestOptions,
-  ): Promise<AgenticAskMcpResponse>;
+  ): Promise<AgenticAskMcpResponse | AgenticAskNeedsTargetResponse>;
   ask(
     request: AgenticAskCliRequest,
     options?: AgenticAskRequestOptions,
-  ): Promise<AgenticAskCliResponse>;
+  ): Promise<AgenticAskCliResponse | AgenticAskNeedsTargetResponse>;
   ask(
     request: AgenticAskUrlRequest,
     options?: AgenticAskRequestOptions,
-  ): Promise<AgenticAskUrlResponse>;
+  ): Promise<AgenticAskUrlResponse | AgenticAskNeedsTargetResponse>;
 }
 
 export type AgenticAskHttpErrorCode =
@@ -303,15 +321,15 @@ export class AgenticAskServiceImpl implements AgenticAskService {
   async ask(
     request: AgenticAskMcpRequest,
     options?: AgenticAskRequestOptions,
-  ): Promise<AgenticAskMcpResponse>;
+  ): Promise<AgenticAskMcpResponse | AgenticAskNeedsTargetResponse>;
   async ask(
     request: AgenticAskCliRequest,
     options?: AgenticAskRequestOptions,
-  ): Promise<AgenticAskCliResponse>;
+  ): Promise<AgenticAskCliResponse | AgenticAskNeedsTargetResponse>;
   async ask(
     request: AgenticAskUrlRequest,
     options?: AgenticAskRequestOptions,
-  ): Promise<AgenticAskUrlResponse>;
+  ): Promise<AgenticAskUrlResponse | AgenticAskNeedsTargetResponse>;
   async ask(
     request: AgenticAskRequest,
     options?: AgenticAskRequestOptions,
@@ -413,6 +431,25 @@ export class AgenticAskServiceImpl implements AgenticAskService {
       raw = JSON.parse(body);
     } catch (cause) {
       throw new MalformedAgenticAskResponseError({ cause });
+    }
+
+    const clarification = needsTargetResponseSchema.safeParse(raw);
+    if (clarification.success) {
+      const resolution = parseCompactResolveTargetResult(
+        clarification.data.resolution,
+      );
+      if (
+        !resolution ||
+        request.target !== undefined ||
+        request.threadId !== undefined
+      ) {
+        throw new MalformedAgenticAskResponseError();
+      }
+      return {
+        outcome: "needs_target",
+        message: clarification.data.message,
+        resolution,
+      };
     }
 
     const responseSchema =
