@@ -5,6 +5,65 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.15.0] - 2026-09-08
+
+Minor release: adds Codeberg and nested GitLab repository targets and lets
+experimental CLI Ask infer a target from a question.
+
+### Added
+
+- **Multi-provider repository targets** - Add explicit `codeberg:owner/repo` and
+  nested `gitlab:group/subgroup/project` targets alongside GitHub across search
+  and code navigation. Preserve provider identity and exact refs in follow-ups,
+  GitHub shorthand/HTTP compatibility, and registry-native Swift/Zig coordinates.
+  Bare repository names and unsupported hosts are rejected. Public code, MCP,
+  and package guidance now describe the supported target forms.
+- **Question-only Ask** - Experimental CLI `githits ask "question"` lets GitHits
+  identify a public package or repository from the question. Explicit targets
+  and thread follow-ups remain supported.
+
+### Fixed
+
+- **Code navigation authentication** - Recognize backend
+  `AUTHENTICATION_REQUIRED` errors and attempt the existing single credential
+  refresh, matching package-intelligence behavior while preserving access-denied
+  errors.
+- **Rejected refresh credentials** - Recognize OAuth and Supabase refresh-token
+  and session rejection codes without relying on description wording, clearing
+  unchanged rejected tokens while preserving client registration and credentials
+  replaced during refresh.
+- **On-demand site documentation** - Resolution describes site documentation
+  needing preparation as crawled on demand while preserving ordinary on-demand
+  search continuation, identity, ordering, and security checks.
+- **Release availability checks** - Both npm release pipelines wait for the exact
+  package version to become public before downstream publication, and recover
+  accepted uploads still undergoing npm scanning when a release job is rerun.
+
+## [@githits/mcp 0.15.0] - 2026-09-08
+
+Minor release: adds Codeberg and nested GitLab repository targets.
+
+### Added
+
+- **Multi-provider repository targets** - Add explicit `codeberg:owner/repo` and
+  nested `gitlab:group/subgroup/project` targets alongside GitHub across search
+  and code navigation. Preserve provider identity and exact refs in follow-ups,
+  GitHub shorthand/HTTP compatibility, and registry-native Swift/Zig coordinates.
+  Bare repository names and unsupported hosts are rejected. MCP guidance and
+  contextual tool help describe the supported target forms.
+
+### Fixed
+
+- **Code navigation authentication** - Recognize backend
+  `AUTHENTICATION_REQUIRED` errors and use the existing authentication handling
+  path while preserving access-denied errors.
+- **On-demand site documentation** - Resolution describes site documentation
+  needing preparation as crawled on demand while preserving ordinary on-demand
+  search continuation, identity, ordering, and security checks.
+
+Hosted MCP clients receive these changes after remote-mcp updates this package
+and deploys the hosted server.
+
 ## [githits 0.14.0] - 2026-09-07
 
 Minor release: changes default search text to authoritative match evidence and

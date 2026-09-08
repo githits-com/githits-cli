@@ -5,7 +5,7 @@
 `githits pkg info <registry:name>` returns latest-version triage: license, description, repository popularity, downloads, publish age, and separate latest-affected and package-wide advisory-history scopes. Use `--verbose` for GitHub language/topics/last-pushed, package-wide advisory history (all versions), published-version count, download freshness, and recent changes. Use `--json` for structured fields.
 
 Supported registries include npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, vcpkg, and Zig.
-Swift package targets use `swift:github.com/<owner>/<repo>`; Zig package targets use `zig:gh/<owner>/<repo>`.
+Swift package targets use `swift:github.com/<owner>/<repo>` or `swift:gitlab.com/<group>/<project>`; Zig package targets use `zig:gh/<owner>/<repo>` or `zig:cb/<owner>/<repo>`. Keep these registry-native coordinates for package evidence; direct repository targets inspect the full repository.
 
 ## Vulnerabilities
 
@@ -36,6 +36,8 @@ Use `--depth` to request transitive output capped to that traversal depth. Omit 
 Flags: `--repo-url <url>`, `--from <version>`, `--to <version>`, `--limit 1-50`, `--git-ref <ref>`, `--verbose`, `--no-body`, `--json`.
 
 Do not use `registry:name@version` for changelog. Use `--to <version>`.
+
+For repository changelogs, pass a full HTTPS URL on github.com, codeberg.org, or gitlab.com to `--repo-url`; use `--git-ref` for a branch or tag. Codeberg requires owner/repo; GitLab permits nested namespaces. Do not pass compact `github:`, `codeberg:`, or `gitlab:` targets to this URL field.
 
 ## Upgrade Review
 
