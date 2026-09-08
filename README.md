@@ -37,6 +37,9 @@ health, compare dependency upgrades, and find source-cited examples from real
 open-source projects when model knowledge and local repository context are not
 enough.
 
+Want to use GitHits as part of your agent harness or software factory? Check out
+our [public API documentation](https://docs.githits.com/api/overview).
+
 ## Quick Start
 
 ```sh
