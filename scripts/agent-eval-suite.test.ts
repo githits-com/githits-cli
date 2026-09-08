@@ -389,10 +389,10 @@ function expectFixtureError(
 }
 
 describe("agent eval suites", () => {
-  it("loads the checked-in manifest with the exact initial inventory", () => {
+  it("loads the checked-in manifest with the exact workload inventory", () => {
     const manifest = loadSuiteManifest();
     expect(manifest.schemaVersion).toBe(1);
-    expect(manifest.workloads).toHaveLength(26);
+    expect(manifest.workloads).toHaveLength(27);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stable"),
     ).toHaveLength(22);
@@ -403,7 +403,7 @@ describe("agent eval suites", () => {
       manifest.workloads.filter(
         (workload) => workload.safety === "experimental",
       ),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
 
     expect(
       selectSuiteWorkloads(manifest, "canary").map((item) => item.id),
@@ -451,6 +451,7 @@ describe("agent eval suites", () => {
       selectSuiteWorkloads(manifest, "experimental").map((item) => item.id),
     ).toEqual([
       "experimental-code-diff",
+      "experimental-question-only-ask",
       "experimental-resolution-follow-up",
       "experimental-site-resolution-follow-up",
     ]);

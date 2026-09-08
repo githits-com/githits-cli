@@ -2,7 +2,7 @@
 
 A targetless Ask lookup that cannot choose confidently returns HTTP 200 with
 `outcome: "needs_target"`, `message`, and the compact resolver result in `resolution`.
-It is a completed lookup requiring caller input. It has no `answer_markdown`, source
+The response describes a completed lookup requiring caller input. It has no `answer_markdown`, source
 pointers, run ID, or thread ID. Empty results use the same shape with no candidates.
 
 The service validates resolver output with the existing compact resolver schema and
@@ -20,8 +20,10 @@ completes successfully. Retry the question with a selected canonical target:
 githits ask github:openai/codex 'How does codex handle chat compaction?'
 ```
 
-Local MCP admission still requires an explicit target or thread, so its current request
-path cannot receive targetless clarification. This change does not broaden admission.
+Local MCP Ask accepts the same question-only lookup: omit both `target` and
+`thread_id`. Text and JSON return the same clarification and candidates as the CLI.
+Repeat the original question with a selected `target` to continue. Explicit targets
+and thread follow-ups remain supported, but cannot be supplied together.
 
 Deploy clients supporting this response before enabling the backend change: older
 clients expect every HTTP 200 response to contain an answer and identifiers. The new

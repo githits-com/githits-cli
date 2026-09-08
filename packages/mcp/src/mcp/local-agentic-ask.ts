@@ -35,14 +35,14 @@ const schema: ZodRawShape = {
     .min(1)
     .optional()
     .describe(
-      "One canonical public OSS package or repository target, such as npm:express or github:expressjs/express. Call resolve_target first when the intended target is ambiguous or not canonical.",
+      "Optional canonical public OSS package or repository target, such as npm:express or github:expressjs/express. Omit target and thread_id to identify the target from the question.",
     ),
   thread_id: z
     .string()
     .min(1)
     .optional()
     .describe(
-      "Thread UUID returned by an earlier ask call. Provide exactly one of target or thread_id, and reuse a thread only when the prior answer is insufficient or additional information is needed.",
+      "Thread UUID returned by an earlier ask call. Cannot be combined with target. Reuse a thread only when the prior answer is insufficient or additional information is needed.",
     ),
   question: z
     .string()
@@ -65,7 +65,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION =
-  "Ask a public repository or package question and receive a source-cited answer. Call resolve_target first when the intended target is ambiguous or not canonical. Continue a prior thread by its returned thread_id only when the earlier answer is insufficient or additional information is needed. Sources default to actionable MCP calls; request source_format=url for original upstream URLs.";
+  "Ask a public repository or package question and receive a source-cited answer. Omit target and thread_id to identify the target from the question. If Ask returns candidates, ask the user to select a target before retrying. Supply at most one of target or thread_id. Continue a prior thread by its returned thread_id only when the earlier answer is insufficient or additional information is needed. Sources default to actionable MCP calls; request source_format=url for original upstream URLs.";
 
 export function createLocalAgenticAskTool(
   service: AgenticAskService,
@@ -166,11 +166,12 @@ function isTextFormat(format: AgenticAskMcpArgs["format"]): boolean {
 
 function resolveMcpAskSubject(
   args: AgenticAskMcpArgs,
-): { target: string } | { threadId: string } | { error: string } {
-  if ((args.target === undefined) === (args.thread_id === undefined)) {
-    return { error: "Provide exactly one of target or thread_id." };
+): { target?: string } | { threadId: string } | { error: string } {
+  if (args.target !== undefined && args.thread_id !== undefined) {
+    return { error: "Provide at most one of target or thread_id." };
   }
   if (args.target !== undefined) return { target: args.target };
+  if (args.thread_id === undefined) return {};
 
   const threadId = normalizeAgenticAskThreadId(args.thread_id);
   return threadId
