@@ -122,4 +122,29 @@ describe("list_package_docs parity", () => {
     );
     expect(cli).toEqual(mcp);
   });
+
+  it("PARITY-JSON-KEYS: active empty list CLI === MCP", async () => {
+    const fn = mock(() =>
+      Promise.resolve({
+        ...defaultPackageDocsList,
+        codeIndexState: "INDEXING",
+        pages: [],
+        pageInfo: { hasNextPage: false, totalCount: 0 },
+      }),
+    );
+    const cli = await cliJson(
+      "npm:express",
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          listPackageDocs: fn as never,
+        }),
+      }),
+    );
+    const mcp = await mcpJson(
+      { registry: "npm", package_name: "express" },
+      fn as never,
+    );
+    expect(cli).toEqual(mcp);
+    expect(cli).toMatchObject({ codeIndexState: "INDEXING", pages: [] });
+  });
 });

@@ -30,6 +30,7 @@ import {
   isClientUpdateRequiredGraphQLError,
   isGraphQLSchemaMismatchError,
 } from "./client-update-required-error.js";
+import type { CodeIndexState } from "./code-navigation-service.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import {
   AuthenticationError,
@@ -726,6 +727,8 @@ export interface PackageDocsList {
   packageName?: string;
   version?: string;
   stale?: boolean;
+  /** Backend-owned repository documentation lifecycle state. */
+  codeIndexState?: CodeIndexState;
   pages: PackageDocPageSummary[];
   pageInfo?: PackageDocsPageInfo;
 }
@@ -2366,6 +2369,7 @@ const packageDocsListResponseSchema = z.object({
   packageName: z.string().nullable().optional(),
   version: z.string().nullable().optional(),
   stale: z.boolean().nullable().optional(),
+  codeIndexState: z.string().nullable().optional(),
   pages: z.array(packageDocPageSummarySchema).nullable().optional(),
   pageInfo: packageDocsPageInfoSchema,
 });
@@ -2446,6 +2450,7 @@ query ListPackageDocs(
     packageName
     version
     stale
+    codeIndexState
     pages {
       id
       docsReadTarget
@@ -3819,6 +3824,7 @@ export class PackageIntelligenceServiceImpl
       packageName: data.packageName ?? undefined,
       version: data.version ?? undefined,
       stale: data.stale ?? undefined,
+      codeIndexState: data.codeIndexState ?? undefined,
       pages:
         data.pages?.map((page) => ({
           id: page.id ?? undefined,

@@ -810,6 +810,8 @@ githits docs list npm:express --json
 
 Lists hosted/crawled and repository-backed documentation pages for a package. Each row includes the stable page ID, a source badge, any distinct provenance, and a shell-quoted `docs read` command using the emitted `docsReadTarget`. Active crawled pages therefore use their publisher HTTP(S) URL, while retired crawled and snapshot-pinned repository pages use stable IDs. JSON retains all three locator roles and includes repo URL / git ref / file path for repository-backed docs so callers can follow up with `code read` when source context is needed.
 
+The response also retains the backend's exact `codeIndexState`. `PENDING` and `INDEXING` empty results are rendered as preparation still in progress with a replayable `docs list` action, never as “No documentation pages found.” `PROVISIONAL` results keep and render every available page while clearly marking that indexing continues. CLI `--json` and MCP `format: "json"` share the same lifecycle-bearing envelope.
+
 **Version validation.** Exact Go versions may include or omit their canonical lowercase `v`; the backend always receives the `v`-prefixed form. Unlike the package-analysis commands, `docs list` preserves its existing pass-through for other registries' version strings, including a leading `v`, so their backend validation behavior does not change. Swift package-name normalization remains separate.
 
 **Pagination.** `--limit <n>` accepts 1-500. When `hasMore` is true, pass the returned `nextCursor` to `--after`.

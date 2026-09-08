@@ -4,6 +4,7 @@ import { colorize, dim } from "./colors.js";
 import { lowerDocSourceKind } from "./docs-follow-up.js";
 import { buildCliDocsReadCommand } from "./follow-up-command-text.js";
 import { toIsoDate } from "./format-date.js";
+import { shellQuote } from "./shell-quote.js";
 
 export interface LeanPackageDocListEntry {
   pageId: string;
@@ -28,6 +29,8 @@ export interface LeanPackageDocsEnvelope {
   name?: string;
   version?: string;
   stale?: boolean;
+  /** Exact backend lifecycle value; active and provisional values affect text. */
+  codeIndexState?: string;
   total?: number;
   hasMore: boolean;
   nextCursor?: string;
@@ -73,6 +76,7 @@ export function buildListPackageDocsSuccessPayload(
   if (result.packageName) envelope.name = result.packageName;
   if (result.version) envelope.version = result.version;
   if (typeof result.stale === "boolean") envelope.stale = result.stale;
+  if (result.codeIndexState) envelope.codeIndexState = result.codeIndexState;
   if (result.pageInfo?.totalCount !== undefined)
     envelope.total = result.pageInfo.totalCount;
   if (result.pageInfo?.endCursor)
@@ -124,7 +128,22 @@ export function formatListPackageDocsTerminal(
   lines.push("");
 
   if (envelope.pages.length === 0) {
-    lines.push(dim("No documentation pages found.", options.useColors));
+    lines.push(
+      dim(
+        isPackageDocsActive(envelope)
+          ? "No documentation pages yet."
+          : "No documentation pages found.",
+        options.useColors,
+      ),
+    );
+    if (isPackageDocsActive(envelope)) {
+      lines.push(
+        dim(
+          `Documentation ${packageDocsProgressDescription(envelope)} is still in progress. Retry ${buildCliDocsListCommand(envelope)} later.`,
+          options.useColors,
+        ),
+      );
+    }
     lines.push("");
     return lines.join("\n");
   }
@@ -147,7 +166,16 @@ export function formatListPackageDocsTerminal(
   if (envelope.stale) {
     lines.push(dim("Documentation may be stale.", options.useColors));
   }
-  if (envelope.nextCursor || envelope.stale) lines.push("");
+  if (isPackageDocsActive(envelope)) {
+    lines.push(
+      dim(
+        `Documentation ${packageDocsProgressDescription(envelope)} is still in progress. Retry ${buildCliDocsListCommand(envelope)} later for a current snapshot.`,
+        options.useColors,
+      ),
+    );
+  }
+  if (envelope.nextCursor || envelope.stale || isPackageDocsActive(envelope))
+    lines.push("");
 
   return lines.join("\n");
 }
@@ -162,7 +190,38 @@ function buildSummaryHeader(
       : "package docs";
   const summary = `${target} | ${envelope.pages.length} page${envelope.pages.length === 1 ? "" : "s"}`;
   const suffix = envelope.total !== undefined ? ` of ${envelope.total}` : "";
-  return `${colorize(summary, "bold", useColors)}${dim(suffix, useColors)}`;
+  const lifecycle = packageDocsLifecycleLabel(envelope);
+  return `${colorize(summary, "bold", useColors)}${dim(suffix, useColors)}${lifecycle ? dim(` | ${lifecycle}`, useColors) : ""}`;
+}
+
+export function isPackageDocsActive(
+  envelope: LeanPackageDocsEnvelope,
+): boolean {
+  return (
+    envelope.codeIndexState === "PENDING" ||
+    envelope.codeIndexState === "INDEXING" ||
+    envelope.codeIndexState === "PROVISIONAL"
+  );
+}
+
+export function packageDocsLifecycleLabel(
+  envelope: LeanPackageDocsEnvelope,
+): string | undefined {
+  if (envelope.codeIndexState === "PENDING") return "preparing";
+  if (envelope.codeIndexState === "INDEXING") return "indexing";
+  if (envelope.codeIndexState === "PROVISIONAL") return "provisional";
+  return undefined;
+}
+
+export function packageDocsProgressDescription(
+  envelope: LeanPackageDocsEnvelope,
+): string {
+  return envelope.codeIndexState === "PENDING" ? "preparation" : "indexing";
+}
+
+function buildCliDocsListCommand(envelope: LeanPackageDocsEnvelope): string {
+  const target = `${envelope.registry ?? ""}:${envelope.name ?? ""}${envelope.version ? `@${envelope.version}` : ""}`;
+  return `\`githits docs list ${shellQuote(target)}\``;
 }
 
 function formatPageHeader(

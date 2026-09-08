@@ -2556,7 +2556,7 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
 describe("PackageIntelligenceServiceImpl — package docs targets", () => {
   const ENDPOINT = "https://pkgseer.dev";
 
-  it("selects and normalises docsReadTarget for listed pages", async () => {
+  it("selects only consumed lifecycle fields and normalises docs list state", async () => {
     let capturedBody = "";
     const fetchFn = mock((_url: string, init?: RequestInit) => {
       capturedBody = String(init?.body ?? "");
@@ -2566,6 +2566,7 @@ describe("PackageIntelligenceServiceImpl — package docs targets", () => {
             listPackageDocs: {
               registry: "NPM",
               packageName: "express",
+              codeIndexState: "PROVISIONAL",
               pages: [
                 {
                   id: "legacy-crawled-id",
@@ -2593,6 +2594,12 @@ describe("PackageIntelligenceServiceImpl — package docs targets", () => {
 
     const request = JSON.parse(capturedBody) as { query: string };
     expect(request.query).toContain("docsReadTarget");
+    expect(request.query).toContain("codeIndexState");
+    expect(request.query).not.toContain("indexingStatus");
+    expect(request.query).not.toContain("indexingRef");
+    expect(request.query).not.toContain("targetResolution");
+    expect(request.query).not.toContain("availableVersions");
+    expect(result.codeIndexState).toBe("PROVISIONAL");
     expect(result.pages[0]).toMatchObject({
       id: "legacy-crawled-id",
       docsReadTarget: "https://expressjs.com/en/guide/routing.html",
