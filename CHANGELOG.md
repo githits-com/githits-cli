@@ -5,6 +5,29 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.15.1] - 2026-09-08
+
+### Fixed
+
+- **Ask target clarification** - Display resolver candidates with confidence,
+  related targets, and evidence metadata when Ask requests a specific target.
+  Requires server support; answered responses and explicit-target behavior
+  remain unchanged.
+- **Documentation indexing state** - `docs list` distinguishes active
+  preparation from terminal empty results and retains provisional pages with
+  exact lifecycle state in JSON.
+
+## [@githits/mcp 0.15.1] - 2026-09-08
+
+### Fixed
+
+- **Ask target clarification** - Recognize successful `needs_target` responses
+  and share candidate rendering with the CLI. Local MCP Ask still requires an
+  explicit target or thread.
+- **Documentation indexing state** - `docs_list` distinguishes active
+  preparation from terminal empty results and retains provisional pages with
+  exact lifecycle state in JSON.
+
 ## [githits 0.15.0] - 2026-09-08
 
 Minor release: adds Codeberg and nested GitLab repository targets and lets
