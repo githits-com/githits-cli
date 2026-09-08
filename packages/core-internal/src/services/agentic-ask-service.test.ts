@@ -137,6 +137,68 @@ function createService(
 
 describe("AgenticAskServiceImpl", () => {
   it.each([
+    "https://docs.example/page?lang=en&view=full#section",
+    "repo-doc:sha:pinned",
+    "docs:example:guide",
+  ])("preserves emitted CLI documentation read targets: %s", async (target) => {
+    const body: AgenticAskCliResponse = {
+      ...responseBody(),
+      source_format: "cli",
+      sources: [
+        {
+          command: "npx",
+          arguments: [
+            "githits@latest",
+            "docs",
+            "read",
+            "--lines",
+            "3-8",
+            "--",
+            target,
+          ],
+        },
+      ],
+    };
+    const fetchFn = mock(() =>
+      Promise.resolve(jsonResponse(body)),
+    ) as unknown as typeof fetch;
+
+    const result = await createService(fetchFn).ask({
+      question: "How does Express routing work?",
+    });
+
+    expect(result).toEqual(body);
+  });
+
+  it.each([
+    "https://docs.example/page?lang=en&view=full#section",
+    "repo-doc:sha:pinned",
+    "docs:example:guide",
+  ])("preserves emitted MCP documentation read targets: %s", async (target) => {
+    const body: AgenticAskMcpResponse = {
+      ...mcpResponseBody(),
+      source_format: "mcp",
+      sources: [
+        {
+          name: "docs_read",
+          arguments: { page_id: target, start_line: 3, end_line: 8 },
+        },
+      ],
+    };
+    const fetchFn = mock(() =>
+      Promise.resolve(jsonResponse(body)),
+    ) as unknown as typeof fetch;
+
+    const result = await createService(fetchFn).ask({
+      target: "npm:express",
+      question: "How does routing work?",
+      sourceFormat: "mcp",
+    });
+
+    expect(result).toEqual(body);
+  });
+
+  it.each([
     {
       subject: {},
       message:

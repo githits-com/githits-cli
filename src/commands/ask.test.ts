@@ -460,6 +460,41 @@ describe("askAction", () => {
 });
 
 describe("Agentic Ask human formatting", () => {
+  it.each([
+    {
+      target: "https://docs.example/page?lang=en&view=full#section",
+      argument: "'https://docs.example/page?lang=en&view=full#section'",
+    },
+    { target: "repo-doc:sha:pinned", argument: "repo-doc:sha:pinned" },
+    { target: "docs:example:guide", argument: "docs:example:guide" },
+  ])(
+    "renders documentation read targets unchanged: $target",
+    ({ target, argument }) => {
+      const formatted = formatAgenticAskHumanResponse(
+        result({
+          sources: [
+            {
+              command: "npx",
+              arguments: [
+                "githits@latest",
+                "docs",
+                "read",
+                "--lines",
+                "3-8",
+                "--",
+                target,
+              ],
+            },
+          ],
+        }),
+      );
+
+      expect(formatted).toContain(
+        `Sources:\n  1. npx githits@latest docs read --lines 3-8 -- ${argument}\n`,
+      );
+    },
+  );
+
   it("preserves markdown newlines while stripping terminal controls", () => {
     const formatted = formatAgenticAskHumanResponse(
       result({
