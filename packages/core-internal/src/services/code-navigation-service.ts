@@ -173,6 +173,7 @@ export type UnifiedSearchSessionStatus =
 export type CodeIndexState =
   | "CURRENT"
   | "INDEXED"
+  | "PENDING"
   | "INDEXING"
   | "PROVISIONAL"
   | "STALE"

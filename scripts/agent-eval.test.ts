@@ -3030,6 +3030,7 @@ describe("agent eval harness", () => {
         process.cwd(),
       );
       await runAgentEval(options, {
+        baseEnv: {},
         assertAgentAvailable: () => {
           availabilityProbeCalls += 1;
           return Promise.resolve();
