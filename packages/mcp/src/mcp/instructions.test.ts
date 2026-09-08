@@ -65,7 +65,10 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain(
       "public repository or package question and receive a source-cited answer",
     );
-    expect(instructions).toContain("Call `resolve_target` first");
+    expect(instructions).toContain("Omit `target` and `thread_id`");
+    expect(instructions).toContain(
+      "ask the user to select a `target`, then retry",
+    );
     expect(instructions).toContain("Reuse a returned `thread_id` only");
     expect(instructions).toContain('`source_format:"url"`');
     expect(instructions).toContain("Do not invent or rewrite sources");

@@ -97,13 +97,18 @@ terminal control sequences.
 Use `--source-format url` to return the original upstream HTTP URLs instead of
 CLI source commands. This changes only source presentation.
 
-The local MCP `ask` tool accepts exactly one of `target` for a new thread or
-`thread_id` for a needed follow-up. It defaults to MCP-native `code_read` and
-`docs_read` source calls. Set `source_format` to `url` for original upstream HTTP
-URLs. Text output includes source pointers, the Ask run ID, thread ID, and
-conditional follow-up guidance. JSON returns the response for the selected source
-format. The tool description directs agents to call `resolve_target` first when
-the intended target is ambiguous or not yet canonical.
+The local MCP `ask` tool also accepts a question alone. Omit both `target` and
+`thread_id` to identify the target from the question, supply `target` to choose
+one explicitly, or use `thread_id` for a needed follow-up. Do not combine them.
+It defaults to MCP-native `code_read` and `docs_read` source calls. Set
+`source_format` to `url` for original upstream HTTP URLs. Answer text includes
+source pointers, the Ask run ID, thread ID, and conditional follow-up guidance.
+JSON returns the response for the selected source format.
+
+When Ask cannot confidently select a target, both CLI and local MCP return a
+clarification with resolver candidates instead of an answer or thread. JSON
+identifies this as `outcome: "needs_target"`. Repeat the question with a selected
+target; do not infer identity from popularity or silently pick an ambiguous hit.
 
 Resolve a noncanonical name before calling another GitHits command:
 

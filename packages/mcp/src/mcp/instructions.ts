@@ -148,10 +148,7 @@ const LOCAL_EXPERIMENTAL_PRIVACY =
   "Inputs are sent to GitHits. Never send credentials, personal data, private or proprietary content, local paths, or private targets.";
 
 const LOCAL_AGENTIC_ASK_GUIDANCE_START =
-  "- `ask` — ask a public repository or package question and receive a source-cited answer.";
-
-const LOCAL_AGENTIC_ASK_RESOLVE_GUIDANCE =
-  " Call `resolve_target` first when the intended target is ambiguous or noncanonical.";
+  "- `ask` — ask a public repository or package question and receive a source-cited answer. Omit `target` and `thread_id` for question-only lookup. For candidates, ask the user to select a `target`, then retry.";
 
 const LOCAL_AGENTIC_ASK_GUIDANCE_END =
   ' Reuse a returned `thread_id` only when the previous answer is insufficient or more information is needed. Sources default to directly callable MCP tools; use `source_format:"url"` for original upstream URLs. Do not invent or rewrite sources. Use the returned Ask run ID when reporting a defect. Keep text; use JSON only for required fields absent from text.';
@@ -179,7 +176,7 @@ export function buildLocalMcpQuickStart(
   const toolGuidance: string[] = [];
   if (enabled.has("ask")) {
     toolGuidance.push(
-      `${LOCAL_AGENTIC_ASK_GUIDANCE_START}${enabled.has("resolve_target") ? LOCAL_AGENTIC_ASK_RESOLVE_GUIDANCE : ""}${LOCAL_AGENTIC_ASK_GUIDANCE_END}`,
+      `${LOCAL_AGENTIC_ASK_GUIDANCE_START}${LOCAL_AGENTIC_ASK_GUIDANCE_END}`,
     );
   }
   if (enabled.has("resolve_target")) {

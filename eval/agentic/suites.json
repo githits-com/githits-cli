@@ -56,6 +56,12 @@
       "suites": ["experimental"]
     },
     {
+      "id": "experimental-question-only-ask",
+      "path": "eval/agentic/workloads/experimental-question-only-ask.md",
+      "safety": "experimental",
+      "suites": ["experimental"]
+    },
+    {
       "id": "experimental-resolution-follow-up",
       "path": "eval/agentic/workloads/experimental-resolution-follow-up.md",
       "safety": "experimental",

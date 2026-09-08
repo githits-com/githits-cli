@@ -7,26 +7,30 @@ are historical records and change only to correct blatant factual errors.
 
 ## [githits 0.15.1] - 2026-09-08
 
+Patch release: aligns Ask target clarification across CLI and local MCP and
+preserves documentation indexing state.
+
 ### Fixed
 
 - **Ask target clarification** - Display resolver candidates with confidence,
   related targets, and evidence metadata when Ask requests a specific target.
-  Requires server support; answered responses and explicit-target behavior
-  remain unchanged.
+  Question-only asks work in both the CLI and local MCP. Requires server support;
+  answered responses and explicit-target behavior remain unchanged.
 - **Documentation indexing state** - `docs list` distinguishes active
   preparation from terminal empty results and retains provisional pages with
   exact lifecycle state in JSON.
 
 ## [@githits/mcp 0.15.1] - 2026-09-08
 
+Patch release: preserves documentation indexing state.
+
 ### Fixed
 
-- **Ask target clarification** - Recognize successful `needs_target` responses
-  and share candidate rendering with the CLI. Local MCP Ask still requires an
-  explicit target or thread.
 - **Documentation indexing state** - `docs_list` distinguishes active
   preparation from terminal empty results and retains provisional pages with
   exact lifecycle state in JSON.
+
+Hosted MCP users receive applicable changes after the service rollout.
 
 ## [githits 0.15.0] - 2026-09-08
 

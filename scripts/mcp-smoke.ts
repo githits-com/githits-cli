@@ -254,22 +254,24 @@ async function runExperimentalRegistrationSmoke(
       ["--experimental-tools"],
       async (client) => {
         await assertExperimentalMcpSession(client, "experimental registration");
-        const askResult = (await trackSmokeStep(
-          'mcp ask {"target":"npm:express"} registration',
-          () =>
-            client.callTool({
-              name: "ask",
-              arguments: {
-                target: "npm:express",
-                question: "Where is router dispatch implemented?",
-              },
-            }),
-        )) as McpSmokeToolResult;
-        assert(
-          assertCleanErrorEnvelope(askResult, "ask registration").code ===
-            "AUTH_REQUIRED",
-          "ask registration should require auth",
-        );
+        for (const subject of [{ target: "npm:express" }, {}]) {
+          const askResult = (await trackSmokeStep(
+            `mcp ask ${JSON.stringify(subject)} registration`,
+            () =>
+              client.callTool({
+                name: "ask",
+                arguments: {
+                  ...subject,
+                  question: "Where is Express router dispatch implemented?",
+                },
+              }),
+          )) as McpSmokeToolResult;
+          assert(
+            assertCleanErrorEnvelope(askResult, "ask registration").code ===
+              "AUTH_REQUIRED",
+            "ask registration should require auth",
+          );
+        }
 
         const resolveResult = (await trackSmokeStep(
           'mcp resolve_target {"name":"express"} registration',
