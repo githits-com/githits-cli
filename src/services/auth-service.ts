@@ -469,6 +469,10 @@ export class AuthServiceImpl implements AuthService {
   }
 }
 
+/**
+ * Identify rejected refresh credentials from OAuth client-error responses.
+ * OAuth and Supabase refresh codes identify rejection independently of prose.
+ */
 export function classifyTerminalRefreshError(
   error: unknown,
 ): TerminalRefreshFailureReason | undefined {
@@ -481,6 +485,15 @@ export function classifyTerminalRefreshError(
   }
 
   const oauthError = error.oauthError?.toLowerCase();
+  switch (oauthError) {
+    case "invalid_grant":
+    case "refresh_token_not_found":
+    case "refresh_token_already_used":
+    case "session_not_found":
+    case "session_expired":
+      return "invalid_refresh_token";
+  }
+
   const text = [
     error.oauthError,
     error.oauthErrorDescription,
@@ -504,17 +517,6 @@ export function classifyTerminalRefreshError(
     return "invalid_client";
   }
 
-  if (
-    oauthError === "invalid_grant" &&
-    (text.includes("invalid refresh token") ||
-      text.includes("refresh token already used") ||
-      text.includes("already used") ||
-      text.includes("session expired") ||
-      text.includes("session not found"))
-  ) {
-    return "invalid_refresh_token";
-  }
-
   return undefined;
 }
 
@@ -525,7 +527,12 @@ function parseOAuthErrorBody(body: string): {
   try {
     const parsed = JSON.parse(body) as Record<string, unknown>;
     return {
-      oauthError: stringField(parsed.error),
+      // OAuth uses error; Supabase's legacy and versioned HTTP envelopes use
+      // error_code and code respectively. Numeric code values are HTTP status.
+      oauthError:
+        stringField(parsed.error) ??
+        stringField(parsed.error_code) ??
+        stringField(parsed.code),
       oauthErrorDescription:
         stringField(parsed.error_description) ??
         stringField(parsed.errorDescription) ??
@@ -548,6 +555,7 @@ const OAUTH_ERROR_DETAIL_FIELDS = [
   "detail",
   "error_description",
   "message",
+  "msg",
   "error",
 ] as const;
 

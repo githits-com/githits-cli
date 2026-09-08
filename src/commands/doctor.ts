@@ -711,7 +711,7 @@ function lastClearRecommendation(event: {
   const when = `(last clear: ${event.reason} at ${event.at})`;
   switch (event.reason) {
     case "terminal_invalid_refresh_token":
-      return `Auth was cleared after refresh-token reuse or expiry ${when}. Run \`githits login\`. If this recurs, another agent or a stale CLI is likely refreshing the same credentials concurrently.`;
+      return `Auth was cleared after the server rejected the refresh credentials ${when}. Run \`githits login\`.`;
     case "terminal_invalid_client":
       return `Auth was cleared after the OAuth client registration was rejected ${when}. Run \`githits login\` to re-register.`;
     case "logout":
