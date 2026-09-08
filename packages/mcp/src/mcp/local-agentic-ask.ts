@@ -1,12 +1,14 @@
 import {
   type AgenticAskMcpResponse,
   type AgenticAskMcpSourceCall,
+  type AgenticAskNeedsTargetResponse,
   type AgenticAskService,
   type AgenticAskUrlResponse,
   normalizeAgenticAskThreadId,
 } from "@githits/core-internal";
 import { z } from "zod";
 import { mapAgenticAskError } from "../shared/agentic-ask-error-map.js";
+import { formatAgenticAskClarification } from "../shared/agentic-ask-response.js";
 import {
   buildMcpErrorPayload,
   throwIfCallerCancellation,
@@ -128,8 +130,14 @@ export function createLocalAgenticAskTool(
 
 /** Render the validated answer, selected source pointers, and identifiers. */
 export function formatAgenticAskMcpText(
-  response: AgenticAskMcpResponse | AgenticAskUrlResponse,
+  response:
+    | AgenticAskMcpResponse
+    | AgenticAskUrlResponse
+    | AgenticAskNeedsTargetResponse,
 ): string {
+  if ("outcome" in response) {
+    return formatAgenticAskClarification(response);
+  }
   const sections = [response.answer_markdown.trim()];
   if (response.sources.length > 0) {
     const sourceLines =

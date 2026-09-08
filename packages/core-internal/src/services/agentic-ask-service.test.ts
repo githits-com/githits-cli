@@ -14,6 +14,7 @@ import {
   normalizeAgenticAskThreadId,
   parseAgenticAskToolCallId,
 } from "./agentic-ask-service.js";
+import { ASK_NEEDS_TARGET_WIRE } from "./ask-needs-target.fixture.js";
 import { createMockTokenProvider } from "./test-helpers.js";
 
 const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
@@ -135,7 +136,77 @@ function createService(
   );
 }
 
+function clarificationFetch(body: unknown): typeof fetch {
+  return Object.assign(async () => Response.json(body), {
+    preconnect: () => undefined,
+  });
+}
+
 describe("AgenticAskServiceImpl", () => {
+  it("accepts a backend target clarification without answer identifiers", async () => {
+    const service = createService(clarificationFetch(ASK_NEEDS_TARGET_WIRE));
+    const result = await service.ask({
+      question: "How does codex handle chat compaction?",
+    });
+    expect("outcome" in result && result.outcome).toBe("needs_target");
+    if (!("outcome" in result)) throw new Error("Expected clarification");
+    expect(
+      result.resolution.targets.map((target) => target.canonicalKey),
+    ).toEqual(["github:openai/codex", "npm:@openai/codex", "npm:codex"]);
+    expect(result.resolution.targets[0]?.match?.confidence).toBe("MEDIUM");
+    expect(result.resolution.targets[0]?.groupKey).toBe("github:openai/codex");
+    expect(result.resolution.protectedMatches[0]?.canonicalKey).toBe(
+      "npm:codex",
+    );
+    expect(result.resolution.targetsTruncated).toBe(true);
+    expect(result).not.toHaveProperty("thread_id");
+    expect(result).not.toHaveProperty("answer_markdown");
+  });
+
+  it("accepts empty candidates without inventing a best target", async () => {
+    const service = createService(
+      clarificationFetch({
+        ...ASK_NEEDS_TARGET_WIRE,
+        resolution: {
+          ...ASK_NEEDS_TARGET_WIRE.resolution,
+          best: null,
+          targets: [],
+        },
+      }),
+    );
+    const result = await service.ask({
+      question: "How does UnknownProject work?",
+    });
+    if (!("outcome" in result)) throw new Error("Expected clarification");
+    expect(result.resolution.best).toBeUndefined();
+    expect(result.resolution.targets).toEqual([]);
+  });
+
+  it.each([{ target: "github:openai/codex" }, { threadId: THREAD_ID }])(
+    "rejects clarification for an already bound request: %j",
+    async (subject) => {
+      const service = createService(clarificationFetch(ASK_NEEDS_TARGET_WIRE));
+      await expect(
+        service.ask({ ...subject, question: "How?" }),
+      ).rejects.toBeInstanceOf(MalformedAgenticAskResponseError);
+    },
+  );
+
+  it("rejects malformed resolver candidates in a clarification", async () => {
+    const service = createService(
+      clarificationFetch({
+        ...ASK_NEEDS_TARGET_WIRE,
+        resolution: {
+          ...ASK_NEEDS_TARGET_WIRE.resolution,
+          targets: [{ canonicalKey: "github:openai/codex" }],
+        },
+      }),
+    );
+    await expect(service.ask({ question: "How?" })).rejects.toBeInstanceOf(
+      MalformedAgenticAskResponseError,
+    );
+  });
+
   it.each([
     "https://docs.example/page?lang=en&view=full#section",
     "repo-doc:sha:pinned",

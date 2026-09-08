@@ -2,13 +2,17 @@ import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import {
   type AgenticAskCliResponse,
   AgenticAskHttpError,
+  type AgenticAskNeedsTargetResponse,
   AgenticAskRequestTimeoutError,
   type AgenticAskService,
   type AgenticAskUrlResponse,
+  parseCompactResolveTargetResult,
 } from "@githits/core-internal";
 import { TermsAcceptanceRequiredError } from "@githits/core-internal/browser";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import { Command } from "commander";
+import { ASK_NEEDS_TARGET_WIRE } from "../../packages/core-internal/src/services/ask-needs-target.fixture.js";
+import { formatAgenticAskMcpText } from "../../packages/mcp/src/mcp/local-agentic-ask.js";
 import {
   type AskCommandDependencies,
   askAction,
@@ -82,7 +86,65 @@ type CliAsk = (
     sourceFormat?: "cli" | "url";
   },
   options?: { signal?: AbortSignal },
-) => Promise<AgenticAskCliResponse | AgenticAskUrlResponse>;
+) => Promise<
+  AgenticAskCliResponse | AgenticAskUrlResponse | AgenticAskNeedsTargetResponse
+>;
+
+function clarification(): AgenticAskNeedsTargetResponse {
+  const resolution = parseCompactResolveTargetResult(
+    ASK_NEEDS_TARGET_WIRE.resolution,
+  );
+  if (!resolution) throw new Error("Invalid backend fixture");
+  return {
+    outcome: "needs_target",
+    message: ASK_NEEDS_TARGET_WIRE.message,
+    resolution,
+  };
+}
+
+describe("Ask target clarification", () => {
+  it("renders provider grouping and confidence consistently in CLI and MCP", () => {
+    const result = clarification();
+    const text = formatAgenticAskHumanResponse(result);
+    expect(text).toBe(formatAgenticAskMcpText(result));
+    expect(text).toContain("Did you mean any of these?");
+    expect(text).toContain("github:openai/codex [medium]");
+    expect(text).toContain("Related targets:");
+    expect(text).toContain("npm:@openai/codex");
+    expect(text).toContain("protected exact-name match");
+    expect(text).toContain("122k stars");
+    expect(text).not.toContain("Thread ID:");
+    expect(text).not.toContain("githits search");
+  });
+
+  it("shows candidates even when the resolver supplies no best reference", () => {
+    const result = clarification();
+    result.resolution.best = undefined;
+    result.resolution.targets[0]!.description = "description\u001b[2J";
+    const text = formatAgenticAskHumanResponse(result);
+    expect(text).toContain("github:openai/codex");
+    expect(text).not.toContain("\u001b");
+  });
+
+  it("writes a successful JSON clarification without retrying or exiting", async () => {
+    const log = spyOn(console, "log").mockImplementation(() => undefined);
+    const exit = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const ask = mock(() => Promise.resolve(clarification()));
+    await askAction(
+      undefined,
+      "How does codex handle chat compaction?",
+      { json: true },
+      createDeps(ask),
+    );
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      outcome: "needs_target",
+    });
+    expect(exit).not.toHaveBeenCalled();
+  });
+});
 
 function createDeps(
   ask: CliAsk = mock(() => Promise.resolve(result())),

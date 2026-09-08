@@ -413,6 +413,25 @@ export class ResolveTargetServiceImpl implements ResolveTargetService {
   }
 }
 
+/** Validate the compact resolver payload used by Ask target clarification. */
+export function parseCompactResolveTargetResult(
+  value: unknown,
+): ResolveTargetResult | undefined {
+  const parsed = responseSchema(listTargetSchema, false).safeParse({
+    data: { resolveTarget: value },
+  });
+  if (!parsed.success || !parsed.data.data?.resolveTarget) return undefined;
+  const result = parsed.data.data.resolveTarget;
+  return {
+    best: result.best ? normaliseReference(result.best) : undefined,
+    protectedMatches: result.protectedMatches.map(normaliseReference),
+    targets: result.targets.map((target) => normaliseTarget(target, undefined)),
+    targetsTruncated: result.targetsTruncated,
+    ambiguous: result.ambiguous,
+    ambiguousReason: result.ambiguousReason,
+  };
+}
+
 function normaliseReference(
   target: z.infer<typeof targetReferenceSchema>,
 ): ResolveTargetReference {
