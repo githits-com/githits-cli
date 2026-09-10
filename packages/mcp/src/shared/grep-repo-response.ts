@@ -4,7 +4,11 @@ import type {
   GrepRepoSymbolField,
 } from "@githits/core-internal";
 import { colorize, dim, highlightRanges } from "./colors.js";
-import { buildEmptyGrepGuidance } from "./grep-repo-text.js";
+import type { GrepContextClamping } from "./grep-repo-request.js";
+import {
+  buildEmptyGrepGuidance,
+  buildGrepContextClampingNotice,
+} from "./grep-repo-text.js";
 import { shellQuote } from "./shell-quote.js";
 import {
   buildTargetResolutionNotes,
@@ -66,6 +70,7 @@ export interface LeanGrepRepoFilter {
 }
 
 export interface LeanGrepRepoEnvelope {
+  contextClamping?: GrepContextClamping;
   registry?: string;
   name?: string;
   repoUrl?: string;
@@ -90,6 +95,7 @@ export interface LeanGrepRepoEnvelope {
 }
 
 export interface BuildGrepRepoPayloadOptions {
+  contextClamping?: GrepContextClamping;
   registry?: string;
   name?: string;
   repoUrl?: string;
@@ -142,6 +148,9 @@ export function buildGrepRepoSuccessPayload(
     totalMatches: result.totalMatches,
     uniqueFilesMatched: result.uniqueFilesMatched,
   };
+
+  if (options.contextClamping)
+    envelope.contextClamping = options.contextClamping;
 
   if (options.patternType !== "literal") {
     envelope.patternType = options.patternType;
@@ -590,6 +599,9 @@ function formatTerminalNotes(
       .map((line) => dim(line, useColors))
       .join("\n")}\n`;
   }
+
+  const contextNotice = buildGrepContextClampingNotice(envelope, "cli");
+  if (contextNotice) lines.push(dim(contextNotice, useColors));
 
   if (shouldSuggestNarrowingScope(envelope)) {
     lines.push(

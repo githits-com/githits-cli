@@ -565,3 +565,44 @@ The historical live stdio grep that stayed pending beyond 15 minutes also needs
 a separate transport/service diagnosis. Its connection succeeded and its trace
 is retained, but no root cause is established. Fixture latency is not a
 substitute for production evidence, and this work adds no retries or workaround.
+
+
+### Post-comparison grep context correction
+
+The user-approved follow-up changes runtime behavior as well as the grep
+argument descriptions. It is **not part of the six matched routing runs above**.
+Eight candidate validation failures all requested `context_lines_after: 12`;
+seven were launched before the first failure returned, then corrected to 10.
+They were not seven sequential failures to follow an error message.
+
+The shared grep request builder now caps effective context at 10 per side after
+applying asymmetric overrides. CLI parsing and MCP schemas accept nonnegative
+safe integers above 10. Negative, fractional, nonfinite and unsafe integers
+remain invalid. Unchanged inputs retain the existing output shape. Reduced
+requests include `contextClamping` with requested/effective before/after values;
+MCP text and CLI stderr report the reduction and direct larger windows to
+`code_read` / `githits code read`. Existing JSON filter fields retain their
+prior semantics; `contextClamping` explicitly records the effective sides.
+An overridden symmetric request does not emit a notice if neither effective
+side needs reduction. Backend limits, match limits and network queries are
+unchanged.
+
+The selected grep description explains the cap and routes larger windows to
+reads instead of repeated grep. Its first sentence and first 80 characters are
+unchanged. No skill-body or quick-start changes accompany this correction.
+Baseline targeted tests: 45 passed before implementation. Regression coverage
+checks schema acceptance, normalized wire values, invalid inputs, overrides,
+CLI/MCP JSON parity and notices for matches and empty results. Live smoke
+requests now exercise after-context 12 in both surfaces.
+
+A descriptor-only Claude `code-grep-investigation` attempt failed at login
+before usable tool/usage evidence; its ignored local artifacts are retained.
+Do not interpret it as a product failure or an optimization result. New CI
+results must be reported separately from the matched routing comparison.
+
+Documentation fragments were handed off through Orca to an independent
+`pkgseer-backend` worktree named `docs-fragment-resolution`. The Flask failure
+appended `#the-routing-system` to a returned page URL. The two Express misses
+instead used alternate page URLs and require separate alias/bundle analysis.
+Backend work owns source identity and section mapping; this PR does not strip
+fragments or implement section selection.

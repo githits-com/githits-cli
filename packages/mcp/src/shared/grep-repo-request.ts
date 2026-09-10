@@ -55,7 +55,16 @@ export interface GrepRepoRequestInput {
   waitTimeoutMs?: number;
 }
 
+/** Present only when requested surrounding context exceeds the backend ceiling. */
+export interface GrepContextClamping {
+  requestedBefore: number;
+  requestedAfter: number;
+  effectiveBefore: number;
+  effectiveAfter: number;
+}
+
 export interface GrepRepoRequestBuildResult {
+  contextClamping?: GrepContextClamping;
   params: GrepRepoParams;
   explicit: {
     path: boolean;
@@ -128,7 +137,19 @@ export function buildGrepRepoParams(
   const pathSelectors = buildPathSelectors({ path, pathPrefix, globs });
   const hasPathSelectors = (pathSelectors?.length ?? 0) > 0;
 
+  const requestedBefore = input.contextLinesBefore ?? input.contextLines ?? 0;
+  const requestedAfter = input.contextLinesAfter ?? input.contextLines ?? 0;
   return {
+    ...(requestedBefore > resolvedBefore || requestedAfter > resolvedAfter
+      ? {
+          contextClamping: {
+            requestedBefore,
+            requestedAfter,
+            effectiveBefore: resolvedBefore,
+            effectiveAfter: resolvedAfter,
+          },
+        }
+      : {}),
     params: {
       target: input.target,
       pattern,
@@ -246,16 +267,12 @@ function normalizeOptionalContext(
   field: string,
 ): number | undefined {
   if (value === undefined) return undefined;
-  if (
-    !Number.isInteger(value) ||
-    value < GREP_REPO_CONTEXT_MIN ||
-    value > GREP_REPO_CONTEXT_MAX
-  ) {
+  if (!Number.isSafeInteger(value) || value < GREP_REPO_CONTEXT_MIN) {
     throw new InvalidPackageSpecError(
-      `\`${field}\` must be an integer between ${GREP_REPO_CONTEXT_MIN} and ${GREP_REPO_CONTEXT_MAX}. Got ${value}.`,
+      `\`${field}\` must be a nonnegative safe integer. Got ${value}.`,
     );
   }
-  return value;
+  return Math.min(value, GREP_REPO_CONTEXT_MAX);
 }
 
 function normalizeMaxMatches(value: number | undefined): number {

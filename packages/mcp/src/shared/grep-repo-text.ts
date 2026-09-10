@@ -45,6 +45,9 @@ export function renderGrepRepoText(envelope: LeanGrepRepoEnvelope): string {
     return lines.join("\n");
   }
 
+  const contextNotice = buildGrepContextClampingNotice(envelope);
+  if (contextNotice) lines.push(contextNotice, "");
+
   const blocks = buildRenderBlocks(envelope.matches);
   const blocksByFile = groupBlocksByFile(blocks);
   const useContext = blocksHaveContext(blocks);
@@ -80,6 +83,8 @@ export function buildEmptyGrepGuidance(
   surface: "mcp" | "cli" = "mcp",
 ): string[] {
   const lines = [formatEmptyGrepFileCounts(envelope)];
+  const contextNotice = buildGrepContextClampingNotice(envelope, surface);
+  if (contextNotice) lines.push(contextNotice);
   const served = formatGrepServedTarget(envelope);
   if (served) lines.push(served);
   for (const note of buildTargetResolutionNotes(envelope.targetResolution)) {
@@ -377,4 +382,15 @@ function renderLine(
 
 function quote(value: string): string {
   return value.includes('"') ? `'${value}'` : `"${value}"`;
+}
+
+/** Explain reduced context without requiring another grep request. */
+export function buildGrepContextClampingNotice(
+  envelope: LeanGrepRepoEnvelope,
+  surface: "mcp" | "cli" = "mcp",
+): string | undefined {
+  const adjustment = envelope.contextClamping;
+  if (!adjustment) return undefined;
+  const read = surface === "cli" ? "githits code read" : "code_read";
+  return `Context limited to ${adjustment.effectiveBefore} before / ${adjustment.effectiveAfter} after (requested ${adjustment.requestedBefore} / ${adjustment.requestedAfter}; maximum 10 per side). Use ${read} for a larger window.`;
 }

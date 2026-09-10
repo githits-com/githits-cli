@@ -826,7 +826,9 @@ function smokeResponse(
     case "code_read":
       return textResult('1  {"name":"express"}');
     case "code_grep":
-      return textResult("package.json: express");
+      return textResult(
+        "package.json: express\nContext limited (requested 0 / 12)",
+      );
     case "search":
       return textResult(
         "No result snapshot yet | indexing | 0/1 ready\n\n" +
@@ -967,7 +969,15 @@ function smokeJsonResponse(
     case "code_read":
       return jsonResult({ path: "package.json" });
     case "code_grep":
-      return jsonResult({ matches: [] });
+      return jsonResult({
+        matches: [],
+        contextClamping: {
+          requestedBefore: 0,
+          requestedAfter: 12,
+          effectiveBefore: 0,
+          effectiveAfter: 10,
+        },
+      });
     case "search":
       return jsonResult({
         completed: false,

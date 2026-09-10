@@ -1212,6 +1212,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
       pattern: "express",
       path: "package.json",
       max_matches: 1,
+      context_lines_after: 12,
     }),
     "code_grep default",
   );
@@ -1220,12 +1221,18 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "code_grep default missing package.json",
   );
 
+  assert(
+    codeGrepText.includes("requested 0 / 12"),
+    "code_grep missing context clamping notice",
+  );
+
   const codeGrepJson = assertJsonResult(
     await callTool(caller, "code_grep", {
       target: SMOKE_PACKAGE_TARGET,
       pattern: "express",
       path: "package.json",
       max_matches: 1,
+      context_lines_after: 12,
       format: "json",
     }),
     "code_grep json",
@@ -1234,6 +1241,13 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   assert(
     "matches" in codeGrepJson || "totalMatches" in codeGrepJson,
     "code_grep json missing matches",
+  );
+
+  assertRecord(codeGrepJson.contextClamping, "code_grep context clamping");
+  assert(
+    codeGrepJson.contextClamping.requestedAfter === 12 &&
+      codeGrepJson.contextClamping.effectiveAfter === 10,
+    "code_grep context clamping mismatch",
   );
 
   const searchText = assertDefaultText(
