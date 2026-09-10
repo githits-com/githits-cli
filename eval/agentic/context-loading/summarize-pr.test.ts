@@ -16,11 +16,13 @@ function cell(cellId: string, inputTokens: number) {
 }
 
 const runs = [
-  ...[
-    [1, 100],
-    [100, 1],
-    [2, 2],
-  ].map(([a = 0, b = 0]) => ({
+  ...(
+    [
+      [1, 100],
+      [100, 1],
+      [2, 2],
+    ] as const
+  ).map(([a, b]) => ({
     variant: "baseline" as const,
     cells: [cell("full/a", a), cell("full/b", b)],
   })),
