@@ -149,7 +149,7 @@ Use the tools in these roles:
 | `search` | `query`, `target?`, `targets?`, `source?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Discover relevant evidence in a known target before exact grep: docs, specs, code, symbols, tests, and examples ranked by relevance. Open-ended “how does”, “where is”, “find”, “locate”, or loosely phrased “grep the source” questions start here; omit `source` for broad discovery. A `search` call can return complete results directly; use `search_status` only when the response explicitly supplies a `searchRef` and action. |
 | `search_status` | `search_ref`, `wait_timeout_ms?`, `format?` | Continue an explicit `search` reference only after that response supplies a `searchRef` and `search_status` action. Inspect progress or retrieve interim, partial, or final hits; terminal and unrecognized statuses end that reference, so use a later `search` for a fresh session. |
 | `docs_list` | `registry`, `package_name`, `version?`, `limit?`, `after?`, `format?` | List package documentation targets and hand off to `docs_read`; use `search` for topic discovery. Entries retain `docsReadTarget`, stable `pageId`, and provenance `sourceUrl`. Exact Go versions accept both `v`-prefixed and unprefixed forms. Repo-backed entries include exact source metadata for `code_read` when available. Active empty results remain preparation/indexing outcomes rather than becoming “not found”; provisional results retain already-available pages and lifecycle state. |
-| `docs_read` | `page_id`, `start_line?`, `end_line?`, `format?` | Read a package documentation page by emitted `docsReadTarget` or historical `pageId`; the compatible schema key remains `page_id`. Text output returns 150 lines by default or up to 300 with an explicit range; repo-backed pages include exact `code_read` metadata. |
+| `docs_read` | `page_id`, `start_line?`, `end_line?`, `format?` | Read a package documentation page by emitted `docsReadTarget` or historical `pageId`; the compatible schema key remains `page_id`. An HTTP(S) fragment resolves one exact indexed section unless either explicit line bound overrides it. Text locally displays 150 lines without an explicit end or up to 300 with one; repo-backed pages include exact `code_read` metadata. |
 | `pkg_info` | `registry`, `package_name`, `verbose?`, `format?` | Assess latest package health and adoption through license, downloads, and activity. Use `pkg_vulns` for advisory detail, `pkg_deps` for dependency graphs, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison. |
 | `pkg_vulns` | `registry`, `package_name`, `version?`, `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `include_transitive?`, `verbose?`, `format?` | Check current package advisories instead of trusting memory for vulnerabilities. Advisories can be published or revised after training, so a cutoff disclaimer is not current evidence. Covers pinned releases, latest-version risk, and package security history. Use `include_transitive: true` for resolved dependency evidence; `advisory_scope: "all"` includes historical advisories for those dependency packages. Use `pkg_info` for a latest health overview or `pkg_upgrade_review` for current-vs-target evidence. |
 | `pkg_deps` | `registry`, `package_name`, `version?`, `lifecycle?`, `include_importers?`, `include_issues?`, `max_depth?`, `format?` | Inspect direct/transitive dependencies or opt into deprecated, outdated, duplicate, and conflict analysis. Use `pkg_info` for health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence. |
@@ -683,7 +683,7 @@ Breakdowns use `repo code hit(s)` and `repo symbol(s)` alongside `repo doc(s)`
 and `docs page(s)`. When more results exist without a next offset, the final field is
 `more available`. Pagination is not repeated as a bottom paragraph.
 
-**Follow-up — crawled-doc section anchors.** Unified search can label a crawled documentation hit with a matching section title while returning its emitted read target and stable page ID. A source URL fragment is retained beside the target, but without a line range `docs_read` must start at the beginning of the page. Carrying section ranges through search results requires backend/search-location support and is outside the CLI response-formatting slice.
+**Follow-up — crawled-doc section anchors.** Unified search can label a crawled documentation hit with a matching section title and return an HTTP(S) `docsReadTarget` containing its indexed fragment. Passing that target to `docs_read` without explicit line bounds resolves exactly one indexed section in the backend and reports its absolute page range. Missing, duplicate, windowed/inexact, or unsupported sections return non-retryable `DOCUMENTATION_SECTION_UNRESOLVED` with a reason; they never become `NOT_FOUND` or a successful full-page read. Publisher-only IDs omitted during ingestion remain unavailable. The client passes locators unchanged and does not synthesize website slug rules.
 
 Completed-empty action selection is target-aware: exact terminal lanes with no
 searched/indexing peer get local recovery, while searched-empty evidence can get
@@ -737,18 +737,35 @@ Empty grep adds scanned/in-scope counts, served target/ref context when known, a
 
 `context_lines`, `context_lines_before`, and `context_lines_after` accept integers from 0 through 10. The MCP JSON Schema advertises the range so agent clients reject invalid calls before dispatch; direct CLI/internal callers retain the same request-builder validation. The asymmetric fields override the corresponding side of `context_lines`.
 
-**Docs read bounds.** `docs_read` text output returns 150 lines when `end_line` is omitted and honors explicit ranges up to 300 lines. Its response reports the actual returned range and total line count for the next bounded read; JSON mode preserves explicitly requested ranges.
+**Docs read bounds.** `getDocPage(pageId, startLine?, endLine?)` owns inclusive, one-based, page-relative selection. Either explicit bound overrides an HTTP(S) fragment; omitted start means line 1 and omitted end means EOF. The backend clamps an end beyond EOF and rejects nonpositive, reversed, or past-EOF starts. `docs_read` forwards only caller-supplied bounds. MCP text then locally displays at most 150 lines when `end_line` is omitted or 300 when it is explicit; this presentation cap is never sent as a synthetic backend range, so it cannot suppress fragment resolution. JSON and CLI have no local display cap.
+
+The required backend `contentRange` supplies `startLine`, `endLine`, `totalLines`, and resolved `anchor`. `page.content` is already the selected body, so the client never reapplies absolute bounds. Local MCP truncation slices only the returned prefix from `contentRange.startLine`, reports the actual displayed absolute range, and points continuation at the stable `pageId`; it stops at the backend selection end so continuing a section cannot leak into the next section. `totalLines` is the whole stored page extent and counts newline splits, including a trailing empty line. Empty pages report `totalLines: 0` with absent output bounds. `anchor` is present only for a resolved indexed section.
 
 `docs_read` passes the existing `page_id` string through unchanged, whether it
 is an emitted HTTP(S) `docsReadTarget` or a historical page ID. Successful JSON
 reads retain `docsReadTarget`, stable replay `pageId`, and provenance
-`sourceUrl`. Unknown URL targets use the existing non-retryable `NOT_FOUND`
-envelope, and URL reads never enqueue crawling.
+`sourceUrl`, plus the actual returned `startLine` / `endLine`, whole-page
+`totalLines`, and any resolved `anchor`. Opaque and snapshot-pinned IDs are not
+trimmed, percent-decoded, fragment-stripped, or otherwise normalized. Unknown
+pages retain the existing non-retryable `NOT_FOUND` envelope, distinct from the
+section-resolution error, and URL reads never enqueue crawling.
 
-The current package-doc backend returns the complete page and `docs_read` applies
-the text range locally. Move this slicing into the backend when that API is next
-revised so large pages are not transferred in full; preserve the same range and
-total-line response contract.
+**Backend compatibility.** This client query requires `getDocPage` to accept
+optional `startLine` / `endLine` and return required `contentRange`. Deploy that
+backend schema before releasing or deploying the client. There is deliberately no
+old-schema fallback: a client pointed at an older target returns the normal
+sanitized protocol-mismatch error instead of silently losing fragment/range
+semantics. On 2026-09-10, an unauthenticated validation query confirmed that the
+default `https://pkgseer.dev` target still rejected all three additions. Backend
+merge state and deployment state are separate; only the served schema establishes
+runtime compatibility.
+
+Content is sanitized across the complete stored page before backend slicing, so
+any backend `contentSafety` assessment covers the complete page even when
+modifications fall outside the returned selection. The current read envelope does
+not expose that unused backend field. Client diagnostics and result metadata keep
+only locators, explicit bounds, range coordinates, and existing provenance; they
+never store documentation content or credentials as usage details.
 
 **Errors in text mode.** `search` errors render as text in `text-v1` mode: `search | ERROR | code=<CODE> [| retryable]\n<message>` followed by an indented `details:` block when present. `code_files` and `code_grep` keep errors JSON-formatted in either mode for now — revisit if agent feedback warrants.
 

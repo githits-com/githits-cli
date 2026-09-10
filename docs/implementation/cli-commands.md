@@ -806,9 +806,11 @@ githits docs read <docs-read-target> --json
 
 Reads a documentation page returned by `docs list` or search results. Prefer the emitted `docsReadTarget`; historical crawled IDs and snapshot-pinned repository IDs remain compatible. URL reads resolve only active existing content and never enqueue crawling. Default output is content-only for easy piping; `--verbose` adds a metadata header.
 
-**Line ranges.** `--lines 10-40`, `--lines 10-`, and `--lines -40` are supported. Use ranges to inspect long pages incrementally.
+**Fragments and line ranges.** An HTTP(S) fragment with no explicit range resolves exactly one indexed section in the backend. `--lines 10-40`, `--lines 10-`, and `--lines -40` are supported and forward only their written bounds; either bound overrides the fragment. The backend defaults omitted bounds, clamps an end beyond EOF, and rejects invalid starts/ranges. The CLI never strips or normalizes opaque IDs and does not infer publisher anchor slugs.
 
-**Output envelope.** `{docsReadTarget, pageId, title?, sourceKind?, sourceUrl?, repoUrl?, gitRef?, filePath?, totalLines?, startLine?, endLine?, content}`. `pageId` remains the stable replay pointer and `sourceUrl` remains provenance. Verbose text prints each distinct locator once. Repo-backed docs include exact source metadata for `code read` follow-up.
+**Output envelope.** `{docsReadTarget, pageId, title?, sourceKind?, sourceUrl?, repoUrl?, gitRef?, filePath?, totalLines, startLine?, endLine?, anchor?, content}`. `pageId` remains the stable replay pointer and `sourceUrl` remains provenance. The range is the actual returned absolute page range, `totalLines` is the whole stored page extent including a trailing empty line, and an empty page has no bounds. `anchor` identifies a successfully resolved indexed section. Verbose text prints each distinct locator once plus range/anchor metadata. Repo-backed docs include exact source metadata for `code read` follow-up.
+
+`DOCUMENTATION_SECTION_UNRESOLVED` is a non-retryable section error with reason `not_found`, `ambiguous`, `inexact_range`, or `unsupported_format`; page absence remains non-retryable `NOT_FOUND`. The client requires the backend `getDocPage(startLine?, endLine?)` and `contentRange` schema. Roll out the backend first; no old-schema fallback weakens these semantics.
 
 **Troubleshooting.** Same debug areas as the `pkg` family.
 

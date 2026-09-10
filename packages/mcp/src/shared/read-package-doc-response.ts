@@ -3,7 +3,6 @@ import { MalformedPackageIntelligenceResponseError } from "@githits/core-interna
 import { colorize } from "./colors.js";
 import { lowerDocSourceKind } from "./docs-follow-up.js";
 import { toIsoDate } from "./format-date.js";
-import type { LineRange } from "./parse-lines-option.js";
 
 export interface LeanPackageDocEnvelope {
   registry?: string;
@@ -14,12 +13,13 @@ export interface LeanPackageDocEnvelope {
   title?: string;
   format?: string;
   content?: string;
-  /** Total lines in the source page; present whenever a `content` slice
-   *  was applied or the source content was non-empty. */
-  totalLines?: number;
-  /** Set when caller scoped output to a line range. */
+  /** Whole stored page extent, including a trailing empty line. */
+  totalLines: number;
+  /** Actual absolute page range returned to this caller. */
   startLine?: number;
   endLine?: number;
+  /** Indexed section anchor resolved from the requested URL fragment. */
+  anchor?: string;
   breadcrumbs?: string[];
   lastUpdatedAt?: string;
   sourceKind?: "crawled" | "repo";
@@ -36,7 +36,7 @@ export interface LeanPackageDocEnvelope {
 export function buildReadPackageDocSuccessPayload(
   result: PackageDocResult,
   requestedPageId: string,
-  range?: LineRange,
+  maxOutputLines?: number,
 ): LeanPackageDocEnvelope {
   const pageId = result.page?.id;
   if (!pageId) {
@@ -61,7 +61,19 @@ export function buildReadPackageDocSuccessPayload(
     );
   }
 
-  const envelope: LeanPackageDocEnvelope = { pageId, docsReadTarget };
+  const envelope: LeanPackageDocEnvelope = {
+    pageId,
+    docsReadTarget,
+    totalLines: result.contentRange.totalLines,
+  };
+
+  if (result.contentRange.startLine !== undefined) {
+    envelope.startLine = result.contentRange.startLine;
+  }
+  if (result.contentRange.endLine !== undefined) {
+    envelope.endLine = result.contentRange.endLine;
+  }
+  if (result.contentRange.anchor) envelope.anchor = result.contentRange.anchor;
 
   if (result.registry) envelope.registry = result.registry.toLowerCase();
   if (result.packageName) envelope.name = result.packageName;
@@ -69,12 +81,15 @@ export function buildReadPackageDocSuccessPayload(
   if (result.page?.title) envelope.title = result.page.title;
   if (result.page?.contentFormat) envelope.format = result.page.contentFormat;
   if (result.page?.content !== undefined) {
-    const sliced = sliceContent(result.page.content, range);
-    envelope.content = sliced.content;
-    if (sliced.totalLines !== undefined)
-      envelope.totalLines = sliced.totalLines;
-    if (sliced.startLine !== undefined) envelope.startLine = sliced.startLine;
-    if (sliced.endLine !== undefined) envelope.endLine = sliced.endLine;
+    const limited = limitReturnedContent(
+      result.page.content,
+      result.contentRange.startLine,
+      result.contentRange.endLine,
+      maxOutputLines,
+      requestedPageId,
+    );
+    envelope.content = limited.content;
+    if (limited.endLine !== undefined) envelope.endLine = limited.endLine;
   }
   if (result.page?.breadcrumbs && result.page.breadcrumbs.length > 0) {
     envelope.breadcrumbs = result.page.breadcrumbs;
@@ -99,51 +114,48 @@ export function buildReadPackageDocSuccessPayload(
   return envelope;
 }
 
-interface SlicedContent {
+interface LimitedContent {
   content: string;
-  totalLines?: number;
-  startLine?: number;
   endLine?: number;
 }
 
 /**
- * Apply a 1-indexed inclusive line range to the doc body. Backend
- * `fetchPackageDoc` does not accept startLine/endLine yet, so the
- * slicing happens client-side. When no range is given, the body is
- * returned untouched and only `totalLines` is reported (handy for
- * agents deciding whether to fetch a range on a follow-up call).
+ * Apply only a caller-owned display cap to the already-selected backend body.
+ * Absolute bounds and fragments belong to `getDocPage`; using the backend
+ * start coordinate here prevents an absolute range from being applied twice.
  */
-function sliceContent(
+function limitReturnedContent(
   content: string,
-  range: LineRange | undefined,
-): SlicedContent {
-  if (content.length === 0) {
+  startLine: number | undefined,
+  endLine: number | undefined,
+  maxOutputLines: number | undefined,
+  requestedPageId: string,
+): LimitedContent {
+  if (startLine === undefined || endLine === undefined) {
+    if (content.length > 0) {
+      throw new MalformedPackageIntelligenceResponseError(
+        `Empty documentation page '${requestedPageId}' returned content.`,
+      );
+    }
     return { content };
   }
 
-  // Strip a single trailing newline so totalLines reflects "lines of
-  // text", not "split positions". The original trailing newline is
-  // preserved on the unsliced full body.
-  const trimmed = content.endsWith("\n") ? content.slice(0, -1) : content;
-  const lines = trimmed.split("\n");
-  const totalLines = lines.length;
-
-  if (
-    !range ||
-    (range.startLine === undefined && range.endLine === undefined)
-  ) {
-    return { content, totalLines };
+  const lines = content.split("\n");
+  const expectedLines = endLine - startLine + 1;
+  if (lines.length !== expectedLines) {
+    throw new MalformedPackageIntelligenceResponseError(
+      `Documentation page '${requestedPageId}' content does not match its returned range.`,
+    );
   }
 
-  const startLine = Math.max(1, range.startLine ?? 1);
-  const endLine = Math.min(totalLines, range.endLine ?? totalLines);
-
-  if (startLine > totalLines) {
-    return { content: "", totalLines, startLine, endLine: startLine - 1 };
+  if (maxOutputLines === undefined || lines.length <= maxOutputLines) {
+    return { content, endLine };
   }
 
-  const sliced = lines.slice(startLine - 1, endLine).join("\n");
-  return { content: sliced, totalLines, startLine, endLine };
+  return {
+    content: lines.slice(0, maxOutputLines).join("\n"),
+    endLine: startLine + maxOutputLines - 1,
+  };
 }
 
 export interface FormatReadPackageDocTerminalOptions {
@@ -173,6 +185,14 @@ export function formatReadPackageDocTerminal(
     lines.push(`file: ${envelope.filePath}${ref ? ` @ ${ref}` : ""}`);
   }
   if (envelope.lastUpdatedAt) lines.push(`updated: ${envelope.lastUpdatedAt}`);
+  if (envelope.startLine !== undefined && envelope.endLine !== undefined) {
+    lines.push(
+      `range: ${envelope.startLine}-${envelope.endLine}/${envelope.totalLines}`,
+    );
+  } else {
+    lines.push(`range: empty/0`);
+  }
+  if (envelope.anchor) lines.push(`anchor: ${envelope.anchor}`);
   if (envelope.breadcrumbs && envelope.breadcrumbs.length > 0) {
     lines.push(`breadcrumbs: ${envelope.breadcrumbs.join(" > ")}`);
   }

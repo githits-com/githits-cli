@@ -1,5 +1,8 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
-import { PackageIntelligenceTargetNotFoundError } from "@githits/core-internal";
+import {
+  PackageIntelligenceDocumentationSectionUnresolvedError,
+  PackageIntelligenceTargetNotFoundError,
+} from "@githits/core-internal";
 import {
   type DocsReadCommandDependencies,
   docsReadAction,
@@ -25,6 +28,7 @@ function cliDeps(
 async function cliJson(
   pageId: string,
   deps: DocsReadCommandDependencies = cliDeps(),
+  lines?: string,
 ): Promise<unknown> {
   const logSpy = spyOn(console, "log").mockImplementation(() => {});
   const errSpy = spyOn(console, "error").mockImplementation(() => {});
@@ -33,7 +37,7 @@ async function cliJson(
   });
   try {
     try {
-      await docsReadAction(pageId, { json: true }, deps);
+      await docsReadAction(pageId, { json: true, lines }, deps);
     } catch (error) {
       if (!isProcessExitSentinel(error)) throw error;
     }
@@ -49,7 +53,7 @@ async function cliJson(
 }
 
 async function mcpJson(
-  args: { page_id: string },
+  args: { page_id: string; start_line?: number; end_line?: number },
   readPackageDocMock?: () => Promise<unknown>,
 ): Promise<unknown> {
   const service = createMockPackageIntelligenceService(
@@ -69,6 +73,47 @@ describe("read_package_doc parity", () => {
       page_id: "github:expressjs/express@abc123/README.md",
     });
     expect(cli).toEqual(mcp);
+  });
+
+  it("PARITY-RANGE: explicit fragment override CLI === MCP", async () => {
+    const target = "https://docs.example.test/page#section";
+    const fn = mock(() =>
+      Promise.resolve({
+        contentRange: {
+          startLine: 2,
+          endLine: 2,
+          totalLines: 3,
+        },
+        page: {
+          id: "stable-page-id",
+          docsReadTarget: target,
+          content: "two",
+          source: { url: target },
+        },
+      }),
+    );
+    const cli = await cliJson(
+      target,
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          readPackageDoc: fn,
+        }),
+      }),
+      "2-2",
+    );
+    const mcp = await mcpJson(
+      { page_id: target, start_line: 2, end_line: 2 },
+      fn,
+    );
+
+    expect(cli).toEqual(mcp);
+    expect(cli).toMatchObject({
+      pageId: "stable-page-id",
+      startLine: 2,
+      endLine: 2,
+      totalLines: 3,
+      content: "two",
+    });
   });
 
   it("PARITY-ERROR-ENVELOPE: NOT_FOUND CLI === MCP", async () => {
@@ -91,6 +136,33 @@ describe("read_package_doc parity", () => {
       error: "Doc page not found",
       code: "NOT_FOUND",
       retryable: false,
+    });
+  });
+
+  it("PARITY-ERROR-ENVELOPE: unresolved section CLI === MCP", async () => {
+    const fn = mock(() =>
+      Promise.reject(
+        new PackageIntelligenceDocumentationSectionUnresolvedError(
+          "Documentation section is ambiguous",
+          "ambiguous",
+        ),
+      ),
+    );
+    const deps = cliDeps({
+      packageIntelligenceService: createMockPackageIntelligenceService({
+        readPackageDoc: fn,
+      }),
+    });
+    const target = "https://docs.example.test/page#duplicate";
+    const cli = await cliJson(target, deps);
+    const mcp = await mcpJson({ page_id: target }, fn);
+
+    expect(cli).toEqual(mcp);
+    expect(cli).toEqual({
+      error: "Documentation section is ambiguous",
+      code: "DOCUMENTATION_SECTION_UNRESOLVED",
+      retryable: false,
+      details: { reason: "ambiguous" },
     });
   });
 });

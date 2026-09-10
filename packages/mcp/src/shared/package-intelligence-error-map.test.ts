@@ -5,6 +5,7 @@ import {
   MalformedPackageIntelligenceResponseError,
   PackageIntelligenceAccessError,
   PackageIntelligenceBackendError,
+  PackageIntelligenceDocumentationSectionUnresolvedError,
   PackageIntelligenceFeatureFlagRequiredError,
   PackageIntelligenceGraphQLError,
   PackageIntelligenceNetworkError,
@@ -53,6 +54,21 @@ describe("mapPackageIntelligenceError", () => {
     expect(mapped.code).toBe("NOT_FOUND");
     expect(mapped.retryable).toBe(false);
     expect(mapped.message).toBe("Package not found");
+  });
+
+  it("maps unresolved documentation sections without collapsing them to NOT_FOUND", () => {
+    const mapped = mapPackageIntelligenceError(
+      new PackageIntelligenceDocumentationSectionUnresolvedError(
+        "Documentation section is ambiguous",
+        "ambiguous",
+      ),
+    );
+    expect(mapped).toEqual({
+      code: "DOCUMENTATION_SECTION_UNRESOLVED",
+      message: "Documentation section is ambiguous",
+      retryable: false,
+      details: { reason: "ambiguous" },
+    });
   });
 
   it("maps PackageIntelligenceVersionNotFoundError to VERSION_NOT_FOUND with structured details", () => {
