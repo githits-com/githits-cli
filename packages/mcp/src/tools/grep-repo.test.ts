@@ -599,3 +599,47 @@ describe("createGrepRepoTool — service errors", () => {
     expect((parseText(result) as { code: string }).code).toBe("NOT_FOUND");
   });
 });
+
+it("accepts oversized context through the schema and sends capped values", async () => {
+  const grepRepo = mock(() => Promise.resolve(defaultGrepRepoResult));
+  const tool = createGrepRepoTool(
+    createMockCodeNavigationService({ grepRepo }),
+  );
+  for (const schema of [
+    tool.schema.context_lines,
+    tool.schema.context_lines_before,
+    tool.schema.context_lines_after,
+  ]) {
+    expect(schema?.safeParse(12).success).toBe(true);
+    for (const invalid of [-1, 1.5, Number.POSITIVE_INFINITY])
+      expect(schema?.safeParse(invalid).success).toBe(false);
+  }
+  const result = await tool.handler(
+    {
+      target: { registry: "npm", package_name: "express" },
+      pattern: "router",
+      context_lines_after: 12,
+    },
+    {},
+  );
+  expect(grepRepo).toHaveBeenCalledWith(
+    expect.objectContaining({ contextLinesBefore: 0, contextLinesAfter: 10 }),
+  );
+  expect(result.content[0]?.text).toContain("requested 0 / 12");
+  expect(result.content[0]?.text).toContain(
+    "Use code_read for a larger window",
+  );
+});
+
+it("preserves the grep discovery prefix and routes larger windows to reads", () => {
+  const description = createGrepRepoTool(
+    createMockCodeNavigationService(),
+  ).description;
+  expect(description.match(/^[^.]+\./)?.[0]).toBe(
+    "Find text, regex, or identifier matches in a public repo or package.",
+  );
+  expect(description.slice(0, 80)).toBe(
+    "Find text, regex, or identifier matches in a public repo or package. Results cov",
+  );
+  expect(description).toContain("For larger windows, use `code_read`");
+});

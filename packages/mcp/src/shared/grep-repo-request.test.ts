@@ -74,7 +74,7 @@ describe("buildGrepRepoParams", () => {
     expect(asymmetric.params.contextLinesAfter).toBe(5);
   });
 
-  it("accepts context boundaries and rejects values outside them", () => {
+  it("accepts context boundaries and rejects invalid numbers", () => {
     const boundary = buildGrepRepoParams({
       target,
       pattern: "middleware",
@@ -84,14 +84,20 @@ describe("buildGrepRepoParams", () => {
     expect(boundary.params.contextLinesBefore).toBe(0);
     expect(boundary.params.contextLinesAfter).toBe(10);
 
-    for (const contextLines of [-1, 11, 1.5]) {
+    for (const contextLines of [
+      -1,
+      1.5,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.MAX_SAFE_INTEGER + 1,
+    ]) {
       expect(() =>
         buildGrepRepoParams({
           target,
           pattern: "middleware",
           contextLines,
         }),
-      ).toThrow(/context_lines.*integer between 0 and 10/);
+      ).toThrow(/context_lines.*nonnegative safe integer/);
     }
   });
 
@@ -189,4 +195,33 @@ describe("GREP_REPO_PATTERN_NOTE", () => {
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/200/i);
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/literal substring/i);
   });
+});
+
+it("clamps effective sides after asymmetric overrides", () => {
+  for (const input of [
+    { contextLines: 12 },
+    { contextLines: 12, contextLinesBefore: 0 },
+    { contextLinesBefore: 20, contextLinesAfter: 12 },
+    { contextLines: 20, contextLinesBefore: 1, contextLinesAfter: 2 },
+  ]) {
+    const built = buildGrepRepoParams({
+      target: { registry: "NPM", packageName: "express" },
+      pattern: "router",
+      ...input,
+    });
+    const before = input.contextLinesBefore ?? input.contextLines ?? 0;
+    const after = input.contextLinesAfter ?? input.contextLines ?? 0;
+    expect(built.params.contextLinesBefore).toBe(Math.min(before, 10));
+    expect(built.params.contextLinesAfter).toBe(Math.min(after, 10));
+    expect(built.contextClamping).toEqual(
+      before > 10 || after > 10
+        ? {
+            requestedBefore: before,
+            requestedAfter: after,
+            effectiveBefore: Math.min(before, 10),
+            effectiveAfter: Math.min(after, 10),
+          }
+        : undefined,
+    );
+  }
 });

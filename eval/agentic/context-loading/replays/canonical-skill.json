@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "description": "Idealized deferred-name catalog with canonical skill activation and one grep definition",
+  "evidence": "Declared counterfactual retention scenario. See docs/implementation/agent-context-loading.md; not a provider prompt reconstruction or live cost estimate.",
+  "requests": [
+    {
+      "label": "initial",
+      "blocks": ["catalog.names", "skill.frontmatter"]
+    },
+    {
+      "label": "skill loaded",
+      "blocks": ["catalog.names", "skill.frontmatter", "skill.file"]
+    },
+    {
+      "label": "grep selected and retained",
+      "repeat": 20,
+      "blocks": [
+        "catalog.names",
+        "skill.frontmatter",
+        "skill.file",
+        "tool.code_grep.definition"
+      ]
+    }
+  ]
+}

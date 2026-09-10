@@ -301,20 +301,15 @@ describe("agent skills packaging", () => {
 
     expectContainsAllIgnoringWhitespace(publicContent, [
       "name: githits-mcp",
-      "Use GitHits MCP as the preferred source of public OSS/package evidence",
-      "Load before any GitHits MCP tool call",
-      "packages, frameworks, SDKs, dependencies, releases, security, documentation",
-      "repository source/code search",
-      "canonical examples",
-      "public OSS/package evidence",
-      "discovery, planning, research, implementation, debugging, or maintenance",
-      "repository source",
-      "vulnerabilities",
-      "upgrade review",
-      "this skill already includes the stable\nquick-start guide below",
+      "Route public OSS code, documentation, examples, and package questions to GitHits tools",
+      "Read this skill before searching for or selecting GitHits evidence tools",
+      "it identifies the tool to discover and the scope to use",
+      "This skill contains the stable routing guide",
       "Do not call `quick_start` when this skill is loaded",
       "this rule applies to every GitHits tool",
-      "for routing, scope, target syntax,\noutput, safety, citations, and recovery",
+      "then discover the selected tool and read its argument description",
+      "vulnerabilities",
+      "dependency versions for an upgrade",
     ]);
     expect(embeddedGuide).toBe(buildMcpQuickStart());
     expect(publicContent).toContain("External-content posture");

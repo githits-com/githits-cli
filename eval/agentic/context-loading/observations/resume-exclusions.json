@@ -1,0 +1,28 @@
+[
+  {
+    "host": "codex",
+    "variant": "baseline",
+    "rawTerminalInput": [116379, 148708, 181097, 213546, 246055],
+    "nativeRequestInput": [32269, 32329, 32389, 32449, 32509],
+    "reason": "Use native per-request counters; terminal aggregate scope varies across resumed sessions."
+  },
+  {
+    "host": "codex",
+    "variant": "description",
+    "rawTerminalInput": [25120, 25180, 25240, 25300, 25360],
+    "nativeRequestInput": [25120, 25180, 25240, 25300, 25360],
+    "reason": "Use native per-request counters; terminal aggregate scope varies across resumed sessions."
+  },
+  {
+    "host": "claude",
+    "variant": "baseline",
+    "observedModels": ["claude-opus-5"],
+    "reason": "Unpinned resume changed model; assistant output_tokens=1 was provisional while terminal output reported the complete count."
+  },
+  {
+    "host": "claude",
+    "variant": "description",
+    "observedModels": ["claude-opus-5"],
+    "reason": "Unpinned resume changed model; assistant output_tokens=1 was provisional while terminal output reported the complete count."
+  }
+]

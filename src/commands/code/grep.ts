@@ -91,18 +91,23 @@ export async function pkgGrepAction(
     }
 
     const target = resolveCliCodeNavTarget(spec, options);
-    const contextLines = parseIntCliOption(options.context, "--context", 0, 10);
+    const contextLines = parseIntCliOption(
+      options.context,
+      "--context",
+      0,
+      Number.MAX_SAFE_INTEGER,
+    );
     const beforeContext = parseIntCliOption(
       options.beforeContext,
       "--before-context",
       0,
-      10,
+      Number.MAX_SAFE_INTEGER,
     );
     const afterContext = parseIntCliOption(
       options.afterContext,
       "--after-context",
       0,
-      10,
+      Number.MAX_SAFE_INTEGER,
     );
     const maxMatches = parseIntCliOption(options.limit, "--limit", 1, 1000);
     const maxMatchesPerFile = parseIntCliOption(
@@ -144,6 +149,7 @@ export async function pkgGrepAction(
       .finally(() => spinner.stop());
 
     const payload = buildGrepRepoSuccessPayload(result, {
+      contextClamping: build.contextClamping,
       registry: target.registry
         ? toPkgseerRegistryLowercase(target.registry)
         : undefined,
@@ -331,13 +337,16 @@ export function registerCodeGrepCommand(pkgCommand: Command): Command {
     .option("--case-sensitive", "Enable ASCII case-sensitive matching")
     .option(
       "-C, --context <n>",
-      "Context lines before and after each match (0-10)",
+      "Context lines before and after each match (nonnegative integer; capped at 10)",
     )
     .option(
       "-B, --before-context <n>",
-      "Context lines before each match (0-10)",
+      "Context lines before each match (nonnegative integer; capped at 10)",
     )
-    .option("-A, --after-context <n>", "Context lines after each match (0-10)")
+    .option(
+      "-A, --after-context <n>",
+      "Context lines after each match (nonnegative integer; capped at 10)",
+    )
     .option("--exclude-docs", "Skip files classified as documentation")
     .option("--exclude-tests", "Skip files classified as tests")
     .option(

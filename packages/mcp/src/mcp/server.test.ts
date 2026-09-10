@@ -65,13 +65,13 @@ const DESCRIPTION_ROUTING: Record<
 > = {
   quick_start: {
     prefix:
-      /^Required first call: `quick_start` loads untrusted-content safety rules\./,
+      /^Choose the GitHits tool for an OSS question before discovering evidence tools\./,
     exactPrefix:
-      "Required first call: `quick_start` loads untrusted-content safety rules. This in",
+      "Choose the GitHits tool for an OSS question before discovering evidence tools. C",
     body: [
-      "initializes a plain MCP session",
-      "skips it lacks those rules",
-      "Skip only when the `githits-mcp` skill is loaded",
+      "Call this routing guide first",
+      "untrusted-content rules",
+      "unless the loaded githits-mcp skill already contains it",
     ],
   },
   get_example: {
@@ -280,7 +280,7 @@ describe("MCP tool description catalog", () => {
         expect(catalogSummary).not.toEndWith("…");
       }
       if (descriptor.name === "quick_start") {
-        expect(catalogSummary).toContain("quick_start");
+        expect(catalogSummary).toContain("before discovering evidence tools");
         expect(catalogSummary).not.toContain("githits-mcp");
         expect(catalogSummary).not.toEndWith("…");
         expect(catalogPrefix).not.toContain("githits-mcp");
@@ -359,7 +359,7 @@ describe("MCP output format", () => {
 });
 
 describe("MCP code_grep schema", () => {
-  it("advertises context as integers from zero through ten", () => {
+  it("accepts nonnegative safe context integers and advertises the effective cap", () => {
     const descriptor = getMcpToolDescriptors().find(
       (candidate) => candidate.name === "code_grep",
     );
@@ -374,8 +374,8 @@ describe("MCP code_grep schema", () => {
       expect(inputSchema.properties?.[field], field).toMatchObject({
         type: "integer",
         minimum: 0,
-        maximum: 10,
-        description: expect.stringContaining("integer 0-10"),
+        maximum: Number.MAX_SAFE_INTEGER,
+        description: expect.stringContaining("capped at 10"),
       });
     }
   });

@@ -3,6 +3,7 @@ import type {
   LeanGrepRepoEnvelope,
   LeanGrepRepoMatch,
 } from "./grep-repo-response.js";
+import { formatGrepRepoTerminal } from "./grep-repo-response.js";
 import { renderGrepRepoText } from "./grep-repo-text.js";
 
 function envelope(
@@ -290,4 +291,32 @@ describe("renderGrepRepoText", () => {
     expect(text).toContain("4 binary file(s) skipped");
     expect(text).toContain("2 oversized file(s) skipped");
   });
+});
+
+it("reports clamping for matching and empty results in both text surfaces", () => {
+  for (const matches of [[], [match()]]) {
+    const data = envelope({
+      matches,
+      contextClamping: {
+        requestedBefore: 0,
+        requestedAfter: 12,
+        effectiveBefore: 0,
+        effectiveAfter: 10,
+      },
+    });
+    expect(renderGrepRepoText(data)).toContain(
+      "Use code_read for a larger window",
+    );
+    for (const verbose of [false, true]) {
+      const rendered = formatGrepRepoTerminal(data, {
+        useColors: false,
+        verbose,
+        headingStyle: false,
+        withContext: true,
+      });
+      expect(rendered.stderr).toContain(
+        "Use githits code read for a larger window",
+      );
+    }
+  }
 });

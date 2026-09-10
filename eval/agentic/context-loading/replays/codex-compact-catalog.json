@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "description": "Observed Codex tool rendering with simulated full name/prefix catalog selection",
+  "evidence": "Declared counterfactual retention scenario. See docs/implementation/agent-context-loading.md; not a provider prompt reconstruction or live cost estimate.",
+  "requests": [
+    {
+      "label": "catalog discovered",
+      "blocks": ["catalog.prefix80"]
+    },
+    {
+      "label": "grep selected and retained",
+      "repeat": 20,
+      "blocks": ["catalog.prefix80", "tool.code_grep.definition"]
+    }
+  ]
+}

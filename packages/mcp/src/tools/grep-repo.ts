@@ -83,28 +83,25 @@ const schema: ZodRawShape = {
     .number()
     .int()
     .min(GREP_REPO_CONTEXT_MIN)
-    .max(GREP_REPO_CONTEXT_MAX)
     .optional()
     .describe(
-      `Context lines on both sides of each match (integer ${GREP_REPO_CONTEXT_MIN}-${GREP_REPO_CONTEXT_MAX}). \`context_lines_before\` or \`context_lines_after\` overrides the corresponding side.`,
+      `Context lines on both sides of each match (nonnegative integer; capped at ${GREP_REPO_CONTEXT_MAX}). \`context_lines_before\` or \`context_lines_after\` overrides the corresponding side.`,
     ),
   context_lines_before: z
     .number()
     .int()
     .min(GREP_REPO_CONTEXT_MIN)
-    .max(GREP_REPO_CONTEXT_MAX)
     .optional()
     .describe(
-      `Context lines before each match (integer ${GREP_REPO_CONTEXT_MIN}-${GREP_REPO_CONTEXT_MAX}). Overrides \`context_lines\` for the before side.`,
+      `Context lines before each match (nonnegative integer; capped at ${GREP_REPO_CONTEXT_MAX}). Overrides \`context_lines\` for the before side.`,
     ),
   context_lines_after: z
     .number()
     .int()
     .min(GREP_REPO_CONTEXT_MIN)
-    .max(GREP_REPO_CONTEXT_MAX)
     .optional()
     .describe(
-      `Context lines after each match (integer ${GREP_REPO_CONTEXT_MIN}-${GREP_REPO_CONTEXT_MAX}). Overrides \`context_lines\` for the after side.`,
+      `Context lines after each match (nonnegative integer; capped at ${GREP_REPO_CONTEXT_MAX}). Overrides \`context_lines\` for the after side.`,
     ),
   max_matches: z
     .number()
@@ -138,7 +135,8 @@ const schema: ZodRawShape = {
 const DESCRIPTION =
   "Find text, regex, or identifier matches in a public repo or package. Results cover known exact literals, regexes, identifiers, and call sites; they are deterministic and paginated. " +
   'Use this when you know the pattern (literal by default; pass `pattern_type: "regex"` for RE2). ' +
-  "Use `search` for conceptual or open-ended discovery; use `code_read` to inspect a matched file window and `code_files` to enumerate paths. " +
+  "Context is capped at 10 lines per side; larger values are clamped with a notice. For larger windows, use `code_read` on returned paths and line numbers instead of repeating grep. " +
+  "Use `search` for conceptual or open-ended discovery and `code_files` to enumerate paths. " +
   "Whole-target grep is the default — narrow with `path`, `path_prefix`, `globs`, or `extensions` to keep responses small. " +
   "Each match's `filePath` (or text file heading) chains into `code_read.path`; pick a window around `match.line` for `code_read.start_line` / `end_line`. " +
   "When an exact path returns `FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, or `SOURCE_FILE_INVENTORY_UNKNOWN`, follow `details.action` to inspect paths available through `code_files`. " +
@@ -181,6 +179,7 @@ export function createGrepRepoTool(
         });
         const result = await service.grepRepo(build.params);
         const payload = buildGrepRepoSuccessPayload(result, {
+          contextClamping: build.contextClamping,
           registry: target.registry
             ? toPkgseerRegistryLowercase(target.registry)
             : undefined,

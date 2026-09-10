@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+  "host": "Codex native session",
+  "model": "gpt-6-astra",
+  "inputConvention": "inclusive",
+  "requests": [
+    {
+      "label": "request 1",
+      "input": 21943,
+      "cacheRead": 8576,
+      "cacheWrite": 0,
+      "output": 91
+    },
+    {
+      "label": "request 2",
+      "input": 31752,
+      "cacheRead": 21760,
+      "cacheWrite": 0,
+      "output": 59
+    },
+    {
+      "label": "request 3",
+      "input": 32037,
+      "cacheRead": 31616,
+      "cacheWrite": 0,
+      "output": 171
+    }
+  ]
+}

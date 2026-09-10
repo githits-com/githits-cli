@@ -273,13 +273,16 @@ and scenario-keyed shards. Shards may run concurrently; each shard runs its
 workloads through a bounded pool selected by `workloadConcurrency`, which
 defaults to `1` locally. Results remain in manifest order and the value is
 recorded in `run.json` and schema-v3 `suite.json`. CI runs `discovery` with
-concurrency `2` and `intent` with concurrency `4`. By default, `canary` runs
+concurrency `2`, `intent` with concurrency `4`, and the skill-bearing `full`
+scenario with concurrency `4`. The full scenario runs stable-full so CI can
+measure canonical skill changes as well as descriptor/bootstrap changes.
+By default, `canary` runs
 `discovery` and `intent`; `smoke`, `stable-full`, `stateful-manual`, and
 `experimental` run
 `intent` only. An empty suite selection fails during preflight before child
 execution. Repeatable `--scenario discovery|intent|full` explicitly selects
-the scenario cells and replaces the default selection, so `full` is a local or
-manual opt-in. The experimental suite passes the explicit experimental-tools
+the scenario cells and replaces the default selection; CI explicitly includes
+`full`. The experimental suite passes the explicit experimental-tools
 option. The pair command runs the baseline target fully before the current
 checkout, while the current checkout owns the measurement harness for both
 sides. A pair has no candidate-root option: run it from the candidate checkout

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "description": "Untruncated GitHits-only catalog dump stress case, not the original truncated mixed-server dump",
+  "evidence": "Declared counterfactual retention scenario. See docs/implementation/agent-context-loading.md; not a provider prompt reconstruction or live cost estimate.",
+  "requests": [
+    {
+      "label": "catalog dumped and retained",
+      "repeat": 21,
+      "blocks": ["catalog.full"]
+    }
+  ]
+}

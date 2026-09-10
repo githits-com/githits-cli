@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "evidence": "Excluded from same-model comparisons: unpinned resume changed the model from Fable to Opus. Inputs retained; provisional output counts are null and terminal output is preserved.",
+  "host": "Claude Code stream-json",
+  "model": "claude-opus-5",
+  "inputConvention": "uncached-only",
+  "terminalOutputTokens": 205,
+  "requests": [
+    {
+      "label": "request 1",
+      "input": 2,
+      "cacheRead": 33239,
+      "cacheWrite": 1799,
+      "output": null
+    },
+    {
+      "label": "request 1",
+      "input": 2,
+      "cacheRead": 35038,
+      "cacheWrite": 484,
+      "output": null
+    },
+    {
+      "label": "request 1",
+      "input": 2,
+      "cacheRead": 35522,
+      "cacheWrite": 484,
+      "output": null
+    },
+    {
+      "label": "request 1",
+      "input": 2,
+      "cacheRead": 36006,
+      "cacheWrite": 484,
+      "output": null
+    },
+    {
+      "label": "request 1",
+      "input": 2,
+      "cacheRead": 36490,
+      "cacheWrite": 484,
+      "output": null
+    }
+  ]
+}

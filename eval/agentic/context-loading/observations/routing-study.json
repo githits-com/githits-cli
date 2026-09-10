@@ -1,0 +1,5570 @@
+{
+  "schemaVersion": 1,
+  "runs": [
+    {
+      "host": "codex",
+      "variant": "skill-baseline",
+      "workload": "grep",
+      "repetition": 1,
+      "execution": {
+        "host": "codex",
+        "variant": "skill-baseline",
+        "workload": "grep",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 28.8
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 1,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:12000}));\ntext(ALL_TOOLS.filter(x=> /githits/i.test(x.name)));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(await tools.mcp__githits_context_fixture__code_grep({target:\"github:openai/codex\",pattern:\"tool_search\",pattern_type:\"literal\",case_sensitive:true,max_matches:3,context_lines:1}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": false,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 3,
+        "firstInput": 22369,
+        "lastInput": 32519,
+        "inputGrowth": 10150,
+        "cumulativeInput": 87122,
+        "cumulativeCacheRead": 60928,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 26194,
+        "cumulativeOutput": 310
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22369,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 87
+          },
+          {
+            "label": "request 2",
+            "input": 32234,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 59
+          },
+          {
+            "label": "request 3",
+            "input": 32519,
+            "cacheRead": 32000,
+            "cacheWrite": 0,
+            "output": 164
+          }
+        ]
+      },
+      "broadCatalogPrint": true,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "skill-baseline",
+      "workload": "grep",
+      "repetition": 1,
+      "execution": {
+        "host": "claude",
+        "variant": "skill-baseline",
+        "workload": "grep",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 33
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__code_grep",
+          "loadedTools": ["mcp__githits_context_fixture__code_grep"]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__code_grep"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 4,
+        "firstInput": 28340,
+        "lastInput": 34392,
+        "inputGrowth": 6052,
+        "cumulativeInput": 127516,
+        "cumulativeCacheRead": 103098,
+        "cumulativeCacheWrite": 24350,
+        "cumulativeUncachedInput": 68,
+        "cumulativeOutput": 1079
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 1079,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 10010,
+            "cacheWrite": 18328,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28338,
+            "cacheWrite": 2497,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 30835,
+            "cacheWrite": 3080,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 33915,
+            "cacheWrite": 445,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "skill-baseline",
+      "workload": "package",
+      "repetition": 1,
+      "execution": {
+        "host": "codex",
+        "variant": "skill-baseline",
+        "workload": "package",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 21.8
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 1,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:12000}));\ntext(ALL_TOOLS.filter(x=> /githits/i.test(x.name+\" \"+x.description)));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(await tools.mcp__githits_context_fixture__pkg_info({registry:\"npm\",package_name:\"zod\"}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": false,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 3,
+        "firstInput": 22355,
+        "lastInput": 32330,
+        "inputGrowth": 9975,
+        "cumulativeInput": 86903,
+        "cumulativeCacheRead": 60928,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 25975,
+        "cumulativeOutput": 180
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22355,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 84
+          },
+          {
+            "label": "request 2",
+            "input": 32218,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 36
+          },
+          {
+            "label": "request 3",
+            "input": 32330,
+            "cacheRead": 32000,
+            "cacheWrite": 0,
+            "output": 60
+          }
+        ]
+      },
+      "broadCatalogPrint": true,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "skill-baseline",
+      "workload": "package",
+      "repetition": 1,
+      "execution": {
+        "host": "claude",
+        "variant": "skill-baseline",
+        "workload": "package",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 22.9
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__pkg_info",
+          "loadedTools": ["mcp__githits_context_fixture__pkg_info"]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__pkg_info"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 4,
+        "firstInput": 28322,
+        "lastInput": 31935,
+        "inputGrowth": 3613,
+        "cumulativeInput": 122797,
+        "cumulativeCacheRead": 104372,
+        "cumulativeCacheWrite": 18357,
+        "cumulativeUncachedInput": 68,
+        "cumulativeOutput": 639
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 639,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14774,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28320,
+            "cacheWrite": 2463,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 30783,
+            "cacheWrite": 940,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 31723,
+            "cacheWrite": 180,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "skill-router",
+      "workload": "grep",
+      "repetition": 1,
+      "execution": {
+        "host": "codex",
+        "variant": "skill-router",
+        "workload": "grep",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 26.8
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:6000}));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(ALL_TOOLS.filter(x=>/code_grep/.test(x.name)));\n"
+        },
+        {
+          "request": 3,
+          "code": "text(await tools.mcp__githits_context_fixture__code_grep({target:\"github:openai/codex\",pattern:\"tool_search\",pattern_type:\"literal\",max_matches:3,context_lines:1}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 4,
+        "firstInput": 22358,
+        "lastInput": 24279,
+        "inputGrowth": 1921,
+        "cumulativeInput": 93901,
+        "cumulativeCacheRead": 75776,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 18125,
+        "cumulativeOutput": 313
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22358,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 63
+          },
+          {
+            "label": "request 2",
+            "input": 23267,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 27
+          },
+          {
+            "label": "request 3",
+            "input": 23997,
+            "cacheRead": 23040,
+            "cacheWrite": 0,
+            "output": 56
+          },
+          {
+            "label": "request 4",
+            "input": 24279,
+            "cacheRead": 23808,
+            "cacheWrite": 0,
+            "output": 167
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "skill-router",
+      "workload": "grep",
+      "repetition": 1,
+      "execution": {
+        "host": "claude",
+        "variant": "skill-router",
+        "workload": "grep",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 25.1
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__code_grep",
+          "loadedTools": ["mcp__githits_context_fixture__code_grep"]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__code_grep"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 4,
+        "firstInput": 28318,
+        "lastInput": 33311,
+        "inputGrowth": 4993,
+        "cumulativeInput": 124251,
+        "cumulativeCacheRead": 104450,
+        "cumulativeCacheWrite": 19733,
+        "cumulativeUncachedInput": 68,
+        "cumulativeOutput": 927
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 927,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14770,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28316,
+            "cacheWrite": 1438,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 29754,
+            "cacheWrite": 3080,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 32834,
+            "cacheWrite": 445,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "skill-router",
+      "workload": "package",
+      "repetition": 1,
+      "execution": {
+        "host": "codex",
+        "variant": "skill-router",
+        "workload": "package",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 18.4
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 1,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:6000}));\ntext(ALL_TOOLS.filter(x=>/githits|search.*tool/i.test(x.name+\" \"+x.description)));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(await tools.mcp__githits_context_fixture__pkg_info({registry:\"npm\",package_name:\"zod\"}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": false,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 3,
+        "firstInput": 22344,
+        "lastInput": 32338,
+        "inputGrowth": 9994,
+        "cumulativeInput": 86908,
+        "cumulativeCacheRead": 54144,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 32764,
+        "cumulativeOutput": 190
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22344,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "output": 91
+          },
+          {
+            "label": "request 2",
+            "input": 32226,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 36
+          },
+          {
+            "label": "request 3",
+            "input": 32338,
+            "cacheRead": 32000,
+            "cacheWrite": 0,
+            "output": 63
+          }
+        ]
+      },
+      "broadCatalogPrint": true,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "skill-router",
+      "workload": "package",
+      "repetition": 1,
+      "execution": {
+        "host": "claude",
+        "variant": "skill-router",
+        "workload": "package",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 18.9
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__pkg_info",
+          "loadedTools": ["mcp__githits_context_fixture__pkg_info"]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__pkg_info"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 4,
+        "firstInput": 28300,
+        "lastInput": 30852,
+        "inputGrowth": 2552,
+        "cumulativeInput": 119496,
+        "cumulativeCacheRead": 102154,
+        "cumulativeCacheWrite": 17274,
+        "cumulativeUncachedInput": 68,
+        "cumulativeOutput": 549
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 549,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14752,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28298,
+            "cacheWrite": 1372,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 29670,
+            "cacheWrite": 970,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 30640,
+            "cacheWrite": 180,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-baseline",
+      "workload": "grep",
+      "repetition": 1,
+      "execution": {
+        "host": "codex",
+        "variant": "bootstrap-baseline",
+        "workload": "grep",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 25.8
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 1,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 2,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:12000}));\ntext(ALL_TOOLS.filter(x=>/githits/i.test(x.name)));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(await tools.mcp__githits_context_fixture__quick_start({}));\n"
+        },
+        {
+          "request": 3,
+          "code": "text(await tools.mcp__githits_context_fixture__code_grep({target:\"github:openai/codex\",pattern:\"tool_search\",pattern_type:\"literal\",context_lines:1,max_matches:3}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": false,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 4,
+        "firstInput": 22365,
+        "lastInput": 33951,
+        "inputGrowth": 11586,
+        "cumulativeInput": 122360,
+        "cumulativeCacheRead": 94720,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 27640,
+        "cumulativeOutput": 349
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22365,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 96
+          },
+          {
+            "label": "request 2",
+            "input": 32374,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 3",
+            "input": 33670,
+            "cacheRead": 32256,
+            "cacheWrite": 0,
+            "output": 55
+          },
+          {
+            "label": "request 4",
+            "input": 33951,
+            "cacheRead": 33536,
+            "cacheWrite": 0,
+            "output": 172
+          }
+        ]
+      },
+      "broadCatalogPrint": true,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-baseline",
+      "workload": "grep",
+      "repetition": 1,
+      "execution": {
+        "host": "claude",
+        "variant": "bootstrap-baseline",
+        "workload": "grep",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 24.7
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 4,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__quick_start,mcp__githits_context_fixture__code_grep",
+          "loadedTools": [
+            "mcp__githits_context_fixture__quick_start",
+            "mcp__githits_context_fixture__code_grep"
+          ]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__quick_start"
+        },
+        {
+          "request": 4,
+          "name": "mcp__githits_context_fixture__code_grep"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 5,
+        "firstInput": 28343,
+        "lastInput": 34546,
+        "inputGrowth": 6203,
+        "cumulativeInput": 157819,
+        "cumulativeCacheRead": 136751,
+        "cumulativeCacheWrite": 20968,
+        "cumulativeUncachedInput": 100,
+        "cumulativeOutput": 1149
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 1149,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14795,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28341,
+            "cacheWrite": 421,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 28762,
+            "cacheWrite": 3271,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 32033,
+            "cacheWrite": 2036,
+            "output": null
+          },
+          {
+            "label": "request 5",
+            "input": 32,
+            "cacheRead": 34069,
+            "cacheWrite": 445,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-baseline",
+      "workload": "package",
+      "repetition": 1,
+      "execution": {
+        "host": "codex",
+        "variant": "bootstrap-baseline",
+        "workload": "package",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 26.4
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 1,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 2,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 3,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 4,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(ALL_TOOLS.filter(x=>/search|read.*file|quick_start|package/i.test(x.name+\" \"+x.description)));\ntext(await tools.exec_command({cmd:\"cat <local-path>\",max_output_tokens:6000}));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(await tools.mcp__githits_context_fixture__quick_start({}));\n"
+        },
+        {
+          "request": 3,
+          "code": "text(ALL_TOOLS.find(x=>x.name.endsWith(\"__pkg_info\")));\n"
+        },
+        {
+          "request": 4,
+          "code": "text(await tools.mcp__githits_context_fixture__pkg_info({registry:\"npm\",package_name:\"zod\"}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": false,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 5,
+        "firstInput": 22351,
+        "lastInput": 34465,
+        "inputGrowth": 12114,
+        "cumulativeInput": 157477,
+        "cumulativeCacheRead": 129152,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 28325,
+        "cumulativeOutput": 275
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22351,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 126
+          },
+          {
+            "label": "request 2",
+            "input": 32506,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 3",
+            "input": 33802,
+            "cacheRead": 32384,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 4",
+            "input": 34353,
+            "cacheRead": 33664,
+            "cacheWrite": 0,
+            "output": 36
+          },
+          {
+            "label": "request 5",
+            "input": 34465,
+            "cacheRead": 34176,
+            "cacheWrite": 0,
+            "output": 61
+          }
+        ]
+      },
+      "broadCatalogPrint": true,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-baseline",
+      "workload": "package",
+      "repetition": 1,
+      "execution": {
+        "host": "claude",
+        "variant": "bootstrap-baseline",
+        "workload": "package",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 24.7
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 3,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 4,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__quick_start",
+          "loadedTools": ["mcp__githits_context_fixture__quick_start"]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__quick_start"
+        },
+        {
+          "request": 3,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__pkg_info",
+          "loadedTools": ["mcp__githits_context_fixture__pkg_info"]
+        },
+        {
+          "request": 4,
+          "name": "mcp__githits_context_fixture__pkg_info"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 5,
+        "firstInput": 28325,
+        "lastInput": 32439,
+        "inputGrowth": 4114,
+        "cumulativeInput": 150905,
+        "cumulativeCacheRead": 131944,
+        "cumulativeCacheWrite": 18861,
+        "cumulativeUncachedInput": 100,
+        "cumulativeOutput": 961
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 961,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14777,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28323,
+            "cacheWrite": 444,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 28767,
+            "cacheWrite": 314,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 29081,
+            "cacheWrite": 3146,
+            "output": null
+          },
+          {
+            "label": "request 5",
+            "input": 32,
+            "cacheRead": 32227,
+            "cacheWrite": 180,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-router",
+      "workload": "grep",
+      "repetition": 1,
+      "execution": {
+        "host": "codex",
+        "variant": "bootstrap-router",
+        "workload": "grep",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 28.3
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 4,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 5,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:6000}));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(ALL_TOOLS.filter(x=>/quick_start/.test(x.name)));\n"
+        },
+        {
+          "request": 3,
+          "code": "text(await tools.mcp__githits_context_fixture__quick_start({}));\n"
+        },
+        {
+          "request": 4,
+          "code": "text(ALL_TOOLS.filter(x=>/code_grep/.test(x.name)));\n"
+        },
+        {
+          "request": 5,
+          "code": "text(await tools.mcp__githits_context_fixture__code_grep({target:\"github:openai/codex\",pattern:\"tool_search\",pattern_type:\"literal\",context_lines:1,max_matches:3}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 6,
+        "firstInput": 22354,
+        "lastInput": 24556,
+        "inputGrowth": 2202,
+        "cumulativeInput": 140122,
+        "cumulativeCacheRead": 121472,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 18650,
+        "cumulativeOutput": 372
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22354,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 66
+          },
+          {
+            "label": "request 2",
+            "input": 22613,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 3",
+            "input": 22779,
+            "cacheRead": 22400,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 4",
+            "input": 23545,
+            "cacheRead": 22656,
+            "cacheWrite": 0,
+            "output": 27
+          },
+          {
+            "label": "request 5",
+            "input": 24275,
+            "cacheRead": 23424,
+            "cacheWrite": 0,
+            "output": 55
+          },
+          {
+            "label": "request 6",
+            "input": 24556,
+            "cacheRead": 24064,
+            "cacheWrite": 0,
+            "output": 172
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-router",
+      "workload": "grep",
+      "repetition": 1,
+      "execution": {
+        "host": "claude",
+        "variant": "bootstrap-router",
+        "workload": "grep",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 23.7
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 4,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__quick_start,mcp__githits_context_fixture__code_grep",
+          "loadedTools": [
+            "mcp__githits_context_fixture__quick_start",
+            "mcp__githits_context_fixture__code_grep"
+          ]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__quick_start"
+        },
+        {
+          "request": 4,
+          "name": "mcp__githits_context_fixture__code_grep"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 5,
+        "firstInput": 28344,
+        "lastInput": 33648,
+        "inputGrowth": 5304,
+        "cumulativeInput": 155996,
+        "cumulativeCacheRead": 135826,
+        "cumulativeCacheWrite": 20070,
+        "cumulativeUncachedInput": 100,
+        "cumulativeOutput": 985
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 985,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14796,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28342,
+            "cacheWrite": 412,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 28754,
+            "cacheWrite": 3259,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 32013,
+            "cacheWrite": 1158,
+            "output": null
+          },
+          {
+            "label": "request 5",
+            "input": 32,
+            "cacheRead": 33171,
+            "cacheWrite": 445,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-router",
+      "workload": "package",
+      "repetition": 1,
+      "execution": {
+        "host": "codex",
+        "variant": "bootstrap-router",
+        "workload": "package",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 28.2
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 4,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 5,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:4000}));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(ALL_TOOLS.filter(x=>/quick_start/.test(x.name)));\n"
+        },
+        {
+          "request": 3,
+          "code": "text(await tools.mcp__githits_context_fixture__quick_start({}));\n"
+        },
+        {
+          "request": 4,
+          "code": "text(ALL_TOOLS.filter(x=>/pkg_info/.test(x.name)));\n"
+        },
+        {
+          "request": 5,
+          "code": "text(await tools.mcp__githits_context_fixture__pkg_info({registry:\"npm\",package_name:\"zod\"}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 6,
+        "firstInput": 22340,
+        "lastInput": 24194,
+        "inputGrowth": 1854,
+        "cumulativeInput": 139505,
+        "cumulativeCacheRead": 114304,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 25201,
+        "cumulativeOutput": 238
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22340,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "output": 66
+          },
+          {
+            "label": "request 2",
+            "input": 22597,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 3",
+            "input": 22763,
+            "cacheRead": 22400,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 4",
+            "input": 23529,
+            "cacheRead": 22528,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 5",
+            "input": 24082,
+            "cacheRead": 23296,
+            "cacheWrite": 0,
+            "output": 36
+          },
+          {
+            "label": "request 6",
+            "input": 24194,
+            "cacheRead": 23936,
+            "cacheWrite": 0,
+            "output": 58
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-router",
+      "workload": "package",
+      "repetition": 1,
+      "execution": {
+        "host": "claude",
+        "variant": "bootstrap-router",
+        "workload": "package",
+        "repetition": 1,
+        "exitCode": 0,
+        "seconds": 19.5
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 4,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__quick_start,mcp__githits_context_fixture__pkg_info",
+          "loadedTools": [
+            "mcp__githits_context_fixture__quick_start",
+            "mcp__githits_context_fixture__pkg_info"
+          ]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__quick_start"
+        },
+        {
+          "request": 4,
+          "name": "mcp__githits_context_fixture__pkg_info"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 5,
+        "firstInput": 28326,
+        "lastInput": 31180,
+        "inputGrowth": 2854,
+        "cumulativeInput": 149041,
+        "cumulativeCacheRead": 131339,
+        "cumulativeCacheWrite": 17602,
+        "cumulativeUncachedInput": 100,
+        "cumulativeOutput": 508
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 508,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14778,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28324,
+            "cacheWrite": 367,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 28691,
+            "cacheWrite": 1119,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 29810,
+            "cacheWrite": 1158,
+            "output": null
+          },
+          {
+            "label": "request 5",
+            "input": 32,
+            "cacheRead": 30968,
+            "cacheWrite": 180,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "skill-router",
+      "workload": "grep",
+      "repetition": 2,
+      "execution": {
+        "host": "codex",
+        "variant": "skill-router",
+        "workload": "grep",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 24.6
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:5000}));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(ALL_TOOLS.filter(x=>/code_grep/.test(x.name)));\ntext(ALL_TOOLS.filter(x=>/search.*tool|tool.*search/.test(x.name+\" \"+x.description)).map(x=>({name:x.name,description:x.description.slice(0,180)})));\n"
+        },
+        {
+          "request": 3,
+          "code": "const r=await tools.mcp__githits_context_fixture__code_grep({target:\"github:openai/codex\",pattern:\"tool_search\",pattern_type:\"literal\",context_lines:1,max_matches:3}); for(const c of r.content??[])if(c.type===\"text\")text(c.text);\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 4,
+        "firstInput": 22358,
+        "lastInput": 24637,
+        "inputGrowth": 2279,
+        "cumulativeInput": 94640,
+        "cumulativeCacheRead": 76160,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 18480,
+        "cumulativeOutput": 391
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22358,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 69
+          },
+          {
+            "label": "request 2",
+            "input": 23274,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 70
+          },
+          {
+            "label": "request 3",
+            "input": 24371,
+            "cacheRead": 23040,
+            "cacheWrite": 0,
+            "output": 75
+          },
+          {
+            "label": "request 4",
+            "input": 24637,
+            "cacheRead": 24192,
+            "cacheWrite": 0,
+            "output": 177
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "skill-router",
+      "workload": "grep",
+      "repetition": 2,
+      "execution": {
+        "host": "claude",
+        "variant": "skill-router",
+        "workload": "grep",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 20.2
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__code_grep",
+          "loadedTools": ["mcp__githits_context_fixture__code_grep"]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__code_grep"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 4,
+        "firstInput": 28341,
+        "lastInput": 33310,
+        "inputGrowth": 4969,
+        "cumulativeInput": 124254,
+        "cumulativeCacheRead": 104454,
+        "cumulativeCacheWrite": 19732,
+        "cumulativeUncachedInput": 68,
+        "cumulativeOutput": 788
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 788,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14793,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28339,
+            "cacheWrite": 1397,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 29736,
+            "cacheWrite": 3097,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 32833,
+            "cacheWrite": 445,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "skill-router",
+      "workload": "package",
+      "repetition": 2,
+      "execution": {
+        "host": "codex",
+        "variant": "skill-router",
+        "workload": "package",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 25
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:5000}));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(ALL_TOOLS.filter(x=> /pkg_info$|tool_search/.test(x.name)));\n"
+        },
+        {
+          "request": 3,
+          "code": "text(await tools.mcp__githits_context_fixture__pkg_info({registry:\"npm\",package_name:\"zod\"}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 4,
+        "firstInput": 22344,
+        "lastInput": 23925,
+        "inputGrowth": 1581,
+        "cumulativeInput": 93338,
+        "cumulativeCacheRead": 81536,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 11802,
+        "cumulativeOutput": 191
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22344,
+            "cacheRead": 12672,
+            "cacheWrite": 0,
+            "output": 66
+          },
+          {
+            "label": "request 2",
+            "input": 23256,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 30
+          },
+          {
+            "label": "request 3",
+            "input": 23813,
+            "cacheRead": 23040,
+            "cacheWrite": 0,
+            "output": 36
+          },
+          {
+            "label": "request 4",
+            "input": 23925,
+            "cacheRead": 23680,
+            "cacheWrite": 0,
+            "output": 59
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "skill-router",
+      "workload": "package",
+      "repetition": 2,
+      "execution": {
+        "host": "claude",
+        "variant": "skill-router",
+        "workload": "package",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 14.9
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__pkg_info",
+          "loadedTools": ["mcp__githits_context_fixture__pkg_info"]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__pkg_info"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 4,
+        "firstInput": 28323,
+        "lastInput": 30868,
+        "inputGrowth": 2545,
+        "cumulativeInput": 119575,
+        "cumulativeCacheRead": 102217,
+        "cumulativeCacheWrite": 17290,
+        "cumulativeUncachedInput": 68,
+        "cumulativeOutput": 489
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 489,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14775,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28321,
+            "cacheWrite": 1373,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 29694,
+            "cacheWrite": 962,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 30656,
+            "cacheWrite": 180,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-baseline",
+      "workload": "grep",
+      "repetition": 2,
+      "execution": {
+        "host": "codex",
+        "variant": "bootstrap-baseline",
+        "workload": "grep",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 34.6
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 1,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 2,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(ALL_TOOLS.filter(x=>/skills.*(read|list)|githits/i.test(x.name+\" \"+x.description)));\ntext(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:12000}));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(await tools.mcp__githits_context_fixture__quick_start({}));\n"
+        },
+        {
+          "request": 3,
+          "code": "text(await tools.mcp__githits_context_fixture__code_grep({target:\"github:openai/codex\",pattern:\"tool_search\",pattern_type:\"literal\",case_sensitive:true,max_matches:3,context_lines:1}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": false,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 4,
+        "firstInput": 22365,
+        "lastInput": 33935,
+        "inputGrowth": 11570,
+        "cumulativeInput": 122304,
+        "cumulativeCacheRead": 100352,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 21952,
+        "cumulativeOutput": 345
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22365,
+            "cacheRead": 12672,
+            "cacheWrite": 0,
+            "output": 96
+          },
+          {
+            "label": "request 2",
+            "input": 32354,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 3",
+            "input": 33650,
+            "cacheRead": 32128,
+            "cacheWrite": 0,
+            "output": 59
+          },
+          {
+            "label": "request 4",
+            "input": 33935,
+            "cacheRead": 33408,
+            "cacheWrite": 0,
+            "output": 164
+          }
+        ]
+      },
+      "broadCatalogPrint": true,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-baseline",
+      "workload": "grep",
+      "repetition": 2,
+      "execution": {
+        "host": "claude",
+        "variant": "bootstrap-baseline",
+        "workload": "grep",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 26.5
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__quick_start,mcp__githits_context_fixture__code_grep",
+          "loadedTools": [
+            "mcp__githits_context_fixture__quick_start",
+            "mcp__githits_context_fixture__code_grep"
+          ]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__quick_start"
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__code_grep"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": false
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 4,
+        "firstInput": 28366,
+        "lastInput": 34756,
+        "inputGrowth": 6390,
+        "cumulativeInput": 124021,
+        "cumulativeCacheRead": 102775,
+        "cumulativeCacheWrite": 21178,
+        "cumulativeUncachedInput": 68,
+        "cumulativeOutput": 1177
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 1177,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14818,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28364,
+            "cacheWrite": 433,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 28797,
+            "cacheWrite": 3271,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 32068,
+            "cacheWrite": 2656,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-baseline",
+      "workload": "package",
+      "repetition": 2,
+      "execution": {
+        "host": "codex",
+        "variant": "bootstrap-baseline",
+        "workload": "package",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 29.1
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 1,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 2,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:12000}));\ntext(ALL_TOOLS.filter(x=>/githits/i.test(x.name)));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(await tools.mcp__githits_context_fixture__quick_start({}));\n"
+        },
+        {
+          "request": 3,
+          "code": "text(await tools.mcp__githits_context_fixture__pkg_info({registry:\"npm\",package_name:\"zod\"}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": false,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 4,
+        "firstInput": 22351,
+        "lastInput": 33753,
+        "inputGrowth": 11402,
+        "cumulativeInput": 122090,
+        "cumulativeCacheRead": 94464,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 27626,
+        "cumulativeOutput": 198
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22351,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 80
+          },
+          {
+            "label": "request 2",
+            "input": 32345,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 3",
+            "input": 33641,
+            "cacheRead": 32128,
+            "cacheWrite": 0,
+            "output": 36
+          },
+          {
+            "label": "request 4",
+            "input": 33753,
+            "cacheRead": 33408,
+            "cacheWrite": 0,
+            "output": 56
+          }
+        ]
+      },
+      "broadCatalogPrint": true,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-baseline",
+      "workload": "package",
+      "repetition": 2,
+      "execution": {
+        "host": "claude",
+        "variant": "bootstrap-baseline",
+        "workload": "package",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 24.6
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 4,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 5,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__quick_start",
+          "loadedTools": ["mcp__githits_context_fixture__quick_start"]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__quick_start"
+        },
+        {
+          "request": 4,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__pkg_info",
+          "loadedTools": ["mcp__githits_context_fixture__pkg_info"]
+        },
+        {
+          "request": 5,
+          "name": "mcp__githits_context_fixture__pkg_info"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 6,
+        "firstInput": 28404,
+        "lastInput": 32288,
+        "inputGrowth": 3884,
+        "cumulativeInput": 181976,
+        "cumulativeCacheRead": 163134,
+        "cumulativeCacheWrite": 18710,
+        "cumulativeUncachedInput": 132,
+        "cumulativeOutput": 606
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 606,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14856,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28402,
+            "cacheWrite": 428,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 28830,
+            "cacheWrite": 314,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 29144,
+            "cacheWrite": 1992,
+            "output": null
+          },
+          {
+            "label": "request 5",
+            "input": 32,
+            "cacheRead": 31136,
+            "cacheWrite": 940,
+            "output": null
+          },
+          {
+            "label": "request 6",
+            "input": 32,
+            "cacheRead": 32076,
+            "cacheWrite": 180,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-router",
+      "workload": "grep",
+      "repetition": 2,
+      "execution": {
+        "host": "codex",
+        "variant": "bootstrap-router",
+        "workload": "grep",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 29.1
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 4,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 5,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:6000}));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(ALL_TOOLS.filter(x=>/quick_start/.test(x.name)));\n"
+        },
+        {
+          "request": 3,
+          "code": "text(await tools.mcp__githits_context_fixture__quick_start({}));\n"
+        },
+        {
+          "request": 4,
+          "code": "text(ALL_TOOLS.filter(x=>/code_grep/.test(x.name)));\n"
+        },
+        {
+          "request": 5,
+          "code": "text(await tools.mcp__githits_context_fixture__code_grep({target:\"github:openai/codex\",pattern:\"tool_search\",pattern_type:\"literal\",context_lines:1,max_matches:3}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 6,
+        "firstInput": 22354,
+        "lastInput": 24557,
+        "inputGrowth": 2203,
+        "cumulativeInput": 140127,
+        "cumulativeCacheRead": 121472,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 18655,
+        "cumulativeOutput": 385
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22354,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 69
+          },
+          {
+            "label": "request 2",
+            "input": 22614,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 3",
+            "input": 22780,
+            "cacheRead": 22400,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 4",
+            "input": 23546,
+            "cacheRead": 22656,
+            "cacheWrite": 0,
+            "output": 27
+          },
+          {
+            "label": "request 5",
+            "input": 24276,
+            "cacheRead": 23424,
+            "cacheWrite": 0,
+            "output": 55
+          },
+          {
+            "label": "request 6",
+            "input": 24557,
+            "cacheRead": 24064,
+            "cacheWrite": 0,
+            "output": 182
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-router",
+      "workload": "grep",
+      "repetition": 2,
+      "execution": {
+        "host": "claude",
+        "variant": "bootstrap-router",
+        "workload": "grep",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 24.2
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 4,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__quick_start,mcp__githits_context_fixture__code_grep",
+          "loadedTools": [
+            "mcp__githits_context_fixture__quick_start",
+            "mcp__githits_context_fixture__code_grep"
+          ]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__quick_start"
+        },
+        {
+          "request": 4,
+          "name": "mcp__githits_context_fixture__code_grep"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 5,
+        "firstInput": 28400,
+        "lastInput": 33658,
+        "inputGrowth": 5258,
+        "cumulativeInput": 156170,
+        "cumulativeCacheRead": 135990,
+        "cumulativeCacheWrite": 20080,
+        "cumulativeUncachedInput": 100,
+        "cumulativeOutput": 1057
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 1057,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14852,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28398,
+            "cacheWrite": 392,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 28790,
+            "cacheWrite": 3259,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 32049,
+            "cacheWrite": 1158,
+            "output": null
+          },
+          {
+            "label": "request 5",
+            "input": 32,
+            "cacheRead": 33207,
+            "cacheWrite": 419,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-router",
+      "workload": "package",
+      "repetition": 2,
+      "execution": {
+        "host": "codex",
+        "variant": "bootstrap-router",
+        "workload": "package",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 36.3
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 4,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 5,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:4000}));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(ALL_TOOLS.filter(x=>/quick_start/.test(x.name)));\n"
+        },
+        {
+          "request": 3,
+          "code": "text(await tools.mcp__githits_context_fixture__quick_start({}));\n"
+        },
+        {
+          "request": 4,
+          "code": "text(ALL_TOOLS.filter(x=>/pkg_info/.test(x.name)));\n"
+        },
+        {
+          "request": 5,
+          "code": "text(await tools.mcp__githits_context_fixture__pkg_info({registry:\"npm\",package_name:\"zod\"}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 6,
+        "firstInput": 22340,
+        "lastInput": 24191,
+        "inputGrowth": 1851,
+        "cumulativeInput": 139490,
+        "cumulativeCacheRead": 114304,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 25186,
+        "cumulativeOutput": 237
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22340,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "output": 63
+          },
+          {
+            "label": "request 2",
+            "input": 22594,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 3",
+            "input": 22760,
+            "cacheRead": 22400,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 4",
+            "input": 23526,
+            "cacheRead": 22528,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 5",
+            "input": 24079,
+            "cacheRead": 23296,
+            "cacheWrite": 0,
+            "output": 36
+          },
+          {
+            "label": "request 6",
+            "input": 24191,
+            "cacheRead": 23936,
+            "cacheWrite": 0,
+            "output": 60
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-router",
+      "workload": "package",
+      "repetition": 2,
+      "execution": {
+        "host": "claude",
+        "variant": "bootstrap-router",
+        "workload": "package",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 21
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 4,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__quick_start,mcp__githits_context_fixture__pkg_info",
+          "loadedTools": [
+            "mcp__githits_context_fixture__quick_start",
+            "mcp__githits_context_fixture__pkg_info"
+          ]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__quick_start"
+        },
+        {
+          "request": 4,
+          "name": "mcp__githits_context_fixture__pkg_info"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 5,
+        "firstInput": 28382,
+        "lastInput": 31287,
+        "inputGrowth": 2905,
+        "cumulativeInput": 149525,
+        "cumulativeCacheRead": 131716,
+        "cumulativeCacheWrite": 17709,
+        "cumulativeUncachedInput": 100,
+        "cumulativeOutput": 655
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 655,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14834,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28380,
+            "cacheWrite": 418,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 28798,
+            "cacheWrite": 1119,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 29917,
+            "cacheWrite": 1158,
+            "output": null
+          },
+          {
+            "label": "request 5",
+            "input": 32,
+            "cacheRead": 31075,
+            "cacheWrite": 180,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "skill-baseline",
+      "workload": "grep",
+      "repetition": 2,
+      "execution": {
+        "host": "codex",
+        "variant": "skill-baseline",
+        "workload": "grep",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 22.5
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 1,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:12000}));\ntext(ALL_TOOLS.filter(x=>/githits/i.test(x.name)));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(await tools.mcp__githits_context_fixture__code_grep({target:\"github:openai/codex\",pattern:\"tool_search\",pattern_type:\"literal\",case_sensitive:true,max_matches:3,context_lines:1}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": false,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 3,
+        "firstInput": 22369,
+        "lastInput": 32515,
+        "inputGrowth": 10146,
+        "cumulativeInput": 87114,
+        "cumulativeCacheRead": 60928,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 26186,
+        "cumulativeOutput": 312
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22369,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 85
+          },
+          {
+            "label": "request 2",
+            "input": 32230,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 59
+          },
+          {
+            "label": "request 3",
+            "input": 32515,
+            "cacheRead": 32000,
+            "cacheWrite": 0,
+            "output": 168
+          }
+        ]
+      },
+      "broadCatalogPrint": true,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "skill-baseline",
+      "workload": "grep",
+      "repetition": 2,
+      "execution": {
+        "host": "claude",
+        "variant": "skill-baseline",
+        "workload": "grep",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 23
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__code_grep",
+          "loadedTools": ["mcp__githits_context_fixture__code_grep"]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__code_grep"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 4,
+        "firstInput": 28419,
+        "lastInput": 34414,
+        "inputGrowth": 5995,
+        "cumulativeInput": 127661,
+        "cumulativeCacheRead": 106757,
+        "cumulativeCacheWrite": 20836,
+        "cumulativeUncachedInput": 68,
+        "cumulativeOutput": 970
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 970,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14871,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28417,
+            "cacheWrite": 2440,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 30857,
+            "cacheWrite": 3080,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 33937,
+            "cacheWrite": 445,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "skill-baseline",
+      "workload": "package",
+      "repetition": 2,
+      "execution": {
+        "host": "codex",
+        "variant": "skill-baseline",
+        "workload": "package",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 15.6
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 1,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:12000}));\ntext(ALL_TOOLS.filter(x=>/githits/i.test(x.name+\" \"+x.description)));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(await tools.mcp__githits_context_fixture__pkg_info({registry:\"npm\",package_name:\"zod\"}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": false,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 3,
+        "firstInput": 22355,
+        "lastInput": 32331,
+        "inputGrowth": 9976,
+        "cumulativeInput": 86905,
+        "cumulativeCacheRead": 60928,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 25977,
+        "cumulativeOutput": 187
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22355,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 86
+          },
+          {
+            "label": "request 2",
+            "input": 32219,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 36
+          },
+          {
+            "label": "request 3",
+            "input": 32331,
+            "cacheRead": 32000,
+            "cacheWrite": 0,
+            "output": 65
+          }
+        ]
+      },
+      "broadCatalogPrint": true,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "skill-baseline",
+      "workload": "package",
+      "repetition": 2,
+      "execution": {
+        "host": "claude",
+        "variant": "skill-baseline",
+        "workload": "package",
+        "repetition": 2,
+        "exitCode": 0,
+        "seconds": 18.3
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__pkg_info",
+          "loadedTools": ["mcp__githits_context_fixture__pkg_info"]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__pkg_info"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 4,
+        "firstInput": 28401,
+        "lastInput": 31972,
+        "inputGrowth": 3571,
+        "cumulativeInput": 122987,
+        "cumulativeCacheRead": 104525,
+        "cumulativeCacheWrite": 18394,
+        "cumulativeUncachedInput": 68,
+        "cumulativeOutput": 513
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 513,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14853,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28399,
+            "cacheWrite": 2421,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 30820,
+            "cacheWrite": 940,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 31760,
+            "cacheWrite": 180,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-baseline",
+      "workload": "grep",
+      "repetition": 3,
+      "execution": {
+        "host": "codex",
+        "variant": "bootstrap-baseline",
+        "workload": "grep",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 34.8
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 1,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 2,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(ALL_TOOLS.filter(x=> /skills.*(read|list)$/.test(x.name)));\ntext(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:12000}));\ntext(ALL_TOOLS.filter(x=> /githits/.test(x.name)));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(await tools.mcp__githits_context_fixture__quick_start({}));\n"
+        },
+        {
+          "request": 3,
+          "code": "text(await tools.mcp__githits_context_fixture__code_grep({target:\"github:openai/codex\",pattern:\"tool_search\",pattern_type:\"literal\",context_lines:1,max_matches:3}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": false,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 4,
+        "firstInput": 22365,
+        "lastInput": 33964,
+        "inputGrowth": 11599,
+        "cumulativeInput": 122399,
+        "cumulativeCacheRead": 87936,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 34463,
+        "cumulativeOutput": 354
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22365,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "output": 108
+          },
+          {
+            "label": "request 2",
+            "input": 32387,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 3",
+            "input": 33683,
+            "cacheRead": 32256,
+            "cacheWrite": 0,
+            "output": 55
+          },
+          {
+            "label": "request 4",
+            "input": 33964,
+            "cacheRead": 33536,
+            "cacheWrite": 0,
+            "output": 165
+          }
+        ]
+      },
+      "broadCatalogPrint": true,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-baseline",
+      "workload": "grep",
+      "repetition": 3,
+      "execution": {
+        "host": "claude",
+        "variant": "bootstrap-baseline",
+        "workload": "grep",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 25.7
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__quick_start,mcp__githits_context_fixture__code_grep",
+          "loadedTools": [
+            "mcp__githits_context_fixture__quick_start",
+            "mcp__githits_context_fixture__code_grep"
+          ]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__quick_start"
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__code_grep"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": false
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 4,
+        "firstInput": 28422,
+        "lastInput": 34847,
+        "inputGrowth": 6425,
+        "cumulativeInput": 124352,
+        "cumulativeCacheRead": 103015,
+        "cumulativeCacheWrite": 21269,
+        "cumulativeUncachedInput": 68,
+        "cumulativeOutput": 1232
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 1232,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14874,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28420,
+            "cacheWrite": 469,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 28889,
+            "cacheWrite": 3271,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 32160,
+            "cacheWrite": 2655,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-baseline",
+      "workload": "package",
+      "repetition": 3,
+      "execution": {
+        "host": "codex",
+        "variant": "bootstrap-baseline",
+        "workload": "package",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 24.8
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 1,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 2,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 3,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 4,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "const t = ALL_TOOLS.filter(x=> /read|search|package|quick_start/.test(x.name) && /githits|file|skill/.test(x.description+\" \"+x.name)); text(t);\ntext(await tools.exec_command({cmd:\"cat <local-path>\",max_output_tokens:12000}));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(await tools.mcp__githits_context_fixture__quick_start({}));\n"
+        },
+        {
+          "request": 3,
+          "code": "text(ALL_TOOLS.filter(x=>/pkg_info/.test(x.name)));\n"
+        },
+        {
+          "request": 4,
+          "code": "text(await tools.mcp__githits_context_fixture__pkg_info({package_name:\"zod\",registry:\"npm\"}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": false,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 5,
+        "firstInput": 22351,
+        "lastInput": 27737,
+        "inputGrowth": 5386,
+        "cumulativeInput": 130561,
+        "cumulativeCacheRead": 108800,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 21761,
+        "cumulativeOutput": 281
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22351,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 143
+          },
+          {
+            "label": "request 2",
+            "input": 25776,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 3",
+            "input": 27072,
+            "cacheRead": 25600,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 4",
+            "input": 27625,
+            "cacheRead": 26880,
+            "cacheWrite": 0,
+            "output": 36
+          },
+          {
+            "label": "request 5",
+            "input": 27737,
+            "cacheRead": 27392,
+            "cacheWrite": 0,
+            "output": 50
+          }
+        ]
+      },
+      "broadCatalogPrint": true,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-baseline",
+      "workload": "package",
+      "repetition": 3,
+      "execution": {
+        "host": "claude",
+        "variant": "bootstrap-baseline",
+        "workload": "package",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 18.7
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__quick_start,mcp__githits_context_fixture__pkg_info",
+          "loadedTools": [
+            "mcp__githits_context_fixture__quick_start",
+            "mcp__githits_context_fixture__pkg_info"
+          ]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__quick_start"
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__pkg_info"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": false
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 4,
+        "firstInput": 28404,
+        "lastInput": 32285,
+        "inputGrowth": 3881,
+        "cumulativeInput": 119458,
+        "cumulativeCacheRead": 100683,
+        "cumulativeCacheWrite": 18707,
+        "cumulativeUncachedInput": 68,
+        "cumulativeOutput": 814
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 814,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14856,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28402,
+            "cacheWrite": 400,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 28802,
+            "cacheWrite": 1131,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 29933,
+            "cacheWrite": 2320,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-router",
+      "workload": "grep",
+      "repetition": 3,
+      "execution": {
+        "host": "codex",
+        "variant": "bootstrap-router",
+        "workload": "grep",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 28.6
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 4,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 5,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:6000}));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(ALL_TOOLS.filter(x=>/quick_start/.test(x.name)));\n"
+        },
+        {
+          "request": 3,
+          "code": "text(await tools.mcp__githits_context_fixture__quick_start({}));\n"
+        },
+        {
+          "request": 4,
+          "code": "text(ALL_TOOLS.filter(x=>/code_grep/.test(x.name)));\n"
+        },
+        {
+          "request": 5,
+          "code": "text(await tools.mcp__githits_context_fixture__code_grep({target:\"github:openai/codex\",pattern:\"tool_search\",pattern_type:\"literal\",context_lines:1,max_matches:3}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 6,
+        "firstInput": 22354,
+        "lastInput": 24552,
+        "inputGrowth": 2198,
+        "cumulativeInput": 140102,
+        "cumulativeCacheRead": 127360,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 12742,
+        "cumulativeOutput": 380
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22354,
+            "cacheRead": 12672,
+            "cacheWrite": 0,
+            "output": 64
+          },
+          {
+            "label": "request 2",
+            "input": 22609,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 3",
+            "input": 22775,
+            "cacheRead": 22400,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 4",
+            "input": 23541,
+            "cacheRead": 22656,
+            "cacheWrite": 0,
+            "output": 27
+          },
+          {
+            "label": "request 5",
+            "input": 24271,
+            "cacheRead": 23424,
+            "cacheWrite": 0,
+            "output": 55
+          },
+          {
+            "label": "request 6",
+            "input": 24552,
+            "cacheRead": 24064,
+            "cacheWrite": 0,
+            "output": 182
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-router",
+      "workload": "grep",
+      "repetition": 3,
+      "execution": {
+        "host": "claude",
+        "variant": "bootstrap-router",
+        "workload": "grep",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 20.1
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 4,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__quick_start,mcp__githits_context_fixture__code_grep",
+          "loadedTools": [
+            "mcp__githits_context_fixture__quick_start",
+            "mcp__githits_context_fixture__code_grep"
+          ]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__quick_start"
+        },
+        {
+          "request": 4,
+          "name": "mcp__githits_context_fixture__code_grep"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 5,
+        "firstInput": 28400,
+        "lastInput": 33709,
+        "inputGrowth": 5309,
+        "cumulativeInput": 156296,
+        "cumulativeCacheRead": 136065,
+        "cumulativeCacheWrite": 20131,
+        "cumulativeUncachedInput": 100,
+        "cumulativeOutput": 930
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 930,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14852,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28398,
+            "cacheWrite": 417,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 28815,
+            "cacheWrite": 3259,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 32074,
+            "cacheWrite": 1158,
+            "output": null
+          },
+          {
+            "label": "request 5",
+            "input": 32,
+            "cacheRead": 33232,
+            "cacheWrite": 445,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-router",
+      "workload": "package",
+      "repetition": 3,
+      "execution": {
+        "host": "codex",
+        "variant": "bootstrap-router",
+        "workload": "package",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 28.9
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 4,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 5,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat <local-path>\",max_output_tokens:4000}));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(ALL_TOOLS.filter(x=>/quick_start/.test(x.name)));\n"
+        },
+        {
+          "request": 3,
+          "code": "text(await tools.mcp__githits_context_fixture__quick_start({}));\n"
+        },
+        {
+          "request": 4,
+          "code": "text(ALL_TOOLS.filter(x=> /__pkg_info$/.test(x.name)));\n"
+        },
+        {
+          "request": 5,
+          "code": "text(await tools.mcp__githits_context_fixture__pkg_info({registry:\"npm\",package_name:\"zod\"}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 6,
+        "firstInput": 22340,
+        "lastInput": 24227,
+        "inputGrowth": 1887,
+        "cumulativeInput": 139664,
+        "cumulativeCacheRead": 110080,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 29584,
+        "cumulativeOutput": 272
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22340,
+            "cacheRead": 12672,
+            "cacheWrite": 0,
+            "output": 95
+          },
+          {
+            "label": "request 2",
+            "input": 22628,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 3",
+            "input": 22794,
+            "cacheRead": 22400,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 4",
+            "input": 23560,
+            "cacheRead": 22656,
+            "cacheWrite": 0,
+            "output": 28
+          },
+          {
+            "label": "request 5",
+            "input": 24115,
+            "cacheRead": 23424,
+            "cacheWrite": 0,
+            "output": 36
+          },
+          {
+            "label": "request 6",
+            "input": 24227,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 61
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-router",
+      "workload": "package",
+      "repetition": 3,
+      "execution": {
+        "host": "claude",
+        "variant": "bootstrap-router",
+        "workload": "package",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 17.1
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "bootstrap_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "quick_start_loaded"
+        },
+        {
+          "request": 4,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__quick_start,mcp__githits_context_fixture__pkg_info",
+          "loadedTools": [
+            "mcp__githits_context_fixture__quick_start",
+            "mcp__githits_context_fixture__pkg_info"
+          ]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__quick_start"
+        },
+        {
+          "request": 4,
+          "name": "mcp__githits_context_fixture__pkg_info"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 5,
+        "firstInput": 28382,
+        "lastInput": 31280,
+        "inputGrowth": 2898,
+        "cumulativeInput": 149497,
+        "cumulativeCacheRead": 131695,
+        "cumulativeCacheWrite": 17702,
+        "cumulativeUncachedInput": 100,
+        "cumulativeOutput": 603
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 603,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14834,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28380,
+            "cacheWrite": 411,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 28791,
+            "cacheWrite": 1119,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 29910,
+            "cacheWrite": 1158,
+            "output": null
+          },
+          {
+            "label": "request 5",
+            "input": 32,
+            "cacheRead": 31068,
+            "cacheWrite": 180,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "skill-baseline",
+      "workload": "grep",
+      "repetition": 3,
+      "execution": {
+        "host": "codex",
+        "variant": "skill-baseline",
+        "workload": "grep",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 20.3
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 1,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:12000}));\ntext(ALL_TOOLS.filter(x=>/githits/i.test(x.name+\" \"+x.description)));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(await tools.mcp__githits_context_fixture__code_grep({target:\"github:openai/codex\",pattern:\"tool_search\",pattern_type:\"literal\",case_sensitive:true,max_matches:3,context_lines:1}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": false,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 3,
+        "firstInput": 22369,
+        "lastInput": 32520,
+        "inputGrowth": 10151,
+        "cumulativeInput": 87124,
+        "cumulativeCacheRead": 66816,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 20308,
+        "cumulativeOutput": 322
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22369,
+            "cacheRead": 12672,
+            "cacheWrite": 0,
+            "output": 88
+          },
+          {
+            "label": "request 2",
+            "input": 32235,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 59
+          },
+          {
+            "label": "request 3",
+            "input": 32520,
+            "cacheRead": 32000,
+            "cacheWrite": 0,
+            "output": 175
+          }
+        ]
+      },
+      "broadCatalogPrint": true,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "skill-baseline",
+      "workload": "grep",
+      "repetition": 3,
+      "execution": {
+        "host": "claude",
+        "variant": "skill-baseline",
+        "workload": "grep",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 20.8
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__code_grep",
+          "loadedTools": ["mcp__githits_context_fixture__code_grep"]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__code_grep"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 4,
+        "firstInput": 28419,
+        "lastInput": 34412,
+        "inputGrowth": 5993,
+        "cumulativeInput": 127603,
+        "cumulativeCacheRead": 106701,
+        "cumulativeCacheWrite": 20834,
+        "cumulativeUncachedInput": 68,
+        "cumulativeOutput": 988
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 988,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14871,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28417,
+            "cacheWrite": 2412,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 30829,
+            "cacheWrite": 3080,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 33909,
+            "cacheWrite": 471,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "skill-baseline",
+      "workload": "package",
+      "repetition": 3,
+      "execution": {
+        "host": "codex",
+        "variant": "skill-baseline",
+        "workload": "package",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 15.3
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 1,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:12000}));\ntext(ALL_TOOLS.filter(x=>/githits/i.test(x.name)));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(await tools.mcp__githits_context_fixture__pkg_info({registry:\"npm\",package_name:\"zod\"}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": false,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 3,
+        "firstInput": 22355,
+        "lastInput": 32327,
+        "inputGrowth": 9972,
+        "cumulativeInput": 86897,
+        "cumulativeCacheRead": 41600,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 45297,
+        "cumulativeOutput": 174
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22355,
+            "cacheRead": 12672,
+            "cacheWrite": 0,
+            "output": 82
+          },
+          {
+            "label": "request 2",
+            "input": 32215,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 36
+          },
+          {
+            "label": "request 3",
+            "input": 32327,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 56
+          }
+        ]
+      },
+      "broadCatalogPrint": true,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "skill-baseline",
+      "workload": "package",
+      "repetition": 3,
+      "execution": {
+        "host": "claude",
+        "variant": "skill-baseline",
+        "workload": "package",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 14.9
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__pkg_info",
+          "loadedTools": ["mcp__githits_context_fixture__pkg_info"]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__pkg_info"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 4,
+        "firstInput": 28401,
+        "lastInput": 31964,
+        "inputGrowth": 3563,
+        "cumulativeInput": 122963,
+        "cumulativeCacheRead": 104509,
+        "cumulativeCacheWrite": 18386,
+        "cumulativeUncachedInput": 68,
+        "cumulativeOutput": 524
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 524,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14853,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28399,
+            "cacheWrite": 2413,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 30812,
+            "cacheWrite": 940,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 31752,
+            "cacheWrite": 180,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "skill-router",
+      "workload": "grep",
+      "repetition": 3,
+      "execution": {
+        "host": "codex",
+        "variant": "skill-router",
+        "workload": "grep",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 20.2
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 1,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 2,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:6000}));\ntext(ALL_TOOLS.filter(x=>/githits|search/i.test(x.name+\" \"+x.description)));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(await tools.mcp__githits_context_fixture__code_grep({target:\"github:openai/codex\",pattern:\"tool_search\",pattern_type:\"literal\",case_sensitive:true,max_matches:3,context_lines:1}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": false,
+        "guideBeforeEvidenceDiscovery": false,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 3,
+        "firstInput": 22358,
+        "lastInput": 32641,
+        "inputGrowth": 10283,
+        "cumulativeInput": 87355,
+        "cumulativeCacheRead": 61056,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 26299,
+        "cumulativeOutput": 328
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22358,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 91
+          },
+          {
+            "label": "request 2",
+            "input": 32356,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 59
+          },
+          {
+            "label": "request 3",
+            "input": 32641,
+            "cacheRead": 32128,
+            "cacheWrite": 0,
+            "output": 178
+          }
+        ]
+      },
+      "broadCatalogPrint": true,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "skill-router",
+      "workload": "grep",
+      "repetition": 3,
+      "execution": {
+        "host": "claude",
+        "variant": "skill-router",
+        "workload": "grep",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 19
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__code_grep",
+          "loadedTools": ["mcp__githits_context_fixture__code_grep"]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__code_grep"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 4,
+        "firstInput": 28397,
+        "lastInput": 33378,
+        "inputGrowth": 4981,
+        "cumulativeInput": 124504,
+        "cumulativeCacheRead": 104636,
+        "cumulativeCacheWrite": 19800,
+        "cumulativeUncachedInput": 68,
+        "cumulativeOutput": 875
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 875,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14849,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28395,
+            "cacheWrite": 1399,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 29794,
+            "cacheWrite": 3107,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 32901,
+            "cacheWrite": 445,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "codex",
+      "variant": "skill-router",
+      "workload": "package",
+      "repetition": 3,
+      "execution": {
+        "host": "codex",
+        "variant": "skill-router",
+        "workload": "package",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 22.5
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "code": "text(await tools.exec_command({cmd:\"cat .agents/skills/githits-mcp/SKILL.md\",max_output_tokens:5000}));\n"
+        },
+        {
+          "request": 2,
+          "code": "text(ALL_TOOLS.filter(x=>/pkg_info/.test(x.name)));\n"
+        },
+        {
+          "request": 3,
+          "code": "text(await tools.mcp__githits_context_fixture__pkg_info({registry:\"npm\",package_name:\"zod\"}));\n"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "modelRequests": 4,
+        "firstInput": 22344,
+        "lastInput": 23919,
+        "inputGrowth": 1575,
+        "cumulativeInput": 93324,
+        "cumulativeCacheRead": 75648,
+        "cumulativeCacheWrite": 0,
+        "cumulativeUncachedInput": 17676,
+        "cumulativeOutput": 179
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+        "host": "Codex native session",
+        "model": "gpt-6-astra",
+        "inputConvention": "inclusive",
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 22344,
+            "cacheRead": 6784,
+            "cacheWrite": 0,
+            "output": 62
+          },
+          {
+            "label": "request 2",
+            "input": 23254,
+            "cacheRead": 22144,
+            "cacheWrite": 0,
+            "output": 26
+          },
+          {
+            "label": "request 3",
+            "input": 23807,
+            "cacheRead": 23040,
+            "cacheWrite": 0,
+            "output": 36
+          },
+          {
+            "label": "request 4",
+            "input": 23919,
+            "cacheRead": 23680,
+            "cacheWrite": 0,
+            "output": 55
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    },
+    {
+      "host": "claude",
+      "variant": "skill-router",
+      "workload": "package",
+      "repetition": 3,
+      "execution": {
+        "host": "claude",
+        "variant": "skill-router",
+        "workload": "package",
+        "repetition": 3,
+        "exitCode": 0,
+        "seconds": 16.8
+      },
+      "guideConfirmed": true,
+      "completed": true,
+      "events": [
+        {
+          "request": 1,
+          "action": "skill_loaded"
+        },
+        {
+          "request": 2,
+          "action": "evidence_discovery"
+        },
+        {
+          "request": 3,
+          "action": "evidence_call"
+        }
+      ],
+      "operations": [
+        {
+          "request": 1,
+          "name": "Skill"
+        },
+        {
+          "request": 2,
+          "name": "ToolSearch",
+          "query": "select:mcp__githits_context_fixture__pkg_info",
+          "loadedTools": ["mcp__githits_context_fixture__pkg_info"]
+        },
+        {
+          "request": 3,
+          "name": "mcp__githits_context_fixture__pkg_info"
+        }
+      ],
+      "order": {
+        "skillBeforeAnyDiscovery": true,
+        "guideBeforeEvidenceDiscovery": true,
+        "guideBeforeEvidenceCall": true
+      },
+      "usage": {
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "modelRequests": 4,
+        "firstInput": 28402,
+        "lastInput": 30992,
+        "inputGrowth": 2590,
+        "cumulativeInput": 120022,
+        "cumulativeCacheRead": 102540,
+        "cumulativeCacheWrite": 17414,
+        "cumulativeUncachedInput": 68,
+        "cumulativeOutput": 577
+      },
+      "observation": {
+        "schemaVersion": 1,
+        "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+        "host": "Claude Code stream-json",
+        "model": "claude-fable-5-1",
+        "inputConvention": "uncached-only",
+        "terminalOutputTokens": 577,
+        "requests": [
+          {
+            "label": "request 1",
+            "input": 2,
+            "cacheRead": 13546,
+            "cacheWrite": 14854,
+            "output": null
+          },
+          {
+            "label": "request 2",
+            "input": 2,
+            "cacheRead": 28400,
+            "cacheWrite": 1414,
+            "output": null
+          },
+          {
+            "label": "request 3",
+            "input": 32,
+            "cacheRead": 29814,
+            "cacheWrite": 966,
+            "output": null
+          },
+          {
+            "label": "request 4",
+            "input": 32,
+            "cacheRead": 30780,
+            "cacheWrite": 180,
+            "output": null
+          }
+        ]
+      },
+      "broadCatalogPrint": false,
+      "traceAudit": "Guide payload confirmed; request grouping and discovery scope reviewed against recorded operations. Absolute paths redacted."
+    }
+  ],
+  "evidence": "Observed CLI/native usage and trace-audited event annotations. Codex code and Claude selection queries/references are public fixture operations; no raw transcripts or session IDs. Strict order is computed across model requests, not source-code statement order.",
+  "summaries": [
+    {
+      "host": "codex",
+      "variant": "skill-baseline",
+      "workload": "grep",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 0,
+      "guideBeforeEvidenceCall": 3,
+      "completed": 3,
+      "inputGrowth": [10150, 10146, 10151],
+      "modelRequests": [3, 3, 3],
+      "medianCumulativeInput": 87122
+    },
+    {
+      "host": "codex",
+      "variant": "skill-baseline",
+      "workload": "package",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 0,
+      "guideBeforeEvidenceCall": 3,
+      "completed": 3,
+      "inputGrowth": [9975, 9976, 9972],
+      "modelRequests": [3, 3, 3],
+      "medianCumulativeInput": 86903
+    },
+    {
+      "host": "codex",
+      "variant": "skill-router",
+      "workload": "grep",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 2,
+      "guideBeforeEvidenceCall": 3,
+      "completed": 3,
+      "inputGrowth": [1921, 2279, 10283],
+      "modelRequests": [4, 4, 3],
+      "medianCumulativeInput": 93901
+    },
+    {
+      "host": "codex",
+      "variant": "skill-router",
+      "workload": "package",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 2,
+      "guideBeforeEvidenceCall": 3,
+      "completed": 3,
+      "inputGrowth": [9994, 1581, 1575],
+      "modelRequests": [3, 4, 4],
+      "medianCumulativeInput": 93324
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-baseline",
+      "workload": "grep",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 0,
+      "guideBeforeEvidenceCall": 3,
+      "completed": 3,
+      "inputGrowth": [11586, 11570, 11599],
+      "modelRequests": [4, 4, 4],
+      "medianCumulativeInput": 122360
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-baseline",
+      "workload": "package",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 0,
+      "guideBeforeEvidenceCall": 3,
+      "completed": 3,
+      "inputGrowth": [12114, 11402, 5386],
+      "modelRequests": [5, 4, 5],
+      "medianCumulativeInput": 130561
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-router",
+      "workload": "grep",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 3,
+      "guideBeforeEvidenceCall": 3,
+      "completed": 3,
+      "inputGrowth": [2202, 2203, 2198],
+      "modelRequests": [6, 6, 6],
+      "medianCumulativeInput": 140122
+    },
+    {
+      "host": "codex",
+      "variant": "bootstrap-router",
+      "workload": "package",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 3,
+      "guideBeforeEvidenceCall": 3,
+      "completed": 3,
+      "inputGrowth": [1854, 1851, 1887],
+      "modelRequests": [6, 6, 6],
+      "medianCumulativeInput": 139505
+    },
+    {
+      "host": "claude",
+      "variant": "skill-baseline",
+      "workload": "grep",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 3,
+      "guideBeforeEvidenceCall": 3,
+      "completed": 3,
+      "inputGrowth": [6052, 5995, 5993],
+      "modelRequests": [4, 4, 4],
+      "medianCumulativeInput": 127603
+    },
+    {
+      "host": "claude",
+      "variant": "skill-baseline",
+      "workload": "package",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 3,
+      "guideBeforeEvidenceCall": 3,
+      "completed": 3,
+      "inputGrowth": [3613, 3571, 3563],
+      "modelRequests": [4, 4, 4],
+      "medianCumulativeInput": 122963
+    },
+    {
+      "host": "claude",
+      "variant": "skill-router",
+      "workload": "grep",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 3,
+      "guideBeforeEvidenceCall": 3,
+      "completed": 3,
+      "inputGrowth": [4993, 4969, 4981],
+      "modelRequests": [4, 4, 4],
+      "medianCumulativeInput": 124254
+    },
+    {
+      "host": "claude",
+      "variant": "skill-router",
+      "workload": "package",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 3,
+      "guideBeforeEvidenceCall": 3,
+      "completed": 3,
+      "inputGrowth": [2552, 2545, 2590],
+      "modelRequests": [4, 4, 4],
+      "medianCumulativeInput": 119575
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-baseline",
+      "workload": "grep",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 0,
+      "guideBeforeEvidenceCall": 1,
+      "completed": 3,
+      "inputGrowth": [6203, 6390, 6425],
+      "modelRequests": [5, 4, 4],
+      "medianCumulativeInput": 124352
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-baseline",
+      "workload": "package",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 1,
+      "guideBeforeEvidenceCall": 2,
+      "completed": 3,
+      "inputGrowth": [4114, 3884, 3881],
+      "modelRequests": [5, 6, 4],
+      "medianCumulativeInput": 150905
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-router",
+      "workload": "grep",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 0,
+      "guideBeforeEvidenceCall": 3,
+      "completed": 3,
+      "inputGrowth": [5304, 5258, 5309],
+      "modelRequests": [5, 5, 5],
+      "medianCumulativeInput": 156170
+    },
+    {
+      "host": "claude",
+      "variant": "bootstrap-router",
+      "workload": "package",
+      "runs": 3,
+      "guideBeforeEvidenceDiscovery": 0,
+      "guideBeforeEvidenceCall": 3,
+      "completed": 3,
+      "inputGrowth": [2854, 2905, 2898],
+      "modelRequests": [5, 5, 5],
+      "medianCumulativeInput": 149497
+    }
+  ]
+}

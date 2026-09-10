@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "observedDate": "2026-09-10",
+  "sourceCommit": "dfbdf6b94be2afa552c4b0f62784c7ff0c0373d5",
+  "canonicalSkillSha256": "c5eda07eb503f3a540278300da1f8f153fb133a58b71344a4440bba0da08d949",
+  "cliVersions": {
+    "codex": "0.153.4",
+    "claude": "2.1.267"
+  },
+  "models": {
+    "codex": "gpt-6-astra",
+    "claude": "claude-fable-5-1"
+  },
+  "codexReasoningEffort": "medium",
+  "task": "Use GitHits MCP to find three literal occurrences of tool_search in github:openai/codex, with one context line. Report matching paths and line numbers plus any evidence limitations. Do not edit files, delegate, or use CLI/web alternatives. Follow available skill guidance.",
+  "hint": "When ALL_TOOLS is available, search names and full descriptions but return at most eight names and the first 80 description characters. Load only selected full definitions and reuse definitions already in context.",
+  "variants": {
+    "baseline": "Canonical skill unchanged.",
+    "description": "Append hint after Load before any GitHits MCP tool call. in YAML description.",
+    "body": "Insert hint after # GitHits MCP heading, leaving description unchanged."
+  },
+  "repetitionOrders": [
+    ["baseline", "description", "body"],
+    ["description", "body", "baseline"],
+    ["body", "baseline", "description"]
+  ],
+  "warmTask": "Using only the evidence already obtained, repeat the first matching file path and line number in one sentence. Do not call any tools.",
+  "warmUserTurns": 5,
+  "limits": [
+    "Host instructions and system skills were retained, not hermetically reconstructed.",
+    "Only the explicitly configured fixture MCP is intended in these runs; inspect traces to confirm.",
+    "Claude models were selected by existing default, then identified from assistant messages.",
+    "Fixed result fixture supports loading/selection studies, not general source-retrieval quality.",
+    "Cache state was not reset or controlled; do not infer monetary savings from run-to-run cache partitions."
+  ]
+}

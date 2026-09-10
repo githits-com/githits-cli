@@ -1,0 +1,536 @@
+[
+  {
+    "host": "codex",
+    "variant": "baseline",
+    "repetition": 1,
+    "observation": "codex-baseline-1.json",
+    "usage": {
+      "host": "Codex native session",
+      "model": "gpt-6-astra",
+      "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+      "modelRequests": 3,
+      "firstInput": 21385,
+      "lastInput": 31505,
+      "inputGrowth": 10120,
+      "cumulativeInput": 84110,
+      "cumulativeCacheRead": 52352,
+      "cumulativeCacheWrite": 0,
+      "cumulativeUncachedInput": 31758,
+      "cumulativeOutput": 319
+    },
+    "catalogOperations": [
+      "text(ALL_TOOLS.filter(x=>/githits/i.test(x.name+\" \"+x.description)));"
+    ],
+    "completed": true
+  },
+  {
+    "host": "codex",
+    "variant": "baseline",
+    "repetition": 2,
+    "observation": "codex-baseline-2.json",
+    "usage": {
+      "host": "Codex native session",
+      "model": "gpt-6-astra",
+      "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+      "modelRequests": 3,
+      "firstInput": 21959,
+      "lastInput": 32107,
+      "inputGrowth": 10148,
+      "cumulativeInput": 85892,
+      "cumulativeCacheRead": 53376,
+      "cumulativeCacheWrite": 0,
+      "cumulativeUncachedInput": 32516,
+      "cumulativeOutput": 311
+    },
+    "catalogOperations": [
+      "text(ALL_TOOLS.filter(x=>/githits/i.test(x.name+\" \"+x.description)));"
+    ],
+    "completed": true
+  },
+  {
+    "host": "codex",
+    "variant": "baseline",
+    "repetition": 3,
+    "observation": "codex-baseline-3.json",
+    "usage": {
+      "host": "Codex native session",
+      "model": "gpt-6-astra",
+      "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+      "modelRequests": 3,
+      "firstInput": 21959,
+      "lastInput": 32107,
+      "inputGrowth": 10148,
+      "cumulativeInput": 85888,
+      "cumulativeCacheRead": 66048,
+      "cumulativeCacheWrite": 0,
+      "cumulativeUncachedInput": 19840,
+      "cumulativeOutput": 311
+    },
+    "catalogOperations": [
+      "text(ALL_TOOLS.filter(x=>/githits/i.test(x.name+\" \"+x.description)));"
+    ],
+    "completed": true
+  },
+  {
+    "host": "codex",
+    "variant": "description",
+    "repetition": 1,
+    "observation": "codex-description-1.json",
+    "usage": {
+      "host": "Codex native session",
+      "model": "gpt-6-astra",
+      "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+      "modelRequests": 4,
+      "firstInput": 21985,
+      "lastInput": 24923,
+      "inputGrowth": 2938,
+      "cumulativeInput": 95455,
+      "cumulativeCacheRead": 76672,
+      "cumulativeCacheWrite": 0,
+      "cumulativeUncachedInput": 18783,
+      "cumulativeOutput": 394
+    },
+    "catalogOperations": [
+      "text(ALL_TOOLS.filter(x=>/githits/i.test(x.name+\" \"+x.description)).map(x=>({name:x.name,description:x.description.slice(0,80)})).slice(0,8));",
+      "const t = ALL_TOOLS.find(x=>/githits.*code_grep$/.test(x.name)); text(t);\n"
+    ],
+    "completed": true
+  },
+  {
+    "host": "codex",
+    "variant": "description",
+    "repetition": 2,
+    "observation": "codex-description-2.json",
+    "usage": {
+      "host": "Codex native session",
+      "model": "gpt-6-astra",
+      "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+      "modelRequests": 4,
+      "firstInput": 21427,
+      "lastInput": 24297,
+      "inputGrowth": 2870,
+      "cumulativeInput": 93022,
+      "cumulativeCacheRead": 68096,
+      "cumulativeCacheWrite": 0,
+      "cumulativeUncachedInput": 24926,
+      "cumulativeOutput": 410
+    },
+    "catalogOperations": [
+      "text(ALL_TOOLS.filter(x=>/githits/i.test(x.name+\" \"+x.description)&&/search|grep/i.test(x.name+\" \"+x.description)).slice(0,8).map(x=>({name:x.name,description:x.description.slice(0,80)})));",
+      "text(ALL_TOOLS.find(x=>/githits.*__code_grep$/.test(x.name)));"
+    ],
+    "completed": true
+  },
+  {
+    "host": "codex",
+    "variant": "description",
+    "repetition": 3,
+    "observation": "codex-description-3.json",
+    "usage": {
+      "host": "Codex native session",
+      "model": "gpt-6-astra",
+      "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+      "modelRequests": 4,
+      "firstInput": 21993,
+      "lastInput": 24905,
+      "inputGrowth": 2912,
+      "cumulativeInput": 95410,
+      "cumulativeCacheRead": 76672,
+      "cumulativeCacheWrite": 0,
+      "cumulativeUncachedInput": 18738,
+      "cumulativeOutput": 369
+    },
+    "catalogOperations": [
+      "text(ALL_TOOLS.filter(x=>/githits/i.test(x.name+\" \"+x.description)).slice(0,8).map(x=>({name:x.name,description:x.description.slice(0,80)})));",
+      "text(ALL_TOOLS.find(x=>/githits.*__code_grep$/.test(x.name)));"
+    ],
+    "completed": true
+  },
+  {
+    "host": "codex",
+    "variant": "body",
+    "repetition": 1,
+    "observation": "codex-body-1.json",
+    "usage": {
+      "host": "Codex native session",
+      "model": "gpt-6-astra",
+      "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+      "modelRequests": 3,
+      "firstInput": 21943,
+      "lastInput": 32037,
+      "inputGrowth": 10094,
+      "cumulativeInput": 85732,
+      "cumulativeCacheRead": 61952,
+      "cumulativeCacheWrite": 0,
+      "cumulativeUncachedInput": 23780,
+      "cumulativeOutput": 321
+    },
+    "catalogOperations": [
+      "text(ALL_TOOLS.filter(x=>/githits/i.test(x.name)));"
+    ],
+    "completed": true
+  },
+  {
+    "host": "codex",
+    "variant": "body",
+    "repetition": 2,
+    "observation": "codex-body-2.json",
+    "usage": {
+      "host": "Codex native session",
+      "model": "gpt-6-astra",
+      "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+      "modelRequests": 3,
+      "firstInput": 21951,
+      "lastInput": 32103,
+      "inputGrowth": 10152,
+      "cumulativeInput": 85876,
+      "cumulativeCacheRead": 53376,
+      "cumulativeCacheWrite": 0,
+      "cumulativeUncachedInput": 32500,
+      "cumulativeOutput": 330
+    },
+    "catalogOperations": [
+      "text(ALL_TOOLS.filter(x=>/githits/i.test(x.name)));"
+    ],
+    "completed": true
+  },
+  {
+    "host": "codex",
+    "variant": "body",
+    "repetition": 3,
+    "observation": "codex-body-3.json",
+    "usage": {
+      "host": "Codex native session",
+      "model": "gpt-6-astra",
+      "evidence": "Selected native session token_count.last_token_usage events. Model is configured/requested, not provider-resolved. Input includes host context; growth is not isolated tool text.",
+      "modelRequests": 3,
+      "firstInput": 21951,
+      "lastInput": 32082,
+      "inputGrowth": 10131,
+      "cumulativeInput": 85830,
+      "cumulativeCacheRead": 60160,
+      "cumulativeCacheWrite": 0,
+      "cumulativeUncachedInput": 25670,
+      "cumulativeOutput": 312
+    },
+    "catalogOperations": [
+      "text(ALL_TOOLS.filter(x=>/githits/i.test(x.name)));"
+    ],
+    "completed": true
+  },
+  {
+    "host": "claude",
+    "variant": "baseline",
+    "repetition": 1,
+    "observation": "claude-baseline-1.json",
+    "usage": {
+      "host": "Claude Code stream-json",
+      "model": "claude-opus-5",
+      "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+      "modelRequests": 4,
+      "firstInput": 27353,
+      "lastInput": 33241,
+      "inputGrowth": 5888,
+      "cumulativeInput": 123024,
+      "cumulativeCacheRead": 99787,
+      "cumulativeCacheWrite": 23229,
+      "cumulativeUncachedInput": 8,
+      "cumulativeOutput": 39
+    },
+    "tools": [
+      {
+        "name": "Skill",
+        "query": null
+      },
+      {
+        "name": "ToolSearch",
+        "query": "select:mcp__githits_context_fixture__code_grep"
+      },
+      {
+        "name": "mcp__githits_context_fixture__code_grep",
+        "query": null
+      }
+    ],
+    "completed": true
+  },
+  {
+    "host": "claude",
+    "variant": "baseline",
+    "repetition": 2,
+    "observation": "claude-baseline-2.json",
+    "usage": {
+      "host": "Claude Code stream-json",
+      "model": "claude-opus-5",
+      "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+      "modelRequests": 4,
+      "firstInput": 27518,
+      "lastInput": 34152,
+      "inputGrowth": 6634,
+      "cumulativeInput": 125297,
+      "cumulativeCacheRead": 103831,
+      "cumulativeCacheWrite": 21458,
+      "cumulativeUncachedInput": 8,
+      "cumulativeOutput": 45
+    },
+    "tools": [
+      {
+        "name": "Skill",
+        "query": null
+      },
+      {
+        "name": "ToolSearch",
+        "query": "select:mcp__githits_context_fixture__code_grep,mcp__githits_context_fixture__feedback"
+      },
+      {
+        "name": "mcp__githits_context_fixture__code_grep",
+        "query": null
+      }
+    ],
+    "completed": true
+  },
+  {
+    "host": "claude",
+    "variant": "baseline",
+    "repetition": 3,
+    "observation": "claude-baseline-3.json",
+    "usage": {
+      "host": "Claude Code stream-json",
+      "model": "claude-opus-5",
+      "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+      "modelRequests": 4,
+      "firstInput": 27518,
+      "lastInput": 33491,
+      "inputGrowth": 5973,
+      "cumulativeInput": 124003,
+      "cumulativeCacheRead": 103198,
+      "cumulativeCacheWrite": 20797,
+      "cumulativeUncachedInput": 8,
+      "cumulativeOutput": 41
+    },
+    "tools": [
+      {
+        "name": "Skill",
+        "query": null
+      },
+      {
+        "name": "ToolSearch",
+        "query": "select:mcp__githits_context_fixture__code_grep"
+      },
+      {
+        "name": "mcp__githits_context_fixture__code_grep",
+        "query": null
+      }
+    ],
+    "completed": true
+  },
+  {
+    "host": "claude",
+    "variant": "description",
+    "repetition": 1,
+    "observation": "claude-description-1.json",
+    "usage": {
+      "host": "Claude Code stream-json",
+      "model": "claude-opus-5",
+      "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+      "modelRequests": 4,
+      "firstInput": 27409,
+      "lastInput": 33406,
+      "inputGrowth": 5997,
+      "cumulativeInput": 123461,
+      "cumulativeCacheRead": 102741,
+      "cumulativeCacheWrite": 20712,
+      "cumulativeUncachedInput": 8,
+      "cumulativeOutput": 40
+    },
+    "tools": [
+      {
+        "name": "Skill",
+        "query": null
+      },
+      {
+        "name": "ToolSearch",
+        "query": "select:mcp__githits_context_fixture__code_grep"
+      },
+      {
+        "name": "mcp__githits_context_fixture__code_grep",
+        "query": null
+      }
+    ],
+    "completed": true
+  },
+  {
+    "host": "claude",
+    "variant": "description",
+    "repetition": 2,
+    "observation": "claude-description-2.json",
+    "usage": {
+      "host": "Claude Code stream-json",
+      "model": "claude-opus-5",
+      "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+      "modelRequests": 4,
+      "firstInput": 27574,
+      "lastInput": 33553,
+      "inputGrowth": 5979,
+      "cumulativeInput": 124216,
+      "cumulativeCacheRead": 103349,
+      "cumulativeCacheWrite": 20859,
+      "cumulativeUncachedInput": 8,
+      "cumulativeOutput": 40
+    },
+    "tools": [
+      {
+        "name": "Skill",
+        "query": null
+      },
+      {
+        "name": "ToolSearch",
+        "query": "select:mcp__githits_context_fixture__code_grep"
+      },
+      {
+        "name": "mcp__githits_context_fixture__code_grep",
+        "query": null
+      }
+    ],
+    "completed": true
+  },
+  {
+    "host": "claude",
+    "variant": "description",
+    "repetition": 3,
+    "observation": "claude-description-3.json",
+    "usage": {
+      "host": "Claude Code stream-json",
+      "model": "claude-opus-5",
+      "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+      "modelRequests": 4,
+      "firstInput": 27574,
+      "lastInput": 33453,
+      "inputGrowth": 5879,
+      "cumulativeInput": 123947,
+      "cumulativeCacheRead": 103180,
+      "cumulativeCacheWrite": 20759,
+      "cumulativeUncachedInput": 8,
+      "cumulativeOutput": 40
+    },
+    "tools": [
+      {
+        "name": "Skill",
+        "query": null
+      },
+      {
+        "name": "ToolSearch",
+        "query": "select:mcp__githits_context_fixture__code_grep"
+      },
+      {
+        "name": "mcp__githits_context_fixture__code_grep",
+        "query": null
+      }
+    ],
+    "completed": true
+  },
+  {
+    "host": "claude",
+    "variant": "body",
+    "repetition": 1,
+    "observation": "claude-body-1.json",
+    "usage": {
+      "host": "Claude Code stream-json",
+      "model": "claude-opus-5",
+      "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+      "modelRequests": 4,
+      "firstInput": 27351,
+      "lastInput": 33334,
+      "inputGrowth": 5983,
+      "cumulativeInput": 123368,
+      "cumulativeCacheRead": 102720,
+      "cumulativeCacheWrite": 20640,
+      "cumulativeUncachedInput": 8,
+      "cumulativeOutput": 40
+    },
+    "tools": [
+      {
+        "name": "Skill",
+        "query": null
+      },
+      {
+        "name": "ToolSearch",
+        "query": "select:mcp__githits_context_fixture__code_grep"
+      },
+      {
+        "name": "mcp__githits_context_fixture__code_grep",
+        "query": null
+      }
+    ],
+    "completed": true
+  },
+  {
+    "host": "claude",
+    "variant": "body",
+    "repetition": 2,
+    "observation": "claude-body-2.json",
+    "usage": {
+      "host": "Claude Code stream-json",
+      "model": "claude-opus-5",
+      "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+      "modelRequests": 4,
+      "firstInput": 27516,
+      "lastInput": 33572,
+      "inputGrowth": 6056,
+      "cumulativeInput": 124244,
+      "cumulativeCacheRead": 103358,
+      "cumulativeCacheWrite": 20878,
+      "cumulativeUncachedInput": 8,
+      "cumulativeOutput": 42
+    },
+    "tools": [
+      {
+        "name": "Skill",
+        "query": null
+      },
+      {
+        "name": "ToolSearch",
+        "query": "select:mcp__githits_context_fixture__code_grep"
+      },
+      {
+        "name": "mcp__githits_context_fixture__code_grep",
+        "query": null
+      }
+    ],
+    "completed": true
+  },
+  {
+    "host": "claude",
+    "variant": "body",
+    "repetition": 3,
+    "observation": "claude-body-3.json",
+    "usage": {
+      "host": "Claude Code stream-json",
+      "model": "claude-opus-5",
+      "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+      "modelRequests": 4,
+      "firstInput": 27516,
+      "lastInput": 33420,
+      "inputGrowth": 5904,
+      "cumulativeInput": 123764,
+      "cumulativeCacheRead": 103030,
+      "cumulativeCacheWrite": 20726,
+      "cumulativeUncachedInput": 8,
+      "cumulativeOutput": 38
+    },
+    "tools": [
+      {
+        "name": "Skill",
+        "query": null
+      },
+      {
+        "name": "ToolSearch",
+        "query": "select:mcp__githits_context_fixture__code_grep"
+      },
+      {
+        "name": "mcp__githits_context_fixture__code_grep",
+        "query": null
+      }
+    ],
+    "completed": true
+  }
+]

@@ -2307,6 +2307,13 @@ describe("Agent eval workflow Braintrust integration", () => {
     expect(run).toContain(
       '--suite "intent=$RUNNER_TEMP/agent-eval-artifacts/intent/suite.json"',
     );
+    expect(run).toContain(
+      '--suite "full=$RUNNER_TEMP/agent-eval-artifacts/full/suite.json"',
+    );
+    const fullDownload = summarySteps.find(
+      (step) => step.name === "Download full guidance artifacts",
+    );
+    expect(fullDownload).toBeDefined();
     expect(run).toContain('--project "githits-cli-agent-evals"');
     expect(run).toContain("--source github");
     expect(run).toContain('--run-id "$BRAINTRUST_RUN_ID"');

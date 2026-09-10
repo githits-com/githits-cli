@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "model": "gpt-5.6-luna",
+  "effort": "low",
+  "status": "No valid comparative Luna cohort completed locally",
+  "pilots": [
+    {
+      "pilot": "v1",
+      "completedTasks": 2,
+      "interruptedTasks": 1,
+      "reason": "Fixture rejected supported object-form repository targets and caused external fallback. Pilot was stopped and preserved; fixture now uses the production target parser."
+    },
+    {
+      "pilot": "v2",
+      "completedTasks": 2,
+      "usageLimitFailures": 1,
+      "reason": "Completed tasks read globally installed GitHits skills rather than the staged candidate. The next task hit the local Codex subscription usage limit. No router candidate was evaluated."
+    }
+  ],
+  "launchFinding": "codex exec --help documents --ignore-rules as skipping user/project execpolicy .rules files, not Markdown skill instructions. Normal-home global skill competition must be isolated or detected by exact skill-path/payload checks.",
+  "nextStep": "Use the API-authenticated isolated PR harness, include its full scenario, verify actual skill ingestion, and compare repeated complete baseline/candidate runs."
+}

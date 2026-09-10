@@ -67,6 +67,9 @@ async function cliJson(
 }
 
 interface McpArgs {
+  context_lines?: number;
+  context_lines_before?: number;
+  context_lines_after?: number;
   target: {
     registry?:
       | "npm"
@@ -330,5 +333,27 @@ describe("grep_repo parity", () => {
     expect(cliError).toContain("`githits code files`");
     expect(mcpError).toContain("`pattern`");
     expect(mcpError).toContain("`code_files`");
+  });
+});
+
+it("clamps CLI and MCP context with identical requested/effective JSON", async () => {
+  const cli = await cliJson("npm:express", "router", undefined, {
+    context: "12",
+    beforeContext: "0",
+  });
+  const mcp = await mcpJson({
+    target: { registry: "npm", package_name: "express" },
+    pattern: "router",
+    context_lines: 12,
+    context_lines_before: 0,
+  });
+  expect(cli).toEqual(mcp);
+  expect(mcp).toMatchObject({
+    contextClamping: {
+      requestedBefore: 0,
+      requestedAfter: 12,
+      effectiveBefore: 0,
+      effectiveAfter: 10,
+    },
   });
 });
