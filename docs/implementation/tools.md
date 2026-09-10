@@ -755,8 +755,9 @@ optional `startLine` / `endLine` and return required `contentRange`. Deploy that
 backend schema before releasing or deploying the client. There is deliberately no
 old-schema fallback: a client pointed at an older target returns the normal
 sanitized protocol-mismatch error instead of silently losing fragment/range
-semantics. On 2026-09-10, an unauthenticated validation query confirmed that the
-default `https://pkgseer.dev` target still rejected all three additions. Backend
+semantics. On 2026-09-10, production validation confirmed that the default
+`https://pkgseer.dev` target accepted all three additions, and an authenticated
+Flask corpus read resolved `#the-routing-system` to lines 81-93 of 219. Backend
 merge state and deployment state are separate; only the served schema establishes
 runtime compatibility.
 
