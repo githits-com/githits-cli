@@ -626,3 +626,29 @@ failed there. Neither experimental failure changes the grep validation result.
 The separate API-authenticated eval run is
 [34460109501](https://github.com/githits-com/githits-cli/actions/runs/34460109501),
 at `b2249fa`; its results do not replace the historical matched comparison.
+
+
+The fresh follow-up CI run completed all 46 cells and exported Braintrust
+experiment `pr-377-r34460109501-a1` (ID
+`0e26629a-7225-4560-af95-f154bbbae399`). All downloaded traces are retained.
+[Sanitized per-cell observations](../../eval/agentic/context-loading/observations/grep-clamping-followup.json)
+record activation, calls, error codes and numeric grep context arguments:
+
+| Scenario | GitHits activation | MCP calls | Grep calls/errors | Other errors |
+| --- | ---: | ---: | ---: | ---: |
+| Neutral discovery | 0/2 | 0 | 0/0 | 0 |
+| Explicit intent | 22/22 | 115 | 9/0 | 3 |
+| Full guidance | 22/22 | 84 | 10/0 | 4 |
+
+All 19 grep calls requested at most eight context lines, so this fresh agent
+run did not naturally exercise clamping. It supports successful descriptor use,
+not a causal claim that wording eliminated oversized requests. Saved-argument
+replay and live smoke cover actual clamping. The seven remaining failures were
+four package TIMEOUTs, one code_read FILE_NOT_FOUND, one docs_read NOT_FOUND,
+and one search INVALID_ARGUMENT for an unsupported repository URL. No quality
+score or token-savings claim is attached to this single follow-up run. Neutral
+non-use is explicitly retained rather than counted as successful GitHits usage.
+
+The MCP smoke rerun also passed stable coverage, then timed out at experimental
+`ask` default text after 60 seconds. Both failed experimental attempts remain
+in the record; no timeout or resolver assertions were weakened.

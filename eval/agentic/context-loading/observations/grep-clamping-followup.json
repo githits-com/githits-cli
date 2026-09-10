@@ -1,0 +1,626 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "b2249fa057b77af4bb9d0943dbc217d23b53d2b3",
+  "runUrl": "https://github.com/githits-com/githits-cli/actions/runs/34460109501",
+  "braintrustExperiment": "pr-377-r34460109501-a1",
+  "braintrustExperimentId": "0e26629a-7225-4560-af95-f154bbbae399",
+  "repetitions": 1,
+  "savedArgumentReplay": {
+    "historicalRejected": 8,
+    "currentSchemaAccepted": 8,
+    "mockedServiceAfterContext10": 8,
+    "tokenSavingsMeasured": false
+  },
+  "scenarios": [
+    {
+      "scenario": "discovery",
+      "cells": [
+        {
+          "workload": "express-router",
+          "gitHitsInvoked": false,
+          "callsByTool": {},
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-overview-vulnerabilities",
+          "gitHitsInvoked": false,
+          "callsByTool": {},
+          "errors": [],
+          "grepContextRequests": []
+        }
+      ]
+    },
+    {
+      "scenario": "intent",
+      "cells": [
+        {
+          "workload": "code-file-navigation",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "search": 1,
+            "code_read": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "code-files-listing",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "code_files": 1,
+            "code_grep": 2
+          },
+          "errors": [],
+          "grepContextRequests": [
+            {
+              "context_lines": 1
+            },
+            {
+              "context_lines": 2
+            }
+          ]
+        },
+        {
+          "workload": "code-grep-investigation",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "code_grep": 2,
+            "code_read": 2
+          },
+          "errors": [],
+          "grepContextRequests": [
+            {
+              "context_lines_before": 2,
+              "context_lines_after": 4
+            },
+            {
+              "context_lines_before": 1,
+              "context_lines_after": 3
+            }
+          ]
+        },
+        {
+          "workload": "code-read-window",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "code_read": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "docs-discovery",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "docs_list": 1,
+            "docs_read": 3
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "docs-search-followup",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "search": 1,
+            "docs_read": 2
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "docs-search-noise",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "search": 1,
+            "docs_read": 3
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "express-router",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "search": 1,
+            "code_read": 4,
+            "code_files": 2,
+            "code_grep": 1
+          },
+          "errors": [],
+          "grepContextRequests": [
+            {
+              "context_lines": 3
+            }
+          ]
+        },
+        {
+          "workload": "global-example",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "get_example": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "opencode-compaction",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "search": 1,
+            "code_read": 10,
+            "code_files": 1,
+            "code_grep": 1
+          },
+          "errors": [],
+          "grepContextRequests": [
+            {
+              "context_lines": 2
+            }
+          ]
+        },
+        {
+          "workload": "package-changelog",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "pkg_changelog": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-changelog-range",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "pkg_vulns": 1,
+            "pkg_deps": 2,
+            "pkg_changelog": 1,
+            "pkg_upgrade_review": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-dependencies",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "pkg_deps": 2
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-overview-vulnerabilities",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "pkg_info": 1,
+            "pkg_vulns": 1,
+            "pkg_changelog": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-upgrade-safety",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "pkg_upgrade_review": 8
+          },
+          "errors": [
+            {
+              "tool": "pkg_upgrade_review",
+              "codes": ["TIMEOUT"]
+            }
+          ],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-vulnerability-filter",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "pkg_vulns": 2
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-vulnerability-history",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "pkg_vulns": 2,
+            "pkg_info": 1
+          },
+          "errors": [
+            {
+              "tool": "pkg_info",
+              "codes": ["TIMEOUT"]
+            }
+          ],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-vulnerability-rubygems",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "pkg_vulns": 2,
+            "pkg_changelog": 1
+          },
+          "errors": [
+            {
+              "tool": "pkg_vulns",
+              "codes": ["TIMEOUT"]
+            }
+          ],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-vulnerability-transitive",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "pkg_deps": 1,
+            "pkg_vulns": 2
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "search-source-ergonomics",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "search": 2,
+            "code_grep": 1,
+            "docs_list": 1,
+            "docs_read": 1,
+            "code_read": 1
+          },
+          "errors": [],
+          "grepContextRequests": [
+            {
+              "context_lines_before": 8,
+              "context_lines_after": 8
+            }
+          ]
+        },
+        {
+          "workload": "site-search-explicit",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "search": 2
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "unified-search-investigation",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "quick_start": 1,
+            "search": 4,
+            "code_files": 1,
+            "code_grep": 2,
+            "code_read": 2,
+            "docs_list": 1,
+            "docs_read": 2
+          },
+          "errors": [],
+          "grepContextRequests": [
+            {
+              "context_lines": 3
+            },
+            {
+              "context_lines": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": "full",
+      "cells": [
+        {
+          "workload": "code-file-navigation",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "code_grep": 1,
+            "code_read": 1
+          },
+          "errors": [],
+          "grepContextRequests": [
+            {
+              "context_lines": 8
+            }
+          ]
+        },
+        {
+          "workload": "code-files-listing",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "code_files": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "code-grep-investigation",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "code_grep": 1,
+            "code_read": 2
+          },
+          "errors": [],
+          "grepContextRequests": [
+            {
+              "context_lines_before": 2,
+              "context_lines_after": 3
+            }
+          ]
+        },
+        {
+          "workload": "code-read-window",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "code_read": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "docs-discovery",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "docs_list": 1,
+            "search": 1,
+            "docs_read": 3
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "docs-search-followup",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "search": 2,
+            "docs_read": 3
+          },
+          "errors": [
+            {
+              "tool": "docs_read",
+              "codes": ["NOT_FOUND"]
+            }
+          ],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "docs-search-noise",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "search": 2,
+            "docs_read": 2
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "express-router",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "search": 1,
+            "code_grep": 1,
+            "code_read": 4,
+            "code_files": 1
+          },
+          "errors": [],
+          "grepContextRequests": [
+            {
+              "context_lines": 3
+            }
+          ]
+        },
+        {
+          "workload": "global-example",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "get_example": 1,
+            "search": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "opencode-compaction",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "search": 2,
+            "code_grep": 5,
+            "code_read": 9
+          },
+          "errors": [
+            {
+              "tool": "code_read",
+              "codes": ["FILE_NOT_FOUND"]
+            }
+          ],
+          "grepContextRequests": [
+            {
+              "context_lines": 8
+            },
+            {
+              "context_lines": 8
+            },
+            {
+              "context_lines": 8
+            },
+            {
+              "context_lines": 8
+            },
+            {
+              "context_lines": 8
+            }
+          ]
+        },
+        {
+          "workload": "package-changelog",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "pkg_vulns": 1,
+            "pkg_changelog": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-changelog-range",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "pkg_deps": 1,
+            "pkg_upgrade_review": 1,
+            "pkg_vulns": 1,
+            "pkg_changelog": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-dependencies",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "pkg_deps": 2
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-overview-vulnerabilities",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "pkg_vulns": 1,
+            "pkg_info": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-upgrade-safety",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "pkg_upgrade_review": 1,
+            "search": 2
+          },
+          "errors": [
+            {
+              "tool": "search",
+              "codes": ["INVALID_ARGUMENT"]
+            }
+          ],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-vulnerability-filter",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "pkg_vulns": 2,
+            "pkg_upgrade_review": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-vulnerability-history",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "pkg_vulns": 1,
+            "pkg_info": 1,
+            "pkg_changelog": 1
+          },
+          "errors": [
+            {
+              "tool": "pkg_info",
+              "codes": ["TIMEOUT"]
+            }
+          ],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-vulnerability-rubygems",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "pkg_vulns": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "package-vulnerability-transitive",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "pkg_deps": 1,
+            "pkg_vulns": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "search-source-ergonomics",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "search": 2,
+            "code_read": 2,
+            "docs_read": 1
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "site-search-explicit",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "search": 2
+          },
+          "errors": [],
+          "grepContextRequests": []
+        },
+        {
+          "workload": "unified-search-investigation",
+          "gitHitsInvoked": true,
+          "callsByTool": {
+            "search": 3,
+            "code_grep": 2,
+            "code_read": 3,
+            "docs_read": 1
+          },
+          "errors": [],
+          "grepContextRequests": [
+            {
+              "context_lines": 3
+            },
+            {
+              "context_lines": 3
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
