@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
   type AvailabilityDependencies,
   publishNpm,
@@ -106,6 +106,14 @@ describe("npm publication completion", () => {
   it.each(["headers", "body"])(
     "reports the overall deadline when it aborts the last request's %s",
     async (phase) => {
+      // Drive expiry deterministically; a 1ms unref timer can stall Bun on Windows.
+      const timeout = spyOn(AbortSignal, "timeout").mockImplementation(() => {
+        const controller = new AbortController();
+        queueMicrotask(() =>
+          controller.abort(new DOMException("Timed out", "TimeoutError")),
+        );
+        return controller.signal;
+      });
       let clockReads = 0;
       const { dependencies } = createDependencies();
       // Begin the first request with just one millisecond left in the overall budget.
@@ -116,6 +124,11 @@ describe("npm publication completion", () => {
         options: RequestInit,
       ): Promise<Response> => {
         const signal = options.signal!;
+        // Like fetch, the mock must handle a signal that expired before subscription.
+        if (signal.aborted) {
+          dependencies.now = (): number => 20 * 60_000;
+          throw signal.reason;
+        }
         const abort = new Promise<never>((_resolve, reject) => {
           signal.addEventListener(
             "abort",
@@ -135,9 +148,13 @@ describe("npm publication completion", () => {
           }),
         );
       };
-      await expect(waitForNpmAvailability(pkg, dependencies)).rejects.toThrow(
-        "Check npm's package status before rerunning the release",
-      );
+      try {
+        await expect(waitForNpmAvailability(pkg, dependencies)).rejects.toThrow(
+          "Check npm's package status before rerunning the release",
+        );
+      } finally {
+        timeout.mockRestore();
+      }
     },
   );
 
