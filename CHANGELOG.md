@@ -5,6 +5,60 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.16.0] - 2026-09-10
+
+Minor release: removes feedback (breaking change) and marks all remaining MCP
+information tools read-only. Packaged skills match the smaller tool catalog.
+
+### Changed
+
+- **Read-only information tools** - All remaining MCP tools advertise
+  `readOnlyHint: true`, including local experimental Ask. Internal result
+  storage, preparation, and research-thread behavior remain unchanged.
+
+### Removed
+
+- **Feedback submission** - Remove the MCP `feedback` tool and `githits feedback`
+  command. Remove feedback instructions; existing
+  `experimental.report_tool_issues` config keys are ignored. Remove feedback
+  calls from integrations and refresh MCP tool discovery after updating.
+
+### Fixed
+
+- **Actionable Ask target errors** - CLI and local MCP Ask preserve validated
+  server diagnostics and recovery guidance, including unfamiliar diagnostic
+  codes and reasons. Diagnostic codes and reasons can evolve without a client
+  update. Legacy or malformed responses receive actionable fallback text.
+- **Public skill guidance** - Remove CLI feedback recommendations and the
+  onboarding feedback disclosure. Onboarding and recovery preserve the requested
+  CLI version, project scope, guidance preference, and separate Cursor
+  authentication. This release packages the skill cleanup already merged to main.
+
+Hosted MCP users, including plugins and direct Cursor setup, receive the tool
+annotation and feedback changes after the remote server adopts the new MCP
+package and deploys.
+
+## [@githits/mcp 0.16.0] - 2026-09-10
+
+Minor release: removes the feedback tool and service API (breaking change).
+
+### Changed
+
+- **Read-only information tools** - All remaining tools advertise
+  `readOnlyHint: true`. The public `runMcpSmoke()` helper requires this annotation
+  on every advertised tool and rejects catalogs that retain feedback. Internal
+  result storage and preparation retain their existing behavior.
+
+### Removed
+
+- **Feedback submission** - Remove the MCP `feedback` tool and `submitFeedback`
+  from the public service interface and concrete clients. Remove feedback
+  instructions. Consumers must remove calls to the retired API/tool and refresh
+  MCP tool discovery after updating.
+
+Hosted clients receive these changes after the remote server adopts
+`@githits/mcp@0.16.0` and deploys.
+
 ## [githits 0.15.1] - 2026-09-08
 
 Patch release: aligns Ask target clarification across CLI and local MCP and
