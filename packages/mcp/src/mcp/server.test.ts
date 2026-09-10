@@ -359,7 +359,7 @@ describe("MCP output format", () => {
 });
 
 describe("MCP code_grep schema", () => {
-  it("advertises context as integers from zero through ten", () => {
+  it("accepts nonnegative safe context integers and advertises the effective cap", () => {
     const descriptor = getMcpToolDescriptors().find(
       (candidate) => candidate.name === "code_grep",
     );
@@ -374,8 +374,8 @@ describe("MCP code_grep schema", () => {
       expect(inputSchema.properties?.[field], field).toMatchObject({
         type: "integer",
         minimum: 0,
-        maximum: 10,
-        description: expect.stringContaining("integer 0-10"),
+        maximum: Number.MAX_SAFE_INTEGER,
+        description: expect.stringContaining("capped at 10"),
       });
     }
   });
