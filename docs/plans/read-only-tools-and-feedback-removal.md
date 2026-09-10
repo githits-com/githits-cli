@@ -1,7 +1,7 @@
 # Read-only tools and feedback removal
 
 Status: phase 1 merged; phase 2 skill cleanup complete and reviewed;
-phase 3 release and hosted adoption pending.
+phase 3 release candidate prepared and reviewed; publication and hosted adoption pending.
 Date: 2026-09-10.
 Baseline: `dfbdf6b94be2afa552c4b0f62784c7ff0c0373d5`, branch
 `skvark/fix-ask-readonly-hint`; both public packages are `0.15.1`.
@@ -141,7 +141,8 @@ Retained reviewer: `term_92a86fae-9864-489a-ba62-eae810b859a3`.
 
 ## Phase 3: release alignment and hosted adoption
 
-Status: pending the normal release process. Expected outcome:
+Status: release candidate prepared and reviewed; publication and hosted adoption pending.
+Expected outcome:
 released CLI, skills, and hosted catalog reflect the same product policy.
 Dependencies: phase 1 validated; release preparation includes its changes;
 hosted adoption requires the new published MCP package.
@@ -151,6 +152,40 @@ during release preparation/adoption. No further product decisions are needed.
 
 Include phase 2's skill cleanup in the next CLI release. Preserve stable MCP
 builder/skill exact parity and verify generated assets at release preparation.
+
+Release preparation on 2026-09-10 starts from merged main `53463de5` and covers
+the complete `v0.15.1` and `mcp-v0.15.1` ranges: PR #376 (Ask diagnostics),
+PR #378 (read-only annotations and feedback removal), and PR #379 (skills).
+All four pending fragments cover those changes. Public export/build inspection
+corrected the Ask diagnostic fragment's MCP impact: its Ask client, adapter,
+mapper, and diagnostic detail type are not exported in the MCP package. That
+fix ships in `githits` CLI/local MCP only, so its effective impacts are patch
+for `githits` and none for `@githits/mcp`. Feedback retirement is minor for both;
+annotations are patch for both; skill cleanup is patch/none. Aggregate impact
+remains minor for both public artifacts, so both release versions are `0.16.0`.
+Prepared separate changelog sections, consumed all four fragments, updated
+package/registry/lockfile versions, and regenerated plugin manifests. The
+superseded skill-deferral wording is omitted from the assembled release notes;
+skill cleanup is included. Historical changelog sections remain unchanged.
+Validation: 51 release/packaging tests pass, along with plugin generation/check,
+build, packed public-consumer validation using Bun 1.4.2, and all four source
+and built CLI/MCP smoke modes (25 CLI steps and nine MCP steps per mode).
+Historical changelog content is unchanged. Pinned `mcp-publisher` v1.7.9 validates
+`server.json`; public resource metadata returns 200 and the unauthenticated
+hosted endpoint returns 401 with its resource-metadata challenge. These checks
+do not establish deployment of the new tool catalog.
+The unchanged runtime baseline `53463de5` has successful Main CI run
+`34452636638`: Linux/Windows unit tests and Node 20/22/24/26/Bun compatibility.
+Prior feature validation and skill-eval dry-run limitations remain recorded
+above; no live agent behavior is newly claimed by release metadata changes.
+Internal review and Claude Opus round 3 are clean. The fresh-context check ran
+in round 1. Final notes preserve diagnostic compatibility and explicitly cover
+hosted adoption for plugins and direct Cursor setup. The rejected suggestion
+to document a removed public `createFeedbackTool` export was checked against
+the historical `@githits/mcp/tools` entrypoint, which never exported it.
+Retained release reviewer: `term_094ea670-44bb-4201-b0b0-2523e5fda328`.
+Package publication, MCP registry publication, and hosted dependency adoption
+remain pending after release PR preparation and require the normal merge gate.
 
 Prepare coordinated artifact release notes, including removal of service APIs,
 the ignored old config key, and client restart/tool-discovery refresh. Follow
