@@ -14,7 +14,8 @@ HTTP 400 target errors may provide structured `detail` with `code`, `message`,
 `hint`, and optional `reason`. Recognized codes are `INVALID_TARGET_SYNTAX` and
 `TARGET_RESOLUTION_FAILED`. The shared service validates this shape, bounds its
 body to 16 KiB, and preserves its message and hint. CLI/MCP error envelopes keep
-`INVALID_ARGUMENT` and add the bounded reason and hint to `details`; tool-call and
+`INVALID_ARGUMENT` and add `targetErrorCode`, `hint`, and optional bounded `reason`
+to `details`. A missing resolver reason stays absent; tool-call and
 thread IDs remain available. Unrecognized/legacy bodies use safe correction
 guidance and never expose raw provider details. Other HTTP errors retain their
 existing safe mappings. Detailed guidance requires the matching backend update;

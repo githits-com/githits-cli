@@ -27,9 +27,42 @@ it("retains actionable Ask diagnostics in the shared CLI/MCP error envelope", ()
       code: "INVALID_ARGUMENT",
       message,
       retryable: false,
-      details: { status: 400, reason: "missing_best", hint: targetError.hint },
+      details: {
+        status: 400,
+        targetErrorCode: "TARGET_RESOLUTION_FAILED",
+        reason: "missing_best",
+        hint: targetError.hint,
+      },
     },
     toolCallId: "call-id",
     threadId: "thread-id",
   });
 });
+
+it.each(["INVALID_TARGET_SYNTAX", "TARGET_RESOLUTION_FAILED"] as const)(
+  "keeps %s separate from an absent resolver reason",
+  (code) => {
+    const targetError = {
+      code,
+      message: "Target error.",
+      hint: "Check the target.",
+    };
+    const result = mapAgenticAskError(
+      new AgenticAskHttpError(
+        "INVALID_TARGET",
+        "Target error. Check the target.",
+        400,
+        undefined,
+        undefined,
+        false,
+        undefined,
+        targetError,
+      ),
+    );
+    expect(result.mapped.details).toEqual({
+      status: 400,
+      targetErrorCode: code,
+      hint: targetError.hint,
+    });
+  },
+);

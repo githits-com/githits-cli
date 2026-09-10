@@ -30,8 +30,11 @@ export function mapAgenticAskError(error: unknown): AgenticAskMappedError {
           status: error.status,
           ...(error.targetError
             ? {
-                reason: error.targetError.reason ?? error.targetError.code,
+                targetErrorCode: error.targetError.code,
                 hint: error.targetError.hint,
+                ...(error.targetError.reason !== undefined
+                  ? { reason: error.targetError.reason }
+                  : {}),
               }
             : {}),
           ...(error.retryAfterSeconds !== undefined

@@ -65,8 +65,10 @@ export interface MappedErrorDetails {
   currentVersion?: string;
   /** Suggested package-manager command when an update is required. */
   updateCommand?: string;
-  /** Human-readable update reason. */
+  /** Failure/update explanation; Ask uses a bounded resolver reason when supplied. */
   reason?: string;
+  /** Ask target diagnostic category, separate from its optional resolver reason. */
+  targetErrorCode?: "INVALID_TARGET_SYNTAX" | "TARGET_RESOLUTION_FAILED";
   /** Whether auth failed before making a request or after backend rejection. */
   authSource?: AuthenticationErrorSource;
   /** Canonical legal document URL for terms-acceptance remediation. */
