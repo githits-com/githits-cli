@@ -68,7 +68,6 @@ githits docs read <docsReadTarget> --lines 20-120
 - If grep returns no matches, do not repeat it unchanged. Follow the returned guidance by changing the pattern, broadening the file scope, or switching to `githits search` for conceptual discovery.
 - For a missing or ambiguous standalone site, use the returned `suggestedSiteTargets` in order. Do not rewrite the original target or retry automatically; when `suggestedSiteTargetsTruncated` is true, state that additional candidates were omitted.
 - If a code-navigation command returns `INDEXING`, use the elapsed/expected duration in the message to decide whether to retry with `--wait`; prefer any displayed indexed refs/versions when you need an immediate follow-up.
-- After using GitHits results, send feedback when practical. Use `githits feedback <solution_id> --accept|--reject` for `githits example` results, or omit `<solution_id>` for generic session feedback such as `githits feedback --reject --tool search -m "missing kotlin support"`.
 
 ## External Content Posture
 
