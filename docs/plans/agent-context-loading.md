@@ -4,6 +4,44 @@ Status: MEASUREMENT INCREMENT COMPLETE. The first controlled study and strategy
 assessment are documented; broader guidance optimization remains pending.
 Production guidance changes are not selected yet.
 
+## Routing-format follow-up (COMPLETE)
+
+All 48 fresh runs completed and the payload/order annotations were inspected.
+Guide-before-evidence-discovery counts (baseline -> router) were Codex skill
+0/6 -> 4/6, Codex bootstrap 0/6 -> 6/6, Claude skill 6/6 -> 6/6, and Claude
+bootstrap 1/6 -> 0/6. Codex's successful router-bootstrap sequence cost six
+model requests. Full findings, variants, counters and limitations are now in
+the implementation document and routing-study artifacts. Production selection
+and broader reliability work remain pending; the experiment is complete.
+
+User-authorized question: can a routing skill or routing `quick_start` be read
+before discovery of the task's evidence tool, without catalog-print instructions?
+The eval fixture owns candidate guidance; production skills and descriptors
+remain unchanged until evidence supports a product decision.
+
+Compare four fresh conditions: canonical self-contained skill; routing
+self-contained skill; canonical bootstrap-entry skill plus canonical quick-start;
+routing bootstrap-entry skill plus routing quick-start. Bootstrap-entry controls
+use the same short body requiring quick-start; this is not a no-skill MCP test.
+The router is shared between skill and quick-start and preserves the existing
+external-content guardrail block. Only quick-start's description changes among
+tool descriptors. No ALL_TOOLS-specific instructions are introduced.
+
+Run both pinned hosts, three rotated repetitions, and two fixed tasks (literal
+repository grep and package overview): 48 fresh sessions. Inspect native Codex
+executions and Claude Skill/ToolSearch calls. A skill read batched with evidence
+discovery fails strict ordering even if source code lists the read first.
+Quick-start discovery is allowed before bootstrap; any evidence-tool discovery
+before its response fails bootstrap ordering. Separate ordering, full-catalog
+printing, correct selection, completion and usage. Retain failures and unknowns.
+
+Acceptance: exact variants, workload fixtures, per-run sanitized ordering
+evidence and numeric observations are reproducible and documented; report
+success counts per host/delivery/workload rather than claiming universal
+reliability. Unknowns include initial hidden prompts, model variance and whether
+descriptors alone can bootstrap without a skill. These remain explicit limits.
+Review this bounded plan update inline under the user's review policy.
+
 ## Completed increment
 
 - Offline inventory/replay, safe native/stream usage extraction, production-schema
@@ -105,7 +143,7 @@ assume compaction, cache hits, or request count from user-turn count.
    authorized local agent launches. Assumptions: character/byte replay is useful
    without claiming exact prompt tokens. Unknown: hidden initial provider
    payload, availability timing, and Claude registration until explicit rerun.
-2. **Controlled guidance experiments (FIRST COHORT COMPLETE; BROADER COHORT PENDING):** baseline versus skill-description
+2. **Controlled guidance experiments (METADATA AND ROUTING COHORTS COMPLETE; BROADER COHORT PENDING):** baseline versus skill-description
    hint versus skill-body instruction, with tools/descriptors fixed; descriptors
    versus self-contained skill isolates bootstrap separately. Dependencies:
    phase 1 instrumentation and valid host setup. Unknowns: activation reliability,
@@ -147,7 +185,7 @@ No production runtime behavior or public guidance changes in this increment.
 
 ## Remaining work and why it is separate
 
-- Expand the cohort to grep-to-read, package tools, descriptor-only control,
+- Expand the cohort to grep-to-read, vulnerability/upgrade tools, descriptor-only control,
   smaller models and near-compaction sessions before selecting a production
   metadata/guide change. One fixed grep fixture cannot establish their routing
   or safety behavior; the current increment supplies the required baseline and

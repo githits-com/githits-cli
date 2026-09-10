@@ -95,7 +95,7 @@ describe("context replay", () => {
 
   it("inventories current canonical tools and both bootstrap delivery paths", async () => {
     const current = await createContextInventory();
-    expect(current.blocks["skill.file"]).toContain(
+    expect(current.blocks["skill.file"]?.replace(/\r\n/g, "\n")).toContain(
       current.blocks["bootstrap.stable"] ?? "missing",
     );
     const grep = JSON.parse(

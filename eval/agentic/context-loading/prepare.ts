@@ -5,6 +5,56 @@ import { fileURLToPath } from "node:url";
 import { createContextInventory } from "../../../scripts/agent-context-load.js";
 import protocol from "./protocol.json";
 
+/** Shared argv contract; staging scripts do not launch agents. */
+export function buildStudyArgv(
+  host: "codex" | "claude",
+  task: string,
+  fixtureArgs: string[],
+  configPath: string,
+): string[] {
+  return host === "codex"
+    ? [
+        "codex",
+        "exec",
+        "--json",
+        "--ignore-user-config",
+        "--disable",
+        "apps",
+        "--disable",
+        "plugins",
+        "--disable",
+        "remote_plugin",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--skip-git-repo-check",
+        "--model",
+        protocol.models.codex,
+        "-c",
+        `model_reasoning_effort="${protocol.codexReasoningEffort}"`,
+        "-c",
+        'mcp_servers.githits_context_fixture.command="bun"',
+        "-c",
+        `mcp_servers.githits_context_fixture.args=${JSON.stringify(fixtureArgs)}`,
+        task,
+      ]
+    : [
+        "claude",
+        "-p",
+        task,
+        "--model",
+        protocol.models.claude,
+        "--mcp-config",
+        configPath,
+        "--strict-mcp-config",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--permission-mode",
+        "bypassPermissions",
+        "--setting-sources",
+        "project",
+      ];
+}
+
 /** Stage fresh, local-only study inputs and argv; never launch an agent or alter auth. */
 export async function prepareContextStudy(destination: string): Promise<void> {
   const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -13,7 +63,8 @@ export async function prepareContextStudy(destination: string): Promise<void> {
     "utf8",
   );
   const anchor = "Load before any GitHits MCP tool call.";
-  if (!skill.includes(anchor) || !skill.includes("# GitHits MCP\n")) {
+  const heading = /# GitHits MCP\r?\n/.exec(skill)?.[0];
+  if (!skill.includes(anchor) || !heading) {
     throw new Error(
       "Canonical skill changed: review the protocol's variant anchors",
     );
@@ -27,10 +78,7 @@ export async function prepareContextStudy(destination: string): Promise<void> {
   const variants = {
     baseline: skill,
     description: skill.replace(anchor, `${anchor} ${protocol.hint}`),
-    body: skill.replace(
-      "# GitHits MCP\n",
-      `# GitHits MCP\n\n${protocol.hint}\n`,
-    ),
+    body: skill.replace(heading, `${heading}\n${protocol.hint}\n`),
   };
   const fixturePath = join(
     root,
@@ -70,48 +118,12 @@ export async function prepareContextStudy(destination: string): Promise<void> {
         await mkdir(skillDir, { recursive: true });
         await writeFile(join(skillDir, "SKILL.md"), body);
         await writeFile(join(cwd, "prompt.txt"), protocol.task);
-        const argv =
-          host === "codex"
-            ? [
-                "codex",
-                "exec",
-                "--json",
-                "--ignore-user-config",
-                "--disable",
-                "apps",
-                "--disable",
-                "plugins",
-                "--disable",
-                "remote_plugin",
-                "--dangerously-bypass-approvals-and-sandbox",
-                "--skip-git-repo-check",
-                "--model",
-                protocol.models.codex,
-                "-c",
-                `model_reasoning_effort="${protocol.codexReasoningEffort}"`,
-                "-c",
-                'mcp_servers.githits_context_fixture.command="bun"',
-                "-c",
-                `mcp_servers.githits_context_fixture.args=${JSON.stringify([fixturePath])}`,
-                protocol.task,
-              ]
-            : [
-                "claude",
-                "-p",
-                protocol.task,
-                "--model",
-                protocol.models.claude,
-                "--mcp-config",
-                configPath,
-                "--strict-mcp-config",
-                "--output-format",
-                "stream-json",
-                "--verbose",
-                "--permission-mode",
-                "bypassPermissions",
-                "--setting-sources",
-                "project",
-              ];
+        const argv = buildStudyArgv(
+          host,
+          protocol.task,
+          [fixturePath],
+          configPath,
+        );
         commands.push({ host, variant, repetition: index + 1, cwd, argv });
       }
     }

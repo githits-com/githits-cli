@@ -33,7 +33,7 @@ characters/bytes are exact for the declared content, not full provider prompts.
 
 The fixture server uses production descriptions and argument schemas, with a
 fixed labeled grep response. It never contacts GitHits or an OSS backend. It
-supports this single literal target/pattern workload, not general retrieval.
+supports fixed grep and package-overview workloads, not general retrieval.
 The response is deliberately held fixed; optional output-shaping arguments do
 not model full production semantics. Inspect actual arguments and do not use
 this fixture to judge those semantics or general answer quality.
@@ -128,3 +128,49 @@ rate from content retention alone.
 The deterministic tests validate measurement arithmetic, missing-data handling,
 Unicode sizes, repeated content, split-message deduplication and fixture schema
 parity. Agent outcome/routing reliability is a separate repeated live measure.
+
+## Routing-format follow-up
+
+Stage `bun eval/agentic/context-loading/prepare-routing.ts .agent-eval/routing-study-new`.
+Use the sequential driver above with that study's `study.json`. It prepares 48
+commands: two hosts, two workloads, three repetitions and four conditions:
+
+- `skill-baseline`: canonical skill and bootstrap.
+- `skill-router`: routing description and self-contained routing skill.
+- `bootstrap-baseline`: canonical skill description plus a short entry body
+  requiring the canonical `quick_start` guide.
+- `bootstrap-router`: routing skill description, the same entry body, and the
+  routing `quick_start` description/response.
+
+Both routing conditions use the same guide from `routing-guide.ts`; all other
+tool descriptors stay canonical. Neither bootstrap condition represents a
+client without a skill. The candidate is a combined organization change, not
+an isolated estimate of the effect of each sentence. Its complete safety block
+is preserved. The fixture now also returns a labeled npm:zod package overview;
+both responses are fixed and do not establish current public-source facts.
+
+Save exact staged variants and host versions with each study. Preserve the
+selected host's condition order when scheduling: the observed follow-up used
+one sequential worker per host, with the two hosts running concurrently. The
+simple driver above preserves each host's order but runs the hosts serially.
+Inspect the selected native/stream trace and record events for successful skill/quick-start
+loads, bootstrap discovery, evidence discovery and evidence calls. Assign
+Codex calls to their native token-count request boundaries; assign Claude split
+content blocks with the same message ID to the same request. Inspect returned
+ToolSearch references as well as its query: selecting bootstrap and evidence
+together admits evidence definitions before bootstrap has been read.
+Claude's Skill tool result can only say that the skill is launching; confirm
+the separate synthetic user message actually contains the staged skill body
+before attributing a subsequent decision to it.
+
+`assessRoutingOrder()` in `routing-order.ts` evaluates these trace-audited events.
+It requires the guide to load in a strictly earlier model request. A skill read
+and catalog search in one execution fail, as do bootstrap and evidence calls
+generated in the same request. Bootstrap discovery itself is allowed before
+bootstrap loads. Missing observed discovery remains unknown, not a success.
+This reducer checks annotated evidence; it is not a general JavaScript parser
+or automatic proof that arbitrary host traces are complete.
+
+Compare success counts by host, delivery and task, alongside inclusive input,
+cache partitions and model-request counts. Do not pool the two tasks' token
+sizes or treat one successful route as reliability across unrelated workloads.

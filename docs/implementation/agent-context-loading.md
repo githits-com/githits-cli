@@ -275,6 +275,95 @@ a broader workload cohort than this fixed grep result. No production guidance
 has been shortened or moved by this study. The live backend stall also needs a
 separate diagnosis before using live latency as an optimization metric.
 
+## Routing-format follow-up: can the guide precede discovery?
+
+The follow-up removed the host-specific catalog instruction entirely. The
+[exact variants and protocol](../../eval/agentic/context-loading/routing-protocol.json)
+and [48 audited runs](../../eval/agentic/context-loading/observations/routing-study.json)
+compare two delivery paths on both pinned hosts, with three fresh repetitions
+each of literal grep and a package license/latest-version lookup.
+
+The routing skill description begins "Route public OSS code, documentation,
+examples, and package questions to GitHits tools" and asks the agent to read
+the skill before searching for or selecting evidence tools. Its body maps
+question types to named tools and leaves argument details in the selected tool.
+The routing `quick_start` description starts "Choose the GitHits tool for an OSS
+question before discovering evidence tools" and returns the same routing guide.
+There are no `ALL_TOOLS` instructions in either candidate. All evidence-tool
+descriptions/schemas remain canonical and the full existing external-content
+guardrail block is preserved.
+
+The direct skill shrinks from 6,396 to 3,838 characters; its shared guide shrinks
+from 5,585 to 3,490. Bootstrap conditions both use the same short entry body
+requiring quick-start before evidence discovery. Their metadata and returned
+guide vary together. They are **not** tests of plain MCP without an installed
+skill, and the combined intervention does not isolate each sentence's effect.
+Source hashes and exact staged texts identify what was actually run.
+
+Strict success requires the guide response to arrive in an earlier model
+request than evidence-tool discovery. A skill read batched with discovery fails.
+Discovering `quick_start` itself is allowed before bootstrap; selecting it and
+an evidence tool together fails. Calls emitted in one Claude assistant message
+share a request even when separate transcript rows display them sequentially.
+Claude's Skill result only announces launch; the actual skill body was verified
+in its subsequent synthetic user message. `routing-order.ts` checks the audited
+event annotations; it does not parse arbitrary execution code automatically.
+
+| Host / guide delivery | Baseline: guide before evidence discovery | Router: guide before evidence discovery |
+| --- | ---: | ---: |
+| Codex / self-contained skill | 0/6 | 4/6 |
+| Codex / entry skill then quick-start | 0/6 | 6/6 |
+| Claude Code / self-contained skill | 6/6 | 6/6 |
+| Claude Code / entry skill then quick-start | 1/6 | 0/6 |
+
+Codex's routing skill failed once per task: it still read the skill and printed
+broad matching metadata in one execution. All six routing-bootstrap cases used
+separate requests for entry skill, bootstrap discovery, bootstrap call, evidence
+discovery and evidence call, followed by the final answer. That worked in this
+small cohort, not a guarantee of reliability on other models or tasks.
+
+Claude Code loaded both self-contained skill variants before discovery. In all
+six routing-bootstrap runs it selected quick-start and the evidence tool
+together, then called bootstrap before invoking the evidence tool. Thus the
+guide preceded invocation but could not influence the earlier discovery. Three
+baseline-bootstrap runs additionally emitted bootstrap and evidence calls in
+the same model request; successful completion alone would hide that failure.
+
+All 48 runs completed both requested fixture facts/locators and disclosed the
+fixture limitation. Neither this completion check nor preserving the safety
+block establishes adversarial robustness or live source-retrieval quality.
+No model switches or failed process exits occurred in this cohort.
+
+For the grep task, token and request effects were:
+
+| Host / condition | Input growth, three runs | Requests per run | Median cumulative input |
+| --- | --- | --- | ---: |
+| Codex skill baseline | 10,150 / 10,146 / 10,151 | 3 / 3 / 3 | 87,122 |
+| Codex skill router | 1,921 / 2,279 / 10,283 | 4 / 4 / 3 | 93,901 |
+| Codex bootstrap baseline | 11,586 / 11,570 / 11,599 | 4 / 4 / 4 | 122,360 |
+| Codex bootstrap router | 2,202 / 2,203 / 2,198 | 6 / 6 / 6 | 140,122 |
+| Claude skill baseline | 6,052 / 5,995 / 5,993 | 4 / 4 / 4 | 127,603 |
+| Claude skill router | 4,993 / 4,969 / 4,981 | 4 / 4 / 4 | 124,254 |
+| Claude bootstrap baseline | 6,203 / 6,390 / 6,425 | 5 / 4 / 4 | 124,352 |
+| Claude bootstrap router | 5,304 / 5,258 / 5,309 | 5 / 5 / 5 | 156,170 |
+
+Package-task observations and cache partitions are in the same artifact; do
+not pool their different prompt/schema sizes with grep. Smaller retained
+context again did not imply lower first-task cumulative input: Codex's reliable
+observed bootstrap sequence costs six requests. Claude's self-contained router
+reduced input without adding requests, while bootstrap added request overhead
+without achieving earlier discovery. No recurring-turn savings are inferred
+for these new variants from the earlier study's warm sessions.
+
+**Decision supported:** routing guidance is a viable content-organization
+candidate, but it is not a host-independent discovery-order guarantee. Direct
+skill delivery works naturally in the observed Claude Code setup. Codex's
+bootstrap route is promising for ordering, with a measurable request-count
+tradeoff; its direct routing skill still fails intermittently. Keep production
+guidance unchanged pending the user's choice of whether to pursue stronger
+ordering, lower total cost, or broader workload/model validation. Do not infer
+that these results justify mandatory bootstrap for every host.
+
 ## Existing harness integration and remaining visibility
 
 `scripts/agent-eval.ts` already provides descriptors/full/skills modes, source
