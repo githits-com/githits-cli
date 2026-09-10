@@ -277,11 +277,13 @@ describe("AgenticAskServiceImpl", () => {
     },
     {
       subject: { target: "npm:example" },
-      message: "GitHits rejected the Agentic Ask target.",
+      message:
+        "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo#ref or a package such as npm:prisma@version. To correct a thread's target, start a new request without thread_id.",
     },
     {
       subject: { threadId: THREAD_ID },
-      message: "GitHits rejected the Agentic Ask target.",
+      message:
+        "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo#ref or a package such as npm:prisma@version. To correct a thread's target, start a new request without thread_id.",
     },
   ])(
     "keeps 400 guidance accurate for the supplied subject: %j",
@@ -912,5 +914,174 @@ describe("normalizeAgenticAskThreadId", () => {
     ` ${THREAD_ID}`,
   ])("rejects unsafe or ambiguous value %s", (value) => {
     expect(normalizeAgenticAskThreadId(value)).toBeUndefined();
+  });
+});
+
+describe("Ask target diagnostics", () => {
+  const detail = {
+    code: "TARGET_RESOLUTION_FAILED",
+    message: "The target lookup found no supported match.",
+    hint: "Check the exact repository or registry/package identity.",
+    reason: "missing_best",
+  };
+
+  it("preserves syntax guidance when no resolver reason is present", async () => {
+    const syntax = {
+      code: "INVALID_TARGET_SYNTAX",
+      message: "Invalid target syntax.",
+      hint: "Use github:owner/repo[#ref] or registry:package[@version].",
+    };
+    const fetchFn = mock(() =>
+      Promise.resolve(jsonResponse({ detail: syntax }, { status: 400 })),
+    ) as unknown as typeof fetch;
+    await expect(
+      createService(fetchFn).ask({
+        target: "prisma",
+        question: "How?",
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_TARGET",
+      targetError: syntax,
+      message: `${syntax.message} ${syntax.hint}`,
+    });
+  });
+
+  it.each(["cli", "mcp", "url"] as const)(
+    "preserves validated target guidance for %s",
+    async (sourceFormat) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(
+          jsonResponse(
+            { detail },
+            {
+              status: 400,
+              headers: {
+                "X-GitHits-Tool-Call-Id": TOOL_CALL_ID,
+                "X-GitHits-Thread-Id": THREAD_ID,
+              },
+            },
+          ),
+        ),
+      ) as unknown as typeof fetch;
+      const service = createService(fetchFn);
+      const request = { target: "github:prisma/prisma", question: "How?" };
+      const result =
+        sourceFormat === "cli"
+          ? service.ask({ ...request, sourceFormat })
+          : sourceFormat === "mcp"
+            ? service.ask({ ...request, sourceFormat })
+            : service.ask({ ...request, sourceFormat });
+      await expect(result).rejects.toMatchObject({
+        code: "INVALID_TARGET",
+        message: `${detail.message} ${detail.hint}`,
+        targetError: detail,
+        status: 400,
+        retryable: false,
+        toolCallId: TOOL_CALL_ID,
+        threadId: THREAD_ID,
+      });
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(
+    ["cli", "mcp", "url"].flatMap((sourceFormat) =>
+      [
+        { ...detail, code: "TARGET_VERSION_UNAVAILABLE" },
+        { ...detail, reason: "version_not_indexed" },
+        {
+          ...detail,
+          code: "TARGET_VERSION_UNAVAILABLE",
+          reason: "version_not_indexed",
+        },
+      ].map((diagnostic) => ({ sourceFormat, diagnostic })),
+    ),
+  )(
+    "preserves future diagnostic identifiers: %j",
+    async ({ sourceFormat, diagnostic }) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(
+          jsonResponse(
+            { detail: { ...diagnostic, future_metadata: { ignored: true } } },
+            { status: 400 },
+          ),
+        ),
+      ) as unknown as typeof fetch;
+      const service = createService(fetchFn);
+      const request = { target: "npm:prisma", question: "How?" };
+      const result =
+        sourceFormat === "cli"
+          ? service.ask({ ...request, sourceFormat })
+          : sourceFormat === "mcp"
+            ? service.ask({ ...request, sourceFormat })
+            : service.ask({ ...request, sourceFormat: "url" });
+      await expect(result).rejects.toMatchObject({
+        code: "INVALID_TARGET",
+        message: `${diagnostic.message} ${diagnostic.hint}`,
+        targetError: diagnostic,
+        status: 400,
+        retryable: false,
+      });
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([
+    { detail: "private provider detail" },
+    { detail: { ...detail, code: "private provider detail" } },
+    { detail: { ...detail, code: "" } },
+    { detail: { ...detail, code: 400 } },
+    { detail: { ...detail, code: "A".repeat(129) } },
+    { detail: { ...detail, code: "ERROR\u001b[31m" } },
+    { detail: { ...detail, reason: "private provider detail" } },
+    { detail: { ...detail, reason: "" } },
+    { detail: { ...detail, reason: {} } },
+    { detail: { ...detail, reason: "a".repeat(129) } },
+    { detail: { ...detail, reason: "reason\u001b[31m" } },
+    { detail: { ...detail, message: "private provider detail\u001b[31m" } },
+    { detail: { ...detail, hint: "private provider detail".repeat(100) } },
+  ])("does not expose an unrecognized error body: %j", async (body) => {
+    const fetchFn = mock(() =>
+      Promise.resolve(jsonResponse(body, { status: 400 })),
+    ) as unknown as typeof fetch;
+    try {
+      await createService(fetchFn).ask({
+        target: "npm:prisma",
+        question: "How?",
+      });
+      throw new Error("Expected rejection");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AgenticAskHttpError);
+      expect((error as Error).message).not.toContain("private provider detail");
+      expect((error as AgenticAskHttpError).targetError).toBeUndefined();
+      expect((error as Error).message).toContain("github:owner/repo#ref");
+    }
+  });
+
+  it("bounds streamed error bodies and retains 400 recovery guidance", async () => {
+    let cancelled = false;
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new Uint8Array(16_385));
+            },
+            cancel() {
+              cancelled = true;
+            },
+          }),
+          { status: 400 },
+        ),
+      ),
+    ) as unknown as typeof fetch;
+    await expect(
+      createService(fetchFn).ask({ target: "npm:prisma", question: "How?" }),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: "INVALID_TARGET",
+      targetError: undefined,
+    });
+    expect(cancelled).toBe(true);
   });
 });
