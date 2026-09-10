@@ -84,7 +84,6 @@ Follow the CLI JSON `instructions` remediation for these states rather than repl
 Tell the user:
 
 - GitHits queries and public package, repository, and documentation targets are sent to GitHits services for processing.
-- Feedback submission is an outbound write that sends feedback data to GitHits services.
 - Installing GitHits does not itself upload the local workspace.
 - After installation, open a new coding-agent session so it loads MCP configuration and any supporting instructions. The terminal and machine do not need to be restarted.
 
@@ -166,21 +165,9 @@ With `--no-browser`, surface the printed sign-in URL clearly so the user can ope
 
 7. Verify setup after login and installation.
 
-Project-level verification:
+Follow the CLI-emitted verification instruction for the selected setup scope, preserving `--project` and `--no-guidance` when applicable. Confirm selected tools are `already_configured` for that scope. For local CLI/stdio integrations, confirm local authentication is active using the auth-status command above. Skip local CLI authentication checks for Cursor-only setup; use the Cursor verification below. For mixed setups, verify each authentication path separately.
 
-```bash
-npx -y githits@latest auth status
-npx -y githits@latest init --project --detect-agents --json
-```
-
-User-level verification:
-
-```bash
-npx -y githits@latest auth status
-npx -y githits@latest init --detect-agents --json
-```
-
-Confirm auth is active and selected tools are `already_configured` for the selected scope. If MCP configuration or supporting guidance changed, tell the user to open a new coding-agent session in the project or user environment so the tool reloads its MCP configuration and any supporting instructions. The terminal and machine do not need to be restarted.
+If MCP configuration or supporting guidance changed, tell the user to open a new coding-agent session in the project or user environment so the tool reloads its MCP configuration and any supporting instructions. The terminal and machine do not need to be restarted.
 
 For Cursor, `already_configured` verifies only that the remote URL is present. It does not verify Cursor-managed OAuth or tool discovery. Do not report Cursor as ready based on `githits auth status` or init detection alone.
 

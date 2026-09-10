@@ -1,6 +1,7 @@
 # Read-only tools and feedback removal
 
-Status: phase 1 complete; phase 2 release and hosted adoption pending.
+Status: phase 1 merged; phase 2 skill cleanup complete and reviewed;
+phase 3 release and hosted adoption pending.
 Date: 2026-09-10.
 Baseline: `dfbdf6b94be2afa552c4b0f62784c7ff0c0373d5`, branch
 `skvark/fix-ask-readonly-hint`; both public packages are `0.15.1`.
@@ -92,14 +93,55 @@ result identifiers, and quick-start parity pass the checks recorded below.
 The independent change fragments record patch impacts for annotations and minor
 pre-1.0 breaking impacts for removal across both public packages. Versions and
 historical changelogs remain unchanged. Plugin generation/check produced no
-content changes. Release-dependent CLI/onboarding skill edits remain in phase 2.
+content changes. CLI/onboarding skill follow-through is recorded in phase 2.
 
 Actual verification results and limitations are recorded under implementation
 evidence below; full-suite and live-eval coverage are not claimed.
 
-## Phase 2: release alignment and hosted adoption
+## Phase 2: public skill follow-through
 
-Status: pending phase 1 and the normal release process. Expected outcome:
+Status: complete and reviewed.
+
+After PR #378 merged at `d9b8f965`, the user explicitly requested a new PR
+fixing the audited skill issues. This request moves the previously deferred
+CLI/onboarding skill cleanup into this feature PR, overriding the usual
+release-branch timing for this specific change. It does not change the general
+release policy or authorize release/version changes. Skills read from main will
+stop recommending feedback before the next CLI package release.
+
+Removed feedback recommendations from the code skill and the onboarding
+disclosure; changed the packaging assertion to reject retired feedback advice.
+Onboarding troubleshooting follows the main skill's command policy. Both the
+main verification step and troubleshooting now use CLI-emitted verification,
+preserving project scope and guidance preference and keeping local CLI
+authentication separate from Cursor OAuth/tool discovery.
+The public MCP skill and package skill required no changes. A CLI-only patch
+fragment records the packaged guidance impact.
+
+Validation: 232 skill/setup tests passed; all 17 skill tests passed again after
+the internal review's main-verification consistency fix. Plugin generation/check
+(10 assets, no generated content changes), build, changed-file Biome checks,
+and secret-free CLI/MCP smoke passed. Four Claude/Codex skill-eval dry runs
+covered global-example and onboarding; they do not establish live agent behavior.
+Live onboarding would change host configuration/authentication and is outside
+this verification scope. The generic skill-creator validator rejects the
+repository's existing `compatibility` frontmatter field; preserved that metadata
+and used the repository's passing YAML/skill contracts instead.
+
+Review follow-through: preserved the original removal fragment under the
+independent-fragment rule. This PR's new fragment records completed skill
+cleanup; when assembling release notes, omit the superseded "CLI and onboarding
+public skill cleanup follows release preparation" clause from the older note.
+Expanded the new feedback regression to every public skill Markdown file,
+including references, so new files cannot escape the same inventory check.
+Internal review and Claude Opus round 3 are clean; the one-time fresh-context
+check ran in round 2. The release-note reconciliation above remains part of
+phase 3, with the new fragment also recording that skill cleanup is complete.
+Retained reviewer: `term_92a86fae-9864-489a-ba62-eae810b859a3`.
+
+## Phase 3: release alignment and hosted adoption
+
+Status: pending the normal release process. Expected outcome:
 released CLI, skills, and hosted catalog reflect the same product policy.
 Dependencies: phase 1 validated; release preparation includes its changes;
 hosted adoption requires the new published MCP package.
@@ -107,16 +149,8 @@ Assumptions: existing independent CLI/MCP releases and hosted ownership remain.
 Unknowns: actual release versions and remote deployment revision/date, resolved
 during release preparation/adoption. No further product decisions are needed.
 
-On the release branch containing the backing changes, remove the CLI feedback
-workflow from `skills/githits-code/SKILL.md` and the setup disclosure from
-`skills/githits-onboarding/SKILL.md`; inspect all four skills and their references.
-Update `src/skills-packaging.test.ts` expectations at the same boundary as the
-public onboarding skill. Preserve stable MCP builder/skill exact parity. Run
-plugin generation/check and the relevant skill/setup tests and agent evaluations.
-The current tests permit this split: `src/commands/init/init.test.ts` checks
-the runtime disclosure independently, while `src/skills-packaging.test.ts`
-checks the public onboarding skill text. Change each assertion with its owned
-surface; do not disable either test during the release window.
+Include phase 2's skill cleanup in the next CLI release. Preserve stable MCP
+builder/skill exact parity and verify generated assets at release preparation.
 
 Prepare coordinated artifact release notes, including removal of service APIs,
 the ignored old config key, and client restart/tool-discovery refresh. Follow
@@ -222,8 +256,7 @@ Validation:
   Internal review and external Claude round 3 confirmed closure with no
   outstanding findings. Claude completed one fresh-context check in round 2;
   round 3 directly checked the final documentation changes. Retained reviewer:
-  `term_198c7156-7b0e-47c0-8405-c31f7eed4e42` (Opus).
+  `term_198c7156-7b0e-47c0-8405-c31f7eed4e42` (Opus), released after PR #378 merged.
 
-Phase 2 remains pending release preparation: the CLI and onboarding public skill
-edits (and the onboarding packaging assertion) must land on the release branch.
+The phase 2 skill edits moved into the user-requested follow-up PR after merge.
 Hosted adoption still requires package publication and a remote server deployment.
