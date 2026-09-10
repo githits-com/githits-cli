@@ -45,6 +45,6 @@ client still accepts the existing answer contract and older backend errors. Reve
 the backend restores the earlier targetless rejection behavior without a migration.
 
 Follow-ups may change project, exact version/ref, or topic by naming the new scope
-in the question while retaining the thread ID. Clear comparisons retain the active
-primary. Failed turns leave the active target unchanged. This requires backend
-Ask protocol 59 / pre-evaluator 10; deploy that backend before releasing this guidance.
+in the question while retaining the thread ID. For comparisons, name each project
+and version to investigate. If a follow-up fails, keep the thread ID when clarifying
+the question.
