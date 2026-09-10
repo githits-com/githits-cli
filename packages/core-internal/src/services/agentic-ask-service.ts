@@ -66,6 +66,34 @@ const needsTargetResponseSchema = z.object({
   resolution: z.unknown(),
 });
 
+const targetErrorTextSchema = z
+  .string()
+  .min(1)
+  .max(1024)
+  .refine((value) => !hasControlCharacters(value));
+const targetErrorSchema = z.object({
+  detail: z.object({
+    code: z.enum(["INVALID_TARGET_SYNTAX", "TARGET_RESOLUTION_FAILED"]),
+    message: targetErrorTextSchema,
+    hint: targetErrorTextSchema,
+    reason: z
+      .enum([
+        "ambiguous",
+        "missing_best",
+        "unsupported_kind",
+        "low_confidence",
+        "missing_full_target",
+        "unsafe_latest_version",
+        "invalid_canonical_target",
+        "kind_mismatch",
+        "explicit_target_mismatch",
+      ])
+      .optional(),
+  }),
+});
+
+type TargetErrorDetail = z.infer<typeof targetErrorSchema>["detail"];
+
 const mcpCodeReadSourceCallSchema = z.object({
   name: z.literal("code_read"),
   arguments: z.object({
@@ -261,6 +289,7 @@ export class AgenticAskHttpError extends Error {
     readonly retryAfterSeconds?: number,
     retryable = false,
     readonly threadId?: string,
+    readonly targetError?: TargetErrorDetail,
   ) {
     super(message);
     this.name = "AgenticAskHttpError";
@@ -403,18 +432,29 @@ export class AgenticAskServiceImpl implements AgenticAskService {
       response.headers.get("X-GitHits-Thread-Id"),
     );
     if (!response.ok) {
-      if (response.status === 403) {
+      let targetError: TargetErrorDetail | undefined;
+      if (response.status === 403 || response.status === 400) {
         let body = "";
         try {
-          body = await readBoundedResponseBody(response);
+          body = await readBoundedResponseBody(
+            response,
+            response.status === 400 ? 16_384 : AGENTIC_ASK_MAX_RESPONSE_BYTES,
+          );
         } catch (cause) {
           if (signal.aborted) throw signal.reason ?? cause;
         }
-        throwIfTermsAcceptanceRequired(body);
+        if (response.status === 403) throwIfTermsAcceptanceRequired(body);
+        else targetError = parseTargetError(body);
       } else {
         await response.body?.cancel().catch(() => undefined);
       }
-      throw createHttpError(response, toolCallId, threadId, request);
+      throw createHttpError(
+        response,
+        toolCallId,
+        threadId,
+        request,
+        targetError,
+      );
     }
 
     let body: string;
@@ -486,9 +526,12 @@ function normalizeUuidV7(value: string | null | undefined): string | undefined {
   return UUID_V7_PATTERN.test(value) ? value.toLowerCase() : undefined;
 }
 
-async function readBoundedResponseBody(response: Response): Promise<string> {
+async function readBoundedResponseBody(
+  response: Response,
+  maxBytes: number = AGENTIC_ASK_MAX_RESPONSE_BYTES,
+): Promise<string> {
   const declaredLength = response.headers.get("Content-Length");
-  if (isDeclaredBodyTooLarge(declaredLength)) {
+  if (isDeclaredBodyTooLarge(declaredLength, maxBytes)) {
     await response.body?.cancel().catch(() => undefined);
     throw new AgenticAskResponseTooLargeError();
   }
@@ -503,7 +546,7 @@ async function readBoundedResponseBody(response: Response): Promise<string> {
       const { done, value } = await reader.read();
       if (done) break;
       totalBytes += value.byteLength;
-      if (totalBytes > AGENTIC_ASK_MAX_RESPONSE_BYTES) {
+      if (totalBytes > maxBytes) {
         await reader.cancel().catch(() => undefined);
         throw new AgenticAskResponseTooLargeError();
       }
@@ -515,12 +558,24 @@ async function readBoundedResponseBody(response: Response): Promise<string> {
   }
 }
 
-function isDeclaredBodyTooLarge(value: string | null): boolean {
+function isDeclaredBodyTooLarge(
+  value: string | null,
+  maxBytes: number,
+): boolean {
   if (!value || !/^\d+$/.test(value)) return false;
   try {
-    return BigInt(value) > BigInt(AGENTIC_ASK_MAX_RESPONSE_BYTES);
+    return BigInt(value) > BigInt(maxBytes);
   } catch {
     return false;
+  }
+}
+
+function parseTargetError(body: string): TargetErrorDetail | undefined {
+  try {
+    const parsed = targetErrorSchema.safeParse(JSON.parse(body));
+    return parsed.success ? parsed.data.detail : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -529,20 +584,24 @@ function createHttpError(
   toolCallId: string | undefined,
   threadId: string | undefined,
   request: AgenticAskRequest,
+  targetError?: TargetErrorDetail,
 ): AgenticAskHttpError {
   const status = response.status;
   switch (status) {
     case 400:
       return new AgenticAskHttpError(
         "INVALID_TARGET",
-        request.target === undefined && request.threadId === undefined
-          ? "GitHits could not answer this question for a supported target. Clarify the question or specify a public package or repository."
-          : "GitHits rejected the Agentic Ask target.",
+        targetError
+          ? `${targetError.message} ${targetError.hint}`
+          : request.target === undefined && request.threadId === undefined
+            ? "GitHits could not answer this question for a supported target. Clarify the question or specify a public package or repository."
+            : "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo#ref or a package such as npm:prisma@version. To correct a thread's target, start a new request without thread_id.",
         status,
         toolCallId,
         undefined,
         false,
         threadId,
+        targetError,
       );
     case 401:
       return new AgenticAskHttpError(
