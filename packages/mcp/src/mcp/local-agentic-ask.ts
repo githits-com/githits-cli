@@ -42,7 +42,7 @@ const schema: ZodRawShape = {
     .min(1)
     .optional()
     .describe(
-      "Thread UUID returned by an earlier ask call. Cannot be combined with target. Reuse a thread only when the prior answer is insufficient or additional information is needed.",
+      "Thread UUID returned by an earlier ask call. Cannot be combined with target. Reuse it for follow-ups; name a new project or version in the question to change scope.",
     ),
   question: z
     .string()
@@ -65,7 +65,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION =
-  "Ask a public repository or package question and receive a source-cited answer. Omit target and thread_id to identify the target from the question. If Ask returns candidates, ask the user to select a target before retrying. Supply at most one of target or thread_id. Continue a prior thread by its returned thread_id only when the earlier answer is insufficient or additional information is needed. Sources default to actionable MCP calls; request source_format=url for original upstream URLs.";
+  "Ask a public repository or package question and receive a source-cited answer. Omit target and thread_id to identify the target from the question. If Ask returns candidates, ask the user to select a target before retrying. Supply at most one of target or thread_id. Continue a prior thread by its returned thread_id. Follow-ups can change project, version, or topic; state changes in the question. Sources default to actionable MCP calls; request source_format=url for original upstream URLs.";
 
 export function createLocalAgenticAskTool(
   service: AgenticAskService,
@@ -151,7 +151,7 @@ export function formatAgenticAskMcpText(
     sections.push(["Sources:", ...sourceLines].join("\n"));
   }
   sections.push(
-    `Ask run ID: ${response.tool_call_id}\nThread ID: ${response.thread_id}\nFollow up using this thread ID only if the answer is insufficient.`,
+    `Ask run ID: ${response.tool_call_id}\nThread ID: ${response.thread_id}\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.`,
   );
   return `${sections.join("\n\n")}\n`;
 }

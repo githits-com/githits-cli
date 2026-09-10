@@ -59,7 +59,9 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain(
       "ask the user to select a `target`, then retry",
     );
-    expect(instructions).toContain("Reuse a returned `thread_id` only");
+    expect(instructions).toContain(
+      "Reuse a returned `thread_id` for follow-ups",
+    );
     expect(instructions).toContain('`source_format:"url"`');
     expect(instructions).toContain("Do not invent or rewrite sources");
     expect(instructions).toContain("`resolve_target`");

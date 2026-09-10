@@ -278,12 +278,12 @@ describe("AgenticAskServiceImpl", () => {
     {
       subject: { target: "npm:example" },
       message:
-        "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo#ref or a package such as npm:prisma@version. To correct a thread's target, start a new request without thread_id.",
+        "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo#ref or a package such as npm:prisma@version. To correct a follow-up, keep thread_id and name the exact project or version in the question.",
     },
     {
       subject: { threadId: THREAD_ID },
       message:
-        "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo#ref or a package such as npm:prisma@version. To correct a thread's target, start a new request without thread_id.",
+        "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo#ref or a package such as npm:prisma@version. To correct a follow-up, keep thread_id and name the exact project or version in the question.",
     },
   ])(
     "keeps 400 guidance accurate for the supplied subject: %j",
