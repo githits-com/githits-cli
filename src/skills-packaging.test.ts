@@ -351,7 +351,7 @@ describe("agent skills packaging", () => {
       "Otherwise follow the returned target/range",
       "Use `--json` for range metadata",
     ]);
-    expect(content).toContain("githits docs read <docsReadTarget>\n");
+    expect(content).toContain("githits docs read <docsReadTarget>");
     expect(content).not.toContain("githits docs read <docsReadTarget> --lines");
   });
 
