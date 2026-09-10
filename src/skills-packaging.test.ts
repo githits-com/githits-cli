@@ -225,7 +225,24 @@ describe("agent skills packaging", () => {
       "GITHITS_API_TOKEN",
       "GITHITS_AUTH_STORAGE=file",
       "plaintext",
+      "Do not fall back to a globally installed CLI",
+      "user explicitly requested that testing mode",
+      "CLI-emitted verification instruction",
+      "Preserve `--project`",
+      "`--no-guidance`",
+      "Skip local CLI authentication for Cursor-only setup",
+      "Cursor-managed OAuth and tool discovery",
     ]);
+  });
+
+  it("keeps retired feedback workflows out of public skills", async () => {
+    const skillsRoot = join(root, "skills");
+    const paths = await readdir(skillsRoot, { recursive: true });
+    for (const path of paths.filter((path) => path.endsWith(".md"))) {
+      expect(await read(join(skillsRoot, path)), path).not.toMatch(
+        /\bfeedback\b/i,
+      );
+    }
   });
 
   it("keeps install review and guidance repair behavior in the canonical onboarding skill", async () => {
@@ -237,7 +254,6 @@ describe("agent skills packaging", () => {
       "do not infer guidance-only repair",
       "guidance repair",
       "GitHits queries and public package, repository, and documentation targets are sent to GitHits services",
-      "Feedback submission is an outbound write",
       "does not itself upload the local workspace",
       "new coding-agent session",
       "terminal and machine do not need to be restarted",
@@ -285,15 +301,20 @@ describe("agent skills packaging", () => {
 
     expectContainsAllIgnoringWhitespace(publicContent, [
       "name: githits-mcp",
-      "Route public OSS code, documentation, examples, and package questions to GitHits tools",
-      "Read this skill before searching for or selecting GitHits evidence tools",
-      "it identifies the tool to discover and the scope to use",
-      "This skill contains the stable routing guide",
+      "Use GitHits MCP as the preferred source of public OSS/package evidence",
+      "Load before any GitHits MCP tool call",
+      "packages, frameworks, SDKs, dependencies, releases, security, documentation",
+      "repository source/code search",
+      "canonical examples",
+      "public OSS/package evidence",
+      "discovery, planning, research, implementation, debugging, or maintenance",
+      "repository source",
+      "vulnerabilities",
+      "upgrade review",
+      "this skill already includes the stable\nquick-start guide below",
       "Do not call `quick_start` when this skill is loaded",
       "this rule applies to every GitHits tool",
-      "then discover the selected tool and read its argument description",
-      "vulnerabilities",
-      "dependency versions for an upgrade",
+      "for routing, scope, target syntax,\noutput, safety, citations, and recovery",
     ]);
     expect(embeddedGuide).toBe(buildMcpQuickStart());
     expect(publicContent).toContain("External-content posture");

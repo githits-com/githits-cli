@@ -8,7 +8,7 @@ If you cannot run shell commands, explain that you cannot complete setup directl
 
 ## npx Unavailable
 
-`npx -y githits@latest` requires Node/npm tooling. If `npx` is unavailable, try an already installed `githits` binary. Otherwise explain that Node/npm or the GitHits CLI is required before agent-driven setup can continue.
+`npx -y githits@latest` requires Node/npm tooling. If `npx` is unavailable, explain that Node/npm is required before normal onboarding can continue. Do not fall back to a globally installed CLI. Use a local or pinned command only when the user explicitly requested that testing mode, preserving their command and environment.
 
 ## No Supported Tools Detected
 
@@ -48,11 +48,8 @@ For `init --install-agents <ids> --json`, inspect `outcomes`. Report each failed
 
 ## Verification Fails
 
-After setup, run:
+Follow the CLI-emitted verification instruction for the selected setup scope. Preserve `--project` for project setup and `--no-guidance` when guidance was declined; do not substitute a user-level detection command. Report the specific mismatch if selected tools are not `already_configured`.
 
-```bash
-npx -y githits@latest auth status
-npx -y githits@latest init --detect-agents --json
-```
+For local CLI/stdio integrations, check `npx -y githits@latest auth status` (or the user-requested local/pinned command). For Cursor, follow the main skill's Cursor verification flow: local CLI authentication and `already_configured` do not establish Cursor readiness. Skip local CLI authentication for Cursor-only setup; verify Cursor-managed OAuth and tool discovery in a new Cursor Agent chat, using `cursor-agent` when available. For mixed setups, verify each authentication path separately.
 
-If auth is active but selected tools are not `already_configured`, report the specific mismatch and failed tool state. If tools are configured, tell the user to open a new agent session so MCP config changes are loaded.
+After MCP configuration or supporting guidance changes, tell the user to open a new coding-agent session. The terminal and machine do not need to be restarted.

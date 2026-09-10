@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, `feedback`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. `resolve` and `code diff` are experimental, host-config-gated commands. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities. Unified search also shares its presentation model and text formatter with MCP; the CLI supplies ANSI enablement and executable CLI action syntax.
+The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. `resolve` and `code diff` are experimental, host-config-gated commands. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities. Unified search also shares its presentation model and text formatter with MCP; the CLI supplies ANSI enablement and executable CLI action syntax.
 
 ## Experimental CLI commands
 
@@ -11,21 +11,9 @@ Enable the experimental CLI surface in the shared host config:
 ```toml
 [experimental]
 tools = true
-report_tool_issues = "experimental" # optional: "experimental" or "all"
 ```
 
 `experimental.tools` is a strict boolean and defaults to `false` when absent.
-`experimental.report_tool_issues` is optional; accepted values are
-`"experimental"` (the local `resolve_target` and `code_diff` tools) and
-`"all"` (any GitHits tool while the experimental suite is active). Omission
-means reporting is off. A reporting value is dormant when `tools = false`, but
-invalid values and types are still rejected by strict config-consuming paths.
-Reporting changes agent guidance only: it never sends feedback automatically;
-when explicitly enabled, an agent may make one concise, redacted negative
-feedback call per distinct observed issue with `accepted: false` and the exact
-tool name. Credentials, personal/private data, proprietary content, full file
-bodies, and large outputs must not be included.
-
 GitHits reads `$XDG_CONFIG_HOME/githits/config.toml` (or
 `~/.config/githits/config.toml` when `XDG_CONFIG_HOME` is unset) on Unix-like
 platforms and `%APPDATA%\githits\config.toml` on Windows. Existing macOS
@@ -55,7 +43,6 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `search <query>` | `--in <target>` | `--source <source>`, `--kind <kind>`, `--category <category>`, `--path-prefix <prefix>`, `--intent <intent>`, `--public`, `--name <name>`, `--lang <language>`, `--allow-partial`, `--limit <n>`, `--offset <n>`, `--wait <seconds>`, `--json` | Unified indexed search across dependency/repository code, docs, and symbols. Defaults to 10 results. |
 | `search-status <search-ref>` | `<search-ref>` | `--wait <seconds>`, `--json` | Check progress, fetch partial hits, or fetch final results for a prior unified search; waits up to 20 seconds by default |
 | `languages [query]` | — | `--json` | List or filter supported languages |
-| `feedback [solution_id]` | `--accept` or `--reject` | `-m, --message <text>`, `--tool <name>`, `--json` | Submit solution-tied or generic session feedback |
 | `doctor` | — | `--json` | Print redacted diagnostics for GitHits runtime, environment, service URLs, config, and auth storage |
 | `resolve <name>` *(experimental; config-gated)* | package or public repository name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--verbose`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
 | `settings` | — | `--json` | Show canonical preferences, privacy and terms, and account limits |
@@ -132,7 +119,7 @@ unattended workloads should use `GITHITS_API_TOKEN` from a secret manager.
 
 Interactive MCP setup asks where GitHits should be configured. User-level setup preserves the existing global/user config behavior for all supported tools except Cursor, which uses the remote MCP URL `https://mcp.githits.com` and migrates legacy local stdio entries. Project-level setup is partial because MCP project config conventions differ by tool; GitHits only offers project setup for tools with verified project-local MCP support: Claude Code (`.mcp.json`), Cursor (`.cursor/mcp.json` with the remote URL), VS Code / Copilot (`.vscode/mcp.json` with `type = "stdio"` server entries), Codex CLI (`.codex/config.toml`), Pi (`.mcp.json` with `pi-mcp-adapter` installed when needed), Gemini CLI (`.gemini/settings.json`), and OpenCode (`opencode.json`). Detected tools without verified project-local MCP support are shown as skipped with a reason. Project config contains no secrets, but it may be committed to source control like other project tooling configuration. Gemini may ignore project settings in untrusted workspaces.
 
-When `init` is run without a TTY, it prints agent onboarding guidance and exits without scanning, writing config, prompting, or authenticating. Non-interactive `--yes` is rejected for safety because it can configure tools without explicit per-tool user approval. Interactive setup uses five setup steps: detect tools, choose tools, review and confirm, sign in, then install and verify. Selection separates MCP mutation targets, guidance-repair targets, and configured reporting-only agents: an unselected configured agent is reported unchanged and is never retargeted. Guidance-only or stale-skill cleanup selections perform guidance work without MCP mutation or authentication; an empty selection prints `Nothing selected, no changes made` and exits before review, authentication, or writes. The review separately identifies MCP tools to configure and only agents with verified guidance targets; states that GitHits queries and public package, repository, and documentation targets are sent to GitHits services, feedback submission is an outbound write, and installing MCP does not itself upload the local workspace; and explains that changed MCP configuration or supporting instructions require a new coding-agent session. The terminal and machine do not need to be restarted. The user must confirm before authentication when selected MCP or guidance mutations are pending. A fully configured verification-only run needs no confirmation, authentication, or writes. Declining or interrupting confirmation exits without setup side effects, while interactive `--yes` displays the review and acts as acknowledgment. After selection, review and final summaries describe local stdio, Cursor's hosted remote MCP at `https://mcp.githits.com`, or both based only on the selected usable targets. Cursor readiness always requires separate Cursor OAuth and tool discovery; mixed runs qualify local CLI authentication as applying only to non-Cursor integrations. Agentic onboarding must use the staged flow instead: ask whether the user wants user-level install or project-level install for the current repo, run `npx -y githits@latest init --detect-agents` or `npx -y githits@latest init --project --detect-agents`, then route empty actionable results by status: stop when no tool is detected, offer user-level detection when project tools are unsupported, or continue to auth only when a supported tool is already configured. When setup is actionable, show the install review and detected tools, then run the emitted `suggestedCommand` only after approval. Staged JSON keeps `installableIds` MCP-only and adds per-agent `guidanceStatus`, `guidanceRequested`, and `actionableIds` so guidance-only repair remains available. Generated install and verification commands preserve `--no-guidance` for plain-MCP flows. Project staged detection marks detected tools without verified project config as `unsupported_project_config` with a reason; agents must not offer those IDs for project install. Agent-facing guidance explicitly forbids `githits init -y` / `githits init --yes` unless the user asks to configure every detected tool, and tells agents to verify successful staged installs with the matching scoped detect command instead of running init again. `--install-agents` rescans, rejects unknown, unsupported-project, or currently undetected IDs before writing, installs only the requested agents, verifies setup, and does not authenticate. Cursor instructions distinguish local CLI auth from Cursor-managed OAuth and require direct MCP tool discovery checks in a new Cursor Agent chat. Cursor-only staged JSON reports `auth.status = "managed_by_cursor"` with Cursor login and verification commands instead of inspecting or recommending local CLI auth. If every install fails, init reports installation errors and suppresses auth guidance. `--json` is supported only for staged detect/install modes so agents do not need to scrape prose.
+When `init` is run without a TTY, it prints agent onboarding guidance and exits without scanning, writing config, prompting, or authenticating. Non-interactive `--yes` is rejected for safety because it can configure tools without explicit per-tool user approval. Interactive setup uses five setup steps: detect tools, choose tools, review and confirm, sign in, then install and verify. Selection separates MCP mutation targets, guidance-repair targets, and configured reporting-only agents: an unselected configured agent is reported unchanged and is never retargeted. Guidance-only or stale-skill cleanup selections perform guidance work without MCP mutation or authentication; an empty selection prints `Nothing selected, no changes made` and exits before review, authentication, or writes. The review separately identifies MCP tools to configure and only agents with verified guidance targets; states that GitHits queries and public package, repository, and documentation targets are sent to GitHits services and that installing MCP does not itself upload the local workspace; and explains that changed MCP configuration or supporting instructions require a new coding-agent session. The terminal and machine do not need to be restarted. The user must confirm before authentication when selected MCP or guidance mutations are pending. A fully configured verification-only run needs no confirmation, authentication, or writes. Declining or interrupting confirmation exits without setup side effects, while interactive `--yes` displays the review and acts as acknowledgment. After selection, review and final summaries describe local stdio, Cursor's hosted remote MCP at `https://mcp.githits.com`, or both based only on the selected usable targets. Cursor readiness always requires separate Cursor OAuth and tool discovery; mixed runs qualify local CLI authentication as applying only to non-Cursor integrations. Agentic onboarding must use the staged flow instead: ask whether the user wants user-level install or project-level install for the current repo, run `npx -y githits@latest init --detect-agents` or `npx -y githits@latest init --project --detect-agents`, then route empty actionable results by status: stop when no tool is detected, offer user-level detection when project tools are unsupported, or continue to auth only when a supported tool is already configured. When setup is actionable, show the install review and detected tools, then run the emitted `suggestedCommand` only after approval. Staged JSON keeps `installableIds` MCP-only and adds per-agent `guidanceStatus`, `guidanceRequested`, and `actionableIds` so guidance-only repair remains available. Generated install and verification commands preserve `--no-guidance` for plain-MCP flows. Project staged detection marks detected tools without verified project config as `unsupported_project_config` with a reason; agents must not offer those IDs for project install. Agent-facing guidance explicitly forbids `githits init -y` / `githits init --yes` unless the user asks to configure every detected tool, and tells agents to verify successful staged installs with the matching scoped detect command instead of running init again. `--install-agents` rescans, rejects unknown, unsupported-project, or currently undetected IDs before writing, installs only the requested agents, verifies setup, and does not authenticate. Cursor instructions distinguish local CLI auth from Cursor-managed OAuth and require direct MCP tool discovery checks in a new Cursor Agent chat. Cursor-only staged JSON reports `auth.status = "managed_by_cursor"` with Cursor login and verification commands instead of inspecting or recommending local CLI auth. If every install fails, init reports installation errors and suppresses auth guidance. `--json` is supported only for staged detect/install modes so agents do not need to scrape prose.
 
 Every non-null staged-detection `suggestedCommand` includes `--json` so agents receive stable `outcomes`, `guidance`, `auth`, and `instructions` fields. Both non-interactive entry points preserve explicit `--no-guidance` intent in every generated detect, install, and verification command. Staged install instructions distinguish intentional guidance opt-out, successful installation, existing configuration, unsupported/skipped targets, and failures; guidance remediation remains visible even when MCP installation fails.
 
@@ -202,7 +189,7 @@ githits example "react hooks patterns" -l typescript --explain
 githits example "react hooks patterns" -l typescript --json
 ```
 
-Default output is markdown (the API response). `--lang` is optional; when omitted, the backend infers the language from the query. With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>", "solution_id": "<uuid>" }` (`solution_id` is omitted only if the markdown lacks a solution URL — pass it back to `feedback`). The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
+Default output is markdown (the API response). `--lang` is optional; when omitted, the backend infers the language from the query. With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>", "solution_id": "<uuid>" }` (`solution_id` is omitted only if the markdown lacks a solution URL). The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
 
 API rate-limit and timeout responses use the shared structured error envelope.
 Example requests use a longer client deadline than shorter metadata operations.
@@ -318,17 +305,6 @@ githits languages type --json  # JSON output for piping
 ```
 
 Without a query, lists all languages. With a query, filters to top 5 matches using the same logic as the `search_language` MCP tool (case-insensitive substring match on name, display_name, and aliases). Default output uses colored terminal formatting. JSON output is `[{ "name": "...", "display_name": "...", "aliases": [...] }, ...]`.
-
-### `githits feedback`
-
-```
-githits feedback abc123 --accept
-githits feedback abc123 --reject -m "Example was outdated"
-githits feedback abc123 --accept --message "Solved my problem" --json
-githits feedback --reject --tool search -m "missing kotlin support"
-```
-
-Passing `[solution_id]` anchors feedback to a prior `githits example` result. Omitting it creates generic feedback for the current CLI/MCP session via the `x-githits-session-id` header; `--tool` records the command or MCP tool that produced the result being rated. `--accept` and `--reject` are mutually exclusive (enforced by Commander's `.conflicts()` API). At least one must be provided (validated in the action function). JSON output is `{ "success": true, "message": "..." }`.
 
 ### `githits doctor`
 
@@ -552,8 +528,7 @@ explicit calls are rejected with the config path and enable snippet. The same
 opt-in exposes the local-only MCP `resolve_target` adapter. Its compact text,
 JSON contract, privacy guidance, and structured error mapping reuse the shared
 resolver request/service contracts; local experimental instructions are
-composed only for the enabled local tool inventory. Reporting guidance is
-opt-in and remains dormant when tools are disabled.
+composed only for the enabled local tool inventory.
 
 Remote/public MCP, generated transports, and Agent Skill promotion remain
 blocked pending dogfood and evaluation evidence: the expanded production
@@ -989,7 +964,7 @@ Each command follows this pattern:
 
 | Shared Module | Used By |
 |---|---|
-| `GitHitsService` (via container) | `example`, `languages`, `feedback`, and always-on MCP tools |
+| `GitHitsService` (via container) | `example`, `languages`, and always-on MCP tools |
 | `CodeNavigationService` (via container) | top-level unified `search` / `search-status`, MCP indexed-search tools (`search`, `search_status`, `code_files`, `code_read`, `code_grep`), and the `githits code` command group |
 | `filterLanguages()` from `packages/mcp/src/shared/language-filter.ts` | `search_language` MCP tool + `languages` CLI command |
 | `requireAuth()` from `packages/mcp/src/shared/require-auth.ts` | all CLI commands and auth-required MCP tool handlers |
@@ -1008,7 +983,7 @@ For complex commands with multiple submodules, a subdirectory (`src/commands/xxx
 
 - **Auth errors** — `requireAuth()` prints instructions and calls `process.exit(1)`
 - **Service errors** — Caught in action, printed to stderr via `console.error("Failed to <operation>: <message>")`, then `process.exit(1)`. REST transport errors distinguish connection failures from timeouts, and HTTP errors never print raw HTML/plain-text response bodies.
-- **Validation errors** — Checked before service call (e.g., feedback's neither-flag check), printed to stderr, `process.exit(1)`
+- **Validation errors** — Checked before service call (e.g., mutually exclusive target selectors), printed to stderr, `process.exit(1)`
 - **Unexpected errors** — All asynchronous startup, registration, pre-action, and action failures terminate through the root CLI boundary. The default output is a normalized single-line message plus doctor/issue guidance, never a Node stack trace.
 - **Debug stacks** — Set `GITHITS_DEBUG=cli` or `GITHITS_DEBUG=*` to include the original stack for diagnostics.
 - **JSON errors** — Under `--json`, REST-backed commands emit `{error, code, retryable, details?}` on stderr for auth, transport/backend, and validation failures.
@@ -1017,7 +992,7 @@ For complex commands with multiple submodules, a subdirectory (`src/commands/xxx
 
 All commands support two output modes:
 
-- **Default** — Human-readable terminal output (markdown for `example`, formatted result blocks for unified `search`, colored list for `languages`, plain text for `feedback`)
+- **Default** — Human-readable terminal output (markdown for `example`, formatted result blocks for unified `search`, colored list for `languages`)
 - **`--json`** — Machine-readable JSON for piping to `jq`, other tools, or agent consumption
 
 ## Global Flags
@@ -1058,7 +1033,6 @@ commands in one step with a two-minute combined timeout.
 | `src/commands/example.ts` | Example-search command implementation |
 | `src/commands/search.ts` | Unified search and search-status command implementation |
 | `src/commands/languages.ts` | Languages command with colored output |
-| `src/commands/feedback.ts` | Feedback command with accept/reject validation |
 | `packages/mcp/src/shared/language-filter.ts` | Pure `filterLanguages()` shared with MCP tool |
 | `packages/mcp/src/shared/require-auth.ts` | Auth guard shared with MCP server |
 | `packages/mcp/src/shared/colors.ts` | ANSI color utilities and `shouldUseColors()` |

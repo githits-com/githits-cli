@@ -610,60 +610,11 @@ describe("GitHitsServiceImpl", () => {
     });
   });
 
-  describe("submitFeedback", () => {
-    it("sends correct request with field mapping", async () => {
-      const fn = mockFetch(() =>
-        Promise.resolve(
-          new Response(JSON.stringify({ success: true }), {
-            headers: { "Content-Type": "application/json" },
-          }),
-        ),
-      );
-
-      await service.submitFeedback({
-        solutionId: "uuid-123",
-        accepted: true,
-        feedbackText: "Helpful",
-      });
-
-      const call = fn.mock.calls[0] as unknown as [string, RequestInit];
-      const body = JSON.parse(call[1].body as string);
-      // Verify field mapping: solutionId -> solution_id
-      expect(body.solution_id).toBe("uuid-123");
-      expect(body.accepted).toBe(true);
-      expect(body.feedback_text).toBe("Helpful");
-    });
-
-    it("sends optional example and tool targets when provided", async () => {
-      const fn = mockFetch(() =>
-        Promise.resolve(
-          new Response(JSON.stringify({ success: true }), {
-            headers: { "Content-Type": "application/json" },
-          }),
-        ),
-      );
-
-      await service.submitFeedback({
-        exampleId: "example-123",
-        accepted: false,
-        feedbackText: "Wrong result",
-        toolName: "get_example",
-      });
-
-      const call = fn.mock.calls[0] as unknown as [string, RequestInit];
-      const body = JSON.parse(call[1].body as string);
-      expect(body.example_id).toBe("example-123");
-      expect(body.accepted).toBe(false);
-      expect(body.feedback_text).toBe("Wrong result");
-      expect(body.tool_name).toBe("get_example");
-    });
-
+  describe("REST error responses", () => {
     it("throws AuthenticationError on 401", async () => {
       mockFetch(() => Promise.resolve(new Response("", { status: 401 })));
 
-      await expect(
-        service.submitFeedback({ solutionId: "id", accepted: true }),
-      ).rejects.toThrow(AuthenticationError);
+      await expect(service.getLanguages()).rejects.toThrow(AuthenticationError);
     });
 
     it("throws on 404 with detail from JSON body", async () => {
@@ -676,17 +627,17 @@ describe("GitHitsServiceImpl", () => {
         ),
       );
 
-      await expect(
-        service.submitFeedback({ solutionId: "abc-123", accepted: true }),
-      ).rejects.toThrow("Example abc-123 not found");
+      await expect(service.getLanguages()).rejects.toThrow(
+        "Example abc-123 not found",
+      );
     });
 
     it("throws generic message on 404 with empty body", async () => {
       mockFetch(() => Promise.resolve(new Response("", { status: 404 })));
 
-      await expect(
-        service.submitFeedback({ solutionId: "abc-123", accepted: true }),
-      ).rejects.toThrow("Resource not found.");
+      await expect(service.getLanguages()).rejects.toThrow(
+        "Resource not found.",
+      );
     });
 
     it("throws on 500 with status code", async () => {
@@ -694,53 +645,9 @@ describe("GitHitsServiceImpl", () => {
         Promise.resolve(new Response("internal error", { status: 500 })),
       );
 
-      await expect(
-        service.submitFeedback({ solutionId: "id", accepted: true }),
-      ).rejects.toThrow("Server error (500). Try again shortly.");
-    });
-
-    it("omits solution_id when not provided (generic feedback)", async () => {
-      const fn = mockFetch(() =>
-        Promise.resolve(
-          new Response(JSON.stringify({ success: true }), {
-            headers: { "Content-Type": "application/json" },
-          }),
-        ),
+      await expect(service.getLanguages()).rejects.toThrow(
+        "Server error (500). Try again shortly.",
       );
-
-      await service.submitFeedback({
-        accepted: true,
-        feedbackText: "code_grep regex is great",
-      });
-
-      const call = fn.mock.calls[0] as unknown as [string, RequestInit];
-      const body = JSON.parse(call[1].body as string);
-      expect("solution_id" in body).toBe(false);
-      expect("example_id" in body).toBe(false);
-      expect(body.accepted).toBe(true);
-      expect(body.feedback_text).toBe("code_grep regex is great");
-
-      const headers = call[1].headers as Record<string, string>;
-      expect(headers["x-githits-session-id"]).toMatch(/^[0-9a-f]{16}$/);
-    });
-
-    it("sends null feedback_text when not provided", async () => {
-      const fn = mockFetch(() =>
-        Promise.resolve(
-          new Response(JSON.stringify({ success: true }), {
-            headers: { "Content-Type": "application/json" },
-          }),
-        ),
-      );
-
-      await service.submitFeedback({
-        solutionId: "uuid-123",
-        accepted: false,
-      });
-
-      const call = fn.mock.calls[0] as unknown as [string, RequestInit];
-      const body = JSON.parse(call[1].body as string);
-      expect(body.feedback_text).toBeNull();
     });
   });
 });

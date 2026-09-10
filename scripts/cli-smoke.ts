@@ -77,7 +77,6 @@ export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
   "mcp",
   "example",
   "languages",
-  "feedback",
   "doctor",
   "settings",
   "search",
@@ -819,6 +818,16 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
     assert(
       !helpResult.stdout.includes("resolve"),
       "stable root help should omit resolve",
+    );
+
+    const removedFeedback = await runCliWithEnv(["feedback", "--accept"], env);
+    assert(
+      removedFeedback.exitCode !== 0,
+      "removed feedback command should fail",
+    );
+    assert(
+      removedFeedback.stderr.includes("unknown command 'feedback'"),
+      "feedback must fail as an unknown command before auth",
     );
 
     const codeHelp = await runCliWithEnv(["code", "--help"], env);
@@ -2122,20 +2131,6 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
       "NOT_FOUND",
     );
   }
-
-  const feedbackValidation = await runCli([
-    "feedback",
-    "smoke-solution-id",
-    "--json",
-  ]);
-  assert(
-    feedbackValidation.exitCode !== 0,
-    "feedback validation should fail before submitting",
-  );
-  assert(
-    feedbackValidation.stderr.includes("Specify either --accept or --reject"),
-    "feedback validation missing action guidance",
-  );
 
   const invalidJson = await runCli([
     "pkg",

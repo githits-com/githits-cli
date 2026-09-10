@@ -288,7 +288,6 @@ type StagedInstallAuthStatus = "authenticated" | "required" | "not_checked";
 
 const INSTALL_REVIEW_ITEMS = [
   "GitHits queries and public package, repository, and documentation targets are sent to GitHits services for processing.",
-  "Feedback submission is an outbound write that sends feedback data to GitHits services.",
   "Installing GitHits MCP does not itself upload the local workspace.",
   "After installation, open a new coding agent session so it loads the MCP configuration and any supporting instructions. You do not need to restart the terminal or machine.",
 ] as const;

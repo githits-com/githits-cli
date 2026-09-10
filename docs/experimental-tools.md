@@ -65,8 +65,7 @@ list `diff`. If an explicit experimental command is still disabled, its error
 names the config path GitHits read.
 
 The hidden `githits mcp start --experimental-tools` flag is development and
-evaluation infrastructure, not the user opt-in. It affects only that process
-and deliberately disables experimental issue-reporting guidance. Use
+evaluation infrastructure, not the user opt-in. It affects only that process. Use
 `config.toml` for normal host dogfooding.
 
 ## Use the CLI commands
@@ -158,23 +157,6 @@ For MCP, no separate server flag or host configuration is required after the
 `config.toml` opt-in. A restarted local server registers `ask`,
 `resolve_target`, and `code_diff` and adds their usage guidance to
 `quick_start`. The hosted MCP inventory remains unchanged.
-
-## Optional issue reporting
-
-Issue reporting is off unless explicitly enabled. To let the local MCP
-instructions ask the agent for one concise, redacted negative-feedback call per
-distinct observed defect, add one of these values:
-
-```toml
-[experimental]
-tools = true
-report_tool_issues = "experimental" # only ask, resolve_target, and code_diff
-```
-
-Use `"all"` instead to cover any GitHits tool while the experimental suite is
-active. This is guidance to the agent; GitHits never sends feedback
-automatically. Reports must not contain credentials, personal data, private or
-proprietary content, file bodies, or large outputs.
 
 ## Disable the tools
 

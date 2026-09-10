@@ -77,7 +77,6 @@ broader open-source ecosystem, not just model memory or local repo context:
 | Code navigation | `search`, `search_status`, `code_files`, `code_read`, `code_grep` | `githits search`, `githits search-status`, `githits code ...` |
 | Documentation access | `docs_list`, `docs_read` | `githits docs ...` |
 | Package inspection | `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review` | `githits pkg ...` |
-| Feedback | `feedback` | `githits feedback` |
 
 Use GitHits when your agent needs to:
 
@@ -153,7 +152,7 @@ tools = true
 ```
 
 See [Experimental tools](docs/experimental-tools.md) for platform-specific
-config discovery, CLI examples, optional issue reporting, limitations, and how
+config discovery, CLI examples, limitations, and how
 to disable the tools.
 
 ## Supported Sources
@@ -388,7 +387,6 @@ githits mcp              Show setup instructions or start the local MCP server
 githits mcp start        Always start the local MCP server over stdio
 githits example          Find real-world implementations from open source
 githits languages        List or filter supported programming languages
-githits feedback         Submit feedback about GitHits results
 githits doctor           Diagnose configuration and auth state
 githits resolve          Experimental: resolve a fuzzy name to canonical targets
 githits settings         View and update preferences, privacy, and terms

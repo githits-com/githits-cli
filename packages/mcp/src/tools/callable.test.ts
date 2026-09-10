@@ -11,7 +11,7 @@ import { toCallableTool } from "./callable.js";
 import { createGetExampleTool, type GetExampleService } from "./get-example.js";
 import { QUICK_START_PREREQUISITE } from "./quick-start.js";
 import {
-  BOUNDED_WRITE_TOOL_ANNOTATIONS,
+  READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   textResult,
 } from "./types.js";
@@ -90,7 +90,7 @@ describe("toCallableTool", () => {
       name: "default-test",
       description: "default test",
       schema,
-      annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
+      annotations: READ_ONLY_TOOL_ANNOTATIONS,
       handler,
     };
     const callable = toCallableTool(definition);

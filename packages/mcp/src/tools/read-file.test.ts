@@ -49,7 +49,7 @@ describe("createReadFileTool — metadata", () => {
       "wait_timeout_ms",
     ]);
     expect(tool.annotations).toEqual({
-      readOnlyHint: false,
+      readOnlyHint: true,
       openWorldHint: false,
       destructiveHint: false,
     });

@@ -8,7 +8,21 @@ pointers, run ID, or thread ID. Empty results use the same shape with no candida
 The service validates resolver output with the existing compact resolver schema and
 normalizes nullable metadata the same way as `resolve`. It rejects clarification for
 an explicit target or existing thread. Response size and cancellation limits are shared
-with answered responses. Other HTTP errors retain their existing safe mappings.
+with answered responses.
+
+HTTP 400 target errors may provide structured `detail` with `code`, `message`,
+`hint`, and optional `reason`. Codes and reasons are open-ended identifiers, so
+new server diagnostics do not require a client release. Each identifier is 1–128
+ASCII letters, digits, underscores, periods, colons, or hyphens, starting with a
+letter or digit. The shared service validates this shape, bounds its body to
+16 KiB, and preserves its message and hint (each 1–1024 characters without control
+characters). Unknown extra fields are ignored. CLI/MCP error envelopes keep
+`INVALID_ARGUMENT` and add `targetErrorCode`, `hint`, and optional bounded `reason`
+to `details`. A missing resolver reason stays absent; tool-call and
+thread IDs remain available. Malformed/legacy bodies use safe correction
+guidance rather than displaying unstructured response content. Other HTTP errors retain their
+existing safe mappings. Detailed guidance requires the matching backend update;
+older clients continue working but discard those diagnostics.
 
 CLI text and the local MCP text formatter reuse the candidate section of the resolve
 formatter, preserving provider order, confidence, related groups, protected matches,

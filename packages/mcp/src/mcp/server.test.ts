@@ -8,7 +8,7 @@ import { createMockCodeNavigationService } from "../services/test-helpers.js";
 import { QUICK_START_PREREQUISITE } from "../tools/quick-start.js";
 import type { McpToolServices } from "../tools/tool-services.js";
 import {
-  BOUNDED_WRITE_TOOL_ANNOTATIONS,
+  READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   textResult,
 } from "../tools/types.js";
@@ -18,16 +18,6 @@ import {
   getMcpToolDescriptors,
   type McpToolFactory,
 } from "./server.js";
-
-const BOUNDED_NON_DESTRUCTIVE_WRITES = new Set([
-  "get_example",
-  "feedback",
-  "search",
-  "code_files",
-  "code_read",
-  "code_grep",
-  "docs_list",
-]);
 
 const FORMAT_SELECTABLE_TOOLS = new Set([
   "get_example",
@@ -50,7 +40,6 @@ const STABLE_MCP_TOOL_NAMES = [
   "quick_start",
   "get_example",
   "search_language",
-  "feedback",
   "search",
   "search_status",
   "code_files",
@@ -76,13 +65,13 @@ const DESCRIPTION_ROUTING: Record<
 > = {
   quick_start: {
     prefix:
-      /^Choose the GitHits tool for an OSS question before discovering evidence tools\./,
+      /^Required first call: `quick_start` loads untrusted-content safety rules\./,
     exactPrefix:
-      "Choose the GitHits tool for an OSS question before discovering evidence tools. C",
+      "Required first call: `quick_start` loads untrusted-content safety rules. This in",
     body: [
-      "Call this routing guide first",
-      "untrusted-content rules",
-      "unless the loaded githits-mcp skill already contains it",
+      "initializes a plain MCP session",
+      "skips it lacks those rules",
+      "Skip only when the `githits-mcp` skill is loaded",
     ],
   },
   get_example: {
@@ -98,10 +87,6 @@ const DESCRIPTION_ROUTING: Record<
   search_language: {
     prefix: /^Resolve a supported language name or alias/,
     body: ["`get_example`", "Do not use this for source search"],
-  },
-  feedback: {
-    prefix: /^Submit feedback when a GitHits result/,
-    body: ["`solution_id`", "`tool_name`"],
   },
   search: {
     prefix: /^Discover relevant evidence in a known target before exact grep/,
@@ -236,11 +221,12 @@ describe("MCP tool annotations", () => {
   it("explicitly classifies the potential impact of every public tool", () => {
     const descriptors = getMcpToolDescriptors();
 
-    expect(descriptors).toHaveLength(16);
+    expect(descriptors.map(({ name }) => name)).not.toContain("feedback");
+    expect(descriptors).toHaveLength(15);
 
     for (const descriptor of descriptors) {
       expect(descriptor.annotations, descriptor.name).toEqual({
-        readOnlyHint: !BOUNDED_NON_DESTRUCTIVE_WRITES.has(descriptor.name),
+        readOnlyHint: true,
         openWorldHint: false,
         destructiveHint: false,
       });
@@ -294,7 +280,7 @@ describe("MCP tool description catalog", () => {
         expect(catalogSummary).not.toEndWith("…");
       }
       if (descriptor.name === "quick_start") {
-        expect(catalogSummary).toContain("before discovering evidence tools");
+        expect(catalogSummary).toContain("quick_start");
         expect(catalogSummary).not.toContain("githits-mcp");
         expect(catalogSummary).not.toEndWith("…");
         expect(catalogPrefix).not.toContain("githits-mcp");
@@ -319,7 +305,7 @@ describe("MCP tool description catalog", () => {
         ).not.toContain(phrase);
       }
 
-      if (descriptor.name === "quick_start" || descriptor.name === "feedback") {
+      if (descriptor.name === "quick_start") {
         expect(descriptor.description).not.toContain(QUICK_START_PREREQUISITE);
       } else {
         expect(descriptor.description).toEndWith(QUICK_START_PREREQUISITE);
@@ -423,7 +409,7 @@ describe("MCP factory seam", () => {
         name: "experimental_probe",
         description: "test-only experimental factory",
         schema: {},
-        annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
+        annotations: READ_ONLY_TOOL_ANNOTATIONS,
         handler: async () => textResult("ok"),
       };
     };

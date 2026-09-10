@@ -201,12 +201,6 @@ export function createMockGitHitsService(
           .slice(0, limit),
       );
     }),
-    submitFeedback: mock(() =>
-      Promise.resolve({
-        success: true,
-        message: "Feedback submitted successfully",
-      }),
-    ),
     ...impl,
   };
 }

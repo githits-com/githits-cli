@@ -4,7 +4,9 @@ export interface McpSmokeToolResult {
 }
 
 export interface McpSmokeCaller {
-  listTools(): Promise<{ tools: Array<{ name: string }> }>;
+  listTools(): Promise<{
+    tools: Array<{ name: string; annotations?: { readOnlyHint?: boolean } }>;
+  }>;
   callTool(
     name: string,
     args: Record<string, unknown>,
@@ -51,7 +53,6 @@ export const EXPECTED_MCP_TOOLS = [
   "code_grep",
   "search",
   "search_status",
-  "feedback",
 ] as const;
 
 const DEFAULT_TEXT_LIMIT = 12_000;
@@ -1281,19 +1282,6 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
       "NOT_FOUND",
     );
   }
-
-  const feedbackValidation = await callTool(caller, "feedback", {
-    solution_id: "",
-    accepted: true,
-  });
-  assert(
-    feedbackValidation.isError === true,
-    "feedback validation should fail before submitting",
-  );
-  assert(
-    resultText(feedbackValidation, "feedback validation").includes("MCP error"),
-    "feedback validation missing protocol error text",
-  );
 }
 
 export async function runMcpSmoke(
@@ -1304,15 +1292,25 @@ export async function runMcpSmoke(
   const includeLiveTools = options.includeLiveTools ?? true;
   const toolsResponse = await caller.listTools();
   const toolNames = new Set(toolsResponse.tools.map((tool) => tool.name));
+  assert(
+    !toolNames.has("feedback"),
+    "listTools advertises removed feedback tool",
+  );
   for (const expected of EXPECTED_MCP_TOOLS) {
     assert(toolNames.has(expected), `listTools missing ${expected}`);
+  }
+  for (const tool of toolsResponse.tools) {
+    assert(
+      tool.annotations?.readOnlyHint === true,
+      `${tool.name} must advertise readOnlyHint: true`,
+    );
   }
 
   const quickStart = assertDefaultText(
     await callTool(caller, "quick_start", {}),
     "quick_start default",
   );
-  for (const expected of ["GitHits routing guide", "`search`", "`code_grep`"]) {
+  for (const expected of ["GitHits provides", "`search`", "`code_grep`"]) {
     assert(
       quickStart.includes(expected),
       `quick_start default missing ${expected}`,

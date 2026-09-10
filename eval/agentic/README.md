@@ -668,7 +668,7 @@ Useful options:
 `--experimental-tools` is development/eval infrastructure only. It is valid
 only with `--surface mcp --server local`, appends the hidden
 `githits mcp start --experimental-tools` session flag to every generated local
-MCP launch vector, and forces issue reporting off for that process. The flag
+MCP launch vector. The flag
 does not apply to published servers or skills runs, never writes host config,
 and bypasses only the host experimental policy. Valid host auth settings still
 apply; a wholly malformed shared TOML document can still block auth startup.
@@ -766,7 +766,7 @@ use at least one agent for quick iteration.
 | Affected Area                                                      | Workload                                                                                                                                                                                                                                                                              |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Agent-driven GitHits onboarding and setup UX                       | `githits-onboarding.md`                                                                                                                                                                                                                                                               |
-| Core global examples, `get_example`, `search_language`, `feedback` | `global-example.md`                                                                                                                                                                                                                                                                   |
+| Core global examples, `get_example`, `search_language` | `global-example.md`                                                                                                                                                                                                                                                                   |
 | Unified `search` / `search_status` behavior                        | `unified-search-investigation.md`; use `search-source-ergonomics.md` when changing `search` source-selection arguments or minimal-call guidance; use `opencode-compaction.md` for the remote-MCP routing regression                                                                   |
 | Explicit standalone site targets in unified `search`               | `site-search-explicit.md`                                                                                                                                                                                                                                                             |
 | Package overview or vulnerability UX, `pkg_info`, `pkg_vulns`      | `package-overview-vulnerabilities.md`; use `package-vulnerability-filter.md` for severity/version filtering behavior, `package-vulnerability-history.md` for historical/non-affecting advisory scope behavior, `package-vulnerability-transitive.md` for npm-audit-style resolved dependency evidence, and `package-vulnerability-rubygems.md` for non-npm descriptor routing |

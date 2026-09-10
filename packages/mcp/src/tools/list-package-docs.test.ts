@@ -17,7 +17,7 @@ describe("createListPackageDocsTool", () => {
     );
     expect(tool.name).toBe("docs_list");
     expect(tool.annotations).toEqual({
-      readOnlyHint: false,
+      readOnlyHint: true,
       openWorldHint: false,
       destructiveHint: false,
     });

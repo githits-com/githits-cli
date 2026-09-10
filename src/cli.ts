@@ -16,7 +16,6 @@ import {
   registerDocsCommandGroup,
   registerDoctorCommand,
   registerExampleCommand,
-  registerFeedbackCommand,
   registerInitCommand,
   registerLanguagesCommand,
   registerLoginCommand,
@@ -144,7 +143,6 @@ async function main(): Promise<void> {
   // CLI commands
   registerExampleCommand(program);
   registerLanguagesCommand(program);
-  registerFeedbackCommand(program);
   registerDoctorCommand(program);
   if (askAvailable) {
     registerAskCommand(program);

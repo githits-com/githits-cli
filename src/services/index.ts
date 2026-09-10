@@ -67,12 +67,8 @@ export {
 } from "./chunking-keyring-service.js";
 export type { ExecResult, ExecService } from "./exec-service.js";
 export { ExecServiceImpl } from "./exec-service.js";
-export type {
-  ExperimentalReportToolIssuesMode,
-  ExperimentalSettings,
-} from "./experimental-config.js";
+export type { ExperimentalSettings } from "./experimental-config.js";
 export {
-  EXPERIMENTAL_REPORT_TOOL_ISSUES_MODES,
   ExperimentalConfigError,
   loadExperimentalSettings,
 } from "./experimental-config.js";

@@ -3,7 +3,7 @@ import { extractSolutionId } from "../shared/extract-solution-id.js";
 import { GET_EXAMPLE_GUARDRAIL } from "./guardrails.js";
 import { withErrorHandling } from "./shared.js";
 import {
-  BOUNDED_WRITE_TOOL_ANNOTATIONS,
+  READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   textResult,
   type ZodRawShape,
@@ -67,7 +67,7 @@ const schema: ZodRawShape = {
 
 const DESCRIPTION = `Find canonical cross-project examples when no single target is the answer, or target-scoped search came up short. Best for broad usage patterns, real-world API snippets, unfamiliar errors, and multi-library combinations. For a specific known package or repository, use \`search\`, \`docs_read\`, \`code_read\`, or \`code_grep\` instead. Verify version-sensitive examples against the target's docs or source.
 
-Default output is markdown, with source repository provenance and a trailing \`solution_id: ...\` when available. When presenting an example, report source repositories/citations from GitHits' generated references/provenance section; they are core evidence. Pass \`format: "json"\` for \`{result, solution_id?}\`, and pass \`solution_id\` to \`feedback\` after using or rejecting the example. Use \`search_language\` only to resolve a language name for this tool.
+Default output is markdown, with source repository provenance and a trailing \`solution_id: ...\` when available. When presenting an example, report source repositories/citations from GitHits' generated references/provenance section; they are core evidence. Pass \`format: "json"\` for \`{result, solution_id?}\`. Use \`search_language\` only to resolve a language name for this tool.
 
 ${GET_EXAMPLE_GUARDRAIL}`;
 
@@ -78,7 +78,7 @@ export function createGetExampleTool(
     name: "get_example",
     description: DESCRIPTION,
     schema,
-    annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       return withErrorHandling(
         "get example",

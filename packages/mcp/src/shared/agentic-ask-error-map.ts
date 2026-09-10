@@ -28,6 +28,15 @@ export function mapAgenticAskError(error: unknown): AgenticAskMappedError {
         retryable: error.retryable,
         details: {
           status: error.status,
+          ...(error.targetError
+            ? {
+                targetErrorCode: error.targetError.code,
+                hint: error.targetError.hint,
+                ...(error.targetError.reason !== undefined
+                  ? { reason: error.targetError.reason }
+                  : {}),
+              }
+            : {}),
           ...(error.retryAfterSeconds !== undefined
             ? { retryAfterSeconds: error.retryAfterSeconds }
             : {}),

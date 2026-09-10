@@ -25,11 +25,8 @@ import {
   type McpToolFactory,
 } from "./server.js";
 
-export type LocalExperimentalReportToolIssues = "experimental" | "all";
-
 export interface LocalExperimentalMcpPolicy {
   tools: boolean;
-  reportToolIssues: LocalExperimentalReportToolIssues | undefined;
 }
 
 export interface LocalMcpToolServices extends McpToolServices {
@@ -64,9 +61,6 @@ export function createLocalMcpServer<TExtra = unknown>(
     : [];
   const quickStartGuide = buildLocalMcpQuickStart({
     enabledExperimentalTools: enabledExperimentalTools.map(({ name }) => name),
-    reportToolIssues: options.policy.tools
-      ? options.policy.reportToolIssues
-      : undefined,
   });
   const toolFactories: readonly McpToolFactory<LocalMcpToolServices>[] = [
     ...createStableMcpToolFactories(quickStartGuide),

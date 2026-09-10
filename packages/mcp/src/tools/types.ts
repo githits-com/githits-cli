@@ -9,16 +9,9 @@ export interface CompleteToolAnnotations {
   destructiveHint: boolean;
 }
 
-/** A tool that only retrieves or computes information. */
+/** Information retrieval/computation, including internal caching and preparation. */
 export const READ_ONLY_TOOL_ANNOTATIONS = {
   readOnlyHint: true,
-  openWorldHint: false,
-  destructiveHint: false,
-} as const satisfies CompleteToolAnnotations;
-
-/** A tool with additive service-side effects that cannot modify external systems. */
-export const BOUNDED_WRITE_TOOL_ANNOTATIONS = {
-  readOnlyHint: false,
   openWorldHint: false,
   destructiveHint: false,
 } as const satisfies CompleteToolAnnotations;

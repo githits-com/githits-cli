@@ -63,7 +63,6 @@ const EXPECTED_DESCRIPTOR_NAMES = [
   "quick_start",
   "get_example",
   "search_language",
-  "feedback",
   "search",
   "search_status",
   "code_files",
@@ -94,7 +93,6 @@ const EXPECTED_SMOKE_NAMES = [
   "code_grep",
   "search",
   "search_status",
-  "feedback",
 ] as const;
 
 describe("public MCP package surface", () => {
@@ -137,7 +135,7 @@ describe("public MCP package surface", () => {
     const provider: McpToolServicesProvider<RemoteExtra> = () =>
       createServices();
 
-    expect(buildMcpQuickStart()).toContain("GitHits routing guide");
+    expect(buildMcpQuickStart()).toContain("GitHits provides");
     expect(getMcpToolDescriptors().map((tool) => tool.name)).toContain(
       "search",
     );

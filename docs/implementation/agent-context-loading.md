@@ -426,7 +426,7 @@ audit. Archive each later attempt before rerunning.
 
 Local validation: all 4,513 tests, typecheck, build and plugin generation/check
 pass. Initial MCP live smoke timed out at 60 seconds on the unchanged
-`get_example` JSON operation; a full retry is being checked. CLI stable live
+`get_example` JSON operation; the complete 59-step live retry passed. CLI stable live
 coverage and JSON parity completed, then experimental resolver smoke failed:
 `expressjs` returns `site:expressjs.com` with medium confidence and the expected
 related targets, while the existing smoke assertion requires exact/high.
@@ -448,3 +448,14 @@ their semantics. Future integration should reuse these verified numeric
 fixtures and add explicit trace retention, configuration identity and multi-turn
 support rather than silently changing existing benchmarks. Complete initial
 provider-prompt attribution and exact host schema rendering remain unresolved.
+
+### Upstream catalog change during evaluation
+
+After the three baseline attempts completed, PR evaluation of candidate
+`1a527a4` was blocked by merge conflicts. Upstream `53463de` removed feedback
+and changed information-tool annotations/descriptions. The earlier 46-cell
+baseline attempts are preserved but cannot isolate the routing change against
+this different catalog. Integrate upstream, temporarily restore its canonical
+guidance for a new three-run baseline, then apply the combined router without
+feedback for three candidate runs. Record both exact source SHAs. The earlier
+character-size table describes the pre-integration candidate only.

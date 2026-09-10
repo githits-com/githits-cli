@@ -23,7 +23,11 @@ production builder owns the guide and the skill embeds it exactly; eval code
 owns only measurements. No host API discovery instructions are added.
 
 CI now includes the existing full scenario, alongside discovery and intent.
-Baseline SHA: `8aa5492760149564496daf84aaa9d9225cf2f6bb`; first run 34452621919.
+Historical baseline SHA: `8aa5492760149564496daf84aaa9d9225cf2f6bb`; run
+34452621919 completed three attempts. Candidate 1a527a4 was not evaluated:
+upstream 53463de removed feedback and changed descriptors, causing conflicts.
+Integrate upstream and re-establish three baseline runs with its canonical
+guidance before three router runs on the identical new catalog.
 Complete three repetitions for this baseline and the combined candidate under
 the same coverage. Record SHA, actual host/model and cell identities; inspect
 skill ingestion and compare Braintrust rows by cellId. Historical descriptor-only
@@ -36,7 +40,7 @@ expectation. A direct `expressjs` probe returns the expected site/related target
 at medium confidence, but the assertion requires exact/high. Root score behavior
 is outside this guide-only delta; backend diagnosis remains separate work, with
 no smoke weakening. Initial MCP live get_example JSON timed out at 60 seconds;
-preserve that run and inspect the full retry.
+the full 59-step retry passed.
 
 ## Routing-format follow-up (COMPLETE)
 
