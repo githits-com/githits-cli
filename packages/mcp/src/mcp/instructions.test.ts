@@ -100,6 +100,7 @@ describe("buildLocalMcpQuickStart", () => {
       2_000,
     );
     expect(instructions).not.toContain("Issue reporting");
+    expect(instructions).not.toMatch(/report(?:ing)? (?:a )?defect/i);
     expect(instructions).not.toContain("accepted: false");
   });
 
