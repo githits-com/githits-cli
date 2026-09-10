@@ -15,7 +15,9 @@ describe("getExampleTool", () => {
     expect(tool.description).toContain(
       "GitHits' generated references/provenance section",
     );
-    expect(tool.schema.format?.description).toContain("token-efficient");
+    expect(tool.schema.format?.description).toBe(
+      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
+    );
     expect(tool.schema.license_mode?.description).toContain(
       "`yolo` disables filtering",
     );

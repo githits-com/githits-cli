@@ -91,7 +91,7 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("private or proprietary content");
     expect(instructions).toContain("targets.\n\n- `ask`");
     expect(instructions).toContain(
-      "required fields absent from text.\n- `resolve_target`",
+      "returned Ask run ID when reporting a defect.\n- `resolve_target`",
     );
     expect(instructions).toContain("with `docs_read`.\n- `code_diff`");
     expect(instructions.length - buildMcpQuickStart().length).toBeLessThan(
