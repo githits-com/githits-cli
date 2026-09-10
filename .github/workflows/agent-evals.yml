@@ -40,6 +40,11 @@ jobs:
             suite: stable-full
             scenario: intent
             workload-concurrency: 4
+          - id: full
+            label: Full guidance
+            suite: stable-full
+            scenario: full
+            workload-concurrency: 4
     steps:
       - name: Prepare scenario output
         run: |
@@ -119,7 +124,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Prepare artifact directories
-        run: mkdir -p "$RUNNER_TEMP/agent-eval-artifacts/discovery" "$RUNNER_TEMP/agent-eval-artifacts/intent"
+        run: mkdir -p "$RUNNER_TEMP/agent-eval-artifacts/discovery" "$RUNNER_TEMP/agent-eval-artifacts/intent" "$RUNNER_TEMP/agent-eval-artifacts/full"
 
       - name: Download discovery artifacts
         continue-on-error: true
@@ -134,6 +139,13 @@ jobs:
         with:
           name: agent-eval-intent
           path: ${{ runner.temp }}/agent-eval-artifacts/intent
+
+      - name: Download full guidance artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: agent-eval-full
+          path: ${{ runner.temp }}/agent-eval-artifacts/full
 
       - name: Checkout evaluated SHA
         uses: actions/checkout@v7
@@ -163,6 +175,7 @@ jobs:
           bun run agent:e2e:ci-report \
             --suite discovery="$RUNNER_TEMP/agent-eval-artifacts/discovery/suite.json" \
             --suite intent="$RUNNER_TEMP/agent-eval-artifacts/intent/suite.json" \
+            --suite full="$RUNNER_TEMP/agent-eval-artifacts/full/suite.json" \
             --run-url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --out "$REPORT_OUT"
           report_status=$?
@@ -200,6 +213,7 @@ jobs:
           braintrust_args=(
             --suite "discovery=$RUNNER_TEMP/agent-eval-artifacts/discovery/suite.json"
             --suite "intent=$RUNNER_TEMP/agent-eval-artifacts/intent/suite.json"
+            --suite "full=$RUNNER_TEMP/agent-eval-artifacts/full/suite.json"
             --project "githits-cli-agent-evals"
             --source github
             --channel "$BRAINTRUST_CHANNEL"

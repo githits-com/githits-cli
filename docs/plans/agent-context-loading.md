@@ -4,6 +4,27 @@ Status: MEASUREMENT INCREMENT COMPLETE. The first controlled study and strategy
 assessment are documented; broader guidance optimization remains pending.
 Production guidance changes are not selected yet.
 
+## Luna candidate selection and PR comparison (ACTIVE)
+
+The user authorized local Luna checks before selecting the complete description
+and body change, followed by three full PR eval repetitions and Braintrust
+comparison. Attribution between description/body is not a selection requirement.
+Test baseline, the existing router, and a router with a clearer first-action
+description using neutral prompts and code/docs follow-ups plus a pinned upgrade.
+Use gpt-5.6-luna at low effort to match the named CI suite model, three rotated
+repetitions per task. Inspect activation, discovery order, locator/version
+preservation, task completion, requests and actual input/cache counters.
+
+Candidate guides remain in fixtures until these runs are assessed. Production
+guidance belongs to the canonical skill and MCP quick-start builder, kept in
+parity; the eval layer owns measurements. Existing CI discovery/intent scenarios
+are descriptor-only and do not install the skill. Include the already-supported
+full scenario in the PR comparison before measuring a skill change. Establish
+matched baseline/candidate repetitions under that same scenario coverage; record
+SHA, host/model and cell identities in Braintrust. Do not reinterpret historical
+descriptor-only results as skill measurements or silently change their metrics.
+No merge, release, hosted deployment or global skill installation is authorized.
+
 ## Routing-format follow-up (COMPLETE)
 
 All 48 fresh runs completed and the payload/order annotations were inspected.
@@ -98,8 +119,9 @@ establish the first baseline; a named/versioned tokenizer can follow if needed.
 - `scripts/agent-eval-metrics.ts` normalizes Codex terminal aggregate usage;
   Claude usage is explicitly unimplemented. No general offline context sizing
   tool or multi-user-turn resume driver exists.
-- `full` installs project rules, but MCP Codex runs still pass `--ignore-rules`.
-  Installation is not proof of ingestion. Verify actual skill activation.
+- `full` installs project guidance and the MCP skill. `--ignore-rules` skips
+  execpolicy files, not documented Markdown instruction loading. Installation
+  is not proof of ingestion; verify the exact skill path and returned body.
 - The first normal-home Claude probe found the skill but no GitHits MCP tools.
   Preserve it as failed-configuration evidence; use explicit session-local MCP
   configuration for a valid tool-loading probe.

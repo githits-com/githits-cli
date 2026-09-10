@@ -48,6 +48,66 @@ describe("context fixture MCP contract", () => {
       expect(JSON.stringify(info.content)).toContain(
         "not live package coverage",
       );
+      const search = await client.callTool({
+        name: "search",
+        arguments: {
+          target: "npm:express",
+          query: "route handlers",
+          source: "docs",
+        },
+      });
+      expect(JSON.stringify(search.content)).toContain(
+        "docs:fixture:express-routing#snapshot-1",
+      );
+      const docs = await client.callTool({
+        name: "docs_read",
+        arguments: {
+          page_id: "docs:fixture:express-routing#snapshot-1",
+          start_line: 40,
+          end_line: 48,
+        },
+      });
+      expect(JSON.stringify(docs.content)).toContain("registration order");
+      expect(
+        (
+          await client.callTool({
+            name: "docs_read",
+            arguments: { page_id: "invented" },
+          })
+        ).isError,
+      ).toBe(true);
+      const code = await client.callTool({
+        name: "code_read",
+        arguments: {
+          target: "github:openai/codex",
+          path: "codex-rs/app-server-protocol/schema/json/ClientRequest.json",
+          start_line: 3118,
+          end_line: 3132,
+        },
+      });
+      expect(JSON.stringify(code.content)).toContain("call_id");
+      const upgrade = {
+        registry: "npm",
+        package_name: "zod",
+        current_version: "4.3.6",
+        target_version: "4.4.3",
+      };
+      expect(
+        (
+          await client.callTool({
+            name: "pkg_upgrade_review",
+            arguments: upgrade,
+          })
+        ).isError,
+      ).not.toBe(true);
+      expect(
+        (
+          await client.callTool({
+            name: "pkg_upgrade_review",
+            arguments: { ...upgrade, current_version: "4.0.0" },
+          })
+        ).isError,
+      ).toBe(true);
     } finally {
       await client.close();
       await server.close();
@@ -83,6 +143,14 @@ describe("context fixture MCP contract", () => {
         arguments: { target: "github:openai/codex", pattern: "tool_search" },
       });
       expect(result.isError).not.toBe(true);
+      const objectTarget = await client.callTool({
+        name: "code_grep",
+        arguments: {
+          target: { repo_url: "https://github.com/openai/codex" },
+          pattern: "tool_search",
+        },
+      });
+      expect(objectTarget.content).toEqual(result.content);
       expect(JSON.stringify(result.content)).toContain(
         "fixed context-loading fixture",
       );

@@ -364,14 +364,38 @@ guidance unchanged pending the user's choice of whether to pursue stronger
 ordering, lower total cost, or broader workload/model validation. Do not infer
 that these results justify mandatory bootstrap for every host.
 
+## Luna pilot and CI coverage
+
+The subsequent neutral-task Luna pilot attempted code grep-to-read, docs
+search-to-read and a pinned upgrade, using the current skill, the tested router
+and a clearer first-action description. No valid comparative cohort completed.
+The first pilot exposed a fixture rejecting documented object-form repository
+targets; the fixture now reuses the production target parser. The restarted
+pilot read globally installed GitHits skills instead of staged candidates and
+then hit the local subscription usage limit. Both pilots are preserved as
+[excluded evidence](../../eval/agentic/context-loading/observations/luna-pilot-exclusions.json).
+They provide no evidence for choosing the untested wording variant.
+
+`codex exec --help` identifies `--ignore-rules` as skipping execpolicy `.rules`
+files. It does not document suppression of Markdown skill instructions. Normal
+home configuration can expose competing global skills even when user config is
+ignored; confirm the exact path and returned body, not only a Skill/cat event.
+
+The original PR CI matrix ran only descriptor-only `discovery` and `intent`
+scenarios. It could measure bootstrap/tool changes but not the skill. CI now
+includes the existing `full` scenario on stable-full, with its artifacts and
+Braintrust rows kept separate by scenario/cell identity. Baseline and candidate
+must use the same coverage; older descriptor-only experiments cannot establish
+the effect of changing an installed skill.
+
 ## Existing harness integration and remaining visibility
 
 `scripts/agent-eval.ts` already provides descriptors/full/skills modes, source
 selection via `--target-root`, raw CLI output and Claude discovery events.
 However, it currently disables native session persistence, reports Codex
 discovery as `not_exposed`, and normalizes only Codex terminal aggregate usage.
-Its full MCP mode installs `AGENTS.md` while still passing `--ignore-rules` to
-Codex. Do not equate installed guidance with observed ingestion.
+Its full MCP mode installs `AGENTS.md` and the MCP skill. Do not equate installed
+guidance with observed ingestion; `--ignore-rules` concerns execpolicy files.
 
 The research reader is separate from historical aggregate metrics to preserve
 their semantics. Future integration should reuse these verified numeric
