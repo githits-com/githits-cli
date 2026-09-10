@@ -31,9 +31,17 @@ characters/bytes are exact for the declared content, not full provider prompts.
 
 ## Reproduce the live loading/selection study
 
+The historical 18- and 48-run studies used the guidance preserved at commit
+`184630c`. Check out that commit in an isolated checkout before reproducing their
+protocols; current production guidance has changed, and the original preparer's
+anchor check intentionally rejects it. Recorded hashes and observations remain
+historical evidence. Use the normal PR suite for the current combined candidate.
+
 The fixture server uses production descriptions and argument schemas, with a
 fixed labeled grep response. It never contacts GitHits or an OSS backend. It
-supports fixed grep and package-overview workloads, not general retrieval.
+supports fixed grep, source read, docs search/read, package overview and pinned
+upgrade responses, not general retrieval. The additional multi-step responses
+were introduced after the historical 18- and 48-run studies.
 The response is deliberately held fixed; optional output-shaping arguments do
 not model full production semantics. Inspect actual arguments and do not use
 this fixture to judge those semantics or general answer quality.
@@ -174,3 +182,12 @@ or automatic proof that arbitrary host traces are complete.
 Compare success counts by host, delivery and task, alongside inclusive input,
 cache partitions and model-request counts. Do not pool the two tasks' token
 sizes or treat one successful route as reliability across unrelated workloads.
+
+## Excluded local Luna pilot
+
+`prepare-luna.ts` preserves the attempted neutral-task setup (27 planned cells).
+It does not isolate normal-home global skills. Both attempted pilots are excluded
+in `observations/luna-pilot-exclusions.json`; no router candidate completed.
+Do not treat staged skill files as proof of ingestion or these pilots as a
+candidate comparison. The API-authenticated PR harness uses an empty Codex home
+and its existing `full` scenario for the matched production comparison.

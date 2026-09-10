@@ -62,7 +62,7 @@ does not make the body transient.
 ## Corrections and confounders discovered
 
 1. **Installed skill drift.** The earlier installed skill was a 1,105-character
-   bootstrap stub requiring `quick_start`. Current canonical skill content is
+   bootstrap stub requiring `quick_start`. Canonical skill content at the initial study baseline was
    6,396 Unicode characters and includes the stable guide, explicitly skipping
    the bootstrap call. Its SHA-256 is in the protocol. Those delivery paths
    cannot be compared as though they were the same skill version.
@@ -265,14 +265,14 @@ when skill reading and catalog dumping share one execution.
 
 Do not introduce host-specific published skill forks from this evidence. First
 test a shorter conditional frontmatter hint on additional tools and models.
-The current canonical self-contained skill already eliminates the redundant
+The initial baseline self-contained skill already eliminated the redundant
 `quick_start` call in these runs. Its guide still occupies context; removing
 the call does not remove that content's recurring cost.
 
 The next optimization candidate is guide/descriptor duplication, evaluated
 against task completion, discovery and existing safety contracts. It requires
-a broader workload cohort than this fixed grep result. No production guidance
-has been shortened or moved by this study. The live backend stall also needs a
+a broader workload cohort than this fixed grep result. The initial study changed no production guidance; the later combined
+candidate is described below. The live backend stall also needs a
 separate diagnosis before using live latency as an optimization metric.
 
 ## Routing-format follow-up: can the guide precede discovery?
@@ -360,8 +360,8 @@ candidate, but it is not a host-independent discovery-order guarantee. Direct
 skill delivery works naturally in the observed Claude Code setup. Codex's
 bootstrap route is promising for ordering, with a measurable request-count
 tradeoff; its direct routing skill still fails intermittently. Keep production
-guidance unchanged pending the user's choice of whether to pursue stronger
-ordering, lower total cost, or broader workload/model validation. Do not infer
+guidance unchanged at that stage; the user subsequently selected broader
+workload/model validation of a combined description and body change. Do not infer
 that these results justify mandatory bootstrap for every host.
 
 ## Luna pilot and CI coverage
@@ -387,6 +387,52 @@ includes the existing `full` scenario on stable-full, with its artifacts and
 Braintrust rows kept separate by scenario/cell identity. Baseline and candidate
 must use the same coverage; older descriptor-only experiments cannot establish
 the effect of changing an installed skill.
+
+## Combined production candidate and matched PR evaluation
+
+The selected candidate uses the routing-study skill and `quick_start`
+descriptions. It keeps the question-to-tool table and defers argument mechanics
+to selected descriptors, without `ALL_TOOLS` instructions or host-specific forks.
+Compared with the experimental router, it formats tool names as code and retains
+explicit artifact/manifest-root versus full-repository scope, Swift/Zig target
+examples, docs-topic routing and emitted locators, and the directory-read boundary.
+It is therefore a refined candidate, not the exact 3,490-character study guide.
+The external-content posture is byte-for-byte unchanged.
+
+| Surface | Matched baseline characters | Candidate characters |
+| --- | ---: | ---: |
+| Complete skill | 6,396 | 4,563 |
+| Shared quick-start guide | 5,585 | 4,032 |
+
+These are text sizes, not token/cost estimates. The canonical builder owns the
+shared guide and the terminal skill section embeds it exactly. The runtime-only
+experimental appendices and all evidence-tool descriptions remain unchanged.
+Both public artifacts have a pending patch fragment; package versions await the
+normal release process. CLI code/package skills retain their existing routing
+because this change concerns MCP discovery and adds no CLI behavior.
+
+The matched CI baseline is `8aa5492760149564496daf84aaa9d9225cf2f6bb`,
+starting with [run 34452621919](https://github.com/githits-com/githits-cli/actions/runs/34452621919).
+Three baseline and three candidate repetitions will use the same matrix:
+2 discovery, 22 intent and 22 full-guidance cells. Inspect actual skill reads,
+match Braintrust rows by `metadata.cellId`, and report inclusive input, cache,
+uncached input, output, cost, tool errors and completion separately. An installed
+skill is not proof it was read, and self-reported confidence is not answer quality.
+Results are pending; the earlier descriptor-only main baseline is not a matched
+baseline for the new full-guidance cells. Baseline attempt 1's Braintrust rows
+remain available, but starting its rerun before downloading artifacts cleared
+the downloadable raw traces. Attempt 1 cannot support a new skill-ingestion
+audit. Archive each later attempt before rerunning.
+
+Local validation: all 4,513 tests, typecheck, build and plugin generation/check
+pass. Initial MCP live smoke timed out at 60 seconds on the unchanged
+`get_example` JSON operation; a full retry is being checked. CLI stable live
+coverage and JSON parity completed, then experimental resolver smoke failed:
+`expressjs` returns `site:expressjs.com` with medium confidence and the expected
+related targets, while the existing smoke assertion requires exact/high.
+A direct scoped probe reproduced this mismatch. This guide-only change does
+not alter resolver scores; retain the assertion and evidence for backend
+confidence investigation rather than weakening the test.
 
 ## Existing harness integration and remaining visibility
 

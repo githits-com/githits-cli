@@ -1,8 +1,8 @@
 # Plan: reproducible skill and MCP context measurements
 
-Status: MEASUREMENT INCREMENT COMPLETE. The first controlled study and strategy
-assessment are documented; broader guidance optimization remains pending.
-Production guidance changes are not selected yet.
+Status: COMBINED GUIDANCE EVALUATION ACTIVE. The controlled loading studies are
+complete. The routing description/body candidate is selected; matched PR
+baseline/candidate repetitions and Braintrust comparison remain in progress.
 
 ## Luna candidate selection and PR comparison (ACTIVE)
 
@@ -15,15 +15,28 @@ Use gpt-5.6-luna at low effort to match the named CI suite model, three rotated
 repetitions per task. Inspect activation, discovery order, locator/version
 preservation, task completion, requests and actual input/cache counters.
 
-Candidate guides remain in fixtures until these runs are assessed. Production
-guidance belongs to the canonical skill and MCP quick-start builder, kept in
-parity; the eval layer owns measurements. Existing CI discovery/intent scenarios
-are descriptor-only and do not install the skill. Include the already-supported
-full scenario in the PR comparison before measuring a skill change. Establish
-matched baseline/candidate repetitions under that same scenario coverage; record
-SHA, host/model and cell identities in Braintrust. Do not reinterpret historical
-descriptor-only results as skill measurements or silently change their metrics.
-No merge, release, hosted deployment or global skill installation is authorized.
+The local Luna pilots are excluded: valid object target rejection in the first,
+competing global skills and subscription quota exhaustion in the second. No new
+wording variant has comparative evidence. Use the previously tested routing
+metadata/body, retaining the existing canonical scope/locator contracts. The
+production builder owns the guide and the skill embeds it exactly; eval code
+owns only measurements. No host API discovery instructions are added.
+
+CI now includes the existing full scenario, alongside discovery and intent.
+Baseline SHA: `8aa5492760149564496daf84aaa9d9225cf2f6bb`; first run 34452621919.
+Complete three repetitions for this baseline and the combined candidate under
+the same coverage. Record SHA, actual host/model and cell identities; inspect
+skill ingestion and compare Braintrust rows by cellId. Historical descriptor-only
+rows cannot measure skill effects. Commit/push and PR evals are authorized;
+merge, release, hosted deployment and global skill installation are not.
+
+Validation limitation to carry into implementation documentation: the CLI live
+suite completes stable coverage then fails the existing experimental resolver
+expectation. A direct `expressjs` probe returns the expected site/related targets
+at medium confidence, but the assertion requires exact/high. Root score behavior
+is outside this guide-only delta; backend diagnosis remains separate work, with
+no smoke weakening. Initial MCP live get_example JSON timed out at 60 seconds;
+preserve that run and inspect the full retry.
 
 ## Routing-format follow-up (COMPLETE)
 

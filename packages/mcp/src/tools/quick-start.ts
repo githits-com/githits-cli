@@ -8,7 +8,7 @@ import {
 const schema: ZodRawShape = {};
 
 export const DESCRIPTION =
-  "Required first call: `quick_start` loads untrusted-content safety rules. This initializes a plain MCP session with cross-tool routing, target syntax, and compact-output rules. A plain session that skips it lacks those rules. Skip only when the `githits-mcp` skill is loaded.";
+  "Choose the GitHits tool for an OSS question before discovering evidence tools. Call this routing guide first unless the loaded githits-mcp skill already contains it. It identifies which tool to discover, the evidence scope, and untrusted-content rules.";
 
 export const QUICK_START_PREREQUISITE =
   "Before using this tool, call `quick_start` once per session unless the `githits-mcp` skill is loaded.";

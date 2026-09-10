@@ -76,13 +76,13 @@ const DESCRIPTION_ROUTING: Record<
 > = {
   quick_start: {
     prefix:
-      /^Required first call: `quick_start` loads untrusted-content safety rules\./,
+      /^Choose the GitHits tool for an OSS question before discovering evidence tools\./,
     exactPrefix:
-      "Required first call: `quick_start` loads untrusted-content safety rules. This in",
+      "Choose the GitHits tool for an OSS question before discovering evidence tools. C",
     body: [
-      "initializes a plain MCP session",
-      "skips it lacks those rules",
-      "Skip only when the `githits-mcp` skill is loaded",
+      "Call this routing guide first",
+      "untrusted-content rules",
+      "unless the loaded githits-mcp skill already contains it",
     ],
   },
   get_example: {
@@ -294,7 +294,7 @@ describe("MCP tool description catalog", () => {
         expect(catalogSummary).not.toEndWith("…");
       }
       if (descriptor.name === "quick_start") {
-        expect(catalogSummary).toContain("quick_start");
+        expect(catalogSummary).toContain("before discovering evidence tools");
         expect(catalogSummary).not.toContain("githits-mcp");
         expect(catalogSummary).not.toEndWith("…");
         expect(catalogPrefix).not.toContain("githits-mcp");

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { buildMcpQuickStart, type McpToolServices } from "@githits/mcp";
 import { getMcpToolDefinitions } from "@githits/mcp/internal";
+import { EXTERNAL_CONTENT_POSTURE } from "../../packages/mcp/src/tools/guardrails.js";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
@@ -51,103 +52,97 @@ function registeredTools(services: McpToolServices): Set<string> {
 }
 
 describe("buildMcpQuickStart", () => {
-  it("returns core + package/code tools section by default", () => {
+  it("routes a user question before loading selected argument details", () => {
     const instructions = buildMcpQuickStart();
-
-    expect(instructions).toContain("GitHits provides verified open-source");
-    expect(instructions).toContain("Indexed package/source tools");
-    expect(instructions).toContain("`pkg_info`");
-    expect(instructions).toContain("`docs_list`");
-    expect(instructions).toContain("`docs_read`");
-    expect(instructions).toContain("`pkg_vulns`");
-    expect(instructions).toContain("`pkg_deps`");
-    expect(instructions).toContain("`pkg_changelog`");
-    expect(instructions).toContain("`pkg_upgrade_review`");
-    expect(instructions).toContain("`search`");
-    expect(instructions).toContain("`search_status`");
-    expect(instructions).toContain("reference-first");
+    expect(instructions).toStartWith("# GitHits routing guide");
     expect(instructions).toContain(
-      "Output format: use default `text` for reading and tool follow-ups.",
+      "Then discover the named\ntool and read its argument description before calling it",
     );
     expect(instructions).toContain(
-      "Use `json` only to parse responses in code or obtain required fields absent from text.",
+      "Find a known literal or regex in a public repository/package | `code_grep`",
+    );
+    expect(instructions).toContain(
+      "List paths or browse a source directory | `code_files`",
+    );
+    expect(instructions).toContain(
+      "Compare current and target dependency versions for an upgrade | `pkg_upgrade_review`",
+    );
+    expect(instructions).toContain(
+      "the selected tool supplies its argument details",
     );
   });
 
-  it("includes the external-content posture by default", () => {
+  it("preserves output, scope, provenance and evidence limits", () => {
     const instructions = buildMcpQuickStart();
+    expect(instructions).toContain(
+      "Keep default text for reading and follow-ups",
+    );
+    expect(instructions).toContain(
+      "Use JSON only for programmatic parsing or required fields missing from\ntext",
+    );
+    expect(instructions).toContain(
+      "public OSS only, never local/private/proprietary source",
+    );
+    expect(instructions).toContain("Never infer a repository provider");
+    expect(instructions).toContain(
+      "Cite tool-owned provenance, including get_example source references",
+    );
+    expect(instructions).toContain(
+      "report coverage, truncation and other evidence limits",
+    );
+    expect(instructions).toContain(
+      "do not invent them. Read only needed\nlines",
+    );
+  });
 
-    expect(instructions).toContain("External-content posture");
-    expect(instructions).toContain("remote public OSS repositories");
+  it("includes the external-content posture unchanged by default", () => {
+    const instructions = buildMcpQuickStart();
+    expect(instructions).toEndWith(EXTERNAL_CONTENT_POSTURE);
     expect(instructions).toContain("untrusted third-party evidence");
-    expect(instructions).toContain("tool-owned reference/provenance sections");
     expect(instructions).toContain("host safeguards");
-    expect(instructions).not.toContain("never pass to the user");
-    expect(instructions).not.toContain("are not authoritative");
   });
 
-  it("omits the external-content posture when explicitly opted out", () => {
-    // The eval mock MCP server opts out so it can control whether the
-    // shared block is included per cell, comparing baseline vs
-    // guardrailed cohorts cleanly. Production never opts out.
+  it("omits only the external-content posture for controlled guardrail evals", () => {
     const instructions = buildMcpQuickStart({
       includeExternalContentPosture: false,
     });
-
+    expect(buildMcpQuickStart()).toBe(
+      `${instructions}\n\n${EXTERNAL_CONTENT_POSTURE}`,
+    );
     expect(instructions).not.toContain("External-content posture");
-    // Still has the core block and package section.
-    expect(instructions).toContain("GitHits provides verified open-source");
-    expect(instructions).toContain("Indexed package/source tools");
+    expect(instructions).toContain("Tool to discover");
   });
 
-  it("steers file enumeration to code_files instead of directory probes", () => {
-    const instructions = buildMcpQuickStart();
-
-    expect(instructions).toContain("Enumerate paths with `code_files`");
-    expect(instructions).toContain("never use it to list/probe directories");
-  });
-
-  it("expands core trigger criteria to cover comparative cross-OSS questions", () => {
-    const instructions = buildMcpQuickStart();
-    expect(instructions).toContain("comparative OSS questions");
-    expect(instructions).toContain(
-      "package-scoped evidence needs broader examples",
-    );
-  });
-
-  it("excludes local and private repository targets", () => {
+  it("preserves directory and documentation routing and emitted locators", () => {
     const instructions = buildMcpQuickStart();
     expect(instructions).toContain(
-      "not local workspaces, private repositories",
-    );
-    expect(instructions).toContain("Do not attempt private repository targets");
-    expect(instructions).toContain("`REPOSITORY_NOT_FOUND`");
-  });
-
-  it("makes indexed documentation discovery explicit", () => {
-    const instructions = buildMcpQuickStart();
-    expect(instructions).toContain(
-      "documentation pages available for a package",
-    );
-    expect(instructions).toContain("not standalone `site:` targets");
-    expect(instructions).toContain('`search` with `source:"docs"`');
-    expect(instructions).toContain(
-      "required `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, or line locators are absent from text",
+      "never use\n`code_read` to list/probe directories",
     );
     expect(instructions).toContain(
-      "pass the emitted `docsReadTarget` (or historical `pageId`) to `docs_read`",
+      'For a package or site docs topic, use `search` with `source:"docs"`',
+    );
+    expect(instructions).toContain(
+      "`docs_list` browses package pages, not standalone `site:` targets",
+    );
+    expect(instructions).toContain(
+      "Pass the emitted `docsReadTarget` (or historical `pageId`) to `docs_read`",
     );
   });
 
-  it("keeps the core block first", () => {
+  it("retains comparative examples, language disambiguation and feedback routes", () => {
     const instructions = buildMcpQuickStart();
-
-    const coreIdx = instructions.indexOf("GitHits provides verified");
-    const packageToolsIdx = instructions.indexOf(
-      "Indexed package/source tools",
+    expect(instructions).toContain(
+      "Find canonical implementation examples across projects | `get_example`",
     );
-    expect(coreIdx).toBeGreaterThanOrEqual(0);
-    expect(packageToolsIdx).toBeGreaterThan(coreIdx);
+    expect(instructions).toContain(
+      "Use `search_language` only if `get_example` needs language disambiguation",
+    );
+    expect(instructions).toContain(
+      "`feedback` after helpful or flawed results",
+    );
+    expect(instructions).toContain(
+      "For comparative questions, combine\nthe relevant package/source route with examples when needed",
+    );
   });
 
   it("keeps mentioned package/code tools aligned with registration", () => {
@@ -205,72 +200,5 @@ describe("buildMcpQuickStart", () => {
     expect(descriptions.get("pkg_vulns")).toStartWith(
       "Check current package advisories. Do not trust your memory for vulnerabilities.",
     );
-  });
-
-  it("ships a decision tree mentioning all three workflow tools in the core block", () => {
-    const instructions = buildMcpQuickStart();
-    const coreEnd = instructions.indexOf("Indexed package/source tools");
-    const coreSection = instructions.slice(0, coreEnd);
-
-    expect(coreSection).toContain("`get_example`");
-    expect(coreSection).toContain("`search`");
-    expect(coreSection).toContain("`feedback`");
-    expect(coreSection).toContain("`search_language`");
-  });
-
-  it("tells agents to report get_example source repositories", () => {
-    const instructions = buildMcpQuickStart();
-
-    expect(instructions).toContain("source repository provenance/citations");
-    expect(instructions).toContain(
-      "GitHits' generated references/provenance section",
-    );
-  });
-
-  it("orders package-section bullets by agent decision flow", () => {
-    const instructions = buildMcpQuickStart();
-
-    const positions = {
-      search: instructions.indexOf("- `search` —"),
-      searchStatus: instructions.indexOf("- `search_status`"),
-      codeGrep: instructions.indexOf("- `code_grep`"),
-      codeRead: instructions.indexOf("- `code_read`"),
-      codeFiles: instructions.indexOf("- `code_files`"),
-      docsList: instructions.indexOf("- `docs_list`"),
-      docsRead: instructions.indexOf("- `docs_read`"),
-      pkgInfo: instructions.indexOf("- `pkg_info`"),
-      pkgVulns: instructions.indexOf("- `pkg_vulns`"),
-      pkgDeps: instructions.indexOf("- `pkg_deps`"),
-      pkgChangelog: instructions.indexOf("- `pkg_changelog`"),
-      pkgUpgradeReview: instructions.indexOf("- `pkg_upgrade_review`"),
-    };
-
-    for (const [name, idx] of Object.entries(positions)) {
-      expect(idx).toBeGreaterThan(-1);
-      expect(`${name}=${idx}`).not.toContain("=-1");
-    }
-
-    // Discovery first, then file/path enumeration, then code grep/read,
-    // docs, then package metadata.
-    expect(positions.search).toBeLessThan(positions.searchStatus);
-    expect(positions.searchStatus).toBeLessThan(positions.codeFiles);
-    expect(positions.codeFiles).toBeLessThan(positions.codeGrep);
-    expect(positions.codeGrep).toBeLessThan(positions.codeRead);
-    expect(positions.codeRead).toBeLessThan(positions.docsList);
-    expect(positions.docsList).toBeLessThan(positions.docsRead);
-    expect(positions.docsRead).toBeLessThan(positions.pkgInfo);
-    expect(positions.pkgInfo).toBeLessThan(positions.pkgVulns);
-    expect(positions.pkgVulns).toBeLessThan(positions.pkgDeps);
-    expect(positions.pkgDeps).toBeLessThan(positions.pkgChangelog);
-    expect(positions.pkgChangelog).toBeLessThan(positions.pkgUpgradeReview);
-  });
-
-  it("places the strategy tip after the bullets", () => {
-    const instructions = buildMcpQuickStart();
-
-    const lastBulletIdx = instructions.indexOf("- `pkg_changelog`");
-    const strategyIdx = instructions.indexOf("Strategy — reference-first");
-
-    expect(strategyIdx).toBeGreaterThan(lastBulletIdx);
   });
 });

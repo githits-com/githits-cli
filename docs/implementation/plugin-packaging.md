@@ -78,7 +78,11 @@ terminal `## Quick-start guide` section is an exact copy of
 clients with the loaded skill always skip that call. Every evidence descriptor
 repeats the same prerequisite at MCP composition time; there are no
 tool-specific exceptions. Runtime-only `buildLocalMcpQuickStart()` appendices
-are excluded from the public skill copy and do not change the bootstrap rule.
+are excluded from the public skill copy and do not change the bootstrap rule. The skill
+metadata asks agents to read the guide before evidence-tool discovery; its
+question-to-tool table selects the route, while each selected descriptor owns
+argument syntax. This is guidance, not a host-enforced loading-order guarantee.
+The same routing guide is returned to clients that need `quick_start`.
 
 There are no authored host-specific skill copies. If a host later requires a
 self-contained copy, the generator may create it, but tests must enforce exact
