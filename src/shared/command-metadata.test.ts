@@ -11,7 +11,6 @@ describe("authenticated command metadata", () => {
       "example",
       "languages",
       "resolve",
-      "feedback",
       "settings",
       "settings show",
       "settings get",

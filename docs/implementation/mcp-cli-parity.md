@@ -31,8 +31,8 @@ exercises the static `quick_start` guide, probes unauthenticated behavior, and
 requires the exact stable `EXPECTED_MCP_TOOLS` cohort plus a
 separate local-only experimental cohort launched with the hidden session
 override. The experimental cohort also checks its local `quick_start` guide and
-unauthenticated tool envelopes; it never changes the public smoke constant or
-submits feedback. One CI step applies a combined two-minute timeout and logs
+unauthenticated tool envelopes; it never changes the public smoke constant.
+One CI step applies a combined two-minute timeout and logs
 each harness timing summary and selected launch vector.
 
 The suites intentionally avoid exact-output snapshots because backend ranking
@@ -46,7 +46,6 @@ The dual-surface tools today are:
 
 - `get_example` ↔ `githits example`
 - `search_language` ↔ `githits languages`
-- `feedback` ↔ `githits feedback`
 - `search` ↔ `githits search`
 - `search_status` ↔ `githits search-status`
 - `code_files` ↔ `githits code files`
@@ -65,7 +64,7 @@ The dual-surface tools today are:
 The local smoke runners execute these cohorts independently in source and
 built modes. CLI experimental runs use a temporary opt-in config. MCP
 experimental registration and live runs use the hidden session override,
-which forces the local tools on and reporting off without reading host
+which forces the local tools on without reading host
 experimental policy. Scoped temporary roots preserve inherited environment
 credentials but do not copy host file-auth state; authenticated live
 validation is conditional and skips with `AUTH_REQUIRED` when unavailable.
@@ -174,9 +173,8 @@ compete, while confidence and malicious status independently control
 continuation. Package-detail and semantic-search observations were
 outside this client delta and both agents recovered without resolver changes.
 
-`feedback` is mutating, so smoke coverage exercises registration and
-validation/auth paths only. It does not submit fake feedback to the live
-backend.
+Registration smoke checks that feedback is absent and removed invocations fail
+as unknown tools/commands. Remaining MCP tools must advertise read-only.
 
 One deliberate exception: `search_status` does not echo the original
 structured request because the backend follow-up endpoint does not
@@ -437,7 +435,7 @@ surface-native follow-up and pagination syntax plus ANSI differ.
 - Backend error messages, hints, indexing estimates, available versions/refs,
   and suggested refs are preserved when supplied. Clients do not replace
   specific backend guidance or synthesize target candidates.
-- The REST-backed `example`, `languages`, and `feedback` CLI commands preserve
+- The REST-backed `example` and `languages` CLI commands preserve
   this envelope for generic transport/backend failures as well as typed auth
   failures. Human mode renders the same message as terminal text.
 

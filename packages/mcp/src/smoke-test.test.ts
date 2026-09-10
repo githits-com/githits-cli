@@ -40,7 +40,10 @@ function errorResult(code: string, text?: string): McpSmokeToolResult {
 function createCaller(callTool: McpSmokeCaller["callTool"]): McpSmokeCaller {
   return {
     listTools: async () => ({
-      tools: EXPECTED_MCP_TOOLS.map((name) => ({ name })),
+      tools: EXPECTED_MCP_TOOLS.map((name) => ({
+        name,
+        annotations: { readOnlyHint: true },
+      })),
     }),
     callTool,
   };
@@ -95,6 +98,56 @@ describe("MCP smoke-test helpers", () => {
 });
 
 describe("runMcpSmoke", () => {
+  it("rejects a non-read-only tool outside the stable inventory", async () => {
+    const caller = createCaller(async () => {
+      throw new Error("must not execute");
+    });
+    caller.listTools = async () => ({
+      tools: [
+        ...EXPECTED_MCP_TOOLS.map((name) => ({
+          name,
+          annotations: { readOnlyHint: true },
+        })),
+        { name: "ask", annotations: { readOnlyHint: false } },
+      ],
+    });
+    await expect(
+      runMcpSmoke(caller, { includeLiveTools: false }),
+    ).rejects.toThrow("ask must advertise readOnlyHint: true");
+  });
+
+  it.each([false, undefined])(
+    "rejects non-read-only or missing annotations: %s",
+    async (readOnlyHint) => {
+      const caller = createCaller(async () => {
+        throw new Error("must not execute");
+      });
+      caller.listTools = async () => ({
+        tools: EXPECTED_MCP_TOOLS.map((name) => ({
+          name,
+          annotations: { readOnlyHint },
+        })),
+      });
+      await expect(
+        runMcpSmoke(caller, { includeLiveTools: false }),
+      ).rejects.toThrow("must advertise readOnlyHint: true");
+    },
+  );
+  it("rejects catalogs that retain feedback before executing tools", async () => {
+    const caller = createCaller(async () => {
+      throw new Error("must not execute");
+    });
+    caller.listTools = async () => ({
+      tools: [...EXPECTED_MCP_TOOLS, "feedback"].map((name) => ({
+        name,
+        annotations: { readOnlyHint: true },
+      })),
+    });
+    await expect(
+      runMcpSmoke(caller, { includeLiveTools: false }),
+    ).rejects.toThrow("removed feedback tool");
+  });
+
   it("can verify registration and quick_start without live evidence calls", async () => {
     const caller = createCaller(async (name) => {
       if (name === "quick_start") return smokeResponse(name, {});
@@ -112,7 +165,7 @@ describe("runMcpSmoke", () => {
     });
     caller.listTools = async () => ({
       tools: EXPECTED_MCP_TOOLS.filter((name) => name !== "search_status").map(
-        (name) => ({ name }),
+        (name) => ({ name, annotations: { readOnlyHint: true } }),
       ),
     });
 
@@ -136,7 +189,7 @@ describe("runMcpSmoke", () => {
     expect(logs).toEqual(["AUTH_REQUIRED: live smoke skipped"]);
   });
 
-  it("runs the shared live corpus without submitting stateful feedback", async () => {
+  it("runs the shared live corpus without calling removed feedback", async () => {
     const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
     const logs: string[] = [];
     const caller = createCaller(async (name, args) => {
@@ -152,10 +205,7 @@ describe("runMcpSmoke", () => {
     expect(new Set(calls.map((call) => call.name))).toEqual(
       new Set(EXPECTED_MCP_TOOLS),
     );
-    expect(calls).toContainEqual({
-      name: "feedback",
-      args: { solution_id: "", accepted: true },
-    });
+    expect(calls.some(({ name }) => name === "feedback")).toBe(false);
     expect(calls).toContainEqual({
       name: "pkg_deps",
       args: {
@@ -788,11 +838,6 @@ function smokeResponse(
       );
     case "search_status":
       return errorResult("NOT_FOUND");
-    case "feedback":
-      return {
-        content: [{ type: "text", text: "MCP error: solution_id required" }],
-        isError: true,
-      };
     default:
       throw new Error(`unexpected smoke tool ${name}`);
   }

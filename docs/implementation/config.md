@@ -6,14 +6,14 @@ The CLI uses four separate service URLs and supports three authentication modes.
 
 ## Background
 
-GitHits separates its MCP server (which handles OAuth discovery and the MCP protocol), REST API (which handles search, languages, and feedback), account settings API, and package/source service. In production, they use independent endpoints.
+GitHits separates its MCP server (which handles OAuth discovery and the MCP protocol), REST API (which handles search and languages), account settings API, and package/source service. In production, they use independent endpoints.
 
 ## URL Configuration
 
 | URL | Default | Env var | Used for |
 |---|---|---|---|
 | **MCP URL** | `https://mcp.githits.com` | `GITHITS_MCP_URL` | OAuth discovery (`.well-known`), DCR registration, auth flow |
-| **API URL** | `https://api.githits.com` | `GITHITS_API_URL` | REST endpoints (`/search`, `/languages`, `/feedbacks`) |
+| **API URL** | `https://api.githits.com` | `GITHITS_API_URL` | REST endpoints (`/search`, `/languages`) |
 | **Accounts URL** | `https://accounts.githits.com` | `GITHITS_ACCOUNTS_URL` | Self-scoped settings and Terms of Service acceptance |
 | **Package/source URL** | GitHits-managed package/source service | `GITHITS_CODE_NAV_URL` | Package/source service endpoint used by indexed `search` / `pkg` / `docs` / `code` tooling |
 
@@ -41,7 +41,6 @@ The container (`src/container.ts`) resolves authentication in priority order:
 |---|---|---|---|
 | `/search` | Full access | Full access | Blocked |
 | `/languages` | Full access | Full access | Blocked |
-| `/feedbacks` | Full access | Full access | Blocked |
 | `/functions/v1/settings/me` | Full access | Full access | Blocked |
 
 Package/source access uses the package/source service URL from `GITHITS_CODE_NAV_URL`, defaulting to the GitHits-managed endpoint. MCP registration for `search`, `search_status`, `docs_*`, `pkg_*`, `code_files`, `code_read`, and `code_grep` is always on; CLI registration for top-level `search` / `search-status` plus the `githits code`, `githits pkg`, and `githits docs` groups is also always on.
@@ -112,20 +111,12 @@ stdio MCP surface:
 ```toml
 [experimental]
 tools = true
-report_tool_issues = "experimental" # optional: "experimental" or "all"
 ```
 
 `experimental.tools` is a strict boolean and defaults to `false` when absent.
-`report_tool_issues` is optional; its only accepted values are `"experimental"`
-and `"all"`, and omission means reporting is off. The former covers the local
-experimental tools and the latter covers any GitHits tool while that suite is
-active. Reporting is agent guidance only: it never sends feedback automatically.
-When enabled, the guidance allows one concise, redacted `accepted: false`
-feedback call per distinct observed issue, with the exact tool name; it must not
-include credentials, personal or private data, proprietary content, full file
-bodies, or large outputs. The reporting value is dormant when experimental tools
-are disabled, but invalid values and types are still rejected by strict
-experimental-config consumers.
+The retired `report_tool_issues` key is ignored as an unknown key in valid TOML;
+existing files do not need rewriting. GitHits no longer exposes feedback or
+feedback-submission guidance.
 
 Auth and experimental settings share TOML discovery/parsing and the canonical
 platform path above, including the existing macOS legacy fallback, but validate
@@ -136,8 +127,8 @@ the stable 15-tool inventory and does not acquire experimental service
 requirements.
 
 The hidden `githits mcp start --experimental-tools` option is for isolated
-evaluation/development only. It enables local tools for that process and forces
-reporting off without writing or inheriting the host experimental policy; valid
+evaluation/development only. It enables local tools for that process without
+writing or inheriting the host experimental policy; valid
 host auth settings still apply, and malformed shared TOML can still prevent
 auth startup.
 
@@ -159,14 +150,13 @@ Environment variables + config.toml
   ├─ packages/core-internal/src/services/config.ts (URL/token resolution)
   ├─ src/services/app-config.ts (shared TOML discovery/parsing)
   │    ├─ src/services/auth-config.ts → auth storage mode
-  │    └─ src/services/experimental-config.ts → local tools/reporting policy
+  │    └─ src/services/experimental-config.ts → local tools policy
   └─ src/container.ts (createContainer)
        ├─ mcpUrl → passed to auth commands, used as storage key
        ├─ apiUrl → passed to GitHitsServiceImpl constructor
        ├─ codeNavigationUrl → passed to CodeNavigationServiceImpl and PackageIntelligenceServiceImpl
        ├─ auth.storage → controls OAuth credential persistence
        ├─ experimental.tools → local CLI/MCP availability
-       ├─ experimental.report_tool_issues → local agent guidance scope
        ├─ apiToken → resolved from env var or OAuth storage
        └─ hasValidToken → gates authenticated commands
 ```
@@ -201,7 +191,7 @@ remains a compatibility alias for `githits uninstall`.
 | `packages/core-internal/src/services/config.ts` | URL and token resolution plus HTTPS/loopback enforcement |
 | `src/services/auth-config.ts` | `config.toml` and `GITHITS_AUTH_STORAGE` auth storage mode parsing |
 | `src/services/app-config.ts` | Shared canonical/legacy TOML discovery and parsing |
-| `src/services/experimental-config.ts` | Typed local experimental tools and reporting policy |
+| `src/services/experimental-config.ts` | Typed local experimental tools policy |
 | `src/services/app-config-paths.ts` | Platform config path resolution |
 | `src/container.ts` | Auth priority logic and dependency wiring |
 | `src/services/auth-storage.ts` | File-based token storage with secure permissions |

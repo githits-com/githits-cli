@@ -279,7 +279,7 @@ describe("maybeAutoLoginBeforeCommand", () => {
     );
 
     const result = await maybeAutoLoginBeforeCommand(
-      createCommand(["feedback"]),
+      createCommand(["languages"]),
       {
         createContainer,
         loginFlow: login,

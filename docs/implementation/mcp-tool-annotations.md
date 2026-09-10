@@ -1,45 +1,40 @@
 # MCP tool annotations
 
-OpenAI marketplace validation requires every MCP tool to set
-`readOnlyHint`, `openWorldHint`, and `destructiveHint` explicitly. The
-annotations are owned by the public `@githits/mcp` package because that package
-defines and registers the shared tool descriptors used by both the local CLI
-server and the remote MCP server.
+All current GitHits MCP tools advertise `readOnlyHint: true`. The annotation
+classifies their information-retrieval or computation purpose, including internal
+result storage, caching, background preparation, and research-thread state.
+It does not assert that the backend performs no database writes.
 
-The standard MCP annotation object has boolean hints but no field for reviewer
-justifications. Keep the submission rationale below aligned with the descriptor
-values and observable tool behavior.
+The canonical factories in `@githits/mcp` own these annotations. The stable
+catalog contains 15 tools; local experimental mode adds `ask`, `resolve_target`,
+and `code_diff`, all with the same annotations. Existing `openWorldHint: false`
+and `destructiveHint: false` values are unchanged; no `idempotentHint` is added.
 
-OpenAI's current guidance says `readOnlyHint` must be false when a tool can
-create service-side state or start background work. `openWorldHint` and
-`destructiveHint` describe the impact of writes and are not relevant when
-`readOnlyHint` is true. GitHits state-changing tools have bounded, additive
-service-side effects; none can publish, message external recipients, modify
-external systems, delete user data, overwrite user data, or perform an
-irreversible public action.
+| Tools | Purpose |
+| --- | --- |
+| `quick_start` | Return GitHits usage guidance. |
+| `get_example`, `search_language` | Find canonical examples and supported languages. |
+| `search`, `search_status` | Discover indexed evidence and retrieve search progress/results. |
+| `code_files`, `code_read`, `code_grep` | Navigate and read public source. |
+| `docs_list`, `docs_read` | Discover and retrieve public documentation. |
+| `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review` | Retrieve and compute package facts and upgrade evidence. |
+| Local experimental `ask`, `resolve_target`, `code_diff` | Generate cited answers, resolve targets, and compare source versions. |
 
-| Tool | `readOnlyHint` | `openWorldHint` | `destructiveHint` | Justification |
-| --- | --- | --- | --- | --- |
-| `quick_start` | `true` | `false` | `false` | Returns static GitHits-authored routing and safety guidance without inspecting or changing external evidence. |
-| `get_example` | `false` | `false` | `false` | Generates a new result and may create service-side state associated with that result, so it is not strictly read-only. The effect is additive and cannot publish, modify external systems, or delete/overwrite user data. |
-| `search_language` | `true` | `false` | `false` | Looks up supported language names and aliases and returns matches without creating or modifying application state. The other two hints are explicitly false because the tool performs no write. |
-| `feedback` | `false` | `false` | `false` | Submits feedback and therefore creates an additive service-side entry. It cannot publish, modify external systems, delete/overwrite user data, or perform a destructive action. |
-| `search` | `false` | `false` | `false` | Searches public package/repository code and docs, and may start background preparation when requested content is not immediately available. That work cannot change source repositories or user data and is non-destructive. |
-| `search_status` | `true` | `false` | `false` | Polls an existing search reference and retrieves progress/results; it does not start or modify the underlying work. The other two hints are explicitly false because the tool performs no write. |
-| `code_files` | `false` | `false` | `false` | Lists files for a public target and may start background preparation when the requested content is not immediately available. It cannot modify the upstream package/repository or destructively change user data. |
-| `code_read` | `false` | `false` | `false` | Reads file content for a public target and may start background preparation when the requested content is not immediately available. It cannot modify the source repository, publish content, or delete/overwrite user data. |
-| `code_grep` | `false` | `false` | `false` | Searches source for a public target and may start background preparation when the requested content is not immediately available. Any service-side effect is bounded and non-destructive. |
-| `docs_list` | `false` | `false` | `false` | Lists public package documentation and may start background preparation when the requested documentation is not immediately available. It cannot change public sources or destructively alter user data. |
-| `docs_read` | `true` | `false` | `false` | Retrieves an available documentation page identified by an emitted target or historical ID in `page_id` and optionally slices its line range. URL reads do not initiate crawling or modify state; the other two hints are explicitly false because there is no write. |
-| `pkg_info` | `true` | `false` | `false` | Retrieves and computes package identity, release, repository, security-summary, and changelog-summary facts. It exposes no state-changing action; the other two hints are explicitly false because there is no write. |
-| `pkg_vulns` | `true` | `false` | `false` | Retrieves and filters vulnerability/advisory facts for a package version without changing packages, advisories, or user state. The other two hints are explicitly false because there is no write. |
-| `pkg_deps` | `true` | `false` | `false` | Retrieves and computes direct/transitive dependency information and optional issue analysis. It does not install, upgrade, or modify dependencies; the other two hints are explicitly false because there is no write. |
-| `pkg_changelog` | `true` | `false` | `false` | Retrieves and filters changelog/release-note information from package or repository sources. It cannot create releases or modify upstream content; the other two hints are explicitly false because there is no write. |
-| `pkg_upgrade_review` | `true` | `false` | `false` | Computes an evidence-only comparison between current and target versions using package, vulnerability, dependency, and changelog data. It does not install, update, publish, or otherwise modify a dependency; the other two hints are explicitly false because there is no write. |
+Feedback is retired from MCP and CLI, including `GitHitsService.submitFeedback`
+and the concrete `/client` methods. Old invocations fail through the normal
+unknown-tool/command path. The old `experimental.report_tool_issues` config key
+is ignored; it generates no instructions or requests. Existing result and thread
+identifiers remain available. Regular diagnostics and evaluation reports remain.
 
-The descriptor type requires all three booleans, and the catalog regression
-test enumerates the full public tool surface so a future tool cannot silently
-omit marketplace-required annotations.
+This is GitHits' product interpretation, not an OpenAI review approval or a
+measured concurrency improvement. Catalog tests and registration smoke enforce
+it. A future user-facing write operation must be classified separately; the
+annotation type continues to support both boolean values.
+
+Hosted clients receive the change after a package release, dependency adoption
+in `remote-mcp`, and deployment. Restart or refresh clients' tool discovery after
+updating. Public CLI/onboarding skill cleanup follows the release boundary;
+the stable MCP guide and its skill copy change together under their parity rule.
 
 ## Output schemas and token efficiency
 

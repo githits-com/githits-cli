@@ -91,7 +91,6 @@ export async function resolveExperimentalCliPolicy(
     }
     return {
       tools: false,
-      reportToolIssues: undefined,
       configPath: getAuthConfigPath(fs),
     };
   }

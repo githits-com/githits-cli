@@ -2,16 +2,8 @@ import { z } from "zod";
 import { AppConfigError, readAppConfig } from "./app-config.js";
 import type { FileSystemService } from "./filesystem-service.js";
 
-export const EXPERIMENTAL_REPORT_TOOL_ISSUES_MODES = [
-  "experimental",
-  "all",
-] as const;
-export type ExperimentalReportToolIssuesMode =
-  (typeof EXPERIMENTAL_REPORT_TOOL_ISSUES_MODES)[number];
-
 export interface ExperimentalSettings {
   tools: boolean;
-  reportToolIssues: ExperimentalReportToolIssuesMode | undefined;
   configPath: string;
 }
 
@@ -25,9 +17,6 @@ export class ExperimentalConfigError extends Error {
 const EXPERIMENTAL_SCHEMA = z
   .object({
     tools: z.boolean().optional(),
-    report_tool_issues: z
-      .enum(EXPERIMENTAL_REPORT_TOOL_ISSUES_MODES)
-      .optional(),
   })
   .passthrough();
 
@@ -39,9 +28,6 @@ const CONFIG_SCHEMA = z
 
 /**
  * Load the typed experimental settings from the shared GitHits config.
- *
- * The reporting mode is retained even when tools are disabled so later
- * consumers can decide how its dormant policy should be composed.
  */
 export async function loadExperimentalSettings(
   fs: FileSystemService,
@@ -64,7 +50,6 @@ export async function loadExperimentalSettings(
 
   return {
     tools: parsed.data.experimental?.tools ?? false,
-    reportToolIssues: parsed.data.experimental?.report_tool_issues,
     configPath: document.configPath,
   };
 }

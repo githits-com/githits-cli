@@ -23,13 +23,12 @@ async function withDefaultLinuxConfigPath<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 describe("experimental config", () => {
-  it("defaults tools off and reporting off when the config is missing", async () => {
+  it("defaults tools off when the config is missing", async () => {
     await withDefaultLinuxConfigPath(async () => {
       await expect(
         loadExperimentalSettings(createMockFileSystemService()),
       ).resolves.toEqual({
         tools: false,
-        reportToolIssues: undefined,
         configPath: "/home/test/.config/githits/config.toml",
       });
     });
@@ -46,44 +45,29 @@ describe("experimental config", () => {
     ).resolves.toMatchObject({ tools });
   });
 
-  it.each(["experimental", "all"] as const)(
-    "loads report_tool_issues = %s",
-    async (mode) => {
+  it.each(['[experimental]\ntools = "true"\n', "[experimental]\ntools = 1\n"])(
+    "rejects invalid experimental setting: %s",
+    async (contents) => {
       await expect(
-        loadExperimentalSettings(
-          configFile(`[experimental]\nreport_tool_issues = "${mode}"\n`),
-        ),
-      ).resolves.toMatchObject({
-        tools: false,
-        reportToolIssues: mode,
-      });
+        loadExperimentalSettings(configFile(contents)),
+      ).rejects.toThrow(ExperimentalConfigError);
     },
   );
 
-  it("preserves a valid reporting mode while tools are dormant", async () => {
-    await expect(
-      loadExperimentalSettings(
-        configFile(
-          '[experimental]\ntools = false\nreport_tool_issues = "all"\n',
-        ),
-      ),
-    ).resolves.toMatchObject({
-      tools: false,
-      reportToolIssues: "all",
-    });
-  });
-
-  it.each([
-    '[experimental]\nreport_tool_issues = "never"\n',
-    "[experimental]\nreport_tool_issues = true\n",
-    '[experimental]\ntools = "true"\n',
-    "[experimental]\ntools = 1\n",
-    '[experimental]\ntools = false\nreport_tool_issues = "never"\n',
-  ])("rejects invalid experimental setting: %s", async (contents) => {
-    await expect(
-      loadExperimentalSettings(configFile(contents)),
-    ).rejects.toThrow(ExperimentalConfigError);
-  });
+  it.each(['"experimental"', '"all"', '"never"', "true"])(
+    "ignores retired reporting value %s without changing tool availability",
+    async (value) => {
+      for (const tools of [false, true]) {
+        const settings = await loadExperimentalSettings(
+          configFile(
+            `[experimental]\ntools = ${tools}\nreport_tool_issues = ${value}\n`,
+          ),
+        );
+        expect(settings.tools).toBe(tools);
+        expect(settings).not.toHaveProperty("reportToolIssues");
+      }
+    },
+  );
 
   it("accepts unknown root and experimental keys", async () => {
     await expect(
@@ -92,7 +76,7 @@ describe("experimental config", () => {
           '[future]\nvalue = "kept"\n\n[experimental]\ntools = true\nnew_key = "kept"\n',
         ),
       ),
-    ).resolves.toMatchObject({ tools: true, reportToolIssues: undefined });
+    ).resolves.toMatchObject({ tools: true });
   });
 
   it("qualifies invalid setting errors with the config path", async () => {

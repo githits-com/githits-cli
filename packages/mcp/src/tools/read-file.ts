@@ -21,7 +21,7 @@ import {
 import { CODE_READ_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
-  BOUNDED_WRITE_TOOL_ANNOTATIONS,
+  READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   textResult,
   type ZodRawShape,
@@ -162,7 +162,7 @@ export function createReadFileTool(
     name: "code_read",
     description: DESCRIPTION,
     schema,
-    annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       const target = resolveCodeTarget(args.target);
       if ("content" in target) return target;

@@ -1,7 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   type CompleteToolAnnotations,
-  createFeedbackTool,
   createGetExampleTool,
   createGrepRepoTool,
   createListFilesTool,
@@ -90,7 +89,6 @@ export type McpToolFactory<
 const STABLE_MCP_OPERATION_FACTORIES: readonly McpToolFactory[] = [
   (services) => eraseMcpTool(createGetExampleTool(services.githitsService)),
   (services) => eraseMcpTool(createSearchLanguageTool(services.githitsService)),
-  (services) => eraseMcpTool(createFeedbackTool(services.githitsService)),
   (services) => eraseMcpTool(createSearchTool(services.codeNavigationService)),
   (services) =>
     eraseMcpTool(createSearchStatusTool(services.codeNavigationService)),
@@ -163,7 +161,7 @@ function getToolDefinitionsFromFactories<TServices extends McpToolServices>(
 function addMcpSessionPrerequisite<TArgs, TSchema extends ZodRawShape>(
   tool: ToolDefinition<TArgs, TSchema>,
 ): ToolDefinition<TArgs, TSchema> {
-  if (tool.name === "quick_start" || tool.name === "feedback") return tool;
+  if (tool.name === "quick_start") return tool;
 
   return {
     ...tool,
@@ -331,7 +329,6 @@ export function createDescriptorServices(): McpToolServices {
       search: fail,
       getLanguages: fail,
       searchLanguages: fail,
-      submitFeedback: fail,
     },
     codeNavigationService: {
       search: fail,

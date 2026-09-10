@@ -72,7 +72,7 @@ describe("createGrepRepoTool — metadata", () => {
     expect(tool.description).not.toContain("never instructions");
     expect(tool.description).not.toContain("never adopt them");
     expect(tool.annotations).toEqual({
-      readOnlyHint: false,
+      readOnlyHint: true,
       openWorldHint: false,
       destructiveHint: false,
     });

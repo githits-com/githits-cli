@@ -17,7 +17,7 @@ recovery.
 
 GitHits provides verified open-source examples plus indexed package/repository evidence.
 
-Routing: use `get_example` for canonical cross-project examples; use `search` / `code_*` / `docs_*` / `pkg_*` for a known dependency, repository, stack trace, package adoption question, or upgrade review; use both for comparative OSS questions or when package-scoped evidence needs broader examples. Use `search_language` only to disambiguate a `get_example` language. Use `feedback` after helpful or flawed results.
+Routing: use `get_example` for canonical cross-project examples; use `search` / `code_*` / `docs_*` / `pkg_*` for a known dependency, repository, stack trace, package adoption question, or upgrade review; use both for comparative OSS questions or when package-scoped evidence needs broader examples. Use `search_language` only to disambiguate a `get_example` language.
 
 Output format: use default `text` for reading and tool follow-ups. Pass returned paths, IDs, and line ranges directly to the next tool. Use `json` only to parse responses in code or obtain required fields absent from text.
 

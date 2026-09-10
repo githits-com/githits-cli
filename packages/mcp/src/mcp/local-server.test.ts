@@ -26,7 +26,6 @@ const EXPECTED_STABLE_NAMES = [
   "quick_start",
   "get_example",
   "search_language",
-  "feedback",
   "search",
   "search_status",
   "code_files",
@@ -112,13 +111,24 @@ function serverInstructions(
 }
 
 describe("createLocalMcpServer", () => {
-  const disabledPolicies: LocalExperimentalMcpPolicy[] = [
-    { tools: false, reportToolIssues: undefined },
-    { tools: false, reportToolIssues: "experimental" },
-    { tools: false, reportToolIssues: "all" },
-  ];
+  it.each([false, true])(
+    "advertises only read-only tools with experimental=%s",
+    (tools) => {
+      const server = createLocalMcpServer({
+        metadata: { name: "local-githits", version: "0.0.0" },
+        services: createServices(),
+        policy: { tools },
+      });
+      expect(registeredToolNames(server)).not.toContain("feedback");
+      for (const tool of Object.values(registeredTools(server))) {
+        expect(tool.annotations).toMatchObject({ readOnlyHint: true });
+      }
+    },
+  );
 
-  it("keeps disabled and dormant policies on the exact stable inventories", async () => {
+  const disabledPolicies: LocalExperimentalMcpPolicy[] = [{ tools: false }];
+
+  it("keeps disabled policy on the exact stable inventories", async () => {
     for (const policy of disabledPolicies) {
       const server = createLocalMcpServer({
         metadata: { name: "local-githits", version: "0.0.0" },
@@ -129,7 +139,7 @@ describe("createLocalMcpServer", () => {
       expect(registeredToolNames(server)).toEqual([...EXPECTED_STABLE_NAMES]);
       expect(serverInstructions(server)).toBeUndefined();
       for (const name of EXPECTED_STABLE_NAMES) {
-        if (name === "quick_start" || name === "feedback") continue;
+        if (name === "quick_start") continue;
         expect(registeredTools(server)[name]?.description).toEndWith(
           QUICK_START_PREREQUISITE,
         );
@@ -149,13 +159,13 @@ describe("createLocalMcpServer", () => {
     const server = createLocalMcpServer({
       metadata: { name: "local-githits", version: "0.0.0" },
       services: createServices(),
-      policy: { tools: true, reportToolIssues: undefined },
+      policy: { tools: true },
     });
 
     expect(registeredToolNames(server)).toEqual([
       ...EXPECTED_EXPERIMENTAL_NAMES,
     ]);
-    expect(registeredToolNames(server)).toHaveLength(19);
+    expect(registeredToolNames(server)).toHaveLength(18);
     expect(serverInstructions(server)).toBeUndefined();
     for (const name of ["ask", "resolve_target", "code_diff"] as const) {
       expect(registeredTools(server)[name]?.description).toEndWith(
@@ -185,7 +195,7 @@ describe("createLocalMcpServer", () => {
     const options = {
       metadata: { name: "local-githits", version: "0.0.0" },
       services: createServices(),
-      policy: { tools: false, reportToolIssues: undefined } as const,
+      policy: { tools: false } as const,
     };
     const defaultServer = createLocalMcpServer(options);
     const descriptorServer = createLocalMcpServer(options);
@@ -254,7 +264,7 @@ describe("createLocalMcpServer", () => {
     const server = createLocalMcpServer({
       metadata: { name: "local-githits", version: "0.0.0" },
       services: provider,
-      policy: { tools: true, reportToolIssues: undefined },
+      policy: { tools: true },
     });
     const registered = (
       server as unknown as {
@@ -303,7 +313,7 @@ describe("createLocalMcpServer", () => {
     const diffServer = createLocalMcpServer({
       metadata: { name: "local-githits", version: "0.0.0" },
       services: diffProvider,
-      policy: { tools: true, reportToolIssues: undefined },
+      policy: { tools: true },
     });
     const diffTool = (
       diffServer as unknown as {

@@ -275,28 +275,6 @@ describe("RefreshingGitHitsService", () => {
     });
   });
 
-  describe("submitFeedback", () => {
-    it("delegates to inner service", async () => {
-      const innerService = createMockGitHitsService();
-      const tokenProvider = createMockTokenProvider();
-      const factory = mock(() => innerService);
-
-      const service = new RefreshingGitHitsService(
-        API_URL,
-        tokenProvider,
-        factory,
-      );
-
-      const result = await service.submitFeedback({
-        solutionId: "id",
-        accepted: true,
-      });
-
-      expect(result.success).toBe(true);
-      expect(innerService.submitFeedback).toHaveBeenCalledTimes(1);
-    });
-  });
-
   describe("no token available", () => {
     it("does not look up a token when the caller is already aborted", async () => {
       const controller = new AbortController();

@@ -129,7 +129,7 @@ maintainer-controlled content:
 - `get_example` — backend-synthesized examples
 
 Other tools (`quick_start`, `pkg_deps`, `code_files`, `search_status`,
-`search_language`, `feedback`) have no third-party prose surface or attacker
+`search_language`) have no third-party prose surface or attacker
 control and need no per-tool addendum. The shared posture is available to plain
 MCP agents after they call `quick_start`; a loaded `githits-mcp` skill already
 carries the stable posture. The runtime-only local appendices are not embedded
