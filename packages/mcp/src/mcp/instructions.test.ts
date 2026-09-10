@@ -27,10 +27,12 @@ describe("buildLocalMcpQuickStart", () => {
     expect(quickStart).toContain("public repository");
     expect(quickStart).toContain("full repositories or sibling packages");
     expect(quickStart).toContain(
-      "omit bounds when\nit has an HTTP(S) fragment to read the exact indexed section",
+      "Use a docs hit's snippet when sufficient; otherwise follow its generated",
     );
-    expect(quickStart).toContain("Otherwise follow\nthe returned target/range");
-    expect(quickStart).toContain("Either bound overrides a fragment");
+    expect(quickStart).toContain(
+      "A fragment needs no bounds and returns the exact section; add bounds only to",
+    );
+    expect(quickStart).toContain("replace it with a page-relative range");
   });
 
   it("keeps deprecated instruction builders as exact compatibility aliases", () => {

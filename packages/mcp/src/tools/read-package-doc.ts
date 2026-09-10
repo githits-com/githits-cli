@@ -56,7 +56,7 @@ const schema: ZodRawShape = {
 export const DESCRIPTION_BASE: string =
   "Read a package documentation page by emitted target or stable page ID. " +
   "Pass a `[docs page]` target from `search` or `docsReadTarget` from `docs_list` unchanged to `page_id`; historical IDs work. " +
-  "Without line bounds, an HTTP(S) fragment reads its exact indexed section; either bound overrides it. " +
+  "An HTTP(S) fragment needs no bounds; either bound replaces it with a page-relative range. " +
   `Text displays ${MCP_DOC_READ_DEFAULT_SPAN} lines by default or up to ${MCP_DOC_READ_MAX_SPAN} lines with an explicit end and gives an absolute continuation when truncated. ` +
   "JSON retains the backend range, anchor, `docsReadTarget`, stable `pageId`, and `sourceUrl`; repo results include exact `code_read` metadata.";
 

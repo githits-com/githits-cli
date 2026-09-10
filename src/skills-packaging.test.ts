@@ -346,10 +346,11 @@ describe("agent skills packaging", () => {
     const content = await read(githitsCodeSkillPath);
 
     expectContainsAll(content, [
-      "pass a displayed `[docs page]` target or emitted `docsReadTarget` unchanged",
-      "If it has an HTTP(S) fragment, omit `--lines` to read that exact indexed section",
-      "Otherwise follow the returned target/range",
-      "Use `--json` for range metadata",
+      "use the search snippet when sufficient; otherwise run its generated `followUp`",
+      "pass the displayed `[docs page]` target unchanged",
+      "from `docs list`, pass `docsReadTarget`",
+      "A fragment needs no `--lines`; add bounds only to replace it with a page-relative range",
+      "Use `--json` only for required range/source metadata",
     ]);
     expect(content).toContain("githits docs read <docsReadTarget>");
     expect(content).not.toContain("githits docs read <docsReadTarget> --lines");

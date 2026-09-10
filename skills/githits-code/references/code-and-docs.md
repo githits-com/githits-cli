@@ -46,9 +46,9 @@ When grep returns no matches, do not repeat it unchanged. Change or shorten the 
 
 `githits docs list <spec>` browses available documentation pages. It is not topic search.
 
-`githits docs read <target>` passes a displayed `[docs page]` target or emitted `docsReadTarget` unchanged. If it has an HTTP(S) fragment, omit `--lines` to read that exact indexed section. Otherwise follow the returned target/range. Historical `pageId` values remain supported; `sourceUrl` is provenance. Use `--json` for range or source metadata.
+For `githits docs read <target>`, use the search snippet when sufficient; otherwise run its generated `followUp`. From text, pass the displayed `[docs page]` target unchanged; from `docs list`, pass `docsReadTarget`. A fragment needs no `--lines` and returns its exact indexed section; add bounds only to replace it with a page-relative range. Historical `pageId` values remain supported. Use `--json` only for required range/source metadata.
 
-For topic search, use `githits search "<topic>" --source docs --in <target>`, then pass the emitted `docsReadTarget` to `docs read`.
+For topic search, use `githits search "<topic>" --source docs --in <target>`, then run its generated follow-up or pass the displayed text target.
 
 Partial and capped documentation coverage are usable published evidence. Report the disclosed limit, but infer neither indexing progress nor retryability from coverage; follow only `searchRef` and the evidence notice.
 

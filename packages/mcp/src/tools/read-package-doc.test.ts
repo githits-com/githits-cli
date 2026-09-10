@@ -58,11 +58,10 @@ describe("createReadPackageDocTool", () => {
       "end_line",
       "format",
     ]);
+    expect(tool.description).toContain("fragment needs no bounds");
     expect(tool.description).toContain(
-      "fragment reads its exact indexed section",
+      "either bound replaces it with a page-relative range",
     );
-    expect(tool.description).toContain("Without line bounds");
-    expect(tool.description).toContain("either bound overrides it");
     expect(tool.description).toContain("up to 300");
     expect(tool.description).toContain("stable `pageId`");
     expect(tool.schema.page_id?.description).toContain("Pass unchanged");
