@@ -606,3 +606,23 @@ appended `#the-routing-system` to a returned page URL. The two Express misses
 instead used alternate page URLs and require separate alias/bundle analysis.
 Backend work owns source identity and section mapping; this PR does not strip
 fragments or implement section selection.
+
+
+Follow-up validation at `b2249fa`: the six focused request/tool/renderer/CLI
+files passed 114 tests; smoke/descriptor contracts passed 92 tests. The full
+suite passed 4,528 tests and exposed one stale exported-schema expectation;
+that contract was updated and its five-test file passed. Typecheck, build,
+plugin generation/check, built CLI unauthenticated smoke and built MCP
+registration smoke passed. Normal PR CI is green. Saved argument replay passed
+all eight historical failed grep requests through the current schema and a
+mocked service, each with effective after-context 10; no token savings are
+inferred from that replay.
+
+Live stable MCP and CLI/JSON parity passed oversized grep requests. The first
+full MCP invocation later timed out at experimental `ask` URL JSON after
+60 seconds; the full trace is retained and one rerun was started. Live CLI
+again reached the unchanged experimental `expressjs` resolver assertion and
+failed there. Neither experimental failure changes the grep validation result.
+The separate API-authenticated eval run is
+[34460109501](https://github.com/githits-com/githits-cli/actions/runs/34460109501),
+at `b2249fa`; its results do not replace the historical matched comparison.
