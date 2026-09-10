@@ -1310,7 +1310,7 @@ export async function runMcpSmoke(
     await callTool(caller, "quick_start", {}),
     "quick_start default",
   );
-  for (const expected of ["GitHits provides", "`search`", "`code_grep`"]) {
+  for (const expected of ["GitHits routing guide", "`search`", "`code_grep`"]) {
     assert(
       quickStart.includes(expected),
       `quick_start default missing ${expected}`,

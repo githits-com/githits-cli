@@ -1,72 +1,53 @@
 import { EXTERNAL_CONTENT_POSTURE } from "../tools/guardrails.js";
 
-/** Detailed guidance returned by the `quick_start` tool. */
+/** Shared routing guide; selected tool descriptions own argument mechanics. */
+const ROUTING_GUIDE = `# GitHits routing guide
 
-const CORE_BLOCK = `GitHits provides verified open-source examples plus indexed package/repository evidence.
+Choose the route matching the user's question below. Then discover the named
+tool and read its argument description before calling it. This guide supplies
+the routing decision; the selected tool supplies its argument details.
 
-Routing: use \`get_example\` for canonical cross-project examples; use \`search\` / \`code_*\` / \`docs_*\` / \`pkg_*\` for a known dependency, repository, stack trace, package adoption question, or upgrade review; use both for comparative OSS questions or when package-scoped evidence needs broader examples. Use \`search_language\` only to disambiguate a \`get_example\` language.
+| Question | Tool to discover |
+| --- | --- |
+| Find a known literal or regex in a public repository/package | \`code_grep\` |
+| Find relevant source, symbols, tests, or documentation for a topic | \`search\` |
+| List paths or browse a source directory | \`code_files\` |
+| Read a known exact source file or matched lines | \`code_read\` |
+| Browse package documentation pages | \`docs_list\` |
+| Read a documentation page returned by search or docs_list | \`docs_read\` |
+| Assess a package's license, adoption, maintenance, or overall health | \`pkg_info\` |
+| Inspect vulnerabilities in a package or version | \`pkg_vulns\` |
+| Inspect direct dependencies or transitive footprint | \`pkg_deps\` |
+| Find release notes for a package or repository | \`pkg_changelog\` |
+| Compare current and target dependency versions for an upgrade | \`pkg_upgrade_review\` |
+| Find canonical implementation examples across projects | \`get_example\` |
+| Check progress of an earlier search reference | \`search_status\` |
 
-Output format: use default \`text\` for reading and tool follow-ups. Pass returned paths, IDs, and line ranges directly to the next tool. Use \`json\` only to parse responses in code or obtain required fields absent from text.
+Use \`search_language\` only if \`get_example\` needs language disambiguation. For comparative questions, combine
+the relevant package/source route with examples when needed.
 
-GitHits indexes public OSS/package evidence, not local workspaces, private repositories, uncommitted changes, or proprietary code. Do not attempt private repository targets; they return \`REPOSITORY_NOT_FOUND\`.
+Scope: public OSS only, never local/private/proprietary source. Package targets
+use \`registry:name[@version]\` and inspect an indexed artifact/manifest root;
+Swift uses \`swift:github.com/<owner>/<repo>\`, Zig \`zig:gh/<owner>/<repo>\`.
+Use public repository targets for full repositories or sibling packages, with
+an explicit provider (such as \`github:owner/repo\`) or supported full URL.
+Never infer a repository provider. Use selected tool descriptions for supported
+target forms and argument details.
 
-When presenting \`get_example\` output, include source repository provenance/citations from GitHits' generated references/provenance section whenever present.`;
+For a package or site docs topic, use \`search\` with \`source:"docs"\`.
+\`docs_list\` browses package pages, not standalone \`site:\` targets.
+Pass the emitted \`docsReadTarget\` (or historical \`pageId\`) to \`docs_read\`.
+For source evidence, locate paths or matches before reading; never use
+\`code_read\` to list/probe directories.
 
-const PACKAGE_TOOLS_PREAMBLE = `Indexed package/source tools inspect third-party dependency source, docs, and registry metadata. Package targets use \`registry:name[@version]\` and inspect an indexed artifact/manifest root; Swift packages use \`swift:github.com/<owner>/<repo>\` and Zig packages use \`zig:gh/<owner>/<repo>\`. Use public repository targets for full repositories or sibling packages; repo targets use \`github:owner/repo\`, \`codeberg:owner/repo\`, or \`gitlab:group[/subgroup...]/project\`, or full HTTPS URLs on those providers. Codeberg requires exactly owner/repo; GitLab permits nested namespaces. Add #ref (preferred) or @ref; refs may contain / and @. Never use bare owner/repo or infer a provider. Only GitHub also accepts github.com/owner/repo shorthand and HTTP. Package coordinates remain registry-native: zig:gh/owner/repo, zig:cb/owner/repo, swift:github.com/owner/repo, and swift:gitlab.com/group/project.`;
-
-const SEARCH_BULLET =
-  "- `search` — discover relevant docs, code, tests, examples, and symbols in known packages/repos or exact `site:<host[/path]>` documentation targets before reading exact files; retry advisory `suggestedSiteTargets` explicitly when returned.";
-
-const SEARCH_STATUS_BULLET =
-  "- `search_status` — follow up a prior `searchRef` from `search`.";
-
-const CODE_GREP_BULLET =
-  "- `code_grep` — deterministic text/regex grep when you already know the pattern; use matches as `code_read` follow-ups.";
-
-const CODE_READ_BULLET =
-  "- `code_read` — read one exact file path; never use it to list/probe directories. Read only the needed lines: 150 lines by default, or up to 300 with an explicit range.";
-
-const CODE_FILES_BULLET =
-  "- `code_files` — list/discover file paths; first choice for directory enumeration before `code_read` or scoped `code_grep`.";
-
-const DOCS_LIST_BULLET =
-  '- `docs_list` — browse documentation pages available for a package, not standalone `site:` targets. For a package or site docs topic, use `search` with `source:"docs"`; request `format:"json"` only if required `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, or line locators are absent from text, then pass the emitted `docsReadTarget` (or historical `pageId`) to `docs_read`.';
-
-const DOCS_READ_BULLET =
-  "- `docs_read` — read a documentation page by emitted `docsReadTarget` or historical `pageId` from `docs_list` or docs `search` results; text reads return 150 lines by default or up to 300 with an explicit range.";
-
-const PKG_INFO_BULLET =
-  "- `pkg_info` — latest package health/adoption overview: license, repo health, downloads, publish age, latest affected vulnerability count, and package-wide advisory history (all versions).";
-
-const PKG_VULNS_BULLET =
-  "- `pkg_vulns` — known vulnerabilities/advisories for a package or pinned version; use `pkg_upgrade_review` for current-vs-target upgrades.";
-
-const PKG_DEPS_BULLET =
-  "- `pkg_deps` — direct dependencies, dependency groups, or bounded transitive dependency footprint.";
-
-const PKG_CHANGELOG_BULLET =
-  "- `pkg_changelog` — release notes/changelog evidence for a package or public repository.";
-
-const PKG_UPGRADE_REVIEW_BULLET =
-  "- `pkg_upgrade_review` — preferred evidence tool for dependency updates; compares current vs target facts and reports no risk score.";
+Keep default text for reading and follow-ups. Reuse returned targets, paths,
+page locators, references and line ranges; do not invent them. Read only needed
+lines. Use JSON only for programmatic parsing or required fields missing from
+text. Cite tool-owned provenance, including get_example source references,
+and report coverage, truncation and other evidence limits.`;
 
 /**
- * Combined strategy tip. Replaces the earlier
- * `REFERENCE_FIRST_TIP` + `SEARCH_VS_SYMBOLS_TIP` pair, which
- * overlapped: both told agents to grep-then-read and both
- * contrasted `search`/`code_grep`/`get_example`. Phrase
- * "reference-first" stays in the section name so prior agent
- * habits and the test invariant continue to anchor here.
- */
-const STRATEGY_TIP =
-  "Strategy — reference-first. Source, symbols, tests, and call sites beat docs prose. Enumerate paths with `code_files`; locate symbols/lines with `search` or `code_grep`; use explicit ranges to read only the needed lines with `code_read`.";
-
-/**
- * Build the detailed guide returned by `quick_start`.
- *
- * Emits the core block plus the package/code-tools section.
- * Mirrors `getMcpToolDefinitions` so the instructions stay aligned
- * with the registered tool surface.
+ * Build the routing guide returned by `quick_start` and embedded in the skill.
  */
 export interface BuildMcpQuickStartOptions {
   /**
@@ -86,39 +67,9 @@ export function buildMcpQuickStart(
 ): string {
   const includeExternalContentPosture =
     options.includeExternalContentPosture ?? true;
-  // Bullets ordered by agent decision flow: discovery (search) →
-  // file/path enumeration (files) → source grep/read → docs →
-  // package metadata. Each bullet name↔registration is enforced by
-  // `mcp-instructions.test.ts`.
-  const bullets = [
-    SEARCH_BULLET,
-    SEARCH_STATUS_BULLET,
-    CODE_FILES_BULLET,
-    CODE_GREP_BULLET,
-    CODE_READ_BULLET,
-    DOCS_LIST_BULLET,
-    DOCS_READ_BULLET,
-    PKG_INFO_BULLET,
-    PKG_VULNS_BULLET,
-    PKG_DEPS_BULLET,
-    PKG_CHANGELOG_BULLET,
-    PKG_UPGRADE_REVIEW_BULLET,
-  ];
-
-  const packageSection = [
-    PACKAGE_TOOLS_PREAMBLE,
-    bullets.join("\n"),
-    STRATEGY_TIP,
-  ].join("\n\n");
-
-  // External-content posture lands between the core orientation and the
-  // package/code tool section so the agent reads how to treat third-
-  // party content before scanning the tool inventory. Designed and
-  // empirically validated in `docs/implementation/TOOL_GUARDRAILS.md`.
-  const sections = includeExternalContentPosture
-    ? [CORE_BLOCK, EXTERNAL_CONTENT_POSTURE, packageSection]
-    : [CORE_BLOCK, packageSection];
-  return sections.join("\n\n");
+  return includeExternalContentPosture
+    ? `${ROUTING_GUIDE}\n\n${EXTERNAL_CONTENT_POSTURE}`
+    : ROUTING_GUIDE;
 }
 
 /**

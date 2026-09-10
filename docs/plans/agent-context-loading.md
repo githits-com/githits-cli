@@ -26,8 +26,10 @@ CI now includes the existing full scenario, alongside discovery and intent.
 Historical baseline SHA: `8aa5492760149564496daf84aaa9d9225cf2f6bb`; run
 34452621919 completed three attempts. Candidate 1a527a4 was not evaluated:
 upstream 53463de removed feedback and changed descriptors, causing conflicts.
-Integrate upstream and re-establish three baseline runs with its canonical
-guidance before three router runs on the identical new catalog.
+Integrated baseline: `1fc2e4247559e6e8b6aaf057abf1e9f9f8b9ffd9`, run
+34453944757. Complete three baseline attempts before three router attempts on
+the identical new catalog. Candidate skill/guide sizes: 4,515 / 3,984 characters;
+baseline: 6,348 / 5,537. Keep the runtime-only upstream appendices intact.
 Complete three repetitions for this baseline and the combined candidate under
 the same coverage. Record SHA, actual host/model and cell identities; inspect
 skill ingestion and compare Braintrust rows by cellId. Historical descriptor-only

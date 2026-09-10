@@ -751,9 +751,7 @@ function smokeResponse(
 
   switch (name) {
     case "quick_start":
-      return textResult(
-        "GitHits provides routing for `search` and `code_grep`",
-      );
+      return textResult("GitHits routing guide for `search` and `code_grep`");
     case "search_language":
       return textResult("python (Python)\naliases: py");
     case "get_example":

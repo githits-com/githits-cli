@@ -459,3 +459,19 @@ this different catalog. Integrate upstream, temporarily restore its canonical
 guidance for a new three-run baseline, then apply the combined router without
 feedback for three candidate runs. Record both exact source SHAs. The earlier
 character-size table describes the pre-integration candidate only.
+
+The integrated matched baseline is `1fc2e4247559e6e8b6aaf057abf1e9f9f8b9ffd9`,
+[run 34453944757](https://github.com/githits-com/githits-cli/actions/runs/34453944757).
+Its canonical skill/guide match upstream exactly: 6,348 / 5,537 characters.
+The integrated router is 4,515 / 3,984 characters (28.9% / 28.0% smaller).
+No evidence-tool descriptors or runtime appendices differ between these two
+conditions. CI stdout can verify the exact returned skill body before the first
+MCP invocation; it does not expose full Codex discovery or per-request context.
+Do not reinterpret this audit as proof of guide-before-discovery ordering.
+
+Current-catalog validation retained the initial green 4,528-test baseline. The
+candidate's 4,522-test full run had 4,519 passes and three process-startup
+timeouts at the default five seconds while host load exceeded 80. All 26 tests
+in the two affected files passed on an isolated rerun, including those three;
+no timeout thresholds or production behavior were changed. CI validation of the
+candidate is tracked separately from that local run.
