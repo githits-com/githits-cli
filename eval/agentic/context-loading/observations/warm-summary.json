@@ -1,0 +1,80 @@
+[
+  {
+    "host": "codex",
+    "variant": "baseline",
+    "toolCalls": 0,
+    "usage": {
+      "host": "Codex native session",
+      "model": "gpt-6-astra",
+      "evidence": "Five resumed user turns; native token_count.last_token_usage verified one model request and no tools per turn. Terminal usage aggregates are not used because their scope differed between sessions.",
+      "modelRequests": 5,
+      "firstInput": 32269,
+      "lastInput": 32509,
+      "inputGrowth": 240,
+      "cumulativeInput": 161945,
+      "cumulativeCacheRead": 135552,
+      "cumulativeCacheWrite": 0,
+      "cumulativeUncachedInput": 26393,
+      "cumulativeOutput": 140
+    }
+  },
+  {
+    "host": "codex",
+    "variant": "description",
+    "toolCalls": 0,
+    "usage": {
+      "host": "Codex native session",
+      "model": "gpt-6-astra",
+      "evidence": "Five resumed user turns; native token_count.last_token_usage verified one model request and no tools per turn. Terminal usage aggregates are not used because their scope differed between sessions.",
+      "modelRequests": 5,
+      "firstInput": 25120,
+      "lastInput": 25360,
+      "inputGrowth": 240,
+      "cumulativeInput": 126200,
+      "cumulativeCacheRead": 124800,
+      "cumulativeCacheWrite": 0,
+      "cumulativeUncachedInput": 1400,
+      "cumulativeOutput": 140
+    }
+  },
+  {
+    "host": "claude",
+    "variant": "baseline",
+    "toolCalls": 0,
+    "usage": {
+      "host": "Claude Code stream-json",
+      "model": "claude-fable-5-1",
+      "evidence": "Five explicitly Fable-pinned resumed turns after the excluded five Opus turns. No tools. This retains the mixed prior history and is not a fresh same-model continuation from the initial task.",
+      "modelRequests": 5,
+      "firstInput": 38231,
+      "lastInput": 40263,
+      "inputGrowth": 2032,
+      "cumulativeInput": 196235,
+      "cumulativeCacheRead": 165974,
+      "cumulativeCacheWrite": 30251,
+      "cumulativeUncachedInput": 10,
+      "cumulativeOutput": 205
+    },
+    "priorHistory": "five excluded Opus turns retained"
+  },
+  {
+    "host": "claude",
+    "variant": "description",
+    "toolCalls": 0,
+    "usage": {
+      "host": "Claude Code stream-json",
+      "model": "claude-fable-5-1",
+      "evidence": "Five explicitly Fable-pinned resumed turns after the excluded five Opus turns. No tools. This retains the mixed prior history and is not a fresh same-model continuation from the initial task.",
+      "modelRequests": 5,
+      "firstInput": 38306,
+      "lastInput": 40338,
+      "inputGrowth": 2032,
+      "cumulativeInput": 196610,
+      "cumulativeCacheRead": 168956,
+      "cumulativeCacheWrite": 27644,
+      "cumulativeUncachedInput": 10,
+      "cumulativeOutput": 205
+    },
+    "priorHistory": "five excluded Opus turns retained"
+  }
+]

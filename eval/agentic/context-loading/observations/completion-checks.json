@@ -1,0 +1,128 @@
+[
+  {
+    "host": "codex",
+    "variant": "baseline",
+    "repetition": 1,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "codex",
+    "variant": "baseline",
+    "repetition": 2,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "codex",
+    "variant": "baseline",
+    "repetition": 3,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "codex",
+    "variant": "description",
+    "repetition": 1,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "codex",
+    "variant": "description",
+    "repetition": 2,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "codex",
+    "variant": "description",
+    "repetition": 3,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "codex",
+    "variant": "body",
+    "repetition": 1,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "codex",
+    "variant": "body",
+    "repetition": 2,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "codex",
+    "variant": "body",
+    "repetition": 3,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "claude",
+    "variant": "baseline",
+    "repetition": 1,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "claude",
+    "variant": "baseline",
+    "repetition": 2,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "claude",
+    "variant": "baseline",
+    "repetition": 3,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "claude",
+    "variant": "description",
+    "repetition": 1,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "claude",
+    "variant": "description",
+    "repetition": 2,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "claude",
+    "variant": "description",
+    "repetition": 3,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "claude",
+    "variant": "body",
+    "repetition": 1,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "claude",
+    "variant": "body",
+    "repetition": 2,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  },
+  {
+    "host": "claude",
+    "variant": "body",
+    "repetition": 3,
+    "allLocatorsReported": true,
+    "fixtureDisclosed": true
+  }
+]

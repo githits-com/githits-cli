@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "evidence": "Selected stream-json assistant message usage, deduplicated by message ID. Cache read/write buckets are additive to input_tokens. No IDs or content exported.",
+  "host": "Claude Code stream-json",
+  "model": "claude-opus-5",
+  "inputConvention": "uncached-only",
+  "requests": [
+    {
+      "label": "request 1",
+      "input": 2,
+      "cacheRead": 12692,
+      "cacheWrite": 14657,
+      "output": 2
+    },
+    {
+      "label": "request 2",
+      "input": 2,
+      "cacheRead": 27349,
+      "cacheWrite": 2443,
+      "output": 2
+    },
+    {
+      "label": "request 3",
+      "input": 2,
+      "cacheRead": 29792,
+      "cacheWrite": 3095,
+      "output": 33
+    },
+    {
+      "label": "request 4",
+      "input": 2,
+      "cacheRead": 32887,
+      "cacheWrite": 445,
+      "output": 3
+    }
+  ]
+}

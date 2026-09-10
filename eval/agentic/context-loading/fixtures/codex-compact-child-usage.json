@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "host": "Codex Orca child; 2026-09-09",
+  "model": "gpt-6-astra; medium effort",
+  "evidence": "Native session token_count.last_token_usage, one model request per record. Installed 1105-character skill stub; compact discovery instruction in initial user prompt. Initial inputs include unrelated host instructions. Not an isolated current-skill comparison.",
+  "inputConvention": "inclusive",
+  "requests": [
+    {
+      "label": "request 1",
+      "input": 22221,
+      "cacheRead": 6784,
+      "cacheWrite": 0,
+      "output": 173
+    },
+    {
+      "label": "request 2",
+      "input": 22692,
+      "cacheRead": 22016,
+      "cacheWrite": 0,
+      "output": 69
+    },
+    {
+      "label": "request 3",
+      "input": 23083,
+      "cacheRead": 22528,
+      "cacheWrite": 0,
+      "output": 66
+    },
+    {
+      "label": "request 4",
+      "input": 23212,
+      "cacheRead": 22912,
+      "cacheWrite": 0,
+      "output": 31
+    },
+    {
+      "label": "request 5",
+      "input": 23387,
+      "cacheRead": 23040,
+      "cacheWrite": 0,
+      "output": 24
+    },
+    {
+      "label": "request 6",
+      "input": 25242,
+      "cacheRead": 23168,
+      "cacheWrite": 0,
+      "output": 76
+    },
+    {
+      "label": "request 7",
+      "input": 25472,
+      "cacheRead": 25088,
+      "cacheWrite": 0,
+      "output": 32
+    },
+    {
+      "label": "request 8",
+      "input": 26201,
+      "cacheRead": 25344,
+      "cacheWrite": 0,
+      "output": 57
+    },
+    {
+      "label": "request 9",
+      "input": 26503,
+      "cacheRead": 25984,
+      "cacheWrite": 0,
+      "output": 175
+    }
+  ]
+}

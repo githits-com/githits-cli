@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "evidence": "Five resumed user turns; native token_count.last_token_usage verified one model request and no tools per turn. Terminal usage aggregates are not used because their scope differed between sessions.",
+  "host": "Codex native session",
+  "model": "gpt-6-astra",
+  "inputConvention": "inclusive",
+  "requests": [
+    {
+      "label": "request 5",
+      "input": 25120,
+      "cacheRead": 24704,
+      "cacheWrite": 0,
+      "output": 28
+    },
+    {
+      "label": "request 6",
+      "input": 25180,
+      "cacheRead": 24960,
+      "cacheWrite": 0,
+      "output": 28
+    },
+    {
+      "label": "request 7",
+      "input": 25240,
+      "cacheRead": 24960,
+      "cacheWrite": 0,
+      "output": 28
+    },
+    {
+      "label": "request 8",
+      "input": 25300,
+      "cacheRead": 25088,
+      "cacheWrite": 0,
+      "output": 28
+    },
+    {
+      "label": "request 9",
+      "input": 25360,
+      "cacheRead": 25088,
+      "cacheWrite": 0,
+      "output": 28
+    }
+  ]
+}

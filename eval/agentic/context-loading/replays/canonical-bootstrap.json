@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "description": "Idealized deferred-name catalog with one bootstrap and one grep definition",
+  "evidence": "Declared counterfactual retention scenario. See docs/implementation/agent-context-loading.md; not a provider prompt reconstruction or live cost estimate.",
+  "requests": [
+    {
+      "label": "initial",
+      "blocks": ["catalog.names"]
+    },
+    {
+      "label": "bootstrap selected",
+      "blocks": ["catalog.names", "tool.quick_start.definition"]
+    },
+    {
+      "label": "bootstrap loaded",
+      "blocks": [
+        "catalog.names",
+        "tool.quick_start.definition",
+        "bootstrap.stable"
+      ]
+    },
+    {
+      "label": "grep selected and retained",
+      "repeat": 20,
+      "blocks": [
+        "catalog.names",
+        "tool.quick_start.definition",
+        "bootstrap.stable",
+        "tool.code_grep.definition"
+      ]
+    }
+  ]
+}

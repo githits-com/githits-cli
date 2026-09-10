@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "evidence": "Five explicitly Fable-pinned resumed turns after the excluded five Opus turns. No tools. This retains the mixed prior history and is not a fresh same-model continuation from the initial task.",
+  "host": "Claude Code stream-json",
+  "model": "claude-fable-5-1",
+  "inputConvention": "uncached-only",
+  "terminalOutputTokens": 205,
+  "requests": [
+    {
+      "label": "request 1",
+      "input": 2,
+      "cacheRead": 12692,
+      "cacheWrite": 25612,
+      "output": null
+    },
+    {
+      "label": "request 1",
+      "input": 2,
+      "cacheRead": 38304,
+      "cacheWrite": 508,
+      "output": null
+    },
+    {
+      "label": "request 1",
+      "input": 2,
+      "cacheRead": 38812,
+      "cacheWrite": 508,
+      "output": null
+    },
+    {
+      "label": "request 1",
+      "input": 2,
+      "cacheRead": 39320,
+      "cacheWrite": 508,
+      "output": null
+    },
+    {
+      "label": "request 1",
+      "input": 2,
+      "cacheRead": 39828,
+      "cacheWrite": 508,
+      "output": null
+    }
+  ]
+}
