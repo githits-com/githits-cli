@@ -113,7 +113,7 @@ export function documentationReadLocator(
 }
 
 function isHttpUrl(value: string): boolean {
-  return value.startsWith("http://") || value.startsWith("https://");
+  return /^https?:\/\//i.test(value);
 }
 
 function hasHttpFragment(value: string): boolean {

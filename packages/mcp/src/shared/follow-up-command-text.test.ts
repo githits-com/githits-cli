@@ -175,6 +175,23 @@ describe("buildSearchHitFollowUpCommand documentation targets", () => {
     );
   });
 
+  it("recognizes a mixed-case HTTP scheme when promoting a source fragment", () => {
+    const docsReadTarget = "HTTPS://docs.example.test/guide?q=exact";
+    const sourceUrl = `${docsReadTarget}#routing`;
+
+    expect(
+      buildSearchHitFollowUpCommand(
+        documentationHit({
+          pageId: "legacy-crawled-id",
+          docsReadTarget,
+          sourceUrl,
+          startLine: 81,
+          endLine: 93,
+        }),
+      ),
+    ).toBe(`docs_read page_id=${JSON.stringify(sourceUrl)}`);
+  });
+
   it("passes an existing fragment unchanged without search-window bounds", () => {
     const docsReadTarget = "https://docs.example.test/guide#routing";
 
@@ -184,6 +201,21 @@ describe("buildSearchHitFollowUpCommand documentation targets", () => {
           pageId: "legacy-crawled-id",
           docsReadTarget,
           sourceUrl: docsReadTarget,
+          startLine: 81,
+          endLine: 93,
+        }),
+      ),
+    ).toBe(`docs_read page_id=${JSON.stringify(docsReadTarget)}`);
+  });
+
+  it("passes a mixed-case HTTP target with a fragment unchanged", () => {
+    const docsReadTarget = "HtTp://docs.example.test/guide#routing";
+
+    expect(
+      buildSearchHitFollowUpCommand(
+        documentationHit({
+          pageId: "legacy-crawled-id",
+          docsReadTarget,
           startLine: 81,
           endLine: 93,
         }),
