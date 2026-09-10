@@ -92,7 +92,21 @@ const targetErrorSchema = z.object({
   }),
 });
 
-type TargetErrorDetail = z.infer<typeof targetErrorSchema>["detail"];
+interface TargetErrorDetail {
+  code: "INVALID_TARGET_SYNTAX" | "TARGET_RESOLUTION_FAILED";
+  message: string;
+  hint: string;
+  reason?:
+    | "ambiguous"
+    | "missing_best"
+    | "unsupported_kind"
+    | "low_confidence"
+    | "missing_full_target"
+    | "unsafe_latest_version"
+    | "invalid_canonical_target"
+    | "kind_mismatch"
+    | "explicit_target_mismatch";
+}
 
 const mcpCodeReadSourceCallSchema = z.object({
   name: z.literal("code_read"),
@@ -289,7 +303,7 @@ export class AgenticAskHttpError extends Error {
     readonly retryAfterSeconds?: number,
     retryable = false,
     readonly threadId?: string,
-    readonly targetError?: TargetErrorDetail,
+    readonly targetError: TargetErrorDetail | undefined = undefined,
   ) {
     super(message);
     this.name = "AgenticAskHttpError";
