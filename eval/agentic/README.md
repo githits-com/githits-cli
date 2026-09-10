@@ -94,13 +94,53 @@ global-instruction file is rejected even when empty; nested `AGENTS.md` files
 do not trigger this preflight because they are outside Codex's documented
 global discovery root.
 
-For local subscription authentication, log in once to a dedicated home and use
+For local Codex subscription authentication, log in to a dedicated home and use
 that same home for evals:
 
 ```bash
 CODEX_HOME="$HOME/.codex-eval" codex login -c 'cli_auth_credentials_store="file"'
 CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface mcp --server local --workload eval/agentic/workloads/package-overview-vulnerabilities.md
 CODEX_HOME="$HOME/.codex-eval" bun run agent:e2e --agent codex --surface skills --server local --workload eval/agentic/workloads/package-overview-vulnerabilities.md
+```
+
+Re-run the first command to refresh that dedicated login. To switch accounts,
+run `CODEX_HOME="$HOME/.codex-eval" codex logout` first. Re-authentication does
+not reset an account's usage limits.
+
+Claude workload runs cannot reuse an ordinary host subscription login because
+the acting agent receives a disposable `HOME`. Runs made before disposable-home
+isolation could reuse that login without additional setup. For current
+subscription-backed evals, create a long-lived authentication token from the
+normal host environment:
+
+```bash
+claude setup-token
+```
+
+`claude setup-token` prints the token but does not store it. Completing that
+command alone is therefore insufficient for the harness. Store the emitted
+secret in a secure local store and inject it as `CLAUDE_CODE_OAUTH_TOKEN` when
+launching the eval. An `ANTHROPIC_API_KEY` is also supported. Never paste either
+value into a command, commit it, or copy it into an eval run directory.
+
+When an already-running agent will launch the eval on macOS, hand off the token
+through Keychain rather than chat or a repository file. Run this yourself and
+paste the token only into the hidden prompt:
+
+```bash
+security add-generic-password -U -a githits-agent-eval \
+  -s claude-code-oauth-token -w
+```
+
+The `-U` flag creates the item or replaces its current value. This macOS-only
+command keeps the value out of shell history and repository files.
+
+The agent can then inject it into the Claude subprocess without printing it:
+
+```bash
+CLAUDE_CODE_OAUTH_TOKEN="$(security find-generic-password \
+  -a githits-agent-eval -s claude-code-oauth-token -w)" \
+  bun run agent:e2e --agent claude --workload <workload>
 ```
 
 The acting agent still receives only the disposable per-workload
@@ -809,12 +849,9 @@ This Claude-specific probe lives outside the named-suite `workloads/` inventory
 because named suites run the fixed Codex/Luna matrix. Run it only with the
 one-off command above.
 
-Claude workload runs use a disposable acting-agent `HOME`, so an ordinary host
-subscription login from `claude auth login` is not visible to this command. Use
-one of the harness-preserved non-interactive Claude authentication inputs
-(`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`) without printing or copying
-credential values into the run directory. A direct normal-home Claude canary
-can confirm host behavior, but is not harness isolation evidence.
+A direct normal-home Claude canary can confirm host behavior, but is not harness
+isolation evidence; use the non-interactive Claude authentication flow described
+under **Isolation** for this command.
 
 The candidate behavior is one `quick_start` call before `pkg_info` or
 `pkg_vulns`. Harness success alone is insufficient, and this probe does not

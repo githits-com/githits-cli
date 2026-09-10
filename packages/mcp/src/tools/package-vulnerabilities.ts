@@ -80,7 +80,7 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Use `text` (default) for reading and tool follow-ups; it is token-efficient. Use `json` only to parse responses in code or obtain fields absent from text.",
+      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
     ),
 };
 
@@ -92,8 +92,8 @@ export const DESCRIPTION_BASE: string =
   "Supports npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift; vcpkg and Zig unsupported. " +
   "Returns counts/details: identifiers and aliases, including CVEs when available, severity, affected ranges, and fixes; malicious advisories are separate. " +
   "Pinned lookup: pass `version`; omit it for latest. " +
-  "Default text is capped; `verbose:true` shows all selected rows and identifier aliases (including CVEs), while " +
-  '`format:"json"` returns the complete envelope. `min_severity` filters thresholds (`low`, `medium`, `high`, `critical`); `include_withdrawn` includes retracted advisories. ' +
+  "Default text is capped; `verbose:true` shows all selected rows and identifier aliases (including CVEs). " +
+  'For code consuming raw output, `format:"json"` returns the complete envelope. `min_severity` filters thresholds (`low`, `medium`, `high`, `critical`); `include_withdrawn` includes retracted advisories. ' +
   "Use `include_transitive:true` for dependency vulnerability evidence covering the resolved graph; this is opt-in because it adds graph-analysis cost. `min_severity` and `advisory_scope` apply to direct and transitive rows, while `include_withdrawn` affects direct rows only and transitive withdrawn advisories remain excluded. " +
   "Use `pkg_info` for latest health overview or `pkg_upgrade_review` for current-vs-target upgrade evidence.";
 

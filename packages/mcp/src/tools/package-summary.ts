@@ -47,7 +47,7 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Use `text` (default) for reading and tool follow-ups; it is token-efficient. Use `json` only to parse responses in code or obtain fields absent from text. JSON includes `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total`.",
+      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text. JSON includes `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total`.",
     ),
 };
 
@@ -61,7 +61,7 @@ export const DESCRIPTION_BASE: string =
   "GitHub language/topics/last-pushed, " +
   "published-version count, download refresh date, package-wide advisory " +
   "history (all versions), " +
-  'and recent changes. Pass `format: "json"` for structured fields ' +
+  'and recent changes. For code consuming raw output, `format: "json"` exposes structured fields ' +
   "including `versionCount`, `downloads.refreshedAt`, and " +
   "`advisoryHistory.total`. Use " +
   '`pkg_vulns` for version-specific vulnerability details, or pass `advisory_scope: "all"` for package-wide history; use `pkg_deps` for the dependency graph, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison.';

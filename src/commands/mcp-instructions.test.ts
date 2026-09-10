@@ -74,23 +74,24 @@ describe("buildMcpQuickStart", () => {
   it("preserves output, scope, provenance and evidence limits", () => {
     const instructions = buildMcpQuickStart();
     expect(instructions).toContain(
-      "Keep default text for reading and follow-ups",
+      "Keep default token-efficient text whenever the model reads the result",
     );
+    expect(instructions).toContain("omit `format` in that case");
     expect(instructions).toContain(
-      "Use JSON only for programmatic parsing or required fields missing from\ntext",
+      "Set JSON only when code consumes the raw response instead of the model",
     );
     expect(instructions).toContain(
       "public OSS only, never local/private/proprietary source",
     );
     expect(instructions).toContain("Never infer a repository provider");
-    expect(instructions).toContain(
-      "Cite tool-owned provenance, including get_example source references",
+    expect(instructions).toMatch(
+      /Cite\s+tool-owned\s+provenance, including get_example source references/,
     );
-    expect(instructions).toContain(
-      "report coverage, truncation and other evidence limits",
+    expect(instructions).toMatch(
+      /report\s+coverage,\s+truncation and other evidence limits/,
     );
-    expect(instructions).toContain(
-      "do not invent them. Read only needed\nlines",
+    expect(instructions).toMatch(
+      /do not invent them\. Read only needed\s+lines/,
     );
   });
 
