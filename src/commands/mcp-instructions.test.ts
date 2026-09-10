@@ -125,8 +125,9 @@ describe("buildMcpQuickStart", () => {
       "`docs_list` browses package pages, not standalone `site:` targets",
     );
     expect(instructions).toContain(
-      "Pass the emitted `docsReadTarget` (or historical `pageId`) to `docs_read`",
+      "Pass a `[docs page]` search target unchanged to `docs_read`",
     );
+    expect(instructions).toContain("Either bound overrides a fragment");
   });
 
   it("retains comparative examples and language disambiguation routes", () => {

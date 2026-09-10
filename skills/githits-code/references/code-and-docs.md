@@ -46,7 +46,7 @@ When grep returns no matches, do not repeat it unchanged. Change or shorten the 
 
 `githits docs list <spec>` browses available documentation pages. It is not topic search.
 
-`githits docs read <docsReadTarget>` reads a page using the emitted read target; historical `pageId` values remain supported. `sourceUrl` records provenance and is not an interchangeable read target. Text output honors the requested range; use explicit `--lines` windows to keep only needed context. Use `--json` when extracting `startLine`, `endLine`, `totalLines`, or source metadata.
+`githits docs read <target>` passes a displayed `[docs page]` target or emitted `docsReadTarget` unchanged. If it has an HTTP(S) fragment, omit `--lines` to read that exact indexed section. Otherwise follow the returned target/range. Historical `pageId` values remain supported; `sourceUrl` is provenance. Use `--json` for range or source metadata.
 
 For topic search, use `githits search "<topic>" --source docs --in <target>`, then pass the emitted `docsReadTarget` to `docs read`.
 

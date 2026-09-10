@@ -36,7 +36,10 @@ target forms and argument details.
 
 For a package or site docs topic, use \`search\` with \`source:"docs"\`.
 \`docs_list\` browses package pages, not standalone \`site:\` targets.
-Pass the emitted \`docsReadTarget\` (or historical \`pageId\`) to \`docs_read\`.
+Pass a \`[docs page]\` search target unchanged to \`docs_read\`; omit bounds when
+it has an HTTP(S) fragment to read the exact indexed section. Otherwise follow
+the returned target/range. Either bound overrides a fragment; historical
+\`pageId\` works.
 For source evidence, locate paths or matches before reading; never use
 \`code_read\` to list/probe directories.
 
@@ -107,7 +110,7 @@ const LOCAL_AGENTIC_ASK_GUIDANCE_END =
   ' Reuse a returned `thread_id` only when the previous answer is insufficient or more information is needed. Sources default to directly callable MCP tools; use `source_format:"url"` for original upstream URLs. Do not invent or rewrite sources. Use the returned Ask run ID when reporting a defect.';
 
 const LOCAL_RESOLVE_TARGET_GUIDANCE =
-  '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, `codeberg:owner/repo`, `gitlab:group/subgroup/project`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` target is docs-only: pass it to `search` with `source:"docs"`; request `format:"json"` only if required locator fields are absent from text, then use its `docsReadTarget` (or `pageId`) and range with `docs_read`.';
+  '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, `codeberg:owner/repo`, `gitlab:group/subgroup/project`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` is docs-only: pass it to `search` with `source:"docs"`; request JSON only for missing fields; use a `[docs page]` target unchanged, otherwise its returned target/range.';
 
 const LOCAL_CODE_DIFF_GUIDANCE =
   "- `code_diff` — compare exact package versions or public repository refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text`; use `json` only for required fields absent from text or the full returned patch. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";

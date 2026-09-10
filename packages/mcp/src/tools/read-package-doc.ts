@@ -27,7 +27,7 @@ const schema: ZodRawShape = {
   page_id: z
     .string()
     .describe(
-      "Emitted `docsReadTarget` or historical `pageId` from `docs_list` or `search`. Pass through unchanged; repo-backed targets are snapshot-pinned IDs.",
+      "Displayed `[docs page]` target, emitted `docsReadTarget`, or historical `pageId`. Pass unchanged; repo targets are snapshot-pinned.",
     ),
   start_line: z
     .number()
@@ -35,7 +35,7 @@ const schema: ZodRawShape = {
     .positive()
     .optional()
     .describe(
-      `Explicit starting line (1-indexed). Either explicit bound overrides a URL fragment. Omit both bounds to resolve an indexed fragment or read the full page. Without \`end_line\`, text output returns at most ${MCP_DOC_READ_DEFAULT_SPAN} lines from the backend selection.`,
+      `Explicit 1-indexed start. Either bound overrides a URL fragment; omit both to resolve its exact indexed section. In text, omitting \`end_line\` caps display at ${MCP_DOC_READ_DEFAULT_SPAN} selected lines.`,
     ),
   end_line: z
     .number()
@@ -43,7 +43,7 @@ const schema: ZodRawShape = {
     .positive()
     .optional()
     .describe(
-      `Explicit ending line (inclusive). Either explicit bound overrides a URL fragment. Text locally displays up to ${MCP_DOC_READ_MAX_SPAN} lines when an end is explicit; omitting it displays up to ${MCP_DOC_READ_DEFAULT_SPAN} lines from the backend selection. JSON returns the complete backend selection. Must be ≥ \`start_line\` when both are set.`,
+      `Explicit inclusive end; must be ≥ \`start_line\` when both are set. Text displays at most ${MCP_DOC_READ_MAX_SPAN} selected lines when set, otherwise ${MCP_DOC_READ_DEFAULT_SPAN}; JSON has no local cap.`,
     ),
   format: z
     .enum(["text", "json"])
@@ -55,10 +55,10 @@ const schema: ZodRawShape = {
 
 export const DESCRIPTION_BASE: string =
   "Read a package documentation page by emitted target or stable page ID. " +
-  "Pass `docsReadTarget` from `docs_list` or `search` to `page_id`; historical IDs remain accepted. " +
-  "An HTTP(S) fragment resolves one exact indexed section; either explicit line bound overrides it. " +
-  `Crawled and repo-backed docs are supported. Text locally displays ${MCP_DOC_READ_DEFAULT_SPAN} lines by default or up to ${MCP_DOC_READ_MAX_SPAN} lines when an end is explicit, with an absolute continuation when truncated. ` +
-  "JSON retains the backend range, resolved anchor, `docsReadTarget`, stable `pageId`, and `sourceUrl`; repo-backed results include exact `code_read` metadata.";
+  "Pass a `[docs page]` target from `search` or `docsReadTarget` from `docs_list` unchanged to `page_id`; historical IDs work. " +
+  "Without line bounds, an HTTP(S) fragment reads its exact indexed section; either bound overrides it. " +
+  `Text displays ${MCP_DOC_READ_DEFAULT_SPAN} lines by default or up to ${MCP_DOC_READ_MAX_SPAN} lines with an explicit end and gives an absolute continuation when truncated. ` +
+  "JSON retains the backend range, anchor, `docsReadTarget`, stable `pageId`, and `sourceUrl`; repo results include exact `code_read` metadata.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${DOCS_GUARDRAIL}`;
 

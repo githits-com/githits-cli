@@ -17,7 +17,10 @@
 
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { colors, dim, highlight, highlightRanges } from "./colors.js";
-import { semanticReadLocation } from "./follow-up-command-text.js";
+import {
+  documentationReadLocator,
+  semanticReadLocation,
+} from "./follow-up-command-text.js";
 import { formatRepositoryTarget } from "./repository-target.js";
 import {
   projectUnifiedSearchPresentation,
@@ -1160,7 +1163,8 @@ function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
   const loc = hit.locator;
   if (hit.type === "documentation_page") {
     const docsReadTarget =
-      loc.docsReadTarget ?? loc.pageId ?? "documentation target unavailable";
+      documentationReadLocator(hit).target ||
+      "documentation target unavailable";
     const type = "[docs page]";
     const target = formatDocumentationTarget(hit);
     const sourceUrl = formatDocumentationSourceUrl(

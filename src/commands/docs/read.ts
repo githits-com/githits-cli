@@ -96,8 +96,8 @@ function handleDocsReadError(error: unknown, json: boolean): never {
 
 const DOCS_READ_DESCRIPTION = `Read a documentation page by emitted target or page ID.
 
-Prefer docsReadTarget from githits docs list, githits search --json, or MCP
-doc/search results. Historical page IDs remain accepted. Default output is
+Pass the displayed [docs page] target from githits search or docsReadTarget from
+githits docs list unchanged. Historical page IDs remain accepted. Default output is
 content-only for easy piping; pass --verbose for a metadata header. Use --lines
 for a bounded line range (e.g. \`--lines 10-40\`,
 \`--lines 10-\` for open-ended, or \`--lines -40\` for the first 40 lines) —

@@ -342,14 +342,17 @@ describe("agent skills packaging", () => {
     ]);
   });
 
-  it("keeps code skill pagination guidance aligned with CLI output", async () => {
+  it("keeps code skill documentation reads aligned with fragment semantics", async () => {
     const content = await read(githitsCodeSkillPath);
 
     expectContainsAll(content, [
-      "Documentation text reads honor the requested range",
-      "Use explicit `--lines` windows to keep only needed context",
-      "pass `--json` when you need `startLine`, `endLine`, or `totalLines` metadata",
+      "pass a displayed `[docs page]` target or emitted `docsReadTarget` unchanged",
+      "If it has an HTTP(S) fragment, omit `--lines` to read that exact indexed section",
+      "Otherwise follow the returned target/range",
+      "Use `--json` for range metadata",
     ]);
+    expect(content).toContain("githits docs read <docsReadTarget>\n");
+    expect(content).not.toContain("githits docs read <docsReadTarget> --lines");
   });
 
   it("requires generated plugin asset validation before package creation", async () => {

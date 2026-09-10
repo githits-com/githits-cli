@@ -26,6 +26,11 @@ describe("buildLocalMcpQuickStart", () => {
     expect(quickStart).toContain("artifact/manifest root");
     expect(quickStart).toContain("public repository");
     expect(quickStart).toContain("full repositories or sibling packages");
+    expect(quickStart).toContain(
+      "omit bounds when\nit has an HTTP(S) fragment to read the exact indexed section",
+    );
+    expect(quickStart).toContain("Otherwise follow\nthe returned target/range");
+    expect(quickStart).toContain("Either bound overrides a fragment");
   });
 
   it("keeps deprecated instruction builders as exact compatibility aliases", () => {
@@ -69,11 +74,10 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("documentation-site names");
     expect(instructions).toContain("`site:<host[/path]>`");
     expect(instructions).toContain('`source:"docs"`');
-    expect(instructions).toContain('`format:"json"`');
+    expect(instructions).toContain("request JSON only for missing fields");
     expect(instructions).toContain(
-      "its `docsReadTarget` (or `pageId`) and range",
+      "use a `[docs page]` target unchanged, otherwise its returned target/range",
     );
-    expect(instructions).toContain("to `docs_read`");
     expect(instructions).toContain("EXACT/HIGH");
     expect(instructions).toContain("CLEAR or NOT_APPLICABLE");
     expect(instructions).toContain(
@@ -93,7 +97,7 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain(
       "returned Ask run ID when reporting a defect.\n- `resolve_target`",
     );
-    expect(instructions).toContain("with `docs_read`.\n- `code_diff`");
+    expect(instructions).toContain("target/range.\n- `code_diff`");
     expect(instructions.length - buildMcpQuickStart().length).toBeLessThan(
       2_000,
     );

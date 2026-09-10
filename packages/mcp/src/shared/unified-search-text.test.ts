@@ -974,7 +974,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("[1] aider/edit-formats [docs page]");
   });
 
-  it("deduplicates target provenance while preserving a source fragment", () => {
+  it("promotes a source fragment to the exact docs read target", () => {
     const docsReadTarget = "https://expressjs.com/en/5x/guide/routing/";
     const text = renderUnifiedSearchSuccess(
       completed([
@@ -990,7 +990,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      `[1] ${docsReadTarget} [docs page] npm:express - #route-handlers -`,
+      `[1] ${docsReadTarget}#route-handlers [docs page] npm:express -`,
     );
     expect(text.match(/expressjs\.com/g)).toHaveLength(1);
   });

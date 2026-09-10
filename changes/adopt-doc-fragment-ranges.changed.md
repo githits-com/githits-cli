@@ -3,4 +3,4 @@
 "@githits/mcp": patch
 ---
 
-- **Read exact documentation sections and ranges** - `docs read` and `docs_read` now pass explicit bounds to the backend, resolve indexed URL fragments, preserve absolute page coordinates, and keep unresolved sections distinct from missing pages; deploy the compatible backend schema before releasing this client.
+- **Read exact documentation sections and ranges** - Search now emits indexed fragments as ready-to-read targets, while `docs read` and `docs_read` resolve them without synthetic bounds, preserve absolute page coordinates, and keep unresolved sections distinct from missing pages; deploy the compatible backend schema before releasing this client.

@@ -804,7 +804,7 @@ githits docs read <docs-read-target> --verbose
 githits docs read <docs-read-target> --json
 ```
 
-Reads a documentation page returned by `docs list` or search results. Prefer the emitted `docsReadTarget`; historical crawled IDs and snapshot-pinned repository IDs remain compatible. URL reads resolve only active existing content and never enqueue crawling. Default output is content-only for easy piping; `--verbose` adds a metadata header.
+Reads a documentation page returned by `docs list` or search results. Pass the displayed `[docs page]` target or emitted `docsReadTarget` unchanged; search text promotes an exact indexed fragment to that displayed target. Historical crawled IDs and snapshot-pinned repository IDs remain compatible. URL reads resolve only active existing content and never enqueue crawling. Default output is content-only for easy piping; `--verbose` adds a metadata header.
 
 **Fragments and line ranges.** An HTTP(S) fragment with no explicit range resolves exactly one indexed section in the backend. `--lines 10-40`, `--lines 10-`, and `--lines -40` are supported and forward only their written bounds; either bound overrides the fragment. The backend defaults omitted bounds, clamps an end beyond EOF, and rejects invalid starts/ranges. The CLI never strips or normalizes opaque IDs and does not infer publisher anchor slugs.
 

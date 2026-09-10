@@ -144,6 +144,7 @@ const DESCRIPTION_ROUTING: Record<
       "`search`",
       "`code_read`",
       "`docsReadTarget`",
+      "fragment reads its exact indexed section",
       "150 lines by default",
       "up to 300 lines",
     ],

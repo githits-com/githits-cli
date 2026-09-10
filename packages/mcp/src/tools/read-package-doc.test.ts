@@ -59,18 +59,18 @@ describe("createReadPackageDocTool", () => {
       "format",
     ]);
     expect(tool.description).toContain(
-      "fragment resolves one exact indexed section",
+      "fragment reads its exact indexed section",
     );
+    expect(tool.description).toContain("Without line bounds");
+    expect(tool.description).toContain("either bound overrides it");
     expect(tool.description).toContain("up to 300");
     expect(tool.description).toContain("stable `pageId`");
-    expect(tool.schema.page_id?.description).toContain(
-      "Pass through unchanged",
-    );
+    expect(tool.schema.page_id?.description).toContain("Pass unchanged");
     expect(tool.schema.start_line?.description).toContain(
-      "Either explicit bound overrides a URL fragment",
+      "Either bound overrides a URL fragment",
     );
     expect(tool.schema.end_line?.description).toContain(
-      "complete backend selection",
+      "JSON has no local cap",
     );
   });
 

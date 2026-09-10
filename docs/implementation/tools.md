@@ -647,7 +647,7 @@ available. Repository documentation retains its heading. JSON retains titles.
   <summary line 1>
   <summary line 2 (wrapped at output width)>
 [blank]
-[2] <docs-read-target> [docs page] <target> - <host/path#anchor> - <title>
+[2] <docs-read-target#anchor> [docs page] <target> - <title>
   <summary, when informative>
 ```
 
@@ -655,11 +655,13 @@ Hit headers are numbered so ranked results can be referenced as `[1]` through
 `[N]`. Repository and code hits keep the exact target and file location needed
 for `code_read` before a bracketed type tag (`[repo doc]`, `[repo code]`, or
 `[repo symbol]`); their free-form title is the final header tail. Documentation
-hits prefer the emitted `docsReadTarget` needed for `docs_read`, a stable
-package target, human-readable source URL, and title in that order. Distinct
-source provenance uses `host/path#anchor` without the protocol; when it differs
-from the target only by fragment, only `#anchor` is repeated. Exact duplicate
-locators are omitted. Unavailable fields are rendered as
+hits prefer the exact read target needed for `docs_read`, a stable package
+target, distinct human-readable source URL, and title in that order. When a
+crawled hit's source URL is exactly its HTTP(S) `docsReadTarget` plus a nonempty
+fragment, the shared formatter promotes that unchanged source URL to the read
+target instead of repeating the fragment as provenance. Other distinct source
+provenance uses `host/path#anchor` without the protocol. Exact duplicate locators
+are omitted. Unavailable fields are rendered as
 explicit `documentation target unavailable`, `target unavailable`,
 `source URL unavailable`, or `title unavailable` values. Executable
 `docs_read` / `code_read` command
@@ -683,7 +685,7 @@ Breakdowns use `repo code hit(s)` and `repo symbol(s)` alongside `repo doc(s)`
 and `docs page(s)`. When more results exist without a next offset, the final field is
 `more available`. Pagination is not repeated as a bottom paragraph.
 
-**Follow-up — crawled-doc section anchors.** Unified search can label a crawled documentation hit with a matching section title and return an HTTP(S) `docsReadTarget` containing its indexed fragment. Passing that target to `docs_read` without explicit line bounds resolves exactly one indexed section in the backend and reports its absolute page range. Missing, duplicate, windowed/inexact, or unsupported sections return non-retryable `DOCUMENTATION_SECTION_UNRESOLVED` with a reason; they never become `NOT_FOUND` or a successful full-page read. Publisher-only IDs omitted during ingestion remain unavailable. The client passes locators unchanged and does not synthesize website slug rules.
+**Follow-up — crawled-doc section anchors.** Unified search can label a crawled documentation hit with a matching section title. When its emitted `sourceUrl` is byte-for-byte the HTTP(S) `docsReadTarget` plus a nonempty fragment, the shared formatter promotes that exact URL to the displayed read target and generated follow-up and omits the search preview's line bounds. A `docsReadTarget` that already contains a fragment is also passed unchanged without bounds. The backend then resolves exactly one indexed section and reports its absolute page range. Missing, duplicate, windowed/inexact, or unsupported sections return non-retryable `DOCUMENTATION_SECTION_UNRESOLVED` with a reason; they never become `NOT_FOUND` or a successful full-page read. Publisher-only IDs omitted during ingestion remain unavailable. The client never decodes or normalizes locator bytes and does not synthesize website slug rules.
 
 Completed-empty action selection is target-aware: exact terminal lanes with no
 searched/indexing peer get local recovery, while searched-empty evidence can get

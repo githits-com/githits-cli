@@ -54,10 +54,10 @@ export function buildSearchHitFollowUpCommand(
   }
   const loc = hit.locator;
   if (loc.pageId) {
-    const docsReadTarget = loc.docsReadTarget ?? loc.pageId;
+    const read = documentationReadLocator(hit);
     return syntax === "cli"
-      ? buildCliDocsReadCommand(docsReadTarget, loc.startLine, loc.endLine)
-      : buildDocsReadCommand(docsReadTarget, loc.startLine, loc.endLine);
+      ? buildCliDocsReadCommand(read.target, read.startLine, read.endLine)
+      : buildDocsReadCommand(read.target, read.startLine, read.endLine);
   }
   if (
     (hit.type === "repository_code" || hit.type === "repository_symbol") &&
@@ -79,6 +79,47 @@ export function buildSearchHitFollowUpCommand(
   }
   if (loc.sourceUrl) return loc.sourceUrl;
   return "";
+}
+
+interface DocumentationReadLocator {
+  target: string;
+  startLine?: number;
+  endLine?: number;
+}
+
+/** Select the exact backend-owned docs locator without rewriting URL bytes. */
+export function documentationReadLocator(
+  hit: UnifiedSearchHitPayload,
+): DocumentationReadLocator {
+  const loc = hit.locator;
+  const target = loc.docsReadTarget ?? loc.pageId ?? "";
+  if (hasHttpFragment(target)) return { target };
+
+  const fragmentPrefix = `${target}#`;
+  if (
+    hit.type === "documentation_page" &&
+    isHttpUrl(target) &&
+    loc.sourceUrl?.startsWith(fragmentPrefix) &&
+    loc.sourceUrl.length > fragmentPrefix.length
+  ) {
+    return { target: loc.sourceUrl };
+  }
+
+  return {
+    target,
+    startLine: loc.startLine,
+    endLine: loc.endLine,
+  };
+}
+
+function isHttpUrl(value: string): boolean {
+  return value.startsWith("http://") || value.startsWith("https://");
+}
+
+function hasHttpFragment(value: string): boolean {
+  if (!isHttpUrl(value)) return false;
+  const fragmentIndex = value.indexOf("#");
+  return fragmentIndex >= 0 && fragmentIndex < value.length - 1;
 }
 
 interface SemanticReadLocation {
