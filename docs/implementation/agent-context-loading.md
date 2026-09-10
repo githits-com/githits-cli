@@ -388,90 +388,180 @@ Braintrust rows kept separate by scenario/cell identity. Baseline and candidate
 must use the same coverage; older descriptor-only experiments cannot establish
 the effect of changing an installed skill.
 
-## Combined production candidate and matched PR evaluation
+## Combined production guidance
 
-The selected candidate uses the routing-study skill and `quick_start`
-descriptions. It keeps the question-to-tool table and defers argument mechanics
-to selected descriptors, without `ALL_TOOLS` instructions or host-specific forks.
-Compared with the experimental router, it formats tool names as code and retains
-explicit artifact/manifest-root versus full-repository scope, Swift/Zig target
-examples, docs-topic routing and emitted locators, and the directory-read boundary.
-It is therefore a refined candidate, not the exact 3,490-character study guide.
-The external-content posture is byte-for-byte unchanged.
+The selected skill and `quick_start` descriptions use the routing-study wording.
+The shared guide leads with a question-to-tool table and defers argument mechanics
+to the selected descriptor. No `ALL_TOOLS` instructions or host-specific forks
+are added. The canonical builder owns the guide and the terminal skill section
+embeds it exactly; every evidence-tool description and the runtime-only local
+appendices remain unchanged between the matched conditions.
 
-| Surface | Matched baseline characters | Candidate characters |
-| --- | ---: | ---: |
-| Complete skill | 6,396 | 4,563 |
-| Shared quick-start guide | 5,585 | 4,032 |
+Compared with the experimental router, the production guide retains the existing
+artifact/manifest-root versus full-repository scope, Swift/Zig target examples,
+docs-topic routing, emitted locators and the directory-read boundary. Tool names
+are formatted as code, and the retired feedback tool is omitted. The
+external-content posture is byte-for-byte unchanged. This is a refined candidate,
+not the exact 3,490-character guide from the historical fixture study.
 
-These are text sizes, not token/cost estimates. The canonical builder owns the
-shared guide and the terminal skill section embeds it exactly. The runtime-only
-experimental appendices and all evidence-tool descriptions remain unchanged.
-Both public artifacts have a pending patch fragment; package versions await the
-normal release process. CLI code/package skills retain their existing routing
-because this change concerns MCP discovery and adds no CLI behavior.
+| Surface | Baseline characters | Candidate characters | Reduction |
+| --- | ---: | ---: | ---: |
+| Complete skill | 6,348 | 4,515 | 28.9% |
+| Shared quick-start guide | 5,537 | 3,984 | 28.0% |
 
-The matched CI baseline is `8aa5492760149564496daf84aaa9d9225cf2f6bb`,
-starting with [run 34452621919](https://github.com/githits-com/githits-cli/actions/runs/34452621919).
-Three baseline and three candidate repetitions will use the same matrix:
-2 discovery, 22 intent and 22 full-guidance cells. Inspect actual skill reads,
-match Braintrust rows by `metadata.cellId`, and report inclusive input, cache,
-uncached input, output, cost, tool errors and completion separately. An installed
-skill is not proof it was read, and self-reported confidence is not answer quality.
-Results are pending; the earlier descriptor-only main baseline is not a matched
-baseline for the new full-guidance cells. Baseline attempt 1's Braintrust rows
-remain available, but starting its rerun before downloading artifacts cleared
-the downloadable raw traces. Attempt 1 cannot support a new skill-ingestion
-audit. Archive each later attempt before rerunning.
+These are Unicode text sizes, not token estimates. Both public artifacts have a
+pending patch fragment; versions await normal release preparation. CLI code and
+package skills retain their upstream routing because this changes MCP discovery
+and adds no CLI behavior. Hosted clients receive the MCP changes only after the
+package is released and adopted by the hosted server.
 
-Local validation: all 4,513 tests, typecheck, build and plugin generation/check
-pass. Initial MCP live smoke timed out at 60 seconds on the unchanged
-`get_example` JSON operation; the complete 59-step live retry passed. CLI stable live
-coverage and JSON parity completed, then experimental resolver smoke failed:
-`expressjs` returns `site:expressjs.com` with medium confidence and the expected
-related targets, while the existing smoke assertion requires exact/high.
-A direct scoped probe reproduced this mismatch. This guide-only change does
-not alter resolver scores; retain the assertion and evidence for backend
-confidence investigation rather than weakening the test.
+## Matched PR comparison
+
+The matched baseline is `1fc2e4247559e6e8b6aaf057abf1e9f9f8b9ffd9`,
+[run 34453944757](https://github.com/githits-com/githits-cli/actions/runs/34453944757).
+The candidate is `2a02a2ea22bb8709f2f4169bceb186af91e0a4a7`,
+[run 34454862897](https://github.com/githits-com/githits-cli/actions/runs/34454862897).
+Each condition has three complete attempts under the same 15-tool catalog,
+workload matrix, harness, requested model and rate snapshot. Each attempt covers
+2 neutral descriptor-only discovery cells, 22 GitHits-intent descriptor-only cells,
+and 22 neutral full-guidance cells. The full scenario installs the MCP skill;
+the descriptor-only scenarios do not.
+
+The complete combined change improves the skill-bearing cohort, but is not a
+universal token reduction. Median totals per complete scenario run:
+
+| Scenario | Input baseline -> candidate | Input delta | Estimated cost baseline -> candidate | Cost delta |
+| --- | ---: | ---: | ---: | ---: |
+| Discovery, 2 tasks | 180,739 -> 335,282 | +85.5% | $0.018144 -> $0.024430 | +34.6% |
+| Intent, 22 tasks | 2,582,821 -> 2,964,773 | +14.8% | $0.226760 -> $0.233844 | +3.1% |
+| Full guidance, 22 tasks | 2,325,909 -> 2,098,837 | -9.8% | $0.211835 -> $0.190696 | -10.0% |
+
+Full-guidance input ranges were 2,226,145-2,413,533 for baseline and
+2,055,434-2,142,874 for candidate; estimated cost ranges were
+$0.210109-$0.219912 and $0.186752-$0.193879. All three candidate runs were below
+all three baseline runs on both measures. Median uncached input fell from
+610,779 to 539,183 (-11.7%), cached input from 1,715,130 to 1,559,654 (-9.1%),
+and MCP calls from 87 to 80. Seventeen of 22 workload-level input medians fell.
+Summing per-cell medians gives -10.1% input and -11.4% estimated cost, so the
+improvement is also present under that aggregation.
+
+Intent is a weaker result: 13 of 22 workload input medians rose. Summing
+per-cell medians still gives +8.4% input and +1.0% cost. Median uncached input
+fell only 1.0%, while cached input rose 20.2% and MCP calls rose from 105 to 118.
+In discovery, baseline used GitHits in 0/6 tasks and candidate in 3/6; increased
+GitHits activation is part of that comparison, so it is not a same-tool-path
+cost test. Across the full 46-cell mix, the median complete-run input increased
+4.5% (5,131,349 -> 5,362,344) while estimated cost decreased 3.6%
+($0.463361 -> $0.446889). Cache accounting changes the conclusion materially.
+
+Exact skill ingestion before the first MCP invocation was observed in 63/66
+baseline full-guidance tasks and 65/66 candidate tasks. The documentation-site
+task skipped the skill in all baseline repetitions and one candidate repetition.
+Neither full-guidance cohort called `quick_start`. This supports the
+self-contained skill direction, with no guarantee of universal activation.
+
+All 138 cells per condition completed the harness with no isolation-validation
+categories. Tool errors nevertheless rose from 3 to 17: baseline had one
+missing source file and two unsupported-version calls; candidate had eight
+out-of-range grep-context calls, three missing documentation pages, five package
+backend timeouts and one search backend error. Seven grep errors occurred in
+one intent/opencode-compaction run and contributed to its 408,050 input tokens.
+Neither guide specified that context-line limit; the schema maximum of 10 is
+unchanged. Keep these errors in the measurements. Successful harness completion
+is not proof of equivalent answer quality, and the backend failures prevent
+attributing every observed difference to guidance.
+
+Recommendation: retain the shorter self-contained skill as the supported
+optimization direction. The shared routing guide/description candidate remains
+reviewable in this PR, but the plain-MCP results do not establish a cost win.
+Do not introduce host-specific forks or claim the entire change reduces tokens
+from these results. Further plain-MCP tuning would need its own matched cohort;
+the full-guidance result cannot stand in for it.
+
+The [sanitized observations](../../eval/agentic/context-loading/observations/pr-routing-comparison.json)
+retain each cell's numeric metrics, structural tool counts/errors, completion
+status, model/version identity, exact skill-read audit and guide hashes. Recompute
+run-total medians/ranges and sums of per-cell medians with
+[`summarize-pr.ts`](../../eval/agentic/context-loading/summarize-pr.ts), as described
+in the [reproduction guide](../../eval/agentic/context-loading/README.md#matched-pr-guidance-comparison).
+Match cells by `metadata.cellId`, not workloadId. The Braintrust exporter's
+latest-main automatic base is not this controlled baseline; use the six explicit
+experiments in the artifact for this comparison.
+
+All cells use requested `gpt-5.6-luna` at low effort through Codex CLI 0.154.0.
+The resolved model identifier is not exposed. Input includes cached input;
+uncached input is their difference. Costs are the existing harness estimates,
+not billed charges. Each cell is a fresh task session, so these results do not
+measure multi-user-turn retention or compaction. Three repetitions provide
+descriptive evidence, not a significance test or an answer-quality grade.
+
+CI stdout verifies the exact committed skill body in successful command output
+before the first MCP invocation. It does not expose full Codex tool discovery
+or individual model requests. This audit establishes ingestion, not strict
+guide-before-discovery ordering. The original 48-run request-order study is the
+separate evidence for that distinction.
+
+### Historical catalog baseline and excluded evidence
+
+An earlier baseline at `8aa5492760149564496daf84aaa9d9225cf2f6bb` completed three
+46-cell attempts in [run 34452621919](https://github.com/githits-com/githits-cli/actions/runs/34452621919).
+Candidate `1a527a4` was not evaluated: upstream `53463de` removed feedback and
+changed information-tool annotations/descriptions, causing merge conflicts.
+We integrated upstream and repeated the baseline with its canonical guide before
+testing the router. The earlier 16-tool results remain historical evidence and
+are excluded from the matched comparison, rather than attributing the catalog
+change to shorter guidance.
+
+Starting the first historical rerun before downloading its artifacts cleared
+attempt 1's downloadable raw traces. Its Braintrust rows remain, but it cannot
+support a new skill-ingestion audit. Every later attempt was archived before
+rerunning. The observations retain the historical run identities and scenario
+totals, separately from the six matched runs. Both local Luna pilots remain
+excluded for the fixture/isolation failures documented above.
+
+### Validation and independent live-smoke limitation
+
+Candidate `2a02a2e` passed PR build/checks, Ubuntu and Windows unit suites,
+Bun/Node 20/22/24/26 compatibility and public MCP package validation. Local plugin
+generation/check, build, typecheck, MCP registration and unauthenticated CLI smoke
+passed. The complete final live MCP smoke passed all 58 steps.
+
+The local candidate full suite recorded 4,519 passes and three process-startup
+timeouts at the default five seconds while host load exceeded 80. All 26 tests
+in those two files passed on an isolated rerun, including the three failures;
+no timeout thresholds were changed. CI's full suites subsequently passed.
+The offline summary tests distinguish run-total medians from per-cell medians
+with rotating outliers and reject incomplete or mismatched cohorts.
+
+Live CLI stable coverage and JSON parity completed, then experimental resolver
+smoke failed. A direct scoped probe reproduced `expressjs` returning the expected
+`site:expressjs.com` and related package/repository targets at medium confidence;
+the existing assertion requires exact/high. The final integrated candidate
+reproduced that same failure. The guide change does not modify resolver scores.
+Retain this as a backend-confidence investigation; do not weaken the smoke
+expectation based on this guidance experiment. An earlier MCP `get_example` JSON
+call also timed out at 60 seconds; its complete retry and final integrated run
+both passed, and the failed trace remains preserved.
 
 ## Existing harness integration and remaining visibility
 
 `scripts/agent-eval.ts` already provides descriptors/full/skills modes, source
 selection via `--target-root`, raw CLI output and Claude discovery events.
-However, it currently disables native session persistence, reports Codex
-discovery as `not_exposed`, and normalizes only Codex terminal aggregate usage.
-Its full MCP mode installs `AGENTS.md` and the MCP skill. Do not equate installed
-guidance with observed ingestion; `--ignore-rules` concerns execpolicy files.
+It disables native session persistence, reports Codex discovery as `not_exposed`,
+and normalizes only Codex terminal aggregate usage. Its full MCP mode installs
+`AGENTS.md` and the MCP skill. `--ignore-rules` concerns execpolicy files, not
+Markdown instruction loading; installed guidance still requires an ingestion audit.
 
-The research reader is separate from historical aggregate metrics to preserve
-their semantics. Future integration should reuse these verified numeric
-fixtures and add explicit trace retention, configuration identity and multi-turn
-support rather than silently changing existing benchmarks. Complete initial
-provider-prompt attribution and exact host schema rendering remain unresolved.
+Complete initial provider-prompt attribution and exact host schema rendering
+remain unresolved. Use a verified supported capture surface; model self-report
+cannot fill missing payloads. No credential-bearing proxy is introduced.
+Future trace-retention or multi-turn integration should reuse the numeric readers
+and explicitly record configuration identity instead of silently changing the
+historical metrics contract. Near-compaction sessions and an expanded final
+Claude cohort remain unmeasured; the earlier Claude fixture results must not be
+presented as validation of this final Luna/CI candidate.
 
-### Upstream catalog change during evaluation
-
-After the three baseline attempts completed, PR evaluation of candidate
-`1a527a4` was blocked by merge conflicts. Upstream `53463de` removed feedback
-and changed information-tool annotations/descriptions. The earlier 46-cell
-baseline attempts are preserved but cannot isolate the routing change against
-this different catalog. Integrate upstream, temporarily restore its canonical
-guidance for a new three-run baseline, then apply the combined router without
-feedback for three candidate runs. Record both exact source SHAs. The earlier
-character-size table describes the pre-integration candidate only.
-
-The integrated matched baseline is `1fc2e4247559e6e8b6aaf057abf1e9f9f8b9ffd9`,
-[run 34453944757](https://github.com/githits-com/githits-cli/actions/runs/34453944757).
-Its canonical skill/guide match upstream exactly: 6,348 / 5,537 characters.
-The integrated router is 4,515 / 3,984 characters (28.9% / 28.0% smaller).
-No evidence-tool descriptors or runtime appendices differ between these two
-conditions. CI stdout can verify the exact returned skill body before the first
-MCP invocation; it does not expose full Codex discovery or per-request context.
-Do not reinterpret this audit as proof of guide-before-discovery ordering.
-
-Current-catalog validation retained the initial green 4,528-test baseline. The
-candidate's 4,522-test full run had 4,519 passes and three process-startup
-timeouts at the default five seconds while host load exceeded 80. All 26 tests
-in the two affected files passed on an isolated rerun, including those three;
-no timeout thresholds or production behavior were changed. CI validation of the
-candidate is tracked separately from that local run.
+The historical live stdio grep that stayed pending beyond 15 minutes also needs
+a separate transport/service diagnosis. Its connection succeeded and its trace
+is retained, but no root cause is established. Fixture latency is not a
+substitute for production evidence, and this work adds no retries or workaround.

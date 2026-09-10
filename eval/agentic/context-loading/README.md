@@ -191,3 +191,30 @@ in `observations/luna-pilot-exclusions.json`; no router candidate completed.
 Do not treat staged skill files as proof of ingestion or these pilots as a
 candidate comparison. The API-authenticated PR harness uses an empty Codex home
 and its existing `full` scenario for the matched production comparison.
+
+## Matched PR guidance comparison
+
+The PR workflow runs discovery/canary (2 cells), intent/stable-full (22) and
+full/stable-full (22). Run three complete attempts on each exact source SHA.
+Download each attempt's artifacts **before** rerunning: GitHub replaces the
+run's downloadable artifacts. Inspect the normalized Braintrust eval roots and
+join by `metadata.cellId`; the latest-main automatic comparison is not a matched
+baseline when its matrix or catalog differs.
+
+`observations/pr-routing-comparison.json` records only allowlisted numeric
+metrics, tool counts, statuses, model/version identity and skill-audit facts.
+It excludes prompts, answers, raw tool output, local paths and session IDs.
+Recompute descriptive summaries with:
+
+```bash
+bun eval/agentic/context-loading/summarize-pr.ts eval/agentic/context-loading/observations/pr-routing-comparison.json
+```
+
+Each scenario summary includes the three run totals, their median/range, and
+the sum of per-cell medians across the three repetitions. These are different
+aggregations: the latter limits the influence of individual expensive runs.
+Codex input includes cached input; uncached input is their difference. Estimated
+cost is the existing harness estimate, not a billed charge. Three repetitions
+are descriptive evidence, not a significance test or an answer-quality grade.
+Exact skill-body reads in stdout establish ingestion before MCP invocation;
+this CI harness does not expose full discovery or individual model requests.
