@@ -67,8 +67,8 @@ export interface MappedErrorDetails {
   updateCommand?: string;
   /** Failure/update explanation; Ask uses a bounded resolver reason when supplied. */
   reason?: string;
-  /** Ask target diagnostic category, separate from its optional resolver reason. */
-  targetErrorCode?: "INVALID_TARGET_SYNTAX" | "TARGET_RESOLUTION_FAILED";
+  /** Open-ended Ask diagnostic identifier, separate from its optional reason. */
+  targetErrorCode?: string;
   /** Whether auth failed before making a request or after backend rejection. */
   authSource?: AuthenticationErrorSource;
   /** Canonical legal document URL for terms-acceptance remediation. */

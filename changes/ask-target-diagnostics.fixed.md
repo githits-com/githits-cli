@@ -3,4 +3,4 @@
 "@githits/mcp": patch
 ---
 
-- **Actionable Ask target errors** - CLI and MCP preserve validated backend target diagnostics and recovery guidance. Older servers receive useful fallback guidance without exposing raw provider errors. Detailed reasons require the matching backend update.
+- **Actionable Ask target errors** - CLI and MCP preserve validated server diagnostics and recovery guidance, including unfamiliar diagnostic codes and reasons. Guidance and diagnostic categories can evolve without client updates. Legacy or malformed responses receive actionable fallback text.

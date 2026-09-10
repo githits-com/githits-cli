@@ -984,10 +984,60 @@ describe("Ask target diagnostics", () => {
     },
   );
 
+  it.each(
+    ["cli", "mcp", "url"].flatMap((sourceFormat) =>
+      [
+        { ...detail, code: "TARGET_VERSION_UNAVAILABLE" },
+        { ...detail, reason: "version_not_indexed" },
+        {
+          ...detail,
+          code: "TARGET_VERSION_UNAVAILABLE",
+          reason: "version_not_indexed",
+        },
+      ].map((diagnostic) => ({ sourceFormat, diagnostic })),
+    ),
+  )(
+    "preserves future diagnostic identifiers: %j",
+    async ({ sourceFormat, diagnostic }) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(
+          jsonResponse(
+            { detail: { ...diagnostic, future_metadata: { ignored: true } } },
+            { status: 400 },
+          ),
+        ),
+      ) as unknown as typeof fetch;
+      const service = createService(fetchFn);
+      const request = { target: "npm:prisma", question: "How?" };
+      const result =
+        sourceFormat === "cli"
+          ? service.ask({ ...request, sourceFormat })
+          : sourceFormat === "mcp"
+            ? service.ask({ ...request, sourceFormat })
+            : service.ask({ ...request, sourceFormat: "url" });
+      await expect(result).rejects.toMatchObject({
+        code: "INVALID_TARGET",
+        message: `${diagnostic.message} ${diagnostic.hint}`,
+        targetError: diagnostic,
+        status: 400,
+        retryable: false,
+      });
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it.each([
     { detail: "private provider detail" },
-    { detail: { ...detail, code: "INTERNAL_ERROR" } },
+    { detail: { ...detail, code: "private provider detail" } },
+    { detail: { ...detail, code: "" } },
+    { detail: { ...detail, code: 400 } },
+    { detail: { ...detail, code: "A".repeat(129) } },
+    { detail: { ...detail, code: "ERROR\u001b[31m" } },
     { detail: { ...detail, reason: "private provider detail" } },
+    { detail: { ...detail, reason: "" } },
+    { detail: { ...detail, reason: {} } },
+    { detail: { ...detail, reason: "a".repeat(129) } },
+    { detail: { ...detail, reason: "reason\u001b[31m" } },
     { detail: { ...detail, message: "private provider detail\u001b[31m" } },
     { detail: { ...detail, hint: "private provider detail".repeat(100) } },
   ])("does not expose an unrecognized error body: %j", async (body) => {

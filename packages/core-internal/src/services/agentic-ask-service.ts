@@ -71,41 +71,26 @@ const targetErrorTextSchema = z
   .min(1)
   .max(1024)
   .refine((value) => !hasControlCharacters(value));
+// Diagnostic identifiers may grow independently of client releases.
+const targetErrorIdentifierSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/);
 const targetErrorSchema = z.object({
   detail: z.object({
-    code: z.enum(["INVALID_TARGET_SYNTAX", "TARGET_RESOLUTION_FAILED"]),
+    code: targetErrorIdentifierSchema,
     message: targetErrorTextSchema,
     hint: targetErrorTextSchema,
-    reason: z
-      .enum([
-        "ambiguous",
-        "missing_best",
-        "unsupported_kind",
-        "low_confidence",
-        "missing_full_target",
-        "unsafe_latest_version",
-        "invalid_canonical_target",
-        "kind_mismatch",
-        "explicit_target_mismatch",
-      ])
-      .optional(),
+    reason: targetErrorIdentifierSchema.optional(),
   }),
 });
 
 interface TargetErrorDetail {
-  code: "INVALID_TARGET_SYNTAX" | "TARGET_RESOLUTION_FAILED";
+  code: string;
   message: string;
   hint: string;
-  reason?:
-    | "ambiguous"
-    | "missing_best"
-    | "unsupported_kind"
-    | "low_confidence"
-    | "missing_full_target"
-    | "unsafe_latest_version"
-    | "invalid_canonical_target"
-    | "kind_mismatch"
-    | "explicit_target_mismatch";
+  reason?: string;
 }
 
 const mcpCodeReadSourceCallSchema = z.object({
