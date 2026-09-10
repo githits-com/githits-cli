@@ -3,7 +3,7 @@
  *
  * Three separate URLs are needed:
  * - MCP URL: For OAuth discovery (.well-known endpoints) and auth flow
- * - API URL: For REST API calls (search, languages, feedbacks)
+ * - API URL: For REST API calls (search and languages)
  * - Code navigation URL: For indexed package/source calls
  */
 
@@ -36,7 +36,7 @@ export function getMcpStorageKeyUrl(): string {
 }
 
 /**
- * Get the REST API base URL (for search, languages, feedbacks).
+ * Get the REST API base URL (for search and languages).
  * Override with GITHITS_API_URL environment variable.
  */
 export function getApiUrl(): string {

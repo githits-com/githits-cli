@@ -28,12 +28,6 @@ export {
   registerExampleCommand,
 } from "./example.js";
 export {
-  type FeedbackDependencies,
-  type FeedbackOptions,
-  feedbackAction,
-  registerFeedbackCommand,
-} from "./feedback.js";
-export {
   type InitDependencies,
   type InitOptions,
   type InitUninstallOptions,

@@ -1,7 +1,5 @@
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import {
-  type FeedbackParams,
-  type FeedbackResult,
   type GitHitsService,
   GitHitsServiceImpl,
   type GitHitsServiceRequestOptions,
@@ -50,10 +48,6 @@ export class RefreshingGitHitsService implements GitHitsService {
     return this.withTokenRefresh((service) =>
       service.searchLanguages(query, limit),
     );
-  }
-
-  async submitFeedback(params: FeedbackParams): Promise<FeedbackResult> {
-    return this.withTokenRefresh((service) => service.submitFeedback(params));
   }
 
   /**

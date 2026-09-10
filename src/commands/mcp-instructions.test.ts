@@ -22,7 +22,6 @@ const KNOWN_TOOLS = [
   "search",
   "get_example",
   "search_language",
-  "feedback",
   "search_status",
   "code_files",
   "code_read",
@@ -214,7 +213,7 @@ describe("buildMcpQuickStart", () => {
 
     expect(coreSection).toContain("`get_example`");
     expect(coreSection).toContain("`search`");
-    expect(coreSection).toContain("`feedback`");
+    expect(coreSection).not.toContain("`feedback`");
     expect(coreSection).toContain("`search_language`");
   });
 

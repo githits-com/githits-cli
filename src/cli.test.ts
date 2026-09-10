@@ -4,7 +4,6 @@ import {
   registerCodeCommandGroup,
   registerDocsCommandGroup,
   registerExampleCommand,
-  registerFeedbackCommand,
   registerLanguagesCommand,
   registerPkgCommandGroup,
   registerUnifiedSearchCommands,
@@ -110,7 +109,6 @@ async function createProgramForHelpSurface(): Promise<Command> {
 
   registerExampleCommand(program);
   registerLanguagesCommand(program);
-  registerFeedbackCommand(program);
   await registerUnifiedSearchCommands(program);
   await registerCodeCommandGroup(program, { experimentalTools: true });
   await registerDocsCommandGroup(program);
@@ -263,7 +261,7 @@ describe("root CLI preAction", () => {
     errorSpy.mockRestore();
   });
 
-  it("prints the feedback continuation message after successful auto-login", async () => {
+  it("prints the languages continuation message after successful auto-login", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const container = createLoginDeps({ hasValidToken: false });
     const createContainer = mock(() => Promise.resolve(container));
@@ -279,15 +277,15 @@ describe("root CLI preAction", () => {
     });
 
     let ran = false;
-    program.command("feedback").action(() => {
+    program.command("languages").action(() => {
       ran = true;
     });
 
-    await program.parseAsync(["node", "githits", "feedback"]);
+    await program.parseAsync(["node", "githits", "languages"]);
 
     expect(ran).toBe(true);
     expect(errorSpy.mock.calls.map((call) => call[0])).toEqual([
-      "Authentication complete. Submitting feedback...",
+      "Authentication complete. Loading supported languages...",
     ]);
     errorSpy.mockRestore();
   });
@@ -477,7 +475,7 @@ describe("CLI help surface", () => {
 
     expect(help).toMatch(/^\s{2}example\b/m);
     expect(help).toMatch(/^\s{2}languages\b/m);
-    expect(help).toMatch(/^\s{2}feedback\b/m);
+    expect(help).not.toMatch(/^\s{2}feedback\b/m);
     expect(help).toMatch(/^\s{2}search\b/m);
     expect(help).toMatch(/^\s{2}code\b/m);
     expect(help).toMatch(/^\s{2}docs\b/m);

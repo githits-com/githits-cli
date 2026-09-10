@@ -4,7 +4,7 @@ import { EXTERNAL_CONTENT_POSTURE } from "../tools/guardrails.js";
 
 const CORE_BLOCK = `GitHits provides verified open-source examples plus indexed package/repository evidence.
 
-Routing: use \`get_example\` for canonical cross-project examples; use \`search\` / \`code_*\` / \`docs_*\` / \`pkg_*\` for a known dependency, repository, stack trace, package adoption question, or upgrade review; use both for comparative OSS questions or when package-scoped evidence needs broader examples. Use \`search_language\` only to disambiguate a \`get_example\` language. Use \`feedback\` after helpful or flawed results.
+Routing: use \`get_example\` for canonical cross-project examples; use \`search\` / \`code_*\` / \`docs_*\` / \`pkg_*\` for a known dependency, repository, stack trace, package adoption question, or upgrade review; use both for comparative OSS questions or when package-scoped evidence needs broader examples. Use \`search_language\` only to disambiguate a \`get_example\` language.
 
 Output format: use default \`text\` for reading and tool follow-ups. Pass returned paths, IDs, and line ranges directly to the next tool. Use \`json\` only to parse responses in code or obtain required fields absent from text.
 
@@ -135,7 +135,6 @@ export type LocalExperimentalToolName = "ask" | "resolve_target" | "code_diff";
 
 export interface BuildLocalMcpQuickStartOptions {
   enabledExperimentalTools: readonly LocalExperimentalToolName[];
-  reportToolIssues?: "experimental" | "all";
 }
 
 /** @deprecated Use `BuildLocalMcpQuickStartOptions`. */
@@ -186,23 +185,8 @@ export function buildLocalMcpQuickStart(
     toolGuidance.push(LOCAL_CODE_DIFF_GUIDANCE);
   }
   guidance.push(toolGuidance.join("\n"));
-  if (options.reportToolIssues !== undefined) {
-    guidance.push(buildIssueReportingGuidance(options));
-  }
 
   return `${buildMcpQuickStart()}\n\n${guidance.join("\n\n")}`;
-}
-
-function buildIssueReportingGuidance(
-  options: BuildLocalMcpQuickStartOptions,
-): string {
-  const scope =
-    options.reportToolIssues === "all"
-      ? "any GitHits tool in this session"
-      : [...new Set(options.enabledExperimentalTools)]
-          .map((name) => `\`${name}\``)
-          .join(" or ");
-  return `**Issue reporting (${options.reportToolIssues})** — for each distinct concrete defect observed in ${scope}, make one \`feedback\` call with \`accepted: false\`, exact \`tool_name\`, and concise redacted expected-vs-observed context or a stable error code. Do not report valid empty results, expected bounds or safety omissions, or user judgment. Never include credentials, personal data, private/proprietary content, file bodies, or large outputs. Do not retry or report a failed feedback call.`;
 }
 
 /** @deprecated Use `buildLocalMcpQuickStart`. */

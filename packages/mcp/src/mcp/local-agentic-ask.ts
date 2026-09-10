@@ -14,8 +14,8 @@ import {
   throwIfCallerCancellation,
 } from "../tools/shared.js";
 import {
-  BOUNDED_WRITE_TOOL_ANNOTATIONS,
   errorResult,
+  READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   textResult,
   type ZodRawShape,
@@ -74,7 +74,7 @@ export function createLocalAgenticAskTool(
     name: "ask",
     description: DESCRIPTION,
     schema,
-    annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       const subject = resolveMcpAskSubject(args);
       if ("error" in subject) {

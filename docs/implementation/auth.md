@@ -14,8 +14,8 @@ The two methods exist because OAuth provides full access but requires a browser,
 
 | Method | Source | Endpoints | Use case |
 |---|---|---|---|
-| **OAuth JWT** | `githits login` | All (`/search`, `/languages`, `/feedbacks`) | Interactive development |
-| **API token** (`ghi-*`) | `GITHITS_API_TOKEN` env var | All (`/search`, `/languages`, `/feedbacks`) | CI, automation, quick setup |
+| **OAuth JWT** | `githits login` | All (`/search`, `/languages`) | Interactive development |
+| **API token** (`ghi-*`) | `GITHITS_API_TOKEN` env var | All (`/search`, `/languages`) | CI, automation, quick setup |
 
 > **The container resolves auth at startup.** The `createContainer()` function checks for `GITHITS_API_TOKEN` first — if set, it takes precedence even when OAuth tokens are stored. If not set, it loads stored OAuth tokens and attempts auto-refresh if expired. See `src/container.ts` for the resolution logic.
 

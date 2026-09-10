@@ -32,8 +32,8 @@ import {
   throwIfCallerCancellation,
 } from "./shared.js";
 import {
-  BOUNDED_WRITE_TOOL_ANNOTATIONS,
   errorResult,
+  READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   type ToolResult,
   textResult,
@@ -286,7 +286,7 @@ export function createSearchTool(
     name: "search",
     description: DESCRIPTION,
     schema,
-    annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       try {
         const effectiveTarget = isBlankSearchTarget(args.target)

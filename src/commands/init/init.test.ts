@@ -361,7 +361,7 @@ describe("initAction", () => {
       ),
     ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
-      true,
+      false,
     );
     const reviewIndex = logCalls.findIndex((msg) =>
       msg.includes("Show this install review"),
@@ -472,7 +472,7 @@ describe("initAction", () => {
       ),
     ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
-      true,
+      false,
     );
     expect(
       logCalls.some((msg) =>
@@ -601,9 +601,6 @@ describe("initAction", () => {
       (instruction: string) =>
         instruction.includes("GitHits queries and public package"),
     );
-    const feedbackDisclosureIndex = payload.instructions.findIndex(
-      (instruction: string) => instruction.includes("is an outbound write"),
-    );
     const localWorkspaceIndex = payload.instructions.findIndex(
       (instruction: string) =>
         instruction.includes("does not itself upload the local workspace"),
@@ -618,8 +615,7 @@ describe("initAction", () => {
     );
     expect(reviewIndex).toBeGreaterThanOrEqual(0);
     expect(queryDisclosureIndex).toBeGreaterThan(reviewIndex);
-    expect(feedbackDisclosureIndex).toBeGreaterThan(queryDisclosureIndex);
-    expect(localWorkspaceIndex).toBeGreaterThan(feedbackDisclosureIndex);
+    expect(localWorkspaceIndex).toBeGreaterThan(queryDisclosureIndex);
     expect(newSessionIndex).toBeGreaterThan(localWorkspaceIndex);
     expect(approvalIndex).toBeGreaterThan(newSessionIndex);
     expect(JSON.stringify(payload.instructions)).not.toContain("--no-guidance");
@@ -751,7 +747,6 @@ describe("initAction", () => {
     expect(payload.instructions).toEqual(
       expect.arrayContaining([
         "GitHits queries and public package, repository, and documentation targets are sent to GitHits services for processing.",
-        "Feedback submission is an outbound write that sends feedback data to GitHits services.",
         "Installing GitHits MCP does not itself upload the local workspace.",
         "After installation, open a new coding agent session so it loads the MCP configuration and any supporting instructions. You do not need to restart the terminal or machine.",
       ]),
@@ -1081,7 +1076,6 @@ describe("initAction", () => {
     expect(payload.instructions).toEqual(
       expect.arrayContaining([
         "GitHits queries and public package, repository, and documentation targets are sent to GitHits services for processing.",
-        "Feedback submission is an outbound write that sends feedback data to GitHits services.",
         "Installing GitHits MCP does not itself upload the local workspace.",
         "After installation, open a new coding agent session so it loads the MCP configuration and any supporting instructions. You do not need to restart the terminal or machine.",
       ]),
@@ -1137,7 +1131,7 @@ describe("initAction", () => {
     expect(normalizedOutput).toContain(
       "GitHits queries and public package, repository, and documentation targets",
     );
-    expect(normalizedOutput).toContain(
+    expect(normalizedOutput).not.toContain(
       "Feedback submission is an outbound write",
     );
     expect(normalizedOutput).toContain(
@@ -3588,7 +3582,7 @@ describe("initAction", () => {
       expect(
         normalizedOutput.includes("GitHits queries and public package"),
       ).toBe(true);
-      expect(normalizedOutput.includes("is an outbound write")).toBe(true);
+      expect(normalizedOutput.includes("is an outbound write")).toBe(false);
       expect(
         normalizedOutput.includes("does not itself upload the local workspace"),
       ).toBe(true);
@@ -5183,7 +5177,7 @@ describe("initAction", () => {
       ),
     ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("is an outbound write"))).toBe(
-      true,
+      false,
     );
   });
 

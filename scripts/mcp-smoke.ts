@@ -117,6 +117,24 @@ async function assertMcpSession(
   const response = await trackSmokeStep(`${context} listTools`, () =>
     client.listTools(),
   );
+  for (const tool of response.tools) {
+    assert(
+      tool.annotations?.readOnlyHint === true,
+      `${context}: ${tool.name} must advertise readOnlyHint: true`,
+    );
+  }
+  let removedFeedbackError = "";
+  try {
+    const result = await client.callTool({ name: "feedback", arguments: {} });
+    removedFeedbackError = result.isError ? JSON.stringify(result.content) : "";
+  } catch (error) {
+    removedFeedbackError =
+      error instanceof Error ? error.message : String(error);
+  }
+  assert(
+    removedFeedbackError.includes("Tool feedback not found"),
+    `${context}: removed feedback must fail as an unknown tool`,
+  );
   const actual = response.tools.map((tool) => tool.name).sort();
   const expected = [...expectedTools].sort();
   assert(
@@ -176,7 +194,7 @@ async function assertExperimentalMcpSession(
       quickStart.includes("diffs do not prove compatibility") &&
       quickStart.includes("public OSS") &&
       !quickStart.includes("Issue reporting"),
-    `${context}: experimental quick_start missing routing/privacy guidance or reporting is enabled`,
+    `${context}: experimental quick_start missing routing/privacy guidance or contains retired issue-reporting guidance`,
   );
 }
 

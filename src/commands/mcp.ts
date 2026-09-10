@@ -21,12 +21,10 @@ type LocalMcpServer = ReturnType<typeof createLocalMcpServer>;
 
 const DISABLED_LOCAL_MCP_POLICY: LocalExperimentalMcpPolicy = {
   tools: false,
-  reportToolIssues: undefined,
 };
 
 const OVERRIDE_LOCAL_MCP_POLICY: LocalExperimentalMcpPolicy = {
   tools: true,
-  reportToolIssues: undefined,
 };
 
 const LOCAL_TERMS_REMEDIATION: ToolTermsRemediation = {
@@ -110,7 +108,6 @@ export async function createMcpCommandStartup(
     : await loadExperimentalSettings(new FileSystemServiceImpl()).then(
         (settings): LocalExperimentalMcpPolicy => ({
           tools: settings.tools,
-          reportToolIssues: settings.reportToolIssues,
         }),
       );
   let server: LocalMcpServer | undefined;

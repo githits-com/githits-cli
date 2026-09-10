@@ -87,7 +87,6 @@ const EXPECTED_TOOL_NAMES = [
   "quick_start",
   "get_example",
   "search_language",
-  "feedback",
   "search",
   "search_status",
   "code_files",
@@ -365,7 +364,6 @@ describe("createMcpServer", () => {
     for (const name of [
       "get_example",
       "search_language",
-      "feedback",
       "search",
       "search_status",
       "code_files",
@@ -498,7 +496,6 @@ describe("createMcpCommandStartup", () => {
         const startup = await createMcpCommandStartup();
         expect(startup.experimentalPolicy).toEqual({
           tools: true,
-          reportToolIssues: "all",
         });
         expect(startup.services.resolveTargetService).toBeDefined();
         expect(startup.services.codeNavigationService.codeDiff).toBeDefined();
@@ -591,7 +588,6 @@ describe("createMcpCommandStartup", () => {
         });
         expect(startup.experimentalPolicy).toEqual({
           tools: true,
-          reportToolIssues: undefined,
         });
         expect(process.env.GITHITS_AUTH_STORAGE).toBeUndefined();
       });
@@ -616,7 +612,7 @@ describe("createMcpCommandStartup", () => {
     }
   });
 
-  it("does not inherit a disabled host policy or its reporting mode", async () => {
+  it("does not inherit a disabled host policy or retired reporting key", async () => {
     const xdgConfigHome = await mkdtemp(
       join(tmpdir(), "githits-mcp-override-policy-"),
     );
@@ -638,7 +634,6 @@ describe("createMcpCommandStartup", () => {
         });
         expect(startup.experimentalPolicy).toEqual({
           tools: true,
-          reportToolIssues: undefined,
         });
       });
     } finally {
@@ -661,7 +656,6 @@ describe("createMcpCommandStartup", () => {
           services: createTestServices(),
           experimentalPolicy: {
             tools: options?.experimentalTools === true,
-            reportToolIssues: undefined,
           },
           onServerCreated: () => {},
         };

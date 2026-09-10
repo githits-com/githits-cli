@@ -17,6 +17,10 @@ import {
 import { prepareSkillsFixtureWorkspace } from "./skills-workspace.js";
 
 describe("security eval skills surface", () => {
+  it("does not recognize the retired feedback command", () => {
+    expect(detectFixtureTool(["feedback", "--accept"])).toBeUndefined();
+  });
+
   it("keeps mock evidence descriptions aligned with MCP session composition", () => {
     expect(composeEvalMcpDescription("base", "guardrail", false)).toBe(
       `base\n\n${QUICK_START_PREREQUISITE}`,

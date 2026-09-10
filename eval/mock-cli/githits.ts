@@ -7,7 +7,6 @@ type MockCliTool =
   | FixtureTool
   | "get_example"
   | "search_language"
-  | "feedback"
   | "search"
   | "search_status"
   | "code_files"
@@ -20,7 +19,6 @@ export function detectFixtureTool(
   const [first, second] = argv;
   if (first === "example") return "get_example";
   if (first === "languages") return "search_language";
-  if (first === "feedback") return "feedback";
   if (first === "search") return "search";
   if (first === "search-status") return "search_status";
   if (first === "pkg") {
@@ -72,7 +70,6 @@ function fixtureSupportOutput(
   if (tool === "get_example")
     return "No canonical examples in this eval fixture.";
   if (tool === "search_language") return "typescript";
-  if (tool === "feedback") return "Feedback recorded for eval fixture.";
   if (tool === "search_status")
     return "Search completed. No additional eval fixture hits.";
   return `[eval-mock] this cell expected the agent to call \`${expectedTool}\`, not \`${tool}\`. No data returned.`;

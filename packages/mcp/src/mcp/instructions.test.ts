@@ -11,11 +11,9 @@ const EXPERIMENTAL_TOOLS = ["ask", "resolve_target", "code_diff"] as const;
 
 function buildLocal(
   enabledExperimentalTools: readonly LocalExperimentalToolName[],
-  reportToolIssues?: "experimental" | "all",
 ): string {
   return buildLocalMcpQuickStart({
     enabledExperimentalTools,
-    reportToolIssues,
   });
 }
 
@@ -35,28 +33,20 @@ describe("buildLocalMcpQuickStart", () => {
     expect(
       buildLocalMcpInstructions({
         enabledExperimentalTools: EXPERIMENTAL_TOOLS,
-        reportToolIssues: "experimental",
       }),
     ).toBe(
       buildLocalMcpQuickStart({
         enabledExperimentalTools: EXPERIMENTAL_TOOLS,
-        reportToolIssues: "experimental",
       }),
     );
   });
 
-  it("keeps disabled and dormant policies byte-for-byte equal to the public guide", () => {
+  it("keeps disabled tools byte-for-byte equal to the public guide", () => {
     const baseline = buildMcpQuickStart();
-    for (const reportToolIssues of [
-      undefined,
-      "experimental",
-      "all",
-    ] as const) {
-      expect(buildLocal([], reportToolIssues)).toBe(baseline);
-    }
+    expect(buildLocal([])).toBe(baseline);
   });
 
-  it("routes enabled experimental tools without opt-in issue reporting", () => {
+  it("routes enabled experimental tools without feedback guidance", () => {
     const instructions = buildLocal(EXPERIMENTAL_TOOLS);
 
     expect(instructions).toContain("Local experimental tools");
@@ -111,31 +101,6 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).not.toContain("accepted: false");
   });
 
-  it("scopes experimental issue reporting to enabled tools", () => {
-    const experimental = buildLocal(["resolve_target"], "experimental");
-    expect(experimental).toContain("Issue reporting (experimental)");
-    expect(experimental).toContain("`resolve_target`");
-    expect(experimental).not.toContain("`code_diff`");
-    expect(experimental).toContain("`accepted: false`");
-    expect(experimental).toContain("make one `feedback` call");
-    expect(experimental).toContain("exact `tool_name`");
-    expect(experimental).toContain("redacted expected-vs-observed context");
-    expect(experimental).toContain("Do not report valid empty results");
-    expect(experimental).toContain("Never include credentials");
-    expect(experimental).toContain("private/proprietary content");
-    expect(experimental).toContain("Do not retry or report");
-    expect(
-      experimental.length - buildLocal(["resolve_target"]).length,
-    ).toBeLessThan(500);
-
-    const all = buildLocal(["code_diff"], "all");
-    expect(all).toContain("Issue reporting (all)");
-    expect(all).toContain("any GitHits tool in this session");
-    expect(all).toContain("`code_diff`");
-    expect(all).not.toContain("`resolve_target`");
-    expect(all.length - buildLocal(["code_diff"]).length).toBeLessThan(500);
-  });
-
   it("composes only the requested experimental subset without phantom guidance", () => {
     const cases = [
       { enabled: [] as const, absent: EXPERIMENTAL_TOOLS },
@@ -155,6 +120,8 @@ describe("buildLocalMcpQuickStart", () => {
 
     for (const { enabled, absent } of cases) {
       const instructions = buildLocal(enabled);
+      expect(instructions).not.toContain("feedback");
+      expect(instructions).not.toContain("Issue reporting");
       for (const name of enabled) {
         expect(instructions).toContain(`\`${name}\``);
       }

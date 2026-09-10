@@ -8,7 +8,7 @@ import { mapPackageIntelligenceError } from "../shared/package-intelligence-erro
 import { DOCS_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
-  BOUNDED_WRITE_TOOL_ANNOTATIONS,
+  READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   textResult,
   type ZodRawShape,
@@ -66,7 +66,7 @@ export function createListPackageDocsTool(
     name: "docs_list",
     description: DESCRIPTION,
     schema,
-    annotations: BOUNDED_WRITE_TOOL_ANNOTATIONS,
+    annotations: READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       try {
         const build = buildListPackageDocsParams({

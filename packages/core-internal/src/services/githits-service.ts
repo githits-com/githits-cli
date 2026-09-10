@@ -119,30 +119,6 @@ export interface GitHitsServiceRequestOptions {
   signal?: AbortSignal;
 }
 
-/**
- * Parameters for feedback API call.
- *
- * Feedback can target an example, a solution, or the current CLI/MCP
- * session. When neither `exampleId` nor `solutionId` is present, the
- * backend uses the `x-githits-session-id` header from injected client headers
- * to create generic session feedback.
- */
-export interface FeedbackParams {
-  exampleId?: string;
-  solutionId?: string;
-  accepted: boolean;
-  feedbackText?: string;
-  toolName?: string;
-}
-
-/**
- * Feedback response from the API.
- */
-export interface FeedbackResult {
-  success: boolean;
-  message: string;
-}
-
 export interface GitHitsServiceRuntimeOptions {
   clientHeaders?: ClientHeaderBuilder;
   userAgent?: string;
@@ -174,9 +150,6 @@ export interface GitHitsService {
 
   /** Search supported languages using backend-ranked matching. */
   searchLanguages(query: string, limit?: number): Promise<Language[]>;
-
-  /** Submit feedback on a result or the current GitHits session. */
-  submitFeedback(params: FeedbackParams): Promise<FeedbackResult>;
 }
 
 /**
@@ -262,41 +235,6 @@ export class GitHitsServiceImpl implements GitHitsService {
         }
 
         return this.parseLanguages(response);
-      },
-    );
-  }
-
-  async submitFeedback(params: FeedbackParams): Promise<FeedbackResult> {
-    return withServiceDiagnostics(
-      this.runtime.diagnostics,
-      "githits.feedback.request",
-      async () => {
-        // For generic feedback, omit body targets entirely. The backend
-        // then uses the valid x-githits-session-id header emitted by
-        // the injected client headers as the feedback target.
-        const response = await this.request("/feedbacks", {
-          method: "POST",
-          headers: this.headers(),
-          body: JSON.stringify({
-            ...(params.exampleId !== undefined && {
-              example_id: params.exampleId,
-            }),
-            ...(params.solutionId !== undefined && {
-              solution_id: params.solutionId,
-            }),
-            accepted: params.accepted,
-            feedback_text: params.feedbackText ?? null,
-            ...(params.toolName !== undefined && {
-              tool_name: params.toolName,
-            }),
-          }),
-        });
-
-        if (!response.ok) {
-          throw await this.createError(response);
-        }
-
-        return { success: true, message: "Feedback submitted successfully" };
       },
     );
   }

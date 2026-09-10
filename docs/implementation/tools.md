@@ -85,7 +85,7 @@ and the untrusted-content safety rules it loads in 72 characters, so claude.ai
 renders it whole; the skill-loaded exception remains in the full description.
 Every evidence or preparatory descriptor repeats the prerequisite as an
 MCP-composed footer without changing its distinct opening sentence or raw
-prefix; `feedback` is excluded because it is a post-result write. There are no
+prefix. There are no
 tool-specific exceptions. The stable guide is owned by
 `packages/mcp/src/mcp/instructions.ts`; the terminal skill section must stay
 byte-for-byte aligned under `src/skills-packaging.test.ts`. Local
@@ -136,18 +136,16 @@ Use the tools in these roles:
   evidence. Each package description advertises the nearest alternatives.
   `pkg_changelog` does not promise newest-first ordering or any other date
   ordering; callers should use the returned dates and versions.
-- **Language and feedback:** Use `search_language` only to resolve a
-  supported language name for `get_example`, not to search source. Use
-  `feedback` after a GitHits result when bounded feedback is warranted.
+- **Language selection:** Use `search_language` only to resolve a
+  supported language name for `get_example`, not to search source.
 
 ## Current Tools
 
 | Tool | Parameters | Description |
 |---|---|---|
 | `quick_start` | none | Required first call for a plain GitHits MCP session. Loads untrusted-content safety rules, cross-tool routing, target syntax, and compact-output rules. A plain session that skips it lacks those rules; skip only when the `githits-mcp` skill is loaded. |
-| `get_example` | `query`, `language?`, `license_mode?`, `format?` | Find canonical cross-project examples when no single target is the answer or target-scoped search came up short. For a known package or repository, use `search`, `docs_*`, or `code_*`. Defaults to markdown with source provenance and an optional `solution_id` for `feedback`; pass `format: "json"` for `{result, solution_id?}`. |
+| `get_example` | `query`, `language?`, `license_mode?`, `format?` | Find canonical cross-project examples when no single target is the answer or target-scoped search came up short. For a known package or repository, use `search`, `docs_*`, or `code_*`. Defaults to markdown with source provenance and an optional `solution_id` for result identification; pass `format: "json"` for `{result, solution_id?}`. |
 | `search_language` | `query`, `format?` | Resolve a supported language name or alias for `get_example`; do not use it for source search. Defaults to one compact line per match; pass `format: "json"` for structured matches. |
-| `feedback` | `solution_id?`, `accepted`, `feedback_text?`, `tool_name?` | Submit feedback when a GitHits result or the overall experience was helpful, unhelpful, wrong, incomplete, slow, or confusing. Pass `solution_id` to rate an example or `tool_name` to identify a result. |
 | `search` | `query`, `target?`, `targets?`, `source?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Discover relevant evidence in a known target before exact grep: docs, specs, code, symbols, tests, and examples ranked by relevance. Open-ended “how does”, “where is”, “find”, “locate”, or loosely phrased “grep the source” questions start here; omit `source` for broad discovery. A `search` call can return complete results directly; use `search_status` only when the response explicitly supplies a `searchRef` and action. |
 | `search_status` | `search_ref`, `wait_timeout_ms?`, `format?` | Continue an explicit `search` reference only after that response supplies a `searchRef` and `search_status` action. Inspect progress or retrieve interim, partial, or final hits; terminal and unrecognized statuses end that reference, so use a later `search` for a fresh session. |
 | `docs_list` | `registry`, `package_name`, `version?`, `limit?`, `after?`, `format?` | List package documentation targets and hand off to `docs_read`; use `search` for topic discovery. Entries retain `docsReadTarget`, stable `pageId`, and provenance `sourceUrl`. Exact Go versions accept both `v`-prefixed and unprefixed forms. Repo-backed entries include exact source metadata for `code_read` when available. Active empty results remain preparation/indexing outcomes rather than becoming “not found”; provisional results retain already-available pages and lifecycle state. |
@@ -584,7 +582,7 @@ cost savings. Captures and reproduction scripts are under ignored
 
 **Compact punctuation.** Formatter-authored punctuation is ASCII, including the ` | ` and ` - ` separators; ellipsis is `...`; no box-drawing or decorative punctuation. Unicode in backend payloads (titles, summaries, paths, URLs, and notes) passes through unchanged. Tokenizer behavior for multi-byte UTF-8 varies across BPE variants, and the format runs into Claude, Codex CLI, OpenCode, Cline, Cursor, etc. — the small fixed vocabulary keeps it predictable.
 
-**Example-search anatomy.** `get_example` text mode returns markdown directly, followed by `solution_id: <id>` when the REST response includes an app URL. This avoids JSON-wrapped markdown while preserving the `feedback` workflow. `search_language` text mode returns one match per line as `name (Display Name) aliases: a, b`; agents should pass the `name` value to `get_example.language`.
+**Example-search anatomy.** `get_example` text mode returns markdown directly, followed by `solution_id: <id>` when the REST response includes an app URL. This avoids JSON-wrapped markdown while preserving result identity. `search_language` text mode returns one match per line as `name (Display Name) aliases: a, b`; agents should pass the `name` value to `get_example.language`.
 
 **Package metadata anatomy.** `pkg_info`, `pkg_vulns`, `pkg_deps`, and `pkg_changelog` text mode reuse their shared no-color terminal formatters and inject surface-native hints where needed. `pkg_upgrade_review` uses one shared CLI/MCP formatter with caller width and ANSI as inputs. `pkg_deps` hides non-runtime groups by default and says `pass lifecycle="all"` when groups exist. `pkg_changelog` caps body previews and says `pass verbose=true`, `body_lines=<n>`, or `format="json"` when text omitted lines. Package tools keep JSON errors in all formats because agents can reliably branch on `{error, code, retryable, details?}`.
 
@@ -785,7 +783,7 @@ payload whose privilege, visibility, and repetition vary by host.
 
 `packages/mcp/src/mcp/instructions.ts` owns the `quick_start` guide sections:
 
-- **Core block** — always loaded. Introduces GitHits, defines its public-only scope, expands trigger criteria to include comparative cross-OSS questions and "how does X actually implement this" archaeology, and walks through the `get_example` / `search_language` / `feedback` workflow.
+- **Core block** — always loaded. Introduces GitHits, defines its public-only scope, expands trigger criteria to include comparative cross-OSS questions and "how does X actually implement this" archaeology, and walks through the `get_example` / `search_language` workflow.
 - **External-content block** — included by default from `packages/mcp/src/tools/guardrails.ts`; tells agents to treat third-party prose as data, not instructions.
 - **Package-tools block** — always appended. Contains a preamble plus one bullet
   per package/code tool and a reference-first strategy: source, symbols, tests,
@@ -801,9 +799,8 @@ payload whose privilege, visibility, and repetition vary by host.
   ambiguous results require narrowing or an explicit actionable choice. Site candidates
   are routed into `search` with `source:"docs"`, followed by `docs_read`; exact
   `site:<host[/path]>` targets skip resolution. The block also
-  states public-OSS/privacy limits and adds opt-in negative-feedback guidance
-  only for the configured reporting scope.
-  Disabled or dormant reporting returns the public builder's exact baseline;
+  states public-OSS/privacy limits.
+  Disabling experimental tools returns the public builder's exact baseline;
   public and remote servers never receive this block.
 
 The stable guide embedded in `skills/githits-mcp/SKILL.md` is an exact copy of
@@ -811,19 +808,9 @@ The stable guide embedded in `skills/githits-mcp/SKILL.md` is an exact copy of
 local experimental appendices from `buildLocalMcpQuickStart()` are not copied
 into the public skill and do not override the loaded-skill rule.
 
-The reporting contract is validated structurally in the focused instruction
-tests: one concise `accepted: false` report per distinct issue, exact enabled
-tool scope, redacted context, non-defect suppression, and no
-retry or recursive report when feedback fails. Evaluations keep reporting off;
-production feedback is never synthesized for validation.
-
-Host users configure the local policy in `config.toml` with
-`[experimental] tools = true` and may optionally set
-`report_tool_issues = "experimental"` or `"all"`; omission means off. The
-reporting value is dormant while tools are disabled. The hidden
-`githits mcp start --experimental-tools` eval override enables the local tools
-for one process and forces reporting off without changing host config. The
-stable public and hosted/remote MCP inventories remain unchanged.
+Host users enable local experimental tools with `[experimental] tools = true`
+in `config.toml`. The hidden `githits mcp start --experimental-tools` eval
+override enables them for one process without changing host config.
 
 When adding a new package tool, extend the quick-start composer with a one-line bullet (`\`tool_name\` — one-sentence purpose`) in the same PR that registers the tool. Keep the bullet terse; argument and response detail belong in the tool's `description`. `mcp-instructions.test.ts` enforces both directions of the mention↔registration invariant.
 
@@ -980,14 +967,13 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 | `packages/mcp/src/tools/search.ts` | Unified indexed-search MCP tool definition |
 | `packages/mcp/src/tools/search-status.ts` | Follow-up MCP tool for incomplete unified searches |
 | `packages/mcp/src/tools/search-language.ts` | Tool with client-side filtering logic |
-| `packages/mcp/src/tools/feedback.ts` | Simplest tool (direct service delegation) |
 | `packages/mcp/src/tools/types.ts` | `ToolDefinition` interface, `textResult`/`errorResult` helpers |
 | `packages/mcp/src/tools/shared.ts` | Shared MCP error/action helpers |
 | `packages/mcp/src/services/test-helpers.ts` | Mock service factories |
 | `packages/mcp/src/mcp/server.ts` | Transport-neutral MCP server construction and tool registration |
 | `packages/mcp/src/mcp/instructions.ts` | Stable guide builder returned by `quick_start` and copied into the loaded `githits-mcp` skill |
 | `src/commands/mcp.ts` | CLI stdio startup, request-header mode setup, and TTY setup instructions |
-| `packages/core-internal/src/services/githits-service.ts` | REST API client for example search, languages, and feedback |
+| `packages/core-internal/src/services/githits-service.ts` | REST API client for example search and languages |
 | `packages/core-internal/src/services/code-navigation-service.ts` | Package/source service client for unified `search`, `search_status`, `code_files`, `code_read`, and `code_grep` |
 | `packages/mcp/src/shared/language-filter.ts` | Pure `filterLanguages()` function shared between MCP tool and CLI |
 

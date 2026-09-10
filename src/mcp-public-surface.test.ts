@@ -63,7 +63,6 @@ const EXPECTED_DESCRIPTOR_NAMES = [
   "quick_start",
   "get_example",
   "search_language",
-  "feedback",
   "search",
   "search_status",
   "code_files",
@@ -94,7 +93,6 @@ const EXPECTED_SMOKE_NAMES = [
   "code_grep",
   "search",
   "search_status",
-  "feedback",
 ] as const;
 
 describe("public MCP package surface", () => {
