@@ -5,6 +5,60 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.16.1] - 2026-09-10
+
+Patch release: routes agents through a smaller self-contained MCP guide and
+accepts oversized grep context requests by clamping them to the supported range.
+
+### Added
+
+- **Reproducible agent context measurements** - Add offline content
+  inventory/replay, request-usage extraction, a production-schema fixture
+  server, and documented Codex/Claude discovery and routing-format experiments
+  without changing published guidance or runtime behavior.
+- **Skill-bearing PR eval coverage** - Include the existing full-guidance
+  scenario in agent-eval CI and Braintrust exports so canonical MCP skill
+  changes are measured alongside descriptor-only scenarios.
+
+### Changed
+
+- **Routing guidance before tool discovery** - Make the self-contained MCP
+  skill and quick-start guide lead with question-to-tool routing, defer argument
+  details to the selected tool, and preserve public-source scope, citations, and
+  untrusted-content rules.
+
+### Fixed
+
+- **Grep oversized context without a retry** - Clamp nonnegative integer context
+  requests to 10 lines per side, preserve asymmetric overrides, and return
+  requested/effective values in JSON with an actionable text notice. Direct
+  larger source windows to `code_read` instead of repeating grep.
+
+Hosted MCP users receive the routing and grep changes after the remote server
+adopts `@githits/mcp@0.16.1` and deploys.
+
+## [@githits/mcp 0.16.1] - 2026-09-10
+
+Patch release: improves evidence-tool routing and handles oversized grep context
+requests without requiring a retry.
+
+### Changed
+
+- **Routing guidance before tool discovery** - Make the self-contained MCP
+  skill and quick-start guide lead with question-to-tool routing, defer argument
+  details to the selected tool, and preserve public-source scope, citations, and
+  untrusted-content rules.
+
+### Fixed
+
+- **Grep oversized context without a retry** - Clamp nonnegative integer context
+  requests to 10 lines per side, preserve asymmetric overrides, and return
+  requested/effective values in JSON with an actionable text notice. Direct
+  larger source windows to `code_read` instead of repeating grep.
+
+Hosted clients receive these changes after the remote server adopts
+`@githits/mcp@0.16.1` and deploys.
+
 ## [githits 0.16.0] - 2026-09-10
 
 Minor release: removes feedback (breaking change) and marks all remaining MCP
