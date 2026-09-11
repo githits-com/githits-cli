@@ -55,10 +55,10 @@ For source evidence, locate paths or matches before reading; never use
 
 Tools with `wait_timeout_ms` wait for indexing or results before returning.
 Omit it for the default; use `0` to return without waiting. If work remains,
-follow the response's continuation or recovery action. For code-navigation
-`INDEXING` errors, use `details.indexingEstimate` to choose a longer wait or an
-indexed version/ref from `details.availableVersions` / `details.availableRefs`.
-`suggestedRefs` are fuzzy hints and may still require indexing.
+follow the suggested continuation or recovery action. When a target is still
+indexing, use the indexing estimate, if shown, to choose a longer wait, or retry
+with a listed already-indexed version or ref. Suggested refs may still need
+indexing first.
 
 Keep default token-efficient text whenever the model reads the result, including
 for summaries, comparisons, and follow-up calls; omit `format` in that case.
