@@ -577,8 +577,8 @@ For an active reference, shared JSON/text continuation chooses the largest numer
 `upperSeconds`, adds 10 seconds, and rounds upward to a ten-second boundary. It
 never sums jobs or target labels. If any entry has no range, the unchanged
 30-second default is an additional floor; if no ranges exist, the default stays
-30 seconds. The final suggestion is capped at the supported 300-second maximum.
-Thus upper 40 suggests 50 seconds, upper 44 suggests 60, upper 120 suggests 130, and unsupported-only work
+30 seconds. The final suggestion is capped at the supported 120-second maximum.
+Thus upper 40 suggests 50 seconds, upper 44 suggests 60, upper 80 suggests 90, and unsupported-only work
 suggests 30. CLI renders seconds; MCP renders milliseconds. Request defaults stay
 unchanged, and the client does not automatically poll.
 
@@ -593,26 +593,27 @@ The core service owns shared GraphQL selection/validation; the MCP shared
 serving node before releasing/adopting this client query. Dev deployment and live
 checks do not prove production support. An older schema rejects the selection;
 there is no compatibility fallback. Backend #2458 must also be deployed for
-five-minute waits. Discovery search/status accept CLI `--wait 0..300` seconds or
-MCP `wait_timeout_ms: 0..300000`; other navigation limits and 30-second defaults
+extended waits. Discovery search/status accept CLI `--wait 0..120` seconds or
+MCP `wait_timeout_ms: 0..120000`; other navigation limits and 30-second defaults
 are unchanged. Discovery HTTP budgets are `max(120000, waitTimeoutMs + 30000)` ms,
-so a full five-minute readiness wait has 30 seconds of response headroom. Caller
+giving a 150-second client deadline at the maximum readiness wait. Caller
 cancellation propagates from MCP through both discovery query paths, including
 existing target-resolution query fallback.
 
-The bounded service AbortSignal controls the request lifetime. `fetchWithTimeout`
-passes Bun's `timeout: false` extension for requests exceeding the ordinary
-120-second budget to prevent a competing idle deadline;
-the CLI fetch adapter honors that extension through the selected Undici dispatcher
-without replacing its proxy routing or mutating global dispatchers. A custom Node
-host injecting its own fetch must provide equivalent socket timeout support.
-The hosted MCP service currently runs Bun and uses SSE keepalives, but adopting
-this behavior still requires publishing `@githits/mcp`, updating the hosted server's
-dependency, and deploying it. External MCP callers must allow at least the requested
-wait plus response headroom; the SDK's default 60-second caller timeout is insufficient
-for long calls. The production `pkgseer.dev` Cloudflare route's long-wait allowance
-remains unverified and must be checked before production adoption. Dev direct-Fly
-verification does not establish that proxy's support.
+The service AbortSignal bounds the request and preserves caller cancellation during
+both headers and response-body reads. Standard socket timeouts are unchanged.
+Cloudflare's standard [origin proxy read timeout](https://developers.cloudflare.com/fundamentals/reference/connection-limits/)
+is 125 seconds; only Enterprise zones can increase it. The client cap is therefore
+120 seconds despite the backend's 300-second capability. A full 120-second
+readiness wait leaves at most five seconds for other origin work, so cold target
+resolution and response overhead can still exceed the edge budget. The 150-second
+client deadline does not extend Cloudflare's limit; verify production route timing
+before adoption.
+
+Hosted MCP adoption requires publishing `@githits/mcp`, updating the hosted server's
+dependency, and deploying it. External MCP callers must allow the requested wait
+plus response headroom; the SDK's default 60-second caller timeout is insufficient
+for the longest calls. Dev direct-Fly checks do not establish production routing.
 
 **Exact-path authority errors**: `code_read` / `code_grep` distinguish a missing path (`FILE_NOT_FOUND`) from a path deliberately omitted from the index (`FILE_PATH_EXCLUDED`) and an index whose source-file inventory cannot authoritatively answer the path query (`SOURCE_FILE_INVENTORY_UNKNOWN`). The latter two become stable top-level CLI/MCP codes and preserve `filePath`, optional `exclusionReason`, retryability, and target-resolution metadata. All three preserve the backend message and add surface-native `details.action` guidance for inspecting indexed paths. MCP names `code_files`, `path_prefix`, `code_read`, and `code_grep`; CLI JSON names `githits code files`, a path-prefix positional, `githits code read`, and `githits code grep --path`. CLI terminal output names `code files`. `code_read` still supports generic `NOT_FOUND` from older/backend paths, and its structured recovery is likewise rendered with MCP or CLI-native names without classifying unrelated target misses as file errors.
 
@@ -687,7 +688,7 @@ There is no separate session row. An active or evidence-status continuation uses
 the supplied `searchRef` exactly once in the executable `Next:` action:
 `Next: search_status search_ref="..." wait_timeout_ms=30000` for MCP or
 `Next: githits search-status ... --wait 30` for CLI when no range is available.
-Active indexing estimates can adjust that wait up to 300 seconds; completed
+Active indexing estimates can adjust that wait up to 120 seconds; completed
 evidence-status retrieval keeps the default. Target-local recovery never
 suppresses an active poll or completed evidence-status action, but suppresses a
 generic rerun/query rewrite. Stopped terminal references are not polled.

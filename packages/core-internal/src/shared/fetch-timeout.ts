@@ -34,14 +34,7 @@ export async function fetchWithTimeout(
   });
 
   try {
-    // Bun and the CLI Node adapter honor this extension. Long requests remain
-    // bounded by the signal rather than a competing five-minute socket timeout.
-    const requestInit = {
-      ...init,
-      signal,
-      ...(timeoutMs > DEFAULT_FETCH_TIMEOUT_MS ? { timeout: false } : {}),
-    };
-    return await Promise.race([fetchFn(input, requestInit), timeout]);
+    return await Promise.race([fetchFn(input, { ...init, signal }), timeout]);
   } catch (cause) {
     if (cause instanceof FetchTimeoutError) throw cause;
     if (timeoutSignal.aborted && !init.signal?.aborted) {

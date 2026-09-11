@@ -283,7 +283,7 @@ describe("runMcpSmoke", () => {
     await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
   });
 
-  it.each([10_000, 50_000, 60_000, 130_000, 300_000])(
+  it.each([10_000, 50_000, 60_000, 90_000, 120_000])(
     "accepts bounded estimate-based continuation at %s ms",
     async (waitMs) => {
       const caller = createCaller(async (name, args) => {

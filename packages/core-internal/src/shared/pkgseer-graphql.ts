@@ -136,6 +136,7 @@ export async function postPkgseerGraphql(
   }
 
   const responseBody = await response.text().catch(() => "");
+  request.signal?.throwIfAborted();
   const parsedBody = parseJsonOrNull(responseBody);
   throwIfTermsAcceptanceRequired(parsedBody);
 

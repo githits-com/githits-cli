@@ -1,9 +1,4 @@
-import {
-  type Dispatcher,
-  getGlobalDispatcher,
-  ProxyAgent,
-  fetch as undiciFetch,
-} from "undici";
+import { type Dispatcher, ProxyAgent, fetch as undiciFetch } from "undici";
 
 export interface CliFetchOptions {
   env?: Record<string, string | undefined>;
@@ -38,18 +33,9 @@ const USE_ENV_PROXY_FLAG = "--use-env-proxy";
 export function createCliFetch(options: CliFetchOptions = {}): typeof fetch {
   const env = options.env ?? process.env;
   const baseFetch = options.baseFetch ?? globalThis.fetch;
-  const nativeFetch = ((input: FetchInput, init?: FetchInit) => {
-    if (!usesSignalDeadline(init)) return baseFetch(input, init);
-    const requestInit = {
-      ...init,
-      dispatcher: withSignalDeadline(getGlobalDispatcher()),
-    };
-    // Node/Bun declarations can carry a different Undici version; dispatch is the runtime contract.
-    return baseFetch(input, requestInit as unknown as FetchInit);
-  }) as typeof fetch;
   const proxyConfig = getProxyConfig(env);
   if (!proxyConfig.httpProxy && !proxyConfig.httpsProxy) {
-    return nativeFetch;
+    return baseFetch;
   }
   if (
     isNativeEnvProxyActive({
@@ -59,7 +45,7 @@ export function createCliFetch(options: CliFetchOptions = {}): typeof fetch {
       nodeVersion: options.nodeVersion ?? process.versions.node,
     })
   ) {
-    return nativeFetch;
+    return baseFetch;
   }
 
   validateProxySelection(proxyConfig.httpProxy);
@@ -75,11 +61,11 @@ export function createCliFetch(options: CliFetchOptions = {}): typeof fetch {
   return (async (input: FetchInput, init?: FetchInit) => {
     const targetUrl = getRequestUrl(input);
     if (!targetUrl) {
-      return nativeFetch(input, init);
+      return baseFetch(input, init);
     }
     const proxy = resolveProxyForUrl(targetUrl, proxyConfig);
     if (!proxy) {
-      return nativeFetch(input, init);
+      return baseFetch(input, init);
     }
 
     let dispatcher = proxyAgents.get(proxy.value);
@@ -91,42 +77,13 @@ export function createCliFetch(options: CliFetchOptions = {}): typeof fetch {
     try {
       const undiciInit = {
         ...(init as Record<string, unknown> | undefined),
-        dispatcher: usesSignalDeadline(init)
-          ? withSignalDeadline(dispatcher)
-          : dispatcher,
+        dispatcher,
       } as UndiciInit;
       return await fetchWithDispatcher(input as UndiciInput, undiciInit);
     } catch (error) {
       throw createSanitizedProxyRequestError(proxy, error);
     }
   }) as typeof fetch;
-}
-
-/** Long service requests already have a finite AbortSignal deadline. */
-function usesSignalDeadline(init: FetchInit): boolean {
-  return (
-    (init as (RequestInit & { timeout?: boolean }) | undefined)?.timeout ===
-    false
-  );
-}
-
-/** Preserve the selected dispatcher (including native env-proxy routing). */
-function withSignalDeadline(dispatcher: Dispatcher): Dispatcher {
-  return new Proxy(dispatcher, {
-    get(target, key) {
-      if (key === "dispatch") {
-        return (
-          options: Dispatcher.DispatchOptions,
-          handler: Dispatcher.DispatchHandler,
-        ): boolean =>
-          target.dispatch(
-            { ...options, headersTimeout: 0, bodyTimeout: 0 },
-            handler,
-          );
-      }
-      return Reflect.get(target, key);
-    },
-  });
 }
 
 export function createLazyCliFetch(

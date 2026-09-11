@@ -40,11 +40,11 @@ describe("discovery indexing follow-up wait", () => {
     [[repository(10), unsupported], 30_000],
     [[repository(10), noHistory], 30_000],
     [[repository(40), unsupported], 50_000],
-    [[repository(120)], 130_000],
-    [[repository(281)], 300_000],
-    [[repository(290)], 300_000],
-    [[repository(300)], 300_000],
-    [[repository(600)], 300_000],
+    [[repository(80)], 90_000],
+    [[repository(101)], 120_000],
+    [[repository(110)], 120_000],
+    [[repository(111)], 120_000],
+    [[repository(600)], 120_000],
   ] satisfies Array<[DiscoveryIndexingEstimate[] | undefined, number]>)(
     "selects a bounded wait for %j",
     (entries, expected) => {

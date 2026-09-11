@@ -2172,10 +2172,10 @@ describe("searchStatusAction", () => {
 
     try {
       await expect(
-        searchStatusAction("search-ref-wait", { wait: "301" }, createDeps()),
+        searchStatusAction("search-ref-wait", { wait: "121" }, createDeps()),
       ).rejects.toThrow("process.exit");
       expect(String(errorSpy.mock.calls[0]?.[0])).toContain(
-        "--wait expects an integer between 0 and 300. Got 301.",
+        "--wait expects an integer between 0 and 120. Got 121.",
       );
     } finally {
       errorSpy.mockRestore();

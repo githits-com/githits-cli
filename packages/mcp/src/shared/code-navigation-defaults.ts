@@ -18,8 +18,8 @@ export const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
  */
 export const MAX_WAIT_TIMEOUT_MS = 60_000;
 
-/** Discovery search/status support five-minute waits with per-request HTTP headroom. */
-export const MAX_DISCOVERY_WAIT_TIMEOUT_MS = 300_000;
+/** Discovery readiness ceiling below the standard 125-second Cloudflare origin limit. */
+export const MAX_DISCOVERY_WAIT_TIMEOUT_MS = 120_000;
 
 /** Default and maximum line spans enforced by the MCP `code_read` surface. */
 export const MCP_READ_DEFAULT_SPAN = 150;

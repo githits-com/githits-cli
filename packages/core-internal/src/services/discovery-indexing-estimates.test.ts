@@ -120,8 +120,8 @@ for (const operation of ["search", "searchStatus"] as const) {
     it.each([
       [0, 120_000],
       [30_000, 120_000],
+      [90_000, 120_000],
       [120_000, 150_000],
-      [300_000, 330_000],
     ])(
       "gives a %s ms readiness wait %s ms of HTTP budget",
       async (waitTimeoutMs, expectedTimeoutMs) => {
@@ -161,7 +161,7 @@ for (const operation of ["search", "searchStatus"] as const) {
           );
         });
       });
-      const pending = run(true, 300_000, controller.signal);
+      const pending = run(true, 120_000, controller.signal);
       await ready;
       controller.abort(new Error("caller stopped waiting"));
       expect(upstreamSignal?.aborted).toBe(true);
@@ -184,10 +184,10 @@ for (const operation of ["search", "searchStatus"] as const) {
       );
       const timeout = spyOn(AbortSignal, "timeout");
       try {
-        await run(true, 300_000, controller.signal);
+        await run(true, 120_000, controller.signal);
         expect(fetchFn).toHaveBeenCalledTimes(2);
         expect(timeout.mock.calls.map((call) => call[0])).toEqual([
-          330_000, 330_000,
+          150_000, 150_000,
         ]);
         controller.abort();
         for (const [, init] of fetchFn.mock.calls as unknown as Array<
@@ -195,7 +195,7 @@ for (const operation of ["search", "searchStatus"] as const) {
         >) {
           expect(init.signal?.aborted).toBe(true);
           expect(JSON.parse(String(init.body)).variables.waitTimeoutMs).toBe(
-            300_000,
+            120_000,
           );
         }
       } finally {

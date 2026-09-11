@@ -187,9 +187,9 @@ describe("searchStatusTool", () => {
     if (!waitSchema) throw new Error("expected wait_timeout_ms schema");
 
     expect(waitSchema.safeParse(0).success).toBe(true);
-    expect(waitSchema.safeParse(300_000).success).toBe(true);
+    expect(waitSchema.safeParse(120_000).success).toBe(true);
     expect(waitSchema.safeParse(-1).success).toBe(false);
-    expect(waitSchema.safeParse(300_001).success).toBe(false);
+    expect(waitSchema.safeParse(120_001).success).toBe(false);
   });
 
   it("adds local MCP auth remediation to auth errors", async () => {

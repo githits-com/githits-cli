@@ -142,9 +142,9 @@ for (const operation of ["search", "search_status"] as const) {
     });
 
     it.each([
-      [120, 130],
-      [290, 300],
-      [600, 300],
+      [80, 90],
+      [110, 120],
+      [600, 120],
     ])(
       "uses a bounded long continuation for upper %s seconds",
       async (upperSeconds, seconds) => {

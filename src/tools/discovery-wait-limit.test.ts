@@ -9,55 +9,73 @@ import {
 import { createParityMcpTool } from "./parity-test-helpers.js";
 
 for (const operation of ["search", "search_status"] as const) {
-  describe(`${operation} five-minute wait`, () => {
-    it("accepts 300000 ms but rejects longer or invalid MCP waits", () => {
+  describe(`${operation} bounded discovery wait`, () => {
+    it("accepts 120000 ms but rejects longer or invalid MCP waits", () => {
       const schema = createParityMcpTool(operation).schema.wait_timeout_ms;
       if (!schema) throw new Error("missing wait schema");
-      for (const wait of [0, 60_001, 300_000])
+      for (const wait of [0, 60_001, 120_000])
         expect(schema.safeParse(wait).success).toBe(true);
-      for (const wait of [-1, 300_001, 1.5])
+      for (const wait of [-1, 120_001, 1.5])
         expect(schema.safeParse(wait).success).toBe(false);
     });
 
-    it("preserves caller cancellation through the tool and real service", async () => {
-      const controller = new AbortController();
-      let started!: () => void;
-      const ready = new Promise<void>((resolve) => {
-        started = resolve;
-      });
-      const fetchFn = mock(
-        (_input: unknown, init?: RequestInit) =>
-          new Promise<Response>((_resolve, reject) => {
+    it.each(["headers", "body"] as const)(
+      "preserves caller cancellation during %s through the real service",
+      async (phase) => {
+        const controller = new AbortController();
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const fetchFn = mock((_input: unknown, init?: RequestInit) => {
+          if (phase === "body") {
+            return Promise.resolve(
+              new Response(
+                new ReadableStream({
+                  start(body) {
+                    started();
+                    init?.signal?.addEventListener(
+                      "abort",
+                      () => body.error(init.signal?.reason),
+                      { once: true },
+                    );
+                  },
+                }),
+              ),
+            );
+          }
+          return new Promise<Response>((_resolve, reject) => {
             started();
             init?.signal?.addEventListener(
               "abort",
               () => reject(init.signal?.reason),
               { once: true },
             );
-          }),
-      );
-      const service = new CodeNavigationServiceImpl(
-        "https://backend.example.com",
-        createMockTokenProvider(),
-        fetchFn as unknown as typeof fetch,
-      );
-      const tool = createParityMcpTool(operation, {
-        codeNavigationService: service,
-      });
-      const args =
-        operation === "search"
-          ? { target: "npm:express", query: "router" }
-          : { search_ref: "ref" };
-      const pending = tool.handler(
-        { ...args, wait_timeout_ms: 300_000 },
-        { signal: controller.signal },
-      );
-      await ready;
-      controller.abort(new Error("caller canceled discovery"));
-      await expect(pending).rejects.toBe(controller.signal.reason);
-    });
+          });
+        });
+        const service = new CodeNavigationServiceImpl(
+          "https://backend.example.com",
+          createMockTokenProvider(),
+          fetchFn as unknown as typeof fetch,
+        );
+        const tool = createParityMcpTool(operation, {
+          codeNavigationService: service,
+        });
+        const args =
+          operation === "search"
+            ? { target: "npm:express", query: "router" }
+            : { search_ref: "ref" };
+        const pending = tool.handler(
+          { ...args, wait_timeout_ms: 120_000 },
+          { signal: controller.signal },
+        );
+        await ready;
+        controller.abort(new Error("caller canceled discovery"));
+        await expect(pending).rejects.toBe(controller.signal.reason);
+      },
+    );
 
-    it("converts CLI 300 seconds and MCP 300000 ms into the same service budget", async () => {
+    it("converts CLI 120 seconds and MCP 120000 ms into the same service budget", async () => {
       const call = mock(async () => defaultUnifiedSearchOutcome);
       const service = createMockCodeNavigationService({
         search: call,
@@ -78,10 +96,10 @@ for (const operation of ["search", "search_status"] as const) {
         if (operation === "search")
           await searchAction(
             "router",
-            { in: ["npm:express"], wait: "300", json: true },
+            { in: ["npm:express"], wait: "120", json: true },
             deps,
           );
-        else await searchStatusAction("ref", { wait: "300", json: true }, deps);
+        else await searchStatusAction("ref", { wait: "120", json: true }, deps);
       } finally {
         log.mockRestore();
         error.mockRestore();
@@ -92,7 +110,7 @@ for (const operation of ["search", "search_status"] as const) {
         operation === "search"
           ? (cliArgs[0] as { waitTimeoutMs: number }).waitTimeoutMs
           : cliArgs[1],
-      ).toBe(300_000);
+      ).toBe(120_000);
       call.mockClear();
       const tool = createParityMcpTool(operation, {
         codeNavigationService: service,
@@ -103,7 +121,7 @@ for (const operation of ["search", "search_status"] as const) {
           : { search_ref: "ref" };
       const controller = new AbortController();
       const result = await tool.handler(
-        { ...args, wait_timeout_ms: 300_000, format: "json" },
+        { ...args, wait_timeout_ms: 120_000, format: "json" },
         { signal: controller.signal },
       );
       expect(result.isError).toBeUndefined();
@@ -116,7 +134,7 @@ for (const operation of ["search", "search_status"] as const) {
         operation === "search"
           ? (mcpArgs[0] as { waitTimeoutMs: number }).waitTimeoutMs
           : mcpArgs[1],
-      ).toBe(300_000);
+      ).toBe(120_000);
     });
   });
 }
