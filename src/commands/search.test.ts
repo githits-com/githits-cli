@@ -877,6 +877,38 @@ describe("searchAction", () => {
     }
   });
 
+  it("rejects docs path prefixes before calling the search service", async () => {
+    const search = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    try {
+      await expect(
+        searchAction(
+          "routing",
+          {
+            in: ["npm:express"],
+            source: "docs",
+            pathPrefix: "guide/",
+            json: true,
+          },
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({ search }),
+          }),
+        ),
+      ).rejects.toThrow("process.exit");
+      expect(search).not.toHaveBeenCalled();
+      expect(JSON.parse(String(errorSpy.mock.calls[0]?.[0]))).toMatchObject({
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      });
+    } finally {
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
   it("does not send a file-intent filter unless the caller explicitly set one", async () => {
     const search = mock<
       (

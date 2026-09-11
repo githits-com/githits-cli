@@ -195,7 +195,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Optional target-relative path prefix for code and repository-document results. Prefer this field to an inline `path:` qualifier when the scope is already known.",
+      "Optional target-relative path prefix for code results only. Requires code in the selected sources: use source code with a package/repository, or omit source for automatic package/repository search. Omit for source docs, source symbol, and site-only searches; unsupported combinations are rejected before search.",
     ),
   file_intent: z
     .enum([
@@ -274,6 +274,7 @@ const DESCRIPTION =
   "Omit `source` to let GitHits select the best sources; set it only to restrict results to docs, code, or symbols. " +
   "Target indexed dependencies and repositories, or standalone docs with `site:<host[/path]>`. " +
   'Structured parameters combine with the `query` using AND semantics. For `source:"docs"`, code/symbol-only filters (`category`, `kind`, `file_intent`, `public_only`) are ignored because docs search does not support them. ' +
+  "A nonempty `path_prefix` requires a code source; docs-only, symbol-only, and automatic site-only searches reject it. " +
   "A `search` call can return complete results directly. Only when its response supplies both a `searchRef` and a `search_status` action, follow that action with `search_status`; never repeat `search` to poll. Terminal or unrecognized statuses are not polled; follow the response's recovery guidance instead. If the response includes advisory `sourceStatus[].suggestedSiteTargets`, retry one explicitly; do not treat suggestions as aliases or retry automatically. " +
   "Set `allow_partial_results: true` to permit a serveable subset of target/source pairs while others remain unavailable. " +
   "Use hit content directly when sufficient; follow its generated `followUp` only for more context. After discovery, use `code_grep` for deterministic exact-pattern occurrences. From text, pass a `[docs page]` target unchanged to `docs_read`; a fragment needs no bounds, and bounds replace it with a page-relative range. Use repo-doc targets/ranges with `docs_read`, and repo code/symbol targets, paths, and ranges with `code_read`." +

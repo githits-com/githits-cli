@@ -239,7 +239,10 @@ export function registerSearchCommand(program: Command) {
         "Broad symbol category filter",
       ).choices([...knownSymbolCategoryList()]),
     )
-    .option("--path-prefix <prefix>", "Repository path prefix filter")
+    .option(
+      "--path-prefix <prefix>",
+      "Code-only path prefix; omit for docs, symbols, and site-only searches",
+    )
     .addOption(
       new Option(
         "--intent <intent>",
