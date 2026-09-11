@@ -697,6 +697,8 @@ export interface ListPackageDocsParams {
 
 export interface ReadPackageDocParams {
   pageId: string;
+  startLine?: number;
+  endLine?: number;
 }
 
 export interface PackageDocPageSummary {
@@ -757,11 +759,23 @@ export interface PackageDocPage {
   baseUrl?: string;
 }
 
+export interface PackageDocContentRange {
+  /** Inclusive one-based page-relative start; absent only for an empty page. */
+  startLine?: number;
+  /** Inclusive one-based page-relative end; absent only for an empty page. */
+  endLine?: number;
+  /** Whole stored page extent, including a trailing empty line. */
+  totalLines: number;
+  /** Indexed section anchor when a URL fragment resolved successfully. */
+  anchor?: string;
+}
+
 export interface PackageDocResult {
   registry?: string;
   packageName?: string;
   version?: string;
   sourceKind?: PackageDocSourceKind;
+  contentRange: PackageDocContentRange;
   page?: PackageDocPage;
 }
 
@@ -848,6 +862,23 @@ export class PackageIntelligenceValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "PackageIntelligenceValidationError";
+  }
+}
+
+export type DocumentationSectionUnresolvedReason =
+  | "not_found"
+  | "ambiguous"
+  | "inexact_range"
+  | "unsupported_format";
+
+/** An HTTP(S) fragment did not resolve to one exact indexed section. */
+export class PackageIntelligenceDocumentationSectionUnresolvedError extends Error {
+  constructor(
+    message: string,
+    public readonly reason: DocumentationSectionUnresolvedReason | undefined,
+  ) {
+    super(message);
+    this.name = "PackageIntelligenceDocumentationSectionUnresolvedError";
   }
 }
 
@@ -2408,6 +2439,38 @@ const packageDocResultResponseSchema = z.object({
   packageName: z.string().nullable().optional(),
   version: z.string().nullable().optional(),
   sourceKind: packageDocSourceKindSchema.nullable().optional(),
+  contentRange: z
+    .object({
+      startLine: z.number().int().positive().nullable(),
+      endLine: z.number().int().positive().nullable(),
+      totalLines: z.number().int().nonnegative(),
+      anchor: z.string().nullable(),
+    })
+    .superRefine((range, context) => {
+      const empty = range.totalLines === 0;
+      if (empty && (range.startLine !== null || range.endLine !== null)) {
+        context.addIssue({
+          code: "custom",
+          message: "Empty documentation must have null range bounds.",
+        });
+      }
+      if (!empty && (range.startLine === null || range.endLine === null)) {
+        context.addIssue({
+          code: "custom",
+          message: "Non-empty documentation must have range bounds.",
+        });
+      }
+      if (
+        range.startLine !== null &&
+        range.endLine !== null &&
+        (range.startLine > range.endLine || range.endLine > range.totalLines)
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "Documentation range must fit within the complete page.",
+        });
+      }
+    }),
   page: packageDocPageSchema,
 });
 
@@ -2475,12 +2538,18 @@ query ListPackageDocs(
 }`;
 
 const READ_PACKAGE_DOC_QUERY = `
-query ReadPackageDoc($pageId: String!) {
-  getDocPage(pageId: $pageId) {
+query ReadPackageDoc($pageId: String!, $startLine: Int, $endLine: Int) {
+  getDocPage(pageId: $pageId, startLine: $startLine, endLine: $endLine) {
     registry
     packageName
     version
     sourceKind
+    contentRange {
+      startLine
+      endLine
+      totalLines
+      anchor
+    }
     page {
       id
       docsReadTarget
@@ -3880,6 +3949,10 @@ export class PackageIntelligenceServiceImpl
         query: READ_PACKAGE_DOC_QUERY,
         variables: {
           pageId: params.pageId,
+          ...(params.startLine !== undefined
+            ? { startLine: params.startLine }
+            : {}),
+          ...(params.endLine !== undefined ? { endLine: params.endLine } : {}),
         },
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
@@ -3928,6 +4001,12 @@ export class PackageIntelligenceServiceImpl
       packageName: data.packageName ?? undefined,
       version: data.version ?? undefined,
       sourceKind: data.sourceKind ?? undefined,
+      contentRange: {
+        startLine: data.contentRange.startLine ?? undefined,
+        endLine: data.contentRange.endLine ?? undefined,
+        totalLines: data.contentRange.totalLines,
+        anchor: data.contentRange.anchor ?? undefined,
+      },
       page: data.page
         ? {
             id: data.page.id ?? undefined,
@@ -4082,6 +4161,12 @@ export function createPackageIntelligenceGraphQLError(
     case "VALIDATION_ERROR":
       return new PackageIntelligenceValidationError(message);
 
+    case "DOCUMENTATION_SECTION_UNRESOLVED":
+      return new PackageIntelligenceDocumentationSectionUnresolvedError(
+        message,
+        parseDocumentationSectionUnresolvedReason(extensions?.reason),
+      );
+
     case "FEATURE_FLAG_REQUIRED":
       return new PackageIntelligenceFeatureFlagRequiredError(message);
 
@@ -4116,6 +4201,20 @@ export function createPackageIntelligenceGraphQLError(
         code,
         retryable,
       );
+  }
+}
+
+function parseDocumentationSectionUnresolvedReason(
+  value: unknown,
+): DocumentationSectionUnresolvedReason | undefined {
+  switch (value) {
+    case "not_found":
+    case "ambiguous":
+    case "inexact_range":
+    case "unsupported_format":
+      return value;
+    default:
+      return undefined;
   }
 }
 

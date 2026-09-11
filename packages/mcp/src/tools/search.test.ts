@@ -29,7 +29,10 @@ describe("searchTool", () => {
     expect(descriptor?.description.slice(0, 80)).toBe(
       "Discover relevant evidence in a known target before exact grep: docs, specs, cod",
     );
-    expect(descriptor?.description).toContain("locator.docsReadTarget");
+    expect(descriptor?.description).toContain(
+      "pass a `[docs page]` target unchanged",
+    );
+    expect(descriptor?.description).toContain("fragment needs no bounds");
   });
 
   it("keeps the common path simple and delegates continuation details", () => {

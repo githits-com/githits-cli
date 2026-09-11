@@ -36,15 +36,21 @@ target forms and argument details.
 
 For a package or site docs topic, use \`search\` with \`source:"docs"\`.
 \`docs_list\` browses package pages, not standalone \`site:\` targets.
-Pass the emitted \`docsReadTarget\` (or historical \`pageId\`) to \`docs_read\`.
+Use a docs hit's snippet when sufficient; otherwise follow its generated
+\`followUp\`. From text, pass a \`[docs page]\` target unchanged to \`docs_read\`.
+A fragment needs no bounds and returns the exact section; add bounds only to
+replace it with a page-relative range. Historical \`pageId\` works.
 For source evidence, locate paths or matches before reading; never use
 \`code_read\` to list/probe directories.
 
-Keep default text for reading and follow-ups. Reuse returned targets, paths,
-page locators, references and line ranges; do not invent them. Read only needed
-lines. Use JSON only for programmatic parsing or required fields missing from
-text. Cite tool-owned provenance, including get_example source references,
-and report coverage, truncation and other evidence limits.`;
+Keep default token-efficient text whenever the model reads the result, including
+for summaries, comparisons, and follow-up calls; omit \`format\` in that case.
+Set JSON only when code consumes the raw response instead of the model, or when
+text omits a required field. Calling a tool through MCP or TypeScript does not
+itself require JSON. Reuse returned targets, paths, page locators, references
+and line ranges; do not invent them. Read only needed lines. Cite tool-owned
+provenance, including get_example source references, and report coverage,
+truncation and other evidence limits.`;
 
 /**
  * Build the routing guide returned by `quick_start` and embedded in the skill.
@@ -101,10 +107,10 @@ const LOCAL_AGENTIC_ASK_GUIDANCE_START =
   "- `ask` — ask a public repository or package question and receive a source-cited answer. Omit `target` and `thread_id` for question-only lookup. For candidates, ask the user to select a `target`, then retry.";
 
 const LOCAL_AGENTIC_ASK_GUIDANCE_END =
-  ' Reuse a returned `thread_id` for follow-ups. Change project, version, or topic in the follow-up question. Sources default to directly callable MCP tools; use `source_format:"url"` for original upstream URLs. Do not invent or rewrite sources. Keep text; use JSON only for required fields absent from text.';
+  ' Reuse a returned `thread_id` for follow-ups. Change project, version, or topic in the follow-up question. Sources default to directly callable MCP tools; use `source_format:"url"` for original upstream URLs. Do not invent or rewrite sources.';
 
 const LOCAL_RESOLVE_TARGET_GUIDANCE =
-  '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, `codeberg:owner/repo`, `gitlab:group/subgroup/project`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` target is docs-only: pass it to `search` with `source:"docs"`; request `format:"json"` only if required locator fields are absent from text, then use its `docsReadTarget` (or `pageId`) and range with `docs_read`.';
+  '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, `codeberg:owner/repo`, `gitlab:group/subgroup/project`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` is docs-only: pass it to `search` with `source:"docs"`; request JSON only for missing fields; use a `[docs page]` target unchanged, otherwise its returned target/range.';
 
 const LOCAL_CODE_DIFF_GUIDANCE =
   "- `code_diff` — compare exact package versions or public repository refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text`; use `json` only for required fields absent from text or the full returned patch. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";

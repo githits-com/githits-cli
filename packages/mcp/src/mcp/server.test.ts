@@ -144,6 +144,8 @@ const DESCRIPTION_ROUTING: Record<
       "`search`",
       "`code_read`",
       "`docsReadTarget`",
+      "fragment needs no bounds",
+      "either bound replaces it with a page-relative range",
       "150 lines by default",
       "up to 300 lines",
     ],
@@ -331,7 +333,7 @@ describe("MCP tool description catalog", () => {
 });
 
 describe("MCP output format", () => {
-  it("advertises token-efficient text as the explicit default", () => {
+  it("keeps model-read results in text by default", () => {
     const descriptors = getMcpToolDescriptors();
 
     for (const descriptor of descriptors) {
@@ -345,10 +347,10 @@ describe("MCP output format", () => {
         enum: ["text", "json"],
       });
       expect(JSON.stringify(formatSchema), descriptor.name).toContain(
-        "token-efficient",
+        "Omit `format` to use token-efficient text when the model reads the result",
       );
       expect(JSON.stringify(formatSchema), descriptor.name).toContain(
-        "parse responses in code",
+        "code consumes the raw response instead of the model",
       );
       expect(descriptor.schema.format?.parse(undefined)).toBe("text");
       expect(descriptor.schema.format?.safeParse("text-v1").success).toBe(

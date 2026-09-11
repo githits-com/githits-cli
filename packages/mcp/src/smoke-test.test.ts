@@ -962,6 +962,9 @@ function smokeJsonResponse(
           ? "https://github.com/expressjs/express/blob/abc123/README.md"
           : SMOKE_CRAWLED_DOC_TARGET,
         content: "documentation content",
+        startLine: 1,
+        endLine: 1,
+        totalLines: 1,
       });
     }
     case "code_files":

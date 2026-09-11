@@ -14,6 +14,7 @@ import {
   PackageIntelligenceAccessError,
   PackageIntelligenceBackendError,
   PackageIntelligenceChangelogSourceNotFoundError,
+  PackageIntelligenceDocumentationSectionUnresolvedError,
   PackageIntelligenceFeatureFlagRequiredError,
   PackageIntelligenceGraphQLError,
   PackageIntelligenceNetworkError,
@@ -59,6 +60,14 @@ function classify(error: unknown): MappedError {
       code: "NOT_FOUND",
       message: error.message,
       retryable: false,
+    };
+  }
+  if (error instanceof PackageIntelligenceDocumentationSectionUnresolvedError) {
+    return {
+      code: "DOCUMENTATION_SECTION_UNRESOLVED",
+      message: error.message,
+      retryable: false,
+      details: error.reason ? { reason: error.reason } : undefined,
     };
   }
   if (error instanceof PackageIntelligenceVersionNotFoundError) {

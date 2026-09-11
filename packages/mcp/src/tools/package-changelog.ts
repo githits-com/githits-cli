@@ -114,7 +114,7 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Use `text` (default) for reading and tool follow-ups; it is token-efficient. Use `json` only to parse responses in code or obtain fields absent from text. JSON includes full markdown bodies.",
+      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text. JSON includes full markdown bodies.",
     ),
 };
 
@@ -132,7 +132,7 @@ export const DESCRIPTION_BASE: string =
   "Text output previews 10 body lines by default; use `body_lines` " +
   "to tune the preview or `verbose:true` for full text bodies. Set " +
   "`omit_bodies: true` for a version / date / URL timeline only; " +
-  'pass `format: "json"` for the complete structured envelope. ' +
+  'For code consuming raw output, `format: "json"` returns the complete structured envelope. ' +
   "Package-version entries without changelog " +
   "text succeed with `source` omitted; no-source plus no entries " +
   "returns `NOT_FOUND`. Supports npm, PyPI, Hex, Crates, NuGet, " +

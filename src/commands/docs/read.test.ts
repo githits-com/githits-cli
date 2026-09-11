@@ -1,5 +1,8 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
-import { PackageIntelligenceTargetNotFoundError } from "@githits/core-internal";
+import {
+  PackageIntelligenceDocumentationSectionUnresolvedError,
+  PackageIntelligenceTargetNotFoundError,
+} from "@githits/core-internal";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import {
   createMockPackageIntelligenceService,
@@ -58,14 +61,19 @@ describe("docsReadAction", () => {
 
   it("passes URL targets through and returns target, ID, provenance, and range", async () => {
     const docsReadTarget =
-      "https://expressjs.com/en/guide/routing.html?publisher=express";
+      "https://expressjs.com/en/guide/routing.html?publisher=express#routing";
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
     const readPackageDoc = mock(() =>
       Promise.resolve({
+        contentRange: {
+          startLine: 2,
+          endLine: 2,
+          totalLines: 3,
+        },
         page: {
           id: "legacy-routing-id",
           docsReadTarget,
-          content: "one\ntwo\nthree",
+          content: "two",
           source: { url: docsReadTarget },
         },
       }),
@@ -79,7 +87,11 @@ describe("docsReadAction", () => {
         createDeps({ packageIntelligenceService: service }),
       );
 
-      expect(readPackageDoc).toHaveBeenCalledWith({ pageId: docsReadTarget });
+      expect(readPackageDoc).toHaveBeenCalledWith({
+        pageId: docsReadTarget,
+        startLine: 2,
+        endLine: 2,
+      });
       const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0]));
       expect(payload).toMatchObject({
         docsReadTarget,
@@ -93,6 +105,45 @@ describe("docsReadAction", () => {
       logSpy.mockRestore();
     }
   });
+
+  it.each([
+    ["10-", { pageId: "opaque:%2Fpage#fragment", startLine: 10 }],
+    ["-40", { pageId: "opaque:%2Fpage#fragment", endLine: 40 }],
+  ])(
+    "forwards only the explicit --lines bound for %s",
+    async (lines, expected) => {
+      const readPackageDoc = mock(() =>
+        Promise.resolve({
+          contentRange: {
+            startLine: 10,
+            endLine: 10,
+            totalLines: 40,
+          },
+          page: {
+            id: "stable-page-id",
+            docsReadTarget: "opaque:%2Fpage#fragment",
+            content: "line 10",
+          },
+        }),
+      );
+      const logSpy = spyOn(console, "log").mockImplementation(() => {});
+
+      try {
+        await docsReadAction(
+          "opaque:%2Fpage#fragment",
+          { lines, json: true },
+          createDeps({
+            packageIntelligenceService: createMockPackageIntelligenceService({
+              readPackageDoc,
+            }),
+          }),
+        );
+        expect(readPackageDoc).toHaveBeenCalledWith(expected);
+      } finally {
+        logSpy.mockRestore();
+      }
+    },
+  );
 
   it("renders distinct URL target and stable ID once in verbose output", async () => {
     const docsReadTarget = "https://expressjs.com/en/guide/routing.html";
@@ -108,6 +159,12 @@ describe("docsReadAction", () => {
     const service = createMockPackageIntelligenceService({
       readPackageDoc: mock(() =>
         Promise.resolve({
+          contentRange: {
+            startLine: 81,
+            endLine: 81,
+            totalLines: 219,
+            anchor: "routing",
+          },
           page: {
             id: "legacy-routing-id",
             docsReadTarget,
@@ -128,6 +185,8 @@ describe("docsReadAction", () => {
       const output = writes.join("");
       expect(output).toContain(`docsReadTarget: ${docsReadTarget}`);
       expect(output).toContain("pageId: legacy-routing-id");
+      expect(output).toContain("range: 81-81/219");
+      expect(output).toContain("anchor: routing");
       expect(output.match(/expressjs\.com/g)).toHaveLength(1);
       expect(output).not.toContain(`source: ${docsReadTarget}`);
     } finally {
@@ -190,6 +249,42 @@ describe("docsReadAction", () => {
     const payload = JSON.parse(String(errorSpy.mock.calls[0]?.[0]));
     expect(payload.code).toBe("NOT_FOUND");
     expect(payload.error).toBe("Doc page not found");
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("preserves the unresolved-section code and reason in --json errors", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const service = createMockPackageIntelligenceService({
+      readPackageDoc: mock(() =>
+        Promise.reject(
+          new PackageIntelligenceDocumentationSectionUnresolvedError(
+            "Documentation section is inexact",
+            "inexact_range",
+          ),
+        ),
+      ),
+    });
+
+    try {
+      await docsReadAction(
+        "https://docs.example.test/page#inexact",
+        { json: true },
+        createDeps({ packageIntelligenceService: service }),
+      );
+    } catch {
+      // expected
+    }
+
+    expect(JSON.parse(String(errorSpy.mock.calls[0]?.[0]))).toEqual({
+      error: "Documentation section is inexact",
+      code: "DOCUMENTATION_SECTION_UNRESOLVED",
+      retryable: false,
+      details: { reason: "inexact_range" },
+    });
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });

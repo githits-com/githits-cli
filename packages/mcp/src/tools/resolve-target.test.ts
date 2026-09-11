@@ -105,9 +105,8 @@ describe("resolve_target MCP adapter", () => {
     });
     expect(tool.schema.format?.parse(undefined)).toBe("text");
     expect(tool.schema.format?.safeParse("text-v1").success).toBe(false);
-    expect(tool.schema.format?.description).toContain("token-efficient");
-    expect(tool.schema.format?.description).toContain(
-      "parse responses in code",
+    expect(tool.schema.format?.description).toBe(
+      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
     );
     expect(schema.properties?.query).toMatchObject({
       description: expect.stringContaining(

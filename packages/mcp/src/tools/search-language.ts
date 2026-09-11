@@ -25,11 +25,11 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Use `text` (default) for reading and tool follow-ups; it is token-efficient. Use `json` only to parse responses in code or obtain fields absent from text.",
+      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
     ),
 };
 
-const DESCRIPTION = `Resolve a supported language name or alias for \`get_example\`; use only when forcing that tool's language filter. Do not use this for source search. Returns up to 5 matches. Default \`text\` output is one language per line; use \`format: "json"\` for the structured array.`;
+const DESCRIPTION = `Resolve a supported language name or alias for \`get_example\`; use only when forcing that tool's language filter. Do not use this for source search. Returns up to 5 matches. Default \`text\` output is one language per line; for code consuming raw output, \`format: "json"\` returns the structured array.`;
 
 export function createSearchLanguageTool(
   service: GitHitsService,

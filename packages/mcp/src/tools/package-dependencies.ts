@@ -68,7 +68,7 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe(
-      'When true, computes deprecated, outdated, duplicate, and conflict analysis across the resolved dependency graph. Without `max_depth`, this traverses the full graph; set `max_depth` to bound analysis cost and scope. Off by default; use `format: "json"` for complete issue rows.',
+      "When true, computes deprecated, outdated, duplicate, and conflict analysis across the resolved dependency graph. Without `max_depth`, this traverses the full graph; set `max_depth` to bound analysis cost and scope. Off by default; JSON exposes complete issue rows for direct code consumption.",
     ),
   max_depth: z
     .number()
@@ -83,7 +83,7 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Use `text` (default) for reading and tool follow-ups; it is token-efficient. Use `json` only to parse responses in code or obtain fields absent from text. JSON includes complete issue rows.",
+      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text. JSON includes complete issue rows.",
     ),
 };
 
@@ -99,8 +99,8 @@ const DESCRIPTION =
   "per-package provenance. Supports " +
   `${SUPPORTED_DEPS_REGISTRIES_LIST}. Use ` +
   "`include_issues: true` for deprecated, outdated, duplicate, " +
-  'and conflict analysis across the resolved dependency graph; use `format: "json"` ' +
-  "for complete issue rows. Without `max_depth`, issues scan the full graph; " +
+  "and conflict analysis across the resolved dependency graph. JSON exposes " +
+  "complete issue rows for direct code consumption. Without `max_depth`, issues scan the full graph; " +
   "`max_depth` bounds cost and scope. " +
   "Use `pkg_info` for latest package health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence.";
 

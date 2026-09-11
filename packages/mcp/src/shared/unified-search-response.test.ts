@@ -1021,7 +1021,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
   });
 
-  it("retains documentation locators and prefers docsReadTarget follow-ups", () => {
+  it("retains documentation locators and prefers exact fragment follow-ups", () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");
     }
@@ -1043,7 +1043,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
               locator: {
                 pageId: "legacy-routing-id",
                 docsReadTarget,
-                sourceUrl: "https://expressjs.com/en/guide/routing.html",
+                sourceUrl: `${docsReadTarget}#route-handlers`,
                 startLine: 20,
                 endLine: 35,
               },
@@ -1056,10 +1056,10 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.results[0]?.locator).toMatchObject({
       docsReadTarget,
       pageId: "legacy-routing-id",
-      sourceUrl: "https://expressjs.com/en/guide/routing.html",
+      sourceUrl: `${docsReadTarget}#route-handlers`,
     });
     expect(payload.results[0]?.followUp).toBe(
-      `docs_read page_id=${JSON.stringify(docsReadTarget)} start_line=20 end_line=35`,
+      `docs_read page_id=${JSON.stringify(`${docsReadTarget}#route-handlers`)}`,
     );
   });
 
