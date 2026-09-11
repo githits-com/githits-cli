@@ -1,11 +1,24 @@
 import { describe, expect, it, mock } from "bun:test";
+import type { PackageIntelligenceService } from "@githits/core-internal";
 import {
   type PackageDocResult,
   PackageIntelligenceDocumentationSectionUnresolvedError,
   PackageIntelligenceTargetNotFoundError,
 } from "@githits/core-internal";
-import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
-import { createReadPackageDocTool } from "./read-package-doc.js";
+import {
+  createMockCodeNavigationService,
+  createMockPackageIntelligenceService,
+} from "../services/test-helpers.js";
+import { createReadTool } from "./read.js";
+
+function createDocsReadTool(
+  service: PackageIntelligenceService,
+): ReturnType<typeof createReadTool> {
+  return createReadTool({
+    codeNavigationService: createMockCodeNavigationService(),
+    packageIntelligenceService: service,
+  });
+}
 
 function parseText(result: { content: Array<{ text: string }> }): unknown {
   return JSON.parse(result.content[0]?.text ?? "");
@@ -45,34 +58,7 @@ function docResult(options: {
   };
 }
 
-describe("createReadPackageDocTool", () => {
-  it("registers the fragment and range contract", () => {
-    const tool = createReadPackageDocTool(
-      createMockPackageIntelligenceService(),
-    );
-    expect(tool.name).toBe("docs_read");
-    expect(tool.annotations?.readOnlyHint).toBe(true);
-    expect(Object.keys(tool.schema)).toEqual([
-      "page_id",
-      "start_line",
-      "end_line",
-      "format",
-    ]);
-    expect(tool.description).toContain("fragment needs no bounds");
-    expect(tool.description).toContain(
-      "either bound replaces it with a page-relative range",
-    );
-    expect(tool.description).toContain("up to 300");
-    expect(tool.description).toContain("stable `pageId`");
-    expect(tool.schema.page_id?.description).toContain("Pass unchanged");
-    expect(tool.schema.start_line?.description).toContain(
-      "Either bound overrides a URL fragment",
-    );
-    expect(tool.schema.end_line?.description).toContain(
-      "JSON has no local cap",
-    );
-  });
-
+describe("createDocsReadTool", () => {
   it("resolves a fragment without forwarding the default text window", async () => {
     const target =
       "https://flask.palletsprojects.com/en/stable/design/#the-routing-system";
@@ -90,11 +76,11 @@ describe("createReadPackageDocTool", () => {
         }),
       ),
     );
-    const tool = createReadPackageDocTool(
+    const tool = createDocsReadTool(
       createMockPackageIntelligenceService({ readPackageDoc }),
     );
 
-    const result = await tool.handler({ page_id: target }, {});
+    const result = await tool.handler({ target: target }, {});
     const output = result.content[0]?.text ?? "";
 
     expect(readPackageDoc).toHaveBeenCalledWith({ pageId: target });
@@ -117,12 +103,12 @@ describe("createReadPackageDocTool", () => {
         }),
       ),
     );
-    const tool = createReadPackageDocTool(
+    const tool = createDocsReadTool(
       createMockPackageIntelligenceService({ readPackageDoc }),
     );
 
     const result = await tool.handler(
-      { page_id: target, start_line: 100, end_line: 101, format: "json" },
+      { target: target, start_line: 100, end_line: 101, format: "json" },
       {},
     );
 
@@ -155,11 +141,11 @@ describe("createReadPackageDocTool", () => {
         }),
       ),
     );
-    const tool = createReadPackageDocTool(
+    const tool = createDocsReadTool(
       createMockPackageIntelligenceService({ readPackageDoc }),
     );
 
-    await tool.handler({ page_id: "doc-target", ...args, format: "json" }, {});
+    await tool.handler({ target: "doc-target", ...args, format: "json" }, {});
 
     expect(readPackageDoc).toHaveBeenCalledWith(expected);
   });
@@ -175,12 +161,12 @@ describe("createReadPackageDocTool", () => {
         }),
       ),
     );
-    const tool = createReadPackageDocTool(
+    const tool = createDocsReadTool(
       createMockPackageIntelligenceService({ readPackageDoc }),
     );
 
     const result = await tool.handler(
-      { page_id: "doc-target", start_line: 10, end_line: 40, format: "json" },
+      { target: "doc-target", start_line: 10, end_line: 40, format: "json" },
       {},
     );
 
@@ -207,12 +193,12 @@ describe("createReadPackageDocTool", () => {
         }),
       ),
     );
-    const tool = createReadPackageDocTool(
+    const tool = createDocsReadTool(
       createMockPackageIntelligenceService({ readPackageDoc }),
     );
 
     const result = await tool.handler(
-      { page_id: "doc-target", start_line: 1, end_line: 600 },
+      { target: "doc-target", start_line: 1, end_line: 600 },
       {},
     );
     const output = result.content[0]?.text ?? "";
@@ -224,7 +210,7 @@ describe("createReadPackageDocTool", () => {
     });
     expect(output).toContain("lines 1-300/400");
     expect(output).toContain(
-      'Continue with docs_read page_id="stable-page-id" start_line=301 end_line=400.',
+      'Continue with read target="stable-page-id" start_line=301 end_line=400.',
     );
     expect(output).toContain("line 300");
     expect(output).not.toContain("line 301\n");
@@ -242,17 +228,17 @@ describe("createReadPackageDocTool", () => {
         }),
       ),
     );
-    const tool = createReadPackageDocTool(
+    const tool = createDocsReadTool(
       createMockPackageIntelligenceService({ readPackageDoc }),
     );
 
-    const result = await tool.handler({ page_id: "doc-target" }, {});
+    const result = await tool.handler({ target: "doc-target" }, {});
     const output = result.content[0]?.text ?? "";
 
     expect(readPackageDoc).toHaveBeenCalledWith({ pageId: "doc-target" });
     expect(output).toContain("lines 81-230/400");
     expect(output).toContain(
-      'Continue with docs_read page_id="stable-page-id" start_line=231 end_line=280.',
+      'Continue with read target="stable-page-id" start_line=231 end_line=280.',
     );
   });
 
@@ -268,12 +254,12 @@ describe("createReadPackageDocTool", () => {
         }),
       ),
     );
-    const tool = createReadPackageDocTool(
+    const tool = createDocsReadTool(
       createMockPackageIntelligenceService({ readPackageDoc }),
     );
 
     const result = await tool.handler(
-      { page_id: "doc-target", format: "json" },
+      { target: "doc-target", format: "json" },
       {},
     );
 
@@ -287,7 +273,7 @@ describe("createReadPackageDocTool", () => {
   });
 
   it("uses backend trailing-newline and empty-page totals", async () => {
-    const trailingTool = createReadPackageDocTool(
+    const trailingTool = createDocsReadTool(
       createMockPackageIntelligenceService({
         readPackageDoc: mock(() =>
           Promise.resolve(
@@ -302,7 +288,7 @@ describe("createReadPackageDocTool", () => {
       }),
     );
     const trailing = await trailingTool.handler(
-      { page_id: "doc-target", format: "json" },
+      { target: "doc-target", format: "json" },
       {},
     );
     expect(parseText(trailing)).toMatchObject({
@@ -312,7 +298,7 @@ describe("createReadPackageDocTool", () => {
       totalLines: 2,
     });
 
-    const emptyTool = createReadPackageDocTool(
+    const emptyTool = createDocsReadTool(
       createMockPackageIntelligenceService({
         readPackageDoc: mock(() =>
           Promise.resolve(docResult({ content: "", totalLines: 0 })),
@@ -320,7 +306,7 @@ describe("createReadPackageDocTool", () => {
       }),
     );
     const empty = await emptyTool.handler(
-      { page_id: "doc-target", format: "json" },
+      { target: "doc-target", format: "json" },
       {},
     );
     expect(parseText(empty)).toEqual({
@@ -332,13 +318,11 @@ describe("createReadPackageDocTool", () => {
   });
 
   it("returns INVALID_ARGUMENT for invalid identity and bounds", async () => {
-    const tool = createReadPackageDocTool(
-      createMockPackageIntelligenceService(),
-    );
+    const tool = createDocsReadTool(createMockPackageIntelligenceService());
     for (const args of [
-      { page_id: "   " },
-      { page_id: "page", start_line: 0 },
-      { page_id: "page", start_line: 4, end_line: 3 },
+      { target: "   " },
+      { target: "page", start_line: 0 },
+      { target: "page", start_line: 4, end_line: 3 },
     ]) {
       const result = await tool.handler(args, {});
       const payload = parseText(result) as { code: string };
@@ -348,7 +332,7 @@ describe("createReadPackageDocTool", () => {
   });
 
   it("keeps unresolved sections distinct from missing pages", async () => {
-    const unresolvedTool = createReadPackageDocTool(
+    const unresolvedTool = createDocsReadTool(
       createMockPackageIntelligenceService({
         readPackageDoc: mock(() =>
           Promise.reject(
@@ -361,7 +345,7 @@ describe("createReadPackageDocTool", () => {
       }),
     );
     const unresolved = await unresolvedTool.handler(
-      { page_id: "https://docs.example.test/page#missing" },
+      { target: "https://docs.example.test/page#missing" },
       {},
     );
     expect(parseText(unresolved)).toEqual({
@@ -371,7 +355,7 @@ describe("createReadPackageDocTool", () => {
       details: { reason: "not_found" },
     });
 
-    const missingTool = createReadPackageDocTool(
+    const missingTool = createDocsReadTool(
       createMockPackageIntelligenceService({
         readPackageDoc: mock(() =>
           Promise.reject(
@@ -381,7 +365,7 @@ describe("createReadPackageDocTool", () => {
       }),
     );
     const missing = await missingTool.handler(
-      { page_id: "https://docs.example.test/unknown" },
+      { target: "https://docs.example.test/unknown" },
       {},
     );
     expect(parseText(missing)).toEqual({

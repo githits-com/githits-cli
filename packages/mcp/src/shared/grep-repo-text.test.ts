@@ -304,9 +304,7 @@ it("reports clamping for matching and empty results in both text surfaces", () =
         effectiveAfter: 10,
       },
     });
-    expect(renderGrepRepoText(data)).toContain(
-      "Use code_read for a larger window",
-    );
+    expect(renderGrepRepoText(data)).toContain("Use read for a larger window");
     for (const verbose of [false, true]) {
       const rendered = formatGrepRepoTerminal(data, {
         useColors: false,
@@ -314,9 +312,7 @@ it("reports clamping for matching and empty results in both text surfaces", () =
         headingStyle: false,
         withContext: true,
       });
-      expect(rendered.stderr).toContain(
-        "Use githits code read for a larger window",
-      );
+      expect(rendered.stderr).toContain("Use githits read for a larger window");
     }
   }
 });

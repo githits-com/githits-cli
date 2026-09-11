@@ -50,10 +50,10 @@ function hit(
 describe("semantic preferred reads", () => {
   it("uses package attribution and source context before a repository doc page ID", () => {
     expect(buildSearchHitFollowUpCommand(hit(preferredRead))).toBe(
-      'code_read target="npm:pkg@1.2.3" path="src/client.ts" start_line=120 end_line=165',
+      'read target="npm:pkg@1.2.3" path="src/client.ts" start_line=120 end_line=165',
     );
     expect(buildSearchHitFollowUpCommand(hit(preferredRead), "cli")).toBe(
-      "githits code read 'npm:pkg@1.2.3' 'src/client.ts' --lines 120-165",
+      "githits read 'npm:pkg@1.2.3' 'src/client.ts' --lines 120-165",
     );
   });
 
@@ -66,10 +66,10 @@ describe("semantic preferred reads", () => {
     };
     const target = `github:owner/monorepo#${commitSha}`;
     expect(buildSearchHitFollowUpCommand(hit(read))).toBe(
-      `code_read target="${target}" path="packages/pkg/src/client.ts" start_line=120 end_line=165`,
+      `read target="${target}" path="packages/pkg/src/client.ts" start_line=120 end_line=165`,
     );
     expect(buildSearchHitFollowUpCommand(hit(read), "cli")).toBe(
-      `githits code read '${target}' 'packages/pkg/src/client.ts' --lines 120-165`,
+      `githits read '${target}' 'packages/pkg/src/client.ts' --lines 120-165`,
     );
     expect(parseCodeNavigationTargetSpec(target)).toEqual({
       repoUrl: preferredRead.repoUrl,
@@ -87,10 +87,10 @@ describe("semantic preferred reads", () => {
       };
       const target = `github:owner/monorepo#${commitSha}`;
       expect(buildSearchHitFollowUpCommand(hit(read))).toBe(
-        `code_read target="${target}" path="packages/pkg/src/client.ts" start_line=120 end_line=165`,
+        `read target="${target}" path="packages/pkg/src/client.ts" start_line=120 end_line=165`,
       );
       expect(buildSearchHitFollowUpCommand(hit(read), "cli")).toBe(
-        `githits code read '${target}' 'packages/pkg/src/client.ts' --lines 120-165`,
+        `githits read '${target}' 'packages/pkg/src/client.ts' --lines 120-165`,
       );
     },
   );
@@ -99,7 +99,7 @@ describe("semantic preferred reads", () => {
     const read = { ...preferredRead, startLine: 1, endLine: 600 };
     const value = hit(read);
     expect(buildSearchHitFollowUpCommand(value)).toBe(
-      'code_read target="npm:pkg@1.2.3" path="src/client.ts" start_line=1 end_line=300',
+      'read target="npm:pkg@1.2.3" path="src/client.ts" start_line=1 end_line=300',
     );
     expect(buildSearchHitFollowUpCommand(value, "cli")).toEndWith(
       "--lines 1-600",
@@ -139,7 +139,7 @@ describe("semantic preferred reads", () => {
     );
     value.repositoryEvidence!.semanticContext = null;
     expect(buildSearchHitFollowUpCommand(value)).toBe(
-      'docs_read page_id="opaque-page"',
+      'read target="opaque-page"',
     );
   });
 });
@@ -155,6 +155,19 @@ function documentationHit(
 }
 
 describe("buildSearchHitFollowUpCommand documentation targets", () => {
+  it("emits unified read syntax for both documentation follow-up surfaces", () => {
+    const value = documentationHit({ pageId: "legacy-crawled-id" });
+
+    const mcpCommand = buildSearchHitFollowUpCommand(value);
+    const cliCommand = buildSearchHitFollowUpCommand(value, "cli");
+
+    expect(mcpCommand).toMatch(/^read target=/);
+    expect(cliCommand).toMatch(/^githits read /);
+    expect(`${mcpCommand}\n${cliCommand}`).not.toMatch(
+      /(?:code_read|docs_read|githits (?:code|docs) read|page_id=)/,
+    );
+  });
+
   it("uses an emitted crawled-doc fragment without search-window bounds", () => {
     const docsReadTarget = "https://docs.example.test/guide?q=exact";
     const sourceUrl = `${docsReadTarget}#routing`;
@@ -168,10 +181,10 @@ describe("buildSearchHitFollowUpCommand documentation targets", () => {
     });
 
     expect(buildSearchHitFollowUpCommand(value)).toBe(
-      `docs_read page_id=${JSON.stringify(sourceUrl)}`,
+      `read target=${JSON.stringify(sourceUrl)}`,
     );
     expect(buildSearchHitFollowUpCommand(value, "cli")).toBe(
-      `githits docs read '${sourceUrl}'`,
+      `githits read '${sourceUrl}'`,
     );
   });
 
@@ -189,7 +202,7 @@ describe("buildSearchHitFollowUpCommand documentation targets", () => {
           endLine: 93,
         }),
       ),
-    ).toBe(`docs_read page_id=${JSON.stringify(sourceUrl)}`);
+    ).toBe(`read target=${JSON.stringify(sourceUrl)}`);
   });
 
   it("passes an existing fragment unchanged without search-window bounds", () => {
@@ -205,7 +218,7 @@ describe("buildSearchHitFollowUpCommand documentation targets", () => {
           endLine: 93,
         }),
       ),
-    ).toBe(`docs_read page_id=${JSON.stringify(docsReadTarget)}`);
+    ).toBe(`read target=${JSON.stringify(docsReadTarget)}`);
   });
 
   it("passes a mixed-case HTTP target with a fragment unchanged", () => {
@@ -220,7 +233,7 @@ describe("buildSearchHitFollowUpCommand documentation targets", () => {
           endLine: 93,
         }),
       ),
-    ).toBe(`docs_read page_id=${JSON.stringify(docsReadTarget)}`);
+    ).toBe(`read target=${JSON.stringify(docsReadTarget)}`);
   });
 
   it("shell-quotes publisher URL targets containing spaces and metacharacters", () => {
@@ -238,7 +251,7 @@ describe("buildSearchHitFollowUpCommand documentation targets", () => {
         "cli",
       ),
     ).toBe(
-      `githits docs read 'https://docs.example.test/guide with spaces;$(echo nope)?q='"'"'quoted'"'"'&x=*' --lines 10-20`,
+      `githits read 'https://docs.example.test/guide with spaces;$(echo nope)?q='"'"'quoted'"'"'&x=*' --lines 10-20`,
     );
   });
 
@@ -247,6 +260,6 @@ describe("buildSearchHitFollowUpCommand documentation targets", () => {
       buildSearchHitFollowUpCommand(
         documentationHit({ pageId: "legacy-crawled-id" }),
       ),
-    ).toBe('docs_read page_id="legacy-crawled-id"');
+    ).toBe('read target="legacy-crawled-id"');
   });
 });

@@ -2,7 +2,7 @@
  * Line-oriented text renderer for `code_files` MCP responses.
  *
  * Paths-only listing (one file per line) — the most compact useful
- * shape for an agent that will follow up with `code_read`. This is
+ * shape for an agent that will follow up with `read`. This is
  * the tool's default response format; programmatic / parity callers
  * opt into the structured JSON envelope via `format: "json"`.
  *
@@ -71,8 +71,17 @@ function buildHeader(envelope: LeanListFilesEnvelope): string {
 }
 
 function buildIdentity(envelope: LeanListFilesEnvelope): string {
+  // indexedVersion/resolvedRef may be Git refs, not package versions. Follow
+  // the served repository snapshot so the displayed target can be read verbatim.
+  const served = envelope.targetResolution?.served;
+  if (served?.repoUrl) {
+    return formatRepositoryTarget(
+      served.repoUrl,
+      served.commitSha ?? served.gitRef,
+    );
+  }
   if (envelope.registry && envelope.name) {
-    const version = envelope.indexedVersion ?? envelope.resolution?.resolvedRef;
+    const version = served?.version ?? envelope.resolution?.requestedVersion;
     return version
       ? `${envelope.registry}:${envelope.name}@${version}`
       : `${envelope.registry}:${envelope.name}`;

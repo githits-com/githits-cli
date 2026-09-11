@@ -64,7 +64,7 @@ export function withExactPathAuthorityRecovery(
       ...mapped.details,
       action:
         `${reason} ${listing} to list indexed paths available to ` +
-        `\`code_${command}\`.`,
+        `\`${command === "read" ? "read" : "code_grep"}\`.`,
     },
   };
 }

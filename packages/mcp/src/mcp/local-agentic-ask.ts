@@ -1,6 +1,5 @@
 import {
   type AgenticAskMcpResponse,
-  type AgenticAskMcpSourceCall,
   type AgenticAskNeedsTargetResponse,
   type AgenticAskService,
   type AgenticAskUrlResponse,
@@ -9,6 +8,7 @@ import {
 import { z } from "zod";
 import { mapAgenticAskError } from "../shared/agentic-ask-error-map.js";
 import { formatAgenticAskClarification } from "../shared/agentic-ask-response.js";
+import type { ReadArgs } from "../tools/read.js";
 import {
   buildMcpErrorPayload,
   throwIfCallerCancellation,
@@ -54,7 +54,7 @@ const schema: ZodRawShape = {
     .enum(["mcp", "url"])
     .default("mcp")
     .describe(
-      "Source pointer format. `mcp` returns directly callable code_read/docs_read calls; `url` returns original upstream HTTP URLs.",
+      "Source pointer format. `mcp` returns directly callable read calls; `url` returns original upstream HTTP URLs.",
     ),
   format: z
     .enum(["text", "json"])
@@ -108,10 +108,11 @@ export function createLocalAgenticAskTool(
                 },
                 requestOptions,
               );
+        const projected = projectAskReadSources(response);
         return textResult(
           isTextFormat(args.format)
-            ? formatAgenticAskMcpText(response)
-            : JSON.stringify(response),
+            ? formatAgenticAskMcpText(projected)
+            : JSON.stringify(projected),
         );
       } catch (error) {
         throwIfCallerCancellation(error, context?.signal);
@@ -128,10 +129,52 @@ export function createLocalAgenticAskTool(
   };
 }
 
+interface AskReadSource {
+  name: "read";
+  arguments: ReadArgs;
+}
+
+export interface ProjectedAskMcpResponse
+  extends Omit<AgenticAskMcpResponse, "sources"> {
+  sources: AskReadSource[];
+}
+
+type ProjectedAskResponse =
+  | ProjectedAskMcpResponse
+  | AgenticAskUrlResponse
+  | AgenticAskNeedsTargetResponse;
+
+/** Adapt backend-owned source pointers to this package's callable catalog. */
+export function projectAskReadSources(
+  response:
+    | AgenticAskMcpResponse
+    | AgenticAskUrlResponse
+    | AgenticAskNeedsTargetResponse,
+): ProjectedAskResponse {
+  if ("outcome" in response || response.source_format === "url")
+    return response;
+  return {
+    ...response,
+    sources: response.sources.map(
+      (source): AskReadSource => ({
+        name: "read",
+        arguments:
+          source.name === "code_read"
+            ? { ...source.arguments }
+            : {
+                target: source.arguments.page_id,
+                start_line: source.arguments.start_line,
+                end_line: source.arguments.end_line,
+              },
+      }),
+    ),
+  };
+}
+
 /** Render the validated answer, selected source pointers, and identifiers. */
 export function formatAgenticAskMcpText(
   response:
-    | AgenticAskMcpResponse
+    | ProjectedAskMcpResponse
     | AgenticAskUrlResponse
     | AgenticAskNeedsTargetResponse,
 ): string {
@@ -156,7 +199,7 @@ export function formatAgenticAskMcpText(
   return `${sections.join("\n\n")}\n`;
 }
 
-function formatMcpSourceCall(source: AgenticAskMcpSourceCall): string {
+function formatMcpSourceCall(source: AskReadSource): string {
   return `${source.name}(${JSON.stringify(source.arguments)})`;
 }
 

@@ -44,14 +44,14 @@ function buildReadFileNotFoundAction(
     ? buildContainingPathPrefix(requestedPath)
     : buildPathPrefixSuggestion(requestedPath);
   const preamble = exactFilePath
-    ? "`code_read` requires an indexed exact file path. "
-    : "`code_read` reads files only, not directories. ";
+    ? "`read` requires an indexed exact file path. "
+    : "With path, `read` reads files only, not directories. ";
   const listing =
     prefix === ""
       ? "Use `code_files` without `path_prefix`"
       : `Use \`code_files\` with \`path_prefix: ${JSON.stringify(prefix)}\``;
   return (
     `${preamble}${listing} to list valid indexed paths, then ` +
-    "pass an emitted `path` back to `code_read`."
+    "pass an emitted `path` back to `read`."
   );
 }

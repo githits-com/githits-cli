@@ -338,6 +338,7 @@ describe("runMcpSmoke", () => {
 
   it.each([
     "Next: githits search-status smoke-ref --wait 30",
+    "Next: githits read npm:express index.js",
     "Next: githits code read npm:express index.js",
     "Next: githits docs read page-1 --offset 10",
   ])("rejects CLI syntax leaked into MCP search text: %s", async (action) => {
@@ -615,11 +616,11 @@ describe("runMcpSmoke", () => {
   it.each([
     [
       "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
-        "  This payload mentions code_read but has no locator",
+        "  This payload mentions read but has no locator",
     ],
     [
       "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
-        '  code_read target="npm:express@5.2.1"',
+        '  read target="npm:express@5.2.1"',
     ],
     ["1 result\n\n[1] page-1 [docs page] npm:express - README"],
     [
@@ -633,7 +634,7 @@ describe("runMcpSmoke", () => {
     [
       "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
         "  ordinary title\n" +
-        '  code_read target="npm:express@5.2.1" path="index.js"',
+        '  read target="npm:express@5.2.1" path="index.js"',
     ],
     [
       "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code] -\n" +
@@ -835,14 +836,14 @@ function smokeResponse(
         throw new Error("docs_list text smoke missing crawled-page cursor");
       }
       return textResult(
-        `docs_read page_id=${JSON.stringify(SMOKE_CRAWLED_DOC_TARGET)}`,
+        `read target=${JSON.stringify(SMOKE_CRAWLED_DOC_TARGET)}`,
       );
-    case "docs_read":
-      return textResult("documentation content");
+    case "read":
+      return textResult(
+        args.path ? '1  {"name":"express"}' : "documentation content",
+      );
     case "code_files":
       return textResult("package.json");
-    case "code_read":
-      return textResult('1  {"name":"express"}');
     case "code_grep":
       return textResult(
         "package.json: express\nContext limited (requested 0 / 12)",
@@ -964,13 +965,14 @@ function smokeJsonResponse(
         ],
         ...(args.limit === 1 ? { nextCursor: "smoke-doc-cursor" } : {}),
       });
-    case "docs_read": {
+    case "read": {
+      if (args.path) return jsonResult({ path: "package.json" });
       if (
-        args.page_id === "https://docs.example.invalid/githits-smoke-unknown"
+        args.target === "https://docs.example.invalid/githits-smoke-unknown"
       ) {
         return errorResult("NOT_FOUND");
       }
-      const repoBacked = args.page_id === SMOKE_REPO_DOC_ID;
+      const repoBacked = args.target === SMOKE_REPO_DOC_ID;
       return jsonResult({
         docsReadTarget: repoBacked
           ? SMOKE_REPO_DOC_ID
@@ -987,8 +989,6 @@ function smokeJsonResponse(
     }
     case "code_files":
       return jsonResult({ files: [{ path: "package.json" }] });
-    case "code_read":
-      return jsonResult({ path: "package.json" });
     case "code_grep":
       return jsonResult({
         matches: [],

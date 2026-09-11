@@ -579,13 +579,14 @@ for the exact GitHits-specific sequence/count metadata.
 
 ## Daily CI workflow
 
-`.github/workflows/agent-evals.yml` runs the two initial Luna-low cells in
+`.github/workflows/agent-evals.yml` runs three Luna-low scenarios in
 parallel on GitHub-hosted Ubuntu:
 
 | Job       | Suite                  | Scenario    | Workload concurrency |
 | --------- | ---------------------- | ----------- | -------------------: |
 | discovery | `canary`                | `discovery` |                    2 |
 | intent    | `stable-full`           | `intent`    |                    4 |
+| full      | `stable-full`           | `full`      |                    4 |
 
 The workflow runs on every push to `main`, at 03:00 UTC from the default
 branch, on manual `workflow_dispatch`, and for a `pull_request` `labeled` event
@@ -609,17 +610,19 @@ authenticates through Codex's stdin API-key flow. `OPENAI_API_KEY` is scoped to
 that authentication step; `GITHITS_API_TOKEN` is scoped only to the paid suite
 execution. Local subscription state, Keychain data, personal skills, and user
 configuration are never copied into CI. The scenario directories are uploaded
-as `agent-eval-discovery` and `agent-eval-intent` artifacts for 14 days.
+as `agent-eval-discovery`, `agent-eval-intent`, and `agent-eval-full` artifacts
+for 14 days.
 
-The final summary job always runs for an authorized workflow, downloads both
+The final summary job always runs for an authorized workflow, downloads all three
 scenario artifacts without flattening them, appends the concise report to
-`GITHUB_STEP_SUMMARY`, and then exports the normalized 23-cell result to
+`GITHUB_STEP_SUMMARY`, and then exports the normalized 48-cell result to
 Braintrust. The local equivalent report command is:
 
 ```bash
 bun run agent:e2e:ci-report \
   --suite discovery=.agent-eval/ci-validation/discovery/suite.json \
   --suite intent=.agent-eval/ci-validation/intent/suite.json \
+  --suite full=.agent-eval/ci-validation/full/suite.json \
   --out .agent-eval/ci-validation/summary.md
 ```
 
@@ -794,7 +797,7 @@ all agents return the same structured report. Workload files should not repeat
 that reporting contract.
 
 They should not contain instructions such as "call `search` first" or "use
-`code_read` after `search`". That guidance must come from the active GitHits
+`read` after `search`". That guidance must come from the active GitHits
 surface under test.
 
 ### Workload Selection
@@ -816,8 +819,8 @@ use at least one agent for quick iteration.
 | Dependency graph UX, `pkg_deps`                                    | `package-dependencies.md`                                                                                                                                                                                                                                                             |
 | Release notes UX, `pkg_changelog`                                  | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior                                                                                                                                                                                              |
 | Upgrade evidence UX, `pkg_upgrade_review`                          | `package-upgrade-safety.md`                                                                                                                                                                                                                                                           |
-| Documentation browsing, `docs_list`, `docs_read`                   | `docs-discovery.md`; use `docs-search-followup.md` for search-to-read handoff and `docs-search-noise.md` for noisy docs-result recovery                                                                                                                                               |
-| File listing / file read UX, `code_files`, `code_read`             | `code-file-navigation.md`; use `code-files-listing.md` for focused listing behavior; use `code-read-window.md` for focused source-window behavior                                                                                                                                     |
+| Documentation browsing, `docs_list`, `read`                   | `docs-discovery.md`; use `docs-search-followup.md` for search-to-read handoff and `docs-search-noise.md` for noisy docs-result recovery; use `docs-fragment-read.md` for exact indexed section selection                                                                                                                                               |
+| File listing / file read UX, `code_files`, `read`             | `code-file-navigation.md`; use `code-files-listing.md` for focused listing behavior; use `code-read-window.md` for focused source-window behavior                                                                                                                                     |
 | Deterministic source search UX, `code_grep`                        | `code-grep-investigation.md`                                                                                                                                                                                                                                                          |
 | Multi-tool code navigation strategy and MCP/skill guidance         | `express-router.md`; `opencode-compaction.md` is the remote-MCP routing regression derived from the connector transcript                                                                                                                                                              |
 | Experimental target resolution                                     | `experimental-resolution-follow-up.md`; use `experimental-site-resolution-follow-up.md` for site resolution into docs search                                                                                                                                                          |
@@ -916,8 +919,7 @@ Notable findings to keep in mind when evaluating future changes:
   short/stopword-heavy patterns; literal grep is the reliable path for that
   workload.
 - `unified-search-investigation.md` intentionally exposes `search` warnings and
-  follow-up needs. Agents should inspect warnings and use `code_read`,
-  `docs_read`, or `code_grep` when top search hits are incomplete/noisy.
+  follow-up needs. Agents should inspect warnings and use `read` or `code_grep` when top search hits are incomplete/noisy.
 - Codex sometimes reports a tool as unavailable until it performs additional
   tool discovery. Use `tool-calls.json` to distinguish actual unavailable tools
   from delayed discovery.
@@ -947,10 +949,10 @@ Notable findings to keep in mind when evaluating future changes:
 - `code-read-window.md` should show focused bounded reads when the prompt already
   names a source file and line area. Claude Haiku does this directly; Codex mini
   has been observed doing package/search preflight before the eventual bounded
-  `code_read`, so review raw calls when tuning general tool-selection guidance.
+  `read`, so review raw calls when tuning general tool-selection guidance.
 - `code-files-listing.md` should show direct path enumeration with `code_files`.
   Claude Haiku does this directly. Codex mini has been observed oscillating
-  between `code_read`, `code_grep`, and `code_files`, and can self-report that
+  between `read`, `code_grep`, and `code_files`, and can self-report that
   `code_files` is unavailable even when earlier runs used it; treat raw calls as
   the source of truth and fix concrete validation/error issues rather than
   overfitting instructions to one noisy run.

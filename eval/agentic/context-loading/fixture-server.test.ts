@@ -60,9 +60,9 @@ describe("context fixture MCP contract", () => {
         "docs:fixture:express-routing#snapshot-1",
       );
       const docs = await client.callTool({
-        name: "docs_read",
+        name: "read",
         arguments: {
-          page_id: "docs:fixture:express-routing#snapshot-1",
+          target: "docs:fixture:express-routing#snapshot-1",
           start_line: 40,
           end_line: 48,
         },
@@ -71,13 +71,13 @@ describe("context fixture MCP contract", () => {
       expect(
         (
           await client.callTool({
-            name: "docs_read",
-            arguments: { page_id: "invented" },
+            name: "read",
+            arguments: { target: "invented" },
           })
         ).isError,
       ).toBe(true);
       const code = await client.callTool({
-        name: "code_read",
+        name: "read",
         arguments: {
           target: "github:openai/codex",
           path: "codex-rs/app-server-protocol/schema/json/ClientRequest.json",

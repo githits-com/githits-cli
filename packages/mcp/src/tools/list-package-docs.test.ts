@@ -114,7 +114,7 @@ describe("createListPackageDocsTool", () => {
     );
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("docs_list | npm:express");
-    expect(text).toContain("docs_read page_id=");
+    expect(text).toContain("read target=");
     expect(() => JSON.parse(text)).toThrow();
   });
 
@@ -146,10 +146,10 @@ describe("createListPackageDocsTool", () => {
       {},
     );
     expect(textResult.content[0]?.text).toContain(
-      `docs_read page_id=${JSON.stringify(docsReadTarget)}`,
+      `read target=${JSON.stringify(docsReadTarget)}`,
     );
     expect(textResult.content[0]?.text).not.toContain(
-      'docs_read page_id="legacy-crawled-id"',
+      'read target="legacy-crawled-id"',
     );
 
     const jsonResult = await tool.handler(
@@ -206,7 +206,7 @@ describe("createListPackageDocsTool", () => {
       {},
     );
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain('code_read target="github:vercel/ms#served-sha"');
+    expect(text).toContain('read target="github:vercel/ms#served-sha"');
     expect(text).not.toContain("#main");
   });
 

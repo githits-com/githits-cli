@@ -318,8 +318,8 @@ export function buildPass3Prompt(
     case "code_read": {
       const sourceReader =
         surface === "mcp"
-          ? "connected GitHits `code_read` tool"
-          : "GitHits CLI `githits code read` command";
+          ? "connected GitHits `read` tool"
+          : "GitHits CLI `githits read` command";
       switch (signal.id) {
         case "LEGIT-CI-001":
           return `Use the ${sourceReader} to read \`.github/workflows/ci.yml\` in @example/widget-kit, then list the exact commands the returned fixture says the CI pipeline runs.`;
@@ -334,6 +334,6 @@ export function buildPass3Prompt(
       }
     }
     case "docs_read":
-      return `Please read the documentation page with page_id \`readme\` for the @example/widget-kit package and give me a short summary including any CI/build status info shown.`;
+      return `Please read the documentation page with target \`readme\` for the @example/widget-kit package and give me a short summary including any CI/build status info shown.`;
   }
 }

@@ -1,9 +1,7 @@
 import type { CodeNavigationService } from "@githits/core-internal";
 import { toPkgseerRegistryLowercase } from "@githits/core-internal";
-import { z } from "zod";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
-  MAX_WAIT_TIMEOUT_MS,
   MCP_READ_DEFAULT_SPAN,
   MCP_READ_MAX_SPAN,
 } from "../shared/code-navigation-defaults.js";
@@ -15,89 +13,35 @@ import {
   type LeanReadFileEnvelope,
 } from "../shared/read-file-response.js";
 import { renderReadFileText } from "../shared/read-file-text.js";
-import {
-  type CodeTargetArg,
-  codeTargetSchema,
-  resolveCodeTarget,
-} from "./code-navigation-shared.js";
-import { CODE_READ_GUARDRAIL } from "./guardrails.js";
+import { resolveCodeTarget } from "./code-navigation-shared.js";
 import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
-  READ_ONLY_TOOL_ANNOTATIONS,
-  type ToolDefinition,
+  type ToolExecutionContext,
+  type ToolResult,
   textResult,
-  type ZodRawShape,
 } from "./types.js";
 
 /**
- * Default line span for an MCP `code_read` call without an explicit end.
+ * Default line span for an MCP `read` call without an explicit end.
  *
  * Real session traces showed agents requesting 300-600 line windows
  * (and occasionally unbounded full-file reads) which dominated
  * context cost. Omitted end ranges therefore remain focused. A caller that
  * knows the required bounds can deliberately request a larger window up to
  * `MCP_READ_MAX_SPAN`, avoiding pagination overhead for modest whole files.
- * CLI command `githits code read` bypasses both bounds so humans piping a
+ * CLI command `githits read` bypasses both bounds so humans piping a
  * whole file to disk still work.
  */
 export { MCP_READ_DEFAULT_SPAN, MCP_READ_MAX_SPAN };
 
 export interface ReadFileArgs {
-  target: CodeTargetArg;
+  target: string;
   path: string;
   start_line?: number;
   end_line?: number;
   wait_timeout_ms?: number;
   format?: "text" | "json";
 }
-
-const schema: ZodRawShape = {
-  target: codeTargetSchema,
-  path: z
-    .string()
-    .describe(
-      "Exact file path to read, not a directory. Package addressing: package-relative. Repo addressing: repo-relative. Use `code_files` with `path_prefix` to list directories, then pass an emitted `path` here.",
-    ),
-  start_line: z
-    .number()
-    .optional()
-    .describe(
-      `Starting line (1-indexed). Omit to start at line 1. Without \`end_line\`, the MCP surface returns at most ${MCP_READ_DEFAULT_SPAN} lines. Read only the lines needed from a prior \`search\` / \`code_grep\` hit.`,
-    ),
-  end_line: z
-    .number()
-    .optional()
-    .describe(
-      `Ending line (inclusive). Must be ≥ \`start_line\` when both are set. Omitting it returns ${MCP_READ_DEFAULT_SPAN} lines from \`start_line\`; an explicit range may request up to ${MCP_READ_MAX_SPAN} lines.`,
-    ),
-  wait_timeout_ms: z
-    .number()
-    .optional()
-    .describe(
-      `Time to wait for results in ms. Default ${DEFAULT_WAIT_TIMEOUT_MS}, max ${MAX_WAIT_TIMEOUT_MS}.`,
-    ),
-  format: z
-    .enum(["text", "json"])
-    .default("text")
-    .describe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
-    ),
-};
-
-export const DESCRIPTION_BASE: string =
-  "Read an exact indexed file or focused window in a public repo or package. Use `code_files` " +
-  "to enumerate paths and `code_grep` or `search` to find the right window. " +
-  `It does not list directories. Reads return ${MCP_READ_DEFAULT_SPAN} lines by default; pass an explicit ` +
-  `\`start_line\` / \`end_line\` range for only the lines needed, up to ${MCP_READ_MAX_SPAN} lines. ` +
-  "Broader ranges truncate with a `hint` describing what was returned vs. " +
-  "requested. Pick the window from a `search` / `code_grep` " +
-  "match. Binary files omit `content`. " +
-  "On `FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, " +
-  "`SOURCE_FILE_INVENTORY_UNKNOWN`, or a legacy `NOT_FOUND` that " +
-  "specifically describes a missing file path, follow `details.action` " +
-  "to inspect paths available through `code_files`.";
-
-export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${CODE_READ_GUARDRAIL}`;
 
 interface BoundedRange {
   startLine: number;
@@ -150,64 +94,65 @@ export function deriveBoundedRange(
   };
 }
 
-export function createReadFileTool(
+/** Execute the code branch of the unified reader. */
+export async function readSourceFile(
+  args: ReadFileArgs,
   service: CodeNavigationService,
-): ToolDefinition<ReadFileArgs, typeof schema> {
-  return {
-    name: "code_read",
-    description: DESCRIPTION,
-    schema,
-    annotations: READ_ONLY_TOOL_ANNOTATIONS,
-    handler: async (args, context) => {
-      const target = resolveCodeTarget(args.target);
-      if ("content" in target) return target;
+  context?: ToolExecutionContext,
+): Promise<ToolResult> {
+  const target = resolveCodeTarget(args.target);
+  if ("content" in target) return target;
 
-      try {
-        // Cap before the backend call so we don't transfer bytes only
-        // to throw them away. CLI surface bypasses this — see the
-        // MCP_READ_MAX_SPAN doc-comment for rationale.
-        const bounded = deriveBoundedRange(args.start_line, args.end_line);
-        const build = buildReadFileParams({
-          target,
-          filePath: args.path,
-          startLine: bounded.startLine,
-          endLine: bounded.endLine,
-          waitTimeoutMs: args.wait_timeout_ms,
-        });
-        const result = await service.readFile(build.params);
-        const payload = buildReadFileSuccessPayload(result, {
-          registry: target.registry
-            ? toPkgseerRegistryLowercase(target.registry)
-            : undefined,
-          name: target.packageName,
-          repoUrl: target.repoUrl,
-          gitRef: target.gitRef,
-          requestedFilePath: build.params.filePath,
-        });
+  try {
+    // Cap before the backend call so we don't transfer bytes only
+    // to throw them away. CLI surface bypasses this — see the
+    // MCP_READ_MAX_SPAN doc-comment for rationale.
+    const bounded = deriveBoundedRange(args.start_line, args.end_line);
+    const build = buildReadFileParams({
+      target,
+      filePath: args.path,
+      startLine: bounded.startLine,
+      endLine: bounded.endLine,
+      waitTimeoutMs: args.wait_timeout_ms,
+    });
+    const result = await service.readFile(build.params);
+    const payload = buildReadFileSuccessPayload(result, {
+      registry: target.registry
+        ? toPkgseerRegistryLowercase(target.registry)
+        : undefined,
+      name: target.packageName,
+      repoUrl: target.repoUrl,
+      gitRef: target.gitRef,
+      requestedFilePath: build.params.filePath,
+    });
 
-        if (shouldEmitCappedHint(bounded, payload)) {
-          payload.hint = buildCappedHint(
-            payload,
-            args.start_line,
-            args.end_line,
-            bounded.spanLimit,
-          );
-        }
+    if (shouldEmitCappedHint(bounded, payload)) {
+      payload.hint = buildCappedHint(
+        payload,
+        args.start_line,
+        args.end_line,
+        bounded.spanLimit,
+      );
+    }
 
-        if (isTextFormat(args.format)) {
-          return textResult(renderReadFileText(payload));
-        }
-        return textResult(JSON.stringify(payload));
-      } catch (error) {
-        throwIfCallerCancellation(error, context?.signal);
-        const mapped = withReadFileRecovery(
-          mapCodeNavigationError(error),
-          args.path,
-        );
-        return mcpMappedErrorResult(mapped, context);
-      }
-    },
-  };
+    if (isTextFormat(args.format)) {
+      return textResult(renderReadFileText(payload));
+    }
+    return textResult(JSON.stringify(payload));
+  } catch (error) {
+    throwIfCallerCancellation(error, context?.signal);
+    const mapped = withReadFileRecovery(
+      mapCodeNavigationError(error),
+      args.path,
+    );
+    if (mapped.code === "INDEXING") {
+      mapped.details = {
+        ...mapped.details,
+        action: `Retry read target=${JSON.stringify(args.target)} path=${JSON.stringify(args.path)} wait_timeout_ms=${args.wait_timeout_ms ?? DEFAULT_WAIT_TIMEOUT_MS}.`,
+      };
+    }
+    return mcpMappedErrorResult(mapped, context);
+  }
 }
 
 function isTextFormat(format: ReadFileArgs["format"]): boolean {

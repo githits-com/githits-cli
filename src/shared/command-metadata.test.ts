@@ -20,6 +20,7 @@ describe("authenticated command metadata", () => {
       "settings terms accept",
       "search",
       "search-status",
+      "read",
       "code files",
       "code read",
       "code grep",
@@ -31,6 +32,15 @@ describe("authenticated command metadata", () => {
       "pkg changelog",
       "pkg upgrade-review",
     ]);
+  });
+
+  it("marks unified read as auto-login eligible and JSON-capable", () => {
+    expect(getAuthenticatedCommandMetadata("read")).toEqual({
+      path: "read",
+      autoLoginEligible: true,
+      postLoginMessage: "Authentication complete. Running command...",
+      jsonCapable: true,
+    });
   });
 
   it("marks ask as auto-login eligible and JSON-capable", () => {

@@ -54,6 +54,7 @@ export {
 } from "./logout.js";
 export { registerMcpCommand } from "./mcp.js";
 export { registerPkgCommandGroup } from "./pkg/index.js";
+export { readAction, registerReadCommand } from "./read.js";
 export {
   type ResolveCommandDependencies,
   type ResolveCommandOptions,

@@ -84,7 +84,7 @@ export function createContextFixtureServer(
           };
         }
         if (
-          tool.name === "code_read" &&
+          tool.name === "read" &&
           isCodexRepository(args.target) &&
           args.path ===
             "codex-rs/app-server-protocol/schema/json/ClientRequest.json"
@@ -93,7 +93,7 @@ export function createContextFixtureServer(
             content: [
               {
                 type: "text" as const,
-                text: 'code_read | codex-rs/app-server-protocol/schema/json/ClientRequest.json | lines 3118-3132\n3120: "required": ["call_id", "name"],\n3126: "type": "tool_search_call"\nEvidence: synthetic context-loading fixture, not current repository source. Only these fixture fields can be concluded.',
+                text: 'read | codex-rs/app-server-protocol/schema/json/ClientRequest.json | lines 3118-3132\n3120: "required": ["call_id", "name"],\n3126: "type": "tool_search_call"\nEvidence: synthetic context-loading fixture, not current repository source. Only these fixture fields can be concluded.',
               },
             ],
           };
@@ -115,14 +115,14 @@ export function createContextFixtureServer(
           };
         }
         if (
-          tool.name === "docs_read" &&
-          args.page_id === "docs:fixture:express-routing#snapshot-1"
+          tool.name === "read" &&
+          args.target === "docs:fixture:express-routing#snapshot-1"
         ) {
           return {
             content: [
               {
                 type: "text" as const,
-                text: "docs_read | docs:fixture:express-routing#snapshot-1 | lines 40-48\n40: A route handler receives (req, res, next).\n44: Multiple handlers run in registration order; next() passes control onward.\nsourceUrl: https://expressjs.com/en/guide/routing.html\nEvidence: synthetic context-loading fixture; not a fresh upstream read.",
+                text: "read | docs:fixture:express-routing#snapshot-1 | lines 40-48\n40: A route handler receives (req, res, next).\n44: Multiple handlers run in registration order; next() passes control onward.\nsourceUrl: https://expressjs.com/en/guide/routing.html\nEvidence: synthetic context-loading fixture; not a fresh upstream read.",
               },
             ],
           };

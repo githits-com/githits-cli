@@ -620,6 +620,33 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("router (function)");
   });
 
+  it("exposes the backend repo-doc locator with separate read bounds", () => {
+    const target =
+      "github:pallets/flask@22d924701a6ae2e4cd01e9a15bbaf3946094af65/docs/design.rst";
+    const text = renderUnifiedSearchSuccess(
+      completed([
+        {
+          type: "repository_doc",
+          target: "pypi:flask@3.1.3",
+          title: "design.rst",
+          summary: "Flask uses the Werkzeug routing system.",
+          locator: {
+            pageId: target,
+            docsReadTarget: target,
+            filePath: "docs/design.rst",
+            startLine: 83,
+            endLine: 93,
+          },
+        },
+      ]),
+    );
+    expect(text).toContain(
+      `[1] ${target} start_line=83 end_line=93 [repo doc]`,
+    );
+    expect(text).not.toContain("pypi:flask@3.1.3 docs/design.rst:83-93");
+    expect(text).not.toContain(`${target}:83-93`);
+  });
+
   it("does not promote repository documentation with associated symbol metadata", () => {
     const text = renderUnifiedSearchSuccess(
       completed([
@@ -650,7 +677,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01",
+      "[1] history-release start_line=169 end_line=179 [repo doc]",
     );
     expect(text).not.toContain("defined at");
   });
