@@ -10,6 +10,10 @@ import {
   toSymbolCategory,
   toSymbolKind,
 } from "../shared/code-navigation.js";
+import {
+  DEFAULT_WAIT_TIMEOUT_MS,
+  MAX_WAIT_TIMEOUT_MS,
+} from "../shared/code-navigation-defaults.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { buildUnifiedSearchParams } from "../shared/unified-search-request.js";
 import {
@@ -258,7 +262,7 @@ const schema: ZodRawShape = {
     .max(60000)
     .optional()
     .describe(
-      "Milliseconds to wait for initial indexing or search completion before returning current progress (0-60000; default 30000).",
+      `Time to wait for results in ms. Default ${DEFAULT_WAIT_TIMEOUT_MS}, max ${MAX_WAIT_TIMEOUT_MS}.`,
     ),
   format: z
     .enum(["text", "json"])

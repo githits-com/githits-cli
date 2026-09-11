@@ -1,6 +1,10 @@
 import type { CodeNavigationService } from "@githits/core-internal";
 import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { z } from "zod";
+import {
+  DEFAULT_WAIT_TIMEOUT_MS,
+  MAX_WAIT_TIMEOUT_MS,
+} from "../shared/code-navigation-defaults.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { withGrepFileRecovery } from "../shared/file-path-recovery.js";
 import {
@@ -122,7 +126,7 @@ const schema: ZodRawShape = {
     .number()
     .optional()
     .describe(
-      "Max milliseconds to wait for indexing (0-60000, default 30000). On an `INDEXING` error envelope, use `details.indexingEstimate` when present to decide whether to wait longer, or pass an already-indexed version/ref from `details.availableVersions` / `details.availableRefs`; `suggestedRefs` are fuzzy hints and may need indexing first.",
+      `Time to wait for results in ms. Default ${DEFAULT_WAIT_TIMEOUT_MS}, max ${MAX_WAIT_TIMEOUT_MS}.`,
     ),
   format: z
     .enum(["text", "json"])
@@ -139,9 +143,7 @@ const DESCRIPTION =
   "Use `search` for conceptual or open-ended discovery and `code_files` to enumerate paths. " +
   "Whole-target grep is the default — narrow with `path`, `path_prefix`, `globs`, or `extensions` to keep responses small. " +
   "Each match's `filePath` (or text file heading) chains into `code_read.path`; pick a window around `match.line` for `code_read.start_line` / `end_line`. " +
-  "When an exact path returns `FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, or `SOURCE_FILE_INVENTORY_UNKNOWN`, follow `details.action` to inspect paths available through `code_files`. " +
-  "When fresh data is not ready within the wait window, responses may include `targetResolution` provenance, `indexingEstimate`, and immediately-queryable alternatives in error details. " +
-  "`availableVersions` and `availableRefs` are already indexed/queryable; `suggestedRefs` are fuzzy ref hints and may need indexing first." +
+  "When an exact path returns `FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, or `SOURCE_FILE_INVENTORY_UNKNOWN`, follow `details.action` to inspect paths available through `code_files`." +
   `\n\n${CODE_GREP_GUARDRAIL}`;
 
 export function createGrepRepoTool(

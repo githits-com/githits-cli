@@ -93,6 +93,10 @@ byte-for-byte aligned under `src/skills-packaging.test.ts`. Local
 public copy; they do not change when `quick_start` is called. Individual tool
 descriptions remain self-contained so direct tool selection can still find the
 right evidence tool before the bootstrap.
+The shared guide owns general wait and indexing-recovery guidance. Wait parameter
+descriptions contain only units, default, and maximum; numeric values come from
+the shared wait constants. Tool descriptions retain tool-specific continuation
+rules without repeating the general wait policy.
 Transport-neutral callable descriptions do not receive the footer because that
 surface does not guarantee a `quick_start` tool exists.
 
