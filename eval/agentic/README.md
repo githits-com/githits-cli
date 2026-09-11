@@ -302,9 +302,9 @@ Canary has `express-router` and
 `package-upgrade-safety`; stable-full contains all 22 stable workloads.
 `stateful-manual` contains only `githits-onboarding` and is dry-run-only in
 this phase. `experimental` contains only
-`experimental-code-diff`, `experimental-question-only-ask`, `experimental-resolution-follow-up`, and
+`ask-version-followup`, `experimental-code-diff`, `experimental-question-only-ask`, `experimental-resolution-follow-up`, and
 `experimental-site-resolution-follow-up`. The manifest therefore classifies
-27 workloads: 22 stable, one stateful, and four experimental. Canary is a
+28 workloads: 22 stable, one stateful, and five experimental. Canary is a
 subset of smoke, smoke is a subset of stable-full, and stateful or experimental
 workloads never enter those stable suites.
 
@@ -798,6 +798,8 @@ They should not contain instructions such as "call `search` first" or "use
 surface under test.
 
 ### Workload Selection
+
+Use `ask-version-followup.md` for Ask thread reuse across project and version changes.
 
 Use targeted workloads when a change affects a specific tool family. Use both
 Claude and Codex for instruction/tool-description/skill changes when practical;

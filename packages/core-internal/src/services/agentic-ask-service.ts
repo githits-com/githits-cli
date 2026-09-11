@@ -594,7 +594,7 @@ function createHttpError(
           ? `${targetError.message} ${targetError.hint}`
           : request.target === undefined && request.threadId === undefined
             ? "GitHits could not answer this question for a supported target. Clarify the question or specify a public package or repository."
-            : "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo#ref or a package such as npm:prisma@version. To correct a thread's target, start a new request without thread_id.",
+            : "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo#ref or a package such as npm:prisma@version. To correct a follow-up, keep thread_id and name the exact project or version in the question.",
         status,
         toolCallId,
         undefined,

@@ -161,7 +161,7 @@ describe("local ask MCP adapter", () => {
       content: [{ type: "text", text: formatAgenticAskMcpText(response()) }],
     });
     expect(result.content[0]?.text).toBe(
-      'Use the documented API.\n\nSources:\n  1. code_read({"target":"npm:example","path":"src/index.ts","start_line":10,"end_line":20})\n  2. docs_read({"page_id":"docs:example:guide","start_line":3,"end_line":8})\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nFollow up using this thread ID only if the answer is insufficient.\n',
+      'Use the documented API.\n\nSources:\n  1. code_read({"target":"npm:example","path":"src/index.ts","start_line":10,"end_line":20})\n  2. docs_read({"page_id":"docs:example:guide","start_line":3,"end_line":8})\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n',
     );
   });
 
@@ -298,7 +298,7 @@ describe("local ask MCP adapter", () => {
       undefined,
     );
     expect(result.content[0]?.text).toBe(
-      "Use the documented API.\n\nSources:\n  1. https://github.com/example/project/blob/main/src/index.ts#L10-L20\n  2. https://example.com/docs/guide#L3-L8\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nFollow up using this thread ID only if the answer is insufficient.\n",
+      "Use the documented API.\n\nSources:\n  1. https://github.com/example/project/blob/main/src/index.ts#L10-L20\n  2. https://example.com/docs/guide#L3-L8\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n",
     );
   });
 

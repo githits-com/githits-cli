@@ -2,6 +2,12 @@
   "schemaVersion": 1,
   "workloads": [
     {
+      "id": "ask-version-followup",
+      "path": "eval/agentic/workloads/ask-version-followup.md",
+      "safety": "experimental",
+      "suites": ["experimental"]
+    },
+    {
       "id": "code-file-navigation",
       "path": "eval/agentic/workloads/code-file-navigation.md",
       "safety": "stable",

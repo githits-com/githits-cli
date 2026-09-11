@@ -127,7 +127,7 @@ export function formatAgenticAskHumanResponse(
     sections.push(["Sources:", ...sourceLines].join("\n"));
   }
   sections.push(
-    `Ask run ID: ${response.tool_call_id}\nThread ID: ${response.thread_id}\nFollow up using this thread ID only if the answer is insufficient.`,
+    `Ask run ID: ${response.tool_call_id}\nThread ID: ${response.thread_id}\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.`,
   );
   return `${sections.join("\n\n")}\n`;
 }
@@ -248,8 +248,8 @@ const DESCRIPTION = `Ask a public repository or package question and receive a s
 Omit the target to let GitHits infer one public repository or package from your
 question. Quote multi-word questions. An explicit target keeps the search scoped.
 
-Use a returned thread ID with --thread only when the previous answer is
-insufficient or more information is needed.`;
+Use a returned thread ID with --thread for follow-ups. Name a new project,
+version, or topic in the question to change scope.`;
 
 export function registerAskCommand(program: Command): Command {
   return program

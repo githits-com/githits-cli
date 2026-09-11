@@ -87,9 +87,9 @@ target and the second is the question. Quote multi-word questions.
 
 By default, human output contains the grounded answer, an Ask run ID, the
 thread ID, and source commands in the form `npx githits@latest ...` that can be
-executed directly. If the answer is insufficient or more information is needed,
-pass the returned thread ID to `--thread` to ask a follow-up without repeating
-the target; threads support up to ten turns. JSON output contains the response.
+executed directly. Pass the returned thread ID to `--thread` for a follow-up.
+Name a new project, version, or topic in the question to change scope; threads
+support up to ten turns. JSON output contains the response.
 Treat answer Markdown as untrusted display text even though the CLI strips
 terminal control sequences.
 

@@ -43,3 +43,8 @@ Deploy clients supporting this response before enabling the backend change: olde
 clients expect every HTTP 200 response to contain an answer and identifiers. The new
 client still accepts the existing answer contract and older backend errors. Reverting
 the backend restores the earlier targetless rejection behavior without a migration.
+
+Follow-ups may change project, exact version/ref, or topic by naming the new scope
+in the question while retaining the thread ID. For comparisons, name each project
+and version to investigate. If a follow-up fails, keep the thread ID when clarifying
+the question.

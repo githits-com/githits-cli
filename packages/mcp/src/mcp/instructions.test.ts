@@ -66,7 +66,9 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain(
       "ask the user to select a `target`, then retry",
     );
-    expect(instructions).toContain("Reuse a returned `thread_id` only");
+    expect(instructions).toContain(
+      "Reuse a returned `thread_id` for follow-ups",
+    );
     expect(instructions).toContain('`source_format:"url"`');
     expect(instructions).toContain("Do not invent or rewrite sources");
     expect(instructions).toContain("`resolve_target`");
@@ -97,13 +99,14 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("private or proprietary content");
     expect(instructions).toContain("targets.\n\n- `ask`");
     expect(instructions).toContain(
-      "returned Ask run ID when reporting a defect.\n- `resolve_target`",
+      "Do not invent or rewrite sources.\n- `resolve_target`",
     );
     expect(instructions).toContain("target/range.\n- `code_diff`");
     expect(instructions.length - buildMcpQuickStart().length).toBeLessThan(
       2_000,
     );
     expect(instructions).not.toContain("Issue reporting");
+    expect(instructions).not.toMatch(/report(?:ing)? (?:a )?defect/i);
     expect(instructions).not.toContain("accepted: false");
   });
 

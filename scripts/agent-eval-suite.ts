@@ -3283,10 +3283,14 @@ export async function runAgentEvalSuitePair(
     targetRoot: repoRoot,
     outDir: join(outDir, "candidate"),
   };
-  await Promise.all([
+  const preflights = await Promise.allSettled([
     suitePreflight(baselineRunOptions),
     suitePreflight(candidateRunOptions),
   ]);
+  // Finish both git subprocesses before callers clean up either target root.
+  for (const preflight of preflights) {
+    if (preflight.status === "rejected") throw preflight.reason;
+  }
   const baselineSuite = await runAgentEvalSuite(baselineRunOptions);
   const candidateSuite = await runAgentEvalSuite(candidateRunOptions);
   const comparisonDir = join(outDir, "comparison");
