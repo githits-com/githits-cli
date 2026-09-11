@@ -2,7 +2,7 @@
 
 ## Objective and status
 
-Status: IN PROGRESS; plan review complete, one implementation increment.
+Status: COMPLETE, awaiting PR merge; one implementation increment.
 Outcome: initial discovery search and subsequent status responses preserve backend
 indexing duration evidence in CLI/MCP JSON and use it for consistent bounded follow-up
 wait guidance. Product decisions: none; the handoff explicitly specifies the policy.
@@ -54,28 +54,28 @@ public descriptors, stable instructions, skills, or generated assets are planned
 
 ## Single phase: consistent estimates and bounded follow-up guidance
 
-Status: IN PROGRESS. Dependencies: existing shared response/presentation flow
+Status: COMPLETE. Dependencies: existing shared response/presentation flow
 and backend contract above. Assumptions: 30-second default and 60-second cap remain
 supported; existing lifecycle rules remain unchanged. Unknowns: production deployment
 and greater-than-60-second end-to-end timeout support are external release constraints,
 not implementation prerequisites. Product decisions: none.
 
-Implementation:
-1. Extend service interfaces, both wire queries, Zod validation and normalization.
-2. Preserve estimates in shared progress JSON. Compute guidance using the largest
+Implemented scope:
+1. Extended service interfaces, both wire queries, Zod validation and normalization.
+2. Preserved estimates in shared progress JSON. Guidance uses the largest
    numeric upperSeconds plus 10 seconds, rounded up to a ten-second boundary.
    Fully covered ranges may select less than 30 seconds (upper 0 -> 10 seconds).
    With missing ranges, apply the default as a floor. With no ranges, return the
    default unchanged. Clamp to MAX_WAIT_TIMEOUT_MS; never sum or subtract elapsed.
-3. Carry the computed wait in active poll actions. Keep completed evidence retrieval
+3. Carried the computed wait in active poll actions. Keep completed evidence retrieval
    on the existing default, and preserve terminal/unknown behavior. Update renderer
    CLI seconds and MCP milliseconds from the shared action value.
-4. Add service wire/decoding tests on initial and status paths, response and policy
+4. Added service wire/decoding tests on initial and status paths, response and policy
    tests, presentation/text and actual CLI/MCP consumer coverage. Cover numeric,
    unavailable/elapsed-only, mixed, null commit, shared labels, empty/absent lists,
    rounding/capping, initial/subsequent, partial/provisional evidence, malformed missing wire lists, errors,
    completed and terminal states. Keep existing over-fetch selection tests intact.
-5. Update both durable tools.md and cli-commands.md fixed-guidance contracts and add a dual-package patch fragment.
+5. Updated both durable tools.md and cli-commands.md fixed-guidance contracts and add a dual-package patch fragment.
    Replace the prior tools.md deferral with the adopted contract. State backend
    production deployment prerequisite and unchanged wait cap; correct the cap comment
    to describe client support rather than the now-outdated backend ceiling.
@@ -123,7 +123,7 @@ in the current interface/schema/normalizer. These findings remain rejected witho
 new evidence. The first test run before implementation had 2 pass, 25 fail and one
 missing-module error, establishing that existing code drops timing evidence.
 
-## Implementation evidence (in progress)
+## Implementation and acceptance evidence
 
 The implementation now selects the same estimate fragment in both queries, validates
 required lists, normalizes optional timing and preserves progress evidence in JSON.
@@ -145,7 +145,7 @@ allow-partial/wait 0, returned seven interim hits, INDEXING, repository range 10
 sampleCount 30/source same_repository_refs, and next wait 60000ms. The CLI live smoke
 passed all 110 steps (stable and experimental cohorts). Initial MCP live smoke timed
 out at search_language (SDK 60000ms); CLI observed that request take 73s and later
-language requests about 1s, so a targeted full MCP smoke retry is running.
+language requests about 1s, and the full MCP smoke retry passed all 59 steps (stable and experimental).
 
 Targeted local Codex descriptor eval `express-router` passed: 110.6s, 12 completed
 MCP calls, no CLI calls/errors, high confidence; final answer identified Express 5's
@@ -155,3 +155,29 @@ and report. `validationViolations: []`; no isolation-violations file was generat
 This ready-target workload does not establish adaptive polling behavior; deterministic
 parity tests and the live pending-target probe cover that. No answer-quality grading
 stage ran. Internal changed-delta code review: no findings.
+
+Final live verification at implementation commit `1071a2d`:
+
+- Subsequent two-target discovery status returned ten interim hits, retained the
+  10-44s bounds with active elapsed43s, and still suggested60000ms. Later service
+  status decoded COMPLETED with `indexingEstimates: []`. No stopped ref was polled.
+- `hex:jason@1.0.1` DOCS initial progress returned DOCUMENTATION/UNSUPPORTED_WORK
+  without normalized estimate, alongside repository8-27s/sampleCount6 and no active
+  elapsed, suggesting40000ms. Its later MCP tool response returned six completed
+  results with no continuation. Live NO_HISTORY and retained-terminal estimates were
+  not observed; committed wire/policy/parity cases cover those documented shapes.
+- Final typecheck after the test-only provisional-fixture strengthening passed.
+- Opus code review round1: clean on `origin/main...1071a2d`, including one permitted
+  fresh-context full-delta check (66 focused tests passed). The awareness-only
+  negative-upper-bound note was rejected: no negative duration producer input was
+  evidenced, it violates total-execution semantics, and the bounded consequence is
+  only an advisory short wait. No guard or scope expansion was added. No findings
+  remain; internal preflight was also clean. Reviewer retained for PR follow-up.
+
+All implementation acceptance criteria are met; production deployment remains an
+explicit external release/adoption prerequisite, not an uncompleted client change.
+The 60-second cap remains intentionally unchanged, with larger timeout-chain
+validation outside this increment as authorized in the handoff. No new refactoring
+opportunity was established. The final documentation-only update records measured
+evidence and completion; it changes no scope/architecture/acceptance criterion and
+does not require another plan or code review. Keep this plan until the PR merges.
