@@ -3424,16 +3424,26 @@ describe("initAction", () => {
     expect(fs.atomicWriteFile).toHaveBeenCalled();
     const logCalls = getLogOutput();
     expect(
-      logCalls.some((msg) =>
-        msg.includes("Your agent can only read your local codebase"),
-      ),
+      logCalls.some((msg) => msg.includes("The code discovery infrastructure")),
+    ).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("software factories and agents")),
     ).toBe(true);
     expect(
       logCalls.some((msg) =>
-        msg.includes("navigate the open-source code your app depends on"),
+        msg.includes("A version-pinned index of open-source packages"),
       ),
     ).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("With GitHits"))).toBe(true);
+    expect(
+      logCalls.some((msg) => msg.includes("CONTEXT") && msg.includes("TOOLS")),
+    ).toBe(true);
+    expect(
+      logCalls.some(
+        (msg) =>
+          msg.includes("CODE") &&
+          msg.includes("files, grep, read, example, languages"),
+      ),
+    ).toBe(true);
     expect(
       logCalls.some((msg) => msg.includes("https://docs.githits.com")),
     ).toBe(true);
@@ -3486,9 +3496,11 @@ describe("initAction", () => {
 
       await initAction({ guidance: false }, { ...deps, isInteractive: false });
       const introLines = getLogOutput();
-      expect(introLines).toContain("  Your agent can only read your local");
-      expect(introLines).toContain("  codebase.");
-      expect(introLines).not.toContain("  codebas e.");
+      expect(introLines).toContain("  GitHits – The code discovery");
+      expect(introLines).toContain("  A version-pinned index of open-source");
+      expect(introLines.every((line) => !line.includes("open-sourc e"))).toBe(
+        true,
+      );
 
       logSpy.mockClear();
       await initAction(

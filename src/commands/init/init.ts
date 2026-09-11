@@ -11,6 +11,7 @@ import {
 } from "@githits/mcp/internal";
 import { ExitPromptError } from "@inquirer/core";
 import type { Command } from "commander";
+import { version } from "../../../package.json";
 import {
   type CreateContainerOptions,
   createContainer,
@@ -726,6 +727,26 @@ function colorizeLogo(logo: string, useColors: boolean): string {
     .join("\n");
 }
 
+/**
+ * Render the ASCII logo with the current CLI version tag aligned to the right
+ * of its last row. The tag tracks `package.json`, so releases update it
+ * automatically.
+ */
+function renderLogoWithVersion(useColors: boolean): string {
+  const rawLines = GITHITS_ASCII_LOGO.split("\n");
+  const coloredLines = colorizeLogo(GITHITS_ASCII_LOGO, useColors).split("\n");
+  const logoWidth = Math.max(...rawLines.map((line) => line.length));
+  const targetIndex = rawLines.reduce(
+    (last, line, index) => (line.trim().length > 0 ? index : last),
+    0,
+  );
+  const rawLine = rawLines[targetIndex] ?? "";
+  const gap = " ".repeat(Math.max(1, logoWidth - rawLine.length + 1));
+  const tag = colorize(`v${version}`, "dim", useColors);
+  coloredLines[targetIndex] = `${coloredLines[targetIndex]}${gap}${tag}`;
+  return coloredLines.join("\n");
+}
+
 const INIT_INTENT_CHOICES: SelectChoice<InitIntent>[] = [
   {
     name: "Install GitHits MCP + supporting instructions (Recommended)",
@@ -741,7 +762,8 @@ const INIT_INTENT_CHOICES: SelectChoice<InitIntent>[] = [
   {
     name: "Use Agent Skills instead",
     value: "skills",
-    description: "Use GitHits Agent Skills instead of MCP.",
+    description:
+      "Use GitHits Agent Skills instead of MCP (Exits current setup).",
   },
   {
     name: "Exit",
@@ -857,37 +879,156 @@ function printTask(
   }
 }
 
-function printInitIntro(useColors: boolean): void {
-  console.log(colorizeLogo(GITHITS_ASCII_LOGO, useColors));
-  printInitProse("  Your agent can only read your local codebase.");
-  console.log();
-  printInitProse(
-    "  GitHits lets it navigate the open-source code your app depends on.",
+/** Capabilities GitHits exposes, rendered as a two-column intro table. */
+const GITHITS_CAPABILITIES: ReadonlyArray<{
+  family: string;
+  tools: ReadonlyArray<string>;
+}> = [
+  { family: "CODE", tools: ["files", "grep", "read", "example", "languages"] },
+  { family: "DOCS", tools: ["list", "read"] },
+  {
+    family: "PACKAGE",
+    tools: ["info", "deps", "vulns", "changelog", "upgrade"],
+  },
+];
+
+/** Wrap plain text to a fixed column width, breaking on whitespace. */
+function wrapToWidth(text: string, width: number): string[] {
+  const lines: string[] = [];
+  let current = "";
+  for (const word of text.trim().split(/\s+/)) {
+    if (current.length === 0) {
+      current = word;
+    } else if (current.length + 1 + word.length <= width) {
+      current += ` ${word}`;
+    } else {
+      lines.push(current);
+      current = word;
+    }
+  }
+  if (current.length > 0) {
+    lines.push(current);
+  }
+  return lines.length > 0 ? lines : [""];
+}
+
+/** Largest width the capability table is allowed to occupy. */
+const MAX_CAPABILITY_TABLE_WIDTH = 84;
+/** Minimum tools column before the table degrades to a stacked list. */
+const MIN_CAPABILITY_TOOLS_WIDTH = 24;
+
+/** Column headers for the capability table. */
+const CAPABILITY_HEADERS = { context: "CONTEXT", tools: "TOOLS" } as const;
+
+/** Comma-separated tool list shown in the family's second column. */
+function familyTools(
+  capability: (typeof GITHITS_CAPABILITIES)[number],
+): string {
+  return capability.tools.join(", ");
+}
+
+/**
+ * Print the capabilities as a two-column table: the family in the left column
+ * and its tools listed in the right. On terminals wide enough it renders a
+ * bordered ASCII table (rules use `-` and `|`, no corner characters), capped at
+ * a maximum width so it never spans the whole screen. On narrow terminals,
+ * where borders would wrap and break, it falls back to a stacked, borderless
+ * list that stays legible.
+ */
+function printCapabilityTable(useColors: boolean): void {
+  const indent = "  ";
+  const nameWidth = Math.max(
+    CAPABILITY_HEADERS.context.length,
+    ...GITHITS_CAPABILITIES.map((capability) => capability.family.length),
   );
-  console.log();
+  const columns = process.stdout.columns ?? DEFAULT_INIT_PROSE_WIDTH;
+  const width = Math.min(columns, MAX_CAPABILITY_TABLE_WIDTH);
+  // Each row renders as "| <context> | <tools> |": two padding spaces per cell
+  // plus the three separators account for seven fixed columns.
+  const overhead = indent.length + 7;
+  const toolsWidth = width - overhead - nameWidth;
+
+  if (toolsWidth < MIN_CAPABILITY_TOOLS_WIDTH) {
+    printCapabilityList(useColors, width);
+    return;
+  }
+
+  const rule = `${indent}${"-".repeat(nameWidth + toolsWidth + 7)}`;
+  const row = (name: string, tools: string): string =>
+    `${indent}| ${name} | ${tools} |`;
+  const header = (text: string, columnWidth: number): string =>
+    colorizeBrand(text.padEnd(columnWidth), "primary", useColors, {
+      bold: true,
+    });
+
+  console.log(rule);
   console.log(
-    `  ${colorizeBrand("With GitHits, your agent can:", "primary", useColors)}`,
+    row(
+      header(CAPABILITY_HEADERS.context, nameWidth),
+      header(CAPABILITY_HEADERS.tools, toolsWidth),
+    ),
   );
+  console.log(rule);
+  for (const capability of GITHITS_CAPABILITIES) {
+    const toolLines = wrapToWidth(familyTools(capability), toolsWidth);
+    toolLines.forEach((toolLine, rowIndex) => {
+      const namePlain = (rowIndex === 0 ? capability.family : "").padEnd(
+        nameWidth,
+      );
+      const nameCell =
+        rowIndex === 0
+          ? colorizeBrand(namePlain, "primary", useColors, { bold: true })
+          : namePlain;
+      console.log(row(nameCell, toolLine.padEnd(toolsWidth)));
+    });
+  }
+  console.log(rule);
+}
+
+/** Stacked, borderless capability layout for narrow terminals. */
+function printCapabilityList(useColors: boolean, width: number): void {
+  const nameIndent = "  ";
+  const toolsIndent = "    ";
+  const toolsWidth = Math.max(20, width - toolsIndent.length);
+  for (const capability of GITHITS_CAPABILITIES) {
+    console.log(
+      `${nameIndent}${colorizeBrand(capability.family, "primary", useColors, { bold: true })}`,
+    );
+    for (const line of wrapToWidth(familyTools(capability), toolsWidth)) {
+      console.log(`${toolsIndent}${line}`);
+    }
+  }
+}
+
+function printInitIntro(useColors: boolean): void {
+  console.log(renderLogoWithVersion(useColors));
   printInitProse(
-    "  • Find implementation examples from open-source code, issues, discussions, and pull requests",
+    "  GitHits – The code discovery infrastructure for software factories and agents",
   );
-  printInitProse(
-    "  • Search, grep, list files, and read exact lines in any repo or package",
-  );
-  printInitProse(
-    "  • Inspect dependency internals, versions, changelogs, and upgrade changes",
-  );
-  printInitProse("  • Access package documentation");
   console.log();
   printInitProse(
-    "  No cloning or local indexing required. GitHits handles everything automatically.",
+    "  A version-pinned index of open-source packages and their dependency graphs, giving agents access to the source, documentation, package metadata, vulnerabilities, licenses, changelogs, upgrade evidence, and real-world implementation patterns for the exact versions your software depends on, with every result traceable and auditable. API, MCP, CLI.",
   );
+  console.log();
+  printCapabilityTable(useColors);
   console.log();
   printInitProse(
-    "  Works with Cursor, Claude Code, Codex, OpenCode, Pi, VS Code, Windsurf, and more.",
+    "  Works with Cursor, Claude Code, Codex, OpenCode, Pi, VS Code, Windsurf, and many more.",
   );
   console.log();
+  const okColumns = process.stdout.columns ?? DEFAULT_INIT_PROSE_WIDTH;
+  const okLines = wrapInitProse(
+    "  ✓ No cloning or local indexing required. GitHits handles everything automatically.",
+    okColumns,
+  );
+  const firstOkLine = okLines[0] ?? "";
+  okLines[0] = firstOkLine.replace("✓", colorize("✓", "green", useColors));
+  for (const line of okLines) {
+    console.log(line);
+  }
   printInitProse("  More info: https://docs.githits.com");
+  printInitProse("  Questions? Visit https://githits.com/faq/");
+  printInitProse("  Support: support@githits.com");
   console.log();
 }
 
