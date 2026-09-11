@@ -12,9 +12,9 @@ import type { FileIntent } from "@githits/core-internal";
 export const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
 
 /**
- * Backend ceiling on how long a single request may wait for
- * indexing. Clamp callers to this ceiling so the backend never
- * rejects a request for an oversized wait.
+ * Supported client ceiling for a single indexing wait. Raising it requires
+ * verifying request timeouts and the MCP host/proxy chain end to end;
+ * backend support alone does not establish a safe client limit.
  */
 export const MAX_WAIT_TIMEOUT_MS = 60_000;
 

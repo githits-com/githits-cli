@@ -283,6 +283,24 @@ describe("runMcpSmoke", () => {
     await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
   });
 
+  it.each([10_000, 50_000, 60_000])(
+    "accepts bounded estimate-based continuation at %s ms",
+    async (waitMs) => {
+      const caller = createCaller(async (name, args) => {
+        if (name === "search" && args.format !== "json") {
+          return textResult(
+            smokeSearchText().replace(
+              "wait_timeout_ms=30000",
+              `wait_timeout_ms=${waitMs}`,
+            ),
+          );
+        }
+        return smokeResponse(name, args);
+      });
+      await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+    },
+  );
+
   it("rejects search action references outside a Next line", async () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {

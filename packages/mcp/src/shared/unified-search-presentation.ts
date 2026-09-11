@@ -1,3 +1,5 @@
+import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
+import { discoveryIndexingWaitMs } from "./discovery-indexing-wait.js";
 import { isKnownRegistry, parsePackageSpec } from "./package-spec.js";
 import {
   formatRepositoryTarget,
@@ -222,8 +224,8 @@ export type UnifiedSearchWarning =
     };
 
 export type UnifiedSearchAction =
-  | { kind: "poll"; searchRef: string }
-  | { kind: "status"; searchRef: string }
+  | { kind: "poll"; searchRef: string; waitTimeoutMs: number }
+  | { kind: "status"; searchRef: string; waitTimeoutMs: number }
   | { kind: "new_search" }
   | {
       kind: "query_rewrite";
@@ -306,6 +308,7 @@ export function projectUnifiedSearchPresentation(
     hasMore: snapshot?.hasMore ?? false,
     warnings,
     action: projectAction({
+      indexingEstimates: progress?.indexingEstimates,
       searchRef,
       snapshot,
       lifecycle,
@@ -1220,6 +1223,7 @@ function boundedAlternatives(
 }
 
 interface ActionInput {
+  indexingEstimates?: UnifiedSearchProgressPayload["indexingEstimates"];
   searchRef?: string;
   snapshot: SnapshotFacts | undefined;
   lifecycle: UnifiedSearchLifecycle;
@@ -1230,7 +1234,11 @@ interface ActionInput {
 function projectAction(input: ActionInput): UnifiedSearchAction {
   if (input.lifecycle.kind === "active") {
     return input.searchRef
-      ? { kind: "poll", searchRef: input.searchRef }
+      ? {
+          kind: "poll",
+          searchRef: input.searchRef,
+          waitTimeoutMs: discoveryIndexingWaitMs(input.indexingEstimates),
+        }
       : { kind: "none" };
   }
   if (
@@ -1238,7 +1246,11 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
     input.snapshot?.evidenceNotice !== undefined &&
     input.searchRef
   ) {
-    return { kind: "status", searchRef: input.searchRef };
+    return {
+      kind: "status",
+      searchRef: input.searchRef,
+      waitTimeoutMs: DEFAULT_WAIT_TIMEOUT_MS,
+    };
   }
 
   const hasLocalRecovery = input.targetGroups.some(

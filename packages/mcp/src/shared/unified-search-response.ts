@@ -1,5 +1,6 @@
 import type {
   ContentSafety,
+  DiscoveryIndexingEstimate,
   DocCoverage,
   UnifiedSearchCompleted,
   UnifiedSearchDocumentationPreview,
@@ -16,6 +17,7 @@ import type {
 import { MalformedCodeNavigationResponseError } from "@githits/core-internal";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { mapCodeNavigationError } from "./code-navigation-error-map.js";
+import { discoveryIndexingWaitMs } from "./discovery-indexing-wait.js";
 import { buildSearchHitFollowUpCommand } from "./follow-up-command-text.js";
 import { formatRepositoryTargetLabel } from "./repository-target.js";
 import { isHealthySearchLifecycleState } from "./search-lifecycle.js";
@@ -113,6 +115,7 @@ export interface UnifiedSearchHitPayload {
 }
 
 export interface UnifiedSearchProgressPayload {
+  indexingEstimates?: DiscoveryIndexingEstimate[];
   status: string;
   targetsReady: number;
   targetsTotal: number;
@@ -674,9 +677,12 @@ function compactProgress(
       UnifiedSearchProgressPayload["targets"]
     >;
   }
+  if (progress.indexingEstimates !== undefined) {
+    payload.indexingEstimates = progress.indexingEstimates;
+  }
   if (progress.expiresAt) payload.expiresAt = progress.expiresAt;
   payload.next = isActiveUnifiedSearchSessionStatus(progress.status)
-    ? `search_status search_ref=${JSON.stringify(progress.searchRef)} wait_timeout_ms=${DEFAULT_WAIT_TIMEOUT_MS}`
+    ? `search_status search_ref=${JSON.stringify(progress.searchRef)} wait_timeout_ms=${discoveryIndexingWaitMs(progress.indexingEstimates)}`
     : "rerun search";
   return payload;
 }
