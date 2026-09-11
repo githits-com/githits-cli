@@ -17,7 +17,11 @@ import { readSourceFile } from "./read-file.js";
 import { readDocumentationPage } from "./read-package-doc.js";
 import { mcpMappedErrorResult } from "./shared.js";
 import type { McpToolServices } from "./tool-services.js";
-import { READ_ONLY_TOOL_ANNOTATIONS, type ToolDefinition } from "./types.js";
+import {
+  READ_ONLY_TOOL_ANNOTATIONS,
+  type ToolDefinition,
+  type ZodRawShape,
+} from "./types.js";
 
 export interface ReadArgs {
   target: string;
@@ -28,7 +32,16 @@ export interface ReadArgs {
   format?: "text" | "json";
 }
 
-export const readSchema = {
+interface ReadSchema extends ZodRawShape {
+  target: z.ZodString;
+  path: z.ZodOptional<z.ZodString>;
+  start_line: z.ZodOptional<z.ZodNumber>;
+  end_line: z.ZodOptional<z.ZodNumber>;
+  wait_timeout_ms: z.ZodOptional<z.ZodNumber>;
+  format: z.ZodDefault<z.ZodEnum<{ text: "text"; json: "json" }>>;
+}
+
+export const readSchema: ReadSchema = {
   target: z
     .string()
     .describe(
@@ -66,14 +79,14 @@ export const readSchema = {
     ),
 };
 
-export const DESCRIPTION_BASE =
+export const DESCRIPTION_BASE: string =
   "Read an indexed source file or documentation page, including a docs section. " +
   "Pass target and path for a file; target alone for a docs page. " +
   "A docs URL fragment needs no bounds; either bound replaces it with a page-relative range. " +
   "Use emitted locators to preserve exact revisions. It does not list directories: use code_files. " +
   "Read focused windows from search/code_grep; follow returned continuation and error actions. " +
   "On INDEXING retry the same target/path with wait_timeout_ms; no content is available yet.";
-export const DESCRIPTION = `${DESCRIPTION_BASE}\n\n${CODE_READ_GUARDRAIL}`;
+export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${CODE_READ_GUARDRAIL}`;
 
 /** One advertised reader; source-specific selection and error contracts stay intact. */
 export function createReadTool(

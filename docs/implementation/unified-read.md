@@ -177,3 +177,9 @@ verification. No worker rework or interrupts were needed. Initial eval inventory
 metadata omissions were coordinator scope gaps; closure tests also caught a
 dynamically assembled legacy CLI name and missing smoke rejection for the new
 CLI syntax. All were fixed and covered by the final passing suite.
+
+CI exposed missing explicit types on the exported read schema/descriptions:
+bunup warns locally but fails declaration generation under `CI=true`. Added
+explicit Zod schema and string annotations without changing the wire schema or
+runtime. `CI=true bun run --cwd packages/mcp build`, typecheck, and the 36-test
+read/catalog/eval subset pass; public-package validation was repeated in CI mode.
