@@ -579,13 +579,14 @@ for the exact GitHits-specific sequence/count metadata.
 
 ## Daily CI workflow
 
-`.github/workflows/agent-evals.yml` runs the two initial Luna-low cells in
+`.github/workflows/agent-evals.yml` runs three Luna-low scenarios in
 parallel on GitHub-hosted Ubuntu:
 
 | Job       | Suite                  | Scenario    | Workload concurrency |
 | --------- | ---------------------- | ----------- | -------------------: |
 | discovery | `canary`                | `discovery` |                    2 |
 | intent    | `stable-full`           | `intent`    |                    4 |
+| full      | `stable-full`           | `full`      |                    4 |
 
 The workflow runs on every push to `main`, at 03:00 UTC from the default
 branch, on manual `workflow_dispatch`, and for a `pull_request` `labeled` event
@@ -609,17 +610,19 @@ authenticates through Codex's stdin API-key flow. `OPENAI_API_KEY` is scoped to
 that authentication step; `GITHITS_API_TOKEN` is scoped only to the paid suite
 execution. Local subscription state, Keychain data, personal skills, and user
 configuration are never copied into CI. The scenario directories are uploaded
-as `agent-eval-discovery` and `agent-eval-intent` artifacts for 14 days.
+as `agent-eval-discovery`, `agent-eval-intent`, and `agent-eval-full` artifacts
+for 14 days.
 
-The final summary job always runs for an authorized workflow, downloads both
+The final summary job always runs for an authorized workflow, downloads all three
 scenario artifacts without flattening them, appends the concise report to
-`GITHUB_STEP_SUMMARY`, and then exports the normalized 23-cell result to
+`GITHUB_STEP_SUMMARY`, and then exports the normalized 48-cell result to
 Braintrust. The local equivalent report command is:
 
 ```bash
 bun run agent:e2e:ci-report \
   --suite discovery=.agent-eval/ci-validation/discovery/suite.json \
   --suite intent=.agent-eval/ci-validation/intent/suite.json \
+  --suite full=.agent-eval/ci-validation/full/suite.json \
   --out .agent-eval/ci-validation/summary.md
 ```
 

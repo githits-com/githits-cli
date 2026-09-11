@@ -455,7 +455,7 @@ describe("createListFilesTool — text format", () => {
     );
     expect(result.isError).toBeUndefined();
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("code_files | 2 paths | npm:express@v5.2.1");
+    expect(text.split("\n")[0]).toBe("code_files | 2 paths | npm:express");
     expect(text).toContain("src/index.js");
     // Confirm the text payload is not valid JSON.
     expect(() => JSON.parse(text)).toThrow();

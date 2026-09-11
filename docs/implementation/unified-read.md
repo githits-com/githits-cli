@@ -239,3 +239,39 @@ Run directories under `.agent-eval/runs/`:
 Haiku aggregate token/cost and logical-call metrics remain unavailable in the
 harness adapter; raw tool-use and matching result records were inspected instead.
 No before/after comparison is claimed. This follow-up changes evidence only.
+
+### PR eval locator correction (2026-09-11)
+
+PR evals at `338d02d` exposed an existing `code_files` text-header bug:
+`indexedVersion` contained the served Git SHA, but the formatter appended it to
+`npm:express@...` as though it were a package version. Luna copied this invalid
+locator, received `VERSION_NOT_FOUND`, then tried object-valued `read.target`
+recovery calls before switching to the required compact repository string.
+
+The list-files formatter owns the copyable header target. It now prefers the
+backend's served repository URL and exact commit (or served ref), using the
+existing repository-target formatter. Package-only responses use the served
+package version or explicitly requested version; untyped `indexedVersion` and
+`resolvedRef` fields are never converted into package versions. JSON retains all
+original resolution fields. This fixes locator production without broadening
+`read.target` or inventing a version from a Git ref. Regression coverage uses the
+observed Express payload and parses the emitted locator back into a code target.
+
+Initial PR runs `34594029426`, `34594060140`, and `34594062207`, attempt 1,
+were exported to Braintrust but ran concurrently and encountered 72 HTTP 429
+responses. Preserve these experiments as contaminated execution evidence, not
+as clean before/after measurements. Only one 429 came from `global-example`;
+others affected package and navigation workloads. Attempt 2 of the first run
+completed without observed 429s and exposed the locator bug above. Remaining
+repeats were stopped when the user requested correction before further runs.
+Future comparisons exclude `global-example` as requested, match 44 existing
+scenario/workload cells, and report the two added fragment cells separately.
+All comparisons use `main-r34592914082-a1` at `74e316e` as the baseline.
+
+Correction validation: 4,712 unit tests passed; typecheck and CI-mode public
+package validation passed. The live Express payload rendered
+`github:expressjs/express#dbac741a49a5a64336b70c06e85c2e2706e36336`; passing that
+locator unchanged to `read` returned the requested application-source lines
+55-90, including both router options. Source and built CLI/MCP smoke checks
+cover unauthenticated handling and MCP registration. The 11-line formatter
+delta was reviewed inline under the small-change review policy.
