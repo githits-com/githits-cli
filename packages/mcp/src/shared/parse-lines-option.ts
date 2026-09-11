@@ -9,7 +9,7 @@ export interface LineRange {
  * Parse the CLI `--lines` concise form. Grammar:
  *  `"N-M"` → start=N, end=M (both integers)
  *  `"N-"`  → start=N, end=EOF
- *  `"-M"`  → start=1, end=M
+ *  `"-M"`  → start omitted, end=M (the backend defaults start to 1)
  * Single-line `"N"` is rejected so callers fall through to `--start`.
  */
 export function parseLinesOption(raw: string): LineRange {
@@ -45,9 +45,6 @@ export function parseLinesOption(raw: string): LineRange {
     );
   }
 
-  if (startLine === undefined && endLine !== undefined) {
-    return { startLine: 1, endLine };
-  }
   return { startLine, endLine };
 }
 

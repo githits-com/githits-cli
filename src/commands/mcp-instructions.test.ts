@@ -125,8 +125,13 @@ describe("buildMcpQuickStart", () => {
       "`docs_list` browses package pages, not standalone `site:` targets",
     );
     expect(instructions).toContain(
-      "Pass the emitted `docsReadTarget` (or historical `pageId`) to `docs_read`",
+      "Use a docs hit's snippet when sufficient; otherwise follow its generated",
     );
+    expect(instructions).toContain(
+      "pass a `[docs page]` target unchanged to `docs_read`",
+    );
+    expect(instructions).toContain("A fragment needs no bounds");
+    expect(instructions).toContain("replace it with a page-relative range");
   });
 
   it("retains comparative examples and language disambiguation routes", () => {

@@ -46,7 +46,10 @@ target forms and argument details.
 
 For a package or site docs topic, use `search` with `source:"docs"`.
 `docs_list` browses package pages, not standalone `site:` targets.
-Pass the emitted `docsReadTarget` (or historical `pageId`) to `docs_read`.
+Use a docs hit's snippet when sufficient; otherwise follow its generated
+`followUp`. From text, pass a `[docs page]` target unchanged to `docs_read`.
+A fragment needs no bounds and returns the exact section; add bounds only to
+replace it with a page-relative range. Historical `pageId` works.
 For source evidence, locate paths or matches before reading; never use
 `code_read` to list/probe directories.
 

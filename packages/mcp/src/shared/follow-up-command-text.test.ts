@@ -155,6 +155,74 @@ function documentationHit(
 }
 
 describe("buildSearchHitFollowUpCommand documentation targets", () => {
+  it("uses an emitted crawled-doc fragment without search-window bounds", () => {
+    const docsReadTarget = "https://docs.example.test/guide?q=exact";
+    const sourceUrl = `${docsReadTarget}#routing`;
+
+    const value = documentationHit({
+      pageId: "legacy-crawled-id",
+      docsReadTarget,
+      sourceUrl,
+      startLine: 81,
+      endLine: 93,
+    });
+
+    expect(buildSearchHitFollowUpCommand(value)).toBe(
+      `docs_read page_id=${JSON.stringify(sourceUrl)}`,
+    );
+    expect(buildSearchHitFollowUpCommand(value, "cli")).toBe(
+      `githits docs read '${sourceUrl}'`,
+    );
+  });
+
+  it("recognizes a mixed-case HTTP scheme when promoting a source fragment", () => {
+    const docsReadTarget = "HTTPS://docs.example.test/guide?q=exact";
+    const sourceUrl = `${docsReadTarget}#routing`;
+
+    expect(
+      buildSearchHitFollowUpCommand(
+        documentationHit({
+          pageId: "legacy-crawled-id",
+          docsReadTarget,
+          sourceUrl,
+          startLine: 81,
+          endLine: 93,
+        }),
+      ),
+    ).toBe(`docs_read page_id=${JSON.stringify(sourceUrl)}`);
+  });
+
+  it("passes an existing fragment unchanged without search-window bounds", () => {
+    const docsReadTarget = "https://docs.example.test/guide#routing";
+
+    expect(
+      buildSearchHitFollowUpCommand(
+        documentationHit({
+          pageId: "legacy-crawled-id",
+          docsReadTarget,
+          sourceUrl: docsReadTarget,
+          startLine: 81,
+          endLine: 93,
+        }),
+      ),
+    ).toBe(`docs_read page_id=${JSON.stringify(docsReadTarget)}`);
+  });
+
+  it("passes a mixed-case HTTP target with a fragment unchanged", () => {
+    const docsReadTarget = "HtTp://docs.example.test/guide#routing";
+
+    expect(
+      buildSearchHitFollowUpCommand(
+        documentationHit({
+          pageId: "legacy-crawled-id",
+          docsReadTarget,
+          startLine: 81,
+          endLine: 93,
+        }),
+      ),
+    ).toBe(`docs_read page_id=${JSON.stringify(docsReadTarget)}`);
+  });
+
   it("shell-quotes publisher URL targets containing spaces and metacharacters", () => {
     const docsReadTarget =
       "https://docs.example.test/guide with spaces;$(echo nope)?q='quoted'&x=*";

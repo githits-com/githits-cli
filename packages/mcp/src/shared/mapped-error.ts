@@ -11,6 +11,7 @@ import type {
 
 export type MappedErrorCode =
   | "NOT_FOUND"
+  | "DOCUMENTATION_SECTION_UNRESOLVED"
   | "FILE_NOT_FOUND"
   | "FILE_PATH_EXCLUDED"
   | "SOURCE_FILE_INVENTORY_UNKNOWN"

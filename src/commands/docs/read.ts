@@ -52,7 +52,11 @@ export async function docsReadAction(
 
     const range = options.lines ? parseLinesOption(options.lines) : undefined;
 
-    const build = buildReadPackageDocParams({ pageId });
+    const build = buildReadPackageDocParams({
+      pageId,
+      startLine: range?.startLine,
+      endLine: range?.endLine,
+    });
     const spinner = startSpinner(SPINNER_MESSAGES.docs, !options.json);
     const result = await deps.packageIntelligenceService
       .readPackageDoc(build.params)
@@ -60,7 +64,6 @@ export async function docsReadAction(
     const payload = buildReadPackageDocSuccessPayload(
       result,
       build.params.pageId,
-      range,
     );
 
     if (options.json) {
@@ -93,12 +96,13 @@ function handleDocsReadError(error: unknown, json: boolean): never {
 
 const DOCS_READ_DESCRIPTION = `Read a documentation page by emitted target or page ID.
 
-Prefer docsReadTarget from githits docs list, githits search --json, or MCP
-doc/search results. Historical page IDs remain accepted. Default output is
+Pass the displayed [docs page] target from githits search or docsReadTarget from
+githits docs list unchanged. Historical page IDs remain accepted. Default output is
 content-only for easy piping; pass --verbose for a metadata header. Use --lines
 for a bounded line range (e.g. \`--lines 10-40\`,
 \`--lines 10-\` for open-ended, or \`--lines -40\` for the first 40 lines) —
-useful when a page is too long to read whole.`;
+useful when a page is too long to read whole. An HTTP(S) fragment reads its
+exact indexed section; explicit --lines bounds override the fragment.`;
 
 export function registerDocsReadCommand(docsCommand: Command): Command {
   return docsCommand

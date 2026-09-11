@@ -9,6 +9,7 @@ import {
   PackageIntelligenceAccessError,
   PackageIntelligenceBackendError,
   PackageIntelligenceChangelogSourceNotFoundError,
+  PackageIntelligenceDocumentationSectionUnresolvedError,
   PackageIntelligenceFeatureFlagRequiredError,
   PackageIntelligenceNetworkError,
   PackageIntelligenceServiceImpl,
@@ -2609,7 +2610,7 @@ describe("PackageIntelligenceServiceImpl — package docs targets", () => {
 
   it("passes URL targets through getDocPage and retains all read locators", async () => {
     const docsReadTarget =
-      "https://expressjs.com/en/guide/routing.html?publisher=express";
+      "https://flask.palletsprojects.com/en/stable/design/#the-routing-system";
     let capturedBody = "";
     const fetchFn = mock((_url: string, init?: RequestInit) => {
       capturedBody = String(init?.body ?? "");
@@ -2620,6 +2621,12 @@ describe("PackageIntelligenceServiceImpl — package docs targets", () => {
               registry: "NPM",
               packageName: "express",
               sourceKind: "CRAWLED",
+              contentRange: {
+                startLine: 81,
+                endLine: 93,
+                totalLines: 219,
+                anchor: "the-routing-system",
+              },
               page: {
                 id: "legacy-crawled-id",
                 docsReadTarget,
@@ -2642,15 +2649,215 @@ describe("PackageIntelligenceServiceImpl — package docs targets", () => {
 
     const request = JSON.parse(capturedBody) as {
       query: string;
-      variables: { pageId: string };
+      variables: Record<string, unknown>;
     };
     expect(request.query).toContain("docsReadTarget");
+    expect(request.query).toContain("$startLine: Int");
+    expect(request.query).toContain("$endLine: Int");
+    expect(request.query).toContain("contentRange");
+    expect(request.query).toContain("totalLines");
+    expect(request.query).not.toContain("contentSafety");
     expect(request.variables.pageId).toBe(docsReadTarget);
+    expect(request.variables).toEqual({ pageId: docsReadTarget });
+    expect(result.contentRange).toEqual({
+      startLine: 81,
+      endLine: 93,
+      totalLines: 219,
+      anchor: "the-routing-system",
+    });
     expect(result.page).toMatchObject({
       id: "legacy-crawled-id",
       docsReadTarget,
       source: { url: docsReadTarget },
     });
+  });
+
+  it.each([
+    [
+      { startLine: 10, endLine: 40 },
+      { pageId: "opaque:%2Fpage#fragment", startLine: 10, endLine: 40 },
+    ],
+    [{ startLine: 10 }, { pageId: "opaque:%2Fpage#fragment", startLine: 10 }],
+    [{ endLine: 40 }, { pageId: "opaque:%2Fpage#fragment", endLine: 40 }],
+  ])(
+    "forwards only explicit documentation bounds %#",
+    async (bounds, expected) => {
+      let capturedBody = "";
+      const fetchFn = mock((_url: string, init?: RequestInit) => {
+        capturedBody = String(init?.body ?? "");
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              getDocPage: {
+                contentRange: {
+                  startLine: 10,
+                  endLine: 20,
+                  totalLines: 20,
+                  anchor: null,
+                },
+                page: {
+                  id: "stable-page-id",
+                  docsReadTarget: "opaque:%2Fpage#fragment",
+                  content: "selection",
+                },
+              },
+            },
+          }),
+        );
+      });
+      const service = new PackageIntelligenceServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(fetchFn),
+      );
+
+      await service.readPackageDoc({
+        pageId: "opaque:%2Fpage#fragment",
+        ...bounds,
+      });
+
+      const request = JSON.parse(capturedBody) as {
+        variables: Record<string, unknown>;
+      };
+      expect(request.variables).toEqual(expected);
+    },
+  );
+
+  it("requires contentRange on successful documentation responses", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          data: {
+            getDocPage: {
+              page: {
+                id: "stable-page-id",
+                docsReadTarget: "stable-page-id",
+                content: "content",
+              },
+            },
+          },
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.readPackageDoc({ pageId: "stable-page-id" }),
+    ).rejects.toThrow(MalformedPackageIntelligenceResponseError);
+  });
+
+  it("accepts the empty-page contentRange contract", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          data: {
+            getDocPage: {
+              contentRange: {
+                startLine: null,
+                endLine: null,
+                totalLines: 0,
+                anchor: null,
+              },
+              page: {
+                id: "empty-page",
+                docsReadTarget: "empty-page",
+                content: "",
+              },
+            },
+          },
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.readPackageDoc({ pageId: "empty-page" });
+
+    expect(result.contentRange).toEqual({
+      startLine: undefined,
+      endLine: undefined,
+      totalLines: 0,
+      anchor: undefined,
+    });
+  });
+
+  it("rejects nullable bounds on a non-empty documentation page", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          data: {
+            getDocPage: {
+              contentRange: {
+                startLine: null,
+                endLine: 1,
+                totalLines: 1,
+                anchor: null,
+              },
+              page: {
+                id: "bad-page",
+                docsReadTarget: "bad-page",
+                content: "one",
+              },
+            },
+          },
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.readPackageDoc({ pageId: "bad-page" }),
+    ).rejects.toThrow(MalformedPackageIntelligenceResponseError);
+  });
+
+  it("classifies unresolved documentation sections with their reason", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [
+            {
+              message: "Documentation section is ambiguous",
+              extensions: {
+                code: "DOCUMENTATION_SECTION_UNRESOLVED",
+                retryable: false,
+                reason: "ambiguous",
+              },
+            },
+          ],
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    try {
+      await service.readPackageDoc({
+        pageId: "https://docs.example.test/page#duplicate",
+      });
+      throw new Error("expected unresolved documentation section");
+    } catch (error) {
+      expect(error).toBeInstanceOf(
+        PackageIntelligenceDocumentationSectionUnresolvedError,
+      );
+      expect(
+        (error as PackageIntelligenceDocumentationSectionUnresolvedError)
+          .reason,
+      ).toBe("ambiguous");
+    }
   });
 });
 

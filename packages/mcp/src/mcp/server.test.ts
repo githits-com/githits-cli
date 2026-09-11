@@ -144,6 +144,8 @@ const DESCRIPTION_ROUTING: Record<
       "`search`",
       "`code_read`",
       "`docsReadTarget`",
+      "fragment needs no bounds",
+      "either bound replaces it with a page-relative range",
       "150 lines by default",
       "up to 300 lines",
     ],

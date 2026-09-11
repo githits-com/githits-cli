@@ -932,6 +932,11 @@ export const defaultPackageDocResult: PackageDocResult = {
   packageName: "express",
   version: "5.2.1",
   sourceKind: "REPOSITORY",
+  contentRange: {
+    startLine: 1,
+    endLine: 3,
+    totalLines: 3,
+  },
   page: {
     id: "github:expressjs/express@abc123/README.md",
     docsReadTarget: "github:expressjs/express@abc123/README.md",

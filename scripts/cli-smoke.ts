@@ -1885,8 +1885,14 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     docsReadJson.docsReadTarget === crawledPage.docsReadTarget &&
       docsReadJson.pageId === crawledPage.pageId &&
       docsReadJson.sourceUrl === crawledPage.sourceUrl &&
-      typeof docsReadJson.content === "string",
-    "docs read crawled URL json missing target, page ID, source URL, or content",
+      typeof docsReadJson.content === "string" &&
+      docsReadJson.startLine === 1 &&
+      typeof docsReadJson.endLine === "number" &&
+      docsReadJson.endLine >= 1 &&
+      docsReadJson.endLine <= 5 &&
+      typeof docsReadJson.totalLines === "number" &&
+      docsReadJson.totalLines >= docsReadJson.endLine,
+    "docs read crawled URL json missing locators, content, or backend range",
   );
 
   const legacyCrawledRead = assertJsonOutput(
@@ -1915,8 +1921,12 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   assert(
     repoRead.docsReadTarget === repoPage.docsReadTarget &&
       repoRead.pageId === repoPage.pageId &&
-      typeof repoRead.content === "string",
-    "docs read repo-backed ID json missing snapshot target, page ID, or content",
+      typeof repoRead.content === "string" &&
+      typeof repoRead.totalLines === "number" &&
+      (repoRead.totalLines === 0 ||
+        (typeof repoRead.startLine === "number" &&
+          typeof repoRead.endLine === "number")),
+    "docs read repo-backed ID json missing snapshot locators, content, or range",
   );
 
   assertJsonErrorCode(
