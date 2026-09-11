@@ -5,6 +5,37 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.16.2] - 2026-09-11
+
+### Changed
+
+- **Compact wait guidance** - Move repeated MCP wait and indexing-recovery guidance into the shared `quick_start` and `githits-mcp` skill, and shorten wait parameter descriptions to units and bounds derived from shared constants. The next CLI and MCP releases carry the updated guidance.
+- **Longer default indexing wait** - Increase the shared CLI and MCP search, search-status, and code-navigation wait from 20 to 30 seconds to allow more time for indexing and metadata fetches before returning progress. Explicit wait overrides and the 60-second maximum remain unchanged.
+- **Read exact documentation sections and ranges** - Search now emits indexed fragments as ready-to-read targets, while `docs read` and `docs_read` resolve them without synthetic bounds, preserve absolute page coordinates, and keep unresolved sections distinct from missing pages; deploy the compatible backend schema before releasing this client.
+- **Ask follow-up scope** - Explain how to change project, version, or topic in an existing thread and keep the thread when clarifying a failed lookup.
+- **Prefer token-efficient MCP text output** - Keep model-visible results in text and reserve JSON for direct host-side field handling or fields absent from text, not ordinary MCP or TypeScript invocation.
+
+### Fixed
+
+- **Search path-prefix validation** - Reject path prefixes locally when no code search source is selected, and correct CLI/MCP guidance to explain that documentation and symbol searches do not support this filter.
+- **Ask guidance** - Remove the instruction to report defects using an Ask run ID because no such reporting action is available.
+- **Local evaluation cleanup** - Wait for both target preflights before returning a setup failure, preventing Windows cleanup from racing an outstanding Git subprocess.
+
+## [@githits/mcp 0.16.2] - 2026-09-11
+
+### Changed
+
+- **Compact wait guidance** - Move repeated MCP wait and indexing-recovery guidance into the shared `quick_start` and `githits-mcp` skill, and shorten wait parameter descriptions to units and bounds derived from shared constants. The next CLI and MCP releases carry the updated guidance.
+- **Longer default indexing wait** - Increase the shared CLI and MCP search, search-status, and code-navigation wait from 20 to 30 seconds to allow more time for indexing and metadata fetches before returning progress. Explicit wait overrides and the 60-second maximum remain unchanged.
+- **Read exact documentation sections and ranges** - Search now emits indexed fragments as ready-to-read targets, while `docs read` and `docs_read` resolve them without synthetic bounds, preserve absolute page coordinates, and keep unresolved sections distinct from missing pages; deploy the compatible backend schema before releasing this client.
+- **Ask follow-up scope** - Explain how to change project, version, or topic in an existing thread and keep the thread when clarifying a failed lookup.
+- **Prefer token-efficient MCP text output** - Keep model-visible results in text and reserve JSON for direct host-side field handling or fields absent from text, not ordinary MCP or TypeScript invocation.
+
+### Fixed
+
+- **Search path-prefix validation** - Reject path prefixes locally when no code search source is selected, and correct CLI/MCP guidance to explain that documentation and symbol searches do not support this filter.
+- **Ask guidance** - Remove the instruction to report defects using an Ask run ID because no such reporting action is available.
+
 ## [githits 0.16.1] - 2026-09-10
 
 Patch release: routes agents through a smaller self-contained MCP guide and
