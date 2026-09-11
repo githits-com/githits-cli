@@ -333,7 +333,8 @@ stay in their target row and unowned source constraints remain global.
 There is at most one final `Next:` line. Active continuation uses the supplied
 `searchRef` exactly once in the executable `search_status` action; there is no
 separate session row. MCP renders
-`Next: search_status search_ref="..." wait_timeout_ms=30000`. A target-local
+`Next: search_status search_ref="..." wait_timeout_ms=30000` when no range is
+available; supported indexing ranges select a bounded wait as described below. A target-local
 `Fix:`/`Try:` never suppresses an active poll or completed evidence-status action,
 but suppresses generic rerun/query-rewrite guidance. Terminal and unknown sessions
 do not poll their stopped reference. Reissuing the same search remains valid.
@@ -555,14 +556,64 @@ Backend GraphQL errors preserve the backend message verbatim and carry its `hint
 
 **Follow-up — error metadata carrier consolidation.** Target, version, and ref errors currently carry available artifacts both as legacy constructor fields and in common error metadata; `CodeNavigationIndexingError` also carries `hint` as a standalone constructor field. Consolidate those carriers in a dedicated refactor; changing the internal error API is outside this response-formatting slice and has no user-visible anti-looping benefit.
 
-**Retry default**: `DEFAULT_WAIT_TIMEOUT_MS = 30_000` (shared, defined in `packages/mcp/src/shared/code-navigation-defaults.ts`). Applied inside each request builder so both CLI and MCP surfaces get the same default by construction. CLI's `--wait <ms>` and MCP's `wait_timeout_ms` override.
+**Retry default**: `DEFAULT_WAIT_TIMEOUT_MS = 30_000` (shared, defined in `packages/mcp/src/shared/code-navigation-defaults.ts`). Applied inside each request builder so both CLI and MCP surfaces get the same default by construction. CLI search/search-status use `--wait <seconds>`; code files/read/grep use `--wait <ms>`. MCP uses `wait_timeout_ms`.
 
-**Deferred estimate-based continuation**: Search-status suggestions currently use the
-shared 30-second default. Backend search progress does not yet expose indexing
-duration estimates; backend work must supply that contract before the client can
-use the upper estimate plus 10 seconds, rounded up to the next 10 seconds and
-capped at the supported maximum. The current client maximum remains 60 seconds;
-adopting the planned five-minute backend limit is separate follow-up work.
+**Discovery indexing estimates and continuation**: Both initial `search` progress
+and `search_status` progress retain `indexingEstimates` in CLI/MCP JSON. Entries
+identify `kind` (`REPOSITORY` or `DOCUMENTATION`), shared requested `targets`,
+repository URL and commit when known, timing evidence and `unavailableReason`.
+Nullable wire values follow the existing optional-field normalization; an explicit
+empty list remains empty. An unresolved commit can still have URL-based history.
+
+`estimate.lowerSeconds` / `upperSeconds` are advisory **total repository indexing
+execution seconds**, not remaining time, a search ETA, or guaranteed bounds.
+`elapsedSeconds` is observable active execution only and is absent while queued,
+retrying or unobservable. `sampleCount` and `source` retain historical provenance.
+Neither search `elapsedMs` nor active elapsed time is subtracted from the bounds.
+`NO_HISTORY` may carry elapsed-only timing; `UNSUPPORTED_WORK` has no duration
+model. Neither produces a fabricated range.
+
+For an active reference, shared JSON/text continuation chooses the largest numeric
+`upperSeconds`, adds 10 seconds, and rounds upward to a ten-second boundary. It
+never sums jobs or target labels. If any entry has no range, the unchanged
+30-second default is an additional floor; if no ranges exist, the default stays
+30 seconds. The final suggestion is capped at the supported 120-second maximum.
+Thus upper 40 suggests 50 seconds, upper 44 suggests 60, upper 80 suggests 90, and unsupported-only work
+suggests 30. CLI renders seconds; MCP renders milliseconds. Request defaults stay
+unchanged, and the client does not automatically poll.
+
+Estimates remain available with partial/provisional/stale evidence and retained
+terminal progress. They never decide lifecycle: an empty list does not complete an
+active search, and timing never makes DEFERRED/FAILED/TIMEOUT references pollable.
+Completed evidence-status retrieval retains its existing default-wait policy.
+The core service owns shared GraphQL selection/validation; the MCP shared
+`discovery-indexing-wait.ts` policy feeds both JSON guidance and CLI/MCP text.
+
+**Release prerequisite**: backend #2460's schema must be deployed on every production
+serving node before releasing/adopting this client query. Dev deployment and live
+checks do not prove production support. An older schema rejects the selection;
+there is no compatibility fallback. Backend #2458 must also be deployed for
+extended waits. Discovery search/status accept CLI `--wait 0..120` seconds or
+MCP `wait_timeout_ms: 0..120000`; other navigation limits and 30-second defaults
+are unchanged. Discovery HTTP budgets are `max(120000, waitTimeoutMs + 30000)` ms,
+giving a 150-second client deadline at the maximum readiness wait. Caller
+cancellation propagates from MCP through both discovery query paths, including
+existing target-resolution query fallback.
+
+The service AbortSignal bounds the request and preserves caller cancellation during
+both headers and response-body reads. Standard socket timeouts are unchanged.
+Cloudflare's standard [origin proxy read timeout](https://developers.cloudflare.com/fundamentals/reference/connection-limits/)
+is 125 seconds; only Enterprise zones can increase it. The client cap is therefore
+120 seconds despite the backend's 300-second capability. A full 120-second
+readiness wait leaves at most five seconds for other origin work, so cold target
+resolution and response overhead can still exceed the edge budget. The 150-second
+client deadline does not extend Cloudflare's limit; verify production route timing
+before adoption.
+
+Hosted MCP adoption requires publishing `@githits/mcp`, updating the hosted server's
+dependency, and deploying it. External MCP callers must allow the requested wait
+plus response headroom; the SDK's default 60-second caller timeout is insufficient
+for the longest calls. Dev direct-Fly checks do not establish production routing.
 
 **Exact-path authority errors**: `code_read` / `code_grep` distinguish a missing path (`FILE_NOT_FOUND`) from a path deliberately omitted from the index (`FILE_PATH_EXCLUDED`) and an index whose source-file inventory cannot authoritatively answer the path query (`SOURCE_FILE_INVENTORY_UNKNOWN`). The latter two become stable top-level CLI/MCP codes and preserve `filePath`, optional `exclusionReason`, retryability, and target-resolution metadata. All three preserve the backend message and add surface-native `details.action` guidance for inspecting indexed paths. MCP names `code_files`, `path_prefix`, `code_read`, and `code_grep`; CLI JSON names `githits code files`, a path-prefix positional, `githits code read`, and `githits code grep --path`. CLI terminal output names `code files`. `code_read` still supports generic `NOT_FOUND` from older/backend paths, and its structured recovery is likewise rendered with MCP or CLI-native names without classifying unrelated target misses as file errors.
 
@@ -636,7 +687,9 @@ and before hits; target-owned constraints stay in their row.
 There is no separate session row. An active or evidence-status continuation uses
 the supplied `searchRef` exactly once in the executable `Next:` action:
 `Next: search_status search_ref="..." wait_timeout_ms=30000` for MCP or
-`Next: githits search-status ... --wait 30` for CLI. Target-local recovery never
+`Next: githits search-status ... --wait 30` for CLI when no range is available.
+Active indexing estimates can adjust that wait up to 120 seconds; completed
+evidence-status retrieval keeps the default. Target-local recovery never
 suppresses an active poll or completed evidence-status action, but suppresses a
 generic rerun/query rewrite. Stopped terminal references are not polled.
 

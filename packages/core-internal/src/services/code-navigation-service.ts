@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { isFetchTimeoutError } from "../shared/fetch-timeout.js";
+import {
+  DEFAULT_FETCH_TIMEOUT_MS,
+  isFetchTimeoutError,
+} from "../shared/fetch-timeout.js";
 import {
   type PkgseerGraphqlResponse,
   PkgseerTransportError,
@@ -240,6 +243,8 @@ export interface UnifiedSearchParams {
 }
 
 export interface UnifiedSearchReadOptions {
+  /** Cancel the discovery request when its caller stops waiting. */
+  signal?: AbortSignal;
   /** Omit compatibility navigation source when the caller renders only matched evidence. */
   omitFocusedSource?: boolean;
 }
@@ -507,6 +512,16 @@ export interface UnifiedSearchResult {
   evidenceNotice?: string;
 }
 
+/** Pending preparation evidence; total execution seconds, never a search ETA. */
+export interface DiscoveryIndexingEstimate {
+  kind: "REPOSITORY" | "DOCUMENTATION";
+  targets: string[];
+  repositoryUrl?: string;
+  commitSha?: string;
+  estimate?: IndexingDurationEstimate;
+  unavailableReason?: "NO_HISTORY" | "UNSUPPORTED_WORK";
+}
+
 export interface UnifiedSearchProgress {
   searchRef: string;
   status: UnifiedSearchSessionStatus;
@@ -523,6 +538,7 @@ export interface UnifiedSearchProgress {
   limit?: number;
   offset?: number;
   targets?: UnifiedSearchProgressTarget[];
+  indexingEstimates?: DiscoveryIndexingEstimate[];
   expiresAt?: string;
 }
 
@@ -1241,13 +1257,28 @@ availableRefs {
 }
 ${DISCOVERY_TARGET_PROGRESS_SUGGESTED_REFS_SELECTION}`;
 
-const INDEXING_DURATION_ESTIMATE_SELECTION = `
-indexingEstimate {
+const INDEXING_DURATION_ESTIMATE_FIELDS = `
   lowerSeconds
   upperSeconds
   elapsedSeconds
   sampleCount
-  source
+  source`;
+
+const INDEXING_DURATION_ESTIMATE_SELECTION = `
+indexingEstimate {
+  ${INDEXING_DURATION_ESTIMATE_FIELDS}
+}`;
+
+const DISCOVERY_INDEXING_ESTIMATES_SELECTION = `
+indexingEstimates {
+  kind
+  targets
+  repositoryUrl
+  commitSha
+  estimate {
+    ${INDEXING_DURATION_ESTIMATE_FIELDS}
+  }
+  unavailableReason
 }`;
 
 const UNIFIED_SEARCH_LOCATOR_SELECTION = `
@@ -1454,6 +1485,7 @@ query UnifiedSearch(
       targetsTotal
       targetsReady
       elapsedMs
+      ${DISCOVERY_INDEXING_ESTIMATES_SELECTION}
       query
       queryWarnings
       sources
@@ -1500,6 +1532,7 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!, $waitT
     targetsTotal
     targetsReady
     elapsedMs
+    ${DISCOVERY_INDEXING_ESTIMATES_SELECTION}
     query
     queryWarnings
     sources
@@ -2043,6 +2076,15 @@ const unifiedSearchRequestedTargetSchema = z.object({
   site: z.string().nullable().optional(),
 });
 
+const discoveryIndexingEstimateSchema = z.object({
+  kind: z.enum(["REPOSITORY", "DOCUMENTATION"]),
+  targets: z.array(z.string()),
+  repositoryUrl: z.string().nullable(),
+  commitSha: z.string().nullable(),
+  estimate: indexingDurationEstimateSchema,
+  unavailableReason: z.enum(["NO_HISTORY", "UNSUPPORTED_WORK"]).nullable(),
+});
+
 const unifiedSearchProgressSchema = z.object({
   searchRef: z.string(),
   status: unifiedSearchSessionStatusSchema,
@@ -2062,6 +2104,7 @@ const unifiedSearchProgressSchema = z.object({
   limit: z.number().int().nullable().optional(),
   offset: z.number().int().nullable().optional(),
   targets: z.array(unifiedSearchProgressTargetSchema).nullable().optional(),
+  indexingEstimates: z.array(discoveryIndexingEstimateSchema),
   expiresAt: z.string().nullable().optional(),
   results: unifiedSearchResultSchema.nullable().optional(),
 });
@@ -2709,12 +2752,16 @@ export class CodeNavigationServiceImpl
     token: string;
     query: string;
     variables: Record<string, unknown>;
+    timeoutMs?: number;
+    signal?: AbortSignal;
   }): Promise<PkgseerGraphqlResponse> {
     const response = await postPkgseerGraphql({
       endpointUrl: this.codeNavigationUrl,
       token: input.token,
       query: input.query,
       variables: input.variables,
+      timeoutMs: input.timeoutMs,
+      signal: input.signal,
       fetchFn: this.fetchFn,
       clientHeaders: this.runtime.clientHeaders,
       userAgent: this.runtime.userAgent,
@@ -2736,6 +2783,8 @@ export class CodeNavigationServiceImpl
         token: input.token,
         query: fallbackQuery,
         variables: input.variables,
+        timeoutMs: input.timeoutMs,
+        signal: input.signal,
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
         userAgent: this.runtime.userAgent,
@@ -2928,6 +2977,11 @@ export class CodeNavigationServiceImpl
         token,
         query: UNIFIED_SEARCH_QUERY,
         variables,
+        timeoutMs: Math.max(
+          DEFAULT_FETCH_TIMEOUT_MS,
+          (params.waitTimeoutMs ?? 0) + 30_000,
+        ),
+        signal: options?.signal,
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
@@ -2974,6 +3028,8 @@ export class CodeNavigationServiceImpl
       response = await this.postGraphqlWithTargetResolutionFallback({
         token,
         query: UNIFIED_SEARCH_STATUS_QUERY,
+        timeoutMs: Math.max(DEFAULT_FETCH_TIMEOUT_MS, waitTimeoutMs + 30_000),
+        signal: options?.signal,
         variables: {
           searchRef,
           includeResults: true,
@@ -3453,6 +3509,14 @@ export class CodeNavigationServiceImpl
         availableRefs: normaliseAvailableVersions(target.availableRefs),
         suggestedRefs: normaliseAvailableVersions(target.suggestedRefs),
         coverage: normaliseDocCoverage(target.coverage),
+      })),
+      indexingEstimates: progress.indexingEstimates.map((entry) => ({
+        kind: entry.kind,
+        targets: entry.targets,
+        repositoryUrl: entry.repositoryUrl ?? undefined,
+        commitSha: entry.commitSha ?? undefined,
+        estimate: normaliseIndexingDurationEstimate(entry.estimate),
+        unavailableReason: entry.unavailableReason ?? undefined,
       })),
       expiresAt: progress.expiresAt ?? undefined,
     };

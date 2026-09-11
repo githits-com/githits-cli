@@ -146,6 +146,7 @@ describe("projectUnifiedSearchPresentation", () => {
       });
       expect(presentation.action).toEqual({
         kind: "poll",
+        waitTimeoutMs: 30_000,
         searchRef: "search-ref-1",
       });
     },
@@ -214,6 +215,7 @@ describe("projectUnifiedSearchPresentation", () => {
 
     expect(presentation.action).toEqual({
       kind: "status",
+      waitTimeoutMs: 30_000,
       searchRef: "search-ref-initial",
     });
   });
@@ -230,6 +232,7 @@ describe("projectUnifiedSearchPresentation", () => {
 
     expect(presentation.action).toEqual({
       kind: "status",
+      waitTimeoutMs: 30_000,
       searchRef: "search-ref-1",
     });
   });
@@ -1293,6 +1296,7 @@ describe("projectUnifiedSearchPresentation", () => {
     );
     expect(presentation.action).toEqual({
       kind: "poll",
+      waitTimeoutMs: 30_000,
       searchRef: "search-ref-1",
     });
   });
@@ -1699,6 +1703,7 @@ describe("projectUnifiedSearchPresentation", () => {
     expect(groupedSiteSuggestions(active)).toEqual(expectedSuggestions);
     expect(active.action).toEqual({
       kind: "poll",
+      waitTimeoutMs: 30_000,
       searchRef: "search-ref-1",
     });
 
@@ -2028,6 +2033,7 @@ describe("projectUnifiedSearchPresentation", () => {
     expect(presentation.targetGroups[0]?.recovery).toBeUndefined();
     expect(presentation.action).toEqual({
       kind: "poll",
+      waitTimeoutMs: 30_000,
       searchRef: "search-ref-1",
     });
   });

@@ -6,17 +6,20 @@ import type { FileIntent } from "@githits/core-internal";
  * never diverge silently.
  *
  * Allow headroom for indexing plus metadata fetches before returning
- * progress. Callers can override this bounded wait up to
- * `MAX_WAIT_TIMEOUT_MS`.
+ * progress. Discovery uses `MAX_DISCOVERY_WAIT_TIMEOUT_MS`; other navigation
+ * requests use `MAX_WAIT_TIMEOUT_MS`.
  */
 export const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
 
 /**
- * Backend ceiling on how long a single request may wait for
- * indexing. Clamp callers to this ceiling so the backend never
- * rejects a request for an oversized wait.
+ * Supported client ceiling for non-discovery indexing waits. Raising it requires
+ * verifying request timeouts and the MCP host/proxy chain end to end;
+ * backend support alone does not establish a safe client limit.
  */
 export const MAX_WAIT_TIMEOUT_MS = 60_000;
+
+/** Discovery readiness ceiling below the standard 125-second Cloudflare origin limit. */
+export const MAX_DISCOVERY_WAIT_TIMEOUT_MS = 120_000;
 
 /** Default and maximum line spans enforced by the MCP `code_read` surface. */
 export const MCP_READ_DEFAULT_SPAN = 150;

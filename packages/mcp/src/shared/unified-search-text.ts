@@ -15,7 +15,6 @@
  * the stable structured boundary for programmatic callers.
  */
 
-import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { colors, dim, highlight, highlightRanges } from "./colors.js";
 import {
   documentationReadLocator,
@@ -848,8 +847,8 @@ function appendPresentationAction(
   if (action.kind === "poll" || action.kind === "status") {
     const next =
       options.actionSyntax === "cli"
-        ? `Next: githits search-status ${action.searchRef} --wait ${DEFAULT_WAIT_TIMEOUT_MS / 1000}`
-        : `Next: search_status search_ref=${JSON.stringify(action.searchRef)} wait_timeout_ms=${DEFAULT_WAIT_TIMEOUT_MS}`;
+        ? `Next: githits search-status ${action.searchRef} --wait ${action.waitTimeoutMs / 1000}`
+        : `Next: search_status search_ref=${JSON.stringify(action.searchRef)} wait_timeout_ms=${action.waitTimeoutMs}`;
     lines.push(highlight(next, options.useColors));
     return;
   }
