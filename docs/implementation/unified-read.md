@@ -275,3 +275,30 @@ locator unchanged to `read` returned the requested application-source lines
 55-90, including both router options. Source and built CLI/MCP smoke checks
 cover unauthenticated handling and MCP registration. The 11-line formatter
 delta was reviewed inline under the small-change review policy.
+
+### First corrected PR run and repo-doc text correction
+
+Run `34595208046` at `65799f5` exported experiment
+`pr-388-r34595208046-a1`, linked to the same main baseline. Excluding the
+user-unwanted `global-example`, inspected traces had no HTTP 429s, no isolation
+violations, and no recurrence of package targets containing a Git SHA. Discovery
+used GitHits for Express routing (six successful reads). The remaining errors
+included three backend timeouts, an invalid explicit `version: "latest"`, and a
+rewritten Express URL that mixed one page with another page's fragment.
+
+Two more read failures exposed a text/JSON inconsistency: search text showed
+`pypi:flask@3.1.3 docs/design.rst:83-93`, while JSON's working follow-up used the
+opaque repo-doc target
+`github:pallets/flask@22d924701a6ae2e4cd01e9a15bbaf3946094af65/docs/design.rst`.
+Luna invented a combined package/path docs locator and got `NOT_FOUND`.
+The search text renderer now uses the existing `documentationReadLocator`
+selection for repo docs, exposing its unchanged target with separate
+`start_line`/`end_line` bounds. Repository code locations, semantic preferred
+reads, ANSI styling, and JSON follow-ups retain their contracts. This is a
+small renderer correction, reviewed inline; no new locator parser or backend
+fallback is introduced. A regression uses the observed Flask result, and a live
+read copied from the rendered row returned the expected lines 83-93.
+
+Repo-doc correction validation: 4,713 tests, typecheck, CI-mode public-package
+validation, and source/built CLI/MCP smoke checks passed. The formatter's exact
+locator and separate bounds were also checked against the live docs read endpoint.
