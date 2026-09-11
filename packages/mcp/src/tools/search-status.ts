@@ -2,7 +2,7 @@ import type { CodeNavigationService } from "@githits/core-internal";
 import { z } from "zod";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
-  MAX_WAIT_TIMEOUT_MS,
+  MAX_DISCOVERY_WAIT_TIMEOUT_MS,
 } from "../shared/code-navigation-defaults.js";
 import {
   buildUnifiedSearchErrorPayload,
@@ -35,10 +35,10 @@ const schema: ZodRawShape = {
     .number()
     .int()
     .min(0)
-    .max(MAX_WAIT_TIMEOUT_MS)
+    .max(MAX_DISCOVERY_WAIT_TIMEOUT_MS)
     .optional()
     .describe(
-      `Time to wait for results in ms. Default ${DEFAULT_WAIT_TIMEOUT_MS}, max ${MAX_WAIT_TIMEOUT_MS}.`,
+      `Time to wait for results in ms. Default ${DEFAULT_WAIT_TIMEOUT_MS}, max ${MAX_DISCOVERY_WAIT_TIMEOUT_MS}.`,
     ),
   format: z
     .enum(["text", "json"])
@@ -65,7 +65,10 @@ export function createSearchStatusTool(
         const outcome = await service.searchStatus(
           args.search_ref,
           args.wait_timeout_ms ?? DEFAULT_WAIT_TIMEOUT_MS,
-          { omitFocusedSource: isTextFormat(args.format) },
+          {
+            signal: context?.signal,
+            omitFocusedSource: isTextFormat(args.format),
+          },
         );
         const payload = buildUnifiedSearchStatusPayload(outcome);
         if (isTextFormat(args.format)) {

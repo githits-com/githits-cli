@@ -142,6 +142,29 @@ for (const operation of ["search", "search_status"] as const) {
     });
 
     it.each([
+      [120, 130],
+      [290, 300],
+      [600, 300],
+    ])(
+      "uses a bounded long continuation for upper %s seconds",
+      async (upperSeconds, seconds) => {
+        const value = outcome("INDEXING", [
+          {
+            ...indexingEstimates[0]!,
+            estimate: { upperSeconds },
+          },
+        ]);
+        const { cli, mcp } = await responses(value, false);
+        expect(cli).toContain(`--wait ${seconds}`);
+        expect(mcp).toContain(`wait_timeout_ms=${seconds! * 1000}`);
+        const json = JSON.parse((await responses(value, true)).cli);
+        expect(json.progress.next).toContain(
+          `wait_timeout_ms=${seconds! * 1000}`,
+        );
+      },
+    );
+
+    it.each([
       { entries: [] },
       { entries: undefined },
       { entries: [indexingEstimates[1]!] },

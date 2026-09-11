@@ -11,7 +11,7 @@ import {
   InvalidArgumentError,
   knownSymbolCategoryList,
   knownSymbolKindList,
-  MAX_WAIT_TIMEOUT_MS,
+  MAX_DISCOVERY_WAIT_TIMEOUT_MS,
   type MappedError,
   parseUnifiedSearchTargetSpec,
   renderUnifiedSearchStatusText,
@@ -269,7 +269,7 @@ export function registerSearchCommand(program: Command) {
     .option("--offset <n>", "Result offset")
     .option(
       "--wait <seconds>",
-      "Max seconds to wait before returning a searchRef (0-60; default: 30)",
+      `Max seconds to wait before returning a searchRef (0-${MAX_DISCOVERY_WAIT_TIMEOUT_MS / 1000}; default: 30)`,
     )
     .option("--json", "Output as JSON")
     .action(async (query: string, options: SearchCommandOptions) => {
@@ -284,7 +284,7 @@ export function registerSearchCommand(program: Command) {
     .argument("<search-ref>", "Search reference returned by githits search")
     .option(
       "--wait <seconds>",
-      "Max seconds to wait for progress (0-60; default: 30)",
+      `Max seconds to wait for progress (0-${MAX_DISCOVERY_WAIT_TIMEOUT_MS / 1000}; default: 30)`,
     )
     .option("--json", "Output as JSON")
     .action(async (searchRef: string, options: SearchStatusCommandOptions) => {
@@ -353,14 +353,14 @@ function parseWaitMs(value: string | undefined): number | undefined {
   const match = /^(?<seconds>-?\d+)s?$/i.exec(value.trim());
   if (!match?.groups?.seconds) {
     throw new InvalidArgumentError(
-      "--wait must be an integer between 0 and 60 seconds.",
+      `--wait must be an integer between 0 and ${MAX_DISCOVERY_WAIT_TIMEOUT_MS / 1000} seconds.`,
     );
   }
   const seconds = parseIntCliOption(
     match.groups.seconds,
     "--wait",
     0,
-    MAX_WAIT_TIMEOUT_MS / 1000,
+    MAX_DISCOVERY_WAIT_TIMEOUT_MS / 1000,
   );
   if (seconds === undefined) return undefined;
   return seconds * 1000;

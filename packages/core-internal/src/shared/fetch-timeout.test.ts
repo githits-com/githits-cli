@@ -11,6 +11,7 @@ describe("fetchWithTimeout", () => {
   it("passes a timeout signal to fetch", async () => {
     const fetchFn = mock((_url: string, init?: RequestInit) => {
       expect(init?.signal).toBeInstanceOf(AbortSignal);
+      expect(init).not.toHaveProperty("timeout");
       return Promise.resolve(new Response("ok"));
     });
 
@@ -24,6 +25,22 @@ describe("fetchWithTimeout", () => {
     );
 
     expect(await response.text()).toBe("ok");
+  });
+
+  it("lets the signal own extended request deadlines", async () => {
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      expect(init).toHaveProperty("timeout", false);
+      return Promise.resolve(new Response("ok"));
+    });
+    await fetchWithTimeout(
+      "https://example.com",
+      {},
+      {
+        fetchFn: asFetchFn(fetchFn),
+        timeoutMs: 330_000,
+      },
+    );
   });
 
   it("rejects with FetchTimeoutError when the timeout expires", async () => {

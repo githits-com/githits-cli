@@ -42,6 +42,8 @@ export interface PkgseerGraphqlRequest {
   fetchFn?: typeof fetch;
   /** Per-request timeout in milliseconds. Defaults to 120s. */
   timeoutMs?: number;
+  /** Optional caller cancellation, combined with the request deadline. */
+  signal?: AbortSignal;
   /** Override `User-Agent`. Production callers inject `githits-cli/<version>`. */
   userAgent?: string;
   /** Optional per-runtime GitHits telemetry headers. */
@@ -104,6 +106,7 @@ export async function postPkgseerGraphql(
       `${baseUrl(endpointUrl)}/api/graphql`,
       {
         method: "POST",
+        signal: request.signal,
         headers: {
           ...request.clientHeaders?.(),
           Authorization: `Bearer ${request.token}`,
@@ -118,6 +121,7 @@ export async function postPkgseerGraphql(
       { fetchFn: request.fetchFn, timeoutMs },
     );
   } catch (cause) {
+    request.signal?.throwIfAborted();
     if (request.diagnostics?.isEnabled("pkg-graphql")) {
       request.diagnostics.debug("pkg-graphql", {
         event: "transport-error",

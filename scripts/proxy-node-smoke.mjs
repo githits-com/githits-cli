@@ -93,6 +93,19 @@ async function main() {
     assertEqual(await directResponse.text(), "direct", "NO_PROXY response body");
     assertEqual(proxyRequests.length, 1, "NO_PROXY bypasses proxy");
 
+    for (const [url, body] of [
+      ["http://example.test/long-proxy", "proxied"],
+      ["https://example.test/long-secure", "secure"],
+      [`http://127.0.0.1:${direct.port}/long-direct`, "direct"],
+    ]) {
+      const response = await fetchFn(url, {
+        timeout: false,
+        signal: AbortSignal.timeout(330_000),
+      });
+      assertEqual(await response.text(), body, "signal-owned deadline preserves routing");
+    }
+    assertEqual(proxyRequests.length, 2, "long NO_PROXY request still bypasses proxy");
+
     const redacted = redactProxyUrl(
       "http://user:pass@proxy.example:8080/p?q=1#x",
     );

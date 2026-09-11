@@ -12,7 +12,7 @@ import {
 } from "../shared/code-navigation.js";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
-  MAX_WAIT_TIMEOUT_MS,
+  MAX_DISCOVERY_WAIT_TIMEOUT_MS,
 } from "../shared/code-navigation-defaults.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { buildUnifiedSearchParams } from "../shared/unified-search-request.js";
@@ -259,10 +259,10 @@ const schema: ZodRawShape = {
     .number()
     .int()
     .min(0)
-    .max(60000)
+    .max(MAX_DISCOVERY_WAIT_TIMEOUT_MS)
     .optional()
     .describe(
-      `Time to wait for results in ms. Default ${DEFAULT_WAIT_TIMEOUT_MS}, max ${MAX_WAIT_TIMEOUT_MS}.`,
+      `Time to wait for results in ms. Default ${DEFAULT_WAIT_TIMEOUT_MS}, max ${MAX_DISCOVERY_WAIT_TIMEOUT_MS}.`,
     ),
   format: z
     .enum(["text", "json"])
@@ -343,6 +343,7 @@ export function createSearchTool(
         });
 
         const outcome = await service.search(built.params, {
+          signal: context?.signal,
           omitFocusedSource: isTextFormat(args.format),
         });
         const payload = buildUnifiedSearchSuccessPayload(

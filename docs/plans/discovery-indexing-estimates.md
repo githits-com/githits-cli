@@ -2,7 +2,9 @@
 
 ## Objective and status
 
-Status: COMPLETE, awaiting PR merge; one implementation increment.
+Status: IN PROGRESS: initial estimate adoption is complete in draft PR #389;
+the user-requested five-minute extension is specified below. Earlier 60-second
+constraints in the initial implementation record are superseded by that extension.
 Outcome: initial discovery search and subsequent status responses preserve backend
 indexing duration evidence in CLI/MCP JSON and use it for consistent bounded follow-up
 wait guidance. Product decisions: none; the handoff explicitly specifies the policy.
@@ -52,7 +54,7 @@ JSON retains the full identity/timing/provenance evidence. No per-mode extra que
 needed. No new infrastructure, retries, flags, automatic polling, dependencies,
 public descriptors, stable instructions, skills, or generated assets are planned.
 
-## Single phase: consistent estimates and bounded follow-up guidance
+## Initial implementation: consistent estimates and bounded follow-up guidance
 
 Status: COMPLETE. Dependencies: existing shared response/presentation flow
 and backend contract above. Assumptions: 30-second default and 60-second cap remain
@@ -181,3 +183,120 @@ validation outside this increment as authorized in the handoff. No new refactori
 opportunity was established. The final documentation-only update records measured
 evidence and completion; it changes no scope/architecture/acceptance criterion and
 does not require another plan or code review. Keep this plan until the PR merges.
+
+## User-requested five-minute extension (in progress)
+
+The user now requests raising the discovery upper range in this PR. This supersedes
+this plan's earlier 60-second discovery-cap non-goal. Scope is search/search-status
+and their estimate-driven continuation; other navigation limits remain unchanged.
+
+Verified: backend #2458 merged as 435fd51e, accepts 300000ms readiness waits with
+unchanged defaults and Fly idle allowance420s. Shared client GraphQL currently has
+120s request timeout. Search MCP hardcodes max60000 while status uses shared max;
+CLI parsing/help uses60 seconds. Hosted githits-remote-mcp source uses shared package
+services and SSE keepalives every15s; Bun server idle255s is therefore not a silent
+SSE connection, but production backend routing defaults to pkgseer.dev, whose zone
+allowance remains unverified. Dev backend routing bypasses that proxy. MCP SDK
+caller default60s is caller-owned; package code cannot override an external host.
+
+Ownership: discovery policy owns its supported wait cap; core service owns the HTTP
+request deadline for its wait operation; the CLI fetch adapter owns Node/Undici
+socket deadlines. Keep the ordinary request deadlines and other operations' caps.
+No new scheduling, polling, recovery or schema fallback is needed.
+
+Planned changes:
+- Add MAX_DISCOVERY_WAIT_TIMEOUT_MS=300000 in existing shared defaults; use only for
+  search/status validators, CLI help/parser and discovery wait suggestions.
+- Pass request-specific timeouts through the existing GraphQL helper, including its
+  existing target-resolution fallback. Discovery uses max(120000,wait+30000), giving
+  330000ms at the cap. Other requests retain120000ms.
+- Node24.15 native fetch failed a 310s delayed response with UND_ERR_HEADERS_TIMEOUT
+  after301031ms; a301s response had narrowly succeeded. Its300s header timeout is
+  therefore a real boundary, not a backend issue. Existing fetchWithTimeout will
+  mark requests exceeding the ordinary120s budget with Bun's timeout:false
+  extension while retaining its finite
+  AbortSignal deadline. Existing CLI fetch adapter honors that marker on Node via
+  a per-request dispatcher interceptor disabling competing header/body deadlines,
+  preserving the selected global/native-env-proxy or explicit proxy dispatcher.
+  No global dispatcher mutation, new pool, cache or recovery path is needed.
+  Hosted Bun uses timeout:false directly; other injected Node fetch hosts must
+  configure their own dispatcher deadlines before adopting the long cap.
+- Carry optional caller cancellation through UnifiedSearchReadOptions and the
+  existing GraphQL helper/fallback into fetchWithTimeout. MCP tools supply their
+  context.signal. Request ownership belongs to the service; threading a signal
+  across these existing boundaries preserves ownership rather than moving policy.
+  Caller cancellation must abort upstream work rather than leaving a330s request.
+- Cover long-range arithmetic,300-second CLI/300000-ms MCP boundaries, default
+  unchanged, over-cap rejection, service wire wait + actual AbortSignal timeout,
+  both query paths and fallback. Add transport regression if the probe proves needed.
+- Refresh durable docs, existing fragment and PR; keep production backend + proxy
+  support and external MCP host deadlines explicit release/adoption requirements.
+- Reuse retained reviewers, run affected/full tests/build/package validation and
+  source smoke, targeted agent eval, then converge review and PR CI again.
+
+Unknowns: production proxy configuration and external MCP caller deadlines remain
+external release gates. Native Node failure is reproduced; Bun timeout:false is
+verified in installed Bun1.3.14: a310s delayed response succeeded HTTP200 after
+310034ms with timeout:false and a330s AbortSignal. A local Node interceptor probe
+returned HTTP200 and preserved the global dispatcher; long verification follows
+implementation of the same adapter path.
+No unresolved product decisions; no new infrastructure.
+
+Internal extension preflight accepted caller-signal propagation and clarified host
+ownership. Severity is medium rather than blocking: caller timeout is bounded
+resource waste, not demonstrated service failure. Small fix remains in scope.
+
+External Fable extension review: design accepted except a claimed native-env-proxy
+bypass. Rejected with direct Node24.15 evidence: native dispatcher and npm Undici
+getGlobalDispatcher are the identical EnvHttpProxyAgent; both native fetch and the
+composed-dispatcher request returned HTTP200 through a local CONNECT proxy (two
+proxy connections). The initial test proxy lacked CONNECT support and timed out;
+adding the required CONNECT handler established the actual route. Version-skew
+concern remains covered by existing supported-Node smoke, not a second transport.
+Accepted the narrow advisory to mark only timeouts exceeding120000ms, preserving
+ordinary requests exactly. No new architecture or acceptance change; plan ready.
+The retained Fable terminal had exited; its failed reuse was recovered by one new
+Fable terminal for this review, without review fanout.
+
+Implementation transport check: Bun's built-in Undici compatibility does not expose
+Dispatcher.prototype.compose even though installed npm Undici does. The adapter
+therefore wraps the stable dispatch method directly, retaining all other dispatcher
+properties. This stays in the same host-owned boundary, adds no dependency/pool or
+fallback, and passes Node/proxy policy unit cases. Ordinary requests are unmarked.
+
+### Extension implementation and verification
+
+Implementation complete; external code review and PR CI pending.
+
+- Discovery cap300000ms/CLI300s and guidance share MAX_DISCOVERY_WAIT_TIMEOUT_MS;
+  ordinary code-navigation caps and30s defaults are unchanged. HTTP budgets are
+  max120000,wait+30000 and both fallback paths preserve deadline and caller signal.
+- Internal implementation preflight found cancellation was wrapped as NETWORK after
+  aborting fetch. Fixed at the low-level GraphQL helper before transport wrapping;
+  actual tool-through-service tests preserve the exact caller reason. Follow-up
+  internal review clean. Calibrated medium: bounded canceled-call failure, small fix.
+- Final bun test:4673 pass,0 fail,16337 assertions across207 files. Typecheck, build,
+  format and lint pass; lint retains12 warnings/1info in untouched files.
+  Public package validation passes. Source Node proxy smoke passes with marked
+  HTTP,HTTPS and NO_PROXY requests. Built CLI unauthenticated and MCP registration
+  smoke pass. No skill/instruction numeric cap references needed changing.
+- Final Node24.15 adapter310s response:HTTP200 after310038ms (baseline failed after
+ 301031ms); Bun1.3.14 timeout:false response:HTTP200 after310034ms. These local
+  probes verify client transport, not production routing or five-minute backend work.
+- Dev CLI initial --wait300 on Express4.8.0 returned10 interim hits at17.6s,
+  INDEXING/PROVISIONAL, range10-46s/sample30 and suggestion60000ms. Subsequent
+  --wait300 returned completed. No completed ref was polled again.
+- First live CLI/MCP smoke attempts hit a dev file-read UPSTREAM_ERROR for existing
+  npm:express@5.2.1 package.json. Direct full-file and exact1-5-line retries passed;
+  CLI full rerun passed110steps. Root cause of that backend response is unestablished;
+  it is separate from discovery wait support and no product retry was introduced.
+- Codex targeted experimental-MCP eval used search wait_timeout_ms300000 and completed
+  with4 calls,0 errors,46.5s,high self-reported confidence and validationViolations[].
+  Inspected tool-calls,final,metrics/report in .agent-eval/runs/2026-09-11T10-36-51-096Z;
+  no isolation-violations file was emitted. The ready result needed no continuation;
+  long pending guidance is covered by deterministic parity and transport tests.
+  No answer-quality grading was run. Earlier ordinary Express eval did not expose
+  search and had4 failed reads; it is not evidence for this feature's agent behavior.
+- Release prerequisites remain production backend schema/wait deployment, Cloudflare
+  route allowance, compatible MCP caller deadlines, and hosted MCP package adoption.
+  No merge, version bump, release, publish or deployment is authorized here.

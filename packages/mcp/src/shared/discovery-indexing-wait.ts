@@ -1,7 +1,7 @@
 import type { DiscoveryIndexingEstimate } from "@githits/core-internal";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
-  MAX_WAIT_TIMEOUT_MS,
+  MAX_DISCOVERY_WAIT_TIMEOUT_MS,
 } from "./code-navigation-defaults.js";
 
 /**
@@ -28,7 +28,7 @@ export function discoveryIndexingWaitMs(
   if (largestUpperSeconds === undefined) return DEFAULT_WAIT_TIMEOUT_MS;
   const roundedMs = Math.ceil((largestUpperSeconds + 10) / 10) * 10_000;
   return Math.min(
-    MAX_WAIT_TIMEOUT_MS,
+    MAX_DISCOVERY_WAIT_TIMEOUT_MS,
     Math.max(roundedMs, hasUncoveredWork ? DEFAULT_WAIT_TIMEOUT_MS : 0),
   );
 }

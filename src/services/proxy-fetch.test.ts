@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
+import { type Dispatcher, getGlobalDispatcher } from "undici";
 import {
   type CliFetchOptions,
   createCliFetch,
@@ -10,8 +11,10 @@ import {
 } from "./proxy-fetch.js";
 
 describe("createCliFetch", () => {
-  it("returns the base fetch when proxy env vars are absent", async () => {
-    const baseFetch = mock(() => Promise.resolve(new Response("base")));
+  it("uses the base fetch without a dispatcher for ordinary requests", async () => {
+    const baseFetch = mock((_input: unknown, _init?: RequestInit) =>
+      Promise.resolve(new Response("base")),
+    );
 
     const fetchFn = createCliFetch({
       env: {},
@@ -19,8 +22,74 @@ describe("createCliFetch", () => {
     });
     const response = await fetchFn("https://api.githits.com/test");
 
-    expect(fetchFn).toBe(asBaseFetch(baseFetch));
+    expect(baseFetch.mock.calls[0]).toEqual([
+      "https://api.githits.com/test",
+      undefined,
+    ]);
     expect(await response.text()).toBe("base");
+  });
+
+  it.each([
+    {},
+    { HTTP_PROXY: "http://proxy.local:8080", NODE_USE_ENV_PROXY: "1" },
+  ])(
+    "preserves the native dispatcher while honoring a signal-owned deadline %j",
+    async (env) => {
+      const selected = getGlobalDispatcher();
+      const signal = AbortSignal.timeout(330_000);
+      const baseFetch = mock(
+        async (
+          _input: unknown,
+          init?: RequestInit & { dispatcher?: Dispatcher },
+        ) => {
+          expect(init?.signal).toBe(signal);
+          expect(init?.dispatcher).not.toBe(selected);
+          expect(init?.dispatcher?.close).toBe(selected.close);
+          return new Response("ok");
+        },
+      );
+      await createCliFetch({
+        env,
+        nodeVersion: "24.0.0",
+        baseFetch: asBaseFetch(baseFetch),
+      })("https://example.com", { signal, timeout: false } as RequestInit);
+      expect(baseFetch).toHaveBeenCalledTimes(1);
+      expect(getGlobalDispatcher()).toBe(selected);
+    },
+  );
+
+  it("lets the bounded signal control explicit proxy header and body waits", async () => {
+    const dispatch = mock(
+      (
+        _options: Dispatcher.DispatchOptions,
+        _handler: Dispatcher.DispatchHandler,
+      ) => true,
+    );
+    const selected = { dispatch } as unknown as Dispatcher;
+    const signal = AbortSignal.timeout(330_000);
+    const transport = mock(
+      async (
+        _input: unknown,
+        init: { dispatcher: Dispatcher; signal?: AbortSignal },
+      ) => {
+        expect(init.signal).toBe(signal);
+        init.dispatcher.dispatch(
+          { origin: "https://example.com", path: "/", method: "GET" },
+          {},
+        );
+        return new Response("ok");
+      },
+    );
+    await createCliFetch({
+      env: { HTTP_PROXY: "http://proxy.local:8080" },
+      nodeVersion: "20.18.1",
+      createProxyAgent: () => selected,
+      undiciFetch: asUndiciFetch(transport),
+    })("https://example.com", { signal, timeout: false } as RequestInit);
+    expect(dispatch.mock.calls[0]?.[0]).toMatchObject({
+      headersTimeout: 0,
+      bodyTimeout: 0,
+    });
   });
 
   it("uses native fetch only when opt-in is supported by the runtime", async () => {
