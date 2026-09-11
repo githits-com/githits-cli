@@ -392,10 +392,10 @@ describe("agent eval suites", () => {
   it("loads the checked-in manifest with the exact workload inventory", () => {
     const manifest = loadSuiteManifest();
     expect(manifest.schemaVersion).toBe(1);
-    expect(manifest.workloads).toHaveLength(28);
+    expect(manifest.workloads).toHaveLength(29);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stable"),
-    ).toHaveLength(22);
+    ).toHaveLength(23);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stateful"),
     ).toHaveLength(1);
@@ -426,6 +426,7 @@ describe("agent eval suites", () => {
       "code-grep-investigation",
       "code-read-window",
       "docs-discovery",
+      "docs-fragment-read",
       "docs-search-followup",
       "docs-search-noise",
       "express-router",

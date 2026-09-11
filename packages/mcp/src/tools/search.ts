@@ -281,7 +281,7 @@ const DESCRIPTION =
   "A nonempty `path_prefix` requires a code source; docs-only, symbol-only, and automatic site-only searches reject it. " +
   "A `search` call can return complete results directly. Only when its response supplies both a `searchRef` and a `search_status` action, follow that action with `search_status`; never repeat `search` to poll. Terminal or unrecognized statuses are not polled; follow the response's recovery guidance instead. If the response includes advisory `sourceStatus[].suggestedSiteTargets`, retry one explicitly; do not treat suggestions as aliases or retry automatically. " +
   "Set `allow_partial_results: true` to permit a serveable subset of target/source pairs while others remain unavailable. " +
-  "Use hit content directly when sufficient; follow its generated `followUp` only for more context. After discovery, use `code_grep` for deterministic exact-pattern occurrences. From text, pass a `[docs page]` target unchanged to `docs_read`; a fragment needs no bounds, and bounds replace it with a page-relative range. Use repo-doc targets/ranges with `docs_read`, and repo code/symbol targets, paths, and ranges with `code_read`." +
+  "Use hit content directly when sufficient; follow its generated `followUp` only for more context. After discovery, use `code_grep` for deterministic exact-pattern occurrences. From text, pass a `[docs page]` target unchanged to `read`; a fragment needs no bounds, and bounds replace it with a page-relative range. Use repo-doc targets/ranges with `read`, and repo code/symbol targets, paths, and ranges with `read`." +
   `\n\n${SEARCH_GUARDRAIL}`;
 
 export function createSearchTool(

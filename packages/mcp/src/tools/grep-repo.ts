@@ -61,7 +61,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Exact file path to grep. Shares the same path vocabulary as `code_read`.",
+      "Exact file path to grep. Shares the same path vocabulary as `read`.",
     ),
   path_prefix: z
     .string()
@@ -139,10 +139,10 @@ const schema: ZodRawShape = {
 const DESCRIPTION =
   "Find text, regex, or identifier matches in a public repo or package. Results cover known exact literals, regexes, identifiers, and call sites; they are deterministic and paginated. " +
   'Use this when you know the pattern (literal by default; pass `pattern_type: "regex"` for RE2). ' +
-  "Context is capped at 10 lines per side; larger values are clamped with a notice. For larger windows, use `code_read` on returned paths and line numbers instead of repeating grep. " +
+  "Context is capped at 10 lines per side; larger values are clamped with a notice. For larger windows, use `read` with returned paths and line numbers instead of repeating grep. " +
   "Use `search` for conceptual or open-ended discovery and `code_files` to enumerate paths. " +
   "Whole-target grep is the default — narrow with `path`, `path_prefix`, `globs`, or `extensions` to keep responses small. " +
-  "Each match's `filePath` (or text file heading) chains into `code_read.path`; pick a window around `match.line` for `code_read.start_line` / `end_line`. " +
+  "Each match's `filePath` (or text file heading) chains into `read.path`; pick a window around `match.line` for `read.start_line` / `end_line`. " +
   "When an exact path returns `FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, or `SOURCE_FILE_INVENTORY_UNKNOWN`, follow `details.action` to inspect paths available through `code_files`." +
   `\n\n${CODE_GREP_GUARDRAIL}`;
 

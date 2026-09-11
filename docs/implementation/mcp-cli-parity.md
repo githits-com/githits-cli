@@ -49,7 +49,7 @@ The dual-surface tools today are:
 - `search` ↔ `githits search`
 - `search_status` ↔ `githits search-status`
 - `code_files` ↔ `githits code files`
-- `code_read` ↔ `githits code read`
+- `read` with a path ↔ `githits read <target> <path>` (legacy `code read` retained)
 - `code_grep` ↔ `githits code grep`
 - `pkg_info` ↔ `githits pkg info`
 - `pkg_vulns` ↔ `githits pkg vulns`
@@ -57,7 +57,7 @@ The dual-surface tools today are:
 - `pkg_changelog` ↔ `githits pkg changelog`
 - `pkg_upgrade_review` ↔ `githits pkg upgrade-review`
 - `docs_list` ↔ `githits docs list`
-- `docs_read` ↔ `githits docs read`
+- `read` without a path ↔ `githits read <target>` (legacy `docs read` retained)
 - `resolve_target` ↔ `githits resolve` *(config-gated, local-only)*
 - `code_diff` ↔ `githits code diff` *(config-gated, local-only)*
 
@@ -383,7 +383,7 @@ MCP renders `Next: search_status search_ref=... wait_timeout_ms=...`; CLI render
 appears exactly once, in that surface-native final `Next:` action; stopped terminal
 references are not rendered. Raw diagnostic fields are never rendered.
 Search-result follow-ups likewise use
-`code_read` / `docs_read` in MCP and `githits code read` / `githits docs read` in
+`read` in MCP and `githits read` in
 CLI. ANSI-stripped CLI output shares the same hierarchy and wording as no-color
 MCP text apart from those supplied command dialects; line breaks can differ
 because CLI uses the terminal width while MCP uses the 80-column default.
@@ -392,7 +392,7 @@ Documentation discovery and list envelopes retain three distinct locator roles:
 preferred `docsReadTarget`, stable replay `pageId`, and provenance `sourceUrl`.
 Text and generated read follow-ups prefer `docsReadTarget` and fall back to
 `pageId` only for discovery results where the target is absent. The compatible
-MCP argument remains `page_id`; both MCP and CLI pass URL or ID values through
+MCP argument is `target`; both MCP and CLI pass URL or ID values through
 unchanged and return the same ranged content.
 
 CLI `--json` output and MCP `format: "json"` output remain the structured parity
@@ -512,16 +512,16 @@ When a new tool lands with both MCP and CLI surfaces:
 | `packages/mcp/src/shared/package-changelog-response.ts` | JSON envelope builder and shared text/terminal formatter for `pkg_changelog`. |
 | `packages/mcp/src/shared/list-files-request.ts` | Shared request builder for `code_files`. |
 | `packages/mcp/src/shared/list-files-response.ts` | JSON envelope builder for `code_files`. |
-| `packages/mcp/src/shared/read-file-request.ts` | Shared request builder for `code_read`. |
-| `packages/mcp/src/shared/read-file-response.ts` | JSON envelope builder for `code_read`. Normalises envelope key to `path` (not `filePath`) so `code_files` -> `code_read` chains without renames. |
+| `packages/mcp/src/shared/read-file-request.ts` | Shared request builder for `read`. |
+| `packages/mcp/src/shared/read-file-response.ts` | JSON envelope builder for `read`. Normalises envelope key to `path` (not `filePath`) so `code_files` -> `read` chains without renames. |
 | `packages/mcp/src/shared/grep-repo-request.ts` | Shared request builder for `code_grep`. Exports `GREP_REPO_PATTERN_NOTE` referenced by MCP description, MCP `pattern` describe, and CLI help. |
 | `packages/mcp/src/shared/grep-repo-response.ts` | JSON envelope builder for `code_grep`. |
 | `packages/mcp/src/shared/list-package-docs-request.ts` / `list-package-docs-response.ts` | Shared request and envelope for `docs_list`. |
-| `packages/mcp/src/shared/read-package-doc-request.ts` / `read-package-doc-response.ts` | Shared request and envelope for `docs_read`. |
+| `packages/mcp/src/shared/read-package-doc-request.ts` / `read-package-doc-response.ts` | Shared request and envelope for `read`. |
 | `packages/mcp/src/shared/code-navigation-error-map.ts` | Owns the `INDEXING`, target/file-not-found, and exact-path authority codes shared across all code-nav tools. |
 | `packages/mcp/src/shared/package-intelligence-error-map.ts` | `mapPackageIntelligenceError` classifier using the shared `MappedError` contract. |
 | `packages/core-internal/src/services/promote-version-not-found.ts` | Shared helper that promotes generic backend errors with "no matching version" messages into typed `VERSION_NOT_FOUND`. |
-| `packages/mcp/src/tools/code-navigation-shared.ts` | `codeTargetSchema` + `resolveCodeTarget` — the addressing primitive used by `code_files`, `code_read`, `code_grep`, and unified `search`. |
+| `packages/mcp/src/tools/code-navigation-shared.ts` | `codeTargetSchema` + `resolveCodeTarget` — structured/string addressing for code_files, code_grep and search; read accepts only the compact string form. |
 | `packages/mcp/src/tools/search.ts` | MCP tool definition for unified `search`. |
 | `packages/mcp/src/tools/search-status.ts` | MCP tool definition for `search_status`. |
 | `packages/mcp/src/tools/package-summary.ts` | MCP tool definition for `pkg_info`. |
@@ -529,7 +529,7 @@ When a new tool lands with both MCP and CLI surfaces:
 | `packages/mcp/src/tools/package-dependencies.ts` | MCP tool definition for `pkg_deps`. |
 | `packages/mcp/src/tools/package-changelog.ts` | MCP tool definition for `pkg_changelog`. |
 | `packages/mcp/src/tools/list-files.ts` | MCP tool definition for `code_files`. |
-| `packages/mcp/src/tools/read-file.ts` | MCP tool definition for `code_read`. |
+| `packages/mcp/src/tools/read-file.ts` | Code branch of unified `read`; `tools/read.ts` owns the advertised definition. |
 | `packages/mcp/src/tools/grep-repo.ts` | MCP tool definition for `code_grep`. |
 | `packages/mcp/src/tools/list-package-docs.ts` / `read-package-doc.ts` | MCP tool definitions for the docs surface. |
 | `src/commands/search.ts` | Top-level CLI commands for unified `search` and `search-status`. |
@@ -741,10 +741,11 @@ section labels remain plain; only the matched keyword and excerpt marker are
 yellow. Evidence detail and locators remain plain. Words remain sufficient
 without color, authored punctuation is ASCII, and backend Unicode is preserved.
 
-### `code_files` / `code_read` / `code_grep` (file-exploration bundle)
+### `code_files` / `read` / `code_grep` (file-exploration bundle)
 
-All three reuse `codeTargetSchema` + `resolveCodeTarget` from
-`packages/mcp/src/tools/code-navigation-shared.ts`. The indexing lifecycle is
+`code_files` and `code_grep` reuse `codeTargetSchema` + `resolveCodeTarget` from
+`packages/mcp/src/tools/code-navigation-shared.ts`; the code branch of `read`
+accepts compact strings only and uses the same resolver. The indexing lifecycle is
 shared (see `tools.md` "Indexing lifecycle" section). Parity tests
 cover dual addressing, default + explicit filter echoes, INDEXING
 error envelope, NOT_FOUND envelope, and INVALID_ARGUMENT with full
@@ -754,7 +755,7 @@ envelope shape.
   when explicit. Default `limit: 200` never round-trips. Backend
   returns `total` capped at returned count when `hasMore: true`;
   terminal formatter renders `N+`.
-- **`code_read`**: envelope uses `path` (not `filePath`) to match
+- **`read` code branch**: envelope uses `path` (not `filePath`) to match
   `code_files.files[].path`. Binary files: `isBinary: true` +
   `content` omitted (not `null`). INDEXING details may carry
   `indexingRef`, `indexingEstimate`, and any backend-provided
@@ -780,6 +781,8 @@ envelope shape.
   incomplete empty pages preserve truncation/pagination continuation instead.
   Exact-path `FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, and
   `SOURCE_FILE_INVENTORY_UNKNOWN` errors follow the same shared-data,
-  surface-native-action contract as `code_read`.
+  surface-native-action contract as `read`.
 
 See [Repository target grammar](repository-targets.md) for the shared GitHub, Codeberg, and GitLab addressing contract and provider-preserving response identity.
+
+See [Unified read](unified-read.md) for source routing, fragment ranges, code-only waits, Ask pointer translation and release migration.

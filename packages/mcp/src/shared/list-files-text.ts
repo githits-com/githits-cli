@@ -2,7 +2,7 @@
  * Line-oriented text renderer for `code_files` MCP responses.
  *
  * Paths-only listing (one file per line) — the most compact useful
- * shape for an agent that will follow up with `code_read`. This is
+ * shape for an agent that will follow up with `read`. This is
  * the tool's default response format; programmatic / parity callers
  * opt into the structured JSON envelope via `format: "json"`.
  *

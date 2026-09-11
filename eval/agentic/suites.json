@@ -38,6 +38,12 @@
       "suites": ["stable-full"]
     },
     {
+      "id": "docs-fragment-read",
+      "path": "eval/agentic/workloads/docs-fragment-read.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
       "id": "docs-search-followup",
       "path": "eval/agentic/workloads/docs-search-followup.md",
       "safety": "stable",

@@ -107,8 +107,10 @@ exact indexed section; explicit --lines bounds override the fragment.`;
 export function registerDocsReadCommand(docsCommand: Command): Command {
   return docsCommand
     .command("read")
-    .summary("Read a documentation page by target or page ID")
-    .description(DOCS_READ_DESCRIPTION)
+    .summary("Deprecated: use githits read <target>")
+    .description(
+      `Deprecated: use githits read <target>.\n\n${DOCS_READ_DESCRIPTION}`,
+    )
     .argument(
       "<target>",
       "Emitted docsReadTarget or historical page ID from docs/search results",

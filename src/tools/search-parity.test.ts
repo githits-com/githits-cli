@@ -440,7 +440,7 @@ describe("search parity", () => {
       endLine: 145,
     });
     expect(hit?.followUp).toBe(
-      'code_read target="npm:express@4.18.2" path="lib/client.ts" start_line=120 end_line=165',
+      'read target="npm:express@4.18.2" path="lib/client.ts" start_line=120 end_line=165',
     );
   });
 
@@ -463,7 +463,7 @@ describe("search parity", () => {
     expect(cli).toContain("  145 |     }");
     expect(cli).not.toContain("legacy summary must remain in JSON");
     expect(cli).not.toContain("Read context");
-    expect(cli).not.toContain("code_read target=");
+    expect(cli).not.toContain("read target=");
   });
 });
 

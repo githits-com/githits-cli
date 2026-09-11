@@ -170,7 +170,7 @@ function buildCliReadFileParams(
         "path prefix $1 to list files",
       )
       .replace(/emitted `path`/g, "emitted path")
-      .replace(/`code_read`/g, "`githits code read`");
+      .replace(/`read`/g, "`githits code read`");
     if (rewritten === error.message) throw error;
     throw new InvalidPackageSpecError(rewritten);
   }
@@ -377,8 +377,11 @@ missing, excluded, or cannot be verified by the source inventory, use
 export function registerCodeReadCommand(pkgCommand: Command): Command {
   return pkgCommand
     .command("read")
-    .summary("Read a file from an indexed dependency")
-    .description(PKG_READ_DESCRIPTION)
+    .summary("Deprecated: use githits read <target> <path>")
+    .description(
+      "Deprecated: use githits read <target> <path>.\n\n" +
+        PKG_READ_DESCRIPTION,
+    )
     .argument(
       "[spec-or-path]",
       "Target mode: package spec or repo shorthand. With --repo-url: the file path. See examples in `--help`.",

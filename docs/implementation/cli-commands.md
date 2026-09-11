@@ -58,10 +58,11 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or public repository (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
 | `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, positional package range, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. Reports facts only. |
 | `docs list <spec>` | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | List hosted/crawled and repository-backed documentation pages. Text emits target-based read commands; JSON retains `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, and exact repo-file metadata when available. |
-| `docs read <target>` | emitted `docsReadTarget` or historical page ID | `--lines`, `--verbose`, `--json` | Read a documentation page by preferred target or compatible page ID. Default output is content-only; `--lines` fetches a bounded range for long pages. |
+| `read <target> [path]` | docs target/page ID, or package/repo target plus exact path | `--lines`, `--wait`, `--verbose`, `--json`; code also accepts `--start`, `--end`, `--repo-url`, `--git-ref` | Unified read; target alone reads docs, path selects code. Fragments select indexed sections without bounds. See [unified read](unified-read.md). |
+| `docs read <target>` (deprecated alias) | emitted `docsReadTarget` or historical page ID | `--lines`, `--verbose`, `--json` | Read a documentation page by preferred target or compatible page ID. Default output is content-only; `--lines` fetches a bounded range for long pages. |
 | `code diff <target> <from>..<to>` *(experimental; config-gated)* | unversioned package/repository target and exact range, or `--repo-url` and range | `--patch`, `--stat`, `--name-only`, `--name-status`, `--max-files`, `--max-patch-bytes`, `--verbose`, `--json`, one glob after `--` | Silently dogfood bounded repository-wide tree diffs resolved from package versions or repository refs; local-only MCP `code_diff` is available when experimental tools are enabled, while public/remote MCP and shared Agent Skill guidance remain unchanged |
 | `code files [spec] [path-prefix]` | package spec OR `--repo-url` with optional `--git-ref`; optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, repeatable `--file-type`, repeatable `--language`, repeatable `--file-intent`, repeatable `--exclude-intent`, `--exclude-docs`, `--exclude-tests`, `--hidden`, `--limit`, `--wait`, `--verbose`, `--json` | List files in an indexed dependency. Selectors (`[path-prefix]`, `--path`, `--glob`) are OR-ed; the other flags filter that scope down further. Plain output is one path per line; `--verbose` adds language / type / size annotations. Indexing errors include elapsed/expected duration when available plus retry via `--wait` or indexed refs/versions from the error detail. |
-| `code read <spec?> <path>` | package spec OR `--repo-url` with optional `--git-ref`; plus `<path>` | `--lines`, `--start`, `--end`, `--wait`, `--verbose`, `--json` | Read a file's contents. Plain output is the raw file bytes (pipe-friendly); `--verbose` adds a header and a line-number gutter. `--lines 10-40` concise form; `--start`/`--end` equivalent. Binary files show a sentinel line. |
+| `code read <spec?> <path>` (deprecated alias) | package spec OR `--repo-url` with optional `--git-ref`; plus `<path>` | `--lines`, `--start`, `--end`, `--wait`, `--verbose`, `--json` | Read a file's contents. Plain output is the raw file bytes (pipe-friendly); `--verbose` adds a header and a line-number gutter. `--lines 10-40` concise form; `--start`/`--end` equivalent. Binary files show a sentinel line. |
 | `code grep [spec] <pattern> [path-prefix]` | package spec OR `--repo-url` with optional `--git-ref`; plus `<pattern>` and optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, `--regex`, `--case-sensitive`, `-C/-A/-B`, `--exclude-docs`, `--exclude-tests`, `--limit`, `--per-file-limit`, `--cursor`, `--symbol-field`, `--wait`, `--verbose`, `--json` | Deterministic text grep over indexed dependency or repository source. Defaults to whole-target, literal, ASCII case-insensitive matching; `--per-file-limit` defaults to `--limit`. Narrow with `[path-prefix]`, `--path`, `--glob`, or `--ext`. Plain output is `file:line:text`; `--verbose` groups matches by file. |
 
 ### `githits init`
@@ -509,7 +510,7 @@ filter, matching the package/repository kind contract.
 The config-gated CLI help, local `resolve_target` description/schema, and local
 experimental server instructions advertise the site kind. Cross-tool guidance
 routes a selected `site:` candidate to `search` with `source:"docs"`, then to
-`docs_read`; already-canonical `site:<host[/path]>` targets skip resolution.
+`read`; already-canonical `site:<host[/path]>` targets skip resolution.
 
 #### Release posture and next phase
 
@@ -783,7 +784,7 @@ githits docs list npm:express --limit 20
 githits docs list npm:express --json
 ```
 
-Lists hosted/crawled and repository-backed documentation pages for a package. Each row includes the stable page ID, a source badge, any distinct provenance, and a shell-quoted `docs read` command using the emitted `docsReadTarget`. Active crawled pages therefore use their publisher HTTP(S) URL, while retired crawled and snapshot-pinned repository pages use stable IDs. JSON retains all three locator roles and includes repo URL / git ref / file path for repository-backed docs so callers can follow up with `code read` when source context is needed.
+Lists hosted/crawled and repository-backed documentation pages for a package. Each row includes the stable page ID, a source badge, any distinct provenance, and a shell-quoted `read` command using the emitted `docsReadTarget`. Active crawled pages therefore use their publisher HTTP(S) URL, while retired crawled and snapshot-pinned repository pages use stable IDs. JSON retains all three locator roles and includes repo URL / git ref / file path for repository-backed docs so callers can follow up with `code read` when source context is needed.
 
 The response also retains the backend's exact `codeIndexState`. `PENDING` and `INDEXING` empty results are rendered as preparation still in progress with a replayable `docs list` action, never as “No documentation pages found.” `PROVISIONAL` results keep and render every available page while clearly marking that indexing continues. CLI `--json` and MCP `format: "json"` share the same lifecycle-bearing envelope.
 
@@ -795,7 +796,9 @@ The response also retains the backend's exact `codeIndexState`. `PENDING` and `I
 
 **Troubleshooting.** Same debug areas as the `pkg` family.
 
-### `githits docs read`
+### `githits docs read` (deprecated alias)
+
+Prefer `githits read <target>`; this alias retains its output and options.
 
 ```
 githits docs read <docs-read-target>
@@ -893,7 +896,9 @@ Lists files in an indexed dependency. `[spec] [path-prefix]` positionals mirror 
 
 **Exit codes.** `0` on success (including empty results — absence of files is not an error). `1` on error (authentication, indexing, invalid arguments, backend failures).
 
-### `githits code read`
+### `githits code read` (deprecated alias)
+
+Prefer `githits read <target> <path>`; this alias retains its output and options.
 
 ```
 githits code read npm:express lib/express.js

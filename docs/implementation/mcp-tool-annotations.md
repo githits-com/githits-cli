@@ -15,8 +15,8 @@ and `destructiveHint: false` values are unchanged; no `idempotentHint` is added.
 | `quick_start` | Return GitHits usage guidance. |
 | `get_example`, `search_language` | Find canonical examples and supported languages. |
 | `search`, `search_status` | Discover indexed evidence and retrieve search progress/results. |
-| `code_files`, `code_read`, `code_grep` | Navigate and read public source. |
-| `docs_list`, `docs_read` | Discover and retrieve public documentation. |
+| `code_files`, `code_grep`, `read` | Navigate and read public source. |
+| `docs_list`, `read` | Discover and retrieve public documentation. |
 | `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review` | Retrieve and compute package facts and upgrade evidence. |
 | Local experimental `ask`, `resolve_target`, `code_diff` | Generate cited answers, resolve targets, and compare source versions. |
 

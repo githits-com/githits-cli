@@ -477,7 +477,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       }),
     });
     expect(payload.results[0]?.followUp).toBe(
-      'code_read target="npm:express@4.18.2" path="lib/router/index.js" start_line=42 end_line=57',
+      'read target="npm:express@4.18.2" path="lib/router/index.js" start_line=42 end_line=57',
     );
     expect(payload.results[0]).not.toHaveProperty("score");
   });
@@ -574,7 +574,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       },
     });
     expect(payload.results[0]?.followUp).toBe(
-      `code_read target="github:badlogic/pi-mono#${commitSha}" path="${filePath}" start_line=858 end_line=964`,
+      `read target="github:badlogic/pi-mono#${commitSha}" path="${filePath}" start_line=858 end_line=964`,
     );
     expect(payload.results[0]?.followUp).not.toContain("requested-ref");
   });
@@ -632,7 +632,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       true,
     );
     expect(payload.results[0]?.followUp).toBe(
-      `code_read target="github:owner/repo#${commitSha}" path="src/feature.ts" start_line=44 end_line=48`,
+      `read target="github:owner/repo#${commitSha}" path="src/feature.ts" start_line=44 end_line=48`,
     );
   });
 
@@ -758,8 +758,8 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
 
     expect(payload.results.map((result) => result.followUp)).toEqual([
-      `code_read target="github:owner/monorepo#${commitSha}" path="packages/workspace-package/src/index.ts" start_line=20 end_line=24`,
-      `code_read target="github:owner/monorepo#${commitSha}" path="packages/workspace-package/src/index.ts" start_line=10 end_line=40`,
+      `read target="github:owner/monorepo#${commitSha}" path="packages/workspace-package/src/index.ts" start_line=20 end_line=24`,
+      `read target="github:owner/monorepo#${commitSha}" path="packages/workspace-package/src/index.ts" start_line=10 end_line=40`,
     ]);
     expect(payload.results[0]?.locator.filePath).toBe("src/index.ts");
     expect(payload.results[0]?.locator.repositoryFilePath).toBe(
@@ -810,7 +810,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       payload.results[0]?.locator.symbolContext?.definitionRange?.endLine,
     ).toBe(1286);
     expect(payload.results[0]?.followUp).toBe(
-      'code_read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=840 end_line=1139',
+      'read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=840 end_line=1139',
     );
 
     const endEvidenceHit: UnifiedSearchHit = {
@@ -835,7 +835,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       completedOutcomeWithHits([endEvidenceHit]),
     );
     expect(endEvidencePayload.results[0]?.followUp).toBe(
-      'code_read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=987 end_line=1286',
+      'read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=987 end_line=1286',
     );
 
     const oversizedEvidenceHit: UnifiedSearchHit = {
@@ -860,7 +860,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       completedOutcomeWithHits([oversizedEvidenceHit]),
     );
     expect(oversizedEvidencePayload.results[0]?.followUp).toBe(
-      'code_read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=751 end_line=1050',
+      'read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=751 end_line=1050',
     );
   });
 
@@ -931,7 +931,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
 
     expect(payload.results[0]?.followUp).toBe(
-      'code_read target="github:owner/repo#exact-served-ref" path="src/evidence.ts" start_line=651 end_line=950',
+      'read target="github:owner/repo#exact-served-ref" path="src/evidence.ts" start_line=651 end_line=950',
     );
   });
 
@@ -1017,7 +1017,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.results[0]?.type).toBe("repository_doc");
     expect(payload.results[0]?.target).toBe("github:expressjs/express");
     expect(payload.results[0]?.followUp).toContain(
-      'docs_read page_id="github:expressjs/express/README.md"',
+      'read target="github:expressjs/express/README.md"',
     );
   });
 
@@ -1059,7 +1059,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       sourceUrl: `${docsReadTarget}#route-handlers`,
     });
     expect(payload.results[0]?.followUp).toBe(
-      `docs_read page_id=${JSON.stringify(`${docsReadTarget}#route-handlers`)}`,
+      `read target=${JSON.stringify(`${docsReadTarget}#route-handlers`)}`,
     );
   });
 

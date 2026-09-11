@@ -67,6 +67,7 @@ export * from "./shared/read-file-text.js";
 export * from "./shared/read-package-doc-request.js";
 export * from "./shared/read-package-doc-response.js";
 export * from "./shared/read-package-doc-text.js";
+export * from "./shared/read-request.js";
 export * from "./shared/repository-target.js";
 export * from "./shared/require-auth.js";
 export * from "./shared/resolve-target-request.js";
@@ -112,13 +113,10 @@ export {
   QUICK_START_PREREQUISITE,
 } from "./tools/quick-start.js";
 export {
-  DESCRIPTION as READ_FILE_DESCRIPTION,
-  DESCRIPTION_BASE as READ_FILE_DESCRIPTION_BASE,
-} from "./tools/read-file.js";
-export {
-  DESCRIPTION as READ_PACKAGE_DOC_DESCRIPTION,
-  DESCRIPTION_BASE as READ_PACKAGE_DOC_DESCRIPTION_BASE,
-} from "./tools/read-package-doc.js";
+  DESCRIPTION as READ_DESCRIPTION,
+  DESCRIPTION_BASE as READ_DESCRIPTION_BASE,
+  readSchema,
+} from "./tools/read.js";
 export {
   createResolveTargetTool,
   type ResolveTargetMcpArgs,

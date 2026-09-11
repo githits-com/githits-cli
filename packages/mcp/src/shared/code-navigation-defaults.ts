@@ -21,7 +21,7 @@ export const MAX_WAIT_TIMEOUT_MS = 60_000;
 /** Discovery readiness ceiling below the standard 125-second Cloudflare origin limit. */
 export const MAX_DISCOVERY_WAIT_TIMEOUT_MS = 120_000;
 
-/** Default and maximum line spans enforced by the MCP `code_read` surface. */
+/** Default and maximum line spans enforced by the MCP `read` surface. */
 export const MCP_READ_DEFAULT_SPAN = 150;
 export const MCP_READ_MAX_SPAN = 300;
 

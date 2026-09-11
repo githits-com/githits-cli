@@ -35,7 +35,7 @@ export function renderReadFileText(envelope: LeanReadFileEnvelope): string {
 }
 
 function buildHeader(envelope: LeanReadFileEnvelope): string {
-  const parts = [`code_read${SEP}${envelope.path}`];
+  const parts = [`read${SEP}${envelope.path}`];
   if (envelope.language) parts.push(envelope.language);
   const range = buildRange(envelope);
   if (range) parts.push(range);
