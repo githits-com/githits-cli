@@ -1259,7 +1259,7 @@ async function runExperimentalLiveSmoke(
   }
 
   const siteResolveText = assertTerminalOutput(
-    await runCliWithEnv(["resolve", "expressjs"], env),
+    await runCliWithEnv(["resolve", "expressjs.com"], env),
     "experimental site resolve terminal",
   );
   assertExperimentalCliResolveText(siteResolveText);
@@ -1270,7 +1270,7 @@ async function runExperimentalLiveSmoke(
       siteResolveText.includes("Related targets:") &&
       siteResolveText.includes("npm:express · related package") &&
       siteResolveText.includes("github:expressjs/express · related repository"),
-    "experimental expressjs resolution should directly match the site and group related package/repository targets",
+    "experimental expressjs.com resolution should directly match the site and group related package/repository targets",
   );
 
   const fuzzyResolveText = assertTerminalOutput(

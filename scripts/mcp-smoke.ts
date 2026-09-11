@@ -417,7 +417,7 @@ async function runExperimentalLiveSmoke(
           "experimental ask default text",
         );
         const askThreadMatch = askTextBody.match(
-          /\nThread ID: ([0-9a-f-]+)\nFollow up using this thread ID only if the answer is insufficient\./,
+          /\nThread ID: ([0-9a-f-]+)\nUse this thread ID for follow-ups; name a new project or version in the question to change scope\./,
         );
         assert(
           askTextBody.includes("\n\nSources:\n") &&
@@ -428,7 +428,7 @@ async function runExperimentalLiveSmoke(
               askTextBody,
             ) &&
             askThreadMatch?.[1] !== undefined,
-          "experimental ask text should append callable sources, replay IDs, and conditional follow-up guidance",
+          "experimental ask text should append callable sources, replay IDs, and scope-changing follow-up guidance",
         );
 
         const askUrlJson = (await trackSmokeStep(
