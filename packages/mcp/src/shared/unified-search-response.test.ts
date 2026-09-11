@@ -448,7 +448,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     query: "router middleware",
     limit: 10,
     offset: 0,
-    waitTimeoutMs: 20_000,
+    waitTimeoutMs: 30_000,
   };
 
   it("keeps legacy completed results compatible with the shared envelope", () => {
@@ -1142,7 +1142,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
         targetsTotal: 1,
         elapsedMs: 200,
         query: "router middleware",
-        next: 'search_status search_ref="search-ref-123" wait_timeout_ms=20000',
+        next: 'search_status search_ref="search-ref-123" wait_timeout_ms=30000',
       },
     });
     expect(payload).not.toHaveProperty("partialResults");
@@ -2789,7 +2789,7 @@ describe("buildUnifiedSearchSuccessPayload — sourceStatus warnings on complete
     sources: ["DOCS"],
     limit: 10,
     offset: 0,
-    waitTimeoutMs: 20_000,
+    waitTimeoutMs: 30_000,
   };
 
   it("emits warnings[] when a source reports incompatibleQueryFeatures (B5 repro)", () => {
@@ -3273,7 +3273,7 @@ describe("buildUnifiedSearchStatusPayload", () => {
         targetsTotal: 1,
         elapsedMs: 200,
         query: "router middleware",
-        next: 'search_status search_ref="search-ref-123" wait_timeout_ms=20000',
+        next: 'search_status search_ref="search-ref-123" wait_timeout_ms=30000',
       },
     });
     expect(payload).not.toHaveProperty("partialResults");

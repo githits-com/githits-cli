@@ -287,7 +287,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          'No result snapshot yet | indexing | 0/1 ready\nNext: search_status search_ref="smoke-ref" wait_timeout_ms=20000\nsearch_ref=leaked',
+          'No result snapshot yet | indexing | 0/1 ready\nNext: search_status search_ref="smoke-ref" wait_timeout_ms=30000\nsearch_ref=leaked',
         );
       }
       return smokeResponse(name, args);
@@ -319,7 +319,7 @@ describe("runMcpSmoke", () => {
   );
 
   it.each([
-    "Next: githits search-status smoke-ref --wait 20",
+    "Next: githits search-status smoke-ref --wait 30",
     "Next: githits code read npm:express index.js",
     "Next: githits docs read page-1 --offset 10",
   ])("rejects CLI syntax leaked into MCP search text: %s", async (action) => {
@@ -327,7 +327,7 @@ describe("runMcpSmoke", () => {
       if (name === "search" && args.format !== "json") {
         return textResult(
           smokeSearchText().replace(
-            'Next: search_status search_ref="smoke-ref" wait_timeout_ms=20000',
+            'Next: search_status search_ref="smoke-ref" wait_timeout_ms=30000',
             action,
           ),
         );
@@ -834,7 +834,7 @@ function smokeResponse(
         "No result snapshot yet | indexing | 0/1 ready\n\n" +
           "- npm:express@5.2.1\n" +
           "  indexing: code; available: versions 5.2.1\n\n" +
-          'Next: search_status search_ref="smoke-ref" wait_timeout_ms=20000',
+          'Next: search_status search_ref="smoke-ref" wait_timeout_ms=30000',
       );
     case "search_status":
       return errorResult("NOT_FOUND");

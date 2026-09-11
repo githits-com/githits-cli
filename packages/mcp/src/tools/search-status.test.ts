@@ -129,7 +129,7 @@ describe("searchStatusTool", () => {
       "using: provisional snapshot; searched: code (provisional)",
     );
     expect(text.content[0]?.text).toContain(
-      'Next: search_status search_ref="search-ref-provisional" wait_timeout_ms=20000',
+      'Next: search_status search_ref="search-ref-provisional" wait_timeout_ms=30000',
     );
     expect(text.content[0]?.text).not.toContain("indexingRef");
   });
@@ -165,7 +165,7 @@ describe("searchStatusTool", () => {
     await tool.handler({ search_ref: "search-ref-default" }, {});
     expect(searchStatus.mock.calls[0]).toEqual([
       "search-ref-default",
-      20_000,
+      30_000,
       { omitFocusedSource: true },
     ]);
 
@@ -572,7 +572,7 @@ describe("searchStatusTool", () => {
     expect(text).toContain("available: site:docs.example.com");
     expect(text).toContain("+more");
     expect(text).toContain(
-      'Next: search_status search_ref="ref-site-recovery" wait_timeout_ms=20000',
+      'Next: search_status search_ref="ref-site-recovery" wait_timeout_ms=30000',
     );
     expect(text).not.toContain("Next: retry one suggested site target");
   });
@@ -791,7 +791,7 @@ describe("searchStatusTool", () => {
     expect(text).toContain("No result snapshot yet | searching | 0/1 ready");
     expect(text).not.toContain("Search ref-text |");
     expect(text).toContain(
-      'Next: search_status search_ref="ref-text" wait_timeout_ms=20000',
+      'Next: search_status search_ref="ref-text" wait_timeout_ms=30000',
     );
     expect(text).not.toContain("search_status |");
     expect(text).not.toContain("searchRef=");
@@ -823,7 +823,7 @@ describe("searchStatusTool", () => {
     expect(text).toContain("- npm:express latest");
     expect(text).toContain("indexed: versions 4.18.2, refs main");
     expect(text).toContain(
-      'Next: search_status search_ref="ref-alternatives" wait_timeout_ms=20000',
+      'Next: search_status search_ref="ref-alternatives" wait_timeout_ms=30000',
     );
     expect(text).not.toContain("allow_partial_results: true");
   });
@@ -837,7 +837,7 @@ describe("v31 format selection", () => {
         createMockCodeNavigationService({ searchStatus: call }),
       );
       await tool.handler({ search_ref: "v31-ref", format }, {});
-      expect(call).toHaveBeenCalledWith("v31-ref", 20_000, {
+      expect(call).toHaveBeenCalledWith("v31-ref", 30_000, {
         omitFocusedSource: format !== "json",
       });
     });

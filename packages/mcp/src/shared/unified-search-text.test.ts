@@ -1399,7 +1399,7 @@ describe("renderUnifiedSearchSuccess", () => {
         "- npm:n8n -> 2.36.7\n" +
         "  indexing: code, repository docs; available: n8n.io docs (1,480 pages; capped);\n" +
         "  indexed: versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master\n\n" +
-        'Next: search_status search_ref="fabUr1S3MEVeSgD93pMoSQ" wait_timeout_ms=20000',
+        'Next: search_status search_ref="fabUr1S3MEVeSgD93pMoSQ" wait_timeout_ms=30000',
     );
     expect(text).not.toContain("Do not repeat");
     expect(text).not.toContain("indexingRef");
@@ -1416,17 +1416,17 @@ describe("renderUnifiedSearchSuccess", () => {
     const cli = renderUnifiedSearchSuccess(payload, { actionSyntax: "cli" });
 
     expect(cli).toContain(
-      "Next: githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 20",
+      "Next: githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 30",
     );
     expect(cli).not.toContain("search_status search_ref=");
     expect(
       cli.replace(
-        "Next: githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 20",
+        "Next: githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 30",
         "Next: <status-action>",
       ),
     ).toBe(
       mcp.replace(
-        'Next: search_status search_ref="fabUr1S3MEVeSgD93pMoSQ" wait_timeout_ms=20000',
+        'Next: search_status search_ref="fabUr1S3MEVeSgD93pMoSQ" wait_timeout_ms=30000',
         "Next: <status-action>",
       ),
     );
@@ -1497,7 +1497,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "No result snapshot yet | indexing | 0/2 ready",
     );
     expect(text).toContain(
-      'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=20000',
+      'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=30000',
     );
   });
 
@@ -1530,7 +1530,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("indexed: versions 2.26.9");
     expect(text).toContain("versions 2.26.9");
     expect(text).toContain(
-      'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=20000',
+      'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=30000',
     );
   });
 
@@ -1606,7 +1606,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("- npm:express");
     expect(text.match(/^- npm:express/gm)).toHaveLength(2);
     expect(text).toContain(
-      'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=20000',
+      'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=30000',
     );
   });
 
@@ -1677,7 +1677,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "available: site:docs.example.com,\n  site:api.example.com",
     );
     expect(text).toContain(
-      'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=20000',
+      'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=30000',
     );
     expect(text).not.toContain("Next: retry one suggested site target");
     expect(text.match(/available:/g)).toHaveLength(1);
@@ -2293,7 +2293,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
     expect(firstLine(text)).toBe("No results");
     expect(text).toContain(
-      'Next: search_status search_ref="search-ref-evidence" wait_timeout_ms=20000',
+      'Next: search_status search_ref="search-ref-evidence" wait_timeout_ms=30000',
     );
     expect(text).not.toContain("Opaque backend prose");
     expect(text).not.toContain("Evidence may change.");
@@ -2309,7 +2309,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
     expect(firstLine(text)).toContain("1 result");
     expect(text).toContain(
-      'Next: search_status search_ref="search-ref-results" wait_timeout_ms=20000',
+      'Next: search_status search_ref="search-ref-results" wait_timeout_ms=30000',
     );
     const lines = text.split("\n");
     const actionLine = lines.findIndex((line) => line.startsWith("Next: "));

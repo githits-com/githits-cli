@@ -198,7 +198,7 @@ every runnable target/source pair while refresh continues, partial hits from a
 serveable subset when the original request used --allow-partial, or final
 results. DEFERRED, TIMEOUT, and FAILED are terminal; unrecognized statuses are
 not polled; follow the rendered new-search action instead. By default the command
-waits up to 20 seconds for progress before returning the latest status.`;
+waits up to 30 seconds for progress before returning the latest status.`;
 
 export function registerSearchCommand(program: Command) {
   program
@@ -266,7 +266,7 @@ export function registerSearchCommand(program: Command) {
     .option("--offset <n>", "Result offset")
     .option(
       "--wait <seconds>",
-      "Max seconds to wait before returning a searchRef (0-60; default: 20)",
+      "Max seconds to wait before returning a searchRef (0-60; default: 30)",
     )
     .option("--json", "Output as JSON")
     .action(async (query: string, options: SearchCommandOptions) => {
@@ -281,7 +281,7 @@ export function registerSearchCommand(program: Command) {
     .argument("<search-ref>", "Search reference returned by githits search")
     .option(
       "--wait <seconds>",
-      "Max seconds to wait for progress (0-60; default: 20)",
+      "Max seconds to wait for progress (0-60; default: 30)",
     )
     .option("--json", "Output as JSON")
     .action(async (searchRef: string, options: SearchStatusCommandOptions) => {

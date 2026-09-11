@@ -327,7 +327,7 @@ stay in their target row and unowned source constraints remain global.
 There is at most one final `Next:` line. Active continuation uses the supplied
 `searchRef` exactly once in the executable `search_status` action; there is no
 separate session row. MCP renders
-`Next: search_status search_ref="..." wait_timeout_ms=20000`. A target-local
+`Next: search_status search_ref="..." wait_timeout_ms=30000`. A target-local
 `Fix:`/`Try:` never suppresses an active poll or completed evidence-status action,
 but suppresses generic rerun/query-rewrite guidance. Terminal and unknown sessions
 do not poll their stopped reference. Reissuing the same search remains valid.
@@ -549,7 +549,7 @@ Backend GraphQL errors preserve the backend message verbatim and carry its `hint
 
 **Follow-up — error metadata carrier consolidation.** Target, version, and ref errors currently carry available artifacts both as legacy constructor fields and in common error metadata; `CodeNavigationIndexingError` also carries `hint` as a standalone constructor field. Consolidate those carriers in a dedicated refactor; changing the internal error API is outside this response-formatting slice and has no user-visible anti-looping benefit.
 
-**Retry default**: `DEFAULT_WAIT_TIMEOUT_MS = 20_000` (shared, defined in `packages/mcp/src/shared/code-navigation-defaults.ts`). Applied inside each request builder so both CLI and MCP surfaces get the same default by construction. CLI's `--wait <ms>` and MCP's `wait_timeout_ms` override.
+**Retry default**: `DEFAULT_WAIT_TIMEOUT_MS = 30_000` (shared, defined in `packages/mcp/src/shared/code-navigation-defaults.ts`). Applied inside each request builder so both CLI and MCP surfaces get the same default by construction. CLI's `--wait <ms>` and MCP's `wait_timeout_ms` override.
 
 **Exact-path authority errors**: `code_read` / `code_grep` distinguish a missing path (`FILE_NOT_FOUND`) from a path deliberately omitted from the index (`FILE_PATH_EXCLUDED`) and an index whose source-file inventory cannot authoritatively answer the path query (`SOURCE_FILE_INVENTORY_UNKNOWN`). The latter two become stable top-level CLI/MCP codes and preserve `filePath`, optional `exclusionReason`, retryability, and target-resolution metadata. All three preserve the backend message and add surface-native `details.action` guidance for inspecting indexed paths. MCP names `code_files`, `path_prefix`, `code_read`, and `code_grep`; CLI JSON names `githits code files`, a path-prefix positional, `githits code read`, and `githits code grep --path`. CLI terminal output names `code files`. `code_read` still supports generic `NOT_FOUND` from older/backend paths, and its structured recovery is likewise rendered with MCP or CLI-native names without classifying unrelated target misses as file errors.
 
@@ -622,8 +622,8 @@ and before hits; target-owned constraints stay in their row.
 
 There is no separate session row. An active or evidence-status continuation uses
 the supplied `searchRef` exactly once in the executable `Next:` action:
-`Next: search_status search_ref="..." wait_timeout_ms=20000` for MCP or
-`Next: githits search-status ... --wait 20` for CLI. Target-local recovery never
+`Next: search_status search_ref="..." wait_timeout_ms=30000` for MCP or
+`Next: githits search-status ... --wait 30` for CLI. Target-local recovery never
 suppresses an active poll or completed evidence-status action, but suppresses a
 generic rerun/query rewrite. Stopped terminal references are not polled.
 

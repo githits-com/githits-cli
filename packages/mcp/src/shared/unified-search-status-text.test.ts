@@ -62,7 +62,7 @@ describe("renderUnifiedSearchStatusText", () => {
       "express/routing [docs page] npm:express - source URL unavailable - Routing",
     );
     expect(text).toContain(
-      'Next: search_status search_ref="search-ref-status" wait_timeout_ms=20000',
+      'Next: search_status search_ref="search-ref-status" wait_timeout_ms=30000',
     );
     expect(text).not.toContain("search_status |");
     expect(text).not.toContain("searchRef=");
@@ -107,7 +107,7 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(text).not.toContain("No hits");
     expect(text).toContain("- npm:express");
     expect(text).toContain(
-      'Next: search_status search_ref="search-ref-status" wait_timeout_ms=20000',
+      'Next: search_status search_ref="search-ref-status" wait_timeout_ms=30000',
     );
   });
 
@@ -196,7 +196,7 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(firstLine(text)).toContain("1 result");
     expect(text).not.toContain("Search search-ref-evidence | completed");
     expect(text).toContain(
-      'Next: search_status search_ref="search-ref-evidence" wait_timeout_ms=20000',
+      'Next: search_status search_ref="search-ref-evidence" wait_timeout_ms=30000',
     );
     expect(text).not.toContain("opaque backend notice");
     expect(text).not.toContain("Evidence may change.");

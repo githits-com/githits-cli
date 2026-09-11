@@ -72,7 +72,7 @@ const schema: ZodRawShape = {
     .number()
     .optional()
     .describe(
-      "Max milliseconds to wait for indexing (0-60000, default 20000). On an `INDEXING` error envelope, use `details.indexingEstimate` when present to decide whether to wait longer, or pass an already-indexed version/ref from `details.availableVersions` / `details.availableRefs`; `suggestedRefs` are fuzzy hints and may need indexing first.",
+      "Max milliseconds to wait for indexing (0-60000, default 30000). On an `INDEXING` error envelope, use `details.indexingEstimate` when present to decide whether to wait longer, or pass an already-indexed version/ref from `details.availableVersions` / `details.availableRefs`; `suggestedRefs` are fuzzy hints and may need indexing first.",
     ),
   format: z
     .enum(["text", "json"])

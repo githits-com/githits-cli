@@ -8,7 +8,7 @@ const target: CodeNavigationTarget = {
 };
 
 describe("buildReadFileParams — defaults and validation", () => {
-  it("accepts a minimal request and defaults wait to 20000", () => {
+  it("accepts a minimal request and defaults wait to 30000", () => {
     const { params } = buildReadFileParams({
       target,
       filePath: "src/index.js",
@@ -16,7 +16,7 @@ describe("buildReadFileParams — defaults and validation", () => {
     expect(params.filePath).toBe("src/index.js");
     expect(params.startLine).toBeUndefined();
     expect(params.endLine).toBeUndefined();
-    expect(params.waitTimeoutMs).toBe(20000);
+    expect(params.waitTimeoutMs).toBe(30000);
   });
 
   it("trims whitespace around filePath", () => {

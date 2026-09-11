@@ -5,12 +5,11 @@ import type { FileIntent } from "@githits/core-internal";
  * by the CLI or MCP surfaces. Both surfaces import this so defaults
  * never diverge silently.
  *
- * 20 seconds sits above the p50 (~11 s) and close to the mean (~17
- * s) observed backend indexing time — most first-time requests
- * complete within this window. Callers who hit an INDEXING response
- * can retry with up to `MAX_WAIT_TIMEOUT_MS` to block until ready.
+ * Allow headroom for indexing plus metadata fetches before returning
+ * progress. Callers can override this bounded wait up to
+ * `MAX_WAIT_TIMEOUT_MS`.
  */
-export const DEFAULT_WAIT_TIMEOUT_MS = 20_000;
+export const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
 
 /**
  * Backend ceiling on how long a single request may wait for

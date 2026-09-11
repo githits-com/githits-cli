@@ -258,7 +258,7 @@ const schema: ZodRawShape = {
     .max(60000)
     .optional()
     .describe(
-      "Milliseconds to wait for initial indexing or search completion before returning current progress (0-60000; default 20000).",
+      "Milliseconds to wait for initial indexing or search completion before returning current progress (0-60000; default 30000).",
     ),
   format: z
     .enum(["text", "json"])

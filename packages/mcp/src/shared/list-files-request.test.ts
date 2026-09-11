@@ -35,9 +35,9 @@ describe("buildListFilesParams — defaults + passthrough", () => {
     expect(params.waitTimeoutMs).toBe(5000);
   });
 
-  it("substitutes the shared DEFAULT_WAIT_TIMEOUT_MS (20000) when omitted", () => {
+  it("substitutes the shared DEFAULT_WAIT_TIMEOUT_MS (30000) when omitted", () => {
     const { params } = buildListFilesParams({ target: packageTarget });
-    expect(params.waitTimeoutMs).toBe(20000);
+    expect(params.waitTimeoutMs).toBe(30000);
   });
 
   it("passes a trimmed pathPrefix through and marks it explicit", () => {
