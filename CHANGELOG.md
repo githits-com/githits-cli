@@ -5,6 +5,31 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.16.2] - 2026-09-11
+
+### Changed
+
+- **Read exact documentation sections and ranges** - Search now emits indexed fragments as ready-to-read targets, while `docs read` and `docs_read` resolve them without synthetic bounds, preserve absolute page coordinates, and keep unresolved sections distinct from missing pages; deploy the compatible backend schema before releasing this client.
+- **Ask follow-up scope** - Explain how to change project, version, or topic in an existing thread and keep the thread when clarifying a failed lookup.
+- **Prefer token-efficient MCP text output** - Keep model-visible results in text and reserve JSON for direct host-side field handling or fields absent from text, not ordinary MCP or TypeScript invocation.
+
+### Fixed
+
+- **Ask guidance** - Remove the instruction to report defects using an Ask run ID because no such reporting action is available.
+- **Local evaluation cleanup** - Wait for both target preflights before returning a setup failure, preventing Windows cleanup from racing an outstanding Git subprocess.
+
+## [@githits/mcp 0.16.2] - 2026-09-11
+
+### Changed
+
+- **Read exact documentation sections and ranges** - Search now emits indexed fragments as ready-to-read targets, while `docs read` and `docs_read` resolve them without synthetic bounds, preserve absolute page coordinates, and keep unresolved sections distinct from missing pages; deploy the compatible backend schema before releasing this client.
+- **Ask follow-up scope** - Explain how to change project, version, or topic in an existing thread and keep the thread when clarifying a failed lookup.
+- **Prefer token-efficient MCP text output** - Keep model-visible results in text and reserve JSON for direct host-side field handling or fields absent from text, not ordinary MCP or TypeScript invocation.
+
+### Fixed
+
+- **Ask guidance** - Remove the instruction to report defects using an Ask run ID because no such reporting action is available.
+
 ## [githits 0.16.1] - 2026-09-10
 
 Patch release: routes agents through a smaller self-contained MCP guide and
