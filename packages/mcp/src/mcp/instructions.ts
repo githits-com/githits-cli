@@ -43,6 +43,13 @@ replace it with a page-relative range. Historical \`pageId\` works.
 For source evidence, locate paths or matches before reading; never use
 \`code_read\` to list/probe directories.
 
+Tools with \`wait_timeout_ms\` wait for indexing or results before returning.
+Omit it for the default; use \`0\` to return without waiting. If work remains,
+follow the suggested continuation or recovery action. When a target is still
+indexing, use the indexing estimate, if shown, to choose a longer wait, or retry
+with a listed already-indexed version or ref. Suggested refs may still need
+indexing first.
+
 Keep default token-efficient text whenever the model reads the result, including
 for summaries, comparisons, and follow-up calls; omit \`format\` in that case.
 Set JSON only when code consumes the raw response instead of the model, or when

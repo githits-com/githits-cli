@@ -13,7 +13,7 @@ describe("buildUnifiedSearchParams", () => {
     expect(built.params.filters).toBeUndefined();
     expect(built.params.limit).toBe(10);
     expect(built.params.offset).toBe(0);
-    expect(built.params.waitTimeoutMs).toBe(20_000);
+    expect(built.params.waitTimeoutMs).toBe(30_000);
   });
 
   it("does not override explicit fileIntent", () => {

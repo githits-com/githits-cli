@@ -85,7 +85,7 @@ describe("pkgReadAction", () => {
     logSpy.mockRestore();
   });
 
-  it("sends wait default of 20000 on the wire", async () => {
+  it("sends wait default of 30000 on the wire", async () => {
     const readFile = mock(() => Promise.resolve(defaultReadFileResult));
     const service = createMockCodeNavigationService({ readFile });
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(
@@ -100,7 +100,7 @@ describe("pkgReadAction", () => {
     const calls = readFile.mock.calls as unknown as Array<
       [{ waitTimeoutMs?: number }]
     >;
-    expect(calls[0]?.[0]?.waitTimeoutMs).toBe(20000);
+    expect(calls[0]?.[0]?.waitTimeoutMs).toBe(30000);
     writeSpy.mockRestore();
   });
 

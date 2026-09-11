@@ -368,7 +368,7 @@ describe("pkgFilesAction", () => {
     logSpy.mockRestore();
   });
 
-  it("sends waitTimeoutMs defaulting to DEFAULT_WAIT_TIMEOUT_MS (20000)", async () => {
+  it("sends waitTimeoutMs defaulting to DEFAULT_WAIT_TIMEOUT_MS (30000)", async () => {
     const listFiles = mock(() => Promise.resolve(defaultListFilesResult));
     const service = createMockCodeNavigationService({ listFiles });
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(
@@ -383,7 +383,7 @@ describe("pkgFilesAction", () => {
     const calls = listFiles.mock.calls as unknown as Array<
       [{ waitTimeoutMs?: number }]
     >;
-    expect(calls[0]?.[0]?.waitTimeoutMs).toBe(20000);
+    expect(calls[0]?.[0]?.waitTimeoutMs).toBe(30000);
     writeSpy.mockRestore();
   });
 

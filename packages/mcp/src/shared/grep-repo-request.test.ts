@@ -23,7 +23,7 @@ describe("buildGrepRepoParams", () => {
     expect(params.contextLinesAfter).toBe(0);
     expect(params.maxMatches).toBe(50);
     expect(params.maxMatchesPerFile).toBe(50);
-    expect(params.waitTimeoutMs).toBe(20000);
+    expect(params.waitTimeoutMs).toBe(30000);
     expect(params.symbolFields).toBeUndefined();
   });
 

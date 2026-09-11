@@ -539,7 +539,7 @@ describe("searchAction", () => {
     expect(output).not.toContain("Run again with a larger --wait");
     expect(output).not.toContain("Evidence may change.");
     expect(output).toContain(
-      "Next: githits search-status search-ref-docs --wait 20",
+      "Next: githits search-status search-ref-docs --wait 30",
     );
     consoleSpy.mockRestore();
   });
@@ -1014,7 +1014,7 @@ describe("searchAction", () => {
       "No result snapshot yet | indexing | 0/1 ready",
     );
     expect(output).toContain(
-      "Next: githits search-status search-ref-123 --wait 20",
+      "Next: githits search-status search-ref-123 --wait 30",
     );
     consoleSpy.mockRestore();
   });
@@ -1127,7 +1127,7 @@ describe("searchAction", () => {
         "  indexing: code, repository docs; available: n8n.io docs (1,480 pages; capped);",
         "  indexed: versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master",
         "",
-        "Next: githits search-status n8n-search-ref --wait 20",
+        "Next: githits search-status n8n-search-ref --wait 30",
       ].join("\n"),
     );
     expect(initial.match(/^No results yet/gm)).toHaveLength(1);
@@ -1294,7 +1294,7 @@ describe("searchAction", () => {
     expect(output).not.toContain("Try: site:docs.example.com");
     expect(output).toContain("+more");
     expect(output).toContain(
-      "Next: githits search-status search-ref-site --wait 20",
+      "Next: githits search-status search-ref-site --wait 30",
     );
     consoleSpy.mockRestore();
   });
@@ -1555,7 +1555,7 @@ describe("searchAction", () => {
     expect(output).not.toContain("Evidence may change.");
     expect(output).not.toContain("Evidence:");
     expect(output).toContain(
-      "Next: githits search-status search-ref-123 --wait 20",
+      "Next: githits search-status search-ref-123 --wait 30",
     );
     consoleSpy.mockRestore();
   });
@@ -2030,7 +2030,7 @@ describe("searchStatusAction", () => {
     );
     expect(output).not.toContain("Search search-ref-123 |");
     expect(output).toContain(
-      "Next: githits search-status search-ref-123 --wait 20",
+      "Next: githits search-status search-ref-123 --wait 30",
     );
     consoleSpy.mockRestore();
   });
@@ -2068,7 +2068,7 @@ describe("searchStatusAction", () => {
     expect(output).toContain("- site:example.com");
     expect(output).not.toContain("Search search-ref-stale |");
     expect(output).toContain(
-      "Next: githits search-status search-ref-stale --wait 20",
+      "Next: githits search-status search-ref-stale --wait 30",
     );
     consoleSpy.mockRestore();
   });
@@ -2125,7 +2125,7 @@ describe("searchStatusAction", () => {
     expect(output).not.toContain("Try: site:docs.example.com");
     expect(output).not.toContain("Search search-ref-site |");
     expect(output).toContain(
-      "Next: githits search-status search-ref-site --wait 20",
+      "Next: githits search-status search-ref-site --wait 30",
     );
     consoleSpy.mockRestore();
   });
@@ -2149,7 +2149,7 @@ describe("searchStatusAction", () => {
     await searchStatusAction("search-ref-wait", {}, deps);
     expect(searchStatus.mock.calls[0]).toEqual([
       "search-ref-wait",
-      20_000,
+      30_000,
       { omitFocusedSource: true },
     ]);
 
@@ -2238,7 +2238,7 @@ describe("searchStatusAction", () => {
     expect(output).toContain("indexed: refs master");
     expect(output).not.toContain("Search search-ref-123 |");
     expect(output).toContain(
-      "Next: githits search-status search-ref-123 --wait 20",
+      "Next: githits search-status search-ref-123 --wait 30",
     );
     consoleSpy.mockRestore();
   });
@@ -2506,7 +2506,7 @@ describe("searchStatusAction", () => {
     );
     expect(output).not.toContain("Evidence may change.");
     expect(
-      output.match(/githits search-status search-ref-docs --wait 20/g),
+      output.match(/githits search-status search-ref-docs --wait 30/g),
     ).toHaveLength(1);
     expect(output).not.toContain("Search completed");
     expect(output).not.toContain("re-run with the searchRef");
@@ -2695,7 +2695,7 @@ describe("v31 format selection", () => {
         expect.objectContaining({ query: "router" }),
         { omitFocusedSource: json !== true },
       );
-      expect(searchStatus).toHaveBeenCalledWith("v31-ref", 20_000, {
+      expect(searchStatus).toHaveBeenCalledWith("v31-ref", 30_000, {
         omitFocusedSource: json !== true,
       });
     });

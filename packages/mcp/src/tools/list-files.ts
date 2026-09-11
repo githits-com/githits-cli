@@ -2,6 +2,10 @@ import type { CodeNavigationService } from "@githits/core-internal";
 import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { z } from "zod";
 import { knownFileIntentList } from "../shared/code-navigation.js";
+import {
+  DEFAULT_WAIT_TIMEOUT_MS,
+  MAX_WAIT_TIMEOUT_MS,
+} from "../shared/code-navigation-defaults.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { buildListFilesParams } from "../shared/list-files-request.js";
 import { buildListFilesSuccessPayload } from "../shared/list-files-response.js";
@@ -103,7 +107,7 @@ const schema: ZodRawShape = {
     .number()
     .optional()
     .describe(
-      "Max milliseconds to wait for indexing (0-60000, default 20000). On an `INDEXING` error envelope, use `details.indexingEstimate` when present to decide whether to wait longer, or pass an already-indexed version/ref from `details.availableVersions` / `details.availableRefs`; `suggestedRefs` are fuzzy hints and may need indexing first.",
+      `Time to wait for results in ms. Default ${DEFAULT_WAIT_TIMEOUT_MS}, max ${MAX_WAIT_TIMEOUT_MS}.`,
     ),
   format: z
     .enum(["text", "json"])
@@ -126,14 +130,7 @@ const DESCRIPTION =
   "exclusive. Narrow with `path`, `path_prefix`, `globs`, " +
   "`extensions`, `file_types`, `languages`, or file-intent filters. " +
   "JSON envelope shape: `{total, hasMore, files: [{path, name, " +
-  "language, fileType, byteSize}], resolution, indexedVersion}`. " +
-  "When fresh data is not ready within the wait window, responses may " +
-  "include `targetResolution` provenance, `indexingEstimate`, and immediately-queryable " +
-  "alternatives. `availableVersions` and `availableRefs` are already " +
-  "indexed/queryable; `suggestedRefs` are fuzzy ref hints and may need " +
-  "indexing first. On an `INDEXING` error envelope, retry with a longer " +
-  "`wait_timeout_ms` or use a version/ref from `details.availableVersions` " +
-  "/ `details.availableRefs`.";
+  "language, fileType, byteSize}], resolution, indexedVersion}`.";
 
 export function createListFilesTool(
   service: CodeNavigationService,

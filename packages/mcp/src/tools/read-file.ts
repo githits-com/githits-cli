@@ -2,6 +2,8 @@ import type { CodeNavigationService } from "@githits/core-internal";
 import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { z } from "zod";
 import {
+  DEFAULT_WAIT_TIMEOUT_MS,
+  MAX_WAIT_TIMEOUT_MS,
   MCP_READ_DEFAULT_SPAN,
   MCP_READ_MAX_SPAN,
 } from "../shared/code-navigation-defaults.js";
@@ -72,7 +74,7 @@ const schema: ZodRawShape = {
     .number()
     .optional()
     .describe(
-      "Max milliseconds to wait for indexing (0-60000, default 20000). On an `INDEXING` error envelope, use `details.indexingEstimate` when present to decide whether to wait longer, or pass an already-indexed version/ref from `details.availableVersions` / `details.availableRefs`; `suggestedRefs` are fuzzy hints and may need indexing first.",
+      `Time to wait for results in ms. Default ${DEFAULT_WAIT_TIMEOUT_MS}, max ${MAX_WAIT_TIMEOUT_MS}.`,
     ),
   format: z
     .enum(["text", "json"])
@@ -89,14 +91,7 @@ export const DESCRIPTION_BASE: string =
   `\`start_line\` / \`end_line\` range for only the lines needed, up to ${MCP_READ_MAX_SPAN} lines. ` +
   "Broader ranges truncate with a `hint` describing what was returned vs. " +
   "requested. Pick the window from a `search` / `code_grep` " +
-  "match. Binary files omit `content`. When fresh data is not ready within the wait " +
-  "window, responses may include `targetResolution` provenance, " +
-  "`indexingEstimate`, and " +
-  "immediately-queryable alternatives. `availableVersions` and " +
-  "`availableRefs` are already indexed/queryable; `suggestedRefs` " +
-  "are fuzzy ref hints and may need indexing first. On `INDEXING` " +
-  "retry with a longer `wait_timeout_ms` or use a version/ref from " +
-  "error details. " +
+  "match. Binary files omit `content`. " +
   "On `FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, " +
   "`SOURCE_FILE_INVENTORY_UNKNOWN`, or a legacy `NOT_FOUND` that " +
   "specifically describes a missing file path, follow `details.action` " +

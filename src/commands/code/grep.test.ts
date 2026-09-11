@@ -308,7 +308,7 @@ describe("pkgGrepAction", () => {
     expect(calls[0]?.[0]?.contextLinesBefore).toBe(0);
     expect(calls[0]?.[0]?.contextLinesAfter).toBe(0);
     expect(calls[0]?.[0]?.maxMatches).toBe(50);
-    expect(calls[0]?.[0]?.waitTimeoutMs).toBe(20000);
+    expect(calls[0]?.[0]?.waitTimeoutMs).toBe(30000);
     writeSpy.mockRestore();
   });
 

@@ -221,7 +221,7 @@ test suite anchors the doc.
   `allow_partial_results` maps to CLI `--allow-partial` because the CLI
   name reads better as a command flag while preserving the same behaviour.
   `search_status.wait_timeout_ms` maps to `search-status --wait <seconds>`;
-  both default to the shared 20-second bounded wait.
+  both default to the shared 30-second bounded wait.
 - **Public enum values** are lowercase strings on both surfaces
   (`production`, `test`, `summary`, `all`).
 - **Service coercion** from lowercase enum values to the internal
