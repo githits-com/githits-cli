@@ -45,10 +45,104 @@ describe("buildUnifiedSearchParams", () => {
       category: "CALLABLE",
       fileIntent: "PRODUCTION",
       publicOnly: true,
-      pathPrefix: "docs/",
     });
 
-    expect(built.params.filters).toEqual({ pathPrefix: "docs/" });
+    expect(built.params.filters).toBeUndefined();
+  });
+
+  it.each([
+    { sources: ["DOCS"] },
+    { sources: ["SYMBOL"] },
+    { sources: ["DOCS", "SYMBOL"] },
+  ] as const)(
+    "rejects path prefixes without a code source: %j",
+    ({ sources }) => {
+      expect(() =>
+        buildUnifiedSearchParams({
+          target: { registry: "NPM", packageName: "express" },
+          query: "routing",
+          sources: [...sources],
+          pathPrefix: "src/",
+        }),
+      ).toThrow("Path prefixes require a code search source");
+    },
+  );
+
+  it("rejects automatic site-only path prefixes, including empty source arrays", () => {
+    for (const sources of [
+      undefined,
+      [],
+      ["AUTO"],
+      ["AUTO", "DOCS"],
+    ] as const) {
+      expect(() =>
+        buildUnifiedSearchParams({
+          targets: [
+            { site: "site:expressjs.com" },
+            { site: "site:nodejs.org" },
+          ],
+          query: "routing",
+          sources: sources ? [...sources] : undefined,
+          pathPrefix: "guide/",
+        }),
+      ).toThrow("Remove the path prefix for documentation or symbol searches");
+    }
+  });
+
+  it("preserves prefixes for automatic mixed targets and explicit code sources", () => {
+    for (const sources of [
+      undefined,
+      [],
+      ["AUTO"],
+      ["AUTO", "SYMBOL"],
+      ["CODE"],
+      ["DOCS", "CODE"],
+      ["SYMBOL", "CODE"],
+    ] as const) {
+      const built = buildUnifiedSearchParams({
+        targets: [
+          { site: "site:expressjs.com" },
+          { repoUrl: "https://github.com/expressjs/express" },
+        ],
+        query: "routing",
+        sources: sources ? [...sources] : undefined,
+        pathPrefix: "src/",
+      });
+      expect(built.params.filters).toEqual({ pathPrefix: "src/" });
+    }
+  });
+
+  it("leaves explicit code on site targets to backend target validation", () => {
+    expect(
+      buildUnifiedSearchParams({
+        target: { site: "site:expressjs.com" },
+        query: "routing",
+        sources: ["CODE"],
+        pathPrefix: "guide/",
+      }).params.filters,
+    ).toEqual({ pathPrefix: "guide/" });
+  });
+
+  it("rejects whitespace prefixes consistently with filter serialization", () => {
+    expect(() =>
+      buildUnifiedSearchParams({
+        target: { registry: "NPM", packageName: "express" },
+        query: "routing",
+        sources: ["DOCS"],
+        pathPrefix: " ",
+      }),
+    ).toThrow("Path prefixes require a code search source");
+  });
+
+  it("omits empty path prefixes even for docs-only searches", () => {
+    expect(
+      buildUnifiedSearchParams({
+        target: { site: "site:expressjs.com" },
+        query: "routing",
+        sources: ["DOCS"],
+        pathPrefix: "",
+      }).params.filters,
+    ).toBeUndefined();
   });
 
   it("does not invent fileIntent when selected sources include code search", () => {

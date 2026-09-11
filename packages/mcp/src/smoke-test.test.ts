@@ -982,6 +982,15 @@ function smokeJsonResponse(
         },
       });
     case "search":
+      if (args.path_prefix)
+        return {
+          isError: true,
+          ...jsonResult({
+            error: "Path prefixes require a code search source",
+            code: "INVALID_ARGUMENT",
+            retryable: false,
+          }),
+        };
       return jsonResult({
         completed: false,
         searchRef: "smoke-ref",

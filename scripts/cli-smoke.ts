@@ -2085,6 +2085,27 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "code grep invalid json missing CLI-native recovery",
   );
 
+  const searchInvalidPrefix = await runCli([
+    "search",
+    "router",
+    "--in",
+    SMOKE_PACKAGE_SPEC,
+    "--source",
+    "docs",
+    "--path-prefix",
+    "docs/",
+    "--json",
+  ]);
+  const searchInvalidPrefixEnvelope = assertCleanErrorEnvelope(
+    searchInvalidPrefix.stderr,
+    "search unsupported path prefix",
+  );
+  assert(
+    searchInvalidPrefix.exitCode !== 0 &&
+      searchInvalidPrefixEnvelope.code === "INVALID_ARGUMENT",
+    "search must reject unsupported path prefixes",
+  );
+
   const searchText = assertTerminalOutput(
     await runCli([
       "search",

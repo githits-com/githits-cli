@@ -1260,6 +1260,18 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "code_grep context clamping mismatch",
   );
 
+  assertErrorCode(
+    await callTool(caller, "search", {
+      target: SMOKE_PACKAGE_TARGET,
+      query: "router",
+      source: "docs",
+      path_prefix: "docs/",
+      format: "json",
+    }),
+    "search unsupported path prefix",
+    "INVALID_ARGUMENT",
+  );
+
   const searchText = assertDefaultText(
     await callTool(caller, "search", {
       target: SMOKE_PACKAGE_TARGET,

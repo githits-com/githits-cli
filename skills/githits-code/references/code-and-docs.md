@@ -10,6 +10,8 @@ Search text shows producer-proven matched source and structural documentation pr
 
 Useful filters: `--kind`, `--category`, `--path-prefix`, `--intent`, `--public`, `--name`, `--lang`, `--limit`, `--offset`, `--wait`, `--allow-partial`, `--json`.
 
+`--path-prefix` filters code results only. Omit it for `--source docs`, `--source symbol`, and standalone site searches. Use it with `--source code` on a package/repository, or with automatic source selection that includes a package/repository.
+
 If search returns a `searchRef`, continue with `githits search-status <searchRef> [--wait <seconds>]` only when the output explicitly supplies that follow-up, including for active `PENDING`, `INDEXING`, or `SEARCHING` progress or a completed result with an evidence notice. The bounded wait defaults to 20 seconds, and the explicit value must be an integer from 0 to 60. Terminal `DEFERRED`, `TIMEOUT`, or `FAILED` progress, and unrecognized statuses, do not advance: keep any disclosed evidence, do not poll the same reference, and follow the rendered new-search action.
 
 Stale or provisional evidence remains queryable while refresh or indexing

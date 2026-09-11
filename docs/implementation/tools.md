@@ -1006,3 +1006,18 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 - `docs/guidelines/ARCHITECTURAL_GUIDELINES.md` — service isolation and testing patterns
 
 See [Repository target grammar](repository-targets.md) for the shared GitHub, Codeberg, and GitLab addressing contract and provider-preserving response identity.
+
+### Search path-prefix compatibility
+
+Search `path_prefix` (CLI `--path-prefix`) applies only to the code source, including
+automatic selection for package/repository targets. Documentation and symbol
+sources do not apply it, including repository documentation. Site-only automatic
+search selects docs and cannot use it. The shared request builder rejects nonempty
+prefixes when no code source is selected, returning `INVALID_ARGUMENT` before
+`service.search`; it does not silently discard the requested scope. Empty strings
+remain omitted. Explicit mixed sources and automatic mixed targets remain valid
+when code is selected. Other existing docs-only filter normalization is unchanged.
+
+This mirrors the backend request source/filter contract verified on 2026-09-11.
+Hosted MCP receives the guard after the updated `@githits/mcp` package is released,
+adopted by the remote server, and deployed.

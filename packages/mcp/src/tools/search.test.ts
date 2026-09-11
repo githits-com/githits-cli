@@ -242,7 +242,6 @@ describe("searchTool", () => {
         kind: "function",
         file_intent: "production",
         public_only: true,
-        path_prefix: "guide/",
       },
       {},
     );
@@ -250,10 +249,45 @@ describe("searchTool", () => {
     expect(search).toHaveBeenCalledWith(
       expect.objectContaining({
         sources: ["DOCS"],
-        filters: { pathPrefix: "guide/" },
+        filters: undefined,
       }),
       { omitFocusedSource: true },
     );
+  });
+
+  it("rejects unsupported path scopes in text and JSON before calling the service", async () => {
+    for (const format of ["text", "json"] as const) {
+      for (const selection of [
+        { target: "npm:express", source: "docs" },
+        { target: "github:expressjs/express", source: "symbol" },
+        { target: "site:expressjs.com" },
+      ] as const) {
+        const search = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+        const tool = createSearchTool(
+          createMockCodeNavigationService({ search }),
+        );
+        const result = await tool.handler(
+          {
+            query: "routing",
+            ...selection,
+            path_prefix: "guide/",
+            format,
+          },
+          {},
+        );
+        expect(result.isError).toBe(true);
+        expect(search).not.toHaveBeenCalled();
+        expect(result.content[0]?.text).toContain(
+          "Path prefixes require a code search source",
+        );
+        if (format === "json") {
+          expect(JSON.parse(result.content[0]?.text ?? "{}")).toMatchObject({
+            code: "INVALID_ARGUMENT",
+            retryable: false,
+          });
+        }
+      }
+    }
   });
 
   it("ignores empty targets arrays when target is provided", async () => {

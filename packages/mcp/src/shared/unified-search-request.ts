@@ -42,6 +42,17 @@ export function buildUnifiedSearchParams(
   const targets = resolveTargets(input.target, input.targets);
   const rawQuery = normaliseRequiredQuery(input.query);
 
+  // Backend AUTO includes code only when a package or repository is targeted.
+  const selectsAuto = !input.sources?.length || input.sources.includes("AUTO");
+  const selectsCode =
+    input.sources?.includes("CODE") ||
+    (selectsAuto && targets.some((target) => !target.site));
+  if (input.pathPrefix && !selectsCode) {
+    throw new InvalidArgumentError(
+      "Path prefixes require a code search source. Remove the path prefix for documentation or symbol searches.",
+    );
+  }
+
   const limit = input.limit ?? DEFAULT_UNIFIED_SEARCH_LIMIT;
   const offset = input.offset ?? 0;
   const waitTimeoutMs = input.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS;

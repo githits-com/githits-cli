@@ -780,7 +780,8 @@ describe("LockedAuthStorage", () => {
       new AuthStorageImpl(fs, configDir),
       fsWithHome,
       {
-        lockTimeoutMs: 100,
+        // Reclamation performs real filesystem I/O; this is not a timeout test.
+        lockTimeoutMs: 1_000,
         getProcessStartedAt: testProcessStartedAt,
         isOwnerAlive: async () => false,
       },
