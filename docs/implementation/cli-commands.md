@@ -918,7 +918,7 @@ Reads a file from an indexed dependency. `<path>` is package-relative in spec mo
 
 **Binary files.** Plain mode writes `Binary file — cannot display as text.` to stdout (consistent with `grep`'s binary-file convention). `--verbose` adds the header above the sentinel. `--json` exposes the classification via `isBinary: true` with `content` omitted — agents branch on the flag, not a null check.
 
-**Exit codes.** `0` on success. `1` on error. Exact paths are classified as missing (`FILE_NOT_FOUND`), excluded from the index (`FILE_PATH_EXCLUDED`), or unverifiable by the source inventory (`SOURCE_FILE_INVENTORY_UNKNOWN`); terminal output directs users to `code files` to inspect indexed paths. With `--json`, those codes and legacy `NOT_FOUND` messages that specifically describe a missing file path add a structured `details.action`. It names `githits code files`, the applicable positional path-prefix narrowing (or its omission at repository root), and `githits code read` so callers can retry without translating MCP tool names. Client-side `INVALID_ARGUMENT` errors likewise name the CLI positional and option syntax; for example, a directory-shaped read path points to `githits code files` and `githits code read` rather than MCP tools.
+**Exit codes.** `0` on success. `1` on error. Exact paths are classified as missing (`FILE_NOT_FOUND`), excluded from the index (`FILE_PATH_EXCLUDED`), or unverifiable by the source inventory (`SOURCE_FILE_INVENTORY_UNKNOWN`); terminal output directs users to `code files` to inspect indexed paths. With `--json`, those codes and legacy `NOT_FOUND` messages that specifically describe a missing file path add a structured `details.action`. It names `githits code files`, the applicable positional path-prefix narrowing (or its omission at repository root), and `githits read` so callers can retry without translating MCP tool names. Client-side `INVALID_ARGUMENT` errors likewise name the CLI positional and option syntax; for example, a directory-shaped read path points to `githits code files` and `githits read` rather than MCP tools.
 
 ### `githits code grep`
 
@@ -972,7 +972,7 @@ Each command follows this pattern:
 | Shared Module | Used By |
 |---|---|
 | `GitHitsService` (via container) | `example`, `languages`, and always-on MCP tools |
-| `CodeNavigationService` (via container) | top-level unified `search` / `search-status`, MCP indexed-search tools (`search`, `search_status`, `code_files`, `code_read`, `code_grep`), and the `githits code` command group |
+| `CodeNavigationService` (via container) | top-level unified `search` / `search-status`, MCP indexed-search tools (`search`, `search_status`, `code_files`, `read`, `code_grep`), and the `githits code` command group |
 | `filterLanguages()` from `packages/mcp/src/shared/language-filter.ts` | `search_language` MCP tool + `languages` CLI command |
 | `requireAuth()` from `packages/mcp/src/shared/require-auth.ts` | all CLI commands and auth-required MCP tool handlers |
 

@@ -99,17 +99,81 @@ description, `z.toJSONSchema(z.object(schema))`, and annotations. These are byte
 counts, not token estimates or runtime performance measurements.
 
 After-change measurement with the identical serializer: read array 2,444 bytes
-(64.8% smaller), stable catalog 14 tools / 51,619 bytes (4,557 bytes smaller),
+(64.8% smaller), stable catalog 14 tools / 51,605 bytes (4,571 bytes smaller),
 and guide 4,845 bytes (24 bytes larger). The combined catalog-plus-guide is
-4,533 bytes smaller. No before/after agent-token or runtime-speed claim is made.
+4,547 bytes smaller. No before/after agent-token or runtime-speed claim is made.
 
 The source-specific read regressions, CLI routing, Ask projection, catalog,
 quick-start parity, smoke assertions, and deterministic eval fixtures are covered
-by the test suite. Final build, smoke, package and agent-eval evidence is recorded
-at delivery.
+by the test suite. Build, smoke, package and agent-eval evidence follows.
 
-Deterministic validation: `bun test` passed 4,604 tests / 16,184 assertions;
+Deterministic validation: `bun test` passed 4,608 tests / 16,193 assertions;
 `bun run typecheck`, changed-file Biome lint/format, `bun run build`,
 `bun run plugins:generate`, `bun run plugins:check`, and
 `bun run validate:packages` passed. Full-repository lint exits successfully with
 pre-existing warnings in the unchanged repository-target parser.
+
+Agent evals used local descriptor-only guidance and unchanged neutral workload
+prompts. No isolation-violation artifacts were emitted (the harness writes them
+only when violations are detected).
+
+| Run (under `.agent-eval/runs/`) | Observed behavior | Reported metrics |
+| --- | --- | --- |
+| `2026-09-11T08-47-31-123Z` — Codex discovery | All three workloads reported success/high confidence, but no tools were used; this is not evidence of read behavior. | 81.4s; 69,180 uncached input, 104,448 cached input, 2,081 output tokens; estimated base-rate cost $0.01842216. |
+| `2026-09-11T08-47-31-300Z` — Claude discovery | Read Express source lines 55–90; followed docs search with target-only `read` of the Express route-handlers fragment. The direct Flask workload used WebFetch instead. All answers reported high confidence. | 156.5s; logical counts and token/cost metrics unavailable in the Claude adapter. Raw tool results confirmed successful source and section content. |
+| `2026-09-11T08-50-34-348Z` — Codex intent | Using the existing harness `--intent-profile githits`, read Express lines 55–90 and the unchanged Flask fragment with no bounds; Flask returned only absolute lines 81–93. Both answers reported success/high confidence. | 60.4s; six logical MCP calls, including two reads; 79,375 uncached input, 194,048 cached input, 1,564 output tokens; estimated base-rate cost $0.02163276. |
+
+Commands used `bun run agent:e2e --agent <agent> --server local
+--guidance-profile descriptors`, repeated `--workload` for `code-read-window.md`,
+`docs-search-followup.md`, and `docs-fragment-read.md`. The Codex intent run added
+`--intent-profile githits` and selected only code-read-window and docs-fragment-read.
+`tool-calls.json`, raw results, `final.json`, metrics, and validation artifacts were
+inspected. Self-reported confidence is not a quality grade; no grading stage or
+matching pre-change agent baseline was run.
+
+Live validation:
+
+- Stable `bun run smoke:mcp` assertions passed, including unified code/docs reads.
+  Its subsequent experimental Ask request timed out at 60 seconds, so the complete
+  command exited unsuccessfully; live Ask projection is not claimed verified.
+- `bun run smoke:cli` passed unauthenticated checks but stopped in unrelated
+  `pkg deps npm:express --issues` with a backend HTTP 502 before the read checks.
+- Targeted authenticated CLI probes then verified `read` and both legacy commands
+  produce identical JSON and content-only output for Express 5.2.1 source lines
+  55–90 and the Flask routing fragment; verbose output also passed. The fragment
+  selected absolute lines 81–93 with no supplied bounds.
+- `bun run smoke:cli:built` and `bun run smoke:mcp:built` passed, including stable
+  and experimental registration/auth handling under Node.
+
+These external live-suite failures remain evidence limitations, not suppressed
+assertions or added retries. Unit tests cover Ask projection, including metadata
+preservation and no mutation of backend results.
+
+
+## Implementation review closure
+
+One Opus review ran on 2026-09-11, followed by coordinator verification; no second
+review round was requested, following the user's single-pass policy.
+
+- Accepted missing CLI authenticated-command registration. The shared metadata
+  table naturally owns auto-login eligibility, continuation text, and JSON auth
+  failure handling. Added `read` to that table; regressions exercise interactive
+  success/continuation and failure envelopes, alongside both legacy commands.
+- Accepted stale CLI recovery hints/help. Both new and legacy code reads now direct
+  retries to `githits read`; content and JSON result contracts remain unchanged.
+  Scanned the command/helper and parity assertions for the same stale name.
+- Accepted current-policy documentation drift and repeated search-description
+  wording. Updated current references while retaining historical measurements and
+  release-boundary public skill work.
+- Rejected the optional suggestion to replace explicit zero waits in indexing
+  recovery. Zero remains an intentional nonblocking mode; the recovery preserves
+  caller intent, and the guide already explains using indexing estimates to choose
+  a longer wait. No new retry policy or automatic waiting was added.
+
+Six bounded Luna dispatches handled mechanical follow-ups, peripheral text,
+neighboring descriptors, guide parity, catalog assertions, and final wording.
+Coordinator retained routing/validation, CLI/Ask integration, auth closure, and
+verification. No worker rework or interrupts were needed. Initial eval inventory and auth
+metadata omissions were coordinator scope gaps; closure tests also caught a
+dynamically assembled legacy CLI name and missing smoke rejection for the new
+CLI syntax. All were fixed and covered by the final passing suite.

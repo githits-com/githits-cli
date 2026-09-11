@@ -251,7 +251,7 @@ function withCliExactPathAuthorityRecovery(
       ...mapped.details,
       action:
         `${reason} ${listing} to list indexed paths available to ` +
-        `\`githits code ${command}\`.`,
+        `\`githits ${command === "read" ? "read" : "code grep"}\`.`,
     },
   };
 }
@@ -268,12 +268,12 @@ function withCliPathRecovery(
   const handoff =
     command === "grep"
       ? "pass an emitted path as `--path <path>` to `githits code grep`."
-      : "pass an emitted path to `githits code read`.";
+      : "pass an emitted path to `githits read`.";
   const readPreamble =
     command === "read"
       ? exactFilePath
-        ? "`githits code read` requires an indexed exact file path. "
-        : "`githits code read` reads files only, not directories. "
+        ? "`githits read` requires an indexed exact file path. "
+        : "With a path, `githits read` reads files, not directories. "
       : "";
   const listing =
     prefix === ""

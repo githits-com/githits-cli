@@ -362,6 +362,7 @@ function assertSearchDefaultText(text: string, context: string): void {
   }
   assert(
     !formatterText.includes("githits search-status ") &&
+      !formatterText.includes("githits read ") &&
       !formatterText.includes("githits code read ") &&
       !formatterText.includes("githits docs read ") &&
       !formatterText.includes(" --wait ") &&

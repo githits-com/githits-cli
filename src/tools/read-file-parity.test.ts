@@ -252,7 +252,7 @@ describe("read_file parity", () => {
     });
     expect(cliEnvelope.code).toBe("FILE_NOT_FOUND");
     expect(cliAction).toContain("`githits code files`");
-    expect(cliAction).toContain("`githits code read`");
+    expect(cliAction).toContain("`githits read`");
     expect(cliAction).toContain("without a path prefix");
     expect(mcpAction).toContain("`code_files`");
     expect(mcpAction).toContain("`read`");

@@ -338,6 +338,7 @@ describe("runMcpSmoke", () => {
 
   it.each([
     "Next: githits search-status smoke-ref --wait 30",
+    "Next: githits read npm:express index.js",
     "Next: githits code read npm:express index.js",
     "Next: githits docs read page-1 --offset 10",
   ])("rejects CLI syntax leaked into MCP search text: %s", async (action) => {

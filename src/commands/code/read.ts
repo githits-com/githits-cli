@@ -170,7 +170,7 @@ function buildCliReadFileParams(
         "path prefix $1 to list files",
       )
       .replace(/emitted `path`/g, "emitted path")
-      .replace(/`read`/g, "`githits code read`");
+      .replace(/`read`/g, "`githits read`");
     if (rewritten === error.message) throw error;
     throw new InvalidPackageSpecError(rewritten);
   }

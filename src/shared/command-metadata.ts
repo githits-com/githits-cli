@@ -74,6 +74,7 @@ export const AUTHENTICATED_COMMANDS = [
   },
   "search",
   "search-status",
+  "read",
   "code files",
   "code read",
   "code grep",
