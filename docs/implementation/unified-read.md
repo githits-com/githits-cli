@@ -302,3 +302,69 @@ read copied from the rendered row returned the expected lines 83-93.
 Repo-doc correction validation: 4,713 tests, typecheck, CI-mode public-package
 validation, and source/built CLI/MCP smoke checks passed. The formatter's exact
 locator and separate bounds were also checked against the live docs read endpoint.
+
+### Sequential PR comparison (2026-09-11)
+
+Three runs were inspected one at a time, with the repo-doc text correction made
+between the first and second. All exported successfully to Braintrust and link
+to `main-r34592914082-a1` (`74e316e`). The final implementation `e45651c` has two
+samples; do not average the earlier `65799f5` sample into its results.
+
+All used `gpt-5.6-luna`, low reasoning, Codex CLI 0.154.0, and the workflow's
+local MCP discovery/intent/full-guidance scenarios. This CI matrix does not test
+Haiku. Matched inputs, model settings, reporting contracts, and result schemas
+were identical to baseline. Match by `metadata.cellId`; exclude `global-example`
+as requested and exclude the newly added fragment cells from baseline deltas.
+This leaves 44 matched cells per run. Metrics below are totals over those cells;
+duration is cumulative agent duration, not workflow wall time. Costs are the
+harness's base-rate estimates, not billed amounts.
+
+| Experiment | Code | Tokens | Estimated cost | Duration (s) | MCP calls | Failed calls |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| [Baseline](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/main-r34592914082-a1) | `74e316e` | 4,887,192 | $0.407235 | 717.236 | 193 | 1 |
+| [First inspected run](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-388-r34595208046-a1) | `65799f5` | 5,319,951 | $0.419810 | 1,600.347 | 210 | 7 |
+| [Both locator fixes](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-388-r34595991782-a1) | `e45651c` | 4,859,966 | $0.404573 | 949.429 | 185 | 3 |
+| [Unchanged repeat](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-388-r34596413414-a1) | `e45651c` | 5,337,152 | $0.420483 | 1,678.688 | 193 | 11 |
+
+The two final-code samples average **4.3% more tokens, 1.3% more estimated cost,
+2.1% fewer MCP calls, and 83.2% longer cumulative duration** than this single
+baseline. Full-guidance matched cells alone average 2.8% fewer tokens and 2.2%
+less estimated cost; intent cells average 4.8% more tokens and 1.6% more cost.
+Backend timeouts and different call paths affect duration and consumption. These
+samples do not establish an overall token/cost improvement or a causal slowdown
+from the schema change. The independently measured descriptor-size reduction is
+still real, but does not translate directly into end-to-end token savings here.
+
+All three 48-cell runs reported successful harness/final statuses and had no
+isolation violations. This is not an answer-quality score. Raw traces were
+inspected for failed calls, recovery, locator use, and the dedicated source-window
+and fragment tasks. The two final-code runs had no 429s or recurrence of the
+SHA-as-package-version or invented repo-doc-target failures. Remaining issues:
+
+- Run two: one package target used as a docs page, one docs URL put in `path`, and
+  one altered Zod fragment. The valid emitted Zod locator worked when copied.
+- Run three: one object-valued `read.target`, five unresolved documentation
+  fragments, one explicit unsupported `version: "latest"`, and four backend
+  package-service timeouts. The Express `#routing` ambiguity is the previously
+  dispatched backend finding; baseline itself also had an unresolved Express
+  fragment. No client fallback or schema expansion was introduced for these.
+- The Zod full-guidance answer in run two repeated a type-shape comment
+  (`errors`/`properties`) that conflicts with the `formErrors`/`fieldErrors`
+  example in the same retrieved snippet. Preserve this source/answer ambiguity;
+  the success/high-confidence status does not settle correctness.
+- Neutral discovery selected GitHits in 0/2 then 1/2 final-code cells (baseline
+  0/2). Full guidance also had one zero-GitHits-call cell in each final-code run:
+  the direct fragment task in run two and `site-search-explicit` in run three.
+  Do not confuse successful answers through other tools with GitHits adoption.
+
+The dedicated code-window answers correctly described lazy initialization and
+both router options in all three inspected runs. Direct Flask fragment reads
+succeeded whenever actually invoked; some cells answered via other tools.
+The repo-doc correction also has a separate exact-locator live regression,
+since both final-code docs-noise runs chose website pages instead of repeating
+the original repo-doc path.
+
+Artifacts are retained locally under `.agent-eval/ci-pr388/fixed1`, `fixed2`, and
+`fixed3`; GitHub keeps uploaded artifacts for 14 days. Normalized eval rows and
+structural tool spans are retained in the linked Braintrust experiments. No raw
+stdout, provider events, or credentials were exported by this comparison.
