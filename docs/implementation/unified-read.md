@@ -119,7 +119,7 @@ only when violations are detected).
 
 | Run (under `.agent-eval/runs/`) | Observed behavior | Reported metrics |
 | --- | --- | --- |
-| `2026-09-11T08-47-31-123Z` — Codex discovery | All three workloads reported success/high confidence, but no tools were used; this is not evidence of read behavior. | 81.4s; 69,180 uncached input, 104,448 cached input, 2,081 output tokens; estimated base-rate cost $0.01842216. |
+| `2026-09-11T08-47-31-123Z` — Codex discovery | All three workloads reported success/high confidence, but no GitHits tools were used; raw traces show web tools and local file probes. This is not evidence of read behavior. | 81.4s; 69,180 uncached input, 104,448 cached input, 2,081 output tokens; estimated base-rate cost $0.01842216. |
 | `2026-09-11T08-47-31-300Z` — Claude discovery | Read Express source lines 55–90; followed docs search with target-only `read` of the Express route-handlers fragment. The direct Flask workload used WebFetch instead. All answers reported high confidence. | 156.5s; logical counts and token/cost metrics unavailable in the Claude adapter. Raw tool results confirmed successful source and section content. |
 | `2026-09-11T08-50-34-348Z` — Codex intent | Using the existing harness `--intent-profile githits`, read Express lines 55–90 and the unchanged Flask fragment with no bounds; Flask returned only absolute lines 81–93. Both answers reported success/high confidence. | 60.4s; six logical MCP calls, including two reads; 79,375 uncached input, 194,048 cached input, 1,564 output tokens; estimated base-rate cost $0.02163276. |
 
@@ -183,3 +183,59 @@ bunup warns locally but fails declaration generation under `CI=true`. Added
 explicit Zod schema and string annotations without changing the wire schema or
 runtime. `CI=true bun run --cwd packages/mcp build`, typecheck, and the 36-test
 read/catalog/eval subset pass; public-package validation was repeated in CI mode.
+
+
+### Luna low and Haiku follow-up (2026-09-11)
+
+Tested commit `e71f771` with `gpt-5.6-luna --reasoning-effort low` and
+`haiku` (provider reports `claude-haiku-4-5-20251001`). Each ran all three
+workloads in both descriptor-only discovery and the existing GitHits-intent
+profile: 12 cells total, one sample per model/profile/workload. Workloads ran with
+`--concurrency 2`; prompts and runtime were unchanged.
+
+| Model / profile | Source window | Exact Flask fragment | Docs search follow-up |
+| --- | --- | --- | --- |
+| Luna low / discovery | Local probes, then web | Web | Web |
+| Luna low / intent | `code_files` then `read`, lines 55–90 | `search` then target-only `read`, lines 81–93 | Used sufficient docs-search snippets, no unnecessary read |
+| Haiku / discovery | Local probes, then `read`, lines 55–90 | WebFetch, after correcting its native tool call | WebSearch and WebFetch |
+| Haiku / intent | Direct `read`, lines 55–90 | Direct target-only `read`, lines 81–93 | `search` → ambiguous-section read error → narrower `search`; answered from returned snippets |
+
+Raw results confirm both models used the unified schema correctly for code and
+fragments under GitHits intent. No retired MCP names, structured read targets,
+wrong source dispatch, or accidental fragment bounds appeared. All 12 final
+responses self-reported success/high confidence and no isolation violations were
+detected; these statuses alone are not an answer-quality grade. Subsequent manual
+inspection checked the six intent answers against retrieved content: both source
+answers identify lazy initialization and the exact caseSensitive/strict settings;
+both fragment answers cover automatic route ordering and canonical redirects;
+both docs answers describe method/path/callback handlers supported by search
+content. No material answer error was found in those six samples. There is no
+formal automated quality score or reliability claim from one sample per cell.
+
+Discovery remains a separate limitation: Luna chose no GitHits tool in any of
+these three neutral cells, and Haiku chose it only for code. The earlier statement
+that Luna used “no tools” was too broad: `tool-calls.json`/logical metrics count
+GitHits calls, whereas raw stdout also records native web and local tools.
+
+Observed locator-consistency gap: Haiku copied
+`https://expressjs.com/en/5x/guide/routing/#routing` verbatim from search result 7.
+Read returned `DOCUMENTATION_SECTION_UNRESOLVED` with `reason: ambiguous`.
+The adapter forwarded the supplied target unchanged; this does not demonstrate a
+unified-schema failure. Backend search/read section consistency needs investigation
+in the backend repository. No backend change or client fallback was attempted in
+this evaluation task; the recovered answer does not make the failed locator valid.
+Evidence is in the Haiku intent docs-search-followup raw stdout, including both
+search responses and the read error.
+
+Run directories under `.agent-eval/runs/`:
+
+- Luna discovery: `2026-09-11T09-16-57-232Z` — 0 GitHits calls; 53,864 uncached
+  input, 73,984 cached input, 1,135 output tokens; base-rate estimate $0.01361448.
+- Luna intent: `2026-09-11T09-17-25-748Z` — 8 GitHits calls; 74,820 uncached
+  input, 297,984 cached input, 1,518 output tokens; base-rate estimate $0.02274528.
+- Haiku discovery: `2026-09-11T09-16-57-224Z`.
+- Haiku intent: `2026-09-11T09-17-37-611Z`.
+
+Haiku aggregate token/cost and logical-call metrics remain unavailable in the
+harness adapter; raw tool-use and matching result records were inspected instead.
+No before/after comparison is claimed. This follow-up changes evidence only.
