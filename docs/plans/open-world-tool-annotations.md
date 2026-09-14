@@ -1,6 +1,6 @@
 # Open-world MCP tool annotations and patch release
 
-Status: implemented; verification and release preparation in progress.
+Status: implementation verified; final review and two-PR handoff in progress.
 Date: 2026-09-14.
 Baseline: `613dccb2` (`origin/main`, `v0.17.0`, `mcp-v0.17.0`).
 
@@ -12,12 +12,13 @@ Keep `quick_start` and `search_language` closed-world: their scope is static
 guidance and the supported-language catalog. This supersedes only the
 open-world preservation decision in the earlier read-only/feedback plan.
 
-The stable catalog has 14 tools, currently sharing closed-world read-only
-annotations in `packages/mcp/src/tools/types.ts`. Twelve evidence tools become
+At baseline, all 14 stable tools shared closed-world read-only annotations
+in `packages/mcp/src/tools/types.ts`. Twelve evidence tools now advertise
 open-world, including `search_status`, whose results contain public evidence.
 The three local experimental tools (`ask`, `resolve_target`, `code_diff`) also
-become open-world. Both the root CLI's local MCP and public MCP package ship
-these factories; both require a patch release, expected to be `0.17.1`.
+became open-world. Both artifacts ship the stable evidence factories;
+experimental tools ship through the root CLI's local composition. Both
+artifacts require a patch release, prepared separately as `0.17.1`.
 
 Authentication does not close the tools' public evidence domain. Internal
 caching/preparation remains covered by the existing read-only product policy.
@@ -58,7 +59,7 @@ Unknowns: none affecting implementation.
    with patch impact for both public packages.
 5. Refresh both tool lists and annotation justifications in the user's local
    `githits-1-0-0.json` from registered descriptors. Keep that credential-bearing
-   submission export untracked and out of reviews/PRs; it is a post-deployment
+   submission export locally ignored and out of reviews/PRs; it is a post-deployment
    review candidate until the production catalog matches it.
 
 Acceptance: 12/14 stable and all three experimental tools are open-world;
@@ -76,17 +77,24 @@ Internal and Claude reviews must cover the complete proposed delta.
 
 ## Phase 2: release preparation and handoff
 
-Status: planned. Dependency: phase 1 implementation and verification.
+Status: prepared on `skvark/release-0.17.1`; dependent release review pending.
+Dependency: phase 1 implementation and verification.
 Assumption: no other unreleased changes exist; verify both tag-to-HEAD ranges
 and all fragments before assigning versions. Unknowns: publication and hosted
 adoption timing, which do not block preparation.
 
-Prepare a coordinated release PR containing the implementation and a separate
-release commit. Consume the fragment into separate artifact changelog sections,
-preserve historical sections, update both package versions and `bun.lock`, and
-update canonical registry metadata. Regenerate plugin assets, inspect the diff,
-and run release/package checks. Update this plan with actual evidence and review
-outcomes before opening the draft release PR.
+The user requested two separate PRs: implementation first, release second.
+Open the implementation PR from `skvark/open-world-tool-annotations` to `main`
+with its patch fragment and unchanged package versions. Open the dependent
+release PR from `skvark/release-0.17.1`, initially targeting the implementation
+branch. After the implementation merges, retarget the release PR to `main` and
+recheck the release delta and CI before its separately approved merge.
+The release PR consumes the fragment into separate artifact changelog sections,
+preserves historical sections, updates both package versions and `bun.lock`,
+and updates canonical registry metadata and generated plugin assets. Update
+this plan with actual evidence and review outcomes before opening the draft
+PRs. Preserve existing commits when carrying implementation follow-ups into
+the release branch.
 
 Acceptance: reviewed implementation and release metadata, valid generated
 assets, successful required checks or clearly evidenced limitations, and an open
@@ -114,7 +122,9 @@ classification and rollout guidance in the implementation document.
 - Internal plan review: clean. External Fable plan dispatch `ctx_ad94f15c6d07`
   could not execute because Claude reported an expired login. The user was asked
   to reauthenticate while authorized implementation and verification continued;
-  no external review approval is claimed.
+  Fable subsequently approved the plan after authentication was restored.
+  Its validation-record and CRLF-churn notes were covered by the release
+  preparation: package checks passed and line-ending-only files were excluded.
 - Baseline catalog suite: 11 tests passed. After changing the expected domain
   contract, three tests failed on `get_example`'s old closed-world annotation.
   After implementation, 374 focused MCP/tool tests passed with 1,826 assertions.
@@ -137,3 +147,24 @@ classification and rollout guidance in the implementation document.
   and `bun run smoke:cli:built` each completed 31 steps; `bun run smoke:mcp
   --mode registration` and `bun run smoke:mcp:built` each completed nine steps,
   including stable and experimental annotation checks.
+- Internal implementation and release reviews are clean. Two minor scope
+  wording findings were accepted: the MCP release note and this plan now
+  distinguish stable evidence tools from CLI-only experiments.
+- On release commit `c021db5d`, release/packaging checks passed (35 tests, 296
+  assertions), and plugin generation/check validated 10 assets. Historical
+  changelog content was preserved. Both package/tag ranges contained only this
+  implementation and release preparation; the single patch/patch fragment was
+  consumed into separate `0.17.1` sections on the release branch only.
+- `bun run validate:packages` hit the known Bun 1.3.9 Windows bundling assertion.
+  `npx --yes bun@1.4.2 --bun run validate:packages` passed, including builds and
+  packed-consumer checks; the toolchain workaround changed no repo dependencies.
+  Direct Node import of the built MCP entry confirmed the exact annotation
+  classification, and `node dist/cli.js --version` returned `0.17.1`.
+- Checksum-verified `mcp-publisher` v1.7.9: `validate server.json` passed.
+- Opus round 1 found no implementation/release-content defects. Accepted its
+  local export-handling finding by adding `/githits-1-0-0.json` to the local
+  Git exclude file. `git check-ignore -v` confirms the rule; `git ls-files`
+  confirms the export is untracked. The sibling scan covered branch histories,
+  staged files, and package allow-lists; no export contents entered Git or npm
+  artifacts. Updated the PR workflow above per the user's two-PR decision.
+  Final external review remains pending.
