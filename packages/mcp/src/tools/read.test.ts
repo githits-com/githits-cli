@@ -1,12 +1,14 @@
 import { describe, expect, it, mock } from "bun:test";
+import type { ReadResult } from "@githits/core-internal";
 import {
   CodeNavigationIndexingError,
   PackageIntelligenceTargetNotFoundError,
 } from "@githits/core-internal";
 import { z } from "zod";
 import {
-  createMockCodeNavigationService,
-  createMockPackageIntelligenceService,
+  createMockReadService,
+  defaultPackageDocResult,
+  defaultReadFileResult,
 } from "../services/test-helpers.js";
 import { createReadTool, type ReadArgs } from "./read.js";
 
@@ -14,10 +16,7 @@ function setup(): {
   services: Parameters<typeof createReadTool>[0];
   tool: ReturnType<typeof createReadTool>;
 } {
-  const services = {
-    codeNavigationService: createMockCodeNavigationService(),
-    packageIntelligenceService: createMockPackageIntelligenceService(),
-  };
+  const services = { readService: createMockReadService() };
   return { services, tool: createReadTool(services) };
 }
 
@@ -55,53 +54,60 @@ describe("unified read contract", () => {
       const { services, tool } = setup();
       const target = "https://docs.example.test/a%2Fb?q=exact#section";
       await tool.handler({ target, path, wait_timeout_ms: 0 });
-      expect(
-        services.packageIntelligenceService.readPackageDoc,
-      ).toHaveBeenCalledWith({ pageId: target });
-      expect(services.codeNavigationService.readFile).not.toHaveBeenCalled();
+      expect(services.readService.read).toHaveBeenCalledWith({ target });
+      expect(services.readService.read).toHaveBeenCalledTimes(1);
     },
   );
 
   it.each([
-    [
-      "npm:@scope/pkg@1.2.3",
-      { registry: "NPM", packageName: "@scope/pkg", version: "1.2.3" },
-    ],
-    [
-      "github:owner/repo#release/v1@patch",
-      { repoUrl: "https://github.com/owner/repo", gitRef: "release/v1@patch" },
-    ],
-    [
-      "gitlab:group/sub/project#abc123",
-      { repoUrl: "https://gitlab.com/group/sub/project", gitRef: "abc123" },
-    ],
-    ["codeberg:owner/repo", { repoUrl: "https://codeberg.org/owner/repo" }],
-    [
-      "swift:github.com/owner/repo",
-      { registry: "SWIFT", packageName: "github.com/owner/repo" },
-    ],
-    ["zig:gh/owner/repo", { registry: "ZIG", packageName: "gh/owner/repo" }],
-  ] as const)(
-    "routes compact target %s with an exact path only to code",
-    async (target, expected) => {
+    "npm:@scope/pkg@1.2.3",
+    "maven:com.google.guava:guava@33.0.0",
+    "npm:express",
+    " npm:express ",
+    "github:owner/repo",
+    "codeberg:owner/repo",
+    "gitlab:group/subgroup/project",
+    "swift:github.com/owner/repo",
+    "zig:gh/owner/repo",
+    "https://github.com/owner/repo",
+    "http://github.com/owner/repo",
+    "https://codeberg.org/owner/repo",
+    "https://gitlab.com/group/subgroup/project",
+    "github:owner/repo#release/v1",
+    "github:owner/repo@release/v1",
+    "github:owner/repo#release/v1@patch",
+  ])(
+    "passes accepted compact target %s byte-for-byte to code",
+    async (target) => {
       const { services, tool } = setup();
       await tool.handler({
         target,
         path: " src/client.ts ",
         wait_timeout_ms: 60000,
       });
-      expect(services.codeNavigationService.readFile).toHaveBeenCalledWith({
-        target: expected,
-        filePath: "src/client.ts",
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target,
+        path: "src/client.ts",
         startLine: 1,
         endLine: 150,
         waitTimeoutMs: 60000,
       });
-      expect(
-        services.packageIntelligenceService.readPackageDoc,
-      ).not.toHaveBeenCalled();
+      expect(services.readService.read).toHaveBeenCalledTimes(1);
     },
   );
+
+  it.each([
+    "git://github.com/owner/repo",
+    "git+https://github.com/owner/repo",
+    "ssh://git@github.com/owner/repo",
+    "git+ssh://git@github.com/owner/repo",
+    "git@github.com:owner/repo",
+  ])("rejects backend-only transport %s before read", async (target) => {
+    const { services, tool } = setup();
+    const result = await tool.handler({ target, path: "src/client.ts" });
+    expect(result.isError).toBe(true);
+    expect(services.readService.read).not.toHaveBeenCalled();
+  });
 
   it.each([
     { target: " " },
@@ -121,15 +127,12 @@ describe("unified read contract", () => {
     expect(JSON.parse(result.content[0]!.text)).toMatchObject({
       code: "INVALID_ARGUMENT",
     });
-    expect(services.codeNavigationService.readFile).not.toHaveBeenCalled();
-    expect(
-      services.packageIntelligenceService.readPackageDoc,
-    ).not.toHaveBeenCalled();
+    expect(services.readService.read).not.toHaveBeenCalled();
   });
 
   it("retains explicit zero code wait and supplies a callable indexing recovery", async () => {
     const { services, tool } = setup();
-    services.codeNavigationService.readFile = mock(() =>
+    services.readService.read = mock(() =>
       Promise.reject(new CodeNavigationIndexingError("Indexing", "ref_1")),
     );
     const result = await tool.handler({
@@ -137,7 +140,7 @@ describe("unified read contract", () => {
       path: "index.ts",
       wait_timeout_ms: 0,
     });
-    expect(services.codeNavigationService.readFile).toHaveBeenCalledWith(
+    expect(services.readService.read).toHaveBeenCalledWith(
       expect.objectContaining({ waitTimeoutMs: 0 }),
     );
     const error = JSON.parse(result.content[0]!.text);
@@ -146,20 +149,53 @@ describe("unified read contract", () => {
       'read target="npm:example" path="index.ts"',
     );
     expect(error.details.indexingRef).toBe("ref_1");
-    expect(
-      services.packageIntelligenceService.readPackageDoc,
-    ).not.toHaveBeenCalled();
+    expect(services.readService.read).toHaveBeenCalledTimes(1);
   });
 
   it("does not fall back from a missing docs page to code", async () => {
     const { services, tool } = setup();
-    services.packageIntelligenceService.readPackageDoc = mock(() =>
+    services.readService.read = mock(() =>
       Promise.reject(new PackageIntelligenceTargetNotFoundError("missing")),
     );
     const result = await tool.handler({
       target: "github:owner/repo#ref/README.md",
     });
     expect(result.isError).toBe(true);
-    expect(services.codeNavigationService.readFile).not.toHaveBeenCalled();
+    expect(services.readService.read).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps a docs result returned for a code request to a code protocol error", async () => {
+    const { services, tool } = setup();
+    services.readService.read = mock(
+      (): Promise<ReadResult> =>
+        Promise.resolve({ source: "docs", result: defaultPackageDocResult }),
+    );
+
+    const result = await tool.handler({
+      target: "npm:express",
+      path: "src/index.js",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(result.content[0]!.text)).toMatchObject({
+      code: "PROTOCOL_ERROR",
+    });
+    expect(services.readService.read).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps a code result returned for a docs request to a docs protocol error", async () => {
+    const { services, tool } = setup();
+    services.readService.read = mock(
+      (): Promise<ReadResult> =>
+        Promise.resolve({ source: "code", result: defaultReadFileResult }),
+    );
+
+    const result = await tool.handler({ target: "docs-id" });
+
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(result.content[0]!.text)).toMatchObject({
+      code: "PROTOCOL_ERROR",
+    });
+    expect(services.readService.read).toHaveBeenCalledTimes(1);
   });
 });

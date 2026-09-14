@@ -13,6 +13,9 @@ import type {
   PackageIntelligenceService,
   PackageSummary,
   PackageUpgradeReviewResponse,
+  ReadParams,
+  ReadResult,
+  ReadService,
   ResolveTargetResult,
   ResolveTargetService,
   TokenProvider,
@@ -1050,6 +1053,23 @@ export function createMockPackageIntelligenceService(
     packageChangelog: mock(() => Promise.resolve(defaultChangelogReport)),
     listPackageDocs: mock(() => Promise.resolve(defaultPackageDocsList)),
     readPackageDoc: mock(() => Promise.resolve(defaultPackageDocResult)),
+    ...impl,
+  };
+}
+
+/** Creates a mock unified reader with source-aware default results. */
+export function createMockReadService(
+  impl: Partial<ReadService> = {},
+): ReadService {
+  return {
+    read: mock(
+      (params: ReadParams): Promise<ReadResult> =>
+        Promise.resolve(
+          params.path?.trim()
+            ? { source: "code", result: defaultReadFileResult }
+            : { source: "docs", result: defaultPackageDocResult },
+        ),
+    ),
     ...impl,
   };
 }

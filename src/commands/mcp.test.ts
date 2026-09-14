@@ -29,6 +29,7 @@ import {
   createMockCodeNavigationService,
   createMockGitHitsService,
   createMockPackageIntelligenceService,
+  createMockReadService,
   createMockResolveTargetService,
 } from "../services/test-helpers.js";
 import {
@@ -78,6 +79,7 @@ function createTestServices(
     codeNavigationService: createMockCodeNavigationService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
     githitsService: createMockGitHitsService(),
+    readService: createMockReadService(),
     resolveTargetService: createMockResolveTargetService(),
     ...overrides,
   };

@@ -1,22 +1,31 @@
 import { describe, expect, it, mock } from "bun:test";
-import type { PackageIntelligenceService } from "@githits/core-internal";
+import type {
+  PackageIntelligenceService,
+  ReadParams,
+  ReadResult,
+} from "@githits/core-internal";
 import {
   type PackageDocResult,
   PackageIntelligenceDocumentationSectionUnresolvedError,
   PackageIntelligenceTargetNotFoundError,
 } from "@githits/core-internal";
-import {
-  createMockCodeNavigationService,
-  createMockPackageIntelligenceService,
-} from "../services/test-helpers.js";
+import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
 import { createReadTool } from "./read.js";
 
 function createDocsReadTool(
   service: PackageIntelligenceService,
 ): ReturnType<typeof createReadTool> {
   return createReadTool({
-    codeNavigationService: createMockCodeNavigationService(),
-    packageIntelligenceService: service,
+    readService: {
+      read: async (params: ReadParams): Promise<ReadResult> => ({
+        source: "docs",
+        result: await service.readPackageDoc({
+          pageId: params.target,
+          startLine: params.startLine,
+          endLine: params.endLine,
+        }),
+      }),
+    },
   });
 }
 

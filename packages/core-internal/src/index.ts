@@ -7,6 +7,7 @@ export * from "./services/execute-with-token-refresh.js";
 export * from "./services/githits-service.js";
 export * from "./services/package-intelligence-service.js";
 export * from "./services/promote-version-not-found.js";
+export * from "./services/read-service.js";
 export * from "./services/refreshing-githits-service.js";
 export * from "./services/resolve-target-service.js";
 export * from "./services/runtime-diagnostics.js";

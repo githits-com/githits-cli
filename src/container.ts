@@ -17,6 +17,8 @@ import {
   getMcpUrl,
   type PackageIntelligenceService,
   PackageIntelligenceServiceImpl,
+  type ReadService,
+  ReadServiceImpl,
   RefreshingGitHitsService,
   type ResolveTargetService,
   ResolveTargetServiceImpl,
@@ -285,6 +287,8 @@ export interface Dependencies {
    * service.
    */
   packageIntelligenceService: PackageIntelligenceService;
+  /** Unified compact code/documentation read service. */
+  readService: ReadService;
   /** Resolves fuzzy package/repository names for the CLI dogfood surface. */
   resolveTargetService: ResolveTargetService;
   /** Private experimental Ask service used by the root CLI and local MCP. */
@@ -359,6 +363,12 @@ export async function createContainer(
         fetchFn,
         serviceRuntime,
       );
+      const readService = new ReadServiceImpl(
+        codeNavigationUrl,
+        tokenProvider,
+        fetchFn,
+        serviceRuntime,
+      );
       const resolveTargetService = new ResolveTargetServiceImpl(
         codeNavigationUrl,
         tokenProvider,
@@ -385,6 +395,7 @@ export async function createContainer(
         codeNavigationUrl,
         codeNavigationService,
         packageIntelligenceService,
+        readService,
         resolveTargetService,
         agenticAskService,
         githitsService: new GitHitsServiceImpl(
@@ -429,6 +440,12 @@ export async function createContainer(
       fetchFn,
       serviceRuntime,
     );
+    const readService = new ReadServiceImpl(
+      codeNavigationUrl,
+      tokenManager,
+      fetchFn,
+      serviceRuntime,
+    );
     const resolveTargetService = new ResolveTargetServiceImpl(
       codeNavigationUrl,
       tokenManager,
@@ -455,6 +472,7 @@ export async function createContainer(
       codeNavigationUrl,
       codeNavigationService,
       packageIntelligenceService,
+      readService,
       resolveTargetService,
       agenticAskService,
       githitsService: new RefreshingGitHitsService(

@@ -1200,7 +1200,7 @@ contributors {
   ${DOC_COVERAGE_SELECTION}
 }`;
 
-const TARGET_RESOLUTION_SELECTION = `
+export const TARGET_RESOLUTION_SELECTION: string = `
 targetResolution {
   requested {
     kind
@@ -1240,7 +1240,7 @@ targetResolution {
   ${TARGET_RESOLUTION_SUGGESTED_REFS_SELECTION}
 }`;
 
-const CODE_CONTEXT_AVAILABLE_VERSIONS_SELECTION = `
+export const CODE_CONTEXT_AVAILABLE_VERSIONS_SELECTION: string = `
 availableVersions {
   version
   ref
@@ -1264,7 +1264,7 @@ const INDEXING_DURATION_ESTIMATE_FIELDS = `
   sampleCount
   source`;
 
-const INDEXING_DURATION_ESTIMATE_SELECTION = `
+export const INDEXING_DURATION_ESTIMATE_SELECTION: string = `
 indexingEstimate {
   ${INDEXING_DURATION_ESTIMATE_FIELDS}
 }`;
@@ -2460,8 +2460,8 @@ query ListRepoFiles(
 
 // fetchCodeContext ---------------------------------------------------
 
-// `CodeContextResult` is a separate family — no availableVersions,
-// no resolution, no diagnostics. Only indexing fields are shared.
+// `CodeContextResult` has its own wire schema. It shares indexing and target
+// resolution fields with other code-navigation responses but has no diagnostics.
 const codeContextResponseSchema = z.object({
   content: z.string().nullable().optional(),
   filePath: z.string().nullable().optional(),
@@ -3093,264 +3093,17 @@ export class CodeNavigationServiceImpl
   }
 
   private createHttpError(response: PkgseerGraphqlResponse): Error {
-    const status = response.status;
-    const detail = parseDetail(response.responseBody);
-
-    if (status === 401) {
-      return new AuthenticationError(
-        SERVER_AUTHENTICATION_REJECTED_MESSAGE,
-        "server",
-      );
-    }
-
-    if (status === 403) {
-      return new CodeNavigationAccessError(
-        detail ?? "Code navigation access denied.",
-      );
-    }
-
-    if (status >= 500) {
-      return new CodeNavigationBackendError(
-        detail
-          ? `Server error (${status}): ${detail}`
-          : `Server error (${status})`,
-        status,
-      );
-    }
-
-    return new CodeNavigationBackendError(
-      detail ?? `Request failed with status ${status}`,
-      status,
-    );
+    return createCodeNavigationHttpError(response);
   }
 
   private createTransportError(error: PkgseerTransportError): Error {
-    if (isFetchTimeoutError(error.cause)) {
-      return new CodeNavigationBackendError(
-        "Code navigation request timed out.",
-        undefined,
-        "TIMEOUT",
-        true,
-      );
-    }
-    return new CodeNavigationNetworkError(
-      "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
-      { cause: error },
-    );
+    return createCodeNavigationTransportError(error);
   }
 
   private createGraphQLError(
     errors: Array<z.infer<typeof graphQLErrorSchema>>,
   ): Error {
-    const message = errors.map((error) => error.message).join(", ");
-    const extensions = getPrimaryExtensions(errors);
-    const code =
-      typeof extensions?.code === "string" ? extensions.code : undefined;
-    const retryable =
-      typeof extensions?.retryable === "boolean"
-        ? extensions.retryable
-        : undefined;
-    const indexingRef = getGraphQLIndexingRef(errors);
-    const indexingEstimate = parseIndexingDurationEstimate(extensions);
-    const errorMetadata = parseGraphQLErrorMetadata(
-      extensions,
-      indexingEstimate,
-    );
-
-    if (isClientUpdateRequiredGraphQLError({ message, code })) {
-      return new ClientUpdateRequiredError(
-        undefined,
-        undefined,
-        this.runtime.clientVersion,
-      );
-    }
-
-    if (isGraphQLSchemaMismatchError({ message, code })) {
-      const sanitized =
-        "Backend protocol mismatch. Your CLI may be newer than the server, or the server may require a newer CLI. Run `githits update-check` to verify your installed version. Set GITHITS_DEBUG=code-nav-wire to inspect GraphQL details during local development.";
-      if (this.runtime.diagnostics?.isEnabled("code-nav")) {
-        this.runtime.diagnostics.debug("code-nav", {
-          event: "graphql-schema-mismatch",
-          code: code ?? "omitted",
-          message,
-        });
-      }
-      return new CodeNavigationBackendError(
-        this.runtime.diagnostics?.isEnabled("code-nav-wire")
-          ? message
-          : sanitized,
-        undefined,
-        code,
-        retryable,
-      );
-    }
-
-    // Direct dispatch on extensions.code — the April 2026 backend
-    // contract populates this on every error. Fall back to message
-    // heuristics below for older backend builds that haven't
-    // deployed yet (safe to remove once rollout completes).
-    switch (code) {
-      case "PACKAGE_INDEXING":
-        return new CodeNavigationIndexingError(
-          message,
-          indexingRef,
-          parseAvailableVersions(extensions),
-          parseAvailableRefs(extensions),
-          parseTargetResolution(extensions),
-          indexingEstimate,
-          appendIndexingWaitHint(
-            message,
-            typeof extensions?.hint === "string" ? extensions.hint : undefined,
-          ),
-        );
-
-      case "GREP_PATTERN_TOO_SHORT":
-      case "GREP_PATTERN_TOO_LONG":
-      case "GREP_PATTERN_INVALID":
-      case "GREP_INVALID_REGEX":
-      case "GREP_UNSUPPORTED_PATTERN":
-      case "GREP_PATTERN_TOO_UNSELECTIVE":
-      case "GREP_SCOPE_REQUIRED":
-      case "GREP_SELECTOR_INVALID":
-      case "GREP_CURSOR_INVALID":
-      case "GREP_CONTEXT_TOO_LARGE":
-      case "GREP_CONTEXT_NEGATIVE":
-      case "GREP_MAX_MATCHES_TOO_LARGE":
-      case "GREP_MAX_MATCHES_INVALID":
-        return new CodeNavigationValidationError(message);
-
-      case "VERSION_NOT_FOUND":
-        return new CodeNavigationVersionNotFoundError(
-          message,
-          typeof extensions?.package === "string"
-            ? extensions.package
-            : undefined,
-          typeof extensions?.requested_version === "string"
-            ? extensions.requested_version
-            : undefined,
-          typeof extensions?.latest_indexed === "string"
-            ? extensions.latest_indexed
-            : undefined,
-          parseAvailableVersions(extensions),
-          errorMetadata,
-        );
-
-      case "REF_NOT_FOUND":
-        return new CodeNavigationRefNotFoundError(
-          message,
-          parseGraphQLRepoUrl(extensions),
-          parseGraphQLGitRef(extensions),
-          parseAvailableRefs(extensions),
-          parseSuggestedRefs(extensions),
-          errorMetadata,
-        );
-
-      case "NOT_FOUND":
-      case "PACKAGE_NOT_FOUND":
-      case "NO_REPOSITORY_URL":
-        return new CodeNavigationTargetNotFoundError(
-          message,
-          parseAvailableVersions(extensions),
-          parseGraphQLRepoUrl(extensions),
-          parseGraphQLGitRef(extensions),
-          errorMetadata,
-        );
-
-      case "REPOSITORY_NOT_FOUND":
-        return new CodeNavigationTargetNotFoundError(
-          message,
-          undefined,
-          parseGraphQLRepoUrl(extensions),
-          parseGraphQLGitRef(extensions),
-          errorMetadata,
-        );
-
-      case "FILE_NOT_FOUND":
-        return new CodeNavigationFileNotFoundError(
-          message,
-          typeof extensions?.file_path === "string"
-            ? extensions.file_path
-            : typeof extensions?.filePath === "string"
-              ? extensions.filePath
-              : undefined,
-        );
-
-      case "UNSUPPORTED_REGISTRY":
-      case "VALIDATION_ERROR":
-        return new CodeNavigationValidationError(message);
-
-      case "FEATURE_FLAG_REQUIRED":
-        return new CodeNavigationFeatureFlagRequiredError(message);
-
-      case "AUTHENTICATION_REQUIRED":
-      case "UNAUTHORIZED":
-        return new AuthenticationError(
-          SERVER_AUTHENTICATION_REJECTED_MESSAGE,
-          "server",
-        );
-
-      case "FORBIDDEN":
-        return new CodeNavigationAccessError(
-          "Code navigation access denied. This feature may not be enabled for your account.",
-        );
-
-      case "UPSTREAM_ERROR":
-      case "TIMEOUT":
-      case "RATE_LIMITED":
-      case "GREP_FILE_TOO_LARGE":
-      case "GREP_TIMEOUT":
-      case "GREP_SERVICE_UNAVAILABLE":
-      case "GREP_FAILED":
-      case "GREP_INDEX_NOT_AVAILABLE":
-      case "FILE_PATH_EXCLUDED":
-      case "SOURCE_FILE_INVENTORY_UNKNOWN":
-      case "INTERNAL_ERROR":
-      case "UNKNOWN_ERROR":
-        return new CodeNavigationBackendError(
-          message,
-          undefined,
-          code,
-          retryable,
-          errorMetadata,
-        );
-
-      // `code` was present but not one of the recognised values —
-      // forward it onward as BACKEND_ERROR, preserving the code so
-      // the classifier can still surface it to callers.
-      default:
-        break;
-    }
-
-    // Legacy fallback: backend didn't populate `extensions.code`.
-    // Retain the message-text heuristics so rollover works smoothly;
-    // remove once all backend deploys are confirmed.
-    if (code === undefined) {
-      if (isAuthMessage(message)) {
-        return new CodeNavigationAccessError(
-          "Code navigation access denied. This feature may not be enabled for your account.",
-        );
-      }
-      if (isUnresolvableMessage(message)) {
-        return new CodeNavigationUnresolvableError(message);
-      }
-      if (isTargetNotFoundMessage(message)) {
-        return new CodeNavigationTargetNotFoundError(
-          message,
-          parseAvailableVersions(extensions),
-          parseGraphQLRepoUrl(extensions),
-          parseGraphQLGitRef(extensions),
-          errorMetadata,
-        );
-      }
-    }
-
-    return new CodeNavigationBackendError(
-      message,
-      undefined,
-      code,
-      retryable,
-      errorMetadata,
-    );
+    return createCodeNavigationGraphQLError(errors, this.runtime);
   }
 
   private normaliseUnifiedSearchOutcome(
@@ -3535,21 +3288,7 @@ export class CodeNavigationServiceImpl
     targetResolution?: z.infer<typeof targetResolutionSchema>;
     indexingEstimate?: z.infer<typeof indexingDurationEstimateSchema>;
   }): void {
-    if (data.codeIndexState === "INDEXING") {
-      const targetResolution = normaliseTargetResolution(data.targetResolution);
-      const indexingEstimate = normaliseIndexingDurationEstimate(
-        data.indexingEstimate,
-      );
-      throw new CodeNavigationIndexingError(
-        `Target is indexing. ${INDEXING_WAIT_HINT}`,
-        data.indexingRef ?? targetResolution?.indexingRef,
-        normaliseAvailableVersions(data.availableVersions) ??
-          targetResolution?.availableVersions,
-        targetResolution?.availableRefs,
-        targetResolution,
-        indexingEstimate,
-      );
-    }
+    throwIfCodeContextIndexing(data);
   }
 
   // ------------------------------------------------------------------
@@ -3722,17 +3461,7 @@ export class CodeNavigationServiceImpl
 
     this.throwIfIndexing(data);
 
-    return {
-      filePath: data.filePath ?? undefined,
-      language: data.language ?? undefined,
-      totalLines: data.totalLines ?? undefined,
-      startLine: data.startLine ?? undefined,
-      endLine: data.endLine ?? undefined,
-      content: data.content ?? undefined,
-      isBinary: data.isBinary ?? undefined,
-      targetResolution: normaliseTargetResolution(data.targetResolution),
-      availableVersions: normaliseAvailableVersions(data.availableVersions),
-    };
+    return normaliseCodeContextResult(data);
   }
 
   // ------------------------------------------------------------------
@@ -4323,6 +4052,280 @@ function parseDetail(body: string): string | undefined {
   return undefined;
 }
 
+export interface CodeNavigationGraphQLErrorRuntime {
+  clientVersion?: string;
+  diagnostics?: ServiceDiagnostics;
+}
+
+export interface CodeNavigationGraphQLResponseError {
+  message: string;
+  extensions?: Record<string, unknown>;
+}
+
+/** Shared HTTP classification for clients of the code navigation GraphQL API. */
+export function createCodeNavigationHttpError(
+  response: PkgseerGraphqlResponse,
+): Error {
+  const status = response.status;
+  const detail = parseDetail(response.responseBody);
+
+  if (status === 401) {
+    return new AuthenticationError(
+      SERVER_AUTHENTICATION_REJECTED_MESSAGE,
+      "server",
+    );
+  }
+
+  if (status === 403) {
+    return new CodeNavigationAccessError(
+      detail ?? "Code navigation access denied.",
+    );
+  }
+
+  if (status >= 500) {
+    return new CodeNavigationBackendError(
+      detail
+        ? `Server error (${status}): ${detail}`
+        : `Server error (${status})`,
+      status,
+    );
+  }
+
+  return new CodeNavigationBackendError(
+    detail ?? `Request failed with status ${status}`,
+    status,
+  );
+}
+
+/** Shared transport classification for clients of the code navigation API. */
+export function createCodeNavigationTransportError(
+  error: PkgseerTransportError,
+): Error {
+  if (isFetchTimeoutError(error.cause)) {
+    return new CodeNavigationBackendError(
+      "Code navigation request timed out.",
+      undefined,
+      "TIMEOUT",
+      true,
+    );
+  }
+  return new CodeNavigationNetworkError(
+    "Could not reach the code navigation service. Check your connection or set GITHITS_CODE_NAV_URL.",
+    { cause: error },
+  );
+}
+
+/** Shared GraphQL classification for clients of the code navigation API. */
+export function createCodeNavigationGraphQLError(
+  errors: CodeNavigationGraphQLResponseError[],
+  runtime: CodeNavigationGraphQLErrorRuntime = {},
+): Error {
+  const message = errors.map((error) => error.message).join(", ");
+  const extensions = getPrimaryExtensions(errors);
+  const code =
+    typeof extensions?.code === "string" ? extensions.code : undefined;
+  const retryable =
+    typeof extensions?.retryable === "boolean"
+      ? extensions.retryable
+      : undefined;
+  const indexingRef = getGraphQLIndexingRef(errors);
+  const indexingEstimate = parseIndexingDurationEstimate(extensions);
+  const errorMetadata = parseGraphQLErrorMetadata(extensions, indexingEstimate);
+
+  if (isClientUpdateRequiredGraphQLError({ message, code })) {
+    return new ClientUpdateRequiredError(
+      undefined,
+      undefined,
+      runtime.clientVersion,
+    );
+  }
+
+  if (isGraphQLSchemaMismatchError({ message, code })) {
+    const sanitized =
+      "Backend protocol mismatch. Your CLI may be newer than the server, or the server may require a newer CLI. Run `githits update-check` to verify your installed version. Set GITHITS_DEBUG=code-nav-wire to inspect GraphQL details during local development.";
+    if (runtime.diagnostics?.isEnabled("code-nav")) {
+      runtime.diagnostics.debug("code-nav", {
+        event: "graphql-schema-mismatch",
+        code: code ?? "omitted",
+        message,
+      });
+    }
+    return new CodeNavigationBackendError(
+      runtime.diagnostics?.isEnabled("code-nav-wire") ? message : sanitized,
+      undefined,
+      code,
+      retryable,
+    );
+  }
+
+  // Direct dispatch on extensions.code — the April 2026 backend
+  // contract populates this on every error. Fall back to message
+  // heuristics below for older backend builds that haven't
+  // deployed yet (safe to remove once rollout completes).
+  switch (code) {
+    case "PACKAGE_INDEXING":
+      return new CodeNavigationIndexingError(
+        message,
+        indexingRef,
+        parseAvailableVersions(extensions),
+        parseAvailableRefs(extensions),
+        parseTargetResolution(extensions),
+        indexingEstimate,
+        appendIndexingWaitHint(
+          message,
+          typeof extensions?.hint === "string" ? extensions.hint : undefined,
+        ),
+      );
+
+    case "GREP_PATTERN_TOO_SHORT":
+    case "GREP_PATTERN_TOO_LONG":
+    case "GREP_PATTERN_INVALID":
+    case "GREP_INVALID_REGEX":
+    case "GREP_UNSUPPORTED_PATTERN":
+    case "GREP_PATTERN_TOO_UNSELECTIVE":
+    case "GREP_SCOPE_REQUIRED":
+    case "GREP_SELECTOR_INVALID":
+    case "GREP_CURSOR_INVALID":
+    case "GREP_CONTEXT_TOO_LARGE":
+    case "GREP_CONTEXT_NEGATIVE":
+    case "GREP_MAX_MATCHES_TOO_LARGE":
+    case "GREP_MAX_MATCHES_INVALID":
+      return new CodeNavigationValidationError(message);
+
+    case "VERSION_NOT_FOUND":
+      return new CodeNavigationVersionNotFoundError(
+        message,
+        typeof extensions?.package === "string"
+          ? extensions.package
+          : undefined,
+        typeof extensions?.requested_version === "string"
+          ? extensions.requested_version
+          : undefined,
+        typeof extensions?.latest_indexed === "string"
+          ? extensions.latest_indexed
+          : undefined,
+        parseAvailableVersions(extensions),
+        errorMetadata,
+      );
+
+    case "REF_NOT_FOUND":
+      return new CodeNavigationRefNotFoundError(
+        message,
+        parseGraphQLRepoUrl(extensions),
+        parseGraphQLGitRef(extensions),
+        parseAvailableRefs(extensions),
+        parseSuggestedRefs(extensions),
+        errorMetadata,
+      );
+
+    case "NOT_FOUND":
+    case "PACKAGE_NOT_FOUND":
+    case "NO_REPOSITORY_URL":
+      return new CodeNavigationTargetNotFoundError(
+        message,
+        parseAvailableVersions(extensions),
+        parseGraphQLRepoUrl(extensions),
+        parseGraphQLGitRef(extensions),
+        errorMetadata,
+      );
+
+    case "REPOSITORY_NOT_FOUND":
+      return new CodeNavigationTargetNotFoundError(
+        message,
+        undefined,
+        parseGraphQLRepoUrl(extensions),
+        parseGraphQLGitRef(extensions),
+        errorMetadata,
+      );
+
+    case "FILE_NOT_FOUND":
+      return new CodeNavigationFileNotFoundError(
+        message,
+        typeof extensions?.file_path === "string"
+          ? extensions.file_path
+          : typeof extensions?.filePath === "string"
+            ? extensions.filePath
+            : undefined,
+      );
+
+    case "UNSUPPORTED_REGISTRY":
+    case "VALIDATION_ERROR":
+      return new CodeNavigationValidationError(message);
+
+    case "FEATURE_FLAG_REQUIRED":
+      return new CodeNavigationFeatureFlagRequiredError(message);
+
+    case "AUTHENTICATION_REQUIRED":
+    case "UNAUTHORIZED":
+      return new AuthenticationError(
+        SERVER_AUTHENTICATION_REJECTED_MESSAGE,
+        "server",
+      );
+
+    case "FORBIDDEN":
+      return new CodeNavigationAccessError(
+        "Code navigation access denied. This feature may not be enabled for your account.",
+      );
+
+    case "UPSTREAM_ERROR":
+    case "TIMEOUT":
+    case "RATE_LIMITED":
+    case "GREP_FILE_TOO_LARGE":
+    case "GREP_TIMEOUT":
+    case "GREP_SERVICE_UNAVAILABLE":
+    case "GREP_FAILED":
+    case "GREP_INDEX_NOT_AVAILABLE":
+    case "FILE_PATH_EXCLUDED":
+    case "SOURCE_FILE_INVENTORY_UNKNOWN":
+    case "INTERNAL_ERROR":
+    case "UNKNOWN_ERROR":
+      return new CodeNavigationBackendError(
+        message,
+        undefined,
+        code,
+        retryable,
+        errorMetadata,
+      );
+
+    // `code` was present but not one of the recognised values —
+    // forward it onward as BACKEND_ERROR, preserving the code so
+    // the classifier can still surface it to callers.
+    default:
+      break;
+  }
+
+  // Legacy fallback: backend didn't populate `extensions.code`.
+  // Retain the message-text heuristics so rollover works smoothly;
+  // remove once all backend deploys are confirmed.
+  if (code === undefined) {
+    if (isAuthMessage(message)) {
+      return new CodeNavigationAccessError(
+        "Code navigation access denied. This feature may not be enabled for your account.",
+      );
+    }
+    if (isUnresolvableMessage(message)) {
+      return new CodeNavigationUnresolvableError(message);
+    }
+    if (isTargetNotFoundMessage(message)) {
+      return new CodeNavigationTargetNotFoundError(
+        message,
+        parseAvailableVersions(extensions),
+        parseGraphQLRepoUrl(extensions),
+        parseGraphQLGitRef(extensions),
+        errorMetadata,
+      );
+    }
+  }
+
+  return new CodeNavigationBackendError(
+    message,
+    undefined,
+    code,
+    retryable,
+    errorMetadata,
+  );
+}
+
 function buildTargetResolutionFallbackQueries(query: string): string[] {
   const withoutSuggestedRefs = query
     .replaceAll(TARGET_RESOLUTION_SUGGESTED_REFS_SELECTION, "")
@@ -4507,6 +4510,58 @@ function normaliseRawIndexingDurationEstimate(raw: unknown): unknown {
     sampleCount: record.sampleCount ?? record.sample_count,
     source: record.source,
   };
+}
+
+function normaliseCodeContextResult(
+  data: z.infer<typeof codeContextResponseSchema>,
+): ReadFileResult {
+  return {
+    filePath: data.filePath ?? undefined,
+    language: data.language ?? undefined,
+    totalLines: data.totalLines ?? undefined,
+    startLine: data.startLine ?? undefined,
+    endLine: data.endLine ?? undefined,
+    content: data.content ?? undefined,
+    isBinary: data.isBinary ?? undefined,
+    targetResolution: normaliseTargetResolution(data.targetResolution),
+    availableVersions: normaliseAvailableVersions(data.availableVersions),
+  };
+}
+
+function throwIfCodeContextIndexing(data: {
+  codeIndexState: string;
+  indexingRef?: string | null;
+  availableVersions?: Array<{ version?: string | null; ref: string }> | null;
+  targetResolution?: z.infer<typeof targetResolutionSchema>;
+  indexingEstimate?: z.infer<typeof indexingDurationEstimateSchema>;
+}): void {
+  if (data.codeIndexState !== "INDEXING") return;
+
+  const targetResolution = normaliseTargetResolution(data.targetResolution);
+  const indexingEstimate = normaliseIndexingDurationEstimate(
+    data.indexingEstimate,
+  );
+  throw new CodeNavigationIndexingError(
+    `Target is indexing. ${INDEXING_WAIT_HINT}`,
+    data.indexingRef ?? targetResolution?.indexingRef,
+    normaliseAvailableVersions(data.availableVersions) ??
+      targetResolution?.availableVersions,
+    targetResolution?.availableRefs,
+    targetResolution,
+    indexingEstimate,
+  );
+}
+
+/** Validate and normalize a `CodeContextResult` returned by another query root. */
+export function parseCodeContextResult(data: unknown): ReadFileResult {
+  const parsed = codeContextResponseSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new MalformedCodeNavigationResponseError(
+      "Malformed response from code navigation service.",
+    );
+  }
+  throwIfCodeContextIndexing(parsed.data);
+  return normaliseCodeContextResult(parsed.data);
 }
 
 function normaliseIndexingDurationEstimate(

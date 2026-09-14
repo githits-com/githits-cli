@@ -12,6 +12,7 @@ import {
   createMockCodeNavigationService,
   createMockGitHitsService,
   createMockPackageIntelligenceService,
+  createMockReadService,
   defaultCodeDiffResult,
 } from "../services/test-helpers.js";
 import { QUICK_START_PREREQUISITE } from "../tools/quick-start.js";
@@ -69,6 +70,7 @@ function createServices(
     githitsService: createMockGitHitsService(),
     codeNavigationService: createMockCodeNavigationService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
+    readService: createMockReadService(),
     agenticAskService: {
       ask: mock(() =>
         Promise.reject(new Error("unused")),

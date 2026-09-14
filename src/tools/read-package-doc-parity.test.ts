@@ -1,13 +1,19 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
+  type PackageDocResult,
   PackageIntelligenceDocumentationSectionUnresolvedError,
   PackageIntelligenceTargetNotFoundError,
+  type ReadResult,
 } from "@githits/core-internal";
 import {
   type DocsReadCommandDependencies,
   docsReadAction,
 } from "../commands/docs/read.js";
-import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
+import {
+  createMockPackageIntelligenceService,
+  createMockReadService,
+  defaultPackageDocResult,
+} from "../services/test-helpers.js";
 import {
   createParityMcpTool,
   isProcessExitSentinel,
@@ -54,13 +60,20 @@ async function cliJson(
 
 async function mcpJson(
   args: { target: string; start_line?: number; end_line?: number },
-  readPackageDocMock?: () => Promise<unknown>,
+  readPackageDocMock?: () => Promise<PackageDocResult>,
 ): Promise<unknown> {
-  const service = createMockPackageIntelligenceService(
-    readPackageDocMock ? { readPackageDoc: readPackageDocMock as never } : {},
-  );
+  const readService = createMockReadService({
+    read: mock(
+      async (): Promise<ReadResult> => ({
+        source: "docs",
+        result: await (readPackageDocMock
+          ? readPackageDocMock()
+          : Promise.resolve(defaultPackageDocResult)),
+      }),
+    ),
+  });
   const tool = createParityMcpTool("read", {
-    packageIntelligenceService: service,
+    readService,
   });
   const result = await tool.handler({ ...args, format: "json" }, {});
   return JSON.parse(result.content[0]?.text ?? "");

@@ -25,7 +25,9 @@ export interface DocsReadCommandOptions {
 }
 
 export interface DocsReadCommandDependencies {
-  packageIntelligenceService: PackageIntelligenceService | undefined;
+  packageIntelligenceService:
+    | Pick<PackageIntelligenceService, "readPackageDoc">
+    | undefined;
   codeNavigationUrl: string | undefined;
   hasValidToken: boolean;
   mcpUrl: string;

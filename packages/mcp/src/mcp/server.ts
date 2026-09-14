@@ -343,6 +343,9 @@ export function createDescriptorServices(): McpToolServices {
       listPackageDocs: fail,
       readPackageDoc: fail,
     },
+    readService: {
+      read: fail,
+    },
   };
 }
 

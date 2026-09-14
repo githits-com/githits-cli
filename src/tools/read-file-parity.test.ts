@@ -8,6 +8,7 @@ import {
   CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   type ReadFileResult,
+  type ReadResult,
 } from "@githits/core-internal";
 import {
   type PkgReadCommandDependencies,
@@ -15,6 +16,7 @@ import {
 } from "../commands/code/read.js";
 import {
   createMockCodeNavigationService,
+  createMockReadService,
   defaultReadFileResult,
 } from "../services/test-helpers.js";
 import {
@@ -74,11 +76,18 @@ async function mcpJson(
   args: McpArgs,
   readFileMock?: () => Promise<ReadFileResult>,
 ): Promise<unknown> {
-  const service = createMockCodeNavigationService(
-    readFileMock ? { readFile: readFileMock as never } : {},
-  );
+  const readService = createMockReadService({
+    read: mock(
+      async (): Promise<ReadResult> => ({
+        source: "code",
+        result: await (readFileMock
+          ? readFileMock()
+          : Promise.resolve(defaultReadFileResult)),
+      }),
+    ),
+  });
   const tool = createParityMcpTool("read", {
-    codeNavigationService: service,
+    readService,
   });
   const result = await tool.handler({ ...args, format: "json" }, {});
   const parsed = JSON.parse(result.content[0]?.text ?? "") as Record<

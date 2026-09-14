@@ -12,6 +12,9 @@ import type {
   PackageIntelligenceService,
   PackageSummary,
   PackageUpgradeReviewResponse,
+  ReadParams,
+  ReadResult,
+  ReadService,
   UnifiedSearchOutcome,
   VulnerabilityReport,
 } from "@githits/core-internal";
@@ -745,6 +748,23 @@ export const defaultPackageDocResult: PackageDocResult = {
     baseUrl: "https://github.com/expressjs/express/blob/abc123/README.md",
   },
 };
+
+/** Creates a mock unified read service with source-aware default results. */
+export function createMockReadService(
+  impl: Partial<ReadService> = {},
+): ReadService {
+  return {
+    read: mock(
+      (params: ReadParams): Promise<ReadResult> =>
+        Promise.resolve(
+          params.path?.trim()
+            ? { source: "code", result: defaultReadFileResult }
+            : { source: "docs", result: defaultPackageDocResult },
+        ),
+    ),
+    ...impl,
+  };
+}
 
 export const defaultPackageUpgradeReviewResponse: PackageUpgradeReviewResponse =
   {

@@ -1,4 +1,7 @@
+import type { ReadService } from "@githits/core-internal";
 import {
+  createReadFileServiceAdapter,
+  createReadPackageDocServiceAdapter,
   DEFAULT_WAIT_TIMEOUT_MS,
   InvalidPackageSpecError,
   MAX_WAIT_TIMEOUT_MS,
@@ -25,7 +28,9 @@ import { formatMappedErrorForTerminal } from "./format-mapped-error.js";
 
 export interface ReadCommandDependencies
   extends PkgReadCommandDependencies,
-    DocsReadCommandDependencies {}
+    DocsReadCommandDependencies {
+  readService: ReadService;
+}
 
 /** Dispatch CLI reads without imposing the MCP output caps on piped content. */
 export async function readAction(
@@ -72,9 +77,20 @@ export async function readAction(
     );
   }
   if (path) {
-    await pkgReadAction(target, path, options, deps);
+    await pkgReadAction(target, path, options, {
+      ...deps,
+      codeNavigationService: createReadFileServiceAdapter(
+        deps.readService,
+        target,
+      ),
+    });
   } else {
-    await docsReadAction(target, options, deps);
+    await docsReadAction(target, options, {
+      ...deps,
+      packageIntelligenceService: createReadPackageDocServiceAdapter(
+        deps.readService,
+      ),
+    });
   }
 }
 

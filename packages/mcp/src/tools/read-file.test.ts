@@ -1,5 +1,9 @@
 import { describe, expect, it, mock } from "bun:test";
-import type { CodeNavigationService } from "@githits/core-internal";
+import type {
+  CodeNavigationService,
+  ReadParams,
+  ReadResult,
+} from "@githits/core-internal";
 import {
   CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
@@ -8,17 +12,27 @@ import {
 } from "@githits/core-internal";
 import {
   createMockCodeNavigationService,
-  createMockPackageIntelligenceService,
   defaultReadFileResult,
 } from "../services/test-helpers.js";
+import { parseCodeNavigationTargetSpec } from "../shared/code-navigation-target.js";
 import { createReadTool } from "./read.js";
 
 function createCodeReadTool(
   service: CodeNavigationService,
 ): ReturnType<typeof createReadTool> {
   return createReadTool({
-    codeNavigationService: service,
-    packageIntelligenceService: createMockPackageIntelligenceService(),
+    readService: {
+      read: async (params: ReadParams): Promise<ReadResult> => ({
+        source: "code",
+        result: await service.readFile({
+          target: parseCodeNavigationTargetSpec(params.target),
+          filePath: params.path!,
+          startLine: params.startLine,
+          endLine: params.endLine,
+          waitTimeoutMs: params.waitTimeoutMs,
+        }),
+      }),
+    },
   });
 }
 

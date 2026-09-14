@@ -68,6 +68,7 @@ export * from "./shared/read-package-doc-request.js";
 export * from "./shared/read-package-doc-response.js";
 export * from "./shared/read-package-doc-text.js";
 export * from "./shared/read-request.js";
+export * from "./shared/read-service-adapters.js";
 export * from "./shared/repository-target.js";
 export * from "./shared/require-auth.js";
 export * from "./shared/resolve-target-request.js";

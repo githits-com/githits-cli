@@ -520,6 +520,15 @@ text with an explicit remainder; `verbose` expands them fully.
 
 These three indexed tools share an addressing and lifecycle contract (documented below) and then each projects its own data-first envelope. `code_files` and `code_grep` retain the structured/string `codeTargetSchema`; the code branch of `read` accepts only a compact string and reuses the same target resolver.
 
+The advertised MCP `read` tool uses the required `McpToolServices.readService`
+dependency. Its compact code and docs branches call `ReadService.read` once,
+which sends one `Query.read` request and returns the matching semantic union
+member. The tool keeps the existing validation, code cap, docs presentation
+cap, formatting, and source-specific error mapping. Deprecated CLI command
+surfaces remain separate compatibility paths: `githits code read` calls the
+legacy `fetchCodeContext` root and `githits docs read` calls legacy
+`getDocPage`; they are not fallback implementations for the compact MCP tool.
+
 **`code_files` envelope**: `{registry?|repoUrl?+gitRef?, total, hasMore, indexedVersion?, resolution?, targetResolution?, files: [{path, name?, language?, fileType?, byteSize?}], hint?, filter?}`. `fileType` values preserve the service vocabulary (`CONFIG`, `SOURCE`, `DOC`, `TEST`). `total` is capped at returned count when `hasMore: true` — the terminal formatter renders `N+ files` in that case to avoid misleading users. `filter` echoes only explicit caller filters (`path`, `pathPrefix`, `globs`, `extensions`, `fileTypes`, `languages`, file-intent filters, booleans, and `limit`); default limit (200) never round-trips.
 
 **`read` code envelope**: `{registry?|repoUrl?+gitRef?, path, language?, totalLines?, startLine?, endLine?, content?, isBinary?, hint?, targetResolution?}`. `path` (not `filePath`) so the key matches `code_files.files[].path` and `code_grep.filter.path` when exact-file grep is used. Binary files set `isBinary: true` and **omit** `content` (not `null`); agents branch on the flag. `hint` is emitted only when the MCP span cap actually truncated the response — see "read span cap" below.
@@ -807,7 +816,17 @@ Empty grep adds scanned/in-scope counts, served target/ref context when known, a
 
 `context_lines`, `context_lines_before`, and `context_lines_after` accept integers from 0 through 10. The MCP JSON Schema advertises the range so agent clients reject invalid calls before dispatch; direct CLI/internal callers retain the same request-builder validation. The asymmetric fields override the corresponding side of `context_lines`.
 
-**Docs branch read bounds.** `getDocPage(pageId, startLine?, endLine?)` owns inclusive, one-based, page-relative selection. Either explicit bound overrides an HTTP(S) fragment; omitted start means line 1 and omitted end means EOF. The backend clamps an end beyond EOF and rejects nonpositive, reversed, or past-EOF starts. `read` forwards only caller-supplied bounds. MCP text then locally displays at most 150 lines when `end_line` is omitted or 300 when it is explicit; this presentation cap is never sent as a synthetic backend range, so it cannot suppress fragment resolution. JSON and CLI have no local display cap.
+**Docs branch read bounds.** The `Query.read` docs branch owns inclusive,
+one-based, page-relative selection through `contentRange`. Either explicit
+bound overrides an HTTP(S) fragment; omitted start means line 1 and omitted end
+means EOF. The backend clamps an end beyond EOF and rejects nonpositive,
+reversed, or past-EOF starts. Compact `read` forwards only caller-supplied
+bounds. MCP text then locally displays at most 150 lines when `end_line` is
+omitted or 300 when it is explicit; this presentation cap is never sent as a
+synthetic backend range, so it cannot suppress fragment resolution. JSON and
+CLI have no local display cap. The deprecated `githits docs read` command keeps
+its legacy `getDocPage` root and is documented separately in
+`cli-commands.md`.
 
 The required backend `contentRange` supplies `startLine`, `endLine`, `totalLines`, and resolved `anchor`. `page.content` is already the selected body, so the client never reapplies absolute bounds. Local MCP truncation slices only the returned prefix from `contentRange.startLine`, reports the actual displayed absolute range, and points continuation at the stable `pageId`; it stops at the backend selection end so continuing a section cannot leak into the next section. `totalLines` is the whole stored page extent and counts newline splits, including a trailing empty line. Empty pages report `totalLines: 0` with absent output bounds. `anchor` is present only for a resolved indexed section.
 
@@ -820,16 +839,21 @@ trimmed, percent-decoded, fragment-stripped, or otherwise normalized. Unknown
 pages retain the existing non-retryable `NOT_FOUND` envelope, distinct from the
 section-resolution error, and URL reads never enqueue crawling.
 
-**Backend compatibility.** This client query requires `getDocPage` to accept
-optional `startLine` / `endLine` and return required `contentRange`. Deploy that
-backend schema before releasing or deploying the client. There is deliberately no
-old-schema fallback: a client pointed at an older target returns the normal
-sanitized protocol-mismatch error instead of silently losing fragment/range
-semantics. On 2026-09-10, production validation confirmed that the default
-`https://pkgseer.dev` target accepted all three additions, and an authenticated
-Flask corpus read resolved `#the-routing-system` to lines 81-93 of 219. Backend
-merge state and deployment state are separate; only the served schema establishes
-runtime compatibility.
+**Backend compatibility.** Compact `read` requires `Query.read` with both
+`CodeContextResult` and `GetDocPageResult` union branches and the complete
+selected minimum fields documented in [Unified read](unified-read.md),
+including `contentRange` for docs and indexing/target-resolution metadata for
+code. Deploy that schema before releasing or deploying the client. There is
+deliberately no old-schema fallback: a client pointed at an older target
+returns the normal sanitized protocol-mismatch error instead of silently losing
+fragment/range semantics. Legacy roots remain available to deprecated command
+compatibility paths only. On 2026-09-10, production validation confirmed that
+the default `https://pkgseer.dev` target accepted all three additions, and an
+authenticated Flask corpus read resolved `#the-routing-system` to lines 81-93
+of 219. On 2026-09-14, authenticated built CLI and local MCP probes also
+confirmed both `Query.read` union branches against that production target.
+Backend merge state and deployment state are separate; only the served schema
+establishes runtime compatibility.
 
 Content is sanitized across the complete stored page before backend slicing, so
 any backend `contentSafety` assessment covers the complete page even when
@@ -920,7 +944,7 @@ CLI stdio wrapper (src/commands/mcp.ts)
             └─ shared factory engine (packages/mcp/src/mcp/server.ts)
                  └─ registers each tool: createXxxTool(service)
                       └─ ToolDefinition { name, description, schema, handler, annotations? }
-                           └─ handler calls GitHitsService / CodeNavigationService / PackageIntelligenceService
+                           └─ handler calls GitHitsService / CodeNavigationService / PackageIntelligenceService / ReadService
                                 └─ service implementation makes HTTP calls
 
 Public/remote createMcpServer()
@@ -930,10 +954,10 @@ Public/remote createMcpServer()
 The layering is intentional:
 
 - **Tool definitions** (`packages/mcp/src/tools/*.ts`) own the MCP contract: names, descriptions, schemas, and response formatting
-- **GitHitsService / CodeNavigationService / PackageIntelligenceService** own the HTTP transport contracts and live in `packages/core-internal`
+- **GitHitsService / CodeNavigationService / PackageIntelligenceService / ReadService** own the HTTP transport contracts and live in `packages/core-internal`; `ReadService` is the compact `Query.read` client
 - **Shared factory engine** (`packages/mcp/src/mcp/server.ts`) owns MCP SDK registration, per-call provider resolution, and auth/trace wrapping
 - **Workspace-internal local composer** (`packages/mcp/src/mcp/local-server.ts`) combines the local policy with extended local services and composes the matching experimental instruction subset while keeping those requirements out of the public package
-- **Public/remote server setup** (`createMcpServer()` from `@githits/mcp`) uses stable `McpToolServices` and the stable public inventory
+- **Public/remote server setup** (`createMcpServer()` from `@githits/mcp`) uses stable `McpToolServices` (including required `readService`) and the stable public inventory
 - **CLI MCP command** (`src/commands/mcp.ts`) owns local stdio startup: loads policy only for an actual server start, creates services from the CLI container, sets request-header mode, connects `StdioServerTransport`, and prints TTY setup instructions
 
 This separation means tool logic can be tested without HTTP calls, and service logic can be tested without MCP SDK dependencies.
