@@ -204,7 +204,17 @@ classification and rollout guidance in the implementation document.
   both notes accurately name the MCP smoke helper, and the release delta is
   still 13 files with no implementation or plan difference from its base.
   The combined `0.17.1` public-package validator passed again with Bun 1.4.2.
-- Remaining work: open both draft PRs, report CI status, obtain explicit merge
-  approval, merge implementation first, retarget and check the release PR,
+- Draft PRs: implementation [#391](https://github.com/githits-com/githits-cli/pull/391)
+  targets `main`; release [#392](https://github.com/githits-com/githits-cli/pull/392)
+  targets the implementation branch. Release CI is deferred until retargeting.
+- Remaining work: obtain explicit merge approval, merge implementation first,
+  retarget and check the release PR,
   then complete the separately approved release merge and publication.
   Hosted adoption/deployment and OpenAI resubmission remain subsequent work.
+- Initial PR CI exposed TS9015 in the new annotation constant's object spread.
+  The local Bun 1.4.2 package build had exited zero while emitting that warning;
+  CI treats it as fatal. Replaced the spread with explicit literal flags,
+  preserving the exact runtime and inferred readonly literal type. With
+  `CI=true`, `npx --yes bun@1.4.2 --bun run build` in `packages/mcp` now passes
+  without the diagnostic. This corrects the earlier build-pass evidence:
+  successful exit status alone did not establish a clean declaration build.
