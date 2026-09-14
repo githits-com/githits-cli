@@ -50,7 +50,8 @@ Unknowns: none affecting implementation.
    factories to the latter; no new runtime configuration or registry is needed.
 2. Update focused annotation assertions and stable/local catalog contracts to
    cover both closed-world exceptions and every evidence tool. Verify actual
-   MCP registration and read-only behavior using the existing smoke suites.
+   MCP registration and annotation policy using the existing local smoke suites
+   and the published `runMcpSmoke()` helper used by hosted consumers.
 3. Update `docs/implementation/mcp-tool-annotations.md`, correcting its stale
    stable tool count and documenting classification, Codex effects, and rollout.
    Review public skills for contradictory annotation claims; do not rewrite
@@ -167,4 +168,29 @@ classification and rollout guidance in the implementation document.
   confirms the export is untracked. The sibling scan covered branch histories,
   staged files, and package allow-lists; no export contents entered Git or npm
   artifacts. Updated the PR workflow above per the user's two-PR decision.
-  Final external review remains pending.
+  Round 2's fresh-context check found that the published `runMcpSmoke()` helper
+  still checked only read-only status. Accepted: a stale hosted catalog could
+  pass ordinary deployment validation; two annotation checks and regression
+  cases close the gap without new infrastructure. Added optional annotation
+  fields to its caller interface and rejection cases for wrong/missing domain
+  hints, both closed-domain exceptions, an experimental tool, and destructive
+  hints. Local smoke diagnostics now include expected and actual domain values.
+  Bounded closure inspected both smoke entrypoints, catalog tests, caller
+  fixtures, and packed-consumer validation. Rejected the suggested exported
+  shared exception list (2026-09-14): independent literal expectations are useful
+  conformance oracles; a new public export solely to deduplicate two names is
+  unnecessary for this fix. The other round-2 notes were rejected as already
+  covered: the fixed language catalog is the approved exception, documentation
+  prose states classification, sibling tests assert exact 14/17 inventories,
+  and fragment line length follows the existing format.
+- Separate release review at `a99c41c8` is clean, including a fresh-context
+  check. Opus dispatch `ctx_33ecf59d4071` is retained in terminal
+  `term_e0a12eec-61e3-4a55-adeb-bff4153a39b9`. Implementation follow-up review and
+  release propagation of the smoke-helper correction remain pending.
+
+- Smoke-helper follow-up: `bun test packages/mcp/src/smoke-test.test.ts`
+  passed 80 tests (89 assertions); typecheck passed. The internal full-delta
+  review is clean. Re-generated plugin manifests after branch-switch line-ending
+  changes; no generated content changed. Plugin checks and the Bun 1.4.2
+  packed-consumer validator passed again with the revised helper.
+  Source and built MCP smokes passed again (nine steps each).

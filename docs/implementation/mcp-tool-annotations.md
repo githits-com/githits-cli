@@ -70,6 +70,10 @@ re-scan the production server in the portal. A locally refreshed review JSON
 is a candidate until that production catalog matches it; keep credential-bearing
 submission exports outside version control.
 
+The published `@githits/mcp/smoke-test` helper validates these domain and
+non-destructive annotations alongside read-only status, so hosted deployment
+checks reject stale or incomplete catalogs before making evidence calls.
+
 ## Output schemas and token efficiency
 
 The MCP tools intentionally do not declare `outputSchema` yet. The current
