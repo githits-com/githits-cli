@@ -5,6 +5,36 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.17.0] - 2026-09-14
+
+Minor release: unifies code and documentation reading and adopts backend indexing
+estimates for longer discovery waits.
+
+### Changed
+
+- **Estimate-aware discovery waits** - Preserve indexing timing evidence in search/status JSON and use it for shared CLI/MCP follow-up suggestions, with discovery waits up to 120 seconds, matching HTTP deadlines and MCP cancellation; defaults remain unchanged when ranges are unavailable. Requires backend estimate/extended-wait support on all production serving nodes and verified proxy/MCP caller timeout allowances before release/adoption.
+- **Unified reading** - Replace MCP `code_read` and `docs_read` with `read`, using a compact target and optional file path; preserve documentation fragments and code indexing waits, translate Ask citations, and add `githits read` while retaining deprecated CLI aliases. MCP callers must rediscover the catalog; hosted clients receive the change after package adoption and deployment.
+
+### Fixed
+
+- **Copyable file-list targets** - Render the served repository commit in MCP `code_files` headers instead of treating a Git SHA as a package version, so the displayed target can be passed directly to `read`.
+- **Copyable repository documentation targets** - Show the backend's repo-doc read locator and separate line bounds in search text, matching the existing JSON follow-up and avoiding invented package/path locators.
+
+## [@githits/mcp 0.17.0] - 2026-09-14
+
+Minor release: replaces the two reader tools with one unified `read` tool and
+adopts backend indexing estimates for longer discovery waits.
+
+### Changed
+
+- **Estimate-aware discovery waits** - Preserve indexing timing evidence in search/status JSON and use it for shared CLI/MCP follow-up suggestions, with discovery waits up to 120 seconds, matching HTTP deadlines and MCP cancellation; defaults remain unchanged when ranges are unavailable. Requires backend estimate/extended-wait support on all production serving nodes and verified proxy/MCP caller timeout allowances before release/adoption.
+- **Unified reading** - Replace MCP `code_read` and `docs_read` with `read`, using a compact target and optional file path; preserve documentation fragments and code indexing waits, translate Ask citations, and add `githits read` while retaining deprecated CLI aliases. MCP callers must rediscover the catalog; hosted clients receive the change after package adoption and deployment.
+
+### Fixed
+
+- **Copyable file-list targets** - Render the served repository commit in MCP `code_files` headers instead of treating a Git SHA as a package version, so the displayed target can be passed directly to `read`.
+- **Copyable repository documentation targets** - Show the backend's repo-doc read locator and separate line bounds in search text, matching the existing JSON follow-up and avoiding invented package/path locators.
+
 ## [githits 0.16.2] - 2026-09-11
 
 ### Changed
