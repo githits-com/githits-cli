@@ -116,7 +116,7 @@ describe("local ask MCP adapter", () => {
     });
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
-      openWorldHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     });
     expect(Object.keys(tool.schema)).toEqual([

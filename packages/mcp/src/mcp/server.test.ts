@@ -210,7 +210,9 @@ describe("MCP tool annotations", () => {
     for (const descriptor of descriptors) {
       expect(descriptor.annotations, descriptor.name).toEqual({
         readOnlyHint: true,
-        openWorldHint: false,
+        openWorldHint: !["quick_start", "search_language"].includes(
+          descriptor.name,
+        ),
         destructiveHint: false,
       });
     }

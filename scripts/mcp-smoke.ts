@@ -122,6 +122,15 @@ async function assertMcpSession(
       tool.annotations?.readOnlyHint === true,
       `${context}: ${tool.name} must advertise readOnlyHint: true`,
     );
+    assert(
+      tool.annotations?.openWorldHint ===
+        !["quick_start", "search_language"].includes(tool.name),
+      `${context}: ${tool.name} must classify its public-evidence domain`,
+    );
+    assert(
+      tool.annotations?.destructiveHint === false,
+      `${context}: ${tool.name} must advertise destructiveHint: false`,
+    );
   }
   let removedFeedbackError = "";
   try {

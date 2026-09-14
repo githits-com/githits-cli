@@ -6,9 +6,20 @@ result storage, caching, background preparation, and research-thread state.
 It does not assert that the backend performs no database writes.
 
 The canonical factories in `@githits/mcp` own these annotations. The stable
-catalog contains 15 tools; local experimental mode adds `ask`, `resolve_target`,
-and `code_diff`, all with the same annotations. Existing `openWorldHint: false`
-and `destructiveHint: false` values are unchanged; no `idempotentHint` is added.
+catalog contains 14 tools; local experimental mode adds `ask`, `resolve_target`,
+and `code_diff`. All tools remain non-destructive and omit `idempotentHint`.
+
+`openWorldHint` describes the domain of interaction independently of writes,
+authentication, and evidence quality. Twelve stable public-evidence tools and
+all three experimental tools advertise `openWorldHint: true`. This includes
+`search_status`: retrieving an existing search still returns public evidence.
+Only `quick_start` and `search_language` advertise `openWorldHint: false`, since
+they return bundled guidance or the fixed supported-language catalog.
+
+The two read-only constants in `tools/types.ts` distinguish these domains;
+factories select the appropriate constant. Catalog tests cover both exceptions
+and all evidence tools, and registration smoke verifies the wire annotations.
+No handler, schema, description, output, or authentication behavior changes.
 
 | Tools | Purpose |
 | --- | --- |
@@ -31,10 +42,33 @@ measured concurrency improvement. Catalog tests and registration smoke enforce
 it. A future user-facing write operation must be classified separately; the
 annotation type continues to support both boolean values.
 
+[OpenAI review guidance](https://developers.openai.com/plugins/deploy/app-review#review-and-approval-faqs)
+classifies public-internet retrieval as open-world even when read-only. Its
+read-only wording is broader about internal state changes than GitHits' chosen
+policy above; changing the open-world hint does not resolve that review ambiguity.
+
+Public Codex source inspected at `5b1d656` shows that normal `Auto` approval
+checks return early for read-only tools unless explicitly destructive, before
+checking the open-world hint. Read-only annotations independently permit
+parallel calls. Explicit approval modes and strict review can override the
+normal approval path. Codex Apps' `open_world_enabled` setting defaults to true;
+when disabled it can filter open-world tools, including read-only tools,
+subject to explicit app/tool overrides. Directly configured MCP servers do not
+use that app-specific filter. Guardian receives annotations as review context;
+ordinary model-facing tool definitions omit them. These are observations of
+that public revision, not guarantees about ChatGPT's private implementation.
+See [approval checks](https://github.com/openai/codex/blob/5b1d656/codex-rs/core/src/mcp_tool_call.rs#L2322),
+[app policy](https://github.com/openai/codex/blob/5b1d656/codex-rs/connectors/src/app_tool_policy.rs#L205),
+and [parallel calls](https://github.com/openai/codex/blob/5b1d656/codex-rs/core/src/tools/handlers/mcp.rs#L128).
+
 Hosted clients receive the change after a package release, dependency adoption
 in `remote-mcp`, and deployment. Restart or refresh clients' tool discovery after
 updating. Public CLI/onboarding skill cleanup follows the release boundary;
 the stable MCP guide and its skill copy change together under their parity rule.
+For OpenAI resubmission, verify production `tools/list` after deployment and
+re-scan the production server in the portal. A locally refreshed review JSON
+is a candidate until that production catalog matches it; keep credential-bearing
+submission exports outside version control.
 
 ## Output schemas and token efficiency
 

@@ -38,7 +38,7 @@ describe("unified read contract", () => {
     expect(schema.required).toEqual(["target"]);
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
-      openWorldHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     });
     expect(tool.description.split(". ")[0]?.length).toBeLessThan(79);

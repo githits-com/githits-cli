@@ -18,7 +18,7 @@ import { readDocumentationPage } from "./read-package-doc.js";
 import { mcpMappedErrorResult } from "./shared.js";
 import type { McpToolServices } from "./tool-services.js";
 import {
-  READ_ONLY_TOOL_ANNOTATIONS,
+  OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   type ZodRawShape,
 } from "./types.js";
@@ -100,7 +100,7 @@ export function createReadTool(
     name: "read",
     description: DESCRIPTION,
     schema: readSchema,
-    annotations: READ_ONLY_TOOL_ANNOTATIONS,
+    annotations: OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       let locator: ReturnType<typeof resolveReadLocator>;
       let wait: number;

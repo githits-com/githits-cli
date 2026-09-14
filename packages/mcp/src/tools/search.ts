@@ -37,7 +37,7 @@ import {
 } from "./shared.js";
 import {
   errorResult,
-  READ_ONLY_TOOL_ANNOTATIONS,
+  OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   type ToolResult,
   textResult,
@@ -291,7 +291,7 @@ export function createSearchTool(
     name: "search",
     description: DESCRIPTION,
     schema,
-    annotations: READ_ONLY_TOOL_ANNOTATIONS,
+    annotations: OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       try {
         const effectiveTarget = isBlankSearchTarget(args.target)
