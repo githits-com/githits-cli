@@ -122,10 +122,12 @@ async function assertMcpSession(
       tool.annotations?.readOnlyHint === true,
       `${context}: ${tool.name} must advertise readOnlyHint: true`,
     );
+    const expectedOpenWorldHint = !["quick_start", "search_language"].includes(
+      tool.name,
+    );
     assert(
-      tool.annotations?.openWorldHint ===
-        !["quick_start", "search_language"].includes(tool.name),
-      `${context}: ${tool.name} must classify its public-evidence domain`,
+      tool.annotations?.openWorldHint === expectedOpenWorldHint,
+      `${context}: ${tool.name} must advertise openWorldHint: ${expectedOpenWorldHint}, got ${String(tool.annotations?.openWorldHint)}`,
     );
     assert(
       tool.annotations?.destructiveHint === false,

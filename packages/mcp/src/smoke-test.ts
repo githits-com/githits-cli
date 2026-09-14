@@ -5,7 +5,14 @@ export interface McpSmokeToolResult {
 
 export interface McpSmokeCaller {
   listTools(): Promise<{
-    tools: Array<{ name: string; annotations?: { readOnlyHint?: boolean } }>;
+    tools: Array<{
+      name: string;
+      annotations?: {
+        readOnlyHint?: boolean;
+        openWorldHint?: boolean;
+        destructiveHint?: boolean;
+      };
+    }>;
   }>;
   callTool(
     name: string,
@@ -1336,6 +1343,17 @@ export async function runMcpSmoke(
     assert(
       tool.annotations?.readOnlyHint === true,
       `${tool.name} must advertise readOnlyHint: true`,
+    );
+    const expectedOpenWorldHint = !["quick_start", "search_language"].includes(
+      tool.name,
+    );
+    assert(
+      tool.annotations?.openWorldHint === expectedOpenWorldHint,
+      `${tool.name} must advertise openWorldHint: ${expectedOpenWorldHint}, got ${String(tool.annotations?.openWorldHint)}`,
+    );
+    assert(
+      tool.annotations?.destructiveHint === false,
+      `${tool.name} must advertise destructiveHint: false`,
     );
   }
 
