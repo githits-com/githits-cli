@@ -18,8 +18,9 @@ export const READ_ONLY_TOOL_ANNOTATIONS = {
 
 /** Public evidence retrieval/computation, including internal caching and preparation. */
 export const OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS = {
-  ...READ_ONLY_TOOL_ANNOTATIONS,
+  readOnlyHint: true,
   openWorldHint: true,
+  destructiveHint: false,
 } as const satisfies CompleteToolAnnotations;
 
 export interface McpAuthActionContext {
