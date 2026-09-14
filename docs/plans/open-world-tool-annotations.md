@@ -1,6 +1,6 @@
 # Open-world MCP tool annotations and patch release
 
-Status: implementation verified; final review and two-PR handoff in progress.
+Status: implementation and release preparation verified and reviewed; two-PR handoff ready.
 Date: 2026-09-14.
 Baseline: `613dccb2` (`origin/main`, `v0.17.0`, `mcp-v0.17.0`).
 
@@ -78,7 +78,7 @@ Internal and Claude reviews must cover the complete proposed delta.
 
 ## Phase 2: release preparation and handoff
 
-Status: prepared on `skvark/release-0.17.1`; dependent release review pending.
+Status: prepared and reviewed on `skvark/release-0.17.1`; awaiting PR merge approval.
 Dependency: phase 1 implementation and verification.
 Assumption: no other unreleased changes exist; verify both tag-to-HEAD ranges
 and all fragments before assigning versions. Unknowns: publication and hosted
@@ -185,12 +185,26 @@ classification and rollout guidance in the implementation document.
   and fragment line length follows the existing format.
 - Separate release review at `a99c41c8` is clean, including a fresh-context
   check. Opus dispatch `ctx_33ecf59d4071` is retained in terminal
-  `term_e0a12eec-61e3-4a55-adeb-bff4153a39b9`. Implementation follow-up review and
-  release propagation of the smoke-helper correction remain pending.
-
+  `term_e0a12eec-61e3-4a55-adeb-bff4153a39b9`. The later smoke-helper correction
+  was carried into release commit `8a775f3a` and both artifact notes.
 - Smoke-helper follow-up: `bun test packages/mcp/src/smoke-test.test.ts`
   passed 80 tests (89 assertions); typecheck passed. The internal full-delta
   review is clean. Re-generated plugin manifests after branch-switch line-ending
   changes; no generated content changed. Plugin checks and the Bun 1.4.2
   packed-consumer validator passed again with the revised helper.
   Source and built MCP smokes passed again (nine steps each).
+- Final implementation review: clean at `e8195d9a`, including the fresh-context
+  closure check. Opus dispatch `ctx_3de5a9a41d14` is retained in terminal
+  `term_26ddbb39-6548-40f3-8497-51bd02bae63f`. The missing-idempotent assertion
+  note is covered by exact catalog tests; unnamed destructive-case errors are
+  appropriate because the fixture mutates every tool. Removed a cosmetic blank
+  line in this record while closing the status; no product changes followed review.
+- Final release-only review: clean at `8a775f3a`, including its fresh-context
+  check; retained dispatch `ctx_3997d8ce9363`. The fragment is fully consumed,
+  both notes accurately name the MCP smoke helper, and the release delta is
+  still 13 files with no implementation or plan difference from its base.
+  The combined `0.17.1` public-package validator passed again with Bun 1.4.2.
+- Remaining work: open both draft PRs, report CI status, obtain explicit merge
+  approval, merge implementation first, retarget and check the release PR,
+  then complete the separately approved release merge and publication.
+  Hosted adoption/deployment and OpenAI resubmission remain subsequent work.
