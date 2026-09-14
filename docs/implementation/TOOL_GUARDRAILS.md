@@ -55,7 +55,7 @@ One layer, with a second held in reserve:
    dispute claims remain reportable with provenance but do not alter those
    boundaries.
 
-2. **Per-tool addenda** are normally empty. `code_read` and `code_grep` carry
+2. **Per-tool addenda** are normally empty. `read` and `code_grep` carry
    one focused source-specific addendum because a Claude Desktop session was
    observed skipping `quick_start` before reading source. The other tools rely
    on the shared block; restore another focused addendum only when evidence
@@ -123,8 +123,8 @@ maintainer-controlled content:
 - `pkg_info` — registry description / install / usage / topics
 - `pkg_changelog` — release-notes body
 - `pkg_upgrade_review` — release-note excerpts and package deprecation text
-- `docs_read` and `docs_list` — repo READMEs and crawled docs
-- `code_read` and `code_grep` — repo source code (comments + strings)
+- `read` and `docs_list` — repo READMEs and crawled docs
+- `read` and `code_grep` — repo source code (comments + strings)
 - `search` — multi-source search snippets
 - `get_example` — backend-synthesized examples
 

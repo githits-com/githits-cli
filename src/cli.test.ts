@@ -388,83 +388,91 @@ describe("root CLI preAction", () => {
     errorSpy.mockRestore();
   });
 
-  it("keeps stdout clean for interactive --json auto-login flows", async () => {
-    const logSpy = spyOn(console, "log").mockImplementation(() => {});
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const createContainer = mock(() => Promise.resolve(createLoginDeps()));
-    const loginFlow = mock(() => {
-      console.error("Opening browser for GitHits sign-in...");
-      console.error("Waiting for sign-in to finish...\n");
-      return Promise.resolve({
-        status: "success" as const,
-        message: "Logged in successfully.",
+  it.each(["example", "read"])(
+    "keeps stdout clean for interactive %s --json auto-login",
+    async (command) => {
+      const logSpy = spyOn(console, "log").mockImplementation(() => {});
+      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+      const createContainer = mock(() => Promise.resolve(createLoginDeps()));
+      const loginFlow = mock(() => {
+        console.error("Opening browser for GitHits sign-in...");
+        console.error("Waiting for sign-in to finish...\n");
+        return Promise.resolve({
+          status: "success" as const,
+          message: "Logged in successfully.",
+        });
       });
-    });
-    const program = createProgramWithRootPreAction({
-      createContainer,
-      loginFlow,
-    });
-
-    program
-      .command("example")
-      .option("--json", "Output JSON")
-      .action((options: { json?: boolean }) => {
-        console.log(JSON.stringify({ ok: options.json === true }));
+      const program = createProgramWithRootPreAction({
+        createContainer,
+        loginFlow,
       });
 
-    await program.parseAsync(["node", "githits", "example", "--json"]);
+      program
+        .command(command)
+        .option("--json", "Output JSON")
+        .action((options: { json?: boolean }) => {
+          console.log(JSON.stringify({ ok: options.json === true }));
+        });
 
-    expect(logSpy.mock.calls.map((call) => call[0])).toEqual([
-      JSON.stringify({ ok: true }),
-    ]);
-    expect(errorSpy.mock.calls.map((call) => call[0])).toEqual([
-      "Opening browser for GitHits sign-in...",
-      "Waiting for sign-in to finish...\n",
-      "Authentication complete. Running example search...",
-    ]);
-    logSpy.mockRestore();
-    errorSpy.mockRestore();
-  });
+      await program.parseAsync(["node", "githits", command, "--json"]);
 
-  it("emits JSON when interactive --json auto-login fails", async () => {
-    const logSpy = spyOn(console, "log").mockImplementation(() => {});
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const createContainer = mock(() => Promise.resolve(createLoginDeps()));
-    const loginFlow = mock(() =>
-      Promise.resolve({
-        status: "failed" as const,
-        message: "Authentication timed out.",
-      }),
-    );
-    const exit = mock(() => {
-      throw new Error("process.exit");
-    });
-    const program = createProgramWithRootPreAction({
-      createContainer,
-      loginFlow,
-      exit,
-    });
+      expect(logSpy.mock.calls.map((call) => call[0])).toEqual([
+        JSON.stringify({ ok: true }),
+      ]);
+      expect(errorSpy.mock.calls.map((call) => call[0])).toEqual([
+        "Opening browser for GitHits sign-in...",
+        "Waiting for sign-in to finish...\n",
+        command === "read"
+          ? "Authentication complete. Running command..."
+          : "Authentication complete. Running example search...",
+      ]);
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+    },
+  );
 
-    program
-      .command("example")
-      .option("--json", "Output JSON")
-      .action(() => {});
+  it.each(["example", "read"])(
+    "emits JSON when interactive %s --json auto-login fails",
+    async (command) => {
+      const logSpy = spyOn(console, "log").mockImplementation(() => {});
+      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+      const createContainer = mock(() => Promise.resolve(createLoginDeps()));
+      const loginFlow = mock(() =>
+        Promise.resolve({
+          status: "failed" as const,
+          message: "Authentication timed out.",
+        }),
+      );
+      const exit = mock(() => {
+        throw new Error("process.exit");
+      });
+      const program = createProgramWithRootPreAction({
+        createContainer,
+        loginFlow,
+        exit,
+      });
 
-    await expect(
-      program.parseAsync(["node", "githits", "example", "--json"]),
-    ).rejects.toThrow("process.exit");
+      program
+        .command(command)
+        .option("--json", "Output JSON")
+        .action(() => {});
 
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(JSON.parse(String(errorSpy.mock.calls[0]?.[0]))).toEqual({
-      error: "Authentication timed out.",
-      code: "AUTH_REQUIRED",
-      retryable: false,
-    });
-    expect(exit).toHaveBeenCalledWith(1);
+      await expect(
+        program.parseAsync(["node", "githits", command, "--json"]),
+      ).rejects.toThrow("process.exit");
 
-    logSpy.mockRestore();
-    errorSpy.mockRestore();
-  });
+      expect(logSpy).not.toHaveBeenCalled();
+      expect(JSON.parse(String(errorSpy.mock.calls[0]?.[0]))).toEqual({
+        error: "Authentication timed out.",
+        code: "AUTH_REQUIRED",
+        retryable: false,
+      });
+      expect(exit).toHaveBeenCalledWith(1);
+
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+    },
+  );
 });
 
 describe("CLI help surface", () => {

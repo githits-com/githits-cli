@@ -38,7 +38,7 @@ describe("docsListAction", () => {
     expect(output).toContain("[crawled]");
     expect(output).toContain("[repo]");
     expect(output).toContain(
-      "githits docs read 'https://hexdocs.pm/express/getting-started.html'",
+      "githits read 'https://hexdocs.pm/express/getting-started.html'",
     );
     expect(output.match(/hexdocs\.pm/g)).toHaveLength(1);
     writeSpy.mockRestore();
@@ -133,7 +133,7 @@ describe("docsListAction", () => {
       );
 
       expect(writes.join("")).toContain(
-        `githits docs read 'https://docs.example.test/guide with spaces;$(echo nope)?q='"'"'quoted'"'"'&x=*'`,
+        `githits read 'https://docs.example.test/guide with spaces;$(echo nope)?q='"'"'quoted'"'"'&x=*'`,
       );
     } finally {
       writeSpy.mockRestore();

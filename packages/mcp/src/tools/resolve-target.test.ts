@@ -144,7 +144,7 @@ describe("resolve_target MCP adapter", () => {
       "docsReadTarget",
       "pageId",
       "and range with",
-      "docs_read",
+      "read",
       "credentials",
       "personal data",
       "private code",
@@ -321,7 +321,7 @@ describe("resolve_target MCP adapter", () => {
       "Note: Additional related targets were omitted; direct matches are complete.",
     );
     expect(text).toContain(
-      'Next: call search with target "site:expressjs.com" and source "docs", then call docs_read for relevant results.',
+      'Next: call search with target "site:expressjs.com" and source "docs", then call read for relevant results.',
     );
     expect(text).not.toContain("Some candidates are not actionable");
   });
@@ -357,7 +357,7 @@ describe("resolve_target MCP adapter", () => {
     }
   });
 
-  it("routes an actionable site through docs search and docs_read", () => {
+  it("routes an actionable site through docs search and read", () => {
     const site = {
       kind: "SITE" as const,
       canonicalKey: "site:expressjs.com",
@@ -373,7 +373,7 @@ describe("resolve_target MCP adapter", () => {
     );
 
     expect(text).toContain(
-      'Next: call search with target "site:expressjs.com" and source "docs", then call docs_read for relevant results.',
+      'Next: call search with target "site:expressjs.com" and source "docs", then call read for relevant results.',
     );
     expect(text).not.toContain("pass the canonical target");
   });

@@ -54,8 +54,8 @@ const schema: ZodRawShape = {
 
 const DESCRIPTION =
   "List package documentation targets for follow-up reads. " +
-  'Pass them to `docs_read`; use `search` with `source: "docs"` for topics. ' +
-  "Each entry includes preferred `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, and `sourceKind`; repo-backed entries add exact `repoUrl` / `gitRef` / `filePath` for `code_read`. " +
+  'Pass them to `read` as the `target`; use `search` with `source: "docs"` for topics. ' +
+  "Each entry includes preferred `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, and `sourceKind`; repo-backed entries add exact `repoUrl` / `gitRef` / `filePath` for `read`. " +
   "Historical IDs remain readable." +
   `\n\n${DOCS_GUARDRAIL}`;
 

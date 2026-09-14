@@ -11,8 +11,7 @@ import {
   createPackageUpgradeReviewTool,
   createPackageVulnerabilitiesTool,
   createQuickStartTool,
-  createReadFileTool,
-  createReadPackageDocTool,
+  createReadTool,
   createSearchLanguageTool,
   createSearchStatusTool,
   createSearchTool,
@@ -94,16 +93,13 @@ const STABLE_MCP_OPERATION_FACTORIES: readonly McpToolFactory[] = [
     eraseMcpTool(createSearchStatusTool(services.codeNavigationService)),
   (services) =>
     eraseMcpTool(createListFilesTool(services.codeNavigationService)),
-  (services) =>
-    eraseMcpTool(createReadFileTool(services.codeNavigationService)),
+  (services) => eraseMcpTool(createReadTool(services)),
   (services) =>
     eraseMcpTool(createGrepRepoTool(services.codeNavigationService)),
   (services) =>
     eraseMcpTool(
       createListPackageDocsTool(services.packageIntelligenceService),
     ),
-  (services) =>
-    eraseMcpTool(createReadPackageDocTool(services.packageIntelligenceService)),
   (services) =>
     eraseMcpTool(createPackageSummaryTool(services.packageIntelligenceService)),
   (services) =>

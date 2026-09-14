@@ -26,7 +26,7 @@ describe("createGrepRepoTool — metadata", () => {
     expect(tool.description).toContain(
       "Use `search` for conceptual or open-ended discovery",
     );
-    expect(tool.description).toContain("`code_read`");
+    expect(tool.description).toContain("`read`");
     expect(tool.description).toContain("`code_files`");
     expect(tool.description).toContain(
       "`FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, or `SOURCE_FILE_INVENTORY_UNKNOWN`",
@@ -626,9 +626,7 @@ it("accepts oversized context through the schema and sends capped values", async
     expect.objectContaining({ contextLinesBefore: 0, contextLinesAfter: 10 }),
   );
   expect(result.content[0]?.text).toContain("requested 0 / 12");
-  expect(result.content[0]?.text).toContain(
-    "Use code_read for a larger window",
-  );
+  expect(result.content[0]?.text).toContain("Use read for a larger window");
 });
 
 it("preserves the grep discovery prefix and routes larger windows to reads", () => {
@@ -641,5 +639,5 @@ it("preserves the grep discovery prefix and routes larger windows to reads", () 
   expect(description.slice(0, 80)).toBe(
     "Find text, regex, or identifier matches in a public repo or package. Results cov",
   );
-  expect(description).toContain("For larger windows, use `code_read`");
+  expect(description).toContain("For larger windows, use `read`");
 });

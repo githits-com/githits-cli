@@ -79,6 +79,7 @@ export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
   "languages",
   "doctor",
   "settings",
+  "read",
   "search",
   "search-status",
   "code",
@@ -190,9 +191,8 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     },
   },
   {
-    name: "code_read",
+    name: "read",
     cliArgs: [
-      "code",
       "read",
       SMOKE_PACKAGE_SPEC,
       "package.json",
@@ -200,9 +200,9 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
       "1-5",
       "--json",
     ],
-    mcpTool: "code_read",
+    mcpTool: "read",
     mcpArgs: {
-      target: { registry: "npm", package_name: "express", version: "5.2.1" },
+      target: SMOKE_PACKAGE_SPEC,
       path: "package.json",
       start_line: 1,
       end_line: 5,
@@ -960,6 +960,32 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
           "Port must be an integer between 1 and 65535.",
         ),
         `${command} should explain the valid callback port range`,
+      );
+    }
+
+    for (const args of [
+      ["read", SMOKE_PACKAGE_SPEC, "package.json"],
+      ["read", "https://docs.example.test/guide#section"],
+      ["code", "read", SMOKE_PACKAGE_SPEC, "package.json"],
+      ["docs", "read", "docs-id"],
+    ]) {
+      const read = await runCliWithEnv([...args, "--json"], env);
+      assert(
+        read.exitCode !== 0 && read.stdout.trim() === "",
+        "unauthenticated read must keep stdout clean",
+      );
+      assert(
+        assertCleanErrorEnvelope(read.stderr, args.join(" ")).code ===
+          "AUTH_REQUIRED",
+        "read must require authentication",
+      );
+    }
+    for (const group of ["code", "docs"]) {
+      const help = await runCliWithEnv([group, "read", "--help"], env);
+      assert(
+        help.exitCode === 0 &&
+          help.stdout.includes("Deprecated: use githits read"),
+        "legacy read help must explain migration",
       );
     }
 
@@ -1855,13 +1881,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   );
 
   const docsReadText = assertTerminalOutput(
-    await runCli([
-      "docs",
-      "read",
-      crawledPage.docsReadTarget,
-      "--lines",
-      "1-5",
-    ]),
+    await runCli(["read", crawledPage.docsReadTarget, "--lines", "1-5"]),
     "docs read crawled URL terminal",
   );
   assert(
@@ -1871,7 +1891,6 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
 
   const docsReadJson = assertJsonOutput(
     await runCli([
-      "docs",
       "read",
       crawledPage.docsReadTarget,
       "--lines",

@@ -1191,25 +1191,44 @@ function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
     };
   }
   const evidence = formatRepositoryEvidence(hit);
-  const location = evidence.filePath
-    ? `${evidence.filePath}${formatLineRange(evidence.startLine, evidence.endLine)}`
-    : "location unavailable";
-  const type = `[${shortType(hit.type)}${isPathOnlyHit(hit) ? ", path match" : ""}]`;
   const preferredRead = hit.repositoryEvidence?.semanticContext?.preferredRead;
+  // Repo docs have opaque backend-owned page locators too. Expose the same
+  // locator as the JSON follow-up, without joining file ranges into its bytes.
+  const docsRead =
+    hit.type === "repository_doc" && !preferredRead
+      ? documentationReadLocator(hit)
+      : undefined;
+  const location = docsRead?.target
+    ? [
+        docsRead.startLine === undefined
+          ? ""
+          : `start_line=${docsRead.startLine}`,
+        docsRead.endLine === undefined ? "" : `end_line=${docsRead.endLine}`,
+      ]
+        .filter(Boolean)
+        .join(" ")
+    : evidence.filePath
+      ? `${evidence.filePath}${formatLineRange(evidence.startLine, evidence.endLine)}`
+      : "location unavailable";
+  const type = `[${shortType(hit.type)}${isPathOnlyHit(hit) ? ", path match" : ""}]`;
   const target = preferredRead
     ? semanticReadLocation(preferredRead).target
-    : hit.target;
+    : docsRead?.target || hit.target;
   const title = formatRepositoryHitTitle(
     hit,
     evidence.startLine,
     evidence.endLine,
   );
   return {
-    prefix: `${target} ${location} ${type}`,
+    prefix: `${target}${location ? ` ${location}` : ""} ${type}`,
     segments: [
       { text: target, style: "locator" },
-      { text: " ", style: "plain" },
-      { text: location, style: "locator" },
+      ...(location
+        ? [
+            { text: " ", style: "plain" } as const,
+            { text: location, style: "locator" } as const,
+          ]
+        : []),
       { text: " ", style: "plain" },
       { text: type, style: "secondary" },
     ],

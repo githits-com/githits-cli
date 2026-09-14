@@ -90,10 +90,9 @@ const EXPECTED_TOOL_NAMES = [
   "search",
   "search_status",
   "code_files",
-  "code_read",
+  "read",
   "code_grep",
   "docs_list",
-  "docs_read",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -125,6 +124,10 @@ describe("createMcpServer", () => {
     const tools = getMcpToolDefinitions(services);
 
     expect(tools.map((tool) => tool.name)).toEqual([...EXPECTED_TOOL_NAMES]);
+    expect(tools.map((tool) => tool.name)).toHaveLength(14);
+    expect(tools.map((tool) => tool.name)).toContain("read");
+    expect(tools.map((tool) => tool.name)).not.toContain("code_read");
+    expect(tools.map((tool) => tool.name)).not.toContain("docs_read");
   });
 
   it("creates server with default tools registered", () => {
@@ -367,7 +370,7 @@ describe("createMcpServer", () => {
       "search",
       "search_status",
       "code_files",
-      "code_read",
+      "read",
       "code_grep",
     ]) {
       expect(names).toContain(name);
@@ -379,7 +382,9 @@ describe("createMcpServer", () => {
 
     const tools = getMcpToolDefinitions(services);
     expect(tools.map((tool) => tool.name)).toContain("docs_list");
-    expect(tools.map((tool) => tool.name)).toContain("docs_read");
+    expect(tools.map((tool) => tool.name)).toContain("read");
+    expect(tools.map((tool) => tool.name)).not.toContain("code_read");
+    expect(tools.map((tool) => tool.name)).not.toContain("docs_read");
     expect(tools.map((tool) => tool.name)).toContain("pkg_info");
   });
 

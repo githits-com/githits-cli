@@ -53,13 +53,13 @@ async function cliJson(
 }
 
 async function mcpJson(
-  args: { page_id: string; start_line?: number; end_line?: number },
+  args: { target: string; start_line?: number; end_line?: number },
   readPackageDocMock?: () => Promise<unknown>,
 ): Promise<unknown> {
   const service = createMockPackageIntelligenceService(
     readPackageDocMock ? { readPackageDoc: readPackageDocMock as never } : {},
   );
-  const tool = createParityMcpTool("docs_read", {
+  const tool = createParityMcpTool("read", {
     packageIntelligenceService: service,
   });
   const result = await tool.handler({ ...args, format: "json" }, {});
@@ -70,7 +70,7 @@ describe("read_package_doc parity", () => {
   it("PARITY-JSON-KEYS: happy path CLI === MCP", async () => {
     const cli = await cliJson("github:expressjs/express@abc123/README.md");
     const mcp = await mcpJson({
-      page_id: "github:expressjs/express@abc123/README.md",
+      target: "github:expressjs/express@abc123/README.md",
     });
     expect(cli).toEqual(mcp);
   });
@@ -102,7 +102,7 @@ describe("read_package_doc parity", () => {
       "2-2",
     );
     const mcp = await mcpJson(
-      { page_id: target, start_line: 2, end_line: 2 },
+      { target: target, start_line: 2, end_line: 2 },
       fn,
     );
 
@@ -130,7 +130,7 @@ describe("read_package_doc parity", () => {
         }),
       }),
     );
-    const mcp = await mcpJson({ page_id: "missing-page" }, fn as never);
+    const mcp = await mcpJson({ target: "missing-page" }, fn as never);
     expect(cli).toEqual(mcp);
     expect(cli).toEqual({
       error: "Doc page not found",
@@ -155,7 +155,7 @@ describe("read_package_doc parity", () => {
     });
     const target = "https://docs.example.test/page#duplicate";
     const cli = await cliJson(target, deps);
-    const mcp = await mcpJson({ page_id: target }, fn);
+    const mcp = await mcpJson({ target: target }, fn);
 
     expect(cli).toEqual(mcp);
     expect(cli).toEqual({

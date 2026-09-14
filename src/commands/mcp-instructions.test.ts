@@ -25,10 +25,9 @@ const KNOWN_TOOLS = [
   "search_language",
   "search_status",
   "code_files",
-  "code_read",
+  "read",
   "code_grep",
   "docs_list",
-  "docs_read",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -116,7 +115,15 @@ describe("buildMcpQuickStart", () => {
   it("preserves directory and documentation routing and emitted locators", () => {
     const instructions = buildMcpQuickStart();
     expect(instructions).toContain(
-      "never use\n`code_read` to list/probe directories",
+      "Read a source file, documentation page, or focused section | `read`",
+    );
+    expect(instructions).not.toContain("`code_read`");
+    expect(instructions).not.toContain("`docs_read`");
+    expect(instructions).toContain(
+      "never use `read` to list/probe directories",
+    );
+    expect(instructions).toContain(
+      "pass the source\ntarget and returned path to `read`",
     );
     expect(instructions).toContain(
       'For a package or site docs topic, use `search` with `source:"docs"`',
@@ -128,10 +135,13 @@ describe("buildMcpQuickStart", () => {
       "Use a docs hit's snippet when sufficient; otherwise follow its generated",
     );
     expect(instructions).toContain(
-      "pass a `[docs page]` target unchanged to `docs_read`",
+      "pass a `[docs page]` target unchanged to `read`",
     );
     expect(instructions).toContain("A fragment needs no bounds");
     expect(instructions).toContain("replace it with a page-relative range");
+    expect(instructions).toContain(
+      "For `read`, the wait applies only to code indexing.",
+    );
   });
 
   it("retains comparative examples and language disambiguation routes", () => {
@@ -160,10 +170,9 @@ describe("buildMcpQuickStart", () => {
       "search",
       "search_status",
       "code_files",
-      "code_read",
+      "read",
       "code_grep",
       "docs_list",
-      "docs_read",
       "pkg_info",
       "pkg_vulns",
       "pkg_deps",

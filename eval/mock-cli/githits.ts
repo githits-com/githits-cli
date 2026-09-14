@@ -17,6 +17,34 @@ export function detectFixtureTool(
   argv: readonly string[],
 ): MockCliTool | undefined {
   const [first, second] = argv;
+  if (first === "read") {
+    const values = new Set([
+      "--lines",
+      "--start",
+      "--end",
+      "--wait",
+      "--repo-url",
+      "--git-ref",
+    ]);
+    const positionals: string[] = [];
+    for (let i = 1; i < argv.length; i++) {
+      const arg = argv[i] as string;
+      if (arg === "--") {
+        positionals.push(...argv.slice(i + 1));
+        break;
+      }
+      if (values.has(arg)) {
+        i++;
+        continue;
+      }
+      if (!arg.startsWith("-")) positionals.push(arg);
+    }
+    return argv.some(
+      (arg) => arg === "--repo-url" || arg.startsWith("--repo-url="),
+    ) || positionals.length > 1
+      ? "code_read"
+      : "docs_read";
+  }
   if (first === "example") return "get_example";
   if (first === "languages") return "search_language";
   if (first === "search") return "search";
@@ -58,13 +86,13 @@ function fixtureSupportOutput(
 ): string {
   if (expectedTool === "code_read") {
     if (tool === "search" || tool === "code_grep") {
-      return "src/index.ts:1 source hit for @example/widget-kit. Use `githits code read npm:@example/widget-kit src/index.ts`.";
+      return "src/index.ts:1 source hit for @example/widget-kit. Use `githits read npm:@example/widget-kit src/index.ts`.";
     }
     if (tool === "code_files") return "src/index.ts";
   }
   if (expectedTool === "docs_read") {
     if (tool === "search" || tool === "docs_list") {
-      return "readme\tdocs/README.md\tWidget Kit documentation page. Use `githits docs read readme`.";
+      return "readme\tdocs/README.md\tWidget Kit documentation page. Use `githits read readme`.";
     }
   }
   if (tool === "get_example")

@@ -8,13 +8,11 @@ import type {
   CodeNavigationTarget,
   ReadFileParams,
 } from "@githits/core-internal";
-import {
-  DEFAULT_WAIT_TIMEOUT_MS,
-  MAX_WAIT_TIMEOUT_MS,
-} from "./code-navigation-defaults.js";
 import { InvalidPackageSpecError } from "./package-spec.js";
-
-const WAIT_MIN = 0;
+import {
+  normalizeReadWaitTimeoutMs,
+  validateReadRange,
+} from "./read-request.js";
 
 export interface ReadFileRequestInput {
   target: CodeNavigationTarget;
@@ -41,19 +39,13 @@ export function buildReadFileParams(
   }
   if (filePath.endsWith("/")) {
     throw new InvalidPackageSpecError(
-      `\`file_path\` must be an exact file path, not a directory prefix. Use \`code_files\` with \`path_prefix: ${JSON.stringify(filePath)}\` to list files, then pass an emitted \`path\` to \`code_read\`.`,
+      `\`file_path\` must be an exact file path, not a directory prefix. Use \`code_files\` with \`path_prefix: ${JSON.stringify(filePath)}\` to list files, then pass an emitted \`path\` to \`read\`.`,
     );
   }
 
-  const startLine = normaliseLine(input.startLine, "start_line");
-  const endLine = normaliseLine(input.endLine, "end_line");
-  if (startLine !== undefined && endLine !== undefined && startLine > endLine) {
-    throw new InvalidPackageSpecError(
-      `Line range is reversed: start_line (${startLine}) must be ≤ end_line (${endLine}).`,
-    );
-  }
-
-  const waitTimeoutMs = normaliseWaitTimeoutMs(input.waitTimeoutMs);
+  validateReadRange(input.startLine, input.endLine);
+  const { startLine, endLine } = input;
+  const waitTimeoutMs = normalizeReadWaitTimeoutMs(input.waitTimeoutMs);
 
   return {
     params: {
@@ -64,27 +56,4 @@ export function buildReadFileParams(
       waitTimeoutMs,
     },
   };
-}
-
-function normaliseLine(
-  raw: number | undefined,
-  name: string,
-): number | undefined {
-  if (raw === undefined) return undefined;
-  if (!Number.isInteger(raw) || raw < 1) {
-    throw new InvalidPackageSpecError(
-      `\`${name}\` must be a positive integer (lines are 1-indexed). Got ${raw}.`,
-    );
-  }
-  return raw;
-}
-
-function normaliseWaitTimeoutMs(raw: number | undefined): number {
-  if (raw === undefined) return DEFAULT_WAIT_TIMEOUT_MS;
-  if (!Number.isInteger(raw) || raw < WAIT_MIN || raw > MAX_WAIT_TIMEOUT_MS) {
-    throw new InvalidPackageSpecError(
-      `\`wait_timeout_ms\` must be an integer between ${WAIT_MIN} and ${MAX_WAIT_TIMEOUT_MS}. Got ${raw}.`,
-    );
-  }
-  return raw;
 }

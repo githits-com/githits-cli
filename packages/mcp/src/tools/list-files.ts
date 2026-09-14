@@ -118,10 +118,10 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "List indexed files and paths in a public repo or package. Then use `code_read` or " +
+  "List indexed files and paths in a public repo or package. Then use `read` or " +
   "`code_grep`. Use this for enumeration tasks such as files under a directory; use " +
   "`path_prefix` for directory prefixes (e.g. `lib/`) and optional " +
-  "`extensions` for language filtering. Discover paths before `code_read` " +
+  "`extensions` for language filtering. Discover paths before `read` " +
   "when you don't yet know the path, or when it returns " +
   "`FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, or " +
   "`SOURCE_FILE_INVENTORY_UNKNOWN`. Also use it to scope `code_grep`. Address " +

@@ -391,6 +391,6 @@ export function buildGrepContextClampingNotice(
 ): string | undefined {
   const adjustment = envelope.contextClamping;
   if (!adjustment) return undefined;
-  const read = surface === "cli" ? "githits code read" : "code_read";
+  const read = surface === "cli" ? "githits read" : "read";
   return `Context limited to ${adjustment.effectiveBefore} before / ${adjustment.effectiveAfter} after (requested ${adjustment.requestedBefore} / ${adjustment.requestedAfter}; maximum 10 per side). Use ${read} for a larger window.`;
 }

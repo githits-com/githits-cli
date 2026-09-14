@@ -25,10 +25,9 @@ const FORMAT_SELECTABLE_TOOLS = new Set([
   "search",
   "search_status",
   "code_files",
-  "code_read",
+  "read",
   "code_grep",
   "docs_list",
-  "docs_read",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -43,10 +42,9 @@ const STABLE_MCP_TOOL_NAMES = [
   "search",
   "search_status",
   "code_files",
-  "code_read",
+  "read",
   "code_grep",
   "docs_list",
-  "docs_read",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -76,13 +74,7 @@ const DESCRIPTION_ROUTING: Record<
   },
   get_example: {
     prefix: /^Find canonical cross-project examples/,
-    body: [
-      "`search`",
-      "`docs_read`",
-      "`code_read`",
-      "`code_grep`",
-      "`search_language`",
-    ],
+    body: ["`search`", "`read`", "`code_grep`", "`search_language`"],
   },
   search_language: {
     prefix: /^Resolve a supported language name or alias/,
@@ -95,8 +87,7 @@ const DESCRIPTION_ROUTING: Record<
       "Omit `source` to let GitHits select the best sources",
       "`search_status`",
       "`code_grep`",
-      "`docs_read`",
-      "`code_read`",
+      "`read`",
     ],
   },
   search_status: {
@@ -109,46 +100,33 @@ const DESCRIPTION_ROUTING: Record<
   },
   code_files: {
     prefix: /^List indexed files and paths in a public repo or package\./,
-    body: ["`code_read`", "`code_grep`"],
+    body: ["`read`", "`code_grep`"],
   },
-  code_read: {
+  read: {
     prefix:
-      /^Read an exact indexed file or focused window in a public repo or package\./,
+      /^Read an indexed source file or documentation page, including a docs section\./,
+    exactPrefix:
+      "Read an indexed source file or documentation page, including a docs section. Pas",
     body: [
-      "`code_files`",
-      "`code_grep`",
-      "`search`",
-      "150 lines by default",
-      "up to 300 lines",
+      "use code_files",
+      "search/code_grep",
+      "target and path for a file; target alone for a docs page",
+      "A docs URL fragment needs no bounds",
+      "either bound replaces it with a page-relative range",
+      "exact revisions",
+      "does not list directories",
+      "returned continuation and error actions",
+      "INDEXING retry",
     ],
   },
   code_grep: {
     prefix:
       /^Find text, regex, or identifier matches in a public repo or package\./,
-    body: [
-      "deterministic and paginated",
-      "`search`",
-      "`code_read`",
-      "`code_files`",
-    ],
+    body: ["deterministic and paginated", "`search`", "`read`", "`code_files`"],
   },
   docs_list: {
     prefix: /^List package documentation targets for follow-up reads\./,
-    body: ["`docs_read`", "`search`", "`code_read`", "`docsReadTarget`"],
-  },
-  docs_read: {
-    prefix:
-      /^Read a package documentation page by emitted target or stable page ID\./,
-    body: [
-      "`docs_list`",
-      "`search`",
-      "`code_read`",
-      "`docsReadTarget`",
-      "fragment needs no bounds",
-      "either bound replaces it with a page-relative range",
-      "150 lines by default",
-      "up to 300 lines",
-    ],
+    body: ["`read`", "`search`", "`docsReadTarget`"],
   },
   pkg_info: {
     prefix: /^Assess latest package health and adoption/,
@@ -224,7 +202,10 @@ describe("MCP tool annotations", () => {
     const descriptors = getMcpToolDescriptors();
 
     expect(descriptors.map(({ name }) => name)).not.toContain("feedback");
-    expect(descriptors).toHaveLength(15);
+    expect(descriptors).toHaveLength(14);
+    expect(descriptors.map(({ name }) => name)).toContain("read");
+    expect(descriptors.map(({ name }) => name)).not.toContain("code_read");
+    expect(descriptors.map(({ name }) => name)).not.toContain("docs_read");
 
     for (const descriptor of descriptors) {
       expect(descriptor.annotations, descriptor.name).toEqual({
@@ -243,6 +224,8 @@ describe("MCP tool description catalog", () => {
     expect(descriptors.map(({ name }) => name)).toEqual([
       ...STABLE_MCP_TOOL_NAMES,
     ]);
+    expect(descriptors.map(({ name }) => name)).not.toContain("code_read");
+    expect(descriptors.map(({ name }) => name)).not.toContain("docs_read");
     const catalogPrefixes = descriptors.map(({ description }) =>
       description.slice(0, 80),
     );
@@ -272,7 +255,7 @@ describe("MCP tool description catalog", () => {
         expect(catalogPrefix, descriptor.name).toBe(routing.exactPrefix);
       }
       if (
-        ["code_files", "code_read", "code_grep", "pkg_changelog"].includes(
+        ["code_files", "read", "code_grep", "pkg_changelog"].includes(
           descriptor.name,
         )
       ) {
@@ -320,6 +303,17 @@ describe("MCP tool description catalog", () => {
         0,
       ),
     ).toBeLessThan(17_000);
+
+    const readDescription = descriptors.find(
+      ({ name }) => name === "read",
+    )?.description;
+    expect(readDescription).toBeDefined();
+    expect(readDescription?.slice(0, 79)).toBe(
+      "Read an indexed source file or documentation page, including a docs section. Pa",
+    );
+    expect(readDescription?.slice(0, 80)).toBe(
+      "Read an indexed source file or documentation page, including a docs section. Pas",
+    );
 
     const searchSchema = z.toJSONSchema(
       z.object(descriptors.find(({ name }) => name === "search")?.schema ?? {}),

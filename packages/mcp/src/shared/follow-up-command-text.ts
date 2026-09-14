@@ -43,10 +43,10 @@ export function buildSearchHitFollowUpCommand(
     const parts =
       syntax === "cli"
         ? [
-            `githits code read ${shellQuote(location.target)} ${shellQuote(location.path)}`,
+            `githits read ${shellQuote(location.target)} ${shellQuote(location.path)}`,
           ]
         : [
-            `code_read target=${quote(location.target)} path=${quote(location.path)}`,
+            `read target=${quote(location.target)} path=${quote(location.path)}`,
           ];
     if (syntax === "cli") appendCliRange(parts, range.startLine, range.endLine);
     else appendRange(parts, range.startLine, range.endLine);
@@ -256,7 +256,7 @@ export function buildCliDocsReadCommand(
   startLine?: number,
   endLine?: number,
 ): string {
-  const parts = [`githits docs read ${shellQuote(target)}`];
+  const parts = [`githits read ${shellQuote(target)}`];
   appendCliRange(parts, startLine, endLine);
   return parts.join(" ");
 }
@@ -266,7 +266,7 @@ function buildCliCodeReadCommand(input: CodeReadCommandInput): string {
   const target = buildTargetSpec(input);
   if (!target) return "follow-up unavailable: missing target";
 
-  const parts: string[] = ["githits code read"];
+  const parts: string[] = ["githits read"];
   if (
     input.repoUrl &&
     !(input.preferPackageTarget && input.registry && input.packageName)
@@ -286,7 +286,7 @@ export function buildDocsReadCommand(
   startLine?: number,
   endLine?: number,
 ): string {
-  const parts = [`docs_read page_id=${quote(target)}`];
+  const parts = [`read target=${quote(target)}`];
   appendRange(parts, startLine, endLine);
   return parts.join(" ");
 }
@@ -296,7 +296,7 @@ export function buildCodeReadCommand(input: CodeReadCommandInput): string {
   const target = buildTargetSpec(input);
   if (!target) return "follow-up unavailable: missing target";
   const parts = [
-    `code_read target=${quote(target)}`,
+    `read target=${quote(target)}`,
     `path=${quote(input.filePath)}`,
   ];
   appendRange(parts, input.startLine, input.endLine);

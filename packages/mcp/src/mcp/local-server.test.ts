@@ -29,10 +29,9 @@ const EXPECTED_STABLE_NAMES = [
   "search",
   "search_status",
   "code_files",
-  "code_read",
+  "read",
   "code_grep",
   "docs_list",
-  "docs_read",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -137,6 +136,10 @@ describe("createLocalMcpServer", () => {
       });
 
       expect(registeredToolNames(server)).toEqual([...EXPECTED_STABLE_NAMES]);
+      expect(registeredToolNames(server)).toHaveLength(14);
+      expect(registeredToolNames(server)).toContain("read");
+      expect(registeredToolNames(server)).not.toContain("code_read");
+      expect(registeredToolNames(server)).not.toContain("docs_read");
       expect(serverInstructions(server)).toBeUndefined();
       for (const name of EXPECTED_STABLE_NAMES) {
         if (name === "quick_start") continue;
@@ -165,7 +168,9 @@ describe("createLocalMcpServer", () => {
     expect(registeredToolNames(server)).toEqual([
       ...EXPECTED_EXPERIMENTAL_NAMES,
     ]);
-    expect(registeredToolNames(server)).toHaveLength(18);
+    expect(registeredToolNames(server)).toHaveLength(17);
+    expect(registeredToolNames(server)).not.toContain("code_read");
+    expect(registeredToolNames(server)).not.toContain("docs_read");
     expect(serverInstructions(server)).toBeUndefined();
     for (const name of ["ask", "resolve_target", "code_diff"] as const) {
       expect(registeredTools(server)[name]?.description).toEndWith(

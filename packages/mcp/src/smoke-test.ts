@@ -47,9 +47,8 @@ export const EXPECTED_MCP_TOOLS = [
   "pkg_changelog",
   "pkg_upgrade_review",
   "docs_list",
-  "docs_read",
   "code_files",
-  "code_read",
+  "read",
   "code_grep",
   "search",
   "search_status",
@@ -363,6 +362,7 @@ function assertSearchDefaultText(text: string, context: string): void {
   }
   assert(
     !formatterText.includes("githits search-status ") &&
+      !formatterText.includes("githits read ") &&
       !formatterText.includes("githits code read ") &&
       !formatterText.includes("githits docs read ") &&
       !formatterText.includes(" --wait ") &&
@@ -1078,34 +1078,31 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   );
   assert(
     docsText.includes(
-      `docs_read page_id=${JSON.stringify(crawledPage.docsReadTarget)}`,
+      `read target=${JSON.stringify(crawledPage.docsReadTarget)}`,
     ),
     "docs_list default missing crawled URL follow-up",
   );
 
   const docReadText = assertDefaultText(
-    await callTool(caller, "docs_read", {
-      page_id: crawledPage.docsReadTarget,
+    await callTool(caller, "read", {
+      target: crawledPage.docsReadTarget,
       start_line: 1,
       end_line: 5,
     }),
-    "docs_read crawled URL default",
+    "read crawled URL default",
   );
-  assert(
-    docReadText.length > 0,
-    "docs_read crawled URL default missing content",
-  );
+  assert(docReadText.length > 0, "read crawled URL default missing content");
 
   const docReadJson = assertJsonResult(
-    await callTool(caller, "docs_read", {
-      page_id: crawledPage.docsReadTarget,
+    await callTool(caller, "read", {
+      target: crawledPage.docsReadTarget,
       start_line: 1,
       end_line: 5,
       format: "json",
     }),
-    "docs_read crawled URL json",
+    "read crawled URL json",
   );
-  assertRecord(docReadJson, "docs_read crawled URL json");
+  assertRecord(docReadJson, "read crawled URL json");
   assert(
     docReadJson.docsReadTarget === crawledPage.docsReadTarget &&
       docReadJson.pageId === crawledPage.pageId &&
@@ -1117,33 +1114,33 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
       docReadJson.endLine <= 5 &&
       typeof docReadJson.totalLines === "number" &&
       docReadJson.totalLines >= docReadJson.endLine,
-    "docs_read crawled URL json missing locators, content, or backend range",
+    "read crawled URL json missing locators, content, or backend range",
   );
 
   const legacyCrawledRead = assertJsonResult(
-    await callTool(caller, "docs_read", {
-      page_id: crawledPage.pageId,
+    await callTool(caller, "read", {
+      target: crawledPage.pageId,
       start_line: 1,
       end_line: 5,
       format: "json",
     }),
-    "docs_read legacy crawled ID json",
+    "read legacy crawled ID json",
   );
-  assertRecord(legacyCrawledRead, "docs_read legacy crawled ID json");
+  assertRecord(legacyCrawledRead, "read legacy crawled ID json");
   assert(
     legacyCrawledRead.pageId === docReadJson.pageId &&
       legacyCrawledRead.content === docReadJson.content,
-    "docs_read URL and legacy crawled ID returned different ranged content",
+    "read URL and legacy crawled ID returned different ranged content",
   );
 
   const repoRead = assertJsonResult(
-    await callTool(caller, "docs_read", {
-      page_id: repoPage.docsReadTarget,
+    await callTool(caller, "read", {
+      target: repoPage.docsReadTarget,
       format: "json",
     }),
-    "docs_read repo-backed ID json",
+    "read repo-backed ID json",
   );
-  assertRecord(repoRead, "docs_read repo-backed ID json");
+  assertRecord(repoRead, "read repo-backed ID json");
   assert(
     repoRead.docsReadTarget === repoPage.docsReadTarget &&
       repoRead.pageId === repoPage.pageId &&
@@ -1152,15 +1149,15 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
       (repoRead.totalLines === 0 ||
         (typeof repoRead.startLine === "number" &&
           typeof repoRead.endLine === "number")),
-    "docs_read repo-backed ID json missing snapshot locators, content, or range",
+    "read repo-backed ID json missing snapshot locators, content, or range",
   );
 
   assertErrorCode(
-    await callTool(caller, "docs_read", {
-      page_id: "https://docs.example.invalid/githits-smoke-unknown",
+    await callTool(caller, "read", {
+      target: "https://docs.example.invalid/githits-smoke-unknown",
       format: "json",
     }),
-    "docs_read unknown URL",
+    "read unknown URL",
     "NOT_FOUND",
   );
 
@@ -1193,28 +1190,28 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   );
 
   const codeReadText = assertDefaultText(
-    await callTool(caller, "code_read", {
-      target: SMOKE_PACKAGE_TARGET,
+    await callTool(caller, "read", {
+      target: `npm:express@${SMOKE_PACKAGE_VERSION}`,
       path: "package.json",
       start_line: 1,
       end_line: 5,
     }),
-    "code_read default",
+    "read default",
   );
-  assert(/^1\s+/m.test(codeReadText), "code_read default missing line numbers");
+  assert(/^1\s+/m.test(codeReadText), "read default missing line numbers");
 
   const codeReadJson = assertJsonResult(
-    await callTool(caller, "code_read", {
-      target: SMOKE_PACKAGE_TARGET,
+    await callTool(caller, "read", {
+      target: `npm:express@${SMOKE_PACKAGE_VERSION}`,
       path: "package.json",
       start_line: 1,
       end_line: 5,
       format: "json",
     }),
-    "code_read json",
+    "read json",
   );
-  assertRecord(codeReadJson, "code_read json");
-  assert(codeReadJson.path === "package.json", "code_read json path mismatch");
+  assertRecord(codeReadJson, "read json");
+  assert(codeReadJson.path === "package.json", "read json path mismatch");
 
   const codeGrepText = assertDefaultText(
     await callTool(caller, "code_grep", {

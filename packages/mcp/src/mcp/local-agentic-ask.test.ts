@@ -16,6 +16,7 @@ import {
   createLocalAgenticAskTool,
   DESCRIPTION,
   formatAgenticAskMcpText,
+  projectAskReadSources,
 } from "./local-agentic-ask.js";
 
 const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
@@ -158,10 +159,15 @@ describe("local ask MCP adapter", () => {
       undefined,
     );
     expect(result).toEqual({
-      content: [{ type: "text", text: formatAgenticAskMcpText(response()) }],
+      content: [
+        {
+          type: "text",
+          text: formatAgenticAskMcpText(projectAskReadSources(response())),
+        },
+      ],
     });
     expect(result.content[0]?.text).toBe(
-      'Use the documented API.\n\nSources:\n  1. code_read({"target":"npm:example","path":"src/index.ts","start_line":10,"end_line":20})\n  2. docs_read({"page_id":"docs:example:guide","start_line":3,"end_line":8})\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n',
+      'Use the documented API.\n\nSources:\n  1. read({"target":"npm:example","path":"src/index.ts","start_line":10,"end_line":20})\n  2. read({"target":"docs:example:guide","start_line":3,"end_line":8})\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n',
     );
   });
 
@@ -223,7 +229,9 @@ describe("local ask MCP adapter", () => {
         { signal },
       );
       expect(result.isError).toBeUndefined();
-      expect(result.content[0]?.text).toBe(formatAgenticAskMcpText(answer));
+      expect(result.content[0]?.text).toBe(
+        formatAgenticAskMcpText(projectAskReadSources(answer)),
+      );
     },
   );
 
@@ -276,7 +284,9 @@ describe("local ask MCP adapter", () => {
       format: "json",
     });
 
-    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual(response());
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual(
+      projectAskReadSources(response()),
+    );
     expect(result.content[0]?.text).not.toContain("usage");
   });
 
@@ -462,5 +472,43 @@ describe("local ask MCP adapter", () => {
       },
       { signal: controller.signal },
     );
+  });
+});
+
+describe("Ask read source projection", () => {
+  it("projects both typed pointers without mutating backend data or losing metadata", () => {
+    const wire = response();
+    const original = structuredClone(wire);
+    const projected = projectAskReadSources(wire);
+    expect(projected).toEqual({
+      ...original,
+      sources: [
+        {
+          name: "read",
+          arguments: {
+            target: "npm:example",
+            path: "src/index.ts",
+            start_line: 10,
+            end_line: 20,
+          },
+        },
+        {
+          name: "read",
+          arguments: {
+            target: "docs:example:guide",
+            start_line: 3,
+            end_line: 8,
+          },
+        },
+      ],
+    });
+    expect(wire).toEqual(original);
+    const text = formatAgenticAskMcpText(projected);
+    expect(text).toContain('read({"target":"docs:example:guide"');
+    expect(text).not.toMatch(/code_read|docs_read|page_id/);
+  });
+  it("leaves URL responses unchanged", () => {
+    const wire = urlResponse();
+    expect(projectAskReadSources(wire)).toBe(wire);
   });
 });

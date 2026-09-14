@@ -356,7 +356,7 @@ describe("pkgReadAction", () => {
       expect(payload.error).toContain("`<path>` must be an exact file path");
       expect(payload.error).toContain("`githits code files`");
       expect(payload.error).toContain('path prefix "lib/"');
-      expect(payload.error).toContain("`githits code read`");
+      expect(payload.error).toContain("`githits read`");
       expect(payload.error).not.toContain("emitted `path`");
       expect(payload.error).not.toContain("`file_path`");
       expect(payload.error).not.toContain("code_files");
@@ -558,7 +558,7 @@ describe("pkgReadAction", () => {
       };
       expect(payload.details?.action).toContain("`githits code files`");
       expect(payload.details?.action).toContain('path prefix "docs/"');
-      expect(payload.details?.action).toContain("`githits code read`");
+      expect(payload.details?.action).toContain("`githits read`");
       expect(payload.details?.action).not.toContain("code_files");
       expect(payload.details?.action).not.toContain("code_read");
     } finally {
@@ -609,7 +609,7 @@ describe("pkgReadAction", () => {
         };
         expect(payload.details?.action).toContain(expectedGuidance);
         expect(payload.details?.action).toContain("`githits code files`");
-        expect(payload.details?.action).toContain("`githits code read`");
+        expect(payload.details?.action).toContain("`githits read`");
         expect(payload.details?.action).not.toContain("code_files");
         expect(payload.details?.action).not.toContain("code_read");
       } finally {
@@ -691,7 +691,7 @@ describe("pkgReadAction", () => {
       const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
         details?: { action?: string };
       };
-      expect(payload.details?.action).toContain("`githits code read`");
+      expect(payload.details?.action).toContain("`githits read`");
       expect(payload.details?.action).toContain('path prefix "lib/"');
       expect(payload.details?.action).not.toContain("code_read");
     } finally {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { parseCodeNavigationTargetSpec } from "./code-navigation-target.js";
 import type { LeanListFilesEnvelope } from "./list-files-response.js";
 import { renderListFilesText } from "./list-files-text.js";
 
@@ -9,6 +10,7 @@ function envelope(
     registry: "npm",
     name: "express",
     indexedVersion: "v5.2.1",
+    resolution: { requestedVersion: "5.2.1" },
     total: 2,
     hasMore: false,
     files: [
@@ -22,12 +24,70 @@ function envelope(
 describe("renderListFilesText", () => {
   it("renders a paths-only listing with version-tagged identity", () => {
     const text = renderListFilesText(envelope());
-    expect(text).toContain("code_files | 2 paths | npm:express@v5.2.1");
+    expect(text).toContain("code_files | 2 paths | npm:express@5.2.1");
     expect(text).toContain("src/index.js");
     expect(text).toContain("src/lib/app.js");
     // No trailing metadata in default mode.
     expect(text).not.toContain("javascript");
     expect(text).not.toContain("SOURCE");
+  });
+
+  it("emits the served repository commit as a reusable read target", () => {
+    const commit = "dbac741a49a5a64336b70c06e85c2e2706e36336";
+    const text = renderListFilesText(
+      envelope({
+        indexedVersion: commit,
+        resolution: { resolvedRef: commit, commitSha: commit },
+        targetResolution: {
+          served: {
+            repoUrl: "https://github.com/expressjs/express",
+            gitRef: "v5.2.1",
+            commitSha: commit,
+            version: "5.2.1",
+          },
+          freshness: "current",
+          availableVersions: [],
+          availableRefs: [],
+        },
+      }),
+    );
+    expect(text).toContain(
+      `code_files | 2 paths | github:expressjs/express#${commit}`,
+    );
+    expect(text).not.toContain(`npm:express@${commit}`);
+    expect(text).not.toContain(`#v5.2.1@`);
+    expect(
+      parseCodeNavigationTargetSpec(text.split(" | ")[2]!.split("\n")[0]!),
+    ).toEqual({
+      repoUrl: "https://github.com/expressjs/express",
+      gitRef: commit,
+    });
+  });
+
+  it("does not turn an untyped indexed Git ref into a package version", () => {
+    const text = renderListFilesText(
+      envelope({
+        indexedVersion: "dbac741a49a5a64336b70c06e85c2e2706e36336",
+        resolution: { resolvedRef: "main" },
+      }),
+    );
+    expect(text.split("\n")[0]).toBe("code_files | 2 paths | npm:express");
+  });
+
+  it("keeps a served package version ahead of the requested version", () => {
+    const text = renderListFilesText(
+      envelope({
+        resolution: { requestedVersion: "5.2.1" },
+        targetResolution: {
+          served: { registry: "npm", packageName: "express", version: "5.1.0" },
+          availableVersions: [],
+          availableRefs: [],
+        },
+      }),
+    );
+    expect(text.split("\n")[0]).toBe(
+      "code_files | 2 paths | npm:express@5.1.0",
+    );
   });
 
   it("uses repo addressing when no registry is provided", () => {

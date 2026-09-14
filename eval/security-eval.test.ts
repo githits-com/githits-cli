@@ -36,8 +36,7 @@ describe("security eval skills surface", () => {
       "pkg_vulns",
       "pkg_changelog",
       "pkg_info",
-      "code_read",
-      "docs_read",
+      "read",
     ]);
     expect(CLAUDE_MCP_ALLOWED_TOOLS).toEqual(
       EVAL_MCP_REGISTERED_TOOL_NAMES.map(
@@ -51,13 +50,34 @@ describe("security eval skills surface", () => {
     expect(signal).toBeDefined();
     if (!signal) return;
 
-    expect(buildPass3Prompt(signal, "mcp")).toContain("`code_read` tool");
+    expect(buildPass3Prompt(signal, "mcp")).toContain("`read` tool");
     expect(buildPass3Prompt(signal, "skills")).toContain(
-      "`githits code read` command",
+      "`githits read` command",
     );
   });
 
   it("maps GitHits CLI commands to fixture tools", () => {
+    expect(
+      detectFixtureTool([
+        "read",
+        "npm:@example/widget-kit",
+        "src/index.ts",
+        "--lines",
+        "1-5",
+      ]),
+    ).toBe("code_read");
+    expect(detectFixtureTool(["read", "--lines", "1-5", "readme"])).toBe(
+      "docs_read",
+    );
+    expect(
+      detectFixtureTool([
+        "read",
+        "--repo-url",
+        "https://github.com/owner/repo",
+        "src/index.ts",
+      ]),
+    ).toBe("code_read");
+
     expect(detectFixtureTool(["pkg", "vulns", "npm:lodash"])).toBe("pkg_vulns");
     expect(detectFixtureTool(["pkg", "changelog", "npm:express"])).toBe(
       "pkg_changelog",
@@ -101,7 +121,7 @@ describe("security eval skills surface", () => {
         "docs_read",
         "fixture text",
       ),
-    ).toContain("githits docs read readme");
+    ).toContain("githits read readme");
   });
 
   it("formats mock CLI output as JSON when requested", () => {

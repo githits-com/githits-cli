@@ -72,7 +72,7 @@ describe("provider target consumer parity", () => {
       for (const [name, args] of [
         ["code_files", {}],
         ["code_grep", { pattern: "export" }],
-        ["code_read", { path: "src/index.ts" }],
+        ["read", { path: "src/index.ts" }],
       ] as const) {
         const result = await createParityMcpTool(name, deps).handler(
           { target: `${compact}#release/v1@stable`, ...args },

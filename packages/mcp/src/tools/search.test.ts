@@ -654,7 +654,7 @@ describe("searchTool", () => {
       gitRef: "abc123",
       filePath: "README.md",
     });
-    expect(payload.results[0].followUp).toContain("docs_read page_id=");
+    expect(payload.results[0].followUp).toContain("read target=");
     expect(payload.results[0]).not.toHaveProperty("alternateFollowUps");
   });
 

@@ -581,7 +581,7 @@ safe integers above 10. Negative, fractional, nonfinite and unsafe integers
 remain invalid. Unchanged inputs retain the existing output shape. Reduced
 requests include `contextClamping` with requested/effective before/after values;
 MCP text and CLI stderr report the reduction and direct larger windows to
-`code_read` / `githits code read`. Existing JSON filter fields retain their
+`read` / `githits read`. Existing JSON filter fields retain their
 prior semantics; `contextClamping` explicitly records the effective sides.
 An overridden symmetric request does not emit a notice if neither effective
 side needs reduction. Backend limits, match limits and network queries are

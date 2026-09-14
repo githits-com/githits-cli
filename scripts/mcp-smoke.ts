@@ -189,7 +189,7 @@ async function assertExperimentalMcpSession(
       quickStart.includes("code_diff") &&
       quickStart.includes("site:<host[/path]>") &&
       quickStart.includes('source:"docs"') &&
-      quickStart.includes("docs_read") &&
+      quickStart.includes("`read`") &&
       quickStart.includes("credentials") &&
       quickStart.includes("diffs do not prove compatibility") &&
       quickStart.includes("public OSS") &&
@@ -421,9 +421,7 @@ async function runExperimentalLiveSmoke(
         );
         assert(
           askTextBody.includes("\n\nSources:\n") &&
-            /\n\s+\d+\. (?:code_read|docs_read)\(\{[^\n]+\}\)/.test(
-              askTextBody,
-            ) &&
+            /\n\s+\d+\. read\(\{[^\n]+\}\)/.test(askTextBody) &&
             /\n\nAsk run ID: [0-9a-f-]+\nThread ID: [0-9a-f-]+\n/.test(
               askTextBody,
             ) &&

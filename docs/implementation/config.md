@@ -43,7 +43,7 @@ The container (`src/container.ts`) resolves authentication in priority order:
 | `/languages` | Full access | Full access | Blocked |
 | `/functions/v1/settings/me` | Full access | Full access | Blocked |
 
-Package/source access uses the package/source service URL from `GITHITS_CODE_NAV_URL`, defaulting to the GitHits-managed endpoint. MCP registration for `search`, `search_status`, `docs_*`, `pkg_*`, `code_files`, `code_read`, and `code_grep` is always on; CLI registration for top-level `search` / `search-status` plus the `githits code`, `githits pkg`, and `githits docs` groups is also always on.
+Package/source access uses the package/source service URL from `GITHITS_CODE_NAV_URL`, defaulting to the GitHits-managed endpoint. MCP registration for `search`, `search_status`, `docs_*`, `pkg_*`, `code_files`, `read`, and `code_grep` is always on; CLI registration for top-level `search` / `search-status` / `read` plus the `githits code`, `githits pkg`, and `githits docs` groups is also always on.
 
 ## Environment Variables
 

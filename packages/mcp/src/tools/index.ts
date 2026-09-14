@@ -22,14 +22,7 @@ export {
   DESCRIPTION as QUICK_START_DESCRIPTION,
   QUICK_START_PREREQUISITE,
 } from "./quick-start.js";
-export {
-  createReadFileTool,
-  DESCRIPTION as READ_FILE_DESCRIPTION,
-} from "./read-file.js";
-export {
-  createReadPackageDocTool,
-  DESCRIPTION as READ_PACKAGE_DOC_DESCRIPTION,
-} from "./read-package-doc.js";
+export { createReadTool, DESCRIPTION as READ_DESCRIPTION } from "./read.js";
 export { createSearchTool } from "./search.js";
 export { createSearchLanguageTool } from "./search-language.js";
 export { createSearchStatusTool } from "./search-status.js";

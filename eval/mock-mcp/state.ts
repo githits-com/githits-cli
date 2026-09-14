@@ -20,7 +20,10 @@ export const EVAL_MCP_FIXTURE_TOOL_NAMES = [
 
 export const EVAL_MCP_REGISTERED_TOOL_NAMES = [
   "quick_start",
-  ...EVAL_MCP_FIXTURE_TOOL_NAMES,
+  "pkg_vulns",
+  "pkg_changelog",
+  "pkg_info",
+  "read",
 ] as const;
 
 export type EvalMcpFixtureToolName =
@@ -32,7 +35,7 @@ export interface EvalMcpState {
   /** Variant id, surfaced for debugging only. */
   variantId: string;
   /**
-   * Tool name the cell expects the agent to invoke. The mock-MCP
+   * Source fixture identity the cell expects (code_read/docs_read both use read). The mock-MCP
    * server only returns `content` from the matching tool; any other
    * tool call returns a structured "no data" response so the agent
    * doesn't conflate fixtures across tools.

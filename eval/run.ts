@@ -257,7 +257,7 @@ function buildAgentPrompt(tool: FixtureTool): string {
     case "code_read":
       return `Please read the source file at path \`src/index.ts\` in the ${FIXTURE_PACKAGE} package and tell me what it does.`;
     case "docs_read":
-      return `Please read the documentation page with page_id \`readme\` for the ${FIXTURE_PACKAGE} package and give me a short summary of what the package does.`;
+      return `Please read the documentation page with target \`readme\` for the ${FIXTURE_PACKAGE} package and give me a short summary of what the package does.`;
   }
 }
 

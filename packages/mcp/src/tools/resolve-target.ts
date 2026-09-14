@@ -90,7 +90,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION =
-  'Resolve package, repository, or documentation-site names into canonical targets. Experimental tool for fuzzy, ambiguous, misspelled, or human-friendly public OSS names. Do not call for canonical `registry:name`, `github:owner/repo`, `codeberg:owner/repo`, `gitlab:group/subgroup/project`, or `site:<host[/path]>` targets; use those directly with the next MCP tool. Pass a selected standalone documentation-site target to `search` with `source: "docs"`; request `format: "json"` only if required locator fields are absent from text, then use its `docsReadTarget` (or `pageId`) and range with `docs_read`. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text` gives bounded ranked candidates; pass `verbose: true` to include coarse lexical name-similarity evidence. Only a non-ambiguous EXACT or HIGH best result with CLEAR or NOT_APPLICABLE malicious-content status gets a direct follow-up; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. MEDIUM and LOW require narrowing or an explicit choice.';
+  'Resolve package, repository, or documentation-site names into canonical targets. Experimental tool for fuzzy, ambiguous, misspelled, or human-friendly public OSS names. Do not call for canonical `registry:name`, `github:owner/repo`, `codeberg:owner/repo`, `gitlab:group/subgroup/project`, or `site:<host[/path]>` targets; use those directly with the next MCP tool. Pass a selected standalone documentation-site target to `search` with `source: "docs"`; request `format: "json"` only if required locator fields are absent from text, then use its `docsReadTarget` (or `pageId`) and range with `read`. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text` gives bounded ranked candidates; pass `verbose: true` to include coarse lexical name-similarity evidence. Only a non-ambiguous EXACT or HIGH best result with CLEAR or NOT_APPLICABLE malicious-content status gets a direct follow-up; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. MEDIUM and LOW require narrowing or an explicit choice.';
 
 export function createResolveTargetTool(
   service: ResolveTargetService,
@@ -221,7 +221,7 @@ export function formatResolveTargetMcpText(
     const target = sanitizeTerminalText(result.best.canonicalKey);
     lines.push(
       result.best.kind === "SITE"
-        ? `Next: call search with target "${target}" and source "docs", then call docs_read for relevant results.`
+        ? `Next: call search with target "${target}" and source "docs", then call read for relevant results.`
         : `Next: pass the canonical target "${target}" to the next MCP tool.`,
     );
   } else if (result.best && hasBlockedDirectTarget) {

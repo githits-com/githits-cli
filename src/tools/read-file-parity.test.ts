@@ -63,25 +63,7 @@ async function cliJson(
 }
 
 interface McpArgs {
-  target: {
-    registry?:
-      | "npm"
-      | "pypi"
-      | "hex"
-      | "crates"
-      | "nuget"
-      | "maven"
-      | "zig"
-      | "vcpkg"
-      | "packagist"
-      | "rubygems"
-      | "go"
-      | "swift";
-    package_name?: string;
-    version?: string;
-    repo_url?: string;
-    git_ref?: string;
-  };
+  target: string;
   path: string;
   start_line?: number;
   end_line?: number;
@@ -95,7 +77,7 @@ async function mcpJson(
   const service = createMockCodeNavigationService(
     readFileMock ? { readFile: readFileMock as never } : {},
   );
-  const tool = createParityMcpTool("code_read", {
+  const tool = createParityMcpTool("read", {
     codeNavigationService: service,
   });
   const result = await tool.handler({ ...args, format: "json" }, {});
@@ -128,7 +110,7 @@ describe("read_file parity", () => {
     );
     const mcp = await mcpJson(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         path: "src/index.js",
       },
       fn as never,
@@ -150,7 +132,7 @@ describe("read_file parity", () => {
     );
     const mcp = await mcpJson(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         path: "src/index.js",
         start_line: 10,
         end_line: 40,
@@ -179,7 +161,7 @@ describe("read_file parity", () => {
     );
     const mcp = await mcpJson(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         path: "assets/logo.png",
       },
       fn as never,
@@ -218,10 +200,7 @@ describe("read_file parity", () => {
       );
       const mcp = await mcpJson(
         {
-          target: {
-            repo_url: repoUrl,
-            git_ref: "main",
-          },
+          target: `${repoUrl}#main`,
           path: "src/index.js",
         },
         fn as never,
@@ -251,7 +230,7 @@ describe("read_file parity", () => {
     );
     const mcp = await mcpJson(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         path: "nope.js",
       },
       fn as never,
@@ -273,10 +252,10 @@ describe("read_file parity", () => {
     });
     expect(cliEnvelope.code).toBe("FILE_NOT_FOUND");
     expect(cliAction).toContain("`githits code files`");
-    expect(cliAction).toContain("`githits code read`");
+    expect(cliAction).toContain("`githits read`");
     expect(cliAction).toContain("without a path prefix");
     expect(mcpAction).toContain("`code_files`");
-    expect(mcpAction).toContain("`code_read`");
+    expect(mcpAction).toContain("`read`");
     expect(mcpAction).toContain("without `path_prefix`");
   });
 
@@ -300,11 +279,16 @@ describe("read_file parity", () => {
     );
     const mcp = await mcpJson(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         path: "src/index.js",
       },
       fn as never,
     );
+    const mcpError = mcp as { details: { action?: string } };
+    expect(mcpError.details.action).toContain(
+      'read target="npm:express" path="src/index.js"',
+    );
+    delete mcpError.details.action;
     expect(cli).toEqual(mcp);
     expect((cli as { code: string; retryable: boolean }).code).toBe("INDEXING");
   });
@@ -315,7 +299,7 @@ describe("read_file parity", () => {
       end: "10",
     })) as { code: string; error: string; retryable: boolean };
     const mcp = (await mcpJson({
-      target: { registry: "npm", package_name: "express" },
+      target: "npm:express",
       path: "src/index.js",
       start_line: 40,
       end_line: 10,

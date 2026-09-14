@@ -7,8 +7,8 @@
  * orientation it would see against the real CLI.
  *
  * Behavior:
- * - Registers five production tools: `pkg_vulns`, `pkg_changelog`,
- *   `pkg_info`, `code_read`, `docs_read`. Only the one named in the
+ * - Registers four production tools: `pkg_vulns`, `pkg_changelog`,
+ *   `pkg_info`, `read`. Only the one named in the
  *   state file's `expectedTool` returns the framed fixture; the
  *   others return a `no data for this fixture` placeholder so
  *   accidental cross-tool calls don't conflate results.
@@ -26,10 +26,7 @@
 import { readFileSync } from "node:fs";
 import {
   buildMcpQuickStart,
-  READ_FILE_DESCRIPTION_BASE as CODE_READ_DESCRIPTION,
   CODE_READ_GUARDRAIL,
-  DOCS_GUARDRAIL,
-  READ_PACKAGE_DOC_DESCRIPTION_BASE as DOCS_READ_DESCRIPTION,
   EXTERNAL_CONTENT_POSTURE,
   PACKAGE_CHANGELOG_DESCRIPTION_BASE as PKG_CHANGELOG_DESCRIPTION,
   PKG_CHANGELOG_GUARDRAIL,
@@ -38,6 +35,8 @@ import {
   PACKAGE_VULNERABILITIES_DESCRIPTION_BASE as PKG_VULNS_DESCRIPTION,
   PKG_VULNS_GUARDRAIL,
   QUICK_START_DESCRIPTION,
+  READ_DESCRIPTION_BASE,
+  readSchema,
 } from "@githits/mcp/internal";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -186,52 +185,25 @@ server.registerTool(
   }),
 );
 
-// docs_read ---------------------------------------------------------
+// Source fixture identities stay distinct while both use the production read schema.
 server.registerTool(
-  "docs_read",
+  "read",
   {
     description: composeEvalMcpDescription(
-      DOCS_READ_DESCRIPTION,
-      DOCS_GUARDRAIL,
-      includeToolAddenda,
-    ),
-    inputSchema: {
-      page_id: z.string(),
-      start_line: z.number().int().optional(),
-      end_line: z.number().int().optional(),
-      format: z.enum(["json", "text", "text-v1"]).optional(),
-    },
-    annotations: { readOnlyHint: true },
-  },
-  async () => ({
-    content: [{ type: "text" as const, text: fixtureContentFor("docs_read") }],
-  }),
-);
-
-// code_read ---------------------------------------------------------
-server.registerTool(
-  "code_read",
-  {
-    description: composeEvalMcpDescription(
-      CODE_READ_DESCRIPTION,
+      READ_DESCRIPTION_BASE,
       CODE_READ_GUARDRAIL,
       includeToolAddenda,
     ),
-    inputSchema: {
-      registry: z.string().optional(),
-      package_name: z.string().optional(),
-      repo_url: z.string().optional(),
-      git_ref: z.string().optional(),
-      version: z.string().optional(),
-      path: z.string(),
-      start_line: z.number().int().optional(),
-      end_line: z.number().int().optional(),
-      format: z.enum(["json", "text", "text-v1"]).optional(),
-    },
+    inputSchema: readSchema,
     annotations: { readOnlyHint: true },
   },
-  async () => ({
-    content: [{ type: "text" as const, text: fixtureContentFor("code_read") }],
+  async (args) => ({
+    content: [
+      {
+        type: "text" as const,
+        text: fixtureContentFor(args.path?.trim() ? "code_read" : "docs_read"),
+      },
+    ],
   }),
 );
 

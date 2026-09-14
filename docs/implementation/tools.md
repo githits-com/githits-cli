@@ -120,11 +120,11 @@ Use the tools in these roles:
   symbols, tests, and examples. Omit `source` for broad discovery.
 - **Exact source matching:** Use `code_grep` when the literal, regex,
   identifier, or call-site pattern is already known. It returns deterministic,
-  paginated matches. Use `search` for conceptual discovery, `code_read` for a
+  paginated matches. Use `search` for conceptual discovery, `read` for a
   focused matched-file window, and `code_files` for path enumeration.
 - **Navigation and documentation:** Use `code_files` to enumerate paths,
-  `code_read` to read an exact source window, `docs_list` to browse package
-  pages, and `docs_read` to read a page by emitted target or historical ID.
+  `read` to read an exact source window or emitted docs target, and `docs_list`
+  to browse package pages.
   These tools advertise their immediate exact-name handoffs reciprocally.
   `get_example` is for canonical
   cross-project examples and unknown-target/global patterns; for a known
@@ -145,6 +145,9 @@ Use the tools in these roles:
 - **Language selection:** Use `search_language` only to resolve a
   supported language name for `get_example`, not to search source.
 
+For locator selection, fragment precedence, Ask adaptation, and CLI compatibility,
+see [Unified read](unified-read.md).
+
 ## Current Tools
 
 | Tool | Parameters | Description |
@@ -154,18 +157,17 @@ Use the tools in these roles:
 | `search_language` | `query`, `format?` | Resolve a supported language name or alias for `get_example`; do not use it for source search. Defaults to one compact line per match; pass `format: "json"` for structured matches. |
 | `search` | `query`, `target?`, `targets?`, `source?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Discover relevant evidence in a known target before exact grep: docs, specs, code, symbols, tests, and examples ranked by relevance. Open-ended “how does”, “where is”, “find”, “locate”, or loosely phrased “grep the source” questions start here; omit `source` for broad discovery. A `search` call can return complete results directly; use `search_status` only when the response explicitly supplies a `searchRef` and action. |
 | `search_status` | `search_ref`, `wait_timeout_ms?`, `format?` | Continue an explicit `search` reference only after that response supplies a `searchRef` and `search_status` action. Inspect progress or retrieve interim, partial, or final hits; terminal and unrecognized statuses end that reference, so use a later `search` for a fresh session. |
-| `docs_list` | `registry`, `package_name`, `version?`, `limit?`, `after?`, `format?` | List package documentation targets and hand off to `docs_read`; use `search` for topic discovery. Entries retain `docsReadTarget`, stable `pageId`, and provenance `sourceUrl`. Exact Go versions accept both `v`-prefixed and unprefixed forms. Repo-backed entries include exact source metadata for `code_read` when available. Active empty results remain preparation/indexing outcomes rather than becoming “not found”; provisional results retain already-available pages and lifecycle state. |
-| `docs_read` | `page_id`, `start_line?`, `end_line?`, `format?` | Read a package documentation page by emitted `docsReadTarget` or historical `pageId`; the compatible schema key remains `page_id`. An HTTP(S) fragment needs no bounds and resolves one exact indexed section; either bound replaces it with a page-relative range. Text locally displays 150 lines without an explicit end or up to 300 with one; repo-backed pages include exact `code_read` metadata. |
+| `docs_list` | `registry`, `package_name`, `version?`, `limit?`, `after?`, `format?` | List package documentation targets and hand off to `read`; use `search` for topic discovery. Entries retain `docsReadTarget`, stable `pageId`, and provenance `sourceUrl`. Exact Go versions accept both `v`-prefixed and unprefixed forms. Repo-backed entries include exact source metadata for `read` when available. Active empty results remain preparation/indexing outcomes rather than becoming “not found”; provisional results retain already-available pages and lifecycle state. |
 | `pkg_info` | `registry`, `package_name`, `verbose?`, `format?` | Assess latest package health and adoption through license, downloads, and activity. Use `pkg_vulns` for advisory detail, `pkg_deps` for dependency graphs, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison. |
 | `pkg_vulns` | `registry`, `package_name`, `version?`, `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `include_transitive?`, `verbose?`, `format?` | Check current package advisories instead of trusting memory for vulnerabilities. Advisories can be published or revised after training, so a cutoff disclaimer is not current evidence. Covers pinned releases, latest-version risk, and package security history. Use `include_transitive: true` for resolved dependency evidence; `advisory_scope: "all"` includes historical advisories for those dependency packages. Use `pkg_info` for a latest health overview or `pkg_upgrade_review` for current-vs-target evidence. |
 | `pkg_deps` | `registry`, `package_name`, `version?`, `lifecycle?`, `include_importers?`, `include_issues?`, `max_depth?`, `format?` | Inspect direct/transitive dependencies or opt into deprecated, outdated, duplicate, and conflict analysis. Use `pkg_info` for health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence. |
 | `pkg_changelog` | `registry?`, `package_name?`, `repo_url?`, `from_version?`, `to_version?`, `limit?`, `git_ref?`, `omit_bodies?`, `verbose?`, `body_lines?`, `format?` | Find release notes and changelog history for a package or public repository. Latest mode returns recent entries without promising date order; range mode covers `(from_version, to_version]`. Use latest mode with `to_version` and `limit: 1` for one exact release. Use `pkg_info` for a quick health view or `pkg_upgrade_review` for upgrade evidence. |
 | `pkg_upgrade_review` | `registry?`, `package_name?`, `current_version?`, `target_version?`, `packages?`, `skip_transitive_security?`, `include_dependency_issues?`, `min_severity?`, `verbose?`, `format?` | Review a package upgrade using vulnerability, release, peer, and dependency-change evidence. Use `pkg_info` for health, `pkg_changelog` for release notes, `pkg_vulns` for advisory detail, or `pkg_deps` for dependency graphs. |
-| `code_files` | `target`, `path?`, `path_prefix?`, `globs?`, `extensions?`, `file_types?`, `languages?`, `file_intent?`, `file_intents?`, `exclude_file_intents?`, `exclude_doc_files?`, `exclude_test_files?`, `include_hidden?`, `limit?`, `wait_timeout_ms?`, `format?` | List indexed files and paths in any public repository or package, then hand off to `code_read` or `code_grep`. Selectors narrow the listing; `INDEXING` errors expose available retry candidates when known. |
-| `code_read` | `target`, `path`, `start_line?`, `end_line?`, `wait_timeout_ms?`, `format?` | Read an exact indexed file or focused window in any public repository or package. Reads return 150 lines by default or up to 300 with an explicit range; request only the needed lines. |
+| `code_files` | `target`, `path?`, `path_prefix?`, `globs?`, `extensions?`, `file_types?`, `languages?`, `file_intent?`, `file_intents?`, `exclude_file_intents?`, `exclude_doc_files?`, `exclude_test_files?`, `include_hidden?`, `limit?`, `wait_timeout_ms?`, `format?` | List indexed files and paths in any public repository or package, then hand off to `read` or `code_grep`. Selectors narrow the listing; `INDEXING` errors expose available retry candidates when known. |
+| `read` | `target` (string), `path?`, `start_line?`, `end_line?`, `wait_timeout_ms?`, `format?` | Read a code file with target + path, or docs page with target alone. Fragments select indexed sections unless explicit bounds override them. Text displays 150/300 lines; code caps before fetching, while docs JSON keeps the backend selection. Wait applies to code indexing only. See [unified read](unified-read.md). |
 | `code_grep` | `target`, `pattern`, `path?`, `path_prefix?`, `globs?`, `extensions?`, `pattern_type?`, `case_sensitive?`, `exclude_doc_files?`, `exclude_test_files?`, `context_lines?`, `context_lines_before?`, `context_lines_after?`, `max_matches?`, `max_matches_per_file?`, `cursor?`, `symbol_fields?`, `wait_timeout_ms?`, `format?` | Enumerate text, regex, or identifier matches in any public repository or package; results are deterministic and paginated. `max_matches_per_file` defaults to `max_matches`. |
 
-`quick_start`, `search`, `search_status`, `docs_list`, `docs_read`, `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review`, `code_files`, `code_read`, and `code_grep` are registered by default. The package/source service URL defaults to the GitHits-managed endpoint and can be overridden via `GITHITS_CODE_NAV_URL` for local development.
+`quick_start`, `search`, `search_status`, `docs_list`, `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review`, `code_files`, `read`, and `code_grep` are registered by default. The package/source service URL defaults to the GitHits-managed endpoint and can be overridden via `GITHITS_CODE_NAV_URL` for local development.
 
 ## Transitive vulnerability audits
 
@@ -514,19 +516,19 @@ expansion remain unchanged except
 that dependency-issue locators are capped at five rows per category in default
 text with an explicit remainder; `verbose` expands them fully.
 
-### `code_files` / `code_read` / `code_grep` response shapes
+### `code_files` / `read` / `code_grep` response shapes
 
-These three indexed tools share an addressing and lifecycle contract (documented below) and then each projects its own data-first envelope. All three reuse the shipped `codeTargetSchema` + `resolveCodeTarget` from `packages/mcp/src/tools/code-navigation-shared.ts` — no parallel addressing module.
+These three indexed tools share an addressing and lifecycle contract (documented below) and then each projects its own data-first envelope. `code_files` and `code_grep` retain the structured/string `codeTargetSchema`; the code branch of `read` accepts only a compact string and reuses the same target resolver.
 
 **`code_files` envelope**: `{registry?|repoUrl?+gitRef?, total, hasMore, indexedVersion?, resolution?, targetResolution?, files: [{path, name?, language?, fileType?, byteSize?}], hint?, filter?}`. `fileType` values preserve the service vocabulary (`CONFIG`, `SOURCE`, `DOC`, `TEST`). `total` is capped at returned count when `hasMore: true` — the terminal formatter renders `N+ files` in that case to avoid misleading users. `filter` echoes only explicit caller filters (`path`, `pathPrefix`, `globs`, `extensions`, `fileTypes`, `languages`, file-intent filters, booleans, and `limit`); default limit (200) never round-trips.
 
-**`code_read` envelope**: `{registry?|repoUrl?+gitRef?, path, language?, totalLines?, startLine?, endLine?, content?, isBinary?, hint?, targetResolution?}`. `path` (not `filePath`) so the key matches `code_files.files[].path` and `code_grep.filter.path` when exact-file grep is used. Binary files set `isBinary: true` and **omit** `content` (not `null`); agents branch on the flag. `hint` is emitted only when the MCP span cap actually truncated the response — see "code_read span cap" below.
+**`read` code envelope**: `{registry?|repoUrl?+gitRef?, path, language?, totalLines?, startLine?, endLine?, content?, isBinary?, hint?, targetResolution?}`. `path` (not `filePath`) so the key matches `code_files.files[].path` and `code_grep.filter.path` when exact-file grep is used. Binary files set `isBinary: true` and **omit** `content` (not `null`); agents branch on the flag. `hint` is emitted only when the MCP span cap actually truncated the response — see "read span cap" below.
 
-**`code_grep` envelope**: `{registry?|name?|repoUrl?+gitRef?, pattern, patternType?, caseSensitive?, matches: [{filePath, line, matchStartByte, matchEndByte, lineContent, contextBefore?, contextAfter?, fileContentHash?, fileIntent?, symbol?}], nextCursor?, hasMore, truncatedReason?, filesScanned, filesInScope, binaryFilesSkipped?, filesTooLargeSkipped?, totalMatches, uniqueFilesMatched, indexedVersion?, resolution?, targetResolution?, filter?}`. Default-valued fields (`patternType: literal`, `caseSensitive: false`, zero skipped counters, `truncatedReason: none`) are omitted. `filter` echoes only explicit caller filters. Match entries carry `filePath` so grep output chains directly into `code_read`.
+**`code_grep` envelope**: `{registry?|name?|repoUrl?+gitRef?, pattern, patternType?, caseSensitive?, matches: [{filePath, line, matchStartByte, matchEndByte, lineContent, contextBefore?, contextAfter?, fileContentHash?, fileIntent?, symbol?}], nextCursor?, hasMore, truncatedReason?, filesScanned, filesInScope, binaryFilesSkipped?, filesTooLargeSkipped?, totalMatches, uniqueFilesMatched, indexedVersion?, resolution?, targetResolution?, filter?}`. Default-valued fields (`patternType: literal`, `caseSensitive: false`, zero skipped counters, `truncatedReason: none`) are omitted. `filter` echoes only explicit caller filters. Match entries carry `filePath` so grep output chains directly into `read`.
 
 `targetResolution` is additive provenance. It explains requested, resolved-requested, and served artifacts plus `freshness` (`current`, `fallback_recent`, `indexing`, `provisional`, or `unavailable`), `freshnessReason`, `indexingRef`, `availableVersions`, `availableRefs`, and `suggestedRefs`. A `provisional` / `exact_provisional` Discovery result is queryable while indexing continues; code-navigation text uses the exact served identity and `indexingRef` and does not substitute a requested ref. Unified search text-v1 instead keeps internal `indexingRef` and reason codes out of default text while retaining the user-meaningful served identity and bounded alternatives. `availableVersions` and `availableRefs` are already-indexed artifacts that can be queried immediately. `suggestedRefs` are fuzzy upstream candidates and may require indexing before use. Existing `indexedVersion`, `resolution`, and locator fields remain served-identity compatibility fields. Text mode renders actionable notes such as `Using recent indexed snapshot`, `Serving an older indexed snapshot; current target is still being indexed`, `Requested ref is being indexed`, `provisional (still indexing)`, `Fresh target is being indexed`, `Target unavailable`, `queryable now`, or `suggested refs`; a code-navigation indexing note includes the exact `served=` identity whenever results came from a queryable snapshot. JSON mode carries the structured object. A `current` resolution is authoritative on every code-navigation surface and suppresses alternative-target remediation; waited search completion is one case where earlier candidates can remain in structured provenance without becoming warnings.
 
-### Indexing lifecycle (shared across `code_files`, `code_read`, `code_grep`)
+### Indexing lifecycle (shared across `code_files`, `read`, `code_grep`)
 
 All three code-navigation tools share the same indexing-retry contract. The state can arrive through either an error response or a success sentinel (`codeIndexState: "INDEXING"`), and the service layer collapses both to the same typed `CodeNavigationIndexingError` before the envelope builder runs. Agents therefore never see a `codeIndexState` field in a success envelope; they branch on the error path instead. Discovery `search` / `search_status` may additionally expose `codeIndexState: "PROVISIONAL"` with queryable hits and a `searchRef`; complete-only file/list/grep navigation remains on the existing `INDEXING` error contract.
 
@@ -615,9 +617,9 @@ dependency, and deploying it. External MCP callers must allow the requested wait
 plus response headroom; the SDK's default 60-second caller timeout is insufficient
 for the longest calls. Dev direct-Fly checks do not establish production routing.
 
-**Exact-path authority errors**: `code_read` / `code_grep` distinguish a missing path (`FILE_NOT_FOUND`) from a path deliberately omitted from the index (`FILE_PATH_EXCLUDED`) and an index whose source-file inventory cannot authoritatively answer the path query (`SOURCE_FILE_INVENTORY_UNKNOWN`). The latter two become stable top-level CLI/MCP codes and preserve `filePath`, optional `exclusionReason`, retryability, and target-resolution metadata. All three preserve the backend message and add surface-native `details.action` guidance for inspecting indexed paths. MCP names `code_files`, `path_prefix`, `code_read`, and `code_grep`; CLI JSON names `githits code files`, a path-prefix positional, `githits code read`, and `githits code grep --path`. CLI terminal output names `code files`. `code_read` still supports generic `NOT_FOUND` from older/backend paths, and its structured recovery is likewise rendered with MCP or CLI-native names without classifying unrelated target misses as file errors.
+**Exact-path authority errors**: `read` / `code_grep` distinguish a missing path (`FILE_NOT_FOUND`) from a path deliberately omitted from the index (`FILE_PATH_EXCLUDED`) and an index whose source-file inventory cannot authoritatively answer the path query (`SOURCE_FILE_INVENTORY_UNKNOWN`). The latter two become stable top-level CLI/MCP codes and preserve `filePath`, optional `exclusionReason`, retryability, and target-resolution metadata. All three preserve the backend message and add surface-native `details.action` guidance for inspecting indexed paths. MCP names `code_files`, `path_prefix`, `read`, and `code_grep`; CLI JSON names `githits code files`, a path-prefix positional, `githits code read`, and `githits code grep --path`. CLI terminal output names `code files`. `read` still supports generic `NOT_FOUND` from older/backend paths, and its structured recovery is likewise rendered with MCP or CLI-native names without classifying unrelated target misses as file errors.
 
-**`code_read` span bounds (MCP-only)**: real session traces showed agents requesting 300-600 line windows (and occasional unbounded full-file reads) which dominated context cost, while a later Claude Desktop session showed that a fixed 150-line ceiling can waste context by forcing pagination for a known 248-line file. Calls without `end_line` therefore remain bounded to `MCP_READ_DEFAULT_SPAN` (150 lines), while deliberate explicit ranges may request up to `MCP_READ_MAX_SPAN` (300 lines). Both are defined in `packages/mcp/src/shared/code-navigation-defaults.ts` and enforced before the backend call.
+**`read` code span bounds (MCP-only)**: real session traces showed agents requesting 300-600 line windows (and occasional unbounded full-file reads) which dominated context cost, while a later Claude Desktop session showed that a fixed 150-line ceiling can waste context by forcing pagination for a known 248-line file. Calls without `end_line` therefore remain bounded to `MCP_READ_DEFAULT_SPAN` (150 lines), while deliberate explicit ranges may request up to `MCP_READ_MAX_SPAN` (300 lines). Both are defined in `packages/mcp/src/shared/code-navigation-defaults.ts` and enforced before the backend call.
 
 The `hint` field is emitted only when the cap *actually truncated* the response — i.e., the returned range comes up short of available content. `shouldEmitCappedHint` (in `packages/mcp/src/tools/read-file.ts`) suppresses the hint in three cases the agent doesn't need it: (a) the cap clamp didn't fire (caller's range was already within the cap); (b) the file fits within the cap, so the response is the whole file even though the request was clamped; (c) the returned range reaches end of file. Binary files always skip the hint. When emitted, the hint reads from `payload.startLine` / `endLine` / `totalLines` (the actual returned range, not the pre-clamp request) and includes the original request for the agent to learn from. The CLI command `githits code read` does not apply the cap; humans piping whole files to disk continue to work.
 
@@ -719,9 +721,9 @@ available. Repository documentation retains its heading. JSON retains titles.
 
 Hit headers are numbered so ranked results can be referenced as `[1]` through
 `[N]`. Repository and code hits keep the exact target and file location needed
-for `code_read` before a bracketed type tag (`[repo doc]`, `[repo code]`, or
+for `read` before a bracketed type tag (`[repo doc]`, `[repo code]`, or
 `[repo symbol]`); their free-form title is the final header tail. Documentation
-hits prefer the exact read target needed for `docs_read`, a stable package
+hits prefer the exact read target needed for `read`, a stable package
 target, distinct human-readable source URL, and title in that order. When a
 crawled hit's source URL is exactly its HTTP(S) `docsReadTarget` plus a nonempty
 fragment, the shared formatter promotes that unchanged source URL to the read
@@ -730,10 +732,10 @@ provenance uses `host/path#anchor` without the protocol. Exact duplicate locator
 are omitted. Unavailable fields are rendered as
 explicit `documentation target unavailable`, `target unavailable`,
 `source URL unavailable`, or `title unavailable` values. Executable
-`docs_read` / `code_read` command
+`read` / `read` command
 lines, qualified non-follow-up internal result IDs, and kind/category tails are
 omitted from default text; the emitted target remains because it is the
-`docs_read` follow-up locator, and JSON keeps `docsReadTarget`, stable `pageId`,
+`read` follow-up locator, and JSON keeps `docsReadTarget`, stable `pageId`,
 provenance `sourceUrl`, and the generated follow-up. Discovery falls back to
 `pageId` only when its nullable `docsReadTarget` is absent. Repository hits
 without a file path use the explicit `location unavailable` value and do not
@@ -805,11 +807,11 @@ Empty grep adds scanned/in-scope counts, served target/ref context when known, a
 
 `context_lines`, `context_lines_before`, and `context_lines_after` accept integers from 0 through 10. The MCP JSON Schema advertises the range so agent clients reject invalid calls before dispatch; direct CLI/internal callers retain the same request-builder validation. The asymmetric fields override the corresponding side of `context_lines`.
 
-**Docs read bounds.** `getDocPage(pageId, startLine?, endLine?)` owns inclusive, one-based, page-relative selection. Either explicit bound overrides an HTTP(S) fragment; omitted start means line 1 and omitted end means EOF. The backend clamps an end beyond EOF and rejects nonpositive, reversed, or past-EOF starts. `docs_read` forwards only caller-supplied bounds. MCP text then locally displays at most 150 lines when `end_line` is omitted or 300 when it is explicit; this presentation cap is never sent as a synthetic backend range, so it cannot suppress fragment resolution. JSON and CLI have no local display cap.
+**Docs branch read bounds.** `getDocPage(pageId, startLine?, endLine?)` owns inclusive, one-based, page-relative selection. Either explicit bound overrides an HTTP(S) fragment; omitted start means line 1 and omitted end means EOF. The backend clamps an end beyond EOF and rejects nonpositive, reversed, or past-EOF starts. `read` forwards only caller-supplied bounds. MCP text then locally displays at most 150 lines when `end_line` is omitted or 300 when it is explicit; this presentation cap is never sent as a synthetic backend range, so it cannot suppress fragment resolution. JSON and CLI have no local display cap.
 
 The required backend `contentRange` supplies `startLine`, `endLine`, `totalLines`, and resolved `anchor`. `page.content` is already the selected body, so the client never reapplies absolute bounds. Local MCP truncation slices only the returned prefix from `contentRange.startLine`, reports the actual displayed absolute range, and points continuation at the stable `pageId`; it stops at the backend selection end so continuing a section cannot leak into the next section. `totalLines` is the whole stored page extent and counts newline splits, including a trailing empty line. Empty pages report `totalLines: 0` with absent output bounds. `anchor` is present only for a resolved indexed section.
 
-`docs_read` passes the existing `page_id` string through unchanged, whether it
+`read` passes the docs `target` string through unchanged, whether it
 is an emitted HTTP(S) `docsReadTarget` or a historical page ID. Successful JSON
 reads retain `docsReadTarget`, stable replay `pageId`, and provenance
 `sourceUrl`, plus the actual returned `startLine` / `endLine`, whole-page
@@ -883,7 +885,7 @@ payload whose privilege, visibility, and repetition vary by host.
   `NOT_APPLICABLE` malicious-content status. `CLEAR` is not a vulnerability-free
   claim. Other or missing statuses are non-actionable; `MEDIUM`, `LOW`, and
   ambiguous results require narrowing or an explicit actionable choice. Site candidates
-  are routed into `search` with `source:"docs"`, followed by `docs_read`; exact
+  are routed into `search` with `source:"docs"`, followed by `read`; exact
   `site:<host[/path]>` targets skip resolution. The block also
   states public-OSS/privacy limits.
   Disabling experimental tools returns the public builder's exact baseline;
@@ -1060,7 +1062,7 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 | `packages/mcp/src/mcp/instructions.ts` | Stable guide builder returned by `quick_start` and copied into the loaded `githits-mcp` skill |
 | `src/commands/mcp.ts` | CLI stdio startup, request-header mode setup, and TTY setup instructions |
 | `packages/core-internal/src/services/githits-service.ts` | REST API client for example search and languages |
-| `packages/core-internal/src/services/code-navigation-service.ts` | Package/source service client for unified `search`, `search_status`, `code_files`, `code_read`, and `code_grep` |
+| `packages/core-internal/src/services/code-navigation-service.ts` | Package/source service client for unified `search`, `search_status`, `code_files`, `read`, and `code_grep` |
 | `packages/mcp/src/shared/language-filter.ts` | Pure `filterLanguages()` function shared between MCP tool and CLI |
 
 ## Related Documentation

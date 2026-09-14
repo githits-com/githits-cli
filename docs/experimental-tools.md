@@ -99,7 +99,7 @@ CLI source commands. This changes only source presentation.
 The local MCP `ask` tool also accepts a question alone. Omit both `target` and
 `thread_id` to identify the target from the question, supply `target` to choose
 one explicitly, or use `thread_id` for a needed follow-up. Do not combine them.
-It defaults to MCP-native `code_read` and `docs_read` source calls. Set
+It defaults to MCP-native `read` source calls, projected from the backend pointers. Set
 `source_format` to `url` for original upstream HTTP URLs. Answer text includes
 source pointers, the Ask run ID, thread ID, and conditional follow-up guidance.
 JSON returns the response for the selected source format.
@@ -122,7 +122,7 @@ Canonical targets such as `npm:express`, `github:expressjs/express`, or
 by downstream tools is rejected locally with `INVALID_ARGUMENT`; pass that
 target directly to the next GitHits tool instead. A selected site candidate is
 a standalone documentation target. Search it in docs mode and read relevant
-results with `docs_read` (or `githits docs read`):
+results with `read` (or `githits read`):
 
 ```sh
 githits search "router parameters" --in site:expressjs.com --source docs
