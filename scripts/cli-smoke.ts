@@ -2043,7 +2043,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     codeReadInvalid.exitCode !== 0 &&
       codeReadInvalidEnvelope.code === "INVALID_ARGUMENT" &&
       codeReadInvalidEnvelope.error.includes("githits code files") &&
-      codeReadInvalidEnvelope.error.includes("githits code read") &&
+      codeReadInvalidEnvelope.error.includes("githits read") &&
       !codeReadInvalidEnvelope.error.includes("code_files"),
     "code read invalid json missing CLI-native recovery",
   );
