@@ -16,8 +16,9 @@ The stable catalog has 14 tools, currently sharing closed-world read-only
 annotations in `packages/mcp/src/tools/types.ts`. Twelve evidence tools become
 open-world, including `search_status`, whose results contain public evidence.
 The three local experimental tools (`ask`, `resolve_target`, `code_diff`) also
-become open-world. Both the root CLI's local MCP and public MCP package ship
-these factories; both require a patch release, expected to be `0.17.1`.
+become open-world. Both artifacts ship the stable evidence factories;
+experimental tools ship through the root CLI's local composition. Both
+artifacts require a patch release, prepared as `0.17.1`.
 
 Authentication does not close the tools' public evidence domain. Internal
 caching/preparation remains covered by the existing read-only product policy.
@@ -76,7 +77,7 @@ Internal and Claude reviews must cover the complete proposed delta.
 
 ## Phase 2: release preparation and handoff
 
-Status: planned. Dependency: phase 1 implementation and verification.
+Status: release metadata prepared; review in progress. Dependency: phase 1 implementation and verification.
 Assumption: no other unreleased changes exist; verify both tag-to-HEAD ranges
 and all fragments before assigning versions. Unknowns: publication and hosted
 adoption timing, which do not block preparation.
@@ -137,3 +138,24 @@ classification and rollout guidance in the implementation document.
   and `bun run smoke:cli:built` each completed 31 steps; `bun run smoke:mcp
   --mode registration` and `bun run smoke:mcp:built` each completed nine steps,
   including stable and experimental annotation checks.
+- Internal implementation review: clean. Internal release review accepted one
+  minor finding: remove experimental tools from the MCP artifact's changelog
+  entry because those tools ship through local CLI composition. The root entry
+  retains them. The sibling scan checked both entries, the implementation doc,
+  plan, and public entrypoints. Follow-up review also clarified the plan's
+  factory-shipping sentence to distinguish stable from local experimental tools.
+- Release audit: both tag-to-HEAD ranges contain only implementation commit
+  `382c33ad`; the single patch/patch fragment is fully consumed into separate
+  `0.17.1` sections. Both package versions, MCP lockfile version, registry
+  versions, and generated manifests align. Historical changelog bytes are
+  preserved. Public skills contain no contradictory annotation claims and need
+  no changes.
+- Release/packaging unit checks: 35 passed, zero failed, 296 assertions using
+  `bun test src/package-release-boundaries.test.ts src/skills-packaging.test.ts
+  scripts/generate-plugin-assets.test.ts scripts/validate-public-packages.test.ts`.
+- `bun run validate:packages` encountered the known Bun 1.3.9 Windows path
+  assertion while bundling. `npx --yes bun@1.4.2 --bun run validate:packages`
+  passed, including builds and packed public-consumer checks. No dependency or
+  toolchain versions were changed in the repository to work around it.
+- Pinned `mcp-publisher` v1.7.9 Windows binary, verified against the release's
+  SHA-256 checksum file: `mcp-publisher validate server.json` passed.
