@@ -5,6 +5,18 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.17.1] - 2026-09-14
+
+### Fixed
+
+- **Public-evidence tool annotations** - Mark public code, documentation, package, search-result, and experimental research tools as open-world while keeping every tool read-only and non-destructive; static guidance and language lookup remain closed-world. Clients with open-world restrictions can now filter these evidence tools. Refresh tool discovery after updating; hosted clients require MCP package adoption and deployment. The published MCP smoke helper also rejects incorrect or missing domain and non-destructive annotations.
+
+## [@githits/mcp 0.17.1] - 2026-09-14
+
+### Fixed
+
+- **Public-evidence tool annotations** - Mark public code, documentation, package, and search-result tools as open-world while keeping every tool read-only and non-destructive; static guidance and language lookup remain closed-world. Clients with open-world restrictions can now filter these evidence tools. Refresh tool discovery after updating; hosted clients require MCP package adoption and deployment. The published MCP smoke helper also rejects incorrect or missing domain and non-destructive annotations.
+
 ## [githits 0.17.0] - 2026-09-14
 
 Minor release: unifies code and documentation reading and adopts backend indexing
