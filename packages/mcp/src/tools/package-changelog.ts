@@ -14,7 +14,7 @@ import { InvalidPackageSpecError } from "../shared/package-spec.js";
 import { PKG_CHANGELOG_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
-  READ_ONLY_TOOL_ANNOTATIONS,
+  OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   textResult,
   type ZodRawShape,
@@ -147,7 +147,7 @@ export function createPackageChangelogTool(
     name: "pkg_changelog",
     description: DESCRIPTION,
     schema,
-    annotations: READ_ONLY_TOOL_ANNOTATIONS,
+    annotations: OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       try {
         const textFormat = isTextFormat(args.format);

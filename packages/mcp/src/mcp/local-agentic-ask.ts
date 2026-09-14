@@ -15,7 +15,7 @@ import {
 } from "../tools/shared.js";
 import {
   errorResult,
-  READ_ONLY_TOOL_ANNOTATIONS,
+  OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   textResult,
   type ZodRawShape,
@@ -74,7 +74,7 @@ export function createLocalAgenticAskTool(
     name: "ask",
     description: DESCRIPTION,
     schema,
-    annotations: READ_ONLY_TOOL_ANNOTATIONS,
+    annotations: OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       const subject = resolveMcpAskSubject(args);
       if ("error" in subject) {

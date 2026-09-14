@@ -9,10 +9,17 @@ export interface CompleteToolAnnotations {
   destructiveHint: boolean;
 }
 
-/** Information retrieval/computation, including internal caching and preparation. */
+/** Read-only operations over a closed domain, such as guidance or a fixed catalog. */
 export const READ_ONLY_TOOL_ANNOTATIONS = {
   readOnlyHint: true,
   openWorldHint: false,
+  destructiveHint: false,
+} as const satisfies CompleteToolAnnotations;
+
+/** Public evidence retrieval/computation, including internal caching and preparation. */
+export const OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS = {
+  readOnlyHint: true,
+  openWorldHint: true,
   destructiveHint: false,
 } as const satisfies CompleteToolAnnotations;
 

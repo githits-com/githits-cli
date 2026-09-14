@@ -17,7 +17,7 @@ import {
 } from "./code-navigation-shared.js";
 import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
-  READ_ONLY_TOOL_ANNOTATIONS,
+  OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   textResult,
   type ZodRawShape,
@@ -139,7 +139,7 @@ export function createListFilesTool(
     name: "code_files",
     description: DESCRIPTION,
     schema,
-    annotations: READ_ONLY_TOOL_ANNOTATIONS,
+    annotations: OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       const target = resolveCodeTarget(args.target);
       if ("content" in target) return target;

@@ -83,7 +83,7 @@ describe("resolve_target MCP adapter", () => {
     expect(tool.name).toBe("resolve_target");
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
-      openWorldHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     });
     expect(DESCRIPTION.slice(0, 80)).toBe(

@@ -10,7 +10,7 @@ import { buildCodeDiffSuccessPayload } from "../shared/code-diff-response.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
-  READ_ONLY_TOOL_ANNOTATIONS,
+  OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   textResult,
   type ZodRawShape,
@@ -101,7 +101,7 @@ export function createCodeDiffTool(
     name: "code_diff",
     description: DESCRIPTION,
     schema,
-    annotations: READ_ONLY_TOOL_ANNOTATIONS,
+    annotations: OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       try {
         const build = buildCodeDiffMcpParams({

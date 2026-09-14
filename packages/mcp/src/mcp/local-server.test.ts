@@ -111,7 +111,7 @@ function serverInstructions(
 
 describe("createLocalMcpServer", () => {
   it.each([false, true])(
-    "advertises only read-only tools with experimental=%s",
+    "classifies every read-only tool's evidence domain with experimental=%s",
     (tools) => {
       const server = createLocalMcpServer({
         metadata: { name: "local-githits", version: "0.0.0" },
@@ -119,8 +119,12 @@ describe("createLocalMcpServer", () => {
         policy: { tools },
       });
       expect(registeredToolNames(server)).not.toContain("feedback");
-      for (const tool of Object.values(registeredTools(server))) {
-        expect(tool.annotations).toMatchObject({ readOnlyHint: true });
+      for (const [name, tool] of Object.entries(registeredTools(server))) {
+        expect(tool.annotations, name).toEqual({
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: !["quick_start", "search_language"].includes(name),
+        });
       }
     },
   );

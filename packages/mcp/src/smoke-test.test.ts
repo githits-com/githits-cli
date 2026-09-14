@@ -42,7 +42,11 @@ function createCaller(callTool: McpSmokeCaller["callTool"]): McpSmokeCaller {
     listTools: async () => ({
       tools: EXPECTED_MCP_TOOLS.map((name) => ({
         name,
-        annotations: { readOnlyHint: true },
+        annotations: {
+          readOnlyHint: true,
+          openWorldHint: !["quick_start", "search_language"].includes(name),
+          destructiveHint: false,
+        },
       })),
     }),
     callTool,
@@ -98,6 +102,58 @@ describe("MCP smoke-test helpers", () => {
 });
 
 describe("runMcpSmoke", () => {
+  it.each([
+    ["get_example", false],
+    ["search_status", undefined],
+    ["quick_start", true],
+    ["search_language", undefined],
+    ["ask", false],
+  ] as const)(
+    "rejects incorrect open-world annotation for %s: %s",
+    async (name, openWorldHint) => {
+      const caller = createCaller(async () => {
+        throw new Error("must not execute");
+      });
+      const { tools } = await caller.listTools();
+      const changed = {
+        name,
+        annotations: {
+          readOnlyHint: true,
+          openWorldHint,
+          destructiveHint: false,
+        },
+      };
+      caller.listTools = async () => ({
+        tools: [...tools.filter((tool) => tool.name !== name), changed],
+      });
+      const expected = !["quick_start", "search_language"].includes(name);
+      await expect(
+        runMcpSmoke(caller, { includeLiveTools: false }),
+      ).rejects.toThrow(
+        `${name} must advertise openWorldHint: ${expected}, got ${String(openWorldHint)}`,
+      );
+    },
+  );
+
+  it.each([true, undefined])(
+    "rejects destructive or missing annotations: %s",
+    async (destructiveHint) => {
+      const caller = createCaller(async () => {
+        throw new Error("must not execute");
+      });
+      const { tools } = await caller.listTools();
+      caller.listTools = async () => ({
+        tools: tools.map((tool) => ({
+          ...tool,
+          annotations: { ...tool.annotations, destructiveHint },
+        })),
+      });
+      await expect(
+        runMcpSmoke(caller, { includeLiveTools: false }),
+      ).rejects.toThrow("must advertise destructiveHint: false");
+    },
+  );
+
   it("rejects a non-read-only tool outside the stable inventory", async () => {
     const caller = createCaller(async () => {
       throw new Error("must not execute");
@@ -106,7 +162,11 @@ describe("runMcpSmoke", () => {
       tools: [
         ...EXPECTED_MCP_TOOLS.map((name) => ({
           name,
-          annotations: { readOnlyHint: true },
+          annotations: {
+            readOnlyHint: true,
+            openWorldHint: !["quick_start", "search_language"].includes(name),
+            destructiveHint: false,
+          },
         })),
         { name: "ask", annotations: { readOnlyHint: false } },
       ],
@@ -140,7 +200,11 @@ describe("runMcpSmoke", () => {
     caller.listTools = async () => ({
       tools: [...EXPECTED_MCP_TOOLS, "feedback"].map((name) => ({
         name,
-        annotations: { readOnlyHint: true },
+        annotations: {
+          readOnlyHint: true,
+          openWorldHint: !["quick_start", "search_language"].includes(name),
+          destructiveHint: false,
+        },
       })),
     });
     await expect(

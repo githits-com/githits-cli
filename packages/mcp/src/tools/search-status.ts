@@ -12,7 +12,7 @@ import { renderUnifiedSearchStatusText } from "../shared/unified-search-status-t
 import { addLocalMcpAuthAction, throwIfCallerCancellation } from "./shared.js";
 import {
   errorResult,
-  READ_ONLY_TOOL_ANNOTATIONS,
+  OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
   textResult,
   type ZodRawShape,
@@ -59,7 +59,7 @@ export function createSearchStatusTool(
     name: "search_status",
     description: DESCRIPTION,
     schema,
-    annotations: READ_ONLY_TOOL_ANNOTATIONS,
+    annotations: OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       try {
         const outcome = await service.searchStatus(

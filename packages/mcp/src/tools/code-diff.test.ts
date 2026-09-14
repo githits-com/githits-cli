@@ -47,7 +47,7 @@ describe("code_diff MCP adapter", () => {
     expect(tool.name).toBe("code_diff");
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
-      openWorldHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     });
     expect(Object.keys(tool.schema)).toEqual([

@@ -65,7 +65,7 @@ describe("createListFilesTool — metadata", () => {
     ]);
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
-      openWorldHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     });
   });
