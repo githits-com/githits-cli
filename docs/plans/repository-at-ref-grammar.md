@@ -185,7 +185,7 @@ steps are not authorized here.
 
 ## Phase map
 
-### Phase 1 — one canonical repository revision grammar (**EXTERNAL REVIEW PENDING**)
+### Phase 1 — one canonical repository revision grammar (**EXTERNAL ROUND 3 PENDING**)
 
 Expected outcome: every current githits-cli caller and emitted locator uses
 `@ref`, legacy compact `#ref` fails precisely, documentation fragments and
@@ -295,7 +295,15 @@ Implementation and verification evidence (2026-09-15):
   repository path so provider web URLs such as `.../tree/main#readme` remain
   backend-classified in resolve and Ask. That boundary was tightened, focused
   coverage passed 291 tests with 1,054 expectations, and internal pre-flight
-  returned clean. The final broad rerun and external round 2 are pending.
+  returned clean before external round 2.
+- External round 2 found that CLI Ask passed the shared legacy marker outside
+  Commander's user-facing error domain, breaking its `--json` error envelope,
+  and noted an unrelated expansion of commit-only identities to full SHAs. CLI
+  Ask now translates only that marker into Commander's argument error, with a
+  real-process JSON/footer regression test. Commit-only repository identities
+  retain the prior short SHA using canonical `@` syntax. Focused coverage passed
+  324 tests with 1,157 expectations, and internal pre-flight returned clean. The
+  final broad rerun and external round 3 are pending.
 
 ## Phase-boundary reorientation and cleanup
 

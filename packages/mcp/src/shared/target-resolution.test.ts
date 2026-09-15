@@ -81,6 +81,15 @@ describe("target-resolution helpers", () => {
     );
   });
 
+  it("keeps commit-only repository identities short and canonical", () => {
+    expect(
+      formatTargetResolutionIdentity({
+        repoUrl: "https://github.com/foo/bar",
+        commitSha: "fd3d47cec611714272f68692b6fc91db575b41bf",
+      }),
+    ).toBe("github:foo/bar@fd3d47c");
+  });
+
   it("projects and renders standalone site identities", () => {
     const projected = projectTargetResolution({
       requested: { kind: "site", site: "site:expressjs.com" },

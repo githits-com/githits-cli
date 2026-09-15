@@ -218,7 +218,9 @@ function resolveAskSubject(
       try {
         parseRepositoryTargetSpec(target);
       } catch (error) {
-        if (error instanceof LegacyRepositoryRefError) throw error;
+        if (error instanceof LegacyRepositoryRefError) {
+          throw new InvalidArgumentError(error.message);
+        }
       }
     }
     return { target };

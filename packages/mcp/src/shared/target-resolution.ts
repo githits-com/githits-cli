@@ -254,7 +254,9 @@ export function formatTargetResolutionIdentity(
     return appendCommitIdentity(target, identity.commitSha);
   }
   if (identity.repoUrl) {
-    const revision = identity.gitRef ?? identity.commitSha;
+    const revision =
+      identity.gitRef ??
+      (identity.commitSha ? shortSha(identity.commitSha) : undefined);
     const target = formatRepositoryTarget(identity.repoUrl, revision);
     return identity.gitRef
       ? appendCommitIdentity(target, identity.commitSha, identity.gitRef)

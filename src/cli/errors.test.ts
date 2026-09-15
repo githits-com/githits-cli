@@ -334,6 +334,62 @@ describe("handleCliError", () => {
       rmSync(xdgConfigHome, { recursive: true, force: true });
     }
   });
+
+  it("renders legacy Ask repository refs as a clean JSON argument error", async () => {
+    const configHome = mkdtempSync(join(tmpdir(), "githits-cli-ask-error-"));
+    mkdirSync(join(configHome, "githits"), { recursive: true });
+    writeFileSync(
+      join(configHome, "githits", "config.toml"),
+      "[experimental]\ntools = true\n",
+    );
+    const env = withConfigHomeEnv(
+      {
+        ...process.env,
+        GITHITS_DISABLE_UPDATE_CHECK: "1",
+        GITHITS_DEBUG: "",
+        NO_COLOR: "1",
+      },
+      configHome,
+    );
+    delete env.GITHITS_API_TOKEN;
+    const proc = Bun.spawn(
+      [
+        "bun",
+        "run",
+        "src/cli.ts",
+        "ask",
+        "--json",
+        "github:expressjs/express#main",
+        "why?",
+      ],
+      {
+        cwd: process.cwd(),
+        stdout: "pipe",
+        stderr: "pipe",
+        env,
+      },
+    );
+    try {
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
+
+      expect(exitCode).toBe(1);
+      expect(stdout).toBe("");
+      expect(JSON.parse(stderr)).toEqual({
+        error:
+          'Repository target "github:expressjs/express#main" uses legacy #ref syntax. Use "github:expressjs/express@main"; # is reserved for semantic fragments.',
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      });
+      expect(stderr).not.toContain("githits doctor");
+      expect(stderr).not.toContain("report this");
+    } finally {
+      rmSync(configHome, { recursive: true, force: true });
+    }
+  });
 });
 
 function captureCliError(
