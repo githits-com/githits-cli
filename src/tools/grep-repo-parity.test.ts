@@ -70,25 +70,7 @@ interface McpArgs {
   context_lines?: number;
   context_lines_before?: number;
   context_lines_after?: number;
-  target: {
-    registry?:
-      | "npm"
-      | "pypi"
-      | "hex"
-      | "crates"
-      | "nuget"
-      | "maven"
-      | "zig"
-      | "vcpkg"
-      | "packagist"
-      | "rubygems"
-      | "go"
-      | "swift";
-    package_name?: string;
-    version?: string;
-    repo_url?: string;
-    git_ref?: string;
-  };
+  target: string;
   pattern: string;
   path?: string;
   path_prefix?: string;
@@ -129,7 +111,7 @@ describe("grep_repo parity", () => {
     );
     const mcp = await mcpJson(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "middleware",
         path_prefix: "src/",
       },
@@ -159,7 +141,7 @@ describe("grep_repo parity", () => {
     );
     const mcp = await mcpJson(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "middleware",
       },
       fn as never,
@@ -187,7 +169,7 @@ describe("grep_repo parity", () => {
     );
     const mcp = await mcpJson(
       {
-        target: { registry: "npm", package_name: "ghost" },
+        target: "npm:ghost",
         pattern: "middleware",
       },
       fn as never,
@@ -220,7 +202,7 @@ describe("grep_repo parity", () => {
     };
     const mcp = (await mcpJson(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "middleware",
         path: "docs/missing.md",
       },
@@ -274,11 +256,7 @@ describe("grep_repo parity", () => {
       );
       const mcp = await mcpJson(
         {
-          target: {
-            registry: "hex",
-            package_name: "jason",
-            version: "1.4.4",
-          },
+          target: "hex:jason@1.4.4",
           pattern: "{",
           path: "bench/data/issue-90.json",
         },
@@ -321,7 +299,7 @@ describe("grep_repo parity", () => {
       retryable: boolean;
     };
     const mcp = (await mcpJson({
-      target: { registry: "npm", package_name: "express" },
+      target: "npm:express",
       pattern: "   ",
     })) as { code: string; error: string; retryable: boolean };
     const { error: cliError, ...cliData } = cli;
@@ -342,7 +320,7 @@ it("clamps CLI and MCP context with identical requested/effective JSON", async (
     beforeContext: "0",
   });
   const mcp = await mcpJson({
-    target: { registry: "npm", package_name: "express" },
+    target: "npm:express",
     pattern: "router",
     context_lines: 12,
     context_lines_before: 0,

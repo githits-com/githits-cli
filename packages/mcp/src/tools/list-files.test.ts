@@ -24,11 +24,9 @@ describe("createListFilesTool — metadata", () => {
     const jsonSchema = z.toJSONSchema(z.object(descriptor?.schema ?? {}));
     const targetSchema = JSON.stringify(jsonSchema.properties?.target);
 
-    expect(targetSchema).toContain("swift:github.com/<owner>/<repo>");
-    expect(targetSchema).toContain("zig:gh/<owner>/<repo>");
-    expect(targetSchema).toContain("artifact/manifest-root");
-    expect(targetSchema).toContain("public repository");
-    expect(targetSchema).toContain("sibling packages");
+    expect(targetSchema).toContain("Compact target string");
+    expect(targetSchema).toContain("npm:react");
+    expect(targetSchema).toContain("github:facebook/react");
     expect(descriptor?.description.slice(0, 80)).toBe(
       "List indexed files and paths in a public repo or package. Then use `read` or `co",
     );
@@ -79,7 +77,7 @@ describe("createListFilesTool — happy path", () => {
 
     await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
       },
       {},
     );
@@ -98,12 +96,7 @@ describe("createListFilesTool — happy path", () => {
 
     await tool.handler(
       {
-        target: {
-          registry: "npm",
-          package_name: "express",
-          repo_url: " ",
-          git_ref: "\t",
-        },
+        target: "npm:express",
       },
       {},
     );
@@ -150,7 +143,7 @@ describe("createListFilesTool — happy path", () => {
 
     await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         path: "README.md",
         path_prefix: "src/",
         globs: ["test/**/*.js"],
@@ -192,7 +185,7 @@ describe("createListFilesTool — happy path", () => {
   it("emits the envelope with files, total, hasMore, resolution, indexedVersion", async () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     const result = await tool.handler(
-      { target: { registry: "npm", package_name: "express" }, format: "json" },
+      { target: "npm:express", format: "json" },
       {},
     );
     expect(result.isError).toBeUndefined();
@@ -218,10 +211,7 @@ describe("createListFilesTool — happy path", () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: {
-          repo_url: "https://github.com/expressjs/express",
-          git_ref: "main",
-        },
+        target: "https://github.com/expressjs/express#main",
         format: "json",
       },
       {},
@@ -242,7 +232,7 @@ describe("createListFilesTool — happy path", () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         path_prefix: "src/",
         format: "json",
       },
@@ -258,7 +248,7 @@ describe("createListFilesTool — happy path", () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         path: "README.md",
         globs: ["test/**/*.js"],
         extensions: ["js"],
@@ -301,7 +291,7 @@ describe("createListFilesTool — happy path", () => {
   it("omits filter when caller only used defaults", async () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     const result = await tool.handler(
-      { target: { registry: "npm", package_name: "express" }, format: "json" },
+      { target: "npm:express", format: "json" },
       {},
     );
     const payload = parseText(result) as { filter?: unknown };
@@ -310,29 +300,23 @@ describe("createListFilesTool — happy path", () => {
 });
 
 describe("createListFilesTool — validation errors", () => {
-  it("returns INVALID_ARGUMENT for both target forms (not both)", async () => {
+  it("returns INVALID_ARGUMENT for a malformed compact target", async () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: {
-          registry: "npm",
-          package_name: "express",
-          repo_url: "https://github.com/x",
-          git_ref: "main",
-        },
+        target: "npm:",
       },
       {},
     );
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string; error: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
-    expect(payload.error).toContain("not both");
   });
 
   it("returns INVALID_ARGUMENT for out-of-range limit via envelope (not raw Zod)", async () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     const result = await tool.handler(
-      { target: { registry: "npm", package_name: "express" }, limit: 1001 },
+      { target: "npm:express", limit: 1001 },
       {},
     );
     expect(result.isError).toBe(true);
@@ -340,9 +324,9 @@ describe("createListFilesTool — validation errors", () => {
     expect(payload.code).toBe("INVALID_ARGUMENT");
   });
 
-  it("returns INVALID_ARGUMENT for missing repo_url pair (only git_ref)", async () => {
+  it("returns INVALID_ARGUMENT for an incomplete compact target", async () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
-    const result = await tool.handler({ target: { git_ref: "main" } }, {});
+    const result = await tool.handler({ target: "github:" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
@@ -361,7 +345,7 @@ describe("createListFilesTool — validation errors", () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         path: "",
         path_prefix: "",
         file_intent: "",
@@ -390,10 +374,7 @@ describe("createListFilesTool — service errors", () => {
       ),
     });
     const tool = createListFilesTool(service);
-    const result = await tool.handler(
-      { target: { registry: "npm", package_name: "express" } },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:express" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as {
       code: string;
@@ -420,10 +401,7 @@ describe("createListFilesTool — service errors", () => {
       ),
     });
     const tool = createListFilesTool(service);
-    const result = await tool.handler(
-      { target: { registry: "npm", package_name: "ghost" } },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:ghost" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("NOT_FOUND");
@@ -433,10 +411,7 @@ describe("createListFilesTool — service errors", () => {
 describe("createListFilesTool — text format", () => {
   it("defaults to text output when format is omitted", async () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
-    const result = await tool.handler(
-      { target: { registry: "npm", package_name: "express" } },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:express" }, {});
     expect(result.isError).toBeUndefined();
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("code_files | 2 paths");
@@ -448,7 +423,7 @@ describe("createListFilesTool — text format", () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         format: "text",
       },
       {},
@@ -465,7 +440,7 @@ describe("createListFilesTool — text format", () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         format: "text",
       },
       {},
@@ -478,7 +453,7 @@ describe("createListFilesTool — text format", () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         format: "json",
       },
       {},
