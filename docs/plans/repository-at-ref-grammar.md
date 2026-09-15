@@ -2,9 +2,9 @@
 
 ## Status
 
-- Overall: **IMPLEMENTED — REVIEW PENDING**
-- Current phase: Phase 1 — implementation and verification complete; internal
-  and external code review remain before draft PR delivery
+- Overall: **IMPLEMENTED AND REVIEWED — DRAFT PR PENDING**
+- Current phase: Phase 1 — implementation, verification, and review complete;
+  draft PR delivery remains
 - Owner: repository maintainers
 - Last verified: 2026-09-15 against `origin/main` at `fe553ce`
 
@@ -185,7 +185,7 @@ steps are not authorized here.
 
 ## Phase map
 
-### Phase 1 — one canonical repository revision grammar (**EXTERNAL ROUND 3 PENDING**)
+### Phase 1 — one canonical repository revision grammar (**REVIEWED — PR PENDING**)
 
 Expected outcome: every current githits-cli caller and emitted locator uses
 `@ref`, legacy compact `#ref` fails precisely, documentation fragments and
@@ -257,7 +257,7 @@ Implementation and verification evidence (2026-09-15):
 - Resolution text uses one canonical target plus `(commit <sha>)` metadata when
   both a ref and commit are relevant, avoiding ambiguous stacked delimiters.
 - The affected suite passed 1,331 tests with 3,576 expectations. The final full
-  suite passed 4,766 tests with 16,526 expectations. Typecheck, lint, format check,
+  suite passed 4,771 tests with 16,536 expectations. Typecheck, lint, format check,
   build, plugin generation/check, and public-package validation passed.
 - Authenticated source smoke passed for CLI (116 steps) and MCP (59 steps),
   including `github:expressjs/express@<commit>/History.md` documentation reads.
@@ -303,7 +303,15 @@ Implementation and verification evidence (2026-09-15):
   real-process JSON/footer regression test. Commit-only repository identities
   retain the prior short SHA using canonical `@` syntax. Focused coverage passed
   324 tests with 1,157 expectations, and internal pre-flight returned clean. The
-  final broad rerun and external round 3 are pending.
+  final external round rechecked those closures and the full delta and returned
+  clean. The retained Opus review terminal is
+  `term_975da2f2-76f3-44b0-b15f-8524d9ca2ca8`.
+- The first settled-code CLI smoke rerun reached 107 successful steps, then a
+  second isolated live-auth probe returned neither live data nor auth guidance.
+  The identical isolated probe immediately succeeded, establishing transient
+  external state rather than a grammar failure. The complete serial rerun then
+  passed all source CLI (116), source MCP (59), built CLI (31), and built MCP
+  (9) steps.
 
 ## Phase-boundary reorientation and cleanup
 
