@@ -395,7 +395,7 @@ describe("buildCodeDiffMcpParams", () => {
   it("rejects invalid MCP target shapes, embedded identities, endpoints, and limits", () => {
     const invalidInputs = [
       { target: "", from: "1", to: "2" },
-      { target: "", from: "1", to: "2" },
+      { target: " ", from: "1", to: "2" },
       { target: "npm:express@1#main", from: "1", to: "2" },
       { target: "npm:express@1.0.0", from: "1", to: "2" },
       { target: "github:a/b#main", from: "1", to: "2" },
