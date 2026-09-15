@@ -502,9 +502,10 @@ Verification evidence:
 - the Claude descriptor-only intent run completed all four targeted workloads
   successfully with high confidence, 18 MCP calls, no CLI fallback, no object
   targets, no reported failed calls, and empty validation-violation arrays. The
-  matched Codex run could not start tool discovery because the dedicated eval
-  account had reached its usage limit until 2026-09-20; this limitation is explicit
-  rather than retried; and
+  matched Codex 0.154.0 Luna/high run also completed all four workloads
+  successfully with high confidence, 32 MCP calls, no CLI fallback, compact string
+  targets in every affected tool call, no reported failed calls, and empty
+  validation-violation arrays; and
 - Luna pre-flight was clean after two current-guidance corrections. The internal
   code review's only finding was a stale CodeDiff documentation phrase, fixed in
   place. The external Opus round found no code defects and two minor copy/test
