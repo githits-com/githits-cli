@@ -3271,7 +3271,7 @@ describe("CodeNavigationServiceImpl", () => {
             errors: [
               {
                 message:
-                  "Repository ref cannot be resolved for github:openai/codex#1.2.3. Did you mean codex@1.2.3, v1.2.3?",
+                  "Repository ref cannot be resolved for github:openai/codex@1.2.3. Did you mean codex@1.2.3, v1.2.3?",
                 extensions: {
                   code: "REF_NOT_FOUND",
                   retryable: false,

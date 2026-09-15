@@ -49,7 +49,7 @@ export const readSchema: ReadSchema = {
   target: z
     .string()
     .describe(
-      "With path: compact package or repo target, e.g. npm:react@18 or github:owner/repo#ref. Without path: emitted docsReadTarget or page ID; pass unchanged, including URL fragments.",
+      "With path: compact package or repo target, e.g. npm:react@18 or github:owner/repo@ref. Without path: emitted docsReadTarget or page ID; pass unchanged, including URL fragments.",
     ),
   path: z
     .string()

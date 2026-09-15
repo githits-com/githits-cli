@@ -12,20 +12,19 @@ describe("parseCodeNavigationTargetSpec", () => {
 
   it("preserves git refs on github.com shorthand targets", () => {
     expect(
-      parseCodeNavigationTargetSpec("github.com/expressjs/express#main"),
+      parseCodeNavigationTargetSpec("github.com/expressjs/express@main"),
     ).toEqual({
       repoUrl: "https://github.com/expressjs/express",
       gitRef: "main",
     });
   });
 
-  it("preserves git refs containing @ when using # syntax", () => {
-    expect(
+  it("rejects legacy # refs with a canonical replacement", () => {
+    expect(() =>
       parseCodeNavigationTargetSpec("github.com/n8n-io/n8n#n8n@2.26.5"),
-    ).toEqual({
-      repoUrl: "https://github.com/n8n-io/n8n",
-      gitRef: "n8n@2.26.5",
-    });
+    ).toThrow(
+      'Use "github.com/n8n-io/n8n@n8n@2.26.5"; # is reserved for semantic fragments.',
+    );
   });
 
   it("splits @ refs only at the repository suffix delimiter", () => {
@@ -43,14 +42,14 @@ describe("parseCodeNavigationTargetSpec", () => {
         "https://github.com/expressjs/express/tree/main",
       ),
     ).toThrow(
-      "Repository URL targets must point to github.com/owner/repo; pass refs with #gitRef or @gitRef.",
+      "Repository URL targets must point to github.com/owner/repo; pass refs with @gitRef.",
     );
   });
 
-  it("rejects repository URLs with both ref suffix syntaxes", () => {
+  it("rejects repository revisions followed by a fragment", () => {
     expect(() =>
       parseCodeNavigationTargetSpec("github.com/expressjs/express@main#dev"),
-    ).toThrow("must use only one ref suffix");
+    ).toThrow("# fragments or legacy #ref suffixes");
   });
 
   it.each([
@@ -70,7 +69,7 @@ describe("parseCodeNavigationTargetSpec", () => {
 
   it("preserves git refs on github:owner/repo shorthand targets", () => {
     expect(
-      parseCodeNavigationTargetSpec("github:expressjs/express#main"),
+      parseCodeNavigationTargetSpec("github:expressjs/express@main"),
     ).toEqual({
       repoUrl: "https://github.com/expressjs/express",
       gitRef: "main",

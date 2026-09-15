@@ -369,7 +369,7 @@ describe("codeDiffAction", () => {
       "unversioned package target `<registry>:<name>`",
     );
     expect(error.mock.calls[0]?.[0]).not.toContain("[@<version>]");
-    expect(error.mock.calls[0]?.[0]).not.toContain("[#ref|@ref]");
+    expect(error.mock.calls[0]?.[0]).not.toContain("#ref");
     expect(error.mock.calls[0]?.[0]).toContain("supported registries");
     expect(error.mock.calls[0]?.[0]).toContain("npm");
     expect(codeDiff).not.toHaveBeenCalled();

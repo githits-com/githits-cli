@@ -483,13 +483,13 @@ Ordinary completed, current results collapse all healthy groups to one line:
 
 ```text
 10 results | 6 repo code hits, 4 docs pages | next_offset=10
-Sources: npm:express@5.2.1 - code, site:expressjs.com, github:expressjs/express#dbac741a
+Sources: npm:express@5.2.1 - code, site:expressjs.com, github:expressjs/express@dbac741a
 ```
 
 Multiple healthy targets use one semicolon-delimited `Sources:` row, with each target
 written once and its searched sources following it. Code and symbols remain compact lane
 names. Documentation contributors retain canonical `site:<host[/path]>` locators and
-canonical `github:<owner>/<repo>#<revision>` locators. A source identical to its standalone
+canonical `github:<owner>/<repo>@<revision>` locators. A source identical to its standalone
 target is written once; a sole pinned repository source replaces its less-specific
 ref-less repository target. An already-pinned repository target remains beside its resolved
 commit. Compact repository provenance requires both the repository URL and commit; other
@@ -547,7 +547,7 @@ No results
 
 - npm:missing | package not found: code
   Fix: verify registry coordinate/version; use its public GitHub repo for repo-wide search.
-- github:owner/repo#bad-ref | repository ref unresolved: code
+- github:owner/repo@bad-ref | repository ref unresolved: code
   Fix: verify public GitHub repository/ref.
 ```
 
@@ -594,11 +594,11 @@ Replayable target composition is typed:
 
 - a package version becomes `<registry>:<name>@<version>` using the parsed requested
   package identity without its old version;
-- a repository ref becomes the canonical `github:<owner>/<repo>#<ref>` using the parsed
+- a repository ref becomes the canonical `github:<owner>/<repo>@<ref>` using the parsed
   repository identity;
 - a site suggestion is already a replayable `site:<host[/path]>` target; and
 - package `availableRefs`/`suggestedRefs` remain informational because no valid package
-  target syntax can apply them. Do not invent `<package>#<ref>` or silently switch to a
+  target syntax can apply them. Do not invent a repository revision for a package or silently switch to a
   repository target.
 
 If source-status-only input lacks an explicit requested identity, compose from the group
@@ -889,7 +889,7 @@ is separate from the unchanged final-head validation above.
 
 The compact provenance follow-up implements the user-requested physical source display:
 healthy documentation sources now render canonical `site:<host[/path]>` and pinned
-`github:<owner>/<repo>#<revision>` locators instead of the generic `docs` lane. A direct
+`github:<owner>/<repo>@<revision>` locators instead of the generic `docs` lane. A direct
 ref-less repository target collapses to its sole pinned source; a pinned target remains
 beside the resolved commit. Contributor-less documentation remains detailed because no
 healthy live response shape was found that could truthfully supply compact provenance.
@@ -897,9 +897,9 @@ healthy live response shape was found that could truthfully supply compact prove
 At `dcbb9f9`, the focused formatter/CLI suite passed 153 tests with 560 expectations;
 `bun test` passed 3,570 tests with 11,390 expectations and 0 failures; build, typecheck,
 lint, format check, and `git diff --check` passed. Source and built live searches produced
-`Sources: npm:express@5.2.1 - site:expressjs.com, github:expressjs/express#dbac741a`
+`Sources: npm:express@5.2.1 - site:expressjs.com, github:expressjs/express@dbac741a`
 and preserved the explicit mapping
-`Sources: github:axios/axios#v1.7.9 - github:axios/axios#b2cb45d5`. All four smoke modes
+`Sources: github:axios/axios@v1.7.9 - github:axios/axios@b2cb45d5`. All four smoke modes
 passed at `bc51e67`. After the two subsequent repository-provenance fixes, the final
 CLI smoke attempt stopped before its search assertions because the unrelated
 `get_example` request timed out after 240 seconds; no retry or weakened assertion was

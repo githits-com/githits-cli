@@ -678,13 +678,31 @@ function compactProgress(
     >;
   }
   if (progress.indexingEstimates !== undefined) {
-    payload.indexingEstimates = progress.indexingEstimates;
+    payload.indexingEstimates = progress.indexingEstimates.map(
+      compactIndexingEstimate,
+    );
   }
   if (progress.expiresAt) payload.expiresAt = progress.expiresAt;
   payload.next = isActiveUnifiedSearchSessionStatus(progress.status)
     ? `search_status search_ref=${JSON.stringify(progress.searchRef)} wait_timeout_ms=${discoveryIndexingWaitMs(progress.indexingEstimates)}`
     : "rerun search";
   return payload;
+}
+
+function compactIndexingEstimate(
+  estimate: DiscoveryIndexingEstimate,
+): DiscoveryIndexingEstimate {
+  return {
+    ...estimate,
+    targets:
+      estimate.kind === "REPOSITORY"
+        ? estimate.targets.map(
+            (target) =>
+              formatRepositoryTargetLabel(target, estimate.repositoryUrl) ??
+              target,
+          )
+        : [...estimate.targets],
+  };
 }
 
 function appendFreshness(

@@ -160,12 +160,12 @@ describe("buildCodeDiffParams", () => {
       "must not include a version",
     );
     invalid(
-      { target: "github:expressjs/express#main", range: "1..2" },
+      { target: "github:expressjs/express@main", range: "1..2" },
       "must not include a ref",
     );
     invalid(
       {
-        repoUrl: "https://github.com/expressjs/express#main",
+        repoUrl: "https://github.com/expressjs/express@main",
         range: "1..2",
       },
       "must not include a ref",
@@ -179,7 +179,7 @@ describe("buildCodeDiffParams", () => {
     );
     expect(() =>
       buildCodeDiffParams({
-        target: "github:expressjs/express#main",
+        target: "github:expressjs/express@main",
         range: "1..2",
       }),
     ).toThrow(
@@ -187,7 +187,7 @@ describe("buildCodeDiffParams", () => {
     );
     expect(() =>
       buildCodeDiffMcpParams({
-        target: "github:expressjs/express#main",
+        target: "github:expressjs/express@main",
         from: "1",
         to: "2",
       }),
@@ -398,7 +398,7 @@ describe("buildCodeDiffMcpParams", () => {
       { target: " ", from: "1", to: "2" },
       { target: "npm:express@1#main", from: "1", to: "2" },
       { target: "npm:express@1.0.0", from: "1", to: "2" },
-      { target: "github:a/b#main", from: "1", to: "2" },
+      { target: "github:a/b@main", from: "1", to: "2" },
       { target: "npm:express", from: "", to: "2" },
       { target: "npm:express", from: "1", to: " " },
       {

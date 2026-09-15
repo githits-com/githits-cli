@@ -229,7 +229,7 @@ describe("createCodeReadTool — happy path", () => {
     );
     const result = await tool.handler(
       {
-        target: "https://github.com/expressjs/express#HEAD",
+        target: "https://github.com/expressjs/express@HEAD",
         path: "src/index.js",
       },
       {},

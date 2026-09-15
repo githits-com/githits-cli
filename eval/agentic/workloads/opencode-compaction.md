@@ -1,7 +1,7 @@
 # Workload: OpenCode Chat Compaction Investigation
 
 Investigate how chat compaction works in the public target
-`github:anomalyco/opencode#v1.18.15`. Explain the trigger and token-budget
+`github:anomalyco/opencode@v1.18.15`. Explain the trigger and token-budget
 calculation, what the compaction summary includes versus what recent history is
 preserved, pruning behavior, and resume/overflow behavior.
 
