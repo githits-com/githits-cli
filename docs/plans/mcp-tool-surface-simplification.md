@@ -512,11 +512,11 @@ Verification evidence:
   hygiene issues; both were fixed, so the round is clean under repository policy.
 
 PR #395 merged to `origin/main` as `dc148c5` on 2026-09-15. The post-merge Main,
-root release, and MCP release workflows passed. Root and MCP publish, tag, and
-GitHub Release steps were skipped because package versions were unchanged, so the
-Phase 1 contract is merged but not yet published to npm or deployed through the
-separate hosted `remote-mcp` release path. The pending minor/minor change fragment
-remains the release record.
+Agent Evals, root release, and MCP release workflows passed. Root and MCP publish,
+tag, and GitHub Release steps were skipped because package versions were unchanged,
+so the Phase 1 contract is merged but not yet published to npm or deployed through
+the separate hosted `remote-mcp` release path. The pending minor/minor change
+fragment remains the release record.
 
 Current target-facing guidance now has one ownership path: schemas state the
 compact accepted form and representative examples, shared quick-start/skill text
