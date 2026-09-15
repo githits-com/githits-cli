@@ -23,7 +23,7 @@ const MCP_DOC_READ_MAX_SPAN = 300;
 /** Execute the docs branch of the unified reader. */
 export async function readDocumentationPage(
   args: ReadPackageDocArgs,
-  service: PackageIntelligenceService,
+  service: Pick<PackageIntelligenceService, "readPackageDoc">,
   context?: ToolExecutionContext,
 ): Promise<ToolResult> {
   try {

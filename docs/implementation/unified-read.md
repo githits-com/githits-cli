@@ -2,6 +2,13 @@
 
 MCP advertises one `read` tool. CLI provides `githits read`; `githits code read`
 and `githits docs read` remain compatible commands, marked deprecated in help.
+Compact advertised MCP reads and compact top-level CLI reads call the
+transport-neutral `ReadService` once, which sends one backend `Query.read`
+request. Validation, range caps, formatting, and error recovery remain owned by
+the MCP and CLI surfaces. `ReadService` lives in `packages/core-internal` and is
+publicly available only through `@githits/mcp/client`; the required
+`McpToolServices.readService` is the request-scoped provider boundary for the
+public MCP server.
 
 ## Locators and ownership
 
@@ -18,10 +25,35 @@ strings; the structured code-target object accepted by other navigation tools is
 not part of this read schema. Existing target parsers still own package/provider
 syntax and exact Git revision handling.
 
-The tool in `packages/mcp/src/tools/read.ts` injects both existing services and
-routes to the source-specific read operations. Backend APIs and fetched fields are
-unchanged. CLI uses the same locator interpretation but its own actions, retaining
-complete, content-only output for pipes. JSON result models remain source-specific.
+The tool in `packages/mcp/src/tools/read.ts` injects `ReadService` and calls its
+`read` method once. The service returns a semantic code/docs union, and the
+existing source-specific payload builders, formatters, and error mapping remain
+in place. CLI uses the same locator interpretation but its own actions,
+retaining complete, content-only output for pipes. JSON result models remain
+source-specific.
+
+## Backend contract and schema ownership
+
+`ReadServiceImpl` sends the compact request directly to `Query.read`, selecting
+`__typename` and the complete minimum fields needed by both union branches. The
+`CodeContextResult` branch selects `content`, `filePath`, `language`,
+`totalLines`, `startLine`, `endLine`, `isBinary`, `codeIndexState`,
+`indexingRef`, `availableVersions`, `indexingEstimate`, and
+`targetResolution` (including their existing subfields). The
+`GetDocPageResult` branch selects `registry`, `packageName`, `version`,
+`sourceKind`, `contentRange { startLine endLine totalLines anchor }`, and the
+page's `id`, `docsReadTarget`, `title`, `content`, `contentFormat`,
+`breadcrumbs`, `lastUpdatedAt`, `sourceKind`, `source { url label }`, `repoUrl`,
+`gitRef`, `requestedRef`, `filePath`, and `baseUrl` fields.
+
+The returned `__typename` must match the source selected by `path`. A missing or
+mismatched union branch is a source-specific malformed-response error; it is
+never retried against the other branch or a legacy root. There is no schema
+fallback for compact reads. Custom endpoints configured with
+`GITHITS_CODE_NAV_URL` (or its legacy `PKGSEER_URL` alias) must implement
+`Query.read`, both union branches, and this selected minimum schema. The legacy
+roots remain available for the compatibility commands, but they are not a
+fallback for compact reads.
 
 ## Sections, windows, and waiting
 
@@ -60,16 +92,30 @@ not the backend service parser.
 ## Migration and future extension
 
 ```text
-code_read(target, path, ...) -> read(target, path, ...)
-docs_read(page_id, ...)      -> read(target=page_id, ...)
-githits code read ...        -> githits read ...
-githits docs read ...        -> githits read ...
+compact code read(target, path, ...) -> Query.read(target, path, ...)
+compact docs read(target, ...)        -> Query.read(target, ...)
+githits code read ...                 -> legacy fetchCodeContext
+githits docs read ...                 -> legacy getDocPage
+githits read --repo-url ...           -> legacy fetchCodeContext
 ```
 
-MCP removes the legacy names rather than registering aliases. Clients must
-rediscover the tool catalog. Local clients get the change with the CLI; hosted
-clients require an @githits/mcp release, remote-mcp dependency adoption, and a hosted
-deployment. Those are separate authorized delivery actions.
+The compact MCP tool and compact top-level CLI command are the canonical read
+surfaces and record backend usage as `read`. Deprecated `githits code read` and
+`githits docs read` stay on their legacy roots so their usage remains an
+observable compatibility cohort; backend analytics distinguish canonical
+`read` from legacy `code_read`/`docs_read`. Top-level `githits read --repo-url ...` also
+stays on `fetchCodeContext`: its structured repository URL plus git-ref input
+cannot be represented losslessly in compact syntax when the ref contains `#`,
+because `#` is the compact target's ref delimiter. These paths have no removal
+date or threshold in this documentation; usage statistics are evidence for a
+future product decision.
+
+Local CLI and stdio MCP use the new service after the package release. Hosted
+adoption is separate: release `@githits/mcp`, update `remote-mcp` to construct
+`ReadServiceImpl` per request with the same token, headers, endpoint/config,
+fetch function, and diagnostics policy, then deploy that host. Until those
+steps occur, hosted traffic remains on its currently published package and
+legacy/current behavior. This repository does not deploy the hosted server.
 
 Symbols are future-only: a future `symbol` selector beside `target` and `path` can
 select a backend-resolved symbol, with explicit bounds overriding semantic
@@ -79,10 +125,10 @@ identity, revision resolution, and ambiguous/overloaded definitions when added.
 
 ## Public skill release follow-through
 
-The stable MCP quick-start and embedded `skills/githits-mcp/SKILL.md` guide change
-with this implementation under the exact-parity exception. Other public skills are
+The stable MCP quick-start and embedded `skills/githits-mcp/SKILL.md` guide remain
+release-synchronized under the exact-parity exception. Other public skills are
 served from main before npm release and must follow their release-boundary policy.
-At the release containing unified read, update `skills/githits-code/SKILL.md` and
+When the release guidance is updated, change `skills/githits-code/SKILL.md` and
 `skills/githits-code/references/code-and-docs.md`: prefer `githits read`, retain
 legacy commands only as compatibility guidance, and replace both retired MCP
 mappings with `read` (target alone for docs, target plus path for code). Also audit

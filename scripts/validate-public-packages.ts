@@ -760,6 +760,19 @@ async function verifyMcpConsumer(
     appDirectory,
     "runtime import packed mcp package",
   );
+  await writeFile(
+    join(appDirectory, "read-service-runtime-check.mjs"),
+    `import { ReadServiceImpl, createStaticTokenProvider } from "@githits/mcp/client";
+if (typeof ReadServiceImpl !== "function") throw new Error("missing ReadServiceImpl");
+void new ReadServiceImpl("https://example.invalid", createStaticTokenProvider("token"));
+`,
+  );
+  await runCommand(
+    "node",
+    [join(appDirectory, "read-service-runtime-check.mjs")],
+    appDirectory,
+    "runtime import packed read service",
+  );
   await verifyMcpToolsBrowserConsumer(appDirectory);
   await verifyMcpBundleProbes(appDirectory);
 
@@ -779,7 +792,12 @@ async function verifyMcpConsumer(
           skipLibCheck: true,
           noEmit: true,
         },
-        include: ["check.ts", "code-diff-check.ts", "tools-check.ts"],
+        include: [
+          "check.ts",
+          "code-diff-check.ts",
+          "read-service-check.ts",
+          "tools-check.ts",
+        ],
       },
       null,
       2,
@@ -797,6 +815,15 @@ const callableOptions: CallableToolExecutionOptions = { signal: new AbortControl
 const publicErrors: Error[] = [new AuthenticationError(), new ApiRateLimitError(), new FetchTimeoutError(1_000), new TermsAcceptanceRequiredError()];
 void callableTool.execute(callableInput, callableOptions);
 void publicErrors;
+`,
+  );
+  await writeFile(
+    join(appDirectory, "read-service-check.ts"),
+    `import type { McpToolServices } from "@githits/mcp";
+import { ReadServiceImpl, createStaticTokenProvider, getCodeNavigationUrl, type ReadService } from "@githits/mcp/client";
+const readService: ReadService = new ReadServiceImpl(getCodeNavigationUrl(), createStaticTokenProvider("token"));
+const services = { readService } satisfies Pick<McpToolServices, "readService">;
+void services;
 `,
   );
   await writeFile(

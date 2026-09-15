@@ -12,6 +12,10 @@ import {
   resolveReadLocator,
   validateReadRange,
 } from "../shared/read-request.js";
+import {
+  createReadFileServiceAdapter,
+  createReadPackageDocServiceAdapter,
+} from "../shared/read-service-adapters.js";
 import { CODE_READ_GUARDRAIL } from "./guardrails.js";
 import { readSourceFile } from "./read-file.js";
 import { readDocumentationPage } from "./read-package-doc.js";
@@ -91,10 +95,7 @@ export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${CODE_READ_GUARDRAIL
 
 /** One advertised reader; source-specific selection and error contracts stay intact. */
 export function createReadTool(
-  services: Pick<
-    McpToolServices,
-    "codeNavigationService" | "packageIntelligenceService"
-  >,
+  services: Pick<McpToolServices, "readService">,
 ): ToolDefinition<ReadArgs, typeof readSchema> {
   return {
     name: "read",
@@ -126,7 +127,7 @@ export function createReadTool(
             path: locator.path,
             wait_timeout_ms: wait,
           },
-          services.codeNavigationService,
+          createReadFileServiceAdapter(services.readService, locator.target),
           context,
         );
       }
@@ -137,7 +138,7 @@ export function createReadTool(
           end_line: args.end_line,
           format: args.format,
         },
-        services.packageIntelligenceService,
+        createReadPackageDocServiceAdapter(services.readService),
         context,
       );
     },

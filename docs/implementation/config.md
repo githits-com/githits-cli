@@ -21,6 +21,15 @@ GitHits separates its MCP server (which handles OAuth discovery and the MCP prot
 
 Environment overrides must use HTTPS. Plain HTTP is accepted only for exact loopback hosts (`localhost`, `127.0.0.1`, and `[::1]`) so local backend development continues to work without permitting bearer tokens or OAuth credentials over remote cleartext connections. The same rule applies to the legacy `PKGSEER_URL` fallback and to OAuth registration/token endpoints returned by discovery.
 
+Compact `read` calls use `ReadServiceImpl` against the configured package/source
+endpoint and send one `Query.read` request. A custom `GITHITS_CODE_NAV_URL` (or
+legacy `PKGSEER_URL`) endpoint serving compact reads must implement
+`Query.read` with both `CodeContextResult` and `GetDocPageResult` union branches
+and the selected minimum fields required by the client. There is no schema
+fallback for compact reads. Deprecated compatibility commands may continue to
+use the legacy `fetchCodeContext` and `getDocPage` roots, but those roots are
+not fallback paths for compact reads.
+
 Network URL validation is deferred until a network-capable path resolves or uses the endpoint. Local-only recovery paths such as help, version output, `doctor`, auth metadata cleanup, and `logout` remain available when an endpoint override is malformed. This is deliberate: a bad network setting must not prevent diagnostics or credential removal.
 
 The MCP URL is also used as the storage key for tokens and client registrations (trailing slashes are stripped for consistent key matching). This means tokens from one environment don't leak into another.
@@ -154,7 +163,7 @@ Environment variables + config.toml
   └─ src/container.ts (createContainer)
        ├─ mcpUrl → passed to auth commands, used as storage key
        ├─ apiUrl → passed to GitHitsServiceImpl constructor
-       ├─ codeNavigationUrl → passed to CodeNavigationServiceImpl and PackageIntelligenceServiceImpl
+       ├─ codeNavigationUrl → passed to CodeNavigationServiceImpl, PackageIntelligenceServiceImpl, and ReadServiceImpl
        ├─ auth.storage → controls OAuth credential persistence
        ├─ experimental.tools → local CLI/MCP availability
        ├─ apiToken → resolved from env var or OAuth storage

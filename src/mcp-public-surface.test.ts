@@ -27,6 +27,7 @@ import {
   createMockCodeNavigationService,
   createMockGitHitsService,
   createMockPackageIntelligenceService,
+  createMockReadService,
 } from "./services/test-helpers.js";
 
 interface RegisteredTool {
@@ -47,6 +48,7 @@ function createServices(
     codeNavigationService: createMockCodeNavigationService(),
     githitsService: createMockGitHitsService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
+    readService: createMockReadService(),
     ...overrides,
   };
 }
@@ -136,6 +138,8 @@ describe("public MCP package surface", () => {
       expect(inventory).not.toContain("docs_read");
     }
     expect("createLocalMcpServer" in publicMcp).toBe(false);
+    expect("ReadServiceImpl" in publicMcp).toBe(false);
+    expect(publicMcpClient.ReadServiceImpl).toBeDefined();
     expect("AgenticAskServiceImpl" in publicMcpClient).toBe(false);
   });
 

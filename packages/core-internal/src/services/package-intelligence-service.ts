@@ -3990,49 +3990,60 @@ export class PackageIntelligenceServiceImpl
       );
     }
 
-    return this.normalisePackageDocResult(data);
+    return normalisePackageDocResult(data);
   }
+}
 
-  private normalisePackageDocResult(
-    data: z.infer<typeof packageDocResultResponseSchema>,
-  ): PackageDocResult {
-    return {
-      registry: data.registry ?? undefined,
-      packageName: data.packageName ?? undefined,
-      version: data.version ?? undefined,
-      sourceKind: data.sourceKind ?? undefined,
-      contentRange: {
-        startLine: data.contentRange.startLine ?? undefined,
-        endLine: data.contentRange.endLine ?? undefined,
-        totalLines: data.contentRange.totalLines,
-        anchor: data.contentRange.anchor ?? undefined,
-      },
-      page: data.page
-        ? {
-            id: data.page.id ?? undefined,
-            docsReadTarget: data.page.docsReadTarget,
-            title: data.page.title ?? undefined,
-            content: data.page.content ?? undefined,
-            contentFormat: data.page.contentFormat ?? undefined,
-            breadcrumbs: data.page.breadcrumbs ?? undefined,
-            linkName: data.page.linkName ?? undefined,
-            lastUpdatedAt: data.page.lastUpdatedAt ?? undefined,
-            sourceKind: data.page.sourceKind ?? undefined,
-            source: data.page.source
-              ? {
-                  url: data.page.source.url ?? undefined,
-                  label: data.page.source.label ?? undefined,
-                }
-              : undefined,
-            repoUrl: data.page.repoUrl ?? undefined,
-            gitRef: data.page.gitRef ?? undefined,
-            requestedRef: data.page.requestedRef ?? undefined,
-            filePath: data.page.filePath ?? undefined,
-            baseUrl: data.page.baseUrl ?? undefined,
-          }
-        : undefined,
-    };
+function normalisePackageDocResult(
+  data: z.infer<typeof packageDocResultResponseSchema>,
+): PackageDocResult {
+  return {
+    registry: data.registry ?? undefined,
+    packageName: data.packageName ?? undefined,
+    version: data.version ?? undefined,
+    sourceKind: data.sourceKind ?? undefined,
+    contentRange: {
+      startLine: data.contentRange.startLine ?? undefined,
+      endLine: data.contentRange.endLine ?? undefined,
+      totalLines: data.contentRange.totalLines,
+      anchor: data.contentRange.anchor ?? undefined,
+    },
+    page: data.page
+      ? {
+          id: data.page.id ?? undefined,
+          docsReadTarget: data.page.docsReadTarget,
+          title: data.page.title ?? undefined,
+          content: data.page.content ?? undefined,
+          contentFormat: data.page.contentFormat ?? undefined,
+          breadcrumbs: data.page.breadcrumbs ?? undefined,
+          linkName: data.page.linkName ?? undefined,
+          lastUpdatedAt: data.page.lastUpdatedAt ?? undefined,
+          sourceKind: data.page.sourceKind ?? undefined,
+          source: data.page.source
+            ? {
+                url: data.page.source.url ?? undefined,
+                label: data.page.source.label ?? undefined,
+              }
+            : undefined,
+          repoUrl: data.page.repoUrl ?? undefined,
+          gitRef: data.page.gitRef ?? undefined,
+          requestedRef: data.page.requestedRef ?? undefined,
+          filePath: data.page.filePath ?? undefined,
+          baseUrl: data.page.baseUrl ?? undefined,
+        }
+      : undefined,
+  };
+}
+
+/** Validate and normalize a `GetDocPageResult` returned by another query root. */
+export function parsePackageDocResult(data: unknown): PackageDocResult {
+  const parsed = packageDocResultResponseSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new MalformedPackageIntelligenceResponseError(
+      "Malformed response from the package-intelligence service.",
+    );
   }
+  return normalisePackageDocResult(parsed.data);
 }
 
 function stripNullProperties(value: unknown): unknown {

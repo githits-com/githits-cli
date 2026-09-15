@@ -97,7 +97,7 @@ export function deriveBoundedRange(
 /** Execute the code branch of the unified reader. */
 export async function readSourceFile(
   args: ReadFileArgs,
-  service: CodeNavigationService,
+  service: Pick<CodeNavigationService, "readFile">,
   context?: ToolExecutionContext,
 ): Promise<ToolResult> {
   const target = resolveCodeTarget(args.target);

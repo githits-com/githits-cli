@@ -36,7 +36,7 @@ export interface PkgReadCommandOptions {
 }
 
 export interface PkgReadCommandDependencies {
-  codeNavigationService: CodeNavigationService | undefined;
+  codeNavigationService: Pick<CodeNavigationService, "readFile"> | undefined;
   codeNavigationUrl: string | undefined;
   hasValidToken: boolean;
   mcpUrl: string;

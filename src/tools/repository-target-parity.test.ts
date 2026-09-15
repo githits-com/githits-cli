@@ -1,4 +1,5 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
+import type { ReadResult } from "@githits/core-internal";
 import {
   buildCodeDiffMcpParams,
   buildCodeDiffParams,
@@ -11,6 +12,7 @@ import { resolveCliCodeNavTarget } from "../commands/code/code-nav-cli-helpers.j
 import { searchAction } from "../commands/search.js";
 import {
   createMockCodeNavigationService,
+  createMockReadService,
   defaultGrepRepoResult,
   defaultListFilesResult,
   defaultReadFileResult,
@@ -58,35 +60,67 @@ describe("provider target consumer parity", () => {
       expect(cli.params.to).toBe("release/v2@stable");
     });
 
-    it(`${compact} reaches all navigation tool services with canonical URL/ref only`, async () => {
+    it(`${compact} routes code navigation and read through their target boundaries`, async () => {
       const listFiles = mock(() => Promise.resolve(defaultListFilesResult));
       const grepRepo = mock(() => Promise.resolve(defaultGrepRepoResult));
-      const readFile = mock(() => Promise.resolve(defaultReadFileResult));
+      const read = mock(
+        (): Promise<ReadResult> =>
+          Promise.resolve({ source: "code", result: defaultReadFileResult }),
+      );
       const deps = {
         codeNavigationService: createMockCodeNavigationService({
           listFiles,
           grepRepo,
-          readFile,
         }),
+        readService: createMockReadService({ read }),
       };
-      for (const [name, args] of [
-        ["code_files", {}],
-        ["code_grep", { pattern: "export" }],
-        ["read", { path: "src/index.ts" }],
-      ] as const) {
-        const result = await createParityMcpTool(name, deps).handler(
-          { target: `${compact}#release/v1@stable`, ...args },
-          {},
-        );
-        expect(result.isError).toBeUndefined();
-      }
-      for (const fn of [listFiles, grepRepo, readFile]) {
-        expect(fn).toHaveBeenCalledWith(
-          expect.objectContaining({
-            target: { repoUrl, gitRef: "release/v1@stable" },
-          }),
-        );
-      }
+
+      const codeFilesResult = await createParityMcpTool(
+        "code_files",
+        deps,
+      ).handler({ target: `${compact}#release/v1@stable` }, {});
+      const codeGrepResult = await createParityMcpTool(
+        "code_grep",
+        deps,
+      ).handler(
+        { target: `${compact}#release/v1@stable`, pattern: "export" },
+        {},
+      );
+      const readResult = await createParityMcpTool("read", deps).handler(
+        {
+          target: `${compact}#release/v1@stable`,
+          path: "src/index.ts",
+          start_line: 10,
+          end_line: 500,
+          wait_timeout_ms: 45_000,
+          format: "json",
+        },
+        {},
+      );
+
+      expect(codeFilesResult.isError).toBeUndefined();
+      expect(codeGrepResult.isError).toBeUndefined();
+      expect(readResult.isError).toBeUndefined();
+      expect(listFiles).toHaveBeenCalledTimes(1);
+      expect(listFiles).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target: { repoUrl, gitRef: "release/v1@stable" },
+        }),
+      );
+      expect(grepRepo).toHaveBeenCalledTimes(1);
+      expect(grepRepo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target: { repoUrl, gitRef: "release/v1@stable" },
+        }),
+      );
+      expect(read).toHaveBeenCalledTimes(1);
+      expect(read).toHaveBeenCalledWith({
+        target: `${compact}#release/v1@stable`,
+        path: "src/index.ts",
+        startLine: 10,
+        endLine: 309,
+        waitTimeoutMs: 45_000,
+      });
     });
 
     it(`${compact} keeps search CLI/MCP params and output aligned`, async () => {

@@ -58,7 +58,7 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or public repository (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
 | `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, positional package range, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. Reports facts only. |
 | `docs list <spec>` | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | List hosted/crawled and repository-backed documentation pages. Text emits target-based read commands; JSON retains `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, and exact repo-file metadata when available. |
-| `read <target> [path]` | docs target/page ID, or package/repo target plus exact path | `--lines`, `--wait`, `--verbose`, `--json`; code also accepts `--start`, `--end`, `--repo-url`, `--git-ref` | Unified read; target alone reads docs, path selects code. Fragments select indexed sections without bounds. See [unified read](unified-read.md). |
+| `read <target> [path]` | docs target/page ID, or package/repo target plus exact path | `--lines`, `--wait`, `--verbose`, `--json`; code also accepts `--start`, `--end`, `--repo-url`, `--git-ref` | Compact unified read; target alone reads docs, path selects code, and the compact path calls `ReadService`/`Query.read` once. `--repo-url` remains the legacy compatibility path. Fragments select indexed sections without bounds. See [unified read](unified-read.md). |
 | `docs read <target>` (deprecated alias) | emitted `docsReadTarget` or historical page ID | `--lines`, `--verbose`, `--json` | Read a documentation page by preferred target or compatible page ID. Default output is content-only; `--lines` fetches a bounded range for long pages. |
 | `code diff <target> <from>..<to>` *(experimental; config-gated)* | unversioned package/repository target and exact range, or `--repo-url` and range | `--patch`, `--stat`, `--name-only`, `--name-status`, `--max-files`, `--max-patch-bytes`, `--verbose`, `--json`, one glob after `--` | Silently dogfood bounded repository-wide tree diffs resolved from package versions or repository refs; local-only MCP `code_diff` is available when experimental tools are enabled, while public/remote MCP and shared Agent Skill guidance remain unchanged |
 | `code files [spec] [path-prefix]` | package spec OR `--repo-url` with optional `--git-ref`; optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, repeatable `--file-type`, repeatable `--language`, repeatable `--file-intent`, repeatable `--exclude-intent`, `--exclude-docs`, `--exclude-tests`, `--hidden`, `--limit`, `--wait`, `--verbose`, `--json` | List files in an indexed dependency. Selectors (`[path-prefix]`, `--path`, `--glob`) are OR-ed; the other flags filter that scope down further. Plain output is one path per line; `--verbose` adds language / type / size annotations. Indexing errors include elapsed/expected duration when available plus retry via `--wait` or indexed refs/versions from the error detail. |
@@ -813,7 +813,7 @@ Reads a documentation page returned by `docs list` or search results. Use a suff
 
 **Output envelope.** `{docsReadTarget, pageId, title?, sourceKind?, sourceUrl?, repoUrl?, gitRef?, filePath?, totalLines, startLine?, endLine?, anchor?, content}`. `pageId` remains the stable replay pointer and `sourceUrl` remains provenance. The range is the actual returned absolute page range, `totalLines` is the whole stored page extent including a trailing empty line, and an empty page has no bounds. `anchor` identifies a successfully resolved indexed section. Verbose text prints each distinct locator once plus range/anchor metadata. Repo-backed docs include exact source metadata for `code read` follow-up.
 
-`DOCUMENTATION_SECTION_UNRESOLVED` is a non-retryable section error with reason `not_found`, `ambiguous`, `inexact_range`, or `unsupported_format`; page absence remains non-retryable `NOT_FOUND`. The client requires the backend `getDocPage(startLine?, endLine?)` and `contentRange` schema. Roll out the backend first; no old-schema fallback weakens these semantics.
+`DOCUMENTATION_SECTION_UNRESOLVED` is a non-retryable section error with reason `not_found`, `ambiguous`, `inexact_range`, or `unsupported_format`; page absence remains non-retryable `NOT_FOUND`. This deprecated alias remains on the legacy `getDocPage` root. Compact `githits read <docs-target>` uses `ReadService` and the backend `Query.read` union, which requires both `CodeContextResult` and `GetDocPageResult` branches plus the selected minimum fields, including `contentRange`. Roll out that backend schema first; compact reads have no old-schema fallback.
 
 **Troubleshooting.** Same debug areas as the `pkg` family.
 
@@ -908,7 +908,11 @@ githits code read --repo-url https://github.com/expressjs/express --git-ref main
 githits code read npm:express lib/express.js --json
 ```
 
-Reads a file from an indexed dependency. `<path>` is package-relative in spec mode, repo-relative in `--repo-url` mode.
+Reads a file from an indexed dependency through the legacy `fetchCodeContext`
+root. `<path>` is package-relative in spec mode, repo-relative in `--repo-url`
+mode. Compact `githits read <target> <path>` uses `ReadService` and
+`Query.read`; this deprecated alias remains available so its usage is visible
+as a compatibility cohort.
 
 **Plain output (default).** Raw file bytes, verbatim (preserves the backend's trailing newline). Piping `code read … | grep …` or `code read … > file` round-trips cleanly.
 
@@ -959,7 +963,20 @@ CLI command (src/commands/search.ts)
        ├─ requireAuth(deps)
        └─ deps.codeNavigationService.search(params)
             └─ CodeNavigationServiceImpl makes package/source API call
+
+CLI command (src/commands/read.ts, compact target)
+  └─ readAction(target, path?, options, deps)
+       ├─ validate and apply the existing source-specific range policy
+       └─ deps.readService.read(params)
+            └─ ReadServiceImpl makes one package/source Query.read call
+
 ```
+
+Compatibility commands keep their legacy service roots: `githits code read`
+uses `fetchCodeContext`, `githits docs read` uses `getDocPage`, and
+`githits read --repo-url ...` uses `fetchCodeContext`. The structured repository
+URL plus git-ref form is retained there because a ref containing `#` cannot be
+encoded losslessly in the compact target syntax.
 
 Each command follows this pattern:
 
@@ -972,7 +989,8 @@ Each command follows this pattern:
 | Shared Module | Used By |
 |---|---|
 | `GitHitsService` (via container) | `example`, `languages`, and always-on MCP tools |
-| `CodeNavigationService` (via container) | top-level unified `search` / `search-status`, MCP indexed-search tools (`search`, `search_status`, `code_files`, `read`, `code_grep`), and the `githits code` command group |
+| `CodeNavigationService` (via container) | top-level unified `search` / `search-status`, MCP indexed-search tools (`search`, `search_status`, `code_files`, `code_grep`), and the `githits code` command group |
+| `ReadService` (via container) | compact top-level `read` and advertised MCP `read`, backed by one `Query.read` request |
 | `filterLanguages()` from `packages/mcp/src/shared/language-filter.ts` | `search_language` MCP tool + `languages` CLI command |
 | `requireAuth()` from `packages/mcp/src/shared/require-auth.ts` | all CLI commands and auth-required MCP tool handlers |
 
@@ -1043,7 +1061,7 @@ commands in one step with a two-minute combined timeout.
 | `packages/mcp/src/shared/language-filter.ts` | Pure `filterLanguages()` shared with MCP tool |
 | `packages/mcp/src/shared/require-auth.ts` | Auth guard shared with MCP server |
 | `packages/mcp/src/shared/colors.ts` | ANSI color utilities and `shouldUseColors()` |
-| `src/container.ts` | Dependency container with `githitsService` |
+| `src/container.ts` | Dependency container with `githitsService`, source services, and `readService` |
 | `src/commands/init/init.ts` | Init command orchestrator |
 | `src/commands/init/agent-definitions.ts` | Agent detection and setup config |
 | `src/commands/init/setup-handlers.ts` | CLI exec and config file merge logic |

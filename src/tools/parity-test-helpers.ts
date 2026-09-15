@@ -15,6 +15,7 @@ import {
   createMockCodeNavigationService,
   createMockGitHitsService,
   createMockPackageIntelligenceService,
+  createMockReadService,
   createMockResolveTargetService,
 } from "../services/test-helpers.js";
 
@@ -38,6 +39,7 @@ export function createParityMcpTool<TArgs = unknown>(
     codeNavigationService: createMockCodeNavigationService(),
     githitsService: createMockGitHitsService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
+    readService: createMockReadService(),
     ...overrides,
   };
   const tool = getMcpToolDefinitions(services).find(
@@ -61,6 +63,7 @@ export function createParityExperimentalMcpTool<
     codeNavigationService: createMockCodeNavigationService(),
     githitsService: createMockGitHitsService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
+    readService: createMockReadService(),
     resolveTargetService: createMockResolveTargetService(),
     ...overrides,
   };

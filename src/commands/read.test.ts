@@ -4,6 +4,7 @@ import { Command } from "commander";
 import {
   createMockCodeNavigationService,
   createMockPackageIntelligenceService,
+  createMockReadService,
 } from "../services/test-helpers.js";
 import { registerCodeReadCommand } from "./code/read.js";
 import { registerDocsReadCommand } from "./docs/read.js";
@@ -17,6 +18,7 @@ function deps(): ReadCommandDependencies {
   return {
     codeNavigationService: createMockCodeNavigationService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
+    readService: createMockReadService(),
     codeNavigationUrl: "https://pkgseer.dev",
     hasValidToken: true,
     mcpUrl: "https://mcp.githits.com",
@@ -43,10 +45,12 @@ describe("top-level read", () => {
     try {
       const target = "https://docs.example.test/guide#routing";
       await readAction(target, undefined, { json: true, wait: "0" }, services);
+      expect(services.readService.read).toHaveBeenCalledWith({ target });
+      expect(services.readService.read).toHaveBeenCalledTimes(1);
+      expect(services.codeNavigationService!.readFile).not.toHaveBeenCalled();
       expect(
         services.packageIntelligenceService!.readPackageDoc,
-      ).toHaveBeenCalledWith({ pageId: target });
-      expect(services.codeNavigationService!.readFile).not.toHaveBeenCalled();
+      ).not.toHaveBeenCalled();
       expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toHaveProperty(
         "content",
       );
@@ -65,12 +69,14 @@ describe("top-level read", () => {
         { json: true, lines: "10-" },
         services,
       );
-      expect(
-        services.packageIntelligenceService!.readPackageDoc,
-      ).toHaveBeenCalledWith({
-        pageId: "https://docs.example.test/guide#routing",
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target: "https://docs.example.test/guide#routing",
         startLine: 10,
       });
+      expect(services.readService.read).toHaveBeenCalledTimes(1);
+      expect(
+        services.packageIntelligenceService!.readPackageDoc,
+      ).not.toHaveBeenCalled();
     } finally {
       log.mockRestore();
     }
@@ -86,13 +92,15 @@ describe("top-level read", () => {
         { json: true, wait: "0" },
         services,
       );
-      expect(services.codeNavigationService!.readFile).toHaveBeenCalledWith({
-        target: { registry: "NPM", packageName: "example", version: undefined },
-        filePath: "src/index.ts",
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target: "npm:example",
+        path: "src/index.ts",
         startLine: undefined,
         endLine: undefined,
         waitTimeoutMs: 0,
       });
+      expect(services.readService.read).toHaveBeenCalledTimes(1);
+      expect(services.codeNavigationService!.readFile).not.toHaveBeenCalled();
       expect(
         services.packageIntelligenceService!.readPackageDoc,
       ).not.toHaveBeenCalled();
@@ -126,6 +134,7 @@ describe("top-level read", () => {
           endLine: 8,
         }),
       );
+      expect(services.readService.read).not.toHaveBeenCalled();
     } finally {
       log.mockRestore();
     }
@@ -175,6 +184,8 @@ describe("top-level read", () => {
           "code",
           "INVALID_ARGUMENT",
         );
+        expect(services.readService.read).not.toHaveBeenCalled();
+        expect(services.codeNavigationService!.readFile).not.toHaveBeenCalled();
         expect(
           services.packageIntelligenceService!.readPackageDoc,
         ).not.toHaveBeenCalled();
