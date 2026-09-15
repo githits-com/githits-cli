@@ -41,14 +41,18 @@ selects a provider.
 
 ## Backend rollout dependency
 
-PkgSeer must emit repository revisions with `@ref` in typed `targetLabel`,
-`requestedTargetLabel`, `freshTargetLabel`, and `servedTargetLabel` fields, their
-progress equivalents, repository-ref error/hint/note text, and Agentic Ask code
-source targets. A live search on 2026-09-15 still returned
-`github:expressjs/express#master` alongside structured `repoUrl`, `gitRef`, and
-`commitSha`. This client normalizes typed repository labels during rollout, but
-does not rewrite arbitrary backend prose because doing so could corrupt semantic
-documentation fragments. PkgSeer owns that prose and Ask-source generation.
+Post-deployment production verification on 2026-09-15 confirmed that raw search
+results emit `@ref` in `targetLabel`, `requestedTargetLabel`, `freshTargetLabel`,
+and `servedTargetLabel`; repository-backed documentation locators also retained
+their `provider:path@commit/file` form. A missing-ref probe returned structured
+ref prose without a legacy compact target.
+
+The raw Agentic Ask response still emitted repository code-source targets as
+`github:expressjs/express#<commit>`. The production Ask source producer therefore
+still needs the corresponding `@ref` deployment. This client normalizes typed
+repository labels and Ask code sources during rollout, but does not rewrite
+arbitrary backend prose because doing so could corrupt semantic documentation
+fragments. The component authoring each backend string owns its target syntax.
 
 Hosted MCP adoption separately requires publishing the matching
 `@githits/mcp` release, updating `remote-mcp` to that package, and deploying it.

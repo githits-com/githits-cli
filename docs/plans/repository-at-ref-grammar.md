@@ -267,10 +267,17 @@ Implementation and verification evidence (2026-09-15):
   smoke passed (31 steps). The built CLI smoke was rerun serially after its first
   launch collided with package validation temporarily replacing `dist`; the
   isolated rerun passed.
-- A live canonical repository search completed and projected the backend's
-  legacy typed label as `github:expressjs/express@master`; its exact follow-up
-  used `github:expressjs/express@<commit>`. The legacy CLI spelling exited 1 with
-  the precise `@master` migration message.
+- Before the backend rollout, a live canonical repository search completed and
+  projected the backend's legacy typed label as
+  `github:expressjs/express@master`; its exact follow-up used
+  `github:expressjs/express@<commit>`. The legacy CLI spelling exited 1 with the
+  precise `@master` migration message.
+- After the backend rollout, raw production search results returned `@ref` for
+  target, requested, fresh, and served labels and retained `@commit/file`
+  documentation locators. A raw missing-ref error contained no legacy compact
+  target. Raw Agentic Ask sources still returned `#<commit>`, so the Ask source
+  producer remains the exact external rollout dependency; this client projected
+  those typed sources to `@<commit>` as designed.
 - Targeted Claude and Codex agent evals produced no qualitative evidence. Codex
   hit its account usage limit before any tool call. Claude stopped before run
   artifacts were produced after the local credential handoff. These are
