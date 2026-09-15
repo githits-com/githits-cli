@@ -100,7 +100,7 @@ describe("code_diff MCP adapter", () => {
       "source diff",
       "repository-wide diffs",
       "does not prove the package unchanged",
-      "compact string",
+      "compact `target`",
       "from",
       "to",
       "name-status",

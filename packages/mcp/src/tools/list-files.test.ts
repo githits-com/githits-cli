@@ -24,7 +24,9 @@ describe("createListFilesTool — metadata", () => {
     const jsonSchema = z.toJSONSchema(z.object(descriptor?.schema ?? {}));
     const targetSchema = JSON.stringify(jsonSchema.properties?.target);
 
-    expect(targetSchema).toContain("Compact target string");
+    expect(targetSchema).toContain(
+      "Compact package or public-repository target",
+    );
     expect(targetSchema).toContain("npm:react");
     expect(targetSchema).toContain("github:facebook/react");
     expect(descriptor?.description.slice(0, 80)).toBe(

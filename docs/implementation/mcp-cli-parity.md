@@ -521,7 +521,7 @@ When a new tool lands with both MCP and CLI surfaces:
 | `packages/mcp/src/shared/code-navigation-error-map.ts` | Owns the `INDEXING`, target/file-not-found, and exact-path authority codes shared across all code-nav tools. |
 | `packages/mcp/src/shared/package-intelligence-error-map.ts` | `mapPackageIntelligenceError` classifier using the shared `MappedError` contract. |
 | `packages/core-internal/src/services/promote-version-not-found.ts` | Shared helper that promotes generic backend errors with "no matching version" messages into typed `VERSION_NOT_FOUND`. |
-| `packages/mcp/src/tools/code-navigation-shared.ts` | `codeTargetSchema` + `resolveCodeTarget` — structured/string addressing for code_files, code_grep and search; read accepts only the compact string form. |
+| `packages/mcp/src/tools/code-navigation-shared.ts` | Compact-string `codeTargetSchema` + `resolveCodeTarget` for `code_files`, `code_grep`, and the code branch of `read`; `search` has a related string schema that also accepts exact documentation sites. |
 | `packages/mcp/src/tools/search.ts` | MCP tool definition for unified `search`. |
 | `packages/mcp/src/tools/search-status.ts` | MCP tool definition for `search_status`. |
 | `packages/mcp/src/tools/package-summary.ts` | MCP tool definition for `pkg_info`. |

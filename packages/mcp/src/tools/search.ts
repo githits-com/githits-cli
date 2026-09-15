@@ -102,7 +102,7 @@ const searchTargetSchema = z
   .string()
   .min(1)
   .describe(
-    "Compact discovery target string. Package targets use `npm:react@18.2.0` or `npm:react`; repository targets use `github:facebook/react`, `codeberg:zigil/decimal`, or `gitlab:group/subgroup/project`; exact documentation sites use `site:<host[/path]>`.",
+    "Compact package, repository, or exact docs-site target, such as `npm:react`, `github:facebook/react`, or `site:react.dev`.",
   );
 
 const schema: ZodRawShape = {
@@ -115,15 +115,13 @@ const schema: ZodRawShape = {
   target: searchTargetSchema
     .optional()
     .describe(
-      "One compact package, repository, or exact documentation-site target, such as `npm:react`, `github:facebook/react`, or `site:react.dev`. Pass `target` or `targets`, not both.",
+      "One compact package, repository, or exact docs-site target, such as `npm:react`, `github:facebook/react`, or `site:react.dev`. Do not also pass `targets`.",
     ),
   targets: z
     .array(searchTargetSchema)
     .max(20)
     .optional()
-    .describe(
-      "Multiple compact package, repository, or exact documentation-site targets. Pass `targets` or `target`, not both.",
-    ),
+    .describe("Up to 20 compact targets. Do not also pass `target`."),
   source: z
     .enum(["docs", "code", "symbol"])
     .optional()
