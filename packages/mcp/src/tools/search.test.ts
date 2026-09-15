@@ -21,11 +21,10 @@ describe("searchTool", () => {
     const jsonSchema = z.toJSONSchema(z.object(descriptor?.schema ?? {}));
     const targetSchema = JSON.stringify(jsonSchema.properties?.target);
 
-    expect(targetSchema).toContain("swift:github.com/<owner>/<repo>");
-    expect(targetSchema).toContain("zig:gh/<owner>/<repo>");
-    expect(targetSchema).toContain("artifact/manifest-root");
-    expect(targetSchema).toContain("public repository");
-    expect(targetSchema).toContain("sibling packages");
+    expect(targetSchema).toContain("compact");
+    expect(targetSchema).toContain("npm:react");
+    expect(targetSchema).toContain("github:facebook/react");
+    expect(targetSchema).toContain("site:react.dev");
     expect(descriptor?.description.slice(0, 80)).toBe(
       "Discover relevant evidence in a known target before exact grep: docs, specs, cod",
     );
@@ -93,7 +92,7 @@ describe("searchTool", () => {
     const result = await tool.handler(
       {
         query: "router middleware",
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         format: "json",
       },
       {},
@@ -128,7 +127,7 @@ describe("searchTool", () => {
       const result = await tool.handler(
         {
           query: "router",
-          target: { registry: "npm", package_name: "express" },
+          target: "npm:express",
           format: "json",
         },
         {},
@@ -148,7 +147,7 @@ describe("searchTool", () => {
     const json = await tool.handler(
       {
         query: "router",
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         format: "json",
       },
       {},
@@ -168,7 +167,7 @@ describe("searchTool", () => {
     const text = await tool.handler(
       {
         query: "router",
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
       },
       {},
     );
@@ -187,7 +186,7 @@ describe("searchTool", () => {
     await tool.handler(
       {
         query: "handler",
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         kind: "function",
         language: "typescript",
         allow_partial_results: true,
@@ -215,7 +214,7 @@ describe("searchTool", () => {
     await tool.handler(
       {
         query: "routing",
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         source: "docs",
       },
       {},
@@ -236,7 +235,7 @@ describe("searchTool", () => {
     await tool.handler(
       {
         query: "routing",
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         source: "docs",
         category: "callable",
         kind: "function",
@@ -299,7 +298,7 @@ describe("searchTool", () => {
     await tool.handler(
       {
         query: "routing",
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         targets: [],
       },
       {},
@@ -311,7 +310,28 @@ describe("searchTool", () => {
     ]);
   });
 
-  it("ignores blank singular target objects when targets are provided", async () => {
+  it("rejects meaningful target and targets together before calling the service", async () => {
+    const search = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+    const tool = createSearchTool(createMockCodeNavigationService({ search }));
+
+    const result = await tool.handler(
+      {
+        query: "routing",
+        target: "npm:express",
+        targets: ["github:expressjs/express"],
+        format: "json",
+      },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    expect(search).not.toHaveBeenCalled();
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toMatchObject({
+      code: "INVALID_ARGUMENT",
+    });
+  });
+
+  it("ignores blank singular target strings when targets are provided", async () => {
     const search = mock((_: UnifiedSearchParams) =>
       Promise.resolve(defaultUnifiedSearchOutcome),
     );
@@ -320,14 +340,8 @@ describe("searchTool", () => {
     await tool.handler(
       {
         query: "routing",
-        target: {
-          registry: " " as never,
-          package_name: "",
-          version: "\t",
-          repo_url: "",
-          git_ref: " ",
-        },
-        targets: [{ registry: "npm", package_name: "express" }],
+        target: " ",
+        targets: ["npm:express"],
       },
       {},
     );
@@ -338,7 +352,7 @@ describe("searchTool", () => {
     ]);
   });
 
-  it("rejects whitespace-only required fields in structured targets", async () => {
+  it("rejects whitespace-only target strings", async () => {
     const search = mock((_: UnifiedSearchParams) =>
       Promise.resolve(defaultUnifiedSearchOutcome),
     );
@@ -347,7 +361,8 @@ describe("searchTool", () => {
     const result = await tool.handler(
       {
         query: "routing",
-        target: { repo_url: " ", git_ref: "HEAD" },
+        target: " ",
+        format: "json",
       },
       {},
     );
@@ -368,15 +383,7 @@ describe("searchTool", () => {
     await tool.handler(
       {
         query: "routing",
-        targets: [
-          {
-            registry: " " as never,
-            package_name: "",
-            repo_url: "",
-            git_ref: "\t",
-          },
-          { repo_url: "https://github.com/expressjs/express" },
-        ],
+        targets: ["\t", "https://github.com/expressjs/express"],
       },
       {},
     );
@@ -464,7 +471,7 @@ describe("searchTool", () => {
     );
   });
 
-  it("accepts structured standalone site targets", async () => {
+  it("accepts a site target with an HTTPS URL", async () => {
     const search = mock((_: UnifiedSearchParams) =>
       Promise.resolve(defaultUnifiedSearchOutcome),
     );
@@ -473,7 +480,7 @@ describe("searchTool", () => {
     await tool.handler(
       {
         query: "router middleware",
-        target: { site: "https://expressjs.com/" },
+        target: "site:https://expressjs.com/",
       },
       {},
     );
@@ -500,7 +507,7 @@ describe("searchTool", () => {
     expect(call?.targets).toEqual([{ site: "site:expressjs.com" }]);
   });
 
-  it("rejects site targets mixed with package fields", async () => {
+  it("rejects malformed site targets", async () => {
     const search = mock((_: UnifiedSearchParams) =>
       Promise.resolve(defaultUnifiedSearchOutcome),
     );
@@ -509,11 +516,7 @@ describe("searchTool", () => {
     const result = await tool.handler(
       {
         query: "router middleware",
-        target: {
-          registry: "npm",
-          package_name: "express",
-          site: "expressjs.com",
-        },
+        target: "site:",
       },
       {},
     );
@@ -546,7 +549,7 @@ describe("searchTool", () => {
     await tool.handler(
       {
         query: "router middleware",
-        target: { repo_url: "https://github.com/expressjs/express" },
+        target: "https://github.com/expressjs/express",
       },
       {},
     );
@@ -586,10 +589,7 @@ describe("searchTool", () => {
     await tool.handler(
       {
         query: "router middleware",
-        targets: [
-          "npm:express@5.1.0",
-          { repo_url: "https://github.com/expressjs/express" },
-        ],
+        targets: ["npm:express@5.1.0", "https://github.com/expressjs/express"],
       },
       {},
     );
@@ -640,7 +640,7 @@ describe("searchTool", () => {
     const result = await tool.handler(
       {
         query: "middleware",
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         format: "json",
       },
       {},
@@ -663,7 +663,7 @@ describe("searchTool", () => {
     const result = await tool.handler(
       {
         query: "router middleware",
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
       },
       {},
     );
@@ -678,7 +678,7 @@ describe("searchTool", () => {
     const result = await tool.handler(
       {
         query: "router middleware",
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         format: "text",
       },
       {},
@@ -696,7 +696,7 @@ describe("searchTool", () => {
     const result = await tool.handler(
       {
         query: "router",
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         format: "text",
       },
       {},
@@ -710,7 +710,7 @@ describe("searchTool", () => {
     const result = await tool.handler(
       {
         query: "router",
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         format: "json",
       },
       {},

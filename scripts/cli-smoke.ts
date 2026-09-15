@@ -184,7 +184,7 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     ],
     mcpTool: "code_files",
     mcpArgs: {
-      target: { registry: "npm", package_name: "express", version: "5.2.1" },
+      target: SMOKE_PACKAGE_SPEC,
       path_prefix: "package.json",
       limit: 1,
       format: "json",
@@ -225,7 +225,7 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     ],
     mcpTool: "code_grep",
     mcpArgs: {
-      target: { registry: "npm", package_name: "express", version: "5.2.1" },
+      target: SMOKE_PACKAGE_SPEC,
       pattern: "express",
       path_prefix: "package.json",
       max_matches: 1,

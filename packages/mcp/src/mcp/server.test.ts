@@ -379,6 +379,41 @@ describe("MCP code_grep schema", () => {
   });
 });
 
+describe("MCP compact target schemas", () => {
+  it("uses strings for code and discovery targets without nested coordinates", () => {
+    const descriptors = getMcpToolDescriptors();
+    for (const name of ["code_files", "code_grep"] as const) {
+      const descriptor = descriptors.find(
+        (candidate) => candidate.name === name,
+      );
+      expect(descriptor).toBeDefined();
+      const schema = z.toJSONSchema(z.object(descriptor?.schema ?? {}));
+      const targetSchema = schema.properties?.target as
+        | { properties?: unknown; type?: string }
+        | undefined;
+      expect(targetSchema, name).toMatchObject({ type: "string" });
+      expect(targetSchema?.properties, name).toBeUndefined();
+    }
+
+    const search = descriptors.find((candidate) => candidate.name === "search");
+    expect(search).toBeDefined();
+    const searchSchema = z.toJSONSchema(z.object(search?.schema ?? {}));
+    const targetSchema = searchSchema.properties?.target as
+      | { properties?: unknown; type?: string }
+      | undefined;
+    const targetsSchema = searchSchema.properties?.targets as
+      | { items?: { properties?: unknown; type?: string }; type?: string }
+      | undefined;
+    expect(targetSchema).toMatchObject({ type: "string" });
+    expect(targetSchema?.properties).toBeUndefined();
+    expect(targetsSchema).toMatchObject({
+      type: "array",
+      items: { type: "string" },
+    });
+    expect(targetsSchema?.items?.properties).toBeUndefined();
+  });
+});
+
 describe("MCP factory seam", () => {
   interface ExperimentalServices extends McpToolServices {
     codeNavigationService: ReturnType<typeof createMockCodeNavigationService> &

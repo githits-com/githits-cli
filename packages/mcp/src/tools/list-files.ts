@@ -125,9 +125,7 @@ const DESCRIPTION =
   "when you don't yet know the path, or when it returns " +
   "`FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, or " +
   "`SOURCE_FILE_INVENTORY_UNKNOWN`. Also use it to scope `code_grep`. Address " +
-  "via `target.registry` + `target.package_name` (package scope) or " +
-  "`target.repo_url` + optional `target.git_ref` (repo scope), mutually " +
-  "exclusive. Narrow with `path`, `path_prefix`, `globs`, " +
+  "a package or public repository with one compact `target`. Narrow with `path`, `path_prefix`, `globs`, " +
   "`extensions`, `file_types`, `languages`, or file-intent filters. " +
   "JSON envelope shape: `{total, hasMore, files: [{path, name, " +
   "language, fileType, byteSize}], resolution, indexedVersion}`.";

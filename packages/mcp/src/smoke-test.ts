@@ -70,6 +70,7 @@ const SMOKE_PACKAGE_TARGET = {
   package_name: "express",
   version: SMOKE_PACKAGE_VERSION,
 } as const;
+const SMOKE_CODE_TARGET = `npm:express@${SMOKE_PACKAGE_VERSION}`;
 const SMOKE_TRANSITIVE_VULNERABILITY_TARGET = {
   registry: "npm",
   package_name: "express",
@@ -1170,7 +1171,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const codeFilesText = assertDefaultText(
     await callTool(caller, "code_files", {
-      target: SMOKE_PACKAGE_TARGET,
+      target: SMOKE_CODE_TARGET,
       path_prefix: "package.json",
       limit: 1,
     }),
@@ -1183,7 +1184,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const codeFilesJson = assertJsonResult(
     await callTool(caller, "code_files", {
-      target: SMOKE_PACKAGE_TARGET,
+      target: SMOKE_CODE_TARGET,
       path_prefix: "package.json",
       limit: 1,
       format: "json",
@@ -1222,7 +1223,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const codeGrepText = assertDefaultText(
     await callTool(caller, "code_grep", {
-      target: SMOKE_PACKAGE_TARGET,
+      target: SMOKE_CODE_TARGET,
       pattern: "express",
       path: "package.json",
       max_matches: 1,
@@ -1242,7 +1243,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const codeGrepJson = assertJsonResult(
     await callTool(caller, "code_grep", {
-      target: SMOKE_PACKAGE_TARGET,
+      target: SMOKE_CODE_TARGET,
       pattern: "express",
       path: "package.json",
       max_matches: 1,
@@ -1266,7 +1267,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   assertErrorCode(
     await callTool(caller, "search", {
-      target: SMOKE_PACKAGE_TARGET,
+      target: SMOKE_CODE_TARGET,
       query: "router",
       source: "docs",
       path_prefix: "docs/",
@@ -1278,7 +1279,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const searchText = assertDefaultText(
     await callTool(caller, "search", {
-      target: SMOKE_PACKAGE_TARGET,
+      target: SMOKE_CODE_TARGET,
       query: "router",
       limit: 1,
     }),
@@ -1288,7 +1289,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const searchJson = assertJsonResult(
     await callTool(caller, "search", {
-      target: SMOKE_PACKAGE_TARGET,
+      target: SMOKE_CODE_TARGET,
       query: "router",
       limit: 1,
       format: "json",

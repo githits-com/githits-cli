@@ -97,7 +97,7 @@ describe("code_diff parity", () => {
     });
     await mcpTool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         from: "4.18.1",
         to: "4.18.2",
         view: "name-status",
@@ -154,7 +154,7 @@ describe("code_diff parity", () => {
       });
       await mcpTool.handler(
         {
-          target: { repo_url: repoUrl },
+          target: repoUrl,
           from: "main",
           to: "release",
           view: "name-only",
