@@ -3,8 +3,8 @@
 ## Status
 
 - Overall: ACTIVE
-- Current phase: Phase 1 — compact code and discovery targets (IMPLEMENTED)
-- Baseline: `fe553ce` (`origin/main`, 2026-09-15)
+- Current phase: Phase 2 — compact package-tool coordinates (PENDING PRODUCT INPUT)
+- Baseline: `dc148c5` (`origin/main`, 2026-09-15; Phase 1 merge)
 - Last verified: 2026-09-15
 
 ## Problem and expected outcome
@@ -256,12 +256,12 @@ None of these later unknowns blocks Phase 1.
 
 ## Phase map
 
-1. **Phase 1 — compact code and discovery targets (READY):** `search`,
+1. **Phase 1 — compact code and discovery targets (MERGED):** `search`,
    `code_files`, `code_grep`, and experimental `code_diff` advertise and accept only
    compact string targets; CLI/service behavior and legacy read routing stay intact.
-2. **Phase 2 — compact package-tool coordinates (PENDING):** package MCP tools use
-   concise target/range strings while retaining each tool's verified latest, pinned,
-   range, repository, and batch semantics.
+2. **Phase 2 — compact package-tool coordinates (PENDING PRODUCT INPUT):** package
+   MCP tools use concise target/range strings while retaining each tool's verified
+   latest, pinned, range, repository, and batch semantics.
 3. **Phase 3 — one MCP search-filter language (PENDING):** proven inline qualifiers
    replace redundant structured search filters; unsupported or unreliable inline
    semantics remain explicit rather than being guessed.
@@ -281,7 +281,7 @@ Phases 2–6 are intentionally not invented yet.
 
 ## Phase 1: compact code and discovery targets
 
-**Status:** IMPLEMENTED — reviewed and ready for delivery
+**Status:** MERGED — `dc148c5` (PR #395)
 
 **Expected outcome:** Stable code/discovery tools and local experimental diff expose
 only compact target strings. Their normalized service requests, success/error output,
@@ -511,6 +511,13 @@ Verification evidence:
   place. The external Opus round found no code defects and two minor copy/test
   hygiene issues; both were fixed, so the round is clean under repository policy.
 
+PR #395 merged to `origin/main` as `dc148c5` on 2026-09-15. The post-merge Main,
+root release, and MCP release workflows passed. Root and MCP publish, tag, and
+GitHub Release steps were skipped because package versions were unchanged, so the
+Phase 1 contract is merged but not yet published to npm or deployed through the
+separate hosted `remote-mcp` release path. The pending minor/minor change fragment
+remains the release record.
+
 Current target-facing guidance now has one ownership path: schemas state the
 compact accepted form and representative examples, shared quick-start/skill text
 names all supported repository providers once, and durable docs retain exhaustive
@@ -521,7 +528,7 @@ are deliberate migration signals, backend contracts, or dated evaluation history
 
 ### Phase 2: compact package-tool coordinates
 
-**Status:** PENDING REORIENTATION
+**Status:** PENDING PRODUCT INPUT
 
 **Expected outcome:** `docs_list`, `pkg_info`, `pkg_vulns`, `pkg_deps`,
 `pkg_changelog`, and `pkg_upgrade_review` expose compact package/repository/range
