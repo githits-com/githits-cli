@@ -395,7 +395,7 @@ describe("code_diff parity", () => {
 
   it("PARITY-ERROR-ENVELOPE: CLI and MCP repository ref messages name their endpoint shapes", async () => {
     const cli = await cliJson(
-      "github:expressjs/express#main",
+      "github:expressjs/express@main",
       "1..2",
       undefined,
       { nameStatus: true },
@@ -404,7 +404,7 @@ describe("code_diff parity", () => {
     const mcpTool = createParityExperimentalMcpTool("code_diff");
     const mcpResult = await mcpTool.handler(
       {
-        target: "github:expressjs/express#main",
+        target: "github:expressjs/express@main",
         from: "1",
         to: "2",
         view: "name-status",

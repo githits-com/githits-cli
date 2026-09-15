@@ -250,13 +250,15 @@ export function formatTargetResolutionIdentity(
   if (!identity) return undefined;
   if (identity.registry && identity.packageName) {
     const version = identity.version ? `@${identity.version}` : "";
-    const commit = identity.commitSha ? `#${shortSha(identity.commitSha)}` : "";
-    return `${identity.registry.toLowerCase()}:${identity.packageName}${version}${commit}`;
+    const target = `${identity.registry.toLowerCase()}:${identity.packageName}${version}`;
+    return appendCommitIdentity(target, identity.commitSha);
   }
   if (identity.repoUrl) {
-    const target = formatRepositoryTarget(identity.repoUrl, identity.gitRef);
-    const commit = identity.commitSha ? `@${shortSha(identity.commitSha)}` : "";
-    return `${target}${commit}`;
+    const revision = identity.gitRef ?? identity.commitSha;
+    const target = formatRepositoryTarget(identity.repoUrl, revision);
+    return identity.gitRef
+      ? appendCommitIdentity(target, identity.commitSha, identity.gitRef)
+      : target;
   }
   if (identity.site) return identity.site;
   return (
@@ -290,7 +292,16 @@ function identitiesMateriallyDiffer(
 }
 
 function stripShortCommit(value: string): string {
-  return value.replace(/[@#][0-9a-f]{7}$/i, "");
+  return value.replace(/ \(commit [0-9a-f]{7}\)$/i, "");
+}
+
+function appendCommitIdentity(
+  target: string,
+  commitSha: string | undefined,
+  revision?: string,
+): string {
+  if (!commitSha || commitSha === revision) return target;
+  return `${target} (commit ${shortSha(commitSha)})`;
 }
 
 function shortSha(value: string): string {

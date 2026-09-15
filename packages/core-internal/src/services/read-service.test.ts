@@ -233,7 +233,7 @@ describe("ReadServiceImpl", () => {
     );
 
     const result = await service.read({
-      target: "github:Owner/Repo#feature/a@b",
+      target: "github:Owner/Repo@feature/a@b",
       path: " src/index.ts ",
       startLine: 4,
       endLine: 12,
@@ -243,7 +243,7 @@ describe("ReadServiceImpl", () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
     const request = readRequest(fetchFn);
     expect(request.variables).toEqual({
-      target: "github:Owner/Repo#feature/a@b",
+      target: "github:Owner/Repo@feature/a@b",
       path: "src/index.ts",
       startLine: 4,
       endLine: 12,

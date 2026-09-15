@@ -275,7 +275,7 @@ const PKG_GREP_DESCRIPTION = `Deterministic text grep over indexed dependency an
 ${CLI_GREP_PATTERN_NOTE}
 Use \`githits search\` for discovery; use \`githits code grep\` when you know the text or regex to match.
 
-Addressing: <target> (registry:name[@version], github:org/repo[#ref|@ref], codeberg:owner/repo[#ref|@ref], gitlab:group[/subgroup...]/project[#ref|@ref],
+Addressing: <target> (registry:name[@version], github:org/repo[@ref], codeberg:owner/repo[@ref], gitlab:group[/subgroup...]/project[@ref],
 approved full HTTPS URLs on github.com, codeberg.org, or gitlab.com;
 GitHub also accepts github.com/org/repo and HTTP) OR --repo-url
 <url> [--git-ref <ref>]. Omitted package version means latest release.

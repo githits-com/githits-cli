@@ -129,7 +129,7 @@ describe("createListFilesTool — happy path", () => {
 
     await tool.handler(
       {
-        target: "https://github.com/expressjs/express#HEAD",
+        target: "https://github.com/expressjs/express@HEAD",
       },
       {},
     );

@@ -20,7 +20,8 @@ import {
  * targets use github:owner/repo, codeberg:owner/repo, or
  * gitlab:group[/subgroup...]/project, and approved full HTTPS URLs.
  * GitHub also supports github.com/owner/repo and HTTP compatibility.
- * An optional #gitRef or @gitRef suffix preserves / and @ inside refs.
+ * An optional @gitRef suffix preserves / and later @ characters inside refs.
+ * The # character is reserved for semantic fragments.
  * Omitted refs request the backend-resolved default branch.
  */
 export function parseCodeNavigationTargetSpec(

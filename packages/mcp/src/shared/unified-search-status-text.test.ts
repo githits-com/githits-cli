@@ -147,7 +147,7 @@ describe("renderUnifiedSearchStatusText", () => {
           },
           {
             source: "CODE",
-            targetLabel: "github:owner/repo#main",
+            targetLabel: "github:owner/repo@main",
             indexingStatus: "UNRESOLVABLE",
             targetResolution: {
               freshness: "indexing",

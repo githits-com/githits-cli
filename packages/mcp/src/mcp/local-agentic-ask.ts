@@ -8,6 +8,11 @@ import {
 import { z } from "zod";
 import { mapAgenticAskError } from "../shared/agentic-ask-error-map.js";
 import { formatAgenticAskClarification } from "../shared/agentic-ask-response.js";
+import {
+  formatRepositoryTargetLabel,
+  isRepositoryTargetSpec,
+  parseRepositoryTargetSpec,
+} from "../shared/repository-target.js";
 import type { ReadArgs } from "../tools/read.js";
 import {
   buildMcpErrorPayload,
@@ -160,7 +165,12 @@ export function projectAskReadSources(
         name: "read",
         arguments:
           source.name === "code_read"
-            ? { ...source.arguments }
+            ? {
+                ...source.arguments,
+                target:
+                  formatRepositoryTargetLabel(source.arguments.target) ??
+                  source.arguments.target,
+              }
             : {
                 target: source.arguments.page_id,
                 start_line: source.arguments.start_line,
@@ -213,7 +223,18 @@ function resolveMcpAskSubject(
   if (args.target !== undefined && args.thread_id !== undefined) {
     return { error: "Provide at most one of target or thread_id." };
   }
-  if (args.target !== undefined) return { target: args.target };
+  if (args.target !== undefined) {
+    if (isRepositoryTargetSpec(args.target)) {
+      try {
+        parseRepositoryTargetSpec(args.target);
+      } catch (error) {
+        return {
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
+    return { target: args.target };
+  }
   if (args.thread_id === undefined) return {};
 
   const threadId = normalizeAgenticAskThreadId(args.thread_id);

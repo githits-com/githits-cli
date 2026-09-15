@@ -6,16 +6,16 @@ import {
 } from "./repository-target.js";
 
 describe("formatRepositoryTarget", () => {
-  it("formats GitHub repo targets with compact canonical # refs", () => {
+  it("formats GitHub repo targets with compact canonical @ refs", () => {
     expect(
       formatRepositoryTarget("https://github.com/n8n-io/n8n", "n8n@2.26.5"),
-    ).toBe("github:n8n-io/n8n#n8n@2.26.5");
+    ).toBe("github:n8n-io/n8n@n8n@2.26.5");
   });
 
   it("falls back to URL form for non-compactable repo URLs", () => {
     expect(
       formatRepositoryTarget("https://example.com/owner/repo", "main"),
-    ).toBe("https://example.com/owner/repo#main");
+    ).toBe("https://example.com/owner/repo@main");
   });
 });
 
@@ -26,7 +26,21 @@ describe("formatRepositoryTargetLabel", () => {
         "n8n-io/n8n@n8n@2.26.5",
         "https://github.com/n8n-io/n8n",
       ),
-    ).toBe("github:n8n-io/n8n#n8n@2.26.5");
+    ).toBe("github:n8n-io/n8n@n8n@2.26.5");
+  });
+
+  it("migrates typed legacy backend labels without accepting them as input", () => {
+    expect(
+      formatRepositoryTargetLabel(
+        "github:n8n-io/n8n#n8n@2.26.5",
+        "https://github.com/n8n-io/n8n",
+      ),
+    ).toBe("github:n8n-io/n8n@n8n@2.26.5");
+    expect(() =>
+      parseRepositoryTargetSpec("github:n8n-io/n8n#n8n@2.26.5"),
+    ).toThrow(
+      'Repository target "github:n8n-io/n8n#n8n@2.26.5" uses legacy #ref syntax. Use "github:n8n-io/n8n@n8n@2.26.5"; # is reserved for semantic fragments.',
+    );
   });
 
   it("does not rewrite package-style labels", () => {
@@ -52,22 +66,24 @@ describe("direct repository grammar", () => {
       it.each([undefined, "main", "release/v1@stable", "tag@v1@beta"])(
         `${form} round trips ref %s`,
         (ref) => {
-          for (const delimiter of ["#", "@"]) {
-            const target = parseRepositoryTargetSpec(
-              form + (ref === undefined ? "" : delimiter + ref),
-            );
-            expect(target).toEqual({
-              repoUrl: `https://${host}/${path}`,
-              ...(ref === undefined ? {} : { gitRef: ref }),
-            });
-            expect(formatRepositoryTarget(target.repoUrl!, target.gitRef)).toBe(
-              `${provider}:${path}` + (ref === undefined ? "" : `#${ref}`),
-            );
-          }
+          const target = parseRepositoryTargetSpec(
+            form + (ref === undefined ? "" : `@${ref}`),
+          );
+          expect(target).toEqual({
+            repoUrl: `https://${host}/${path}`,
+            ...(ref === undefined ? {} : { gitRef: ref }),
+          });
+          expect(formatRepositoryTarget(target.repoUrl!, target.gitRef)).toBe(
+            `${provider}:${path}${ref === undefined ? "" : `@${ref}`}`,
+          );
         },
       );
+      it(`${form} rejects legacy #ref with an exact migration`, () => {
+        expect(() => parseRepositoryTargetSpec(`${form}#main`)).toThrow(
+          `Use "${form}@main"; # is reserved for semantic fragments.`,
+        );
+      });
       it.each([
-        "#",
         "@",
         "@main#dev",
         "#main#dev",
@@ -87,7 +103,7 @@ describe("direct repository grammar", () => {
           `${path}@release/v1@stable`,
           `https://${host}/${path}`,
         ),
-      ).toBe(`${provider}:${path}#release/v1@stable`);
+      ).toBe(`${provider}:${path}@release/v1@stable`);
       expect(formatRepositoryTargetLabel(`${path}@main`)).toBeUndefined();
     });
   }

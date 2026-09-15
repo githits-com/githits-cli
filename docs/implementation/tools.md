@@ -310,7 +310,7 @@ outcome-first response. The headline carries result count/type breakdown,
 active/terminal lifecycle, readiness, and pagination when applicable. A completed
 current result set collapses to one `Sources: <target> - <sources>` row; code and
 symbols use lane names while documentation uses a canonical `site:<host[/path]>`
-or `github:<owner>/<repo>#<revision>` locator. A source identical to its standalone
+or `github:<owner>/<repo>@<revision>` locator. A source identical to its standalone
 target is written once; a sole pinned repository source replaces its less-specific
 ref-less repository target, while an already-pinned target remains beside its resolved
 commit. Compact repository provenance requires both the repository URL and commit.

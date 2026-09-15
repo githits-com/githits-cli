@@ -2,9 +2,9 @@
 
 ## Status
 
-- Overall: **READY**
-- Current phase: Phase 1 — replace the repository revision grammar and deliver a
-  reviewed draft PR
+- Overall: **IMPLEMENTED — REVIEW PENDING**
+- Current phase: Phase 1 — implementation and verification complete; internal
+  and external code review remain before draft PR delivery
 - Owner: repository maintainers
 - Last verified: 2026-09-15 against `origin/main` at `fe553ce`
 
@@ -185,7 +185,7 @@ steps are not authorized here.
 
 ## Phase map
 
-### Phase 1 — one canonical repository revision grammar (**READY**)
+### Phase 1 — one canonical repository revision grammar (**REVIEW PENDING**)
 
 Expected outcome: every current githits-cli caller and emitted locator uses
 `@ref`, legacy compact `#ref` fails precisely, documentation fragments and
@@ -244,6 +244,40 @@ Implementation steps:
 6. Run focused then full verification, update this plan and durable docs with
    actual evidence, complete internal/external review rounds, and deliver the
    draft PR.
+
+Implementation and verification evidence (2026-09-15):
+
+- Shared parsing now accepts only `@ref`, preserves later `@` characters, and
+  rejects a single legacy hash suffix with its exact replacement. Typed output
+  projection normalizes verified legacy backend labels without widening caller
+  input compatibility.
+- Ask validates explicit repository targets before auth/network work. MCP and
+  CLI project only typed code-source targets; documentation and URL locators are
+  unchanged.
+- Resolution text uses one canonical target plus `(commit <sha>)` metadata when
+  both a ref and commit are relevant, avoiding ambiguous stacked delimiters.
+- The affected suite passed 1,331 tests with 3,576 expectations. The full suite
+  passed 4,755 tests with 16,511 expectations. Typecheck, lint, format check,
+  build, plugin generation/check, and public-package validation passed.
+- Authenticated source smoke passed for CLI (116 steps) and MCP (59 steps),
+  including `github:expressjs/express@<commit>/History.md` documentation reads.
+  Built MCP registration smoke passed (9 steps) and built CLI unauthenticated
+  smoke passed (31 steps). The built CLI smoke was rerun serially after its first
+  launch collided with package validation temporarily replacing `dist`; the
+  isolated rerun passed.
+- A live canonical repository search completed and projected the backend's
+  legacy typed label as `github:expressjs/express@master`; its exact follow-up
+  used `github:expressjs/express@<commit>`. The legacy CLI spelling exited 1 with
+  the precise `@master` migration message.
+- Targeted Claude and Codex agent evals produced no qualitative evidence. Codex
+  hit its account usage limit before any tool call. Claude stopped before run
+  artifacts were produced after the local credential handoff. These are
+  reported as unavailable, not passes; deterministic agent-facing descriptor,
+  instruction-parity, workload, smoke, and full-suite tests passed.
+- Current source/help/docs/skills were audited. Remaining hash-delimited
+  repository examples are limited to explicit migration tests/documentation,
+  the verified PkgSeer dependency, this temporary plan's before-state evidence,
+  and immutable historical context-loading fixtures.
 
 ## Phase-boundary reorientation and cleanup
 

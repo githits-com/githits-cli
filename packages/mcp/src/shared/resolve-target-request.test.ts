@@ -137,11 +137,11 @@ describe("buildResolveTargetParams", () => {
     "npm:react@18.2.0",
     "npm: react state management",
     "github:facebook/react",
-    "github:facebook/react#main",
+    "github:facebook/react@main",
     "github.com/facebook/react",
     "github.com/facebook/react@main",
     "https://github.com/facebook/react",
-    "http://github.com/facebook/react#main",
+    "http://github.com/facebook/react@main",
     "site:expressjs.com",
     "site:https://expressjs.com/en/guide/",
   ])("rejects already-canonical target %s", (name) => {
@@ -149,6 +149,17 @@ describe("buildResolveTargetParams", () => {
       buildResolveTargetParams({ name, includeDetailedFields: false }),
     ).toThrow(
       `Canonical target ${JSON.stringify(name)} does not need resolution. Pass it directly to the next GitHits tool.`,
+    );
+  });
+
+  it("rejects legacy repository revisions instead of resolving them as names", () => {
+    expect(() =>
+      buildResolveTargetParams({
+        name: "github:facebook/react#main",
+        includeDetailedFields: false,
+      }),
+    ).toThrow(
+      'Use "github:facebook/react@main"; # is reserved for semantic fragments.',
     );
   });
 
