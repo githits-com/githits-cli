@@ -8,6 +8,7 @@ import type {
   ServerNotification,
   ServerRequest,
 } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
@@ -202,6 +203,24 @@ describe("createLocalMcpServer", () => {
     }
   });
 
+  it("uses compact string targets for stable and experimental navigation tools", () => {
+    const server = createLocalMcpServer({
+      metadata: { name: "local-githits", version: "0.0.0" },
+      services: createServices(),
+      policy: { tools: true },
+    });
+    const tools = registeredTools(server);
+
+    for (const name of ["code_files", "code_grep", "code_diff"] as const) {
+      const schema = z.toJSONSchema(tools[name]?.inputSchema as z.ZodObject);
+      const targetSchema = schema.properties?.target as
+        | { properties?: unknown; type?: string }
+        | undefined;
+      expect(targetSchema, name).toMatchObject({ type: "string" });
+      expect(targetSchema?.properties, name).toBeUndefined();
+    }
+  });
+
   it("omits server instructions without changing stable tool registrations", () => {
     const options = {
       metadata: { name: "local-githits", version: "0.0.0" },
@@ -333,7 +352,7 @@ describe("createLocalMcpServer", () => {
     )._registeredTools.code_diff!;
     const diffResult = await diffTool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         from: "4.18.1",
         to: "4.18.2",
         format: "json",

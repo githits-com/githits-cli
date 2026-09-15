@@ -4,8 +4,6 @@ import type {
 } from "@githits/core-internal";
 import { z } from "zod";
 import {
-  type CodeNavigationRegistryArg,
-  toCodeNavigationRegistry,
   toFileIntent,
   toSymbolCategory,
   toSymbolKind,
@@ -25,10 +23,6 @@ import {
   renderUnifiedSearchError,
   renderUnifiedSearchSuccess,
 } from "../shared/unified-search-text.js";
-import {
-  type StructuredCodeTargetArg,
-  structuredCodeTargetObject,
-} from "./code-navigation-shared.js";
 import { SEARCH_GUARDRAIL } from "./guardrails.js";
 import {
   addLocalMcpAuthAction,
@@ -51,8 +45,8 @@ type ResolvedSearchTarget = Exclude<
 
 export interface SearchArgs {
   query: string;
-  target?: SearchTargetArg;
-  targets?: SearchTargetArg[];
+  target?: string;
+  targets?: string[];
   source?: "docs" | "code" | "symbol";
   category?: "callable" | "type" | "module" | "data" | "documentation";
   kind?:
@@ -104,30 +98,12 @@ export interface SearchArgs {
   format?: "text" | "json";
 }
 
-interface StructuredSearchTargetArg extends StructuredCodeTargetArg {
-  site?: string;
-}
-
-type SearchTargetArg = StructuredSearchTargetArg | string;
-
-const structuredSearchTargetSchema: z.ZodType<StructuredSearchTargetArg> =
-  structuredCodeTargetObject
-    .extend({
-      site: z.string().optional(),
-    })
-    .describe(
-      "Target: provide registry + package_name (indexed artifact/manifest-root package scope), repo_url with optional git_ref (public repository scope for the full repository or sibling packages; omitted ref means default branch intent), or site as site:<host[/path]> for an exact documentation site. Swift package targets use swift:github.com/<owner>/<repo> or swift:gitlab.com/<group>/<project>; Zig package targets use zig:gh/<owner>/<repo> or zig:cb/<owner>/<repo>.",
-    );
-
-const searchTargetSchema = z.union([
-  structuredSearchTargetSchema,
-  z
-    .string()
-    .min(1)
-    .describe(
-      "Compact discovery target string. Package targets inspect an indexed artifact/manifest root: `npm:react@18.2.0` or `npm:react` for latest release; Swift uses `swift:github.com/<owner>/<repo>` or `swift:gitlab.com/<group>/<project>` and Zig uses `zig:gh/<owner>/<repo>` or `zig:cb/<owner>/<repo>`. Use a public repository target for the full repository or sibling packages: `github:facebook/react`, `codeberg:zigil/decimal`, `gitlab:group/subgroup/project`, or approved full HTTPS URLs (GitHub also accepts `github.com/owner/repo` and HTTP), or any repo form with `@HEAD` for a git ref. Exact documentation site: `site:<host[/path]>`. Output uses canonical `provider:path@ref` form. Codeberg requires owner/repo; GitLab allows nested namespaces. Bare owner/repo, self-hosted URLs, web subpaths, credentials, query strings, empty refs, and mixed suffixes are rejected. Refs may contain / and @.",
-    ),
-]);
+const searchTargetSchema = z
+  .string()
+  .min(1)
+  .describe(
+    "Compact package, repository, or exact docs-site target, such as `npm:react`, `github:facebook/react@main`, or `site:react.dev`. Repository revisions use `@ref`; `#` is reserved for semantic fragments.",
+  );
 
 const schema: ZodRawShape = {
   query: z
@@ -139,15 +115,13 @@ const schema: ZodRawShape = {
   target: searchTargetSchema
     .optional()
     .describe(
-      "One package, repository, or exact documentation-site target. Pass `target` or `targets`, not both.",
+      "One compact package, repository, or exact docs-site target, such as `npm:react`, `github:facebook/react@main`, or `site:react.dev`. Repository revisions use `@ref`; `#` is reserved for semantic fragments. Do not also pass `targets`.",
     ),
   targets: z
     .array(searchTargetSchema)
     .max(20)
     .optional()
-    .describe(
-      "Multiple package, repository, or exact documentation-site targets. Pass `targets` or `target`, not both.",
-    ),
+    .describe("Up to 20 compact targets. Do not also pass `target`."),
   source: z
     .enum(["docs", "code", "symbol"])
     .optional()
@@ -375,21 +349,7 @@ function isBlankSearchTarget(
   target: SearchArgs["target"] | undefined,
 ): boolean {
   if (target === undefined) return true;
-  if (typeof target === "string") return target.trim().length === 0;
-  return !(
-    normaliseOptionalValue(target.registry) ||
-    normaliseOptionalValue(target.package_name) ||
-    normaliseOptionalValue(target.version) ||
-    normaliseOptionalValue(target.repo_url) ||
-    normaliseOptionalValue(target.git_ref) ||
-    normaliseOptionalValue(target.site)
-  );
-}
-
-function normaliseOptionalValue(value: string | undefined): string | undefined {
-  if (value === undefined) return undefined;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
+  return target.trim().length === 0;
 }
 
 function isResolvedSearchTarget(
@@ -398,83 +358,13 @@ function isResolvedSearchTarget(
   return !("content" in target);
 }
 
-function resolveSearchTarget(
-  target: SearchTargetArg,
-): UnifiedSearchTarget | ToolResult {
-  if (typeof target === "string") {
-    try {
-      return parseUnifiedSearchTargetSpec(target);
-    } catch (error) {
-      const mapped = mapCodeNavigationError(error);
-      return mcpMappedErrorResult(mapped);
-    }
+function resolveSearchTarget(target: string): UnifiedSearchTarget | ToolResult {
+  try {
+    return parseUnifiedSearchTargetSpec(target);
+  } catch (error) {
+    const mapped = mapCodeNavigationError(error);
+    return mcpMappedErrorResult(mapped);
   }
-
-  const registry = normaliseOptionalValue(target.registry)?.toLowerCase();
-  const packageName = normaliseOptionalValue(target.package_name);
-  const version = normaliseOptionalValue(target.version);
-  const repoUrl = normaliseOptionalValue(target.repo_url);
-  const gitRef = normaliseOptionalValue(target.git_ref);
-  const site = normaliseOptionalValue(target.site);
-  const hasPackageTarget = registry !== undefined || packageName !== undefined;
-  const hasRepoTarget = repoUrl !== undefined || gitRef !== undefined;
-  const hasSiteTarget = site !== undefined;
-  const targetModeCount = [
-    hasPackageTarget,
-    hasRepoTarget,
-    hasSiteTarget,
-  ].filter(Boolean).length;
-  if (targetModeCount > 1) {
-    return invalidSearchTargetResult(
-      "Invalid target: provide exactly one of registry + package_name, repo_url with optional git_ref, or site.",
-    );
-  }
-  if (targetModeCount === 0) {
-    return invalidSearchTargetResult(
-      "Missing target: provide registry + package_name, repo_url, or site.",
-    );
-  }
-  if (hasSiteTarget) {
-    return { site: normaliseStructuredSiteTarget(site) };
-  }
-  if (hasPackageTarget) {
-    if (!registry || !packageName) {
-      return invalidSearchTargetResult(
-        "Incomplete package target: both registry and package_name are required.",
-      );
-    }
-    return {
-      registry: toCodeNavigationRegistry(registry as CodeNavigationRegistryArg),
-      packageName,
-      version,
-    };
-  }
-  if (!repoUrl) {
-    return invalidSearchTargetResult(
-      "Incomplete repository target: repo_url is required.",
-    );
-  }
-  return { repoUrl, gitRef };
-}
-
-function normaliseStructuredSiteTarget(site: string): string {
-  const parsed = parseUnifiedSearchTargetSpec(
-    site.toLowerCase().startsWith("site:") ? site : `site:${site}`,
-  );
-  if (parsed.site) return parsed.site;
-  throw new Error(
-    "Expected structured site target to normalize to site target.",
-  );
-}
-
-function invalidSearchTargetResult(message: string): ToolResult {
-  return errorResult(
-    JSON.stringify({
-      error: message,
-      code: "INVALID_ARGUMENT",
-      retryable: false,
-    }),
-  );
 }
 
 /**

@@ -2,11 +2,11 @@
 
 ## Status
 
-- Overall: **IMPLEMENTED AND REVIEWED — DRAFT PR PENDING**
-- Current phase: Phase 1 — implementation, verification, and review complete;
-  draft PR delivery remains
+- Overall: **IMPLEMENTED AND REVIEWED — DRAFT PR OPEN**
+- Current phase: Phase 1 — implementation, verification, review, and draft PR
+  delivery complete
 - Owner: repository maintainers
-- Last verified: 2026-09-15 against `origin/main` at `fe553ce`
+- Last verified: 2026-09-15 against `origin/main` at `dc148c5`
 
 ## Problem and expected outcome
 
@@ -256,9 +256,11 @@ Implementation and verification evidence (2026-09-15):
   unchanged.
 - Resolution text uses one canonical target plus `(commit <sha>)` metadata when
   both a ref and commit are relevant, avoiding ambiguous stacked delimiters.
-- The affected suite passed 1,331 tests with 3,576 expectations. The final full
-  suite passed 4,771 tests with 16,536 expectations. Typecheck, lint, format check,
-  build, plugin generation/check, and public-package validation passed.
+- After integrating current `origin/main`, the affected suite passed 897 tests
+  with 3,032 expectations. The final full suite passed 4,774 tests with 16,557
+  expectations. Typecheck, format, build, plugin generation/check, and
+  public-package validation passed. Lint completed with the same eight existing
+  non-null-assertion warnings and no errors.
 - Authenticated source smoke passed for CLI (116 steps) and MCP (59 steps),
   including `github:expressjs/express@<commit>/History.md` documentation reads.
   Built MCP registration smoke passed (9 steps) and built CLI unauthenticated
@@ -312,11 +314,17 @@ Implementation and verification evidence (2026-09-15):
   external state rather than a grammar failure. The complete serial rerun then
   passed all source CLI (116), source MCP (59), built CLI (31), and built MCP
   (9) steps.
+- `origin/main` advanced through the compact MCP target simplification while the
+  draft PR was under review. The branch merged `dc148c5`, kept its string-only
+  target schemas, replaced the newly added `#main` migration examples with
+  `@main`, and preserved the precise legacy error in compact `code_diff` calls.
+  The first concurrent built-CLI smoke raced public-package validation while it
+  replaced `dist`; the required serial rebuild and rerun passed all 31 steps.
 
 ## Phase-boundary reorientation and cleanup
 
-This effort has one phase. Before opening the PR, reconcile this plan with the
-actual delta and verification evidence. Keep it through implementation review.
+This effort has one phase. The plan is reconciled with the actual delta and
+verification evidence and remains through implementation review and draft PR.
 After the PR merges, transfer any remaining current truth to
 `docs/implementation/repository-targets.md` and delete this temporary plan in the
 normal post-merge cleanup increment.

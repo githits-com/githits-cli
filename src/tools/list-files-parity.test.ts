@@ -70,25 +70,7 @@ async function cliJson(
 }
 
 interface McpArgs {
-  target: {
-    registry?:
-      | "npm"
-      | "pypi"
-      | "hex"
-      | "crates"
-      | "nuget"
-      | "maven"
-      | "zig"
-      | "vcpkg"
-      | "packagist"
-      | "rubygems"
-      | "go"
-      | "swift";
-    package_name?: string;
-    version?: string;
-    repo_url?: string;
-    git_ref?: string;
-  };
+  target: string;
   path?: string;
   path_prefix?: string;
   globs?: string[];
@@ -138,7 +120,7 @@ describe("list_files parity", () => {
     );
     const mcp = await mcpJson(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
       },
       fn as never,
     );
@@ -171,10 +153,7 @@ describe("list_files parity", () => {
       );
       const mcp = await mcpJson(
         {
-          target: {
-            repo_url: repoUrl,
-            git_ref: "main",
-          },
+          target: `${repoUrl}@main`,
         },
         fn as never,
       );
@@ -196,7 +175,7 @@ describe("list_files parity", () => {
     );
     const mcp = await mcpJson(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         path_prefix: "src/",
       },
       fn as never,
@@ -221,7 +200,7 @@ describe("list_files parity", () => {
     );
     const mcp = await mcpJson(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         limit: 50,
       },
       fn as never,
@@ -255,7 +234,7 @@ describe("list_files parity", () => {
     );
     const mcp = await mcpJson(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         path: "README.md",
         path_prefix: "src/",
         globs: ["test/**/*.js"],
@@ -293,7 +272,7 @@ describe("list_files parity", () => {
     );
     const mcp = await mcpJson(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
       },
       fn as never,
     );
@@ -320,7 +299,7 @@ describe("list_files parity", () => {
     );
     const mcp = await mcpJson(
       {
-        target: { registry: "npm", package_name: "ghost" },
+        target: "npm:ghost",
       },
       fn as never,
     );
@@ -330,7 +309,7 @@ describe("list_files parity", () => {
 
   it("PARITY-ERROR-ENVELOPE: INVALID_ARGUMENT on both surfaces carries `retryable: false` (full shape)", async () => {
     const cli = await cliJson(undefined, undefined, {});
-    const mcp = await mcpJson({ target: {} });
+    const mcp = await mcpJson({ target: "" });
     // Assert the exact shape (including retryable) so future drift
     // surfaces here rather than in a production agent's envelope.
     // Message text differs by surface; that's acceptable.

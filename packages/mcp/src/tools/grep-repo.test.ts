@@ -87,7 +87,7 @@ describe("createGrepRepoTool — happy path", () => {
 
     await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "middleware",
         path_prefix: "src/",
         globs: ["src/**/*.js"],
@@ -148,14 +148,14 @@ describe("createGrepRepoTool — happy path", () => {
     });
   });
 
-  it("returns invalid argument for whitespace-only repo_url with git_ref", async () => {
+  it("returns invalid argument for whitespace-only target", async () => {
     const grepRepo = mock(() => Promise.resolve(defaultGrepRepoResult));
     const service = createMockCodeNavigationService({ grepRepo });
     const tool = createGrepRepoTool(service);
 
     const result = await tool.handler(
       {
-        target: { repo_url: " ", git_ref: "HEAD" },
+        target: " ",
         pattern: "middleware",
       },
       {},
@@ -174,7 +174,7 @@ describe("createGrepRepoTool — happy path", () => {
 
     await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "middleware",
         symbol_fields: ["name", "qualified_path", "kind"],
       },
@@ -196,7 +196,7 @@ describe("createGrepRepoTool — happy path", () => {
 
     await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "middleware",
         path: "",
         path_prefix: "",
@@ -216,7 +216,7 @@ describe("createGrepRepoTool — happy path", () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "middleware",
         format: "json",
       },
@@ -288,7 +288,7 @@ describe("createGrepRepoTool — text format", () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "middleware",
       },
       {},
@@ -305,7 +305,7 @@ describe("createGrepRepoTool — text format", () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "middleware",
         format: "text",
       },
@@ -319,7 +319,7 @@ describe("createGrepRepoTool — text format", () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "middleware",
         format: "text",
       },
@@ -335,7 +335,7 @@ describe("createGrepRepoTool — validation errors", () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "",
       },
       {},
@@ -350,7 +350,7 @@ describe("createGrepRepoTool — validation errors", () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         path_prefix: "lib/",
       },
       {},
@@ -366,7 +366,7 @@ describe("createGrepRepoTool — validation errors", () => {
     const tool = createGrepRepoTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "middleware",
         max_matches: 1001,
       },
@@ -394,7 +394,7 @@ describe("createGrepRepoTool — service errors", () => {
     const tool = createGrepRepoTool(service);
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "pagination",
         path: "docs/missing.md",
       },
@@ -435,11 +435,7 @@ describe("createGrepRepoTool — service errors", () => {
       });
       const result = await createGrepRepoTool(service).handler(
         {
-          target: {
-            registry: "hex",
-            package_name: "jason",
-            version: "1.4.4",
-          },
+          target: "hex:jason@1.4.4",
           pattern: "{",
           path: "bench/data/issue-90.json",
         },
@@ -470,7 +466,7 @@ describe("createGrepRepoTool — service errors", () => {
     });
     const result = await createGrepRepoTool(service).handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "benchmark",
         path: "benchmarks/run",
       },
@@ -497,7 +493,7 @@ describe("createGrepRepoTool — service errors", () => {
     });
     const result = await createGrepRepoTool(service).handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "copyright",
         path: "LICENSE",
       },
@@ -521,7 +517,7 @@ describe("createGrepRepoTool — service errors", () => {
     });
     const result = await createGrepRepoTool(service).handler(
       {
-        target: { registry: "npm", package_name: "ghost" },
+        target: "npm:ghost",
         pattern: "middleware",
       },
       {},
@@ -546,7 +542,7 @@ describe("createGrepRepoTool — service errors", () => {
     });
     const result = await createGrepRepoTool(service).handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "middleware",
         path: "docs/missing.md",
       },
@@ -570,7 +566,7 @@ describe("createGrepRepoTool — service errors", () => {
     const tool = createGrepRepoTool(service);
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "middleware",
       },
       {},
@@ -590,7 +586,7 @@ describe("createGrepRepoTool — service errors", () => {
     const tool = createGrepRepoTool(service);
     const result = await tool.handler(
       {
-        target: { registry: "npm", package_name: "ghost" },
+        target: "npm:ghost",
         pattern: "middleware",
       },
       {},
@@ -616,7 +612,7 @@ it("accepts oversized context through the schema and sends capped values", async
   }
   const result = await tool.handler(
     {
-      target: { registry: "npm", package_name: "express" },
+      target: "npm:express",
       pattern: "router",
       context_lines_after: 12,
     },

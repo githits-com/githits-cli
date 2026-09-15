@@ -11,7 +11,7 @@ stable and do not include it. Neither layer claims that a patch proves
 compatibility.
 
 The local adapter is enabled only when the host experimental-tools policy is
-enabled. Its MCP-native target union, separate endpoints, bounded projections,
+enabled. Its compact MCP target string, separate endpoints, bounded projections,
 and structured error envelope are internal to local composition; combined MCP
 instructions are composed only for the local server; remote/public exposure
 and Agent Skill guidance remain later rollout steps after dogfood and

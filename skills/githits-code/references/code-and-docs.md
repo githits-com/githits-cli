@@ -62,9 +62,9 @@ Partial and capped documentation coverage are usable published evidence. Report 
 - `githits search-status` maps to MCP `search_status`.
 - `githits code files` maps to MCP `code_files`.
 - `githits code grep` maps to MCP `code_grep`.
-- `githits code read` maps to MCP `code_read`.
+- `githits code read` maps to MCP `read` with `target` and `path`.
 - `githits docs list` maps to MCP `docs_list`.
-- `githits docs read` maps to MCP `docs_read`.
+- `githits docs read` maps to MCP `read` with `target` alone.
 
 Direct repository targets accept approved full HTTPS URLs on github.com, codeberg.org, and gitlab.com. Codeberg requires exactly owner/repo; GitLab allows nested namespaces. Only GitHub supports host shorthand and HTTP compatibility. Never infer a provider from bare owner/repo. Repository refs use an @ suffix and may themselves contain / and @; # is reserved for semantic fragments. Empty refs and mixed suffixes are invalid. Credentials, queries, provider web subpaths, and unsupported/self-hosted hosts are rejected. Package targets keep registry-native coordinates, including `zig:cb/owner/repo` and `swift:gitlab.com/group/project`. Changelog repo URL fields remain full HTTPS URLs.
 

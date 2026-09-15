@@ -29,7 +29,7 @@ Scope: public OSS only, never local/private/proprietary source. Package targets
 use \`registry:name[@version]\` and inspect an indexed artifact/manifest root;
 Swift uses \`swift:github.com/<owner>/<repo>\`, Zig \`zig:gh/<owner>/<repo>\`.
 Use public repository targets for full repositories or sibling packages, with
-an explicit provider (such as \`github:owner/repo\`) or supported full URL.
+an explicit \`github:\`, \`codeberg:\`, or \`gitlab:\` provider, or a supported full URL.
 Append revisions as \`@ref\`; refs may contain later \`@\` characters. \`#\` is
 reserved for semantic fragments and never identifies a repository revision.
 Never infer a repository provider. Use selected tool descriptions for supported

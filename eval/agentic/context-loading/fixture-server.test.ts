@@ -150,7 +150,13 @@ describe("context fixture MCP contract", () => {
           pattern: "tool_search",
         },
       });
-      expect(objectTarget.content).toEqual(result.content);
+      expect(objectTarget.isError).toBe(true);
+      expect(JSON.stringify(objectTarget.content)).toContain(
+        "Invalid arguments",
+      );
+      expect(JSON.stringify(objectTarget.content)).not.toContain(
+        "fixed context-loading fixture",
+      );
       expect(JSON.stringify(result.content)).toContain(
         "fixed context-loading fixture",
       );

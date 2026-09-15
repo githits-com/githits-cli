@@ -21,9 +21,8 @@ retry a failed read against the other backend.
 
 The MCP tool accepts `target`, optional `path`, `start_line`, `end_line`,
 `wait_timeout_ms`, and `format`. Targets for code are compact package/repository
-strings; the structured code-target object accepted by other navigation tools is
-not part of this read schema. Existing target parsers still own package/provider
-syntax and exact Git revision handling.
+strings, matching `code_files` and `code_grep`. Existing target parsers still own
+package/provider syntax and exact Git revision handling.
 
 The tool in `packages/mcp/src/tools/read.ts` injects `ReadService` and calls its
 `read` method once. The service returns a semantic code/docs union, and the

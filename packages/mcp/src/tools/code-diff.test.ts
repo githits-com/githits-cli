@@ -40,7 +40,7 @@ function parseError(result: Awaited<ReturnType<typeof invoke>>): {
 }
 
 describe("code_diff MCP adapter", () => {
-  it("describes the union target, views, privacy, and safety contract", () => {
+  it("describes the compact target, views, privacy, and safety contract", () => {
     const tool = createCodeDiffTool(createMockCodeNavigationService());
     const schema = z.toJSONSchema(z.object(tool.schema));
 
@@ -94,36 +94,13 @@ describe("code_diff MCP adapter", () => {
       "no braces, character classes, `!`, or Git pathspec magic",
     );
     expect(pathGlobSchema.description).toContain("non-empty");
-    const targetSchema = schema.properties?.target as {
-      anyOf?: Array<Record<string, unknown>>;
-    };
-    expect(targetSchema.anyOf).toEqual([
-      { type: "string" },
-      {
-        type: "object",
-        properties: {
-          registry: { type: "string" },
-          package_name: { type: "string" },
-        },
-        required: ["registry", "package_name"],
-        additionalProperties: false,
-      },
-      {
-        type: "object",
-        properties: {
-          repo_url: { type: "string" },
-        },
-        required: ["repo_url"],
-        additionalProperties: false,
-      },
-    ]);
+    expect(schema.properties?.target).toMatchObject({ type: "string" });
     for (const phrase of [
       "Experimental",
       "source diff",
       "repository-wide diffs",
       "does not prove the package unchanged",
-      "package_name",
-      "repo_url",
+      "compact `target`",
       "from",
       "to",
       "name-status",
@@ -169,7 +146,7 @@ describe("code_diff MCP adapter", () => {
     const tool = createCodeDiffTool({ codeDiff });
 
     await invoke(tool, {
-      target: { registry: "npm", package_name: "express" },
+      target: "npm:express",
       from: "v1",
       to: "v2",
     });
@@ -188,7 +165,7 @@ describe("code_diff MCP adapter", () => {
     };
     const tool = createCodeDiffTool(service);
     const result = await invoke(tool, {
-      target: { repo_url: "https://github.com/expressjs/express" },
+      target: "github:expressjs/express",
       from: "main",
       to: "release",
       view: "name-status",
@@ -208,7 +185,7 @@ describe("code_diff MCP adapter", () => {
   it("maps builder and representative CodeDiff service failures", async () => {
     const tool = createCodeDiffTool(createMockCodeNavigationService());
     const invalid = await invoke(tool, {
-      target: {} as unknown as CodeDiffMcpArgs["target"],
+      target: "npm:express@1#main",
       from: "1",
       to: "2",
     });
@@ -216,7 +193,7 @@ describe("code_diff MCP adapter", () => {
     expect(parseError(invalid)).toEqual({
       code: "INVALID_ARGUMENT",
       error:
-        "Diff target must be a compact string or include package `registry` + `package_name` or repository `repo_url`.",
+        "Package targets must not include a version; put both versions in the comparison endpoints.",
       retryable: false,
     });
 
@@ -234,14 +211,15 @@ describe("code_diff MCP adapter", () => {
     });
 
     const invalidRepositoryTarget = await invoke(tool, {
-      target: { repo_url: "npm:express" },
+      target: "github:expressjs/express#main",
       from: "1",
       to: "2",
     });
     expect(invalidRepositoryTarget.isError).toBe(true);
     expect(parseError(invalidRepositoryTarget)).toEqual({
       code: "INVALID_ARGUMENT",
-      error: "Repository target must identify a repository, not a package.",
+      error:
+        'Repository target "github:expressjs/express#main" uses legacy #ref syntax. Use "github:expressjs/express@main"; # is reserved for semantic fragments.',
       retryable: false,
     });
 

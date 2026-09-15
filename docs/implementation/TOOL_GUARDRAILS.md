@@ -88,7 +88,7 @@ redundant call; there are no tool-specific exceptions.
 Luna-low descriptor-only and full-guidance canaries called `quick_start`
 exactly once in every workload,
 but a Claude Desktop source-reading session later than those canaries skipped
-it. `code_read` and `code_grep` therefore now carry focused local posture as a
+it. `read` and `code_grep` therefore now carry focused local posture as a
 fallback. This is not evidence that other content tools are protected when
 neither the skill nor the bootstrap supplies the shared block.
 

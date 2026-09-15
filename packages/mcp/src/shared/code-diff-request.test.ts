@@ -346,10 +346,10 @@ describe("buildCodeDiffMcpParams", () => {
     expect(Object.hasOwn(result.params, "options")).toBe(false);
   });
 
-  it("accepts MCP package/repository target variants and keeps endpoints separate", () => {
+  it("accepts compact MCP package/repository targets and keeps endpoints separate", () => {
     expect(
       buildCodeDiffMcpParams({
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         from: "4.18.1",
         to: "4.18.2",
         view: "name-status",
@@ -362,7 +362,7 @@ describe("buildCodeDiffMcpParams", () => {
     });
     expect(
       buildCodeDiffMcpParams({
-        target: { repo_url: "https://github.com/expressjs/express" },
+        target: "github:expressjs/express",
         from: "main",
         to: "release",
         view: "stat",
@@ -395,30 +395,8 @@ describe("buildCodeDiffMcpParams", () => {
   it("rejects invalid MCP target shapes, embedded identities, endpoints, and limits", () => {
     const invalidInputs = [
       { target: "", from: "1", to: "2" },
-      { target: {}, from: "1", to: "2" },
-      {
-        target: {
-          registry: "npm",
-          package_name: "express",
-          repo_url: "https://github.com/a/b",
-        },
-        from: "1",
-        to: "2",
-      },
-      { target: { registry: "npm" }, from: "1", to: "2" },
-      {
-        target: { registry: "npm", package_name: "express", version: "1" },
-        from: "1",
-        to: "2",
-      },
-      {
-        target: {
-          repo_url: "https://github.com/a/b",
-          git_ref: "main",
-        },
-        from: "1",
-        to: "2",
-      },
+      { target: " ", from: "1", to: "2" },
+      { target: "npm:express@1#main", from: "1", to: "2" },
       { target: "npm:express@1.0.0", from: "1", to: "2" },
       { target: "github:a/b@main", from: "1", to: "2" },
       { target: "npm:express", from: "", to: "2" },

@@ -4,6 +4,7 @@ import type {
 } from "@githits/core-internal";
 import { parseCodeNavigationTargetSpec } from "./code-navigation-target.js";
 import { InvalidPackageSpecError, KNOWN_REGISTRIES } from "./package-spec.js";
+import { LegacyRepositoryRefError } from "./repository-target.js";
 
 export type CodeDiffView = "patch" | "stat" | "name-only" | "name-status";
 
@@ -17,19 +18,7 @@ export interface CodeDiffRequestInput {
   maxPatchBytes?: number;
 }
 
-export interface CodeDiffMcpPackageTarget {
-  registry: string;
-  package_name: string;
-}
-
-export interface CodeDiffMcpRepositoryTarget {
-  repo_url: string;
-}
-
-export type CodeDiffMcpTarget =
-  | string
-  | CodeDiffMcpPackageTarget
-  | CodeDiffMcpRepositoryTarget;
+export type CodeDiffMcpTarget = string;
 
 export interface CodeDiffMcpRequestInput {
   target: CodeDiffMcpTarget;
@@ -67,7 +56,7 @@ export function buildCodeDiffParams(
   return buildCodeDiffParamsFromParts(target, from, to, input);
 }
 
-/** Build CodeDiff params from MCP's separate endpoints and target union. */
+/** Build CodeDiff params from MCP's separate endpoints and compact target. */
 export function buildCodeDiffMcpParams(
   input: CodeDiffMcpRequestInput,
 ): CodeDiffRequestBuildResult {
@@ -139,84 +128,17 @@ function buildTarget(input: CodeDiffRequestInput): CodeDiffParams["target"] {
 }
 
 function buildMcpTarget(raw: CodeDiffMcpTarget): CodeDiffParams["target"] {
-  if (typeof raw === "string") {
-    return buildTargetFromRaw(raw, "mcpTarget");
-  }
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
-    throw invalid(
-      "Diff target must be a compact target string or a package/repository object.",
-    );
-  }
-  const object = raw as unknown as Record<string, unknown>;
-
-  const hasRegistry = Object.hasOwn(object, "registry");
-  const hasPackageName = Object.hasOwn(object, "package_name");
-  const hasRepoUrl = Object.hasOwn(object, "repo_url");
-  if (hasRepoUrl && (hasRegistry || hasPackageName)) {
-    throw invalid("Diff target cannot combine package and repository fields.");
-  }
-  if (hasRegistry || hasPackageName) {
-    if (!hasRegistry || !hasPackageName) {
-      throw invalid(
-        "Diff package target must include `registry` and `package_name`.",
-      );
-    }
-    if (
-      Object.keys(object).some(
-        (key) => key !== "registry" && key !== "package_name",
-      )
-    ) {
-      throw invalid(
-        "Diff package target may contain only `registry` and `package_name`.",
-      );
-    }
-    if (
-      typeof object.registry !== "string" ||
-      typeof object.package_name !== "string" ||
-      !object.registry.trim() ||
-      !object.package_name.trim()
-    ) {
-      throw invalid(
-        "Diff package target `registry` and `package_name` must not be empty.",
-      );
-    }
-    return buildTargetFromRaw(
-      `${object.registry}:${object.package_name}`,
-      "mcpPackage",
-    );
-  }
-  if (hasRepoUrl) {
-    if (Object.keys(object).some((key) => key !== "repo_url")) {
-      throw invalid("Diff repository target may contain only `repo_url`.");
-    }
-    if (typeof object.repo_url !== "string" || !object.repo_url.trim()) {
-      throw invalid("Diff repository target `repo_url` must not be empty.");
-    }
-    return buildTargetFromRaw(object.repo_url, "mcpRepository");
-  }
-  throw invalid(
-    "Diff target must be a compact string or include package `registry` + `package_name` or repository `repo_url`.",
-  );
+  return buildTargetFromRaw(raw, "mcpTarget");
 }
 
-type CodeDiffTargetSource =
-  | "target"
-  | "mcpTarget"
-  | "repoUrl"
-  | "mcpPackage"
-  | "mcpRepository";
+type CodeDiffTargetSource = "target" | "mcpTarget" | "repoUrl";
 
 function buildTargetFromRaw(
   raw: string,
   source: CodeDiffTargetSource,
 ): CodeDiffParams["target"] {
   const parsed = parseTarget(raw);
-  if (
-    (source === "target" ||
-      source === "mcpTarget" ||
-      source === "mcpPackage") &&
-    parsed.version
-  ) {
+  if ((source === "target" || source === "mcpTarget") && parsed.version) {
     throw invalid(
       source === "target"
         ? "Package targets must not include a version; put both versions in `range`."
@@ -234,7 +156,7 @@ function buildTargetFromRaw(
   const hasPackageKeys =
     Object.hasOwn(parsed, "registry") || Object.hasOwn(parsed, "packageName");
   const hasRepoKey = Object.hasOwn(parsed, "repoUrl");
-  if ((source === "repoUrl" || source === "mcpRepository") && hasPackageKeys) {
+  if (source === "repoUrl" && hasPackageKeys) {
     throw invalid(
       "Repository target must identify a repository, not a package.",
     );
@@ -257,13 +179,7 @@ function buildTargetFromRaw(
     };
   }
   if (hasRepoKey && parsed.repoUrl !== undefined) {
-    if (source === "mcpPackage") {
-      throw invalid("Diff package target must identify a package.");
-    }
     return { repoUrl: parsed.repoUrl };
-  }
-  if (source === "mcpRepository") {
-    throw invalid("Diff repository target must identify a repository.");
   }
   throw invalid("Diff target must be a package or repository target.");
 }
@@ -271,7 +187,10 @@ function buildTargetFromRaw(
 function parseTarget(raw: string): CodeNavigationTarget {
   try {
     return parseCodeNavigationTargetSpec(raw);
-  } catch {
+  } catch (error) {
+    if (error instanceof LegacyRepositoryRefError) {
+      throw invalid(error.message);
+    }
     throw invalid(
       `Invalid Diff target. Expected an unversioned package target \`<registry>:<name>\` (for example \`npm:express\`; supported registries: ${KNOWN_REGISTRIES.join(", ")}) or an unversioned repository target (for example \`github:expressjs/express\`, \`codeberg:owner/repo\`, or \`gitlab:group/subgroup/project\`).`,
     );

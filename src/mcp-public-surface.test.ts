@@ -222,7 +222,7 @@ describe("public MCP package surface", () => {
     const result = await registeredTool(server, "search").handler(
       {
         query: "router",
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         format: "json",
       },
       undefined as unknown as RequestHandlerExtra<
@@ -367,7 +367,7 @@ describe("public MCP package surface", () => {
 
     const result = await registeredTool(server, "code_grep").handler(
       {
-        target: { registry: "npm", package_name: "express" },
+        target: "npm:express",
         pattern: "pagination",
         path: "docs/missing.md",
       },
