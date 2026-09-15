@@ -170,6 +170,10 @@ describe("buildResolveTargetParams", () => {
     "GitHub Copilot",
     "npm package react",
     "acme:widget",
+    "https://expressjs.com/en/guide/",
+    "https://docs.rs/tokio",
+    "https://github.com/facebook/react/tree/main",
+    "https://github.com/facebook/react/tree/main#readme",
   ])("preserves nearby human name %s", (name) => {
     expect(
       buildResolveTargetParams({ name, includeDetailedFields: false }),

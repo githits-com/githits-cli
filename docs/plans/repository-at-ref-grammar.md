@@ -185,7 +185,7 @@ steps are not authorized here.
 
 ## Phase map
 
-### Phase 1 — one canonical repository revision grammar (**REVIEW PENDING**)
+### Phase 1 — one canonical repository revision grammar (**EXTERNAL REVIEW PENDING**)
 
 Expected outcome: every current githits-cli caller and emitted locator uses
 `@ref`, legacy compact `#ref` fails precisely, documentation fragments and
@@ -256,8 +256,8 @@ Implementation and verification evidence (2026-09-15):
   unchanged.
 - Resolution text uses one canonical target plus `(commit <sha>)` metadata when
   both a ref and commit are relevant, avoiding ambiguous stacked delimiters.
-- The affected suite passed 1,331 tests with 3,576 expectations. The full suite
-  passed 4,755 tests with 16,511 expectations. Typecheck, lint, format check,
+- The affected suite passed 1,331 tests with 3,576 expectations. The final full
+  suite passed 4,766 tests with 16,526 expectations. Typecheck, lint, format check,
   build, plugin generation/check, and public-package validation passed.
 - Authenticated source smoke passed for CLI (116 steps) and MCP (59 steps),
   including `github:expressjs/express@<commit>/History.md` documentation reads.
@@ -278,6 +278,24 @@ Implementation and verification evidence (2026-09-15):
   repository examples are limited to explicit migration tests/documentation,
   the verified PkgSeer dependency, this temporary plan's before-state evidence,
   and immutable historical context-loading fixtures.
+- The first internal pre-flight found stale dual-syntax wording in the public
+  code-skill reference and CLI implementation guide, plus unprojected repository
+  labels in indexing-estimate progress. Both were fixed with regression coverage
+  across initial search and `search_status` replay, including later `@`, package,
+  and documentation-fragment preservation. The follow-up internal review of the
+  full delta returned clean.
+- External Opus review round 1 found that eager legacy-input validation also
+  rejected non-repository URLs previously handled by fuzzy resolve or Ask. The
+  parser now marks only the exact legacy-ref case; resolve and both Ask adapters
+  preserve all other backend-classified inputs. The same closure pass restored
+  trailing-`#` parser coverage and named the schema-owned Ask source tuple
+  positions. Focused coverage passed 288 tests with 1,050 expectations, and the
+  post-round full-gate counts above include those changes. Internal follow-up
+  then found that the legacy marker also needed a validated pre-fragment
+  repository path so provider web URLs such as `.../tree/main#readme` remain
+  backend-classified in resolve and Ask. That boundary was tightened, focused
+  coverage passed 291 tests with 1,054 expectations, and internal pre-flight
+  returned clean. The final broad rerun and external round 2 are pending.
 
 ## Phase-boundary reorientation and cleanup
 

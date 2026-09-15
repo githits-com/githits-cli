@@ -13,6 +13,7 @@ import {
 } from "./package-spec.js";
 import {
   isRepositoryTargetSpec,
+  LegacyRepositoryRefError,
   parseRepositoryTargetSpec,
 } from "./repository-target.js";
 import { parseUnifiedSearchTargetSpec } from "./unified-search-target.js";
@@ -73,7 +74,13 @@ export function buildResolveTargetParams(
 /** Keep fuzzy resolution aligned with the target grammar used downstream. */
 function rejectCanonicalTarget(name: string): void {
   if (isRepositoryTargetSpec(name)) {
-    parseRepositoryTargetSpec(name);
+    try {
+      parseRepositoryTargetSpec(name);
+    } catch (error) {
+      if (error instanceof LegacyRepositoryRefError) throw error;
+      if (error instanceof InvalidArgumentError) return;
+      throw error;
+    }
     throw canonicalTargetError(name);
   }
   try {

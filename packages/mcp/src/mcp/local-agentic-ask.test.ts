@@ -224,6 +224,29 @@ describe("local ask MCP adapter", () => {
     expect(ask).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "https://expressjs.com/en/guide/",
+    "https://github.com/facebook/react/tree/main#readme",
+  ])(
+    "leaves non-repository URL target %s for backend classification",
+    async (target) => {
+      const ask = mock(() => Promise.resolve(response()));
+      const result = await invoke(
+        createLocalAgenticAskTool(createService(ask)),
+        {
+          target,
+          question: "How?",
+        },
+      );
+
+      expect(result.isError).toBeUndefined();
+      expect(ask).toHaveBeenCalledWith(
+        { target, question: "How?", sourceFormat: "mcp" },
+        undefined,
+      );
+    },
+  );
+
   it.each(["mcp", "url"] as const)(
     "answers a question-only request with %s sources",
     async (sourceFormat) => {

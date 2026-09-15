@@ -86,6 +86,7 @@ describe("direct repository grammar", () => {
       it.each([
         "@",
         "@main#dev",
+        "#",
         "#main#dev",
         "?",
         "?q=1",

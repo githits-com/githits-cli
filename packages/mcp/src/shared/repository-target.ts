@@ -85,6 +85,9 @@ const PROVIDERS: readonly ProviderGrammar[] = Object.freeze([
 const REPOSITORY_TARGET_ERROR =
   "Repository target must be github:owner/repo, codeberg:owner/repo, or gitlab:group[/subgroup...]/project, or an approved full HTTPS URL, with optional @gitRef suffix.";
 
+/** Marker for callers that migrate only the retired repository ref spelling. */
+export class LegacyRepositoryRefError extends InvalidArgumentError {}
+
 /** Recognize explicit repository forms without guessing a provider. */
 export function normaliseRepositoryTargetSpec(
   spec: string,
@@ -153,16 +156,18 @@ export function parseRepositoryTargetSpec(spec: string): CodeNavigationTarget {
   const at = rawPath.indexOf("@");
   if (hash !== -1) {
     const nextHash = rawPath.indexOf("#", hash + 1);
+    const legacyPath = rawPath.slice(0, hash).replace(/\/$/, "");
     if (
       hash < rawPath.length - 1 &&
       nextHash === -1 &&
-      (at === -1 || hash < at)
+      (at === -1 || hash < at) &&
+      provider.validatePath(legacyPath.split("/"))
     ) {
       const legacy = spec.trim();
       const migrated = `${legacy.slice(0, legacy.indexOf("#"))}@${legacy.slice(
         legacy.indexOf("#") + 1,
       )}`;
-      throw new InvalidArgumentError(
+      throw new LegacyRepositoryRefError(
         `Repository target ${JSON.stringify(legacy)} uses legacy #ref syntax. Use ${JSON.stringify(migrated)}; # is reserved for semantic fragments.`,
       );
     }

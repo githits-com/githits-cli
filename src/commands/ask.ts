@@ -11,6 +11,7 @@ import {
   formatAgenticAskClarification,
   formatRepositoryTargetLabel,
   isRepositoryTargetSpec,
+  LegacyRepositoryRefError,
   mapAgenticAskError,
   parseRepositoryTargetSpec,
   requireAuth,
@@ -40,6 +41,10 @@ export interface AskCommandDependencies {
   signal?: AbortSignal;
   createSpinner?: () => Spinner;
 }
+
+// Positions are fixed by core-internal's cliSourceArgumentsSchema code tuple.
+const CLI_CODE_SOURCE_KIND_INDEX = 1;
+const CLI_CODE_SOURCE_TARGET_INDEX = 6;
 
 export async function askAction(
   target: string | undefined,
@@ -160,9 +165,11 @@ export function projectAgenticAskCliSources(
   return {
     ...response,
     sources: response.sources.map((source) => {
-      if (source.arguments[1] === "code") {
+      if (source.arguments[CLI_CODE_SOURCE_KIND_INDEX] === "code") {
         const args = [...source.arguments] as typeof source.arguments;
-        args[6] = formatRepositoryTargetLabel(args[6]) ?? args[6];
+        args[CLI_CODE_SOURCE_TARGET_INDEX] =
+          formatRepositoryTargetLabel(args[CLI_CODE_SOURCE_TARGET_INDEX]) ??
+          args[CLI_CODE_SOURCE_TARGET_INDEX];
         return { ...source, arguments: args };
       }
       return source;
@@ -207,7 +214,13 @@ function resolveAskSubject(
     );
   }
   if (target !== undefined) {
-    if (isRepositoryTargetSpec(target)) parseRepositoryTargetSpec(target);
+    if (isRepositoryTargetSpec(target)) {
+      try {
+        parseRepositoryTargetSpec(target);
+      } catch (error) {
+        if (error instanceof LegacyRepositoryRefError) throw error;
+      }
+    }
     return { target };
   }
   if (thread === undefined) return {};

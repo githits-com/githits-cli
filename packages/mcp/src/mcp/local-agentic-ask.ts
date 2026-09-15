@@ -11,6 +11,7 @@ import { formatAgenticAskClarification } from "../shared/agentic-ask-response.js
 import {
   formatRepositoryTargetLabel,
   isRepositoryTargetSpec,
+  LegacyRepositoryRefError,
   parseRepositoryTargetSpec,
 } from "../shared/repository-target.js";
 import type { ReadArgs } from "../tools/read.js";
@@ -228,9 +229,9 @@ function resolveMcpAskSubject(
       try {
         parseRepositoryTargetSpec(args.target);
       } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : String(error),
-        };
+        if (error instanceof LegacyRepositoryRefError) {
+          return { error: error.message };
+        }
       }
     }
     return { target: args.target };

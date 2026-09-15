@@ -266,6 +266,21 @@ describe("askAction", () => {
     expect(ask).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "https://expressjs.com/en/guide/",
+    "https://github.com/facebook/react/tree/main#readme",
+  ])(
+    "leaves non-repository URL target %s for backend classification",
+    async (target) => {
+      const ask = mock(() => Promise.resolve(result()));
+      spyOn(process.stdout, "write").mockImplementation(() => true);
+
+      await askAction(target, "How?", {}, createDeps(ask));
+
+      expect(ask).toHaveBeenCalledWith({ target, question: "How?" }, undefined);
+    },
+  );
+
   it("emits only the validated response on JSON stdout", async () => {
     const response = result();
     const log = spyOn(console, "log").mockImplementation(() => undefined);
