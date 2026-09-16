@@ -95,7 +95,6 @@ External services (REST API) must be wrapped in a service interface:
 ```typescript
 export interface GitHitsService {
   search(params: SearchParams): Promise<string>;
-  getLanguages(): Promise<Language[]>;
 }
 ```
 
@@ -127,7 +126,6 @@ export function createMockGitHitsService(
 ): GitHitsService {
   return {
     search: mock(() => Promise.resolve("# Example\n```js\nconsole.log('hi')\n```")),
-    getLanguages: mock(() => Promise.resolve([...])),
     ...impl,
   };
 }

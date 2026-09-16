@@ -385,7 +385,7 @@ describe("createContainer", () => {
                       answer_markdown: "Grounded answer.",
                       sources: [],
                     }
-                  : [],
+                  : "# Example",
               ),
               {
                 headers: { "Content-Type": "application/json" },
@@ -402,7 +402,7 @@ describe("createContainer", () => {
             agentProvider: () => ({ name: "cursor", version: "1.0.0" }),
           });
 
-          await deps.githitsService.getLanguages();
+          await deps.githitsService.search({ query: "test" });
           await deps.agenticAskService.ask({
             target: "npm:example",
             question: "How?",
@@ -441,12 +441,12 @@ describe("createContainer", () => {
         withApiToken("ghi-test", async () => {
           const originalFetch = globalThis.fetch;
           globalThis.fetch = mock(() =>
-            Promise.resolve(new Response(JSON.stringify([]))),
+            Promise.resolve(new Response("# Example")),
           ) as unknown as typeof fetch;
 
           try {
             const deps = await createContainer({ resolveStoredToken: false });
-            await deps.githitsService.getLanguages();
+            await deps.githitsService.search({ query: "test" });
           } finally {
             globalThis.fetch = originalFetch;
           }
@@ -456,7 +456,7 @@ describe("createContainer", () => {
       flushTelemetry(0);
       const report = writes.join("");
       expect(report).toContain("container.create");
-      expect(report).toContain("githits.languages.request");
+      expect(report).toContain("githits.search.request");
     } finally {
       resetTelemetryCollectorForTests({ env: {} });
     }

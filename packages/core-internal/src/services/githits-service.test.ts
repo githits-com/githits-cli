@@ -7,10 +7,7 @@ import {
   mock,
   spyOn,
 } from "bun:test";
-import {
-  DEFAULT_FETCH_TIMEOUT_MS,
-  FetchTimeoutError,
-} from "../shared/fetch-timeout.js";
+import { FetchTimeoutError } from "../shared/fetch-timeout.js";
 import { createClientHeaderBuilder } from "../shared/request-headers.js";
 import {
   ApiRateLimitError,
@@ -487,125 +484,24 @@ describe("GitHitsServiceImpl", () => {
       expect(error.message).toBe("Request rate limited.");
       expect(error.message).not.toContain("slow down");
     });
-  });
 
-  describe("getLanguages", () => {
-    it("keeps the standard request timeout", async () => {
-      const timeoutSpy = spyOn(AbortSignal, "timeout");
+    it("surfaces unresolved-language 400 detail", async () => {
       mockFetch(() =>
         Promise.resolve(
-          new Response("[]", {
-            headers: { "Content-Type": "application/json" },
-          }),
+          new Response(
+            JSON.stringify({
+              detail:
+                "Language 'pythn' could not be resolved. Retry with one of these names: python (Python). If none match, omit language.",
+            }),
+            { status: 400 },
+          ),
         ),
       );
 
-      try {
-        await service.getLanguages();
-
-        expect(timeoutSpy).toHaveBeenCalledWith(DEFAULT_FETCH_TIMEOUT_MS);
-      } finally {
-        timeoutSpy.mockRestore();
-      }
-    });
-
-    it("returns array of languages", async () => {
-      const languages = [
-        {
-          id: "1",
-          name: "javascript",
-          display_name: "JavaScript",
-          aliases: ["js"],
-        },
-      ];
-      mockFetch(() =>
-        Promise.resolve(
-          new Response(JSON.stringify(languages), {
-            headers: { "Content-Type": "application/json" },
-          }),
-        ),
-      );
-
-      const result = await service.getLanguages();
-      expect(result).toEqual(languages);
-    });
-
-    it("throws AuthenticationError on 401", async () => {
-      mockFetch(() => Promise.resolve(new Response("", { status: 401 })));
-
-      await expect(service.getLanguages()).rejects.toThrow(AuthenticationError);
-    });
-
-    it("throws on 500 with status code", async () => {
-      mockFetch(() =>
-        Promise.resolve(new Response("service unavailable", { status: 503 })),
-      );
-
-      await expect(service.getLanguages()).rejects.toThrow(
-        "Server error (503). Try again shortly.",
-      );
-    });
-
-    it("rejects malformed language payloads", async () => {
-      mockFetch(() =>
-        Promise.resolve(
-          new Response(JSON.stringify([{ id: 1, name: "javascript" }]), {
-            headers: { "Content-Type": "application/json" },
-          }),
-        ),
-      );
-
-      await expect(service.getLanguages()).rejects.toThrow(
-        "GitHits returned an invalid languages response.",
-      );
-    });
-  });
-
-  describe("searchLanguages", () => {
-    it("calls backend-ranked language search with query and limit", async () => {
-      const languages = [
-        {
-          id: "2",
-          name: "typescript",
-          display_name: "TypeScript",
-          aliases: ["ts"],
-          search_priority: 10,
-        },
-      ];
-      const fn = mockFetch(() =>
-        Promise.resolve(
-          new Response(JSON.stringify(languages), {
-            headers: { "Content-Type": "application/json" },
-          }),
-        ),
-      );
-
-      const result = await service.searchLanguages("c#", 10);
-
-      expect(result).toEqual(languages);
-      const call = fn.mock.calls[0] as unknown as [string, RequestInit];
-      expect(call[0]).toBe(`${API_URL}/languages?query=c%23&limit=10`);
-    });
-
-    it("throws AuthenticationError on 401", async () => {
-      mockFetch(() => Promise.resolve(new Response("", { status: 401 })));
-
-      await expect(service.searchLanguages("ts")).rejects.toThrow(
-        AuthenticationError,
-      );
-    });
-
-    it("rejects malformed language search payloads", async () => {
-      mockFetch(() =>
-        Promise.resolve(
-          new Response(JSON.stringify({ languages: [] }), {
-            headers: { "Content-Type": "application/json" },
-          }),
-        ),
-      );
-
-      await expect(service.searchLanguages("ts")).rejects.toThrow(
-        "GitHits returned an invalid languages response.",
+      await expect(
+        service.search({ query: "test", language: "pythn" }),
+      ).rejects.toThrow(
+        "Request failed with status 400. Language 'pythn' could not be resolved. Retry with one of these names: python (Python). If none match, omit language.",
       );
     });
   });
@@ -614,7 +510,9 @@ describe("GitHitsServiceImpl", () => {
     it("throws AuthenticationError on 401", async () => {
       mockFetch(() => Promise.resolve(new Response("", { status: 401 })));
 
-      await expect(service.getLanguages()).rejects.toThrow(AuthenticationError);
+      await expect(service.search({ query: "test" })).rejects.toThrow(
+        AuthenticationError,
+      );
     });
 
     it("throws on 404 with detail from JSON body", async () => {
@@ -627,7 +525,7 @@ describe("GitHitsServiceImpl", () => {
         ),
       );
 
-      await expect(service.getLanguages()).rejects.toThrow(
+      await expect(service.search({ query: "test" })).rejects.toThrow(
         "Example abc-123 not found",
       );
     });
@@ -635,7 +533,7 @@ describe("GitHitsServiceImpl", () => {
     it("throws generic message on 404 with empty body", async () => {
       mockFetch(() => Promise.resolve(new Response("", { status: 404 })));
 
-      await expect(service.getLanguages()).rejects.toThrow(
+      await expect(service.search({ query: "test" })).rejects.toThrow(
         "Resource not found.",
       );
     });
@@ -645,7 +543,7 @@ describe("GitHitsServiceImpl", () => {
         Promise.resolve(new Response("internal error", { status: 500 })),
       );
 
-      await expect(service.getLanguages()).rejects.toThrow(
+      await expect(service.search({ query: "test" })).rejects.toThrow(
         "Server error (500). Try again shortly.",
       );
     });

@@ -44,7 +44,7 @@ function createCaller(callTool: McpSmokeCaller["callTool"]): McpSmokeCaller {
         name,
         annotations: {
           readOnlyHint: true,
-          openWorldHint: !["quick_start", "search_language"].includes(name),
+          openWorldHint: name !== "quick_start",
           destructiveHint: false,
         },
       })),
@@ -56,15 +56,15 @@ function createCaller(callTool: McpSmokeCaller["callTool"]): McpSmokeCaller {
 describe("MCP smoke-test helpers", () => {
   it("extracts successful tool text and throws MCP error text", async () => {
     const successCaller = createCaller(async () => textResult("ok"));
-    await expect(
-      callToolText(successCaller, "search_language", {}),
-    ).resolves.toBe("ok");
+    await expect(callToolText(successCaller, "get_example", {})).resolves.toBe(
+      "ok",
+    );
 
     const failingCaller = createCaller(async () =>
       errorResult("AUTH_REQUIRED", "auth required"),
     );
     await expect(
-      callToolText(failingCaller, "search_language", {}),
+      callToolText(failingCaller, "get_example", {}),
     ).rejects.toThrow("auth required");
   });
 
@@ -106,7 +106,6 @@ describe("runMcpSmoke", () => {
     ["get_example", false],
     ["search_status", undefined],
     ["quick_start", true],
-    ["search_language", undefined],
     ["ask", false],
   ] as const)(
     "rejects incorrect open-world annotation for %s: %s",
@@ -126,7 +125,7 @@ describe("runMcpSmoke", () => {
       caller.listTools = async () => ({
         tools: [...tools.filter((tool) => tool.name !== name), changed],
       });
-      const expected = !["quick_start", "search_language"].includes(name);
+      const expected = name !== "quick_start";
       await expect(
         runMcpSmoke(caller, { includeLiveTools: false }),
       ).rejects.toThrow(
@@ -164,7 +163,7 @@ describe("runMcpSmoke", () => {
           name,
           annotations: {
             readOnlyHint: true,
-            openWorldHint: !["quick_start", "search_language"].includes(name),
+            openWorldHint: name !== "quick_start",
             destructiveHint: false,
           },
         })),
@@ -202,7 +201,7 @@ describe("runMcpSmoke", () => {
         name,
         annotations: {
           readOnlyHint: true,
-          openWorldHint: !["quick_start", "search_language"].includes(name),
+          openWorldHint: name !== "quick_start",
           destructiveHint: false,
         },
       })),
@@ -242,7 +241,7 @@ describe("runMcpSmoke", () => {
     const logs: string[] = [];
     const caller = createCaller(async (name) => {
       if (name === "quick_start") return smokeResponse(name, {});
-      expect(name).toBe("search_language");
+      expect(name).toBe("pkg_info");
       return errorResult("AUTH_REQUIRED");
     });
 
@@ -835,8 +834,6 @@ function smokeResponse(
   switch (name) {
     case "quick_start":
       return textResult("GitHits routing guide for `search` and `code_grep`");
-    case "search_language":
-      return textResult("python (Python)\naliases: py");
     case "get_example":
       return textResult("example\nsolution_id: smoke");
     case "pkg_info":
@@ -935,8 +932,6 @@ function smokeJsonResponse(
   args: Record<string, unknown>,
 ): McpSmokeToolResult {
   switch (name) {
-    case "search_language":
-      return jsonResult([]);
     case "get_example":
       return jsonResult({ result: "example" });
     case "pkg_info":

@@ -5,7 +5,6 @@ import {
   type GitHitsServiceRequestOptions,
   type GitHitsServiceRuntimeOptions,
   isTokenRefreshableError,
-  type Language,
   type SearchParams,
 } from "./githits-service.js";
 import type { TokenProvider } from "./token-provider.js";
@@ -37,16 +36,6 @@ export class RefreshingGitHitsService implements GitHitsService {
         ? (service) => service.search(params, options)
         : (service) => service.search(params),
       options,
-    );
-  }
-
-  async getLanguages(): Promise<Language[]> {
-    return this.withTokenRefresh((service) => service.getLanguages());
-  }
-
-  async searchLanguages(query: string, limit?: number): Promise<Language[]> {
-    return this.withTokenRefresh((service) =>
-      service.searchLanguages(query, limit),
     );
   }
 

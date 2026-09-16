@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. `resolve` and `code diff` are experimental, host-config-gated commands. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities. Unified search also shares its presentation model and text formatter with MCP; the CLI supplies ANSI enablement and executable CLI action syntax.
+The CLI exposes setup/auth commands, `doctor`, `example`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. `resolve` and `code diff` are experimental, host-config-gated commands. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities. Unified search also shares its presentation model and text formatter with MCP; the CLI supplies ANSI enablement and executable CLI action syntax.
 
 ## Experimental CLI commands
 
@@ -42,7 +42,6 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `example <query>` | `<query>` | `-l, --lang <language>`, `--license <mode>`, `--explain`, `--json` | Search for code examples |
 | `search <query>` | `--in <target>` | `--source <source>`, `--kind <kind>`, `--category <category>`, `--path-prefix <prefix>`, `--intent <intent>`, `--public`, `--name <name>`, `--lang <language>`, `--allow-partial`, `--limit <n>`, `--offset <n>`, `--wait <seconds>`, `--json` | Unified indexed search across dependency/repository code, docs, and symbols. Defaults to 10 results. |
 | `search-status <search-ref>` | `<search-ref>` | `--wait <seconds>`, `--json` | Check progress, fetch partial hits, or fetch final results for a prior unified search; waits up to 30 seconds by default |
-| `languages [query]` | — | `--json` | List or filter supported languages |
 | `doctor` | — | `--json` | Print redacted diagnostics for GitHits runtime, environment, service URLs, config, and auth storage |
 | `resolve <name>` *(experimental; config-gated)* | package or public repository name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--verbose`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
 | `settings` | — | `--json` | Show canonical preferences, privacy and terms, and account limits |
@@ -190,7 +189,7 @@ githits example "react hooks patterns" -l typescript --explain
 githits example "react hooks patterns" -l typescript --json
 ```
 
-Default output is markdown (the API response). `--lang` is optional; when omitted, the backend infers the language from the query. With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>", "solution_id": "<uuid>" }` (`solution_id` is omitted only if the markdown lacks a solution URL). The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
+Default output is markdown with source provenance. `--lang` is optional; omit it to infer the language. If GitHits cannot match `--lang`, the error lists languages to retry with. With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>", "solution_id": "<uuid>" }` (`solution_id` is omitted only if the markdown lacks a solution URL). The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
 
 API rate-limit and timeout responses use the shared structured error envelope.
 Example requests use a longer client deadline than shorter metadata operations.
@@ -296,16 +295,6 @@ combined with an explicit target. Use it only when the previous answer needs a
 follow-up. Source formatting, run/thread IDs, authentication, and the existing
 210-second client timeout are unchanged. This CLI change does not change the
 local MCP Ask schema.
-
-### `githits languages`
-
-```
-githits languages              # list all supported languages
-githits languages python       # filter by name/alias (top 5)
-githits languages type --json  # JSON output for piping
-```
-
-Without a query, lists all languages. With a query, filters to top 5 matches using the same logic as the `search_language` MCP tool (case-insensitive substring match on name, display_name, and aliases). Default output uses colored terminal formatting. JSON output is `[{ "name": "...", "display_name": "...", "aliases": [...] }, ...]`.
 
 ### `githits doctor`
 
@@ -988,10 +977,9 @@ Each command follows this pattern:
 
 | Shared Module | Used By |
 |---|---|
-| `GitHitsService` (via container) | `example`, `languages`, and always-on MCP tools |
+| `GitHitsService` (via container) | `example` and always-on MCP tools |
 | `CodeNavigationService` (via container) | top-level unified `search` / `search-status`, MCP indexed-search tools (`search`, `search_status`, `code_files`, `code_grep`), and the `githits code` command group |
 | `ReadService` (via container) | compact top-level `read` and advertised MCP `read`, backed by one `Query.read` request |
-| `filterLanguages()` from `packages/mcp/src/shared/language-filter.ts` | `search_language` MCP tool + `languages` CLI command |
 | `requireAuth()` from `packages/mcp/src/shared/require-auth.ts` | all CLI commands and auth-required MCP tool handlers |
 
 ## Adding a New CLI Command
@@ -1017,7 +1005,7 @@ For complex commands with multiple submodules, a subdirectory (`src/commands/xxx
 
 All commands support two output modes:
 
-- **Default** — Human-readable terminal output (markdown for `example`, formatted result blocks for unified `search`, colored list for `languages`)
+- **Default** — Human-readable terminal output (markdown for `example`, formatted result blocks for unified `search`)
 - **`--json`** — Machine-readable JSON for piping to `jq`, other tools, or agent consumption
 
 ## Global Flags
@@ -1057,8 +1045,6 @@ commands in one step with a two-minute combined timeout.
 |---|---|
 | `src/commands/example.ts` | Example-search command implementation |
 | `src/commands/search.ts` | Unified search and search-status command implementation |
-| `src/commands/languages.ts` | Languages command with colored output |
-| `packages/mcp/src/shared/language-filter.ts` | Pure `filterLanguages()` shared with MCP tool |
 | `packages/mcp/src/shared/require-auth.ts` | Auth guard shared with MCP server |
 | `packages/mcp/src/shared/colors.ts` | ANSI color utilities and `shouldUseColors()` |
 | `src/container.ts` | Dependency container with `githitsService`, source services, and `readService` |

@@ -19,12 +19,6 @@ export const AUTHENTICATED_COMMANDS = [
     jsonCapable: true,
   },
   {
-    path: "languages",
-    autoLoginEligible: true,
-    postLoginMessage: "Authentication complete. Loading supported languages...",
-    jsonCapable: true,
-  },
-  {
     path: "resolve",
     autoLoginEligible: true,
     postLoginMessage: "Authentication complete. Resolving target...",

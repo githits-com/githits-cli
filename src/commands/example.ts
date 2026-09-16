@@ -91,7 +91,7 @@ export function registerExampleCommand(program: Command) {
     .argument("<query>", "Natural language example-search query")
     .option(
       "-l, --lang <language>",
-      "Optional programming language; omitted values are inferred by GitHits",
+      "Optional programming language. Omit to infer it. If GitHits cannot match it, the error lists languages to retry with.",
     )
     .addOption(
       new Option(

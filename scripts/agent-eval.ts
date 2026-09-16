@@ -1709,7 +1709,6 @@ function cliToolNameFromCommand(command: string): string | undefined {
   const [first, second] = positional;
   if (!first) return undefined;
   if (first === "example") return "get_example";
-  if (first === "languages") return "search_language";
   if (first === "feedback") return "feedback";
   if (first === "search") return "search";
   if (first === "search-status") return "search_status";

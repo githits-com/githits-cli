@@ -12,7 +12,6 @@ import {
   createPackageVulnerabilitiesTool,
   createQuickStartTool,
   createReadTool,
-  createSearchLanguageTool,
   createSearchStatusTool,
   createSearchTool,
   QUICK_START_PREREQUISITE,
@@ -87,7 +86,6 @@ export type McpToolFactory<
 
 const STABLE_MCP_OPERATION_FACTORIES: readonly McpToolFactory[] = [
   (services) => eraseMcpTool(createGetExampleTool(services.githitsService)),
-  (services) => eraseMcpTool(createSearchLanguageTool(services.githitsService)),
   (services) => eraseMcpTool(createSearchTool(services.codeNavigationService)),
   (services) =>
     eraseMcpTool(createSearchStatusTool(services.codeNavigationService)),
@@ -323,8 +321,6 @@ export function createDescriptorServices(): McpToolServices {
   return {
     githitsService: {
       search: fail,
-      getLanguages: fail,
-      searchLanguages: fail,
     },
     codeNavigationService: {
       search: fail,

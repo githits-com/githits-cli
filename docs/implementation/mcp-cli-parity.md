@@ -45,7 +45,6 @@ shared MCP smoke runner and CLI smoke script if the covered UX contract changes.
 The dual-surface tools today are:
 
 - `get_example` ↔ `githits example`
-- `search_language` ↔ `githits languages`
 - `search` ↔ `githits search`
 - `search_status` ↔ `githits search-status`
 - `code_files` ↔ `githits code files`
@@ -435,7 +434,7 @@ surface-native follow-up and pagination syntax plus ANSI differ.
 - Backend error messages, hints, indexing estimates, available versions/refs,
   and suggested refs are preserved when supplied. Clients do not replace
   specific backend guidance or synthesize target candidates.
-- The REST-backed `example` and `languages` CLI commands preserve
+- The REST-backed `example` CLI command preserves
   this envelope for generic transport/backend failures as well as typed auth
   failures. Human mode renders the same message as terminal text.
 

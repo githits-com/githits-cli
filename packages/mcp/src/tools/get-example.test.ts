@@ -21,6 +21,15 @@ describe("getExampleTool", () => {
     expect(tool.schema.license_mode?.description).toContain(
       "`yolo` disables filtering",
     );
+    expect(tool.schema.language?.description).toContain("Omit to infer it");
+    expect(tool.schema.language?.description).toContain(
+      "suggested language from the error",
+    );
+    expect(tool.description).toContain(
+      "markdown with source repository provenance",
+    );
+    expect(tool.description).toContain("suggested language from the error");
+    expect(tool.description).not.toContain("search_language");
   });
 
   it("returns markdown result from service", async () => {
