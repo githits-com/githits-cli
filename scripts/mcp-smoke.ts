@@ -212,11 +212,11 @@ async function assertStableAuthProbe(
   context: string,
 ): Promise<void> {
   const result = (await trackSmokeStep(
-    `mcp pkg_info {"registry":"npm","package_name":"express"} ${context}`,
+    `mcp pkg_info {"target":"npm:express"} ${context}`,
     () =>
       client.callTool({
         name: "pkg_info",
-        arguments: { registry: "npm", package_name: "express" },
+        arguments: { target: "npm:express" },
       }),
   )) as McpSmokeToolResult;
   const envelope = assertCleanErrorEnvelope(result, `pkg_info ${context}`);
@@ -387,11 +387,11 @@ async function runExperimentalLiveSmoke(
       async (client) => {
         await assertExperimentalMcpSession(client, "experimental live");
         const authProbe = (await trackSmokeStep(
-          'mcp pkg_info {"registry":"npm","package_name":"express"} experimental live auth probe',
+          'mcp pkg_info {"target":"npm:express"} experimental live auth probe',
           () =>
             client.callTool({
               name: "pkg_info",
-              arguments: { registry: "npm", package_name: "express" },
+              arguments: { target: "npm:express" },
             }),
         )) as McpSmokeToolResult;
         if (authProbe.isError === true) {

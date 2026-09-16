@@ -64,19 +64,10 @@ const DEFAULT_TEXT_LIMIT = 12_000;
 const TARGET_DETAIL_STATE_PATTERN =
   /^ {2}(?:(?:indexing|searched|available|unavailable|using):|(?:ready|pending|provisional|older snapshot)$|(?:not found|unresolved|version unavailable|repository ref unresolved|(?:package|repository|site|target) (?:not found|unresolved)):)/;
 const SMOKE_PACKAGE_VERSION = "5.2.1";
-const SMOKE_PACKAGE_TARGET = {
-  registry: "npm",
-  package_name: "express",
-  version: SMOKE_PACKAGE_VERSION,
-} as const;
-const SMOKE_CODE_TARGET = `npm:express@${SMOKE_PACKAGE_VERSION}`;
+const SMOKE_PACKAGE_TARGET = `npm:express@${SMOKE_PACKAGE_VERSION}`;
 const INLINE_SEARCH_QUERY =
   "application path:lib/ intent:production lang:javascript";
-const SMOKE_TRANSITIVE_VULNERABILITY_TARGET = {
-  registry: "npm",
-  package_name: "express",
-  version: "4.17.1",
-} as const;
+const SMOKE_TRANSITIVE_VULNERABILITY_TARGET = "npm:express@4.17.1";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -602,8 +593,7 @@ async function assertLiveOrAuthRequired(
   logger: Pick<Console, "log" | "error">,
 ): Promise<boolean> {
   const result = await callTool(caller, "pkg_info", {
-    registry: "npm",
-    package_name: "express",
+    target: "npm:express",
   });
   if (result.isError === true) {
     const envelope = assertCleanErrorEnvelope(result, "pkg_info auth probe");
@@ -646,8 +636,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const pkgInfoText = assertDefaultText(
     await callTool(caller, "pkg_info", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
     }),
     "pkg_info default",
   );
@@ -678,8 +667,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const pkgInfoJson = assertJsonResult(
     await callTool(caller, "pkg_info", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       format: "json",
     }),
     "pkg_info json",
@@ -712,8 +700,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const depsText = assertDefaultText(
     await callTool(caller, "pkg_deps", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
     }),
     "pkg_deps default",
   );
@@ -728,8 +715,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const depsAllText = assertDefaultText(
     await callTool(caller, "pkg_deps", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       lifecycle: "all",
     }),
     "pkg_deps lifecycle all",
@@ -745,8 +731,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const depsJson = assertJsonResult(
     await callTool(caller, "pkg_deps", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       format: "json",
     }),
     "pkg_deps json",
@@ -756,8 +741,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const depsIssuesText = assertDefaultText(
     await callTool(caller, "pkg_deps", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       include_issues: true,
     }),
     "pkg_deps issues default",
@@ -769,8 +753,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const depsIssuesJson = assertJsonResult(
     await callTool(caller, "pkg_deps", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       include_issues: true,
       format: "json",
     }),
@@ -809,8 +792,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const vulnsText = assertDefaultText(
     await callTool(caller, "pkg_vulns", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
     }),
     "pkg_vulns default",
   );
@@ -822,7 +804,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const transitiveVulnsText = assertDefaultText(
     await callTool(caller, "pkg_vulns", {
-      ...SMOKE_TRANSITIVE_VULNERABILITY_TARGET,
+      target: SMOKE_TRANSITIVE_VULNERABILITY_TARGET,
       include_transitive: true,
     }),
     "pkg_vulns transitive default",
@@ -834,7 +816,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const transitiveVulnsJson = assertJsonResult(
     await callTool(caller, "pkg_vulns", {
-      ...SMOKE_TRANSITIVE_VULNERABILITY_TARGET,
+      target: SMOKE_TRANSITIVE_VULNERABILITY_TARGET,
       include_transitive: true,
       advisory_scope: "all",
       format: "json",
@@ -854,9 +836,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const filteredVulnsText = assertDefaultText(
     await callTool(caller, "pkg_vulns", {
-      registry: "npm",
-      package_name: "lodash",
-      version: "4.17.20",
+      target: "npm:lodash@4.17.20",
       min_severity: "high",
     }),
     "pkg_vulns filtered default",
@@ -872,8 +852,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const vulnsJson = assertJsonResult(
     await callTool(caller, "pkg_vulns", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       format: "json",
     }),
     "pkg_vulns json",
@@ -886,9 +865,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const filteredVulnsJson = assertJsonResult(
     await callTool(caller, "pkg_vulns", {
-      registry: "npm",
-      package_name: "lodash",
-      version: "4.17.20",
+      target: "npm:lodash@4.17.20",
       min_severity: "high",
       format: "json",
     }),
@@ -903,8 +880,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const scopedVulnsText = assertDefaultText(
     await callTool(caller, "pkg_vulns", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       advisory_scope: "non_affecting",
     }),
     "pkg_vulns scoped default",
@@ -924,8 +900,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const scopedVulnsJson = assertJsonResult(
     await callTool(caller, "pkg_vulns", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       advisory_scope: "non_affecting",
       format: "json",
     }),
@@ -1071,7 +1046,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const docsJson = assertJsonResult(
     await callTool(caller, "docs_list", {
-      ...SMOKE_PACKAGE_TARGET,
+      target: SMOKE_PACKAGE_TARGET,
       limit: 500,
       format: "json",
     }),
@@ -1120,7 +1095,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   if (crawledPageIndex > 0) {
     const precedingDocs = assertJsonResult(
       await callTool(caller, "docs_list", {
-        ...SMOKE_PACKAGE_TARGET,
+        target: SMOKE_PACKAGE_TARGET,
         limit: crawledPageIndex,
         format: "json",
       }),
@@ -1135,7 +1110,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   }
   const docsText = assertDefaultText(
     await callTool(caller, "docs_list", {
-      ...SMOKE_PACKAGE_TARGET,
+      target: SMOKE_PACKAGE_TARGET,
       limit: 1,
       ...(crawledPageAfter ? { after: crawledPageAfter } : {}),
     }),
@@ -1228,7 +1203,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const codeFilesText = assertDefaultText(
     await callTool(caller, "code_files", {
-      target: SMOKE_CODE_TARGET,
+      target: SMOKE_PACKAGE_TARGET,
       path_prefix: "package.json",
       limit: 1,
     }),
@@ -1241,7 +1216,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const codeFilesJson = assertJsonResult(
     await callTool(caller, "code_files", {
-      target: SMOKE_CODE_TARGET,
+      target: SMOKE_PACKAGE_TARGET,
       path_prefix: "package.json",
       limit: 1,
       format: "json",
@@ -1280,7 +1255,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const codeGrepText = assertDefaultText(
     await callTool(caller, "code_grep", {
-      target: SMOKE_CODE_TARGET,
+      target: SMOKE_PACKAGE_TARGET,
       pattern: "express",
       path: "package.json",
       max_matches: 1,
@@ -1300,7 +1275,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const codeGrepJson = assertJsonResult(
     await callTool(caller, "code_grep", {
-      target: SMOKE_CODE_TARGET,
+      target: SMOKE_PACKAGE_TARGET,
       pattern: "express",
       path: "package.json",
       max_matches: 1,
@@ -1324,7 +1299,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const inlineSearchJson = assertJsonResult(
     await callTool(caller, "search", {
-      target: SMOKE_CODE_TARGET,
+      target: SMOKE_PACKAGE_TARGET,
       query: INLINE_SEARCH_QUERY,
       source: "code",
       limit: 1,
@@ -1345,7 +1320,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   ] as const) {
     assertInlineSearchError(
       await callTool(caller, "search", {
-        target: SMOKE_CODE_TARGET,
+        target: SMOKE_PACKAGE_TARGET,
         query: `router ${qualifier}`,
         source,
         format: "json",
@@ -1356,7 +1331,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const searchText = assertDefaultText(
     await callTool(caller, "search", {
-      target: SMOKE_CODE_TARGET,
+      target: SMOKE_PACKAGE_TARGET,
       query: "router",
       limit: 1,
     }),
@@ -1366,7 +1341,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const searchJson = assertJsonResult(
     await callTool(caller, "search", {
-      target: SMOKE_CODE_TARGET,
+      target: SMOKE_PACKAGE_TARGET,
       query: "router",
       limit: 1,
       format: "json",

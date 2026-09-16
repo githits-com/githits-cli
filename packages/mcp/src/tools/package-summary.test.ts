@@ -22,7 +22,6 @@ describe("createPackageSummaryTool — metadata", () => {
     expect(tool.description).toContain(
       "Assess latest package health and adoption",
     );
-    expect(tool.description).toContain("for example `npm` + `express`");
     expect(tool.description).toContain("[ARCHIVED]");
     expect(tool.description).toContain("verbose: true");
     expect(tool.description).toContain("latest affected count");
@@ -39,12 +38,10 @@ describe("createPackageSummaryTool — metadata", () => {
       "advisory history (all versions)",
     );
     expect(tool.description).toContain("pkg_vulns");
-    expect(Object.keys(tool.schema)).toEqual([
-      "registry",
-      "package_name",
-      "verbose",
-      "format",
-    ]);
+    expect(Object.keys(tool.schema)).toEqual(["target", "verbose", "format"]);
+    expect(tool.schema.target?.description).toContain(
+      "for example npm:express or npm:@types/node",
+    );
     expect(tool.annotations?.readOnlyHint).toBe(true);
   });
 });
@@ -55,7 +52,7 @@ describe("createPackageSummaryTool — happy path", () => {
     const service = createMockPackageIntelligenceService({ packageSummary });
     const tool = createPackageSummaryTool(service);
 
-    await tool.handler({ registry: "npm", package_name: "express" }, {});
+    await tool.handler({ target: "npm:express" }, {});
 
     expect(packageSummary).toHaveBeenCalledTimes(1);
     const calls = packageSummary.mock.calls as unknown as Array<
@@ -66,19 +63,46 @@ describe("createPackageSummaryTool — happy path", () => {
     expect(calls[0]?.[0]?.includeVerboseFields).toBe(false);
   });
 
+  it("normalizes a trimmed uppercase scoped npm target exactly", async () => {
+    const packageSummary = mock(() => Promise.resolve(defaultPackageSummary));
+    const tool = createPackageSummaryTool(
+      createMockPackageIntelligenceService({ packageSummary }),
+    );
+
+    await tool.handler({ target: " NPM:@types/node " }, {});
+
+    expect(packageSummary).toHaveBeenCalledWith({
+      registry: "NPM",
+      packageName: "@types/node",
+      includeVerboseFields: false,
+    });
+  });
+
+  it("normalizes a Maven target exactly", async () => {
+    const packageSummary = mock(() => Promise.resolve(defaultPackageSummary));
+    const tool = createPackageSummaryTool(
+      createMockPackageIntelligenceService({ packageSummary }),
+    );
+
+    await tool.handler(
+      { target: "maven:org.apache.commons:commons-lang3" },
+      {},
+    );
+
+    expect(packageSummary).toHaveBeenCalledWith({
+      registry: "MAVEN",
+      packageName: "org.apache.commons:commons-lang3",
+      includeVerboseFields: false,
+    });
+  });
+
   it("requests verbose fields for verbose text and JSON", async () => {
     const packageSummary = mock(() => Promise.resolve(defaultPackageSummary));
     const service = createMockPackageIntelligenceService({ packageSummary });
     const tool = createPackageSummaryTool(service);
 
-    await tool.handler(
-      { registry: "npm", package_name: "express", verbose: true },
-      {},
-    );
-    await tool.handler(
-      { registry: "npm", package_name: "express", format: "json" },
-      {},
-    );
+    await tool.handler({ target: "npm:express", verbose: true }, {});
+    await tool.handler({ target: "npm:express", format: "json" }, {});
 
     const calls = packageSummary.mock.calls as unknown as Array<
       [{ includeVerboseFields: boolean }]
@@ -93,10 +117,7 @@ describe("createPackageSummaryTool — happy path", () => {
     const tool = createPackageSummaryTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler(
-      { registry: "npm", package_name: "express" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:express" }, {});
     expect(result.isError).toBeUndefined();
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("express @ 4.18.2");
@@ -116,7 +137,7 @@ describe("createPackageSummaryTool — happy path", () => {
       createMockPackageIntelligenceService(),
     );
     const result = await tool.handler(
-      { registry: "npm", package_name: "express", verbose: true },
+      { target: "npm:express", verbose: true },
       {},
     );
     const text = result.content[0]?.text ?? "";
@@ -134,7 +155,7 @@ describe("createPackageSummaryTool — happy path", () => {
       createMockPackageIntelligenceService(),
     );
     const result = await tool.handler(
-      { registry: "npm", package_name: "express", format: "json" },
+      { target: "npm:express", format: "json" },
       {},
     );
     const payload = parseText(result) as Record<string, unknown>;
@@ -164,10 +185,7 @@ describe("createPackageSummaryTool — happy path", () => {
       }),
     );
 
-    const result = await tool.handler(
-      { registry: "npm", package_name: "express" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:express" }, {});
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("Latest: none affected");
     expect(text).toContain("History: 5 known advisories across all versions");
@@ -176,15 +194,71 @@ describe("createPackageSummaryTool — happy path", () => {
   });
 });
 
-describe("createPackageSummaryTool — validation errors via in-handler builder", () => {
+describe("createPackageSummaryTool — compact target validation", () => {
+  it.each([
+    [
+      "npm:express@5.2.1",
+      "pkg_info always returns the latest version; omit @5.2.1.",
+    ],
+    [
+      "npm:@types/node@22.0.0",
+      "pkg_info always returns the latest version; omit @22.0.0.",
+    ],
+  ])(
+    "rejects latest-only pinned target %s without calling service",
+    async (target, error) => {
+      const packageSummary = mock(() => Promise.resolve(defaultPackageSummary));
+      const tool = createPackageSummaryTool(
+        createMockPackageIntelligenceService({ packageSummary }),
+      );
+
+      const result = await tool.handler({ target }, {});
+
+      expect(result.isError).toBe(true);
+      expect(parseText(result)).toEqual({
+        error,
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      });
+      expect(packageSummary).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    "",
+    "   ",
+    "express",
+    "npm:",
+    "npm:express@",
+    "madeup:express",
+    "github:expressjs/express",
+    "site:expressjs.com",
+  ])(
+    "rejects invalid compact target %j without calling service",
+    async (target) => {
+      const packageSummary = mock(() => Promise.resolve(defaultPackageSummary));
+      const tool = createPackageSummaryTool(
+        createMockPackageIntelligenceService({ packageSummary }),
+      );
+
+      const result = await tool.handler({ target }, {});
+
+      expect(result.isError).toBe(true);
+      expect(parseText(result)).toMatchObject({
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      });
+      expect(packageSummary).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe("createPackageSummaryTool — validation errors via shared parsing", () => {
   it("returns INVALID_ARGUMENT envelope for unknown registry", async () => {
     const tool = createPackageSummaryTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler(
-      { registry: "cargo", package_name: "serde" },
-      {},
-    );
+    const result = await tool.handler({ target: "cargo:serde" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as {
       code: string;
@@ -196,27 +270,21 @@ describe("createPackageSummaryTool — validation errors via in-handler builder"
     expect(payload.error.toLowerCase()).toContain("registry");
   });
 
-  it("returns INVALID_ARGUMENT envelope for empty package_name", async () => {
+  it("returns INVALID_ARGUMENT envelope for a missing package name", async () => {
     const tool = createPackageSummaryTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler(
-      { registry: "npm", package_name: "" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
   });
 
-  it("returns INVALID_ARGUMENT envelope for whitespace-only package_name", async () => {
+  it("returns INVALID_ARGUMENT envelope for whitespace-only target", async () => {
     const tool = createPackageSummaryTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler(
-      { registry: "npm", package_name: "   " },
-      {},
-    );
+    const result = await tool.handler({ target: "   " }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
@@ -233,10 +301,7 @@ describe("createPackageSummaryTool — service errors", () => {
       ),
     });
     const tool = createPackageSummaryTool(service);
-    const result = await tool.handler(
-      { registry: "npm", package_name: "ghost" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:ghost" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as {
       code: string;
@@ -253,10 +318,7 @@ describe("createPackageSummaryTool — service errors", () => {
       packageSummary: mock(() => Promise.reject(new Error("boom"))),
     });
     const tool = createPackageSummaryTool(service);
-    const result = await tool.handler(
-      { registry: "npm", package_name: "express" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:express" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("UNKNOWN");
@@ -275,7 +337,7 @@ describe("createPackageSummaryTool — service errors", () => {
     });
     const tool = createPackageSummaryTool(service);
     const result = await tool.handler(
-      { registry: "npm", package_name: "express", format: "json" },
+      { target: "npm:express", format: "json" },
       {},
     );
 

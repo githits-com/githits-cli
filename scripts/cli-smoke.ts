@@ -96,26 +96,25 @@ export const EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS = [
 /** Backwards-compatible name for the exact stable baseline command set. */
 export const EXPECTED_TOP_LEVEL_COMMANDS = EXPECTED_STABLE_TOP_LEVEL_COMMANDS;
 
-const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
+export const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
   {
     name: "pkg_info",
     cliArgs: ["pkg", "info", "npm:express", "--json"],
     mcpTool: "pkg_info",
-    mcpArgs: { registry: "npm", package_name: "express", format: "json" },
+    mcpArgs: { target: "npm:express", format: "json" },
   },
   {
     name: "pkg_deps",
     cliArgs: ["pkg", "deps", "npm:express", "--json"],
     mcpTool: "pkg_deps",
-    mcpArgs: { registry: "npm", package_name: "express", format: "json" },
+    mcpArgs: { target: "npm:express", format: "json" },
   },
   {
     name: "pkg_deps_issues",
     cliArgs: ["pkg", "deps", "npm:express", "--issues", "--json"],
     mcpTool: "pkg_deps",
     mcpArgs: {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       include_issues: true,
       format: "json",
     },
@@ -124,7 +123,7 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     name: "pkg_vulns",
     cliArgs: ["pkg", "vulns", "npm:express", "--json"],
     mcpTool: "pkg_vulns",
-    mcpArgs: { registry: "npm", package_name: "express", format: "json" },
+    mcpArgs: { target: "npm:express", format: "json" },
   },
   {
     name: "pkg_changelog",
@@ -163,9 +162,7 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     cliArgs: ["docs", "list", SMOKE_PACKAGE_SPEC, "--limit", "2", "--json"],
     mcpTool: "docs_list",
     mcpArgs: {
-      registry: "npm",
-      package_name: "express",
-      version: "5.2.1",
+      target: SMOKE_PACKAGE_SPEC,
       limit: 2,
       format: "json",
     },

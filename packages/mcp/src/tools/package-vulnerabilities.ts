@@ -1,6 +1,7 @@
 import type { PackageIntelligenceService } from "@githits/core-internal";
 import { z } from "zod";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
+import { parsePackageSpec } from "../shared/package-spec.js";
 import { buildPackageVulnerabilitiesParams } from "../shared/package-vulnerabilities-request.js";
 import {
   buildPackageVulnerabilitiesSuccessPayload,
@@ -16,9 +17,7 @@ import {
 } from "./types.js";
 
 export interface PackageVulnerabilitiesArgs {
-  registry: string;
-  package_name: string;
-  version?: string;
+  target: string;
   min_severity?: string;
   advisory_scope?: string;
   include_withdrawn?: boolean;
@@ -28,25 +27,14 @@ export interface PackageVulnerabilitiesArgs {
 }
 
 /**
- * Permissive schema by design — in-handler validation via
- * `buildPackageVulnerabilitiesParams` is the single validation path
- * for both CLI and MCP. Raw Zod errors never surface to agents; the
- * structured `{error, code, retryable}` envelope is returned instead.
+ * Strings remain permissive so package parsing and request validation
+ * return mapped domain errors. Missing or non-string targets fail SDK validation.
  */
 const schema: ZodRawShape = {
-  registry: z
+  target: z
     .string()
     .describe(
-      "Package registry. Vulnerability data is available for npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift; unavailable for vcpkg and zig.",
-    ),
-  package_name: z
-    .string()
-    .describe("Package name (scoped names ok: @types/node)."),
-  version: z
-    .string()
-    .optional()
-    .describe(
-      "Specific version to check. Defaults to latest when omitted. Go accepts versions with or without its canonical `v` prefix; tag-style `v` prefixes are rejected for other registries except Swift.",
+      "Package registry:name[@version], for example npm:lodash@4.17.20; omit the version for latest. Go accepts versions with or without v; other registries reject v-prefixed git tags except Swift.",
     ),
   min_severity: z
     .string()
@@ -88,10 +76,9 @@ export const DESCRIPTION_BASE: string =
   "Check current package advisories. Do not trust your memory for vulnerabilities. " +
   "Advisories can be published or revised after training; a cutoff disclaimer is not current evidence. " +
   "Covers pinned releases, latest-version risk, and package security history. " +
-  'For package-wide history, omit `version` and pass `advisory_scope:"all"`: `{"registry":"npm","package_name":"next","advisory_scope":"all"}`. ' +
+  'For package-wide history, use an unpinned target and `advisory_scope:"all"`: `{"target":"npm:next","advisory_scope":"all"}`. ' +
   "Supports npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift; vcpkg and Zig unsupported. " +
   "Returns counts/details: identifiers and aliases, including CVEs when available, severity, affected ranges, and fixes; malicious advisories are separate. " +
-  "Pinned lookup: pass `version`; omit it for latest. " +
   "Default text is capped; `verbose:true` shows all selected rows and identifier aliases (including CVEs). " +
   'For code consuming raw output, `format:"json"` returns the complete envelope. `min_severity` filters thresholds (`low`, `medium`, `high`, `critical`); `include_withdrawn` includes retracted advisories. ' +
   "Use `include_transitive:true` for dependency vulnerability evidence covering the resolved graph; this is opt-in because it adds graph-analysis cost. `min_severity` and `advisory_scope` apply to direct and transitive rows, while `include_withdrawn` affects direct rows only and transitive withdrawn advisories remain excluded. " +
@@ -109,11 +96,12 @@ export function createPackageVulnerabilitiesTool(
     annotations: OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       try {
+        const target = parsePackageSpec(args.target.trim());
         const { params: builtParams, filter } =
           buildPackageVulnerabilitiesParams({
-            registry: args.registry,
-            packageName: args.package_name,
-            version: args.version,
+            registry: target.registry,
+            packageName: target.name,
+            version: target.version,
             minSeverity: args.min_severity,
             includeWithdrawn: args.include_withdrawn,
             includeTransitive: args.include_transitive,

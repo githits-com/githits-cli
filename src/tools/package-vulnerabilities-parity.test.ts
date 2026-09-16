@@ -9,18 +9,19 @@
 //   - Service-sourced success and error fixtures use `toEqual`: both
 //     surfaces route through the same classifier / envelope builder,
 //     so envelopes are byte-identical.
-//   - `INVALID_ARGUMENT` fixture uses `toMatchObject`: CLI rejects
-//     unsupported registries in `buildPackageVulnerabilitiesParams`
-//     (via `parsePackageSpec` for the first leg, then
-//     `supportsVulnerabilitiesRegistry`); MCP rejects in the same
-//     builder via the in-handler pattern. Same envelope shape,
-//     potentially surface-specific error text.
+//   - `INVALID_ARGUMENT` fixture uses `toMatchObject`: both surfaces
+//     parse the canonical compact target and run the shared builder,
+//     including the tool-local availability predicate. Same envelope
+//     shape, potentially surface-specific error text.
 //
 // Coverage includes direct-only defaults, transitive parity, filter/error
 // envelopes, and permissive validation cases.
 
 import { describe, expect, it, mock, spyOn } from "bun:test";
-import type { VulnerabilityReport } from "@githits/core-internal";
+import type {
+  PackageIntelligenceService,
+  VulnerabilityReport,
+} from "@githits/core-internal";
 import {
   PackageIntelligenceBackendError,
   PackageIntelligenceTargetNotFoundError,
@@ -80,9 +81,7 @@ async function cliJson(
 
 async function mcpJson(
   args: {
-    registry: string;
-    package_name: string;
-    version?: string;
+    target: string;
     min_severity?: string;
     advisory_scope?: string;
     include_withdrawn?: boolean;
@@ -151,12 +150,105 @@ function transitiveVulnerabilityReport(): VulnerabilityReport {
 
 describe("package_vulnerabilities parity", () => {
   it("PARITY-JSON-KEYS: happy path CLI === MCP", async () => {
-    const cli = await cliJson("npm:express");
-    const { json, isError } = await mcpJson({
-      registry: "npm",
-      package_name: "express",
+    const packageVulnerabilities = mock(
+      (
+        _params?: Parameters<
+          PackageIntelligenceService["packageVulnerabilities"]
+        >[0],
+      ) => Promise.resolve(defaultVulnerabilityReport),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageVulnerabilities: packageVulnerabilities as never,
     });
+    const cli = await cliJson(
+      "npm:express",
+      {},
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const { json, isError } = await mcpJson(
+      { target: "npm:express" },
+      packageVulnerabilities,
+    );
     expect(isError).toBeUndefined();
+    expect(packageVulnerabilities).toHaveBeenCalledTimes(2);
+    expect(packageVulnerabilities.mock.calls).toEqual([
+      [
+        {
+          registry: "NPM",
+          packageName: "express",
+          version: undefined,
+          minSeverity: undefined,
+          includeWithdrawn: undefined,
+          includeTransitive: undefined,
+          advisoryScope: undefined,
+          includeTransitiveAdvisoryDetails: true,
+        },
+      ],
+      [
+        {
+          registry: "NPM",
+          packageName: "express",
+          version: undefined,
+          minSeverity: undefined,
+          includeWithdrawn: undefined,
+          includeTransitive: undefined,
+          advisoryScope: undefined,
+          includeTransitiveAdvisoryDetails: true,
+        },
+      ],
+    ]);
+    expect(cli).toEqual(json);
+  });
+
+  it("PARITY-JSON-KEYS: scoped pinned target CLI === MCP", async () => {
+    const packageVulnerabilities = mock(
+      (
+        _params?: Parameters<
+          PackageIntelligenceService["packageVulnerabilities"]
+        >[0],
+      ) => Promise.resolve(defaultVulnerabilityReport),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageVulnerabilities: packageVulnerabilities as never,
+    });
+    const cli = await cliJson(
+      "NPM:@types/node@22.0.0",
+      {},
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const { json, isError } = await mcpJson(
+      { target: "NPM:@types/node@22.0.0" },
+      packageVulnerabilities,
+    );
+
+    expect(isError).toBeUndefined();
+    expect(packageVulnerabilities).toHaveBeenCalledTimes(2);
+    expect(packageVulnerabilities.mock.calls).toEqual([
+      [
+        {
+          registry: "NPM",
+          packageName: "@types/node",
+          version: "22.0.0",
+          minSeverity: undefined,
+          includeWithdrawn: undefined,
+          includeTransitive: undefined,
+          advisoryScope: undefined,
+          includeTransitiveAdvisoryDetails: true,
+        },
+      ],
+      [
+        {
+          registry: "NPM",
+          packageName: "@types/node",
+          version: "22.0.0",
+          minSeverity: undefined,
+          includeWithdrawn: undefined,
+          includeTransitive: undefined,
+          advisoryScope: undefined,
+          includeTransitiveAdvisoryDetails: true,
+        },
+      ],
+    ]);
     expect(cli).toEqual(json);
   });
 
@@ -176,8 +268,7 @@ describe("package_vulnerabilities parity", () => {
       const mcpFn = mock(() => Promise.resolve(defaultVulnerabilityReport));
       const { json, isError } = await mcpJson(
         {
-          registry: "npm",
-          package_name: "express",
+          target: "npm:express",
           ...(transitive === undefined
             ? {}
             : { include_transitive: transitive }),
@@ -221,8 +312,7 @@ describe("package_vulnerabilities parity", () => {
     const mcpFn = mock(() => Promise.resolve(report));
     const { json, isError } = await mcpJson(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         min_severity: "HIGH",
         advisory_scope: "all",
         include_withdrawn: true,
@@ -260,7 +350,7 @@ describe("package_vulnerabilities parity", () => {
       }),
     );
     const { json } = await mcpJson(
-      { registry: "npm", package_name: "express", include_withdrawn: true },
+      { target: "npm:express", include_withdrawn: true },
       fn as never,
     );
     expect(cli).toEqual(json);
@@ -282,8 +372,7 @@ describe("package_vulnerabilities parity", () => {
     );
     const { json } = await mcpJson(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         min_severity: "HIGH",
         include_withdrawn: true,
       },
@@ -333,8 +422,7 @@ describe("package_vulnerabilities parity", () => {
     );
     const { json } = await mcpJson(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         advisory_scope: "non_affecting",
       },
       fn as never,
@@ -357,7 +445,7 @@ describe("package_vulnerabilities parity", () => {
       }),
     );
     const { json } = await mcpJson(
-      { registry: "npm", package_name: "clean", min_severity: "high" },
+      { target: "npm:clean", min_severity: "high" },
       fn as never,
     );
     expect(cli).toEqual(json);
@@ -377,10 +465,7 @@ describe("package_vulnerabilities parity", () => {
         }),
       }),
     );
-    const { json } = await mcpJson(
-      { registry: "npm", package_name: "clean" },
-      zeroFn as never,
-    );
+    const { json } = await mcpJson({ target: "npm:clean" }, zeroFn as never);
     expect(cli).toEqual(json);
   });
 
@@ -421,7 +506,7 @@ describe("package_vulnerabilities parity", () => {
       }),
     );
     const { json } = await mcpJson(
-      { registry: "npm", package_name: "express", min_severity: "high" },
+      { target: "npm:express", min_severity: "high" },
       fn as never,
     );
     expect(cli).toEqual(json);
@@ -439,7 +524,7 @@ describe("package_vulnerabilities parity", () => {
       }),
     );
     const { json } = await mcpJson(
-      { registry: "npm", package_name: "express", version: "4.18.0" },
+      { target: "npm:express@4.18.0" },
       fn as never,
     );
     expect(cli).toEqual(json);
@@ -473,10 +558,7 @@ describe("package_vulnerabilities parity", () => {
         }),
       }),
     );
-    const { json } = await mcpJson(
-      { registry: "npm", package_name: "express", version: "4.17" },
-      fn as never,
-    );
+    const { json } = await mcpJson({ target: "npm:express@4.17" }, fn as never);
     expect(cli).toEqual(json);
     expect((cli as { requestedVersion?: string }).requestedVersion).toBe(
       "4.17",
@@ -498,7 +580,7 @@ describe("package_vulnerabilities parity", () => {
       }),
     );
     const { json, isError } = await mcpJson(
-      { registry: "npm", package_name: "ghost" },
+      { target: "npm:ghost" },
       fn as never,
     );
     expect(isError).toBe(true);
@@ -528,7 +610,7 @@ describe("package_vulnerabilities parity", () => {
       }),
     );
     const { json } = await mcpJson(
-      { registry: "npm", package_name: "express", version: "99.0.0" },
+      { target: "npm:express@99.0.0" },
       fn as never,
     );
     expect(cli).toEqual(json);
@@ -563,7 +645,7 @@ describe("package_vulnerabilities parity", () => {
       }),
     );
     const { json, isError } = await mcpJson(
-      { registry: "npm", package_name: "express" },
+      { target: "npm:express" },
       fn as never,
     );
     expect(isError).toBe(true);
@@ -583,10 +665,7 @@ describe("package_vulnerabilities parity", () => {
     // error text because the message is a literal string in the
     // builder.
     const cli = await cliJson("vcpkg:foo");
-    const { json, isError } = await mcpJson({
-      registry: "vcpkg",
-      package_name: "foo",
-    });
+    const { json, isError } = await mcpJson({ target: "vcpkg:foo" });
 
     expect(isError).toBe(true);
     expect(cli).toMatchObject({
@@ -607,9 +686,7 @@ describe("package_vulnerabilities parity", () => {
   it("PARITY-ERROR-ENVELOPE: INVALID_ARGUMENT (tag-style version) — shape match via toMatchObject", async () => {
     const cli = await cliJson("npm:express@v4.18.0");
     const { json, isError } = await mcpJson({
-      registry: "npm",
-      package_name: "express",
-      version: "v4.18.0",
+      target: "npm:express@v4.18.0",
     });
 
     expect(isError).toBe(true);
@@ -646,7 +723,7 @@ describe("package_vulnerabilities parity", () => {
       }),
     );
     const { json, isError } = await mcpJson(
-      { registry: "npm", package_name: "express", min_severity: "CRITICAL" },
+      { target: "npm:express", min_severity: "CRITICAL" },
       fn as never,
     );
     expect(isError).toBeUndefined();
@@ -659,8 +736,7 @@ describe("package_vulnerabilities parity", () => {
     // should surface a raw Zod error.
     const cli = await cliJson("npm:express", { severity: "severe" });
     const { json, isError } = await mcpJson({
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       min_severity: "severe",
     });
     expect(isError).toBe(true);

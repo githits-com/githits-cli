@@ -1,4 +1,5 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
+import type { PackageIntelligenceService } from "@githits/core-internal";
 import { PackageIntelligenceTargetNotFoundError } from "@githits/core-internal";
 import {
   type DocsListCommandDependencies,
@@ -52,7 +53,7 @@ async function cliJson(
 }
 
 async function mcpJson(
-  args: { registry: string; package_name: string },
+  args: { target: string },
   listPackageDocsMock?: () => Promise<unknown>,
 ): Promise<unknown> {
   const service = createMockPackageIntelligenceService(
@@ -69,8 +70,28 @@ async function mcpJson(
 
 describe("list_package_docs parity", () => {
   it("PARITY-JSON-KEYS: happy path CLI === MCP", async () => {
-    const cli = await cliJson("npm:express@5.2.1");
-    const mcp = await mcpJson({ registry: "npm", package_name: "express" });
+    const listPackageDocs = mock(
+      (
+        _params?: Parameters<PackageIntelligenceService["listPackageDocs"]>[0],
+      ) => Promise.resolve(defaultPackageDocsList),
+    );
+    const cli = await cliJson(
+      "npm:express@5.2.1",
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          listPackageDocs: listPackageDocs as never,
+        }),
+      }),
+    );
+    const mcp = await mcpJson(
+      { target: "npm:express@5.2.1" },
+      listPackageDocs as never,
+    );
+    expect(listPackageDocs).toHaveBeenCalledTimes(2);
+    expect(listPackageDocs.mock.calls).toEqual([
+      [{ registry: "NPM", packageName: "express", version: "5.2.1" }],
+      [{ registry: "NPM", packageName: "express", version: "5.2.1" }],
+    ]);
     expect(cli).toEqual(mcp);
   });
 
@@ -88,10 +109,7 @@ describe("list_package_docs parity", () => {
         }),
       }),
     );
-    const mcp = await mcpJson(
-      { registry: "npm", package_name: "ghost" },
-      fn as never,
-    );
+    const mcp = await mcpJson({ target: "npm:ghost" }, fn as never);
     expect(cli).toEqual(mcp);
     expect(cli).toEqual({
       error: "Package not found",
@@ -116,10 +134,7 @@ describe("list_package_docs parity", () => {
         }),
       }),
     );
-    const mcp = await mcpJson(
-      { registry: "npm", package_name: "express" },
-      fn as never,
-    );
+    const mcp = await mcpJson({ target: "npm:express" }, fn as never);
     expect(cli).toEqual(mcp);
   });
 
@@ -140,10 +155,7 @@ describe("list_package_docs parity", () => {
         }),
       }),
     );
-    const mcp = await mcpJson(
-      { registry: "npm", package_name: "express" },
-      fn as never,
-    );
+    const mcp = await mcpJson({ target: "npm:express" }, fn as never);
     expect(cli).toEqual(mcp);
     expect(cli).toMatchObject({ codeIndexState: "INDEXING", pages: [] });
   });

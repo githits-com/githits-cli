@@ -3,8 +3,8 @@
 ## Status
 
 - Overall: ACTIVE
-- Current boundary: Phase 3 merged; Phase 2 readiness awaits upgrade-range product input
-- Baseline: `ffc975d` (`origin/main`, 2026-09-16; PR #397 merge)
+- Current boundary: Phase 2a IN PROGRESS after internal and external plan review
+- Baseline: `b2d4513` (`origin/main`, 2026-09-16; release 0.19.0 and language-tool removal merged)
 - Last verified: 2026-09-16
 
 ## Problem and expected outcome
@@ -17,7 +17,7 @@ backend query language now expresses directly; the implementation has passed cod
 review, but subsequent production verification found a name-qualifier composition
 gap described in the Phase 3 verification addendum below.
 
-The Phase 3 baseline advertises both inline and structured qualifiers even though
+At the Phase 3 baseline, the catalog advertised both inline and structured qualifiers even though
 the production backend now validates and reports inline syntax robustly. Other large
 opportunities remain unsettled: code-navigation tools expose many overlapping
 controls, and repeated output-format copy must not be shortened until lower-cost-agent
@@ -160,7 +160,7 @@ Out of scope:
 - removing public TypeScript aliases solely for source cleanup when that does not
   reduce the agent-visible catalog;
 - changing backend GraphQL/REST selections, service URLs, transport, auth, result
-  formats, or text-output content;
+  formats, or text-output content beyond required callable-coordinate hint migrations;
 - adding aliases, hidden fallback schemas, feature flags, or rollout machinery;
 - changing hosted production, publishing packages, deploying `remote-mcp`, or
   merging a release without the separately required authorization; and
@@ -230,9 +230,8 @@ addressing shapes.
    source-cited answer; lower-level tools remain valid for follow-up evidence.
 3. `read` must keep an explicit `code_read` / `docs_read` migration signal because
    installed user skills can remain stale. Ask's pointer projection also remains.
-4. Language remains a supported `get_example` filter. A separate discovery tool is
-   probably unnecessary only after wrong-language results become actionable; that
-   behavior is awaiting discussion with OP.
+4. Language remains a supported `get_example` filter. Backend recovery is live;
+   the separate discovery tool was removed in merged Phase 5 (PR #399).
 5. Repeated `format` documentation is not shortened without matched eval evidence
    from lower-cost agents showing that the shorter surface does not increase
    unnecessary `format: "json"` calls.
@@ -255,9 +254,10 @@ addressing shapes.
 
 ### Later-phase unknowns
 
-- Package tools: the upgrade-review single/batch version-range representation.
-  Resolve before package-coordinate work is detailed. Changelog repository refs are
-  already settled as canonical `@ref` by PR #396.
+- Package tools: upgrade-review single/batch MCP representation remains later work;
+  its existing CLI `@current..target` spelling is verified. Changelog exact-release
+  selection and upper-tag snapshot behavior need backend support. Neither blocks
+  the four package-coordinate tools in Phase 2a.
 - Navigation: which path, intent, context, and result-limit controls real callers
   need, including whether singular/plural variants should collapse. Resolve through
   product discussion and observed call shapes before Phase 4.
@@ -268,7 +268,7 @@ addressing shapes.
 - `search_status`: its long-term continuation boundary is not settled by this plan.
   Do not remove or merge it without a separate product decision.
 
-None of these later unknowns blocks Phase 3.
+None of these later unknowns blocks Phase 2a.
 
 ## Cross-cutting constraints
 
@@ -319,16 +319,16 @@ None of these later unknowns blocks Phase 3.
 1. **Phase 1 — compact code and discovery targets (MERGED):** `search`,
    `code_files`, `code_grep`, and experimental `code_diff` advertise and accept only
    compact string targets; CLI/service behavior and legacy read routing stay intact.
-2. **Phase 2 — compact package-tool coordinates (PENDING PRODUCT INPUT):** after search
-   qualifier consolidation, package MCP tools use concise target/range strings while
-   retaining each tool's verified latest, pinned, range, repository, and batch
-   semantics.
+2. **Phase 2 — compact package-tool coordinates (PARTIALLY READY):** Phase 2a migrates
+   `docs_list`, `pkg_info`, `pkg_vulns`, and `pkg_deps` together. Phase 2b changelog
+   waits for verified backend exact-release/snapshot support; Phase 2c upgrade review
+   follows later reorientation. CLI ergonomics and service contracts stay intact.
 3. **Phase 3 — one MCP search-filter language (MERGED):** the six backend-supported
    inline qualifiers replace their duplicate MCP fields while CLI flags and
    `public_only` remain.
 4. **Phase 4 — essential navigation controls only (PENDING):** `code_files` and
    `code_grep` expose one non-overlapping control for each verified caller need.
-5. **Phase 5 — actionable example-language recovery (IMPLEMENTED):**
+5. **Phase 5 — actionable example-language recovery (MERGED, PR #399):**
    `get_example` keeps language filtering. Unresolved languages fail before
    generation and return up to five canonical retry names. `search_language` and
    `githits languages` are removed.
@@ -590,7 +590,7 @@ are deliberate migration signals, backend contracts, or dated evaluation history
 
 ### Phase 2: compact package-tool coordinates
 
-**Status:** PENDING PRODUCT INPUT — prior Phase 3 priority dependency is satisfied
+**Status:** Phase 2a IN PROGRESS; Phase 2b BLOCKED ON BACKEND; Phase 2c PENDING
 
 **Expected outcome:** `docs_list`, `pkg_info`, `pkg_vulns`, `pkg_deps`,
 `pkg_changelog`, and `pkg_upgrade_review` expose compact package/repository/range
@@ -599,11 +599,236 @@ coordinates without changing their evidence or output semantics.
 **Assumptions:** The shared package parser remains canonical; CLI positional specs and
 flags remain; latest-only tools reject embedded versions actionably.
 
-**Unknowns or product decisions:** Decide the upgrade-review single/batch range
-representation before this phase is detailed. Changelog repository refs use the
-canonical `@ref` grammar merged in PR #396.
+**Unknowns or product decisions:** none for Phase 2a. Phase 2b requires verified
+backend exact-release/ref-kind/source selection and a later decision on open-ended
+repository intervals. Phase 2c needs its single/batch MCP representation settled;
+reuse the existing CLI interval spelling. Canonical `@ref` is merged.
 
-Phase 2 interview decisions (2026-09-16; tactical plan not finalized):
+#### Phase 2a: one four-tool package-coordinate increment
+
+**Expected outcome:** `docs_list`, `pkg_info`, `pkg_vulns`, and `pkg_deps` each
+advertise one required string `target`, with no `registry`, `package_name`, or
+`version` input field. Options, normalized service calls, backend selections, and
+CLI syntax remain unchanged. Output is unchanged except that `docs_list` retry
+hints use the new callable target syntax. No backend deployment is needed.
+
+**Assumptions, verified during planning:** `parsePackageSpec()` already handles
+explicit registries case-insensitively, scoped npm names, Maven coordinates, and
+last-`@` version splitting. Existing request builders own registry availability and
+version normalization, including Go's `v` prefix. Existing CLI `pkg info` rejects
+version pins. The stable guide already teaches canonical compact package targets;
+its CLI-facing public skills need no behavior-dependent change for this MCP-only
+migration. No new parser, adapter layer, compatibility alias, or strictness policy
+is needed.
+
+**Dependencies:** Existing canonical package parser, four request builders,
+service mocks, SDK registration/fixture transport, source/built smoke suites,
+context inventory, and descriptor-only agent-eval harness. Phase 1, Phase 3,
+canonical refs, and Phase 5 are merged. Changelog backend work is not a dependency.
+
+**Behavioral contract:**
+
+- `docs_list`, `pkg_vulns`, and `pkg_deps`: `registry:name[@version]`; omitted pin
+  retains latest lookup. Preserve pagination, severity/advisory filters, graph depth,
+  explicit `false` values, detailed-mode fetching, and all current validation.
+- `pkg_info`: latest-only `registry:name`. An embedded version returns mapped
+  non-retryable `INVALID_ARGUMENT`, tells the caller to omit the pin, and makes no
+  service call. Do not silently discard versions.
+- Trim the target before calling `parsePackageSpec()`, then pass parsed
+  `registry`, `name`, and (where supported) `version` to the existing builder.
+  Parsing belongs to that shared canonical parser; MCP handlers own adaptation to
+  their existing operation. Adding a second package-target helper would only wrap
+  one existing call, so use direct imports instead.
+- Empty/whitespace targets, missing registry/name, trailing `@`, and unsupported
+  registries fail through the existing mapped error envelope without service calls.
+  Repository/site/read locators are not package coordinates for these tools.
+  Preserve actionable `VERSION_NOT_FOUND` details and availability restrictions.
+- Schemas stay permissive strings so domain failures reach mapped handler errors.
+  Missing required `target`/object target forms fail SDK validation. Unknown fields
+  retain existing SDK stripping behavior; do not add global rejection or aliases.
+- Preserve tool names, first selection sentence/first 80 characters, annotations,
+  other arguments/defaults, output-format copy, service interfaces, and wire fields.
+  Update only coordinate-related descriptor prose and examples.
+
+**Planning evidence and comparison:** At `b2d4513`,
+`bun scripts/agent-context-load.ts sizes` reports 13 tools, `catalog.full` 39,635
+Unicode characters, and definitions of 1,564 (`docs_list`), 2,285 (`pkg_info`),
+3,704 (`pkg_vulns`), and 3,660 (`pkg_deps`): 11,213 combined. Re-run this exact
+inventory after migration; require a reduction in both the four-tool subtotal and
+full catalog, with unchanged selection-prefix catalog. These are content-size
+measurements, not provider token/cost/performance claims. The bounded baseline
+command covering the four tool tests and four root parity tests passed 127 tests,
+393 assertions, zero failures (9.81 seconds) on 2026-09-16.
+**Delivered implementation and ownership:** Coordinator implemented the four
+handler adapters, latest-only error policy, coordinate descriptor copy, retry hint,
+durable docs and independent minor/minor fragment. One `luna_implementor` delivered
+14 sequential bounded slices: the planned 12 (four schemas/unit callers, four parity
+files, catalog contracts, runtime fixture, shared MCP smoke and CLI smoke fixtures),
+one missed direct-smoke caller and one test-typing correction. Every return was
+inspected and its exact proof rerun independently. No worker interruptions. The
+final type check required one correction dispatch; the missed caller was a
+coordinator ownership-trace omission. No new helper, alias, strictness
+policy, backend wire field or CLI command change was introduced.
+
+Per-file passing tests/assertions: docs 24/55, info 25/98, vulnerabilities 42/109,
+dependencies 39/124; root parity docs 4/8, info 6/25, vulnerabilities 20/59,
+dependencies 24/62; catalog 11/302; runtime fixture 2/77; shared MCP smoke 79/166;
+CLI smoke-script tests 79/152. Exact normalized requests and unchanged controls
+are asserted, not inferred from matching mock outputs. The docs happy parity
+previously compared a pinned CLI input with an unpinned MCP input; both now use
+the same pin and assert the two exact service calls.
+
+Final consistency audit found and migrated two direct `pkg_info` authentication
+probes in `scripts/mcp-smoke.ts` outside the shared smoke fixtures. Both actual
+arguments and labels now use `target: "npm:express"`.
+`bun run scripts/mcp-smoke.ts --mode registration` passed independently, including
+stable compact-target `AUTH_REQUIRED` handling and experimental registration.
+
+The first full type check caught static typing gaps in the new test assertions:
+readonly catalog tuples and zero-argument mocks inferred incompatible call tuples.
+A bounded test-only correction preserved assertion values while typing captured
+request parameters and copying the readonly property tuple. `bun run typecheck`
+now passes independently; the catalog and four parity files also pass 65 tests,
+456 assertions (9.52 seconds). No handler change.
+
+Local full-suite evidence: `bun test` ran 4,799 tests in 206 files: 4,785 passed,
+14 existing subprocess tests exceeded their original deadlines, with three
+cleanup-related unhandled errors (517.60 seconds). All failing files were
+unchanged. Narrow rerun of the six affected files passed 122 tests with six
+timeouts; rerunning only those remaining three files then passed 68 tests,
+483 assertions, zero failures (103.72 seconds) at unchanged deadlines. No
+test timeout, retry, or runtime workaround was added. Evidence is preserved in
+`/tmp/phase2a-subprocess-rerun.log`; the full local suite has not been claimed green.
+PR CI will supply the required full-suite result on clean Linux and Windows hosts.
+A local-only `--help` diagnostic against an archived `origin/main` with the same
+dependencies and environment succeeded on both versions: baseline 1,496/1,131 ms,
+current 3,835/1,566 ms. This shows variable startup latency, not an established
+root cause or a release-build performance measurement.
+
+Final checks so far: `bun run format:check` passed 525 files; `bun run lint`
+passed with eight pre-existing warnings in unchanged `repository-target.ts`;
+`bun run build` passed; `bun run validate:packages` passed, rebuilding both public
+packages and checking packed consumer/runtime/type boundaries. An attempted
+standalone MCP build with misplaced Bun `--cwd` printed help despite exit 0 and
+is not counted as proof; the validator ran its real build from the package directory.
+
+Secret-free source `bun run scripts/cli-smoke.ts --mode unauthenticated` and
+`bun run smoke:cli:built` / `bun run smoke:mcp:built` all passed stable and
+experimental checks. Built MCP includes compact-target `AUTH_REQUIRED` handling.
+Local built CLI/MCP durations were 163.8/17.7 seconds, exceeding the existing
+combined CI 120-second budget; do not claim that budget passed locally. The final
+CLI commands warmed to sub-second launches, consistent with host variability;
+clean-host CI remains the required timing/full-suite result. No deadline was changed.
+
+Authenticated live validation is currently blocked in local macOS Keychain access,
+not in the backend or package parser. A one-second sample of the coordinator-owned
+CLI subprocess (cwd this worktree, own smoke parent chain) shows native keyring
+`SecKeychainFindGenericPassword` waiting in Security server IPC before fetch.
+No credential values were read or printed. The user was asked to approve an
+existing Keychain prompt, if present. No credential-store reset, new fallback,
+discovery flag, retry, or timeout workaround was added.
+
+The first descriptor-only Codex run is incomplete and must not count as passing:
+docs discovery returned inconclusive/low with zero calls; filtered vulnerabilities
+left the isolated workspace to read repository skills and attempted CLI fallback,
+producing isolation violations. This was deliberate external file access, not
+automatic host-skill discovery: fresh app-server `skills/list` exposed only bundled
+system skills. The overview recorded valid compact `pkg_info`/`pkg_vulns` calls
+that did not return before timeout; no complete aggregate metrics/report was
+produced. Claude Haiku likewise submitted those two compact MCP targets but timed
+out at 302.3 seconds. Its metrics report marks usage/logical telemetry unknown.
+Preserve `.agent-eval/runs/phase2a-codex-low-20260916-1254` and
+`.agent-eval/runs/phase2a-claude-haiku-probe-20260916-1254`; these are failed/blocked
+validation evidence, not answer-quality or token-savings claims. Two tiny timeout
+cleanup probes both completed normally, so no hypothesized harness timer fix was made.
+
+**Measured result:** The same `bun scripts/agent-context-load.ts sizes` command
+now reports 1,440 (`docs_list`), 2,211 (`pkg_info`), 3,315 (`pkg_vulns`), and
+3,354 (`pkg_deps`): 10,320 combined, 893 fewer characters (8.0%). `catalog.full`
+is 38,742, down 893 (2.3%). The 1,207-character first-80 catalog and SHA-256
+`32000890e73be46ca020ce4b858c2098cdd97ca1807ec8c8a5899de307f97be8`
+are unchanged. Accurate ecosystem/version guidance is retained; these character
+reductions are not token/cost/performance claims.
+
+**Acceptance and final verification:**
+
+Implementation pre-flight (2026-09-16): accepted and corrected two minor wording
+findings in this expected outcome and the release fragment, explicitly accounting
+for the migrated `docs_list` retry hint. No interface finding. Full CI, authenticated
+smoke, completed agent evals, and code review remain outstanding; pre-flight does
+not establish those gates.
+
+Internal code review (2026-09-16): fresh `code_reviewer` inspected the complete
+Phase 2a delta and reported no findings, with no edits or extra validation. It
+retained the full-CI, authenticated-smoke, completed-eval and local built-smoke
+budget gaps above. External Opus round 1 is pending. Its first transport-accepted
+dispatch had an empty composer and no review work; that dispatch was fenced and
+the same reviewer terminal received one recovery task. That task was transport-
+accepted but still has no agent transcript; terminal access returned a stale handle
+despite the worker projection reporting live. External review is unproven, not
+clean. Preserve this increment in a draft PR for CI while review/live/eval gates
+remain open. No duplicate reviewer or speculative Enter submission.
+
+1. Generated schemas and over-the-wire client calls prove the four tools require
+   string `target` and advertise none of the removed coordinate fields. Registered
+   stable/local inventories remain 13 stable tools; selection-prefix contracts pass.
+2. Tool and parity tests prove exact normalized service parameters for latest,
+   pinned, scoped npm, representative non-npm and Go/Swift cases; malformed targets
+   and `pkg_info` pins never call services. Existing output/error and over-fetch
+   controls remain covered rather than deleted.
+3. Run `bun test`, `bun run typecheck`, `bun run lint`, `bun run build`, and
+   `bun run validate:packages`. Run source `bun run smoke:cli` / `smoke:mcp` plus
+   `smoke:cli:built` / `smoke:mcp:built` because shared smoke calls change. Project
+   guidance requires safe authenticated read-only live smoke where available;
+   never print credentials and report backend/auth limitations separately.
+4. Re-run the named context inventory against the above baseline; record exact
+   per-tool/subtotal/catalog reduction and unchanged first-80 prefix size/hash.
+5. Run local MCP descriptor-only Codex evals with targeted workloads
+   `docs-discovery.md`, `package-overview-vulnerabilities.md`,
+   `package-vulnerability-filter.md`, and `package-dependencies.md`; use Claude
+   when practical. Inspect actual calls/results, final neutral answer/confidence,
+   metrics, and isolation violations. Require compact arguments for changed tools,
+   no schema fallback/futile retry caused by migration, and no isolation violations.
+   Do not claim answer quality without a grading stage; disclose auth limitations.
+6. Current instructions, schemas, examples, hints, smokes and durable docs agree.
+   `pkg_changelog` and `pkg_upgrade_review` remain explicitly structured pending
+   their later increments; do not claim all package tools have migrated. CLI inputs,
+   historical changelog and public artifact versions remain unchanged. Add a
+   minor/minor fragment; run `bun run plugins:generate` / `bun run plugins:check`
+   under plugin-maintenance guidance and require no unexplained generated changes.
+7. Fresh Luna pre-flight, internal code review, then one external Opus reviewer per
+   round are clean under project policy. Keep the active overarching plan through
+   PR review; update it with actual evidence/status before draft PR delivery.
+
+Phase 2a plan review (2026-09-16): internal technical review accepted one fixture
+server ownership omission, fixed alongside the client migration. External Fable
+review reproduced the catalog baseline and verified parser/callsite dependencies;
+its sole minor wording finding separated four-tool catalog proof from the existing
+one-tool runtime fixture proof. Applied in place; the round is clean under project
+policy without another round for documentation-only findings. No product input
+remains for Phase 2a. The reviewer requested an additional clean round, rejected as
+contrary to that explicit documentation-only clean-round policy.
+
+#### Phase 2b/2c: later package operations
+
+Changelog is excluded from Phase 2a at the user's direction after exact-target
+verification. Ref classification and exact-release/source selection naturally belong
+to the backend; do not infer them from tag spelling, capped release scans, or an
+unrelated code-diff call. A separately dispatched backend Codex worktree investigates
+this contract (diagnosis only, no fix/deploy); independent hand-off is not supervised
+here. After fixes are implemented, deployed and verified, reorient and detail the
+compact changelog increment, preserving the accepted grammar below. Acceptance:
+single pins select exactly one release; ranges preserve exclusive-start/inclusive-end
+bounds; upper repository tags choose the requested CHANGELOG snapshot; missing
+release/ref targets fail actionably rather than selecting unrelated entries.
+
+Upgrade review remains unchanged. Later reorientation must settle its single/batch
+MCP shape using existing CLI `@current..target` syntax. Acceptance: one addressing
+form with equivalent single/batch normalized calls and review evidence, actionable
+invalid endpoints, and unchanged CLI behavior. No tactical work is scheduled now.
+
+Phase 2 interview history (2026-09-16; initial five-tool scope superseded by the
+four-tool Phase 2a decision above):
 
 - The next increment covers `docs_list`, `pkg_info`, `pkg_vulns`, `pkg_deps`, and
   `pkg_changelog`; upgrade-review redesign remains outside it.
@@ -654,9 +879,8 @@ Repository exact-target verification (2026-09-16):
   agreed exact repository-tag contract. No fixes or additional backend hand-off
   were authorized by the verification request.
 
-**Dependencies:** Phase 3 and canonical `@ref` grammar are merged on `origin/main`;
-post-merge reorientation is recorded below. No backend change is currently expected
-for package-coordinate consolidation.
+**Dependencies:** Phase 2a needs no backend changes. Phase 2b requires backend
+exact-release/source-selection support; Phase 2c depends on later product reorientation.
 
 **Acceptance criteria:** Each package operation has one MCP addressing form; all
 latest, pinned, range, repository, and batch semantics remain deterministic; invalid
@@ -949,7 +1173,7 @@ that merge does not establish a root cause, backend fix, or intentional fuzzy
 name-matching contract. The gap remains open for backend diagnosis and targeted
 reverification. No cross-lane hand-off is authorized by this readiness check.
 
-#### Post-merge readiness check
+#### Historical post-Phase-3 readiness check (superseded by Phase 2a interview)
 
 `$next-steps` refreshed `origin/main` to `ffc975d` on 2026-09-16 and verified Phase 3
 implementation commits are included. The next planned increment is Phase 2:
@@ -989,7 +1213,7 @@ calls become smaller without reducing required evidence quality.
 
 ### Phase 5: actionable example-language recovery
 
-**Status:** IMPLEMENTED — `search_language` and `githits languages` removed;
+**Status:** MERGED — PR #399, included in baseline `b2d4513`; `search_language` and `githits languages` removed;
 `get_example` / `example --lang` rely on backend 400 recovery.
 
 **Expected outcome:** `get_example` keeps language filtering and returns an actionable

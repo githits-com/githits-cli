@@ -9,17 +9,15 @@
 //   - Success fixtures + service-sourced error fixtures → `toEqual`.
 //     Both surfaces route through the same classifier / envelope builder,
 //     so envelopes are byte-identical.
-//   - INVALID_ARGUMENT fixture (empty `packageName`) → `toMatchObject`.
-//     CLI rejects in `parsePackageSpec` / `buildPackageSummaryParams`;
-//     MCP rejects in `buildPackageSummaryParams` inside the handler
-//     (schema is permissive). Both land on INVALID_ARGUMENT with
-//     `retryable: false`, but the surface-specific validator produces
-//     different `error` text — that divergence is intentional.
+//   - INVALID_ARGUMENT fixture (missing package name) → `toEqual`.
+//     Both surfaces reject the same `npm:` input through `parsePackageSpec`,
+//     then share the builder and latest-only pin validation.
 //
 // Rule IDs are stable; changes to either this test or the parity doc
 // are coordinated.
 
 import { describe, expect, it, mock, spyOn } from "bun:test";
+import type { PackageIntelligenceService } from "@githits/core-internal";
 import {
   PackageIntelligenceBackendError,
   PackageIntelligenceTargetNotFoundError,
@@ -28,7 +26,10 @@ import {
   type PkgInfoCommandDependencies,
   pkgInfoAction,
 } from "../commands/pkg/info.js";
-import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
+import {
+  createMockPackageIntelligenceService,
+  defaultPackageSummary,
+} from "../services/test-helpers.js";
 import {
   createParityMcpTool,
   isProcessExitSentinel,
@@ -73,7 +74,7 @@ async function cliJson(
 }
 
 async function mcpJson(
-  args: { registry: string; package_name: string },
+  args: { target: string },
   packageSummaryMock?: () => Promise<unknown>,
 ): Promise<{ json: unknown; isError: boolean | undefined }> {
   const service = createMockPackageIntelligenceService(
@@ -92,12 +93,39 @@ async function mcpJson(
 
 describe("package_summary parity", () => {
   it("PARITY-JSON-KEYS: happy path CLI === MCP", async () => {
-    const cli = await cliJson("npm:express");
-    const { json, isError } = await mcpJson({
-      registry: "npm",
-      package_name: "express",
+    const packageSummary = mock(
+      (_params?: Parameters<PackageIntelligenceService["packageSummary"]>[0]) =>
+        Promise.resolve(defaultPackageSummary),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageSummary: packageSummary as never,
     });
+    const cli = await cliJson(
+      "npm:express",
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const { json, isError } = await mcpJson(
+      { target: "npm:express" },
+      packageSummary as never,
+    );
     expect(isError).toBeUndefined();
+    expect(packageSummary).toHaveBeenCalledTimes(2);
+    expect(packageSummary.mock.calls).toEqual([
+      [
+        {
+          registry: "NPM",
+          packageName: "express",
+          includeVerboseFields: true,
+        },
+      ],
+      [
+        {
+          registry: "NPM",
+          packageName: "express",
+          includeVerboseFields: true,
+        },
+      ],
+    ]);
     expect(cli).toEqual(json);
     expect((cli as Record<string, unknown>).versionCount).toBe(214);
     expect(
@@ -126,7 +154,7 @@ describe("package_summary parity", () => {
       cliDeps({ packageIntelligenceService: service }),
     );
     const { json } = await mcpJson(
-      { registry: "npm", package_name: "obscure" },
+      { target: "npm:obscure" },
       packageSummary as never,
     );
 
@@ -148,7 +176,7 @@ describe("package_summary parity", () => {
       cliDeps({ packageIntelligenceService: service }),
     );
     const { json, isError } = await mcpJson(
-      { registry: "npm", package_name: "ghost" },
+      { target: "npm:ghost" },
       packageSummary as never,
     );
 
@@ -177,7 +205,7 @@ describe("package_summary parity", () => {
       cliDeps({ packageIntelligenceService: service }),
     );
     const { json, isError } = await mcpJson(
-      { registry: "npm", package_name: "express" },
+      { target: "npm:express" },
       packageSummary as never,
     );
 
@@ -190,19 +218,45 @@ describe("package_summary parity", () => {
     });
   });
 
-  it("PARITY-ERROR-ENVELOPE: INVALID_ARGUMENT (empty packageName) — shape match via toMatchObject", async () => {
-    // CLI: parsePackageSpec rejects the bare "npm:" (no name) via
-    // InvalidPackageSpecError. MCP: buildPackageSummaryParams rejects
-    // the empty package_name with InvalidPackageSpecError too. The
-    // two surfaces share the classifier but produce different error
-    // text — same shape, different message.
-    const cli = await cliJson("npm:");
-    const { json, isError } = await mcpJson({
-      registry: "npm",
-      package_name: "",
+  it("PARITY-ERROR-ENVELOPE: latest-only pin CLI/MCP validation", async () => {
+    const packageSummary = mock(() => Promise.resolve(defaultPackageSummary));
+    const service = createMockPackageIntelligenceService({
+      packageSummary: packageSummary as never,
     });
+    const cli = await cliJson(
+      "npm:express@5.2.1",
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const { json, isError } = await mcpJson(
+      { target: "npm:express@5.2.1" },
+      packageSummary as never,
+    );
 
     expect(isError).toBe(true);
+    expect(cli).toEqual({
+      error: "pkg info always returns the latest version; omit @5.2.1.",
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    });
+    expect(json).toEqual({
+      error: "pkg_info always returns the latest version; omit @5.2.1.",
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    });
+    expect(Object.keys(cli as object).sort()).toEqual(
+      Object.keys(json as object).sort(),
+    );
+    expect(packageSummary).not.toHaveBeenCalled();
+  });
+
+  it("PARITY-ERROR-ENVELOPE: INVALID_ARGUMENT (missing package name) CLI === MCP", async () => {
+    // Both surfaces: parsePackageSpec rejects the bare "npm:" (no name)
+    // before the shared package-summary builder or service is reached.
+    const cli = await cliJson("npm:");
+    const { json, isError } = await mcpJson({ target: "npm:" });
+
+    expect(isError).toBe(true);
+    expect(cli).toEqual(json);
     expect(cli).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
@@ -213,8 +267,6 @@ describe("package_summary parity", () => {
       retryable: false,
       error: expect.any(String),
     });
-    // Both envelopes must contain the same recognisable shape even
-    // when the wording differs.
     expect(Object.keys(cli as object).sort()).toEqual(
       Object.keys(json as object).sort(),
     );
