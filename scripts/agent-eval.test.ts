@@ -816,7 +816,7 @@ describe("agent eval harness", () => {
       {},
     );
     expect(config).toBe(
-      '[mcp_servers.githits]\ncommand = "bun"\nargs = ["run","--cwd","/repo/githits-cli","dev","mcp","start"]\n',
+      '[mcp_servers.githits]\nrequired = true\ncommand = "bun"\nargs = ["run","--cwd","/repo/githits-cli","dev","mcp","start"]\n',
     );
     expect(config).not.toContain("env_vars");
   });
@@ -831,6 +831,8 @@ describe("agent eval harness", () => {
       {},
     );
     expect(args).toEqual([
+      "-c",
+      "mcp_servers.githits.required=true",
       "-c",
       'mcp_servers.githits.command="npx"',
       "-c",

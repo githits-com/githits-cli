@@ -14,6 +14,92 @@ daily, temporary per-main-push, or explicitly authorized pull-request
 execution, and normalized per-workload history are implemented here;
 answer-quality scoring remains a later phase.
 
+## Local custom Codex profiles
+
+One-off `agent:e2e` runs accept `--codex-profile <file>` for an explicit,
+credential-free model-only TOML profile. `scripts/agent-eval-codex-profile.ts`
+owns that decoding boundary; the runner owns effective experiment selection,
+credential environment passthrough, isolation, and artifact redaction. This
+does not expand the named-suite, CI, or Braintrust export matrix beyond Luna.
+See [the usage example](../../eval/agentic/README.md#custom-codex-model-profiles-local-one-off-runs).
+
+The selected profile supplies model/provider configuration, optional reasoning,
+and an optional catalog. Explicit command-line model/effort values take
+precedence. Profile runs continue to use the dedicated eval `CODEX_HOME`,
+fresh per-workload OS homes, global-instruction/skill preflight,
+`--ignore-user-config`, and external app/plugin disables. Native Codex profile
+loading is suppressed by that isolation flag in CLI `0.154.0`; the runner
+passes the selected model configuration as explicit CLI overrides instead.
+Non-model keys, auth commands, literal bearer tokens, and credential-bearing
+URLs are rejected without echoing TOML source or parser diagnostics.
+
+Codex MCP workloads mark GitHits `required = true` in both the generated TOML
+and actual launch overrides. In CLI `0.154.0`, optional MCP startup can yield
+an empty initial tool snapshot when a catalog-backed provider starts before
+the local server. A local wire probe reproduced the first request preceding
+GitHits initialization/tool listing; requiring startup exposed all 17 GitHits
+tools before that request. This prerequisite applies to default and custom
+Codex MCP launches. Skills runs retain their separate configuration.
+
+The caller supplies the selected provider's credential variable; the runner
+does not locate credential files. Only that variable is added to the existing
+environment allowlist, while standard authentication variables are unchanged.
+Redaction explicitly includes the selected credential value, regardless of its
+variable name, and its JSON-escaped representation. `run.json` and workload
+metadata record `codexProfile.path`, `sha256`, `catalogSha256`, and `provider`;
+the effective model/effort also flow into existing normalized metric records.
+`codex-config.toml` remains the generated GitHits MCP/effort configuration; the
+complete launch command records model-provider overrides without credentials.
+
+The approved local pilot uses Modal DeepSeek V4.1 Flash through the existing
+Responses profile, with no temperature control. A secret-free wire probe of
+Codex CLI `0.154.0` confirmed that `temperature=0` is silently omitted and
+rejected under strict config. Matching high reasoning labels across Luna and
+DeepSeek does not imply equal vendor token budgets. Whole-workload duration
+includes tool/network activity and cannot establish model tokens/s. Cost
+remains `unknown` with `rate_card_not_configured` for unconfigured model rate
+cards; independent published-rate estimates must identify their billing
+assumptions and must not replace the raw provider evidence.
+
+### Modal pilot compatibility result — 2026-09-16
+
+Codex `0.154.0` reached the configured Modal DeepSeek endpoint and returned
+valid final JSON and token accounting. It did not make GitHits calls. Initial
+optional-startup runs omitted GitHits; required startup fixed that exposure.
+A transparent diagnostic then confirmed all 17 GitHits functions in the
+`mcp__githits` namespace reached Modal, while the answer still said GitHits was
+unavailable. A direct Responses probe with `tool_choice: "required"` called a
+flat function successfully (HTTP 200). Namespace and custom-tool probes both
+returned HTTP 400 requiring at least one tool of type `function`.
+Follow-up probes under normal `auto` choice accepted namespace/custom requests
+(HTTP 200) but made no tool call and reported only 44 input tokens each versus
+319 for the callable flat function. A native `codex -p
+deepseek-flash-4-1-modal` probe also could not call GitHits, consistent with the
+user's manual test after `/mcp` showed the server connected. Codex profiles
+inherit the global server configuration; duplicating it in the model profile
+does not repair model-facing tool delivery.
+
+This is a specific MCP tool-delivery compatibility limit, not a general
+Codex/Modal failure or evidence that DeepSeek is
+less capable or faster. Codex emits MCP tools as namespaces and its code-mode
+executor as a custom tool; a model-only profile cannot change those wire types.
+Keep Luna as the working eval model until compatible tool delivery is proven.
+Harness execution success means valid structured output; inspect `finalStatus`
+and retrieved tool evidence separately before claiming task success.
+
+Local evidence is retained under `.agent-eval/deepseek-modal-pilot/` (ignored
+by Git). `luna-1`, `luna-2`, and `luna-3` contain six completed baseline cells,
+each with GitHits use and no isolation violations. `deepseek-1` preserves the
+initial provider-override failure, `deepseek-1-v2` the startup omission,
+`deepseek-required-1` the adapter-limited canary, and
+`tools-diagnostic-required/wire-tools-summary.json` the actual delivered tool
+declarations. `modal-tool-shapes.json` records the flat/namespace/custom probe
+results; `modal-tool-shapes-auto.json` records normal-choice follow-up probes,
+and `native-profile-probe-2` retains the native-profile MCP attempt. Remaining
+DeepSeek repetitions are paused because they cannot answer
+the matched task question while tool formats are incompatible; no cost or
+quality comparison is reported from tool-free answers.
+
 ## Braintrust persistence contract
 
 `scripts/agent-eval-braintrust.ts` is a post-run mapper and exporter. It loads

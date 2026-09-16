@@ -29,6 +29,10 @@ import {
 } from "../src/commands/init/guidance-assets.ts";
 import { mergeManagedBlock } from "../src/commands/init/setup-handlers.ts";
 import {
+  type CodexEvalProfile,
+  loadCodexEvalProfile,
+} from "./agent-eval-codex-profile.ts";
+import {
   type AgentEvalFinalStatus,
   type AgentEvalMetrics,
   type AgentEvalRecordInput,
@@ -74,6 +78,8 @@ type RunStatus = "dry-run" | "success" | "failed" | "timeout";
 export interface AgentEvalOptions {
   agent: AgentName;
   model?: string;
+  codexProfilePath?: string;
+  codexProfile?: CodexEvalProfile;
   surface: EvalSurface;
   server: ServerMode;
   guidanceProfile?: GuidanceProfile;
@@ -435,6 +441,15 @@ export function parseArgs(
         options.model = value;
         break;
       }
+      case "--codex-profile": {
+        const value = argv[++i];
+        assert(
+          value && !value.startsWith("--"),
+          "--codex-profile requires a model profile file",
+        );
+        options.codexProfilePath = resolve(repoRoot, value);
+        break;
+      }
       case "--guidance-profile": {
         const value = argv[++i];
         assert(
@@ -550,9 +565,15 @@ export function parseArgs(
   }
   validateGuidanceProfileScope(options, guidanceProfileExplicit);
   validateScenarioScope(options);
+  assert(
+    !options.codexProfilePath || options.agent === "codex",
+    "--codex-profile requires --agent codex",
+  );
   if (options.agent === "codex") {
-    options.model ??= DEFAULT_CODEX_MODEL;
-    options.reasoningEffort ??= DEFAULT_CODEX_REASONING_EFFORT;
+    if (!options.codexProfilePath) {
+      options.model ??= DEFAULT_CODEX_MODEL;
+      options.reasoningEffort ??= DEFAULT_CODEX_REASONING_EFFORT;
+    }
   } else {
     assert(
       options.reasoningEffort === undefined,
@@ -611,6 +632,7 @@ function printHelp(): void {
 
 Options:
   --agent claude|codex|opencode   Agent to run (default: claude)
+  --codex-profile <file>          Model-only Codex profile; explicit model/effort override defaults
   --model <name>                  Agent model name or alias, e.g. sonnet, haiku, gpt-5.4-mini
   --guidance-profile descriptors|full  MCP guidance profile (default: descriptors)
   --intent-profile neutral|githits  Prompt intent profile (default: neutral)
@@ -747,6 +769,7 @@ export function buildCodexConfig(
     : [];
   lines.push(
     "[mcp_servers.githits]",
+    "required = true",
     `command = ${JSON.stringify(command.command)}`,
     `args = ${JSON.stringify(command.args)}`,
   );
@@ -776,6 +799,10 @@ export function buildCodexConfigArgs(
   const command = buildMcpCommand(options, baseEnv);
   const envVars = buildCodexMcpEnvVars(baseEnv);
   const args = [
+    // MCP workloads require GitHits before the first model request. Optional
+    // startup can omit its tools when a catalog-backed provider starts quickly.
+    "-c",
+    "mcp_servers.githits.required=true",
     "-c",
     `mcp_servers.githits.command=${JSON.stringify(command.command)}`,
     "-c",
@@ -1104,10 +1131,15 @@ export function prepareFullGuidanceWorkspace(
 
 export function buildEvalEnv(
   baseEnv: NodeJS.ProcessEnv,
+  providerEnvKeys: readonly string[] = [],
 ): Record<string, string> {
   const env: Record<string, string> = {};
 
-  for (const key of [...BASE_ENV_KEYS, ...PASSTHROUGH_ENV_KEYS]) {
+  for (const key of [
+    ...BASE_ENV_KEYS,
+    ...PASSTHROUGH_ENV_KEYS,
+    ...providerEnvKeys,
+  ]) {
     const value = baseEnv[key];
     if (value !== undefined) {
       env[key] = value;
@@ -1247,10 +1279,16 @@ export function isolateOpenCodeSkills(env: Record<string, string>): void {
   env.OPENCODE_DISABLE_CLAUDE_CODE_SKILLS = "1";
 }
 
-export function collectSecretValues(env: Record<string, string>): string[] {
+export function collectSecretValues(
+  env: Record<string, string>,
+  providerEnvKeys: readonly string[] = [],
+): string[] {
   const values = new Set<string>();
   for (const [key, value] of Object.entries(env)) {
-    if (SECRET_PATTERN.test(key) && value.length >= 8) {
+    if (
+      (SECRET_PATTERN.test(key) && value.length >= 8) ||
+      (providerEnvKeys.includes(key) && value.length > 0)
+    ) {
       values.add(value);
     }
   }
@@ -2211,6 +2249,7 @@ export function buildCodexCommand(
     | "model"
     | "reasoningEffort"
     | "guidanceProfile"
+    | "codexProfile"
   > & { surface?: EvalSurface; targetRoot?: string },
   baseEnv: NodeJS.ProcessEnv = process.env,
 ): string[] {
@@ -2231,6 +2270,7 @@ export function buildCodexCommand(
   for (const feature of ["apps", "plugins", "remote_plugin"] as const) {
     command.push("--disable", feature);
   }
+  if (options.codexProfile) command.push(...options.codexProfile.configArgs);
   if (options.surface !== "skills") {
     command.splice(2, 0, ...buildCodexConfigArgs(options, baseEnv));
     command.push("--ignore-rules");
@@ -2482,6 +2522,9 @@ async function runWorkload(
           : null,
       model: options.model,
       reasoningEffort: options.reasoningEffort,
+      ...(options.codexProfile
+        ? { codexProfile: options.codexProfile.metadata }
+        : {}),
       command,
       workspaceDir: "<ephemeral>",
       isolation: isolation.metadata,
@@ -2687,6 +2730,19 @@ export async function runAgentEval(
   options: AgentEvalOptions,
   dependencies: AgentEvalDependencies = DEFAULT_AGENT_EVAL_DEPENDENCIES,
 ): Promise<void> {
+  if (options.codexProfilePath) {
+    assert(options.agent === "codex", "--codex-profile requires --agent codex");
+    const profile = loadCodexEvalProfile(options.codexProfilePath);
+    options = {
+      ...options,
+      codexProfile: profile,
+      model: options.model ?? profile.model,
+      reasoningEffort:
+        options.reasoningEffort ??
+        profile.reasoningEffort ??
+        DEFAULT_CODEX_REASONING_EFFORT,
+    };
+  }
   assert(
     Number.isInteger(options.workloadConcurrency) &&
       options.workloadConcurrency > 0,
@@ -2711,14 +2767,22 @@ export async function runAgentEval(
       "reasoning effort is only supported for Codex evals",
     );
   }
-  const env = buildEvalEnv(dependencies.baseEnv ?? process.env);
+  const providerEnvKeys = options.codexProfile
+    ? [options.codexProfile.envKey]
+    : [];
+  const env = buildEvalEnv(
+    dependencies.baseEnv ?? process.env,
+    providerEnvKeys,
+  );
   if (
     options.agent === "codex" &&
     (!options.dryRun || env.CODEX_HOME !== undefined)
   ) {
     validateCodexEvalHome(env);
   }
-  const secretValues = collectSecretValues(env);
+  const secretValues = combineRedactionValues(
+    collectSecretValues(env, providerEnvKeys),
+  );
   const hostHomeValues = collectHostHomeValues(env);
   const runtimeConfigRedactionValues = combineRedactionValues(
     secretValues,
@@ -2772,6 +2836,9 @@ export async function runAgentEval(
     completedAt,
     agent: options.agent,
     model: options.model,
+    ...(options.codexProfile
+      ? { codexProfile: options.codexProfile.metadata }
+      : {}),
     surface: options.surface,
     server: options.server,
     guidanceProfile: options.guidanceProfile,
