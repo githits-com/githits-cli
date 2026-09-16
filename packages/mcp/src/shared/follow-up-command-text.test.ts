@@ -25,7 +25,7 @@ function hit(
 ): UnifiedSearchHitPayload {
   return {
     type: "repository_doc",
-    target: "github:owner/monorepo#main",
+    target: "github:owner/monorepo@main",
     locator: { pageId: "opaque-page", filePath: "different-path.md" },
     repositoryEvidence: {
       semanticContext: {
@@ -64,7 +64,7 @@ describe("semantic preferred reads", () => {
       packageName: null,
       version: null,
     };
-    const target = `github:owner/monorepo#${commitSha}`;
+    const target = `github:owner/monorepo@${commitSha}`;
     expect(buildSearchHitFollowUpCommand(hit(read))).toBe(
       `read target="${target}" path="packages/pkg/src/client.ts" start_line=120 end_line=165`,
     );
@@ -77,7 +77,7 @@ describe("semantic preferred reads", () => {
     });
   });
 
-  it.each(["github:owner/monorepo#main", "owner/monorepo@main"])(
+  it.each(["github:owner/monorepo@main", "owner/monorepo@main"])(
     "honors repository label %s even when synthetic package metadata is populated",
     (targetLabel) => {
       const read = {
@@ -85,7 +85,7 @@ describe("semantic preferred reads", () => {
         targetLabel,
         version: commitSha,
       };
-      const target = `github:owner/monorepo#${commitSha}`;
+      const target = `github:owner/monorepo@${commitSha}`;
       expect(buildSearchHitFollowUpCommand(hit(read))).toBe(
         `read target="${target}" path="packages/pkg/src/client.ts" start_line=120 end_line=165`,
       );

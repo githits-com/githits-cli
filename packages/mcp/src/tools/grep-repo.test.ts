@@ -271,7 +271,7 @@ describe("createGrepRepoTool — happy path", () => {
     );
     const result = await tool.handler(
       {
-        target: "https://github.com/expressjs/express#HEAD",
+        target: "https://github.com/expressjs/express@HEAD",
         pattern: "middleware",
       },
       {},

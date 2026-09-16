@@ -288,7 +288,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "10 results | 5 repo docs, 5 docs pages | next_offset=10",
     );
     expect(text).toContain(
-      "Sources: npm:express@5.2.1 - site:expressjs.com,\n  github:expressjs/express#dbac741a",
+      "Sources: npm:express@5.2.1 - site:expressjs.com,\n  github:expressjs/express@dbac741a",
     );
     expect(text).toContain(
       "[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01",
@@ -313,7 +313,7 @@ describe("renderUnifiedSearchSuccess", () => {
     const text = renderUnifiedSearchSuccess(
       completed([
         codeHit({
-          target: "github:badlogic/pi-mono#853a80d",
+          target: "github:badlogic/pi-mono@853a80d",
           title: "compact",
           repositoryEvidence: matchedEvidence(
             920,
@@ -354,7 +354,7 @@ describe("renderUnifiedSearchSuccess", () => {
       { width: 200 },
     );
 
-    const header = `[1] github:badlogic/pi-mono#853a80d ${filePath}:920-930 [repo code]`;
+    const header = `[1] github:badlogic/pi-mono@853a80d ${filePath}:920-930 [repo code]`;
     expect(text).toContain(header);
     expect(text.indexOf(header)).toBeLessThan(
       text.indexOf("// Merge into single summary"),
@@ -744,19 +744,19 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("Sources: github:axios/axios#fede1d15");
+    expect(text).toContain("Sources: github:axios/axios@fede1d15");
     expect(text).not.toContain(
-      "github:axios/axios - github:axios/axios#fede1d15",
+      "github:axios/axios - github:axios/axios@fede1d15",
     );
   });
 
   it("keeps a pinned repository target beside its resolved commit", () => {
     const text = renderUnifiedSearchSuccess(
-      completed([docsHit({ target: "github:axios/axios#v1.7.9" })], {
+      completed([docsHit({ target: "github:axios/axios@v1.7.9" })], {
         sourceStatus: [
           source({
             source: "docs",
-            targetLabel: "github:axios/axios#v1.7.9",
+            targetLabel: "github:axios/axios@v1.7.9",
             contributors: [
               {
                 kind: "REPOSITORY_DOCS",
@@ -772,17 +772,17 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "Sources: github:axios/axios#v1.7.9 - github:axios/axios#b2cb45d5",
+      "Sources: github:axios/axios@v1.7.9 - github:axios/axios@b2cb45d5",
     );
   });
 
   it("keeps repository docs without a commit in detailed target state", () => {
     const text = renderUnifiedSearchSuccess(
-      completed([docsHit({ target: "github:axios/axios#main" })], {
+      completed([docsHit({ target: "github:axios/axios@main" })], {
         sourceStatus: [
           source({
             source: "docs",
-            targetLabel: "github:axios/axios#main",
+            targetLabel: "github:axios/axios@main",
             contributors: [
               {
                 kind: "REPOSITORY_DOCS",
@@ -797,7 +797,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "- github:axios/axios#main\n  searched: repository docs",
+      "- github:axios/axios@main\n  searched: repository docs",
     );
     expect(text).not.toContain("Sources:");
   });
@@ -1278,7 +1278,7 @@ describe("renderUnifiedSearchSuccess", () => {
             codeIndexState: "NOT_FOUND",
           }),
           source({
-            targetLabel: "github:owner/repo#main",
+            targetLabel: "github:owner/repo@main",
             indexingStatus: "UNRESOLVABLE",
             targetResolution: {
               freshness: "indexing",
@@ -1468,7 +1468,7 @@ describe("renderUnifiedSearchSuccess", () => {
     const repositoryCode = renderUnifiedSearchSuccess(
       completed([
         codeHit({
-          target: "github:cline/cline#main",
+          target: "github:cline/cline@main",
           locator: {
             repoUrl: "https://github.com/cline/cline",
             gitRef: "main",
@@ -1481,7 +1481,7 @@ describe("renderUnifiedSearchSuccess", () => {
       { actionSyntax: "cli" },
     );
     expect(repositoryCode).toContain(
-      "[1] github:cline/cline#main src/index.ts:10-20 [repo code] - applyEdit",
+      "[1] github:cline/cline@main src/index.ts:10-20 [repo code] - applyEdit",
     );
 
     const docs = renderUnifiedSearchSuccess(completed([docsHit()]), {
@@ -2277,8 +2277,8 @@ describe("renderUnifiedSearchSuccess", () => {
 
   it.each([
     [
-      "github:expressjs/express#main",
-      "github:expressjs/express#main",
+      "github:expressjs/express@main",
+      "github:expressjs/express@main",
       "npm:express@5.2.1",
       "npm:express@5.1.0",
     ],

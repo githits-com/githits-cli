@@ -395,7 +395,7 @@ describe("code_diff parity", () => {
 
   it("PARITY-ERROR-ENVELOPE: CLI and MCP repository ref messages name their endpoint shapes", async () => {
     const cli = await cliJson(
-      "github:expressjs/express#main",
+      "github:expressjs/express@main",
       "1..2",
       undefined,
       { nameStatus: true },
@@ -404,7 +404,7 @@ describe("code_diff parity", () => {
     const mcpTool = createParityExperimentalMcpTool("code_diff");
     const mcpResult = await mcpTool.handler(
       {
-        target: "github:expressjs/express#main",
+        target: "github:expressjs/express@main",
         from: "1",
         to: "2",
         view: "name-status",
@@ -426,6 +426,39 @@ describe("code_diff parity", () => {
         "Repository targets must not include a ref; put both refs in the comparison endpoints.",
       retryable: false,
     });
+  });
+
+  it("PARITY-ERROR-ENVELOPE: CLI and MCP reject legacy repository refs with the canonical replacement", async () => {
+    const target = "github:expressjs/express#main";
+    const cli = await cliJson(
+      target,
+      "1..2",
+      undefined,
+      { nameStatus: true },
+      cliDeps(),
+    );
+    const mcpTool = createParityExperimentalMcpTool("code_diff");
+    const mcpResult = await mcpTool.handler(
+      {
+        target,
+        from: "1",
+        to: "2",
+        view: "name-status",
+        format: "json",
+      },
+      {},
+    );
+    const mcp = JSON.parse(mcpResult.content[0]?.text ?? "{}");
+    const expected = {
+      code: "INVALID_ARGUMENT",
+      error:
+        'Repository target "github:expressjs/express#main" uses legacy #ref syntax. Use "github:expressjs/express@main"; # is reserved for semantic fragments.',
+      retryable: false,
+    };
+
+    expect(mcpResult.isError).toBe(true);
+    expect(cli).toEqual(expected);
+    expect(mcp).toEqual(expected);
   });
 
   it("PARITY-ERROR-ENVELOPE: empty comparison endpoint keeps stable shape", async () => {

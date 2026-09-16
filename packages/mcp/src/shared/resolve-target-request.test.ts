@@ -137,11 +137,11 @@ describe("buildResolveTargetParams", () => {
     "npm:react@18.2.0",
     "npm: react state management",
     "github:facebook/react",
-    "github:facebook/react#main",
+    "github:facebook/react@main",
     "github.com/facebook/react",
     "github.com/facebook/react@main",
     "https://github.com/facebook/react",
-    "http://github.com/facebook/react#main",
+    "http://github.com/facebook/react@main",
     "site:expressjs.com",
     "site:https://expressjs.com/en/guide/",
   ])("rejects already-canonical target %s", (name) => {
@@ -152,6 +152,17 @@ describe("buildResolveTargetParams", () => {
     );
   });
 
+  it("rejects legacy repository revisions instead of resolving them as names", () => {
+    expect(() =>
+      buildResolveTargetParams({
+        name: "github:facebook/react#main",
+        includeDetailedFields: false,
+      }),
+    ).toThrow(
+      'Use "github:facebook/react@main"; # is reserved for semantic fragments.',
+    );
+  });
+
   it.each([
     "@scope/package",
     "react-native",
@@ -159,6 +170,10 @@ describe("buildResolveTargetParams", () => {
     "GitHub Copilot",
     "npm package react",
     "acme:widget",
+    "https://expressjs.com/en/guide/",
+    "https://docs.rs/tokio",
+    "https://github.com/facebook/react/tree/main",
+    "https://github.com/facebook/react/tree/main#readme",
   ])("preserves nearby human name %s", (name) => {
     expect(
       buildResolveTargetParams({ name, includeDetailedFields: false }),

@@ -73,9 +73,9 @@ describe("unified read contract", () => {
     "http://github.com/owner/repo",
     "https://codeberg.org/owner/repo",
     "https://gitlab.com/group/subgroup/project",
-    "github:owner/repo#release/v1",
     "github:owner/repo@release/v1",
-    "github:owner/repo#release/v1@patch",
+    "github:owner/repo@release/v1",
+    "github:owner/repo@release/v1@patch",
   ])(
     "passes accepted compact target %s byte-for-byte to code",
     async (target) => {
@@ -158,7 +158,7 @@ describe("unified read contract", () => {
       Promise.reject(new PackageIntelligenceTargetNotFoundError("missing")),
     );
     const result = await tool.handler({
-      target: "github:owner/repo#ref/README.md",
+      target: "github:owner/repo@ref/README.md",
     });
     expect(result.isError).toBe(true);
     expect(services.readService.read).toHaveBeenCalledTimes(1);

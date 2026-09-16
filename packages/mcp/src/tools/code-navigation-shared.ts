@@ -14,7 +14,7 @@ export const codeTargetSchema: z.ZodType<CodeTargetArg> = z
   .string()
   .min(1)
   .describe(
-    "Compact package or public-repository target, such as `npm:react@18.2.0`, `github:facebook/react`, or `gitlab:group/project#main`. Package targets inspect an indexed artifact; repository targets cover the full repository.",
+    "Compact package or repository target, such as `npm:react@18.2.0` or `github:facebook/react@main`. Repository revisions use `@ref`; `#` is reserved for semantic fragments. Package targets inspect an indexed artifact; repository targets cover the full repository.",
   );
 
 export type CodeTargetArg = string;

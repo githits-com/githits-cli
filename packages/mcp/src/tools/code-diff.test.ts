@@ -219,7 +219,7 @@ describe("code_diff MCP adapter", () => {
     expect(parseError(invalidRepositoryTarget)).toEqual({
       code: "INVALID_ARGUMENT",
       error:
-        "Repository targets must not include a ref; put both refs in the comparison endpoints.",
+        'Repository target "github:expressjs/express#main" uses legacy #ref syntax. Use "github:expressjs/express@main"; # is reserved for semantic fragments.',
       retryable: false,
     });
 
