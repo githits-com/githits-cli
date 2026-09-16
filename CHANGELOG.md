@@ -5,6 +5,24 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.19.0] - 2026-09-16
+
+### Removed
+
+- **Remove language discovery** - MCP `search_language` and `githits languages` are gone. Pass a language to `get_example` / `githits example --lang`, or omit it to infer. If GitHits cannot match the language, the error lists alternatives to retry with. Callers of `GitHitsService.getLanguages` / `searchLanguages` must migrate.
+
+MCP callers must refresh tool discovery after updating. Hosted clients receive
+these changes only after `@githits/mcp` adoption and deployment by `remote-mcp`.
+
+## [@githits/mcp 0.19.0] - 2026-09-16
+
+### Removed
+
+- **Remove language discovery** - MCP `search_language` is gone. Pass a language to `get_example`, or omit it to infer. If GitHits cannot match the language, the error lists alternatives to retry with. Callers of `GitHitsService.getLanguages` / `searchLanguages` must migrate.
+
+MCP callers must refresh tool discovery after updating. Hosted clients receive
+these changes only after `@githits/mcp` adoption and deployment by `remote-mcp`.
+
 ## [githits 0.18.0] - 2026-09-16
 
 ### Changed
