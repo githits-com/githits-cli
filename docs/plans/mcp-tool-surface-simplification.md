@@ -3,7 +3,7 @@
 ## Status
 
 - Overall: ACTIVE
-- Current phase: Phase 3 — one MCP search-filter language (REVIEWED)
+- Current phase: Phase 3 — one MCP search-filter language (DRAFT PR #397)
 - Baseline: `175c15c` (`origin/main`, 2026-09-16; canonical `@ref` merge)
 - Last verified: 2026-09-16
 
@@ -610,7 +610,7 @@ inventory; CLI and service contracts remain stable.
 
 ### Phase 3: one MCP search-filter language
 
-**Status:** IMPLEMENTED — REVIEW CLEAN
+**Status:** IMPLEMENTED — REVIEW CLEAN — DRAFT PR #397
 
 **Expected outcome:** MCP callers express `kind`, `category`, `path`, `intent`,
 `name`, and `lang` once inside `search.query`. The selected tool teaches that compact
@@ -841,7 +841,10 @@ Verification on 2026-09-16:
 
 Local eval artifacts are in `.agent-eval/runs/phase3-{codex,claude}-{inline,unified}`.
 No hosted deployment, package publication, release, or merge has been performed.
-CI remains unverified until the draft PR runs. The final consistency audit found
+Draft PR: [#397](https://github.com/githits-com/githits-cli/pull/397). Build/checks,
+Linux/Windows tests, and MCP package validation are pending; CI agent evals are
+skipped for the draft, with local trace evidence recorded above.
+The final consistency audit found
 canonical `@ref` target guidance and one inline MCP search-constraint language;
 quick-start/skill parity and unrelated structured CLI/navigation controls remain
 intact.
