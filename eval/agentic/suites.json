@@ -158,6 +158,12 @@
       "suites": ["stable-full"]
     },
     {
+      "id": "search-inline-qualifiers",
+      "path": "eval/agentic/workloads/search-inline-qualifiers.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
       "id": "search-source-ergonomics",
       "path": "eval/agentic/workloads/search-source-ergonomics.md",
       "safety": "stable",

@@ -500,7 +500,7 @@ When a new tool lands with both MCP and CLI surfaces:
 | `packages/mcp/src/shared/mapped-error.ts` | Transport-neutral `MappedError`, `MappedErrorCode`, and `MappedErrorDetails` contracts shared by all error mappers. |
 | `packages/core-internal/src/shared/pkgseer-graphql.ts` | Low-level authenticated package/source POST helper shared by the service clients. |
 | `packages/core-internal/src/shared/pkgseer-registry.ts` | Registry taxonomy (registry union type + lowercase↔uppercase converters). |
-| `packages/mcp/src/shared/unified-search-request.ts` | Shared request builder for unified `search`; compiles structured query fields and applies defaulting. |
+| `packages/mcp/src/shared/unified-search-request.ts` | Shared request builder for unified `search`; trims the query, adapts CLI structured flags, and applies defaulting. |
 | `packages/mcp/src/shared/unified-search-response.ts` | Shared JSON envelope builders for unified `search` and follow-up `search_status`. |
 | `packages/mcp/src/shared/package-summary-request.ts` | Shared request builder for `pkg_info`. |
 | `packages/mcp/src/shared/package-summary-response.ts` | Lean JSON envelope builder and shared text/terminal formatter for `pkg_info`. |

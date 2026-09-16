@@ -67,23 +67,43 @@ describe("searchTool", () => {
     expect(tool.description).toContain("do not treat suggestions as aliases");
   });
 
-  it("documents every search control without coaching query filler", () => {
+  it("exposes only the remaining search controls", () => {
     const tool = createSearchTool(createMockCodeNavigationService());
 
-    for (const field of [
-      "name",
-      "language",
-      "path_prefix",
-      "public_only",
+    const remainingFields = [
+      "allow_partial_results",
+      "format",
+      "limit",
       "offset",
+      "public_only",
+      "query",
+      "source",
+      "target",
+      "targets",
       "wait_timeout_ms",
-    ]) {
+    ];
+    expect(Object.keys(tool.schema).sort()).toEqual(remainingFields.sort());
+    for (const field of remainingFields) {
       expect(tool.schema[field]?.description, field).toBeTruthy();
     }
-    expect(tool.schema.query?.description).toContain("Focused discovery terms");
-    expect(tool.schema.query?.description).not.toContain("use terms such as");
-    expect(tool.schema.name?.description).toContain("do not use both");
-    expect(tool.schema.language?.description).toContain("do not use both");
+
+    const queryDescription = tool.schema.query?.description ?? "";
+    for (const qualifier of [
+      "kind:function",
+      "category:callable",
+      "path:lib/",
+      "intent:production",
+      "name:Router",
+      "lang:typescript",
+    ]) {
+      expect(
+        queryDescription.match(new RegExp(qualifier, "g")),
+        qualifier,
+      ).toHaveLength(1);
+    }
+    expect(tool.description).toContain("backend validation");
+    expect(tool.description).toContain("warnings");
+    expect(tool.description).toContain("`sourceStatus`");
   });
 
   it("returns unified search payload from service", async () => {
@@ -177,7 +197,7 @@ describe("searchTool", () => {
     expect(text.content[0]?.text).toContain("searched: repository docs");
   });
 
-  it("passes compiled request through to code navigation service", async () => {
+  it("forwards trimmed inline qualifiers without constructing structured filters", async () => {
     const search = mock((_: UnifiedSearchParams) =>
       Promise.resolve(defaultUnifiedSearchOutcome),
     );
@@ -185,10 +205,10 @@ describe("searchTool", () => {
 
     await tool.handler(
       {
-        query: "handler",
+        query:
+          "  handler kind:function category:callable path:lib/ intent:production name:Router lang:typescript  ",
         target: "npm:express",
-        kind: "function",
-        language: "typescript",
+        public_only: true,
         allow_partial_results: true,
       },
       {},
@@ -196,10 +216,10 @@ describe("searchTool", () => {
 
     expect(search).toHaveBeenCalledWith(
       expect.objectContaining({
-        query: "(handler) AND (lang:typescript)",
+        query:
+          "handler kind:function category:callable path:lib/ intent:production name:Router lang:typescript",
         allowPartialResults: true,
-        limit: 10,
-        filters: expect.objectContaining({ kind: "FUNCTION" }),
+        filters: { publicOnly: true },
       }),
       { omitFocusedSource: true },
     );
@@ -226,7 +246,7 @@ describe("searchTool", () => {
     );
   });
 
-  it("drops docs-incompatible filters for docs-only searches", async () => {
+  it("forwards source-incompatible inline qualifiers to the service", async () => {
     const search = mock((_: UnifiedSearchParams) =>
       Promise.resolve(defaultUnifiedSearchOutcome),
     );
@@ -234,13 +254,9 @@ describe("searchTool", () => {
 
     await tool.handler(
       {
-        query: "routing",
+        query: "routing kind:function category:callable intent:production",
         target: "npm:express",
         source: "docs",
-        category: "callable",
-        kind: "function",
-        file_intent: "production",
-        public_only: true,
       },
       {},
     );
@@ -249,12 +265,13 @@ describe("searchTool", () => {
       expect.objectContaining({
         sources: ["DOCS"],
         filters: undefined,
+        query: "routing kind:function category:callable intent:production",
       }),
       { omitFocusedSource: true },
     );
   });
 
-  it("rejects unsupported path scopes in text and JSON before calling the service", async () => {
+  it("forwards path qualifiers for sources that may reject them", async () => {
     for (const format of ["text", "json"] as const) {
       for (const selection of [
         { target: "npm:express", source: "docs" },
@@ -267,24 +284,19 @@ describe("searchTool", () => {
         );
         const result = await tool.handler(
           {
-            query: "routing",
+            query: "routing path:guide/",
             ...selection,
-            path_prefix: "guide/",
             format,
           },
           {},
         );
-        expect(result.isError).toBe(true);
-        expect(search).not.toHaveBeenCalled();
-        expect(result.content[0]?.text).toContain(
-          "Path prefixes require a code search source",
+        expect(result.isError).toBeUndefined();
+        expect(search).toHaveBeenCalledWith(
+          expect.objectContaining({
+            query: "routing path:guide/",
+          }),
+          { omitFocusedSource: format !== "json" },
         );
-        if (format === "json") {
-          expect(JSON.parse(result.content[0]?.text ?? "{}")).toMatchObject({
-            code: "INVALID_ARGUMENT",
-            retryable: false,
-          });
-        }
       }
     }
   });

@@ -1063,21 +1063,39 @@ function smokeJsonResponse(
           effectiveAfter: 10,
         },
       });
-    case "search":
-      if (args.path_prefix)
-        return {
-          isError: true,
-          ...jsonResult({
-            error: "Path prefixes require a code search source",
-            code: "INVALID_ARGUMENT",
-            retryable: false,
-          }),
-        };
+    case "search": {
+      const query = typeof args.query === "string" ? args.query : "";
+      const invalidQualifier =
+        /(?:^|\s)(kind|category|intent):bogus(?:\s|$)/.exec(query);
+      if (invalidQualifier) {
+        return errorResult("INVALID_ARGUMENT");
+      }
+      if (query.includes("path:lib/") && query.includes("lang:javascript")) {
+        return jsonResult({
+          completed: true,
+          hasMore: false,
+          query: { raw: query },
+          results: [
+            {
+              target: "npm:express@5.2.1",
+              locator: { filePath: "lib/router/index.js" },
+            },
+          ],
+          sourceStatus: [
+            {
+              source: "CODE",
+              ignoredQueryFeatures: [],
+              incompatibleQueryFeatures: [],
+            },
+          ],
+        });
+      }
       return jsonResult({
         completed: false,
         searchRef: "smoke-ref",
         progress: { status: "INDEXING", targetsReady: 0, targetsTotal: 1 },
       });
+    }
     case "search_status":
       return jsonResult({ completed: true });
     default:
