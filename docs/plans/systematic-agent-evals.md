@@ -4,23 +4,25 @@
 
 - Overall: IN PROGRESS
 - Current phase: Phase 4 — Braintrust Persistence Proof Of Concept
-  (MAIN BOOTSTRAP PROVEN; LIVE LINKAGE PROOF PENDING)
+  (MAIN BOOTSTRAP AND PR LINKAGE PROVEN; LATER-MAIN/LOCAL PROOF PENDING)
 - Previous work: Phase 2 correction is COMPLETE. Phase 3 is merged and its
   same-repository label path is live-validated; Phase 4's exporter, CI wiring,
   local Braintrust readback, and first qualifying labeled CI export/readback
   are complete. The exact-head run proved persistence again, but exposed null
   branch and base-experiment identity. Stable naming and native main-baseline
   linkage are implemented. The first stable main bootstrap is live-proven and
-  later-main, pull-request, and local linkage remain before Phase 4 is complete.
+  PR linkage is also live-proven by the DeepSeek canary below; later-main and
+  local linkage remain before Phase 4 is complete.
 - Owner: repository maintainers
-- Last verified: 2026-09-01
+- Last verified: 2026-09-16
 - Deployment: Phases 1 through 3 are merged to `main`. The Phase 3
   same-repository label path and first default-branch manual bootstrap are
   live-validated. Phase 4's exact-pinned exporter and post-report CI step are
   implemented, with local, labeled CI, and main-bootstrap persistence/readback
   proven. Pushes to `main` now temporarily trigger the workflow to collect
-  variance and workload-optimization evidence. No live export has yet proven
-  later-main, pull-request, and local readback linkage.
+  variance and workload-optimization evidence. The OpenRouter PR canary below
+  proves PR-to-main readback linkage. Later-main/local linkage are separate
+  outstanding roadmap proofs.
 
 ## Problem And Expected Outcome
 
@@ -1686,7 +1688,7 @@ None.
 
 ### Status
 
-MAIN BOOTSTRAP PROVEN; LIVE LINKAGE PROOF PENDING.
+MAIN BOOTSTRAP AND PR LINKAGE PROVEN; LATER-MAIN/LOCAL PROOF PENDING.
 Phase 3 is merged and its same-repository label path has clean runner evidence.
 The exact-pinned Braintrust exporter, post-report CI wiring, local
 persistence/readback proof, internal operations skill, and qualifying labeled
@@ -1697,9 +1699,10 @@ confirmed that experiment `base_exp_id` and branch identity are null and that
 the opaque `github-<run>-<attempt>` name is insufficient for routine operation.
 Stable naming and native comparison linkage are implemented. Main bootstrap
 run `33477846273` persisted `main-r33477846273-a1` with the expected null base,
-proving default-branch manual execution and stable main identity. No live
-export/readback has yet proved later-main-to-main, PR-to-main, and
-local-to-main linkage, so Phase 4 remains incomplete.
+proving default-branch manual execution and stable main identity. PR-to-main
+linkage is live-proven by DeepSeek canary `35093150512` below. Later-main-to-main
+and local-to-main are separate outstanding proofs, so Phase 4 remains
+incomplete.
 SDK tracing was deliberately not added.
 
 ### Expected Outcome
@@ -2559,7 +2562,8 @@ Observed implementation evidence:
 
 ### OpenRouter PR canary reorientation — 2026-09-16
 
-Status: IMPLEMENTED AND CI-VERIFIED. Draft PR #401 awaits human review/merge. Internal plan preflight: no findings. External plan round
+Status: IMPLEMENTED AND CI-VERIFIED. Draft PR #401 awaits human review/merge.
+Internal plan preflight: no findings. External plan round
 1: one minor identity-documentation finding applied; clean under the wording-fix
 rule. This supersedes the unmerged named-profile interface and
 Modal-only pilot scope above. The user approved trying OpenRouter, demonstrated
