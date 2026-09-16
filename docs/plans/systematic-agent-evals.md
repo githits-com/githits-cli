@@ -2820,6 +2820,110 @@ Internal preparation and the bounded external Opus lifecycle follow-up are
 clean. This increment's criteria are satisfied; future grading/variance phases
 retain their existing separate scope and product decisions.
 
+### Occasional OpenRouter model trials — 2026-09-16
+
+Status: IMPLEMENTING. The user wants to retain occasional OpenRouter model
+comparisons while keeping Luna as the default. The complete DeepSeek comparison
+above remains historical evidence; it does not justify a replacement.
+
+Verified current state: main/schedule/manual and `agent-eval` already use
+Luna/low/json-schema. Only `agent-eval-deepseek` chooses OpenRouter, with its
+model/high preset embedded in the shared workflow. The existing `--codex-config`
+loader accepts any nonempty model ID, projects only the selected env-key
+Responses provider, safely rejects missing/invalid configuration, records
+config/catalog hashes and resolves optional catalog paths relative to the
+source TOML. Suite/export identity is already generic. Current export marks
+main dispatches as main baseline candidates, so adding model selection to main
+manual dispatch would require a separate baseline-policy change.
+
+Ownership: eval-owned TOML chooses the candidate model/provider/effort; the
+existing workflow owns trusted PR triggers, isolated execution, scoped auth
+and shared coverage/export. Use the existing loader on the original checked-in
+file, preserving relative catalog semantics. Do not copy that file into a
+different directory or add a second config parser/model registry. A manual
+model input looks simpler at the UI but requires changing main-baseline
+classification; a reviewable PR config fits the existing verified contract.
+
+Outcome: trusted `agent-eval-openrouter` PR labels run the same 50-cell matrix
+with an explicitly selected OpenRouter model. No default OpenRouter model is
+committed. Scheduled/main/manual and Luna-label behavior remains unchanged.
+OpenRouter trials export as PR experiments linked to the actual latest main
+Luna baseline. No further paid run is requested by this increment.
+
+Assumptions, verified or explicit design choices:
+- The user wants occasional trials through the existing Codex/OpenRouter route,
+  not a change to the production eval default (explicit user instruction).
+- Operators select a model by committing credential-free
+  `eval/agentic/openrouter.toml` on their trusted trial PR. This is the chosen
+  application of the existing caller-selected main-config interface.
+- `eval/agentic/openrouter.example.toml` has an empty model field requiring
+  deliberate selection and a low effort example. Omitted effort uses the
+  existing suite low default; vendor budgets/capabilities remain model-specific.
+- OpenRouter jobs retain the proven Codex 0.154.0 pin and prompt-json reporting
+  with unchanged final validation. Compatibility of an untried model is an
+  observed trial outcome, not guaranteed by generic configuration support.
+- Missing/blank config fails safely before model execution using the existing
+  loader; no new guard, recovery path or report repair is required.
+
+Unknowns/product decisions: none for this increment. Which model to try next,
+its price/capabilities and an actual paid run are future operator choices.
+Dependencies: the implemented generic config/reporting and full-matrix work in
+PR #401; the existing GitHub OpenRouter/GitHits/Braintrust secrets.
+
+Implementation steps:
+1. Replace the DeepSeek PR label in both job guards, CLI-version selection,
+   OpenAI-login condition, run auth and argument selection with
+   `agent-eval-openrouter`. Remove the embedded DeepSeek config rendering;
+   initialize the isolated home for all runs, then pass the original
+   `$GITHUB_WORKSPACE/eval/agentic/openrouter.toml` to `--codex-config` only for
+   the OpenRouter label. Keep every matrix/concurrency/export/final-status rule.
+2. Add the credential-free blank-model example config. Update current operator
+   docs/private Braintrust skill and the pending none/none fragment to explain
+   explicit model selection, PR-only trials and existing compatibility limits.
+   Preserve the measured DeepSeek incident/results and historical trigger names.
+   Keep the active trial config out of main (leave trial PR unmerged or remove
+   it before merging); the example alone is permanent. Document that CI wires
+   only `OPENROUTER_API_KEY` as the provider execution credential.
+3. Update workflow contract tests to cover unchanged Luna/main defaults, trusted
+   generic PR routing, scoped auth, original config path and no embedded model.
+   Exercise the actual example through the loader with blank rejection and a
+   filled arbitrary model; retain DeepSeek identity regression and exercise a
+   second non-DeepSeek identity through suite mapping/export metadata.
+4. Run focused `bun test` for shared workflow/export/config contracts,
+   actionlint, changed-file Biome, typecheck, build and plugin generation/check.
+   Run internal code preparation then one external Opus review to clean.
+   Commit/push/update PR #401 and verify regular CI. Create the generic label
+   without applying it, remove the obsolete DeepSeek label from this own PR;
+   do not trigger a paid trial or delete labels from other lanes.
+
+Acceptance: Luna remains the default under every existing non-OpenRouter
+trigger; no OpenRouter model is selected until a trusted PR provides a valid
+config and applies the generic label; arbitrary candidate identity survives
+suite/export mapping; credentials remain execution/export scoped; all 50-cell
+coverage and actual Luna baseline linkage are retained. Blank/missing config
+uses the existing safe error behavior before provider execution. Current docs,
+plan and PR describe the generic interface and preserve the actual DeepSeek
+result. The active trial config stays out of main; its provider key reference
+remains `OPENROUTER_API_KEY`. No temperature control, main-baseline policy, grader, rate card,
+registry, fallback, polling or additional infrastructure is introduced.
+
+Plan verification: internal technical preparation found no issues. Fable
+review found the design sound with two minor documentation clarifications,
+accepted in-place: keep trial config out of main and document the sole wired
+OpenRouter provider key. These clarify the already-selected no-default-model
+and auth contracts; no scope/architecture/phase change or additional review
+round is needed. No code guards or repo-absence test are added.
+
+Implementation verification so far: 15 focused config/workflow/export-identity
+contracts pass with 257 assertions; four unchanged cases that hit five-second
+local deadlines pass with 29 assertions using CLI `--timeout 30000`. Initial
+broader two-file run was 55 pass/four existing deadline failures (host load 138
+on 10 logical CPUs); evidence preserved and no code/default timeout changed.
+Actionlint, changed-file Biome, typecheck, build and plugin generation/check pass
+with no generated diff. Internal code preparation found no code issues; its
+one valid minor finding is fixed by creating the dedicated home in the local
+README example. External code review and final regular CI remain pending.
+
 ## Phase 6 — Trend Policy And Result Quality
 
 ### Status

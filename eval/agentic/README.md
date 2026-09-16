@@ -125,30 +125,35 @@ Optional `model_catalog_json` paths resolve relative to the config file. Explici
 one-off `--model` and `--reasoning-effort` override config defaults; omitted
 reasoning defaults to high for one-off runs and low for named suites.
 
-For OpenRouter DeepSeek V4.1 Flash, create a dedicated directory and save this as
-its `config.toml`:
-
-```toml
-model = "deepseek/deepseek-v4.1-flash"
-model_provider = "openrouter"
-model_reasoning_effort = "high"
-
-[model_providers.openrouter]
-name = "OpenRouter"
-base_url = "https://openrouter.ai/api/v1"
-env_key = "OPENROUTER_API_KEY"
-wire_api = "responses"
-```
-
-Then run the two-workload intent canary:
+For occasional OpenRouter model trials, copy the credential-free main-config
+template and set `model` to the exact OpenRouter model ID you want to test:
 
 ```bash
-export CODEX_HOME="$HOME/.codex-eval-deepseek"
-OPENROUTER_API_KEY="$(cat "$HOME/.openrouter.key")" \
-bun run agent:e2e:suite run --suite canary --scenario intent --concurrency 2 \
-  --codex-config "$CODEX_HOME/config.toml" \
-  --codex-report-format prompt-json --out .agent-eval/deepseek-canary
+cp eval/agentic/openrouter.example.toml eval/agentic/openrouter.toml
 ```
+
+The template deliberately has an empty model; no OpenRouter candidate is selected
+by default. Choose a reasoning effort the model supports. Omitting effort uses
+the suite's existing `low` default, rather than a provider default. Keep the
+provider `env_key` as `OPENROUTER_API_KEY`; it is the provider credential wired
+by CI. Supply its value through your credential store/environment, never in
+TOML or a commit.
+
+With `OPENROUTER_API_KEY` already set, a local two-workload trial is:
+
+```bash
+export CODEX_HOME="$HOME/.codex-eval-openrouter"
+mkdir -p "$CODEX_HOME"
+bun run agent:e2e:suite run --suite canary --scenario intent --concurrency 2 \
+  --codex-config eval/agentic/openrouter.toml \
+  --codex-report-format prompt-json --out .agent-eval/openrouter-trial
+```
+
+The main config selects any model the provider exposes; it is not a named
+Codex profile. The existing loader reads the original path, so optional model
+catalog paths remain relative to that file. Configuration support does not
+guarantee that an untried model supports Codex Responses tools or the selected
+reasoning budget; inspect its actual trial traces and report failures honestly.
 
 The caller reads its credential store into the selected environment variable;
 the runner does not discover key files. That variable is added to the existing
@@ -167,16 +172,21 @@ JSON schema suppressed actual calls through both tested DeepSeek routes. A real
 Codex/OpenRouter MCP canary without enforced schema completed GitHits calls.
 See [the retained compatibility findings](../../docs/implementation/agentic-eval-metrics.md#modal-pilot-compatibility-result--2026-09-16).
 
-For a trusted same-repository PR, add `agent-eval-deepseek` to run the standard
-50-cell matrix through OpenRouter: two discovery cells, 24 intent cells, and
-24 full-guidance cells, followed by one aggregate Braintrust export. The shared
-`.github/workflows/agent-evals.yml` owns this coverage; the dedicated DeepSeek
-canary workflow has been removed. It requires `OPENROUTER_API_KEY`,
-`GITHITS_API_TOKEN`, and `BRAINTRUST_API_KEY` repository secrets and pins Codex
-`0.154.0`. Existing Luna schedules and the `agent-eval` label remain unchanged.
-Braintrust links the PR experiment to the latest Luna main baseline; inspect
-model/reasoning/report-format metadata before interpreting differences. This
-preset comparison provides no automatic quality grade or replacement decision.
+For a trusted same-repository PR, commit the filled
+`eval/agentic/openrouter.toml` on the trial branch and add `agent-eval-openrouter`
+to run the standard 50-cell matrix: two discovery cells, 24 intent cells, and
+24 full-guidance cells, followed by one aggregate Braintrust export. Keep the
+active trial config out of `main`: leave the trial PR unmerged or remove the
+config before merging; only the blank example belongs in the permanent setup.
+The shared `.github/workflows/agent-evals.yml` owns this coverage. It requires
+`OPENROUTER_API_KEY`, `GITHITS_API_TOKEN`, and `BRAINTRUST_API_KEY` repository
+secrets, pins Codex `0.154.0`, and uses prompt-json with unchanged final validation.
+The old `agent-eval-deepseek` label no longer starts a run. Luna stays the default
+for schedules, main pushes, manual-main runs and the `agent-eval` PR label.
+OpenRouter trials remain PR experiments linked to the latest main Luna baseline;
+inspect actual model/reasoning/report-format metadata and linked base before
+interpreting differences. No automatic quality grade or replacement decision
+is made.
 
 The completed [50-cell comparison](../../docs/implementation/agentic-eval-metrics.md#full-deepseek-matrix-comparison--2026-09-16)
 exported all cells against its actual main Luna baseline with 50 matching stable
@@ -680,7 +690,7 @@ targeting `main`. The push trigger is intentionally temporary while
 maintainers collect run-to-run variance and workload-optimization evidence; it
 does not change the advisory, non-gating policy. A pull request run is
 authorized only when the event label is exactly
-`agent-eval` (Luna) or `agent-eval-deepseek` (DeepSeek), with
+`agent-eval` (Luna) or `agent-eval-openrouter` (explicit candidate), with
 `github.event.pull_request.head.repo.full_name` equal to the repository; forks cannot consume the provider secrets. The workflow checks out
 the immutable labeled head SHA for that event and `github.sha` for scheduled or
 manual runs. Later commits on a still-labeled pull request do not rerun the
@@ -694,10 +704,11 @@ under `runner.temp` before checkout or setup. It installs the current Codex CLI
 and records `codex --version`, creates an empty per-scenario `CODEX_HOME`, and
 authenticates through Codex's stdin API-key flow. `OPENAI_API_KEY` is scoped to
 that authentication step; `GITHITS_API_TOKEN` is scoped only to the paid suite
-execution. For the DeepSeek label, it instead installs Codex 0.154.0, writes the
-isolated OpenRouter main config above, skips OpenAI login, and binds
-`OPENROUTER_API_KEY` only to execution. Suite config and prompt-json arguments
-are selected only for DeepSeek; Luna retains its default low/schema preset.
+execution. For the OpenRouter label, it instead installs Codex 0.154.0, reads
+the explicitly selected main config from `eval/agentic/openrouter.toml`, skips
+OpenAI login, and binds `OPENROUTER_API_KEY` only to execution. Suite config and
+prompt-json arguments are selected only for that label; Luna retains its default
+low/schema preset.
 Local subscription state, Keychain data, personal skills, and user
 configuration are never copied into CI. The scenario directories are uploaded
 as `agent-eval-discovery`, `agent-eval-intent`, and `agent-eval-full` artifacts

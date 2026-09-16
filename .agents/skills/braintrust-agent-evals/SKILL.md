@@ -84,15 +84,21 @@ Its null base is the expected one-time bootstrap result. Main pushes now
 temporarily run the same matrix, in addition to the daily/manual/label paths,
 to collect variance and workload-optimization evidence.
 
-The current `agent-eval-deepseek` label runs the shared 50-cell main matrix on
-trusted same-repository PRs: discovery 2, intent 24, and full guidance 24.
-`.github/workflows/agent-evals.yml` selects DeepSeek/high/prompt-json with Codex
-0.154.0 and execution-only OpenRouter auth; other triggers retain Luna/low.
-The dedicated two-workload DeepSeek workflow is removed. Each attempt exports
-all three scenarios into one experiment with model/report-format metadata.
-Check the actual linked main baseline and stable inputs, then account for all
-cell outcomes; a single cross-preset attempt is not a quality or consistency
-score. The following canary is historical integration evidence.
+The current `agent-eval-openrouter` label runs the shared 50-cell main matrix
+on trusted same-repository PRs: discovery 2, intent 24, and full guidance 24.
+The trial PR must commit credential-free `eval/agentic/openrouter.toml` selecting
+its exact candidate model; the repository's blank-model example deliberately
+selects none. Keep the active config out of main and use `OPENROUTER_API_KEY` as
+its provider `env_key`, the only wired provider execution credential. The shared
+`.github/workflows/agent-evals.yml` retains Codex 0.154.0/prompt-json and
+execution-only OpenRouter auth; other triggers retain Luna/low/schema. The old
+DeepSeek label no longer starts a run. The dedicated canary workflow is removed.
+Each trial exports all three scenarios into one PR experiment with actual
+model/report-format metadata and linked main Luna baseline. Configuration
+support does not prove compatibility or quality of an untried model. Account
+for every cell and verify actual linked base/stable inputs; a single preset
+comparison is not a quality or consistency score. The following DeepSeek runs
+remain historical measured evidence.
 
 The full comparison is live-proven by
 [`pr-401-r35099796991-a1`](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-401-r35099796991-a1)

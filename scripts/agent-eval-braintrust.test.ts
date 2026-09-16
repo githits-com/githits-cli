@@ -2391,59 +2391,63 @@ describe("Agent eval workflow Braintrust integration", () => {
   });
 });
 
-describe("DeepSeek Braintrust identity", () => {
-  it("exports actual model/report format and rejects mixed suite identities", async () => {
-    const model = "deepseek/deepseek-v4.1-flash";
-    const deepseek = await createSuite({
-      model,
-      codexReportFormat: "prompt-json",
-      processStatus: "success",
-    });
-    const luna = await createSuite({ processStatus: "success" });
-    const schema = await createSuite({
-      model,
-      codexReportFormat: "json-schema",
-      processStatus: "success",
-    });
-    try {
-      const mapping = preflightAndMapBraintrustRows([
-        { label: "deepseek", suitePath: deepseek.suitePath },
-      ]);
-      expect(mapping.rows[0]!.metadata).toMatchObject({
-        requestedModel: model,
-        reasoningEffort: "high",
-        codexReportFormat: "prompt-json",
-      });
-      const init = buildBraintrustExperimentInit(mapping, {
-        project: "test",
-        source: "local",
-        experiment: "test",
-      });
-      expect(init.metadata).toMatchObject({
+describe("OpenRouter Braintrust identity", () => {
+  for (const model of [
+    "deepseek/deepseek-v4.1-flash",
+    "example-provider/another-model",
+  ]) {
+    it(`exports ${model} identity and rejects mixed suite identities`, async () => {
+      const candidate = await createSuite({
         model,
-        reasoningEffort: "high",
         codexReportFormat: "prompt-json",
+        processStatus: "success",
       });
-      expect(() =>
-        preflightAndMapBraintrustRows([
-          { label: "deepseek", suitePath: deepseek.suitePath },
-          { label: "luna", suitePath: luna.suitePath },
-        ]),
-      ).toThrow("mixed model");
-      expect(() =>
-        preflightAndMapBraintrustRows([
-          { label: "deepseek", suitePath: deepseek.suitePath },
-          { label: "schema", suitePath: schema.suitePath },
-        ]),
-      ).toThrow("mixed codexReportFormat");
-    } finally {
-      for (const fixture of [deepseek, luna, schema])
-        rmSync(fixture.root, { recursive: true, force: true });
-    }
-  });
+      const luna = await createSuite({ processStatus: "success" });
+      const schema = await createSuite({
+        model,
+        codexReportFormat: "json-schema",
+        processStatus: "success",
+      });
+      try {
+        const mapping = preflightAndMapBraintrustRows([
+          { label: "candidate", suitePath: candidate.suitePath },
+        ]);
+        expect(mapping.rows[0]!.metadata).toMatchObject({
+          requestedModel: model,
+          reasoningEffort: "high",
+          codexReportFormat: "prompt-json",
+        });
+        const init = buildBraintrustExperimentInit(mapping, {
+          project: "test",
+          source: "local",
+          experiment: "test",
+        });
+        expect(init.metadata).toMatchObject({
+          model,
+          reasoningEffort: "high",
+          codexReportFormat: "prompt-json",
+        });
+        expect(() =>
+          preflightAndMapBraintrustRows([
+            { label: "candidate", suitePath: candidate.suitePath },
+            { label: "luna", suitePath: luna.suitePath },
+          ]),
+        ).toThrow("mixed model");
+        expect(() =>
+          preflightAndMapBraintrustRows([
+            { label: "candidate", suitePath: candidate.suitePath },
+            { label: "schema", suitePath: schema.suitePath },
+          ]),
+        ).toThrow("mixed codexReportFormat");
+      } finally {
+        for (const fixture of [candidate, luna, schema])
+          rmSync(fixture.root, { recursive: true, force: true });
+      }
+    });
+  }
 });
 
-describe("DeepSeek shared agent eval workflow", () => {
+describe("OpenRouter shared agent eval workflow", () => {
   it("runs main coverage with label-selected config, CLI and scoped authentication", () => {
     const workflow = readAgentEvalWorkflow();
     expect(workflow.on?.pull_request).toEqual({
@@ -2453,7 +2457,7 @@ describe("DeepSeek shared agent eval workflow", () => {
     expect(Object.keys(workflow.jobs).sort()).toEqual(["scenario", "summary"]);
     for (const job of Object.values(workflow.jobs)) {
       expect(job.if).toContain(
-        "(github.event.label.name == 'agent-eval' || github.event.label.name == 'agent-eval-deepseek') &&",
+        "(github.event.label.name == 'agent-eval' || github.event.label.name == 'agent-eval-openrouter') &&",
       );
       expect(job.if).toContain(
         "github.event.pull_request.head.repo.full_name == github.repository",
@@ -2489,7 +2493,7 @@ describe("DeepSeek shared agent eval workflow", () => {
     )!;
     expect(install.env?.CODEX_VERSION).toBe(
       githubExpression(
-        "github.event.label.name == 'agent-eval-deepseek' && '0.154.0' || 'latest'",
+        "github.event.label.name == 'agent-eval-openrouter' && '0.154.0' || 'latest'",
       ),
     );
     expect(install.run).toBe(
@@ -2504,33 +2508,34 @@ describe("DeepSeek shared agent eval workflow", () => {
     const login = job.steps.find(
       (s) => s.name === "Authenticate Codex with API key",
     )!;
-    expect(login.if).toBe("github.event.label.name != 'agent-eval-deepseek'");
+    expect(login.if).toBe("github.event.label.name != 'agent-eval-openrouter'");
     expect(login.env?.OPENAI_API_KEY).toBe(
       githubExpression("secrets.OPENAI_API_KEY"),
     );
+    expect(execution.env?.EVAL_LABEL).toBe(
+      githubExpression("github.event.label.name || ''"),
+    );
     for (const step of [config, execution]) {
-      expect(step.env?.EVAL_LABEL).toBe(
-        githubExpression("github.event.label.name || ''"),
-      );
       expect(step.env?.CODEX_HOME).toBe(
         `${githubExpression("runner.temp")}/agent-eval-codex-home-${githubExpression("matrix.id")}`,
       );
-      expect(step.run).toContain(
-        'if [ "$EVAL_LABEL" = "agent-eval-deepseek" ]; then',
-      );
     }
-    expect(config.run).toContain('"$CODEX_HOME/config.toml"');
-    expect(config.run).toContain('model = "deepseek/deepseek-v4.1-flash"');
-    expect(config.run).toContain('env_key = "OPENROUTER_API_KEY"');
+    expect(execution.run).toContain(
+      'if [ "$EVAL_LABEL" = "agent-eval-openrouter" ]; then',
+    );
+    expect(config.run).toContain('mkdir -p "$CODEX_HOME"');
+    expect(config.run).not.toContain("config.toml");
+    expect(config.env?.EVAL_LABEL).toBeUndefined();
     expect(config.run).not.toContain("--profile");
+    expect(JSON.stringify(workflow)).not.toContain("deepseek/");
     expect(execution.env?.OPENROUTER_API_KEY).toBe(
       githubExpression(
-        "github.event.label.name == 'agent-eval-deepseek' && secrets.OPENROUTER_API_KEY || ''",
+        "github.event.label.name == 'agent-eval-openrouter' && secrets.OPENROUTER_API_KEY || ''",
       ),
     );
     expect(execution.run).toContain("codex_args=()");
     expect(execution.run).toContain(
-      'codex_args+=(--codex-config "$CODEX_HOME/config.toml" --codex-report-format prompt-json)',
+      'codex_args+=(--codex-config "$GITHUB_WORKSPACE/eval/agentic/openrouter.toml" --codex-report-format prompt-json)',
     );
     expect(execution.run).toContain(
       ['"', "$", "{codex_args[@]}", '"'].join(""),

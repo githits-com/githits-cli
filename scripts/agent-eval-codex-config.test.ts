@@ -48,6 +48,36 @@ function readArtifactTexts(root: string): string[] {
 }
 
 describe("Codex eval main model config", () => {
+  it("requires an explicit model in the OpenRouter trial template", () => {
+    const root = mkdtempSync(join(tmpdir(), "eval-openrouter-template-"));
+    const examplePath = resolve(
+      import.meta.dir,
+      "../eval/agentic/openrouter.example.toml",
+    );
+    try {
+      expect(() => loadCodexEvalConfig(examplePath)).toThrow(
+        "Codex eval config must select a model and provider",
+      );
+      const model = "example-provider/another-model";
+      const path = join(root, "openrouter.toml");
+      writeFileSync(
+        path,
+        readFileSync(examplePath, "utf8").replace(
+          'model = ""',
+          `model = "${model}"`,
+        ),
+      );
+      expect(loadCodexEvalConfig(path)).toMatchObject({
+        model,
+        reasoningEffort: "low",
+        envKey: "OPENROUTER_API_KEY",
+        metadata: { path, provider: "openrouter", catalogSha256: null },
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("loads model defaults, selected provider arguments, and auditable hashes", () => {
     const root = mkdtempSync(join(tmpdir(), "eval-profile-"));
     try {

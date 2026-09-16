@@ -22,7 +22,7 @@ jobs:
     if: >-
       (github.event_name != 'workflow_dispatch' || github.ref_name == 'main') &&
       (github.event_name != 'pull_request' ||
-      ((github.event.label.name == 'agent-eval' || github.event.label.name == 'agent-eval-deepseek') &&
+      ((github.event.label.name == 'agent-eval' || github.event.label.name == 'agent-eval-openrouter') &&
       github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -73,7 +73,7 @@ jobs:
 
       - name: Install selected Codex CLI
         env:
-          CODEX_VERSION: ${{ github.event.label.name == 'agent-eval-deepseek' && '0.154.0' || 'latest' }}
+          CODEX_VERSION: ${{ github.event.label.name == 'agent-eval-openrouter' && '0.154.0' || 'latest' }}
         run: npm install --global "@openai/codex@$CODEX_VERSION"
 
       - name: Record Codex CLI version
@@ -82,25 +82,12 @@ jobs:
       - name: Initialize isolated Codex home
         env:
           CODEX_HOME: ${{ runner.temp }}/agent-eval-codex-home-${{ matrix.id }}
-          EVAL_LABEL: ${{ github.event.label.name || '' }}
         run: |
           set -euo pipefail
           mkdir -p "$CODEX_HOME"
-          if [ "$EVAL_LABEL" = "agent-eval-deepseek" ]; then
-            cat > "$CODEX_HOME/config.toml" <<'TOML'
-          model = "deepseek/deepseek-v4.1-flash"
-          model_provider = "openrouter"
-          model_reasoning_effort = "high"
-          [model_providers.openrouter]
-          name = "OpenRouter"
-          base_url = "https://openrouter.ai/api/v1"
-          env_key = "OPENROUTER_API_KEY"
-          wire_api = "responses"
-          TOML
-          fi
 
       - name: Authenticate Codex with API key
-        if: github.event.label.name != 'agent-eval-deepseek'
+        if: github.event.label.name != 'agent-eval-openrouter'
         env:
           CODEX_HOME: ${{ runner.temp }}/agent-eval-codex-home-${{ matrix.id }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -114,12 +101,12 @@ jobs:
           SCENARIO_OUT: ${{ runner.temp }}/agent-eval-${{ matrix.id }}
           GITHITS_API_TOKEN: ${{ secrets.GITHITS_API_TOKEN }}
           EVAL_LABEL: ${{ github.event.label.name || '' }}
-          OPENROUTER_API_KEY: ${{ github.event.label.name == 'agent-eval-deepseek' && secrets.OPENROUTER_API_KEY || '' }}
+          OPENROUTER_API_KEY: ${{ github.event.label.name == 'agent-eval-openrouter' && secrets.OPENROUTER_API_KEY || '' }}
         run: |
           set -euo pipefail
           codex_args=()
-          if [ "$EVAL_LABEL" = "agent-eval-deepseek" ]; then
-            codex_args+=(--codex-config "$CODEX_HOME/config.toml" --codex-report-format prompt-json)
+          if [ "$EVAL_LABEL" = "agent-eval-openrouter" ]; then
+            codex_args+=(--codex-config "$GITHUB_WORKSPACE/eval/agentic/openrouter.toml" --codex-report-format prompt-json)
           fi
           bun run agent:e2e:suite run \
             --suite "${{ matrix.suite }}" \
@@ -143,7 +130,7 @@ jobs:
       always() &&
       (github.event_name != 'workflow_dispatch' || github.ref_name == 'main') &&
       (github.event_name != 'pull_request' ||
-      ((github.event.label.name == 'agent-eval' || github.event.label.name == 'agent-eval-deepseek') &&
+      ((github.event.label.name == 'agent-eval' || github.event.label.name == 'agent-eval-openrouter') &&
       github.event.pull_request.head.repo.full_name == github.repository))
     needs: scenario
     runs-on: ubuntu-latest

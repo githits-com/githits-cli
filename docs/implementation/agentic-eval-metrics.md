@@ -54,14 +54,24 @@ and records model/effort/report format on rows and experiment metadata.
 
 The shared `.github/workflows/agent-evals.yml` owns the standard matrix: two
 discovery cells, 24 intent cells, and 24 full-guidance cells (50 total), with
-concurrency two/four/four. The trusted same-repository `agent-eval-deepseek` PR
-label selects OpenRouter/high/prompt-json and Codex 0.154.0. Schedule, main push,
-manual-main and `agent-eval` PR runs retain Luna/low/json-schema and current
-Codex. The separate DeepSeek canary workflow is removed.
+concurrency two/four/four. The trusted same-repository `agent-eval-openrouter`
+PR label selects the operator-committed `eval/agentic/openrouter.toml`,
+prompt-json and Codex 0.154.0. The repository provides only
+`eval/agentic/openrouter.example.toml`, with a blank model and a low effort
+example; no OpenRouter model is selected by default. Operators fill its exact
+model ID and supported effort on a trial PR and keep the active config out of
+main (leave the trial PR unmerged or remove it before merging). Keep its provider
+`env_key` as `OPENROUTER_API_KEY`, the provider credential wired by CI. Schedule,
+main push, manual-main and `agent-eval` PR runs retain Luna/low/json-schema and
+current Codex. The old DeepSeek label no longer triggers a run; the measured
+DeepSeek comparison below remains historical evidence.
 
-Each scenario uses an isolated Codex home. DeepSeek writes a dedicated main
-config, skips OpenAI login and scopes `OPENROUTER_API_KEY`/GitHits auth to
-execution; Luna retains stdin OpenAI API-key login. `BRAINTRUST_API_KEY` is
+Each scenario uses an isolated Codex home. OpenRouter execution reads the
+original main-config path through the existing loader, preserving relative
+optional catalog paths, skips OpenAI login and scopes
+`OPENROUTER_API_KEY`/GitHits auth to execution; Luna retains stdin OpenAI API-key
+login. Missing or blank config fails existing preflight before model execution.
+No profile, config renderer, model registry or provider fallback is added. `BRAINTRUST_API_KEY` is
 scoped only to the one aggregate export. Both job guards preserve same-repository
 label authorization. Execution/report/export failures remain job failures, and
 all three artifacts are retained. Runtime paths use step-level `runner.temp`;
@@ -837,7 +847,7 @@ It triggers on every push to `main`, at `03:00` UTC from the default branch, on
 run-to-run variance and selecting workloads to optimize; daily/manual/label
 coverage remains available and the workflow remains advisory. The paid jobs run
 for a pull request only when the event label is exactly `agent-eval` (Luna) or
-`agent-eval-deepseek` (DeepSeek) and the
+`agent-eval-openrouter` (explicit candidate) and the
 head repository is the current repository. They check out the immutable
 labeled head SHA; scheduled and manual runs use `github.sha`. A later
 `synchronize` event does not rerun while the label remains. Removing and
@@ -851,8 +861,8 @@ Node, frozen dependencies, and the current `@openai/codex` CLI, and records
 `runner.temp` and authenticates with the official stdin API-key flow.
 `OPENAI_API_KEY` is scoped only to authentication; `GITHITS_API_TOKEN` is
 scoped only to paid suite execution. No local subscription state, Keychain
-data, user config, or personal skills are copied into the runner. DeepSeek uses
-the isolated main config and execution-only OpenRouter auth described above,
+data, user config, or personal skills are copied into the runner. OpenRouter trials
+use the explicit main config and execution-only provider auth described above,
 without OpenAI login. Scenario outputs are uploaded as `agent-eval-discovery`,
 `agent-eval-intent`, and `agent-eval-full` with
 14-day retention, including partial setup/execution evidence.
@@ -1180,6 +1190,6 @@ artifacts that resolve outside the run directory.
 | `scripts/agent-eval-suite.test.ts`   | Suite, comparison, CLI, failure, and containment coverage                                        |
 | `scripts/agent-eval.test.ts`         | Runner, report, fallback, safety, and integration coverage                                       |
 | `scripts/agent-eval-metrics.test.ts` | Adapter and metrics-contract coverage                                                            |
-| `.github/workflows/agent-evals.yml`  | Daily/manual Luna and label-selected Luna/DeepSeek execution plus unconditional summary                         |
+| `.github/workflows/agent-evals.yml`  | Daily/manual Luna and label-selected Luna/OpenRouter execution plus unconditional summary                         |
 | `eval/agentic/README.md`             | User-facing harness usage, workload guidance, and limitations                                    |
 | `.agents/skills/braintrust-agent-evals/SKILL.md` | Internal read/query/export operating commands                                  |
