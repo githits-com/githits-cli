@@ -49,7 +49,7 @@ const schema: ZodRawShape = {
     .min(1)
     .optional()
     .describe(
-      "Optional name, display name, or alias. If unresolved, retry with a canonical name from the error or omit language.",
+      "Optional programming language name, display name, or alias; inferred when omitted. If unresolved, retry with a canonical name from the error or omit language.",
     ),
   license_mode: z
     .enum(["strict", "yolo", "custom"])

@@ -21,6 +21,9 @@ describe("getExampleTool", () => {
     expect(tool.schema.license_mode?.description).toContain(
       "`yolo` disables filtering",
     );
+    expect(tool.schema.language?.description).toContain(
+      "inferred when omitted",
+    );
     expect(tool.schema.language?.description).toContain("canonical name");
     expect(tool.description).toContain("listed canonical name");
     expect(tool.description).not.toContain("search_language");
