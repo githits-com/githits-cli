@@ -4,23 +4,25 @@
 
 - Overall: IN PROGRESS
 - Current phase: Phase 4 — Braintrust Persistence Proof Of Concept
-  (MAIN BOOTSTRAP PROVEN; LIVE LINKAGE PROOF PENDING)
+  (MAIN BOOTSTRAP AND PR LINKAGE PROVEN; LATER-MAIN/LOCAL PROOF PENDING)
 - Previous work: Phase 2 correction is COMPLETE. Phase 3 is merged and its
   same-repository label path is live-validated; Phase 4's exporter, CI wiring,
   local Braintrust readback, and first qualifying labeled CI export/readback
   are complete. The exact-head run proved persistence again, but exposed null
   branch and base-experiment identity. Stable naming and native main-baseline
   linkage are implemented. The first stable main bootstrap is live-proven and
-  later-main, pull-request, and local linkage remain before Phase 4 is complete.
+  PR linkage is also live-proven by the DeepSeek canary below; later-main and
+  local linkage remain before Phase 4 is complete.
 - Owner: repository maintainers
-- Last verified: 2026-09-01
+- Last verified: 2026-09-16
 - Deployment: Phases 1 through 3 are merged to `main`. The Phase 3
   same-repository label path and first default-branch manual bootstrap are
   live-validated. Phase 4's exact-pinned exporter and post-report CI step are
   implemented, with local, labeled CI, and main-bootstrap persistence/readback
   proven. Pushes to `main` now temporarily trigger the workflow to collect
-  variance and workload-optimization evidence. No live export has yet proven
-  later-main, pull-request, and local readback linkage.
+  variance and workload-optimization evidence. The OpenRouter PR canary below
+  proves PR-to-main readback linkage. Later-main/local linkage are separate
+  outstanding roadmap proofs.
 
 ## Problem And Expected Outcome
 
@@ -1686,7 +1688,7 @@ None.
 
 ### Status
 
-MAIN BOOTSTRAP PROVEN; LIVE LINKAGE PROOF PENDING.
+MAIN BOOTSTRAP AND PR LINKAGE PROVEN; LATER-MAIN/LOCAL PROOF PENDING.
 Phase 3 is merged and its same-repository label path has clean runner evidence.
 The exact-pinned Braintrust exporter, post-report CI wiring, local
 persistence/readback proof, internal operations skill, and qualifying labeled
@@ -1697,9 +1699,10 @@ confirmed that experiment `base_exp_id` and branch identity are null and that
 the opaque `github-<run>-<attempt>` name is insufficient for routine operation.
 Stable naming and native comparison linkage are implemented. Main bootstrap
 run `33477846273` persisted `main-r33477846273-a1` with the expected null base,
-proving default-branch manual execution and stable main identity. No live
-export/readback has yet proved later-main-to-main, PR-to-main, and
-local-to-main linkage, so Phase 4 remains incomplete.
+proving default-branch manual execution and stable main identity. PR-to-main
+linkage is live-proven by DeepSeek canary `35093150512` below. Later-main-to-main
+and local-to-main are separate outstanding proofs, so Phase 4 remains
+incomplete.
 SDK tracing was deliberately not added.
 
 ### Expected Outcome
@@ -2367,6 +2370,570 @@ provider.
   scenario dimensions; cross-agent values remain explicitly non-equivalent.
 - The approved canary matrix runs within its measured budget and preserves the
   same raw-artifact and credential-redaction guarantees.
+
+### Local Modal DeepSeek pilot — 2026-09-16
+
+Status: SUPERSEDED by the OpenRouter reorientation below. Internal preflight: no findings. External plan round 1:
+two minor wording findings applied; clean under the repository wording-fix rule.
+One bounded implementation increment; the scheduled
+broader-matrix rollout above remains PLANNED.
+
+Expected outcome: maintainers can run the existing isolated Codex workload
+harness with a caller-selected Modal DeepSeek V4.1 Flash model profile and
+inspect repeated, matched Luna/DeepSeek evidence before choosing a replacement.
+The user approved Codex without temperature control and authorized reading the
+Modal proxy token from `~/.modal.key` directly into subprocess environments.
+
+Verified evidence:
+
+- Codex CLI is `0.154.0`; OpenCode is not selected for this increment.
+- `~/.codex/deepseek-flash-4-1-modal.config.toml` selects provider `modal`,
+  Responses at `https://inference.us-west.modal.direct/v1`, an endpoint-hostname
+  model ID, high reasoning, an explicit JSON model catalog, and the
+  `MODAL_PROXY_TOKEN` environment variable. It contains model configuration
+  only and no literal credentials.
+- An authenticated `/v1/models` request using the local key file succeeded and
+  listed the exact configured DeepSeek endpoint. The token was not printed.
+- A secret-free local HTTP probe established that `--ignore-user-config`
+  suppresses `--profile` configuration in this CLI version. Explicit `-c`
+  provider/model-catalog arguments work with that isolation flag and send
+  reasoning effort plus the final JSON schema.
+- The same probe established that `-c temperature=0` is absent from the wire
+  request; strict config rejects it. No temperature setting will be added.
+- One-off run identity/metrics already allow arbitrary requested models; named
+  suites, suite comparisons, and Braintrust suite export remain Luna-specific.
+  The runner currently filters out the Modal proxy token.
+
+Ownership and architecture: the eval runner owns experiment configuration and
+isolation. A small model-profile helper loads only credential-free model,
+reasoning, catalog, and selected provider configuration, and converts it to
+explicit Codex arguments. The caller's launch command reads `~/.modal.key` into `MODAL_PROXY_TOKEN`;
+the runner does not discover credential files. The parent runner adds only the
+selected provider's variable to the existing environment allowlist and redacts
+its value regardless of its name; existing standard authentication variables
+remain unchanged.
+The selected profile never enables ambient MCP servers, plugins, skills,
+project guidance, or shell settings. A dedicated eval `CODEX_HOME` remains
+required; the selected profile may reside outside it.
+
+Scope: a `--codex-profile <file>` option for one-off workload runs, model-only
+profile parsing/validation, selected-provider environment passthrough, effective
+model/profile identity in run artifacts, deterministic regression tests,
+permanent usage documentation, and the local matched pilot. Explicit `--model`
+and `--reasoning-effort` override profile defaults and are reflected in results.
+Model defaults and the named-suite matrix remain unchanged without a profile.
+Live validation found that optional GitHits startup can omit its tools from
+the first request when a catalog-backed provider starts quickly. Codex MCP
+workloads will mark the existing GitHits server `required = true`; this fixes
+the experiment prerequisite for both profiled and default launches.
+No public package behavior, MCP descriptors/instructions, CI matrix, temperature
+control, vendor SDK harness, automatic grading, or new infrastructure changes.
+
+Assumptions:
+
+- The user-selected profile and catalog are trusted model configuration; reject
+  instruction, MCP, plugin, auth-command, inline-token, and other non-model keys
+  rather than loading a whole user configuration into the acting agent.
+- Matching the `high` reasoning label controls the requested setting, not equal
+  reasoning token budgets across vendors. Preserve token details and costs.
+- Modal shared-endpoint published prices are $0.30 uncached input, $0.03 cached
+  input, and $1.20 output per million tokens; an independent pilot estimate may
+  use these rates only with its source and assumptions recorded. Normal metrics
+  retain `unknown` cost for an unconfigured rate card; never substitute Luna's
+  rates. Actual billing is not established by the published shared rates.
+
+Unknowns/product decisions: model-profile setup decisions are resolved. DeepSeek's live
+completion, tool use, latency, and repetition variance are measurement outcomes,
+not assumed advantages. A scheduled replacement and formal multi-model suite
+pricing/export are outside this local increment and require the pilot decision.
+The user asked about adding a repository secret for a future PR/Braintrust run;
+the verified name is `MODAL_PROXY_TOKEN`. The existing suite/CI exporter accepts
+only Luna; whether to expand this PR is pending clarification, and secret
+creation alone does not enable a DeepSeek CI run.
+
+Dependencies: installed Codex, the verified local Modal key and model profile,
+existing dedicated `~/.codex-eval`, and GitHits authentication available to the
+trusted local MCP child. This local pilot does not depend on completing the
+separate Braintrust rollout.
+
+Implementation:
+
+1. Add `scripts/agent-eval-codex-profile.ts` for strict model-only TOML decoding
+   with safe parse errors and explicit selected-provider config arguments.
+2. Add profile selection to `scripts/agent-eval.ts`; resolve effective model and
+   effort before execution/recording, retain `--ignore-user-config` and existing
+   isolation preflight, add the provider-selected credential environment
+   variable to the existing allowlist, and include profile/catalog hashes and provider identity in run
+   metadata. Reuse existing artifact redaction and add the selected credential
+   to its inputs even when its variable name lacks TOKEN/API_KEY. The documented
+   launch command (outside the acting agent) reads `~/.modal.key` into
+   `MODAL_PROXY_TOKEN`; tests inject a dummy environment value and do not read
+   a real credential file.
+3. Test profile defaults/overrides, malformed and non-model configuration,
+   provider/env selection, unchanged default launch isolation, and a complete
+   injected run proving effective identity and token redaction in every artifact.
+   Require GitHits startup in Codex MCP config and command artifacts. Verify
+   with a local HTTP/MCP wire probe that the first request follows tool listing.
+4. Document one-off Modal usage and measurement limits in `eval/agentic/README.md`
+   and `docs/implementation/agentic-eval-metrics.md`; add a repository-only change
+   fragment with `none` impact on both public artifacts.
+5. Run the exact canary workloads `express-router.md` and
+   `package-overview-vulnerabilities.md` in the intent scenario, local MCP,
+   Codex `0.154.0`, high reasoning, workload concurrency 2, three repeats for Luna
+   and three for DeepSeek. Keep each workload's native final/tool/usage/isolation
+   artifacts and aggregate only the matched cells. Start with one repeat to
+   establish authentication/completion before paying for the remaining cells.
+   Inspect final answers and tool evidence directly; report self-confidence as
+   self-report and do not manufacture a quality grade or model tokens/s from
+   whole-run duration. Twelve cells are the narrow pilot, not stable-full.
+
+Acceptance criteria:
+
+- Both selected models execute through the existing Codex isolation contract;
+  effective model/effort/provider and profile/catalog hashes are auditable.
+- The token is supplied through environment variables, absent from commands and
+  persisted artifacts, and redacted if an injected agent echoes it.
+- A profile cannot introduce unrelated host instructions/tools/configuration;
+  existing default launch and dedicated-home regression coverage remains green.
+- `bun test scripts/agent-eval-codex-profile.test.ts scripts/agent-eval.test.ts`
+  plus relevant metrics/report tests pass; `bun run typecheck`, changed-file
+  formatting/lint, and `bun run build` pass. Product smoke suites are not
+  required because product MCP/CLI behavior is unchanged.
+- Matched live pilot records actual successes/failures, tools, duration, token
+  accounting, and isolation violations for each workload/repetition/model.
+  Provider failures remain evidence; investigate them before any rerun, and do
+  not relabel partial/failed cells as successes.
+- The internal preflight and one external code reviewer converge cleanly under
+  the repository review policy; commit, push, and open a draft PR without merge.
+
+Completion: update this subsection with observed evidence before the PR; retain
+the plan through review/merge. Transfer durable findings to implementation docs.
+No subsequent phase begins automatically; the user's model-replacement decision
+reorients the broader matrix above.
+
+Observed implementation evidence:
+
+- Profile parsing/selection, explicit inline provider-table overrides, effective
+  identity/hashes, selected environment passthrough, and escaped redaction are
+  implemented. An initial quoted dotted-provider override failed before
+  inference; the helper now emits one TOML table, verified against installed CLI.
+- `bun test scripts/agent-eval-codex-profile.test.ts scripts/agent-eval.test.ts
+  scripts/agent-eval-metrics.test.ts`: 155 pass, 0 fail, 993 assertions, 12.33s
+  after the required-startup fix. `bun run typecheck`, four-file Biome check,
+  `git diff --check`, and `bun run build` passed.
+- Luna baseline: three repeats of the two intent canary workloads, all six
+  execution/final statuses success, actual GitHits calls, zero isolation
+  violations. Router durations were 152.96s, 85.67s, and 67.66s; package
+  durations 47.42s, 48.47s, and 36.90s. Two router cost records carry the existing
+  long-context-attribution warning. These pre-fix baselines are retained;
+  they are not a matched performance comparison against tool-free output.
+- The configured DeepSeek endpoint authenticated and returned structured
+  finals/usage, but no MCP calls. Required startup fixed initial missing-tool
+  exposure. An actual transparent relay subsequently verified all 17 GitHits
+  functions arrived in the `mcp__githits` namespace; the provider still returned
+  an answer claiming GitHits unavailable.
+- A direct Modal Responses probe with required tool choice called a flat
+  function (HTTP 200). Namespace and custom tool probes both failed HTTP 400:
+  required choice needs a function tool. Codex `0.154.0` emits MCP namespaces
+  and a custom code-mode executor. Source for `0.153.3` and provisional indexed
+  `0.150.0` also emits MCP namespaces. A model-only profile cannot change this
+  wire contract; a recent version pin is not an established remedy.
+- The user demonstrated native `codex -p deepseek-flash-4-1-modal`, CLI 0.154,
+  GitHits connected with 17 tools in `/mcp`, and a normal greeting. This disproves any
+  blanket claim that Codex/Modal cannot work; it does not establish actual MCP
+  calls. The user then confirmed GitHits MCP was unavailable to the model.
+  A native-profile quick_start probe reproduced this missing call. Normal
+  `auto` choice shape probes accepted namespace/custom HTTP 200 but made no call
+  and reported 44 input tokens each versus 319 for a callable flat function. Keep
+  the conclusion scoped to model-facing GitHits delivery. Native profiles
+  inherit global MCP definitions; the eval injects its isolated server config.
+- This contradicts the original assumption that proper profile selection alone
+  enables usable Modal MCP evals. Profile delivery and the prerequisite fix
+  remain reviewable; the model pilot is blocked by provider tool-format
+  compatibility. Remaining DeepSeek repeats and numerical model comparison are
+  deliberately stopped: identical incompatible tool delivery cannot prove task
+  behavior. Fixing the adapter or choosing compatible tool delivery is a product
+  boundary decision before the broader suite/CI/Braintrust work, not a TODO in
+  this helper. No Luna replacement or quality advantage is claimed.
+- All failed/partial and diagnostic artifacts remain under the ignored
+  `.agent-eval/deepseek-modal-pilot/`; durable compatibility findings are in
+  `docs/implementation/agentic-eval-metrics.md`. No credential was displayed.
+
+
+### OpenRouter PR canary reorientation — 2026-09-16
+
+Status: IMPLEMENTED AND CI-VERIFIED. Draft PR #401 awaits human review/merge.
+Internal plan preflight: no findings. External plan round
+1: one minor identity-documentation finding applied; clean under the wording-fix
+rule. This supersedes the unmerged named-profile interface and
+Modal-only pilot scope above. The user approved trying OpenRouter, demonstrated
+model-visible GitHits tools, requested a main eval config instead of a named
+profile, and added `OPENROUTER_API_KEY` to repository secrets (name verified).
+The existing Luna schedule and `agent-eval` PR trigger remain unchanged.
+
+Verified prerequisites: direct Responses calls through OpenRouter invoked both
+flat and namespaced functions. Namespaced tools combined with enforced JSON
+schema produced final JSON promising a call but no call. A Codex 0.154 canary
+using a dedicated main `config.toml`, OpenRouter, no output schema, and the real
+local GitHits server completed `quick_start` and `pkg_info`; process exit 0,
+no timeout or error events. Modal without enforced schema made CLI calls but
+timed out at 180 seconds without a final report. No quality comparison follows
+from these compatibility probes.
+
+Ownership: the eval runner owns safe projection of model/provider settings from
+an explicit main config and artifact redaction. It continues to ignore ambient
+Codex config and inject isolated MCP/skills wiring. The suite owns one effective
+model/reasoning/report-format matrix and passes it to its child executions.
+The existing Braintrust exporter owns homogeneous identity validation; it must
+accept DeepSeek suite evidence while continuing to reject mixed identities.
+A separate PR canary workflow owns the new `agent-eval-deepseek` run trigger,
+credentials, and CI orchestration; it reuses existing reporting/export CLIs.
+
+Implementation scope:
+
+1. Rename the unmerged `--codex-profile` interface/helper to `--codex-config`.
+   Read only model/provider/effort/catalog settings from the supplied main TOML;
+   unrelated settings are excluded rather than loaded. Keep Responses provider
+   credentials env-key-only, safe parse errors, effective identity/hash audit,
+   explicit CLI overrides, required MCP startup, and dedicated-home validation.
+2. Add `--codex-report-format json-schema|prompt-json`; retain json-schema as
+   default. Prompt-json omits wire-level output schema while retaining the exact
+   reporting prompt and existing final JSON validation. Record chosen format.
+3. Allow named suite `run` to select explicit config/report format. Resolve its
+   matrix once, propagate actual model/effort into cells/shards/artifacts and
+   comparisons, and retain child/import identity checks. Include report format
+   in exported row/suite identity, with historical omission treated as
+   json-schema. Accept string model and supported Codex reasoning labels in
+   current schemas; legacy Luna artifacts
+   remain compatible. Do not permit mixed-model suites or reinterpret old data.
+4. Add a separate trusted same-repository PR label workflow for canary intent
+   (two workloads, concurrency 2) via OpenRouter DeepSeek/high/prompt-json.
+   Initialize a dedicated main config using env-key auth, run existing CI report
+   and Braintrust exporter, retain failures/artifacts, and ensure the job fails
+   when execution, reporting, or export fails. Keep model keys out of artifacts
+   and scope Braintrust credentials only to export. Pin Codex to tested 0.154.0.
+5. Update durable docs/change fragment. Test safe model config projection,
+   prompt-json command/report validation, suite identity propagation, DeepSeek
+   Braintrust import and mixed-model rejection, and workflow trigger/secret/error
+   handling. Run targeted Bun tests, typecheck, changed-file lint, and build.
+6. Run one real package workload through the final runner without schema to prove
+   valid final JSON and actual MCP calls. Perform internal preflight and one
+   external delta reviewer to clean; commit/push/open draft PR. Trigger only the
+   two-workload canary after setup is reviewable; broader comparison and Luna
+   replacement remain later decisions, with no fabricated quality grades.
+
+Assumptions/limits: OpenRouter routing may select different providers; retain
+raw usage and report unknown normalized prices until a verified rate card is
+configured. Matching vendor reasoning labels is not equal token budgets.
+Prompt-json final output may fail validation; preserve that failure, no repair
+or fallback. A single canary proves integration, not repetition consistency.
+The new label selects an eval workload/model, not a deployment feature flag.
+No infrastructure, publication, deployment, or automatic replacement changes.
+
+Acceptance: OpenRouter makes actual GitHits MCP calls and returns a validated
+report through the isolated runner; suite/export identity stays truthful and
+rejects mixed data; dedicated config needs no named profile; narrow PR workflow
+can export its real cells using the existing secret; required checks/review pass.
+Retain the existing plan through review/merge and document observed outcomes.
+
+Observed final-runner result: `openrouter-runner-package` uses the same env-key,
+no-catalog provider setup as CI. The isolated package workload completed five
+GitHits MCP calls and returned validated JSON with exit 0, no timeout or isolation
+violation. Its 60,900 ms duration is not a model speed comparison. The audit
+across 308 retained pilot files found no raw/JSON-escaped credential matches.
+Internal code preflight found no code issues; its help-text omission was fixed.
+Full targeted tests hit existing five-second fixture limits under heavy local
+CPU load, including in the sequential-check pass; an isolated five-case rerun
+passed at unchanged defaults. Final verification passed all 264 targeted tests with a 15-second per-test
+allowance, plus typecheck, changed-file Biome and build. Production timeouts and
+behavior are unchanged. External delta review is clean, including its single
+fresh-context final check and the private skill-doc correction. Optional shell
+preamble/failure-echo consistency suggestions were rejected: current Actions
+bash error handling and explicit final outcomes meet the verified requirements;
+there are no pipes or unset-variable paths to protect. Plugin generation/check
+passed without generated changes. Draft PR and the real two-cell CI/Braintrust
+run subsequently completed as recorded below. The newest main baseline was read back as
+Luna/low; it is a cross-model comparison with DeepSeek/high.
+
+GitHub delivery finding: draft PR #401 was opened at `d6e5430`, but GitHub
+rejected the workflow before any paid canary began. `actionlint` reproduced
+invalid `runner.temp` references in job-level env. Runtime paths belong to the
+preparation step, after runner allocation; they now live in its step env and
+are published through `GITHUB_ENV` for later steps. The workflow contract test
+covers this placement/publication. A JavaScript string was also written without
+shell-template-looking interpolation so standalone actionlint passes without
+suppressions. This is a small workflow correction, not new infrastructure.
+The workflow correction review converged cleanly with no findings. Regular CI
+passed Ubuntu unit tests, build/package/smoke and Node/Bun compatibility. Windows
+had one new test failure: the test expected hard-coded /repo/model.config.toml
+while native resolution correctly returned D:\repo\model.config.toml. The fixture
+and assertion now use native tempdir/join paths; production parsing is unchanged.
+The small test correction review also converged cleanly with no findings.
+Corrected-head Windows CI and the real CI/Braintrust canary subsequently passed
+as recorded below.
+
+Final delivery proof: [draft PR #401](https://github.com/githits-com/githits-cli/pull/401)
+at code SHA `e3fe68c40b80ac74d0c9fa59b0009b28c0841660` passed [regular CI
+35093074790](https://github.com/githits-com/githits-cli/actions/runs/35093074790),
+including Windows, and [DeepSeek canary 35093150512](https://github.com/githits-com/githits-cli/actions/runs/35093150512).
+Both intent workloads returned validated JSON; actual MCP calls totaled 25
+(package 5, router 20), with zero failed calls or isolation violations.
+[Braintrust experiment `pr-401-r35093150512-a1`](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-401-r35093150512-a1)
+(ID `cf6ec867-e67a-4adb-86bf-ace617b30dc0`) read back two eval spans and 25 tool
+spans. Experiment metadata is DeepSeek/high/prompt-json, channel PR,
+exporter/schema 3. Actual base is `main-r35085880981-a1`
+(ID `13590571-39c1-4a33-831d-db144fb1fc7a`), verified Luna/low. The artifact audit
+scanned 28 downloaded CI files with zero credential matches. Normalized cost
+remains unknown (`rate_card_not_configured`); quality is ungraded. A single
+canary proves integration, with repeated quality/consistency comparison and any
+Luna replacement still separate decisions. Nothing was merged or published.
+
+### Full DeepSeek matrix comparison — 2026-09-16
+
+Status: COMPLETE (implemented, reviewed and live-verified; PR #401 remains
+unmerged). The user explicitly requested replacing the dedicated DeepSeek
+canary with a full eval run and comparison to main Luna.
+
+Verified current state: the existing main workflow owns discovery/canary with
+concurrency 2 and stable-full intent/full guidance with concurrency 4. The
+manifest has 24 stable workloads; the latest qualifying main Braintrust
+experiment `main-r35085880981-a1` (ID
+`13590571-39c1-4a33-831d-db144fb1fc7a`) contains exactly 50 eval rows: discovery
+2, intent 24, full 24, Luna/low, target SHA
+`b2d4513a9b910682f314a8e78dc344ae279d2e37`. Main has since the previous branch
+base removed a tool and released 0.19.0; origin/main was merged into this own
+PR branch so the full comparison uses that current tool catalog. The previous
+DeepSeek two-cell proof remains historical evidence, not the current trigger.
+
+Ownership: `.github/workflows/agent-evals.yml` naturally owns standard coverage,
+parallelism, authentication and one aggregate Braintrust export. It should
+select the model from the existing PR label rather than maintain a second
+copy of the scenario matrix. The runner/suite/exporter already own isolated
+model config, report mode and truthful identity; no new harness changes.
+
+Outcome: `agent-eval-deepseek` on trusted same-repository PR #401 runs the same
+50 cells as main with DeepSeek/high/prompt-json and Codex 0.154.0. Schedule,
+main push/manual and `agent-eval` keep current Luna/low/json-schema behavior.
+No dedicated DeepSeek canary workflow remains. A full run may exceed five
+minutes; unlike the prior two-cell canary it tests the entire stable corpus
+under both guidance profiles and preserves the main discovery control.
+
+Implementation:
+1. Remove `.github/workflows/agent-evals-deepseek.yml`. Broaden both authorized
+   job guards in the existing workflow to accept the DeepSeek label. Keep its
+   exact shared matrix, scenario artifacts, report/export and failure stages.
+2. Select CLI version in its install step (DeepSeek pin 0.154.0, Luna latest).
+   Initialize isolated main config only for DeepSeek, skip OpenAI login for
+   that label, and expose OpenRouter key only to its execution environment.
+   Add config/prompt-json arguments only for DeepSeek. Use label values via
+   env, not shell interpolation. Existing GitHits/Braintrust key scopes stay.
+3. Replace the dedicated canary workflow test with shared coverage/model/auth
+   selection assertions. Run targeted workflow tests, typecheck, changed-file
+   Biome, actionlint and build. Correct the existing JavaScript-template
+   shellcheck false-positive by equivalent concatenation for clean actionlint.
+4. Update permanent usage/implementation docs, internal Braintrust guidance and
+   the unmerged change fragment. Perform internal preflight and one external
+   delta review to clean; commit/push/update the existing draft PR.
+5. Reapply only `agent-eval-deepseek` to launch the authorized full matrix.
+   Inspect all final reports/tool traces/isolation evidence, export readback and
+   actual linked main baseline. Compare by `metadata.cellId` and stable input
+   identity, reporting coverage, failures, workload duration, tokens/tool calls
+   and answer differences supported by evidence. Retain comparison artifact
+   and record observed results; no confidence-as-quality grade.
+
+Assumptions: normal full eval means the verified main 50-cell matrix, including
+its existing discovery control. Baseline may advance before export; compare the
+actual linked main ID, verifying Luna and common cell/input coverage. Presets
+are vendor-specific DeepSeek/high versus Luna/low; report formats differ because
+DeepSeek enforced schema suppressed tools. This is a comparison of operational
+presets, not an equal-budget model benchmark. Normalized DeepSeek pricing stays
+unknown without a verified rate card. No new infrastructure, deployment feature flags, temperature control,
+deployment, release or automatic Luna replacement. Product decisions:
+none needed for this run. Repeated consistency/quality scoring remain later
+separate work; this full attempt must be fully analyzed before delivery.
+
+Acceptance: trusted DeepSeek label executes the existing complete matrix;
+Luna triggers/auth/defaults remain intact; no model key enters uploaded output;
+all 50 cell outcomes are accounted for and real tool usage/failures inspected;
+Braintrust export keeps DeepSeek identity and actual main baseline linkage;
+the comparison explains input/coverage/preset differences and observed results.
+Retain this plan until review/merge; permanent docs own verified workflow use.
+
+Review disposition: internal technical preflight found no issues. Fable's plan
+round found no blockers. Keep the existing 40-minute job budget: the runner
+already caps each workload at 300 seconds, so 24 cells at concurrency four take
+at most six workload waves (30 minutes plus setup), rather than an unbounded
+high-effort request. The canary's 15-minute job setting was a limit, not measured
+latency. Concurrency four is deliberately retained for shared coverage and
+comparison; provider limits are an observed outcome to report. Existing
+`DeepSeek Braintrust identity` coverage already asserts model/high/prompt-json
+on the exported experiment payload and rejects mixed identity; preserve it.
+No material plan changes or additional infrastructure are justified.
+
+Implementation verification: four focused workflow/export-identity tests pass
+(95 assertions), along with typecheck, changed-file Biome, actionlint, build,
+and plugin generation/check (10 assets, no generated diff). Internal code
+preflight reviewed the exact post-main-merge delta and found no issues. External
+Opus review and its one fresh-context final check are clean with no findings.
+Regular CI `35096578896` passed Ubuntu/Windows full tests, build/checks and
+Node/Bun compatibility. Full paid attempt
+`35097872660` at reviewed SHA `2d394d9fb9c30c1efc107f8835e0ad8f90e4cf0e`
+failed aggregation: discovery2 and intent24 valid; full has21 valid, two
+malformed finals and one uncaptured cell, and no run/suite artifacts. All three
+scenario jobs exited zero, but summary/export rejected missing full evidence;
+no Braintrust experiment was created. Evidence retained, not reset or repaired.
+
+Root-cause correction within this increment: an isolated credential-free driver
+reproduces exit-zero with no completion when the last timeout awaits an
+unreferenced cleanup timer. Runner process lifecycle owns that cleanup. Remove
+`unref` and its unused timer handle; the already-awaited cleanup now finishes
+and failed timeout artifacts can be generated. Three focused lifecycle tests
+pass, including a child-driver regression that the ordinary Bun test event loop
+would otherwise conceal. Two malformed JSON finals remain model failures under
+unchanged final validation. No new harness layer, timeout setting, recovery or
+acceptance criterion. This minor incident fix is within the original all-cell
+artifact/comparison criterion, not a scope/phase change requiring a plan round.
+Complete rerun `35099796991` on reviewed SHA `81f4ae7` retained all 50 cells
+and exported `pr-401-r35099796991-a1` (ID
+`a6313674-e0cd-45b0-8d5b-037d885f1876`), with 50 native eval roots and 495
+tool children. Actual persisted baseline is the verified main Luna experiment
+`13590571-39c1-4a33-831d-db144fb1fc7a`. All 50 stable inputs, including prompt
+hashes, and all scenario guidance identities match. Luna has 50 validated
+successful reports versus DeepSeek's 48; the two DeepSeek failures are a second
+JSON object and literal newlines inside a JSON string, with native exit zero
+and no timeout. Summary failure accurately reports those model outcomes;
+aggregation and export succeeded. No evidence was repaired or discarded.
+
+Compared with Luna, DeepSeek cumulative duration is 2950.371 versus 787.752
+seconds, median duration 42.363 versus 13.556 seconds, MCP calls 495 versus
+205, tokens 10,015,782 versus 5,452,005, and recovered tool errors three versus
+five. Both have zero CLI tool calls and isolation violations. DeepSeek cost
+remains unknown; different report modes/reasoning presets and source paths
+prevent interpreting these operational metrics as an equal-budget quality
+score. Sampled paired answers are longer with more calls, without established
+better correctness. Keep Luna's default; no replacement is justified by this
+attempt. Full paired results, scenario wall times, failure details and review
+proof are now permanent in
+[implementation documentation](../implementation/agentic-eval-metrics.md#full-deepseek-matrix-comparison--2026-09-16).
+Regular CI `35099722242` passes Ubuntu/Windows, build/checks and compatibility.
+Internal preparation and the bounded external Opus lifecycle follow-up are
+clean. This increment's criteria are satisfied; future grading/variance phases
+retain their existing separate scope and product decisions.
+
+### Occasional OpenRouter model trials — 2026-09-16
+
+Status: COMPLETE (implemented, reviewed and verified; PR #401 unmerged).
+The user wants to retain occasional OpenRouter model
+comparisons while keeping Luna as the default. The complete DeepSeek comparison
+above remains historical evidence; it does not justify a replacement.
+
+Verified current state: main/schedule/manual and `agent-eval` already use
+Luna/low/json-schema. Only `agent-eval-deepseek` chooses OpenRouter, with its
+model/high preset embedded in the shared workflow. The existing `--codex-config`
+loader accepts any nonempty model ID, projects only the selected env-key
+Responses provider, safely rejects missing/invalid configuration, records
+config/catalog hashes and resolves optional catalog paths relative to the
+source TOML. Suite/export identity is already generic. Current export marks
+main dispatches as main baseline candidates, so adding model selection to main
+manual dispatch would require a separate baseline-policy change.
+
+Ownership: eval-owned TOML chooses the candidate model/provider/effort; the
+existing workflow owns trusted PR triggers, isolated execution, scoped auth
+and shared coverage/export. Use the existing loader on the original checked-in
+file, preserving relative catalog semantics. Do not copy that file into a
+different directory or add a second config parser/model registry. A manual
+model input looks simpler at the UI but requires changing main-baseline
+classification; a reviewable PR config fits the existing verified contract.
+
+Outcome: trusted `agent-eval-openrouter` PR labels run the same 50-cell matrix
+with an explicitly selected OpenRouter model. No default OpenRouter model is
+committed. Scheduled/main/manual and Luna-label behavior remains unchanged.
+OpenRouter trials export as PR experiments linked to the actual latest main
+Luna baseline. No further paid run is requested by this increment.
+
+Assumptions, verified or explicit design choices:
+- The user wants occasional trials through the existing Codex/OpenRouter route,
+  not a change to the production eval default (explicit user instruction).
+- Operators select a model by committing credential-free
+  `eval/agentic/openrouter.toml` on their trusted trial PR. This is the chosen
+  application of the existing caller-selected main-config interface.
+- `eval/agentic/openrouter.example.toml` has an empty model field requiring
+  deliberate selection and a low effort example. Omitted effort uses the
+  existing suite low default; vendor budgets/capabilities remain model-specific.
+- OpenRouter jobs retain the proven Codex 0.154.0 pin and prompt-json reporting
+  with unchanged final validation. Compatibility of an untried model is an
+  observed trial outcome, not guaranteed by generic configuration support.
+- Missing/blank config fails safely before model execution using the existing
+  loader; no new guard, recovery path or report repair is required.
+
+Unknowns/product decisions: none for this increment. Which model to try next,
+its price/capabilities and an actual paid run are future operator choices.
+Dependencies: the implemented generic config/reporting and full-matrix work in
+PR #401; the existing GitHub OpenRouter/GitHits/Braintrust secrets.
+
+Implementation steps:
+1. Replace the DeepSeek PR label in both job guards, CLI-version selection,
+   OpenAI-login condition, run auth and argument selection with
+   `agent-eval-openrouter`. Remove the embedded DeepSeek config rendering;
+   initialize the isolated home for all runs, then pass the original
+   `$GITHUB_WORKSPACE/eval/agentic/openrouter.toml` to `--codex-config` only for
+   the OpenRouter label. Keep every matrix/concurrency/export/final-status rule.
+2. Add the credential-free blank-model example config. Update current operator
+   docs/private Braintrust skill and the pending none/none fragment to explain
+   explicit model selection, PR-only trials and existing compatibility limits.
+   Preserve the measured DeepSeek incident/results and historical trigger names.
+   Keep the active trial config out of main (leave trial PR unmerged or remove
+   it before merging); the example alone is permanent. Document that CI wires
+   only `OPENROUTER_API_KEY` as the provider execution credential.
+3. Update workflow contract tests to cover unchanged Luna/main defaults, trusted
+   generic PR routing, scoped auth, original config path and no embedded model.
+   Exercise the actual example through the loader with blank rejection and a
+   filled arbitrary model; retain DeepSeek identity regression and exercise a
+   second non-DeepSeek identity through suite mapping/export metadata.
+4. Run focused `bun test` for shared workflow/export/config contracts,
+   actionlint, changed-file Biome, typecheck, build and plugin generation/check.
+   Run internal code preparation then one external Opus review to clean.
+   Commit/push/update PR #401 and verify regular CI. Create the generic label
+   without applying it, remove the obsolete DeepSeek label from this own PR;
+   do not trigger a paid trial or delete labels from other lanes.
+
+Acceptance: Luna remains the default under every existing non-OpenRouter
+trigger; no OpenRouter model is selected until a trusted PR provides a valid
+config and applies the generic label; arbitrary candidate identity survives
+suite/export mapping; credentials remain execution/export scoped; all 50-cell
+coverage and actual Luna baseline linkage are retained. Blank/missing config
+uses the existing safe error behavior before provider execution. Current docs,
+plan and PR describe the generic interface and preserve the actual DeepSeek
+result. The active trial config stays out of main; its provider key reference
+remains `OPENROUTER_API_KEY`. No temperature control, main-baseline policy, grader, rate card,
+registry, fallback, polling or additional infrastructure is introduced.
+
+Plan verification: internal technical preparation found no issues. Fable
+review found the design sound with two minor documentation clarifications,
+accepted in-place: keep trial config out of main and document the sole wired
+OpenRouter provider key. These clarify the already-selected no-default-model
+and auth contracts; no scope/architecture/phase change or additional review
+round is needed. No code guards or repo-absence test are added.
+
+Implementation verification: 15 focused config/workflow/export-identity
+contracts pass with 257 assertions; four unchanged cases that hit five-second
+local deadlines pass with 29 assertions using CLI `--timeout 30000`. Initial
+broader two-file run was 55 pass/four existing deadline failures (host load 138
+on 10 logical CPUs); evidence preserved and no code/default timeout changed.
+Actionlint, changed-file Biome, typecheck, build and plugin generation/check pass
+with no generated diff. Internal code preparation found no code issues; its
+one valid minor finding is fixed by creating the dedicated home in the local
+README example. External Opus direct review and its single fresh-context
+code-reviewer check are clean with no findings and no repeated validation.
+[Regular CI 35104790814](https://github.com/githits-com/githits-cli/actions/runs/35104790814)
+on implementation SHA `d3c21b20d3b7bbce7ef9c8aa686c4d48ac3e95c2` passes
+build/checks, full Ubuntu/Windows tests and Node 20/22/24/26 plus Bun compatibility.
+The generic label is created without applying it; the old DeepSeek label is
+removed from this own PR and its title/body now describe generic OpenRouter
+trials. No default candidate config is committed and no paid trial is started.
+All criteria are satisfied; only this completion-status/evidence documentation
+is updated after review, with no scope, architecture or acceptance change and
+therefore no further plan or code review round.
 
 ## Phase 6 — Trend Policy And Result Quality
 

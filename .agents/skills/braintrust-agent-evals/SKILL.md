@@ -45,7 +45,7 @@ bt experiments --json --project githits-cli-agent-evals view <experiment-name>
 Use the experiment ID returned by the view result for a bounded field query:
 
 ```bash
-bt sql --json --non-interactive "SELECT input, output, metrics, metadata, tags FROM experiment('<experiment-id>') WHERE span_attributes.type = 'eval' LIMIT 23"
+bt sql --json --non-interactive "SELECT input, output, metrics, metadata, tags FROM experiment('<experiment-id>') WHERE span_attributes.type = 'eval' LIMIT 100"
 bt sql --json --non-interactive "SELECT name, span_attributes.type, metrics, metadata FROM experiment('<experiment-id>') WHERE span_attributes.type = 'tool' LIMIT 100"
 ```
 
@@ -84,6 +84,46 @@ Its null base is the expected one-time bootstrap result. Main pushes now
 temporarily run the same matrix, in addition to the daily/manual/label paths,
 to collect variance and workload-optimization evidence.
 
+The current `agent-eval-openrouter` label runs the shared 50-cell main matrix
+on trusted same-repository PRs: discovery 2, intent 24, and full guidance 24.
+The trial PR must commit credential-free `eval/agentic/openrouter.toml` selecting
+its exact candidate model; the repository's blank-model example deliberately
+selects none. Keep the active config out of main and use `OPENROUTER_API_KEY` as
+its provider `env_key`, the only wired provider execution credential. The shared
+`.github/workflows/agent-evals.yml` retains Codex 0.154.0/prompt-json and
+execution-only OpenRouter auth; other triggers retain Luna/low/schema. The old
+DeepSeek label no longer starts a run. The dedicated canary workflow is removed.
+Each trial exports all three scenarios into one PR experiment with actual
+model/report-format metadata and linked main Luna baseline. Configuration
+support does not prove compatibility or quality of an untried model. Account
+for every cell and verify actual linked base/stable inputs; a single preset
+comparison is not a quality or consistency score. The following DeepSeek runs
+remain historical measured evidence.
+
+The full comparison is live-proven by
+[`pr-401-r35099796991-a1`](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-401-r35099796991-a1)
+(ID `a6313674-e0cd-45b0-8d5b-037d885f1876`): exactly 50 eval roots and 495 tool
+children. Its persisted base is `13590571-39c1-4a33-831d-db144fb1fc7a`
+(`main-r35085880981-a1`), with all 50 stable inputs matching. DeepSeek validates
+48 reports versus main Luna's 50, takes 2950.371 versus 787.752 cumulative
+seconds, and uses 495 versus 205 MCP calls. Two malformed JSON finals cause the
+summary to fail while complete failed-cell export succeeds; neither timed out.
+Do not repair their finals or confuse successful export with successful cells.
+See [the permanent comparison](../../../docs/implementation/agentic-eval-metrics.md#full-deepseek-matrix-comparison--2026-09-16)
+for scenario metrics, failed cells, source-path differences and interpretation.
+
+The OpenRouter DeepSeek two-workload canary is proven by [run
+35093150512](https://github.com/githits-com/githits-cli/actions/runs/35093150512)
+on draft PR #401 at SHA `e3fe68c40b80ac74d0c9fa59b0009b28c0841660`. Experiment
+[`pr-401-r35093150512-a1`](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-401-r35093150512-a1)
+(ID `cf6ec867-e67a-4adb-86bf-ace617b30dc0`) read back two eval spans and 25 tool
+children, matching 25 completed MCP calls (package 5, router 20), zero failed
+calls and validated JSON finals. Metadata is DeepSeek/high/prompt-json, channel
+PR, exporter/schema 3. Actual base is `main-r35085880981-a1`
+(ID `13590571-39c1-4a33-831d-db144fb1fc7a`), sampled as Luna/low. This verifies PR
+linkage and integration. Cost remains unknown without a verified DeepSeek rate
+card; quality is ungraded and a single canary does not prove repeat consistency.
+
 For current comparisons, inspect experiment-level `metadata.channel` and
 `baseExperiment` in the safe exporter result or CI summary. A current main
 baseline has a `main-r...-a...` name and `channel: main`; PR and local exports
@@ -92,9 +132,8 @@ reports the actual linked base `{id, name}` after `fetchBaseExperiment()`.
 Validate-only reports the base as unresolved/not queried and performs no
 discovery. The first main run is a one-time bootstrap; PR and default-local
 exports fail before initialization when no main baseline exists. Explicit
-local `--base-experiment` takes precedence and skips discovery. No live
-readback has proven the first main bootstrap, but not later-main, PR, or local
-linkage under the new names.
+local `--base-experiment` takes precedence and skips discovery. Live
+readback has proven the first main bootstrap and the PR linkage recorded below.
 For exports, use the returned experiment name from the SDK readback; it can
 differ from a reused explicit local name if Braintrust de-duplicates it.
 Validate-only reports the requested or generated name.
@@ -106,7 +145,8 @@ bt experiments --json --project githits-cli-agent-evals compare <experiment-a> <
 ```
 
 For custom cross-experiment SQL analysis, join eval rows by
-`metadata.cellId`, not `metadata.workloadId`: the same workload can appear in
+`metadata.cellId` and verify identical stable `input` values (including
+`promptSha256`), rather than joining only by `metadata.workloadId`: the same workload can appear in
 multiple scenarios. Braintrust's built-in experiment comparison already
 matches the stable row inputs and avoids this ambiguity.
 
@@ -162,7 +202,9 @@ mode, project, experiment, row count, suite summaries, an export URL when
 applicable, and `baseExperiment`. In validate-only mode `baseExperiment: null`
 means unresolved/not queried; in export mode `null` means the required
 Braintrust readback returned no actual linked base. Experiment metadata records
-exporter schema/version 2. It never contains row bodies, prompts, answers,
+exporter schema/version 3, including model, reasoning effort and Codex report
+format identity. Historical exporter/schema-2 experiments retain their recorded
+version. It never contains row bodies, prompts, answers,
 artifact paths, or credentials.
 Terminal tool-bearing rows lacking complete/valid observed lifecycle timing are
 rejected because they cannot produce accurate structural children; an observed

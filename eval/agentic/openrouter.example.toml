@@ -1,0 +1,13 @@
+# Copy to openrouter.toml on a trusted trial PR and choose an exact model ID.
+# Keep the trial config out of main. Never put credentials in this file.
+model = ""
+model_provider = "openrouter"
+# Choose an effort the candidate supports; omission uses the suite low default.
+model_reasoning_effort = "low"
+
+[model_providers.openrouter]
+name = "OpenRouter"
+base_url = "https://openrouter.ai/api/v1"
+# CI wires this provider credential only; keep this name unchanged.
+env_key = "OPENROUTER_API_KEY"
+wire_api = "responses"

@@ -733,6 +733,41 @@ describe("agent eval harness", () => {
     expect(process.listenerCount("SIGTERM")).toBe(before.sigterm);
   });
 
+  it("finishes timeout reporting when no other subprocess work keeps Bun alive", async () => {
+    const root = mkdtempSync(join(tmpdir(), "agent-eval-timeout-liveness-"));
+    const driverPath = join(root, "driver.ts");
+    const runnerPath = join(import.meta.dir, "agent-eval.ts");
+    writeFileSync(
+      driverPath,
+      [
+        `import { runWithTimeout } from ${JSON.stringify(runnerPath)};`,
+        'runWithTimeout([process.execPath, "-e", "setTimeout(() => {}, 10000)"], process.cwd(), {}, 0.2)',
+        "  .then(result => console.log(JSON.stringify({ timedOut: result.timedOut, finished: true })));",
+      ].join("\n"),
+    );
+    try {
+      const driver = Bun.spawn([process.execPath, driverPath], {
+        cwd: root,
+        env: {
+          PATH: process.env.PATH ?? "",
+          SystemRoot: process.env.SystemRoot ?? "",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(driver.stdout).text(),
+        new Response(driver.stderr).text(),
+        driver.exited,
+      ]);
+      expect(stderr).toBe("");
+      expect(exitCode).toBe(0);
+      expect(JSON.parse(stdout)).toEqual({ timedOut: true, finished: true });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 15000);
+
   it("observes complete JSONL lines across chunks and a final unterminated line", async () => {
     const timestamps = [
       "2026-08-28T10:00:00.000Z",
@@ -816,7 +851,7 @@ describe("agent eval harness", () => {
       {},
     );
     expect(config).toBe(
-      '[mcp_servers.githits]\ncommand = "bun"\nargs = ["run","--cwd","/repo/githits-cli","dev","mcp","start"]\n',
+      '[mcp_servers.githits]\nrequired = true\ncommand = "bun"\nargs = ["run","--cwd","/repo/githits-cli","dev","mcp","start"]\n',
     );
     expect(config).not.toContain("env_vars");
   });
@@ -831,6 +866,8 @@ describe("agent eval harness", () => {
       {},
     );
     expect(args).toEqual([
+      "-c",
+      "mcp_servers.githits.required=true",
       "-c",
       'mcp_servers.githits.command="npx"',
       "-c",

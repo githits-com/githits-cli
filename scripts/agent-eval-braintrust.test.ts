@@ -62,6 +62,8 @@ interface SuiteOptions {
   processStatus?: "success" | "failed" | "timeout";
   toolCalls?: AgentEvalRecordInput["toolCalls"];
   dryRun?: boolean;
+  model?: string;
+  codexReportFormat?: "json-schema" | "prompt-json";
 }
 
 function createRecord(
@@ -72,11 +74,11 @@ function createRecord(
   const processStatus = suiteOptions.processStatus ?? "success";
   return {
     workloadId,
-    requestedModel: LUNA_MODEL,
-    resolvedModel: LUNA_MODEL,
+    requestedModel: options.matrix.model,
+    resolvedModel: options.matrix.model,
     agent: "codex",
     agentVersion: "codex-test",
-    reasoningEffort: "low",
+    reasoningEffort: options.matrix.reasoningEffort,
     surface: "mcp",
     server: "local",
     guidanceProfile: options.guidanceProfile,
@@ -109,7 +111,7 @@ function createRecord(
         },
       }),
       "codex",
-      LUNA_MODEL,
+      options.matrix.model,
     ),
     toolCalls: suiteOptions.toolCalls ?? [
       {
@@ -175,10 +177,20 @@ async function createSuite(
     ],
   });
 
+  const codexConfigPath = suiteOptions.model
+    ? join(root, "config.toml")
+    : undefined;
+  if (codexConfigPath)
+    writeFileSync(
+      codexConfigPath,
+      `model = "${suiteOptions.model}"\nmodel_provider = "openrouter"\nmodel_reasoning_effort = "high"\n[model_providers.openrouter]\nname = "OpenRouter"\nbase_url = "https://openrouter.ai/api/v1"\nenv_key = "OPENROUTER_API_KEY"\nwire_api = "responses"\n`,
+    );
   let shardPath = "";
   let workloadDir = "";
   await runAgentEvalSuite({
     suite: "canary",
+    codexConfigPath,
+    codexReportFormat: suiteOptions.codexReportFormat,
     repoRoot: root,
     targetRoot: root,
     outDir,
@@ -211,8 +223,9 @@ async function createSuite(
         startedAt: "2026-08-28T10:00:00.000Z",
         completedAt: "2026-08-28T10:00:01.000Z",
         agent: "codex",
-        model: LUNA_MODEL,
-        reasoningEffort: "low",
+        model: options.matrix.model,
+        reasoningEffort: options.matrix.reasoningEffort,
+        codexReportFormat: options.matrix.codexReportFormat,
         surface: "mcp",
         server: "local",
         guidanceProfile: options.guidanceProfile,
@@ -1394,6 +1407,9 @@ describe("Braintrust publisher boundary", () => {
         "sha:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       ],
       metadata: {
+        model: LUNA_MODEL,
+        reasoningEffort: "low",
+        codexReportFormat: "json-schema",
         source: "github",
         channel: "main",
         branch: "main",
@@ -1408,8 +1424,8 @@ describe("Braintrust publisher boundary", () => {
         suiteSchemaVersion: mapping.suites[0]!.suiteSchemaVersion,
         reportSchemaVersion: mapping.rows[0]!.metadata.reportSchemaVersion,
         metricsSchemaVersion: mapping.rows[0]!.metadata.metricsSchemaVersion,
-        exporterSchemaVersion: 2,
-        exporterVersion: "2",
+        exporterSchemaVersion: 3,
+        exporterVersion: "3",
       },
       repoInfo: {
         commit: mapping.rows[0]!.metadata.targetGit.sha,
@@ -2197,11 +2213,20 @@ interface WorkflowStepContract {
 
 interface WorkflowContract {
   on?: {
+    pull_request?: { branches?: string[]; types?: string[] };
     push?: {
       branches?: string[];
     };
   };
-  jobs: Record<string, { if?: string; steps: WorkflowStepContract[] }>;
+  jobs: Record<
+    string,
+    {
+      if?: string;
+      env?: Record<string, string>;
+      strategy?: { matrix?: { include?: Record<string, unknown>[] } };
+      steps: WorkflowStepContract[];
+    }
+  >;
 }
 
 function readAgentEvalWorkflow(): WorkflowContract {
@@ -2363,5 +2388,179 @@ describe("Agent eval workflow Braintrust integration", () => {
     expect(Object.values(finalize?.env ?? {}).join(" ")).not.toContain(
       "secrets.",
     );
+  });
+});
+
+describe("OpenRouter Braintrust identity", () => {
+  for (const model of [
+    "deepseek/deepseek-v4.1-flash",
+    "example-provider/another-model",
+  ]) {
+    it(`exports ${model} identity and rejects mixed suite identities`, async () => {
+      const candidate = await createSuite({
+        model,
+        codexReportFormat: "prompt-json",
+        processStatus: "success",
+      });
+      const luna = await createSuite({ processStatus: "success" });
+      const schema = await createSuite({
+        model,
+        codexReportFormat: "json-schema",
+        processStatus: "success",
+      });
+      try {
+        const mapping = preflightAndMapBraintrustRows([
+          { label: "candidate", suitePath: candidate.suitePath },
+        ]);
+        expect(mapping.rows[0]!.metadata).toMatchObject({
+          requestedModel: model,
+          reasoningEffort: "high",
+          codexReportFormat: "prompt-json",
+        });
+        const init = buildBraintrustExperimentInit(mapping, {
+          project: "test",
+          source: "local",
+          experiment: "test",
+        });
+        expect(init.metadata).toMatchObject({
+          model,
+          reasoningEffort: "high",
+          codexReportFormat: "prompt-json",
+        });
+        expect(() =>
+          preflightAndMapBraintrustRows([
+            { label: "candidate", suitePath: candidate.suitePath },
+            { label: "luna", suitePath: luna.suitePath },
+          ]),
+        ).toThrow("mixed model");
+        expect(() =>
+          preflightAndMapBraintrustRows([
+            { label: "candidate", suitePath: candidate.suitePath },
+            { label: "schema", suitePath: schema.suitePath },
+          ]),
+        ).toThrow("mixed codexReportFormat");
+      } finally {
+        for (const fixture of [candidate, luna, schema])
+          rmSync(fixture.root, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+describe("OpenRouter shared agent eval workflow", () => {
+  it("runs main coverage with label-selected config, CLI and scoped authentication", () => {
+    const workflow = readAgentEvalWorkflow();
+    expect(workflow.on?.pull_request).toEqual({
+      branches: ["main"],
+      types: ["labeled"],
+    });
+    expect(Object.keys(workflow.jobs).sort()).toEqual(["scenario", "summary"]);
+    for (const job of Object.values(workflow.jobs)) {
+      expect(job.if).toContain(
+        "(github.event.label.name == 'agent-eval' || github.event.label.name == 'agent-eval-openrouter') &&",
+      );
+      expect(job.if).toContain(
+        "github.event.pull_request.head.repo.full_name == github.repository",
+      );
+      expect(job.env).toBeUndefined();
+    }
+    const job = workflow.jobs.scenario!;
+    expect(job.strategy?.matrix?.include).toEqual([
+      {
+        id: "discovery",
+        label: "Discovery",
+        suite: "canary",
+        scenario: "discovery",
+        "workload-concurrency": 2,
+      },
+      {
+        id: "intent",
+        label: "Intent",
+        suite: "stable-full",
+        scenario: "intent",
+        "workload-concurrency": 4,
+      },
+      {
+        id: "full",
+        label: "Full guidance",
+        suite: "stable-full",
+        scenario: "full",
+        "workload-concurrency": 4,
+      },
+    ]);
+    const install = job.steps.find(
+      (s) => s.name === "Install selected Codex CLI",
+    )!;
+    expect(install.env?.CODEX_VERSION).toBe(
+      githubExpression(
+        "github.event.label.name == 'agent-eval-openrouter' && '0.154.0' || 'latest'",
+      ),
+    );
+    expect(install.run).toBe(
+      'npm install --global "@openai/codex@$CODEX_VERSION"',
+    );
+    const config = job.steps.find(
+      (s) => s.name === "Initialize isolated Codex home",
+    )!;
+    const execution = job.steps.find(
+      (s) => s.name === `Run ${githubExpression("matrix.label")} suite`,
+    )!;
+    const login = job.steps.find(
+      (s) => s.name === "Authenticate Codex with API key",
+    )!;
+    expect(login.if).toBe("github.event.label.name != 'agent-eval-openrouter'");
+    expect(login.env?.OPENAI_API_KEY).toBe(
+      githubExpression("secrets.OPENAI_API_KEY"),
+    );
+    expect(execution.env?.EVAL_LABEL).toBe(
+      githubExpression("github.event.label.name || ''"),
+    );
+    for (const step of [config, execution]) {
+      expect(step.env?.CODEX_HOME).toBe(
+        `${githubExpression("runner.temp")}/agent-eval-codex-home-${githubExpression("matrix.id")}`,
+      );
+    }
+    expect(execution.run).toContain(
+      'if [ "$EVAL_LABEL" = "agent-eval-openrouter" ]; then',
+    );
+    expect(config.run).toContain('mkdir -p "$CODEX_HOME"');
+    expect(config.run).not.toContain("config.toml");
+    expect(config.env?.EVAL_LABEL).toBeUndefined();
+    expect(config.run).not.toContain("--profile");
+    expect(JSON.stringify(workflow)).not.toContain("deepseek/");
+    expect(execution.env?.OPENROUTER_API_KEY).toBe(
+      githubExpression(
+        "github.event.label.name == 'agent-eval-openrouter' && secrets.OPENROUTER_API_KEY || ''",
+      ),
+    );
+    expect(execution.run).toContain("codex_args=()");
+    expect(execution.run).toContain(
+      'codex_args+=(--codex-config "$GITHUB_WORKSPACE/eval/agentic/openrouter.toml" --codex-report-format prompt-json)',
+    );
+    expect(execution.run).toContain(
+      ['"', "$", "{codex_args[@]}", '"'].join(""),
+    );
+    expect(execution.run).toContain(
+      `--suite "${githubExpression("matrix.suite")}"`,
+    );
+    expect(execution.run).toContain(
+      `--scenario "${githubExpression("matrix.scenario")}"`,
+    );
+    expect(execution.run).not.toContain("--model");
+    expect(execution.env?.OPENAI_API_KEY).toBeUndefined();
+    expect(job.steps.filter((s) => s.env?.OPENROUTER_API_KEY)).toHaveLength(1);
+    const allSteps = Object.values(workflow.jobs).flatMap((j) => j.steps);
+    expect(allSteps.filter((s) => s.env?.BRAINTRUST_API_KEY)).toHaveLength(1);
+    expect(
+      job.steps.find(
+        (s) =>
+          s.name === `Upload ${githubExpression("matrix.label")} artifacts`,
+      ),
+    ).toMatchObject({ if: "always()" });
+    expect(
+      existsSync(
+        resolve(process.cwd(), ".github/workflows/agent-evals-deepseek.yml"),
+      ),
+    ).toBe(false);
   });
 });

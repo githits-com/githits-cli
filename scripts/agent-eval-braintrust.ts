@@ -154,6 +154,7 @@ export interface BraintrustRowMetadata {
   requestedModel: string | null;
   resolvedModel: string | null;
   reasoningEffort: string | null;
+  codexReportFormat: string;
   agentVersion: string | null;
   surface: string;
   server: string;
@@ -227,6 +228,9 @@ export interface BraintrustRowEvent {
 }
 
 export interface BraintrustExperimentMetadata {
+  model: string | null;
+  reasoningEffort: string | null;
+  codexReportFormat: string;
   [key: string]: unknown;
   source: BraintrustExportOptions["source"];
   channel?: "local" | "main" | "pr";
@@ -383,8 +387,8 @@ export interface BraintrustSdk {
   ): BraintrustSdkExperiment;
 }
 
-const BRAINTRUST_EXPORTER_SCHEMA_VERSION = 2;
-const BRAINTRUST_EXPORTER_VERSION = "2";
+const BRAINTRUST_EXPORTER_SCHEMA_VERSION = 3;
+const BRAINTRUST_EXPORTER_VERSION = "3";
 
 interface LoadedBraintrustSuite {
   input: BraintrustSuiteInput;
@@ -397,6 +401,7 @@ interface SuiteIdentity {
   agent: string;
   model: string;
   reasoningEffort: string;
+  codexReportFormat: string;
   surface: string;
   server: string;
   reportingContractSha256: string;
@@ -590,6 +595,7 @@ function suiteIdentity(suite: AgentEvalImportedSuite): SuiteIdentity {
     agent: artifact.matrix.agent,
     model: artifact.matrix.model,
     reasoningEffort: artifact.matrix.reasoningEffort,
+    codexReportFormat: artifact.matrix.codexReportFormat,
     surface: artifact.matrix.surface,
     server: artifact.matrix.server,
     reportingContractSha256: artifact.contentIdentity.reportingContract.sha256,
@@ -607,6 +613,7 @@ function assertSameIdentity(
     "agent",
     "model",
     "reasoningEffort",
+    "codexReportFormat",
     "surface",
     "server",
     "reportingContractSha256",
@@ -985,6 +992,7 @@ function rowMetadata(
     requestedModel: record.requestedModel,
     resolvedModel: record.resolvedModel,
     reasoningEffort: record.reasoningEffort,
+    codexReportFormat: suite.artifact.matrix.codexReportFormat,
     agentVersion: record.agentVersion,
     surface: record.surface,
     server: record.server,
@@ -1229,6 +1237,9 @@ export function buildBraintrustExperimentInit(
     assertNonEmptyIdentity(options.baseExperimentId, "base experiment ID");
   }
   const experimentMetadata: BraintrustExperimentMetadata = {
+    model: metadata.requestedModel,
+    reasoningEffort: metadata.reasoningEffort,
+    codexReportFormat: metadata.codexReportFormat,
     source: identity.source,
     channel: identity.channel,
     branch: identity.branch,
