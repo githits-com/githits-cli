@@ -72,7 +72,7 @@ const SMOKE_PACKAGE_TARGET = {
 } as const;
 const SMOKE_CODE_TARGET = `npm:express@${SMOKE_PACKAGE_VERSION}`;
 const INLINE_SEARCH_QUERY =
-  "router path:lib/ intent:production lang:javascript";
+  "application path:lib/ intent:production lang:javascript";
 const SMOKE_TRANSITIVE_VULNERABILITY_TARGET = {
   registry: "npm",
   package_name: "express",

@@ -2212,7 +2212,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   );
 
   const inlineSearchQuery =
-    "router path:lib/ intent:production lang:javascript";
+    "application path:lib/ intent:production lang:javascript";
   const inlineSearchJson = assertJsonOutput(
     await runCli([
       "search",
