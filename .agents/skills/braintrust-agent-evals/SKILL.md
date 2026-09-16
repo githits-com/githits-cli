@@ -84,6 +84,16 @@ Its null base is the expected one-time bootstrap result. Main pushes now
 temporarily run the same matrix, in addition to the daily/manual/label paths,
 to collect variance and workload-optimization evidence.
 
+The current `agent-eval-deepseek` label runs the shared 50-cell main matrix on
+trusted same-repository PRs: discovery 2, intent 24, and full guidance 24.
+`.github/workflows/agent-evals.yml` selects DeepSeek/high/prompt-json with Codex
+0.154.0 and execution-only OpenRouter auth; other triggers retain Luna/low.
+The dedicated two-workload DeepSeek workflow is removed. Each attempt exports
+all three scenarios into one experiment with model/report-format metadata.
+Check the actual linked main baseline and stable inputs, then account for all
+cell outcomes; a single cross-preset attempt is not a quality or consistency
+score. The following canary is historical integration evidence.
+
 The OpenRouter DeepSeek two-workload canary is proven by [run
 35093150512](https://github.com/githits-com/githits-cli/actions/runs/35093150512)
 on draft PR #401 at SHA `e3fe68c40b80ac74d0c9fa59b0009b28c0841660`. Experiment
@@ -117,7 +127,8 @@ bt experiments --json --project githits-cli-agent-evals compare <experiment-a> <
 ```
 
 For custom cross-experiment SQL analysis, join eval rows by
-`metadata.cellId`, not `metadata.workloadId`: the same workload can appear in
+`metadata.cellId` and verify identical stable `input` values (including
+`promptSha256`), rather than joining only by `metadata.workloadId`: the same workload can appear in
 multiple scenarios. Braintrust's built-in experiment comparison already
 matches the stable row inputs and avoids this ambiguity.
 

@@ -167,13 +167,16 @@ JSON schema suppressed actual calls through both tested DeepSeek routes. A real
 Codex/OpenRouter MCP canary without enforced schema completed GitHits calls.
 See [the retained compatibility findings](../../docs/implementation/agentic-eval-metrics.md#modal-pilot-compatibility-result--2026-09-16).
 
-For a trusted same-repository PR, add `agent-eval-deepseek` to trigger the separate
-OpenRouter intent canary and Braintrust export. It requires `OPENROUTER_API_KEY`,
+For a trusted same-repository PR, add `agent-eval-deepseek` to run the standard
+50-cell matrix through OpenRouter: two discovery cells, 24 intent cells, and
+24 full-guidance cells, followed by one aggregate Braintrust export. The shared
+`.github/workflows/agent-evals.yml` owns this coverage; the dedicated DeepSeek
+canary workflow has been removed. It requires `OPENROUTER_API_KEY`,
 `GITHITS_API_TOKEN`, and `BRAINTRUST_API_KEY` repository secrets and pins Codex
 `0.154.0`. Existing Luna schedules and the `agent-eval` label remain unchanged.
 Braintrust links the PR experiment to the latest Luna main baseline; inspect
 model/reasoning/report-format metadata before interpreting differences. This
-integration canary provides no automatic quality grade or replacement decision.
+preset comparison provides no automatic quality grade or replacement decision.
 
 Unconfigured model rate cards retain `unknown` cost with
 `rate_card_not_configured`; never substitute Luna rates. OpenRouter may route to
@@ -670,8 +673,8 @@ targeting `main`. The push trigger is intentionally temporary while
 maintainers collect run-to-run variance and workload-optimization evidence; it
 does not change the advisory, non-gating policy. A pull request run is
 authorized only when the event label is exactly
-`agent-eval` and `github.event.pull_request.head.repo.full_name` equals the
-repository; forks cannot consume the provider secrets. The workflow checks out
+`agent-eval` (Luna) or `agent-eval-deepseek` (DeepSeek), with
+`github.event.pull_request.head.repo.full_name` equal to the repository; forks cannot consume the provider secrets. The workflow checks out
 the immutable labeled head SHA for that event and `github.sha` for scheduled or
 manual runs. Later commits on a still-labeled pull request do not rerun the
 workflow; remove and re-add the label to authorize the newer SHA. Applying the
@@ -684,14 +687,18 @@ under `runner.temp` before checkout or setup. It installs the current Codex CLI
 and records `codex --version`, creates an empty per-scenario `CODEX_HOME`, and
 authenticates through Codex's stdin API-key flow. `OPENAI_API_KEY` is scoped to
 that authentication step; `GITHITS_API_TOKEN` is scoped only to the paid suite
-execution. Local subscription state, Keychain data, personal skills, and user
+execution. For the DeepSeek label, it instead installs Codex 0.154.0, writes the
+isolated OpenRouter main config above, skips OpenAI login, and binds
+`OPENROUTER_API_KEY` only to execution. Suite config and prompt-json arguments
+are selected only for DeepSeek; Luna retains its default low/schema preset.
+Local subscription state, Keychain data, personal skills, and user
 configuration are never copied into CI. The scenario directories are uploaded
 as `agent-eval-discovery`, `agent-eval-intent`, and `agent-eval-full` artifacts
 for 14 days.
 
 The final summary job always runs for an authorized workflow, downloads all three
 scenario artifacts without flattening them, appends the concise report to
-`GITHUB_STEP_SUMMARY`, and then exports the normalized 48-cell result to
+`GITHUB_STEP_SUMMARY`, and then exports the normalized 50-cell result to
 Braintrust. The local equivalent report command is:
 
 ```bash

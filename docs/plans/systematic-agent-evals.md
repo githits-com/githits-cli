@@ -2688,6 +2688,93 @@ remains unknown (`rate_card_not_configured`); quality is ungraded. A single
 canary proves integration, with repeated quality/consistency comparison and any
 Luna replacement still separate decisions. Nothing was merged or published.
 
+### Full DeepSeek matrix comparison — 2026-09-16
+
+Status: IMPLEMENTING. The user explicitly requested replacing the dedicated
+DeepSeek canary with a full eval run and comparison to main Luna.
+
+Verified current state: the existing main workflow owns discovery/canary with
+concurrency 2 and stable-full intent/full guidance with concurrency 4. The
+manifest has 24 stable workloads; the latest qualifying main Braintrust
+experiment `main-r35085880981-a1` (ID
+`13590571-39c1-4a33-831d-db144fb1fc7a`) contains exactly 50 eval rows: discovery
+2, intent 24, full 24, Luna/low, target SHA
+`b2d4513a9b910682f314a8e78dc344ae279d2e37`. Main has since the previous branch
+base removed a tool and released 0.19.0; origin/main was merged into this own
+PR branch so the full comparison uses that current tool catalog. The previous
+DeepSeek two-cell proof remains historical evidence, not the current trigger.
+
+Ownership: `.github/workflows/agent-evals.yml` naturally owns standard coverage,
+parallelism, authentication and one aggregate Braintrust export. It should
+select the model from the existing PR label rather than maintain a second
+copy of the scenario matrix. The runner/suite/exporter already own isolated
+model config, report mode and truthful identity; no new harness changes.
+
+Outcome: `agent-eval-deepseek` on trusted same-repository PR #401 runs the same
+50 cells as main with DeepSeek/high/prompt-json and Codex 0.154.0. Schedule,
+main push/manual and `agent-eval` keep current Luna/low/json-schema behavior.
+No dedicated DeepSeek canary workflow remains. A full run may exceed five
+minutes; unlike the prior two-cell canary it tests the entire stable corpus
+under both guidance profiles and preserves the main discovery control.
+
+Implementation:
+1. Remove `.github/workflows/agent-evals-deepseek.yml`. Broaden both authorized
+   job guards in the existing workflow to accept the DeepSeek label. Keep its
+   exact shared matrix, scenario artifacts, report/export and failure stages.
+2. Select CLI version in its install step (DeepSeek pin 0.154.0, Luna latest).
+   Initialize isolated main config only for DeepSeek, skip OpenAI login for
+   that label, and expose OpenRouter key only to its execution environment.
+   Add config/prompt-json arguments only for DeepSeek. Use label values via
+   env, not shell interpolation. Existing GitHits/Braintrust key scopes stay.
+3. Replace the dedicated canary workflow test with shared coverage/model/auth
+   selection assertions. Run targeted workflow tests, typecheck, changed-file
+   Biome, actionlint and build. Correct the existing JavaScript-template
+   shellcheck false-positive by equivalent concatenation for clean actionlint.
+4. Update permanent usage/implementation docs, internal Braintrust guidance and
+   the unmerged change fragment. Perform internal preflight and one external
+   delta review to clean; commit/push/update the existing draft PR.
+5. Reapply only `agent-eval-deepseek` to launch the authorized full matrix.
+   Inspect all final reports/tool traces/isolation evidence, export readback and
+   actual linked main baseline. Compare by `metadata.cellId` and stable input
+   identity, reporting coverage, failures, workload duration, tokens/tool calls
+   and answer differences supported by evidence. Retain comparison artifact
+   and record observed results; no confidence-as-quality grade.
+
+Assumptions: normal full eval means the verified main 50-cell matrix, including
+its existing discovery control. Baseline may advance before export; compare the
+actual linked main ID, verifying Luna and common cell/input coverage. Presets
+are vendor-specific DeepSeek/high versus Luna/low; report formats differ because
+DeepSeek enforced schema suppressed tools. This is a comparison of operational
+presets, not an equal-budget model benchmark. Normalized DeepSeek pricing stays
+unknown without a verified rate card. No new infrastructure, deployment feature flags, temperature control,
+deployment, release or automatic Luna replacement. Product decisions:
+none needed for this run. Repeated consistency/quality scoring remain later
+separate work; this full attempt must be fully analyzed before delivery.
+
+Acceptance: trusted DeepSeek label executes the existing complete matrix;
+Luna triggers/auth/defaults remain intact; no model key enters uploaded output;
+all 50 cell outcomes are accounted for and real tool usage/failures inspected;
+Braintrust export keeps DeepSeek identity and actual main baseline linkage;
+the comparison explains input/coverage/preset differences and observed results.
+Retain this plan until review/merge; permanent docs own verified workflow use.
+
+Review disposition: internal technical preflight found no issues. Fable's plan
+round found no blockers. Keep the existing 40-minute job budget: the runner
+already caps each workload at 300 seconds, so 24 cells at concurrency four take
+at most six workload waves (30 minutes plus setup), rather than an unbounded
+high-effort request. The canary's 15-minute job setting was a limit, not measured
+latency. Concurrency four is deliberately retained for shared coverage and
+comparison; provider limits are an observed outcome to report. Existing
+`DeepSeek Braintrust identity` coverage already asserts model/high/prompt-json
+on the exported experiment payload and rejects mixed identity; preserve it.
+No material plan changes or additional infrastructure are justified.
+
+Implementation verification: four focused workflow/export-identity tests pass
+(95 assertions), along with typecheck, changed-file Biome, actionlint, build,
+and plugin generation/check (10 assets, no generated diff). Internal code
+preflight reviewed the exact post-main-merge delta and found no issues. External
+code review and the authorized full live comparison are pending.
+
 ## Phase 6 — Trend Policy And Result Quality
 
 ### Status

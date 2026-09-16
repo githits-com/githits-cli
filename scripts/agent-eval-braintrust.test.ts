@@ -2220,7 +2220,12 @@ interface WorkflowContract {
   };
   jobs: Record<
     string,
-    { if?: string; env?: Record<string, string>; steps: WorkflowStepContract[] }
+    {
+      if?: string;
+      env?: Record<string, string>;
+      strategy?: { matrix?: { include?: Record<string, unknown>[] } };
+      steps: WorkflowStepContract[];
+    }
   >;
 }
 
@@ -2438,72 +2443,119 @@ describe("DeepSeek Braintrust identity", () => {
   });
 });
 
-describe("DeepSeek PR canary workflow", () => {
-  it("uses a trusted label, main config, scoped secrets and failure propagation", () => {
-    const workflow = parseYaml(
-      readFileSync(
-        resolve(process.cwd(), ".github/workflows/agent-evals-deepseek.yml"),
-        "utf8",
-      ),
-    ) as WorkflowContract;
+describe("DeepSeek shared agent eval workflow", () => {
+  it("runs main coverage with label-selected config, CLI and scoped authentication", () => {
+    const workflow = readAgentEvalWorkflow();
     expect(workflow.on?.pull_request).toEqual({
       branches: ["main"],
       types: ["labeled"],
     });
-    const job = workflow.jobs.canary!;
-    expect(job.if).toContain(
-      "github.event.label.name == 'agent-eval-deepseek'",
-    );
-    expect(job.if).toContain(
-      "github.event.pull_request.head.repo.full_name == github.repository",
-    );
-    expect(job.env).toBeUndefined();
-    const prepare = job.steps.find((s) => s.name === "Prepare output")!;
-    expect(prepare.env).toEqual({
-      CODEX_HOME: `${githubExpression("runner.temp")}/deepseek-codex-home`,
-      CANARY_OUT: `${githubExpression("runner.temp")}/deepseek-agent-eval`,
-    });
-    expect(prepare.run).toContain('"$GITHUB_ENV"');
-    expect(prepare.run).toContain('"$CODEX_HOME" "$CANARY_OUT"');
-    const execution = job.steps.find((s) => s.id === "execution")!;
-    const report = job.steps.find((s) => s.id === "report")!;
-    const exportStep = job.steps.find((s) => s.id === "braintrust")!;
-    const config = job.steps.find(
-      (s) => s.name === "Initialize dedicated main config",
+    expect(Object.keys(workflow.jobs).sort()).toEqual(["scenario", "summary"]);
+    for (const job of Object.values(workflow.jobs)) {
+      expect(job.if).toContain(
+        "(github.event.label.name == 'agent-eval' || github.event.label.name == 'agent-eval-deepseek') &&",
+      );
+      expect(job.if).toContain(
+        "github.event.pull_request.head.repo.full_name == github.repository",
+      );
+      expect(job.env).toBeUndefined();
+    }
+    const job = workflow.jobs.scenario!;
+    expect(job.strategy?.matrix?.include).toEqual([
+      {
+        id: "discovery",
+        label: "Discovery",
+        suite: "canary",
+        scenario: "discovery",
+        "workload-concurrency": 2,
+      },
+      {
+        id: "intent",
+        label: "Intent",
+        suite: "stable-full",
+        scenario: "intent",
+        "workload-concurrency": 4,
+      },
+      {
+        id: "full",
+        label: "Full guidance",
+        suite: "stable-full",
+        scenario: "full",
+        "workload-concurrency": 4,
+      },
+    ]);
+    const install = job.steps.find(
+      (s) => s.name === "Install selected Codex CLI",
     )!;
+    expect(install.env?.CODEX_VERSION).toBe(
+      githubExpression(
+        "github.event.label.name == 'agent-eval-deepseek' && '0.154.0' || 'latest'",
+      ),
+    );
+    expect(install.run).toBe(
+      'npm install --global "@openai/codex@$CODEX_VERSION"',
+    );
+    const config = job.steps.find(
+      (s) => s.name === "Initialize isolated Codex home",
+    )!;
+    const execution = job.steps.find(
+      (s) => s.name === `Run ${githubExpression("matrix.label")} suite`,
+    )!;
+    const login = job.steps.find(
+      (s) => s.name === "Authenticate Codex with API key",
+    )!;
+    expect(login.if).toBe("github.event.label.name != 'agent-eval-deepseek'");
+    expect(login.env?.OPENAI_API_KEY).toBe(
+      githubExpression("secrets.OPENAI_API_KEY"),
+    );
+    for (const step of [config, execution]) {
+      expect(step.env?.EVAL_LABEL).toBe(
+        githubExpression("github.event.label.name || ''"),
+      );
+      expect(step.env?.CODEX_HOME).toBe(
+        `${githubExpression("runner.temp")}/agent-eval-codex-home-${githubExpression("matrix.id")}`,
+      );
+      expect(step.run).toContain(
+        'if [ "$EVAL_LABEL" = "agent-eval-deepseek" ]; then',
+      );
+    }
     expect(config.run).toContain('"$CODEX_HOME/config.toml"');
+    expect(config.run).toContain('model = "deepseek/deepseek-v4.1-flash"');
     expect(config.run).toContain('env_key = "OPENROUTER_API_KEY"');
     expect(config.run).not.toContain("--profile");
     expect(execution.env?.OPENROUTER_API_KEY).toBe(
-      githubExpression("secrets.OPENROUTER_API_KEY"),
+      githubExpression(
+        "github.event.label.name == 'agent-eval-deepseek' && secrets.OPENROUTER_API_KEY || ''",
+      ),
+    );
+    expect(execution.run).toContain("codex_args=()");
+    expect(execution.run).toContain(
+      'codex_args+=(--codex-config "$CODEX_HOME/config.toml" --codex-report-format prompt-json)',
     );
     expect(execution.run).toContain(
-      "--suite canary --scenario intent --concurrency 2",
+      ['"', "$", "{codex_args[@]}", '"'].join(""),
     );
-    expect(execution.run).toContain("--codex-report-format prompt-json");
-    expect(execution.run).toContain('--codex-config "$CODEX_HOME/config.toml"');
+    expect(execution.run).toContain(
+      `--suite "${githubExpression("matrix.suite")}"`,
+    );
+    expect(execution.run).toContain(
+      `--scenario "${githubExpression("matrix.scenario")}"`,
+    );
+    expect(execution.run).not.toContain("--model");
+    expect(execution.env?.OPENAI_API_KEY).toBeUndefined();
     expect(job.steps.filter((s) => s.env?.OPENROUTER_API_KEY)).toHaveLength(1);
-    expect(job.steps.filter((s) => s.env?.BRAINTRUST_API_KEY)).toHaveLength(1);
-    expect(exportStep.env?.BRAINTRUST_API_KEY).toBe(
-      githubExpression("secrets.BRAINTRUST_API_KEY"),
-    );
-    for (const step of [report, exportStep])
-      expect(step).toMatchObject({ if: "always()", "continue-on-error": true });
-    expect(exportStep.run).toContain("--source github --channel pr");
-    expect(exportStep.run).not.toContain("--experiment");
-    const final = job.steps.find((s) => s.name === "Finalize canary status")!;
-    expect(final.if).toBe("always()");
-    for (const key of [
-      "EXECUTION_OUTCOME",
-      "REPORT_OUTCOME",
-      "BRAINTRUST_OUTCOME",
-    ])
-      expect(final.run).toContain(key);
+    const allSteps = Object.values(workflow.jobs).flatMap((j) => j.steps);
+    expect(allSteps.filter((s) => s.env?.BRAINTRUST_API_KEY)).toHaveLength(1);
     expect(
-      job.steps.find((s) => s.name === "Install tested Codex CLI")?.run,
-    ).toContain("@openai/codex@0.154.0");
-    expect(
-      job.steps.find((s) => s.name === "Upload canary artifacts"),
+      job.steps.find(
+        (s) =>
+          s.name === `Upload ${githubExpression("matrix.label")} artifacts`,
+      ),
     ).toMatchObject({ if: "always()" });
+    expect(
+      existsSync(
+        resolve(process.cwd(), ".github/workflows/agent-evals-deepseek.yml"),
+      ),
+    ).toBe(false);
   });
 });

@@ -52,19 +52,26 @@ omission normalizes to that default. Suite imports check matrix, shard, cell,
 child model identity and report format. Braintrust rejects mixed suite identity
 and records model/effort/report format on rows and experiment metadata.
 
-The separate `agent-eval-deepseek` PR label workflow runs the two-workload canary
-intent scenario through OpenRouter/high/prompt-json with Codex 0.154.0. It uses a
-dedicated main config, scoped `OPENROUTER_API_KEY`/GitHits auth during execution,
-and `BRAINTRUST_API_KEY` during export. Execution/report/export failures remain
-job failures and artifacts are retained. Existing Luna workflows are unchanged.
-Runtime Codex/output paths are defined in the preparation step after runner
-allocation and published through `GITHUB_ENV`. GitHub rejects `runner.temp` in
-job-level env. Validate this workflow with
-`actionlint .github/workflows/agent-evals-deepseek.yml` in addition to the Bun
-workflow contract test; parsing YAML alone does not check context availability.
-The exporter links PRs to the latest main experiment, currently Luna: the base
-link supports inspection across models, not a matched regression or quality
-score. A single canary does not prove consistent replacement behavior.
+The shared `.github/workflows/agent-evals.yml` owns the standard matrix: two
+discovery cells, 24 intent cells, and 24 full-guidance cells (50 total), with
+concurrency two/four/four. The trusted same-repository `agent-eval-deepseek` PR
+label selects OpenRouter/high/prompt-json and Codex 0.154.0. Schedule, main push,
+manual-main and `agent-eval` PR runs retain Luna/low/json-schema and current
+Codex. The separate DeepSeek canary workflow is removed.
+
+Each scenario uses an isolated Codex home. DeepSeek writes a dedicated main
+config, skips OpenAI login and scopes `OPENROUTER_API_KEY`/GitHits auth to
+execution; Luna retains stdin OpenAI API-key login. `BRAINTRUST_API_KEY` is
+scoped only to the one aggregate export. Both job guards preserve same-repository
+label authorization. Execution/report/export failures remain job failures, and
+all three artifacts are retained. Runtime paths use step-level `runner.temp`;
+GitHub rejects that context in job-level env. Validate with
+`actionlint .github/workflows/agent-evals.yml` plus the Bun workflow contract
+coverage; YAML parsing alone does not check context availability. The exporter
+links PRs to the latest main experiment, currently Luna. Compare actual linked
+base IDs, cell IDs and stable inputs before interpreting cross-model outcomes.
+A single full attempt does not establish repeat consistency or replacement
+quality, and has no automatic quality score.
 
 No temperature control is added: a secret-free Codex 0.154 probe omitted
 `temperature=0` from the wire and strict config rejected it. Reasoning labels
@@ -702,19 +709,21 @@ perform no retries, service export, persistence, Haiku runs, or quality judging.
 ## Phase 3 CI workflow
 
 `.github/workflows/agent-evals.yml` composes the validated local runner and CI
-reporter into two independent matrix entries on GitHub-hosted Ubuntu:
+reporter into three independent matrix entries on GitHub-hosted Ubuntu:
 
 | Entry     | Suite        | Scenario    | Workload concurrency | Timeout |
 | --------- | ------------ | ----------- | -------------------: | -------: |
 | discovery | `canary`      | `discovery` |                    2 | 40 min  |
 | intent    | `stable-full` | `intent`    |                    4 | 40 min  |
+| full      | `stable-full` | `full`      |                    4 | 40 min  |
 
 It triggers on every push to `main`, at `03:00` UTC from the default branch, on
 `workflow_dispatch`, and on `pull_request` events of type `labeled` targeting
 `main`. The push trigger is temporary data-collection policy for measuring
 run-to-run variance and selecting workloads to optimize; daily/manual/label
 coverage remains available and the workflow remains advisory. The paid jobs run
-for a pull request only when the event label is exactly `agent-eval` and the
+for a pull request only when the event label is exactly `agent-eval` (Luna) or
+`agent-eval-deepseek` (DeepSeek) and the
 head repository is the current repository. They check out the immutable
 labeled head SHA; scheduled and manual runs use `github.sha`. A later
 `synchronize` event does not rerun while the label remains. Removing and
@@ -728,8 +737,10 @@ Node, frozen dependencies, and the current `@openai/codex` CLI, and records
 `runner.temp` and authenticates with the official stdin API-key flow.
 `OPENAI_API_KEY` is scoped only to authentication; `GITHITS_API_TOKEN` is
 scoped only to paid suite execution. No local subscription state, Keychain
-data, user config, or personal skills are copied into the runner. Scenario
-outputs are uploaded as `agent-eval-discovery` and `agent-eval-intent` with
+data, user config, or personal skills are copied into the runner. DeepSeek uses
+the isolated main config and execution-only OpenRouter auth described above,
+without OpenAI login. Scenario outputs are uploaded as `agent-eval-discovery`,
+`agent-eval-intent`, and `agent-eval-full` with
 14-day retention, including partial setup/execution evidence.
 
 The unconditional summary job downloads those artifacts into separate,
@@ -1055,6 +1066,6 @@ artifacts that resolve outside the run directory.
 | `scripts/agent-eval-suite.test.ts`   | Suite, comparison, CLI, failure, and containment coverage                                        |
 | `scripts/agent-eval.test.ts`         | Runner, report, fallback, safety, and integration coverage                                       |
 | `scripts/agent-eval-metrics.test.ts` | Adapter and metrics-contract coverage                                                            |
-| `.github/workflows/agent-evals.yml`  | Daily, labeled-PR, and manual Luna execution plus unconditional summary                         |
+| `.github/workflows/agent-evals.yml`  | Daily/manual Luna and label-selected Luna/DeepSeek execution plus unconditional summary                         |
 | `eval/agentic/README.md`             | User-facing harness usage, workload guidance, and limitations                                    |
 | `.agents/skills/braintrust-agent-evals/SKILL.md` | Internal read/query/export operating commands                                  |
