@@ -189,7 +189,7 @@ githits example "react hooks patterns" -l typescript --explain
 githits example "react hooks patterns" -l typescript --json
 ```
 
-Default output is markdown (the API response). `--lang` is optional; when omitted, the backend infers the language from the query. Unresolved `--lang` values fail before generation and list up to five canonical retry names. With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>", "solution_id": "<uuid>" }` (`solution_id` is omitted only if the markdown lacks a solution URL). The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
+Default output is markdown with source provenance. `--lang` is optional; omit it to infer the language. If GitHits cannot match `--lang`, the error lists languages to retry with. With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>", "solution_id": "<uuid>" }` (`solution_id` is omitted only if the markdown lacks a solution URL). The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
 
 API rate-limit and timeout responses use the shared structured error envelope.
 Example requests use a longer client deadline than shorter metadata operations.

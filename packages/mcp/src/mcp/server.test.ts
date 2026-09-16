@@ -72,7 +72,7 @@ const DESCRIPTION_ROUTING: Record<
   },
   get_example: {
     prefix: /^Find canonical cross-project examples/,
-    body: ["`search`", "`read`", "`code_grep`", "canonical name"],
+    body: ["`search`", "`read`", "`code_grep`", "source repository provenance"],
   },
   search: {
     prefix: /^Discover relevant evidence in a known target before exact grep/,

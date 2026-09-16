@@ -151,7 +151,7 @@ describe("buildMcpQuickStart", () => {
       "Find canonical implementation examples across projects | `get_example`",
     );
     expect(instructions).toContain(
-      "If `get_example` rejects a language, retry with a listed canonical name or omit language",
+      "If `get_example` cannot match a language, retry with a suggested language from the error, or omit language",
     );
     expect(instructions).not.toContain("`search_language`");
     expect(instructions).toContain(
