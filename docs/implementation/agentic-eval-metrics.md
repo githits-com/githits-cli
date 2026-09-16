@@ -100,6 +100,31 @@ This proves PR linkage under the current naming/export contract. Normalized
 DeepSeek cost stays unknown; this canary has no quality scorer and establishes
 integration rather than replacement quality or repetition consistency.
 
+### Full-matrix runner incident — 2026-09-16
+
+[Full run 35097872660](https://github.com/githits-com/githits-cli/actions/runs/35097872660)
+on reviewed SHA `2d394d9fb9c30c1efc107f8835e0ad8f90e4cf0e` completed discovery
+and intent with 26 valid reports, 219 MCP calls, four recovered tool errors and
+zero isolation violations. Full-guidance evidence has 21 valid finals, two
+malformed JSON finals (`docs-search-noise`, `docs-discovery`) and one cell with
+no captured output (`package-upgrade-safety`). That shard lacks run/suite
+artifacts despite exit zero. The summary failed and Braintrust correctly
+rejected the missing suite before creating an experiment. Do not fabricate
+missing lifecycle timing or treat the first attempt as a complete experiment.
+All 553 downloaded files are retained; known-credential and runtime credential
+field checks found zero matches.
+
+A credential-free isolated driver reproduces the runner lifecycle fault:
+`runWithTimeout()` waits on an unreferenced escalation timer after terminating
+its child. With no remaining referenced work, Bun exits zero before that
+promise settles and before reports are generated. Keeping the already-awaited
+cleanup timer referenced (removing `unref` and its unused handle) fixes the
+fault at its runner owner. The same driver now emits completion with
+`timedOut: true`; ordinary completion, isolated timeout reporting and POSIX
+process-group cleanup regression tests pass. Workload timeout stays 300 seconds;
+no report repair or fallback is added. A new complete run is required to retain
+accurate per-cell lifecycle evidence for the full Braintrust comparison.
+
 ### Modal pilot compatibility result — 2026-09-16
 
 Modal authenticated and returned structured finals/usage but made no MCP calls.

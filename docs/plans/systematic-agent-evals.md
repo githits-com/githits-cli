@@ -2773,7 +2773,26 @@ Implementation verification: four focused workflow/export-identity tests pass
 (95 assertions), along with typecheck, changed-file Biome, actionlint, build,
 and plugin generation/check (10 assets, no generated diff). Internal code
 preflight reviewed the exact post-main-merge delta and found no issues. External
-code review and the authorized full live comparison are pending.
+Opus review and its one fresh-context final check are clean with no findings.
+Regular CI `35096578896` passed Ubuntu/Windows full tests, build/checks and
+Node/Bun compatibility. Full paid attempt
+`35097872660` at reviewed SHA `2d394d9fb9c30c1efc107f8835e0ad8f90e4cf0e`
+failed aggregation: discovery2 and intent24 valid; full has21 valid, two
+malformed finals and one uncaptured cell, and no run/suite artifacts. All three
+scenario jobs exited zero, but summary/export rejected missing full evidence;
+no Braintrust experiment was created. Evidence retained, not reset or repaired.
+
+Root-cause correction within this increment: an isolated credential-free driver
+reproduces exit-zero with no completion when the last timeout awaits an
+unreferenced cleanup timer. Runner process lifecycle owns that cleanup. Remove
+`unref` and its unused timer handle; the already-awaited cleanup now finishes
+and failed timeout artifacts can be generated. Three focused lifecycle tests
+pass, including a child-driver regression that the ordinary Bun test event loop
+would otherwise conceal. Two malformed JSON finals remain model failures under
+unchanged final validation. No new harness layer, timeout setting, recovery or
+acceptance criterion. This minor incident fix is within the original all-cell
+artifact/comparison criterion, not a scope/phase change requiring a plan round.
+The complete rerun, truthful failed-cell export and comparison remain pending.
 
 ## Phase 6 — Trend Policy And Result Quality
 

@@ -2158,7 +2158,6 @@ export async function runWithTimeout(
     stderr: "pipe",
   });
   let timedOut = false;
-  let escalationTimer: ReturnType<typeof setTimeout> | undefined;
   let cleanupPromise: Promise<void> | undefined;
   const signalHandlers = new Map<"SIGINT" | "SIGTERM", () => void>();
   const removeSignalHandlers = (): void => {
@@ -2184,10 +2183,9 @@ export async function runWithTimeout(
     cleanupPromise = (async () => {
       await killProcessTree(proc, "SIGTERM");
       await new Promise<void>((resolve) => {
-        escalationTimer = setTimeout(() => {
+        setTimeout(() => {
           void killProcessTree(proc, "SIGKILL").finally(resolve);
         }, 2_000);
-        escalationTimer.unref?.();
       });
     })();
   }, timeoutSeconds * 1_000);
