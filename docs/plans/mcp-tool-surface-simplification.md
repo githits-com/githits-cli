@@ -3,26 +3,26 @@
 ## Status
 
 - Overall: ACTIVE
-- Current phase: Phase 1 — compact code and discovery targets (IMPLEMENTED)
-- Baseline: `fe553ce` (`origin/main`, 2026-09-15)
-- Last verified: 2026-09-15
+- Current phase: Phase 3 — one MCP search-filter language (DRAFT PR #397)
+- Baseline: `175c15c` (`origin/main`, 2026-09-16; canonical `@ref` merge)
+- Last verified: 2026-09-16
 
 ## Problem and expected outcome
 
-The stable MCP catalog is correct but expensive to expose. Its 14 serialized tool
-definitions currently occupy 50,851 Unicode characters. Schemas account for most
-of that surface, and several schemas advertise multiple ways to express the same
-intent. The clearest example is target addressing: code/discovery tools accept both
-compact target strings and structured target objects even though the stable MCP
-guide teaches compact strings and the shared parsers already implement that grammar.
+The stable MCP catalog is correct but expensive to expose. Its original 14-tool
+baseline occupied 50,851 Unicode characters; Phase 1 reduced its merge catalog to
+42,421 by removing duplicate structured target forms. Schemas still account for most
+of the surface. Phase 3 removes the six structured `search` constraints that the
+backend query language now expresses directly; the implementation has passed review.
 
-Other large opportunities exist, but their product contracts are not settled:
-search has both inline and structured qualifiers, code-navigation tools expose many
-overlapping controls, and repeated output-format copy must not be shortened until
-lower-cost-agent evals show that agents continue to omit `format` rather than
-selecting JSON unnecessarily. Ask is a new intentional answer surface, not a
-retirement candidate. Example-language recovery is settled: `get_example` keeps
-the language filter, and `search_language` is removed.
+The Phase 3 baseline advertises both inline and structured qualifiers even though
+the production backend now validates and reports inline syntax robustly. Other large
+opportunities remain unsettled: code-navigation tools expose many overlapping
+controls, and repeated output-format copy must not be shortened until lower-cost-agent
+evals show that agents continue to omit `format` rather than selecting JSON
+unnecessarily. Ask is a new intentional answer surface, not a retirement candidate.
+Example-language recovery is settled: `get_example` keeps the language filter, and
+`search_language` is removed.
 
 When this effort is complete, MCP exposes one concise way to express each settled
 concept, while the CLI retains human-friendly flags where they are useful. Tool
@@ -51,21 +51,57 @@ performance measurements, or proof that every host retains the whole catalog. Th
 existing context-loading harness is the benchmark for this instruction-surface
 optimization; no new benchmark infrastructure is needed.
 
-A schema-only projection that replaces the structured target branches with the
+A schema-only projection that replaced the structured target branches with the
 already-advertised string branches in `search`, `code_files`, and `code_grep`, while
-holding all descriptions constant, reduces the stable serialized catalog from
-50,851 to 44,529 characters: 6,322 characters, or 12.4%. Phase 1 can improve on that
-with concise target wording, but it must not report a token or cost reduction from
-the character result alone.
+holding all descriptions constant, reduced the stable serialized catalog from
+50,851 to 44,529 characters: 6,322 characters, or 12.4%. Phase 1 improved on that
+with concise target wording; its recorded character result is not a token or cost
+claim.
 
-### Existing target contracts
+At the Phase 1 merge, the same inventory reported 42,421 characters for the stable
+catalog and 6,441 for `search`. Canonical `@ref` guidance merged in PR #396 and moved
+the current `origin/main` baseline to 42,659 catalog characters and 6,597 for
+`search`. Removing only `search.category`, `kind`, `path_prefix`, `file_intent`,
+`name`, and `language`, with descriptions held constant, projects the current catalog
+at 40,821 characters: 1,838 fewer characters, or 4.3%. `public_only` remains because
+the query language has no equivalent public-API qualifier.
 
-- `packages/mcp/src/tools/code-navigation-shared.ts` advertises a union of a
+### Production inline-qualifier contract
+
+Targeted production calls through CLI 0.17.1 on 2026-09-15 verified the Phase 3
+dependency against `npm:express@5.2.1`:
+
+- `kind:function` and `category:callable` on symbol search returned the same ordered
+  evidence locators as `--kind function` and `--category callable`;
+- `path:lib/` and `intent:production` on code search returned the same ordered
+  evidence locators as `--path-prefix lib/` and `--intent production`;
+- invalid `kind:bogus`, `category:bogus`, and `intent:bogus` returned promptly with
+  non-retryable `INVALID_ARGUMENT` errors and the accepted values, without a
+  `searchRef` or indexing continuation;
+- docs search reported all of `kind`, `category`, `intent`, `path`, `name`, and
+  `lang` in `sourceStatus[].ignoredQueryFeatures` and a top-level warning;
+- symbol search reported `path` and `lang` in
+  `sourceStatus[].incompatibleQueryFeatures`; supported qualifiers were not reported
+  as lost; and
+- an unclosed qualifier quote remained a successful search with the explicit parser
+  warning `Unclosed quote treated as end of query`. Client code must preserve that
+  backend-owned recovery rather than adding a second parser.
+
+The production vocabulary is already broader than the current MCP `kind` enum (for
+example, the backend error advertises `unknown`, `const`, and `static`). Keeping the
+full enum in the MCP schema would duplicate a drifting backend contract; the compact
+descriptor should show representative qualifier examples and let backend validation
+return the current accepted values.
+
+### Pre-Phase-1 target contracts
+
+- At the original planning baseline,
+  `packages/mcp/src/tools/code-navigation-shared.ts` advertised a union of a
   five-field structured object and a compact string. `code_files` and `code_grep`
-  share that schema and resolver.
-- `packages/mcp/src/tools/search.ts` extends the same object with `site`, then embeds
+  shared that schema and resolver.
+- `packages/mcp/src/tools/search.ts` extended the same object with `site`, then embedded
   the object/string union twice under singular `target` and plural `targets`.
-- `packages/mcp/src/tools/code-diff.ts` independently accepts a compact string or
+- `packages/mcp/src/tools/code-diff.ts` independently accepted a compact string or
   package/repository objects. It is local and experimental, but it represents the
   same concept.
 - `packages/mcp/src/shared/package-spec.ts`,
@@ -107,6 +143,7 @@ In scope for the overall effort:
 - keeping CLI argument ergonomics independent where the CLI serves humans better;
 - preserving output behavior and backend request semantics unless a later phase
   explicitly changes them;
+- preserving CLI search flags while MCP callers use the backend query language;
 - validating agent-facing changes with descriptor-only real-agent evals and the
   existing static context inventory;
 - correcting current durable documentation as each contract changes; and
@@ -129,11 +166,12 @@ Out of scope:
 
 ## Target architecture and ownership
 
-The MCP surface owns agent-call ergonomics. It should accept compact strings and
-adapt them immediately into the normalized structures already consumed by shared
-request builders. The CLI owns human command-line ergonomics and may keep positional
-specs and explicit flags. Shared parser modules own grammar and validation; services
-continue to own only data access.
+The MCP surface owns agent-call ergonomics. It should accept compact target strings
+and one query string containing search qualifiers. The CLI owns human command-line
+ergonomics and may keep positional specs and explicit flags. Shared client parsers
+own target normalization and CLI flag adaptation; the backend query boundary owns
+inline qualifier grammar, validation, source compatibility, and recovery. Services
+remain thin data-access adapters.
 
 ```text
 MCP compact target string
@@ -145,13 +183,24 @@ CLI positional spec and flags
   -> existing CLI parsing
   -> same request builder and validation
   -> unchanged service interface and backend request
+
+MCP search query with inline qualifiers
+  -> existing client request builder (required trim only)
+  -> backend parser and per-source compiler
+  -> typed validation or results with compatibility metadata
+
+CLI search flags
+  -> existing shared request builder
+  -> existing structured filters / compiled name and language qualifiers
+  -> same backend search operation
 ```
 
-This is the right ownership boundary because target syntax is an input-normalization
-concern shared by callers, not a service or backend concern. The simpler alternative
-of parsing independently in every tool would repeat grammar and error behavior; the
-broader alternative of changing service interfaces would couple data access to one
-surface's ergonomics.
+This is the right ownership boundary because target syntax is client input
+normalization, while search-query syntax must behave identically for every client and
+source lane. Parsing qualifiers in MCP would duplicate the production backend parser
+and its evolving enum vocabulary. Removing CLI flags would make the human surface
+worse without reducing MCP context, so the shared request builder remains their
+adapter rather than becoming MCP-visible.
 
 For guidance ownership:
 
@@ -185,8 +234,9 @@ addressing shapes.
 5. Repeated `format` documentation is not shortened without matched eval evidence
    from lower-cost agents showing that the shorter surface does not increase
    unnecessary `format: "json"` calls.
-6. Search qualifier consolidation is desirable only if the backend handles inline
-   qualifiers robustly. The CLI may retain structured options.
+6. MCP `search` uses inline `kind:`, `category:`, `path:`, `intent:`, `name:`, and
+   `lang:` qualifiers exclusively. The CLI retains its structured flags. The backend
+   owns qualifier validation and per-source compatibility reporting.
 7. Navigation-control consolidation requires a separate product discussion.
 
 ### Assumptions
@@ -203,11 +253,9 @@ addressing shapes.
 
 ### Later-phase unknowns
 
-- Package tools: the compact representation for changelog repository refs and
-  upgrade-review single/batch version ranges. Resolve before Phase 2 is detailed.
-- Search: which inline qualifiers are proven robust on every source/target lane and
-  which structured filters have no inline equivalent. Resolve with backend contract
-  evidence and targeted evals before Phase 3.
+- Package tools: the upgrade-review single/batch version-range representation.
+  Resolve before package-coordinate work is detailed. Changelog repository refs are
+  already settled as canonical `@ref` by PR #396.
 - Navigation: which path, intent, context, and result-limit controls real callers
   need, including whether singular/plural variants should collapse. Resolve through
   product discussion and observed call shapes before Phase 4.
@@ -218,17 +266,18 @@ addressing shapes.
 - `search_status`: its long-term continuation boundary is not settled by this plan.
   Do not remove or merge it without a separate product decision.
 
-None of these later unknowns blocks Phase 1.
+None of these later unknowns blocks Phase 3.
 
 ## Cross-cutting constraints
 
-- **Security:** Compact parsers retain the existing rejection of credentials,
-  unsupported/self-hosted repository URLs, query strings, invalid paths, and mixed
-  ref suffixes. Descriptions must not weaken the public-only scope or external-content
-  posture.
-- **Performance:** There is no runtime hot-path optimization or new network work.
-  Use the existing context inventory for before/after content size. Do not create a
-  second benchmark or infer provider token savings.
+- **Security:** Compact target parsers retain the existing rejection of credentials
+  and unsupported repository inputs. Inline qualifiers remain untrusted query text
+  validated by the backend; MCP must not interpret or execute their contents.
+  Descriptions must not weaken the public-only scope or external-content posture.
+- **Performance:** This is instruction-surface optimization, not a runtime hot-path
+  change. Use the existing context inventory for before/after content size. Do not
+  create a second benchmark or infer provider token savings. Phase 3 adds no network
+  calls; it changes the shape of an existing search request.
 - **Compatibility:** Phase 1 deliberately breaks structured MCP target objects and
   preserves compact strings, CLI inputs, service interfaces, outputs, legacy read-name
   routing, and Ask source projection. Use a pending minor fragment for both public
@@ -237,33 +286,43 @@ None of these later unknowns blocks Phase 1.
 - **Migration:** Release notes must show direct conversions such as
   `{registry:"npm",package_name:"express",version:"5.2.1"}` to
   `"npm:express@5.2.1"` and `{repo_url:"https://github.com/expressjs/express",
-  git_ref:"main"}` to `"github:expressjs/express#main"`. They must also show the
+  git_ref:"main"}` to `"github:expressjs/express@main"`. They must also show the
   search-only conversion `{site:"https://expressjs.com/"}` to
   `"site:https://expressjs.com/"` or its canonical equivalent
   `"site:expressjs.com"`. No server-side dual-schema period is planned.
+- **Phase 3 compatibility and migration:** Removing six advertised MCP fields is a
+  breaking schema change for hard-coded callers. Migrate `kind:"function"`,
+  `category:"callable"`, `path_prefix:"lib/"`, `file_intent:"production"`,
+  `name:"Router"`, and `language:"typescript"` into `search.query` as
+  `kind:function`, `category:callable`, `path:lib/`, `intent:production`,
+  `name:Router`, and `lang:typescript`. Multiple qualifiers keep backend `AND`
+  semantics. CLI flags and `public_only` are unchanged. Record a pending minor for
+  both public artifacts; do not preserve hidden MCP aliases or client-side fallbacks.
 - **Rollback:** Reverting the release restores the prior schema. No stored state or
   backend migration is involved.
 - **Testing:** Schema shape, parsing, normalized service calls, error envelopes,
   stable/local registration, smoke behavior, and real-agent argument shapes all need
   evidence. Existing service mocks remain sufficient.
-- **Operations:** Hosted clients change only after `@githits/mcp` is released,
-  adopted by `remote-mcp`, and deployed. Those are separate repositories/actions and
-  are not authorized by implementation of this plan.
+- **Operations:** The required backend contract is deployed. Hosted MCP clients change
+  only after `@githits/mcp` is released, adopted by `remote-mcp`, and deployed. Those
+  are separate repositories/actions and are not authorized by implementation of this
+  plan.
 - **Documentation:** Update current contracts, not immutable historical eval records.
   Keep stable `buildMcpQuickStart()` and the public skill's terminal guide byte-aligned
   if either needs to change. Generated plugin assets are never edited directly.
 
 ## Phase map
 
-1. **Phase 1 — compact code and discovery targets (READY):** `search`,
+1. **Phase 1 — compact code and discovery targets (MERGED):** `search`,
    `code_files`, `code_grep`, and experimental `code_diff` advertise and accept only
    compact string targets; CLI/service behavior and legacy read routing stay intact.
-2. **Phase 2 — compact package-tool coordinates (PENDING):** package MCP tools use
-   concise target/range strings while retaining each tool's verified latest, pinned,
-   range, repository, and batch semantics.
-3. **Phase 3 — one MCP search-filter language (PENDING):** proven inline qualifiers
-   replace redundant structured search filters; unsupported or unreliable inline
-   semantics remain explicit rather than being guessed.
+2. **Phase 2 — compact package-tool coordinates (DEFERRED BY PRIORITY):** after search
+   qualifier consolidation, package MCP tools use concise target/range strings while
+   retaining each tool's verified latest, pinned, range, repository, and batch
+   semantics.
+3. **Phase 3 — one MCP search-filter language (REVIEWED):** the six backend-supported
+   inline qualifiers replace their duplicate MCP fields while CLI flags and
+   `public_only` remain.
 4. **Phase 4 — essential navigation controls only (PENDING):** `code_files` and
    `code_grep` expose one non-overlapping control for each verified caller need.
 5. **Phase 5 — actionable example-language recovery (IMPLEMENTED):**
@@ -276,12 +335,12 @@ None of these later unknowns blocks Phase 1.
    regression. `search_status` changes only after its separate product discussion.
 
 Later-phase order may change during reorientation if product decisions arrive in a
-different order. The destination and constraints stay fixed; tactical interfaces for
-Phases 2–6 are intentionally not invented yet.
+different order. The destination and constraints stay fixed; only the current ready
+phase has tactical implementation detail.
 
 ## Phase 1: compact code and discovery targets
 
-**Status:** IMPLEMENTED — reviewed and ready for delivery
+**Status:** MERGED — `dc148c5` (PR #395)
 
 **Expected outcome:** Stable code/discovery tools and local experimental diff expose
 only compact target strings. Their normalized service requests, success/error output,
@@ -511,17 +570,24 @@ Verification evidence:
   place. The external Opus round found no code defects and two minor copy/test
   hygiene issues; both were fixed, so the round is clean under repository policy.
 
+PR #395 merged to `origin/main` as `dc148c5` on 2026-09-15. The post-merge Main,
+Agent Evals, root release, and MCP release workflows passed. Root and MCP publish,
+tag, and GitHub Release steps were skipped because package versions were unchanged,
+so the Phase 1 contract is merged but not yet published to npm or deployed through
+the separate hosted `remote-mcp` release path. The pending minor/minor change
+fragment remains the release record.
+
 Current target-facing guidance now has one ownership path: schemas state the
 compact accepted form and representative examples, shared quick-start/skill text
 names all supported repository providers once, and durable docs retain exhaustive
 grammar and compatibility detail. Remaining `code_read` / `docs_read` references
 are deliberate migration signals, backend contracts, or dated evaluation history.
 
-## Later phases
+## Remaining phases
 
 ### Phase 2: compact package-tool coordinates
 
-**Status:** PENDING REORIENTATION
+**Status:** DEFERRED BY PRIORITY
 
 **Expected outcome:** `docs_list`, `pkg_info`, `pkg_vulns`, `pkg_deps`,
 `pkg_changelog`, and `pkg_upgrade_review` expose compact package/repository/range
@@ -530,12 +596,12 @@ coordinates without changing their evidence or output semantics.
 **Assumptions:** The shared package parser remains canonical; CLI positional specs and
 flags remain; latest-only tools reject embedded versions actionably.
 
-**Unknowns or product decisions:** Decide the compact changelog repository-ref form
-and the upgrade-review single/batch range representation. This decision is required
-before Phase 2 is detailed.
+**Unknowns or product decisions:** Decide the upgrade-review single/batch range
+representation before this phase is detailed. Changelog repository refs use the
+canonical `@ref` grammar merged in PR #396.
 
-**Dependencies:** Phase 1 evidence and phase-boundary reorientation; no backend change
-is currently expected.
+**Dependencies:** Complete Phase 3 and reorient at its boundary; canonical `@ref`
+grammar is already on `origin/main`. No backend change is currently expected.
 
 **Acceptance criteria:** Each package operation has one MCP addressing form; all
 latest, pinned, range, repository, and batch semantics remain deterministic; invalid
@@ -544,26 +610,244 @@ inventory; CLI and service contracts remain stable.
 
 ### Phase 3: one MCP search-filter language
 
-**Status:** PENDING BACKEND EVIDENCE
+**Status:** IMPLEMENTED — REVIEW CLEAN — DRAFT PR #397
 
-**Expected outcome:** Agents express supported search qualifiers once. CLI flags may
-remain, while MCP structured filters survive only where inline syntax is unavailable
-or less reliable.
+**Expected outcome:** MCP callers express `kind`, `category`, `path`, `intent`,
+`name`, and `lang` once inside `search.query`. The selected tool teaches that compact
+syntax with representative examples, production validates it actionably, and
+per-source loss remains visible. CLI users retain `--kind`, `--category`,
+`--path-prefix`, `--intent`, `--name`, and `--lang`.
 
-**Assumptions:** None beyond preserving current source compatibility and error
-behavior.
+**Assumptions:** The production qualifier contract verified above remains deployed
+through implementation and release. Existing query/warning fields and text rendering
+continue to preserve backend parser and source-compatibility metadata.
 
-**Unknowns or product decisions:** Verify backend behavior for quoting, escaping,
-combination, and docs/code/symbol lane compatibility for each inline qualifier before
-choosing which fields to remove.
+**Unknowns or product decisions:** none.
 
-**Dependencies:** Backend contract evidence and targeted descriptor evals gathered at
-reorientation.
+Unknown MCP arguments continue to follow the SDK's existing stripping behavior. This
+phase does not introduce global or search-only strictness: current schemas are
+rediscovered by agents, canonical guidance does not teach the removed fields, and no
+agent trace has shown stale or invented filter arguments. Changing unknown-field
+semantics for every tool would be an unverified compatibility expansion unrelated to
+qualifier consolidation. Release guidance still directs hard-coded callers to the
+inline forms; runtime rejection is not part of the contract.
 
-**Acceptance criteria:** No duplicated qualifier path remains without a verified
-reason; every retained/removed field has source-lane coverage; raw and compiled query
-semantics stay observable; agents complete representative searches without redundant
-constraints or silent filter loss.
+**Dependencies:** Phase 1 merged; production backend qualifier validation and
+source-lane reporting deployed; existing context inventory, service mocks, smoke
+suites, and agent-eval harness available. Canonical `@ref` syntax is merged and does
+not change this phase's qualifier-only scope.
+
+#### Behavioral contract
+
+- Remove `category`, `kind`, `path_prefix`, `file_intent`, `name`, and `language`
+  from `SearchArgs` and the generated MCP `search` input schema. Do not retain aliases
+  or add strictness machinery; the advertised surface is the migration boundary.
+- Keep `query`, `target`, `targets`, `source`, `public_only`,
+  `allow_partial_results`, `limit`, `offset`, `wait_timeout_ms`, and `format`.
+  `public_only` stays structured because no verified inline equivalent exists.
+- After the existing required-query trim, `query` passes to the service without
+  MCP-side qualifier parsing, compilation, or enum copies. Representative syntax is
+  `kind:function`, `category:callable`, `path:lib/`, `intent:production`,
+  `name:Router`, and `lang:typescript`; backend implicit-`AND`, explicit boolean,
+  parentheses, quoting, escaping, and recovery semantics remain authoritative.
+- Backend `INVALID_ARGUMENT` failures, parser warnings, `ignoredQueryFeatures`, and
+  `incompatibleQueryFeatures` continue through the existing service, payload, and
+  text-rendering paths unchanged. Source-incompatible inline qualifiers may complete
+  with explicit warnings rather than using the shared structured `pathPrefix`
+  preflight that remains for CLI flags; no inline-query filter loss is silent.
+- Keep all CLI flags and `SearchCommandOptions` unchanged. The shared
+  `buildUnifiedSearchParams()` support for structured kind/category/path/intent flags
+  and compiled name/language qualifiers remains because the CLI owns that ergonomic
+  adapter. Do not move backend query parsing into this shared helper.
+- Preserve tool name, annotations, output schemas, search lifecycle, target parsing,
+  first description sentence, and first 80 raw description characters. Tighten only
+  qualifier-related copy; do not change the now-canonical `@ref` target syntax.
+
+#### Implementation boundaries and likely files
+
+1. In `packages/mcp/src/tools/search.ts`, remove the six fields and their Zod schemas,
+   delete now-unused MCP conversions/imports, and stop forwarding them to
+   `buildUnifiedSearchParams()`. Keep `public_only` forwarding through `filters` and
+   pass `query` through the existing required-query trim without qualifier compilation.
+2. Replace the current “prefer structured parameters” query copy and the long
+   structured-filter paragraphs with compact caller-facing qualifier examples plus
+   one source-compatibility instruction: inspect returned warnings/source status when
+   a qualifier does not apply. Do not duplicate exhaustive enum lists; actionable
+   backend validation owns the current vocabulary.
+3. Leave `packages/mcp/src/shared/unified-search-request.ts`,
+   `src/commands/search.ts`, their CLI option schemas, and their structured flag tests
+   intact. They naturally own CLI adaptation; deleting that support would broaden the
+   change without reducing the MCP catalog.
+4. Update only current contract prose in `docs/implementation/tools.md`: remove the
+   six fields from the MCP tool table and describe MCP inline qualifiers, CLI flag
+   preservation, backend validation, and per-source reporting. Do not edit dated
+   historical measurements or generated plugin assets.
+5. Add `eval/agentic/workloads/search-inline-qualifiers.md` as a stable task that
+   requires production JavaScript evidence under `lib/` from
+   `npm:express@5.2.1`, and route it from the workload table. The task describes the
+   desired evidence constraints, not tool-call instructions.
+6. Add one independent `changes/<unique-name>.changed.md` fragment with pending
+   `minor` impact for both `githits` and `@githits/mcp`. Include direct field-to-query
+   migrations and state that CLI flags, `public_only`, results, and continuation
+   behavior are unchanged. Do not edit `CHANGELOG.md`.
+
+#### Tests and verification
+
+- In `packages/mcp/src/tools/search.test.ts`, replace structured MCP filter calls with
+  inline queries. Assert the six fields are absent, remaining fields are documented,
+  representative qualifier examples are present once at the selected-tool surface,
+  the first sentence/prefix remains stable, inline syntax reaches the service unchanged
+  after the existing required-query trim, and `public_only` still produces its
+  existing backend filter.
+- In `packages/mcp/src/mcp/server.test.ts`, assert the generated stable schema has no
+  six removed properties and retains `query` plus `public_only`. Do not add tests or
+  production changes for the SDK's unchanged handling of undisclosed arguments.
+- Keep `packages/mcp/src/shared/unified-search-request.test.ts` and
+  `src/commands/search.test.ts` coverage for CLI structured flags and quoting. Run
+  them explicitly as regression guards; they should need no production-code change.
+- Preserve `src/tools/search-parity.test.ts` output parity. Request encodings may
+  differ because MCP now sends inline syntax while CLI flags retain the existing
+  adapter; completed results, errors, warnings, and continuation envelopes remain
+  identical for the same service outcome.
+- Exercise authenticated live MCP/CLI smoke with at least one successful combined
+  inline query and the three invalid enum cases. Successful smoke must show no silent
+  qualifier loss; invalid values must return non-retryable `INVALID_ARGUMENT` without
+  a continuation. Unauthenticated smoke must retain its current auth assertions.
+- Run the existing context inventory before and after. With descriptor text held to
+  no net growth, stable `catalog.full` must be at most 40,821 characters; if compact
+  replacement copy changes that ceiling, record the exact schema-only 1,838-character
+  projection separately from the measured implementation result. Make no token or
+  cost claim from either count.
+- Run descriptor-only local evals for both Codex and Claude on
+  `search-inline-qualifiers.md` and `unified-search-investigation.md`. Inspect
+  `tool-calls.json`, raw tool results, `final.json`, `metrics.json`, and
+  `isolation-violations.json`. Changed `search` calls must use query qualifiers rather
+  than removed arguments, report returned qualifier warnings, avoid redundant
+  constraints and futile retries, and have no isolation violations. Eval confidence
+  is not a quality grade.
+
+Run, at minimum:
+
+```text
+bun test packages/mcp/src/tools/search.test.ts
+bun test packages/mcp/src/mcp/server.test.ts
+bun test eval/agentic/context-loading/fixture-server.test.ts
+bun test packages/mcp/src/shared/unified-search-request.test.ts
+bun test src/commands/search.test.ts src/tools/search-parity.test.ts
+bun test
+bun run typecheck
+bun run lint
+bun run build
+bun run validate:packages
+bun run plugins:generate
+bun run plugins:check
+bun run smoke:cli
+bun run smoke:mcp
+bun run smoke:cli:built
+bun run smoke:mcp:built
+bun scripts/agent-context-load.ts sizes
+```
+
+Inspect generated diffs. No canonical plugin input is expected to change, so generated
+assets must remain unchanged. Report any live backend variability as evidence; do not
+hide it with retries.
+
+#### Phase 3 acceptance criteria
+
+1. Stable MCP `search` omits the six removed fields and advertises their inline
+   equivalents compactly in `query`; `public_only` and every non-qualifier input remain.
+2. Inline query text reaches the backend unchanged after the existing required-query
+   trim, valid representative queries preserve ranked evidence, and backend
+   validation/warning/source-status details remain visible in text and JSON without a
+   duplicate client parser.
+3. CLI search flags and their structured request-builder behavior are unchanged;
+   MCP/CLI output and error envelopes retain parity for equivalent outcomes.
+4. Authenticated smoke verifies one combined valid query plus prompt typed failures
+   for invalid kind/category/intent; all source and built smoke modes pass their
+   applicable authenticated or unauthenticated contracts.
+5. The measured stable catalog records the exact reduction and does not exceed the
+   schema-only 40,821-character projection unless every additional character is
+   justified by compact target-facing call guidance.
+6. Descriptor-only Codex and Claude traces use inline qualifier syntax without
+   removed-field calls, duplicate constraints, futile retries, or silent warning loss.
+7. Durable docs and the independent minor/minor fragment give direct migration
+   examples, while quick-start/skill text and generated plugin assets remain unchanged.
+8. Internal and external review are clean under repository policy.
+
+#### Phase 3 implementation record
+
+The implementation is committed on `jlitola/audit-tool-surface-simplification`:
+
+- `beb7fe3` removes the six MCP fields, tightens selected-tool qualifier guidance,
+  updates current durable contracts, adds the minor/minor migration fragment and
+  eval workload, and adds schema/live-smoke assertions.
+- `82be052` changes the combined live-smoke query term from `router` to
+  `application`. The first live run completed the former query with zero results;
+  targeted production inspection showed the qualifiers were accepted and the
+  application term returned the required `lib/*.js` evidence. No assertion was
+  weakened and no retry mechanism was added.
+
+Two bounded Luna implementation slices returned uncommitted, verified changes;
+the coordinator reviewed them, authored descriptor/docs/eval decisions, tightened
+the smoke proof, and owns the commits and delivery. The Luna conformance preflight
+and internal `code_reviewer` are clean. External Opus round 1 and its single
+fresh-context final check are clean, with no findings. The review inspected the
+complete implementation delta, warning/source-status preservation, unchanged CLI
+adapters, migration guidance, and stale-field references. The reviewer is retained
+in terminal `term_c9d8e9f4-7cee-495e-8f91-d195c5203445` under dispatch
+`ctx_ceca16417782` for follow-up through explicit human PR-merge approval.
+
+Verification on 2026-09-16:
+
+- `bun test packages/mcp/src/tools/search.test.ts packages/mcp/src/mcp/server.test.ts
+  packages/mcp/src/smoke-test.test.ts eval/agentic/context-loading/fixture-server.test.ts
+  packages/mcp/src/shared/unified-search-request.test.ts src/commands/search.test.ts
+  src/tools/search-parity.test.ts`: 228 passed, zero failed.
+- `bun test`: final full run passed all 4,776 tests across 210 files, zero failed.
+  The first run exposed the new workload's missing exact-inventory registration;
+  the manifest/test were corrected in place and its focused suite passed 48/48.
+- `bun run typecheck`, `bun run lint`, `bun run build`, and
+  `bun run validate:packages`: passed. Lint reports eight pre-existing warnings in
+  the unchanged repository-target parser.
+- `bun run plugins:generate` and `bun run plugins:check`: generated and validated
+  all ten assets with no derived diff. Quick-start and public skill inputs are
+  unchanged.
+- `bun run smoke:cli` and `bun run smoke:mcp`: authenticated stable and
+  experimental cohorts passed. The new combined query returned nonempty
+  JavaScript evidence under `lib/`, preserved its exact raw query, and the three
+  invalid inline enums returned non-retryable `INVALID_ARGUMENT` without
+  continuation. The CLI structured path-prefix rejection remains covered.
+- `bun run smoke:cli:built` and `bun run smoke:mcp:built`: passed their secret-free
+  Node launch, unauthenticated, and registration contracts.
+- `bun scripts/agent-context-load.ts sizes`: stable `catalog.full` is 40,738
+  Unicode characters and `search` is 4,676, down from 42,659 and 6,597 respectively.
+  The reduction is 1,921 characters (4.5%), 83 below the 40,821 schema-only ceiling.
+  The catalog names/first-80 surface, quick-start, and public skill are unchanged.
+  No provider-token or cost improvement is inferred from character counts.
+- Descriptor-only local Codex 0.154.0 Luna/high runs on
+  `search-inline-qualifiers.md` and `unified-search-investigation.md` completed
+  successfully with high self-reported confidence. Their raw calls, results,
+  finals, and metrics were inspected: 8 and 20 MCP calls respectively, all
+  completed, no CLI fallback, no removed search arguments, no duplicate qualifier
+  constraints, and no isolation violations. The inline run used all three required
+  qualifiers, inspected JSON once for warning/source-status detail, then narrowed
+  terms; its final explicitly reported no returned qualifier warnings. These are
+  trace observations, not a quality grade or comparative token/cost result.
+- The matching Claude 2.1.273 descriptor-only runs both failed before discovery
+  with provider `authentication_failed`, one API-error turn, and zero tool calls.
+  They do not verify Claude product behavior. Their failure artifacts are retained;
+  Claude descriptor behavior remains an explicit validation limitation rather
+  than being hidden by repeated runs.
+
+Local eval artifacts are in `.agent-eval/runs/phase3-{codex,claude}-{inline,unified}`.
+No hosted deployment, package publication, release, or merge has been performed.
+Draft PR: [#397](https://github.com/githits-com/githits-cli/pull/397). Build/checks,
+Linux/Windows tests, and MCP package validation are pending; CI agent evals are
+skipped for the draft, with local trace evidence recorded above.
+The final consistency audit found
+canonical `@ref` target guidance and one inline MCP search-constraint language;
+quick-start/skill parity and unrelated structured CLI/navigation controls remain
+intact.
 
 ### Phase 4: essential navigation controls only
 
@@ -649,6 +933,27 @@ delete this temporary plan. Do not leave completed plan text as a competing sour
 truth.
 
 ## Plan review record
+
+- Phase 3 internal `code_reviewer`: its unknown-field finding was factually correct
+  but rejected as a blocker after product calibration. The SDK has always stripped
+  undisclosed arguments across all tools; no agent trace shows stale or invented
+  filter fields, current schemas are rediscovered, and canonical guidance does not
+  teach them. Global strictness would impose a new compatibility contract on every
+  tool to guard an unobserved stale caller, while search-only strictness would add an
+  inconsistent special path. The plan now neither changes that behavior nor promises
+  removed-field rejection. Accepted and fixed its two minor factual findings: query
+  text is trimmed by the existing request builder before service forwarding, and the
+  opening problem statement incorrectly described the pre-Phase-1 catalog as current.
+- Phase 3 external Fable round 1: one minor wording finding, otherwise clean. Accepted
+  that the plan incorrectly called structured `pathPrefix` preflight rejection
+  MCP-only even though the shared request builder also serves CLI. Reworded the
+  behavioral contract to preserve that CLI path explicitly. Under repository policy,
+  the round is clean once this documentation-only correction is applied.
+- Post-review baseline refresh: PR #396 merged canonical `@ref` syntax to
+  `origin/main` at `175c15c`. Updated the Phase 3 inventory baseline/projection and
+  marked package-coordinate work deferred until after Phase 3. This changes no
+  reviewed Phase 3 scope, architecture, or acceptance behavior, so no new review
+  round was required.
 
 - Internal `code_reviewer`: two valid test/documentation gaps. Accepted the need to
   enumerate the existing protocol, parity, and public-surface callers and to turn the

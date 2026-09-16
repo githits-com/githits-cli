@@ -685,6 +685,92 @@ function assertJsonErrorCode(
   );
 }
 
+function assertInlineSearchSuccess(
+  value: unknown,
+  expectedQuery: string,
+  context: string,
+): void {
+  assertRecord(value, context);
+  assertRecord(value.query, `${context}: query`);
+  assert(value.query.raw === expectedQuery, `${context}: raw query mismatch`);
+  assert(
+    Array.isArray(value.results) && value.results.length > 0,
+    `${context}: missing ranked results`,
+  );
+  for (const [index, result] of value.results.entries()) {
+    assertRecord(result, `${context}: results[${index}]`);
+    assertRecord(result.locator, `${context}: results[${index}].locator`);
+    const filePath = result.locator.filePath;
+    assert(
+      typeof filePath === "string" &&
+        filePath.startsWith("lib/") &&
+        filePath.endsWith(".js"),
+      `${context}: result escaped JavaScript lib/ scope`,
+    );
+  }
+
+  if ("warnings" in value) {
+    assert(
+      Array.isArray(value.warnings),
+      `${context}: warnings must be an array`,
+    );
+  }
+  if (!("sourceStatus" in value)) return;
+
+  assert(
+    Array.isArray(value.sourceStatus),
+    `${context}: sourceStatus must be an array`,
+  );
+  const unsupportedFeatures: string[] = [];
+  for (const [index, entry] of value.sourceStatus.entries()) {
+    assertRecord(entry, `${context}: sourceStatus[${index}] must be an object`);
+    for (const field of ["ignoredQueryFeatures", "incompatibleQueryFeatures"]) {
+      const features = entry[field];
+      if (features === undefined) continue;
+      assert(
+        Array.isArray(features),
+        `${context}: sourceStatus[${index}].${field} must be an array`,
+      );
+      for (const feature of features) {
+        assert(
+          typeof feature === "string",
+          `${context}: sourceStatus[${index}].${field} must contain strings`,
+        );
+        unsupportedFeatures.push(feature);
+      }
+    }
+  }
+
+  if (unsupportedFeatures.length === 0) return;
+  assert(
+    Array.isArray(value.warnings),
+    `${context}: unsupported qualifiers must be surfaced in warnings`,
+  );
+  const warningText = value.warnings.join(" ").toLowerCase();
+  for (const feature of unsupportedFeatures) {
+    assert(
+      warningText.includes(feature.toLowerCase()),
+      `${context}: qualifier ${feature} was lost without a warning`,
+    );
+  }
+}
+
+function assertInlineSearchError(result: CommandResult, context: string): void {
+  assert(result.exitCode !== 0, `${context}: expected command failure`);
+  const envelope = assertCleanErrorEnvelope(result.stderr, context);
+  assert(
+    envelope.code === "INVALID_ARGUMENT",
+    `${context}: expected INVALID_ARGUMENT, got ${envelope.code}`,
+  );
+  assert(
+    envelope.retryable === false,
+    `${context}: error must not be retryable`,
+  );
+  for (const field of ["searchRef", "search_ref", "continuation"]) {
+    assert(!(field in envelope), `${context}: error exposed ${field}`);
+  }
+}
+
 async function runCliWithEnv(
   args: string[],
   baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined>,
@@ -2066,6 +2152,47 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
       searchInvalidPrefixEnvelope.code === "INVALID_ARGUMENT",
     "search must reject unsupported path prefixes",
   );
+
+  const inlineSearchQuery =
+    "application path:lib/ intent:production lang:javascript";
+  const inlineSearchJson = assertJsonOutput(
+    await runCli([
+      "search",
+      inlineSearchQuery,
+      "--in",
+      SMOKE_PACKAGE_SPEC,
+      "--source",
+      "code",
+      "--limit",
+      "1",
+      "--json",
+    ]),
+    "search inline qualifiers",
+  );
+  assertInlineSearchSuccess(
+    inlineSearchJson,
+    inlineSearchQuery,
+    "search inline qualifiers",
+  );
+
+  for (const [qualifier, source] of [
+    ["kind:bogus", "symbol"],
+    ["category:bogus", "symbol"],
+    ["intent:bogus", "code"],
+  ] as const) {
+    assertInlineSearchError(
+      await runCli([
+        "search",
+        `router ${qualifier}`,
+        "--in",
+        SMOKE_PACKAGE_SPEC,
+        "--source",
+        source,
+        "--json",
+      ]),
+      `search invalid inline qualifier ${qualifier}`,
+    );
+  }
 
   const searchText = assertTerminalOutput(
     await runCli([

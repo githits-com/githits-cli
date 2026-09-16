@@ -574,7 +574,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       },
     });
     expect(payload.results[0]?.followUp).toBe(
-      `read target="github:badlogic/pi-mono#${commitSha}" path="${filePath}" start_line=858 end_line=964`,
+      `read target="github:badlogic/pi-mono@${commitSha}" path="${filePath}" start_line=858 end_line=964`,
     );
     expect(payload.results[0]?.followUp).not.toContain("requested-ref");
   });
@@ -632,7 +632,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       true,
     );
     expect(payload.results[0]?.followUp).toBe(
-      `read target="github:owner/repo#${commitSha}" path="src/feature.ts" start_line=44 end_line=48`,
+      `read target="github:owner/repo@${commitSha}" path="src/feature.ts" start_line=44 end_line=48`,
     );
   });
 
@@ -758,8 +758,8 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
 
     expect(payload.results.map((result) => result.followUp)).toEqual([
-      `read target="github:owner/monorepo#${commitSha}" path="packages/workspace-package/src/index.ts" start_line=20 end_line=24`,
-      `read target="github:owner/monorepo#${commitSha}" path="packages/workspace-package/src/index.ts" start_line=10 end_line=40`,
+      `read target="github:owner/monorepo@${commitSha}" path="packages/workspace-package/src/index.ts" start_line=20 end_line=24`,
+      `read target="github:owner/monorepo@${commitSha}" path="packages/workspace-package/src/index.ts" start_line=10 end_line=40`,
     ]);
     expect(payload.results[0]?.locator.filePath).toBe("src/index.ts");
     expect(payload.results[0]?.locator.repositoryFilePath).toBe(
@@ -810,7 +810,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       payload.results[0]?.locator.symbolContext?.definitionRange?.endLine,
     ).toBe(1286);
     expect(payload.results[0]?.followUp).toBe(
-      'read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=840 end_line=1139',
+      'read target="github:owner/repo@exact-served-ref" path="src/large.ts" start_line=840 end_line=1139',
     );
 
     const endEvidenceHit: UnifiedSearchHit = {
@@ -835,7 +835,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       completedOutcomeWithHits([endEvidenceHit]),
     );
     expect(endEvidencePayload.results[0]?.followUp).toBe(
-      'read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=987 end_line=1286',
+      'read target="github:owner/repo@exact-served-ref" path="src/large.ts" start_line=987 end_line=1286',
     );
 
     const oversizedEvidenceHit: UnifiedSearchHit = {
@@ -860,7 +860,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       completedOutcomeWithHits([oversizedEvidenceHit]),
     );
     expect(oversizedEvidencePayload.results[0]?.followUp).toBe(
-      'read target="github:owner/repo#exact-served-ref" path="src/large.ts" start_line=751 end_line=1050',
+      'read target="github:owner/repo@exact-served-ref" path="src/large.ts" start_line=751 end_line=1050',
     );
   });
 
@@ -931,7 +931,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
 
     expect(payload.results[0]?.followUp).toBe(
-      'read target="github:owner/repo#exact-served-ref" path="src/evidence.ts" start_line=651 end_line=950',
+      'read target="github:owner/repo@exact-served-ref" path="src/evidence.ts" start_line=651 end_line=950',
     );
   });
 
@@ -1090,7 +1090,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       },
     );
 
-    expect(payload.results[0]?.target).toBe("github:n8n-io/n8n#n8n@2.26.5");
+    expect(payload.results[0]?.target).toBe("github:n8n-io/n8n@n8n@2.26.5");
   });
 
   it("omits default-valued query echo fields", () => {
@@ -1387,14 +1387,14 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
 
     expect(payload.results[0]).toMatchObject({
-      target: "github:n8n-io/n8n#n8n@2.26.5",
-      requestedTarget: "github:n8n-io/n8n#n8n@2.26.5",
-      freshTarget: "github:n8n-io/n8n#n8n@2.26.9",
-      servedTarget: "github:n8n-io/n8n#n8n@2.26.5",
+      target: "github:n8n-io/n8n@n8n@2.26.5",
+      requestedTarget: "github:n8n-io/n8n@n8n@2.26.5",
+      freshTarget: "github:n8n-io/n8n@n8n@2.26.9",
+      servedTarget: "github:n8n-io/n8n@n8n@2.26.5",
       freshness: "STALE",
     });
     expect(payload.warnings).toContain(
-      "requested github:n8n-io/n8n#n8n@2.26.5; served older snapshot github:n8n-io/n8n#n8n@2.26.5 while github:n8n-io/n8n#n8n@2.26.9 indexes.",
+      "requested github:n8n-io/n8n@n8n@2.26.5; served older snapshot github:n8n-io/n8n@n8n@2.26.5 while github:n8n-io/n8n@n8n@2.26.9 indexes.",
     );
   });
 
@@ -1636,10 +1636,10 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
 
     expect(payload.sourceStatus?.[0]).toMatchObject({
-      targetLabel: "github:n8n-io/n8n#n8n@2.26.5",
-      requestedTarget: "github:n8n-io/n8n#n8n@2.26.5",
-      freshTarget: "github:n8n-io/n8n#n8n@2.26.9",
-      servedTarget: "github:n8n-io/n8n#n8n@2.26.5",
+      targetLabel: "github:n8n-io/n8n@n8n@2.26.5",
+      requestedTarget: "github:n8n-io/n8n@n8n@2.26.5",
+      freshTarget: "github:n8n-io/n8n@n8n@2.26.9",
+      servedTarget: "github:n8n-io/n8n@n8n@2.26.5",
     });
   });
 
@@ -1788,12 +1788,12 @@ describe("buildUnifiedSearchSuccessPayload", () => {
       throw new Error("expected incomplete payload");
     }
     expect(payload.progress?.targets?.[0]).toMatchObject({
-      requested: "github:n8n-io/n8n#n8n@2.26.5",
-      resolvedRequested: "github:n8n-io/n8n#n8n@2.26.9",
-      served: "github:n8n-io/n8n#n8n@2.26.5",
+      requested: "github:n8n-io/n8n@n8n@2.26.5",
+      resolvedRequested: "github:n8n-io/n8n@n8n@2.26.9",
+      served: "github:n8n-io/n8n@n8n@2.26.5",
     });
     expect(payload.warnings).toContain(
-      "requested github:n8n-io/n8n#n8n@2.26.5; served older snapshot github:n8n-io/n8n#n8n@2.26.5 while github:n8n-io/n8n#n8n@2.26.9 indexes.",
+      "requested github:n8n-io/n8n@n8n@2.26.5; served older snapshot github:n8n-io/n8n@n8n@2.26.5 while github:n8n-io/n8n@n8n@2.26.9 indexes.",
     );
   });
 
@@ -1878,9 +1878,9 @@ describe("buildUnifiedSearchSuccessPayload", () => {
           sources: ["CODE"],
           targets: [
             {
-              requested: "github:foo/bar#def456",
-              resolvedRequested: "github:foo/bar#def456",
-              served: "github:foo/bar#def456",
+              requested: "github:foo/bar@def456",
+              resolvedRequested: "github:foo/bar@def456",
+              served: "github:foo/bar@def456",
               freshness: "CURRENT",
               availableRefs: [{ ref: "abc123" }],
             },
@@ -2663,7 +2663,7 @@ describe("buildSourceStatusWarnings — sourceStatus → warnings promotion", ()
     ]);
 
     expect(warnings).toEqual([
-      "Source 'code' for github:n8n-io/n8n#n8n@2.26.5: Repository ref cannot be resolved (UNRESOLVABLE)",
+      "Source 'code' for github:n8n-io/n8n@n8n@2.26.5: Repository ref cannot be resolved (UNRESOLVABLE)",
     ]);
   });
 
@@ -2891,9 +2891,9 @@ describe("buildUnifiedSearchSuccessPayload — sourceStatus warnings on complete
     expect(payload.warnings).toBeUndefined();
     expect(payload.sourceStatus?.[0]).toMatchObject({
       source: "code",
-      targetLabel: "github:expressjs/express#master",
+      targetLabel: "github:expressjs/express@master",
       requestedTarget: "expressjs/express default branch",
-      servedTarget: "github:expressjs/express#master",
+      servedTarget: "github:expressjs/express@master",
       indexingStatus: "INDEXING",
       codeIndexState: "INDEXING",
       resultCount: 0,
@@ -3139,15 +3139,15 @@ describe("buildUnifiedSearchStatusPayload — combined warnings", () => {
         ...defaultUnifiedSearchOutcome.result,
         results: defaultUnifiedSearchOutcome.result.results.map((result) => ({
           ...result,
-          targetLabel: `github:dmmulroy/anti-slop#${requestedCommit}`,
+          targetLabel: `github:dmmulroy/anti-slop@${requestedCommit}`,
         })),
         sourceStatus: [
           {
             ...sourceStatus,
-            targetLabel: `github:dmmulroy/anti-slop#${requestedCommit}`,
-            requestedTargetLabel: `github:dmmulroy/anti-slop#${requestedCommit}`,
-            freshTargetLabel: `github:dmmulroy/anti-slop#${requestedCommit}`,
-            servedTargetLabel: `github:dmmulroy/anti-slop#${requestedCommit}`,
+            targetLabel: `github:dmmulroy/anti-slop@${requestedCommit}`,
+            requestedTargetLabel: `github:dmmulroy/anti-slop@${requestedCommit}`,
+            freshTargetLabel: `github:dmmulroy/anti-slop@${requestedCommit}`,
+            servedTargetLabel: `github:dmmulroy/anti-slop@${requestedCommit}`,
             indexingStatus: "INDEXED",
             codeIndexState: "CURRENT",
             targetResolution: {
@@ -3202,7 +3202,7 @@ describe("buildUnifiedSearchErrorPayload", () => {
   it("includes REF_NOT_FOUND ref suggestions in message and details", () => {
     const payload = buildUnifiedSearchErrorPayload(
       new CodeNavigationRefNotFoundError(
-        "Repository ref cannot be resolved for github:openai/codex#1.2.3.",
+        "Repository ref cannot be resolved for github:openai/codex@1.2.3.",
         "https://github.com/openai/codex",
         "1.2.3",
         [{ ref: "main" }],
@@ -3212,7 +3212,7 @@ describe("buildUnifiedSearchErrorPayload", () => {
 
     expect(payload).toEqual({
       error:
-        "Repository ref cannot be resolved for github:openai/codex#1.2.3. Did you mean codex@1.2.3, v1.2.3?",
+        "Repository ref cannot be resolved for github:openai/codex@1.2.3. Did you mean codex@1.2.3, v1.2.3?",
       code: "REF_NOT_FOUND",
       retryable: false,
       details: {

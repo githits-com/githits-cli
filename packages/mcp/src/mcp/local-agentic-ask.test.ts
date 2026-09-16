@@ -207,6 +207,46 @@ describe("local ask MCP adapter", () => {
     expect(ask).not.toHaveBeenCalled();
   });
 
+  it("rejects a legacy repository target with the exact @ref migration", async () => {
+    const ask = mock(() => Promise.resolve(response()));
+    const result = await invoke(createLocalAgenticAskTool(createService(ask)), {
+      target: "github:expressjs/express#main",
+      question: "How?",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toMatchObject({
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+      error:
+        'Repository target "github:expressjs/express#main" uses legacy #ref syntax. Use "github:expressjs/express@main"; # is reserved for semantic fragments.',
+    });
+    expect(ask).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "https://expressjs.com/en/guide/",
+    "https://github.com/facebook/react/tree/main#readme",
+  ])(
+    "leaves non-repository URL target %s for backend classification",
+    async (target) => {
+      const ask = mock(() => Promise.resolve(response()));
+      const result = await invoke(
+        createLocalAgenticAskTool(createService(ask)),
+        {
+          target,
+          question: "How?",
+        },
+      );
+
+      expect(result.isError).toBeUndefined();
+      expect(ask).toHaveBeenCalledWith(
+        { target, question: "How?", sourceFormat: "mcp" },
+        undefined,
+      );
+    },
+  );
+
   it.each(["mcp", "url"] as const)(
     "answers a question-only request with %s sources",
     async (sourceFormat) => {
@@ -506,6 +546,31 @@ describe("Ask read source projection", () => {
     const text = formatAgenticAskMcpText(projected);
     expect(text).toContain('read({"target":"docs:example:guide"');
     expect(text).not.toMatch(/code_read|docs_read|page_id/);
+  });
+
+  it("canonicalizes legacy typed code targets and preserves docs fragments", () => {
+    const wire = response();
+    const codeSource = wire.sources[0];
+    const docsSource = wire.sources[1];
+    if (codeSource?.name !== "code_read" || docsSource?.name !== "docs_read") {
+      throw new Error("expected typed Ask source fixtures");
+    }
+    codeSource.arguments.target = "github:owner/repo#release@stable";
+    docsSource.arguments.page_id =
+      "github:owner/repo@abc123/guide.md#configuration";
+
+    expect(projectAskReadSources(wire)).toMatchObject({
+      sources: [
+        {
+          arguments: { target: "github:owner/repo@release@stable" },
+        },
+        {
+          arguments: {
+            target: "github:owner/repo@abc123/guide.md#configuration",
+          },
+        },
+      ],
+    });
   });
   it("leaves URL responses unchanged", () => {
     const wire = urlResponse();

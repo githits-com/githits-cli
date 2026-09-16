@@ -153,7 +153,7 @@ describe("list_files parity", () => {
       );
       const mcp = await mcpJson(
         {
-          target: `${repoUrl}#main`,
+          target: `${repoUrl}@main`,
         },
         fn as never,
       );

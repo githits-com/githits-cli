@@ -5,6 +5,32 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.18.0] - 2026-09-16
+
+### Changed
+
+- **Use compact MCP targets** - `search`, `code_files`, `code_grep`, and experimental `code_diff` now require target strings: migrate `{registry:"npm",package_name:"express",version:"5.2.1"}` to `"npm:express@5.2.1"`, `{repo_url:"https://github.com/expressjs/express",git_ref:"main"}` to `"github:expressjs/express@main"`, and search `{site:"https://expressjs.com/"}` to `"site:expressjs.com"`; CLI syntax is unchanged.
+- **Unify compact reads** - Compact reads now use backend `Query.read`; deprecated reads and `--repo-url` compatibility paths remain on legacy roots so migration usage stays observable. `McpToolServices.readService` is now required, with `ReadService` and `ReadServiceImpl` exported from `@githits/mcp/client` for hosts. Custom `GITHITS_CODE_NAV_URL` or `PKGSEER_URL` endpoints must implement `Query.read` for compact reads.
+- **Separate repository revisions from fragments** - Repository targets now use `provider:path@ref`, preserve later `@` characters inside refs, and reject legacy `#ref` input with the exact canonical replacement. Package `registry:name@version` targets and documentation fragments remain unchanged.
+- **Use inline MCP search qualifiers** - Move `category`, `kind`, `path_prefix`, `file_intent`, `name`, and `language` into `query` as `category:callable`, `kind:function`, `path:lib/`, `intent:production`, `name:Router`, and `lang:typescript`; CLI flags, `public_only`, results, and continuation behavior are unchanged.
+
+MCP callers must refresh tool discovery after updating. Hosted clients receive
+these changes only after `@githits/mcp` adoption and deployment by `remote-mcp`;
+custom hosts must supply the newly required `readService`.
+
+## [@githits/mcp 0.18.0] - 2026-09-16
+
+### Changed
+
+- **Use compact MCP targets** - `search`, `code_files`, `code_grep`, and experimental `code_diff` now require target strings: migrate `{registry:"npm",package_name:"express",version:"5.2.1"}` to `"npm:express@5.2.1"`, `{repo_url:"https://github.com/expressjs/express",git_ref:"main"}` to `"github:expressjs/express@main"`, and search `{site:"https://expressjs.com/"}` to `"site:expressjs.com"`; CLI syntax is unchanged.
+- **Unify compact reads** - Compact reads now use backend `Query.read`; deprecated reads and `--repo-url` compatibility paths remain on legacy roots so migration usage stays observable. `McpToolServices.readService` is now required, with `ReadService` and `ReadServiceImpl` exported from `@githits/mcp/client` for hosts. Custom `GITHITS_CODE_NAV_URL` or `PKGSEER_URL` endpoints must implement `Query.read` for compact reads.
+- **Separate repository revisions from fragments** - Repository targets now use `provider:path@ref`, preserve later `@` characters inside refs, and reject legacy `#ref` input with the exact canonical replacement. Package `registry:name@version` targets and documentation fragments remain unchanged.
+- **Use inline MCP search qualifiers** - Move `category`, `kind`, `path_prefix`, `file_intent`, `name`, and `language` into `query` as `category:callable`, `kind:function`, `path:lib/`, `intent:production`, `name:Router`, and `lang:typescript`; CLI flags, `public_only`, results, and continuation behavior are unchanged.
+
+MCP callers must refresh tool discovery after updating. Hosted clients receive
+these changes only after `@githits/mcp` adoption and deployment by `remote-mcp`;
+custom hosts must supply the newly required `readService`.
+
 ## [githits 0.17.1] - 2026-09-14
 
 ### Fixed

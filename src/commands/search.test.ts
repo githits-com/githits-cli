@@ -715,7 +715,7 @@ describe("searchAction", () => {
     expect(output).toContain(
       "Sources: npm:express@5.1.0 - site:expressjs.com/en/guide,",
     );
-    expect(output).toContain("\n  github:expressjs/express#01234567");
+    expect(output).toContain("\n  github:expressjs/express@01234567");
     expect(output).toContain(
       "[1] express/routing [docs page] npm:express - expressjs.com/en/guide/routing.html -\n  Routing",
     );
@@ -788,7 +788,7 @@ describe("searchAction", () => {
 
     await searchAction(
       "human review approval node output",
-      { in: ["https://github.com/n8n-io/n8n#n8n@2.26.5"] },
+      { in: ["https://github.com/n8n-io/n8n@n8n@2.26.5"] },
       deps,
     );
 
@@ -1481,7 +1481,7 @@ describe("searchAction", () => {
 
     await searchAction(
       "router middleware",
-      { in: ["github:expressjs/express#master"] },
+      { in: ["github:expressjs/express@master"] },
       createDeps({
         codeNavigationService: createMockCodeNavigationService({
           search: mock(() => Promise.resolve(outcomeWithStaleSourceStatus)),
@@ -1537,7 +1537,7 @@ describe("searchAction", () => {
 
     await searchAction(
       "router middleware",
-      { in: ["github:expressjs/express#main"] },
+      { in: ["github:expressjs/express@main"] },
       createDeps({
         codeNavigationService: createMockCodeNavigationService({
           search: mock(() =>
@@ -1574,7 +1574,7 @@ describe("searchAction", () => {
         sourceStatus: [
           {
             ...defaultUnifiedSearchOutcome.result.sourceStatus[0]!,
-            targetLabel: "github:expressjs/express#refs/heads/master",
+            targetLabel: "github:expressjs/express@refs/heads/master",
             targetResolution: {
               requested: {
                 repoUrl: "https://github.com/expressjs/express",
@@ -1602,7 +1602,7 @@ describe("searchAction", () => {
 
     await searchAction(
       "router middleware",
-      { in: ["github:expressjs/express#refs/heads/master"] },
+      { in: ["github:expressjs/express@refs/heads/master"] },
       createDeps({
         codeNavigationService: createMockCodeNavigationService({
           search: mock(() => Promise.resolve(outcomeWithFallbackSourceStatus)),
@@ -1611,7 +1611,7 @@ describe("searchAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output).toContain("- github:expressjs/express#refs/heads/master");
+    expect(output).toContain("- github:expressjs/express@refs/heads/master");
     expect(output).toContain("using: refs/heads/master (older snapshot)");
     expect(output).toMatch(/indexed:\s+refs\s+master/);
     expect(output).not.toContain("Evidence:");
@@ -2196,9 +2196,9 @@ describe("searchStatusAction", () => {
               createIncompleteOutcome("INDEXING", "search-ref-123", {
                 targets: [
                   {
-                    requested: "github:expressjs/express#refs/heads/master",
-                    resolvedRequested: "github:expressjs/express#master",
-                    served: "github:expressjs/express#master",
+                    requested: "github:expressjs/express@refs/heads/master",
+                    resolvedRequested: "github:expressjs/express@master",
+                    served: "github:expressjs/express@master",
                     freshness: "indexing",
                     requestedRefKind: "BRANCH",
                     indexingRef: "idx_123",
@@ -2233,7 +2233,7 @@ describe("searchStatusAction", () => {
       "No result snapshot yet | indexing | 0/1 ready",
     );
     expect(output).toContain(
-      "- github:expressjs/express#refs/heads/master -> master",
+      "- github:expressjs/express@refs/heads/master -> master",
     );
     expect(output).toContain("indexed: refs master");
     expect(output).not.toContain("Search search-ref-123 |");

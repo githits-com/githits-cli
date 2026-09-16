@@ -161,7 +161,7 @@ to disable the tools.
 GitHits works with package and repository targets such as:
 
 - package specs: `npm:react`, `npm:react@18.2.0`, `pypi:requests`, `crates:serde`
-- GitHub repos: `https://github.com/expressjs/express`, `github:expressjs/express#main`
+- GitHub repos: `https://github.com/expressjs/express`, `github:expressjs/express@main`
 
 Package inspection supports npm, PyPI, Hex, Crates, NuGet, Maven, Packagist,
 RubyGems, Go, Swift, vcpkg, and Zig. Advisory data is unavailable for vcpkg and

@@ -20,7 +20,10 @@ import {
   documentationReadLocator,
   semanticReadLocation,
 } from "./follow-up-command-text.js";
-import { formatRepositoryTarget } from "./repository-target.js";
+import {
+  formatRepositoryTarget,
+  parseRepositoryTargetSpec,
+} from "./repository-target.js";
 import {
   projectUnifiedSearchPresentation,
   targetDisplayFamilyKey,
@@ -360,7 +363,7 @@ function appendCompactSources(
     if (distinctSources.length === 0) return [identity];
     if (
       uniqueSources.length === 1 &&
-      !identity.includes("#") &&
+      !hasRepositoryRevision(identity) &&
       targetDisplayFamilyKey(distinctSources[0]) ===
         targetDisplayFamilyKey(identity)
     ) {
@@ -752,10 +755,23 @@ function compactRelatedTarget(base: string | undefined, value: string): string {
   if (targetDisplayFamilyKey(base) !== targetDisplayFamilyKey(value)) {
     return value;
   }
+  try {
+    const repository = parseRepositoryTargetSpec(value);
+    if (repository.gitRef) return repository.gitRef;
+  } catch {
+    /* Continue with package-version extraction. */
+  }
   const version = value.match(/@([^/@]+)$/)?.[1];
   if (version) return version;
-  const ref = value.match(/#([^#]+)$/)?.[1];
-  return ref ?? value;
+  return value;
+}
+
+function hasRepositoryRevision(value: string): boolean {
+  try {
+    return Boolean(parseRepositoryTargetSpec(value).gitRef);
+  } catch {
+    return false;
+  }
 }
 
 function formatTargetAlternatives(

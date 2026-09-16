@@ -290,7 +290,7 @@ describe("mapCodeNavigationError", () => {
 
   it("classifies CodeNavigationRefNotFoundError as REF_NOT_FOUND with suggestions", () => {
     const err = new CodeNavigationRefNotFoundError(
-      "Repository ref cannot be resolved for github:openai/codex#1.2.3.",
+      "Repository ref cannot be resolved for github:openai/codex@1.2.3.",
       "https://github.com/openai/codex",
       "1.2.3",
       [{ ref: "main" }],
@@ -299,7 +299,7 @@ describe("mapCodeNavigationError", () => {
     expect(mapCodeNavigationError(err)).toEqual({
       code: "REF_NOT_FOUND",
       message:
-        "Repository ref cannot be resolved for github:openai/codex#1.2.3. Did you mean codex@1.2.3, v1.2.3?",
+        "Repository ref cannot be resolved for github:openai/codex@1.2.3. Did you mean codex@1.2.3, v1.2.3?",
       retryable: false,
       details: {
         repoUrl: "https://github.com/openai/codex",

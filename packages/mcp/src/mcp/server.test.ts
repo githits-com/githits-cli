@@ -406,6 +406,29 @@ describe("MCP compact target schemas", () => {
   });
 });
 
+describe("MCP search schema", () => {
+  it("keeps query and public_only without duplicate structured qualifiers", () => {
+    const search = getMcpToolDescriptors().find(
+      (candidate) => candidate.name === "search",
+    );
+    expect(search).toBeDefined();
+
+    const schema = z.toJSONSchema(z.object(search?.schema ?? {}));
+    for (const field of [
+      "category",
+      "kind",
+      "path_prefix",
+      "file_intent",
+      "name",
+      "language",
+    ]) {
+      expect(schema.properties?.[field], field).toBeUndefined();
+    }
+    expect(schema.properties?.query).toBeDefined();
+    expect(schema.properties?.public_only).toBeDefined();
+  });
+});
+
 describe("MCP factory seam", () => {
   interface ExperimentalServices extends McpToolServices {
     codeNavigationService: ReturnType<typeof createMockCodeNavigationService> &

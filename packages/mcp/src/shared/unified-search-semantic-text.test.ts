@@ -8,7 +8,7 @@ const sha = "0123456789abcdef0123456789abcdef01234567";
 function semanticHit(): UnifiedSearchHitPayload {
   return {
     type: "repository_code",
-    target: "github:owner/monorepo#main",
+    target: "github:owner/monorepo@main",
     title: "send",
     summary: "LEGACY SOURCE MUST NOT RENDER",
     followUp: "DO NOT PRINT THIS COMMAND",
@@ -161,12 +161,12 @@ describe("semantic search text", () => {
     read.packageName = null;
     read.version = null;
     expect(render(hit)).toContain(
-      `github:owner/monorepo#${sha} packages/pkg/src/client.ts:142-145`,
+      `github:owner/monorepo@${sha} packages/pkg/src/client.ts:142-145`,
     );
     expect(render(hit)).not.toContain("#main");
   });
 
-  it.each(["github:owner/monorepo#main", "owner/monorepo@main"])(
+  it.each(["github:owner/monorepo@main", "owner/monorepo@main"])(
     "keeps header %s pinned when package metadata contains a synthetic version",
     (targetLabel) => {
       const hit = semanticHit();
@@ -175,7 +175,7 @@ describe("semantic search text", () => {
       read.version = sha;
       const text = render(hit);
       expect(text).toContain(
-        `github:owner/monorepo#${sha} packages/pkg/src/client.ts:142-145`,
+        `github:owner/monorepo@${sha} packages/pkg/src/client.ts:142-145`,
       );
       expect(text).not.toContain("npm:pkg");
       expect(text).not.toContain("#main");

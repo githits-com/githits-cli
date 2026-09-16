@@ -12,11 +12,13 @@ select providers or infer them from bare paths.
 | Codeberg | `codeberg:owner/repo` | `https://codeberg.org/owner/repo` | Exactly two path components; HTTPS only |
 | GitLab | `gitlab:group[/subgroup...]/project` | `https://gitlab.com/group/subgroup/project` | Nested namespaces; HTTPS only |
 
-Each form accepts an optional `#ref` (preferred) or compatibility `@ref`.
-The first suffix delimiter separates the repository path from the ref. `/`
-and `@` remain part of the ref thereafter. `@ref#other`, repeated `#`, and
-empty refs are rejected. Omitted refs retain default-branch intent. Output
-uses `provider:path#ref` and preserves repository path/ref case.
+Each form accepts an optional `@ref`. The first `@` in the repository path
+separates the repository identity from the ref; `/` and later `@` characters
+remain part of the ref. `#` is reserved for semantic fragments and is not a
+repository revision delimiter. Legacy `#ref` input is rejected with the exact
+`@ref` replacement. Fragments, query strings, mixed suffixes, and empty refs
+are rejected. Omitted refs retain default-branch intent. Output uses
+`provider:path@ref` and preserves repository path/ref case.
 
 The parser validates raw paths before URL normalization: dot traversal,
 percent-encoded components, backslashes, empty components, credentials,
@@ -36,6 +38,25 @@ Packages retain registry-native coordinates: `zig:gh/owner/repo`,
 `swift:gitlab.com/group/project`. They remain package artifact/manifest scope.
 Direct repositories remain full-repository scope. Bare `owner/repo` never
 selects a provider.
+
+## Backend rollout dependency
+
+Post-deployment production verification on 2026-09-15 confirmed that raw search
+results emit `@ref` in `targetLabel`, `requestedTargetLabel`, `freshTargetLabel`,
+and `servedTargetLabel`; repository-backed documentation locators also retained
+their `provider:path@commit/file` form. A missing-ref probe returned structured
+ref prose without a legacy compact target.
+
+The raw Agentic Ask response still emitted repository code-source targets as
+`github:expressjs/express#<commit>`. The production Ask source producer therefore
+still needs the corresponding `@ref` deployment. This client normalizes typed
+repository labels and Ask code sources during rollout, but does not rewrite
+arbitrary backend prose because doing so could corrupt semantic documentation
+fragments. The component authoring each backend string owns its target syntax.
+
+Hosted MCP adoption separately requires publishing the matching
+`@githits/mcp` release, updating `remote-mcp` to that package, and deploying it.
+Neither external repository is changed from this worktree.
 
 The backend still receives canonical HTTPS `repo_url` and optional `git_ref`
 (the service layer names these `repoUrl`/`gitRef`). No provider field or API
@@ -77,7 +98,8 @@ released, adopted by remote-mcp, and deployed separately.
 
 ## Verification
 
-Direct tests cover all providers, both suffixes, malformed/unsupported inputs,
+Direct tests cover all providers, nested `@` refs, legacy migration errors,
+malformed/unsupported inputs,
 case/trailing-slash compatibility, and providerless label handling. Consumer
 parity covers navigation service parameters, CLI/MCP search, resolver rejection,
 URL addressing, CodeDiff, changelog, package coordinates, and exact follow-ups.
@@ -191,7 +213,7 @@ Its `Package.swift` was read at that exact commit.
 Built CLI and built stdio MCP CODE searches completed on both dev and
 production, returning two Swift source hits per surface. Assertions verified
 the registry-native package target, canonical GitLab URL, exact commit, and
-emitted compact `gitlab:corekit/corekit#<sha>` read follow-ups. Both hits were
+emitted compact `gitlab:corekit/corekit@<sha>` read follow-ups. Both hits were
 read through each surface, and the served commit matched exactly. Initial
 indexing returned provisional hits; the final pinned replay completed with
 current exact reads. Local evidence is under

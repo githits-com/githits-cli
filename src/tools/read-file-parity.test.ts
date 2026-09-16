@@ -209,7 +209,7 @@ describe("read_file parity", () => {
       );
       const mcp = await mcpJson(
         {
-          target: `${repoUrl}#main`,
+          target: `${repoUrl}@main`,
           path: "src/index.js",
         },
         fn as never,

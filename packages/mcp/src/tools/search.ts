@@ -4,11 +4,6 @@ import type {
 } from "@githits/core-internal";
 import { z } from "zod";
 import {
-  toFileIntent,
-  toSymbolCategory,
-  toSymbolKind,
-} from "../shared/code-navigation.js";
-import {
   DEFAULT_WAIT_TIMEOUT_MS,
   MAX_DISCOVERY_WAIT_TIMEOUT_MS,
 } from "../shared/code-navigation-defaults.js";
@@ -48,49 +43,7 @@ export interface SearchArgs {
   target?: string;
   targets?: string[];
   source?: "docs" | "code" | "symbol";
-  category?: "callable" | "type" | "module" | "data" | "documentation";
-  kind?:
-    | "function"
-    | "method"
-    | "constructor"
-    | "getter"
-    | "setter"
-    | "operator"
-    | "class"
-    | "interface"
-    | "trait"
-    | "struct"
-    | "enum"
-    | "record"
-    | "protocol"
-    | "extension"
-    | "delegate"
-    | "mixin"
-    | "actor"
-    | "annotation"
-    | "type"
-    | "module"
-    | "namespace"
-    | "package"
-    | "object"
-    | "field"
-    | "property"
-    | "event"
-    | "constant"
-    | "doc_section";
-  path_prefix?: string;
-  file_intent?:
-    | "production"
-    | "test"
-    | "benchmark"
-    | "example"
-    | "generated"
-    | "fixture"
-    | "build"
-    | "vendor";
   public_only?: boolean;
-  name?: string;
-  language?: string;
   allow_partial_results?: boolean;
   limit?: number;
   offset?: number;
@@ -102,7 +55,7 @@ const searchTargetSchema = z
   .string()
   .min(1)
   .describe(
-    "Compact package, repository, or exact docs-site target, such as `npm:react`, `github:facebook/react`, or `site:react.dev`.",
+    "Compact package, repository, or exact docs-site target, such as `npm:react`, `github:facebook/react@main`, or `site:react.dev`. Repository revisions use `@ref`; `#` is reserved for semantic fragments.",
   );
 
 const schema: ZodRawShape = {
@@ -110,12 +63,12 @@ const schema: ZodRawShape = {
     .string()
     .min(1)
     .describe(
-      "Focused discovery terms, API names, behaviors, or quoted phrases. Inline qualifiers such as `path:`, `name:`, `lang:`, `kind:`, and `repo:` are supported; prefer the equivalent structured parameter when available and do not specify the same constraint both ways.",
+      "Focused discovery terms, API names, behaviors, or quoted phrases. Add constraints inline, for example `kind:function`, `category:callable`, `path:lib/`, `intent:production`, `name:Router`, or `lang:typescript`; qualifiers combine with terms using query boolean syntax.",
     ),
   target: searchTargetSchema
     .optional()
     .describe(
-      "One compact package, repository, or exact docs-site target, such as `npm:react`, `github:facebook/react`, or `site:react.dev`. Do not also pass `targets`.",
+      "One compact package, repository, or exact docs-site target, such as `npm:react`, `github:facebook/react@main`, or `site:react.dev`. Repository revisions use `@ref`; `#` is reserved for semantic fragments. Do not also pass `targets`.",
     ),
   targets: z
     .array(searchTargetSchema)
@@ -128,85 +81,11 @@ const schema: ZodRawShape = {
     .describe(
       "Optional result source: `docs` for guides/reference pages, `code` for source and tests, or `symbol` for APIs/entities. Omit to let GitHits select the best sources.",
     ),
-  category: z
-    .enum(["callable", "type", "module", "data", "documentation"])
-    .optional()
-    .describe(
-      'Optional symbol/category filter. Best for `source:"symbol"` or precise API searches; omit for broad source-code searches because filters combine with AND and can exclude file hits. Ignored for `source:"docs"`.',
-    ),
-  kind: z
-    .enum([
-      "function",
-      "method",
-      "constructor",
-      "getter",
-      "setter",
-      "operator",
-      "class",
-      "interface",
-      "trait",
-      "struct",
-      "enum",
-      "record",
-      "protocol",
-      "extension",
-      "delegate",
-      "mixin",
-      "actor",
-      "annotation",
-      "type",
-      "module",
-      "namespace",
-      "package",
-      "object",
-      "field",
-      "property",
-      "event",
-      "constant",
-      "doc_section",
-    ])
-    .optional()
-    .describe(
-      'Optional symbol kind filter. Best for `source:"symbol"` or exact API/entity searches; omit for broad source-code searches because filters combine with AND and can exclude file hits. Ignored for `source:"docs"`.',
-    ),
-  path_prefix: z
-    .string()
-    .optional()
-    .describe(
-      "Optional target-relative path prefix for code results only. Requires code in the selected sources: use source code with a package/repository, or omit source for automatic package/repository search. Omit for source docs, source symbol, and site-only searches; unsupported combinations are rejected before search.",
-    ),
-  file_intent: z
-    .enum([
-      "production",
-      "test",
-      "benchmark",
-      "example",
-      "generated",
-      "fixture",
-      "build",
-      "vendor",
-    ])
-    .optional()
-    .describe(
-      'Optional code file-intent filter. Omit it to search across all intents. Ignored for `source:"docs"` because docs search does not support file intents.',
-    ),
   public_only: z
     .boolean()
     .optional()
     .describe(
       'Set true to restrict code and symbol results to public APIs. False is equivalent to omitting it; ignored for `source:"docs"`.',
-    ),
-  name: z
-    .string()
-    .optional()
-    .describe(
-      "Optional exact name qualifier, combined with `query` using AND. Prefer this field to inline `name:` and do not use both.",
-    ),
-  language: z
-    .string()
-    .optional()
-    .describe(
-      "Optional language qualifier, combined with `query` using AND. Prefer this field to inline `lang:` and do not use both.",
     ),
   allow_partial_results: z
     .boolean()
@@ -251,8 +130,7 @@ const DESCRIPTION =
   "Required: `query` plus either `target` or `targets`; pass `target` or `targets`, not both. " +
   "Omit `source` to let GitHits select the best sources; set it only to restrict results to docs, code, or symbols. " +
   "Target indexed dependencies and repositories, or standalone docs with `site:<host[/path]>`. " +
-  'Structured parameters combine with the `query` using AND semantics. For `source:"docs"`, code/symbol-only filters (`category`, `kind`, `file_intent`, `public_only`) are ignored because docs search does not support them. ' +
-  "A nonempty `path_prefix` requires a code source; docs-only, symbol-only, and automatic site-only searches reject it. " +
+  "Put search constraints in `query`; backend validation reports accepted values. Inspect returned warnings and `sourceStatus` when a qualifier is ignored or incompatible with a selected source. `public_only` remains structured and is ignored for docs. " +
   "A `search` call can return complete results directly. Only when its response supplies both a `searchRef` and a `search_status` action, follow that action with `search_status`; never repeat `search` to poll. Terminal or unrecognized statuses are not polled; follow the response's recovery guidance instead. If the response includes advisory `sourceStatus[].suggestedSiteTargets`, retry one explicitly; do not treat suggestions as aliases or retry automatically. " +
   "Set `allow_partial_results: true` to permit a serveable subset of target/source pairs while others remain unavailable. " +
   "Use hit content directly when sufficient; follow its generated `followUp` only for more context. After discovery, use `code_grep` for deterministic exact-pattern occurrences. From text, pass a `[docs page]` target unchanged to `read`; a fragment needs no bounds, and bounds replace it with a page-relative range. Use `read` with repo-doc targets/ranges or repo code/symbol targets, paths, and ranges." +
@@ -303,13 +181,7 @@ export function createSearchTool(
           sources: args.source
             ? [args.source.toUpperCase() as "DOCS" | "CODE" | "SYMBOL"]
             : undefined,
-          kind: toSymbolKind(args.kind),
-          category: toSymbolCategory(args.category),
-          pathPrefix: args.path_prefix,
-          fileIntent: toFileIntent(args.file_intent),
           publicOnly: args.public_only,
-          name: args.name,
-          language: args.language,
           allowPartialResults: args.allow_partial_results,
           limit: args.limit,
           offset: args.offset,

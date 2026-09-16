@@ -83,7 +83,10 @@ const PROVIDERS: readonly ProviderGrammar[] = Object.freeze([
   }),
 ]);
 const REPOSITORY_TARGET_ERROR =
-  "Repository target must be github:owner/repo, codeberg:owner/repo, or gitlab:group[/subgroup...]/project, or an approved full HTTPS URL, with optional #gitRef or @gitRef suffix.";
+  "Repository target must be github:owner/repo, codeberg:owner/repo, or gitlab:group[/subgroup...]/project, or an approved full HTTPS URL, with optional @gitRef suffix.";
+
+/** Marker for callers that migrate only the retired repository ref spelling. */
+export class LegacyRepositoryRefError extends InvalidArgumentError {}
 
 /** Recognize explicit repository forms without guessing a provider. */
 export function normaliseRepositoryTargetSpec(
@@ -133,7 +136,7 @@ export function parseRepositoryTargetSpec(spec: string): CodeNavigationTarget {
     throw new InvalidArgumentError(
       "Repository URL targets must use github.com, codeberg.org, or gitlab.com; unsupported/self-hosted hosts and nondefault ports are not accepted.",
     );
-  const guidance = `Use ${provider.prefix}${provider.path} with optional #gitRef or @gitRef, or https://${provider.host}/${provider.path}.`;
+  const guidance = `Use ${provider.prefix}${provider.path} with optional @gitRef, or https://${provider.host}/${provider.path}.`;
   if (scheme.toLowerCase() === "http" && !provider.allowHttp)
     throw new InvalidArgumentError(
       `${provider.name} repository URLs require HTTPS. ${guidance}`,
@@ -151,18 +154,35 @@ export function parseRepositoryTargetSpec(spec: string): CodeNavigationTarget {
     );
   const hash = rawPath.indexOf("#");
   const at = rawPath.indexOf("@");
-  if (at !== -1 && hash !== -1 && at < hash)
+  if (hash !== -1) {
+    const nextHash = rawPath.indexOf("#", hash + 1);
+    const legacyPath = rawPath.slice(0, hash).replace(/\/$/, "");
+    if (
+      hash < rawPath.length - 1 &&
+      nextHash === -1 &&
+      (at === -1 || hash < at) &&
+      provider.validatePath(legacyPath.split("/"))
+    ) {
+      const legacy = spec.trim();
+      const migrated = `${legacy.slice(0, legacy.indexOf("#"))}@${legacy.slice(
+        legacy.indexOf("#") + 1,
+      )}`;
+      throw new LegacyRepositoryRefError(
+        `Repository target ${JSON.stringify(legacy)} uses legacy #ref syntax. Use ${JSON.stringify(migrated)}; # is reserved for semantic fragments.`,
+      );
+    }
     throw new InvalidArgumentError(
-      `Repository URL targets must use only one ref suffix: #gitRef or @gitRef. ${guidance}`,
+      `Repository targets do not accept # fragments or legacy #ref suffixes. Use @gitRef for repository revisions; documentation locators with fragments must be passed unchanged to a documentation read. ${guidance}`,
     );
-  const delimiter = hash !== -1 ? hash : at;
+  }
+  const delimiter = at;
   const path = (
     delimiter === -1 ? rawPath : rawPath.slice(0, delimiter)
   ).replace(/\/$/, "");
   const gitRef = delimiter === -1 ? undefined : rawPath.slice(delimiter + 1);
-  if (gitRef === "" || gitRef?.includes("#"))
+  if (gitRef === "")
     throw new InvalidArgumentError(
-      `Repository refs must be nonempty and use only one ref suffix. ${guidance}`,
+      `Repository refs must be nonempty. ${guidance}`,
     );
   const parts = path.split("/");
   if (!provider.validatePath(parts)) {
@@ -171,7 +191,7 @@ export function parseRepositoryTargetSpec(spec: string): CodeNavigationTarget {
         `Repository URL targets must use a valid GitHub repository name. ${guidance}`,
       );
     throw new InvalidArgumentError(
-      `Repository URL targets must point to ${provider.host}/${provider.path}; pass refs with #gitRef or @gitRef. ${provider.name} web subpaths are not repository targets. ${guidance}`,
+      `Repository URL targets must point to ${provider.host}/${provider.path}; pass refs with @gitRef. ${provider.name} web subpaths are not repository targets. ${guidance}`,
     );
   }
   const repoUrl = `https://${provider.host}/${path}`;
@@ -194,7 +214,37 @@ export function formatRepositoryTarget(
   } catch {
     /* Keep unsupported backend identities lossless. */
   }
-  return gitRef ? `${compact}#${gitRef}` : compact;
+  return gitRef ? `${compact}@${gitRef}` : compact;
+}
+
+/**
+ * Parse typed backend repository labels during the hash-delimiter migration.
+ * Caller-facing parsers remain strict; this compatibility is output-only.
+ */
+function parseRepositoryOutputLabel(
+  label: string,
+): CodeNavigationTarget | undefined {
+  try {
+    return parseRepositoryTargetSpec(label);
+  } catch {
+    const hash = label.indexOf("#");
+    const at = label.indexOf("@");
+    if (
+      hash === -1 ||
+      hash === label.length - 1 ||
+      label.indexOf("#", hash + 1) !== -1 ||
+      (at !== -1 && at < hash)
+    ) {
+      return undefined;
+    }
+    try {
+      return parseRepositoryTargetSpec(
+        `${label.slice(0, hash)}@${label.slice(hash + 1)}`,
+      );
+    } catch {
+      return undefined;
+    }
+  }
 }
 
 /** Bare backend labels require an explicit repository identity, never a default host. */
@@ -203,21 +253,21 @@ export function formatRepositoryTargetLabel(
   repoUrl?: string,
 ): string | undefined {
   if (isRepositoryTargetSpec(label)) {
-    try {
-      const parsed = parseRepositoryTargetSpec(label);
-      return formatRepositoryTarget(parsed.repoUrl!, parsed.gitRef);
-    } catch {
-      return undefined;
+    const parsed = parseRepositoryOutputLabel(label);
+    if (parsed?.repoUrl) {
+      return formatRepositoryTarget(parsed.repoUrl, parsed.gitRef);
     }
+    return undefined;
   }
   if (!repoUrl) return undefined;
   try {
     const parsed = parseRepositoryTargetSpec(repoUrl);
-    const path = new URL(parsed.repoUrl!).pathname.slice(1);
-    if (label === path) return formatRepositoryTarget(parsed.repoUrl!);
+    if (!parsed.repoUrl) return undefined;
+    const path = new URL(parsed.repoUrl).pathname.slice(1);
+    if (label === path) return formatRepositoryTarget(parsed.repoUrl);
     if (label.startsWith(`${path}@`) && label.length > path.length + 1)
       return formatRepositoryTarget(
-        parsed.repoUrl!,
+        parsed.repoUrl,
         label.slice(path.length + 1),
       );
   } catch {
@@ -236,6 +286,6 @@ export function buildInvalidTargetSpecError(
   return new InvalidArgumentError(
     `${prefix}Expected package target <registry>:<name>[@<version>] (supported registries: ${KNOWN_REGISTRIES.join(
       ", ",
-    )}) or repository target github:owner/repo, codeberg:owner/repo, or gitlab:group[/subgroup...]/project with optional #ref or @ref (approved full HTTPS URLs also accepted; GitHub additionally supports github.com/owner/repo and HTTP).`,
+    )}) or repository target github:owner/repo, codeberg:owner/repo, or gitlab:group[/subgroup...]/project with optional @ref (approved full HTTPS URLs also accepted; GitHub additionally supports github.com/owner/repo and HTTP).`,
   );
 }
