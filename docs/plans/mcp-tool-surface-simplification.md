@@ -662,11 +662,13 @@ command covering the four tool tests and four root parity tests passed 127 tests
 **Delivered implementation and ownership:** Coordinator implemented the four
 handler adapters, latest-only error policy, coordinate descriptor copy, retry hint,
 durable docs and independent minor/minor fragment. One `luna_implementor` delivered
-14 sequential bounded slices: the planned 12 (four schemas/unit callers, four parity
+16 sequential bounded dispatches: the planned 12 (four schemas/unit callers, four parity
 files, catalog contracts, runtime fixture, shared MCP smoke and CLI smoke fixtures),
-one missed direct-smoke caller and one test-typing correction. Every return was
+one missed direct-smoke caller, one test-typing correction, one security-mock closure
+and its header-wording correction. Every return was
 inspected and its exact proof rerun independently. No worker interruptions. The
-final type check required one correction dispatch; the missed caller was a
+final type check required one correction dispatch, with one later wording correction;
+the missed caller was a
 coordinator ownership-trace omission. No new helper, alias, strictness
 policy, backend wire field or CLI command change was introduced.
 
@@ -699,7 +701,10 @@ timeouts; rerunning only those remaining three files then passed 68 tests,
 483 assertions, zero failures (103.72 seconds) at unchanged deadlines. No
 test timeout, retry, or runtime workaround was added. Evidence is preserved in
 `/tmp/phase2a-subprocess-rerun.log`; the full local suite has not been claimed green.
-PR CI will supply the required full-suite result on clean Linux and Windows hosts.
+Draft PR #402 CI supplied the required full-suite result on clean Linux and Windows
+hosts: `ci / Test / ubuntu-latest` passed in 34 seconds and
+`ci / Test / windows-latest` in 86 seconds. See
+https://github.com/githits-com/githits-cli/actions/runs/35102852857.
 A local-only `--help` diagnostic against an archived `origin/main` with the same
 dependencies and environment succeeded on both versions: baseline 1,496/1,131 ms,
 current 3,835/1,566 ms. This shows variable startup latency, not an established
@@ -718,22 +723,39 @@ experimental checks. Built MCP includes compact-target `AUTH_REQUIRED` handling.
 Local built CLI/MCP durations were 163.8/17.7 seconds, exceeding the existing
 combined CI 120-second budget; do not claim that budget passed locally. The final
 CLI commands warmed to sub-second launches, consistent with host variability;
-clean-host CI remains the required timing/full-suite result. No deadline was changed.
+No deadline was changed. Clean-host PR CI subsequently passed both built smokes:
+CLI 13,083 ms / MCP 1,024 ms, within the existing combined 120-second gate;
+`ci / Build & Checks` passed in 47 seconds. The later local queued rerun also passed
+(CLI 440.4 seconds / MCP 52.4 seconds); local timing variability is retained as
+evidence, not a performance claim.
 
-Authenticated live validation is currently blocked in local macOS Keychain access,
-not in the backend or package parser. A one-second sample of the coordinator-owned
+Initial authenticated live validation stalled in local macOS Keychain access,
+before the backend or package parser. A one-second sample of the coordinator-owned
 CLI subprocess (cwd this worktree, own smoke parent chain) shows native keyring
 `SecKeychainFindGenericPassword` waiting in Security server IPC before fetch.
 No credential values were read or printed. The user was asked to approve an
 existing Keychain prompt, if present. No credential-store reset, new fallback,
-discovery flag, retry, or timeout workaround was added.
+discovery flag, retry, or timeout workaround was added. The queued source smokes
+subsequently completed: `bun run smoke:mcp` passed 60 live steps, including all four
+compact package tools; `bun run smoke:cli` exited 0 with stable live initially
+skipped (`AUTH_REQUIRED`) and experimental live passed. To close the affected stable
+CLI path without repeating unrelated cohorts, `bun /tmp/phase2a-live-package-parity.ts`
+passed all five existing changed-tool JSON parity fixtures against the built CLI
+and MCP: info, deps, deps issues, vulnerabilities and docs. It reuses the existing
+fixture arguments and MCP launch builder, requires successful authenticated JSON
+on both surfaces and compares the same contract shapes as the smoke suite.
+It is a temporary local proof script, not new product infrastructure. No credential
+configuration was changed. A later MCP sample attempt found its process already
+finished; no process was killed and no second sample result is claimed.
 
 The first descriptor-only Codex run is incomplete and must not count as passing:
 docs discovery returned inconclusive/low with zero calls; filtered vulnerabilities
 left the isolated workspace to read repository skills and attempted CLI fallback,
-producing isolation violations. This was deliberate external file access, not
-automatic host-skill discovery: fresh app-server `skills/list` exposed only bundled
-system skills. The overview recorded valid compact `pkg_info`/`pkg_vulns` calls
+producing isolation violations. The trace proves explicit external file access,
+but its cause remains unresolved. The fresh app-server `skills/list` diagnostic
+used an empty `HOME` and exposed only bundled system skills; it does not rule out
+host-skill discovery in the actual eval environment. The earlier stronger inference
+was corrected after checking the probe environment. The overview recorded valid compact `pkg_info`/`pkg_vulns` calls
 that did not return before timeout; no complete aggregate metrics/report was
 produced. Claude Haiku likewise submitted those two compact MCP targets but timed
 out at 302.3 seconds. Its metrics report marks usage/logical telemetry unknown.
@@ -741,6 +763,35 @@ Preserve `.agent-eval/runs/phase2a-codex-low-20260916-1254` and
 `.agent-eval/runs/phase2a-claude-haiku-probe-20260916-1254`; these are failed/blocked
 validation evidence, not answer-quality or token-savings claims. Two tiny timeout
 cleanup probes both completed normally, so no hypothesized harness timer fix was made.
+
+After MCP credential access recovered, targeted runs completed. Codex
+`.agent-eval/runs/phase2a-codex-low-20260916-1342` passed overview, filtered
+vulnerabilities and dependencies; docs discovery returned a high-confidence final
+answer and a successful compact `docs_list` call, but the run correctly failed
+isolation validation for two external skill reads. All changed-tool calls used
+compact targets; no old-coordinate schema fallback was observed. Actual metrics:
+4 workloads, 3 succeeded / 1 failed / 0 timeouts, 14 logical calls, 319.2 seconds;
+194,164 uncached / 632,832 cached input tokens, 4,621 output tokens. These are
+current-run metrics, not baseline-relative savings. Cost remains a base-rate
+estimate with long-context attribution uncertainty.
+
+Claude Haiku overview and the other three targeted workloads all passed, each
+with high reported confidence and no isolation violations, in
+`.agent-eval/runs/phase2a-claude-haiku-probe-20260916-1342` and
+`.agent-eval/runs/phase2a-claude-haiku-remaining-20260916-1342` (55.0 / 197.8 seconds).
+Inspection covered actual compact calls, finals, metrics and violation artifacts,
+not just harness status. Claude usage and logical-call telemetry remain unknown
+(`adapter_not_implemented`, `tool_logical_count_not_implemented`); no provider-cost
+comparison or answer-quality claim without grading. The Codex docs case remains
+an open validation disposition, not a passing eval.
+
+Read-only skill-discovery diagnostics followed the OpenAI-docs workflow. A second
+fresh app-server probe retained the actual dedicated eval `CODEX_HOME` while
+isolating `HOME` as the harness does; it likewise exposed only six bundled system
+skills. This narrows the evidence but does not explain discovery/access in the
+actual CLI run. No harness/discovery flag or configuration was changed, and no
+credential values were displayed. Do not generalize either probe into a claim
+that the Codex isolation cause is solved.
 
 **Measured result:** The same `bun scripts/agent-context-load.ts sizes` command
 now reports 1,440 (`docs_list`), 2,211 (`pkg_info`), 3,315 (`pkg_vulns`), and
@@ -755,19 +806,40 @@ reductions are not token/cost/performance claims.
 Implementation pre-flight (2026-09-16): accepted and corrected two minor wording
 findings in this expected outcome and the release fragment, explicitly accounting
 for the migrated `docs_list` retry hint. No interface finding. Full CI, authenticated
-smoke, completed agent evals, and code review remain outstanding; pre-flight does
-not establish those gates.
+smoke, completed agent evals, and code review remained outstanding at pre-flight;
+it did not establish those gates. Subsequent results are recorded separately.
 
 Internal code review (2026-09-16): fresh `code_reviewer` inspected the complete
 Phase 2a delta and reported no findings, with no edits or extra validation. It
 retained the full-CI, authenticated-smoke, completed-eval and local built-smoke
-budget gaps above. External Opus round 1 is pending. Its first transport-accepted
+budget gaps above. External Opus round 1 was pending at that checkpoint. Its first transport-accepted
 dispatch had an empty composer and no review work; that dispatch was fenced and
 the same reviewer terminal received one recovery task. That task was transport-
-accepted but still has no agent transcript; terminal access returned a stale handle
-despite the worker projection reporting live. External review is unproven, not
-clean. Preserve this increment in a draft PR for CI while review/live/eval gates
-remain open. No duplicate reviewer or speculative Enter submission.
+accepted with an initially empty transcript; terminal access first returned a stale
+handle despite the worker projection reporting live. A subsequent bounded read
+proved the recovery task submitted and Opus actively inspecting the implementation.
+External round 1 subsequently returned the finding recorded below. No duplicate reviewer or speculative
+Enter submission. Draft PR: https://github.com/githits-com/githits-cli/pull/402.
+
+External round 1 (2026-09-16): accepted one low code finding. The security-eval
+mock owns its intentionally framed responses and selected guardrails, but must
+mirror the production coordinate schema when it imports production descriptions.
+`eval/mock-mcp/server.ts` still required old coordinate fields for `pkg_info` and
+`pkg_vulns`, so descriptor-following calls fail SDK validation in normal MCP
+security-eval cells. Smallest remedy: migrate only those two schemas and their
+header comment; keep fixture response behavior, guardrail modes, read and changelog
+unchanged. Closure scan checked the mock server, state contract, security runner,
+mock CLI and existing security tests; no other registered changed package tool.
+A 15th bounded Luna slice changed only `eval/mock-mcp/server.ts` and new
+`eval/mock-mcp/server.test.ts`; a 16th dispatch clarified the header to name only
+the two migrated mock tools. Coordinator inspected and independently reran
+`bun test eval/mock-mcp/server.test.ts`: 1 pass / 28 assertions, proving actual
+listed schemas, successful compact calls and SDK failure for old-only/object
+arguments without real auth or networking. `bun run typecheck` passed. The full
+revised delta's internal closure review reported no findings. External round 2
+is dispatched in the same Opus session; updated post-closure CI remains required.
+The duplicated simple output-target string expressions were adjudicated separately:
+they already exist consistently and do not justify a new helper in this increment.
 
 1. Generated schemas and over-the-wire client calls prove the four tools require
    string `target` and advertise none of the removed coordinate fields. Registered
