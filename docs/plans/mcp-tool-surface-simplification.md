@@ -837,9 +837,28 @@ the two migrated mock tools. Coordinator inspected and independently reran
 listed schemas, successful compact calls and SDK failure for old-only/object
 arguments without real auth or networking. `bun run typecheck` passed. The full
 revised delta's internal closure review reported no findings. External round 2
-is dispatched in the same Opus session; updated post-closure CI remains required.
+returned clean in the same Opus session, including the single fresh-context final
+check. No extra validation by reviewers. The standing plan-deletion note was
+adjudicated not applicable because Phases 2b/2c remain open; retain this active plan.
+Post-closure CI at `26e3fdc` is green: full Linux/Windows suites (35/85 seconds),
+Build & Checks (56 seconds), MCP package validation and all runtime compatibility
+jobs. See https://github.com/githits-com/githits-cli/actions/runs/35105196268.
+The same Opus reviewer remains retained through human PR merge approval at
+`term_3bfd3e56-bd5e-4b9a-96bd-17b1147cbb7f`.
 The duplicated simple output-target string expressions were adjudicated separately:
 they already exist consistently and do not justify a new helper in this increment.
+
+Final current-instruction audit checked README/package guidance, public skills,
+MCP/CLI implementation docs and both mock surfaces. The four migrated target
+instructions and callable examples agree. Corrected minor existing documentation
+drift in place: replaced the vague `docs_*` routing wildcard with `docs_list`/`read`,
+and corrected the guardrails document to nine distinct third-party-content tools
+and the actual `pkg_info` prose surfaces (no install/usage snippets). No stable
+guide/public skill change, generated asset change or descriptor-prefix change.
+Existing changelog exact-release wording is still ahead of the verified backend
+contract; that is the already-deferred Phase 2b gap, not a compact-target regression.
+Do not interpret this four-tool audit as proof that repository exact release
+lookup works or that changelog/upgrade inputs have migrated.
 
 1. Generated schemas and over-the-wire client calls prove the four tools require
    string `target` and advertise none of the removed coordinate fields. Registered

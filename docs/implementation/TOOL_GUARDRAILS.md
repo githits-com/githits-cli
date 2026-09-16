@@ -116,11 +116,11 @@ complete catalog sentence makes that bootstrap discoverable.
 
 ## Tools that surface third-party content
 
-The shared guide covers all ten tools that surface free-form
+The shared guide covers all nine tools that surface free-form
 maintainer-controlled content:
 
 - `pkg_vulns` — OSV/GHSA advisory text (lighter — editorial pipeline)
-- `pkg_info` — registry description / install / usage / topics
+- `pkg_info` — registry description, repository topics and recent release notes
 - `pkg_changelog` — release-notes body
 - `pkg_upgrade_review` — release-note excerpts and package deprecation text
 - `read` and `docs_list` — repo READMEs and crawled docs
