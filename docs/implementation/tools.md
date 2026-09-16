@@ -155,7 +155,7 @@ see [Unified read](unified-read.md).
 | `quick_start` | none | Required first call for a plain GitHits MCP session. Loads untrusted-content safety rules, cross-tool routing, target syntax, and compact-output rules. A plain session that skips it lacks those rules; skip only when the `githits-mcp` skill is loaded. |
 | `get_example` | `query`, `language?`, `license_mode?`, `format?` | Find canonical cross-project examples when no single target is the answer or target-scoped search came up short. For a known package or repository, use `search`, `docs_*`, or `code_*`. Defaults to markdown with source provenance and an optional `solution_id` for result identification; pass `format: "json"` for `{result, solution_id?}`. |
 | `search_language` | `query`, `format?` | Resolve a supported language name or alias for `get_example`; do not use it for source search. Defaults to one compact line per match; pass `format: "json"` for structured matches. |
-| `search` | `query`, `target?` (compact string), `targets?` (compact strings), `source?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Discover relevant evidence in a known target before exact grep: docs, specs, code, symbols, tests, and examples ranked by relevance. Open-ended “how does”, “where is”, “find”, “locate”, or loosely phrased “grep the source” questions start here; omit `source` for broad discovery. A `search` call can return complete results directly; use `search_status` only when the response explicitly supplies a `searchRef` and action. |
+| `search` | `query`, `target?` (compact string), `targets?` (compact strings), `source?`, `public_only?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Discover relevant evidence in a known target before exact grep: docs, specs, code, symbols, tests, and examples ranked by relevance. Put kind, category, path, intent, name, and language constraints in `query`; omit `source` for broad discovery. Use `search_status` only when the response explicitly supplies a `searchRef` and action. |
 | `search_status` | `search_ref`, `wait_timeout_ms?`, `format?` | Continue an explicit `search` reference only after that response supplies a `searchRef` and `search_status` action. Inspect progress or retrieve interim, partial, or final hits; terminal and unrecognized statuses end that reference, so use a later `search` for a fresh session. |
 | `docs_list` | `registry`, `package_name`, `version?`, `limit?`, `after?`, `format?` | List package documentation targets and hand off to `read`; use `search` for topic discovery. Entries retain `docsReadTarget`, stable `pageId`, and provenance `sourceUrl`. Exact Go versions accept both `v`-prefixed and unprefixed forms. Repo-backed entries include exact source metadata for `read` when available. Active empty results remain preparation/indexing outcomes rather than becoming “not found”; provisional results retain already-available pages and lifecycle state. |
 | `pkg_info` | `registry`, `package_name`, `verbose?`, `format?` | Assess latest package health and adoption through license, downloads, and activity. Use `pkg_vulns` for advisory detail, `pkg_deps` for dependency graphs, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison. |
@@ -226,7 +226,7 @@ bun run audit:pkg-ecosystems --out tmp/pkg-ecosystem-audit.jsonl
 
 Treat failures as live backend or contract findings, not deterministic unit-test failures. Before filing a backend issue, reproduce the failing package with `npx githits@latest` and include the command, JSON error envelope, registry/package name, and whether comparable packages in the same registry pass.
 
-**Unified `search` query syntax.** The `search.query` field is the backend discovery query syntax, not a raw pass-through to a per-source search engine. It supports implicit `AND`, uppercase `OR`, parentheses, unary `-`, quoted phrases, semantic qualifiers (`kind:`, `category:`, `path:`, `lang:`, `name:`, `intent:`), and routing qualifiers (`registry:`, `package:`, `version:`, `repo:`). The backend parses the query once and compiles it per source. Structured `name` and `language` inputs are compiled into `name:` / `lang:` qualifiers and AND-ed with the query before sending. Per-source support, ignored features, and incompatibilities are reported in `sourceStatus`.
+**Unified `search` query syntax.** The `search.query` field is the backend discovery query syntax, not a raw pass-through to a per-source search engine. It supports implicit `AND`, uppercase `OR`, parentheses, unary `-`, quoted phrases, semantic qualifiers (`kind:`, `category:`, `path:`, `lang:`, `name:`, `intent:`), and routing qualifiers (`registry:`, `package:`, `version:`, `repo:`). MCP callers put these constraints directly in `query`; the backend owns parsing, current enum validation, recovery warnings, and per-source compilation. Per-source support, ignored features, and incompatibilities are reported in `sourceStatus`. CLI users retain `--kind`, `--category`, `--path-prefix`, `--intent`, `--name`, and `--lang`; the shared request builder adapts those human-facing flags to the same backend operation.
 
 **Partial-result truth.** Every result-bearing initial `search` payload and stored `search_status.result` carries the backend's exact `partialResults: boolean`, including `false` for an atomic serveable interim snapshot and `true` for a subset of requested evidence. A progress-only response with no result snapshot omits the field. This additive field is retained unchanged in CLI `--json` and MCP `format: "json"`; text-v1 uses it only to label active results as interim or partial.
 
@@ -1099,17 +1099,12 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 
 See [Repository target grammar](repository-targets.md) for the shared GitHub, Codeberg, and GitLab addressing contract and provider-preserving response identity.
 
-### Search path-prefix compatibility
+### Search path compatibility
 
-Search `path_prefix` (CLI `--path-prefix`) applies only to the code source, including
-automatic selection for package/repository targets. Documentation and symbol
-sources do not apply it, including repository documentation. Site-only automatic
-search selects docs and cannot use it. The shared request builder rejects nonempty
-prefixes when no code source is selected, returning `INVALID_ARGUMENT` before
-`service.search`; it does not silently discard the requested scope. Empty strings
-remain omitted. Explicit mixed sources and automatic mixed targets remain valid
-when code is selected. Other existing docs-only filter normalization is unchanged.
-
-This mirrors the backend request source/filter contract verified on 2026-09-11.
-Hosted MCP receives the guard after the updated `@githits/mcp` package is released,
-adopted by the remote server, and deployed.
+MCP callers use `path:<prefix>` in `query`; the backend reports ignored or
+incompatible query features in `sourceStatus` instead of the client preflighting
+source combinations. CLI `--path-prefix` remains a structured code-source filter.
+The shared request builder rejects a nonempty CLI prefix when no code source is
+selected, returning `INVALID_ARGUMENT` before `service.search`; it does not silently
+discard the requested scope. Empty CLI values remain omitted, while explicit mixed
+sources and automatic mixed targets remain valid when code is selected.

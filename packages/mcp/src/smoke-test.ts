@@ -71,6 +71,8 @@ const SMOKE_PACKAGE_TARGET = {
   version: SMOKE_PACKAGE_VERSION,
 } as const;
 const SMOKE_CODE_TARGET = `npm:express@${SMOKE_PACKAGE_VERSION}`;
+const INLINE_SEARCH_QUERY =
+  "router path:lib/ intent:production lang:javascript";
 const SMOKE_TRANSITIVE_VULNERABILITY_TARGET = {
   registry: "npm",
   package_name: "express",
@@ -485,6 +487,94 @@ function assertErrorCode(
     envelope.code === code,
     `${context}: expected ${code}, got ${envelope.code}`,
   );
+}
+
+function assertInlineSearchSuccess(
+  value: unknown,
+  expectedQuery: string,
+  context: string,
+): void {
+  assertRecord(value, context);
+  assertRecord(value.query, `${context}: query`);
+  assert(value.query.raw === expectedQuery, `${context}: raw query mismatch`);
+  assert(
+    Array.isArray(value.results) && value.results.length > 0,
+    `${context}: missing ranked results`,
+  );
+  for (const [index, result] of value.results.entries()) {
+    assertRecord(result, `${context}: results[${index}]`);
+    assertRecord(result.locator, `${context}: results[${index}].locator`);
+    const filePath = result.locator.filePath;
+    assert(
+      typeof filePath === "string" &&
+        filePath.startsWith("lib/") &&
+        filePath.endsWith(".js"),
+      `${context}: result escaped JavaScript lib/ scope`,
+    );
+  }
+
+  if ("warnings" in value) {
+    assert(
+      Array.isArray(value.warnings),
+      `${context}: warnings must be an array`,
+    );
+  }
+  if (!("sourceStatus" in value)) return;
+
+  assert(
+    Array.isArray(value.sourceStatus),
+    `${context}: sourceStatus must be an array`,
+  );
+  const unsupportedFeatures: string[] = [];
+  for (const [index, entry] of value.sourceStatus.entries()) {
+    assertRecord(entry, `${context}: sourceStatus[${index}] must be an object`);
+    for (const field of ["ignoredQueryFeatures", "incompatibleQueryFeatures"]) {
+      const features = entry[field];
+      if (features === undefined) continue;
+      assert(
+        Array.isArray(features),
+        `${context}: sourceStatus[${index}].${field} must be an array`,
+      );
+      for (const feature of features) {
+        assert(
+          typeof feature === "string",
+          `${context}: sourceStatus[${index}].${field} must contain strings`,
+        );
+        unsupportedFeatures.push(feature);
+      }
+    }
+  }
+
+  if (unsupportedFeatures.length === 0) return;
+  assert(
+    Array.isArray(value.warnings),
+    `${context}: unsupported qualifiers must be surfaced in warnings`,
+  );
+  const warningText = value.warnings.join(" ").toLowerCase();
+  for (const feature of unsupportedFeatures) {
+    assert(
+      warningText.includes(feature.toLowerCase()),
+      `${context}: qualifier ${feature} was lost without a warning`,
+    );
+  }
+}
+
+function assertInlineSearchError(
+  result: McpSmokeToolResult,
+  context: string,
+): void {
+  const envelope = assertCleanErrorEnvelope(result, context);
+  assert(
+    envelope.code === "INVALID_ARGUMENT",
+    `${context}: expected INVALID_ARGUMENT, got ${envelope.code}`,
+  );
+  assert(
+    envelope.retryable === false,
+    `${context}: error must not be retryable`,
+  );
+  for (const field of ["searchRef", "search_ref", "continuation"]) {
+    assert(!(field in envelope), `${context}: error exposed ${field}`);
+  }
 }
 
 async function callTool(
@@ -1265,17 +1355,37 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "code_grep context clamping mismatch",
   );
 
-  assertErrorCode(
+  const inlineSearchJson = assertJsonResult(
     await callTool(caller, "search", {
       target: SMOKE_CODE_TARGET,
-      query: "router",
-      source: "docs",
-      path_prefix: "docs/",
+      query: INLINE_SEARCH_QUERY,
+      source: "code",
+      limit: 1,
       format: "json",
     }),
-    "search unsupported path prefix",
-    "INVALID_ARGUMENT",
+    "search inline qualifiers",
   );
+  assertInlineSearchSuccess(
+    inlineSearchJson,
+    INLINE_SEARCH_QUERY,
+    "search inline qualifiers",
+  );
+
+  for (const [qualifier, source] of [
+    ["kind:bogus", "symbol"],
+    ["category:bogus", "symbol"],
+    ["intent:bogus", "code"],
+  ] as const) {
+    assertInlineSearchError(
+      await callTool(caller, "search", {
+        target: SMOKE_CODE_TARGET,
+        query: `router ${qualifier}`,
+        source,
+        format: "json",
+      }),
+      `search invalid inline qualifier ${qualifier}`,
+    );
+  }
 
   const searchText = assertDefaultText(
     await callTool(caller, "search", {
