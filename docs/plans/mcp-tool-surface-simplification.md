@@ -3,8 +3,8 @@
 ## Status
 
 - Overall: ACTIVE
-- Current phase: Phase 3 — one MCP search-filter language (DRAFT PR #397)
-- Baseline: `175c15c` (`origin/main`, 2026-09-16; canonical `@ref` merge)
+- Current boundary: Phase 3 merged; Phase 2 readiness awaits upgrade-range product input
+- Baseline: `ffc975d` (`origin/main`, 2026-09-16; PR #397 merge)
 - Last verified: 2026-09-16
 
 ## Problem and expected outcome
@@ -13,7 +13,9 @@ The stable MCP catalog is correct but expensive to expose. Its original 14-tool
 baseline occupied 50,851 Unicode characters; Phase 1 reduced its merge catalog to
 42,421 by removing duplicate structured target forms. Schemas still account for most
 of the surface. Phase 3 removes the six structured `search` constraints that the
-backend query language now expresses directly; the implementation has passed review.
+backend query language now expresses directly; the implementation has passed code
+review, but subsequent production verification found a name-qualifier composition
+gap described in the Phase 3 verification addendum below.
 
 The Phase 3 baseline advertises both inline and structured qualifiers even though
 the production backend now validates and reports inline syntax robustly. Other large
@@ -296,8 +298,9 @@ None of these later unknowns blocks Phase 3.
   `category:"callable"`, `path_prefix:"lib/"`, `file_intent:"production"`,
   `name:"Router"`, and `language:"typescript"` into `search.query` as
   `kind:function`, `category:callable`, `path:lib/`, `intent:production`,
-  `name:Router`, and `lang:typescript`. Multiple qualifiers keep backend `AND`
-  semantics. CLI flags and `public_only` are unchanged. Record a pending minor for
+  `name:Router`, and `lang:typescript`. Backend `AND` composition is the intended
+  contract; the post-implementation name-composition gap is recorded below.
+  CLI flags and `public_only` are unchanged. Record a pending minor for
   both public artifacts; do not preserve hidden MCP aliases or client-side fallbacks.
 - **Rollback:** Reverting the release restores the prior schema. No stored state or
   backend migration is involved.
@@ -317,11 +320,11 @@ None of these later unknowns blocks Phase 3.
 1. **Phase 1 — compact code and discovery targets (MERGED):** `search`,
    `code_files`, `code_grep`, and experimental `code_diff` advertise and accept only
    compact string targets; CLI/service behavior and legacy read routing stay intact.
-2. **Phase 2 — compact package-tool coordinates (DEFERRED BY PRIORITY):** after search
+2. **Phase 2 — compact package-tool coordinates (PENDING PRODUCT INPUT):** after search
    qualifier consolidation, package MCP tools use concise target/range strings while
    retaining each tool's verified latest, pinned, range, repository, and batch
    semantics.
-3. **Phase 3 — one MCP search-filter language (REVIEWED):** the six backend-supported
+3. **Phase 3 — one MCP search-filter language (MERGED):** the six backend-supported
    inline qualifiers replace their duplicate MCP fields while CLI flags and
    `public_only` remain.
 4. **Phase 4 — essential navigation controls only (PENDING):** `code_files` and
@@ -587,7 +590,7 @@ are deliberate migration signals, backend contracts, or dated evaluation history
 
 ### Phase 2: compact package-tool coordinates
 
-**Status:** DEFERRED BY PRIORITY
+**Status:** PENDING PRODUCT INPUT — prior Phase 3 priority dependency is satisfied
 
 **Expected outcome:** `docs_list`, `pkg_info`, `pkg_vulns`, `pkg_deps`,
 `pkg_changelog`, and `pkg_upgrade_review` expose compact package/repository/range
@@ -600,8 +603,9 @@ flags remain; latest-only tools reject embedded versions actionably.
 representation before this phase is detailed. Changelog repository refs use the
 canonical `@ref` grammar merged in PR #396.
 
-**Dependencies:** Complete Phase 3 and reorient at its boundary; canonical `@ref`
-grammar is already on `origin/main`. No backend change is currently expected.
+**Dependencies:** Phase 3 and canonical `@ref` grammar are merged on `origin/main`;
+post-merge reorientation is recorded below. No backend change is currently expected
+for package-coordinate consolidation.
 
 **Acceptance criteria:** Each package operation has one MCP addressing form; all
 latest, pinned, range, repository, and batch semantics remain deterministic; invalid
@@ -610,7 +614,7 @@ inventory; CLI and service contracts remain stable.
 
 ### Phase 3: one MCP search-filter language
 
-**Status:** IMPLEMENTED — REVIEW CLEAN — DRAFT PR #397
+**Status:** MERGED — `ffc975d` (PR #397); name-qualifier production gap remains unresolved
 
 **Expected outcome:** MCP callers express `kind`, `category`, `path`, `intent`,
 `name`, and `lang` once inside `search.query`. The selected tool teaches that compact
@@ -793,9 +797,9 @@ the smoke proof, and owns the commits and delivery. The Luna conformance preflig
 and internal `code_reviewer` are clean. External Opus round 1 and its single
 fresh-context final check are clean, with no findings. The review inspected the
 complete implementation delta, warning/source-status preservation, unchanged CLI
-adapters, migration guidance, and stale-field references. The reviewer is retained
+adapters, migration guidance, and stale-field references. The reviewer was retained
 in terminal `term_c9d8e9f4-7cee-495e-8f91-d195c5203445` under dispatch
-`ctx_ceca16417782` for follow-up through explicit human PR-merge approval.
+`ctx_ceca16417782` through merge confirmation, then released on 2026-09-16.
 
 Verification on 2026-09-16:
 
@@ -840,14 +844,77 @@ Verification on 2026-09-16:
   than being hidden by repeated runs.
 
 Local eval artifacts are in `.agent-eval/runs/phase3-{codex,claude}-{inline,unified}`.
-No hosted deployment, package publication, release, or merge has been performed.
-Draft PR: [#397](https://github.com/githits-com/githits-cli/pull/397). Build/checks,
-Linux/Windows tests, and MCP package validation are pending; CI agent evals are
-skipped for the draft, with local trace evidence recorded above.
+PR [#397](https://github.com/githits-com/githits-cli/pull/397) merged on 2026-09-16
+at `ffc975d5523817199b0c9158c4109dd0d484295c`. PR Build & Checks,
+Linux/Windows tests, MCP package validation, and Node 20/22/24/26 compatibility
+passed. Bun compatibility initially failed before tests because GitHub artifact
+download returned HTTP 403; rerunning only the failed job passed, and
+[Main attempt 2](https://github.com/githits-com/githits-cli/actions/runs/35068091066)
+completed successfully. Post-merge Main, Agent Evals, Release, and MCP Package
+Release workflows all completed successfully at the merge SHA. Root npm/MCP
+registry publication and GitHub Release steps, and MCP package tag/npm/Release
+steps, were skipped; the minor/minor fragment remains pending. No hosted deployment
+is verified by this lane. Local Claude descriptor-eval behavior remains unverified.
 The final consistency audit found
 canonical `@ref` target guidance and one inline MCP search-constraint language;
 quick-start/skill parity and unrelated structured CLI/navigation controls remain
 intact.
+
+#### Phase 3 verification addendum: `name:` and isolated `lang:`
+
+At the user's request on 2026-09-16, additional production probes against
+`npm:express@5.2.1` closed the isolated language-filter gap and found a name-query
+composition failure. Published CLI 0.17.1 and the current local source CLI reproduce
+the symbol outcome against served commit
+`dbac741a49a5a64336b70c06e85c2e2706e36336`:
+
+- Code query `application lang:javascript` returned five JavaScript hits. Its
+  ordered titles, paths, ranges, languages, and commit identities exactly matched
+  `application --lang javascript`. Changing only the qualifier to `lang:python`
+  returned a completed empty result, without ignored/incompatible warnings.
+- Symbol queries `createApplication`, `name:createApplication`, and
+  `name:"createApplication"` each returned `createApplication` at
+  `lib/express.js:36-56`. A nonexistent name alone returned no symbols.
+- Symbol query `createApplication name:createApplication` returned a completed
+  empty result with current indexed source status and no warning. The explicit
+  combination `name:createApplication AND kind:function` also returned no results.
+  This contradicts the documented implicit-AND/composable-qualifier contract;
+  positive standalone name discovery is not sufficient verification.
+- On code search, `application name:createApplication` exactly matched the five
+  ordered evidence locators from `application --name createApplication`, but
+  included other names such as `createETagGenerator` and `createApp`. A nonexistent
+  name, including its quoted form, still returned ranked code hits. Whether code
+  name matching is intentionally fuzzy/ranking-oriented remains unverified; it
+  must not be described as proven exact filtering.
+
+The shared builder already compiles CLI `--name`/`--lang` into inline syntax, so
+CLI equivalence proves migration parity, not independent backend correctness.
+Local service inspection confirms the composed query is forwarded unchanged to
+the backend. Query compilation and source-specific semantics belong to the
+backend; the actual root cause is not established in this repository. No client
+parser, workaround, code change, or cross-worktree hand-off was introduced.
+Production verification is not complete. The user subsequently merged PR #397;
+that merge does not establish a root cause, backend fix, or intentional fuzzy
+name-matching contract. The gap remains open for backend diagnosis and targeted
+reverification. No cross-lane hand-off is authorized by this readiness check.
+
+#### Post-merge readiness check
+
+`$next-steps` refreshed `origin/main` to `ffc975d` on 2026-09-16 and verified Phase 3
+implementation commits are included. The next planned increment is Phase 2:
+compact package-tool coordinates. Canonical repository `@ref` support is merged;
+package MCP tools still advertise structured coordinates. Upgrade review still
+advertises four single-package fields plus equivalent structured batch rows, while
+changelog retains separate exclusive-start/inclusive-end versions and repository
+refs. Existing code does not choose a compact single/batch upgrade-range format.
+
+Verdict: **PRODUCT INPUT NEEDED**. The planned Phase 2 scope requires that range
+representation decision before tactical implementation detail can be prepared.
+It is not implementation-ready; after the user settles the representation,
+`$do-plan` should detail its call contract, boundary cases, migration tests, narrow
+catalog-size comparison, live smoke cases, and targeted descriptor evals. No phase
+was split, reordered, or redesigned in this bookkeeping pass. The outstanding
+backend name-composition gap and Claude descriptor-auth limitation remain explicit.
 
 ### Phase 4: essential navigation controls only
 
