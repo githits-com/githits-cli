@@ -2822,7 +2822,8 @@ retain their existing separate scope and product decisions.
 
 ### Occasional OpenRouter model trials — 2026-09-16
 
-Status: IMPLEMENTING. The user wants to retain occasional OpenRouter model
+Status: COMPLETE (implemented, reviewed and verified; PR #401 unmerged).
+The user wants to retain occasional OpenRouter model
 comparisons while keeping Luna as the default. The complete DeepSeek comparison
 above remains historical evidence; it does not justify a replacement.
 
@@ -2914,7 +2915,7 @@ OpenRouter provider key. These clarify the already-selected no-default-model
 and auth contracts; no scope/architecture/phase change or additional review
 round is needed. No code guards or repo-absence test are added.
 
-Implementation verification so far: 15 focused config/workflow/export-identity
+Implementation verification: 15 focused config/workflow/export-identity
 contracts pass with 257 assertions; four unchanged cases that hit five-second
 local deadlines pass with 29 assertions using CLI `--timeout 30000`. Initial
 broader two-file run was 55 pass/four existing deadline failures (host load 138
@@ -2922,7 +2923,17 @@ on 10 logical CPUs); evidence preserved and no code/default timeout changed.
 Actionlint, changed-file Biome, typecheck, build and plugin generation/check pass
 with no generated diff. Internal code preparation found no code issues; its
 one valid minor finding is fixed by creating the dedicated home in the local
-README example. External code review and final regular CI remain pending.
+README example. External Opus direct review and its single fresh-context
+code-reviewer check are clean with no findings and no repeated validation.
+[Regular CI 35104790814](https://github.com/githits-com/githits-cli/actions/runs/35104790814)
+on implementation SHA `d3c21b20d3b7bbce7ef9c8aa686c4d48ac3e95c2` passes
+build/checks, full Ubuntu/Windows tests and Node 20/22/24/26 plus Bun compatibility.
+The generic label is created without applying it; the old DeepSeek label is
+removed from this own PR and its title/body now describe generic OpenRouter
+trials. No default candidate config is committed and no paid trial is started.
+All criteria are satisfied; only this completion-status/evidence documentation
+is updated after review, with no scope, architecture or acceptance change and
+therefore no further plan or code review round.
 
 ## Phase 6 — Trend Policy And Result Quality
 
