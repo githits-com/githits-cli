@@ -76,7 +76,6 @@ export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
   "logout",
   "mcp",
   "example",
-  "languages",
   "doctor",
   "settings",
   "read",
@@ -989,15 +988,15 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       );
     }
 
-    const result = await runCliWithEnv(["languages", "python", "--json"], env);
-    assert(result.exitCode !== 0, "unauthenticated languages should fail");
+    const result = await runCliWithEnv(["example", "python", "--json"], env);
+    assert(result.exitCode !== 0, "unauthenticated example should fail");
     assert(
       result.stdout.trim() === "",
       "unauthenticated JSON probe should keep stdout clean",
     );
     const payload = assertCleanErrorEnvelope(
       result.stderr,
-      "unauthenticated languages",
+      "unauthenticated example",
     );
     assertDeepEqual(
       payload,
@@ -1007,10 +1006,10 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
         retryable: false,
         details: { authSource: "local" },
       },
-      "unauthenticated languages JSON envelope",
+      "unauthenticated example JSON envelope",
     );
 
-    const terminalResult = await runCliWithEnv(["languages", "python"], env);
+    const terminalResult = await runCliWithEnv(["example", "python"], env);
     assert(
       terminalResult.exitCode !== 0,
       "unauthenticated terminal probe should fail",
@@ -1149,47 +1148,6 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
 async function assertLiveOrAuthRequired(
   env: Record<string, string> = inheritedEnv(),
 ): Promise<boolean> {
-  const languagesResult = await runCliWithEnv(
-    ["languages", "python", "--json"],
-    env,
-  );
-  if (languagesResult.exitCode !== 0) {
-    const jsonAuthPayload = assertCleanErrorEnvelope(
-      languagesResult.stderr,
-      "languages auth probe",
-    );
-    if (jsonAuthPayload.code === "AUTH_REQUIRED") {
-      console.log("AUTH_REQUIRED: live CLI smoke skipped");
-      return false;
-    }
-
-    // Non-JSON auth guidance currently comes from requireAuth(), which writes
-    // friendly instructions to stdout before throwing. Accept either stream so
-    // this smoke gate validates guidance without forcing a broader CLI
-    // stream-policy change.
-    const authGuidance =
-      `${languagesResult.stderr}\n${languagesResult.stdout}`.trim();
-    assert(
-      authGuidance.includes("Authentication required"),
-      "auth probe missing authentication guidance",
-    );
-    assert(
-      authGuidance.includes("githits login"),
-      "auth probe missing login guidance",
-    );
-    console.log("AUTH_REQUIRED: live CLI smoke skipped");
-    return false;
-  }
-
-  const languagesPayload = parseJson(
-    languagesResult.stdout,
-    "languages auth probe",
-  );
-  assert(
-    Array.isArray(languagesPayload),
-    "languages auth probe: expected array",
-  );
-
   const packageResult = await runCliWithEnv(
     ["pkg", "info", "npm:express", "--json"],
     env,
@@ -1435,22 +1393,6 @@ async function runExperimentalLiveSmoke(
 async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   const runCli = (args: string[]): Promise<CommandResult> =>
     runCliWithEnv(args, env);
-  const languagesText = assertTerminalOutput(
-    await runCli(["languages", "python"]),
-    "languages terminal",
-  );
-  assert(languagesText.includes("python"), "languages terminal missing python");
-  assert(
-    languagesText.includes("Python"),
-    "languages terminal missing display name",
-  );
-
-  const languagesJson = assertJsonOutput(
-    await runCli(["languages", "python", "--json"]),
-    "languages json",
-  );
-  assert(Array.isArray(languagesJson), "languages json: expected array");
-
   const exampleText = assertTerminalOutput(
     await runCli(["example", "express hello world", "--lang", "javascript"]),
     "example terminal",

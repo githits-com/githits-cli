@@ -49,7 +49,7 @@ const schema: ZodRawShape = {
     .min(1)
     .optional()
     .describe(
-      "Optional programming language. If omitted, GitHits tries to infer it automatically. Use search_language first only when you need to force a specific language and the exact name is uncertain.",
+      "Optional name, display name, or alias. If unresolved, retry with a canonical name from the error or omit language.",
     ),
   license_mode: z
     .enum(["strict", "yolo", "custom"])
@@ -67,7 +67,7 @@ const schema: ZodRawShape = {
 
 const DESCRIPTION = `Find canonical cross-project examples when no single target is the answer, or target-scoped search came up short. Best for broad usage patterns, real-world API snippets, unfamiliar errors, and multi-library combinations. For a specific known package or repository, use \`search\`, \`read\`, or \`code_grep\` instead. Verify version-sensitive examples against the target's docs or source.
 
-Default output is markdown, with source repository provenance and a trailing \`solution_id: ...\` when available. When presenting an example, report source repositories/citations from GitHits' generated references/provenance section; they are core evidence. For code consuming raw output, \`format: "json"\` returns \`{result, solution_id?}\`. Use \`search_language\` only to resolve a language name for this tool.
+Default output is markdown, with source repository provenance and a trailing \`solution_id: ...\` when available. When presenting an example, report source repositories/citations from GitHits' generated references/provenance section; they are core evidence. For code consuming raw output, \`format: "json"\` returns \`{result, solution_id?}\`. If \`language\` is rejected, retry with a listed canonical name or omit \`language\`.
 
 ${GET_EXAMPLE_GUARDRAIL}`;
 

@@ -22,7 +22,7 @@ the routing decision; the selected tool supplies its argument details.
 | Find canonical implementation examples across projects | \`get_example\` |
 | Check progress of an earlier search reference | \`search_status\` |
 
-Use \`search_language\` only if \`get_example\` needs language disambiguation. For comparative questions, combine
+If \`get_example\` rejects a language, retry with a listed canonical name or omit language. For comparative questions, combine
 the relevant package/source route with examples when needed.
 
 Scope: public OSS only, never local/private/proprietary source. Package targets

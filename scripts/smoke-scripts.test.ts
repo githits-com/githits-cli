@@ -538,7 +538,7 @@ describe("smoke script options", () => {
   });
 
   it("parses the default mcp-call source target", () => {
-    const options = parseMcpCallArgs(["search_language", '{"query":"go"}']);
+    const options = parseMcpCallArgs(["get_example", '{"query":"go"}']);
 
     expect(toStdioLaunch(options.target, ["mcp", "start"])).toEqual({
       command: "bun",

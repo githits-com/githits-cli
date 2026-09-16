@@ -73,7 +73,7 @@ broader open-source ecosystem, not just model memory or local repo context:
 | Capability | MCP tools | CLI commands |
 |---|---|---|
 | Tool orientation | `quick_start` | — |
-| Code examples | `get_example`, `search_language` | `githits example`, `githits languages` |
+| Code examples | `get_example` | `githits example` |
 | Code navigation | `search`, `search_status`, `code_files`, `code_grep` | `githits search`, `githits search-status`, `githits code ...` |
 | Documentation discovery | `docs_list` | `githits docs list` |
 | Read source files or documentation sections | `read` | `githits read <target> [path]` |
@@ -387,7 +387,6 @@ githits logout           Remove stored credentials
 githits mcp              Show setup instructions or start the local MCP server
 githits mcp start        Always start the local MCP server over stdio
 githits example          Find real-world implementations from open source
-githits languages        List or filter supported programming languages
 githits doctor           Diagnose configuration and auth state
 githits resolve          Experimental: resolve a fuzzy name to canonical targets
 githits settings         View and update preferences, privacy, and terms

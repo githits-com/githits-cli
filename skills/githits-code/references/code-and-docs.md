@@ -57,7 +57,6 @@ Partial and capped documentation coverage are usable published evidence. Report 
 ## Command Name Mapping
 
 - `githits example` maps to MCP `get_example`.
-- `githits languages` maps to MCP `search_language`.
 - `githits search` maps to MCP `search`.
 - `githits search-status` maps to MCP `search_status`.
 - `githits code files` maps to MCP `code_files`.

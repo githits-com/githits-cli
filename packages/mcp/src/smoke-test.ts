@@ -47,7 +47,6 @@ interface TextContent {
 export const EXPECTED_MCP_TOOLS = [
   "quick_start",
   "get_example",
-  "search_language",
   "pkg_info",
   "pkg_deps",
   "pkg_vulns",
@@ -512,38 +511,15 @@ async function assertLiveOrAuthRequired(
   caller: McpSmokeCaller,
   logger: Pick<Console, "log" | "error">,
 ): Promise<boolean> {
-  const result = await callTool(caller, "search_language", { query: "python" });
-  if (result.isError === true) {
-    const envelope = assertCleanErrorEnvelope(
-      result,
-      "search_language auth probe",
-    );
-    assert(
-      envelope.code === "AUTH_REQUIRED",
-      `auth probe returned unexpected code ${envelope.code}`,
-    );
-    logger.log("AUTH_REQUIRED: live smoke skipped");
-    return false;
-  }
-
-  const text = assertDefaultText(result, "search_language default");
-  assert(
-    text.includes("python (Python)"),
-    "search_language default missing Python display name",
-  );
-  assert(text.includes("aliases:"), "search_language default missing aliases");
-  const packageResult = await callTool(caller, "pkg_info", {
+  const result = await callTool(caller, "pkg_info", {
     registry: "npm",
     package_name: "express",
   });
-  if (packageResult.isError === true) {
-    const envelope = assertCleanErrorEnvelope(
-      packageResult,
-      "pkg_info auth probe",
-    );
+  if (result.isError === true) {
+    const envelope = assertCleanErrorEnvelope(result, "pkg_info auth probe");
     assert(
       envelope.code === "AUTH_REQUIRED",
-      `pkg_info auth probe returned unexpected code ${envelope.code}`,
+      `auth probe returned unexpected code ${envelope.code}`,
     );
     logger.log("AUTH_REQUIRED: live smoke skipped");
     return false;
@@ -552,15 +528,6 @@ async function assertLiveOrAuthRequired(
 }
 
 async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
-  const languageJson = assertJsonResult(
-    await callTool(caller, "search_language", {
-      query: "python",
-      format: "json",
-    }),
-    "search_language json",
-  );
-  assert(Array.isArray(languageJson), "search_language json: expected array");
-
   const exampleText = assertDefaultText(
     await callTool(caller, "get_example", {
       query: "express hello world",
@@ -1345,9 +1312,7 @@ export async function runMcpSmoke(
       tool.annotations?.readOnlyHint === true,
       `${tool.name} must advertise readOnlyHint: true`,
     );
-    const expectedOpenWorldHint = !["quick_start", "search_language"].includes(
-      tool.name,
-    );
+    const expectedOpenWorldHint = tool.name !== "quick_start";
     assert(
       tool.annotations?.openWorldHint === expectedOpenWorldHint,
       `${tool.name} must advertise openWorldHint: ${expectedOpenWorldHint}, got ${String(tool.annotations?.openWorldHint)}`,

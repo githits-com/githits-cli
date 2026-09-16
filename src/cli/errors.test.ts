@@ -248,7 +248,7 @@ describe("handleCliError", () => {
       "[experimental]\ntools = false\n",
     );
     const proc = Bun.spawn(
-      ["bun", "run", "src/cli.ts", "languages", "--json"],
+      ["bun", "run", "src/cli.ts", "example", "test", "--json"],
       {
         cwd: process.cwd(),
         stdout: "pipe",
@@ -305,7 +305,7 @@ describe("handleCliError", () => {
     env.GITHITS_DEBUG = "";
     env.NO_COLOR = "1";
     const proc = Bun.spawn(
-      ["bun", "run", "src/cli.ts", "languages", "--json"],
+      ["bun", "run", "src/cli.ts", "example", "test", "--json"],
       {
         cwd: process.cwd(),
         stdout: "pipe",

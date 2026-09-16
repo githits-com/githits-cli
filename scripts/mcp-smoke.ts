@@ -122,9 +122,7 @@ async function assertMcpSession(
       tool.annotations?.readOnlyHint === true,
       `${context}: ${tool.name} must advertise readOnlyHint: true`,
     );
-    const expectedOpenWorldHint = !["quick_start", "search_language"].includes(
-      tool.name,
-    );
+    const expectedOpenWorldHint = tool.name !== "quick_start";
     assert(
       tool.annotations?.openWorldHint === expectedOpenWorldHint,
       `${context}: ${tool.name} must advertise openWorldHint: ${expectedOpenWorldHint}, got ${String(tool.annotations?.openWorldHint)}`,
@@ -214,23 +212,20 @@ async function assertStableAuthProbe(
   context: string,
 ): Promise<void> {
   const result = (await trackSmokeStep(
-    `mcp search_language {"query":"python"} ${context}`,
+    `mcp pkg_info {"registry":"npm","package_name":"express"} ${context}`,
     () =>
       client.callTool({
-        name: "search_language",
-        arguments: { query: "python" },
+        name: "pkg_info",
+        arguments: { registry: "npm", package_name: "express" },
       }),
   )) as McpSmokeToolResult;
-  const envelope = assertCleanErrorEnvelope(
-    result,
-    `search_language ${context}`,
-  );
+  const envelope = assertCleanErrorEnvelope(result, `pkg_info ${context}`);
   assert(
     envelope.code === "AUTH_REQUIRED",
     `${context} probe returned unexpected code ${envelope.code}`,
   );
   assert(
-    resultText(result, `search_language ${context}`).length > 0,
+    resultText(result, `pkg_info ${context}`).length > 0,
     `${context} probe returned empty error text`,
   );
 }
@@ -392,11 +387,11 @@ async function runExperimentalLiveSmoke(
       async (client) => {
         await assertExperimentalMcpSession(client, "experimental live");
         const authProbe = (await trackSmokeStep(
-          'mcp search_language {"query":"python"} experimental live auth probe',
+          'mcp pkg_info {"registry":"npm","package_name":"express"} experimental live auth probe',
           () =>
             client.callTool({
-              name: "search_language",
-              arguments: { query: "python" },
+              name: "pkg_info",
+              arguments: { registry: "npm", package_name: "express" },
             }),
         )) as McpSmokeToolResult;
         if (authProbe.isError === true) {

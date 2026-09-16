@@ -21,7 +21,6 @@ import {
 
 const FORMAT_SELECTABLE_TOOLS = new Set([
   "get_example",
-  "search_language",
   "search",
   "search_status",
   "code_files",
@@ -38,7 +37,6 @@ const FORMAT_SELECTABLE_TOOLS = new Set([
 const STABLE_MCP_TOOL_NAMES = [
   "quick_start",
   "get_example",
-  "search_language",
   "search",
   "search_status",
   "code_files",
@@ -74,11 +72,7 @@ const DESCRIPTION_ROUTING: Record<
   },
   get_example: {
     prefix: /^Find canonical cross-project examples/,
-    body: ["`search`", "`read`", "`code_grep`", "`search_language`"],
-  },
-  search_language: {
-    prefix: /^Resolve a supported language name or alias/,
-    body: ["`get_example`", "Do not use this for source search"],
+    body: ["`search`", "`read`", "`code_grep`", "canonical name"],
   },
   search: {
     prefix: /^Discover relevant evidence in a known target before exact grep/,
@@ -202,7 +196,7 @@ describe("MCP tool annotations", () => {
     const descriptors = getMcpToolDescriptors();
 
     expect(descriptors.map(({ name }) => name)).not.toContain("feedback");
-    expect(descriptors).toHaveLength(14);
+    expect(descriptors).toHaveLength(13);
     expect(descriptors.map(({ name }) => name)).toContain("read");
     expect(descriptors.map(({ name }) => name)).not.toContain("code_read");
     expect(descriptors.map(({ name }) => name)).not.toContain("docs_read");
@@ -210,9 +204,7 @@ describe("MCP tool annotations", () => {
     for (const descriptor of descriptors) {
       expect(descriptor.annotations, descriptor.name).toEqual({
         readOnlyHint: true,
-        openWorldHint: !["quick_start", "search_language"].includes(
-          descriptor.name,
-        ),
+        openWorldHint: descriptor.name !== "quick_start",
         destructiveHint: false,
       });
     }
