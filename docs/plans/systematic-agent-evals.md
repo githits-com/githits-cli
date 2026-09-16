@@ -2651,6 +2651,23 @@ passed without generated changes. Draft PR and the real two-cell CI/Braintrust
 run remain required delivery steps. The newest main baseline was read back as
 Luna/low; it is a cross-model comparison with DeepSeek/high.
 
+GitHub delivery finding: draft PR #401 was opened at `d6e5430`, but GitHub
+rejected the workflow before any paid canary began. `actionlint` reproduced
+invalid `runner.temp` references in job-level env. Runtime paths belong to the
+preparation step, after runner allocation; they now live in its step env and
+are published through `GITHUB_ENV` for later steps. The workflow contract test
+covers this placement/publication. A JavaScript string was also written without
+shell-template-looking interpolation so standalone actionlint passes without
+suppressions. This is a small workflow correction, not new infrastructure.
+The workflow correction review converged cleanly with no findings. Regular CI
+passed Ubuntu unit tests, build/package/smoke and Node/Bun compatibility. Windows
+had one new test failure: the test expected hard-coded /repo/model.config.toml
+while native resolution correctly returned D:\repo\model.config.toml. The fixture
+and assertion now use native tempdir/join paths; production parsing is unchanged.
+The small test correction review also converged cleanly with no findings.
+Corrected-head Windows CI confirmation and the real CI/Braintrust canary are
+the remaining delivery steps.
+
 ## Phase 6 — Trend Policy And Result Quality
 
 ### Status

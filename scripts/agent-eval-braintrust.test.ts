@@ -2218,7 +2218,10 @@ interface WorkflowContract {
       branches?: string[];
     };
   };
-  jobs: Record<string, { if?: string; steps: WorkflowStepContract[] }>;
+  jobs: Record<
+    string,
+    { if?: string; env?: Record<string, string>; steps: WorkflowStepContract[] }
+  >;
 }
 
 function readAgentEvalWorkflow(): WorkflowContract {
@@ -2454,6 +2457,14 @@ describe("DeepSeek PR canary workflow", () => {
     expect(job.if).toContain(
       "github.event.pull_request.head.repo.full_name == github.repository",
     );
+    expect(job.env).toBeUndefined();
+    const prepare = job.steps.find((s) => s.name === "Prepare output")!;
+    expect(prepare.env).toEqual({
+      CODEX_HOME: `${githubExpression("runner.temp")}/deepseek-codex-home`,
+      CANARY_OUT: `${githubExpression("runner.temp")}/deepseek-agent-eval`,
+    });
+    expect(prepare.run).toContain('"$GITHUB_ENV"');
+    expect(prepare.run).toContain('"$CODEX_HOME" "$CANARY_OUT"');
     const execution = job.steps.find((s) => s.id === "execution")!;
     const report = job.steps.find((s) => s.id === "report")!;
     const exportStep = job.steps.find((s) => s.id === "braintrust")!;

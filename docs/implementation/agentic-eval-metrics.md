@@ -57,6 +57,11 @@ intent scenario through OpenRouter/high/prompt-json with Codex 0.154.0. It uses 
 dedicated main config, scoped `OPENROUTER_API_KEY`/GitHits auth during execution,
 and `BRAINTRUST_API_KEY` during export. Execution/report/export failures remain
 job failures and artifacts are retained. Existing Luna workflows are unchanged.
+Runtime Codex/output paths are defined in the preparation step after runner
+allocation and published through `GITHUB_ENV`. GitHub rejects `runner.temp` in
+job-level env. Validate this workflow with
+`actionlint .github/workflows/agent-evals-deepseek.yml` in addition to the Bun
+workflow contract test; parsing YAML alone does not check context availability.
 The exporter links PRs to the latest main experiment, currently Luna: the base
 link supports inspection across models, not a matched regression or quality
 score. A single canary does not prove consistent replacement behavior.

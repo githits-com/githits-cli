@@ -16,12 +16,13 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      CODEX_HOME: ${{ runner.temp }}/deepseek-codex-home
-      CANARY_OUT: ${{ runner.temp }}/deepseek-agent-eval
     steps:
       - name: Prepare output
+        env:
+          CODEX_HOME: ${{ runner.temp }}/deepseek-codex-home
+          CANARY_OUT: ${{ runner.temp }}/deepseek-agent-eval
         run: |
+          printf 'CODEX_HOME=%s\nCANARY_OUT=%s\n' "$CODEX_HOME" "$CANARY_OUT" >> "$GITHUB_ENV"
           mkdir -p "$CANARY_OUT"
           printf 'scenario=intent\n' > "$CANARY_OUT/execution-started.txt"
 
@@ -107,7 +108,7 @@ jobs:
           node -e '
             const fs = require("node:fs");
             const result = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-            if (result.url) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\n- DeepSeek Braintrust: ${result.url}\n`);
+            if (result.url) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "\n- DeepSeek Braintrust: " + result.url + "\n");
           ' "$CANARY_OUT/braintrust-result.json"
 
       - name: Upload canary artifacts

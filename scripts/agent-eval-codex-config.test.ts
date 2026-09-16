@@ -148,26 +148,27 @@ describe("Codex eval main model config", () => {
     }
   });
 
-  it("parses profile selection without replacing it with Luna defaults", () => {
+  it("parses main model config selection without replacing it with Luna defaults", () => {
+    const repoRoot = join(tmpdir(), "codex-eval-parse-root");
     const options = parseArgs(
       ["--agent", "codex", "--codex-config", "model.config.toml"],
-      "/repo",
+      repoRoot,
     );
-    expect(options.codexConfigPath).toBe("/repo/model.config.toml");
+    expect(options.codexConfigPath).toBe(join(repoRoot, "model.config.toml"));
     expect(options.model).toBeUndefined();
     expect(options.reasoningEffort).toBeUndefined();
-    expect(parseArgs(["--agent", "codex"], "/repo")).toMatchObject({
+    expect(parseArgs(["--agent", "codex"], repoRoot)).toMatchObject({
       model: DEFAULT_CODEX_MODEL,
       reasoningEffort: DEFAULT_CODEX_REASONING_EFFORT,
     });
-    expect(() => parseArgs(["--codex-config"], "/repo")).toThrow(
+    expect(() => parseArgs(["--codex-config"], repoRoot)).toThrow(
       "requires a Codex config file",
     );
-    expect(() => parseArgs(["--codex-config", "--dry-run"], "/repo")).toThrow(
+    expect(() => parseArgs(["--codex-config", "--dry-run"], repoRoot)).toThrow(
       "requires a Codex config file",
     );
     expect(() =>
-      parseArgs(["--codex-config", "model.config.toml"], "/repo"),
+      parseArgs(["--codex-config", "model.config.toml"], repoRoot),
     ).toThrow("require --agent codex");
   });
 
