@@ -3,7 +3,7 @@
 ## Status
 
 - Overall: ACTIVE
-- Current phase: Phase 3 — one MCP search-filter language (IN REVIEW)
+- Current phase: Phase 3 — one MCP search-filter language (REVIEWED)
 - Baseline: `175c15c` (`origin/main`, 2026-09-16; canonical `@ref` merge)
 - Last verified: 2026-09-16
 
@@ -13,7 +13,7 @@ The stable MCP catalog is correct but expensive to expose. Its original 14-tool
 baseline occupied 50,851 Unicode characters; Phase 1 reduced its merge catalog to
 42,421 by removing duplicate structured target forms. Schemas still account for most
 of the surface. Phase 3 removes the six structured `search` constraints that the
-backend query language now expresses directly; the implementation is under review.
+backend query language now expresses directly; the implementation has passed review.
 
 The Phase 3 baseline advertises both inline and structured qualifiers even though
 the production backend now validates and reports inline syntax robustly. Other large
@@ -321,7 +321,7 @@ None of these later unknowns blocks Phase 3.
    qualifier consolidation, package MCP tools use concise target/range strings while
    retaining each tool's verified latest, pinned, range, repository, and batch
    semantics.
-3. **Phase 3 — one MCP search-filter language (IN REVIEW):** the six backend-supported
+3. **Phase 3 — one MCP search-filter language (REVIEWED):** the six backend-supported
    inline qualifiers replace their duplicate MCP fields while CLI flags and
    `public_only` remain.
 4. **Phase 4 — essential navigation controls only (PENDING):** `code_files` and
@@ -610,7 +610,7 @@ inventory; CLI and service contracts remain stable.
 
 ### Phase 3: one MCP search-filter language
 
-**Status:** IMPLEMENTED — REVIEW IN PROGRESS
+**Status:** IMPLEMENTED — REVIEW CLEAN
 
 **Expected outcome:** MCP callers express `kind`, `category`, `path`, `intent`,
 `name`, and `lang` once inside `search.query`. The selected tool teaches that compact
@@ -790,7 +790,12 @@ The implementation is committed on `jlitola/audit-tool-surface-simplification`:
 Two bounded Luna implementation slices returned uncommitted, verified changes;
 the coordinator reviewed them, authored descriptor/docs/eval decisions, tightened
 the smoke proof, and owns the commits and delivery. The Luna conformance preflight
-and internal `code_reviewer` are clean. External Opus review is pending.
+and internal `code_reviewer` are clean. External Opus round 1 and its single
+fresh-context final check are clean, with no findings. The review inspected the
+complete implementation delta, warning/source-status preservation, unchanged CLI
+adapters, migration guidance, and stale-field references. The reviewer is retained
+in terminal `term_c9d8e9f4-7cee-495e-8f91-d195c5203445` under dispatch
+`ctx_ceca16417782` for follow-up through explicit human PR-merge approval.
 
 Verification on 2026-09-16:
 
@@ -836,6 +841,10 @@ Verification on 2026-09-16:
 
 Local eval artifacts are in `.agent-eval/runs/phase3-{codex,claude}-{inline,unified}`.
 No hosted deployment, package publication, release, or merge has been performed.
+CI remains unverified until the draft PR runs. The final consistency audit found
+canonical `@ref` target guidance and one inline MCP search-constraint language;
+quick-start/skill parity and unrelated structured CLI/navigation controls remain
+intact.
 
 ### Phase 4: essential navigation controls only
 
