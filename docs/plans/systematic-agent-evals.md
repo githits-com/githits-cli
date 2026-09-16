@@ -2370,7 +2370,7 @@ provider.
 
 ### Local Modal DeepSeek pilot — 2026-09-16
 
-Status: IMPLEMENTING. Internal preflight: no findings. External plan round 1:
+Status: SUPERSEDED by the OpenRouter reorientation below. Internal preflight: no findings. External plan round 1:
 two minor wording findings applied; clean under the repository wording-fix rule.
 One bounded implementation increment; the scheduled
 broader-matrix rollout above remains PLANNED.
@@ -2559,7 +2559,7 @@ Observed implementation evidence:
 
 ### OpenRouter PR canary reorientation — 2026-09-16
 
-Status: IMPLEMENTING. Internal plan preflight: no findings. External plan round
+Status: IMPLEMENTED AND CI-VERIFIED. Draft PR #401 awaits human review/merge. Internal plan preflight: no findings. External plan round
 1: one minor identity-documentation finding applied; clean under the wording-fix
 rule. This supersedes the unmerged named-profile interface and
 Modal-only pilot scope above. The user approved trying OpenRouter, demonstrated
@@ -2648,7 +2648,7 @@ preamble/failure-echo consistency suggestions were rejected: current Actions
 bash error handling and explicit final outcomes meet the verified requirements;
 there are no pipes or unset-variable paths to protect. Plugin generation/check
 passed without generated changes. Draft PR and the real two-cell CI/Braintrust
-run remain required delivery steps. The newest main baseline was read back as
+run subsequently completed as recorded below. The newest main baseline was read back as
 Luna/low; it is a cross-model comparison with DeepSeek/high.
 
 GitHub delivery finding: draft PR #401 was opened at `d6e5430`, but GitHub
@@ -2665,8 +2665,24 @@ had one new test failure: the test expected hard-coded /repo/model.config.toml
 while native resolution correctly returned D:\repo\model.config.toml. The fixture
 and assertion now use native tempdir/join paths; production parsing is unchanged.
 The small test correction review also converged cleanly with no findings.
-Corrected-head Windows CI confirmation and the real CI/Braintrust canary are
-the remaining delivery steps.
+Corrected-head Windows CI and the real CI/Braintrust canary subsequently passed
+as recorded below.
+
+Final delivery proof: [draft PR #401](https://github.com/githits-com/githits-cli/pull/401)
+at code SHA `e3fe68c40b80ac74d0c9fa59b0009b28c0841660` passed [regular CI
+35093074790](https://github.com/githits-com/githits-cli/actions/runs/35093074790),
+including Windows, and [DeepSeek canary 35093150512](https://github.com/githits-com/githits-cli/actions/runs/35093150512).
+Both intent workloads returned validated JSON; actual MCP calls totaled 25
+(package 5, router 20), with zero failed calls or isolation violations.
+[Braintrust experiment `pr-401-r35093150512-a1`](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-401-r35093150512-a1)
+(ID `cf6ec867-e67a-4adb-86bf-ace617b30dc0`) read back two eval spans and 25 tool
+spans. Experiment metadata is DeepSeek/high/prompt-json, channel PR,
+exporter/schema 3. Actual base is `main-r35085880981-a1`
+(ID `13590571-39c1-4a33-831d-db144fb1fc7a`), verified Luna/low. The artifact audit
+scanned 28 downloaded CI files with zero credential matches. Normalized cost
+remains unknown (`rate_card_not_configured`); quality is ungraded. A single
+canary proves integration, with repeated quality/consistency comparison and any
+Luna replacement still separate decisions. Nothing was merged or published.
 
 ## Phase 6 — Trend Policy And Result Quality
 

@@ -73,6 +73,26 @@ and network, so it cannot establish model tokens/s. Unconfigured rate cards
 retain unknown cost. OpenRouter routing may vary providers; env-key auth without
 an explicit catalog uses fallback metadata, so long-context behavior is untested.
 
+### OpenRouter CI proof — 2026-09-16
+
+[Canary run 35093150512](https://github.com/githits-com/githits-cli/actions/runs/35093150512)
+on [draft PR #401](https://github.com/githits-com/githits-cli/pull/401), code SHA
+`e3fe68c40b80ac74d0c9fa59b0009b28c0841660`, passed execution, report, export and
+finalization. Both workloads returned validated JSON and made 25 completed MCP
+calls (package 5, router 20), with zero failed calls or isolation violations.
+Regular CI also passed, including Windows. Downloaded output is retained at
+`.agent-eval/deepseek-modal-pilot/github-openrouter-35093150512`; its 28-file
+credential audit found zero matches.
+
+[Braintrust `pr-401-r35093150512-a1`](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-401-r35093150512-a1)
+(ID `cf6ec867-e67a-4adb-86bf-ace617b30dc0`) read back two eval spans and 25 tool
+spans, with experiment metadata DeepSeek/high/prompt-json, channel PR,
+exporter/schema 3. The SDK reported the actual base `main-r35085880981-a1`
+(ID `13590571-39c1-4a33-831d-db144fb1fc7a`), whose sampled eval row is Luna/low.
+This proves PR linkage under the current naming/export contract. Normalized
+DeepSeek cost stays unknown; this canary has no quality scorer and establishes
+integration rather than replacement quality or repetition consistency.
+
 ### Modal pilot compatibility result — 2026-09-16
 
 Modal authenticated and returned structured finals/usage but made no MCP calls.
@@ -195,9 +215,8 @@ name/link and actual base name/ID (or explicit bootstrap/no-base text) to the
 step summary. Validate-only builds and prints the same identity/name without
 credentials, network access, or baseline discovery; its base is reported as
 unresolved/not queried. This identity and linkage behavior is deterministic
-and covered by the focused tests, but it has not yet been live-proven for a
-later main run linking to main, a PR linking to main, and a local run linking
-to main. Historical `github-*` experiments retain their old identity and
+and covered by focused tests. The OpenRouter CI proof above also verifies a PR
+linking to main under the current naming/export contract. Historical `github-*` experiments retain their old identity and
 null-linkage observations and are not evidence for this new contract.
 For an export, the reported experiment name is the SDK's actual `Experiment.name`
 readback after flush, so it remains accurate if an explicit local name is

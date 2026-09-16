@@ -84,6 +84,18 @@ Its null base is the expected one-time bootstrap result. Main pushes now
 temporarily run the same matrix, in addition to the daily/manual/label paths,
 to collect variance and workload-optimization evidence.
 
+The OpenRouter DeepSeek two-workload canary is proven by [run
+35093150512](https://github.com/githits-com/githits-cli/actions/runs/35093150512)
+on draft PR #401 at SHA `e3fe68c40b80ac74d0c9fa59b0009b28c0841660`. Experiment
+[`pr-401-r35093150512-a1`](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-401-r35093150512-a1)
+(ID `cf6ec867-e67a-4adb-86bf-ace617b30dc0`) read back two eval spans and 25 tool
+children, matching 25 completed MCP calls (package 5, router 20), zero failed
+calls and validated JSON finals. Metadata is DeepSeek/high/prompt-json, channel
+PR, exporter/schema 3. Actual base is `main-r35085880981-a1`
+(ID `13590571-39c1-4a33-831d-db144fb1fc7a`), sampled as Luna/low. This verifies PR
+linkage and integration. Cost remains unknown without a verified DeepSeek rate
+card; quality is ungraded and a single canary does not prove repeat consistency.
+
 For current comparisons, inspect experiment-level `metadata.channel` and
 `baseExperiment` in the safe exporter result or CI summary. A current main
 baseline has a `main-r...-a...` name and `channel: main`; PR and local exports
@@ -93,8 +105,7 @@ Validate-only reports the base as unresolved/not queried and performs no
 discovery. The first main run is a one-time bootstrap; PR and default-local
 exports fail before initialization when no main baseline exists. Explicit
 local `--base-experiment` takes precedence and skips discovery. Live
-readback has proven the first main bootstrap, but not later-main, PR, or local
-linkage under the new names.
+readback has proven the first main bootstrap and the PR linkage recorded below.
 For exports, use the returned experiment name from the SDK readback; it can
 differ from a reused explicit local name if Braintrust de-duplicates it.
 Validate-only reports the requested or generated name.
