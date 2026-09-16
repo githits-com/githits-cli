@@ -2597,9 +2597,10 @@ Implementation scope:
    reporting prompt and existing final JSON validation. Record chosen format.
 3. Allow named suite `run` to select explicit config/report format. Resolve its
    matrix once, propagate actual model/effort into cells/shards/artifacts and
-   comparisons, and retain child/import identity checks. Include report format in exported row/suite identity, with historical omission
-   treated as json-schema. Accept string model and
-   supported Codex reasoning labels in current schemas; legacy Luna artifacts
+   comparisons, and retain child/import identity checks. Include report format
+   in exported row/suite identity, with historical omission treated as
+   json-schema. Accept string model and supported Codex reasoning labels in
+   current schemas; legacy Luna artifacts
    remain compatible. Do not permit mixed-model suites or reinterpret old data.
 4. Add a separate trusted same-repository PR label workflow for canary intent
    (two workloads, concurrency 2) via OpenRouter DeepSeek/high/prompt-json.
@@ -2630,6 +2631,25 @@ report through the isolated runner; suite/export identity stays truthful and
 rejects mixed data; dedicated config needs no named profile; narrow PR workflow
 can export its real cells using the existing secret; required checks/review pass.
 Retain the existing plan through review/merge and document observed outcomes.
+
+Observed final-runner result: `openrouter-runner-package` uses the same env-key,
+no-catalog provider setup as CI. The isolated package workload completed five
+GitHits MCP calls and returned validated JSON with exit 0, no timeout or isolation
+violation. Its 60,900 ms duration is not a model speed comparison. The audit
+across 308 retained pilot files found no raw/JSON-escaped credential matches.
+Internal code preflight found no code issues; its help-text omission was fixed.
+Full targeted tests hit existing five-second fixture limits under heavy local
+CPU load, including in the sequential-check pass; an isolated five-case rerun
+passed at unchanged defaults. Final verification passed all 264 targeted tests with a 15-second per-test
+allowance, plus typecheck, changed-file Biome and build. Production timeouts and
+behavior are unchanged. External delta review is clean, including its single
+fresh-context final check and the private skill-doc correction. Optional shell
+preamble/failure-echo consistency suggestions were rejected: current Actions
+bash error handling and explicit final outcomes meet the verified requirements;
+there are no pipes or unset-variable paths to protect. Plugin generation/check
+passed without generated changes. Draft PR and the real two-cell CI/Braintrust
+run remain required delivery steps. The newest main baseline was read back as
+Luna/low; it is a cross-model comparison with DeepSeek/high.
 
 ## Phase 6 — Trend Policy And Result Quality
 

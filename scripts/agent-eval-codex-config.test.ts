@@ -18,7 +18,7 @@ import {
   parseArgs,
   runAgentEval,
 } from "./agent-eval.ts";
-import { loadCodexEvalProfile } from "./agent-eval-codex-profile.ts";
+import { loadCodexEvalConfig } from "./agent-eval-codex-config.ts";
 
 const PROFILE = `model = "deepseek-endpoint.example"
 model_provider = "modal"
@@ -47,12 +47,12 @@ function readArtifactTexts(root: string): string[] {
   });
 }
 
-describe("Codex eval model profiles", () => {
+describe("Codex eval main model config", () => {
   it("loads model defaults, selected provider arguments, and auditable hashes", () => {
     const root = mkdtempSync(join(tmpdir(), "eval-profile-"));
     try {
       const path = writeProfile(root);
-      const profile = loadCodexEvalProfile(path);
+      const profile = loadCodexEvalConfig(path);
       const config = parseToml(
         profile.configArgs.filter((arg) => arg !== "-c").join("\n"),
       );
@@ -79,7 +79,7 @@ describe("Codex eval model profiles", () => {
         },
       });
       writeFileSync(join(root, "catalog.json"), '{"models":[{}]}');
-      expect(loadCodexEvalProfile(path).metadata.catalogSha256).not.toBe(
+      expect(loadCodexEvalConfig(path).metadata.catalogSha256).not.toBe(
         profile.metadata.catalogSha256,
       );
     } finally {
@@ -93,25 +93,22 @@ describe("Codex eval model profiles", () => {
     try {
       for (const contents of [
         `model = "${secret}`,
-        `experimental_bearer_token = "${secret}"\n${PROFILE}`,
-        `model_instructions_file = "instructions.md"\n${PROFILE}`,
-        `mcp_servers = {}\n${PROFILE}`,
         `${PROFILE}experimental_bearer_token = "${secret}"\n`,
         `${PROFILE}auth = { command = "credential-reader" }\n`,
         PROFILE.replace("https://inference", `https://${secret}@inference`),
         PROFILE.replace("/v1", `/v1?key=${secret}`),
       ]) {
         const path = writeProfile(root, contents);
-        expect(() => loadCodexEvalProfile(path)).toThrow();
+        expect(() => loadCodexEvalConfig(path)).toThrow();
         try {
-          loadCodexEvalProfile(path);
+          loadCodexEvalConfig(path);
         } catch (error) {
           expect(String(error)).not.toContain(secret);
           expect(String(error)).not.toContain(contents);
         }
       }
       expect(() =>
-        loadCodexEvalProfile(
+        loadCodexEvalConfig(
           writeProfile(
             root,
             PROFILE.replace(
@@ -120,7 +117,7 @@ describe("Codex eval model profiles", () => {
             ),
           ),
         ),
-      ).toThrow("must define its selected provider");
+      ).toThrow("must define its selected env-key Responses provider");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -136,16 +133,16 @@ describe("Codex eval model profiles", () => {
           "",
         ),
       );
-      expect(loadCodexEvalProfile(path)).toMatchObject({
+      expect(loadCodexEvalConfig(path)).toMatchObject({
         reasoningEffort: undefined,
         metadata: { catalogSha256: null },
       });
-      expect(() => loadCodexEvalProfile(join(root, "missing.toml"))).toThrow(
-        "Could not read Codex eval profile",
+      expect(() => loadCodexEvalConfig(join(root, "missing.toml"))).toThrow(
+        "Could not read Codex eval config",
       );
       writeProfile(root);
       rmSync(join(root, "catalog.json"));
-      expect(() => loadCodexEvalProfile(path)).toThrow("model catalog");
+      expect(() => loadCodexEvalConfig(path)).toThrow("model catalog");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -153,25 +150,25 @@ describe("Codex eval model profiles", () => {
 
   it("parses profile selection without replacing it with Luna defaults", () => {
     const options = parseArgs(
-      ["--agent", "codex", "--codex-profile", "model.config.toml"],
+      ["--agent", "codex", "--codex-config", "model.config.toml"],
       "/repo",
     );
-    expect(options.codexProfilePath).toBe("/repo/model.config.toml");
+    expect(options.codexConfigPath).toBe("/repo/model.config.toml");
     expect(options.model).toBeUndefined();
     expect(options.reasoningEffort).toBeUndefined();
     expect(parseArgs(["--agent", "codex"], "/repo")).toMatchObject({
       model: DEFAULT_CODEX_MODEL,
       reasoningEffort: DEFAULT_CODEX_REASONING_EFFORT,
     });
-    expect(() => parseArgs(["--codex-profile"], "/repo")).toThrow(
-      "requires a model profile file",
+    expect(() => parseArgs(["--codex-config"], "/repo")).toThrow(
+      "requires a Codex config file",
     );
-    expect(() => parseArgs(["--codex-profile", "--dry-run"], "/repo")).toThrow(
-      "requires a model profile file",
+    expect(() => parseArgs(["--codex-config", "--dry-run"], "/repo")).toThrow(
+      "requires a Codex config file",
     );
     expect(() =>
-      parseArgs(["--codex-profile", "model.config.toml"], "/repo"),
-    ).toThrow("requires --agent codex");
+      parseArgs(["--codex-config", "model.config.toml"], "/repo"),
+    ).toThrow("require --agent codex");
   });
 
   it("adds only the selected custom variable and redacts arbitrary credential names", () => {
@@ -202,6 +199,7 @@ describe("Codex eval model profiles", () => {
           ? "overridden-endpoint.example"
           : "deepseek-endpoint.example";
         const effort = override ? "low" : "high";
+        const format = override ? "prompt-json" : "json-schema";
         try {
           const profilePath = writeProfile(root);
           const options = parseArgs(
@@ -210,8 +208,10 @@ describe("Codex eval model profiles", () => {
               "codex",
               "--surface",
               surface,
-              "--codex-profile",
+              "--codex-config",
               profilePath,
+              "--codex-report-format",
+              format,
               "--out",
               outDir,
               "--workload",
@@ -235,6 +235,9 @@ describe("Codex eval model profiles", () => {
               undefined,
             ],
             runCommand: async (command, _cwd, env) => {
+              expect(command.includes("--output-schema")).toBe(
+                format === "json-schema",
+              );
               expect(command).toContain("--ignore-user-config");
               expect(command).not.toContain("--profile");
               expect(command).toContain('model_provider="modal"');
@@ -278,15 +281,16 @@ describe("Codex eval model profiles", () => {
           expect(run).toMatchObject({
             model,
             reasoningEffort: effort,
-            codexProfile: { provider: "modal" },
+            codexReportFormat: format,
+            codexConfig: { provider: "modal" },
           });
           expect(run.env.MODEL_ACCESS).toBeUndefined();
-          expect(run.codexProfile.sha256).toMatch(/^[a-f0-9]{64}$/);
+          expect(run.codexConfig.sha256).toMatch(/^[a-f0-9]{64}$/);
           expect(run.workloads[0]).toMatchObject({
             model,
             reasoningEffort: effort,
             status: "success",
-            codexProfile: run.codexProfile,
+            codexConfig: run.codexConfig,
           });
           const metrics = JSON.parse(
             readFileSync(join(outDir, "metrics.json"), "utf8"),
@@ -318,4 +322,76 @@ describe("Codex eval model profiles", () => {
       });
     }
   }
+  it("projects model settings while excluding ambient tools and instructions", () => {
+    const root = mkdtempSync(join(tmpdir(), "eval-config-projection-"));
+    try {
+      const path = writeProfile(
+        root,
+        `model_instructions_file = "ambient.md"\n${PROFILE}\n[mcp_servers.other]\ncommand = "ambient-server"\n[features]\napps = true\n[model_providers.unselected]\nauth = {command = "credential-reader"}\n`,
+      );
+      const config = loadCodexEvalConfig(path);
+      expect(config.configArgs.join(" ")).not.toMatch(
+        /ambient|unselected|credential-reader|features/,
+      );
+      expect(config.model).toBe("deepseek-endpoint.example");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects invalid final JSON in prompt-json mode without repairing it", async () => {
+    const root = mkdtempSync(join(tmpdir(), "eval-prompt-json-"));
+    const home = mkdtempSync(join(tmpdir(), "eval-prompt-json-home-"));
+    try {
+      const options = parseArgs(
+        [
+          "--agent",
+          "codex",
+          "--codex-config",
+          writeProfile(root),
+          "--codex-report-format",
+          "prompt-json",
+          "--out",
+          join(root, "out"),
+          "--workload",
+          resolve("eval/agentic/workloads/express-router.md"),
+        ],
+        process.cwd(),
+      );
+      await runAgentEval(options, {
+        baseEnv: {
+          PATH: "/bin",
+          CODEX_HOME: home,
+          MODEL_ACCESS: "dummy-prompt-json-key",
+        },
+        assertAgentAvailable: async () => {},
+        collectAgentVersions: async () => [undefined, "codex-test", undefined],
+        runCommand: async (command) => {
+          expect(command).not.toContain("--output-schema");
+          writeFileSync(
+            command[command.indexOf("--output-last-message") + 1]!,
+            "not JSON",
+          );
+          return { stdout: "", stderr: "", exitCode: 0, timedOut: false };
+        },
+      });
+      const summary = JSON.parse(
+        readFileSync(join(root, "out", "summary.json"), "utf8"),
+      );
+      expect(summary.status).toBe("failed");
+      expect(summary.workloads[0].status).toBe("failed");
+      expect(
+        readFileSync(
+          join(root, "out", "workloads", "express-router", "codex-final.txt"),
+          "utf8",
+        ),
+      ).toBe("not JSON");
+      expect(() =>
+        parseArgs(["--agent", "codex", "--codex-report-format", "bad"], root),
+      ).toThrow("must be");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
 });

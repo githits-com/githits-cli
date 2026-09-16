@@ -15,29 +15,29 @@ const modelProviderSchema = z.strictObject({
   wire_api: z.literal("responses"),
 });
 
-const modelProfileSchema = z.strictObject({
+const modelConfigSchema = z.object({
   model: z.string().min(1),
   model_provider: z.string().min(1),
   model_reasoning_effort: z
     .enum(["minimal", "low", "medium", "high", "xhigh", "max", "ultra"])
     .optional(),
   model_catalog_json: z.string().min(1).optional(),
-  model_providers: z.record(z.string(), modelProviderSchema),
+  model_providers: z.record(z.string(), z.unknown()),
 });
 
-export interface CodexEvalProfileMetadata {
+export interface CodexEvalConfigMetadata {
   path: string;
   sha256: string;
   catalogSha256: string | null;
   provider: string;
 }
 
-export interface CodexEvalProfile {
+export interface CodexEvalConfig {
   model: string;
   reasoningEffort?: CodexReasoningEffort;
   envKey: string;
   configArgs: string[];
-  metadata: CodexEvalProfileMetadata;
+  metadata: CodexEvalConfigMetadata;
 }
 
 function sha256(contents: string): string {
@@ -45,35 +45,38 @@ function sha256(contents: string): string {
 }
 
 /**
- * Loads a caller-selected, model-only profile as explicit CLI arguments.
+ * Projects model settings from a caller-selected main config into CLI arguments.
  * Codex's ignore-user-config flag also suppresses native profile loading;
- * decoding a restricted model surface keeps workload isolation intact.
+ * projecting only model settings keeps workload isolation intact.
  * Never include TOML parser errors: they can quote inline credentials.
  */
-export function loadCodexEvalProfile(path: string): CodexEvalProfile {
+export function loadCodexEvalConfig(path: string): CodexEvalConfig {
   let contents: string;
   try {
     contents = readFileSync(path, "utf8");
   } catch {
-    throw new Error("Could not read Codex eval profile");
+    throw new Error("Could not read Codex eval config");
   }
   let decoded: unknown;
   try {
     decoded = parseToml(contents);
   } catch {
-    throw new Error("Could not parse Codex eval profile as TOML");
+    throw new Error("Could not parse Codex eval config as TOML");
   }
-  const parsed = modelProfileSchema.safeParse(decoded);
+  const parsed = modelConfigSchema.safeParse(decoded);
   if (!parsed.success) {
-    throw new Error(
-      "Codex eval profile must contain only model configuration and an env-key Responses provider",
-    );
+    throw new Error("Codex eval config must select a model and provider");
   }
   const config = parsed.data;
-  const provider = config.model_providers[config.model_provider];
-  if (!provider) {
-    throw new Error("Codex eval profile must define its selected provider");
+  const selected = modelProviderSchema.safeParse(
+    config.model_providers[config.model_provider],
+  );
+  if (!selected.success) {
+    throw new Error(
+      "Codex eval config must define its selected env-key Responses provider",
+    );
   }
+  const provider = selected.data;
   const configArgs = [
     "-c",
     `model_provider=${JSON.stringify(config.model_provider)}`,
@@ -92,7 +95,7 @@ export function loadCodexEvalProfile(path: string): CodexEvalProfile {
     try {
       catalogSha256 = sha256(readFileSync(catalogPath, "utf8"));
     } catch {
-      throw new Error("Could not read Codex eval profile model catalog");
+      throw new Error("Could not read Codex eval config model catalog");
     }
     configArgs.push("-c", `model_catalog_json=${JSON.stringify(catalogPath)}`);
   }

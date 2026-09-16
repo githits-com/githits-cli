@@ -107,72 +107,81 @@ Re-run the first command to refresh that dedicated login. To switch accounts,
 run `CODEX_HOME="$HOME/.codex-eval" codex logout` first. Re-authentication does
 not reset an account's usage limits.
 
-### Custom Codex model profiles (local one-off runs)
+### Custom Codex model configuration
 
-`agent:e2e --agent codex --codex-profile <file>` selects an explicit model-only
-TOML profile without loading ordinary host configuration. This option accepts
-a file path, not Codex's native profile name. A dedicated `CODEX_HOME` and the
-existing instruction/skill preflight still apply. The profile can reside
-outside that home. The runner converts its selected provider and model catalog
-to explicit `-c` arguments because Codex CLI `0.154.0` suppresses native
-`--profile` loading when `--ignore-user-config` is enabled.
-Codex MCP runs require GitHits startup before the first request, preventing
-an optional server's pending tools from being omitted.
+One-off runs and named suite `run` accept `--codex-config <file>`. Supply a
+main `config.toml` from a dedicated eval home; no named Codex profile is needed.
+The runner reads model/provider/effort/catalog settings and converts them to
+explicit CLI overrides. It keeps `--ignore-user-config`, disposable workload
+homes, instruction/skill preflight, and app/plugin disables. Other root settings
+and unselected providers are excluded, so ambient MCP servers and instructions
+cannot enter the workload. Codex MCP runs require GitHits startup before the
+first model request.
 
-Accepted root keys are `model`, `model_provider`, optional
-`model_reasoning_effort` and `model_catalog_json`, and `model_providers`.
-Provider definitions accept only `name`, `base_url`, `env_key`, and
-`wire_api = "responses"`. URLs must not embed credentials, query parameters, or
-fragments. Inline bearer tokens, auth commands, MCP servers, instructions,
-plugins, and other settings are rejected with errors that do not echo source
-text. Relative catalog paths resolve against the profile file's directory.
-Explicit `--model` and `--reasoning-effort` override profile defaults; otherwise
-the effective model comes from the profile and reasoning comes from the profile
-or the existing high default.
+The selected provider accepts only `name`, `base_url`, `env_key`, and
+`wire_api = "responses"`. Inline tokens, auth commands, and URLs containing
+credentials, query parameters, or fragments are rejected with safe errors.
+Optional `model_catalog_json` paths resolve relative to the config file. Explicit
+one-off `--model` and `--reasoning-effort` override config defaults; omitted
+reasoning defaults to high for one-off runs and low for named suites.
 
-For the locally configured Modal DeepSeek V4.1 Flash profile:
+For OpenRouter DeepSeek V4.1 Flash, create a dedicated directory and save this as
+its `config.toml`:
 
-Compatibility check on 2026-09-16: flat function calls work through the
-configured Modal Responses adapter. Namespace/custom probes under normal
-`auto` tool choice are accepted but do not deliver callable tools to the model;
-forced `required` choice rejects those types. GitHits is exposed as a namespace
-in Codex `0.154.0`, so the command below currently
-serves as a diagnostic; it does not establish a working MCP replacement for
-Luna. Tool-format compatibility must be resolved before comparative evals.
-The native `codex -p deepseek-flash-4-1-modal` profile inherits global MCP
-definitions; a connected server in `/mcp` does not prove model tool visibility.
-The user and a native-profile probe reproduced the missing GitHits call, while
-ordinary coding/function tools can still work through Modal.
+```toml
+model = "deepseek/deepseek-v4.1-flash"
+model_provider = "openrouter"
+model_reasoning_effort = "high"
 
-```bash
-CODEX_HOME="$HOME/.codex-eval" \
-MODAL_PROXY_TOKEN="$(cat "$HOME/.modal.key")" \
-bun run agent:e2e --agent codex \
-  --codex-profile "$HOME/.codex/deepseek-flash-4-1-modal.config.toml" \
-  --surface mcp --server local --intent-profile githits \
-  --workload eval/agentic/workloads/express-router.md \
-  --workload eval/agentic/workloads/package-overview-vulnerabilities.md \
-  --concurrency 2 --out .agent-eval/modal-canary
+[model_providers.openrouter]
+name = "OpenRouter"
+base_url = "https://openrouter.ai/api/v1"
+env_key = "OPENROUTER_API_KEY"
+wire_api = "responses"
 ```
 
-The caller's launch command reads the key file into the environment; the runner
-does not discover credential files. The selected provider's `env_key` is added
-to the existing environment allowlist. Its value is redacted in artifacts even
-when the variable name lacks a recognized secret suffix. Existing standard
-authentication variables retain their previous behavior. `run.json` and
-per-workload metadata record effective model/effort and `codexProfile` with the
-source path, profile SHA-256, catalog SHA-256 (or `null`), and provider ID.
+Then run the two-workload intent canary:
 
-Named suites, suite comparisons, CI, and Braintrust suite export remain the
-fixed Luna matrix. Use one-off reports for these local model pilots. Usage
-tokens remain available from Codex, while cost is `unknown` with
-`rate_card_not_configured` for models without a configured rate card. Any
-independent cost estimate must record its published rates and billing
-assumptions; never reuse Luna's rates for another model. Codex CLI `0.154.0`
-silently omits `-c temperature=0` from Responses requests and rejects it under
-strict config, so this workflow uses provider defaults without temperature
-control. Matching reasoning labels does not establish equal vendor reasoning
-budgets, and whole-run duration is not a model tokens/s measurement.
+```bash
+export CODEX_HOME="$HOME/.codex-eval-deepseek"
+OPENROUTER_API_KEY="$(cat "$HOME/.openrouter.key")" \
+bun run agent:e2e:suite run --suite canary --scenario intent --concurrency 2 \
+  --codex-config "$CODEX_HOME/config.toml" \
+  --codex-report-format prompt-json --out .agent-eval/deepseek-canary
+```
+
+The caller reads its credential store into the selected environment variable;
+the runner does not discover key files. That variable is added to the existing
+environment allowlist and redacted, including JSON-escaped values, in artifacts.
+`run.json` and workload metadata record effective model/effort,
+`codexReportFormat`, and `codexConfig` with source path, SHA-256, optional catalog
+SHA-256, and provider ID. Suite matrix/cell/shard identity reflects the selected
+model; imports and Braintrust exports reject conflicting model/report formats.
+
+`--codex-report-format prompt-json` omits enforced wire-level JSON schema while
+retaining the exact reporting prompt and final JSON validation. Invalid reports
+remain failures; there is no repair or fallback. The default is `json-schema`.
+Compatibility probes on 2026-09-16 showed that OpenRouter invokes Codex namespace
+tools, while the configured Modal adapter does not. Combining tools with enforced
+JSON schema suppressed actual calls through both tested DeepSeek routes. A real
+Codex/OpenRouter MCP canary without enforced schema completed GitHits calls.
+See [the retained compatibility findings](../../docs/implementation/agentic-eval-metrics.md#modal-pilot-compatibility-result--2026-09-16).
+
+For a trusted same-repository PR, add `agent-eval-deepseek` to trigger the separate
+OpenRouter intent canary and Braintrust export. It requires `OPENROUTER_API_KEY`,
+`GITHITS_API_TOKEN`, and `BRAINTRUST_API_KEY` repository secrets and pins Codex
+`0.154.0`. Existing Luna schedules and the `agent-eval` label remain unchanged.
+Braintrust links the PR experiment to the latest Luna main baseline; inspect
+model/reasoning/report-format metadata before interpreting differences. This
+integration canary provides no automatic quality grade or replacement decision.
+
+Unconfigured model rate cards retain `unknown` cost with
+`rate_card_not_configured`; never substitute Luna rates. OpenRouter may route to
+different providers. Env-key auth without an explicit catalog uses Codex's
+fallback model metadata, so this canary does not validate long-context behavior.
+Codex `0.154.0` omits `-c temperature=0` from requests and rejects it under strict
+config; these runs use provider defaults without temperature control. Reasoning
+labels do not imply equal vendor budgets; workload duration is not model tokens/s.
 
 Claude workload runs cannot reuse an ordinary host subscription login because
 the acting agent receives a disposable `HOME`. Runs made before disposable-home

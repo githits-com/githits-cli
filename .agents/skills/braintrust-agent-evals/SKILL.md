@@ -92,7 +92,7 @@ reports the actual linked base `{id, name}` after `fetchBaseExperiment()`.
 Validate-only reports the base as unresolved/not queried and performs no
 discovery. The first main run is a one-time bootstrap; PR and default-local
 exports fail before initialization when no main baseline exists. Explicit
-local `--base-experiment` takes precedence and skips discovery. No live
+local `--base-experiment` takes precedence and skips discovery. Live
 readback has proven the first main bootstrap, but not later-main, PR, or local
 linkage under the new names.
 For exports, use the returned experiment name from the SDK readback; it can
@@ -162,7 +162,9 @@ mode, project, experiment, row count, suite summaries, an export URL when
 applicable, and `baseExperiment`. In validate-only mode `baseExperiment: null`
 means unresolved/not queried; in export mode `null` means the required
 Braintrust readback returned no actual linked base. Experiment metadata records
-exporter schema/version 2. It never contains row bodies, prompts, answers,
+exporter schema/version 3, including model, reasoning effort and Codex report
+format identity. Historical exporter/schema-2 experiments retain their recorded
+version. It never contains row bodies, prompts, answers,
 artifact paths, or credentials.
 Terminal tool-bearing rows lacking complete/valid observed lifecycle timing are
 rejected because they cannot produce accurate structural children; an observed

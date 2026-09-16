@@ -14,91 +14,109 @@ daily, temporary per-main-push, or explicitly authorized pull-request
 execution, and normalized per-workload history are implemented here;
 answer-quality scoring remains a later phase.
 
-## Local custom Codex profiles
+## Custom Codex model configuration
 
-One-off `agent:e2e` runs accept `--codex-profile <file>` for an explicit,
-credential-free model-only TOML profile. `scripts/agent-eval-codex-profile.ts`
-owns that decoding boundary; the runner owns effective experiment selection,
-credential environment passthrough, isolation, and artifact redaction. This
-does not expand the named-suite, CI, or Braintrust export matrix beyond Luna.
-See [the usage example](../../eval/agentic/README.md#custom-codex-model-profiles-local-one-off-runs).
+One-off workloads and named suite `run` accept `--codex-config <file>` with an
+explicit main TOML config. `scripts/agent-eval-codex-config.ts` owns safe model
+projection; the runner owns effective selection, environment passthrough,
+isolation, and redaction. The suite resolves one model/reasoning/report-format
+matrix and propagates it to child execution and artifacts.
+See [usage](../../eval/agentic/README.md#custom-codex-model-configuration).
 
-The selected profile supplies model/provider configuration, optional reasoning,
-and an optional catalog. Explicit command-line model/effort values take
-precedence. Profile runs continue to use the dedicated eval `CODEX_HOME`,
-fresh per-workload OS homes, global-instruction/skill preflight,
-`--ignore-user-config`, and external app/plugin disables. Native Codex profile
-loading is suppressed by that isolation flag in CLI `0.154.0`; the runner
-passes the selected model configuration as explicit CLI overrides instead.
-Non-model keys, auth commands, literal bearer tokens, and credential-bearing
-URLs are rejected without echoing TOML source or parser diagnostics.
+Only model/provider/effort/catalog settings are projected. Other root keys and
+unselected providers cannot enable ambient MCP servers, instructions, skills,
+plugins, or shell settings. The selected Responses provider must use env-key
+auth, with no literal token, auth command, or credential-bearing URL. Parse
+errors do not echo source text. Model/effort overrides remain explicit.
+Dedicated eval `CODEX_HOME`, disposable workload OS homes, instruction/skill
+preflight, `--ignore-user-config`, and external app/plugin disables remain.
+Codex 0.154 suppresses native profile loading with that isolation flag, so the
+runner injects model settings through CLI overrides instead of `-p`.
 
-Codex MCP workloads mark GitHits `required = true` in both the generated TOML
-and actual launch overrides. In CLI `0.154.0`, optional MCP startup can yield
-an empty initial tool snapshot when a catalog-backed provider starts before
-the local server. A local wire probe reproduced the first request preceding
-GitHits initialization/tool listing; requiring startup exposed all 17 GitHits
-tools before that request. This prerequisite applies to default and custom
-Codex MCP launches. Skills runs retain their separate configuration.
+Codex MCP runs require GitHits startup in generated config and launch arguments.
+A wire probe reproduced optional startup sending the first inference request
+before MCP initialization/tool listing. Required startup exposed all 17 tools
+before inference. The runtime-generated `codex-config.toml` remains the MCP
+configuration audit; selected provider overrides appear in launch metadata.
 
-The caller supplies the selected provider's credential variable; the runner
-does not locate credential files. Only that variable is added to the existing
-environment allowlist, while standard authentication variables are unchanged.
-Redaction explicitly includes the selected credential value, regardless of its
-variable name, and its JSON-escaped representation. `run.json` and workload
-metadata record `codexProfile.path`, `sha256`, `catalogSha256`, and `provider`;
-the effective model/effort also flow into existing normalized metric records.
-`codex-config.toml` remains the generated GitHits MCP/effort configuration; the
-complete launch command records model-provider overrides without credentials.
+The caller supplies the selected provider's credential environment variable; the
+runner does not locate key files. That variable is added to the existing
+allowlist and its raw/JSON-escaped values are redacted. `run.json` and workload
+metadata record `codexConfig.path`, `sha256`, `catalogSha256`, and `provider`,
+effective model/effort, and `codexReportFormat`.
 
-The approved local pilot uses Modal DeepSeek V4.1 Flash through the existing
-Responses profile, with no temperature control. A secret-free wire probe of
-Codex CLI `0.154.0` confirmed that `temperature=0` is silently omitted and
-rejected under strict config. Matching high reasoning labels across Luna and
-DeepSeek does not imply equal vendor token budgets. Whole-workload duration
-includes tool/network activity and cannot establish model tokens/s. Cost
-remains `unknown` with `rate_card_not_configured` for unconfigured model rate
-cards; independent published-rate estimates must identify their billing
-assumptions and must not replace the raw provider evidence.
+`prompt-json` omits wire-level schema enforcement but keeps the reporting prompt
+and existing final JSON validation. Invalid reports are retained as failures
+without repair or fallback. Default format is `json-schema`; historical format
+omission normalizes to that default. Suite imports check matrix, shard, cell,
+child model identity and report format. Braintrust rejects mixed suite identity
+and records model/effort/report format on rows and experiment metadata.
+
+The separate `agent-eval-deepseek` PR label workflow runs the two-workload canary
+intent scenario through OpenRouter/high/prompt-json with Codex 0.154.0. It uses a
+dedicated main config, scoped `OPENROUTER_API_KEY`/GitHits auth during execution,
+and `BRAINTRUST_API_KEY` during export. Execution/report/export failures remain
+job failures and artifacts are retained. Existing Luna workflows are unchanged.
+The exporter links PRs to the latest main experiment, currently Luna: the base
+link supports inspection across models, not a matched regression or quality
+score. A single canary does not prove consistent replacement behavior.
+
+No temperature control is added: a secret-free Codex 0.154 probe omitted
+`temperature=0` from the wire and strict config rejected it. Reasoning labels
+are vendor settings, not equal budgets. Whole-workload duration includes tools
+and network, so it cannot establish model tokens/s. Unconfigured rate cards
+retain unknown cost. OpenRouter routing may vary providers; env-key auth without
+an explicit catalog uses fallback metadata, so long-context behavior is untested.
 
 ### Modal pilot compatibility result — 2026-09-16
 
-Codex `0.154.0` reached the configured Modal DeepSeek endpoint and returned
-valid final JSON and token accounting. It did not make GitHits calls. Initial
-optional-startup runs omitted GitHits; required startup fixed that exposure.
-A transparent diagnostic then confirmed all 17 GitHits functions in the
-`mcp__githits` namespace reached Modal, while the answer still said GitHits was
-unavailable. A direct Responses probe with `tool_choice: "required"` called a
-flat function successfully (HTTP 200). Namespace and custom-tool probes both
-returned HTTP 400 requiring at least one tool of type `function`.
-Follow-up probes under normal `auto` choice accepted namespace/custom requests
-(HTTP 200) but made no tool call and reported only 44 input tokens each versus
-319 for the callable flat function. A native `codex -p
-deepseek-flash-4-1-modal` probe also could not call GitHits, consistent with the
-user's manual test after `/mcp` showed the server connected. Codex profiles
-inherit the global server configuration; duplicating it in the model profile
-does not repair model-facing tool delivery.
+Modal authenticated and returned structured finals/usage but made no MCP calls.
+Required startup repaired the initial omission of GitHits tools; a transparent
+relay confirmed all 17 functions reached Modal in the `mcp__githits` namespace.
+Direct flat function calls worked. Namespace/custom probes under `required`
+returned HTTP 400 requiring a function; under `auto` they returned HTTP 200 but
+no call, with 44 input tokens versus 319 for the callable flat function. This
+points to adapter tool translation rather than a model capability result.
+Native Codex/Modal also could not call GitHits after `/mcp` showed it connected.
+Global MCP config is inherited by native profiles; duplicating it cannot change
+the namespace wire format. Ordinary flat coding tools can still work.
 
-This is a specific MCP tool-delivery compatibility limit, not a general
-Codex/Modal failure or evidence that DeepSeek is
-less capable or faster. Codex emits MCP tools as namespaces and its code-mode
-executor as a custom tool; a model-only profile cannot change those wire types.
-Keep Luna as the working eval model until compatible tool delivery is proven.
-Harness execution success means valid structured output; inspect `finalStatus`
-and retrieved tool evidence separately before claiming task success.
+A separate probe established that enforced JSON schema suppresses DeepSeek tool
+calls. Modal rejected required flat tools plus schema with “Cannot combine tool
+calls with constrained decoding”; automatic choice produced JSON promising a
+call without calling. Removing schema in a diagnostic skills workload allowed
+real CLI calls (`pkg_info`, `pkg_vulns`) but timed out at 180 seconds with no final.
 
-Local evidence is retained under `.agent-eval/deepseek-modal-pilot/` (ignored
-by Git). `luna-1`, `luna-2`, and `luna-3` contain six completed baseline cells,
-each with GitHits use and no isolation violations. `deepseek-1` preserves the
-initial provider-override failure, `deepseek-1-v2` the startup omission,
-`deepseek-required-1` the adapter-limited canary, and
-`tools-diagnostic-required/wire-tools-summary.json` the actual delivered tool
-declarations. `modal-tool-shapes.json` records the flat/namespace/custom probe
-results; `modal-tool-shapes-auto.json` records normal-choice follow-up probes,
-and `native-profile-probe-2` retains the native-profile MCP attempt. Remaining
-DeepSeek repetitions are paused because they cannot answer
-the matched task question while tool formats are incompatible; no cost or
-quality comparison is reported from tool-free answers.
+OpenRouter improved namespace compatibility: its direct namespace probe returned
+a function call carrying the correct namespace. Namespace plus enforced schema
+still produced final JSON promising a call without calling. A real Codex test
+using a dedicated main config and no schema completed GitHits `quick_start` and
+`pkg_info`, returned the package result, and exited 0 without timeout/error events.
+This proves tool integration, not task quality or repeated-run consistency.
+
+The final isolated runner was also exercised with env-key auth, no explicit
+model catalog, high effort, and `prompt-json`, matching the PR provider setup.
+The package-overview-vulnerabilities workload completed five real MCP calls
+(`quick_start`, `pkg_info`, two `pkg_vulns`, `pkg_changelog`) and returned a
+validated final JSON report, process exit 0, no timeout or isolation violation.
+Recorded workload duration was 60,900 ms; this is integration evidence, not a
+model speed benchmark or a quality grade. A credential audit across 308 retained
+pilot files found no raw or JSON-escaped credential matches.
+
+Evidence is retained under ignored `.agent-eval/deepseek-modal-pilot/`:
+`luna-1`/`luna-2`/`luna-3` preserve six completed baseline cells with actual tools
+and no isolation violations; `deepseek-1` preserves the initial provider-override
+failure; `deepseek-1-v2` the optional-startup omission; `deepseek-required-1` the
+tool-free Modal canary. `tools-diagnostic-required/wire-tools-summary.json`,
+`modal-tool-shapes.json`, `modal-tool-shapes-auto.json`,
+`modal-flat-tool-schema-probe.json`, `native-profile-probe-2`,
+`skills-prompt-json-probe`, `openrouter-tool-compatibility.json`, and
+`openrouter-main-config-mcp-probe`, and `openrouter-runner-package` retain the
+specific compatibility evidence.
+The diagnostic prompt-json run separately records its actual schema-free
+command; its original runner command metadata is not a matched measurement.
+Failed evidence is preserved, and no numerical quality/speed/cost comparison is
+reported from tool-free or incomplete output.
 
 ## Braintrust persistence contract
 
@@ -123,7 +141,7 @@ span named by `cellId` for each row, creates and closes its validated structural
 tool children, closes the eval root, calls `flush()`, and then calls
 `summarize({ summarizeScores: false })` for the permalink. Agent execution is
 not traced or instrumented by this boundary.
-The exporter metadata contract is schema/version 2; both values are retained
+The exporter metadata contract is schema/version 3; both values are retained
 in experiment metadata for regression attribution. The safe CLI result uses its
 separate result-file schema version 2.
 

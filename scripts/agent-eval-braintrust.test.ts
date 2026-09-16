@@ -62,6 +62,8 @@ interface SuiteOptions {
   processStatus?: "success" | "failed" | "timeout";
   toolCalls?: AgentEvalRecordInput["toolCalls"];
   dryRun?: boolean;
+  model?: string;
+  codexReportFormat?: "json-schema" | "prompt-json";
 }
 
 function createRecord(
@@ -72,11 +74,11 @@ function createRecord(
   const processStatus = suiteOptions.processStatus ?? "success";
   return {
     workloadId,
-    requestedModel: LUNA_MODEL,
-    resolvedModel: LUNA_MODEL,
+    requestedModel: options.matrix.model,
+    resolvedModel: options.matrix.model,
     agent: "codex",
     agentVersion: "codex-test",
-    reasoningEffort: "low",
+    reasoningEffort: options.matrix.reasoningEffort,
     surface: "mcp",
     server: "local",
     guidanceProfile: options.guidanceProfile,
@@ -109,7 +111,7 @@ function createRecord(
         },
       }),
       "codex",
-      LUNA_MODEL,
+      options.matrix.model,
     ),
     toolCalls: suiteOptions.toolCalls ?? [
       {
@@ -175,10 +177,20 @@ async function createSuite(
     ],
   });
 
+  const codexConfigPath = suiteOptions.model
+    ? join(root, "config.toml")
+    : undefined;
+  if (codexConfigPath)
+    writeFileSync(
+      codexConfigPath,
+      `model = "${suiteOptions.model}"\nmodel_provider = "openrouter"\nmodel_reasoning_effort = "high"\n[model_providers.openrouter]\nname = "OpenRouter"\nbase_url = "https://openrouter.ai/api/v1"\nenv_key = "OPENROUTER_API_KEY"\nwire_api = "responses"\n`,
+    );
   let shardPath = "";
   let workloadDir = "";
   await runAgentEvalSuite({
     suite: "canary",
+    codexConfigPath,
+    codexReportFormat: suiteOptions.codexReportFormat,
     repoRoot: root,
     targetRoot: root,
     outDir,
@@ -211,8 +223,9 @@ async function createSuite(
         startedAt: "2026-08-28T10:00:00.000Z",
         completedAt: "2026-08-28T10:00:01.000Z",
         agent: "codex",
-        model: LUNA_MODEL,
-        reasoningEffort: "low",
+        model: options.matrix.model,
+        reasoningEffort: options.matrix.reasoningEffort,
+        codexReportFormat: options.matrix.codexReportFormat,
         surface: "mcp",
         server: "local",
         guidanceProfile: options.guidanceProfile,
@@ -1394,6 +1407,9 @@ describe("Braintrust publisher boundary", () => {
         "sha:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       ],
       metadata: {
+        model: LUNA_MODEL,
+        reasoningEffort: "low",
+        codexReportFormat: "json-schema",
         source: "github",
         channel: "main",
         branch: "main",
@@ -1408,8 +1424,8 @@ describe("Braintrust publisher boundary", () => {
         suiteSchemaVersion: mapping.suites[0]!.suiteSchemaVersion,
         reportSchemaVersion: mapping.rows[0]!.metadata.reportSchemaVersion,
         metricsSchemaVersion: mapping.rows[0]!.metadata.metricsSchemaVersion,
-        exporterSchemaVersion: 2,
-        exporterVersion: "2",
+        exporterSchemaVersion: 3,
+        exporterVersion: "3",
       },
       repoInfo: {
         commit: mapping.rows[0]!.metadata.targetGit.sha,
@@ -2197,6 +2213,7 @@ interface WorkflowStepContract {
 
 interface WorkflowContract {
   on?: {
+    pull_request?: { branches?: string[]; types?: string[] };
     push?: {
       branches?: string[];
     };
@@ -2363,5 +2380,119 @@ describe("Agent eval workflow Braintrust integration", () => {
     expect(Object.values(finalize?.env ?? {}).join(" ")).not.toContain(
       "secrets.",
     );
+  });
+});
+
+describe("DeepSeek Braintrust identity", () => {
+  it("exports actual model/report format and rejects mixed suite identities", async () => {
+    const model = "deepseek/deepseek-v4.1-flash";
+    const deepseek = await createSuite({
+      model,
+      codexReportFormat: "prompt-json",
+      processStatus: "success",
+    });
+    const luna = await createSuite({ processStatus: "success" });
+    const schema = await createSuite({
+      model,
+      codexReportFormat: "json-schema",
+      processStatus: "success",
+    });
+    try {
+      const mapping = preflightAndMapBraintrustRows([
+        { label: "deepseek", suitePath: deepseek.suitePath },
+      ]);
+      expect(mapping.rows[0]!.metadata).toMatchObject({
+        requestedModel: model,
+        reasoningEffort: "high",
+        codexReportFormat: "prompt-json",
+      });
+      const init = buildBraintrustExperimentInit(mapping, {
+        project: "test",
+        source: "local",
+        experiment: "test",
+      });
+      expect(init.metadata).toMatchObject({
+        model,
+        reasoningEffort: "high",
+        codexReportFormat: "prompt-json",
+      });
+      expect(() =>
+        preflightAndMapBraintrustRows([
+          { label: "deepseek", suitePath: deepseek.suitePath },
+          { label: "luna", suitePath: luna.suitePath },
+        ]),
+      ).toThrow("mixed model");
+      expect(() =>
+        preflightAndMapBraintrustRows([
+          { label: "deepseek", suitePath: deepseek.suitePath },
+          { label: "schema", suitePath: schema.suitePath },
+        ]),
+      ).toThrow("mixed codexReportFormat");
+    } finally {
+      for (const fixture of [deepseek, luna, schema])
+        rmSync(fixture.root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("DeepSeek PR canary workflow", () => {
+  it("uses a trusted label, main config, scoped secrets and failure propagation", () => {
+    const workflow = parseYaml(
+      readFileSync(
+        resolve(process.cwd(), ".github/workflows/agent-evals-deepseek.yml"),
+        "utf8",
+      ),
+    ) as WorkflowContract;
+    expect(workflow.on?.pull_request).toEqual({
+      branches: ["main"],
+      types: ["labeled"],
+    });
+    const job = workflow.jobs.canary!;
+    expect(job.if).toContain(
+      "github.event.label.name == 'agent-eval-deepseek'",
+    );
+    expect(job.if).toContain(
+      "github.event.pull_request.head.repo.full_name == github.repository",
+    );
+    const execution = job.steps.find((s) => s.id === "execution")!;
+    const report = job.steps.find((s) => s.id === "report")!;
+    const exportStep = job.steps.find((s) => s.id === "braintrust")!;
+    const config = job.steps.find(
+      (s) => s.name === "Initialize dedicated main config",
+    )!;
+    expect(config.run).toContain('"$CODEX_HOME/config.toml"');
+    expect(config.run).toContain('env_key = "OPENROUTER_API_KEY"');
+    expect(config.run).not.toContain("--profile");
+    expect(execution.env?.OPENROUTER_API_KEY).toBe(
+      githubExpression("secrets.OPENROUTER_API_KEY"),
+    );
+    expect(execution.run).toContain(
+      "--suite canary --scenario intent --concurrency 2",
+    );
+    expect(execution.run).toContain("--codex-report-format prompt-json");
+    expect(execution.run).toContain('--codex-config "$CODEX_HOME/config.toml"');
+    expect(job.steps.filter((s) => s.env?.OPENROUTER_API_KEY)).toHaveLength(1);
+    expect(job.steps.filter((s) => s.env?.BRAINTRUST_API_KEY)).toHaveLength(1);
+    expect(exportStep.env?.BRAINTRUST_API_KEY).toBe(
+      githubExpression("secrets.BRAINTRUST_API_KEY"),
+    );
+    for (const step of [report, exportStep])
+      expect(step).toMatchObject({ if: "always()", "continue-on-error": true });
+    expect(exportStep.run).toContain("--source github --channel pr");
+    expect(exportStep.run).not.toContain("--experiment");
+    const final = job.steps.find((s) => s.name === "Finalize canary status")!;
+    expect(final.if).toBe("always()");
+    for (const key of [
+      "EXECUTION_OUTCOME",
+      "REPORT_OUTCOME",
+      "BRAINTRUST_OUTCOME",
+    ])
+      expect(final.run).toContain(key);
+    expect(
+      job.steps.find((s) => s.name === "Install tested Codex CLI")?.run,
+    ).toContain("@openai/codex@0.154.0");
+    expect(
+      job.steps.find((s) => s.name === "Upload canary artifacts"),
+    ).toMatchObject({ if: "always()" });
   });
 });

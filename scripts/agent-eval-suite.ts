@@ -19,12 +19,19 @@ import {
 } from "node:path";
 import { z } from "zod";
 import {
+  CODEX_REPORT_FORMATS,
+  type CodexReasoningEffort,
+  type CodexReportFormat,
   collectGitMetadata,
   type GitMetadata,
   loadTargetGuidanceBlock,
   parseArgs,
   runAgentEval,
 } from "./agent-eval.ts";
+import {
+  type CodexEvalConfig,
+  loadCodexEvalConfig,
+} from "./agent-eval-codex-config.ts";
 import {
   type AgentEvalMetrics,
   type AgentEvalRecord,
@@ -392,9 +399,19 @@ export const AGENT_EVAL_SUITE_MATRIX = {
   agent: "codex",
   model: LUNA_MODEL,
   reasoningEffort: "low",
+  codexReportFormat: "json-schema",
   surface: "mcp",
   server: "local",
 } as const;
+
+export interface AgentEvalSuiteMatrix {
+  agent: "codex";
+  model: string;
+  reasoningEffort: CodexReasoningEffort;
+  codexReportFormat: CodexReportFormat;
+  surface: "mcp";
+  server: "local";
+}
 
 export const SUITE_MATRIX = AGENT_EVAL_SUITE_MATRIX;
 
@@ -405,6 +422,8 @@ export type AgentEvalSuiteRunStatus =
   | "dry-run";
 
 export interface AgentEvalSuiteRunOptions {
+  codexConfigPath?: string;
+  codexReportFormat?: CodexReportFormat;
   suite: AgentEvalSuiteName;
   repoRoot: string;
   targetRoot?: string;
@@ -436,7 +455,8 @@ export interface AgentEvalSuiteShardOptions {
   experimentalTools: boolean;
   workloads: AgentEvalSuiteWorkload[];
   workloadPaths: string[];
-  matrix: typeof AGENT_EVAL_SUITE_MATRIX;
+  matrix: AgentEvalSuiteMatrix;
+  codexConfig?: CodexEvalConfig;
 }
 
 export interface AgentEvalSuiteShardExecution {
@@ -516,8 +536,16 @@ const suiteShardSchema = z.object({
     .regex(/^[a-f0-9]{64}$/)
     .nullable(),
   agent: z.literal("codex"),
-  model: z.literal(LUNA_MODEL),
-  reasoningEffort: z.literal("low"),
+  model: z.string().min(1),
+  reasoningEffort: z.enum([
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+    "ultra",
+  ]),
   status: z.enum(["success", "failed"]),
   error: z.string().nullable(),
   runPath: z.string().nullable(),
@@ -535,8 +563,16 @@ const suiteCellSchema = z.object({
     .regex(/^[a-f0-9]{64}$/)
     .nullable(),
   agent: z.literal("codex"),
-  model: z.literal(LUNA_MODEL),
-  reasoningEffort: z.literal("low"),
+  model: z.string().min(1),
+  reasoningEffort: z.enum([
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+    "ultra",
+  ]),
   workloadId: workloadIdSchema,
   workloadPath: z.string().min(1),
   status: z.enum(["success", "failed", "missing", "unknown"]),
@@ -568,8 +604,17 @@ export const agentEvalSuiteArtifactSchema = z.object({
   targetGit: suiteGitMetadataSchema,
   matrix: z.object({
     agent: z.literal("codex"),
-    model: z.literal(LUNA_MODEL),
-    reasoningEffort: z.literal("low"),
+    model: z.string().min(1),
+    reasoningEffort: z.enum([
+      "minimal",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
+      "ultra",
+    ]),
+    codexReportFormat: z.enum(CODEX_REPORT_FORMATS).default("json-schema"),
     surface: z.literal("mcp"),
     server: z.literal("local"),
     scenarios: z.array(suiteScenarioSchema).min(1),
@@ -841,8 +886,8 @@ interface SuiteCell {
   intentProfile: IntentProfile;
   intentFragmentHash: string | null;
   agent: "codex";
-  model: typeof LUNA_MODEL;
-  reasoningEffort: "low";
+  model: string;
+  reasoningEffort: CodexReasoningEffort;
   workloadId: string;
   workloadPath: string;
   status: SuiteCellStatus;
@@ -862,6 +907,8 @@ interface ShardEvidence {
 }
 
 interface SuitePreflight {
+  matrix: AgentEvalSuiteMatrix;
+  codexConfig?: CodexEvalConfig;
   suite: AgentEvalSuiteName;
   repoRoot: string;
   targetRoot: string;
@@ -923,8 +970,23 @@ function hasChildWorkloadFailure(
   );
 }
 
+function assertSuiteRecordIdentity(
+  matrix: AgentEvalSuiteMatrix,
+  record: AgentEvalRecord,
+): void {
+  assert(
+    record.agent === matrix.agent &&
+      record.requestedModel === matrix.model &&
+      record.reasoningEffort === matrix.reasoningEffort &&
+      record.surface === matrix.surface &&
+      record.server === matrix.server,
+    `mixed agent/model/reasoning/surface/server identity in ${record.workloadId}`,
+  );
+}
+
 function readShardEvidence(
   suiteRoot: string,
+  matrix: AgentEvalSuiteMatrix,
   scenario: AgentEvalSuiteScenario,
   execution: AgentEvalSuiteShardExecution | undefined,
   error: string | null,
@@ -960,6 +1022,13 @@ function readShardEvidence(
       ? parseAgentEvalMetrics(JSON.parse(readFileSync(metricsPath, "utf8")))
       : undefined;
     const report = resolvedReportPath ? loadRunReport(runDir) : undefined;
+    for (const record of metrics?.records ?? [])
+      assertSuiteRecordIdentity(matrix, record);
+    assert(
+      (runValue.codexReportFormat ?? "json-schema") ===
+        matrix.codexReportFormat,
+      "Child Codex report format does not match suite matrix",
+    );
     const childWorkloadFailure = hasChildWorkloadFailure(
       runValue,
       metrics,
@@ -996,6 +1065,7 @@ function buildSuiteCells(
   scenarios: readonly AgentEvalSuiteScenario[],
   workloads: AgentEvalSuiteWorkload[],
   evidence: Map<AgentEvalSuiteScenario, ShardEvidence>,
+  matrix: AgentEvalSuiteMatrix,
 ): SuiteCell[] {
   return scenarios.flatMap((scenario) => {
     const definition = scenarioDefinition(scenario);
@@ -1028,9 +1098,9 @@ function buildSuiteCells(
         guidanceProfile: definition.guidanceProfile,
         intentProfile: definition.intentProfile,
         intentFragmentHash: definition.intentFragmentHash,
-        agent: AGENT_EVAL_SUITE_MATRIX.agent,
-        model: AGENT_EVAL_SUITE_MATRIX.model,
-        reasoningEffort: AGENT_EVAL_SUITE_MATRIX.reasoningEffort,
+        agent: matrix.agent,
+        model: matrix.model,
+        reasoningEffort: matrix.reasoningEffort,
         workloadId: workload.id,
         workloadPath: workload.path,
         status,
@@ -1150,7 +1220,12 @@ function buildSuiteArtifact(
   >,
   wallTimeMs: number,
 ): AgentEvalSuiteArtifact {
-  const cells = buildSuiteCells(scenarios, preflight.workloads, evidence);
+  const cells = buildSuiteCells(
+    scenarios,
+    preflight.workloads,
+    evidence,
+    preflight.matrix,
+  );
   const successfulExecutions = cells.filter(
     (cell) => cell.status === "success",
   ).length;
@@ -1215,9 +1290,9 @@ function buildSuiteArtifact(
       guidanceProfile: definition.guidanceProfile,
       intentProfile: definition.intentProfile,
       intentFragmentHash: definition.intentFragmentHash,
-      agent: AGENT_EVAL_SUITE_MATRIX.agent,
-      model: AGENT_EVAL_SUITE_MATRIX.model,
-      reasoningEffort: AGENT_EVAL_SUITE_MATRIX.reasoningEffort,
+      agent: preflight.matrix.agent,
+      model: preflight.matrix.model,
+      reasoningEffort: preflight.matrix.reasoningEffort,
       status: shard?.status ?? "failed",
       error: shard?.error ?? execution?.error ?? null,
       runPath: shard?.runPath ?? null,
@@ -1249,7 +1324,7 @@ function buildSuiteArtifact(
     targetRoot: preflight.targetRoot,
     targetGit: preflight.targetGit,
     matrix: {
-      ...AGENT_EVAL_SUITE_MATRIX,
+      ...preflight.matrix,
       scenarios: [...scenarios],
     },
     selectedWorkloads: preflight.workloads,
@@ -1317,6 +1392,17 @@ function buildSuiteArtifact(
 async function suitePreflight(
   options: AgentEvalSuiteRunOptions,
 ): Promise<SuitePreflight> {
+  const codexConfig = options.codexConfigPath
+    ? loadCodexEvalConfig(resolve(options.repoRoot, options.codexConfigPath))
+    : undefined;
+  const matrix: AgentEvalSuiteMatrix = {
+    ...AGENT_EVAL_SUITE_MATRIX,
+    model: codexConfig?.model ?? AGENT_EVAL_SUITE_MATRIX.model,
+    reasoningEffort:
+      codexConfig?.reasoningEffort ?? AGENT_EVAL_SUITE_MATRIX.reasoningEffort,
+    codexReportFormat:
+      options.codexReportFormat ?? AGENT_EVAL_SUITE_MATRIX.codexReportFormat,
+  };
   const workloadConcurrency = options.workloadConcurrency ?? 1;
   assert(
     Number.isInteger(workloadConcurrency) && workloadConcurrency > 0,
@@ -1381,6 +1467,8 @@ async function suitePreflight(
     collectGitMetadata(targetRoot),
   ]);
   return {
+    matrix,
+    codexConfig,
     suite: options.suite,
     repoRoot,
     targetRoot,
@@ -1404,15 +1492,15 @@ async function productionShardExecutor(
 ): Promise<AgentEvalSuiteShardExecution> {
   const args = [
     "--agent",
-    AGENT_EVAL_SUITE_MATRIX.agent,
+    options.matrix.agent,
     "--model",
-    AGENT_EVAL_SUITE_MATRIX.model,
+    options.matrix.model,
     "--reasoning-effort",
-    AGENT_EVAL_SUITE_MATRIX.reasoningEffort,
+    options.matrix.reasoningEffort,
     "--surface",
-    AGENT_EVAL_SUITE_MATRIX.surface,
+    options.matrix.surface,
     "--server",
-    AGENT_EVAL_SUITE_MATRIX.server,
+    options.matrix.server,
     "--guidance-profile",
     options.guidanceProfile,
     "--intent-profile",
@@ -1428,9 +1516,11 @@ async function productionShardExecutor(
     "--concurrency",
     String(options.workloadConcurrency),
   ];
+  args.push("--codex-report-format", options.matrix.codexReportFormat);
   if (options.experimentalTools) args.push("--experimental-tools");
   if (options.dryRun) args.push("--dry-run");
   const runnerOptions = parseArgs(args, options.repoRoot);
+  runnerOptions.codexConfig = options.codexConfig;
   runnerOptions.workloads = options.workloadPaths;
   await runAgentEval(runnerOptions);
   return { runDir: options.outDir, status: "success" };
@@ -1475,7 +1565,8 @@ export async function runAgentEvalSuite(
       workloads: preflight.workloads,
       workloadPaths: preflight.workloadPaths,
       workloadConcurrency: preflight.workloadConcurrency,
-      matrix: AGENT_EVAL_SUITE_MATRIX,
+      matrix: preflight.matrix,
+      codexConfig: preflight.codexConfig,
     };
   });
   const promises = shardOptions.map((shard) =>
@@ -1509,6 +1600,7 @@ export async function runAgentEvalSuite(
       scenario,
       readShardEvidence(
         preflight.outDir,
+        preflight.matrix,
         scenario,
         execution,
         execution?.error ?? null,
@@ -1649,8 +1741,16 @@ const comparisonCellSchema = z
       .regex(/^[a-f0-9]{64}$/)
       .nullable(),
     agent: z.literal("codex"),
-    model: z.literal(LUNA_MODEL),
-    reasoningEffort: z.literal("low"),
+    model: z.string().min(1),
+    reasoningEffort: z.enum([
+      "minimal",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
+      "ultra",
+    ]),
     beforeStatus: comparisonCellStatusSchema.nullable(),
     afterStatus: comparisonCellStatusSchema.nullable(),
     compatibility: z.enum([
@@ -1839,6 +1939,12 @@ function validateImportedSuiteArtifact(artifact: AgentEvalSuiteArtifact): void {
       artifact.matrix.scenarios.includes(shard.scenario),
       `Suite artifact shard references unselected scenario: ${shard.scenario}`,
     );
+    assert(
+      shard.agent === artifact.matrix.agent &&
+        shard.model === artifact.matrix.model &&
+        shard.reasoningEffort === artifact.matrix.reasoningEffort,
+      "Suite shard identity does not match matrix",
+    );
     shardScenarios.add(shard.scenario);
   }
   for (const scenario of artifact.matrix.scenarios) {
@@ -1924,6 +2030,12 @@ function validateImportedSuiteArtifact(artifact: AgentEvalSuiteArtifact): void {
       artifact.matrix.scenarios.includes(cell.scenario),
       `Suite artifact cell references unselected scenario: ${cell.scenario}`,
     );
+    assert(
+      cell.agent === artifact.matrix.agent &&
+        cell.model === artifact.matrix.model &&
+        cell.reasoningEffort === artifact.matrix.reasoningEffort,
+      "Suite cell identity does not match matrix",
+    );
     cellIds.add(cell.id);
   }
   for (const cellId of expectedCells) {
@@ -1942,6 +2054,7 @@ function validateImportedMetricsRecords(
   );
   const recordIds = new Set<string>();
   for (const record of metrics?.records ?? []) {
+    assertSuiteRecordIdentity(artifact.matrix, record);
     assert(
       !recordIds.has(record.workloadId),
       `Suite artifact has duplicate ${scenario} metrics workload ID: ${record.workloadId}`,
@@ -2052,6 +2165,11 @@ export function loadImportedSuite(path: string): AgentEvalImportedSuite {
         reportReferences?.runPath ??
         resolveImportedChild(suitePath, shard.runPath, `${scenario} run.json`);
       imported.runMetadata = readJsonObject(runPath, `${scenario} run.json`);
+      assert(
+        (imported.runMetadata.codexReportFormat ?? "json-schema") ===
+          artifact.matrix.codexReportFormat,
+        "Imported Codex report format does not match suite matrix",
+      );
     }
     if (shard.metricsPath) {
       const metricsPath =
@@ -2542,6 +2660,7 @@ function matrixDimensions(
     "agent",
     "model",
     "reasoningEffort",
+    "codexReportFormat",
     "surface",
     "server",
   ] as const) {
@@ -2830,8 +2949,14 @@ function buildComparisonCell(
       afterSource.cell?.intentFragmentHash ??
       scenarioDefinition(scenario).intentFragmentHash,
     agent: AGENT_EVAL_SUITE_MATRIX.agent,
-    model: AGENT_EVAL_SUITE_MATRIX.model,
-    reasoningEffort: AGENT_EVAL_SUITE_MATRIX.reasoningEffort,
+    model:
+      beforeSource.cell?.model ??
+      afterSource.cell?.model ??
+      before.artifact.matrix.model,
+    reasoningEffort:
+      beforeSource.cell?.reasoningEffort ??
+      afterSource.cell?.reasoningEffort ??
+      before.artifact.matrix.reasoningEffort,
     beforeStatus: beforeSource.cell?.status ?? null,
     afterStatus: afterSource.cell?.status ?? null,
     compatibility: compatibility.compatibility,
@@ -3488,6 +3613,8 @@ export type AgentEvalSuiteCliCommand =
   | { mode: "help" }
   | {
       mode: "run";
+      codexConfigPath?: string;
+      codexReportFormat?: CodexReportFormat;
       suite: AgentEvalSuiteName;
       scenarios?: AgentEvalSuiteScenario[];
       outDir?: string;
@@ -3512,17 +3639,19 @@ export type AgentEvalSuiteCliCommand =
     };
 
 export const AGENT_EVAL_SUITE_USAGE = `Usage:
-  bun run agent:e2e:suite run --suite <name> [--scenario <discovery|intent|full>]... [--concurrency <positive integer>] [--dry-run] [--out <dir>] [--target-root <path>]
+  bun run agent:e2e:suite run --suite <name> [--scenario <discovery|intent|full>]... [--concurrency <positive integer>] [--dry-run] [--out <dir>] [--target-root <path>] [--codex-config <file>] [--codex-report-format <json-schema|prompt-json>]
   bun run agent:e2e:suite pair --suite <name> --baseline-root <path> [--scenario <discovery|intent|full>]... [--concurrency <positive integer>] [--dry-run] [--out <dir>]
   bun run agent:e2e:suite compare --baseline-suite <path> --candidate-suite <path> [--out <dir>]
 
 Suites: ${AGENT_EVAL_SUITE_NAMES.join(", ")}
-Matrix: Codex ${LUNA_MODEL}, reasoning low, local MCP
+Default matrix: Codex ${LUNA_MODEL}, reasoning low, local MCP, json-schema. Explicit run config selects model/effort; prompt-json keeps final validation.
 Defaults: canary discovery + intent; other suites intent only. Explicit --scenario values replace defaults; full is opt-in.
 `;
 
 const CLI_OPTIONS_BY_MODE: Record<AgentEvalSuiteCliMode, readonly string[]> = {
   run: [
+    "--codex-config",
+    "--codex-report-format",
     "--suite",
     "--scenario",
     "--concurrency",
@@ -3640,7 +3769,18 @@ export function parseAgentEvalSuiteCliArgs(
     "--concurrency",
   );
   if (rawMode === "run") {
+    const codexReportFormat = getValue("--codex-report-format");
+    assert(
+      codexReportFormat === undefined ||
+        codexReportFormat === "json-schema" ||
+        codexReportFormat === "prompt-json",
+      "--codex-report-format must be json-schema or prompt-json",
+    );
     return {
+      ...(getValue("--codex-config")
+        ? { codexConfigPath: getValue("--codex-config") }
+        : {}),
+      ...(codexReportFormat ? { codexReportFormat } : {}),
       mode: rawMode,
       suite: assertSuiteName(assertCliValue(getValue("--suite"), "--suite")),
       scenarios: scenarios.length > 0 ? scenarios : undefined,
@@ -3706,6 +3846,8 @@ export async function runAgentEvalSuiteCli(
     const outDir = resolve(root, command.outDir ?? defaultSuiteOutputDir(root));
     const artifact = await (dependencies.runSuite ?? runAgentEvalSuite)({
       suite: command.suite,
+      codexConfigPath: command.codexConfigPath,
+      codexReportFormat: command.codexReportFormat,
       repoRoot: root,
       targetRoot: command.targetRoot,
       outDir,

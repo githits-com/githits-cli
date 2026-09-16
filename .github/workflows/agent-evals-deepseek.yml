@@ -1,0 +1,131 @@
+name: DeepSeek Agent Evals
+
+on:
+  pull_request:
+    branches: [main]
+    types: [labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    name: DeepSeek OpenRouter canary
+    if: >-
+      github.event.label.name == 'agent-eval-deepseek' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CODEX_HOME: ${{ runner.temp }}/deepseek-codex-home
+      CANARY_OUT: ${{ runner.temp }}/deepseek-agent-eval
+    steps:
+      - name: Prepare output
+        run: |
+          mkdir -p "$CANARY_OUT"
+          printf 'scenario=intent\n' > "$CANARY_OUT/execution-started.txt"
+
+      - name: Checkout evaluated SHA
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install tested Codex CLI
+        run: npm install --global @openai/codex@0.154.0
+
+      - name: Initialize dedicated main config
+        run: |
+          mkdir -p "$CODEX_HOME"
+          cat > "$CODEX_HOME/config.toml" <<'TOML'
+          model = "deepseek/deepseek-v4.1-flash"
+          model_provider = "openrouter"
+          model_reasoning_effort = "high"
+          [model_providers.openrouter]
+          name = "OpenRouter"
+          base_url = "https://openrouter.ai/api/v1"
+          env_key = "OPENROUTER_API_KEY"
+          wire_api = "responses"
+          TOML
+
+      - name: Run two-workload intent canary
+        id: execution
+        continue-on-error: true
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHITS_API_TOKEN: ${{ secrets.GITHITS_API_TOKEN }}
+        run: |
+          bun run agent:e2e:suite run \
+            --suite canary --scenario intent --concurrency 2 \
+            --codex-config "$CODEX_HOME/config.toml" \
+            --codex-report-format prompt-json --out "$CANARY_OUT"
+
+      - name: Render canary report
+        id: report
+        if: always()
+        continue-on-error: true
+        run: |
+          set +e
+          bun run agent:e2e:ci-report \
+            --suite "deepseek-intent=$CANARY_OUT/suite.json" \
+            --run-url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --out "$CANARY_OUT/ci-summary.md"
+          report_status=$?
+          if [ -f "$CANARY_OUT/ci-summary.md" ]; then
+            cat "$CANARY_OUT/ci-summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$report_status"
+
+      - name: Export canary to Braintrust
+        id: braintrust
+        if: always()
+        continue-on-error: true
+        env:
+          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+          BRAINTRUST_BRANCH: ${{ github.head_ref }}
+          BRAINTRUST_PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          bun run agent:e2e:braintrust \
+            --suite "deepseek-intent=$CANARY_OUT/suite.json" \
+            --project githits-cli-agent-evals --source github --channel pr \
+            --branch "$BRAINTRUST_BRANCH" --pr-number "$BRAINTRUST_PR_NUMBER" \
+            --run-id "${{ github.run_id }}" --run-attempt "${{ github.run_attempt }}" \
+            --run-url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --result-out "$CANARY_OUT/braintrust-result.json"
+          node -e '
+            const fs = require("node:fs");
+            const result = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            if (result.url) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\n- DeepSeek Braintrust: ${result.url}\n`);
+          ' "$CANARY_OUT/braintrust-result.json"
+
+      - name: Upload canary artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: deepseek-agent-eval
+          path: ${{ runner.temp }}/deepseek-agent-eval
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Finalize canary status
+        if: always()
+        env:
+          EXECUTION_OUTCOME: ${{ steps.execution.outcome }}
+          REPORT_OUTCOME: ${{ steps.report.outcome }}
+          BRAINTRUST_OUTCOME: ${{ steps.braintrust.outcome }}
+        run: |
+          test "$EXECUTION_OUTCOME" = success
+          test "$REPORT_OUTCOME" = success
+          test "$BRAINTRUST_OUTCOME" = success
