@@ -603,6 +603,57 @@ flags remain; latest-only tools reject embedded versions actionably.
 representation before this phase is detailed. Changelog repository refs use the
 canonical `@ref` grammar merged in PR #396.
 
+Phase 2 interview decisions (2026-09-16; tactical plan not finalized):
+
+- The next increment covers `docs_list`, `pkg_info`, `pkg_vulns`, `pkg_deps`, and
+  `pkg_changelog`; upgrade-review redesign remains outside it.
+- Include compact changelog release ranges in the same PR if implementation size
+  stays within the user's simplicity budget. Use inline targets such as
+  `npm:express@4.21.2..5.2.1` and
+  `github:expressjs/express@v4.21.2..v5.2.1`, not a separate range field.
+- The upper repository tag selects the CHANGELOG-file snapshot. Release entries
+  use the corresponding exclusive-start/inclusive-end release bounds.
+- A single package version, such as `npm:express@5.2.1`, selects exactly that
+  release for changelog, not recent entries capped at that version. Unversioned
+  package changelog targets retain the current recent-entry default.
+- The user also requested single repository release tags to select exactly their
+  release, while branch/commit targets select CHANGELOG snapshots; verification
+  of backend support is recorded below before treating this as implementable.
+- A production probe of the equivalent repository request (`fromVersion:4.21.2`,
+  `toVersion:5.2.1`, `gitRef:v5.2.1`) returned nine release entries, confirming the
+  backend accepts the combined inputs. It used the `releases` source, so it does
+  not itself prove CHANGELOG-file snapshot behavior.
+- Existing CLI upgrade-review code already parses `@current..target`; reuse its
+  syntax rather than claiming the interval spelling is wholly undecided. The
+  earlier separate-range proposal and addressing-only scope were not accepted.
+- Single repository-tag behavior is selected but backend exact-target support
+  remains unresolved. Open-ended repository intervals still need their source
+  revision semantics settled before finalizing the Phase 2 implementation contract.
+
+Repository exact-target verification (2026-09-16):
+
+- Backend `main` source was inspected read-only through GitHub at
+  `f29298eb1be0760185961131d876f05cbfe5242a`, not through the independent name
+  diagnosis worktree. `priv/graphql/schema.graphql` exposes `refKind` through
+  code-diff ref resolution, and internal ref facts include SHA/tag/branch/head.
+  Changelog's API exposes only independent `gitRef`, `fromVersion`, `toVersion`,
+  and latest-entry `limit`; it has no exact selector or ref classification result.
+- Repository request `gitRef:v5.2.1,limit:3` returned recent release entries
+  `v4.22.3`, `v4.22.2`, `v4.22.1`. The tag does not filter the releases source.
+- Repository request `gitRef:v5.2.1,toVersion:5.2.1,limit:1` returned `v4.22.3`,
+  not `v5.2.1`. The latest-entry cap is publication-ordered and not an exact lookup.
+  A missing-version control `toVersion:5.2.999` also returned `v4.22.3`.
+- Package control `npm:express,toVersion:5.2.1,limit:1` returned exactly `5.2.1`;
+  package and repository addressing use different selection semantics. This
+  positive case does not prove missing-version or prerelease exact-pin behavior.
+- Therefore the earlier estimate of a thin adapter is invalid for exact repository
+  releases. Ref classification and exact-release/source selection naturally belong
+  to the backend. Exposing those facts by executing a whole code diff would be the
+  wrong boundary; neither client tag-spelling guesses nor capped-list scans are
+  accepted substitutes. Backend support must be resolved before finalizing the
+  agreed exact repository-tag contract. No fixes or additional backend hand-off
+  were authorized by the verification request.
+
 **Dependencies:** Phase 3 and canonical `@ref` grammar are merged on `origin/main`;
 post-merge reorientation is recorded below. No backend change is currently expected
 for package-coordinate consolidation.
