@@ -3,20 +3,20 @@
 ## Status
 
 - Overall: ACTIVE
-- Current phase: Phase 3 — one MCP search-filter language (READY)
+- Current phase: Phase 3 — one MCP search-filter language (IN REVIEW)
 - Baseline: `175c15c` (`origin/main`, 2026-09-16; canonical `@ref` merge)
 - Last verified: 2026-09-16
 
 ## Problem and expected outcome
 
 The stable MCP catalog is correct but expensive to expose. Its original 14-tool
-baseline occupied 50,851 Unicode characters; Phase 1 reduced the current catalog to
+baseline occupied 50,851 Unicode characters; Phase 1 reduced its merge catalog to
 42,421 by removing duplicate structured target forms. Schemas still account for most
-of the surface, and `search` still advertises structured fields for six constraints
-that the backend query language now expresses directly.
+of the surface. Phase 3 removes the six structured `search` constraints that the
+backend query language now expresses directly; the implementation is under review.
 
-Search still advertises both inline and structured qualifiers even though the
-production backend now validates and reports inline syntax robustly. Other large
+The Phase 3 baseline advertises both inline and structured qualifiers even though
+the production backend now validates and reports inline syntax robustly. Other large
 opportunities remain unsettled: code-navigation tools expose many overlapping
 controls, `search_language` may be replaceable only after
 `get_example` returns actionable language recovery, and repeated output-format copy
@@ -321,7 +321,7 @@ None of these later unknowns blocks Phase 3.
    qualifier consolidation, package MCP tools use concise target/range strings while
    retaining each tool's verified latest, pinned, range, repository, and batch
    semantics.
-3. **Phase 3 — one MCP search-filter language (READY):** the six backend-supported
+3. **Phase 3 — one MCP search-filter language (IN REVIEW):** the six backend-supported
    inline qualifiers replace their duplicate MCP fields while CLI flags and
    `public_only` remain.
 4. **Phase 4 — essential navigation controls only (PENDING):** `code_files` and
@@ -610,7 +610,7 @@ inventory; CLI and service contracts remain stable.
 
 ### Phase 3: one MCP search-filter language
 
-**Status:** READY
+**Status:** IMPLEMENTED — REVIEW IN PROGRESS
 
 **Expected outcome:** MCP callers express `kind`, `category`, `path`, `intent`,
 `name`, and `lang` once inside `search.query`. The selected tool teaches that compact
@@ -773,6 +773,69 @@ hide it with retries.
 7. Durable docs and the independent minor/minor fragment give direct migration
    examples, while quick-start/skill text and generated plugin assets remain unchanged.
 8. Internal and external review are clean under repository policy.
+
+#### Phase 3 implementation record
+
+The implementation is committed on `jlitola/audit-tool-surface-simplification`:
+
+- `beb7fe3` removes the six MCP fields, tightens selected-tool qualifier guidance,
+  updates current durable contracts, adds the minor/minor migration fragment and
+  eval workload, and adds schema/live-smoke assertions.
+- `82be052` changes the combined live-smoke query term from `router` to
+  `application`. The first live run completed the former query with zero results;
+  targeted production inspection showed the qualifiers were accepted and the
+  application term returned the required `lib/*.js` evidence. No assertion was
+  weakened and no retry mechanism was added.
+
+Two bounded Luna implementation slices returned uncommitted, verified changes;
+the coordinator reviewed them, authored descriptor/docs/eval decisions, tightened
+the smoke proof, and owns the commits and delivery. The Luna conformance preflight
+and internal `code_reviewer` are clean. External Opus review is pending.
+
+Verification on 2026-09-16:
+
+- `bun test packages/mcp/src/tools/search.test.ts packages/mcp/src/mcp/server.test.ts
+  packages/mcp/src/smoke-test.test.ts eval/agentic/context-loading/fixture-server.test.ts
+  packages/mcp/src/shared/unified-search-request.test.ts src/commands/search.test.ts
+  src/tools/search-parity.test.ts`: 228 passed, zero failed.
+- `bun test`: final full run passed all 4,776 tests across 210 files, zero failed.
+  The first run exposed the new workload's missing exact-inventory registration;
+  the manifest/test were corrected in place and its focused suite passed 48/48.
+- `bun run typecheck`, `bun run lint`, `bun run build`, and
+  `bun run validate:packages`: passed. Lint reports eight pre-existing warnings in
+  the unchanged repository-target parser.
+- `bun run plugins:generate` and `bun run plugins:check`: generated and validated
+  all ten assets with no derived diff. Quick-start and public skill inputs are
+  unchanged.
+- `bun run smoke:cli` and `bun run smoke:mcp`: authenticated stable and
+  experimental cohorts passed. The new combined query returned nonempty
+  JavaScript evidence under `lib/`, preserved its exact raw query, and the three
+  invalid inline enums returned non-retryable `INVALID_ARGUMENT` without
+  continuation. The CLI structured path-prefix rejection remains covered.
+- `bun run smoke:cli:built` and `bun run smoke:mcp:built`: passed their secret-free
+  Node launch, unauthenticated, and registration contracts.
+- `bun scripts/agent-context-load.ts sizes`: stable `catalog.full` is 40,738
+  Unicode characters and `search` is 4,676, down from 42,659 and 6,597 respectively.
+  The reduction is 1,921 characters (4.5%), 83 below the 40,821 schema-only ceiling.
+  The catalog names/first-80 surface, quick-start, and public skill are unchanged.
+  No provider-token or cost improvement is inferred from character counts.
+- Descriptor-only local Codex 0.154.0 Luna/high runs on
+  `search-inline-qualifiers.md` and `unified-search-investigation.md` completed
+  successfully with high self-reported confidence. Their raw calls, results,
+  finals, and metrics were inspected: 8 and 20 MCP calls respectively, all
+  completed, no CLI fallback, no removed search arguments, no duplicate qualifier
+  constraints, and no isolation violations. The inline run used all three required
+  qualifiers, inspected JSON once for warning/source-status detail, then narrowed
+  terms; its final explicitly reported no returned qualifier warnings. These are
+  trace observations, not a quality grade or comparative token/cost result.
+- The matching Claude 2.1.273 descriptor-only runs both failed before discovery
+  with provider `authentication_failed`, one API-error turn, and zero tool calls.
+  They do not verify Claude product behavior. Their failure artifacts are retained;
+  Claude descriptor behavior remains an explicit validation limitation rather
+  than being hidden by repeated runs.
+
+Local eval artifacts are in `.agent-eval/runs/phase3-{codex,claude}-{inline,unified}`.
+No hosted deployment, package publication, release, or merge has been performed.
 
 ### Phase 4: essential navigation controls only
 
