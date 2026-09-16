@@ -178,10 +178,17 @@ Braintrust links the PR experiment to the latest Luna main baseline; inspect
 model/reasoning/report-format metadata before interpreting differences. This
 preset comparison provides no automatic quality grade or replacement decision.
 
+The completed [50-cell comparison](../../docs/implementation/agentic-eval-metrics.md#full-deepseek-matrix-comparison--2026-09-16)
+exported all cells against its actual main Luna baseline with 50 matching stable
+inputs. DeepSeek validated 48 reports versus Luna's 50, made 495 MCP calls versus
+205, and took 2950.371 cumulative seconds versus 787.752. Two DeepSeek finals
+failed JSON validation; summary failure correctly preserves that result. This
+single preset comparison does not justify changing the Luna default.
+
 Unconfigured model rate cards retain `unknown` cost with
 `rate_card_not_configured`; never substitute Luna rates. OpenRouter may route to
 different providers. Env-key auth without an explicit catalog uses Codex's
-fallback model metadata, so this canary does not validate long-context behavior.
+fallback model metadata, so these runs do not validate long-context behavior.
 Codex `0.154.0` omits `-c temperature=0` from requests and rejects it under strict
 config; these runs use provider defaults without temperature control. Reasoning
 labels do not imply equal vendor budgets; workload duration is not model tokens/s.

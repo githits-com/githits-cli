@@ -45,7 +45,7 @@ bt experiments --json --project githits-cli-agent-evals view <experiment-name>
 Use the experiment ID returned by the view result for a bounded field query:
 
 ```bash
-bt sql --json --non-interactive "SELECT input, output, metrics, metadata, tags FROM experiment('<experiment-id>') WHERE span_attributes.type = 'eval' LIMIT 23"
+bt sql --json --non-interactive "SELECT input, output, metrics, metadata, tags FROM experiment('<experiment-id>') WHERE span_attributes.type = 'eval' LIMIT 100"
 bt sql --json --non-interactive "SELECT name, span_attributes.type, metrics, metadata FROM experiment('<experiment-id>') WHERE span_attributes.type = 'tool' LIMIT 100"
 ```
 
@@ -93,6 +93,18 @@ all three scenarios into one experiment with model/report-format metadata.
 Check the actual linked main baseline and stable inputs, then account for all
 cell outcomes; a single cross-preset attempt is not a quality or consistency
 score. The following canary is historical integration evidence.
+
+The full comparison is live-proven by
+[`pr-401-r35099796991-a1`](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-401-r35099796991-a1)
+(ID `a6313674-e0cd-45b0-8d5b-037d885f1876`): exactly 50 eval roots and 495 tool
+children. Its persisted base is `13590571-39c1-4a33-831d-db144fb1fc7a`
+(`main-r35085880981-a1`), with all 50 stable inputs matching. DeepSeek validates
+48 reports versus main Luna's 50, takes 2950.371 versus 787.752 cumulative
+seconds, and uses 495 versus 205 MCP calls. Two malformed JSON finals cause the
+summary to fail while complete failed-cell export succeeds; neither timed out.
+Do not repair their finals or confuse successful export with successful cells.
+See [the permanent comparison](../../../docs/implementation/agentic-eval-metrics.md#full-deepseek-matrix-comparison--2026-09-16)
+for scenario metrics, failed cells, source-path differences and interpretation.
 
 The OpenRouter DeepSeek two-workload canary is proven by [run
 35093150512](https://github.com/githits-com/githits-cli/actions/runs/35093150512)

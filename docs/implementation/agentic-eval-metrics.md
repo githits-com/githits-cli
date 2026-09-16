@@ -122,8 +122,97 @@ cleanup timer referenced (removing `unref` and its unused handle) fixes the
 fault at its runner owner. The same driver now emits completion with
 `timedOut: true`; ordinary completion, isolated timeout reporting and POSIX
 process-group cleanup regression tests pass. Workload timeout stays 300 seconds;
-no report repair or fallback is added. A new complete run is required to retain
-accurate per-cell lifecycle evidence for the full Braintrust comparison.
+no report repair or fallback is added. The complete rerun below retained all
+50 cells and exported accurate evidence, including two final-validation failures.
+
+### Full DeepSeek matrix comparison — 2026-09-16
+
+[Full run 35099796991](https://github.com/githits-com/githits-cli/actions/runs/35099796991)
+on SHA `81f4ae78f4c968689689e227f4f34fc6d6a53355` retained every cell and
+successfully exported experiment
+[`pr-401-r35099796991-a1`](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-401-r35099796991-a1)
+(ID `a6313674-e0cd-45b0-8d5b-037d885f1876`). Native readback contains exactly
+50 eval roots and 495 structural tool children. Its persisted `base_exp_id`
+is `13590571-39c1-4a33-831d-db144fb1fc7a`, the actual linked
+[`main-r35085880981-a1`](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/main-r35085880981-a1)
+Luna baseline on main SHA `b2d4513a9b910682f314a8e78dc344ae279d2e37`.
+All 50 `metadata.cellId` pairs have identical stable inputs, including full
+prompts and `promptSha256`. Scenario target-guidance identities, reporting
+contract and result-schema hashes also match. Both use Codex CLI 0.154.0 and
+the current 16-tool GitHits catalog. The PR adds model/reporting setup and the
+runner lifecycle fix; this is not a change to the evaluated tool behavior.
+
+| Observed metric | Main Luna | DeepSeek OpenRouter |
+| --- | ---: | ---: |
+| Validated successful reports | 50 / 50 | 48 / 50 |
+| Cumulative workload duration | 787.752 s | 2950.371 s |
+| Median workload duration | 13.556 s | 42.363 s |
+| MCP calls | 205 | 495 |
+| Failed logical tool calls | 5 | 3 |
+| CLI tool calls | 0 | 0 |
+| Total tokens, including cached input | 5,452,005 | 10,015,782 |
+| Cached input tokens | 4,130,792 | 8,243,328 |
+| Output tokens, including reasoning | 43,966 | 186,411 |
+| Estimated cost | $0.454645, base-rate estimate | Unknown |
+| Isolation violations | 0 | 0 |
+
+| Scenario | Valid Luna / DeepSeek | Wall seconds Luna / DeepSeek | MCP calls Luna / DeepSeek |
+| --- | ---: | ---: | ---: |
+| Discovery, concurrency 2 | 2 / 2 | 18.187 / 50.905 | 7 / 24 |
+| Intent, concurrency 4 | 24 / 23 | 97.516 / 392.632 | 112 / 234 |
+| Full guidance, concurrency 4 | 24 / 23 | 114.328 / 411.488 | 86 / 237 |
+
+Two cells failed unchanged final validation: `intent/package-overview-vulnerabilities`
+returned a second JSON object after its first object; `full/code-file-navigation`
+contained literal newlines inside its JSON answer string. Both Codex processes
+exited zero, neither timed out, and their usage/tool/lifecycle evidence remains
+complete. Thus the harness's process/report outcome is failed despite a zero
+native exit code. The aggregate exporter succeeded and the summary's final
+status correctly failed. Do not repair either final or relabel these outcomes
+as success. All other 48 reports validated and self-reported success; that is
+not a correctness grade. The three recovered tool failures were two `code_grep`
+calls in `full/package-dependencies` and one `pkg_changelog` in
+`intent/package-vulnerability-filter`.
+
+Sampled paired answers illustrate the extra work without establishing better
+quality. In `full/code-read-window`, both describe the same lazy router getter
+and its two constructor options; Luna uses one MCP call, DeepSeek eight and a
+much longer answer. In `full/docs-search-noise`, both explain Flask route
+binding, variable rules and slash behavior; DeepSeek adds converters, URL
+building and HTTP methods, using six calls versus two. In
+`full/package-upgrade-safety`, both distinguish release/dependency/security
+concerns and recommend manual verification; DeepSeek uses 23 calls versus
+Luna's one batch review. These are manual observations of retained answers,
+not judge scores or evidence that every additional statement is correct.
+
+Source paths also differ. DeepSeek used MCP in every cell and made no native
+web-search calls. Luna's discovery package answer used two native web searches
+and a registry/OSV shell request, with zero MCP calls; its intent site-search
+cell used one native web search. DeepSeek's 25 full-guidance shell executions
+mostly read installed skills or list the disposable workspace; one checks an
+OpenCode tag with `git ls-remote`. These are not GitHits CLI tool calls. More
+MCP calls therefore cannot be interpreted as a quality improvement.
+
+DeepSeek/high/prompt-json and Luna/low/json-schema are operational presets with
+different vendor reasoning budgets and report enforcement. In this single
+complete attempt, DeepSeek takes 3.75 times the cumulative workload duration,
+3.13 times the median duration, 2.41 times the MCP calls and 1.84 times the total
+tokens, while two finals fail formatting. Workload timing includes tool/network
+work and does not measure provider tokens/s. No temperature control, automatic
+quality scorer or provider-matched DeepSeek rate card was added. Keep Luna as
+the default; this evidence does not support replacing it with this DeepSeek
+preset yet. It also does not establish repeat consistency or relative model
+strength under equal budgets.
+
+All 564 downloaded files passed a known-credential audit before inspection;
+raw malformed finals and the first attempt remain preserved. Local paired
+answer/metric JSON and native comparison output are under
+`.agent-eval/deepseek-modal-pilot/github-openrouter-full-35099796991/`.
+The normalized Braintrust experiment and CI artifacts are the durable shared
+sources. [Regular CI 35099722242](https://github.com/githits-com/githits-cli/actions/runs/35099722242)
+passes Ubuntu/Windows tests, build/checks and Node/Bun compatibility on the
+executed SHA. Internal preparation and the bounded external Opus follow-up
+review of the lifecycle fix are clean.
 
 ### Modal pilot compatibility result — 2026-09-16
 

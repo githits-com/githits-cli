@@ -2690,8 +2690,9 @@ Luna replacement still separate decisions. Nothing was merged or published.
 
 ### Full DeepSeek matrix comparison — 2026-09-16
 
-Status: IMPLEMENTING. The user explicitly requested replacing the dedicated
-DeepSeek canary with a full eval run and comparison to main Luna.
+Status: COMPLETE (implemented, reviewed and live-verified; PR #401 remains
+unmerged). The user explicitly requested replacing the dedicated DeepSeek
+canary with a full eval run and comparison to main Luna.
 
 Verified current state: the existing main workflow owns discovery/canary with
 concurrency 2 and stable-full intent/full guidance with concurrency 4. The
@@ -2792,7 +2793,32 @@ would otherwise conceal. Two malformed JSON finals remain model failures under
 unchanged final validation. No new harness layer, timeout setting, recovery or
 acceptance criterion. This minor incident fix is within the original all-cell
 artifact/comparison criterion, not a scope/phase change requiring a plan round.
-The complete rerun, truthful failed-cell export and comparison remain pending.
+Complete rerun `35099796991` on reviewed SHA `81f4ae7` retained all 50 cells
+and exported `pr-401-r35099796991-a1` (ID
+`a6313674-e0cd-45b0-8d5b-037d885f1876`), with 50 native eval roots and 495
+tool children. Actual persisted baseline is the verified main Luna experiment
+`13590571-39c1-4a33-831d-db144fb1fc7a`. All 50 stable inputs, including prompt
+hashes, and all scenario guidance identities match. Luna has 50 validated
+successful reports versus DeepSeek's 48; the two DeepSeek failures are a second
+JSON object and literal newlines inside a JSON string, with native exit zero
+and no timeout. Summary failure accurately reports those model outcomes;
+aggregation and export succeeded. No evidence was repaired or discarded.
+
+Compared with Luna, DeepSeek cumulative duration is 2950.371 versus 787.752
+seconds, median duration 42.363 versus 13.556 seconds, MCP calls 495 versus
+205, tokens 10,015,782 versus 5,452,005, and recovered tool errors three versus
+five. Both have zero CLI tool calls and isolation violations. DeepSeek cost
+remains unknown; different report modes/reasoning presets and source paths
+prevent interpreting these operational metrics as an equal-budget quality
+score. Sampled paired answers are longer with more calls, without established
+better correctness. Keep Luna's default; no replacement is justified by this
+attempt. Full paired results, scenario wall times, failure details and review
+proof are now permanent in
+[implementation documentation](../implementation/agentic-eval-metrics.md#full-deepseek-matrix-comparison--2026-09-16).
+Regular CI `35099722242` passes Ubuntu/Windows, build/checks and compatibility.
+Internal preparation and the bounded external Opus lifecycle follow-up are
+clean. This increment's criteria are satisfied; future grading/variance phases
+retain their existing separate scope and product decisions.
 
 ## Phase 6 — Trend Policy And Result Quality
 
