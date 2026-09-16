@@ -142,8 +142,7 @@ Use the tools in these roles:
   evidence. Each package description advertises the nearest alternatives.
   `pkg_changelog` does not promise newest-first ordering or any other date
   ordering; callers should use the returned dates and versions.
-- **Language selection:** Use `search_language` only to resolve a
-  supported language name for `get_example`, not to search source.
+- **Language selection:** Omit `get_example.language` to infer it. If GitHits cannot match it, retry with a suggested language from the error or omit `language`.
 
 For locator selection, fragment precedence, Ask adaptation, and CLI compatibility,
 see [Unified read](unified-read.md).
@@ -153,8 +152,7 @@ see [Unified read](unified-read.md).
 | Tool | Parameters | Description |
 |---|---|---|
 | `quick_start` | none | Required first call for a plain GitHits MCP session. Loads untrusted-content safety rules, cross-tool routing, target syntax, and compact-output rules. A plain session that skips it lacks those rules; skip only when the `githits-mcp` skill is loaded. |
-| `get_example` | `query`, `language?`, `license_mode?`, `format?` | Find canonical cross-project examples when no single target is the answer or target-scoped search came up short. For a known package or repository, use `search`, `docs_*`, or `code_*`. Defaults to markdown with source provenance and an optional `solution_id` for result identification; pass `format: "json"` for `{result, solution_id?}`. |
-| `search_language` | `query`, `format?` | Resolve a supported language name or alias for `get_example`; do not use it for source search. Defaults to one compact line per match; pass `format: "json"` for structured matches. |
+| `get_example` | `query`, `language?`, `license_mode?`, `format?` | Find canonical cross-project examples when no single target is the answer or target-scoped search came up short. For a known package or repository, use `search`, `docs_*`, or `code_*`. Defaults to markdown with source provenance, plus an optional `solution_id` for result identification; pass `format: "json"` for `{result, solution_id?}`. Omit `language` to infer it; if GitHits cannot match it, retry with a suggested language from the error or omit `language`. |
 | `search` | `query`, `target?` (compact string), `targets?` (compact strings), `source?`, `public_only?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Discover relevant evidence in a known target before exact grep: docs, specs, code, symbols, tests, and examples ranked by relevance. Put kind, category, path, intent, name, and language constraints in `query`; omit `source` for broad discovery. Use `search_status` only when the response explicitly supplies a `searchRef` and action. |
 | `search_status` | `search_ref`, `wait_timeout_ms?`, `format?` | Continue an explicit `search` reference only after that response supplies a `searchRef` and `search_status` action. Inspect progress or retrieve interim, partial, or final hits; terminal and unrecognized statuses end that reference, so use a later `search` for a fresh session. |
 | `docs_list` | `registry`, `package_name`, `version?`, `limit?`, `after?`, `format?` | List package documentation targets and hand off to `read`; use `search` for topic discovery. Entries retain `docsReadTarget`, stable `pageId`, and provenance `sourceUrl`. Exact Go versions accept both `v`-prefixed and unprefixed forms. Repo-backed entries include exact source metadata for `read` when available. Active empty results remain preparation/indexing outcomes rather than becoming “not found”; provisional results retain already-available pages and lifecycle state. |
@@ -167,7 +165,7 @@ see [Unified read](unified-read.md).
 | `read` | `target` (string), `path?`, `start_line?`, `end_line?`, `wait_timeout_ms?`, `format?` | Read a code file with target + path, or docs page with target alone. Fragments select indexed sections unless explicit bounds override them. Text displays 150/300 lines; code caps before fetching, while docs JSON keeps the backend selection. Wait applies to code indexing only. See [unified read](unified-read.md). |
 | `code_grep` | `target` (compact string), `pattern`, `path?`, `path_prefix?`, `globs?`, `extensions?`, `pattern_type?`, `case_sensitive?`, `exclude_doc_files?`, `exclude_test_files?`, `context_lines?`, `context_lines_before?`, `context_lines_after?`, `max_matches?`, `max_matches_per_file?`, `cursor?`, `symbol_fields?`, `wait_timeout_ms?`, `format?` | Enumerate text, regex, or identifier matches in any public repository or package; results are deterministic and paginated. `max_matches_per_file` defaults to `max_matches`. |
 
-`quick_start`, `get_example`, `search_language`, `search`, `search_status`, `docs_list`, `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review`, `code_files`, `read`, and `code_grep` are registered by default. The package/source service URL defaults to the GitHits-managed endpoint and can be overridden via `GITHITS_CODE_NAV_URL` for local development.
+`quick_start`, `get_example`, `search`, `search_status`, `docs_list`, `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review`, `code_files`, `read`, and `code_grep` are registered by default. The package/source service URL defaults to the GitHits-managed endpoint and can be overridden via `GITHITS_CODE_NAV_URL` for local development.
 
 ## Transitive vulnerability audits
 
@@ -657,7 +655,7 @@ cost savings. Captures and reproduction scripts are under ignored
 
 **Compact punctuation.** Formatter-authored punctuation is ASCII, including the ` | ` and ` - ` separators; ellipsis is `...`; no box-drawing or decorative punctuation. Unicode in backend payloads (titles, summaries, paths, URLs, and notes) passes through unchanged. Tokenizer behavior for multi-byte UTF-8 varies across BPE variants, and the format runs into Claude, Codex CLI, OpenCode, Cline, Cursor, etc. — the small fixed vocabulary keeps it predictable.
 
-**Example-search anatomy.** `get_example` text mode returns markdown directly, followed by `solution_id: <id>` when the REST response includes an app URL. This avoids JSON-wrapped markdown while preserving result identity. `search_language` text mode returns one match per line as `name (Display Name) aliases: a, b`; agents should pass the `name` value to `get_example.language`.
+**Example-search anatomy.** `get_example` text mode returns markdown with source provenance, followed by `solution_id: <id>` when the response includes an app URL. This avoids JSON-wrapped markdown while preserving result identity. Omit `language` to infer it; if GitHits cannot match it, the error lists languages to retry with.
 
 **Package metadata anatomy.** `pkg_info`, `pkg_vulns`, `pkg_deps`, and `pkg_changelog` text mode reuse their shared no-color terminal formatters and inject surface-native hints where needed. `pkg_upgrade_review` uses one shared CLI/MCP formatter with caller width and ANSI as inputs. `pkg_deps` hides non-runtime groups by default and says `pass lifecycle="all"` when groups exist. `pkg_changelog` caps body previews and says `pass verbose=true`, `body_lines=<n>`, or `format="json"` when text omitted lines. Package tools keep JSON errors in all formats because agents can reliably branch on `{error, code, retryable, details?}`.
 
@@ -895,7 +893,7 @@ payload whose privilege, visibility, and repetition vary by host.
 
 `packages/mcp/src/mcp/instructions.ts` owns the `quick_start` guide sections:
 
-- **Core block** — always loaded. Introduces GitHits, defines its public-only scope, expands trigger criteria to include comparative cross-OSS questions and "how does X actually implement this" archaeology, and walks through the `get_example` / `search_language` workflow.
+- **Core block** — always loaded. Introduces GitHits, defines its public-only scope, expands trigger criteria to include comparative cross-OSS questions and "how does X actually implement this" archaeology, and walks through the `get_example` workflow.
 - **External-content block** — included by default from `packages/mcp/src/tools/guardrails.ts`; tells agents to treat third-party prose as data, not instructions.
 - **Package-tools block** — always appended. Contains a preamble plus one bullet
   per package/code tool and a reference-first strategy: source, symbols, tests,
@@ -1078,16 +1076,14 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 | `packages/mcp/src/tools/get-example.ts` | Example-search MCP tool definition |
 | `packages/mcp/src/tools/search.ts` | Unified indexed-search MCP tool definition |
 | `packages/mcp/src/tools/search-status.ts` | Follow-up MCP tool for incomplete unified searches |
-| `packages/mcp/src/tools/search-language.ts` | Tool with client-side filtering logic |
 | `packages/mcp/src/tools/types.ts` | `ToolDefinition` interface, `textResult`/`errorResult` helpers |
 | `packages/mcp/src/tools/shared.ts` | Shared MCP error/action helpers |
 | `packages/mcp/src/services/test-helpers.ts` | Mock service factories |
 | `packages/mcp/src/mcp/server.ts` | Transport-neutral MCP server construction and tool registration |
 | `packages/mcp/src/mcp/instructions.ts` | Stable guide builder returned by `quick_start` and copied into the loaded `githits-mcp` skill |
 | `src/commands/mcp.ts` | CLI stdio startup, request-header mode setup, and TTY setup instructions |
-| `packages/core-internal/src/services/githits-service.ts` | REST API client for example search and languages |
+| `packages/core-internal/src/services/githits-service.ts` | REST API client for example search |
 | `packages/core-internal/src/services/code-navigation-service.ts` | Package/source service client for unified `search`, `search_status`, `code_files`, `read`, and `code_grep` |
-| `packages/mcp/src/shared/language-filter.ts` | Pure `filterLanguages()` function shared between MCP tool and CLI |
 
 ## Related Documentation
 

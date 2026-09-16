@@ -9,7 +9,6 @@ describe("authenticated command metadata", () => {
     expect(AUTHENTICATED_COMMANDS.map((entry) => entry.path)).toEqual([
       "ask",
       "example",
-      "languages",
       "resolve",
       "settings",
       "settings show",

@@ -20,8 +20,8 @@ export type {
 
 /**
  * Wraps a tool handler with the shared structured `{error, code,
- * retryable}` error envelope. Used by always-on tools (`get_example`,
- * `search_language`) so agents can branch on `code`
+ * retryable}` error envelope. Used by always-on tools (`get_example`)
+ * so agents can branch on `code`
  * uniformly with code-navigation tools instead of text-parsing.
  */
 export async function withErrorHandling<T>(
