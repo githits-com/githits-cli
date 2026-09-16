@@ -18,6 +18,7 @@ import {
   askAction,
   formatAgenticAskHumanResponse,
   formatAgenticAskSourceCommand,
+  projectAgenticAskCliSources,
   registerAskCommand,
   resolveAskCommandPositionals,
   validateAskCommandBeforeAction,
@@ -248,6 +249,37 @@ describe("askAction", () => {
     ).rejects.toThrow("thread UUID");
     expect(ask).not.toHaveBeenCalled();
   });
+
+  it("rejects a legacy repository target before authentication or service work", async () => {
+    const ask = mock(() => Promise.resolve(result()));
+
+    await expect(
+      askAction(
+        "github:expressjs/express#main",
+        "How?",
+        {},
+        createDeps(ask, { hasValidToken: false }),
+      ),
+    ).rejects.toThrow(
+      'Use "github:expressjs/express@main"; # is reserved for semantic fragments.',
+    );
+    expect(ask).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "https://expressjs.com/en/guide/",
+    "https://github.com/facebook/react/tree/main#readme",
+  ])(
+    "leaves non-repository URL target %s for backend classification",
+    async (target) => {
+      const ask = mock(() => Promise.resolve(result()));
+      spyOn(process.stdout, "write").mockImplementation(() => true);
+
+      await askAction(target, "How?", {}, createDeps(ask));
+
+      expect(ask).toHaveBeenCalledWith({ target, question: "How?" }, undefined);
+    },
+  );
 
   it("emits only the validated response on JSON stdout", async () => {
     const response = result();
@@ -522,6 +554,69 @@ describe("askAction", () => {
 });
 
 describe("Agentic Ask human formatting", () => {
+  it("canonicalizes legacy code source targets without mutating docs locators", () => {
+    const wire = result({
+      sources: [
+        {
+          command: "npx",
+          arguments: [
+            "githits@latest",
+            "code",
+            "read",
+            "--lines",
+            "10-20",
+            "--",
+            "github:owner/repo#release@stable",
+            "src/index.ts",
+          ],
+        },
+        {
+          command: "npx",
+          arguments: [
+            "githits@latest",
+            "docs",
+            "read",
+            "--lines",
+            "3-8",
+            "--",
+            "github:owner/repo@abc123/guide.md#configuration",
+          ],
+        },
+      ],
+    });
+    const original = structuredClone(wire);
+    const projected = projectAgenticAskCliSources(wire);
+
+    expect(projected).toMatchObject({
+      sources: [
+        {
+          arguments: [
+            "githits@latest",
+            "code",
+            "read",
+            "--lines",
+            "10-20",
+            "--",
+            "github:owner/repo@release@stable",
+            "src/index.ts",
+          ],
+        },
+        {
+          arguments: [
+            "githits@latest",
+            "docs",
+            "read",
+            "--lines",
+            "3-8",
+            "--",
+            "github:owner/repo@abc123/guide.md#configuration",
+          ],
+        },
+      ],
+    });
+    expect(wire).toEqual(original);
+  });
+
   it.each([
     {
       target: "https://docs.example/page?lang=en&view=full#section",

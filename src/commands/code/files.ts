@@ -237,7 +237,7 @@ and \`githits code grep\`.
 --glob) are OR-ed — a file matches if any selector matches. The other
 filters intersect on top.
 
-Addressing: <target> (registry:name[@version], github:org/repo[#ref|@ref], codeberg:owner/repo[#ref|@ref], gitlab:group[/subgroup...]/project[#ref|@ref],
+Addressing: <target> (registry:name[@version], github:org/repo[@ref], codeberg:owner/repo[@ref], gitlab:group[/subgroup...]/project[@ref],
 approved full HTTPS URLs on github.com, codeberg.org, or gitlab.com;
 GitHub also accepts github.com/org/repo and HTTP) OR
 --repo-url <url> [--git-ref <ref>]. Omitted package version means latest release.

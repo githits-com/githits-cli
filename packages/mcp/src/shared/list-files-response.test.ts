@@ -247,7 +247,7 @@ describe("formatListFilesTerminal", () => {
       verbose: true,
       useColors: false,
     });
-    expect(stdout).toContain("github:expressjs/express#main");
+    expect(stdout).toContain("github:expressjs/express@main");
   });
 
   it("plain mode hasMore: stdout stays clean; warning goes to stderr", () => {

@@ -9,7 +9,11 @@ import {
   AuthRequiredError,
   buildAuthRequiredErrorPayload,
   formatAgenticAskClarification,
+  formatRepositoryTargetLabel,
+  isRepositoryTargetSpec,
+  LegacyRepositoryRefError,
   mapAgenticAskError,
+  parseRepositoryTargetSpec,
   requireAuth,
   sanitizeTerminalText,
   shellQuote,
@@ -37,6 +41,10 @@ export interface AskCommandDependencies {
   signal?: AbortSignal;
   createSpinner?: () => Spinner;
 }
+
+// Positions are fixed by core-internal's cliSourceArgumentsSchema code tuple.
+const CLI_CODE_SOURCE_KIND_INDEX = 1;
+const CLI_CODE_SOURCE_TARGET_INDEX = 6;
 
 export async function askAction(
   target: string | undefined,
@@ -70,10 +78,11 @@ export async function askAction(
             requestOptions,
           );
     spinner.stop();
+    const projected = projectAgenticAskCliSources(result);
     if (options.json) {
-      console.log(JSON.stringify(result));
+      console.log(JSON.stringify(projected));
     } else {
-      process.stdout.write(formatAgenticAskHumanResponse(result));
+      process.stdout.write(formatAgenticAskHumanResponse(projected));
     }
   } catch (error) {
     spinner.stop();
@@ -141,6 +150,33 @@ export function formatAgenticAskSourceCommand(
     .join(" ");
 }
 
+/** Canonicalize typed code source targets while preserving docs and URL locators. */
+export function projectAgenticAskCliSources(
+  response:
+    | AgenticAskCliResponse
+    | AgenticAskUrlResponse
+    | AgenticAskNeedsTargetResponse,
+):
+  | AgenticAskCliResponse
+  | AgenticAskUrlResponse
+  | AgenticAskNeedsTargetResponse {
+  if ("outcome" in response || response.source_format === "url")
+    return response;
+  return {
+    ...response,
+    sources: response.sources.map((source) => {
+      if (source.arguments[CLI_CODE_SOURCE_KIND_INDEX] === "code") {
+        const args = [...source.arguments] as typeof source.arguments;
+        args[CLI_CODE_SOURCE_TARGET_INDEX] =
+          formatRepositoryTargetLabel(args[CLI_CODE_SOURCE_TARGET_INDEX]) ??
+          args[CLI_CODE_SOURCE_TARGET_INDEX];
+        return { ...source, arguments: args };
+      }
+      return source;
+    }),
+  };
+}
+
 function sanitizeTerminalMarkdown(value: string): string {
   return value
     .split(/\r\n|\n|\r/)
@@ -177,7 +213,18 @@ function resolveAskSubject(
       "Do not provide a target together with --thread.",
     );
   }
-  if (target !== undefined) return { target };
+  if (target !== undefined) {
+    if (isRepositoryTargetSpec(target)) {
+      try {
+        parseRepositoryTargetSpec(target);
+      } catch (error) {
+        if (error instanceof LegacyRepositoryRefError) {
+          throw new InvalidArgumentError(error.message);
+        }
+      }
+    }
+    return { target };
+  }
   if (thread === undefined) return {};
 
   const threadId = normalizeAgenticAskThreadId(thread);

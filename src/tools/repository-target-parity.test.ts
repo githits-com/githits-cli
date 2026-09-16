@@ -78,17 +78,17 @@ describe("provider target consumer parity", () => {
       const codeFilesResult = await createParityMcpTool(
         "code_files",
         deps,
-      ).handler({ target: `${compact}#release/v1@stable` }, {});
+      ).handler({ target: `${compact}@release/v1@stable` }, {});
       const codeGrepResult = await createParityMcpTool(
         "code_grep",
         deps,
       ).handler(
-        { target: `${compact}#release/v1@stable`, pattern: "export" },
+        { target: `${compact}@release/v1@stable`, pattern: "export" },
         {},
       );
       const readResult = await createParityMcpTool("read", deps).handler(
         {
-          target: `${compact}#release/v1@stable`,
+          target: `${compact}@release/v1@stable`,
           path: "src/index.ts",
           start_line: 10,
           end_line: 500,
@@ -115,7 +115,7 @@ describe("provider target consumer parity", () => {
       );
       expect(read).toHaveBeenCalledTimes(1);
       expect(read).toHaveBeenCalledWith({
-        target: `${compact}#release/v1@stable`,
+        target: `${compact}@release/v1@stable`,
         path: "src/index.ts",
         startLine: 10,
         endLine: 309,
@@ -135,12 +135,12 @@ describe("provider target consumer parity", () => {
       try {
         await searchAction(
           "decimal",
-          { in: [`${compact}#exact@commit`], source: "code", json: true },
+          { in: [`${compact}@exact@commit`], source: "code", json: true },
           deps,
         );
         const result = await createParityMcpTool("search", deps).handler(
           {
-            target: `${compact}#exact@commit`,
+            target: `${compact}@exact@commit`,
             query: "decimal",
             source: "code",
             format: "json",
@@ -178,7 +178,7 @@ describe("provider target consumer parity", () => {
         },
       };
       expect(buildSearchHitFollowUpCommand(hit)).toContain(
-        `${compact}#0123456789abcdef`,
+        `${compact}@0123456789abcdef`,
       );
       const cli = buildSearchHitFollowUpCommand(hit, "cli");
       expect(cli).toContain(repoUrl);

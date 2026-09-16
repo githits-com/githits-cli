@@ -10,13 +10,12 @@ describe("parseUnifiedSearchTargetSpec", () => {
     });
   });
 
-  it("preserves repository refs containing @ with # syntax", () => {
-    expect(
+  it("rejects legacy repository refs with the canonical replacement", () => {
+    expect(() =>
       parseUnifiedSearchTargetSpec("https://github.com/n8n-io/n8n#n8n@2.26.5"),
-    ).toEqual({
-      repoUrl: "https://github.com/n8n-io/n8n",
-      gitRef: "n8n@2.26.5",
-    });
+    ).toThrow(
+      'Use "https://github.com/n8n-io/n8n@n8n@2.26.5"; # is reserved for semantic fragments.',
+    );
   });
 
   it("splits @ repository refs without truncating @ inside the ref", () => {
@@ -32,7 +31,7 @@ describe("parseUnifiedSearchTargetSpec", () => {
     expect(() =>
       parseUnifiedSearchTargetSpec("https://github.com/n8n-io/n8n/tree/main"),
     ).toThrow(
-      "Repository URL targets must point to github.com/owner/repo; pass refs with #gitRef or @gitRef.",
+      "Repository URL targets must point to github.com/owner/repo; pass refs with @gitRef.",
     );
   });
 

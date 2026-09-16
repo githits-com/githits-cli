@@ -431,7 +431,7 @@ describe("searchTool", () => {
     await tool.handler(
       {
         query: "handler",
-        targets: ["https://github.com/expressjs/express#v5.0.0"],
+        targets: ["https://github.com/expressjs/express@v5.0.0"],
       },
       {},
     );

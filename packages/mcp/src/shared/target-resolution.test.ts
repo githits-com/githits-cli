@@ -34,7 +34,7 @@ describe("target-resolution helpers", () => {
     expect(notes[0]).toContain(
       "Using recent indexed snapshot while branch resolution is deferred",
     );
-    expect(notes[0]).toContain("served=github:foo/bar#main@abc1237");
+    expect(notes[0]).toContain("served=github:foo/bar@main (commit abc1237)");
     expect(notes[0]).not.toContain("fresh=");
     expect(notes[1]).toBe("queryable now: refs=main");
   });
@@ -61,11 +61,11 @@ describe("target-resolution helpers", () => {
     expect(notes[0]).toContain(
       "Serving an older indexed snapshot; current target is still being indexed",
     );
-    expect(notes[0]).toContain("served=github:foo/bar#v1.0.0@abc1237");
-    expect(notes[0]).toContain("fresh=github:foo/bar#main@def4567");
+    expect(notes[0]).toContain("served=github:foo/bar@v1.0.0 (commit abc1237)");
+    expect(notes[0]).toContain("fresh=github:foo/bar@main (commit def4567)");
   });
 
-  it("renders repository refs containing @ with canonical # syntax", () => {
+  it("renders repository refs containing @ with canonical @ syntax", () => {
     const notes = buildTargetResolutionNotes({
       requested: {
         repoUrl: "https://github.com/n8n-io/n8n",
@@ -77,8 +77,17 @@ describe("target-resolution helpers", () => {
     });
 
     expect(notes[0]).toBe(
-      "Target unavailable | requested=github:n8n-io/n8n#n8n@2.26.5",
+      "Target unavailable | requested=github:n8n-io/n8n@n8n@2.26.5",
     );
+  });
+
+  it("keeps commit-only repository identities short and canonical", () => {
+    expect(
+      formatTargetResolutionIdentity({
+        repoUrl: "https://github.com/foo/bar",
+        commitSha: "fd3d47cec611714272f68692b6fc91db575b41bf",
+      }),
+    ).toBe("github:foo/bar@fd3d47c");
   });
 
   it("projects and renders standalone site identities", () => {
@@ -121,9 +130,9 @@ describe("target-resolution helpers", () => {
     });
 
     expect(notes[0]).toContain("Requested ref is being indexed");
-    expect(notes[0]).toContain("requested=github:foo/bar#feature");
-    expect(notes[0]).toContain("fresh=github:foo/bar#feature@def4567");
-    expect(notes[0]).toContain("served=github:foo/bar#main@abc1237");
+    expect(notes[0]).toContain("requested=github:foo/bar@feature");
+    expect(notes[0]).toContain("fresh=github:foo/bar@feature (commit def4567)");
+    expect(notes[0]).toContain("served=github:foo/bar@main (commit abc1237)");
     expect(notes[0]).toContain("indexingRef=idx_123");
   });
 
@@ -143,7 +152,7 @@ describe("target-resolution helpers", () => {
       availableRefs: [],
     });
 
-    expect(notes[0]).toContain("served=github:foo/bar#main@abc1237");
+    expect(notes[0]).toContain("served=github:foo/bar@main (commit abc1237)");
     expect(notes[0]).not.toContain("fresh=");
   });
 
@@ -171,7 +180,7 @@ describe("target-resolution helpers", () => {
     });
 
     expect(notes).toEqual([
-      "provisional (still indexing) | served=github:foo/bar#main@abc1237 | indexingRef=idx_123",
+      "provisional (still indexing) | served=github:foo/bar@main (commit abc1237) | indexingRef=idx_123",
     ]);
     expect(notes[0]).not.toContain("requested=");
     expect(notes[0]).not.toContain("fresh=");

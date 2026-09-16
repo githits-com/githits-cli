@@ -636,13 +636,13 @@ describe("runMcpSmoke", () => {
     [
       "focused evidence",
       "1 result | 1 repo code hit\n\n" +
-        "[1] github:owner/repo#abc123 packages/pkg/src/compact.ts:920-930 [repo code] - compact (function at lines 858-964)\n" +
+        "[1] github:owner/repo@abc123 packages/pkg/src/compact.ts:920-930 [repo code] - compact (function at lines 858-964)\n" +
         "  // Merge into single summary",
     ],
     [
       "equal evidence",
       "1 result | 1 repo symbol\n\n" +
-        "[1] github:owner/repo#abc123 packages/pkg/src/compact.ts:858-964 [repo symbol] - compact (function)",
+        "[1] github:owner/repo@abc123 packages/pkg/src/compact.ts:858-964 [repo symbol] - compact (function)",
     ],
   ])("allows a unified repository hit with %s", async (_name, searchText) => {
     const caller = createCaller(async (name, args) => {
@@ -711,11 +711,11 @@ describe("runMcpSmoke", () => {
     [
       "1 result\n\n" +
         "[1] compact - function defined at packages/pkg/src/compact.ts:858-964\n" +
-        "  github:owner/repo#abc123 evidence at 920-930 [repo code]",
+        "  github:owner/repo@abc123 evidence at 920-930 [repo code]",
     ],
     [
       "1 result\n\n[1] compact - function defined at location unavailable\n" +
-        "  github:owner/repo#abc123 evidence at 920-930 [repo code]",
+        "  github:owner/repo@abc123 evidence at 920-930 [repo code]",
     ],
   ])("rejects incomplete or prose-only hit follow-ups", async (searchText) => {
     const caller = createCaller(async (name, args) => {

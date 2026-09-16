@@ -14,7 +14,7 @@ import { createParityMcpTool } from "./parity-test-helpers.js";
 const indexingEstimates: DiscoveryIndexingEstimate[] = [
   {
     kind: "REPOSITORY",
-    targets: ["npm:express", "github:expressjs/express"],
+    targets: ["npm:express", "github:expressjs/express#release@candidate"],
     repositoryUrl: "https://github.com/expressjs/express",
     estimate: {
       lowerSeconds: 10,
@@ -26,9 +26,20 @@ const indexingEstimates: DiscoveryIndexingEstimate[] = [
   },
   {
     kind: "DOCUMENTATION",
-    targets: ["npm:express"],
+    targets: [
+      "https://github.com/expressjs/express/docs#routing",
+      "https://docs.example.com/api#routing",
+    ],
     unavailableReason: "UNSUPPORTED_WORK",
   },
+];
+
+const projectedIndexingEstimates: DiscoveryIndexingEstimate[] = [
+  {
+    ...indexingEstimates[0]!,
+    targets: ["npm:express", "github:expressjs/express@release@candidate"],
+  },
+  indexingEstimates[1]!,
 ];
 
 function outcome(
@@ -118,7 +129,9 @@ for (const operation of ["search", "search_status"] as const) {
       const { cli, mcp } = await responses(outcome("INDEXING"), true);
       const payload = JSON.parse(cli);
       expect(payload).toEqual(JSON.parse(mcp));
-      expect(payload.progress.indexingEstimates).toEqual(indexingEstimates);
+      expect(payload.progress.indexingEstimates).toEqual(
+        projectedIndexingEstimates,
+      );
       expect(payload.progress.next).toBe(
         'search_status search_ref="estimate-ref" wait_timeout_ms=50000',
       );
@@ -216,7 +229,9 @@ for (const operation of ["search", "search_status"] as const) {
         const payload = JSON.parse(
           (await responses(outcome(status), true)).cli,
         );
-        expect(payload.progress.indexingEstimates).toEqual(indexingEstimates);
+        expect(payload.progress.indexingEstimates).toEqual(
+          projectedIndexingEstimates,
+        );
         expect(payload.progress.next).not.toContain("search_status");
       },
     );

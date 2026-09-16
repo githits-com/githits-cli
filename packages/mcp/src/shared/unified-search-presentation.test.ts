@@ -357,7 +357,7 @@ describe("projectUnifiedSearchPresentation", () => {
             resultCount: 0,
           }),
           source({
-            targetLabel: "github:owner/repo#main",
+            targetLabel: "github:owner/repo@main",
             indexingStatus: "UNRESOLVABLE",
             codeIndexState: "UNRESOLVABLE",
             targetResolution: {
@@ -924,7 +924,7 @@ describe("projectUnifiedSearchPresentation", () => {
               availableVersions: [{ version: "4.18.2", ref: "v4.18.2" }],
             },
             {
-              requested: "github:expressjs/express#main",
+              requested: "github:expressjs/express@main",
               availableRefs: [{ ref: "main" }],
             },
           ],
@@ -938,13 +938,13 @@ describe("projectUnifiedSearchPresentation", () => {
         versions: [{ version: "4.18.2", ref: "v4.18.2" }],
       }),
       expect.objectContaining({
-        target: "github:expressjs/express#main",
+        target: "github:expressjs/express@main",
         refs: [{ ref: "main" }],
       }),
     ]);
     expect(presentation.targetGroups.map((group) => group.identity)).toEqual([
       { requested: "npm:express latest" },
-      { requested: "github:expressjs/express#main" },
+      { requested: "github:expressjs/express@main" },
     ]);
   });
 
@@ -1346,8 +1346,8 @@ describe("projectUnifiedSearchPresentation", () => {
     expect(targetDisplayFamilyKey("npm:express latest")).toBe(
       targetDisplayFamilyKey("npm:express@5.2.1"),
     );
-    expect(targetDisplayFamilyKey("github:expressjs/express#main")).toBe(
-      targetDisplayFamilyKey("github:expressjs/express#refs/heads/main"),
+    expect(targetDisplayFamilyKey("github:expressjs/express@main")).toBe(
+      targetDisplayFamilyKey("github:expressjs/express@refs/heads/main"),
     );
     expect(
       targetDisplayFamilyKey("github:expressjs/express@refs/heads/main"),

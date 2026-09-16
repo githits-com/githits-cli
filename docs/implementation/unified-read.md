@@ -78,15 +78,18 @@ options. CLI `--wait` has the same applicability as the MCP wait parameter.
 
 The backend Ask contract still returns typed `code_read` and `docs_read` source
 pointers. `projectAskReadSources()` beside the local MCP Ask adapter projects these
-into callable `read` pointers before text or JSON rendering. Code preserves its
-target/path/bounds; docs maps `page_id` to `target`. All other response metadata is
-preserved and the original backend response is not mutated. URL and clarification
-responses pass through unchanged. This keeps MCP and backend rollouts independent.
+into callable `read` pointers before text or JSON rendering. Typed code targets are
+also normalized from backend-authored legacy repository labels to canonical
+`provider:path@ref`; docs maps `page_id` to `target` without parsing it, so emitted
+repository-backed documentation fragments and URL fragments remain byte-for-byte
+unchanged. All other response metadata is preserved and the original backend
+response is not mutated. URL and clarification responses pass through unchanged.
 
-Core service consumers still see the backend contract. CLI Ask continues to display
-backend-provided argv because the legacy CLI commands remain functional; do not
-parse or rewrite opaque command strings. Catalog names belong to the MCP adapter,
-not the backend service parser.
+Core service consumers still see the backend contract. CLI Ask recognizes only its
+validated `githits code read` argv tuple and normalizes that tuple's target before
+text or JSON rendering. It never parses documentation argv, URLs, answer prose, or
+other opaque command shapes. Catalog names belong to the MCP adapter, not the
+backend service parser.
 
 ## Migration and future extension
 
@@ -104,10 +107,9 @@ surfaces and record backend usage as `read`. Deprecated `githits code read` and
 observable compatibility cohort; backend analytics distinguish canonical
 `read` from legacy `code_read`/`docs_read`. Top-level `githits read --repo-url ...` also
 stays on `fetchCodeContext`: its structured repository URL plus git-ref input
-cannot be represented losslessly in compact syntax when the ref contains `#`,
-because `#` is the compact target's ref delimiter. These paths have no removal
-date or threshold in this documentation; usage statistics are evidence for a
-future product decision.
+is an independent interface and does not require compact-target parsing. These
+paths have no removal date or threshold in this documentation; usage statistics
+are evidence for a future product decision.
 
 Local CLI and stdio MCP use the new service after the package release. Hosted
 adoption is separate: release `@githits/mcp`, update `remote-mcp` to construct
@@ -118,7 +120,7 @@ legacy/current behavior. This repository does not deploy the hosted server.
 
 Symbols are future-only: a future `symbol` selector beside `target` and `path` can
 select a backend-resolved symbol, with explicit bounds overriding semantic
-selection. No symbol parameter is currently advertised or implemented. Git `#ref`
+selection. No symbol parameter is currently advertised or implemented. Git refs
 and file paths are not repurposed to encode symbols. The backend must own symbol
 identity, revision resolution, and ambiguous/overloaded definitions when added.
 
@@ -315,7 +317,7 @@ All comparisons use `main-r34592914082-a1` at `74e316e` as the baseline.
 
 Correction validation: 4,712 unit tests passed; typecheck and CI-mode public
 package validation passed. The live Express payload rendered
-`github:expressjs/express#dbac741a49a5a64336b70c06e85c2e2706e36336`; passing that
+`github:expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336`; passing that
 locator unchanged to `read` returned the requested application-source lines
 55-90, including both router options. Source and built CLI/MCP smoke checks
 cover unauthenticated handling and MCP registration. The 11-line formatter

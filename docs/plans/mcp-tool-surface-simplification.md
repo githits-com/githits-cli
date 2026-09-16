@@ -238,7 +238,7 @@ None of these later unknowns blocks Phase 1.
 - **Migration:** Release notes must show direct conversions such as
   `{registry:"npm",package_name:"express",version:"5.2.1"}` to
   `"npm:express@5.2.1"` and `{repo_url:"https://github.com/expressjs/express",
-  git_ref:"main"}` to `"github:expressjs/express#main"`. They must also show the
+  git_ref:"main"}` to `"github:expressjs/express@main"`. They must also show the
   search-only conversion `{site:"https://expressjs.com/"}` to
   `"site:https://expressjs.com/"` or its canonical equivalent
   `"site:expressjs.com"`. No server-side dual-schema period is planned.

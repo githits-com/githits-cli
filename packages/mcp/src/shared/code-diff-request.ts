@@ -4,6 +4,7 @@ import type {
 } from "@githits/core-internal";
 import { parseCodeNavigationTargetSpec } from "./code-navigation-target.js";
 import { InvalidPackageSpecError, KNOWN_REGISTRIES } from "./package-spec.js";
+import { LegacyRepositoryRefError } from "./repository-target.js";
 
 export type CodeDiffView = "patch" | "stat" | "name-only" | "name-status";
 
@@ -186,7 +187,10 @@ function buildTargetFromRaw(
 function parseTarget(raw: string): CodeNavigationTarget {
   try {
     return parseCodeNavigationTargetSpec(raw);
-  } catch {
+  } catch (error) {
+    if (error instanceof LegacyRepositoryRefError) {
+      throw invalid(error.message);
+    }
     throw invalid(
       `Invalid Diff target. Expected an unversioned package target \`<registry>:<name>\` (for example \`npm:express\`; supported registries: ${KNOWN_REGISTRIES.join(", ")}) or an unversioned repository target (for example \`github:expressjs/express\`, \`codeberg:owner/repo\`, or \`gitlab:group/subgroup/project\`).`,
     );

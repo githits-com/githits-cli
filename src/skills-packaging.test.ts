@@ -100,6 +100,14 @@ describe("agent skills packaging", () => {
       "swift:github.com/<owner>/<repo>",
       "zig:gh/<owner>/<repo>",
     ]);
+
+    expectContainsAll(codeReference, [
+      "Repository refs use an @ suffix and may themselves contain / and @; # is reserved for semantic fragments.",
+    ]);
+    expectNotContainsAllIgnoringWhitespace(codeReference, [
+      "Refs may contain / and @ after # or @",
+      "[#ref|@ref]",
+    ]);
   });
 
   it("packages a public githits-onboarding skill with setup-focused frontmatter", async () => {

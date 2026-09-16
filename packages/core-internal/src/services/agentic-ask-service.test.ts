@@ -278,12 +278,12 @@ describe("AgenticAskServiceImpl", () => {
     {
       subject: { target: "npm:example" },
       message:
-        "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo#ref or a package such as npm:prisma@version. To correct a follow-up, keep thread_id and name the exact project or version in the question.",
+        "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo@ref or a package such as npm:prisma@version. To correct a follow-up, keep thread_id and name the exact project or version in the question.",
     },
     {
       subject: { threadId: THREAD_ID },
       message:
-        "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo#ref or a package such as npm:prisma@version. To correct a follow-up, keep thread_id and name the exact project or version in the question.",
+        "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo@ref or a package such as npm:prisma@version. To correct a follow-up, keep thread_id and name the exact project or version in the question.",
     },
   ])(
     "keeps 400 guidance accurate for the supplied subject: %j",
@@ -929,7 +929,7 @@ describe("Ask target diagnostics", () => {
     const syntax = {
       code: "INVALID_TARGET_SYNTAX",
       message: "Invalid target syntax.",
-      hint: "Use github:owner/repo[#ref] or registry:package[@version].",
+      hint: "Use github:owner/repo[@ref] or registry:package[@version].",
     };
     const fetchFn = mock(() =>
       Promise.resolve(jsonResponse({ detail: syntax }, { status: 400 })),
@@ -1054,7 +1054,7 @@ describe("Ask target diagnostics", () => {
       expect(error).toBeInstanceOf(AgenticAskHttpError);
       expect((error as Error).message).not.toContain("private provider detail");
       expect((error as AgenticAskHttpError).targetError).toBeUndefined();
-      expect((error as Error).message).toContain("github:owner/repo#ref");
+      expect((error as Error).message).toContain("github:owner/repo@ref");
     }
   });
 

@@ -102,7 +102,7 @@ const searchTargetSchema = z
   .string()
   .min(1)
   .describe(
-    "Compact package, repository, or exact docs-site target, such as `npm:react`, `github:facebook/react`, or `site:react.dev`.",
+    "Compact package, repository, or exact docs-site target, such as `npm:react`, `github:facebook/react@main`, or `site:react.dev`. Repository revisions use `@ref`; `#` is reserved for semantic fragments.",
   );
 
 const schema: ZodRawShape = {
@@ -115,7 +115,7 @@ const schema: ZodRawShape = {
   target: searchTargetSchema
     .optional()
     .describe(
-      "One compact package, repository, or exact docs-site target, such as `npm:react`, `github:facebook/react`, or `site:react.dev`. Do not also pass `targets`.",
+      "One compact package, repository, or exact docs-site target, such as `npm:react`, `github:facebook/react@main`, or `site:react.dev`. Repository revisions use `@ref`; `#` is reserved for semantic fragments. Do not also pass `targets`.",
     ),
   targets: z
     .array(searchTargetSchema)

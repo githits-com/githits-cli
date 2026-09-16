@@ -24,11 +24,10 @@ describe("createListFilesTool — metadata", () => {
     const jsonSchema = z.toJSONSchema(z.object(descriptor?.schema ?? {}));
     const targetSchema = JSON.stringify(jsonSchema.properties?.target);
 
-    expect(targetSchema).toContain(
-      "Compact package or public-repository target",
-    );
+    expect(targetSchema).toContain("Compact package or repository target");
     expect(targetSchema).toContain("npm:react");
-    expect(targetSchema).toContain("github:facebook/react");
+    expect(targetSchema).toContain("github:facebook/react@main");
+    expect(targetSchema).toContain("#` is reserved for semantic fragments");
     expect(descriptor?.description.slice(0, 80)).toBe(
       "List indexed files and paths in a public repo or package. Then use `read` or `co",
     );
@@ -124,7 +123,7 @@ describe("createListFilesTool — happy path", () => {
 
     await tool.handler(
       {
-        target: "https://github.com/expressjs/express#HEAD",
+        target: "https://github.com/expressjs/express@HEAD",
       },
       {},
     );
@@ -213,7 +212,7 @@ describe("createListFilesTool — happy path", () => {
     const tool = createListFilesTool(createMockCodeNavigationService());
     const result = await tool.handler(
       {
-        target: "https://github.com/expressjs/express#main",
+        target: "https://github.com/expressjs/express@main",
         format: "json",
       },
       {},
