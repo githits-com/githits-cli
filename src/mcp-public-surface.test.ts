@@ -64,7 +64,6 @@ function registeredTool(server: McpServer, name: string): RegisteredTool {
 const EXPECTED_DESCRIPTOR_NAMES = [
   "quick_start",
   "get_example",
-  "search_language",
   "search",
   "search_status",
   "code_files",
@@ -81,7 +80,6 @@ const EXPECTED_DESCRIPTOR_NAMES = [
 const EXPECTED_SMOKE_NAMES = [
   "quick_start",
   "get_example",
-  "search_language",
   "pkg_info",
   "pkg_deps",
   "pkg_vulns",
@@ -114,7 +112,7 @@ describe("public MCP package surface", () => {
     );
 
     expect(names).toEqual([...EXPECTED_DESCRIPTOR_NAMES]);
-    expect(names).toHaveLength(14);
+    expect(names).toHaveLength(13);
     expect(names).toContain("read");
     expect(names).not.toContain("code_read");
     expect(names).not.toContain("docs_read");
@@ -286,9 +284,7 @@ describe("public MCP package surface", () => {
         authAction: action,
         services: createServices({
           githitsService: createMockGitHitsService({
-            searchLanguages: mock(() =>
-              Promise.reject(new AuthenticationError()),
-            ),
+            search: mock(() => Promise.reject(new AuthenticationError())),
           }),
         }),
       });
@@ -296,14 +292,14 @@ describe("public MCP package surface", () => {
     };
 
     const [resultA, resultB] = await Promise.all([
-      registeredTool(makeServer("authenticate A"), "search_language").handler(
+      registeredTool(makeServer("authenticate A"), "get_example").handler(
         { query: "python", format: "json" },
         undefined as unknown as RequestHandlerExtra<
           ServerRequest,
           ServerNotification
         >,
       ),
-      registeredTool(makeServer("authenticate B"), "search_language").handler(
+      registeredTool(makeServer("authenticate B"), "get_example").handler(
         { query: "python", format: "json" },
         undefined as unknown as RequestHandlerExtra<
           ServerRequest,

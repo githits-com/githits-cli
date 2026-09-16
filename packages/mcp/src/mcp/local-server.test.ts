@@ -27,7 +27,6 @@ import {
 const EXPECTED_STABLE_NAMES = [
   "quick_start",
   "get_example",
-  "search_language",
   "search",
   "search_status",
   "code_files",
@@ -126,7 +125,7 @@ describe("createLocalMcpServer", () => {
         expect(tool.annotations, name).toEqual({
           readOnlyHint: true,
           destructiveHint: false,
-          openWorldHint: !["quick_start", "search_language"].includes(name),
+          openWorldHint: name !== "quick_start",
         });
       }
     },
@@ -143,7 +142,7 @@ describe("createLocalMcpServer", () => {
       });
 
       expect(registeredToolNames(server)).toEqual([...EXPECTED_STABLE_NAMES]);
-      expect(registeredToolNames(server)).toHaveLength(14);
+      expect(registeredToolNames(server)).toHaveLength(13);
       expect(registeredToolNames(server)).toContain("read");
       expect(registeredToolNames(server)).not.toContain("code_read");
       expect(registeredToolNames(server)).not.toContain("docs_read");
@@ -175,7 +174,7 @@ describe("createLocalMcpServer", () => {
     expect(registeredToolNames(server)).toEqual([
       ...EXPECTED_EXPERIMENTAL_NAMES,
     ]);
-    expect(registeredToolNames(server)).toHaveLength(17);
+    expect(registeredToolNames(server)).toHaveLength(16);
     expect(registeredToolNames(server)).not.toContain("code_read");
     expect(registeredToolNames(server)).not.toContain("docs_read");
     expect(serverInstructions(server)).toBeUndefined();

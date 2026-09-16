@@ -21,9 +21,8 @@ Use GitHits for evidence from real open-source code instead of guessing from mod
 
 ## Decision Flow
 
-- Need a canonical cross-project example or pattern: `githits example "<focused question>"`; include source repositories/citations from GitHits' generated references/provenance section whenever present.
+- Need a canonical cross-project example or pattern: `githits example "<focused question>"`; include source repositories/citations from GitHits' generated references/provenance section. If GitHits cannot match `--lang`, retry with a suggested language from the error, or omit `--lang`.
 - Need package metadata, vulnerability/advisory status, dependency graphs, or release notes: stop and use the `githits-package` skill instead.
-- Exact language name uncertain for `example --lang`: run `githits languages <query>` first.
 - Inspecting a known dependency or public repository: start with `githits search` scoped by `--in`.
 - Searching an exact standalone documentation site: use `githits search "<topic>" --source docs --in site:<host[/path]>`. If the result reports suggested site targets, retry one explicitly; suggestions are advisory targets, not aliases.
 - Need file/path enumeration: use `githits code files`; do not probe directories with `code read`.
@@ -35,7 +34,6 @@ Use GitHits for evidence from real open-source code instead of guessing from mod
 ```bash
 githits example "how to use express middleware"
 githits example "react hooks patterns" --lang typescript
-githits languages type
 
 githits search "router middleware" --in npm:express@5.2.1
 githits search "debounce" --in npm:lodash@4.18.1 --source symbol

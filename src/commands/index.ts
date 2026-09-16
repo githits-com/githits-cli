@@ -36,12 +36,6 @@ export {
   registerInitCommand,
 } from "./init/index.js";
 export {
-  type LanguagesDependencies,
-  type LanguagesOptions,
-  languagesAction,
-  registerLanguagesCommand,
-} from "./languages.js";
-export {
   type LoginDependencies,
   type LoginOptions,
   loginAction,

@@ -24,7 +24,6 @@ function createTestServices(
 const KNOWN_TOOLS = [
   "search",
   "get_example",
-  "search_language",
   "search_status",
   "code_files",
   "read",
@@ -146,14 +145,15 @@ describe("buildMcpQuickStart", () => {
     );
   });
 
-  it("retains comparative examples and language disambiguation routes", () => {
+  it("retains comparative examples and language recovery", () => {
     const instructions = buildMcpQuickStart();
     expect(instructions).toContain(
       "Find canonical implementation examples across projects | `get_example`",
     );
     expect(instructions).toContain(
-      "Use `search_language` only if `get_example` needs language disambiguation",
+      "If `get_example` cannot match a language, retry with a suggested language from the error, or omit language",
     );
+    expect(instructions).not.toContain("`search_language`");
     expect(instructions).toContain(
       "For comparative questions, combine\nthe relevant package/source route with examples when needed",
     );

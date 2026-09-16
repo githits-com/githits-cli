@@ -20,11 +20,11 @@ gap described in the Phase 3 verification addendum below.
 The Phase 3 baseline advertises both inline and structured qualifiers even though
 the production backend now validates and reports inline syntax robustly. Other large
 opportunities remain unsettled: code-navigation tools expose many overlapping
-controls, `search_language` may be replaceable only after
-`get_example` returns actionable language recovery, and repeated output-format copy
-must not be shortened until lower-cost-agent evals show that agents continue to omit
-`format` rather than selecting JSON unnecessarily. Ask is a new intentional answer
-surface, not a retirement candidate.
+controls, and repeated output-format copy must not be shortened until lower-cost-agent
+evals show that agents continue to omit `format` rather than selecting JSON
+unnecessarily. Ask is a new intentional answer surface, not a retirement candidate.
+Example-language recovery is settled: `get_example` keeps the language filter, and
+`search_language` is removed.
 
 When this effort is complete, MCP exposes one concise way to express each settled
 concept, while the CLI retains human-friendly flags where they are useful. Tool
@@ -130,10 +130,9 @@ return the current accepted values.
   `code_read` and `docs_read`, and the local Ask adapter projects backend pointers
   with those legacy names into callable `read` pointers. Those compatibility paths
   are required because installed user skills do not update automatically.
-- `docs/implementation/tools.md` lists all 14 stable tools in its table, but its
-  following registration sentence names only 12 and omits `get_example` and
-  `search_language`. This is current-contract drift and should be corrected with the
-  first implementation.
+- `docs/implementation/tools.md` lists all 13 stable tools in its table, including
+  `get_example`. `search_language` was removed after backend language recovery
+  landed.
 - `docs/implementation/unified-read.md` currently contrasts `read` with the
   structured target objects accepted by other navigation tools. That sentence will
   become stale in Phase 1.
@@ -262,8 +261,8 @@ addressing shapes.
 - Navigation: which path, intent, context, and result-limit controls real callers
   need, including whether singular/plural variants should collapse. Resolve through
   product discussion and observed call shapes before Phase 4.
-- Language: the exact `get_example` error/recovery contract and whether OP approves
-  removal of `search_language`. Resolve before Phase 5.
+- Language: backend fail-fast recovery with up to five canonical names is live;
+  `search_language` is removed.
 - Format copy: the shortest wording that keeps lower-cost agents on default text.
   Resolve with a matched candidate eval before Phase 6 accepts a copy change.
 - `search_status`: its long-term continuation boundary is not settled by this plan.
@@ -329,9 +328,10 @@ None of these later unknowns blocks Phase 3.
    `public_only` remain.
 4. **Phase 4 — essential navigation controls only (PENDING):** `code_files` and
    `code_grep` expose one non-overlapping control for each verified caller need.
-5. **Phase 5 — actionable example-language recovery (PENDING PRODUCT INPUT):**
-   `get_example` keeps language filtering and directs invalid-language calls to valid
-   choices; `search_language` is removed only if OP approves that replacement.
+5. **Phase 5 — actionable example-language recovery (IMPLEMENTED):**
+   `get_example` keeps language filtering. Unresolved languages fail before
+   generation and return up to five canonical retry names. `search_language` and
+   `githits languages` are removed.
 6. **Phase 6 — concise answer/output routing copy (PENDING):** Ask remains the
    high-level answer tool, its boundary with evidence tools is concise, and repeated
    format guidance shrinks only after lower-cost-agent evals show no JSON-selection
@@ -989,23 +989,22 @@ calls become smaller without reducing required evidence quality.
 
 ### Phase 5: actionable example-language recovery
 
-**Status:** PENDING PRODUCT INPUT
+**Status:** IMPLEMENTED — `search_language` and `githits languages` removed;
+`get_example` / `example --lang` rely on backend 400 recovery.
 
 **Expected outcome:** `get_example` keeps language filtering and returns an actionable
 supported-language correction when the requested language is invalid or ambiguous.
-`search_language` remains only if it still has a distinct job.
 
-**Assumptions:** The backend or client can expose enough typed language information to
-build recovery without guessing.
+**Assumptions:** Backend `POST /search` fail-fast 400 strings list up to five
+canonical names; the CLI mapper surfaces that string.
 
-**Unknowns or product decisions:** OP must confirm the recovery contract and whether
-it fully replaces `search_language`.
+**Unknowns or product decisions:** none remaining for this phase.
 
-**Dependencies:** OP decision and typed behavior evidence.
+**Dependencies:** Backend language-recovery contract.
 
 **Acceptance criteria:** Wrong-language calls point directly to valid choices;
-correct-language calls are unchanged; removing `search_language`, if approved, does
-not remove language filtering or force agents to guess names.
+correct-language calls are unchanged; removing `search_language` does not remove
+language filtering or force agents to guess names.
 
 ### Phase 6: concise answer/output routing copy
 
