@@ -347,6 +347,34 @@ describe("runMcpSmoke", () => {
     );
   });
 
+  it("continues an in-progress hosted documentation smoke search once", async () => {
+    let docsStatusCalls = 0;
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.source === "docs") {
+        return jsonResult({ completed: false, searchRef: "docs-smoke-ref" });
+      }
+      if (name === "search_status" && args.search_ref === "docs-smoke-ref") {
+        docsStatusCalls += 1;
+        return jsonResult({
+          completed: true,
+          result: {
+            results: [
+              {
+                type: "documentation_page",
+                locator: { docsReadTarget: SMOKE_CRAWLED_DOC_TARGET },
+                followUp: `read target=${JSON.stringify(SMOKE_CRAWLED_DOC_TARGET)}`,
+              },
+            ],
+          },
+        });
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+    expect(docsStatusCalls).toBe(1);
+  });
+
   it("rejects arbitrary snippets beneath path-only search hits", async () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {

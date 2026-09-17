@@ -1350,22 +1350,42 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   );
   assertRecord(searchJson, "search json");
 
-  const docsSearchJson = assertJsonResult(
+  let docsSearchJson = assertJsonResult(
     await callTool(caller, "search", {
-      target: SMOKE_PACKAGE_TARGET,
-      query: "route handlers",
+      target: "site:expressjs.com",
+      query: "routing",
       source: "docs",
-      limit: 3,
+      limit: 10,
+      wait_timeout_ms: 60_000,
       format: "json",
     }),
     "documentation search json",
   );
   assertRecord(docsSearchJson, "documentation search json");
+  if (
+    !Array.isArray(docsSearchJson.results) &&
+    typeof docsSearchJson.searchRef === "string"
+  ) {
+    docsSearchJson = assertJsonResult(
+      await callTool(caller, "search_status", {
+        search_ref: docsSearchJson.searchRef,
+        wait_timeout_ms: 60_000,
+        format: "json",
+      }),
+      "documentation search status json",
+    );
+    assertRecord(docsSearchJson, "documentation search status json");
+  }
+  const docsSearchEvidence =
+    typeof docsSearchJson.result === "object" && docsSearchJson.result !== null
+      ? docsSearchJson.result
+      : docsSearchJson;
+  assertRecord(docsSearchEvidence, "documentation search evidence");
   assert(
-    Array.isArray(docsSearchJson.results),
+    Array.isArray(docsSearchEvidence.results),
     "documentation search json missing results",
   );
-  const hostedDocumentationHits = docsSearchJson.results.filter((entry) => {
+  const hostedDocumentationHits = docsSearchEvidence.results.filter((entry) => {
     if (typeof entry !== "object" || entry === null) return false;
     const hit = entry as Record<string, unknown>;
     if (hit.type !== "documentation_page") return false;
