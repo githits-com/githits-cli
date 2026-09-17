@@ -55,7 +55,7 @@ describe("buildMcpQuickStart", () => {
     const instructions = buildMcpQuickStart();
     expect(instructions).toStartWith("# GitHits routing guide");
     expect(instructions).toContain(
-      "Then discover the named\ntool and read its argument description before calling it",
+      "Choose the route below, then discover the tool and read its arguments",
     );
     expect(instructions).toContain(
       "Find a known literal or regex in a public repository/package | `code_grep`",
@@ -67,32 +67,31 @@ describe("buildMcpQuickStart", () => {
       "Compare current and target dependency versions for an upgrade | `pkg_upgrade_review`",
     );
     expect(instructions).toContain(
-      "the selected tool supplies its argument details",
+      "selected tools own call syntax and exceptions",
     );
   });
 
   it("preserves output, scope, provenance and evidence limits", () => {
     const instructions = buildMcpQuickStart();
     expect(instructions).toContain(
-      "Keep default token-efficient text whenever the model reads the result",
+      "model-read summaries, comparisons, and follow-ups use text",
     );
-    expect(instructions).toContain("omit `format` in that case");
+    expect(instructions).toContain("Omit `format`");
     expect(instructions).toContain(
-      "Set JSON only when code consumes the raw response instead of the model",
+      "JSON is only for code consuming the raw response or required fields absent",
     );
     expect(instructions).toContain(
-      "public OSS only, never local/private/proprietary source",
+      "Public OSS only; never send local/private/proprietary source",
     );
-    expect(instructions).toContain("Never infer a repository provider");
+    expect(instructions).toContain("Never infer a provider");
     expect(instructions).toMatch(
-      /Cite\s+tool-owned\s+provenance, including get_example source references/,
-    );
-    expect(instructions).toMatch(
-      /report\s+coverage,\s+truncation and other evidence limits/,
+      /Cite\s+tool-owned\s+provenance, including example source repositories/,
     );
     expect(instructions).toMatch(
-      /do not invent them\. Read only needed\s+lines/,
+      /report\s+coverage,\s+truncation, and other evidence limits/,
     );
+    expect(instructions).toMatch(/never invent\s+them/);
+    expect(instructions).toContain("read focused lines");
   });
 
   it("includes the external-content posture unchanged by default", () => {
@@ -120,11 +119,9 @@ describe("buildMcpQuickStart", () => {
     );
     expect(instructions).not.toContain("`code_read`");
     expect(instructions).not.toContain("`docs_read`");
+    expect(instructions).toContain("never probe\ndirectories with `read`");
     expect(instructions).toContain(
-      "never use `read` to list/probe directories",
-    );
-    expect(instructions).toContain(
-      "pass the source\ntarget and returned path to `read`",
+      "Reuse returned targets, paths, locators, references, and ranges",
     );
     expect(instructions).toContain(
       'For a package or site docs topic, use `search` with `source:"docs"`',
@@ -133,29 +130,37 @@ describe("buildMcpQuickStart", () => {
       "`docs_list` browses package pages, not standalone `site:` targets",
     );
     expect(instructions).toContain(
-      "Use a docs hit's snippet when sufficient; otherwise follow its generated",
+      "Use snippets when sufficient; otherwise follow generated",
     );
     expect(instructions).toContain(
-      "pass a `[docs page]` target unchanged to `read`",
+      "Pass displayed `[docs page]` locators unchanged to `read`",
     );
-    expect(instructions).toContain("A fragment needs no bounds");
-    expect(instructions).toContain("replace it with a page-relative range");
-    expect(instructions).toContain(
-      "For `read`, the wait applies only to code indexing.",
+    const reader = getMcpToolDefinitions(createTestServices()).find(
+      (tool) => tool.name === "read",
+    );
+    expect(reader?.description).toContain(
+      "A docs URL fragment needs no bounds",
+    );
+    expect(reader?.description).toContain("page-relative range");
+    expect(reader?.schema.wait_timeout_ms?.description).toContain(
+      "validated but unused for docs",
     );
   });
 
-  it("retains comparative examples and language recovery", () => {
+  it("retains comparative examples and selected-tool language recovery", () => {
     const instructions = buildMcpQuickStart();
     expect(instructions).toContain(
       "Find canonical implementation examples across projects | `get_example`",
     );
-    expect(instructions).toContain(
-      "If `get_example` cannot match a language, retry with a suggested language from the error, or omit language",
+    const example = getMcpToolDefinitions(createTestServices()).find(
+      (tool) => tool.name === "get_example",
+    );
+    expect(example?.schema.language?.description).toContain(
+      "suggested language from the error",
     );
     expect(instructions).not.toContain("`search_language`");
     expect(instructions).toContain(
-      "For comparative questions, combine\nthe relevant package/source route with examples when needed",
+      "For comparisons, combine relevant package/source evidence with examples as needed",
     );
   });
 
@@ -205,7 +210,7 @@ describe("buildMcpQuickStart", () => {
       "Find canonical cross-project examples",
     );
     expect(descriptions.get("search")).toStartWith(
-      "Discover relevant evidence in a known target before exact grep",
+      "Discover relevant docs, code, and symbols in a known public target",
     );
     expect(descriptions.get("code_grep")).toStartWith(
       "Find text, regex, or identifier matches in a public repo or package",

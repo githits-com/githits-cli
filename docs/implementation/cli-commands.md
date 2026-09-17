@@ -709,7 +709,7 @@ Fetches release notes or changelog entries for a package or public repository. O
 
 **`<spec>@<version>` rejected.** `pkg vulns` and `pkg deps` both treat `@version` as "for this exact version", but `pkg changelog` has no single-version query: all entries live on a timeline. Remapping `@version` to `--to` would be a silent semantic shift. CLI rejects with `INVALID_ARGUMENT` and a hint pointing to `--to <version>` (or `--from <version>` for range mode).
 
-**Two modes.** Latest mode is the default; `--limit <n>` (1–50, default 10) caps entry count. `--from <version>` switches to range mode — returns every entry after `--from` through `--to` (or latest), `(from, to]`, with no count cap. The lower bound is exclusive, so use latest mode with `--to <version> --limit 1` for one exact release. `--to <version>` works in either mode. `--from` + `--limit` together is rejected client-side with a hint.
+**Two modes.** Latest mode is the default; `--limit <n>` (1–50, default 10) caps entry count. `--from <version>` switches to range mode — returns every entry after `--from` through `--to` (or latest), `(from, to]`, with no count cap. The lower bound is exclusive. `--to <version>` is an upper cap in either mode, not an exact-release lookup. `--from` + `--limit` together is rejected client-side with a hint.
 
 **Pre-release versions.** Normalised versions flow through unchanged (`5.0.0-rc.1`, `2.32.0.dev0`, `1.7.0-rc.5` round-trip cleanly on `--from` / `--to`). Tag-style `v`-prefixed inputs are rejected on any version flag, consistent with `pkg vulns` / `pkg deps`.
 

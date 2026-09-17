@@ -137,7 +137,9 @@ describe("searchStatusTool", () => {
   it("describes partial-result follow-up behavior", () => {
     const tool = createSearchStatusTool(createMockCodeNavigationService());
 
-    expect(tool.description).toContain("retrieve interim or partial hits");
+    expect(tool.description).toStartWith(
+      "Continue an explicit search reference for progress and results.",
+    );
     expect(tool.description).toContain("partial hits");
     expect(tool.description).toContain("serveable subset");
     expect(tool.description).toContain("allow_partial_results");

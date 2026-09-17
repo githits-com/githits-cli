@@ -27,12 +27,17 @@ describe("buildLocalMcpQuickStart", () => {
     expect(quickStart).toContain("public repository");
     expect(quickStart).toContain("full repositories or sibling packages");
     expect(quickStart).toContain(
-      "Use a docs hit's snippet when sufficient; otherwise follow its generated",
+      "Use snippets when sufficient; otherwise follow generated",
     );
     expect(quickStart).toContain(
-      "A fragment needs no bounds and returns the exact section; add bounds only to",
+      "This guide owns shared policy; selected tools own call syntax and exceptions",
     );
-    expect(quickStart).toContain("replace it with a page-relative range");
+    expect(quickStart).toContain("never probe");
+    expect(quickStart).toContain("directories with `read`");
+    expect(quickStart).toContain(
+      "JSON is only for code consuming the raw response or required fields absent",
+    );
+    expect(quickStart).not.toContain("A fragment needs no bounds");
   });
 
   it("keeps deprecated instruction builders as exact compatibility aliases", () => {

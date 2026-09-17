@@ -3,9 +3,11 @@
 ## Status
 
 - Overall: ACTIVE
-- Current boundary: Phase 2a IN PROGRESS after internal and external plan review
-- Baseline: `b2d4513` (`origin/main`, 2026-09-16; release 0.19.0 and language-tool removal merged)
-- Last verified: 2026-09-16
+- Current boundary: Phase 6 instruction ownership and copy cleanup, IMPLEMENTED;
+  draft PR #403 awaiting merge and disposition of the complete Ask smoke limitation
+- Baseline: `9be81a9` (`origin/main`, 2026-09-17; PR #402 package targets merged)
+- Planning branch: `jlitola/compact-agent-instructions`
+- Last verified: 2026-09-17
 
 ## Problem and expected outcome
 
@@ -207,10 +209,14 @@ adapter rather than becoming MCP-visible.
 For guidance ownership:
 
 - tool name plus first description sentence owns tool selection;
-- the selected tool's input schema owns the minimum call contract and representative
-  examples;
-- `quick_start` and its exact public skill copy own cross-tool routing and shared
-  target syntax; and
+- the selected tool's description/schema are self-sufficient for its minimum call
+  contract, distinguishing behavior, exceptions, and representative examples,
+  without requiring another evidence descriptor;
+- `quick_start` and its exact public skill copy own recurring cross-tool policy:
+  scope, target conventions, format choice, evidence reuse, citations, continuation
+  discipline, and external-content posture;
+- CLI skills independently carry equivalent common policy using CLI spelling,
+  without requiring CLI users to load the MCP skill; and
 - durable implementation docs own exhaustive behavior, compatibility, and rollout
   detail.
 
@@ -268,7 +274,8 @@ addressing shapes.
 - `search_status`: its long-term continuation boundary is not settled by this plan.
   Do not remove or merge it without a separate product decision.
 
-None of these later unknowns blocks Phase 2a.
+Unresolved backend/navigation decisions do not block Phase 6. Shorter format copy
+must pass its matched-eval acceptance gate; that result is not assumed in planning.
 
 ## Cross-cutting constraints
 
@@ -319,8 +326,8 @@ None of these later unknowns blocks Phase 2a.
 1. **Phase 1 — compact code and discovery targets (MERGED):** `search`,
    `code_files`, `code_grep`, and experimental `code_diff` advertise and accept only
    compact string targets; CLI/service behavior and legacy read routing stay intact.
-2. **Phase 2 — compact package-tool coordinates (PARTIALLY READY):** Phase 2a migrates
-   `docs_list`, `pkg_info`, `pkg_vulns`, and `pkg_deps` together. Phase 2b changelog
+2. **Phase 2 — compact package-tool coordinates (PARTIALLY MERGED):** Phase 2a migrated
+   `docs_list`, `pkg_info`, `pkg_vulns`, and `pkg_deps` in PR #402. Phase 2b changelog
    waits for verified backend exact-release/snapshot support; Phase 2c upgrade review
    follows later reorientation. CLI ergonomics and service contracts stay intact.
 3. **Phase 3 — one MCP search-filter language (MERGED):** the six backend-supported
@@ -332,10 +339,11 @@ None of these later unknowns blocks Phase 2a.
    `get_example` keeps language filtering. Unresolved languages fail before
    generation and return up to five canonical retry names. `search_language` and
    `githits languages` are removed.
-6. **Phase 6 — concise answer/output routing copy (PENDING):** Ask remains the
-   high-level answer tool, its boundary with evidence tools is concise, and repeated
-   format guidance shrinks only after lower-cost-agent evals show no JSON-selection
-   regression. `search_status` changes only after its separate product discussion.
+6. **Phase 6 — shared instruction ownership and concise tool copy (IMPLEMENTED,
+   draft PR #403):** recurring policy lives in skills/quick-start; tools retain their
+   own call contract without repeating that policy at length. Ask and original
+   format reminders remain. The shorter format candidate was rejected after evals.
+   Search-status copy shrank without redesigning its continuation protocol.
 
 Later-phase order may change during reorientation if product decisions arrive in a
 different order. The destination and constraints stay fixed; only the current ready
@@ -590,7 +598,7 @@ are deliberate migration signals, backend contracts, or dated evaluation history
 
 ### Phase 2: compact package-tool coordinates
 
-**Status:** Phase 2a IN PROGRESS; Phase 2b BLOCKED ON BACKEND; Phase 2c PENDING
+**Status:** Phase 2a MERGED (PR #402, `9be81a9`); Phase 2b BLOCKED ON BACKEND; Phase 2c PENDING
 
 **Expected outcome:** `docs_list`, `pkg_info`, `pkg_vulns`, `pkg_deps`,
 `pkg_changelog`, and `pkg_upgrade_review` expose compact package/repository/range
@@ -605,6 +613,16 @@ repository intervals. Phase 2c needs its single/batch MCP representation settled
 reuse the existing CLI interval spelling. Canonical `@ref` is merged.
 
 #### Phase 2a: one four-tool package-coordinate increment
+
+**Merge closure (2026-09-17):** User confirmed PR #402 merged; GitHub verified
+merge commit `9be81a9`. Full CI and the clean second Opus round apply to that delta.
+The same Codex docs-discovery settings reran without changes in
+`.agent-eval/runs/phase2a-codex-docs-rerun-20260917`: success, 47.5 seconds, five
+completed MCP calls, zero failed calls and zero validation violations. It used
+quick-start/search/read, not docs-list; earlier direct smoke/parity proof covers
+docs-list. The original contaminated run remains retained and its cause unknown.
+The implementation reviewer was released after the user's merge report. Historical
+checkpoints below describe their state at the recorded time.
 
 **Expected outcome:** `docs_list`, `pkg_info`, `pkg_vulns`, and `pkg_deps` each
 advertise one required string `target`, with no `registry`, `package_name`, or
@@ -1321,27 +1339,449 @@ canonical names; the CLI mapper surfaces that string.
 correct-language calls are unchanged; removing `search_language` does not remove
 language filtering or force agents to guess names.
 
-### Phase 6: concise answer/output routing copy
+### Phase 6: shared instruction ownership and concise tool copy
 
-**Status:** PENDING EVAL
+**Status:** IMPLEMENTED on `jlitola/compact-agent-instructions`, draft
+[PR #403](https://github.com/githits-com/githits-cli/pull/403), awaiting merge.
+Initial internal technical review is clean; external Opus round 1 found only minor
+documentation issues, applied for a clean round under repository policy. Windows CI
+subsequently found a test-only LF assumption; corrected in the eighth dispatch with
+explicit LF/CRLF coverage. Full local closure and CI including Windows passed.
+Internal round 2 is clean; external round 2 and its one fresh-context final checker
+found only one minor description omission, accepted and restored: grep defaults to
+the whole target unless scoped. This wording-only closure counts as a clean round;
+no third external round is required. Focused copy/eval closure is recorded below.
+Complete experimental live MCP smoke did not pass (mixed Ask timeout/503);
+focused SDK thread/source proof and CLI smoke passed. The user accepted the
+guidance-only bootstrap limitation on 2026-09-17; no deployment is included.
 
-**Expected outcome:** Ask's description states its high-level answer role concisely,
-lower-level follow-up routing stays discoverable, and repeated format guidance is no
-longer paid per tool unless it demonstrably prevents wasteful JSON calls.
+**Expected outcome:** Skills/quick-start consistently explain recurring policy once
+per loaded guidance path. Tools remain self-sufficient for selection and their own
+call contract without restating common policy or their parameter descriptions at
+length. The combined loaded surface is smaller, not shifted into a larger guide.
+Deliver one coherent copy-only PR, not per-tool or evidence-only increments.
 
-**Assumptions:** Ask remains available and answer quality is not reduced to save
-descriptor tokens.
+**Assumptions:** The user approved this ownership boundary on 2026-09-17. Tool names,
+parameter names/types/requiredness/defaults, service requests, selected fields,
+formatters, evidence outputs, availability, and runtime behavior remain unchanged.
+Description metadata and quick-start instruction text are the intended changes.
+Ask keeps its source-cited answer depth and lower-level follow-ups. Exact skill/quick-start
+parity and session bootstrap composition remain. Original format reminders remain;
+the shorter candidate was rejected by the early probe.
 
-**Unknowns or product decisions:** Determine shorter Ask copy through descriptor
-evals; run matched lower-cost-agent candidates before changing format descriptions;
-discuss `search_status` separately before altering it.
+**Unknowns or product decisions:** None missing. On 2026-09-17 the user accepted
+continuing with bootstrap as guidance, not a guarantee, retaining tool-local essentials
+and all safety wording. Report actual bootstrap calls; omission alone no longer stops
+delivery. No enforcement mechanism is authorized. The short format candidate was
+rejected after the early probe and all original format reminders are restored;
+do not reintroduce that candidate. Navigation consolidation,
+retiring/merging search-status, Ask depth, and backend changelog work remain separate.
 
-**Dependencies:** Stable post-Phase-1/2 catalog and matched eval capacity.
+**Dependencies:** Existing factories, catalog/schema/skill tests, context inventory,
+local smoke suites, agent-eval harness, and authenticated Codex/Claude eval access.
+No new infrastructure, backend change, deployment, or instruction-loading mechanism.
 
-**Acceptance criteria:** Ask selection and follow-up behavior remain correct;
-lower-cost agents do not increase unnecessary JSON selection; every removed sentence
-is owned by a surviving schema, response action, quick-start rule, or durable doc;
-legacy read-name redirection remains explicit.
+#### Verified planning evidence
+
+At merged `9be81a9`, `bun scripts/agent-context-load.ts sizes` reports:
+
+- 13 stable tools; `catalog.full`: 38,742 Unicode characters;
+- `catalog.prefix80`: 1,207; `bootstrap.stable`: 5,038; `skill.file`: 5,569;
+- catalog hash: `d09c4b970d048deabe318be7150300999e4c97f3b6ba54ea3d5b55a55cf343e8`;
+- guide hash: `079c8b765eda371a30278a967371d8b9118bdd24b49f9a4dee15a00ab8aea652`.
+
+These match the merged Phase 2a inputs. Measurements are serialized-content sizes,
+not provider token, latency, cost, or independently graded answer-quality claims.
+The public MCP skill guide equals the stable builder exactly. Twelve format-field
+descriptions total 2,713 characters, plus format repetition in description bodies.
+Twelve composition-time bootstrap footers repeat a 101-character prerequisite;
+retain that mechanism because individual tools are discovered lazily.
+
+Verified contradictions/repetition:
+
+- Package CLI skill recommends JSON for comparisons/counting and calls text
+  human-only, contradicting MCP's model-read-text default.
+- Language recovery occurs in the guide, example description, and language field.
+  Docs-fragment mechanics occur in guide/search/read/range fields. Package tools
+  repeat verbose/filter/depth mechanics and neighboring-tool menus.
+- Example/search/search-status first sentences are 113/132/116 characters; current
+  tests permit their truncation. The guide does not reach deferred selection.
+- Legacy reader redirects, source addenda, and bootstrap reminders have observed
+  justification; they are not redundant cleanup targets.
+- Changelog description/from-version prose promise exact selection via upper bound
+  plus limit-one despite the recorded Phase 2b gap. Remove the unsupported promise;
+  retain upper-cap/latest-mode documentation and inputs. Do not implement or claim
+  the future exact-target API.
+
+Existing matching-surface baseline evidence: Codex Luna/low overview, vulnerability
+filter, and dependency workloads in `phase2a-codex-low-20260916-1342` passed without
+isolation violations; the clean docs rerun above completes that set. Claude Haiku's
+four recorded `phase2a-claude-haiku-*-20260916-1342` cases passed. The contaminated
+Codex docs run is not a passing baseline. Reuse only runs whose settings and relevant
+input hashes match; new routing cases need matched runs during candidate verification.
+No shorter candidate has been evaluated or approved by this planning evidence.
+Version check during planning: Codex remains 0.154.0; Claude is now 2.1.274 versus
+2.1.273 in the retained runs. Those Claude runs are historical evidence, not eligible
+matched baselines for the current CLI; collect fresh baseline cells before candidates.
+
+Fresh current-Claude format baseline collected during planning in
+`.agent-eval/runs/instructions-baseline-claude-haiku-20260917`: overview 20.4 seconds,
+dependency assessment 30.6 seconds; harness success, no validation violations,
+five observed evidence calls total, all omit format (zero explicit JSON calls).
+Calls/finals/metrics were inspected. Usage and normalized logical-call telemetry
+remain unknown. Both runs skipped quick-start despite descriptor-only guidance.
+These are eligible format-call baselines, not proof that shared posture was loaded
+or that bootstrap already works. This contradicts any assumption that the footer
+guarantees common guidance delivery; use a copy-only discovery correction below.
+Claude's documented harness guarantee is workspace isolation, not causal instruction
+isolation. The omitted call is observed, but its cause and complete hidden guidance
+are not established; do not conclude the safety posture was absent. Keep these runs
+as bounded call-behavior baselines, not proof of fully isolated instruction effects.
+
+#### Execution checkpoint — 2026-09-17
+
+Before edits, the named inventory exactly matched the planning baseline. Captured
+all sixteen local schemas/annotations through the existing local server factory,
+excluding only recursive description metadata; local serialized catalog 47,040
+characters, guide 6,870, runtime appendix 1,832 (serialization differs from the
+stable inventory and is compared only with itself).
+
+Fresh unchanged-surface baselines at `f22c4ac`, Codex 0.154.0 / Luna low and
+Claude 2.1.274 / Haiku, in ignored `.agent-eval/runs/instructions-baseline-*`:
+three descriptor routing cases per provider passed harness validation; each
+skill-loaded docs case passed and skipped bootstrap. Both local Ask/diff cases
+per provider passed; Codex Ask included one failed tool call and repeated that
+follow-up before completing, so aggregate success is not error-free evidence.
+Haiku bootstrapped only docs among its three descriptor routing cases and used
+undeclared `offset`/`limit` fields on some reads. These are observations, not
+proof of absent hidden guidance or root cause. No contaminated trace was discarded.
+
+The coordinator shortened the stable guide/exact MCP skill copy, aligned CLI
+text/JSON policy, corrected ownership/historical docs, and restored a literal-name,
+72-character bootstrap opening. One Luna dispatch applied the exact decided short
+format prose to thirteen schemas; its individually named format/default checks
+all passed. The early inventory was catalog 37,341 / guide 4,266 / skill 4,797.
+This is a provisional subset, not the completed Phase 6 candidate or savings claim.
+
+Early matched Haiku package probe:
+`.agent-eval/runs/instructions-bootstrap-probe-claude-20260917`, same version,
+model, flags, workloads and harness as the eligible fresh package baseline.
+Both harness cases passed without validation violations. Overview skipped
+bootstrap and called info/vulns with JSON; its final used fields available in
+text modes and no code consumed raw results. The vulnerability request is an
+unjustified JSON increase versus baseline zero. Dependencies bootstrapped once;
+its JSON dependency request sought complete issue rows, a retained exception.
+Native traces, calls, finals, report and metrics were inspected; Claude usage and
+logical-call telemetry remain unavailable, and answers were not independently graded.
+The whole copy checkpoint is evaluated together; this does not isolate format
+wording causality. The short format candidate is rejected; a second mechanical
+dispatch restored baseline prose. At that rollback checkpoint the complete diff of
+all thirteen owned producer files was empty, verified independently by the coordinator. Exact stable-guide/public
+skill parity also passes. No worker error or interruption caused that correction.
+Descriptor rewrites, tests, smokes, build, reviews, commit, and PR delivery were
+pending at that pause; provisional edits and raw evidence were preserved.
+The user subsequently accepted the guidance-only limitation and authorized continuing
+with the original format reminders, tool-local essentials, and all safety wording.
+
+Final-copy inventory after the round-2 grep reminder: stable catalog 34,971 /
+guide 4,266 / MCP skill 4,797; catalog + guide 39,237 versus 43,780;
+catalog + skill 39,768 versus 44,311.
+Catalog hash `6b0123fe797b7b1175dcf3e2d013bec911f05828f0d394075f56335e3bd68ec9`;
+prefix hash `2a8f01ac79574f3bf49544c5dbea9644605521f397d65d9f8884b794e70bc5a4`.
+Local serialized catalog 43,233 versus 47,040, guide 6,098 versus 6,870, appendix
+unchanged at 1,832. All sixteen schemas/annotations match the captured baseline
+after recursively excluding only description metadata. The new local selection test
+found the unchanged resolver sentence was 80, not <=79, characters; shorten `into`
+to `to` and include resolver follow-up evals. Runtime behavior is unchanged.
+
+Final package cases (`instructions-candidate-{codex,claude}-format-20260917`):
+all four passed harness validation, zero JSON calls, bootstrap exactly once each.
+No increase in unjustified JSON versus eligible baselines. Haiku omitted development
+dependency analysis in its dependency answer; no answer-quality grading is claimed.
+Final routing cases (`instructions-candidate-{codex,claude}-routing-20260917`):
+all six passed, no validation violations or JSON calls. Both used get_example;
+Haiku omitted bootstrap in all three. Docs calls reused emitted locators and source
+calls followed grep matches. Codex used Ask for additional version verification.
+Verified current experimental config is enabled and was last modified 2026-08-19,
+before these baselines: local MCP settings enable experimental tools even without the
+explicit override flag. This is existing configuration, not added public availability.
+Calls, finals, reports and metrics were inspected. Telemetry/grading limitations remain.
+
+Full-skill docs candidates (`instructions-candidate-{codex,claude}-full-20260917`)
+both passed without validation violations, bootstrap calls, or JSON. Local candidates
+(`instructions-candidate-{codex,claude}-local-20260917`) all passed harness validation,
+but both Ask investigations received RATE_LIMITED/429 and switched to lower-level
+evidence; these do not prove successful live thread continuity. Diff calls compared
+the expected endpoints and obtained full returned patches through the documented JSON
+exception. Haiku also used JSON for name-status inventory without an apparent missing
+field or code consumer; disclose this, not general JSON reliability.
+
+Initial repository verification: generation/check (10 assets), types, format, build
+passed; lint passed with eight existing warnings in unchanged repository-target.ts.
+Full tests: 4,811 pass / 8 old-wording assertions failed. Bounded sibling scan located
+root MCP instruction tests, the transcript-derived deferred-catalog probe, and
+diff/status metadata assertions; align them with the selected owner. Closure command
+`bun test src/commands/mcp-instructions.test.ts eval/agentic/probes/claude-ai-deferred-catalog.test.ts
+packages/mcp/src/tools/code-diff.test.ts packages/mcp/src/tools/search-status.test.ts`:
+53 pass / 0 fail / 305 assertions. Full suite rerun remains required.
+Live CLI smoke passed stable/experimental cohorts (116 steps). MCP stable smoke
+passed; experimental URL-JSON Ask thread follow-up hit SDK timeout 60,000ms. Preserve
+this failed evidence and investigate/rerun the missing proof, without changing client
+timeouts, adding retries, or asserting rate limiting caused that separate timeout.
+
+Focused sequential SDK Ask proof subsequently passed: initial callable source
+references, same-thread follow-up, and URL-formatted JSON sources (four returned
+sources). Client timeout and server behavior were unchanged. The original smoke
+suite rerun without overlapping Ask requests again passed the stable cohort,
+but experimental initial Ask failed. A one-call diagnostic using that same scoped
+smoke environment returned BACKEND_ERROR with HTTP 503. The earlier timeout's cause
+remains unknown. This closes live SDK thread/source proof, not the rate-limited
+agent candidates' missing qualitative thread-use evidence.
+
+Full unit rerun: 4,818 pass / one 30-second timeout in unchanged
+`experimental CLI process policy > keeps stable recovery surfaces available for malformed config`
+(17,107 assertions, 208 files, 248 seconds). No remaining old-copy failures.
+Isolate the existing process case and rerun full verification without the live
+smoke/eval load before attributing the timeout; do not increase its timeout or
+change runtime behavior based on this single failure. Live Ask availability is
+mixed and the complete experimental MCP smoke is not a passing result.
+
+Closure: the exact isolated malformed-config case passed (one test, 28 assertions,
+19.05 seconds). Sequential full suite then passed: 4,819 tests / zero failures /
+17,109 assertions / 208 files / 79.12 seconds. Types, lint, format, build, plugin
+check and diff check passed afterwards; lint retained the same eight existing
+warnings. No code/timeout change; the earlier timeout's cause is not established.
+
+Fresh Luna pre-flight: accepted two wording findings that describe tool-specific
+argument ownership as descriptions alone; comment and permanent tool docs now say
+descriptions plus schemas. Bounded sibling scan of changed guidance/comments found
+no further conflicting ownership claim. Rejected its two requests to remove verified
+bootstrap incident commit history: the approved plan explicitly preserves that
+history and corrects the reverted-fix account; it is distinguished from current
+implementation, not stale runtime behavior. Rejection dated 2026-09-17; no new
+evidence warrants reopening it. Fresh internal technical review returned no findings;
+no tests rerun by reviewers.
+
+External Opus round 1: no code/schema/runtime/policy-scope/test-weakening findings;
+accepted two minor documentation findings. Failure class: permanent tool copy still
+described removed neighboring-tool menus, and the CLI skill's relocated continuation
+reference was ambiguous. Bounded sibling scan covered the complete Current Tools
+table, routing paragraphs, changed ownership docs and CLI code/package/MCP skills.
+Aligned the table with current roles/selected contracts, replaced the reciprocal-menu
+claim with guide-owned routing, removed the contradictory repeat-search polling
+instruction, and pointed the CLI skill explicitly to references/code-and-docs.md.
+No runtime or selection metadata changed. After affected documentation checks pass,
+these wording-only fixes make this round clean; no additional round is required.
+The reviewer ran no covered checks or final checker because it reported findings;
+retain that settled reviewer for this PR rather than dispatching another round solely
+for applied doc fixes. Closure checks: `bun test src/skills-packaging.test.ts`:
+18 pass / zero fail / 223 assertions; plugin generation/check validated ten assets
+with no generated diff; format and diff checks passed. All earlier production-copy
+and runtime evidence still applies. External review is clean under the doc-only
+policy. CI handoff is recorded with the draft PR.
+
+Orchestration record: one reused Luna implementor, eight mechanical dispatches
+including brief corrections and the Windows portability fix; one test portability
+bug, zero validation-command errors or interrupts. Coordinator kept
+copy/ownership judgment, non-mechanical metadata assertions, schema inventory,
+live/eval verification and review adjudication inline. Two exact-wording corrections
+were coordinator brief errors, not worker failures; the short-format rollback was
+an eval decision. The worker chose LF-only fence matching, not a brief requirement;
+the coordinator's local-only evidence contract missed CRLF and both review nets
+missed it before CI. Cost: one correction dispatch, focused/full verification and
+another required technical/external round, not runtime changes. Permanent policy is
+in implementation docs and public guidance;
+retain this overarching plan for the unfinished phases.
+
+Initial PR CI ([run 35199561988](https://github.com/githits-com/githits-cli/actions/runs/35199561988)):
+build/checks, Linux, MCP package validation and Bun/Node 20/22/24/26 compatibility
+passed. Windows failed only the new CLI-output-policy test: Core Commands fence
+matching assumed LF, but the checked-out skills use CRLF. Root fix is local to that
+test's Markdown matcher (`\r?\n`); do not normalize the shared reader or alter source
+documents/platform settings. Bounded sibling scan of skills-packaging.test.ts found
+its two existing frontmatter matchers already accept CRLF. Worker focused proof:
+`bun test src/skills-packaging.test.ts -t 'keeps CLI model-read output in text'`:
+one pass / zero fail / 25 assertions, including each skill under explicit LF and CRLF.
+All previous policy/safety checks remain; no handlers or guidance metadata changed.
+Closure full suite: 4,819 pass / zero fail / 17,113 assertions / 208 files /
+61.66 seconds. Types, format, plugin check and diff check passed; production-copy,
+build/lint/smoke/eval evidence is unchanged. CI on `139ed81` confirmed the fix:
+[run 35200157534](https://github.com/githits-com/githits-cli/actions/runs/35200157534)
+passed Build & Checks, Linux, Windows, Bun and Node 20/22/24/26 compatibility;
+[MCP package validation](https://github.com/githits-com/githits-cli/actions/runs/35200157340)
+passed, with publishing skipped.
+
+External Opus round 2: no code findings; the single fresh-context final checker
+verified the full delta and raised one valid minor description omission. Finding
+closure: grep's whole-target default had lost its explicit local owner. The request
+builder sets `allowUnscoped: true` without path selectors, and existing scoping
+fields/CLI references agree. Bounded scan covered the complete grep descriptor,
+schema, request builder, metadata tests and guide/skill; no related contradiction.
+Restored one clause after the unchanged selection prefix, with one metadata
+assertion. No new mechanism, schema/default or runtime change; this doc-only
+finding counts clean once applied. The reviewer is retained in
+`term_bc4f5f0a-c344-481d-910a-42136f20a64f` for this PR. Opus itself reran no
+validation; its final checker reran already-covered targeted files despite the
+written brief. Record this review-protocol violation rather than claiming reviewers
+ran no checks or using their duplicate runs as additional required proof.
+
+Final wording closure: `bun test packages/mcp/src/tools/grep-repo.test.ts`:
+25 pass / zero fail / 102 assertions; `bun test packages/mcp/src/mcp/server.test.ts
+packages/mcp/src/mcp/local-server.test.ts packages/mcp/src/mcp/instructions.test.ts`:
+24 pass / zero fail / 547 assertions. `bun run typecheck`, `bun run format:check`,
+`bun run plugins:check`, `bun run build` and `git diff --check` passed. Inventory command
+`bun scripts/agent-context-load.ts sizes` produced the final sizes above; all
+sixteen local SDK schema/annotation contracts still equal the captured baseline
+after excluding descriptions, and guide/skill/runtime appendices are unchanged
+by the restored clause. Final publishing/deployment remain outside this PR.
+
+Final descriptor-only grep follow-up (`instructions-final-{codex,claude}-grep-20260917`):
+one unchanged code-grep-investigation workload per provider with the same model,
+effort and intent. Both harness reports validated without isolation violations,
+both selected whole-target grep and made no JSON calls. Codex bootstrapped once,
+then its grep returned `AUTH_REQUIRED`; its neutral final correctly reports failure
+to verify, not a successful source answer. Haiku skipped bootstrap, received two
+import sites, read the returned files and answered from source. Inspected calls,
+native tool results, neutral finals and report/metrics. Thus no clean cross-provider
+live-grep completion claim; auth failure origin remains unestablished. No auth
+changes/retries or extra eval sweep. Cost/quality telemetry limits still apply.
+
+Final implementation-head CI on `58e7a6a` is green:
+[run 35202346274](https://github.com/githits-com/githits-cli/actions/runs/35202346274)
+passed Build & Checks, Linux, Windows, Bun and Node 20/22/24/26 compatibility;
+[MCP package validation](https://github.com/githits-com/githits-cli/actions/runs/35202345936)
+passed and publishing was skipped. This final plan-only closure records that
+evidence and does not change product copy, schemas, tests, or runtime behavior.
+
+Resolver opening-only comparison (`instructions-{baseline,candidate}-{codex,claude}-resolver-opening-20260917`):
+two existing fuzzy/site follow-up cases per provider, all final copy held constant
+except `into` versus `to`. All eight harness cases passed with no validation
+violations. Candidate cases made no JSON calls; baseline Haiku fuzzy resolution
+used one JSON resolver call. Both candidate providers selected resolve_target and
+continued to source/docs evidence; candidate Codex first omitted required `name`, received an
+argument error, then corrected it. Codex preserved identity ambiguity; Haiku
+selected the leading medium-confidence package candidate and reported it as most
+likely. Site candidates used returned standalone targets and emitted locators;
+Codex's candidate used sufficient snippets without a read. Baseline Codex had a
+failed read after including the displayed locator label, then corrected it.
+Baseline Haiku's site case skipped resolve_target, searched package docs, and
+invented read locators; it is not passing resolver/site-locator behavior proof.
+Candidate bootstrap: Codex once each, Haiku site once/fuzzy none. Inspect actual
+calls/finals/metrics/violations, not harness success as error-free proof. This
+narrow comparison covers the two-character opening change, not a matched
+whole-original-Phase-6-guide baseline; no causal quality or savings claim.
+
+#### Placement contract
+
+| Concept | Shared guide/skill owns | Selected tool retains |
+| --- | --- | --- |
+| Discovery | Question-to-tool routing | Standalone first sentence and distinct job |
+| Targets | Public scope and canonical conventions | Supported family, example, operation-specific pin/ref constraints |
+| Output | Model-read text versus code-consumed JSON | Short reminder and real full-patch/missing-field exceptions |
+| Evidence | Reuse locators, focused reads, provenance and limits | Tool-specific interpretation and callable follow-up mapping |
+| Recovery | Follow rendered actions; do not invent locators or poll by repeating calls | Unique continuation conditions, status/range/wait exceptions |
+| Safety | Existing external-content posture | Existing source addenda and input privacy constraints |
+
+Keep shared guidance self-contained, not replaced with implementation-doc links.
+CLI skills independently express equivalent shared rules: loading the MCP skill
+must not become a CLI prerequisite. Cross-tool references may name an alternative
+job, but are not needed to understand the selected tool's arguments. This placement
+matches natural ownership; a new shared copy framework would reduce source repetition
+without necessarily reducing agent-loaded content, so do not introduce one.
+
+#### Implemented scope
+
+- Stable routing guide and exact public MCP skill copy share recurring policy.
+  Language recovery and docs fragment/range/wait mechanics remain selected-tool
+  owned; routing, target conventions, evidence limits, and shared safety remain.
+- Descriptor bodies remove duplicate parameter/output inventories and neighboring
+  menus. Selected schemas preserve operation-specific arguments and exceptions.
+  Changelog cap wording no longer promises exact lookup; dependency depth wording
+  now accounts for importer and full-graph issue opt-ins.
+- All stable/local selection sentences fit 79 characters. Quick-start restores
+  literal-name discovery and first-call/safety purpose; loaded-skill exception and
+  per-tool footers remain. Ask and experimental runtime appendices are unchanged.
+- All thirteen original format descriptions, shared external-content posture,
+  source addenda, and CLI safety text remain. CLI code/package skills independently
+  use model-read text rather than unconditional JSON; ordinary examples omit JSON.
+- Metadata tests cover retained meanings at their selected owner, complete
+  selection sentences, guide parity, and independent CLI output policy. All sixteen
+  schema/annotation contracts match baseline after removing description metadata.
+- Permanent ownership and bootstrap-history docs are corrected; CLI changelog docs
+  and package reference agree with upper-cap semantics. One patch/patch fragment
+  records the copy-only changes. Plugin generation/check produced no asset diff.
+
+No handlers, request builders, selected fields, formatters, transport, auth,
+schema shapes/defaults, onboarding, version bumps, historical changelog edits,
+publishing, or deployment changed. Verification and review results are recorded
+above and below; the overall plan remains through its unfinished phases.
+
+#### Verification and acceptance
+
+- Re-run the named inventory: require lower full catalog, stable guide/skill, and
+  sums of catalog plus each alternative bootstrap path (guide or skill). Measure
+  enabled local descriptor/appendix sizes through existing local factory seams as
+  well; stable totals must not hide experimental growth. Record changed prefix hashes
+  intentionally. Do not equate Unicode characters with model tokens or bill savings.
+- Run `bun test packages/mcp/src/mcp/server.test.ts
+  packages/mcp/src/mcp/instructions.test.ts packages/mcp/src/mcp/local-server.test.ts
+  packages/mcp/src/mcp/local-agentic-ask.test.ts src/skills-packaging.test.ts
+  eval/mock-mcp/server.test.ts` and changed tools' tests. Run source
+  `bun run smoke:mcp`/`smoke:cli`, build, types/lint, plugin generation/check, and
+  the full `bun test` suite (or current full-suite CI with any local failures disclosed).
+  Built smokes are additionally required if launch/CI product validation changes.
+- Matched format cases: local MCP/descriptors/GitHits intent, Codex
+  `gpt-5.6-luna`/low and Claude `haiku`, `package-overview-vulnerabilities.md` and
+  `package-dependencies.md`. Keep CLI versions, model/effort, prompts, flags, and
+  harness identical between baseline/candidate. Inspect each explicit JSON call:
+  was raw data consumed by code or a required field absent from text? Require no
+  increase in unjustified JSON calls per workload/provider. Restore old reminder
+  if the candidate increases them; report evidence rather than add prompt machinery.
+  Existing matching baseline traces may be reused; otherwise run these two baseline
+  cases before candidate. Single pairs are bounded evidence, not reliability statistics;
+  repeat only an inconclusive/disputed case.
+  Record whether descriptor-only cases call quick-start before evidence and whether
+  bootstrap is duplicated. The user accepted guidance-only bootstrap on 2026-09-17;
+  omission is a disclosed limitation, not a delivery gate or permission to add enforcement.
+  The short-format probe already failed the JSON criterion; original reminders are
+  restored and retained for the final candidate.
+- Matched routing cases for both agents: `docs-discovery.md`, `global-example.md`,
+  and `code-grep-investigation.md`, same descriptor-only settings. Inspect actual docs
+  locators, examples/topic selection, and focused source follow-ups. Run docs-discovery
+  in full guidance as well: verify the loaded skill skips quick-start and record
+  descriptor-only bootstrap behavior without treating guidance as guaranteed loading.
+  For Ask, baseline/candidate `ask-version-followup.md` with experimental tools for
+  both agents. A run never using Ask does not prove thread/source mechanics; retain
+  unit proof and use the smallest focused Ask prompt if necessary to exercise changed
+  selection copy. Do not force broad example questions down an inappropriate route.
+  If candidate traces skip shared guidance, disclose that observation without claiming
+  guaranteed policy loading. Retain tool-local call essentials, format reminders,
+  bootstrap footers, and existing source protection. No guards/loaders are authorized.
+- If resolution/diff descriptors or their local appendices change, add matched
+  `experimental-resolution-follow-up.md`, `experimental-site-resolution-follow-up.md`,
+  and `experimental-code-diff.md` for the affected surfaces, with experimental tools
+  enabled and both named lower-cost agents. Inspect actual resolution/diff selection,
+  ambiguity/actionability handling, site-to-docs follow-up, endpoint scope, truncation,
+  and compatibility limits. Reuse baseline only under the same settings/hash rules;
+  unchanged experimental bytes need no new cases. Existing workloads suffice.
+- Run bounded groups separately, concurrency at most two per harness, not the whole
+  suite. Before a group expected over five minutes, state its question and why narrower
+  evidence is insufficient. No credential output, auth/config changes, or weakened
+  isolation. Preserve and reject contaminated traces, not their underlying evidence.
+  Inspect calls/finals/metrics/violations, not just harness status or confidence.
+  Disclose telemetry and quality-grading gaps; no provider savings claims from sizes.
+- Every removed instruction remains with its natural owner or is demonstrably
+  redundant; no selected tool needs another evidence descriptor for its own arguments.
+  Fresh internal technical review and one external Opus code reviewer per round close
+  the full delta. Retain this overarching plan through remaining increments; transfer
+  durable ownership policy before deleting it after the last increment merges.
+
+**Planning verification:** The unchanged merged surface passed
+`bun test packages/mcp/src/mcp/server.test.ts packages/mcp/src/mcp/instructions.test.ts
+src/skills-packaging.test.ts`: 33 tests / 573 assertions on 2026-09-17. The inventory
+was collected before instruction edits. At that planning checkpoint the branch changed
+only the plan; production copy, behavior, plugin assets, and eval configuration were unchanged. Plan-review
+findings and disposition are recorded after internal/external review.
 
 ## Phase-boundary reorientation
 
@@ -1366,6 +1806,34 @@ delete this temporary plan. Do not leave completed plan text as a competing sour
 truth.
 
 ## Plan review record
+
+- Phase 6 internal technical review (2026-09-17): accepted the experimental-copy
+  eval coverage gap, calibrated as a bounded verification gap rather than an existing
+  blocking product defect. Added existing resolution/site-resolution/diff cases for
+  affected copy; no new harness. Full-delta closure returned no findings. Follow-up
+  review of fresh bootstrap evidence found only an overly broad format-restoration
+  condition; narrowed it to increased unjustified JSON calls, so intended bootstrap
+  improvements are not rejected. Applied this minor wording fix; internal review is
+  clean under project policy. Claude instruction-isolation limits remain explicit.
+- Phase 6 external Fable plan review (2026-09-17): accepted one minor documentation
+  scope finding, also found by its single fresh-context final checker. The stale
+  literal-name bootstrap claim occurs in tools.md as well as TOOL_GUARDRAILS.md;
+  verified both against current quick-start.ts and `2a02a2e`. Expanded step 7 to name
+  both current-state/incident accounts and the revert, aligning them with step 3's
+  tested descriptor while preserving historical measurements. Applied this wording
+  correction; that documentation-only finding counts clean under project policy.
+  However, the report says the plan does not require the literal quick-start name:
+  this contradicts the newer explicit bootstrap criterion added during that review.
+  The same reviewer receives a final round over the current snapshot for that
+  material acceptance change, not another round for the minor wording finding.
+  No tests/evals rerun by reviewers; no new runtime scope or product decision.
+- Phase 6 external Fable round 2: clean over the complete current snapshot; no
+  new reviewer or validation rerun. Confirmed bootstrap/format gates, observed
+  baseline omissions and isolation caveats, and corrected its prior snapshot/policy
+  statements. Accepted its no-action caveat that combined bootstrap/copy changes
+  do not isolate reminder causality: acceptance concerns the complete candidate's
+  observed calls, not a causal savings/reliability claim. No extra experiment or
+  mechanism needed. The same Fable reviewer is retained for plan inspection.
 
 - Phase 3 internal `code_reviewer`: its unknown-field finding was factually correct
   but rejected as a blocker after product calibration. The SDK has always stripped

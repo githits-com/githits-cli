@@ -66,14 +66,17 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
       "identifiers and aliases, including CVEs when available",
     );
     expect(tool.description).toContain("identifier aliases (including CVEs)");
-    expect(tool.description).toContain(
-      "dependency vulnerability evidence covering the resolved graph",
+    expect(tool.schema.include_transitive?.description).toContain(
+      "dependency vulnerability evidence for the resolved graph",
     );
-    expect(tool.description).toContain(
-      "`min_severity` and `advisory_scope` apply to direct and transitive rows",
+    expect(tool.schema.include_transitive?.description).toContain(
+      "min_severity and advisory_scope apply to direct and transitive rows",
     );
-    expect(tool.description).toContain(
-      "`include_withdrawn` affects direct rows only",
+    expect(tool.schema.include_transitive?.description).toContain(
+      "include_withdrawn affects direct rows only",
+    );
+    expect(tool.schema.include_transitive?.description).toContain(
+      "Transitive withdrawn advisories remain excluded",
     );
     expect(Object.keys(tool.schema).sort()).toEqual([
       "advisory_scope",

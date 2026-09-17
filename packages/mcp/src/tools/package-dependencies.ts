@@ -66,7 +66,7 @@ const schema: ZodRawShape = {
     .max(10)
     .optional()
     .describe(
-      "Add a `transitive` block and cap traversal at this depth (1-10). Omit for direct dependencies only.",
+      "Add a `transitive` block and cap traversal at this depth (1-10). Omit for direct output unless `include_importers` is true; `include_issues` can still analyze the full graph.",
     ),
   format: z
     .enum(["text", "json"])
@@ -78,20 +78,11 @@ const schema: ZodRawShape = {
 
 const DESCRIPTION =
   "Inspect what a package depends on, directly or transitively. Lists direct runtime " +
-  "dependencies with resolved versions; non-runtime groups are " +
-  "omitted by default. Use `lifecycle` with a concrete value for " +
-  "matching dependency groups, or `all` for every available group. " +
-  "Runtime group rows include resolved versions when available. " +
-  "Pass `max_depth` to add a `transitive` block with the capped " +
-  "install footprint, conflict detection, and circular-dependency " +
-  "flags; layer `include_importers: true` on top when you also need " +
-  "per-package provenance. Supports " +
-  `${SUPPORTED_DEPS_REGISTRIES_LIST}. Use ` +
-  "`include_issues: true` for deprecated, outdated, duplicate, " +
-  "and conflict analysis across the resolved dependency graph. JSON exposes " +
-  "complete issue rows for direct code consumption. Without `max_depth`, issues scan the full graph; " +
-  "`max_depth` bounds cost and scope. " +
-  "Use `pkg_info` for latest package health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence.";
+  "dependencies with resolved versions; non-runtime groups are omitted by default. " +
+  "Opt into transitive footprint, per-package provenance, or issue analysis with " +
+  "the corresponding fields; full-graph analysis is not local application lockfile " +
+  "or reachability evidence. Supports " +
+  `${SUPPORTED_DEPS_REGISTRIES_LIST}.`;
 
 export function createPackageDependenciesTool(
   service: PackageIntelligenceService,

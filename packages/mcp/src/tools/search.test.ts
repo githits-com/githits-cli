@@ -26,12 +26,18 @@ describe("searchTool", () => {
     expect(targetSchema).toContain("github:facebook/react");
     expect(targetSchema).toContain("site:react.dev");
     expect(descriptor?.description.slice(0, 80)).toBe(
-      "Discover relevant evidence in a known target before exact grep: docs, specs, cod",
+      "Discover relevant docs, code, and symbols in a known public target. Start here f",
     );
     expect(descriptor?.description).toContain(
-      "pass a `[docs page]` target unchanged",
+      "Pass a `[docs page]` target unchanged",
     );
-    expect(descriptor?.description).toContain("fragment needs no bounds");
+    expect(descriptor?.description).not.toContain("fragment needs no bounds");
+    const readDescriptor = getMcpToolDescriptors().find(
+      (entry) => entry.name === "read",
+    );
+    expect(readDescriptor?.description).toContain(
+      "A docs URL fragment needs no bounds",
+    );
   });
 
   it("keeps the common path simple and delegates continuation details", () => {
@@ -48,7 +54,9 @@ describe("searchTool", () => {
     expect(tool.description).toContain(
       "Terminal or unrecognized statuses are not polled",
     );
-    expect(tool.description).toContain("serveable subset");
+    expect(tool.schema.allow_partial_results?.description).toContain(
+      "serveable subset",
+    );
     expect(tool.description).not.toContain(
       "`PENDING`, `INDEXING`, or `SEARCHING`",
     );

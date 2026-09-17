@@ -13,17 +13,19 @@ describe("quickStartTool", () => {
       destructiveHint: false,
     });
     expect(tool.description).toStartWith(
-      "Choose the GitHits tool for an OSS question before discovering evidence tools.",
+      "Call quick_start first to choose tools and load untrusted-content rules.",
     );
     expect(tool.description.slice(0, 80)).toBe(
-      "Choose the GitHits tool for an OSS question before discovering evidence tools. C",
+      "Call quick_start first to choose tools and load untrusted-content rules. Call on",
     );
     expect(tool.description.split(".")[0]!.length + 1).toBeLessThanOrEqual(79);
     expect(tool.description.slice(0, 80)).not.toContain("githits-mcp");
-    expect(tool.description).toContain("Call this routing guide first");
+    expect(tool.description).toContain(
+      "Call once per session before discovering evidence tools",
+    );
     expect(tool.description).toContain("untrusted-content rules");
     expect(tool.description).toContain(
-      "unless the loaded githits-mcp skill already contains it",
+      "unless the loaded githits-mcp skill already contains this guide",
     );
 
     await expect(tool.handler({}, {})).resolves.toEqual({

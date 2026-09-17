@@ -65,9 +65,9 @@ const schema: ZodRawShape = {
     ),
 };
 
-const DESCRIPTION = `Find canonical cross-project examples when no single target is the answer, or target-scoped search came up short. Best for broad usage patterns, real-world API snippets, unfamiliar errors, and multi-library combinations. For a specific known package or repository, use \`search\`, \`read\`, or \`code_grep\` instead. Verify version-sensitive examples against the target's docs or source.
+const DESCRIPTION = `Find canonical cross-project examples when no single target is the answer. Use for broad usage patterns, unfamiliar errors, multi-library combinations, or when target-scoped search came up short. Verify version-sensitive examples against the target's docs or source.
 
-Default output is markdown with source repository provenance, plus a trailing \`solution_id: ...\` when available. When presenting an example, report source repositories/citations from GitHits' generated references/provenance section; they are core evidence. For code consuming raw output, \`format: "json"\` returns \`{result, solution_id?}\`. If \`language\` is not recognized, retry with a suggested language from the error, or omit \`language\`.
+Default output is markdown with source repository provenance and generated references, plus a trailing \`solution_id: ...\` when available. JSON returns \`{result, solution_id?}\`.
 
 ${GET_EXAMPLE_GUARDRAIL}`;
 

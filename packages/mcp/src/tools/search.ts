@@ -126,14 +126,12 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  'Discover relevant evidence in a known target before exact grep: docs, specs, code, symbols, tests, and examples ranked by relevance. Start here for open-ended "how does", "where is", "find", "locate", or loosely phrased "grep the source" questions. ' +
+  'Discover relevant docs, code, and symbols in a known public target. Start here for open-ended "how does", "where is", "find", or "locate" questions. ' +
   "Required: `query` plus either `target` or `targets`; pass `target` or `targets`, not both. " +
-  "Omit `source` to let GitHits select the best sources; set it only to restrict results to docs, code, or symbols. " +
   "Target indexed dependencies and repositories, or standalone docs with `site:<host[/path]>`. " +
   "Put search constraints in `query`; backend validation reports accepted values. Inspect returned warnings and `sourceStatus` when a qualifier is ignored or incompatible with a selected source. `public_only` remains structured and is ignored for docs. " +
   "A `search` call can return complete results directly. Only when its response supplies both a `searchRef` and a `search_status` action, follow that action with `search_status`; never repeat `search` to poll. Terminal or unrecognized statuses are not polled; follow the response's recovery guidance instead. If the response includes advisory `sourceStatus[].suggestedSiteTargets`, retry one explicitly; do not treat suggestions as aliases or retry automatically. " +
-  "Set `allow_partial_results: true` to permit a serveable subset of target/source pairs while others remain unavailable. " +
-  "Use hit content directly when sufficient; follow its generated `followUp` only for more context. After discovery, use `code_grep` for deterministic exact-pattern occurrences. From text, pass a `[docs page]` target unchanged to `read`; a fragment needs no bounds, and bounds replace it with a page-relative range. Use `read` with repo-doc targets/ranges or repo code/symbol targets, paths, and ranges." +
+  "Use hit content directly when sufficient; follow its generated `followUp` only for more context. Pass a `[docs page]` target unchanged to `read`; for source hits use the returned target, path, and line range." +
   `\n\n${SEARCH_GUARDRAIL}`;
 
 export function createSearchTool(

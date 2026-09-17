@@ -3,8 +3,8 @@
  * Per-tool addenda are reserved for evidence-driven tool-specific framing.
  *
  * Consumers:
- * - `packages/mcp/src/mcp/instructions.ts` inserts the shared block
- *   between `CORE_BLOCK` and `PACKAGE_TOOLS_PREAMBLE`.
+ * - `packages/mcp/src/mcp/instructions.ts` appends the shared block
+ *   to the stable routing guide and its exact public skill copy.
  * - Each tool that surfaces third-party prose appends its per-tool
  *   addendum to its `DESCRIPTION` constant. Source read/grep retain a focused
  *   defense-in-depth addendum because source is especially exposed to embedded

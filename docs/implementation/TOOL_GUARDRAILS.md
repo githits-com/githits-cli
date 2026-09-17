@@ -79,11 +79,17 @@ evidence descriptor now repeats that session prerequisite. A September 2026
 claude.ai session skipped the bootstrap because exact-name retrieval preferred
 those repeated footers while `quick_start`'s own catalog sentence included the
 loaded-skill exception and omitted the literal `quick_start` token. The
-bootstrap sentence now includes that token and states the required first call
+literal-name fix shipped in `6e7b4e8` and was reverted by `2a02a2e` without
+updating this account. The current 72-character bootstrap sentence restores that
+token and states the required first call
 and the untrusted-content safety rules it loads within claude.ai's 79-character
 untruncated limit. The loaded-skill exception remains in the full description.
 The loaded `githits-mcp` skill embeds the same stable block and always skips that
 redundant call; there are no tool-specific exceptions.
+
+Current Haiku descriptor-only baselines still sometimes omit bootstrap. A footer
+or catalog sentence is guidance, not proof that the shared block was loaded;
+the harness does not establish complete hidden-guidance absence or causality.
 
 Luna-low descriptor-only and full-guidance canaries called `quick_start`
 exactly once in every workload,
@@ -144,8 +150,8 @@ in that skill and do not create a second bootstrap path.
     `CODE_GREP_GUARDRAIL`, `SEARCH_GUARDRAIL`, `GET_EXAMPLE_GUARDRAIL`
     — `CODE_READ_GUARDRAIL` and `CODE_GREP_GUARDRAIL` carry the focused
     source fallback; the others remain reserved for evidence-driven restoration.
-- Shared-block wiring: `packages/mcp/src/mcp/instructions.ts` — inserted
-  between `CORE_BLOCK` and `PACKAGE_TOOLS_PREAMBLE`.
+- Shared-block wiring: `packages/mcp/src/mcp/instructions.ts` — appended
+  to the stable routing guide and embedded identically in the public MCP skill.
 - Per-tool wiring: each fixture tool registered by the eval mock exports a guardrail-free
   `DESCRIPTION_BASE`, then appends its guardrail constant to the production
   `DESCRIPTION` with a `\n\n` separator. The eval mock imports base descriptions

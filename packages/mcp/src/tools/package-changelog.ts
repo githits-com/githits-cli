@@ -72,13 +72,13 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Exclusive start of version range. When set, the response returns every entry after `from_version` through `to_version` (or latest) with no count cap — range mode. Mutually exclusive with `limit`. Use latest mode with `to_version` and `limit: 1` to fetch one exact release. Go accepts versions with or without its canonical `v` prefix; tag-style `v` prefixes are rejected for other registries except Swift.",
+      "Exclusive start of version range. Returns every entry after `from_version` through `to_version` (or latest) with no count cap. Mutually exclusive with `limit`. Go accepts versions with or without its canonical `v` prefix; tag-style `v` prefixes are rejected for other registries except Swift.",
     ),
   to_version: z
     .string()
     .optional()
     .describe(
-      "End of range / latest-mode cap. Works in either mode. Defaults to latest on the wire. Go accepts versions with or without its canonical `v` prefix; tag-style `v` prefixes are rejected for other registries except Swift.",
+      "Inclusive range end or latest-mode upper cap, not an exact-release lookup. Defaults to latest on the wire. Go accepts versions with or without its canonical `v` prefix; tag-style `v` prefixes are rejected for other registries except Swift.",
     ),
   limit: z
     .number()
@@ -120,23 +120,18 @@ const schema: ZodRawShape = {
 
 export const DESCRIPTION_BASE: string =
   "Find release notes and changelog history for a package or public repository. Default " +
-  "latest mode returns up to ten entries (`limit` 1–50); source ordering may interleave maintained release lines. " +
-  "With `from_version`, returns every entry in the " +
-  "`(from_version, to_version]` range (range mode, no count cap); use latest mode with `to_version` and `limit: 1` for one exact release. " +
+  "latest mode returns up to ten entries; source ordering may interleave maintained release lines. " +
+  "Range mode returns every entry in `(from_version, to_version]` with no count cap. " +
+  "`to_version` is an upper cap, not an exact-release lookup. " +
   "Address via `registry` + `package_name` or `repo_url` (mutually " +
-  'exclusive). Response includes optional `source` (`"releases"` / ' +
-  '`"changelog_file"` / `"hexdocs"`) when a concrete changelog source ' +
-  'exists, `mode` (`"latest"` or `"range"`), and entries with ' +
-  "markdown body previews. Example: " +
+  "exclusive). Entries include markdown body previews. Example: " +
   '`{"registry":"npm","package_name":"express","limit":2}`. ' +
   "Text output previews 10 body lines by default; use `body_lines` " +
-  "to tune the preview or `verbose:true` for full text bodies. Set " +
-  "`omit_bodies: true` for a version / date / URL timeline only; " +
-  'For code consuming raw output, `format: "json"` returns the complete structured envelope. ' +
+  "to tune the preview or `verbose:true` for full text bodies. " +
   "Package-version entries without changelog " +
   "text succeed with `source` omitted; no-source plus no entries " +
   "returns `NOT_FOUND`. Supports npm, PyPI, Hex, Crates, NuGet, " +
-  "Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift. Use `pkg_info` for latest package health or `pkg_upgrade_review` for current-vs-target evidence.";
+  "Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_CHANGELOG_GUARDRAIL}`;
 

@@ -29,7 +29,7 @@ describe("createListFilesTool — metadata", () => {
     expect(targetSchema).toContain("github:facebook/react@main");
     expect(targetSchema).toContain("#` is reserved for semantic fragments");
     expect(descriptor?.description.slice(0, 80)).toBe(
-      "List indexed files and paths in a public repo or package. Then use `read` or `co",
+      "List indexed files and paths in a public repo or package. Discover paths before ",
     );
   });
 
@@ -39,9 +39,11 @@ describe("createListFilesTool — metadata", () => {
     expect(tool.description).toContain(
       "List indexed files and paths in a public repo or package",
     );
-    expect(tool.description).toContain("`read` or `code_grep`");
+    expect(tool.description).toContain("`read.path` or to scope `code_grep`");
     expect(tool.description).toMatch(/\benumerat(?:e|ion)\b/i);
-    expect(tool.description).toContain("`path_prefix` for directory prefixes");
+    expect(tool.description).toContain(
+      "directory enumeration with `path_prefix`",
+    );
     expect(tool.description).toContain("`FILE_PATH_EXCLUDED`");
     expect(tool.description).toContain("`SOURCE_FILE_INVENTORY_UNKNOWN`");
     expect(Object.keys(tool.schema).sort()).toEqual([

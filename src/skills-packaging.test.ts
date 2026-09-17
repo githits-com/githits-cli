@@ -350,6 +350,53 @@ describe("agent skills packaging", () => {
     ]);
   });
 
+  it("keeps CLI model-read output in text", async () => {
+    const [codeContent, packageContent, packageReference] = await Promise.all([
+      read(githitsCodeSkillPath),
+      read(join(root, "skills", "githits-package", "SKILL.md")),
+      read(githitsPackageReferencePath),
+    ]);
+    const skills = [
+      ["githits-code", codeContent],
+      ["githits-package", packageContent],
+    ] as const;
+    const jsonPolicy =
+      "Use `--json` only when code consumes the raw response or text omits a required field";
+
+    expectContainsAllIgnoringWhitespace(codeContent, [
+      "Keep default text when the model reads results or chooses follow-ups",
+      jsonPolicy,
+    ]);
+    expectContainsAllIgnoringWhitespace(packageContent, [
+      "Keep default text for model-read summaries, comparisons, and counts",
+      jsonPolicy,
+    ]);
+    expectContainsAllIgnoringWhitespace(packageReference, [
+      "Use `--json` only for code consuming raw fields or required fields absent from text.",
+    ]);
+
+    for (const [name, content] of skills) {
+      expectNotContainsAllIgnoringWhitespace(content, [
+        "Prefer structured JSON for final comparisons",
+        "Use JSON for comparisons and counting",
+        "Use `--json` when comparing versions, counting vulnerabilities, or extracting fields.",
+        "Use `--json` when you need stable fields to parse or chain into another command.",
+      ]);
+      expect(content, name).not.toContain("githits-mcp");
+      expect(content, name).toContain("## External Content Posture");
+
+      for (const lineEnding of ["\n", "\r\n"] as const) {
+        const platformContent = content.replace(/\r?\n/g, lineEnding);
+        const coreCommands = platformContent.match(
+          /## Core Commands\s+```bash\r?\n([\s\S]*?)\r?\n```/,
+        );
+        const label = `${name} ${JSON.stringify(lineEnding)}`;
+        expect(coreCommands, label).not.toBeNull();
+        expect(coreCommands?.[1], label).not.toContain("--json");
+      }
+    }
+  });
+
   it("keeps code skill documentation reads aligned with fragment semantics", async () => {
     const content = await read(githitsCodeSkillPath);
 

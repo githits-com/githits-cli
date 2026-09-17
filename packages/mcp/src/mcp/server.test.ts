@@ -61,31 +61,34 @@ const DESCRIPTION_ROUTING: Record<
 > = {
   quick_start: {
     prefix:
-      /^Choose the GitHits tool for an OSS question before discovering evidence tools\./,
+      /^Call quick_start first to choose tools and load untrusted-content rules\./,
     exactPrefix:
-      "Choose the GitHits tool for an OSS question before discovering evidence tools. C",
+      "Call quick_start first to choose tools and load untrusted-content rules. Call on",
     body: [
-      "Call this routing guide first",
+      "Call once per session before discovering evidence tools",
       "untrusted-content rules",
-      "unless the loaded githits-mcp skill already contains it",
+      "unless the loaded githits-mcp skill already contains this guide",
     ],
   },
   get_example: {
     prefix: /^Find canonical cross-project examples/,
-    body: ["`search`", "`read`", "`code_grep`", "source repository provenance"],
+    body: [
+      "target-scoped search came up short",
+      "source repository provenance",
+    ],
   },
   search: {
-    prefix: /^Discover relevant evidence in a known target before exact grep/,
+    prefix:
+      /^Discover relevant docs, code, and symbols in a known public target\./,
     body: [
       "Start here for open-ended",
-      "Omit `source` to let GitHits select the best sources",
+      "`query` plus either `target` or `targets`",
       "`search_status`",
-      "`code_grep`",
       "`read`",
     ],
   },
   search_status: {
-    prefix: /^Continue an explicit `search` reference/,
+    prefix: /^Continue an explicit search reference for progress and results\./,
     body: [
       "only after a prior `search` response explicitly supplies",
       "`searchRef`",
@@ -116,22 +119,24 @@ const DESCRIPTION_ROUTING: Record<
   code_grep: {
     prefix:
       /^Find text, regex, or identifier matches in a public repo or package\./,
-    body: ["deterministic and paginated", "`search`", "`read`", "`code_files`"],
+    body: ["deterministic and paginated", "`read.path`", "`match.line`"],
   },
   docs_list: {
     prefix: /^List package documentation targets for follow-up reads\./,
-    body: ["`read`", "`search`", "`docsReadTarget`"],
+    body: [
+      "`read.target`",
+      "`docsReadTarget`",
+      "not standalone `site:` targets",
+    ],
   },
   pkg_info: {
     prefix: /^Assess latest package health and adoption/,
     exactPrefix:
       "Assess latest package health and adoption: license, downloads, and activity. Pro",
     body: [
-      "`pkg_vulns`",
-      'Use `pkg_vulns` for version-specific vulnerability details, or pass `advisory_scope: "all"` for package-wide history;',
-      "`pkg_deps`",
-      "`pkg_changelog`",
-      "`pkg_upgrade_review`",
+      "unpinned package target",
+      "always returns latest",
+      "Historical counts are not current-version risk",
     ],
   },
   pkg_vulns: {
@@ -145,8 +150,7 @@ const DESCRIPTION_ROUTING: Record<
       "unpinned target",
       "identifiers and aliases, including CVEs when available",
       "identifier aliases (including CVEs)",
-      "`pkg_info`",
-      "`pkg_upgrade_review`",
+      "Transitive evidence is opt-in",
     ],
   },
   pkg_deps: {
@@ -154,10 +158,8 @@ const DESCRIPTION_ROUTING: Record<
     exactPrefix:
       "Inspect what a package depends on, directly or transitively. Lists direct runtim",
     body: [
-      "`pkg_info`",
-      "`pkg_vulns`",
-      "`pkg_upgrade_review`",
-      "`include_issues: true`",
+      "non-runtime groups are omitted by default",
+      "not local application lockfile",
     ],
   },
   pkg_changelog: {
@@ -166,17 +168,15 @@ const DESCRIPTION_ROUTING: Record<
       "Find release notes and changelog history for a package or public repository. Def",
     body: [
       "`(from_version, to_version]`",
-      "one exact release",
-      "`pkg_info`",
-      "`pkg_upgrade_review`",
+      "upper cap, not an exact-release lookup",
     ],
-    absent: ["newest-first", "most recent"],
+    absent: ["newest-first", "most recent", "one exact release"],
   },
   pkg_upgrade_review: {
     prefix: /^Review a package upgrade/,
     exactPrefix:
       "Review a package upgrade: vulnerabilities, releases, peers, dependency changes. ",
-    body: ["`pkg_info`", "`pkg_changelog`", "`pkg_vulns`", "`pkg_deps`"],
+    body: ["facts only", "does not assign risk", "at most 30 upgrades"],
   },
 };
 
@@ -248,18 +248,14 @@ describe("MCP tool description catalog", () => {
       if (routing.exactPrefix !== undefined) {
         expect(catalogPrefix, descriptor.name).toBe(routing.exactPrefix);
       }
-      if (
-        ["code_files", "read", "code_grep", "pkg_changelog"].includes(
-          descriptor.name,
-        )
-      ) {
-        expect(
-          descriptor.description.split(".")[0]!.length + 1,
-        ).toBeLessThanOrEqual(79);
-        expect(catalogSummary).not.toEndWith("…");
-      }
+      expect(
+        descriptor.description.split(".")[0]!.length + 1,
+        descriptor.name,
+      ).toBeLessThanOrEqual(79);
+      expect(catalogSummary, descriptor.name).not.toEndWith("…");
       if (descriptor.name === "quick_start") {
-        expect(catalogSummary).toContain("before discovering evidence tools");
+        expect(catalogSummary).toContain("Call quick_start first");
+        expect(catalogSummary).toContain("untrusted-content rules");
         expect(catalogSummary).not.toContain("githits-mcp");
         expect(catalogSummary).not.toEndWith("…");
         expect(catalogPrefix).not.toContain("githits-mcp");

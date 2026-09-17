@@ -160,12 +160,18 @@ describe("createPackageDependenciesTool — metadata", () => {
     expect(tool.description).toContain(
       "Inspect what a package depends on, directly or transitively",
     );
-    expect(tool.description).toContain("include_issues: true");
-    expect(tool.description).toContain(
+    expect(tool.schema.include_issues?.description).toContain(
       "deprecated, outdated, duplicate, and conflict analysis",
     );
-    expect(tool.description).toContain("issues scan the full graph");
-    expect(tool.description).toContain("max_depth");
+    expect(tool.schema.include_issues?.description).toContain(
+      "this traverses the full graph",
+    );
+    expect(tool.schema.max_depth?.description).toContain(
+      "unless `include_importers` is true",
+    );
+    expect(tool.schema.max_depth?.description).toContain(
+      "`include_issues` can still analyze the full graph",
+    );
     expect(Object.keys(tool.schema).sort()).toEqual([
       "format",
       "include_importers",
