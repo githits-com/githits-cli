@@ -1340,8 +1340,12 @@ language filtering or force agents to guess names.
 
 ### Phase 6: shared instruction ownership and concise tool copy
 
-**Status:** IN PROGRESS on `jlitola/compact-agent-instructions` — the user accepted
-the disclosed guidance-only bootstrap limitation on 2026-09-17.
+**Status:** IMPLEMENTED on `jlitola/compact-agent-instructions`, awaiting draft-PR
+CI and merge. Internal technical review is clean; external Opus round 1 found only
+minor documentation issues, applied for a clean round under repository policy.
+Complete experimental live MCP smoke remains unavailable (mixed Ask timeout/503);
+focused SDK thread/source proof and CLI smoke passed. The user accepted the
+guidance-only bootstrap limitation on 2026-09-17; no deployment is included.
 
 **Expected outcome:** Skills/quick-start consistently explain recurring policy once
 per loaded guidance path. Tools remain self-sufficient for selection and their own
@@ -1546,7 +1550,34 @@ no further conflicting ownership claim. Rejected its two requests to remove veri
 bootstrap incident commit history: the approved plan explicitly preserves that
 history and corrects the reverted-fix account; it is distinguished from current
 implementation, not stale runtime behavior. Rejection dated 2026-09-17; no new
-evidence warrants reopening it. Internal technical/external review pending.
+evidence warrants reopening it. Fresh internal technical review returned no findings;
+no tests rerun by reviewers.
+
+External Opus round 1: no code/schema/runtime/policy-scope/test-weakening findings;
+accepted two minor documentation findings. Failure class: permanent tool copy still
+described removed neighboring-tool menus, and the CLI skill's relocated continuation
+reference was ambiguous. Bounded sibling scan covered the complete Current Tools
+table, routing paragraphs, changed ownership docs and CLI code/package/MCP skills.
+Aligned the table with current roles/selected contracts, replaced the reciprocal-menu
+claim with guide-owned routing, removed the contradictory repeat-search polling
+instruction, and pointed the CLI skill explicitly to references/code-and-docs.md.
+No runtime or selection metadata changed. After affected documentation checks pass,
+these wording-only fixes make this round clean; no additional round is required.
+The reviewer ran no covered checks or final checker because it reported findings;
+retain that settled reviewer for this PR rather than dispatching another round solely
+for applied doc fixes. Closure checks: `bun test src/skills-packaging.test.ts`:
+18 pass / zero fail / 223 assertions; plugin generation/check validated ten assets
+with no generated diff; format and diff checks passed. All earlier production-copy
+and runtime evidence still applies. External review is clean under the doc-only
+policy. CI handoff is recorded with the draft PR.
+
+Orchestration record: one reused Luna implementor, seven mechanical dispatches
+including brief corrections; zero worker errors or interrupts. Coordinator kept
+copy/ownership judgment, non-mechanical metadata assertions, schema inventory,
+live/eval verification and review adjudication inline. Two exact-wording corrections
+were coordinator brief errors, not worker failures; the short-format rollback was
+an eval decision. Permanent policy is in implementation docs and public guidance;
+retain this overarching plan for the unfinished phases.
 
 Resolver opening-only comparison (`instructions-{baseline,candidate}-{codex,claude}-resolver-opening-20260917`):
 two existing fuzzy/site follow-up cases per provider, all final copy held constant
