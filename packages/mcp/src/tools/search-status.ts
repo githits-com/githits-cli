@@ -49,7 +49,7 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "Continue an explicit `search` reference: inspect progress, retrieve interim or partial hits, or fetch final results. Call this only after a prior `search` response explicitly supplies both a `searchRef` and a `search_status` action; otherwise the initial `search` result is complete or has its own recovery guidance. " +
+  "Continue an explicit search reference for progress and results. Call this only after a prior `search` response explicitly supplies both a `searchRef` and a `search_status` action; otherwise the initial result is complete or has its own recovery guidance. " +
   "Pass that response's `searchRef` as `search_ref` here (response field is camelCase; this parameter is snake_case), including for active `PENDING`, `INDEXING`, or `SEARCHING` progress or a completed result with an evidence notice. Fetch partial hits from a serveable subset only when the original request used `allow_partial_results: true`. `DEFERRED`, `TIMEOUT`, and `FAILED` are terminal; unrecognized statuses are not polled. Preserve any disclosed evidence from those stopped references and follow the rendered new-search action.";
 
 export function createSearchStatusTool(

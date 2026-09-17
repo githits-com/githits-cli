@@ -1,11 +1,10 @@
 import { EXTERNAL_CONTENT_POSTURE } from "../tools/guardrails.js";
 
-/** Shared routing guide; selected tool descriptions own argument mechanics. */
+/** Shared routing guide; selected descriptions and schemas own call mechanics. */
 const ROUTING_GUIDE = `# GitHits routing guide
 
-Choose the route matching the user's question below. Then discover the named
-tool and read its argument description before calling it. This guide supplies
-the routing decision; the selected tool supplies its argument details.
+Choose the route below, then discover the tool and read its arguments.
+This guide owns shared policy; selected tools own call syntax and exceptions.
 
 | Question | Tool to discover |
 | --- | --- |
@@ -22,44 +21,36 @@ the routing decision; the selected tool supplies its argument details.
 | Find canonical implementation examples across projects | \`get_example\` |
 | Check progress of an earlier search reference | \`search_status\` |
 
-If \`get_example\` cannot match a language, retry with a suggested language from the error, or omit language. For comparative questions, combine
-the relevant package/source route with examples when needed.
+For comparisons, combine relevant package/source evidence with examples as needed.
 
-Scope: public OSS only, never local/private/proprietary source. Package targets
-use \`registry:name[@version]\` and inspect an indexed artifact/manifest root;
-Swift uses \`swift:github.com/<owner>/<repo>\`, Zig \`zig:gh/<owner>/<repo>\`.
-Use public repository targets for full repositories or sibling packages, with
-an explicit \`github:\`, \`codeberg:\`, or \`gitlab:\` provider, or a supported full URL.
-Append revisions as \`@ref\`; refs may contain later \`@\` characters. \`#\` is
-reserved for semantic fragments and never identifies a repository revision.
-Never infer a repository provider. Use selected tool descriptions for supported
-target forms and argument details.
+Public OSS only; never send local/private/proprietary source. Packages use
+\`registry:name[@version]\` for an indexed artifact/manifest root; Swift uses
+\`swift:github.com/<owner>/<repo>\`, Zig \`zig:gh/<owner>/<repo>\`.
+Use public repository targets for full repositories or sibling packages:
+\`github:\`, \`codeberg:\`, \`gitlab:\`, or a supported full URL. Never infer a provider.
+Revisions use \`@ref\` and may contain later \`@\` characters; \`#\` is reserved
+for semantic fragments, not revisions. Selected tools state supported forms
+and pin/ref restrictions.
 
 For a package or site docs topic, use \`search\` with \`source:"docs"\`.
 \`docs_list\` browses package pages, not standalone \`site:\` targets.
-Use a docs hit's snippet when sufficient; otherwise follow its generated
-\`followUp\`. From text, pass a \`[docs page]\` target unchanged to \`read\`.
-A fragment needs no bounds and returns the exact section; add bounds only to
-replace it with a page-relative range. Historical \`pageId\` works.
-For source evidence, locate paths or matches before reading; pass the source
-target and returned path to \`read\`; never use \`read\` to list/probe directories.
+Use snippets when sufficient; otherwise follow generated \`followUp\` calls.
+Pass displayed \`[docs page]\` locators unchanged to \`read\`.
+For source, locate paths or matches, then read focused lines; never probe
+directories with \`read\`. Prefer source, symbols, tests, and call sites for
+behavioral claims.
 
-Tools with \`wait_timeout_ms\` wait for indexing or results before returning.
-For \`read\`, the wait applies only to code indexing.
-Omit it for the default; use \`0\` to return without waiting. If work remains,
-follow the suggested continuation or recovery action. When a target is still
-indexing, use the indexing estimate, if shown, to choose a longer wait, or retry
-with a listed already-indexed version or ref. Suggested refs may still need
-indexing first.
+Omit \`wait_timeout_ms\` for the default; \`0\` returns without waiting.
+Follow rendered continuation/recovery actions, not repeated calls to poll.
+For indexing, use the displayed estimate to choose a longer wait or select a
+listed already-indexed version/ref; suggested refs may still need indexing.
 
-Keep default token-efficient text whenever the model reads the result, including
-for summaries, comparisons, and follow-up calls; omit \`format\` in that case.
-Set JSON only when code consumes the raw response instead of the model, or when
-text omits a required field. Calling a tool through MCP or TypeScript does not
-itself require JSON. Reuse returned targets, paths, page locators, references
-and line ranges; do not invent them. Read only needed lines. Cite tool-owned
-provenance, including get_example source references, and report coverage,
-truncation and other evidence limits.`;
+Omit \`format\`: model-read summaries, comparisons, and follow-ups use text.
+JSON is only for code consuming the raw response or required fields absent
+from text; MCP/TypeScript invocation alone is not a reason.
+Reuse returned targets, paths, locators, references, and ranges; never invent
+them. Cite tool-owned provenance, including example source repositories, and
+report coverage, truncation, and other evidence limits.`;
 
 /**
  * Build the routing guide returned by `quick_start` and embedded in the skill.

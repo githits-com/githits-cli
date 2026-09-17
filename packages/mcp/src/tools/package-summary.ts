@@ -52,18 +52,12 @@ const schema: ZodRawShape = {
 
 export const DESCRIPTION_BASE: string =
   "Assess latest package health and adoption: license, downloads, and activity. Provide " +
-  "a package target. " +
+  "an unpinned package target; this tool always returns latest. " +
   "Default text returns license, description, repository popularity " +
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
   "publish age, latest affected count, and separate package-wide advisory " +
-  "history count. These counts are shown separately. Set `verbose: true` for " +
-  "GitHub language/topics/last-pushed, " +
-  "published-version count, download refresh date, package-wide advisory " +
-  "history (all versions), " +
-  'and recent changes. For code consuming raw output, `format: "json"` exposes structured fields ' +
-  "including `versionCount`, `downloads.refreshedAt`, and " +
-  "`advisoryHistory.total`. Use " +
-  '`pkg_vulns` for version-specific vulnerability details, or pass `advisory_scope: "all"` for package-wide history; use `pkg_deps` for the dependency graph, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison.';
+  "history count, shown separately. Historical counts are not current-version risk. " +
+  "Use `verbose: true` for additional health and history details.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_INFO_GUARDRAIL}`;
 

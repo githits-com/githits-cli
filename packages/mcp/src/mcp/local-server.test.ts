@@ -202,6 +202,37 @@ describe("createLocalMcpServer", () => {
     }
   });
 
+  it("renders complete experimental selection sentences", () => {
+    const server = createLocalMcpServer({
+      metadata: { name: "local-githits", version: "0.0.0" },
+      services: createServices(),
+      policy: { tools: true },
+    });
+    const expectedSentences = {
+      ask: "Ask a public repository or package question and receive a source-cited answer.",
+      resolve_target:
+        "Resolve package, repository, or documentation-site names to canonical targets.",
+      code_diff:
+        "Compare source across exact package versions or public repository refs.",
+    } as const;
+    const firstSentences = Object.entries(expectedSentences).map(
+      ([name, expected]) => {
+        const description = registeredTools(server)[name]?.description;
+        expect(description, name).toBeDefined();
+        const match = description?.match(/^([^.]*\.)(?:\s|$)/);
+        expect(match, name).not.toBeNull();
+        const firstSentence = match?.[1] ?? "";
+        expect(firstSentence, name).toBe(expected);
+        expect(firstSentence, name).not.toContain("...");
+        expect(firstSentence.length, name).toBeGreaterThan(0);
+        expect(firstSentence.length, name).toBeLessThanOrEqual(79);
+        expect(description?.slice(0, 80), name).toStartWith(firstSentence);
+        return firstSentence;
+      },
+    );
+    expect(new Set(firstSentences)).toHaveLength(3);
+  });
+
   it("uses compact string targets for stable and experimental navigation tools", () => {
     const server = createLocalMcpServer({
       metadata: { name: "local-githits", version: "0.0.0" },

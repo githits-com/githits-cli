@@ -97,10 +97,10 @@ describe("code_diff MCP adapter", () => {
     expect(schema.properties?.target).toMatchObject({ type: "string" });
     for (const phrase of [
       "Experimental",
-      "source diff",
+      "Compare source across",
       "repository-wide diffs",
       "does not prove the package unchanged",
-      "compact `target`",
+      "unversioned canonical `target`",
       "from",
       "to",
       "name-status",

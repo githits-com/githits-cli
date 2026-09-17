@@ -46,9 +46,9 @@ const schema: ZodRawShape = {
 
 const DESCRIPTION =
   "List package documentation targets for follow-up reads. " +
-  'Pass them to `read` as the `target`; use `search` with `source: "docs"` for topics. ' +
-  "Each entry includes preferred `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, and `sourceKind`; repo-backed entries add exact `repoUrl` / `gitRef` / `filePath` for `read`. " +
-  "Historical IDs remain readable." +
+  "Package targets only, not standalone `site:` targets. Pass an entry's preferred " +
+  "`docsReadTarget` to `read.target`; historical `pageId` values remain readable. " +
+  "Repo-backed entries supply exact `repoUrl` / `gitRef` / `filePath` for source reads." +
   `\n\n${DOCS_GUARDRAIL}`;
 
 export function createListPackageDocsTool(

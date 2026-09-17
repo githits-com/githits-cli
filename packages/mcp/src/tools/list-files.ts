@@ -118,17 +118,12 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "List indexed files and paths in a public repo or package. Then use `read` or " +
-  "`code_grep`. Use this for enumeration tasks such as files under a directory; use " +
-  "`path_prefix` for directory prefixes (e.g. `lib/`) and optional " +
-  "`extensions` for language filtering. Discover paths before `read` " +
+  "List indexed files and paths in a public repo or package. Discover paths before `read` " +
   "when you don't yet know the path, or when it returns " +
   "`FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, or " +
-  "`SOURCE_FILE_INVENTORY_UNKNOWN`. Also use it to scope `code_grep`. Address " +
-  "a package or public repository with one compact `target`. Narrow with `path`, `path_prefix`, `globs`, " +
-  "`extensions`, `file_types`, `languages`, or file-intent filters. " +
-  "JSON envelope shape: `{total, hasMore, files: [{path, name, " +
-  "language, fileType, byteSize}], resolution, indexedVersion}`.";
+  "`SOURCE_FILE_INVENTORY_UNKNOWN`. Pass one compact `target`; use returned paths " +
+  "for `read.path` or to scope `code_grep`. Narrow directory enumeration with " +
+  "`path_prefix` (e.g. `lib/`).";
 
 export function createListFilesTool(
   service: CodeNavigationService,

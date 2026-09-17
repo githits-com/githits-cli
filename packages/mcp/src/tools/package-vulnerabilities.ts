@@ -50,7 +50,7 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe(
-      "Opt in to dependency vulnerability evidence for the resolved graph. Adds graph-analysis cost; min_severity and advisory_scope apply to direct and transitive rows, while include_withdrawn affects direct rows only.",
+      "Opt in to dependency vulnerability evidence for the resolved graph. Adds graph-analysis cost; min_severity and advisory_scope apply to direct and transitive rows, while include_withdrawn affects direct rows only. Transitive withdrawn advisories remain excluded.",
     ),
   advisory_scope: z
     .string()
@@ -80,9 +80,7 @@ export const DESCRIPTION_BASE: string =
   "Supports npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift; vcpkg and Zig unsupported. " +
   "Returns counts/details: identifiers and aliases, including CVEs when available, severity, affected ranges, and fixes; malicious advisories are separate. " +
   "Default text is capped; `verbose:true` shows all selected rows and identifier aliases (including CVEs). " +
-  'For code consuming raw output, `format:"json"` returns the complete envelope. `min_severity` filters thresholds (`low`, `medium`, `high`, `critical`); `include_withdrawn` includes retracted advisories. ' +
-  "Use `include_transitive:true` for dependency vulnerability evidence covering the resolved graph; this is opt-in because it adds graph-analysis cost. `min_severity` and `advisory_scope` apply to direct and transitive rows, while `include_withdrawn` affects direct rows only and transitive withdrawn advisories remain excluded. " +
-  "Use `pkg_info` for latest health overview or `pkg_upgrade_review` for current-vs-target upgrade evidence.";
+  "Transitive evidence is opt-in and adds graph-analysis cost; see `include_transitive` for scope and filter limits.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_VULNS_GUARDRAIL}`;
 

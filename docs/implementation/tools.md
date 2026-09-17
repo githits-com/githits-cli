@@ -36,10 +36,11 @@ tool's distinct role; keep it within 79 characters when it must render whole.
 Keep the first 80 raw characters useful for clients that expose a raw prefix.
 Keep registry counts and enumerations in the loaded definition because they
 crowd out trigger language and can imply incomplete or inconsistent catalog
-boundaries. The loaded definition owns the complete use/avoid boundary,
-argument constraints, and the exact name of each immediate follow-up tool.
-Repeat those handoffs on both sides of a workflow so a client can recover when
-it loads only one tool.
+boundaries. The selected description plus schema owns the distinct job, minimum
+call shape, supported target family, operation-specific exceptions, and callable
+follow-up mapping. It must not require a neighboring evidence descriptor to
+explain its own arguments. The guide/skill owns recurring cross-tool policy;
+retain short local reminders rather than copying full policy or parameter lists.
 
 The raw 80-character boundary comes from an August 2026 Claude Desktop connector
 session with no GitHits memories or user instruction to use GitHits. Its
@@ -92,7 +93,8 @@ byte-for-byte aligned under `src/skills-packaging.test.ts`. Local
 `buildLocalMcpQuickStart()` appendices are runtime-only and excluded from that
 public copy; they do not change when `quick_start` is called. Individual tool
 descriptions remain self-contained so direct tool selection can still find the
-right evidence tool before the bootstrap.
+right evidence tool before the bootstrap. The footer is guidance, not proof that
+the guide loaded: current Haiku descriptor-only baselines sometimes skip it.
 The shared guide owns general wait and indexing-recovery guidance using the
 estimates, indexed alternatives, and suggested actions visible in the output,
 without requiring JSON field paths. Wait parameter
@@ -106,9 +108,11 @@ The `quick_start` catalog sentence was corrected after a September 2026
 claude.ai session skipped `quick_start`: exact-name retrieval matched the
 prerequisite footer repeated by the dependent tools, while `quick_start`'s own
 catalog sentence included the loaded-skill exception and omitted both the
-literal `quick_start` token and the safety consequence. The replacement
-sentence includes both because the
-observed retrieval matched description bodies rather than tool names. The
+literal `quick_start` token and the safety consequence. The literal-name fix
+shipped in `6e7b4e8` but was reverted by `2a02a2e` without correcting these docs.
+The current 72-character sentence restores the token, first-call purpose, and
+safety benefit because the observed retrieval matched description bodies rather
+than tool names. This is a discovery correction, not enforced bootstrap. The
 transcript-derived probe in
 `eval/agentic/probes/claude-ai-deferred-catalog.md` preserves that catalog layout
 and substitutes the current rendered `quick_start` sentence.
@@ -151,7 +155,7 @@ see [Unified read](unified-read.md).
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `quick_start` | none | Required first call for a plain GitHits MCP session. Loads untrusted-content safety rules, cross-tool routing, target syntax, and compact-output rules. A plain session that skips it lacks those rules; skip only when the `githits-mcp` skill is loaded. |
+| `quick_start` | none | Required first call for a plain GitHits MCP session. Loads shared safety, routing, target, output, and evidence rules. Skip only when the loaded `githits-mcp` skill already supplies the guide; descriptor reminders do not enforce loading. |
 | `get_example` | `query`, `language?`, `license_mode?`, `format?` | Find canonical cross-project examples when no single target is the answer or target-scoped search came up short. For a known package or repository, use `search`, `docs_*`, or `code_*`. Defaults to markdown with source provenance, plus an optional `solution_id` for result identification; pass `format: "json"` for `{result, solution_id?}`. Omit `language` to infer it; if GitHits cannot match it, retry with a suggested language from the error or omit `language`. |
 | `search` | `query`, `target?` (compact string), `targets?` (compact strings), `source?`, `public_only?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Discover relevant evidence in a known target before exact grep: docs, specs, code, symbols, tests, and examples ranked by relevance. Put kind, category, path, intent, name, and language constraints in `query`; omit `source` for broad discovery. Use `search_status` only when the response explicitly supplies a `searchRef` and action. |
 | `search_status` | `search_ref`, `wait_timeout_ms?`, `format?` | Continue an explicit `search` reference only after that response supplies a `searchRef` and `search_status` action. Inspect progress or retrieve interim, partial, or final hits; terminal and unrecognized statuses end that reference, so use a later `search` for a fresh session. |
@@ -159,7 +163,7 @@ see [Unified read](unified-read.md).
 | `pkg_info` | `target` (unpinned package string), `verbose?`, `format?` | Assess latest package health and adoption through license, downloads, and activity. Use `pkg_vulns` for advisory detail, `pkg_deps` for dependency graphs, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison. |
 | `pkg_vulns` | `target` (package string), `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `include_transitive?`, `verbose?`, `format?` | Check current package advisories instead of trusting memory for vulnerabilities. Advisories can be published or revised after training, so a cutoff disclaimer is not current evidence. Covers pinned releases, latest-version risk, and package security history. Use `include_transitive: true` for resolved dependency evidence; `advisory_scope: "all"` includes historical advisories for those dependency packages. Use `pkg_info` for a latest health overview or `pkg_upgrade_review` for current-vs-target evidence. |
 | `pkg_deps` | `target` (package string), `lifecycle?`, `include_importers?`, `include_issues?`, `max_depth?`, `format?` | Inspect direct/transitive dependencies or opt into deprecated, outdated, duplicate, and conflict analysis. Use `pkg_info` for health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence. |
-| `pkg_changelog` | `registry?`, `package_name?`, `repo_url?`, `from_version?`, `to_version?`, `limit?`, `git_ref?`, `omit_bodies?`, `verbose?`, `body_lines?`, `format?` | Find release notes and changelog history for a package or public repository. Latest mode returns recent entries without promising date order; range mode covers `(from_version, to_version]`. Use latest mode with `to_version` and `limit: 1` for one exact release. Use `pkg_info` for a quick health view or `pkg_upgrade_review` for upgrade evidence. |
+| `pkg_changelog` | `registry?`, `package_name?`, `repo_url?`, `from_version?`, `to_version?`, `limit?`, `git_ref?`, `omit_bodies?`, `verbose?`, `body_lines?`, `format?` | Find release notes and changelog history for a package or public repository. Latest mode caps entries without promising date order or exact-release selection; range mode covers `(from_version, to_version]`. `to_version` is an upper cap, not an exact lookup. |
 | `pkg_upgrade_review` | `registry?`, `package_name?`, `current_version?`, `target_version?`, `packages?`, `skip_transitive_security?`, `include_dependency_issues?`, `min_severity?`, `verbose?`, `format?` | Review a package upgrade using vulnerability, release, peer, and dependency-change evidence. Use `pkg_info` for health, `pkg_changelog` for release notes, `pkg_vulns` for advisory detail, or `pkg_deps` for dependency graphs. |
 | `code_files` | `target` (compact string), `path?`, `path_prefix?`, `globs?`, `extensions?`, `file_types?`, `languages?`, `file_intent?`, `file_intents?`, `exclude_file_intents?`, `exclude_doc_files?`, `exclude_test_files?`, `include_hidden?`, `limit?`, `wait_timeout_ms?`, `format?` | List indexed files and paths in any public repository or package, then hand off to `read` or `code_grep`. Selectors narrow the listing; `INDEXING` errors expose available retry candidates when known. |
 | `read` | `target` (string), `path?`, `start_line?`, `end_line?`, `wait_timeout_ms?`, `format?` | Read a code file with target + path, or docs page with target alone. Fragments select indexed sections unless explicit bounds override them. Text displays 150/300 lines; code caps before fetching, while docs JSON keeps the backend selection. Wait applies to code indexing only. See [unified read](unified-read.md). |
@@ -355,7 +359,7 @@ contributors are not copied onto generic progress targets, and
 
 ### `pkg_info` response shape
 
-**Default MCP text + JSON opt-in.** `pkg_info` defaults to compact triage text for agent turns: identity/license, description, repository popularity (stars/forks/issues and `[ARCHIVED]` when available), publish age, downloads, and explicit vulnerability status. Its vulnerability line labels the independent scopes as `Latest: ...` and `History: ...`: `vulnerabilities.total` remains the numeric count affecting the latest returned version, while `advisoryHistory.total` is the package-wide non-withdrawn, deduplicated advisory count across all versions. The history block is emitted whenever security data exists, including zero, and remains available when the nullable latest count is unavailable; an absent security block is not invented as zero. The field contains evidence only, with no inline action. CLI help routes full-history inspection to `githits pkg vulns <registry>:<name> --scope all`; the MCP descriptor routes it to `pkg_vulns` with `advisory_scope: "all"`. Color-enabled CLI output uses non-bold cyan for repository/homepage URL substrings without coloring attached statistics; no-color CLI and MCP output retain the same content and hierarchy.
+**Default MCP text + JSON opt-in.** `pkg_info` defaults to compact triage text for agent turns: identity/license, description, repository popularity (stars/forks/issues and `[ARCHIVED]` when available), publish age, downloads, and explicit vulnerability status. Its vulnerability line labels the independent scopes as `Latest: ...` and `History: ...`: `vulnerabilities.total` remains the numeric count affecting the latest returned version, while `advisoryHistory.total` is the package-wide non-withdrawn, deduplicated advisory count across all versions. The history block is emitted whenever security data exists, including zero, and remains available when the nullable latest count is unavailable; an absent security block is not invented as zero. The field contains evidence only, with no inline action. CLI help routes full-history inspection to `githits pkg vulns <registry>:<name> --scope all`; the MCP routing guide selects `pkg_vulns`, whose `advisory_scope` field defines `"all"` history inspection. Color-enabled CLI output uses non-bold cyan for repository/homepage URL substrings without coloring attached statistics; no-color CLI and MCP output retain the same content and hierarchy.
 
 `verbose: true` adds GitHub language/topics/last-pushed, published-version count, download refresh date (when a download count is present), package-wide advisory rows under `Advisory history (all versions)`, and recent changes. `format: "json"` returns a lean payload designed for programmatic consumers and requests the detailed fields. The exact additive fields are top-level `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total`; `downloads` is retained when it has only `refreshedAt`. Null scalars are omitted, and empty blocks/arrays are omitted. `vulnerabilities` is emitted whenever the backend reports a numeric latest-version count, including `total: 0`; its `affectsLatest` boolean and package-wide `recent` advisory rows retain their existing meanings. Recent advisory severity values include a CVSS-banded `severityLabel` (`critical` ≥9, `high` ≥7, `medium` ≥4, else `low`) for agent convenience. Compact/default requests select `allVulnerabilityCount` unconditionally; `versionCount` and `downloadsRefreshedAt` are selected only when `includeVerboseFields` is true.
 
@@ -472,7 +476,7 @@ JSON retains backend order and multiplicity.
 
 **Dual addressing (`registry` + `package_name` XOR `repo_url`).** `pkg_changelog` retains both structured addressing modes. `pkg_info`, `pkg_vulns`, and `pkg_deps` accept compact package `target` strings without repository alternatives because they are registry-metadata lookups. Changelog sources are intrinsically repo-level — GitHub Releases, CHANGELOG.md, and HexDocs — so repository addressing is a peer mode, not a bolt-on.
 
-**Mode selection.** `from_version` triggers range mode (returns every entry in `(fromVersion, toVersion]` with no cap). The lower bound is exclusive, so an equal start/end range has no entries. Latest mode is the default, capped by `limit` (1–50, backend default 10); use `to_version` with `limit: 1` to fetch one exact release. `from_version` + `limit` is rejected client-side with `INVALID_ARGUMENT` rather than silently routed to one mode.
+**Mode selection.** `from_version` triggers range mode (returns every entry in `(fromVersion, toVersion]` with no cap). The lower bound is exclusive, so an equal start/end range has no entries. Latest mode is the default, capped by `limit` (1–50, backend default 10); `to_version` supplies an upper cap, not an exact-release lookup. `from_version` + `limit` is rejected client-side with `INVALID_ARGUMENT` rather than silently routed to one mode.
 
 **`omit_bodies` lever and body previews.** Release bodies on large packages (Kubernetes, Node) can run 10 KB+ per entry; a 100-entry range could produce a multi-hundred-KB envelope. `omit_bodies: true` opts out explicitly in JSON and text — not silent truncation. Other fields (version / normalizedVersion / publishedAt / htmlUrl) remain so agents still get the release timeline. Text mode caps each body preview at 10 lines by default. MCP adds text-only `body_lines` (1-50) to tune the cap and `verbose:true` to uncap text bodies; both are ignored for JSON. `verbose:true` conflicts with `omit_bodies:true` and `body_lines`. CLI terminal output uses the same default preview cap and gives the CLI-native `--verbose` hint; `--verbose` uncaps terminal previews but does not change `--json` output.
 
@@ -877,14 +881,14 @@ handled that field as hidden guidance, privileged guidance, namespace metadata,
 or a prefix repeated on every tool. Plain MCP clients use the `quick_start`
 tool to expose shared guidance once, on demand. The loaded `githits-mcp` skill
 contains the same stable guide and therefore makes no bootstrap call;
-current tool descriptions remain the source of truth for tool-specific
+selected descriptions and schemas remain the source of truth for tool-specific
 routing, arguments, output, and recovery. The bootstrap descriptor's complete
 catalog sentence identifies it as the required first call, includes the literal
 `quick_start` retrieval token, and states the untrusted-content safety benefit;
 the skill-loaded exception follows later. Every evidence and preparatory
 descriptor repeats the same prerequisite
-in a centrally composed footer, so selecting a direct tool still routes a plain
-MCP agent through `quick_start`. The footer is absent from transport-neutral
+in a centrally composed footer to remind direct-tool callers to load
+`quick_start`; it does not enforce that call. The footer is absent from transport-neutral
 callable tools, which may not expose a bootstrap tool. There are no
 tool-specific exceptions.
 
@@ -901,15 +905,15 @@ payload whose privilege, visibility, and repetition vary by host.
 
 `packages/mcp/src/mcp/instructions.ts` owns the `quick_start` guide sections:
 
-- **Core block** — always loaded. Introduces GitHits, defines its public-only scope, expands trigger criteria to include comparative cross-OSS questions and "how does X actually implement this" archaeology, and walks through the `get_example` workflow.
-- **External-content block** — included by default from `packages/mcp/src/tools/guardrails.ts`; tells agents to treat third-party prose as data, not instructions.
-- **Package-tools block** — always appended. Contains a preamble plus one bullet
-  per package/code tool and a reference-first strategy: source, symbols, tests,
-  and call sites beat docs prose; enumerate paths first, locate symbols or
-  lines, then read focused windows.
+- **Routing guide** — question-to-tool table and recurring public scope, canonical
+  targets, model-read text/JSON policy, evidence reuse/citations/limits, focused
+  reads, and wait/recovery discipline. Selected descriptions/schemas own language
+  retry, docs fragment/range behavior, and other single-tool mechanics.
+- **External-content block** — appended by default from `packages/mcp/src/tools/guardrails.ts`; tells agents to treat third-party prose as data, not instructions.
 - **Local experimental block** — appended only by the workspace-internal local
   composer when the host policy enables experimental tools. It names only the
-  registered local `resolve_target`/`code_diff` subset, routes fuzzy identity
+  registered local `ask`/`resolve_target`/`code_diff` subset, routes source-cited
+  question answering and fuzzy identity
   before canonical diff evidence, and permits direct reuse of a resolved target
   only for a non-ambiguous `EXACT` or `HIGH` best result with `CLEAR` or
   `NOT_APPLICABLE` malicious-content status. `CLEAR` is not a vulnerability-free

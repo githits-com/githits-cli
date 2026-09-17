@@ -27,17 +27,18 @@ describe("createPackageSummaryTool — metadata", () => {
     expect(tool.description).toContain("latest affected count");
     expect(tool.description).toContain("package-wide advisory history count");
     expect(tool.description).toContain("shown separately");
-    expect(tool.description).toContain("published-version count");
-    expect(tool.description).toContain("downloads.refreshedAt");
-    expect(tool.description).toContain("advisoryHistory.total");
-    expect(tool.description).toContain("advisory history (all versions)");
+    expect(tool.schema.verbose?.description).toContain(
+      "published-version count",
+    );
+    expect(tool.schema.format?.description).toContain("downloads.refreshedAt");
+    expect(tool.schema.format?.description).toContain("advisoryHistory.total");
     expect(tool.description).toContain(
-      'Use `pkg_vulns` for version-specific vulnerability details, or pass `advisory_scope: "all"` for package-wide history;',
+      "Historical counts are not current-version risk",
     );
     expect(tool.schema.verbose?.description).toContain(
       "advisory history (all versions)",
     );
-    expect(tool.description).toContain("pkg_vulns");
+    expect(tool.description).not.toContain("`advisory_scope:");
     expect(Object.keys(tool.schema)).toEqual(["target", "verbose", "format"]);
     expect(tool.schema.target?.description).toContain(
       "for example npm:express or npm:@types/node",

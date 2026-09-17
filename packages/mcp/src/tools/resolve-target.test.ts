@@ -86,9 +86,10 @@ describe("resolve_target MCP adapter", () => {
       openWorldHint: true,
       destructiveHint: false,
     });
-    expect(DESCRIPTION.slice(0, 80)).toBe(
-      "Resolve package, repository, or documentation-site names into canonical targets.",
+    expect(DESCRIPTION.slice(0, 80)).toStartWith(
+      "Resolve package, repository, or documentation-site names to canonical targets.",
     );
+    expect(DESCRIPTION.split(".")[0]!.length + 1).toBeLessThanOrEqual(79);
     expect(Object.keys(tool.schema)).toEqual([
       "name",
       "query",
