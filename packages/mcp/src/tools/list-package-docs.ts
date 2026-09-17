@@ -48,6 +48,7 @@ const DESCRIPTION =
   "List package documentation targets for follow-up reads. " +
   "Package targets only, not standalone `site:` targets. Pass an entry's preferred " +
   "`docsReadTarget` to `read.target`; historical `pageId` values remain readable. " +
+  "Hosted HTTP(S) targets address mutable current content; repo targets are snapshot-addressed. " +
   "Repo-backed entries supply exact `repoUrl` / `gitRef` / `filePath` for source reads." +
   `\n\n${DOCS_GUARDRAIL}`;
 

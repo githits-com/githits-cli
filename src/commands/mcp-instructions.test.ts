@@ -135,6 +135,12 @@ describe("buildMcpQuickStart", () => {
     expect(instructions).toContain(
       "Pass displayed `[docs page]` locators unchanged to `read`",
     );
+    expect(instructions).toContain(
+      "Hosted/crawled HTTP(S) docs locators address mutable current content",
+    );
+    expect(instructions).toContain(
+      "Repository docs are snapshot-addressed and keep returned ranges",
+    );
     const reader = getMcpToolDefinitions(createTestServices()).find(
       (tool) => tool.name === "read",
     );

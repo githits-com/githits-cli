@@ -1076,14 +1076,14 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
       typeof crawledPage.docsReadTarget === "string" &&
       typeof crawledPage.pageId === "string" &&
       typeof crawledPage.sourceUrl === "string",
-    "docs_list json missing crawled URL target, stable page ID, or source URL",
+    "docs_list json missing crawled URL target, compatible page ID, or source URL",
   );
   assert(
     repoPage &&
       typeof repoPage.docsReadTarget === "string" &&
       typeof repoPage.pageId === "string" &&
       typeof repoPage.sourceUrl === "string",
-    "docs_list json missing repo-backed target, stable page ID, or source URL",
+    "docs_list json missing repo-backed target, compatible page ID, or source URL",
   );
   assert(
     repoPage.docsReadTarget === repoPage.pageId,

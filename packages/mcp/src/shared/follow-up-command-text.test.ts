@@ -154,6 +154,16 @@ function documentationHit(
   };
 }
 
+function repositoryDocumentationHit(
+  locator: UnifiedSearchHitPayload["locator"],
+): UnifiedSearchHitPayload {
+  return {
+    type: "repository_doc",
+    target: "github:example/docs@0123456789abcdef",
+    locator,
+  };
+}
+
 describe("buildSearchHitFollowUpCommand documentation targets", () => {
   it("emits unified read syntax for both documentation follow-up surfaces", () => {
     const value = documentationHit({ pageId: "legacy-crawled-id" });
@@ -185,6 +195,26 @@ describe("buildSearchHitFollowUpCommand documentation targets", () => {
     );
     expect(buildSearchHitFollowUpCommand(value, "cli")).toBe(
       `githits read '${sourceUrl}'`,
+    );
+  });
+
+  it("omits stale search coordinates from a mutable hosted page follow-up", () => {
+    const docsReadTarget = "https://docs.example.test/guide?q=exact";
+    const value = documentationHit({
+      pageId: docsReadTarget,
+      docsReadTarget,
+      sourceUrl: docsReadTarget,
+      // These coordinates describe the publication searched, not the body that
+      // this mutable URL may serve when the generated follow-up is executed.
+      startLine: 81,
+      endLine: 93,
+    });
+
+    expect(buildSearchHitFollowUpCommand(value)).toBe(
+      `read target=${JSON.stringify(docsReadTarget)}`,
+    );
+    expect(buildSearchHitFollowUpCommand(value, "cli")).toBe(
+      `githits read '${docsReadTarget}'`,
     );
   });
 
@@ -236,7 +266,27 @@ describe("buildSearchHitFollowUpCommand documentation targets", () => {
     ).toBe(`read target=${JSON.stringify(docsReadTarget)}`);
   });
 
-  it("shell-quotes publisher URL targets containing spaces and metacharacters", () => {
+  it("retains snapshot ranges for repository documentation", () => {
+    const docsReadTarget =
+      "github:example/docs@0123456789abcdef/guide/routing.md";
+    const value = repositoryDocumentationHit({
+      pageId: docsReadTarget,
+      docsReadTarget,
+      sourceUrl:
+        "https://github.com/example/docs/blob/0123456789abcdef/guide/routing.md",
+      startLine: 81,
+      endLine: 93,
+    });
+
+    expect(buildSearchHitFollowUpCommand(value)).toBe(
+      `read target=${JSON.stringify(docsReadTarget)} start_line=81 end_line=93`,
+    );
+    expect(buildSearchHitFollowUpCommand(value, "cli")).toBe(
+      `githits read '${docsReadTarget}' --lines 81-93`,
+    );
+  });
+
+  it("shell-quotes mutable publisher URLs without stale search coordinates", () => {
     const docsReadTarget =
       "https://docs.example.test/guide with spaces;$(echo nope)?q='quoted'&x=*";
 
@@ -251,8 +301,18 @@ describe("buildSearchHitFollowUpCommand documentation targets", () => {
         "cli",
       ),
     ).toBe(
-      `githits read 'https://docs.example.test/guide with spaces;$(echo nope)?q='"'"'quoted'"'"'&x=*' --lines 10-20`,
+      `githits read 'https://docs.example.test/guide with spaces;$(echo nope)?q='"'"'quoted'"'"'&x=*'`,
     );
+  });
+
+  it("treats an HTTP pageId fallback as a mutable current-content address", () => {
+    const pageId = "HTTPS://docs.example.test/current";
+
+    expect(
+      buildSearchHitFollowUpCommand(
+        documentationHit({ pageId, startLine: 10, endLine: 20 }),
+      ),
+    ).toBe(`read target=${JSON.stringify(pageId)}`);
   });
 
   it("falls back to pageId when discovery omits docsReadTarget", () => {

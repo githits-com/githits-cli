@@ -30,6 +30,18 @@ describe("buildLocalMcpQuickStart", () => {
       "Use snippets when sufficient; otherwise follow generated",
     );
     expect(quickStart).toContain(
+      "Hosted/crawled HTTP(S) docs locators address mutable current content",
+    );
+    expect(quickStart).toContain(
+      "exact emitted URL or fragment without search line bounds",
+    );
+    expect(quickStart).toContain(
+      "Repository docs are snapshot-addressed and keep returned ranges",
+    );
+    expect(quickStart).toContain(
+      "`read` bounds only when intentionally selecting a current page range",
+    );
+    expect(quickStart).toContain(
       "This guide owns shared policy; selected tools own call syntax and exceptions",
     );
     expect(quickStart).toContain("never probe");

@@ -404,7 +404,10 @@ describe("agent skills packaging", () => {
       "use the search snippet when sufficient; otherwise run its generated `followUp`",
       "pass the displayed `[docs page]` target unchanged",
       "from `docs list`, pass `docsReadTarget`",
-      "A fragment needs no `--lines`; add bounds only to replace it with a page-relative range",
+      "Hosted/crawled HTTP(S) targets address mutable current content",
+      "automatic follow-ups forward the exact URL or fragment without search bounds",
+      "Repository docs remain snapshot-addressed and keep returned ranges",
+      "Add `--lines` only when intentionally selecting a current page range",
       "Use `--json` only for required range/source metadata",
     ]);
     expect(content).toContain("githits docs read <docsReadTarget>");

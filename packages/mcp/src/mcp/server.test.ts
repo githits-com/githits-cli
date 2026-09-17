@@ -108,6 +108,8 @@ const DESCRIPTION_ROUTING: Record<
       "use code_files",
       "search/code_grep",
       "target and path for a file; target alone for a docs page",
+      "Hosted/crawled HTTP(S) docs targets read mutable current content",
+      "repository-doc targets address snapshots",
       "A docs URL fragment needs no bounds",
       "either bound replaces it with a page-relative range",
       "exact revisions",

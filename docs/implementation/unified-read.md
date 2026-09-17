@@ -19,6 +19,14 @@ target bytes, including URL query strings, percent encoding, fragments, and pinn
 repository locators. Never infer the source from URL host or file extension, or
 retry a failed read against the other backend.
 
+Automatic search follow-ups select those opaque targets earlier in
+`packages/mcp/src/shared/follow-up-command-text.ts`. Hosted/crawled
+`documentation_page` HTTP(S) targets are mutable current-content addresses, so
+their generated actions forward the exact emitted page URL or fragment without
+search display/evidence coordinates. Repository documentation is
+snapshot-addressed and retains its exact target and ranges. This automatic-action
+policy does not alter explicit `read` arguments handled here.
+
 The MCP tool accepts `target`, optional `path`, `start_line`, `end_line`,
 `wait_timeout_ms`, and `format`. Targets for code are compact package/repository
 strings, matching `code_files` and `code_grep`. Existing target parsers still own
@@ -56,8 +64,9 @@ fallback for compact reads.
 
 ## Sections, windows, and waiting
 
-- A docs URL fragment with no explicit bounds selects its exact indexed section.
-  Do not synthesize line defaults before that backend call.
+- A docs URL fragment with no explicit bounds selects its exact indexed section:
+  the heading and full subtree through the next equal-or-higher heading. Do not
+  synthesize line defaults before that backend call.
 - Either explicit bound overrides a docs fragment with a page-relative range.
   Returned positions and continuation bounds are absolute page line numbers.
 - Docs text displays at most 150 selected lines by default, or 300 with an explicit

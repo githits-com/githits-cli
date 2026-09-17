@@ -87,6 +87,7 @@ export const DESCRIPTION_BASE: string =
   "Read an indexed source file or documentation page, including a docs section. " +
   "Pass target and path for a file; target alone for a docs page. " +
   "Replaces code_read and docs_read. " +
+  "Hosted/crawled HTTP(S) docs targets read mutable current content; repository-doc targets address snapshots. " +
   "A docs URL fragment needs no bounds; either bound replaces it with a page-relative range. " +
   "Use emitted locators to preserve exact revisions. It does not list directories: use code_files. " +
   "Read focused windows from search/code_grep; follow returned continuation and error actions. " +

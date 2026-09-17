@@ -29,6 +29,8 @@ describe("createListPackageDocsTool", () => {
     ]);
     expect(tool.schema.target?.description).toContain("Go accepts versions");
     expect(tool.description).toContain("`docsReadTarget`");
+    expect(tool.description).toContain("mutable current content");
+    expect(tool.description).toContain("snapshot-addressed");
   });
 
   it("calls service.listPackageDocs with normalised params", async () => {
