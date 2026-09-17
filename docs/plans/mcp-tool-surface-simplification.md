@@ -1646,6 +1646,13 @@ native tool results, neutral finals and report/metrics. Thus no clean cross-prov
 live-grep completion claim; auth failure origin remains unestablished. No auth
 changes/retries or extra eval sweep. Cost/quality telemetry limits still apply.
 
+Final implementation-head CI on `58e7a6a` is green:
+[run 35202346274](https://github.com/githits-com/githits-cli/actions/runs/35202346274)
+passed Build & Checks, Linux, Windows, Bun and Node 20/22/24/26 compatibility;
+[MCP package validation](https://github.com/githits-com/githits-cli/actions/runs/35202345936)
+passed and publishing was skipped. This final plan-only closure records that
+evidence and does not change product copy, schemas, tests, or runtime behavior.
+
 Resolver opening-only comparison (`instructions-{baseline,candidate}-{codex,claude}-resolver-opening-20260917`):
 two existing fuzzy/site follow-up cases per provider, all final copy held constant
 except `into` versus `to`. All eight harness cases passed with no validation
