@@ -111,6 +111,7 @@ const DESCRIPTION_ROUTING: Record<
       "Hosted/crawled HTTP(S) docs targets read mutable current content",
       "repository-doc targets address snapshots",
       "A docs URL fragment needs no bounds",
+      "full subtree through the next equal-or-higher heading",
       "either bound replaces it with a page-relative range",
       "exact revisions",
       "does not list directories",

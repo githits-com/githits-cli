@@ -1349,6 +1349,48 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "search json",
   );
   assertRecord(searchJson, "search json");
+
+  const docsSearchJson = assertJsonResult(
+    await callTool(caller, "search", {
+      target: SMOKE_PACKAGE_TARGET,
+      query: "route handlers",
+      source: "docs",
+      limit: 3,
+      format: "json",
+    }),
+    "documentation search json",
+  );
+  assertRecord(docsSearchJson, "documentation search json");
+  assert(
+    Array.isArray(docsSearchJson.results),
+    "documentation search json missing results",
+  );
+  const hostedDocumentationHits = docsSearchJson.results.filter((entry) => {
+    if (typeof entry !== "object" || entry === null) return false;
+    const hit = entry as Record<string, unknown>;
+    if (hit.type !== "documentation_page") return false;
+    const locator = hit.locator;
+    return (
+      typeof locator === "object" &&
+      locator !== null &&
+      typeof (locator as Record<string, unknown>).docsReadTarget === "string" &&
+      /^https?:\/\//i.test(
+        (locator as Record<string, unknown>).docsReadTarget as string,
+      )
+    );
+  }) as Array<Record<string, unknown>>;
+  assert(
+    hostedDocumentationHits.length > 0,
+    "documentation search json missing hosted documentation_page evidence",
+  );
+  for (const hit of hostedDocumentationHits) {
+    assert(
+      typeof hit.followUp === "string" &&
+        !/\b(?:start_line|end_line)=/.test(hit.followUp),
+      "hosted documentation follow-up replayed search line bounds",
+    );
+  }
+
   const searchRef =
     typeof searchJson.searchRef === "string" ? searchJson.searchRef : undefined;
   if (searchRef) {

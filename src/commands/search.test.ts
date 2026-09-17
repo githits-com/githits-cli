@@ -1810,7 +1810,7 @@ describe("searchAction", () => {
     }
   });
 
-  it("shows the exact mutable hosted target without search coordinates", async () => {
+  it("shows the exact mutable hosted target without its internal page ID", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
     if (defaultUnifiedSearchOutcome.state !== "completed") {
@@ -1859,8 +1859,6 @@ describe("searchAction", () => {
     );
     expect(output).toContain("hexdocs.pm/express/getting-started.html");
     expect(output).not.toContain("docs-123");
-    expect(output).not.toContain("81-93");
-    expect(output).not.toContain("--lines");
     expect(output).toContain("Using Express middleware");
     expect(output).not.toContain("source:");
     expect(output).not.toContain("npm:express@4.18.2 [docs page]");

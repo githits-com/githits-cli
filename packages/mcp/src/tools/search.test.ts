@@ -47,6 +47,9 @@ describe("searchTool", () => {
       "A docs URL fragment needs no bounds",
     );
     expect(readDescriptor?.description).toContain(
+      "full subtree through the next equal-or-higher heading",
+    );
+    expect(readDescriptor?.description).toContain(
       "Hosted/crawled HTTP(S) docs targets read mutable current content",
     );
     expect(readDescriptor?.description).toContain(

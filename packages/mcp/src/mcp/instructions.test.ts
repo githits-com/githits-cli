@@ -36,6 +36,9 @@ describe("buildLocalMcpQuickStart", () => {
       "exact emitted URL or fragment without search line bounds",
     );
     expect(quickStart).toContain(
+      "fragment returns its heading and full subtree through the next",
+    );
+    expect(quickStart).toContain(
       "Repository docs are snapshot-addressed and keep returned ranges",
     );
     expect(quickStart).toContain(

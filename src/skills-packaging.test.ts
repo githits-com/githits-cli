@@ -406,6 +406,7 @@ describe("agent skills packaging", () => {
       "from `docs list`, pass `docsReadTarget`",
       "Hosted/crawled HTTP(S) targets address mutable current content",
       "automatic follow-ups forward the exact URL or fragment without search bounds",
+      "fragment returns its heading and full subtree through the next equal-or-higher heading",
       "Repository docs remain snapshot-addressed and keep returned ranges",
       "Add `--lines` only when intentionally selecting a current page range",
       "Use `--json` only for required range/source metadata",
