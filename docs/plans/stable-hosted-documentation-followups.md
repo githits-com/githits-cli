@@ -2,8 +2,8 @@
 
 ## Status
 
-- Overall: **READY**
-- Phase 1: **READY**
+- Overall: **IMPLEMENTED — draft PR pending**
+- Phase 1: **COMPLETE**
 
 ## Overall objective
 
@@ -167,6 +167,50 @@ settles hosted-versus-repository semantics.
   Phase 1 step 1 already requires rewriting that assertion bounds-free while
   retaining its quoting coverage.
 
+### Implementation and verification evidence
+
+- The implementation remains at `documentationReadLocator()`. Hosted/crawled
+  HTTP(S) `documentation_page` targets now forward the exact page URL or exact
+  emitted fragment without observed bounds. `repository_doc` targets retain
+  snapshot ranges, structured search locators retain their evidence coordinates,
+  and explicit CLI/MCP documentation-read bounds still cross the public boundary.
+- Stable guidance now describes hosted documentation as mutable current content,
+  distinguishes repository documentation as snapshot-addressed, and documents
+  heading-subtree reads through the next equal-or-higher heading. Canonical MCP
+  guidance and its packaged skill copy remain in exact parity. Plugin generation
+  produced no unexpected generated changes, and `plugins:check` validates all 10
+  assets.
+- Regression coverage includes page-only hosted URLs, exact fragments, mixed-case
+  schemes, repository ranges, retained JSON evidence, CLI output, direct MCP read
+  bounds, publication-replacement semantics, and the live smoke assertion. The
+  final full suite passes 4,826 tests across 208 files with zero failures.
+- Final static/product checks pass: `bun run typecheck`, `bun run format:check`,
+  `bun run lint`, `bun run build`, `bun run plugins:check`,
+  `bun run validate:packages`, `bun run smoke:cli:built`, and
+  `bun run smoke:mcp:built`. Lint reports only eight pre-existing
+  `noNonNullAssertion` warnings in
+  `packages/mcp/src/shared/repository-target.ts` and exits successfully.
+- Source CLI unauthenticated smoke and source MCP registration smoke also pass.
+  The authenticated live CLI suite reached the deployed service but stalled for
+  more than five minutes on its first package request; a narrower hosted-doc
+  search likewise made no response progress for more than 90 seconds. Both were
+  stopped without changing data. Therefore no successful live search-to-read
+  result is claimed; the production-style built smokes and the smoke harness's
+  mocked search-to-follow-up regressions are the available local evidence.
+- Targeted agent evaluation was attempted. Claude could not start because its
+  isolated harness was not logged in. Codex invoked `search` and `docs_list` but
+  the run timed out after 302 seconds while the service calls remained in
+  progress; its tool-call and metrics artifacts were inspected, and it produced
+  no final or isolation artifact. No qualitative answer-quality claim is made.
+- Internal pre-flight found one missing CLI read-help clarification; it was fixed.
+  The retained Opus reviewer completed three rounds. Valid findings covering
+  heading guidance, discriminating CLI assertions, live smoke coverage, and the
+  real incomplete-search envelope were fixed and rechecked. The final report is
+  **CLEAN** at commit `c277fa2`; the rejected opaque-`pageId` expansion was not
+  re-raised because it is outside the verified HTTP(S) contract.
+- Stable commits through review are `267f459`, `c4feb8f`, `cccbd37`, `4425df7`,
+  `a42da6c`, and `c277fa2`, following the committed plan `dc553ae`.
+
 ### Overall acceptance criteria
 
 - Page-only hosted search hits emit bounds-free CLI and MCP follow-ups while
@@ -190,13 +234,13 @@ settles hosted-versus-repository semantics.
 ## Phase map
 
 1. **Phase 1 — hosted current-content follow-ups omit search bounds while every
-   snapshot/manual range contract remains intact: READY.**
+   snapshot/manual range contract remains intact: COMPLETE.**
 
 ## Phase 1 detailed plan
 
 ### Status
 
-**READY**
+**COMPLETE**
 
 ### Expected outcome
 
