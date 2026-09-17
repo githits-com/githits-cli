@@ -351,7 +351,11 @@ describe("runMcpSmoke", () => {
     let docsStatusCalls = 0;
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.source === "docs") {
-        return jsonResult({ completed: false, searchRef: "docs-smoke-ref" });
+        return jsonResult({
+          completed: false,
+          results: [],
+          searchRef: "docs-smoke-ref",
+        });
       }
       if (name === "search_status" && args.search_ref === "docs-smoke-ref") {
         docsStatusCalls += 1;

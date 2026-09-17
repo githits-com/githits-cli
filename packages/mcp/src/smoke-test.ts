@@ -1363,7 +1363,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   );
   assertRecord(docsSearchJson, "documentation search json");
   if (
-    !Array.isArray(docsSearchJson.results) &&
+    docsSearchJson.completed !== true &&
     typeof docsSearchJson.searchRef === "string"
   ) {
     docsSearchJson = assertJsonResult(
