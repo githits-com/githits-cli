@@ -2,7 +2,7 @@
 
 ## Status
 
-- Overall: **IMPLEMENTED — draft PR pending**
+- Overall: **COMPLETE**
 - Phase 1: **COMPLETE**
 
 ## Overall objective
@@ -210,6 +210,10 @@ settles hosted-versus-repository semantics.
   re-raised because it is outside the verified HTTP(S) contract.
 - Stable commits through review are `267f459`, `c4feb8f`, `cccbd37`, `4425df7`,
   `a42da6c`, and `c277fa2`, following the committed plan `dc553ae`.
+- Delivery is complete through draft PR
+  [#405](https://github.com/githits-com/githits-cli/pull/405), labeled `fix` and
+  `documentation`. Merge, release, publication, and deployment remain outside
+  this plan and were not performed.
 
 ### Overall acceptance criteria
 
