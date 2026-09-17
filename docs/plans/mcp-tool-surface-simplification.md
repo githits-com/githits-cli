@@ -3,7 +3,8 @@
 ## Status
 
 - Overall: ACTIVE
-- Current boundary: Phase 6 instruction ownership and copy cleanup, READY
+- Current boundary: Phase 6 instruction ownership and copy cleanup, IMPLEMENTED;
+  draft PR #403 awaiting merge and disposition of the complete Ask smoke limitation
 - Baseline: `9be81a9` (`origin/main`, 2026-09-17; PR #402 package targets merged)
 - Planning branch: `jlitola/compact-agent-instructions`
 - Last verified: 2026-09-17
@@ -338,11 +339,11 @@ must pass its matched-eval acceptance gate; that result is not assumed in planni
    `get_example` keeps language filtering. Unresolved languages fail before
    generation and return up to five canonical retry names. `search_language` and
    `githits languages` are removed.
-6. **Phase 6 — shared instruction ownership and concise tool copy (READY,
-   NEXT):** recurring policy lives in skills/quick-start; tools retain their own
-   call contract without repeating that policy at length. Ask remains. Shorter
-   format reminders require matched evals. Search-status copy may shrink, but its
-   continuation protocol is not redesigned.
+6. **Phase 6 — shared instruction ownership and concise tool copy (IMPLEMENTED,
+   draft PR #403):** recurring policy lives in skills/quick-start; tools retain their
+   own call contract without repeating that policy at length. Ask and original
+   format reminders remain. The shorter format candidate was rejected after evals.
+   Search-status copy shrank without redesigning its continuation protocol.
 
 Later-phase order may change during reorientation if product decisions arrive in a
 different order. The destination and constraints stay fixed; only the current ready
@@ -1341,12 +1342,16 @@ language filtering or force agents to guess names.
 ### Phase 6: shared instruction ownership and concise tool copy
 
 **Status:** IMPLEMENTED on `jlitola/compact-agent-instructions`, draft
-[PR #403](https://github.com/githits-com/githits-cli/pull/403), awaiting CI and merge.
+[PR #403](https://github.com/githits-com/githits-cli/pull/403), awaiting merge.
 Initial internal technical review is clean; external Opus round 1 found only minor
 documentation issues, applied for a clean round under repository policy. Windows CI
 subsequently found a test-only LF assumption; corrected in the eighth dispatch with
-explicit LF/CRLF coverage. Full local closure passed; review round 2 is pending.
-Complete experimental live MCP smoke remains unavailable (mixed Ask timeout/503);
+explicit LF/CRLF coverage. Full local closure and CI including Windows passed.
+Internal round 2 is clean; external round 2 and its one fresh-context final checker
+found only one minor description omission, accepted and restored: grep defaults to
+the whole target unless scoped. This wording-only closure counts as a clean round;
+no third external round is required. Focused copy/eval closure is recorded below.
+Complete experimental live MCP smoke did not pass (mixed Ask timeout/503);
 focused SDK thread/source proof and CLI smoke passed. The user accepted the
 guidance-only bootstrap limitation on 2026-09-17; no deployment is included.
 
@@ -1478,11 +1483,12 @@ pending at that pause; provisional edits and raw evidence were preserved.
 The user subsequently accepted the guidance-only limitation and authorized continuing
 with the original format reminders, tool-local essentials, and all safety wording.
 
-Resumed final-copy inventory: stable catalog 34,880 / guide 4,266 / MCP skill 4,797;
-catalog + guide 39,146 versus 43,780; catalog + skill 39,677 versus 44,311.
-Catalog hash `183c56e36d3926f234c074bed808ad66e4b9bc591fb495e2d0112e40a1934c06`;
+Final-copy inventory after the round-2 grep reminder: stable catalog 34,971 /
+guide 4,266 / MCP skill 4,797; catalog + guide 39,237 versus 43,780;
+catalog + skill 39,768 versus 44,311.
+Catalog hash `6b0123fe797b7b1175dcf3e2d013bec911f05828f0d394075f56335e3bd68ec9`;
 prefix hash `2a8f01ac79574f3bf49544c5dbea9644605521f397d65d9f8884b794e70bc5a4`.
-Local serialized catalog 43,142 versus 47,040, guide 6,098 versus 6,870, appendix
+Local serialized catalog 43,233 versus 47,040, guide 6,098 versus 6,870, appendix
 unchanged at 1,832. All sixteen schemas/annotations match the captured baseline
 after recursively excluding only description metadata. The new local selection test
 found the unchanged resolver sentence was 80, not <=79, characters; shorten `into`
@@ -1599,7 +1605,46 @@ one pass / zero fail / 25 assertions, including each skill under explicit LF and
 All previous policy/safety checks remain; no handlers or guidance metadata changed.
 Closure full suite: 4,819 pass / zero fail / 17,113 assertions / 208 files /
 61.66 seconds. Types, format, plugin check and diff check passed; production-copy,
-build/lint/smoke/eval evidence is unchanged. New Windows CI must confirm the fix.
+build/lint/smoke/eval evidence is unchanged. CI on `139ed81` confirmed the fix:
+[run 35200157534](https://github.com/githits-com/githits-cli/actions/runs/35200157534)
+passed Build & Checks, Linux, Windows, Bun and Node 20/22/24/26 compatibility;
+[MCP package validation](https://github.com/githits-com/githits-cli/actions/runs/35200157340)
+passed, with publishing skipped.
+
+External Opus round 2: no code findings; the single fresh-context final checker
+verified the full delta and raised one valid minor description omission. Finding
+closure: grep's whole-target default had lost its explicit local owner. The request
+builder sets `allowUnscoped: true` without path selectors, and existing scoping
+fields/CLI references agree. Bounded scan covered the complete grep descriptor,
+schema, request builder, metadata tests and guide/skill; no related contradiction.
+Restored one clause after the unchanged selection prefix, with one metadata
+assertion. No new mechanism, schema/default or runtime change; this doc-only
+finding counts clean once applied. The reviewer is retained in
+`term_bc4f5f0a-c344-481d-910a-42136f20a64f` for this PR. Opus itself reran no
+validation; its final checker reran already-covered targeted files despite the
+written brief. Record this review-protocol violation rather than claiming reviewers
+ran no checks or using their duplicate runs as additional required proof.
+
+Final wording closure: `bun test packages/mcp/src/tools/grep-repo.test.ts`:
+25 pass / zero fail / 102 assertions; `bun test packages/mcp/src/mcp/server.test.ts
+packages/mcp/src/mcp/local-server.test.ts packages/mcp/src/mcp/instructions.test.ts`:
+24 pass / zero fail / 547 assertions. `bun run typecheck`, `bun run format:check`,
+`bun run plugins:check`, `bun run build` and `git diff --check` passed. Inventory command
+`bun scripts/agent-context-load.ts sizes` produced the final sizes above; all
+sixteen local SDK schema/annotation contracts still equal the captured baseline
+after excluding descriptions, and guide/skill/runtime appendices are unchanged
+by the restored clause. Final publishing/deployment remain outside this PR.
+
+Final descriptor-only grep follow-up (`instructions-final-{codex,claude}-grep-20260917`):
+one unchanged code-grep-investigation workload per provider with the same model,
+effort and intent. Both harness reports validated without isolation violations,
+both selected whole-target grep and made no JSON calls. Codex bootstrapped once,
+then its grep returned `AUTH_REQUIRED`; its neutral final correctly reports failure
+to verify, not a successful source answer. Haiku skipped bootstrap, received two
+import sites, read the returned files and answered from source. Inspected calls,
+native tool results, neutral finals and report/metrics. Thus no clean cross-provider
+live-grep completion claim; auth failure origin remains unestablished. No auth
+changes/retries or extra eval sweep. Cost/quality telemetry limits still apply.
 
 Resolver opening-only comparison (`instructions-{baseline,candidate}-{codex,claude}-resolver-opening-20260917`):
 two existing fuzzy/site follow-up cases per provider, all final copy held constant
