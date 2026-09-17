@@ -3,9 +3,10 @@
 ## Status
 
 - Overall: ACTIVE
-- Current boundary: Phase 2a IN PROGRESS after internal and external plan review
-- Baseline: `b2d4513` (`origin/main`, 2026-09-16; release 0.19.0 and language-tool removal merged)
-- Last verified: 2026-09-16
+- Current boundary: Phase 6 instruction ownership and copy cleanup, READY
+- Baseline: `9be81a9` (`origin/main`, 2026-09-17; PR #402 package targets merged)
+- Planning branch: `jlitola/compact-agent-instructions`
+- Last verified: 2026-09-17
 
 ## Problem and expected outcome
 
@@ -207,10 +208,14 @@ adapter rather than becoming MCP-visible.
 For guidance ownership:
 
 - tool name plus first description sentence owns tool selection;
-- the selected tool's input schema owns the minimum call contract and representative
-  examples;
-- `quick_start` and its exact public skill copy own cross-tool routing and shared
-  target syntax; and
+- the selected tool's description/schema are self-sufficient for its minimum call
+  contract, distinguishing behavior, exceptions, and representative examples,
+  without requiring another evidence descriptor;
+- `quick_start` and its exact public skill copy own recurring cross-tool policy:
+  scope, target conventions, format choice, evidence reuse, citations, continuation
+  discipline, and external-content posture;
+- CLI skills independently carry equivalent common policy using CLI spelling,
+  without requiring CLI users to load the MCP skill; and
 - durable implementation docs own exhaustive behavior, compatibility, and rollout
   detail.
 
@@ -268,7 +273,8 @@ addressing shapes.
 - `search_status`: its long-term continuation boundary is not settled by this plan.
   Do not remove or merge it without a separate product decision.
 
-None of these later unknowns blocks Phase 2a.
+Unresolved backend/navigation decisions do not block Phase 6. Shorter format copy
+must pass its matched-eval acceptance gate; that result is not assumed in planning.
 
 ## Cross-cutting constraints
 
@@ -319,8 +325,8 @@ None of these later unknowns blocks Phase 2a.
 1. **Phase 1 — compact code and discovery targets (MERGED):** `search`,
    `code_files`, `code_grep`, and experimental `code_diff` advertise and accept only
    compact string targets; CLI/service behavior and legacy read routing stay intact.
-2. **Phase 2 — compact package-tool coordinates (PARTIALLY READY):** Phase 2a migrates
-   `docs_list`, `pkg_info`, `pkg_vulns`, and `pkg_deps` together. Phase 2b changelog
+2. **Phase 2 — compact package-tool coordinates (PARTIALLY MERGED):** Phase 2a migrated
+   `docs_list`, `pkg_info`, `pkg_vulns`, and `pkg_deps` in PR #402. Phase 2b changelog
    waits for verified backend exact-release/snapshot support; Phase 2c upgrade review
    follows later reorientation. CLI ergonomics and service contracts stay intact.
 3. **Phase 3 — one MCP search-filter language (MERGED):** the six backend-supported
@@ -332,10 +338,11 @@ None of these later unknowns blocks Phase 2a.
    `get_example` keeps language filtering. Unresolved languages fail before
    generation and return up to five canonical retry names. `search_language` and
    `githits languages` are removed.
-6. **Phase 6 — concise answer/output routing copy (PENDING):** Ask remains the
-   high-level answer tool, its boundary with evidence tools is concise, and repeated
-   format guidance shrinks only after lower-cost-agent evals show no JSON-selection
-   regression. `search_status` changes only after its separate product discussion.
+6. **Phase 6 — shared instruction ownership and concise tool copy (READY,
+   NEXT):** recurring policy lives in skills/quick-start; tools retain their own
+   call contract without repeating that policy at length. Ask remains. Shorter
+   format reminders require matched evals. Search-status copy may shrink, but its
+   continuation protocol is not redesigned.
 
 Later-phase order may change during reorientation if product decisions arrive in a
 different order. The destination and constraints stay fixed; only the current ready
@@ -590,7 +597,7 @@ are deliberate migration signals, backend contracts, or dated evaluation history
 
 ### Phase 2: compact package-tool coordinates
 
-**Status:** Phase 2a IN PROGRESS; Phase 2b BLOCKED ON BACKEND; Phase 2c PENDING
+**Status:** Phase 2a MERGED (PR #402, `9be81a9`); Phase 2b BLOCKED ON BACKEND; Phase 2c PENDING
 
 **Expected outcome:** `docs_list`, `pkg_info`, `pkg_vulns`, `pkg_deps`,
 `pkg_changelog`, and `pkg_upgrade_review` expose compact package/repository/range
@@ -605,6 +612,16 @@ repository intervals. Phase 2c needs its single/batch MCP representation settled
 reuse the existing CLI interval spelling. Canonical `@ref` is merged.
 
 #### Phase 2a: one four-tool package-coordinate increment
+
+**Merge closure (2026-09-17):** User confirmed PR #402 merged; GitHub verified
+merge commit `9be81a9`. Full CI and the clean second Opus round apply to that delta.
+The same Codex docs-discovery settings reran without changes in
+`.agent-eval/runs/phase2a-codex-docs-rerun-20260917`: success, 47.5 seconds, five
+completed MCP calls, zero failed calls and zero validation violations. It used
+quick-start/search/read, not docs-list; earlier direct smoke/parity proof covers
+docs-list. The original contaminated run remains retained and its cause unknown.
+The implementation reviewer was released after the user's merge report. Historical
+checkpoints below describe their state at the recorded time.
 
 **Expected outcome:** `docs_list`, `pkg_info`, `pkg_vulns`, and `pkg_deps` each
 advertise one required string `target`, with no `registry`, `package_name`, or
@@ -1321,27 +1338,227 @@ canonical names; the CLI mapper surfaces that string.
 correct-language calls are unchanged; removing `search_language` does not remove
 language filtering or force agents to guess names.
 
-### Phase 6: concise answer/output routing copy
+### Phase 6: shared instruction ownership and concise tool copy
 
-**Status:** PENDING EVAL
+**Status:** READY — next increment on `jlitola/compact-agent-instructions`.
 
-**Expected outcome:** Ask's description states its high-level answer role concisely,
-lower-level follow-up routing stays discoverable, and repeated format guidance is no
-longer paid per tool unless it demonstrably prevents wasteful JSON calls.
+**Expected outcome:** Skills/quick-start consistently explain recurring policy once
+per loaded guidance path. Tools remain self-sufficient for selection and their own
+call contract without restating common policy or their parameter descriptions at
+length. The combined loaded surface is smaller, not shifted into a larger guide.
+Deliver one coherent copy-only PR, not per-tool or evidence-only increments.
 
-**Assumptions:** Ask remains available and answer quality is not reduced to save
-descriptor tokens.
+**Assumptions:** The user approved this ownership boundary on 2026-09-17. Tool names,
+parameter names/types/requiredness/defaults, service requests, selected fields,
+formatters, evidence outputs, availability, and runtime behavior remain unchanged.
+Description metadata and quick-start instruction text are the intended changes.
+Ask keeps its source-cited answer depth and lower-level follow-ups. Exact skill/quick-start
+parity and session bootstrap composition remain. Short local reminders may remain;
+a shorter format reminder is a candidate, not an established reliability improvement.
 
-**Unknowns or product decisions:** Determine shorter Ask copy through descriptor
-evals; run matched lower-cost-agent candidates before changing format descriptions;
-discuss `search_status` separately before altering it.
+**Unknowns or product decisions:** None missing for this increment. Accepted format
+wording is determined by matched lower-cost-agent evals before delivery. If shortening
+increases unjustified JSON calls, restore the existing format reminder while delivering
+other verified copy improvements and reporting the rejected candidate. Navigation consolidation,
+retiring/merging search-status, Ask depth, and backend changelog work remain separate.
 
-**Dependencies:** Stable post-Phase-1/2 catalog and matched eval capacity.
+**Dependencies:** Existing factories, catalog/schema/skill tests, context inventory,
+local smoke suites, agent-eval harness, and authenticated Codex/Claude eval access.
+No new infrastructure, backend change, deployment, or instruction-loading mechanism.
 
-**Acceptance criteria:** Ask selection and follow-up behavior remain correct;
-lower-cost agents do not increase unnecessary JSON selection; every removed sentence
-is owned by a surviving schema, response action, quick-start rule, or durable doc;
-legacy read-name redirection remains explicit.
+#### Verified planning evidence
+
+At merged `9be81a9`, `bun scripts/agent-context-load.ts sizes` reports:
+
+- 13 stable tools; `catalog.full`: 38,742 Unicode characters;
+- `catalog.prefix80`: 1,207; `bootstrap.stable`: 5,038; `skill.file`: 5,569;
+- catalog hash: `d09c4b970d048deabe318be7150300999e4c97f3b6ba54ea3d5b55a55cf343e8`;
+- guide hash: `079c8b765eda371a30278a967371d8b9118bdd24b49f9a4dee15a00ab8aea652`.
+
+These match the merged Phase 2a inputs. Measurements are serialized-content sizes,
+not provider token, latency, cost, or independently graded answer-quality claims.
+The public MCP skill guide equals the stable builder exactly. Twelve format-field
+descriptions total 2,713 characters, plus format repetition in description bodies.
+Twelve composition-time bootstrap footers repeat a 101-character prerequisite;
+retain that mechanism because individual tools are discovered lazily.
+
+Verified contradictions/repetition:
+
+- Package CLI skill recommends JSON for comparisons/counting and calls text
+  human-only, contradicting MCP's model-read-text default.
+- Language recovery occurs in the guide, example description, and language field.
+  Docs-fragment mechanics occur in guide/search/read/range fields. Package tools
+  repeat verbose/filter/depth mechanics and neighboring-tool menus.
+- Example/search/search-status first sentences are 113/132/116 characters; current
+  tests permit their truncation. The guide does not reach deferred selection.
+- Legacy reader redirects, source addenda, and bootstrap reminders have observed
+  justification; they are not redundant cleanup targets.
+- Changelog description/from-version prose promise exact selection via upper bound
+  plus limit-one despite the recorded Phase 2b gap. Remove the unsupported promise;
+  retain upper-cap/latest-mode documentation and inputs. Do not implement or claim
+  the future exact-target API.
+
+Existing matching-surface baseline evidence: Codex Luna/low overview, vulnerability
+filter, and dependency workloads in `phase2a-codex-low-20260916-1342` passed without
+isolation violations; the clean docs rerun above completes that set. Claude Haiku's
+four recorded `phase2a-claude-haiku-*-20260916-1342` cases passed. The contaminated
+Codex docs run is not a passing baseline. Reuse only runs whose settings and relevant
+input hashes match; new routing cases need matched runs during candidate verification.
+No shorter candidate has been evaluated or approved by this planning evidence.
+Version check during planning: Codex remains 0.154.0; Claude is now 2.1.274 versus
+2.1.273 in the retained runs. Those Claude runs are historical evidence, not eligible
+matched baselines for the current CLI; collect fresh baseline cells before candidates.
+
+Fresh current-Claude format baseline collected during planning in
+`.agent-eval/runs/instructions-baseline-claude-haiku-20260917`: overview 20.4 seconds,
+dependency assessment 30.6 seconds; harness success, no validation violations,
+five observed evidence calls total, all omit format (zero explicit JSON calls).
+Calls/finals/metrics were inspected. Usage and normalized logical-call telemetry
+remain unknown. Both runs skipped quick-start despite descriptor-only guidance.
+These are eligible format-call baselines, not proof that shared posture was loaded
+or that bootstrap already works. This contradicts any assumption that the footer
+guarantees common guidance delivery; use a copy-only discovery correction below.
+Claude's documented harness guarantee is workspace isolation, not causal instruction
+isolation. The omitted call is observed, but its cause and complete hidden guidance
+are not established; do not conclude the safety posture was absent. Keep these runs
+as bounded call-behavior baselines, not proof of fully isolated instruction effects.
+
+#### Placement contract
+
+| Concept | Shared guide/skill owns | Selected tool retains |
+| --- | --- | --- |
+| Discovery | Question-to-tool routing | Standalone first sentence and distinct job |
+| Targets | Public scope and canonical conventions | Supported family, example, operation-specific pin/ref constraints |
+| Output | Model-read text versus code-consumed JSON | Short reminder and real full-patch/missing-field exceptions |
+| Evidence | Reuse locators, focused reads, provenance and limits | Tool-specific interpretation and callable follow-up mapping |
+| Recovery | Follow rendered actions; do not invent locators or poll by repeating calls | Unique continuation conditions, status/range/wait exceptions |
+| Safety | Existing external-content posture | Existing source addenda and input privacy constraints |
+
+Keep shared guidance self-contained, not replaced with implementation-doc links.
+CLI skills independently express equivalent shared rules: loading the MCP skill
+must not become a CLI prerequisite. Cross-tool references may name an alternative
+job, but are not needed to understand the selected tool's arguments. This placement
+matches natural ownership; a new shared copy framework would reduce source repetition
+without necessarily reducing agent-loaded content, so do not introduce one.
+
+#### Implementation detail
+
+1. Rewrite stable routing guide and exact MCP skill copy together. Retain routing,
+   public scope, target conventions, output policy, evidence/provenance limits, and
+   the existing external-content block. Relocate repeated single-tool mechanics to
+   their selected descriptor/schema. Keep cross-tool workflow distinctions such as
+   docs-topic search versus browsing pages.
+2. Rewrite stable and local experimental bodies/parameter prose using the table.
+   Remove repeated output inventories, neighboring-tool menus, and duplicate parameter
+   explanations. Retain capped advisories, affected/history scope distinctions,
+   graph-analysis cost/scope, repository-wide diffs, patch coverage, and the boundary
+   between upgrade facts and acceptability. Tool-specific parameter mechanics remain
+   sufficient for valid calls without loading neighboring evidence descriptors.
+3. Make every stable/local first sentence at most 79 characters with no internal
+   periods and a useful first 80 raw characters. Keep already-compliant sentences
+   unless verified clarity needs a change. Ask keeps answer role, question-only lookup,
+   explicit candidate choice, thread reuse/scope changes, and source modes discoverable
+   in its description/schema. Search keeps target/targets XOR, qualifier examples and
+   compatibility warnings. Search/status retain continuation and terminal-status rules;
+   copy cleanup does not authorize protocol changes.
+   Correct quick-start discovery copy using the observed bootstrap misses: put the
+   literal `quick_start` and first-call purpose in its standalone selection sentence;
+   keep the loaded-skill exception in its full description. Retain per-tool footers.
+   This corrects guidance, not a host-enforced guarantee or a new caller constraint.
+4. Try a compact format reminder, e.g. "Text by default; JSON for code processing
+   or required fields absent from text." Retain tool-specific exceptions. Do not
+   remove format documentation wholesale or change defaults. Keep bootstrap footers,
+   shared `EXTERNAL_CONTENT_POSTURE` bytes, source addenda, and CLI safety instructions.
+5. Align CLI code/package skills and references with model-read-text policy; remove
+   unconditional JSON recommendations/examples for ordinary summaries. CLI spelling
+   and released behavior stay unchanged. These corrections document existing behavior,
+   so require no behavior-dependent release delay. Local experimental appendices stay
+   outside the public skill; do not advertise public Ask availability.
+6. Update metadata tests for meanings rather than removed wording. Cover short
+   standalone selection sentences for all stable/local tools, guide parity, bootstrap
+   exception, old reader names, format policy/exceptions, and retained source posture.
+   Compare generated schemas after recursively excluding only description metadata:
+   requiredness/defaults/types/annotations must match baseline. Keep mock-security
+   metadata coverage because it imports production descriptions.
+7. Update permanent ownership guidance in `docs/implementation/plugin-packaging.md`
+   and `tools.md`; correct stale quick-start claims in both `tools.md` (current
+   bootstrap description and September incident account) and `TOOL_GUARDRAILS.md`.
+   Commit `2a02a2e` reverted the literal-name catalog fix without updating either
+   document; align their current-state claims with the descriptor chosen/tested in
+   step 3, while preserving verified incident history and security measurements.
+   Add an independent patch/patch change
+   fragment, generate/check plugins, and inspect canonical-derived diffs. No version
+   bumps, changelog edits, publishing, or deployment.
+
+Likely files: `mcp/instructions.ts`, stable `tools/*.ts` descriptor constants and
+`.describe()` text, `mcp/local-agentic-ask.ts`, local `resolve-target.ts`/`code-diff.ts`,
+metadata tests, three code/package/MCP public skills and code/package references,
+and named durable docs. No handlers, request builders, formatters, transport, auth,
+or new schemas. Onboarding copy is outside this increment.
+
+#### Verification and acceptance
+
+- Re-run the named inventory: require lower full catalog, stable guide/skill, and
+  sums of catalog plus each alternative bootstrap path (guide or skill). Measure
+  enabled local descriptor/appendix sizes through existing local factory seams as
+  well; stable totals must not hide experimental growth. Record changed prefix hashes
+  intentionally. Do not equate Unicode characters with model tokens or bill savings.
+- Run `bun test packages/mcp/src/mcp/server.test.ts
+  packages/mcp/src/mcp/instructions.test.ts packages/mcp/src/mcp/local-server.test.ts
+  packages/mcp/src/mcp/local-agentic-ask.test.ts src/skills-packaging.test.ts
+  eval/mock-mcp/server.test.ts` and changed tools' tests. Run source
+  `bun run smoke:mcp`/`smoke:cli`, build, types/lint, plugin generation/check, and
+  the full `bun test` suite (or current full-suite CI with any local failures disclosed).
+  Built smokes are additionally required if launch/CI product validation changes.
+- Matched format cases: local MCP/descriptors/GitHits intent, Codex
+  `gpt-5.6-luna`/low and Claude `haiku`, `package-overview-vulnerabilities.md` and
+  `package-dependencies.md`. Keep CLI versions, model/effort, prompts, flags, and
+  harness identical between baseline/candidate. Inspect each explicit JSON call:
+  was raw data consumed by code or a required field absent from text? Require no
+  increase in unjustified JSON calls per workload/provider. Restore old reminder
+  if the candidate increases them; report evidence rather than add prompt machinery.
+  Existing matching baseline traces may be reused; otherwise run these two baseline
+  cases before candidate. Single pairs are bounded evidence, not reliability statistics;
+  repeat only an inconclusive/disputed case.
+  For these descriptor-only package candidate cases, also require quick-start before
+  evidence calls, with no duplicate bootstrap. Baseline currently fails that policy,
+  so report the improvement explicitly rather than presenting it as preserved behavior.
+- Matched routing cases for both agents: `docs-discovery.md`, `global-example.md`,
+  and `code-grep-investigation.md`, same descriptor-only settings. Inspect actual docs
+  locators, examples/topic selection, and focused source follow-ups. Run docs-discovery
+  in full guidance as well: loaded skill skips quick-start, plain MCP bootstraps once.
+  For Ask, baseline/candidate `ask-version-followup.md` with experimental tools for
+  both agents. A run never using Ask does not prove thread/source mechanics; retain
+  unit proof and use the smallest focused Ask prompt if necessary to exercise changed
+  selection copy. Do not force broad example questions down an inappropriate route.
+  If candidate traces still skip shared guidance, do not claim centralization is safe
+  or add guards/loaders automatically: stop delivery and ask whether to revise the
+  copy/placement or accept the disclosed limitation. Keep existing source protection.
+- If resolution/diff descriptors or their local appendices change, add matched
+  `experimental-resolution-follow-up.md`, `experimental-site-resolution-follow-up.md`,
+  and `experimental-code-diff.md` for the affected surfaces, with experimental tools
+  enabled and both named lower-cost agents. Inspect actual resolution/diff selection,
+  ambiguity/actionability handling, site-to-docs follow-up, endpoint scope, truncation,
+  and compatibility limits. Reuse baseline only under the same settings/hash rules;
+  unchanged experimental bytes need no new cases. Existing workloads suffice.
+- Run bounded groups separately, concurrency at most two per harness, not the whole
+  suite. Before a group expected over five minutes, state its question and why narrower
+  evidence is insufficient. No credential output, auth/config changes, or weakened
+  isolation. Preserve and reject contaminated traces, not their underlying evidence.
+  Inspect calls/finals/metrics/violations, not just harness status or confidence.
+  Disclose telemetry and quality-grading gaps; no provider savings claims from sizes.
+- Every removed instruction remains with its natural owner or is demonstrably
+  redundant; no selected tool needs another evidence descriptor for its own arguments.
+  Fresh internal technical review and one external Opus code reviewer per round close
+  the full delta. Retain this overarching plan through remaining increments; transfer
+  durable ownership policy before deleting it after the last increment merges.
+
+**Planning verification:** The unchanged merged surface passed
+`bun test packages/mcp/src/mcp/server.test.ts packages/mcp/src/mcp/instructions.test.ts
+src/skills-packaging.test.ts`: 33 tests / 573 assertions on 2026-09-17. The inventory
+was collected before instruction edits. This branch changes only the plan; production
+copy, behavior, plugin assets, and eval configuration are unchanged. Plan-review
+findings and disposition are recorded after internal/external review.
 
 ## Phase-boundary reorientation
 
@@ -1366,6 +1583,34 @@ delete this temporary plan. Do not leave completed plan text as a competing sour
 truth.
 
 ## Plan review record
+
+- Phase 6 internal technical review (2026-09-17): accepted the experimental-copy
+  eval coverage gap, calibrated as a bounded verification gap rather than an existing
+  blocking product defect. Added existing resolution/site-resolution/diff cases for
+  affected copy; no new harness. Full-delta closure returned no findings. Follow-up
+  review of fresh bootstrap evidence found only an overly broad format-restoration
+  condition; narrowed it to increased unjustified JSON calls, so intended bootstrap
+  improvements are not rejected. Applied this minor wording fix; internal review is
+  clean under project policy. Claude instruction-isolation limits remain explicit.
+- Phase 6 external Fable plan review (2026-09-17): accepted one minor documentation
+  scope finding, also found by its single fresh-context final checker. The stale
+  literal-name bootstrap claim occurs in tools.md as well as TOOL_GUARDRAILS.md;
+  verified both against current quick-start.ts and `2a02a2e`. Expanded step 7 to name
+  both current-state/incident accounts and the revert, aligning them with step 3's
+  tested descriptor while preserving historical measurements. Applied this wording
+  correction; that documentation-only finding counts clean under project policy.
+  However, the report says the plan does not require the literal quick-start name:
+  this contradicts the newer explicit bootstrap criterion added during that review.
+  The same reviewer receives a final round over the current snapshot for that
+  material acceptance change, not another round for the minor wording finding.
+  No tests/evals rerun by reviewers; no new runtime scope or product decision.
+- Phase 6 external Fable round 2: clean over the complete current snapshot; no
+  new reviewer or validation rerun. Confirmed bootstrap/format gates, observed
+  baseline omissions and isolation caveats, and corrected its prior snapshot/policy
+  statements. Accepted its no-action caveat that combined bootstrap/copy changes
+  do not isolate reminder causality: acceptance concerns the complete candidate's
+  observed calls, not a causal savings/reliability claim. No extra experiment or
+  mechanism needed. The same Fable reviewer is retained for plan inspection.
 
 - Phase 3 internal `code_reviewer`: its unknown-field finding was factually correct
   but rejected as a blocker after product calibration. The SDK has always stripped
