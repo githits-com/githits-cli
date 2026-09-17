@@ -13,6 +13,7 @@ import {
   EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
   EXPECTED_TOP_LEVEL_COMMANDS,
   formatCliLiveCohortSummary,
+  JSON_PARITY_FIXTURES,
   parseCliSmokeArgs,
   parseRootHelpCommands,
 } from "./cli-smoke.ts";
@@ -515,8 +516,7 @@ describe("smoke script options", () => {
     const entry = createEntry("path with spaces/cli.js");
     const target = parseCliSmokeArgs(["--cli-entry", entry]).target;
     const command = buildMcpParityCommand(target, "pkg_info", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
     });
     const scriptArgs = command.slice(3);
 
@@ -527,7 +527,7 @@ describe("smoke script options", () => {
       "--cli-entry",
       entry,
       "pkg_info",
-      '{"registry":"npm","package_name":"express"}',
+      '{"target":"npm:express"}',
     ]);
     const nested = parseMcpCallArgs(scriptArgs);
     expect(toStdioLaunch(nested.target, ["mcp", "start"])).toEqual({
@@ -535,6 +535,106 @@ describe("smoke script options", () => {
       args: [entry, "mcp", "start"],
     });
     expect(nested.toolName).toBe("pkg_info");
+  });
+
+  it("keeps curated CLI parity fixtures on compact package targets", () => {
+    const compactMcpTools = new Set([
+      "docs_list",
+      "pkg_info",
+      "pkg_vulns",
+      "pkg_deps",
+    ]);
+    const compactPackageFixtures = JSON_PARITY_FIXTURES.filter(({ mcpTool }) =>
+      compactMcpTools.has(mcpTool),
+    );
+    expect(
+      new Set(compactPackageFixtures.map(({ mcpTool }) => mcpTool)),
+    ).toEqual(compactMcpTools);
+
+    for (const fixture of compactPackageFixtures) {
+      expect(typeof fixture.mcpArgs.target, `${fixture.name} target`).toBe(
+        "string",
+      );
+      expect(fixture.mcpArgs, `${fixture.name} registry`).not.toHaveProperty(
+        "registry",
+      );
+      expect(
+        fixture.mcpArgs,
+        `${fixture.name} package_name`,
+      ).not.toHaveProperty("package_name");
+      expect(fixture.mcpArgs, `${fixture.name} version`).not.toHaveProperty(
+        "version",
+      );
+    }
+
+    expect(compactPackageFixtures).toEqual([
+      {
+        name: "pkg_info",
+        cliArgs: ["pkg", "info", "npm:express", "--json"],
+        mcpTool: "pkg_info",
+        mcpArgs: { target: "npm:express", format: "json" },
+      },
+      {
+        name: "pkg_deps",
+        cliArgs: ["pkg", "deps", "npm:express", "--json"],
+        mcpTool: "pkg_deps",
+        mcpArgs: { target: "npm:express", format: "json" },
+      },
+      {
+        name: "pkg_deps_issues",
+        cliArgs: ["pkg", "deps", "npm:express", "--issues", "--json"],
+        mcpTool: "pkg_deps",
+        mcpArgs: {
+          target: "npm:express",
+          include_issues: true,
+          format: "json",
+        },
+      },
+      {
+        name: "pkg_vulns",
+        cliArgs: ["pkg", "vulns", "npm:express", "--json"],
+        mcpTool: "pkg_vulns",
+        mcpArgs: { target: "npm:express", format: "json" },
+      },
+      {
+        name: "docs_list",
+        cliArgs: [
+          "docs",
+          "list",
+          "npm:express@5.2.1",
+          "--limit",
+          "2",
+          "--json",
+        ],
+        mcpTool: "docs_list",
+        mcpArgs: {
+          target: "npm:express@5.2.1",
+          limit: 2,
+          format: "json",
+        },
+      },
+    ]);
+
+    expect(
+      JSON_PARITY_FIXTURES.find(({ name }) => name === "pkg_changelog")
+        ?.mcpArgs,
+    ).toEqual({
+      registry: "npm",
+      package_name: "express",
+      limit: 1,
+      format: "json",
+    });
+    expect(
+      JSON_PARITY_FIXTURES.find(({ name }) => name === "pkg_upgrade_review")
+        ?.mcpArgs,
+    ).toEqual({
+      registry: "npm",
+      package_name: "express",
+      current_version: "5.0.0",
+      target_version: "5.2.1",
+      skip_transitive_security: true,
+      format: "json",
+    });
   });
 
   it("parses the default mcp-call source target", () => {

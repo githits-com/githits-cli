@@ -141,8 +141,8 @@ const DESCRIPTION_ROUTING: Record<
     body: [
       "a cutoff disclaimer is not current evidence",
       '`advisory_scope:"all"`',
-      '`{"registry":"npm","package_name":"next","advisory_scope":"all"}`',
-      "Pinned lookup",
+      '`{"target":"npm:next","advisory_scope":"all"}`',
+      "unpinned target",
       "identifiers and aliases, including CVEs when available",
       "identifier aliases (including CVEs)",
       "`pkg_info`",
@@ -372,6 +372,56 @@ describe("MCP code_grep schema", () => {
 });
 
 describe("MCP compact target schemas", () => {
+  it.each([
+    ["docs_list", ["after", "format", "limit", "target"]],
+    ["pkg_info", ["format", "target", "verbose"]],
+    [
+      "pkg_vulns",
+      [
+        "advisory_scope",
+        "format",
+        "include_transitive",
+        "include_withdrawn",
+        "min_severity",
+        "target",
+        "verbose",
+      ],
+    ],
+    [
+      "pkg_deps",
+      [
+        "format",
+        "include_importers",
+        "include_issues",
+        "lifecycle",
+        "max_depth",
+        "target",
+      ],
+    ],
+  ] as const)("%s exposes the compact target schema", (name, properties) => {
+    const descriptor = getMcpToolDescriptors().find(
+      (candidate) => candidate.name === name,
+    );
+    expect(descriptor).toBeDefined();
+
+    const schema = z.toJSONSchema(z.object(descriptor?.schema ?? {}), {
+      io: "input",
+    });
+    expect(Object.keys(schema.properties ?? {}).sort(), name).toEqual([
+      ...properties,
+    ]);
+    expect(schema.required, name).toEqual(["target"]);
+    expect(schema.properties?.target, name).toMatchObject({
+      type: "string",
+    });
+    for (const coordinate of ["registry", "package_name", "version"]) {
+      expect(
+        schema.properties?.[coordinate],
+        `${name}: ${coordinate}`,
+      ).toBeUndefined();
+    }
+  });
+
   it("uses strings for code and discovery targets without nested coordinates", () => {
     const descriptors = getMcpToolDescriptors();
     for (const name of ["code_files", "code_grep"] as const) {

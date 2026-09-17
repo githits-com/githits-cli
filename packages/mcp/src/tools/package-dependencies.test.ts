@@ -172,10 +172,11 @@ describe("createPackageDependenciesTool — metadata", () => {
       "include_issues",
       "lifecycle",
       "max_depth",
-      "package_name",
-      "registry",
-      "version",
+      "target",
     ]);
+    expect(tool.schema.target?.description).toContain(
+      "for example npm:express@5.2.1",
+    );
     const schema = z.toJSONSchema(z.object(tool.schema));
     expect(schema.properties?.include_issues).toMatchObject({
       type: "boolean",
@@ -208,9 +209,7 @@ describe("createPackageDependenciesTool — happy path", () => {
 
     await tool.handler(
       {
-        registry: "npm",
-        package_name: "express",
-        version: "5.2.1",
+        target: "npm:express@5.2.1",
         lifecycle: "runtime,development",
         max_depth: 3,
       },
@@ -241,6 +240,130 @@ describe("createPackageDependenciesTool — happy path", () => {
     expect(calls[0]?.[0]?.maxDepth).toBe(3);
   });
 
+  it("normalizes a trimmed uppercase npm scoped pin exactly", async () => {
+    const packageDependencies = mock(() =>
+      Promise.resolve(defaultDependencyReport),
+    );
+    const tool = createPackageDependenciesTool(
+      createMockPackageIntelligenceService({ packageDependencies }),
+    );
+
+    await tool.handler({ target: " NPM:@types/node@22.0.0 " }, {});
+
+    expect(packageDependencies).toHaveBeenCalledWith({
+      registry: "NPM",
+      packageName: "@types/node",
+      version: "22.0.0",
+      includeTransitive: true,
+      includeTransitiveDetails: false,
+      includeGroups: true,
+      includeDependencyIssues: undefined,
+      maxDepth: 1,
+      lifecycle: undefined,
+    });
+  });
+
+  it("normalizes an unpinned npm target exactly", async () => {
+    const packageDependencies = mock(() =>
+      Promise.resolve(defaultDependencyReport),
+    );
+    const tool = createPackageDependenciesTool(
+      createMockPackageIntelligenceService({ packageDependencies }),
+    );
+
+    await tool.handler({ target: "npm:express" }, {});
+
+    expect(packageDependencies).toHaveBeenCalledWith({
+      registry: "NPM",
+      packageName: "express",
+      version: undefined,
+      includeTransitive: true,
+      includeTransitiveDetails: false,
+      includeGroups: true,
+      includeDependencyIssues: undefined,
+      maxDepth: 1,
+      lifecycle: undefined,
+    });
+  });
+
+  it.each([
+    "go:github.com/gin-gonic/gin@1.2.3",
+    "go:github.com/gin-gonic/gin@v1.2.3",
+  ])("normalizes Go target %s exactly", async (target) => {
+    const packageDependencies = mock(() =>
+      Promise.resolve(defaultDependencyReport),
+    );
+    const tool = createPackageDependenciesTool(
+      createMockPackageIntelligenceService({ packageDependencies }),
+    );
+
+    await tool.handler({ target }, {});
+
+    expect(packageDependencies).toHaveBeenCalledWith({
+      registry: "GO",
+      packageName: "github.com/gin-gonic/gin",
+      version: "v1.2.3",
+      includeTransitive: true,
+      includeTransitiveDetails: false,
+      includeGroups: true,
+      includeDependencyIssues: undefined,
+      maxDepth: 1,
+      lifecycle: undefined,
+    });
+  });
+
+  it("normalizes a Swift target exactly while preserving name casing", async () => {
+    const packageDependencies = mock(() =>
+      Promise.resolve(defaultDependencyReport),
+    );
+    const tool = createPackageDependenciesTool(
+      createMockPackageIntelligenceService({ packageDependencies }),
+    );
+
+    await tool.handler(
+      { target: "swift:github.com/Apple/Swift-Argument-Parser@v1.5.0" },
+      {},
+    );
+
+    expect(packageDependencies).toHaveBeenCalledWith({
+      registry: "SWIFT",
+      packageName: "github.com/Apple/Swift-Argument-Parser",
+      version: "v1.5.0",
+      includeTransitive: true,
+      includeTransitiveDetails: false,
+      includeGroups: true,
+      includeDependencyIssues: undefined,
+      maxDepth: 1,
+      lifecycle: undefined,
+    });
+  });
+
+  it("normalizes a Maven target exactly while preserving its colon", async () => {
+    const packageDependencies = mock(() =>
+      Promise.resolve(defaultDependencyReport),
+    );
+    const tool = createPackageDependenciesTool(
+      createMockPackageIntelligenceService({ packageDependencies }),
+    );
+
+    await tool.handler(
+      { target: "maven:org.apache.commons:commons-lang3@3.17.0" },
+      {},
+    );
+
+    expect(packageDependencies).toHaveBeenCalledWith({
+      registry: "MAVEN",
+      packageName: "org.apache.commons:commons-lang3",
+      version: "3.17.0",
+      includeTransitive: true,
+      includeTransitiveDetails: false,
+      includeGroups: true,
+      includeDependencyIssues: undefined,
+      maxDepth: 1,
+      lifecycle: undefined,
+    });
+  });
+
   it.each([
     ["nuget", "NUGET"],
     ["maven", "MAVEN"],
@@ -256,7 +379,7 @@ describe("createPackageDependenciesTool — happy path", () => {
       );
 
       const result = await tool.handler(
-        { registry, package_name: "example", format: "json" },
+        { target: `${registry}:example`, format: "json" },
         {},
       );
 
@@ -285,18 +408,14 @@ describe("createPackageDependenciesTool — happy path", () => {
 
     const jsonResult = await tool.handler(
       {
-        registry: "go",
-        package_name: "example.com/mod",
-        version: "1.2.3",
+        target: "go:example.com/mod@1.2.3",
         format: "json",
       },
       {},
     );
     const textResult = await tool.handler(
       {
-        registry: "go",
-        package_name: "example.com/mod",
-        version: "1.2.3",
+        target: "go:example.com/mod@1.2.3",
       },
       {},
     );
@@ -323,7 +442,7 @@ describe("createPackageDependenciesTool — happy path", () => {
     });
     const tool = createPackageDependenciesTool(service);
 
-    await tool.handler({ registry: "npm", package_name: "express" }, {});
+    await tool.handler({ target: "npm:express" }, {});
 
     const calls = packageDependencies.mock.calls as unknown as Array<
       [
@@ -346,10 +465,7 @@ describe("createPackageDependenciesTool — happy path", () => {
     });
     const tool = createPackageDependenciesTool(service);
 
-    await tool.handler(
-      { registry: "npm", package_name: "express", format: "json" },
-      {},
-    );
+    await tool.handler({ target: "npm:express", format: "json" }, {});
 
     const calls = packageDependencies.mock.calls as unknown as Array<
       [{ includeGroups?: boolean }]
@@ -361,10 +477,7 @@ describe("createPackageDependenciesTool — happy path", () => {
     const tool = createPackageDependenciesTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler(
-      { registry: "npm", package_name: "express" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:express" }, {});
     expect(result.isError).toBeUndefined();
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("express @ 5.2.1 | npm");
@@ -383,7 +496,7 @@ describe("createPackageDependenciesTool — happy path", () => {
       createMockPackageIntelligenceService(),
     );
     const result = await tool.handler(
-      { registry: "npm", package_name: "express", format: "json" },
+      { target: "npm:express", format: "json" },
       {},
     );
     const payload = parseText(result) as {
@@ -404,8 +517,7 @@ describe("createPackageDependenciesTool — happy path", () => {
     );
     const result = await tool.handler(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         lifecycle: "development",
         format: "json",
       },
@@ -423,8 +535,7 @@ describe("createPackageDependenciesTool — happy path", () => {
     );
     const result = await tool.handler(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         lifecycle: ["runtime", "development"],
         format: "json",
       },
@@ -445,18 +556,14 @@ describe("createPackageDependenciesTool — happy path", () => {
       }),
     );
     const withoutTransitive = parseText(
-      await tool.handler(
-        { registry: "npm", package_name: "express", format: "json" },
-        {},
-      ),
+      await tool.handler({ target: "npm:express", format: "json" }, {}),
     ) as { transitive?: unknown };
     expect(withoutTransitive.transitive).toBeUndefined();
 
     const withTransitive = parseText(
       await tool.handler(
         {
-          registry: "npm",
-          package_name: "express",
+          target: "npm:express",
           max_depth: 3,
           format: "json",
         },
@@ -505,7 +612,7 @@ describe("createPackageDependenciesTool — happy path", () => {
     const tool = createPackageDependenciesTool(service);
 
     const result = await tool.handler(
-      { registry: "npm", package_name: "express", format: "json" },
+      { target: "npm:express", format: "json" },
       {},
     );
 
@@ -544,8 +651,7 @@ describe("createPackageDependenciesTool — happy path", () => {
 
     const result = await tool.handler(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         include_issues: true,
         format: "json",
       },
@@ -603,8 +709,7 @@ describe("createPackageDependenciesTool — happy path", () => {
 
     const result = await tool.handler(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         include_issues: true,
         max_depth: 4,
         format: "json",
@@ -639,8 +744,7 @@ describe("createPackageDependenciesTool — happy path", () => {
       });
       const tool = createPackageDependenciesTool(service);
       const args = {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         format: "json" as const,
         ...(includeIssues === undefined
           ? {}
@@ -676,8 +780,7 @@ describe("createPackageDependenciesTool — happy path", () => {
     );
     const result = await tool.handler(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         include_issues: true,
       },
       {},
@@ -694,6 +797,38 @@ describe("createPackageDependenciesTool — happy path", () => {
   });
 });
 
+describe("createPackageDependenciesTool — compact target validation", () => {
+  it.each([
+    "",
+    "   ",
+    "express",
+    "npm:",
+    "npm:express@",
+    "madeup:express",
+    "github:expressjs/express",
+    "site:expressjs.com",
+  ])(
+    "rejects invalid compact target %j without calling service",
+    async (target) => {
+      const packageDependencies = mock(() =>
+        Promise.resolve(defaultDependencyReport),
+      );
+      const tool = createPackageDependenciesTool(
+        createMockPackageIntelligenceService({ packageDependencies }),
+      );
+
+      const result = await tool.handler({ target }, {});
+
+      expect(result.isError).toBe(true);
+      expect(parseText(result)).toMatchObject({
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      });
+      expect(packageDependencies).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe("createPackageDependenciesTool — silent-noop rejection", () => {
   it("include_importers alone requests the transitive block with provenance", async () => {
     const tool = createPackageDependenciesTool(
@@ -705,8 +840,7 @@ describe("createPackageDependenciesTool — silent-noop rejection", () => {
     );
     const result = await tool.handler(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         include_importers: true,
         format: "json",
       },
@@ -723,10 +857,7 @@ describe("createPackageDependenciesTool — validation errors via in-handler bui
     const tool = createPackageDependenciesTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler(
-      { registry: "npm", package_name: "express", version: "v4.18.0" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:express@v4.18.0" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string; error: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
@@ -738,7 +869,7 @@ describe("createPackageDependenciesTool — validation errors via in-handler bui
       createMockPackageIntelligenceService(),
     );
     const result = await tool.handler(
-      { registry: "npm", package_name: "express", lifecycle: "dev" },
+      { target: "npm:express", lifecycle: "dev" },
       {},
     );
     expect(result.isError).toBe(true);
@@ -758,10 +889,7 @@ describe("createPackageDependenciesTool — service errors", () => {
       ),
     });
     const tool = createPackageDependenciesTool(service);
-    const result = await tool.handler(
-      { registry: "npm", package_name: "ghost" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:ghost" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("NOT_FOUND");
@@ -772,10 +900,7 @@ describe("createPackageDependenciesTool — service errors", () => {
       packageDependencies: mock(() => Promise.reject(new Error("boom"))),
     });
     const tool = createPackageDependenciesTool(service);
-    const result = await tool.handler(
-      { registry: "npm", package_name: "express" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:express" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("UNKNOWN");

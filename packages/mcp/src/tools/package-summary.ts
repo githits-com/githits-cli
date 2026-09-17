@@ -2,6 +2,10 @@ import type { PackageIntelligenceService } from "@githits/core-internal";
 import { PKGSEER_REGISTRY_LIST } from "@githits/core-internal";
 import { z } from "zod";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
+import {
+  InvalidPackageSpecError,
+  parsePackageSpec,
+} from "../shared/package-spec.js";
 import { buildPackageSummaryParams } from "../shared/package-summary-request.js";
 import {
   buildPackageSummarySuccessPayload,
@@ -17,26 +21,21 @@ import {
 } from "./types.js";
 
 export interface PackageSummaryArgs {
-  registry: string;
-  package_name: string;
+  target: string;
   verbose?: boolean;
   format?: "text" | "json";
 }
 
 /**
- * Permissive schema by design — validation happens inside the handler
- * via `buildPackageSummaryParams`. That way, malformed input produces
- * the structured `{error, code, retryable}` envelope (same as CLI),
- * rather than a raw Zod error that agents would have to parse
- * separately.
+ * Strings remain permissive so package parsing and request validation
+ * return mapped domain errors. Missing or non-string targets fail SDK validation.
  */
 const schema: ZodRawShape = {
-  registry: z
+  target: z
     .string()
-    .describe(`Package registry. One of: ${PKGSEER_REGISTRY_LIST}.`),
-  package_name: z
-    .string()
-    .describe("Package name (scoped names ok: @types/node)."),
+    .describe(
+      `Latest-only package registry:name, for example npm:express or npm:@types/node; omit version pins. Registries: ${PKGSEER_REGISTRY_LIST}.`,
+    ),
   verbose: z
     .boolean()
     .optional()
@@ -53,7 +52,7 @@ const schema: ZodRawShape = {
 
 export const DESCRIPTION_BASE: string =
   "Assess latest package health and adoption: license, downloads, and activity. Provide " +
-  "`registry` and `package_name` (for example `npm` + `express`). " +
+  "a package target. " +
   "Default text returns license, description, repository popularity " +
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
   "publish age, latest affected count, and separate package-wide advisory " +
@@ -78,9 +77,15 @@ export function createPackageSummaryTool(
     annotations: OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       try {
+        const target = parsePackageSpec(args.target.trim());
+        if (target.version !== undefined) {
+          throw new InvalidPackageSpecError(
+            `pkg_info always returns the latest version; omit @${target.version}.`,
+          );
+        }
         const { params } = buildPackageSummaryParams({
-          registry: args.registry,
-          packageName: args.package_name,
+          registry: target.registry,
+          packageName: target.name,
         });
         const textFormat = isTextFormat(args.format);
         const summary = await service.packageSummary({

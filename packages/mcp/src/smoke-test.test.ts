@@ -239,9 +239,10 @@ describe("runMcpSmoke", () => {
 
   it("skips the live corpus when the auth probe returns AUTH_REQUIRED", async () => {
     const logs: string[] = [];
-    const caller = createCaller(async (name) => {
+    const caller = createCaller(async (name, args) => {
       if (name === "quick_start") return smokeResponse(name, {});
       expect(name).toBe("pkg_info");
+      expect(args).toEqual({ target: "npm:express" });
       return errorResult("AUTH_REQUIRED");
     });
 
@@ -269,19 +270,35 @@ describe("runMcpSmoke", () => {
       new Set(EXPECTED_MCP_TOOLS),
     );
     expect(calls.some(({ name }) => name === "feedback")).toBe(false);
+    const compactPackageNames = new Set([
+      "docs_list",
+      "pkg_info",
+      "pkg_vulns",
+      "pkg_deps",
+    ]);
+    const compactPackageCalls = calls.filter(({ name }) =>
+      compactPackageNames.has(name),
+    );
+    expect(new Set(compactPackageCalls.map(({ name }) => name))).toEqual(
+      compactPackageNames,
+    );
+    for (const { name, args } of compactPackageCalls) {
+      expect(typeof args.target, `${name} target`).toBe("string");
+      expect(args, `${name} registry`).not.toHaveProperty("registry");
+      expect(args, `${name} package_name`).not.toHaveProperty("package_name");
+      expect(args, `${name} version`).not.toHaveProperty("version");
+    }
     expect(calls).toContainEqual({
       name: "pkg_deps",
       args: {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         include_issues: true,
       },
     });
     expect(calls).toContainEqual({
       name: "pkg_deps",
       args: {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         include_issues: true,
         format: "json",
       },
@@ -289,18 +306,14 @@ describe("runMcpSmoke", () => {
     expect(calls).toContainEqual({
       name: "pkg_vulns",
       args: {
-        registry: "npm",
-        package_name: "express",
-        version: "4.17.1",
+        target: "npm:express@4.17.1",
         include_transitive: true,
       },
     });
     expect(calls).toContainEqual({
       name: "pkg_vulns",
       args: {
-        registry: "npm",
-        package_name: "express",
-        version: "4.17.1",
+        target: "npm:express@4.17.1",
         include_transitive: true,
         advisory_scope: "all",
         format: "json",

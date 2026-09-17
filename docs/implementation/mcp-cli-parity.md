@@ -542,11 +542,12 @@ When a new tool lands with both MCP and CLI surfaces:
 ### `pkg_info`
 
 - **Permissive MCP schema + in-handler validation.**
-  `buildPackageSummaryParams` is the single validator used by both
-  surfaces; raw Zod errors never surface in the envelope.
-- **`@version` rejection.** CLI-only. The MCP tool has no `version`
-  input. The CLI's `pkg info` throws `InvalidPackageSpecError` on
-  any non-null parsed version — never silently swaps to latest.
+  Both surfaces use `parsePackageSpec` and `buildPackageSummaryParams`.
+  MCP requires string `target`; domain errors use the shared mapped envelope,
+  while missing or non-string targets fail SDK schema validation.
+- **`@version` rejection.** Both surfaces reject any embedded version
+  with actionable `INVALID_ARGUMENT` before calling the service; neither
+  silently swaps to latest.
 - **Shared package-summary envelope and formatter.** CLI `--json` and MCP
   `format: "json"` use the same lean envelope, including additive
   `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total` fields.

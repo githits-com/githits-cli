@@ -22,14 +22,12 @@ describe("createListPackageDocsTool", () => {
       destructiveHint: false,
     });
     expect(Object.keys(tool.schema)).toEqual([
-      "registry",
-      "package_name",
-      "version",
+      "target",
       "limit",
       "after",
       "format",
     ]);
-    expect(tool.schema.version?.description).toContain("Go accepts either");
+    expect(tool.schema.target?.description).toContain("Go accepts versions");
     expect(tool.description).toContain("`docsReadTarget`");
   });
 
@@ -41,10 +39,7 @@ describe("createListPackageDocsTool", () => {
       createMockPackageIntelligenceService({ listPackageDocs }),
     );
 
-    await tool.handler(
-      { registry: "npm", package_name: "express", version: "5.2.1", limit: 3 },
-      {},
-    );
+    await tool.handler({ target: "npm:express@5.2.1", limit: 3 }, {});
 
     expect(listPackageDocs).toHaveBeenCalledWith({
       registry: "NPM",
@@ -54,12 +49,110 @@ describe("createListPackageDocsTool", () => {
     });
   });
 
+  it("normalizes a trimmed uppercase npm scoped pin with pagination", async () => {
+    const listPackageDocs = mock(() =>
+      Promise.resolve({ pages: [], pageInfo: { hasNextPage: false } }),
+    );
+    const tool = createListPackageDocsTool(
+      createMockPackageIntelligenceService({ listPackageDocs }),
+    );
+
+    await tool.handler(
+      { target: " NPM:@types/node@22.0.0 ", limit: 3, after: " cursor " },
+      {},
+    );
+
+    expect(listPackageDocs).toHaveBeenCalledWith({
+      registry: "NPM",
+      packageName: "@types/node",
+      version: "22.0.0",
+      limit: 3,
+      after: "cursor",
+    });
+  });
+
+  it("normalizes an unpinned npm target without a version", async () => {
+    const listPackageDocs = mock(() =>
+      Promise.resolve({ pages: [], pageInfo: { hasNextPage: false } }),
+    );
+    const tool = createListPackageDocsTool(
+      createMockPackageIntelligenceService({ listPackageDocs }),
+    );
+
+    await tool.handler({ target: "npm:express" }, {});
+
+    expect(listPackageDocs).toHaveBeenCalledWith({
+      registry: "NPM",
+      packageName: "express",
+    });
+  });
+
+  it.each([
+    "go:github.com/gin-gonic/gin@1.2.3",
+    "go:github.com/gin-gonic/gin@v1.2.3",
+  ])("normalizes Go target %s to a v-prefixed version", async (target) => {
+    const listPackageDocs = mock(() =>
+      Promise.resolve({ pages: [], pageInfo: { hasNextPage: false } }),
+    );
+    const tool = createListPackageDocsTool(
+      createMockPackageIntelligenceService({ listPackageDocs }),
+    );
+
+    await tool.handler({ target }, {});
+
+    expect(listPackageDocs).toHaveBeenCalledWith({
+      registry: "GO",
+      packageName: "github.com/gin-gonic/gin",
+      version: "v1.2.3",
+    });
+  });
+
+  it("normalizes a Swift GitHub target and package name", async () => {
+    const listPackageDocs = mock(() =>
+      Promise.resolve({ pages: [], pageInfo: { hasNextPage: false } }),
+    );
+    const tool = createListPackageDocsTool(
+      createMockPackageIntelligenceService({ listPackageDocs }),
+    );
+
+    await tool.handler(
+      { target: "swift:github.com/Apple/Swift-Argument-Parser@v1.5.0" },
+      {},
+    );
+
+    expect(listPackageDocs).toHaveBeenCalledWith({
+      registry: "SWIFT",
+      packageName: "github.com/apple/swift-argument-parser",
+      version: "v1.5.0",
+    });
+  });
+
+  it("normalizes a Maven coordinate", async () => {
+    const listPackageDocs = mock(() =>
+      Promise.resolve({ pages: [], pageInfo: { hasNextPage: false } }),
+    );
+    const tool = createListPackageDocsTool(
+      createMockPackageIntelligenceService({ listPackageDocs }),
+    );
+
+    await tool.handler(
+      { target: "maven:org.apache.commons:commons-lang3@3.17.0" },
+      {},
+    );
+
+    expect(listPackageDocs).toHaveBeenCalledWith({
+      registry: "MAVEN",
+      packageName: "org.apache.commons:commons-lang3",
+      version: "3.17.0",
+    });
+  });
+
   it("returns JSON-stringified lean envelope when format=json", async () => {
     const tool = createListPackageDocsTool(
       createMockPackageIntelligenceService(),
     );
     const result = await tool.handler(
-      { registry: "npm", package_name: "express", format: "json" },
+      { target: "npm:express", format: "json" },
       {},
     );
     const payload = parseText(result) as Record<string, unknown>;
@@ -83,10 +176,7 @@ describe("createListPackageDocsTool", () => {
       }),
     );
 
-    const textResult = await tool.handler(
-      { registry: "npm", package_name: "express" },
-      {},
-    );
+    const textResult = await tool.handler({ target: "npm:express" }, {});
     expect(textResult.content[0]?.text).toContain(
       "indexing is still in progress",
     );
@@ -95,7 +185,7 @@ describe("createListPackageDocsTool", () => {
     );
 
     const jsonResult = await tool.handler(
-      { registry: "npm", package_name: "express", format: "json" },
+      { target: "npm:express", format: "json" },
       {},
     );
     expect(parseText(jsonResult)).toMatchObject({
@@ -108,10 +198,7 @@ describe("createListPackageDocsTool", () => {
     const tool = createListPackageDocsTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler(
-      { registry: "npm", package_name: "express" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:express" }, {});
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("docs_list | npm:express");
     expect(text).toContain("read target=");
@@ -141,10 +228,7 @@ describe("createListPackageDocsTool", () => {
       createMockPackageIntelligenceService({ listPackageDocs }),
     );
 
-    const textResult = await tool.handler(
-      { registry: "npm", package_name: "example" },
-      {},
-    );
+    const textResult = await tool.handler({ target: "npm:example" }, {});
     expect(textResult.content[0]?.text).toContain(
       `read target=${JSON.stringify(docsReadTarget)}`,
     );
@@ -153,7 +237,7 @@ describe("createListPackageDocsTool", () => {
     );
 
     const jsonResult = await tool.handler(
-      { registry: "npm", package_name: "example", format: "json" },
+      { target: "npm:example", format: "json" },
       {},
     );
     const payload = parseText(jsonResult) as {
@@ -201,10 +285,7 @@ describe("createListPackageDocsTool", () => {
       }),
     );
 
-    const result = await tool.handler(
-      { registry: "npm", package_name: "ms" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:ms" }, {});
     const text = result.content[0]?.text ?? "";
     expect(text).toContain('read target="github:vercel/ms@served-sha"');
     expect(text).not.toContain("#main");
@@ -236,10 +317,7 @@ describe("createListPackageDocsTool", () => {
       }),
     );
 
-    const result = await tool.handler(
-      { registry: "npm", package_name: "ms", format: "json" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:ms", format: "json" }, {});
     const payload = parseText(result) as {
       pages: Array<{ lastUpdatedAt?: string }>;
     };
@@ -247,17 +325,51 @@ describe("createListPackageDocsTool", () => {
   });
 
   it("returns INVALID_ARGUMENT for unknown registry", async () => {
+    const listPackageDocs = mock(() =>
+      Promise.resolve({ pages: [], pageInfo: { hasNextPage: false } }),
+    );
     const tool = createListPackageDocsTool(
-      createMockPackageIntelligenceService(),
+      createMockPackageIntelligenceService({ listPackageDocs }),
     );
-    const result = await tool.handler(
-      { registry: "cargo", package_name: "serde" },
-      {},
-    );
-    const payload = parseText(result) as { code: string };
+    const result = await tool.handler({ target: "cargo:serde" }, {});
+    const payload = parseText(result) as { code: string; retryable: boolean };
     expect(result.isError).toBe(true);
-    expect(payload.code).toBe("INVALID_ARGUMENT");
+    expect(payload).toMatchObject({
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    });
+    expect(listPackageDocs).not.toHaveBeenCalled();
   });
+
+  it.each([
+    "",
+    "   ",
+    "express",
+    "npm:",
+    "npm:express@",
+    "madeup:express",
+    "github:expressjs/express",
+    "site:expressjs.com",
+  ])(
+    "rejects invalid compact target %j without calling service",
+    async (target) => {
+      const listPackageDocs = mock(() =>
+        Promise.resolve({ pages: [], pageInfo: { hasNextPage: false } }),
+      );
+      const tool = createListPackageDocsTool(
+        createMockPackageIntelligenceService({ listPackageDocs }),
+      );
+
+      const result = await tool.handler({ target }, {});
+
+      expect(result.isError).toBe(true);
+      expect(parseText(result)).toMatchObject({
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      });
+      expect(listPackageDocs).not.toHaveBeenCalled();
+    },
+  );
 
   it("classifies target-not-found errors as NOT_FOUND", async () => {
     const tool = createListPackageDocsTool(
@@ -269,10 +381,7 @@ describe("createListPackageDocsTool", () => {
         ),
       }),
     );
-    const result = await tool.handler(
-      { registry: "npm", package_name: "ghost" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:ghost" }, {});
     const payload = parseText(result) as { code: string };
     expect(result.isError).toBe(true);
     expect(payload.code).toBe("NOT_FOUND");

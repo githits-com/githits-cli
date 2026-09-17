@@ -5,6 +5,7 @@ import { buildListPackageDocsParams } from "../shared/list-package-docs-request.
 import { buildListPackageDocsSuccessPayload } from "../shared/list-package-docs-response.js";
 import { renderListPackageDocsText } from "../shared/list-package-docs-text.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
+import { parsePackageSpec } from "../shared/package-spec.js";
 import { DOCS_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
@@ -15,26 +16,17 @@ import {
 } from "./types.js";
 
 export interface ListPackageDocsArgs {
-  registry: string;
-  package_name: string;
-  version?: string;
+  target: string;
   limit?: number;
   after?: string;
   format?: "text" | "json";
 }
 
 const schema: ZodRawShape = {
-  registry: z
+  target: z
     .string()
-    .describe(`Package registry. One of: ${PKGSEER_REGISTRY_LIST}.`),
-  package_name: z
-    .string()
-    .describe("Package name (scoped names ok: @types/node)."),
-  version: z
-    .string()
-    .optional()
     .describe(
-      "Optional exact package version. Go accepts either v-prefixed or unprefixed versions.",
+      `Package registry:name[@version], for example npm:express@5.2.1; omit the version for latest. Go accepts versions with or without v. Registries: ${PKGSEER_REGISTRY_LIST}.`,
     ),
   limit: z
     .number()
@@ -69,10 +61,11 @@ export function createListPackageDocsTool(
     annotations: OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       try {
+        const target = parsePackageSpec(args.target.trim());
         const build = buildListPackageDocsParams({
-          registry: args.registry,
-          packageName: args.package_name,
-          version: args.version,
+          registry: target.registry,
+          packageName: target.name,
+          version: target.version,
           limit: args.limit,
           after: args.after,
         });
