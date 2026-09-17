@@ -321,6 +321,32 @@ describe("runMcpSmoke", () => {
     });
   });
 
+  it("rejects hosted documentation follow-ups that replay search bounds", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.source === "docs") {
+        return jsonResult({
+          completed: true,
+          results: [
+            {
+              type: "documentation_page",
+              locator: {
+                docsReadTarget: SMOKE_CRAWLED_DOC_TARGET,
+                startLine: 81,
+                endLine: 93,
+              },
+              followUp: `read target=${JSON.stringify(SMOKE_CRAWLED_DOC_TARGET)} start_line=81 end_line=93`,
+            },
+          ],
+        });
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).rejects.toThrow(
+      "hosted documentation follow-up replayed search line bounds",
+    );
+  });
+
   it("rejects arbitrary snippets beneath path-only search hits", async () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
@@ -1094,6 +1120,23 @@ function smokeJsonResponse(
               source: "CODE",
               ignoredQueryFeatures: [],
               incompatibleQueryFeatures: [],
+            },
+          ],
+        });
+      }
+      if (args.source === "docs") {
+        return jsonResult({
+          completed: true,
+          results: [
+            {
+              type: "documentation_page",
+              locator: {
+                docsReadTarget: SMOKE_CRAWLED_DOC_TARGET,
+                sourceUrl: SMOKE_CRAWLED_DOC_TARGET,
+                startLine: 81,
+                endLine: 93,
+              },
+              followUp: `read target=${JSON.stringify(SMOKE_CRAWLED_DOC_TARGET)}`,
             },
           ],
         });
