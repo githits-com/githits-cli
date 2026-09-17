@@ -29,14 +29,22 @@ describe("top-level read", () => {
   it("registers new syntax and marks legacy commands deprecated in help", () => {
     const root = new Command();
     const read = registerReadCommand(root);
+    const readHelp = read.helpInformation();
     expect(read.name()).toBe("read");
-    expect(read.helpInformation()).toContain("--lines");
+    expect(readHelp).toContain("--lines");
+    expect(readHelp).toContain("mutable current content");
+    expect(readHelp).toMatch(/repository\s+docs are snapshot-addressed/);
+    expect(readHelp).toContain("full subtree");
     expect(
       registerCodeReadCommand(new Command("code")).helpInformation(),
     ).toContain("Deprecated: use githits read");
-    expect(
-      registerDocsReadCommand(new Command("docs")).helpInformation(),
-    ).toContain("Deprecated: use githits read");
+    const docsReadHelp = registerDocsReadCommand(
+      new Command("docs"),
+    ).helpInformation();
+    expect(docsReadHelp).toContain("Deprecated: use githits read");
+    expect(docsReadHelp).toMatch(/mutable\s+current\s+content/);
+    expect(docsReadHelp).toMatch(/repository\s+docs are snapshot-addressed/);
+    expect(docsReadHelp).toContain("full subtree");
   });
 
   it("reads docs fragments unchanged with no default range or wait", async () => {

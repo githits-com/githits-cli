@@ -99,7 +99,7 @@ export function registerReadCommand(program: Command): Command {
     .command("read")
     .summary("Read an indexed file or documentation page")
     .description(
-      "Read a file with <target> <path>, or a docs page with its emitted target alone. Pass docs URL fragments unchanged to select their indexed section; --lines overrides the fragment. Default output is complete content for piping. Package and repository targets use the same compact syntax as code files.",
+      "Read a file with <target> <path>, or a docs page with its emitted target alone. Hosted/crawled HTTP(S) docs targets read mutable current content; repository docs are snapshot-addressed. Pass docs URL fragments unchanged to select the heading and its full subtree through the next equal-or-higher heading; --lines overrides the fragment with an intentional page-relative range. Default output is complete content for piping. Package and repository targets use the same compact syntax as code files.",
     )
     .argument(
       "[target-or-path]",
