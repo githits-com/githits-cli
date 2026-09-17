@@ -1340,9 +1340,12 @@ language filtering or force agents to guess names.
 
 ### Phase 6: shared instruction ownership and concise tool copy
 
-**Status:** IMPLEMENTED on `jlitola/compact-agent-instructions`, awaiting draft-PR
-CI and merge. Internal technical review is clean; external Opus round 1 found only
-minor documentation issues, applied for a clean round under repository policy.
+**Status:** IMPLEMENTED on `jlitola/compact-agent-instructions`, draft
+[PR #403](https://github.com/githits-com/githits-cli/pull/403), awaiting CI and merge.
+Initial internal technical review is clean; external Opus round 1 found only minor
+documentation issues, applied for a clean round under repository policy. Windows CI
+subsequently found a test-only LF assumption; corrected in the eighth dispatch with
+explicit LF/CRLF coverage. Full local closure passed; review round 2 is pending.
 Complete experimental live MCP smoke remains unavailable (mixed Ask timeout/503);
 focused SDK thread/source proof and CLI smoke passed. The user accepted the
 guidance-only bootstrap limitation on 2026-09-17; no deployment is included.
@@ -1571,13 +1574,32 @@ with no generated diff; format and diff checks passed. All earlier production-co
 and runtime evidence still applies. External review is clean under the doc-only
 policy. CI handoff is recorded with the draft PR.
 
-Orchestration record: one reused Luna implementor, seven mechanical dispatches
-including brief corrections; zero worker errors or interrupts. Coordinator kept
+Orchestration record: one reused Luna implementor, eight mechanical dispatches
+including brief corrections and the Windows portability fix; one test portability
+bug, zero validation-command errors or interrupts. Coordinator kept
 copy/ownership judgment, non-mechanical metadata assertions, schema inventory,
 live/eval verification and review adjudication inline. Two exact-wording corrections
 were coordinator brief errors, not worker failures; the short-format rollback was
-an eval decision. Permanent policy is in implementation docs and public guidance;
+an eval decision. The worker chose LF-only fence matching, not a brief requirement;
+the coordinator's local-only evidence contract missed CRLF and both review nets
+missed it before CI. Cost: one correction dispatch, focused/full verification and
+another required technical/external round, not runtime changes. Permanent policy is
+in implementation docs and public guidance;
 retain this overarching plan for the unfinished phases.
+
+Initial PR CI ([run 35199561988](https://github.com/githits-com/githits-cli/actions/runs/35199561988)):
+build/checks, Linux, MCP package validation and Bun/Node 20/22/24/26 compatibility
+passed. Windows failed only the new CLI-output-policy test: Core Commands fence
+matching assumed LF, but the checked-out skills use CRLF. Root fix is local to that
+test's Markdown matcher (`\r?\n`); do not normalize the shared reader or alter source
+documents/platform settings. Bounded sibling scan of skills-packaging.test.ts found
+its two existing frontmatter matchers already accept CRLF. Worker focused proof:
+`bun test src/skills-packaging.test.ts -t 'keeps CLI model-read output in text'`:
+one pass / zero fail / 25 assertions, including each skill under explicit LF and CRLF.
+All previous policy/safety checks remain; no handlers or guidance metadata changed.
+Closure full suite: 4,819 pass / zero fail / 17,113 assertions / 208 files /
+61.66 seconds. Types, format, plugin check and diff check passed; production-copy,
+build/lint/smoke/eval evidence is unchanged. New Windows CI must confirm the fix.
 
 Resolver opening-only comparison (`instructions-{baseline,candidate}-{codex,claude}-resolver-opening-20260917`):
 two existing fuzzy/site follow-up cases per provider, all final copy held constant

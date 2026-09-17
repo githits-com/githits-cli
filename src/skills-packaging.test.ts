@@ -385,11 +385,15 @@ describe("agent skills packaging", () => {
       expect(content, name).not.toContain("githits-mcp");
       expect(content, name).toContain("## External Content Posture");
 
-      const coreCommands = content.match(
-        /## Core Commands\s+```bash\n([\s\S]*?)\n```/,
-      );
-      expect(coreCommands, name).not.toBeNull();
-      expect(coreCommands?.[1], name).not.toContain("--json");
+      for (const lineEnding of ["\n", "\r\n"] as const) {
+        const platformContent = content.replace(/\r?\n/g, lineEnding);
+        const coreCommands = platformContent.match(
+          /## Core Commands\s+```bash\r?\n([\s\S]*?)\r?\n```/,
+        );
+        const label = `${name} ${JSON.stringify(lineEnding)}`;
+        expect(coreCommands, label).not.toBeNull();
+        expect(coreCommands?.[1], label).not.toContain("--json");
+      }
     }
   });
 
