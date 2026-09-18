@@ -199,6 +199,12 @@ settles hosted-versus-repository semantics.
   `https://expressjs.com/en/5x/guide/routing/` target returned the current page
   from line 1 through its reported total. The 16,278-line aggregate target also
   completed through both source and built CLIs and produced valid JSON. The full
+  Express corpus refresh was then verified with a live `route methods` search:
+  the hit retained evidence lines 56–66, emitted
+  `https://expressjs.com/en/5x/guide/routing/#route-methods`, and generated the
+  exact bounds-free follow-up. Executing that emitted fragment returned lines
+  56–112 beginning at `## Route methods`, confirming the full heading subtree
+  rather than the narrower search coordinates. The full
   authenticated MCP smoke progressed through live package calls but stopped on
   an unrelated `pkg_upgrade_review` success assertion before reaching its docs
   block; the focused live search-to-read path itself is verified.
