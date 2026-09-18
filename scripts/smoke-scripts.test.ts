@@ -619,8 +619,7 @@ describe("smoke script options", () => {
       JSON_PARITY_FIXTURES.find(({ name }) => name === "pkg_changelog")
         ?.mcpArgs,
     ).toEqual({
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       limit: 1,
       format: "json",
     });

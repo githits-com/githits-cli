@@ -813,7 +813,6 @@ export const defaultChangelogReport: ChangelogReport = {
   package: {
     name: "express",
     registry: "npm",
-    repoUrl: undefined,
     fromVersion: undefined,
     toVersion: undefined,
     limit: 10,

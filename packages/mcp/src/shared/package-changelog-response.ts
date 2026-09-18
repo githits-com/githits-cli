@@ -5,46 +5,23 @@
  * Key design commitments:
  *
  * - **Data-first envelope.** Every top-level key is driven by what
- *   the backend returned and what the caller asked for, not by
- *   additional caller flags. `entries` is `{count, items}` whenever
- *   the backend returned entries. Package version responses may have
- *   entries with no concrete changelog source; only no-source +
- *   no-entry responses are promoted to `NOT_FOUND`.
- * - **Mode derived from request.** `mode: "range"` iff `fromVersion`
- *   was non-null after normalisation; `"latest"` otherwise. Lowercase
- *   strings matching the backend's doc-comment convention.
- * - **`entries.count` computed client-side** from `items.length`. No
- *   backend-count field is selected on the wire, so the invariant
- *   `entries.count === entries.items.length` always holds.
+ *   the backend returned and what the caller asked for.
+ * - **Mode derived from request.** `latest`, `exact`, or `range`.
+ * - **`entries.count` computed client-side** from `items.length`.
  * - **`version` kept when null**, every other per-entry nullable
- *   field stripped *only when null/undefined*. Present-but-empty
- *   values (empty-string `body`, empty `htmlUrl`) are preserved so
- *   agents can distinguish "backend returned no content" from
- *   "backend didn't return this field". Rationale: `version` is the
- *   primary key agents index entries by, so keeping the slot
- *   present (even with `null`) makes it safe to write
- *   `entries.items.map(e => e.version)` without guarding. Other
- *   fields are metadata; their absence is signal, but empty values
- *   are their own signal.
+ *   field stripped only when null/undefined.
  * - **`filter.*` emits only when caller explicitly supplied them.**
- *   Backend defaults (latest = 10, to = latest version) don't echo.
- *   The request builder produces an `explicitFilterFields` set that
- *   the envelope consults here.
  * - **Body omission lever.** When requested, each entry drops its
- *   `body` field. Other fields (`version`, `normalizedVersion`,
- *   `publishedAt`, `htmlUrl`) remain so the tool still produces the
- *   version / date / URL timeline.
- * - **`metadata` dropped from envelope.** Source-specific opaque
- *   JSON; live-smoke observations will inform a typed passthrough
- *   later. TODO(backend) marker in the service types.
+ *   `body` field.
+ * - Exact selected-release entries add `hasChangelog`. Timeline
+ *   entries omit that field.
  */
 
 import type { ChangelogReport } from "@githits/core-internal";
 import { colorize, dim, highlight } from "./colors.js";
 import type { ExplicitFilterField } from "./package-changelog-request.js";
 
-/** Two backend-documented modes, kept lowercase. */
-export type ChangelogMode = "latest" | "range";
+export type ChangelogMode = "latest" | "exact" | "range";
 
 export interface LeanChangelogEntry {
   /** Present with a possibly-null value — the primary index key. */
@@ -57,6 +34,8 @@ export interface LeanChangelogEntry {
   htmlUrl?: string;
   /** Raw markdown. Stripped when null OR when bodies are omitted. */
   body?: string;
+  /** Present only for exact selected-release results. */
+  hasChangelog?: boolean;
 }
 
 export interface LeanEntriesBlock {
@@ -75,7 +54,7 @@ export interface LeanChangelogFilter {
   fromVersion?: string;
   toVersion?: string;
   limit?: number;
-  gitRef?: string;
+  version?: string;
 }
 
 export interface LeanChangelogEnvelope {
@@ -83,9 +62,10 @@ export interface LeanChangelogEnvelope {
   registry?: string;
   /** Present for spec addressing. */
   name?: string;
-  /** Present for repo-URL addressing. */
-  repoUrl?: string;
-  /** `"releases"` | `"changelog_file"` | `"hexdocs"` when resolved. Absent for package versions with no changelog entry. */
+  /**
+   * Timeline source or exact `detailSource` normalised to lower snake
+   * case. Absent when the backend returned no concrete source.
+   */
   source?: string;
   /** Derived from request params. */
   mode: ChangelogMode;
@@ -94,20 +74,16 @@ export interface LeanChangelogEnvelope {
 }
 
 export interface BuildChangelogPayloadOptions {
-  /** Caller's addressing echo; one of the two is present. */
   registry?: string;
   name?: string;
-  repoUrl?: string;
-  /** Mode the caller requested. Built from `params.fromVersion`. */
   mode: ChangelogMode;
   explicitFilterFields: Set<ExplicitFilterField>;
   /** When false, drop each entry's `body` field. Default: true. */
   includeBodies: boolean;
-  /** Caller's raw inputs, echoed under `filter.*` when explicit. */
   fromVersion?: string;
   toVersion?: string;
   limit?: number;
-  gitRef?: string;
+  version?: string;
 }
 
 export function buildPackageChangelogSuccessPayload(
@@ -118,12 +94,6 @@ export function buildPackageChangelogSuccessPayload(
     const lean: LeanChangelogEntry = {
       version: entry.version ?? null,
     };
-    // Non-null-strip policy: present-but-null/undefined fields are
-    // stripped; present-but-empty values (empty-string body, empty
-    // URL) are preserved so agents can distinguish "backend returned
-    // no content" from "backend didn't return this field". The only
-    // mutation is `omit_bodies: true`, which explicitly drops
-    // `body` regardless of its value.
     if (entry.normalizedVersion != null) {
       lean.normalizedVersion = entry.normalizedVersion;
     }
@@ -135,6 +105,9 @@ export function buildPackageChangelogSuccessPayload(
     }
     if (options.includeBodies && entry.body != null) {
       lean.body = entry.body;
+    }
+    if (options.mode === "exact" && entry.hasChangelog !== undefined) {
+      lean.hasChangelog = entry.hasChangelog;
     }
     return lean;
   });
@@ -151,7 +124,6 @@ export function buildPackageChangelogSuccessPayload(
 
   if (options.registry) envelope.registry = options.registry;
   if (options.name) envelope.name = options.name;
-  if (options.repoUrl) envelope.repoUrl = options.repoUrl;
 
   const filter = buildFilterBlock(options);
   if (filter) envelope.filter = filter;
@@ -174,8 +146,8 @@ function buildFilterBlock(
   if (explicitFilterFields.has("limit") && options.limit !== undefined) {
     filter.limit = options.limit;
   }
-  if (explicitFilterFields.has("gitRef") && options.gitRef) {
-    filter.gitRef = options.gitRef;
+  if (explicitFilterFields.has("version") && options.version) {
+    filter.version = options.version;
   }
   return Object.keys(filter).length > 0 ? filter : undefined;
 }
@@ -191,35 +163,12 @@ export interface FormatChangelogTerminalOptions {
   bodyPreviewLines?: number;
 }
 
-/**
- * Default line cap applied to the body preview when `--verbose` is
- * not set. Release notes run long (100+ lines on typescript /
- * kubernetes); an unbounded default would dominate the terminal
- * scrollback. A 10-line cap shows the first one or two sections
- * plus any preamble, which is usually enough to answer "what
- * shipped". `--verbose` lifts the cap; `--no-body` (which flows
- * through the envelope builder as `body: undefined`) skips this
- * branch entirely.
- */
 const DEFAULT_BODY_PREVIEW_LINES = 10;
 
 /**
  * Format an envelope for terminal display. The summary header leads
  * with the addressing + count + source; each entry renders as
- * `version  date  url` plus an indented body preview. The preview
- * is capped at {@link DEFAULT_BODY_PREVIEW_LINES} lines by default,
- * expanded fully under `--verbose`, and skipped entirely when the
- * caller passed `--no-body` (bodies are absent from the envelope
- * on that path).
- *
- * Edge cases:
- * - Empty entries: summary header + "No entries in this range.".
- * - Missing `publishedAt`: `-` in the date column.
- * - Missing `version`: `(unversioned)`; backend/source order is preserved
- *   (we don't re-sort).
- * - Empty-string body: rendered with a neutral `(empty release
- *   notes)` sentinel so agents can tell it apart from
- *   `--no-body` / bodies-absent.
+ * `version  date  url` plus an indented body preview.
  */
 export function formatPackageChangelogTerminal(
   envelope: LeanChangelogEnvelope,
@@ -251,7 +200,12 @@ export function formatPackageChangelogTerminal(
     lines.push(
       `${highlight(`${padded}  ${datePadded}`, options.useColors)}  ${url}`,
     );
-    if (entry.body != null) {
+    if (entry.hasChangelog === false) {
+      lines.push("");
+      lines.push(
+        `  ${dim("Release notes are unavailable.", options.useColors)}`,
+      );
+    } else if (entry.body != null) {
       appendBodyLines(lines, entry.body, options);
     }
     lines.push("");
@@ -293,24 +247,27 @@ function buildSummaryLine(
   const identity =
     envelope.registry && envelope.name
       ? `${envelope.name} | ${envelope.registry}`
-      : (envelope.repoUrl ?? "(unknown)");
+      : "(unknown)";
   const sourceLabel = envelope.source
     ? humanizeSource(envelope.source)
     : "package versions";
-  const modeLabel =
-    envelope.mode === "range" ? rangeLabel(envelope) : latestLabel(envelope);
+  const modeLabel = modeSummary(envelope);
   const countLabel = `${envelope.entries.count} ${plural("entry", "entries", envelope.entries.count)}`;
   const parts = [identity, `source: ${sourceLabel}`, modeLabel, countLabel];
   return colorize(parts.join(" | "), "bold", options.useColors);
 }
 
-function rangeLabel(envelope: LeanChangelogEnvelope): string {
-  const from = envelope.filter?.fromVersion ?? "earliest";
-  const to = envelope.filter?.toVersion ?? "latest";
-  return `range (${from}, ${to}]`;
-}
-
-function latestLabel(envelope: LeanChangelogEnvelope): string {
+function modeSummary(envelope: LeanChangelogEnvelope): string {
+  if (envelope.mode === "exact") {
+    const version =
+      envelope.filter?.version ?? envelope.entries.items[0]?.version;
+    return version ? `exact ${version}` : "exact";
+  }
+  if (envelope.mode === "range") {
+    const from = envelope.filter?.fromVersion ?? "earliest";
+    const to = envelope.filter?.toVersion ?? "latest";
+    return `range (${from}, ${to}]`;
+  }
   if (envelope.filter?.toVersion) {
     return `latest up to ${envelope.filter.toVersion}`;
   }
@@ -325,6 +282,14 @@ function humanizeSource(source: string): string {
       return "CHANGELOG.md";
     case "hexdocs":
       return "HexDocs";
+    case "registry_release_notes":
+      return "registry release notes";
+    case "registry_link":
+      return "registry link";
+    case "generated_github_url":
+      return "generated GitHub URL";
+    case "package_version":
+      return "package versions";
     default:
       return source;
   }
@@ -335,8 +300,6 @@ function plural(singular: string, pluralForm: string, count: number): string {
 }
 
 function formatDate(iso: string): string {
-  // Slice YYYY-MM-DD without turning this into a full Date parsing
-  // problem. Backend returns ISO8601; anything shorter stays verbatim.
   if (/^\d{4}-\d{2}-\d{2}/.test(iso)) return iso.slice(0, 10);
   return iso;
 }
@@ -360,7 +323,5 @@ const ESC = String.fromCharCode(0x1b);
 const ANSI_SGR_PATTERN = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
 
 function stripAnsi(text: string): string {
-  // Minimal ANSI CSI stripper — the terminal formatter only uses
-  // SGR sequences produced by `colorize` / `dim`.
   return text.replace(ANSI_SGR_PATTERN, "");
 }

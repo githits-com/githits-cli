@@ -23,7 +23,10 @@ import {
   PkgseerTransportError,
   postPkgseerGraphql,
 } from "../shared/pkgseer-graphql.js";
-import type { PkgseerRegistry } from "../shared/pkgseer-registry.js";
+import {
+  type PkgseerRegistry,
+  toPkgseerRegistryLowercase,
+} from "../shared/pkgseer-registry.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import {
   ClientUpdateRequiredError,
@@ -625,20 +628,20 @@ export interface DependencyReport {
 }
 
 /**
- * Inputs to `packageChangelog`. Addressing is "spec XOR repo-URL":
- * either both `registry` and `packageName`, or `repoUrl` alone.
- * The shared request builder enforces the XOR before reaching the
- * service; the service layer trusts the contract.
+ * Inputs to `packageChangelog`. Package-only: `registry` + `packageName`
+ * are required. `version` selects one release via `packageInfo`;
+ * otherwise the timeline `packageChangelog` query is used.
  */
 export interface PackageChangelogParams {
-  /** Uppercase GraphQL registry enum value. Required with `packageName`. */
-  registry?: PkgseerRegistry;
-  /** Package name. Required with `registry`. */
-  packageName?: string;
-  /** GitHub repo URL. Mutually exclusive with `registry` + `packageName`. */
-  repoUrl?: string;
-  /** Branch or tag for CHANGELOG.md fetching. Ignored for GH Releases. */
-  gitRef?: string;
+  /** Uppercase GraphQL registry enum value. */
+  registry: PkgseerRegistry;
+  /** Package name. */
+  packageName: string;
+  /**
+   * Exact selected-release selector. When set, the service queries
+   * `packageInfo.selectedVersion.changelog` and ignores range/limit.
+   */
+  version?: string;
   /**
    * Exclusive start of version range. When set, the backend returns every
    * entry after `fromVersion` through `toVersion` (or latest); `limit` is
@@ -661,7 +664,6 @@ export interface PackageChangelogParams {
 export interface ChangelogPackageInfo {
   name?: string;
   registry?: string;
-  repoUrl?: string;
   fromVersion?: string;
   toVersion?: string;
   limit?: number;
@@ -674,6 +676,8 @@ export interface ChangelogEntryDetail {
   body?: string;
   htmlUrl?: string;
   publishedAt?: string;
+  /** Present for exact selected-release results. */
+  hasChangelog?: boolean;
 }
 
 export interface ChangelogReport {
@@ -907,23 +911,6 @@ export class MalformedPackageIntelligenceResponseError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "MalformedPackageIntelligenceResponseError";
-  }
-}
-
-/**
- * Raised when the backend confirmed the package / repo exists but
- * could not resolve a changelog source for it (no GitHub Releases,
- * no CHANGELOG.md, no HexDocs). Distinct from
- * {@link PackageIntelligenceTargetNotFoundError} which signals the
- * package itself is missing. The error-map routes this to the shared
- * `NOT_FOUND` code so MCP / CLI error envelopes are consistent, but
- * the distinct class lets the changelog executor attach a message
- * naming the sources that were tried.
- */
-export class PackageIntelligenceChangelogSourceNotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "PackageIntelligenceChangelogSourceNotFoundError";
   }
 }
 
@@ -2293,7 +2280,6 @@ const changelogPackageInfoSchema = z
   .object({
     name: z.string().nullable().optional(),
     registry: z.string().nullable().optional(),
-    repoUrl: z.string().nullable().optional(),
     fromVersion: z.string().nullable().optional(),
     toVersion: z.string().nullable().optional(),
     limit: z.number().int().nullable().optional(),
@@ -2325,12 +2311,37 @@ const changelogGraphQLResponseSchema = z.object({
   errors: z.array(graphQLErrorSchema).optional(),
 });
 
+const exactChangelogDetailSchema = z.object({
+  detailSource: z.string().nullable().optional(),
+  hasChangelog: z.boolean(),
+  entry: changelogEntryDetailSchema.nullable().optional(),
+});
+
+const exactChangelogGraphQLResponseSchema = z.object({
+  data: z
+    .object({
+      packageInfo: z
+        .object({
+          selectedVersion: z
+            .object({
+              resolvedVersion: z.string(),
+              changelog: exactChangelogDetailSchema.nullable().optional(),
+            })
+            .nullable()
+            .optional(),
+        })
+        .nullable()
+        .optional(),
+    })
+    .nullable()
+    .optional(),
+  errors: z.array(graphQLErrorSchema).optional(),
+});
+
 const PACKAGE_CHANGELOG_QUERY = `
 query PackageChangelog(
-  $registry: Registry
-  $name: String
-  $repoUrl: String
-  $gitRef: String
+  $registry: Registry!
+  $name: String!
   $fromVersion: String
   $toVersion: String
   $limit: Int
@@ -2339,8 +2350,6 @@ query PackageChangelog(
   packageChangelog(
     registry: $registry
     name: $name
-    repoUrl: $repoUrl
-    gitRef: $gitRef
     fromVersion: $fromVersion
     toVersion: $toVersion
     limit: $limit
@@ -2348,7 +2357,6 @@ query PackageChangelog(
     package {
       name
       registry
-      repoUrl
       fromVersion
       toVersion
       limit
@@ -2363,6 +2371,38 @@ query PackageChangelog(
     }
   }
 }`;
+
+const PACKAGE_CHANGELOG_EXACT_QUERY = `
+query PackageChangelogExact(
+  $registry: Registry!
+  $name: String!
+  $version: String
+  $includeBodies: Boolean! = true
+) {
+  packageInfo(registry: $registry, name: $name, version: $version) {
+    selectedVersion {
+      resolvedVersion
+      changelog {
+        detailSource
+        hasChangelog
+        entry {
+          normalizedVersion
+          body @include(if: $includeBodies)
+          htmlUrl
+          publishedAt
+        }
+      }
+    }
+  }
+}`;
+
+function normaliseChangelogSource(
+  raw: string | null | undefined,
+): string | undefined {
+  const trimmed = raw?.trim();
+  if (!trimmed) return undefined;
+  return trimmed.toLowerCase();
+}
 
 // --------------------------------------------------------------------
 // Zod schema + queries for package docs
@@ -3705,6 +3745,16 @@ export class PackageIntelligenceServiceImpl
     token: string,
     params: PackageChangelogParams,
   ): Promise<ChangelogReport> {
+    if (params.version !== undefined) {
+      return this.executeExactPackageChangelog(token, params);
+    }
+    return this.executeTimelinePackageChangelog(token, params);
+  }
+
+  private async executeTimelinePackageChangelog(
+    token: string,
+    params: PackageChangelogParams,
+  ): Promise<ChangelogReport> {
     let response: PkgseerGraphqlResponse;
     try {
       response = await postPkgseerGraphql({
@@ -3714,8 +3764,6 @@ export class PackageIntelligenceServiceImpl
         variables: {
           registry: params.registry,
           name: params.packageName,
-          repoUrl: params.repoUrl,
-          gitRef: params.gitRef,
           fromVersion: params.fromVersion,
           toVersion: params.toVersion,
           limit: params.limit,
@@ -3760,29 +3808,72 @@ export class PackageIntelligenceServiceImpl
       );
     }
 
-    return this.normaliseChangelogReport(data, params);
+    return this.normaliseTimelineChangelogReport(data);
   }
 
-  private normaliseChangelogReport(
-    data: z.infer<typeof changelogReportResponseSchema>,
+  private async executeExactPackageChangelog(
+    token: string,
     params: PackageChangelogParams,
-  ): ChangelogReport {
-    // Backend returns source=null for package version entries that have no
-    // changelog entry. Treat no-source as NOT_FOUND only when no entries
-    // came back at all.
-    const source = data.source?.trim() ? data.source : undefined;
-    const rawEntries = data.entries ?? [];
-    if (!source && rawEntries.length === 0) {
-      const target =
-        params.repoUrl ??
-        (params.registry && params.packageName
-          ? `${params.registry.toLowerCase()}:${params.packageName}`
-          : "package");
-      throw new PackageIntelligenceChangelogSourceNotFoundError(
-        `No changelog source available for ${target} (tried GitHub Releases, CHANGELOG.md, and HexDocs).`,
+  ): Promise<ChangelogReport> {
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await postPkgseerGraphql({
+        endpointUrl: this.endpointUrl,
+        token,
+        query: PACKAGE_CHANGELOG_EXACT_QUERY,
+        variables: {
+          registry: params.registry,
+          name: params.packageName,
+          version: params.version,
+          includeBodies: params.includeBodies !== false,
+        },
+        fetchFn: this.fetchFn,
+        clientHeaders: this.runtime.clientHeaders,
+        userAgent: this.runtime.userAgent,
+        diagnostics: this.runtime.diagnostics,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError) {
+        throw this.createTransportError(cause);
+      }
+      throw cause;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw this.createHttpError(response);
+    }
+
+    const parsed = exactChangelogGraphQLResponseSchema.safeParse(
+      response.parsedBody,
+    );
+    if (!parsed.success) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Malformed response from the package-intelligence service.",
       );
     }
 
+    if (parsed.data.errors && parsed.data.errors.length > 0) {
+      throw promoteGenericVersionNotFound(
+        this.createGraphQLError(parsed.data.errors),
+        params,
+      );
+    }
+
+    const selected = parsed.data.data?.packageInfo?.selectedVersion;
+    if (!selected) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Empty response from the package-intelligence service.",
+      );
+    }
+
+    return this.normaliseExactChangelogReport(selected, params);
+  }
+
+  private normaliseTimelineChangelogReport(
+    data: z.infer<typeof changelogReportResponseSchema>,
+  ): ChangelogReport {
+    const source = normaliseChangelogSource(data.source);
+    const rawEntries = data.entries ?? [];
     const entries: ChangelogEntryDetail[] = rawEntries.map((entry) => ({
       version: entry.version ?? undefined,
       normalizedVersion: entry.normalizedVersion ?? undefined,
@@ -3795,7 +3886,6 @@ export class PackageIntelligenceServiceImpl
       ? {
           name: data.package.name ?? undefined,
           registry: data.package.registry ?? undefined,
-          repoUrl: data.package.repoUrl ?? undefined,
           fromVersion: data.package.fromVersion ?? undefined,
           toVersion: data.package.toVersion ?? undefined,
           limit: data.package.limit ?? undefined,
@@ -3806,6 +3896,39 @@ export class PackageIntelligenceServiceImpl
       package: packageInfo,
       source,
       entries,
+    };
+  }
+
+  private normaliseExactChangelogReport(
+    selected: {
+      resolvedVersion: string;
+      changelog?: {
+        detailSource?: string | null;
+        hasChangelog: boolean;
+        entry?: z.infer<typeof changelogEntryDetailSchema> | null;
+      } | null;
+    },
+    params: PackageChangelogParams,
+  ): ChangelogReport {
+    const changelog = selected.changelog ?? undefined;
+    const entry = changelog?.entry ?? undefined;
+    const hasChangelog = changelog?.hasChangelog ?? false;
+    return {
+      package: {
+        name: params.packageName,
+        registry: toPkgseerRegistryLowercase(params.registry),
+      },
+      source: normaliseChangelogSource(changelog?.detailSource),
+      entries: [
+        {
+          version: selected.resolvedVersion,
+          normalizedVersion: entry?.normalizedVersion ?? undefined,
+          body: entry?.body ?? undefined,
+          htmlUrl: entry?.htmlUrl ?? undefined,
+          publishedAt: entry?.publishedAt ?? undefined,
+          hasChangelog,
+        },
+      ],
     };
   }
 

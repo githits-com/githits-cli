@@ -9,7 +9,6 @@ import {
   formatPackageChangelogTerminal,
   InvalidPackageSpecError,
   type MappedError,
-  parsePackageSpec,
   requireAuth,
   shouldUseColors,
 } from "@githits/mcp/internal";
@@ -22,8 +21,6 @@ import {
 } from "../format-mapped-error.js";
 
 export interface PkgChangelogCommandOptions {
-  repoUrl?: string;
-  gitRef?: string;
   from?: string;
   to?: string;
   limit?: string;
@@ -43,13 +40,12 @@ export interface PkgChangelogCommandDependencies {
 }
 
 /**
- * Core `pkg changelog` action. Accepts either `<spec>` (same parser
- * as `pkg info` / `pkg vulns` / `pkg deps`) or `--repo-url <url>`,
- * mutually exclusive. `<spec>@<version>` is rejected at the shared
- * builder boundary — use `--to <version>` to cap by version.
+ * Core `pkg changelog` action. Accepts a compact package target
+ * (`registry:name`, `@version`, or `@from..to`) plus compatible
+ * package range flags.
  */
 export async function pkgChangelogAction(
-  spec: string | undefined,
+  spec: string,
   options: PkgChangelogCommandOptions,
   deps: PkgChangelogCommandDependencies,
 ): Promise<void> {
@@ -67,7 +63,6 @@ export async function pkgChangelogAction(
       );
     }
 
-    const parsed = spec !== undefined ? parsePackageSpec(spec) : undefined;
     const limit = resolveLimit(options);
     const includeBodies = options.body !== false;
     if (!includeBodies && options.verbose) {
@@ -76,12 +71,8 @@ export async function pkgChangelogAction(
       );
     }
 
-    const { params, explicitFilterFields } = buildPackageChangelogParams({
-      registry: parsed?.registry,
-      packageName: parsed?.name,
-      specVersion: parsed?.version,
-      repoUrl: options.repoUrl,
-      gitRef: options.gitRef,
+    const { params, mode, explicitFilterFields } = buildPackageChangelogParams({
+      target: spec,
       fromVersion: options.from,
       toVersion: options.to,
       limit,
@@ -92,18 +83,15 @@ export async function pkgChangelogAction(
       await deps.packageIntelligenceService.packageChangelog(params);
 
     const payload = buildPackageChangelogSuccessPayload(report, {
-      registry: params.registry
-        ? toPkgseerRegistryLowercase(params.registry)
-        : undefined,
+      registry: toPkgseerRegistryLowercase(params.registry),
       name: params.packageName,
-      repoUrl: params.repoUrl,
-      mode: params.fromVersion ? "range" : "latest",
+      mode,
       explicitFilterFields,
       includeBodies,
       fromVersion: params.fromVersion,
       toVersion: params.toVersion,
       limit: params.limit,
-      gitRef: params.gitRef,
+      version: params.version,
     });
 
     if (options.json) {
@@ -146,8 +134,7 @@ function handlePkgChangelogCommandError(error: unknown, json: boolean): never {
 
 /**
  * Mirrors `pkg vulns` / `pkg deps` — enriches VERSION_NOT_FOUND with
- * the package and requested version (the shared helper populated
- * these from `fromVersion` / `toVersion` when `version` wasn't set).
+ * the package and requested version.
  */
 function formatChangelogTerminalError(mapped: MappedError): string {
   if (mapped.code === "UPDATE_REQUIRED") {
@@ -184,19 +171,16 @@ function formatChangelogTerminalError(mapped: MappedError): string {
   return lines.join("\n");
 }
 
-const PKG_CHANGELOG_DESCRIPTION = `Fetch recent release notes or changelog entries for a package or
-repository. By default shows up to ten latest-mode entries with the
-first 10 lines of each entry's body. Use --from for a full version
-range, --limit to change the latest-mode count (1-50), --verbose to
-uncap the body preview, and --no-body to drop bodies entirely.
+const PKG_CHANGELOG_DESCRIPTION = `Fetch recent release notes or changelog entries for a package.
+By default shows up to ten latest-mode entries with the first 10
+lines of each entry's body. Pin a version for one selected release,
+or use @from..to for a closed interval. --from/--to remain as
+package range flags on a bare spec. --limit changes the latest-mode
+count (1-50). --verbose uncaps the body preview; --no-body drops
+bodies entirely.
 
-Addressing: <spec> (registry:name) OR --repo-url <url>. Source
-(GitHub Releases, CHANGELOG.md, or HexDocs) is shown on the summary
-line.
-
-Package spec: <registry>:<name>. Supported registries: ${PKGSEER_REGISTRY_LIST}. \`<spec>@<version>\`
-is NOT accepted here — use --to <version> for "entries up to this
-version".`;
+Package spec: <registry>:<name>[@<version> | @<from>..<to>].
+Supported registries: ${PKGSEER_REGISTRY_LIST}.`;
 
 export function registerPkgChangelogCommand(pkgCommand: Command): Command {
   return pkgCommand
@@ -204,12 +188,8 @@ export function registerPkgChangelogCommand(pkgCommand: Command): Command {
     .summary("Fetch release notes / changelog entries for a package")
     .description(PKG_CHANGELOG_DESCRIPTION)
     .argument(
-      "[spec]",
-      "Package spec, e.g. npm:express (mutually exclusive with --repo-url)",
-    )
-    .option(
-      "--repo-url <url>",
-      "Repository URL addressing (mutually exclusive with <spec>)",
+      "<spec>",
+      "Package spec, e.g. npm:express, npm:express@5.2.1, or npm:express@4.21.2..5.2.1",
     )
     .option(
       "--from <version>",
@@ -217,10 +197,6 @@ export function registerPkgChangelogCommand(pkgCommand: Command): Command {
     )
     .option("--to <version>", "End of range / latest-mode cap")
     .option("--limit <n>", "Latest-mode entry count (1-50, default 10)")
-    .option(
-      "--git-ref <ref>",
-      "Git branch/tag for CHANGELOG.md source (ignored for GitHub Releases / HexDocs)",
-    )
     .option(
       "-v, --verbose",
       "Uncap the markdown body preview (default cap: 10 lines per entry)",
@@ -230,15 +206,13 @@ export function registerPkgChangelogCommand(pkgCommand: Command): Command {
       "Drop body fields from entries (affects terminal + JSON)",
     )
     .option("--json", "Emit the JSON envelope")
-    .action(
-      async (spec: string | undefined, options: PkgChangelogCommandOptions) => {
-        const deps = await createContainer();
-        await pkgChangelogAction(spec, options, {
-          packageIntelligenceService: deps.packageIntelligenceService,
-          codeNavigationUrl: deps.codeNavigationUrl,
-          hasValidToken: deps.hasValidToken,
-          mcpUrl: deps.mcpUrl,
-        });
-      },
-    );
+    .action(async (spec: string, options: PkgChangelogCommandOptions) => {
+      const deps = await createContainer();
+      await pkgChangelogAction(spec, options, {
+        packageIntelligenceService: deps.packageIntelligenceService,
+        codeNavigationUrl: deps.codeNavigationUrl,
+        hasValidToken: deps.hasValidToken,
+        mcpUrl: deps.mcpUrl,
+      });
+    });
 }

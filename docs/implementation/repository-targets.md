@@ -61,8 +61,8 @@ Neither external repository is changed from this worktree.
 The backend still receives canonical HTTPS `repo_url` and optional `git_ref`
 (the service layer names these `repoUrl`/`gitRef`). No provider field or API
 selection is added. Existing structured URL addressing remains separate from
-compact strings. `pkg changelog --repo-url` and MCP `repo_url` remain full URL
-fields; this increment widens their wording only.
+compact strings. `pkg changelog` is package-only and rejects repository
+targets.
 
 ## Consumers and response identity
 
@@ -234,7 +234,6 @@ To repeat the live direct-target checks with the unpublished build, use
 fixture through `code files`, `code grep`, `code read`, CODE/DOCS `search`,
 emitted documentation locators, and `code diff <target> <sha>..<sha>
 --name-status`; MCP counterparts are `code_files`, `code_grep`, `read`, `search`,
-and `code_diff`. Keep `pkg changelog --repo-url` /
-`pkg_changelog.repo_url` in full-URL form and inspect body fields rather than
-summary-only output. Set `GITHITS_CODE_NAV_URL` to the verified dev endpoint
+and `code_diff`. `pkg changelog` is package-only; do not pass repository
+targets to it. Set `GITHITS_CODE_NAV_URL` to the verified dev endpoint
 for its replay; never print authentication state or credential values.

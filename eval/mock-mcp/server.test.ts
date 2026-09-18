@@ -42,13 +42,17 @@ describe("security-eval mock MCP coordinate schemas", () => {
     try {
       await client.connect(transport);
       const listed = await client.listTools();
-      for (const name of ["pkg_info", "pkg_vulns"] as const) {
+      for (const name of ["pkg_info", "pkg_vulns", "pkg_changelog"] as const) {
         const schema = schemaFor(listed.tools, name);
         expect(schema.properties?.target).toEqual({ type: "string" });
         expect(schema.required).toContain("target");
         expect(schema.properties ?? {}).not.toHaveProperty("registry");
         expect(schema.properties ?? {}).not.toHaveProperty("package_name");
         expect(schema.properties ?? {}).not.toHaveProperty("version");
+        expect(schema.properties ?? {}).not.toHaveProperty("repo_url");
+        expect(schema.properties ?? {}).not.toHaveProperty("git_ref");
+        expect(schema.properties ?? {}).not.toHaveProperty("from_version");
+        expect(schema.properties ?? {}).not.toHaveProperty("to_version");
       }
 
       const info = await client.callTool({
@@ -70,6 +74,32 @@ describe("security-eval mock MCP coordinate schemas", () => {
       expect(vulns.isError).not.toBe(true);
       expect(JSON.stringify(vulns.content)).toContain(
         "fixture package vulnerabilities",
+      );
+
+      writeState(stateFile, {
+        ...state,
+        expectedTool: "pkg_changelog",
+        content: "fixture package changelog",
+      });
+      const changelog = await client.callTool({
+        name: "pkg_changelog",
+        arguments: { target: "npm:zod" },
+      });
+      expect(changelog.isError).not.toBe(true);
+      expect(JSON.stringify(changelog.content)).toContain(
+        "fixture package changelog",
+      );
+
+      const oldOnlyChangelog = await client.callTool({
+        name: "pkg_changelog",
+        arguments: { registry: "npm", package_name: "zod" },
+      });
+      expect(oldOnlyChangelog.isError).toBe(true);
+      expect(JSON.stringify(oldOnlyChangelog.content)).toContain(
+        "Invalid arguments",
+      );
+      expect(JSON.stringify(oldOnlyChangelog.content)).not.toContain(
+        "fixture package changelog",
       );
 
       const oldOnlyInfo = await client.callTool({

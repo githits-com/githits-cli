@@ -5,7 +5,7 @@
  * Mirrors the real `githits` MCP server's quick-start guide and
  * production tool descriptions so the agent under test sees the same
  * orientation it would see against the real CLI.
- * `pkg_info` and `pkg_vulns` use the canonical string-target schemas; their
+ * `pkg_info`, `pkg_vulns`, and `pkg_changelog` use the canonical string-target schemas; their
  * fixture handlers deliberately ignore args, as before, and return only fixture state.
  *
  * Behavior:
@@ -166,13 +166,11 @@ server.registerTool(
       includeToolAddenda,
     ),
     inputSchema: {
-      registry: z.string().optional(),
-      package_name: z.string().optional(),
-      repo_url: z.string().optional(),
-      from_version: z.string().optional(),
-      to_version: z.string().optional(),
+      target: z.string(),
       limit: z.number().int().optional(),
       omit_bodies: z.boolean().optional(),
+      verbose: z.boolean().optional(),
+      body_lines: z.number().optional(),
       format: z.enum(["json", "text", "text-v1"]).optional(),
     },
     annotations: { readOnlyHint: true },

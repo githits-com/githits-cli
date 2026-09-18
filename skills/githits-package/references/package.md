@@ -31,13 +31,11 @@ Use `--depth` to request capped transitive output. Without it, output is direct 
 
 ## Changelog
 
-`githits pkg changelog <registry:name>` returns recent release notes. `--limit` caps latest mode. `--from` is the exclusive lower bound for range mode, which returns entries after `--from` through `--to` (or latest).
+`githits pkg changelog <registry:name[@version|@from..to]>` returns release notes for a package. Bare targets use latest mode. Pin `@version` for one selected release. Use `@from..to`, `@from..`, or `@..to` for interval and upper-cap forms.
 
-Flags: `--repo-url <url>`, `--from <version>`, `--to <version>`, `--limit 1-50`, `--git-ref <ref>`, `--verbose`, `--no-body`, `--json`.
+Flags: `--from <version>`, `--to <version>`, `--limit 1-50`, `--verbose`, `--no-body`, `--json`.
 
-Do not use `registry:name@version` for changelog. `--to <version>` is an upper cap, not an exact-release lookup.
-
-For repository changelogs, pass a full HTTPS URL on github.com, codeberg.org, or gitlab.com to `--repo-url`; use `--git-ref` for a branch or tag. Codeberg requires owner/repo; GitLab permits nested namespaces. Do not pass compact `github:`, `codeberg:`, or `gitlab:` targets to this URL field.
+`--from` and `--to` remain package range flags on a bare spec. Inline single-release targets reject those flags and `--limit`. Repository and site targets are not supported.
 
 ## Upgrade Review
 

@@ -8,7 +8,6 @@ import {
   MalformedPackageIntelligenceResponseError,
   PackageIntelligenceAccessError,
   PackageIntelligenceBackendError,
-  PackageIntelligenceChangelogSourceNotFoundError,
   PackageIntelligenceDocumentationSectionUnresolvedError,
   PackageIntelligenceFeatureFlagRequiredError,
   PackageIntelligenceNetworkError,
@@ -2413,7 +2412,7 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
 describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
   const ENDPOINT = "https://pkgseer.dev";
 
-  it("treats an empty source as no changelog data", async () => {
+  it("treats an empty source with no entries as a successful empty selection", async () => {
     const fetchFn = mock(() =>
       Promise.resolve(
         jsonResponse({
@@ -2433,9 +2432,12 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
       asFetchFn(fetchFn),
     );
 
-    await expect(
-      service.packageChangelog({ registry: "NPM", packageName: "express" }),
-    ).rejects.toBeInstanceOf(PackageIntelligenceChangelogSourceNotFoundError);
+    const result = await service.packageChangelog({
+      registry: "NPM",
+      packageName: "express",
+    });
+    expect(result.source).toBeUndefined();
+    expect(result.entries).toEqual([]);
   });
 
   it("sends includeBodies and omits unused metadata from changelog query", async () => {
@@ -2474,9 +2476,17 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
     });
 
     const parsed = JSON.parse(capturedBody ?? "{}");
+    expect(parsed.query).toContain("query PackageChangelog(");
     expect(parsed.query).toContain("body @include(if: $includeBodies)");
     expect(parsed.query).not.toContain("metadata");
-    expect(parsed.variables.includeBodies).toBe(false);
+    expect(parsed.query).not.toContain("repoUrl");
+    expect(parsed.query).not.toContain("gitRef");
+    expect(parsed.query).not.toContain("packageInfo");
+    expect(parsed.variables).toEqual({
+      registry: "NPM",
+      name: "express",
+      includeBodies: false,
+    });
   });
 
   it("accepts package version entries without a changelog source", async () => {
@@ -2551,6 +2561,168 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
 
     expect(result.source).toBeUndefined();
     expect(result.entries).toHaveLength(1);
+  });
+
+  it("selects exact packageInfo changelog fields and maps resolved identity", async () => {
+    let capturedBody: string | undefined;
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return Promise.resolve(
+        jsonResponse({
+          data: {
+            packageInfo: {
+              selectedVersion: {
+                resolvedVersion: "5.2.1",
+                changelog: {
+                  detailSource: "RELEASES",
+                  hasChangelog: true,
+                  entry: {
+                    normalizedVersion: "5.2.1",
+                    body: "## Patch",
+                    htmlUrl:
+                      "https://github.com/expressjs/express/releases/tag/5.2.1",
+                    publishedAt: "2026-01-15T12:00:00Z",
+                  },
+                },
+              },
+            },
+          },
+        }),
+      );
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.packageChangelog({
+      registry: "NPM",
+      packageName: "express",
+      version: "^5.0.0",
+    });
+
+    const parsed = JSON.parse(capturedBody ?? "{}");
+    expect(parsed.query).toContain("query PackageChangelogExact(");
+    expect(parsed.query).toContain("packageInfo(");
+    expect(parsed.query).toContain("resolvedVersion");
+    expect(parsed.query).toContain("detailSource");
+    expect(parsed.query).toContain("hasChangelog");
+    expect(parsed.query).toContain("body @include(if: $includeBodies)");
+    expect(parsed.query).not.toContain("requestedVersion");
+    expect(parsed.query).not.toContain("packageChangelog(");
+    expect(parsed.query).not.toContain("repoUrl");
+    expect(parsed.query).not.toContain("isLatest");
+    expect(parsed.variables).toEqual({
+      registry: "NPM",
+      name: "express",
+      version: "^5.0.0",
+      includeBodies: true,
+    });
+    expect(result.source).toBe("releases");
+    expect(result.entries).toEqual([
+      {
+        version: "5.2.1",
+        normalizedVersion: "5.2.1",
+        body: "## Patch",
+        htmlUrl: "https://github.com/expressjs/express/releases/tag/5.2.1",
+        publishedAt: "2026-01-15T12:00:00Z",
+        hasChangelog: true,
+      },
+    ]);
+  });
+
+  it("returns a successful exact release without notes", async () => {
+    let capturedBody: string | undefined;
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return Promise.resolve(
+        jsonResponse({
+          data: {
+            packageInfo: {
+              selectedVersion: {
+                resolvedVersion: "5.2.1",
+                changelog: {
+                  detailSource: "PACKAGE_VERSION",
+                  hasChangelog: false,
+                  entry: {
+                    normalizedVersion: "5.2.1",
+                    body: null,
+                    htmlUrl: null,
+                    publishedAt: null,
+                  },
+                },
+              },
+            },
+          },
+        }),
+      );
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.packageChangelog({
+      registry: "NPM",
+      packageName: "express",
+      version: "5.2.1",
+      includeBodies: false,
+    });
+    const parsed = JSON.parse(capturedBody ?? "{}");
+    expect(parsed.variables).toEqual({
+      registry: "NPM",
+      name: "express",
+      version: "5.2.1",
+      includeBodies: false,
+    });
+    expect(result.source).toBe("package_version");
+    expect(result.entries[0]).toMatchObject({
+      version: "5.2.1",
+      hasChangelog: false,
+    });
+    expect(result.entries[0]?.body).toBeUndefined();
+  });
+
+  it("accepts an exact no-notes payload with a null changelog entry", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          data: {
+            packageInfo: {
+              selectedVersion: {
+                resolvedVersion: "0.0.1",
+                changelog: {
+                  detailSource: null,
+                  hasChangelog: false,
+                  entry: null,
+                },
+              },
+            },
+          },
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.packageChangelog({
+      registry: "NPM",
+      packageName: "tiny-empty",
+      version: "0.0.1",
+    });
+    expect(result.source).toBeUndefined();
+    expect(result.package?.registry).toBe("npm");
+    expect(result.entries).toEqual([
+      {
+        version: "0.0.1",
+        hasChangelog: false,
+      },
+    ]);
   });
 });
 

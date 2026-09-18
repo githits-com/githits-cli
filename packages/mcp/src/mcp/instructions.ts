@@ -16,7 +16,7 @@ This guide owns shared policy; selected tools own call syntax and exceptions.
 | Assess a package's license, adoption, maintenance, or overall health | \`pkg_info\` |
 | Inspect vulnerabilities in a package or version | \`pkg_vulns\` |
 | Inspect direct dependencies or transitive footprint | \`pkg_deps\` |
-| Find release notes for a package or repository | \`pkg_changelog\` |
+| Find release notes for a package | \`pkg_changelog\` |
 | Compare current and target dependency versions for an upgrade | \`pkg_upgrade_review\` |
 | Find canonical implementation examples across projects | \`get_example\` |
 | Check progress of an earlier search reference | \`search_status\` |
