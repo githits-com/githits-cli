@@ -191,12 +191,17 @@ settles hosted-versus-repository semantics.
   `noNonNullAssertion` warnings in
   `packages/mcp/src/shared/repository-target.ts` and exits successfully.
 - Source CLI unauthenticated smoke and source MCP registration smoke also pass.
-  The authenticated live CLI suite reached the deployed service but stalled for
-  more than five minutes on its first package request; a narrower hosted-doc
-  search likewise made no response progress for more than 90 seconds. Both were
-  stopped without changing data. Therefore no successful live search-to-read
-  result is claimed; the production-style built smokes and the smoke harness's
-  mocked search-to-follow-up regressions are the available local evidence.
+  After resolving a local keychain prompt, a live source search for `routing`
+  against `site:expressjs.com` returned hosted `documentation_page` hits whose
+  locators retained observed ranges while every generated `followUp` omitted
+  `start_line` and `end_line`. Human-readable CLI output displayed the exact
+  hosted target without coordinates, and an unbounded live read of the returned
+  `https://expressjs.com/en/5x/guide/routing/` target returned the current page
+  from line 1 through its reported total. The 16,278-line aggregate target also
+  completed through both source and built CLIs and produced valid JSON. The full
+  authenticated MCP smoke progressed through live package calls but stopped on
+  an unrelated `pkg_upgrade_review` success assertion before reaching its docs
+  block; the focused live search-to-read path itself is verified.
 - Targeted agent evaluation was attempted. Claude could not start because its
   isolated harness was not logged in. Codex invoked `search` and `docs_list` but
   the run timed out after 302 seconds while the service calls remained in
