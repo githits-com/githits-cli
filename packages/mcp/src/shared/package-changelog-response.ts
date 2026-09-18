@@ -260,7 +260,7 @@ function buildSummaryLine(
 function modeSummary(envelope: LeanChangelogEnvelope): string {
   if (envelope.mode === "exact") {
     const version =
-      envelope.filter?.version ?? envelope.entries.items[0]?.version;
+      envelope.entries.items[0]?.version ?? envelope.filter?.version;
     return version ? `exact ${version}` : "exact";
   }
   if (envelope.mode === "range") {

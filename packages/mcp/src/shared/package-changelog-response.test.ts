@@ -551,4 +551,34 @@ describe("formatPackageChangelogTerminal", () => {
     expect(output).toContain("exact 5.2.1");
     expect(output).toContain("Release notes are unavailable.");
   });
+
+  it("labels exact text with the resolved release, not the requested selector", () => {
+    const report: ChangelogReport = {
+      ...baseReport,
+      source: "releases",
+      entries: [
+        {
+          version: "5.2.1",
+          normalizedVersion: "5.2.1",
+          publishedAt: "2026-01-15T12:00:00Z",
+          htmlUrl: "https://github.com/expressjs/express/releases/tag/5.2.1",
+          body: "## Patch",
+          hasChangelog: true,
+        },
+      ],
+    };
+    const envelope = buildPackageChangelogSuccessPayload(report, {
+      ...baseOptions,
+      mode: "exact",
+      version: "^5.0.0",
+      explicitFilterFields: new Set(["version"]),
+    });
+    const output = formatPackageChangelogTerminal(envelope, {
+      verbose: false,
+      useColors: false,
+    });
+    expect(envelope.filter?.version).toBe("^5.0.0");
+    expect(output).toContain("exact 5.2.1");
+    expect(output).not.toContain("exact ^5.0.0");
+  });
 });

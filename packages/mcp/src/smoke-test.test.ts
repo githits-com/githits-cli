@@ -275,6 +275,7 @@ describe("runMcpSmoke", () => {
       "pkg_info",
       "pkg_vulns",
       "pkg_deps",
+      "pkg_changelog",
     ]);
     const compactPackageCalls = calls.filter(({ name }) =>
       compactPackageNames.has(name),
