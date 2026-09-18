@@ -131,7 +131,7 @@ const DESCRIPTION =
   "Target indexed dependencies and repositories, or standalone docs with `site:<host[/path]>`. " +
   "Put search constraints in `query`; backend validation reports accepted values. Inspect returned warnings and `sourceStatus` when a qualifier is ignored or incompatible with a selected source. `public_only` remains structured and is ignored for docs. " +
   "A `search` call can return complete results directly. Only when its response supplies both a `searchRef` and a `search_status` action, follow that action with `search_status`; never repeat `search` to poll. Terminal or unrecognized statuses are not polled; follow the response's recovery guidance instead. If the response includes advisory `sourceStatus[].suggestedSiteTargets`, retry one explicitly; do not treat suggestions as aliases or retry automatically. " +
-  "Use hit content directly when sufficient; follow its generated `followUp` only for more context. Pass a `[docs page]` target unchanged to `read`; for source hits use the returned target, path, and line range." +
+  "Use hit content directly when sufficient; follow its generated `followUp` only for more context. Hosted `[docs page]` HTTP(S) targets address mutable current content: pass the returned URL or fragment unchanged, and generated follow-ups omit search line bounds. Repository docs remain snapshot-addressed and keep returned ranges. Explicit `read` bounds are caller-selected ranges. For source hits use the returned target, path, and line range." +
   `\n\n${SEARCH_GUARDRAIL}`;
 
 export function createSearchTool(

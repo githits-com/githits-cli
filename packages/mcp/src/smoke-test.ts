@@ -1076,14 +1076,14 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
       typeof crawledPage.docsReadTarget === "string" &&
       typeof crawledPage.pageId === "string" &&
       typeof crawledPage.sourceUrl === "string",
-    "docs_list json missing crawled URL target, stable page ID, or source URL",
+    "docs_list json missing crawled URL target, compatible page ID, or source URL",
   );
   assert(
     repoPage &&
       typeof repoPage.docsReadTarget === "string" &&
       typeof repoPage.pageId === "string" &&
       typeof repoPage.sourceUrl === "string",
-    "docs_list json missing repo-backed target, stable page ID, or source URL",
+    "docs_list json missing repo-backed target, compatible page ID, or source URL",
   );
   assert(
     repoPage.docsReadTarget === repoPage.pageId,
@@ -1349,6 +1349,68 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "search json",
   );
   assertRecord(searchJson, "search json");
+
+  let docsSearchJson = assertJsonResult(
+    await callTool(caller, "search", {
+      target: "site:expressjs.com",
+      query: "routing",
+      source: "docs",
+      limit: 10,
+      wait_timeout_ms: 60_000,
+      format: "json",
+    }),
+    "documentation search json",
+  );
+  assertRecord(docsSearchJson, "documentation search json");
+  if (
+    docsSearchJson.completed !== true &&
+    typeof docsSearchJson.searchRef === "string"
+  ) {
+    docsSearchJson = assertJsonResult(
+      await callTool(caller, "search_status", {
+        search_ref: docsSearchJson.searchRef,
+        wait_timeout_ms: 60_000,
+        format: "json",
+      }),
+      "documentation search status json",
+    );
+    assertRecord(docsSearchJson, "documentation search status json");
+  }
+  const docsSearchEvidence =
+    typeof docsSearchJson.result === "object" && docsSearchJson.result !== null
+      ? docsSearchJson.result
+      : docsSearchJson;
+  assertRecord(docsSearchEvidence, "documentation search evidence");
+  assert(
+    Array.isArray(docsSearchEvidence.results),
+    "documentation search json missing results",
+  );
+  const hostedDocumentationHits = docsSearchEvidence.results.filter((entry) => {
+    if (typeof entry !== "object" || entry === null) return false;
+    const hit = entry as Record<string, unknown>;
+    if (hit.type !== "documentation_page") return false;
+    const locator = hit.locator;
+    return (
+      typeof locator === "object" &&
+      locator !== null &&
+      typeof (locator as Record<string, unknown>).docsReadTarget === "string" &&
+      /^https?:\/\//i.test(
+        (locator as Record<string, unknown>).docsReadTarget as string,
+      )
+    );
+  }) as Array<Record<string, unknown>>;
+  assert(
+    hostedDocumentationHits.length > 0,
+    "documentation search json missing hosted documentation_page evidence",
+  );
+  for (const hit of hostedDocumentationHits) {
+    assert(
+      typeof hit.followUp === "string" &&
+        !/\b(?:start_line|end_line)=/.test(hit.followUp),
+      "hosted documentation follow-up replayed search line bounds",
+    );
+  }
+
   const searchRef =
     typeof searchJson.searchRef === "string" ? searchJson.searchRef : undefined;
   if (searchRef) {

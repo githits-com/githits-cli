@@ -29,14 +29,31 @@ describe("searchTool", () => {
       "Discover relevant docs, code, and symbols in a known public target. Start here f",
     );
     expect(descriptor?.description).toContain(
-      "Pass a `[docs page]` target unchanged",
+      "Hosted `[docs page]` HTTP(S) targets address mutable current content",
     );
-    expect(descriptor?.description).not.toContain("fragment needs no bounds");
+    expect(descriptor?.description).toContain(
+      "generated follow-ups omit search line bounds",
+    );
+    expect(descriptor?.description).toContain(
+      "Repository docs remain snapshot-addressed and keep returned ranges",
+    );
+    expect(descriptor?.description).toContain(
+      "Explicit `read` bounds are caller-selected ranges",
+    );
     const readDescriptor = getMcpToolDescriptors().find(
       (entry) => entry.name === "read",
     );
     expect(readDescriptor?.description).toContain(
       "A docs URL fragment needs no bounds",
+    );
+    expect(readDescriptor?.description).toContain(
+      "full subtree through the next equal-or-higher heading",
+    );
+    expect(readDescriptor?.description).toContain(
+      "Hosted/crawled HTTP(S) docs targets read mutable current content",
+    );
+    expect(readDescriptor?.description).toContain(
+      "repository-doc targets address snapshots",
     );
   });
 

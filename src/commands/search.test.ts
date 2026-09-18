@@ -1810,7 +1810,7 @@ describe("searchAction", () => {
     }
   });
 
-  it("shows direct source URLs and retains page IDs for documentation pages", async () => {
+  it("shows the exact mutable hosted target without its internal page ID", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
     if (defaultUnifiedSearchOutcome.state !== "completed") {
@@ -1832,8 +1832,11 @@ describe("searchAction", () => {
               packageName: "express",
               version: "5.2.1",
               pageId: "docs-123",
+              docsReadTarget: "https://hexdocs.pm/express/getting-started.html",
               sourceKind: "CRAWLED",
               sourceUrl: "https://hexdocs.pm/express/getting-started.html",
+              startLine: 81,
+              endLine: 93,
             },
           },
         ],
@@ -1852,10 +1855,10 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain(
-      "[1] docs-123 [docs page] npm:express - hexdocs.pm/express/getting-started.html -\n  Using Express middleware",
+      "[1] https://hexdocs.pm/express/getting-started.html [docs page] npm:express -\n  Using Express middleware",
     );
     expect(output).toContain("hexdocs.pm/express/getting-started.html");
-    expect(output).toContain("docs-123");
+    expect(output).not.toContain("docs-123");
     expect(output).toContain("Using Express middleware");
     expect(output).not.toContain("source:");
     expect(output).not.toContain("npm:express@4.18.2 [docs page]");

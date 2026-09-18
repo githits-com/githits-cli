@@ -428,5 +428,15 @@ describe("CLI help surface", () => {
     expect(help).toMatch(/^\s{2}code\b/m);
     expect(help).toMatch(/^\s{2}docs\b/m);
     expect(help).toMatch(/^\s{2}pkg\b/m);
+
+    const search = program.commands.find(
+      (command) => command.name() === "search",
+    );
+    expect(search?.helpInformation()).toContain(
+      "Hosted/crawled [docs page] HTTP(S) targets address mutable current content",
+    );
+    expect(search?.helpInformation()).toContain(
+      "Repository docs are snapshot-addressed",
+    );
   });
 });

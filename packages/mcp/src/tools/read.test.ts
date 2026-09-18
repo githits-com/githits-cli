@@ -59,6 +59,20 @@ describe("unified read contract", () => {
     },
   );
 
+  it("forwards explicit documentation bounds unchanged", async () => {
+    const { services, tool } = setup();
+    const target = "https://docs.example.test/guide#routing";
+
+    await tool.handler({ target, start_line: 81, end_line: 93 });
+
+    expect(services.readService.read).toHaveBeenCalledWith({
+      target,
+      startLine: 81,
+      endLine: 93,
+    });
+    expect(services.readService.read).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     "npm:@scope/pkg@1.2.3",
     "maven:com.google.guava:guava@33.0.0",

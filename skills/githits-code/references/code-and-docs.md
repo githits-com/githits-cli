@@ -48,7 +48,7 @@ When grep returns no matches, do not repeat it unchanged. Change or shorten the 
 
 `githits docs list <spec>` browses available documentation pages. It is not topic search.
 
-For `githits docs read <target>`, use the search snippet when sufficient; otherwise run its generated `followUp`. From text, pass the displayed `[docs page]` target unchanged; from `docs list`, pass `docsReadTarget`. A fragment needs no `--lines` and returns its exact indexed section; add bounds only to replace it with a page-relative range. Historical `pageId` values remain supported. Use `--json` only for required range/source metadata.
+For `githits docs read <target>`, use the search snippet when sufficient; otherwise run its generated `followUp`. From text, pass the displayed `[docs page]` target unchanged; from `docs list`, pass `docsReadTarget`. Hosted/crawled HTTP(S) targets address mutable current content, so automatic follow-ups forward the exact URL or fragment without search bounds. A fragment returns its heading and full subtree through the next equal-or-higher heading. Repository docs remain snapshot-addressed and keep returned ranges. Add `--lines` only when intentionally selecting a current page range; either bound replaces fragment selection. Historical `pageId` values remain supported. Use `--json` only for required range/source metadata.
 
 For topic search, use `githits search "<topic>" --source docs --in <target>`, then run its generated follow-up or pass the displayed text target.
 

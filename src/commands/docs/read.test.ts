@@ -145,7 +145,7 @@ describe("docsReadAction", () => {
     },
   );
 
-  it("renders distinct URL target and stable ID once in verbose output", async () => {
+  it("renders distinct URL target and compatible ID once in verbose output", async () => {
     const docsReadTarget = "https://expressjs.com/en/guide/routing.html";
     const writes: string[] = [];
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(((

@@ -46,6 +46,12 @@ For a package or site docs topic, use `search` with `source:"docs"`.
 `docs_list` browses package pages, not standalone `site:` targets.
 Use snippets when sufficient; otherwise follow generated `followUp` calls.
 Pass displayed `[docs page]` locators unchanged to `read`.
+Hosted/crawled HTTP(S) docs locators address mutable current content; generated
+follow-ups use the exact emitted URL or fragment without search line bounds.
+An HTTP(S) docs fragment returns its heading and full subtree through the next
+equal-or-higher heading.
+Repository docs are snapshot-addressed and keep returned ranges. Add explicit
+`read` bounds only when intentionally selecting a current page range.
 For source, locate paths or matches, then read focused lines; never probe
 directories with `read`. Prefer source, symbols, tests, and call sites for
 behavioral claims.

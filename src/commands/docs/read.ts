@@ -99,12 +99,14 @@ function handleDocsReadError(error: unknown, json: boolean): never {
 const DOCS_READ_DESCRIPTION = `Read a documentation page by emitted target or page ID.
 
 Pass the displayed [docs page] target from githits search or docsReadTarget from
-githits docs list unchanged. Historical page IDs remain accepted. Default output is
-content-only for easy piping; pass --verbose for a metadata header. Use --lines
-for a bounded line range (e.g. \`--lines 10-40\`,
+githits docs list unchanged. Hosted/crawled HTTP(S) targets read mutable current
+content; repository docs are snapshot-addressed. Historical page IDs remain
+accepted. Default output is content-only for easy piping; pass --verbose for a
+metadata header. Use --lines for a bounded line range (e.g. \`--lines 10-40\`,
 \`--lines 10-\` for open-ended, or \`--lines -40\` for the first 40 lines) —
 useful when a page is too long to read whole. An HTTP(S) fragment reads its
-exact indexed section; explicit --lines bounds override the fragment.`;
+heading and full subtree through the next equal-or-higher heading; explicit
+--lines bounds override the fragment.`;
 
 export function registerDocsReadCommand(docsCommand: Command): Command {
   return docsCommand

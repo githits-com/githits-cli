@@ -388,11 +388,12 @@ MCP text apart from those supplied command dialects; line breaks can differ
 because CLI uses the terminal width while MCP uses the 80-column default.
 
 Documentation discovery and list envelopes retain three distinct locator roles:
-preferred `docsReadTarget`, stable replay `pageId`, and provenance `sourceUrl`.
+preferred `docsReadTarget`, compatible `pageId`, and provenance `sourceUrl`.
 Text and generated read follow-ups prefer `docsReadTarget` and fall back to
 `pageId` only for discovery results where the target is absent. The compatible
 MCP argument is `target`; both MCP and CLI pass URL or ID values through
-unchanged and return the same ranged content.
+unchanged and return the same ranged content. Hosted HTTP(S) locators address
+mutable current content; repository locators remain snapshot-addressed.
 
 CLI `--json` output and MCP `format: "json"` output remain the structured parity
 boundary: every
