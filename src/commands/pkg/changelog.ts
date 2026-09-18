@@ -171,7 +171,7 @@ function formatChangelogTerminalError(mapped: MappedError): string {
   return lines.join("\n");
 }
 
-const PKG_CHANGELOG_DESCRIPTION = `Fetch recent release notes or changelog entries for a package.
+const PKG_CHANGELOG_DESCRIPTION = `Find release notes and changelog history for a package.
 By default shows up to ten latest-mode entries with the first 10
 lines of each entry's body. Pin a version for one selected release,
 or use @from..to for a closed interval. --from/--to remain as
@@ -179,13 +179,14 @@ package range flags on a bare spec. --limit changes the latest-mode
 count (1-50). --verbose uncaps the body preview; --no-body drops
 bodies entirely.
 
-Package spec: <registry>:<name>[@<version> | @<from>..<to>].
-Supported registries: ${PKGSEER_REGISTRY_LIST}.`;
+Package spec: <registry>:<name>[@<version> | @<from>..<to>]. Package-only;
+repository and site targets are rejected. Supported registries:
+${PKGSEER_REGISTRY_LIST}.`;
 
 export function registerPkgChangelogCommand(pkgCommand: Command): Command {
   return pkgCommand
     .command("changelog")
-    .summary("Fetch release notes / changelog entries for a package")
+    .summary("Find release notes and changelog history for a package")
     .description(PKG_CHANGELOG_DESCRIPTION)
     .argument(
       "<spec>",

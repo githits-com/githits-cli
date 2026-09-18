@@ -19,10 +19,15 @@ describe("createPackageChangelogTool — metadata", () => {
     expect(tool.description).toContain("latest mode");
     expect(tool.description).toContain("one selected release");
     expect(tool.description).toContain("`registry:name@from..to`");
-    expect(tool.description).toContain("markdown body previews");
     expect(tool.description).toContain("body_lines");
+    expect(tool.description).not.toContain("markdown body previews");
+    expect(tool.description).not.toContain("Supports npm");
     expect(tool.description).not.toContain("repo_url");
     expect(tool.description).not.toContain("from_version");
+    expect(tool.schema.target?.description).toContain(
+      "registry:name[@version|@from..to]",
+    );
+    expect(tool.schema.target?.description).toContain("Package-only");
     expect(tool.schema.format?.description).toContain(
       "Set `json` only when code consumes",
     );

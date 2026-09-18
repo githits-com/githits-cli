@@ -21,7 +21,7 @@ Use GitHits package intelligence before making dependency claims from memory.
 
 - Most package commands use `<registry>:<name>[@<version>]`, for example `npm:lodash@4.17.20` or `pypi:requests`.
 - `pkg info` always reports the latest published version and does not accept a version pin.
-- `pkg changelog` is package-only: `<registry>:<name>`, `<registry>:<name>@<version>`, or `<registry>:<name>@<from>..<to>`. `--from`/`--to` remain range flags on a bare spec. Repository and site targets are rejected.
+- `pkg changelog` is package-only. Pin `@version` for one release; use `@from..to` or `--from`/`--to` for ranges. Repository and site targets are rejected.
 
 ## Core Commands
 
@@ -54,7 +54,7 @@ githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-sta
 - Need historical advisories that do not affect the inspected version: use `pkg vulns --scope non_affecting`; use `--scope all` for affected plus historical rows.
 - Need dependency footprint: start with `pkg deps`; add `--lifecycle all` for non-runtime groups and `--depth <n>` for aggregate transitive graph data.
 - Need upgrade evidence for dependency updates, outdated package bumps, or lockfile changes: prefer `pkg upgrade-review` because it compares current vs target vulnerabilities, changelog range evidence, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. It reports facts only; you still own the final assessment.
-- Need release notes without a current-to-target comparison: use `pkg changelog`; pin `@version` for one selected release, use `--from`/`--to` or `@from..to` for ranges, and `--no-body` for compact timelines.
+- Need release notes without a current-to-target comparison: use `pkg changelog`; `--no-body` for compact timelines.
 
 ## Gotchas
 

@@ -20,6 +20,7 @@ describe("pkg changelog help", () => {
     const help = command.helpInformation().replace(/\s+/g, " ");
 
     expect(help).toContain("up to ten latest-mode entries");
+    expect(help).toContain("Package-only");
     expect(help).toContain("Exclusive start of version range");
     expect(help).toContain("npm:express@5.2.1");
     expect(help).not.toContain("--repo-url");

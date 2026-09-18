@@ -37,19 +37,19 @@ const schema: ZodRawShape = {
   target: z
     .string()
     .describe(
-      `Package registry:name, optional @version or @from..to interval, for example npm:express@5.2.1. Registries: ${PKGSEER_REGISTRY_LIST}.`,
+      `Package registry:name[@version|@from..to], for example npm:express@5.2.1; omit the version for latest. Open bounds from.. and ..to are accepted. Package-only; repository and site targets are rejected. Registries: ${PKGSEER_REGISTRY_LIST}.`,
     ),
   limit: z
     .number()
     .optional()
     .describe(
-      "Latest-mode and upper-cap entry count (1-50, default 10). Rejected with `INVALID_ARGUMENT` for a single-release or lower-bound range target.",
+      "Latest-mode and upper-cap count (1-50, default 10). Rejected for a selected-release or lower-bound range target.",
     ),
   omit_bodies: z
     .boolean()
     .optional()
     .describe(
-      "When true, each entry in `entries.items[]` omits its `body` field. Default false. Use when you only need the version / date / URL timeline — drops 10 KB+ per entry on large release notes.",
+      "Omit each entry body (default false). Use for version/date/URL timelines; large notes drop 10 KB+ per entry.",
     ),
   verbose: z
     .boolean()
@@ -74,16 +74,11 @@ const schema: ZodRawShape = {
 export const DESCRIPTION_BASE: string =
   "Find release notes and changelog history for a package. Default " +
   "latest mode returns up to ten entries; source ordering may interleave maintained release lines. " +
-  "Pass `target` as `registry:name` for latest, `registry:name@version` for one selected release, " +
-  "or `registry:name@from..to` for a closed interval. Open bounds `from..` and `..to` are accepted. " +
+  "Pin `registry:name@version` for one selected release, or `registry:name@from..to` for a closed interval. " +
   "`limit` applies only to latest and upper-cap targets. " +
   "A selected release without notes succeeds with `hasChangelog: false`. " +
   "Empty latest or range selections succeed with no entries. " +
-  "Entries include markdown body previews. Example: " +
-  '`{"target":"npm:express@5.2.1"}`. ' +
-  "Text output previews 10 body lines by default; use `body_lines` " +
-  "to tune the preview or `verbose:true` for full text bodies. " +
-  "Supports npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift.";
+  "Text previews 10 body lines; use `body_lines` or `verbose:true` for more.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_CHANGELOG_GUARDRAIL}`;
 
