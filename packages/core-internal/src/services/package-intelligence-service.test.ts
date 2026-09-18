@@ -2724,6 +2724,32 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
       },
     ]);
   });
+
+  it("promotes a generic 'no matching version' error to VERSION_NOT_FOUND for an exact pin", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({ errors: [{ message: "No matching version found" }] }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+    try {
+      await service.packageChangelog({
+        registry: "NPM",
+        packageName: "express",
+        version: "99.99.99",
+      });
+      throw new Error("expected VERSION_NOT_FOUND promotion");
+    } catch (err) {
+      expect(err).toBeInstanceOf(PackageIntelligenceVersionNotFoundError);
+      const typed = err as PackageIntelligenceVersionNotFoundError;
+      expect(typed.packageName).toBe("npm:express");
+      expect(typed.requestedVersion).toBe("99.99.99");
+    }
+  });
 });
 
 describe("PackageIntelligenceServiceImpl — package docs targets", () => {
