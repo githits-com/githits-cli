@@ -5,6 +5,45 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.20.0] - 2026-09-18
+
+Minor release: adopts compact canonical targets across four MCP package tools.
+
+### Added
+
+- **OpenRouter Codex model trials** - Explicit main model config and prompt-based JSON reporting enable isolated caller-selected OpenRouter workload/suite runs with truthful model identity and credential redaction; the trusted generic OpenRouter PR label and an explicitly committed candidate config select the shared full main matrix and aggregate Braintrust export while Luna remains the default.
+
+### Changed
+
+- **Compact package tool targets** - MCP `docs_list`, `pkg_info`, `pkg_vulns`, and `pkg_deps` replace `registry`, `package_name`, and `version` inputs with string `target` (for example `npm:express@5.2.1`); `pkg_info` requires an unpinned latest-only target. CLI syntax, filters, and service requests are unchanged; output is unchanged except that `docs_list` retry hints use the new target syntax. `pkg_changelog` and `pkg_upgrade_review` retain their structured inputs.
+- **Compact agent instructions** - Centralize shared policy in the routing guide and skills, retain selected-tool call essentials and original format/safety reminders, and make catalog selection sentences complete within 79 characters. Clarify changelog upper caps and dependency graph opt-ins without changing runtime behavior. Hosted MCP clients require the next MCP package release and server adoption; bootstrap remains guidance, not enforcement.
+
+### Fixed
+
+- **Agent eval timeout reporting** - Keep awaited subprocess cleanup alive so a final workload timeout cannot make Bun exit successfully before failed-run and suite reports are written.
+- **Keep hosted documentation follow-ups stable across publications** - Automatic search follow-ups now reuse mutable hosted page URLs or exact emitted fragments without stale search line bounds, while repository-document snapshots and explicit read ranges remain unchanged.
+
+MCP callers must refresh tool discovery and migrate the four changed package
+tool call shapes after updating. Hosted clients receive these changes only
+after `@githits/mcp` adoption and deployment by `remote-mcp`.
+
+## [@githits/mcp 0.20.0] - 2026-09-18
+
+Minor release: adopts compact canonical targets across four MCP package tools.
+
+### Changed
+
+- **Compact package tool targets** - MCP `docs_list`, `pkg_info`, `pkg_vulns`, and `pkg_deps` replace `registry`, `package_name`, and `version` inputs with string `target` (for example `npm:express@5.2.1`); `pkg_info` requires an unpinned latest-only target. CLI syntax, filters, and service requests are unchanged; output is unchanged except that `docs_list` retry hints use the new target syntax. `pkg_changelog` and `pkg_upgrade_review` retain their structured inputs.
+- **Compact agent instructions** - Centralize shared policy in the routing guide and skills, retain selected-tool call essentials and original format/safety reminders, and make catalog selection sentences complete within 79 characters. Clarify changelog upper caps and dependency graph opt-ins without changing runtime behavior. Hosted MCP clients require the next MCP package release and server adoption; bootstrap remains guidance, not enforcement.
+
+### Fixed
+
+- **Keep hosted documentation follow-ups stable across publications** - Automatic search follow-ups now reuse mutable hosted page URLs or exact emitted fragments without stale search line bounds, while repository-document snapshots and explicit read ranges remain unchanged.
+
+MCP callers must refresh tool discovery and migrate the four changed package
+tool call shapes after updating. Hosted clients receive these changes only
+after package adoption and deployment by `remote-mcp`.
+
 ## [githits 0.19.0] - 2026-09-16
 
 ### Removed
