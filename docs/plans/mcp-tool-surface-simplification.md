@@ -3,11 +3,11 @@
 ## Status
 
 - Overall: ACTIVE
-- Current boundary: Phase 6 instruction ownership and copy cleanup, IMPLEMENTED;
-  draft PR #403 awaiting merge and disposition of the complete Ask smoke limitation
-- Baseline: `9be81a9` (`origin/main`, 2026-09-17; PR #402 package targets merged)
-- Planning branch: `jlitola/compact-agent-instructions`
-- Last verified: 2026-09-17
+- Current boundary: Phase 2b package-only changelog targets, IMPLEMENTING
+- Baseline: `27f57d4` (`origin/main`, 2026-09-18; PR #403 instruction cleanup
+  and PR #405 documentation follow-ups merged)
+- Planning branch: `jlitola/mcp-tool-surface-plan`
+- Last verified: 2026-09-18
 
 ## Problem and expected outcome
 
@@ -19,14 +19,17 @@ backend query language now expresses directly; the implementation has passed cod
 review, but subsequent production verification found a name-qualifier composition
 gap described in the Phase 3 verification addendum below.
 
-At the Phase 3 baseline, the catalog advertised both inline and structured qualifiers even though
-the production backend now validates and reports inline syntax robustly. Other large
-opportunities remain unsettled: code-navigation tools expose many overlapping
-controls, and repeated output-format copy must not be shortened until lower-cost-agent
-evals show that agents continue to omit `format` rather than selecting JSON
-unnecessarily. Ask is a new intentional answer surface, not a retirement candidate.
-Example-language recovery is settled: `get_example` keeps the language filter, and
-`search_language` is removed.
+At the Phase 3 baseline, the catalog advertised both inline and structured qualifiers
+even though the production backend now validates and reports inline syntax robustly.
+Phase 6 subsequently reduced repeated instruction copy while retaining the format
+reminders that matched evals showed agents still need. The next settled opportunity
+is `pkg_changelog`: it still exposes structured package coordinates plus repository
+addressing even though package tools own package identities. Repository changelogs
+are not a deterministic package concept, especially for monorepositories, so Phase 2b
+removes that accidental surface instead of inventing repository release semantics.
+Code-navigation controls remain a later unsettled opportunity. Ask is an intentional
+answer surface, not a retirement candidate. Example-language recovery is settled:
+`get_example` keeps the language filter, and `search_language` is removed.
 
 When this effort is complete, MCP exposes one concise way to express each settled
 concept, while the CLI retains human-friendly flags where they are useful. Tool
@@ -148,6 +151,10 @@ In scope for the overall effort:
 - preserving output behavior and backend request semantics unless a later phase
   explicitly changes them;
 - preserving CLI search flags while MCP callers use the backend query language;
+- making `pkg_changelog` package-only on both MCP and CLI, with compact exact and
+  interval package targets on MCP and compatible human-oriented CLI flags;
+- selecting the backend's exact package-release query for exact changelog targets
+  while retaining its package timeline query for latest and interval targets;
 - validating agent-facing changes with descriptor-only real-agent evals and the
   existing static context inventory;
 - correcting current durable documentation as each contract changes; and
@@ -162,7 +169,10 @@ Out of scope:
 - removing public TypeScript aliases solely for source cleanup when that does not
   reduce the agent-visible catalog;
 - changing backend GraphQL/REST selections, service URLs, transport, auth, result
-  formats, or text-output content beyond required callable-coordinate hint migrations;
+  formats, or text-output content except for Phase 2b's minimal exact-release query,
+  truthful empty-result handling, and exact-notes presentation;
+- defining repository or site changelog semantics, resolving a repository to one
+  package in a monorepo, or retaining repository changelog inputs as hidden aliases;
 - adding aliases, hidden fallback schemas, feature flags, or rollout machinery;
 - changing hosted production, publishing packages, deploying `remote-mcp`, or
   merging a release without the separately required authorization; and
@@ -179,14 +189,14 @@ remain thin data-access adapters.
 
 ```text
 MCP compact target string
-  -> existing shared target/package parser
-  -> existing request builder and validation
-  -> unchanged service interface and backend request
+  -> shared target/package parser
+  -> operation-specific request builder and validation
+  -> minimal service query for that operation
 
 CLI positional spec and flags
   -> existing CLI parsing
   -> same request builder and validation
-  -> unchanged service interface and backend request
+  -> same operation-specific service query
 
 MCP search query with inline qualifiers
   -> existing client request builder (required trim only)
@@ -205,6 +215,14 @@ source lane. Parsing qualifiers in MCP would duplicate the production backend pa
 and its evolving enum vocabulary. Removing CLI flags would make the human surface
 worse without reducing MCP context, so the shared request builder remains their
 adapter rather than becoming MCP-visible.
+
+`pkg_changelog` follows the package boundary rather than the source-storage boundary.
+A package release may obtain notes from registry metadata, a release, or a changelog
+file, but those are evidence sources for the selected package release; they do not make
+an arbitrary repository a package target. Exact package pins use
+`packageInfo(...).selectedVersion.changelog`; latest and interval package targets use
+`packageChangelog`. Repository and site inputs fail at the client boundary before a
+network request.
 
 For guidance ownership:
 
@@ -245,6 +263,10 @@ addressing shapes.
    `lang:` qualifiers exclusively. The CLI retains its structured flags. The backend
    owns qualifier validation and per-source compatibility reporting.
 7. Navigation-control consolidation requires a separate product discussion.
+8. `pkg_changelog` is package-only. MCP uses one compact package target; CLI may
+   retain package-oriented range flags, but `repo_url` / `--repo-url` and
+   `git_ref` / `--git-ref` are removed. Repository and site changelogs remain
+   undefined rather than guessing which monorepo package or release line they mean.
 
 ### Assumptions
 
@@ -260,22 +282,19 @@ addressing shapes.
 
 ### Later-phase unknowns
 
-- Package tools: upgrade-review single/batch MCP representation remains later work;
-  its existing CLI `@current..target` spelling is verified. Changelog exact-release
-  selection and upper-tag snapshot behavior need backend support. Neither blocks
-  the four package-coordinate tools in Phase 2a.
+- Package tools: Phase 2b's package-only changelog contract is settled and its backend
+  support is merged and development-verified. Upgrade-review single/batch MCP
+  representation remains later work; its existing CLI `@current..target` spelling
+  is verified.
 - Navigation: which path, intent, context, and result-limit controls real callers
   need, including whether singular/plural variants should collapse. Resolve through
   product discussion and observed call shapes before Phase 4.
 - Language: backend fail-fast recovery with up to five canonical names is live;
   `search_language` is removed.
-- Format copy: the shortest wording that keeps lower-cost agents on default text.
-  Resolve with a matched candidate eval before Phase 6 accepts a copy change.
 - `search_status`: its long-term continuation boundary is not settled by this plan.
   Do not remove or merge it without a separate product decision.
 
-Unresolved backend/navigation decisions do not block Phase 6. Shorter format copy
-must pass its matched-eval acceptance gate; that result is not assumed in planning.
+Navigation and upgrade-review decisions do not block Phase 2b.
 
 ## Cross-cutting constraints
 
@@ -292,13 +311,21 @@ must pass its matched-eval acceptance gate; that result is not assumed in planni
   routing, and Ask source projection. Use a pending minor fragment for both public
   artifacts, following the established pre-1.0 breaking-surface convention recorded
   in the repository's prior removal and public-contract plans.
+- **Phase 2b compatibility:** MCP replaces six coordinate/range fields
+  (`registry`, `package_name`, `repo_url`, `git_ref`, `from_version`, `to_version`)
+  with one `target`. CLI removes repository-only `--repo-url` and `--git-ref`, accepts
+  exact and inline interval package specs, and retains package-oriented `--from` /
+  `--to` flags. Hard-coded callers receive a pending minor change record for both
+  public artifacts; there is no hidden dual-schema period.
 - **Migration:** Release notes must show direct conversions such as
   `{registry:"npm",package_name:"express",version:"5.2.1"}` to
   `"npm:express@5.2.1"` and `{repo_url:"https://github.com/expressjs/express",
   git_ref:"main"}` to `"github:expressjs/express@main"`. They must also show the
   search-only conversion `{site:"https://expressjs.com/"}` to
   `"site:https://expressjs.com/"` or its canonical equivalent
-  `"site:expressjs.com"`. No server-side dual-schema period is planned.
+  `"site:expressjs.com"`. Repository conversions apply only to code/discovery tools;
+  changelog callers must migrate repository inputs to an explicit package identity
+  or stop calling `pkg_changelog`. No server-side dual-schema period is planned.
 - **Phase 3 compatibility and migration:** Removing six advertised MCP fields is a
   breaking schema change for hard-coded callers. Migrate `kind:"function"`,
   `category:"callable"`, `path_prefix:"lib/"`, `file_intent:"production"`,
@@ -313,10 +340,10 @@ must pass its matched-eval acceptance gate; that result is not assumed in planni
 - **Testing:** Schema shape, parsing, normalized service calls, error envelopes,
   stable/local registration, smoke behavior, and real-agent argument shapes all need
   evidence. Existing service mocks remain sufficient.
-- **Operations:** The required backend contract is deployed. Hosted MCP clients change
-  only after `@githits/mcp` is released, adopted by `remote-mcp`, and deployed. Those
-  are separate repositories/actions and are not authorized by implementation of this
-  plan.
+- **Operations:** Phase 2b's required backend contract is deployed to development and
+  live-verified; production deployment is unverified. Hosted MCP clients change only
+  after `@githits/mcp` is released, adopted by `remote-mcp`, and deployed. Those are
+  separate repositories/actions and are not authorized by implementation of this plan.
 - **Documentation:** Update current contracts, not immutable historical eval records.
   Keep stable `buildMcpQuickStart()` and the public skill's terminal guide byte-aligned
   if either needs to change. Generated plugin assets are never edited directly.
@@ -327,9 +354,11 @@ must pass its matched-eval acceptance gate; that result is not assumed in planni
    `code_files`, `code_grep`, and experimental `code_diff` advertise and accept only
    compact string targets; CLI/service behavior and legacy read routing stay intact.
 2. **Phase 2 — compact package-tool coordinates (PARTIALLY MERGED):** Phase 2a migrated
-   `docs_list`, `pkg_info`, `pkg_vulns`, and `pkg_deps` in PR #402. Phase 2b changelog
-   waits for verified backend exact-release/snapshot support; Phase 2c upgrade review
-   follows later reorientation. CLI ergonomics and service contracts stay intact.
+   `docs_list`, `pkg_info`, `pkg_vulns`, and `pkg_deps` in PR #402. Phase 2b is ready
+   to migrate package-only changelog latest, exact, and interval calls after backend
+   [PR #2583](https://github.com/githits-com/pkgseer-backend/pull/2583) and
+   [PR #2585](https://github.com/githits-com/pkgseer-backend/pull/2585). Phase 2c
+   upgrade review follows later reorientation.
 3. **Phase 3 — one MCP search-filter language (MERGED):** the six backend-supported
    inline qualifiers replace their duplicate MCP fields while CLI flags and
    `public_only` remain.
@@ -339,8 +368,8 @@ must pass its matched-eval acceptance gate; that result is not assumed in planni
    `get_example` keeps language filtering. Unresolved languages fail before
    generation and return up to five canonical retry names. `search_language` and
    `githits languages` are removed.
-6. **Phase 6 — shared instruction ownership and concise tool copy (IMPLEMENTED,
-   draft PR #403):** recurring policy lives in skills/quick-start; tools retain their
+6. **Phase 6 — shared instruction ownership and concise tool copy (MERGED,
+   PR #403):** recurring policy lives in skills/quick-start; tools retain their
    own call contract without repeating that policy at length. Ask and original
    format reminders remain. The shorter format candidate was rejected after evals.
    Search-status copy shrank without redesigning its continuation protocol.
@@ -598,19 +627,18 @@ are deliberate migration signals, backend contracts, or dated evaluation history
 
 ### Phase 2: compact package-tool coordinates
 
-**Status:** Phase 2a MERGED (PR #402, `9be81a9`); Phase 2b BLOCKED ON BACKEND; Phase 2c PENDING
+**Status:** Phase 2a MERGED (PR #402, `9be81a9`); Phase 2b IMPLEMENTING; Phase 2c PENDING
 
 **Expected outcome:** `docs_list`, `pkg_info`, `pkg_vulns`, `pkg_deps`,
-`pkg_changelog`, and `pkg_upgrade_review` expose compact package/repository/range
-coordinates without changing their evidence or output semantics.
+`pkg_changelog`, and `pkg_upgrade_review` expose compact package coordinates without
+duplicating structured MCP addressing. Package tools do not advertise repository or
+site targets.
 
 **Assumptions:** The shared package parser remains canonical; CLI positional specs and
 flags remain; latest-only tools reject embedded versions actionably.
 
-**Unknowns or product decisions:** none for Phase 2a. Phase 2b requires verified
-backend exact-release/ref-kind/source selection and a later decision on open-ended
-repository intervals. Phase 2c needs its single/batch MCP representation settled;
-reuse the existing CLI interval spelling. Canonical `@ref` is merged.
+**Unknowns or product decisions:** none for Phase 2a or Phase 2b. Phase 2c needs its
+single/batch MCP representation settled; reuse the existing CLI interval spelling.
 
 #### Phase 2a: one four-tool package-coordinate increment
 
@@ -873,10 +901,11 @@ drift in place: replaced the vague `docs_*` routing wildcard with `docs_list`/`r
 and corrected the guardrails document to nine distinct third-party-content tools
 and the actual `pkg_info` prose surfaces (no install/usage snippets). No stable
 guide/public skill change, generated asset change or descriptor-prefix change.
-Existing changelog exact-release wording is still ahead of the verified backend
-contract; that is the already-deferred Phase 2b gap, not a compact-target regression.
-Do not interpret this four-tool audit as proof that repository exact release
-lookup works or that changelog/upgrade inputs have migrated.
+At Phase 2a closure, existing changelog exact-release wording was still ahead of the
+then-verified backend contract; that was the deferred Phase 2b gap, not a
+compact-target regression. That four-tool audit did not prove repository exact-release
+lookup or migrate changelog/upgrade inputs. The Phase 2b replan below supersedes the
+repository premise and records the later package-only backend work.
 
 1. Generated schemas and over-the-wire client calls prove the four tools require
    string `target` and advertise none of the removed coordinate fields. Registered
@@ -918,83 +947,270 @@ policy without another round for documentation-only findings. No product input
 remains for Phase 2a. The reviewer requested an additional clean round, rejected as
 contrary to that explicit documentation-only clean-round policy.
 
-#### Phase 2b/2c: later package operations
+#### Phase 2b: compact package-only changelog targets
 
-Changelog is excluded from Phase 2a at the user's direction after exact-target
-verification. Ref classification and exact-release/source selection naturally belong
-to the backend; do not infer them from tag spelling, capped release scans, or an
-unrelated code-diff call. A separately dispatched backend Codex worktree investigates
-this contract (diagnosis only, no fix/deploy); independent hand-off is not supervised
-here. After fixes are implemented, deployed and verified, reorient and detail the
-compact changelog increment, preserving the accepted grammar below. Acceptance:
-single pins select exactly one release; ranges preserve exclusive-start/inclusive-end
-bounds; upper repository tags choose the requested CHANGELOG snapshot; missing
-release/ref targets fail actionably rather than selecting unrelated entries.
+**Status:** IMPLEMENTING
 
-Upgrade review remains unchanged. Later reorientation must settle its single/batch
-MCP shape using existing CLI `@current..target` syntax. Acceptance: one addressing
-form with equivalent single/batch normalized calls and review evidence, actionable
-invalid endpoints, and unchanged CLI behavior. No tactical work is scheduled now.
+**Expected outcome:** MCP `pkg_changelog` accepts one required package `target`
+instead of structured package, repository, and range coordinates. Bare, exact,
+closed-range, and open-ended package targets select deterministic backend operations.
+CLI remains package-oriented, supports the same positional package forms, and keeps
+its useful package range flags. Repository and site changelog inputs are removed from
+both surfaces.
 
-Phase 2 interview history (2026-09-16; initial five-tool scope superseded by the
-four-tool Phase 2a decision above):
+**Product decision:** On 2026-09-18 the user confirmed that package tools support only
+package surfaces. Repository changelogs are not well-defined, particularly for
+monorepositories, and must not be inferred from repository tags, changelog files, or a
+guessed package mapping.
 
-- The next increment covers `docs_list`, `pkg_info`, `pkg_vulns`, `pkg_deps`, and
-  `pkg_changelog`; upgrade-review redesign remains outside it.
-- Include compact changelog release ranges in the same PR if implementation size
-  stays within the user's simplicity budget. Use inline targets such as
-  `npm:express@4.21.2..5.2.1` and
-  `github:expressjs/express@v4.21.2..v5.2.1`, not a separate range field.
-- The upper repository tag selects the CHANGELOG-file snapshot. Release entries
-  use the corresponding exclusive-start/inclusive-end release bounds.
-- A single package version, such as `npm:express@5.2.1`, selects exactly that
-  release for changelog, not recent entries capped at that version. Unversioned
-  package changelog targets retain the current recent-entry default.
-- The user also requested single repository release tags to select exactly their
-  release, while branch/commit targets select CHANGELOG snapshots; verification
-  of backend support is recorded below before treating this as implementable.
-- A production probe of the equivalent repository request (`fromVersion:4.21.2`,
-  `toVersion:5.2.1`, `gitRef:v5.2.1`) returned nine release entries, confirming the
-  backend accepts the combined inputs. It used the `releases` source, so it does
-  not itself prove CHANGELOG-file snapshot behavior.
-- Existing CLI upgrade-review code already parses `@current..target`; reuse its
-  syntax rather than claiming the interval spelling is wholly undecided. The
-  earlier separate-range proposal and addressing-only scope were not accepted.
-- Single repository-tag behavior is selected but backend exact-target support
-  remains unresolved. Open-ended repository intervals still need their source
-  revision semantics settled before finalizing the Phase 2 implementation contract.
+**Verified backend dependency:** `pkgseer-backend`
+[PR #2583](https://github.com/githits-com/pkgseer-backend/pull/2583) merged as
+`9967243432`;
+[PR #2585](https://github.com/githits-com/pkgseer-backend/pull/2585) records
+development deployment at Fly release 1665 and live resolver checks. Exact stable and
+prerelease pins select their requested releases,
+missing pins return `VERSION_NOT_FOUND`, closed intervals preserve
+exclusive-start/inclusive-end membership, and an authoritative empty package
+selection returns `entries: []` with `source: null`. Exact pins use
+`packageInfo(registry, name, version).selectedVersion.changelog`; timeline requests
+use `packageChangelog`. Production deployment is not claimed by this evidence.
 
-Repository exact-target verification (2026-09-16):
+**Assumptions:** Existing package-version normalization remains canonical, including
+Go `v` normalization and Swift's accepted leading `v`. `PackageChangelog` source
+fields describe evidence attached to selected package releases, not an alternate
+repository identity. Existing output entries and body controls remain useful.
 
-- Backend `main` source was inspected read-only through GitHub at
-  `f29298eb1be0760185961131d876f05cbfe5242a`, not through the independent name
-  diagnosis worktree. `priv/graphql/schema.graphql` exposes `refKind` through
-  code-diff ref resolution, and internal ref facts include SHA/tag/branch/head.
-  Changelog's API exposes only independent `gitRef`, `fromVersion`, `toVersion`,
-  and latest-entry `limit`; it has no exact selector or ref classification result.
-- Repository request `gitRef:v5.2.1,limit:3` returned recent release entries
-  `v4.22.3`, `v4.22.2`, `v4.22.1`. The tag does not filter the releases source.
-- Repository request `gitRef:v5.2.1,toVersion:5.2.1,limit:1` returned `v4.22.3`,
-  not `v5.2.1`. The latest-entry cap is publication-ordered and not an exact lookup.
-  A missing-version control `toVersion:5.2.999` also returned `v4.22.3`.
-- Package control `npm:express,toVersion:5.2.1,limit:1` returned exactly `5.2.1`;
-  package and repository addressing use different selection semantics. This
-  positive case does not prove missing-version or prerelease exact-pin behavior.
-- Therefore the earlier estimate of a thin adapter is invalid for exact repository
-  releases. Ref classification and exact-release/source selection naturally belong
-  to the backend. Exposing those facts by executing a whole code diff would be the
-  wrong boundary; neither client tag-spelling guesses nor capped-list scans are
-  accepted substitutes. Backend support must be resolved before finalizing the
-  agreed exact repository-tag contract. No fixes or additional backend hand-off
-  were authorized by the verification request.
+**Unknowns or product decisions:** none.
 
-**Dependencies:** Phase 2a needs no backend changes. Phase 2b requires backend
-exact-release/source-selection support; Phase 2c depends on later product reorientation.
+**Dependencies:** Merged backend contract above; current package parser, request and
+response helpers; package-intelligence service injection; stable MCP/CLI parity and
+smoke harnesses; authenticated development access for live verification.
 
-**Acceptance criteria:** Each package operation has one MCP addressing form; all
-latest, pinned, range, repository, and batch semantics remain deterministic; invalid
-versions retain actionable mapped errors; catalog size decreases under the same
-inventory; CLI and service contracts remain stable.
+##### Behavioral contract
+
+MCP advertises:
+
+```text
+pkg_changelog(
+  target,
+  limit?,
+  omit_bodies?,
+  verbose?,
+  body_lines?,
+  format?
+)
+```
+
+`target` is a package coordinate with an explicit registry:
+
+| Target | Mode | Backend operation |
+| --- | --- | --- |
+| `npm:express` | latest | `packageChangelog`, default latest entries |
+| `npm:express@5.2.1` | one selected release | `packageInfo.selectedVersion.changelog` |
+| `npm:express@4.21.2..5.2.1` | range | `packageChangelog`, `(4.21.2, 5.2.1]` |
+| `npm:express@4.21.2..` | range to latest | `packageChangelog`, lower bound only |
+| `npm:express@..5.2.1` | latest up to cap | `packageChangelog`, upper bound only |
+
+Reject an empty interval (`@..`), more than one `..`, `...`, missing registry/name,
+unsupported registry, malformed interval endpoint, repository/site target, or a
+leading tag-style `v` where package normalization does not allow it. Scoped npm names
+continue to split at the last `@`. A non-range suffix uses the backend's existing
+registry-aware single-release selector; a concrete published version such as `5.2.1`
+is exact, while any registry-compatible constraint resolves to one concrete release
+and the returned release identity remains visible. Do not invent a cross-registry
+client validator that assumes all package versions are SemVer. `limit` is accepted
+only for bare latest and upper-cap targets; single-release and lower-bound range
+targets reject it before network access.
+
+MCP removes `registry`, `package_name`, `repo_url`, `git_ref`, `from_version`, and
+`to_version`; no aliases or union schema remain. It keeps body/output controls
+unchanged.
+
+CLI removes `--repo-url` and `--git-ref`. It accepts the five package target forms
+above. Existing `--from` and `--to` remain as human-oriented package range/cap flags,
+and `--limit` remains for latest mode. Inline single-release targets reject `--from`,
+`--to`, and `--limit`; inline interval endpoints reject duplicate `--from`/`--to`;
+lower-bound intervals reject `--limit`. Existing flag-only package calls remain
+compatible.
+
+Single-release success contains exactly one backend-selected release, including
+prereleases. A missing concrete version remains an actionable `VERSION_NOT_FOUND`
+error; a registry-compatible constraint reports the resolved concrete release rather
+than presenting the constraint as a release identity. A selected release without notes
+is successful: JSON explicitly reports `hasChangelog: false`, text says release notes
+are unavailable, and neither surface substitutes another release. Results with notes
+retain source provenance and body controls.
+
+The public exact-mode JSON shape extends the existing envelope narrowly:
+`mode: "exact"`; `entries.items` contains exactly one entry; that entry adds
+`hasChangelog: boolean`; and top-level `source`, when present, is the backend
+`detailSource` normalized to lower snake case. Accepted exact source values are
+`releases`, `changelog_file`, `hexdocs`, `registry_release_notes`, `registry_link`,
+`generated_github_url`, and `package_version`. Timeline entries omit
+`hasChangelog`; their existing source values and shape remain unchanged. Exact mode
+adds caller-explicit `filter.version` containing the normalized requested selector;
+`entries.items[0].version` is the backend's resolved concrete release. Do not duplicate
+`resolvedVersion` elsewhere or present a constraint as the release identity.
+
+Latest/range empty selections are successful on both text and JSON surfaces:
+`entries: {count: 0, items: []}` and no source. Remove the current client promotion of
+`source: null` plus no entries to `NOT_FOUND`; actual package/version/backend errors
+continue through the existing mapped envelopes. `mode` expands to `latest | exact |
+range`; `LeanChangelogFilter` adds optional `version` for single-release selectors,
+while existing range/cap fields continue to echo only caller-explicit values
+represented by the normalized target or CLI flags.
+
+##### Implementation boundaries and likely files
+
+1. Add a pure package-changelog target parser under
+   `packages/mcp/src/shared/` that composes `parsePackageSpec`, classifies latest,
+   exact, and interval suffixes, and returns normalized endpoint intent. Reuse the
+   interval grammar already established by upgrade-review without moving or
+   redesigning Phase 2c. Keep validation in the shared builder so MCP and CLI receive
+   mapped errors rather than raw Zod failures.
+2. Refactor `package-changelog-request.ts` around package-only discriminated modes.
+   Remove repository/ref inputs and produce one of exact or timeline service params,
+   plus explicit mode/filter metadata. Preserve legacy CLI `--from`/`--to` adaptation
+   and define the conflict rules above in this one owner.
+3. In `packages/core-internal/src/services/package-intelligence-service.ts`, remove
+   repository-only changelog params and query variables. Add the exact package-info
+   query path under the existing injected `packageChangelog` service operation.
+   Exact mode selects only `resolvedVersion` and the changelog fields consumed
+   by text/JSON (`detailSource`, `hasChangelog`, and entry fields used in output);
+   the requested selector stays client-side as `filter.version`. Gate `body` with
+   the existing include-bodies variable. Timeline mode
+   keeps the existing package query but omits unused repository/ref variables and
+   response fields. Add wire-contract tests for both operations and body modes.
+4. Normalize both backend operations into the shared changelog report without
+   fabricating release identity. Preserve exact `hasChangelog`, resolved release
+   identity, requested selector, and detail-source provenance in the public shape
+   defined above. Map the requested selector only to `filter.version` and the resolved
+   release only to the entry's `version`. Accept package timeline `source: null` plus
+   empty entries as success;
+   retire the client-only changelog-source-not-found promotion and its stale tests if
+   no remaining caller uses it.
+5. Change `packages/mcp/src/tools/package-changelog.ts` to one required string target,
+   route through the shared builder, and update the standalone selection sentence,
+   schema examples, package-only boundary, exact/range behavior, and recovery wording.
+   Keep `readOnlyHint: true` and existing guardrails.
+6. Update `src/commands/pkg/changelog.ts` to parse the positional package target,
+   remove repository options, retain compatible package flags, and share the same
+   builder, formatter, and errors. Do not add repository-to-package resolution or a
+   network fallback.
+7. Extend `package-changelog-response.ts` for exact mode and explicit no-notes
+   presentation while preserving latest/range envelopes and body previews. Keep CLI
+   `--json` and MCP `format: "json"` losslessly aligned.
+8. Update mock factories, MCP/CLI parity, command metadata, stable/local catalog
+   contracts, and smoke fixtures. Remove repository fixtures; add bare latest, exact
+   stable/prerelease, missing exact, closed/open interval, empty interval result,
+   invalid interval, and repository/site rejection before service access.
+   Migrate the independent schema and comments in `eval/mock-mcp/server.ts` plus its
+   `server.test.ts` contract; it must not retain the removed structured fields.
+9. Update `docs/implementation/tools.md`,
+   `docs/implementation/mcp-cli-parity.md`,
+   `docs/implementation/cli-commands.md`, and stale repository-target references.
+   Update the canonical package skill and MCP quick-start/public-skill pair if their
+   routing or target grammar is incomplete; keep quick-start/skill text byte-identical.
+   Run plugin generation and inspect generated output rather than editing it.
+10. Add `changes/<unique-name>.changed.md` with pending `minor` impact for both
+    `githits` and `@githits/mcp`. State the package-only breaking removals, compact
+    target conversions, exact-release behavior, and truthful empty-result fix. Do not
+    edit historical changelog sections.
+
+##### Tests and verification
+
+- Unit-test target parsing and request construction independently from service IO.
+  Cover scoped npm, representative registries, Go/Swift normalization, concrete
+  versions, one registry-compatible constraint, all five modes, mode/flag conflicts,
+  empty-ish inputs, malformed intervals, and zero service calls for repository/site
+  targets.
+- Assert exact GraphQL variables and selections separately from timeline requests.
+  Exact mode must select only consumed `packageInfo.selectedVersion` changelog fields;
+  timeline mode must not send `repoUrl` or `gitRef`; body omission must set the
+  conditional selection variable in both modes.
+- Test exact stable/prerelease/no-notes output, missing exact mapping, empty timeline
+  success without a source, constraint request versus resolved-release identity, body
+  omission, text previews, JSON losslessness, and CLI/MCP parity. Preserve existing
+  tests for operational errors.
+- Run focused changelog/service/tool/command/parity tests, then `bun test`,
+  `bun run typecheck`, `bun run lint`, `bun run format:check`, `bun run build`, and
+  `bun run validate:packages`.
+- Run `bun run plugins:generate` and `bun run plugins:check`; inspect every generated
+  diff and require each change to follow from canonical guidance.
+- Run source `bun run smoke:mcp` and `bun run smoke:cli`. Against the development
+  backend, verify bare latest, exact `5.2.1`, exact prerelease `5.0.0-beta.3`, missing
+  `5.2.999`, closed `(4.21.2, 5.2.1]`, and an authoritative empty selection. Record
+  authentication or deployment limitations without adding retries or changing
+  timeouts. Built smoke is required only if smoke launch/CI validation changes.
+- Re-run `bun scripts/agent-context-load.ts sizes`. Current `origin/main` baseline is
+  13 stable tools, `catalog.full` 35,494 characters, `catalog.prefix80` 1,207,
+  `bootstrap.stable` 4,675, and `skill.file` 5,206. Record exact changed totals and
+  hashes without converting character savings into token, cost, or quality claims.
+- Run targeted descriptor-only agent evals for both configured Codex and Claude:
+  existing `package-changelog-range.md` plus one exact-release case that requires
+  `npm:express@5.2.1`. Inspect actual calls/results, finals, metrics, and isolation
+  violations. Require compact package targets, no structured/repository fallback or
+  schema-driven futile retries, and no unexplained JSON increase. Do not claim answer
+  quality without grading.
+- Run fresh internal technical review and one external Opus implementation reviewer
+  per round. Keep this plan through PR review and record actual evidence/status before
+  draft PR delivery.
+
+**Local implementation evidence (2026-09-18):** `bun scripts/agent-context-load.ts sizes`
+reports 13 stable tools, `catalog.full` 34,351 (`sha256:8285069e…`),
+`catalog.prefix80` 1,207 (`sha256:ff8592bc…`), `bootstrap.stable` 4,661, and
+`skill.file` 5,192. Source `smoke:mcp` passed including compact
+`pkg_changelog` latest calls. Source `smoke:cli` passed unauthenticated and skipped
+the stable live CLI cohort (`AUTH_REQUIRED`); experimental live CLI passed.
+Authenticated `scripts/mcp-call.ts` against development: latest `npm:express`
+`mode:latest`; exact `npm:express@5.2.1` and `npm:express@5.0.0-beta.3` return
+`mode:exact` with `hasChangelog:true`; missing `5.2.999` is `VERSION_NOT_FOUND`;
+`npm:express@4.21.2..5.2.1` is `mode:range` with exclusive-start membership;
+`npm:express@5.2.1..5.2.1` is empty success (`count: 0`, no `source`);
+`github:expressjs/express` is client `INVALID_ARGUMENT`. Descriptor-only agent
+evals are still outstanding.
+
+##### Phase 2b acceptance criteria
+
+1. Generated MCP schemas expose required string `target` and none of the six removed
+   coordinate/range fields; package-only calls remain self-sufficient.
+2. Bare, exact, closed-range, lower-open, and upper-open package targets produce the
+   normalized service operations above; repository/site inputs and invalid conflicts
+   fail before network access.
+3. Concrete pins return only the requested release or actionable
+   `VERSION_NOT_FOUND`; compatible constraints expose the resolved concrete release;
+   no-notes selected releases and empty timeline selections are successful and
+   explicit.
+4. Exact and timeline GraphQL requests fetch only fields used by their selected
+   output modes, with body inclusion controlled on the wire.
+5. CLI package calls retain useful range flags and JSON/text parity while repository
+   flags are absent from help, parsing, docs, skills, tests, and smoke fixtures.
+6. Catalog size decreases from the recorded baseline, first-sentence/prefix contracts
+   pass, live development smoke covers the named backend cases, and targeted agent
+   traces use compact package targets without isolation violations.
+7. Current docs, canonical skills, generated assets, and one independent minor/minor
+   change fragment agree. Required unit, package, smoke, build, and review gates pass.
+
+#### Phase 2c: compact upgrade-review coordinates
+
+**Status:** PENDING PRODUCT REORIENTATION
+
+**Expected outcome:** `pkg_upgrade_review` has one compact package addressing form
+covering single and batch upgrades without duplicating structured fields.
+
+**Assumptions:** Existing CLI `@current..target` spelling remains the starting
+grammar; package-only scope continues.
+
+**Unknowns or product decisions:** Settle one MCP representation for single and batch
+calls after Phase 2b evidence is merged.
+
+**Dependencies:** Phase 2b merged; later `$next-steps` reorientation and user
+discussion.
+
+**Acceptance criteria:** Single and batch package upgrades normalize equivalently,
+invalid endpoints fail actionably, CLI behavior remains human-oriented, and the MCP
+schema contains no duplicate coordinate form. Tactical detail is intentionally
+deferred until Phase 2b merges.
 
 ### Phase 3: one MCP search-filter language
 
@@ -1341,8 +1557,9 @@ language filtering or force agents to guess names.
 
 ### Phase 6: shared instruction ownership and concise tool copy
 
-**Status:** IMPLEMENTED on `jlitola/compact-agent-instructions`, draft
-[PR #403](https://github.com/githits-com/githits-cli/pull/403), awaiting merge.
+**Status:** MERGED in
+[PR #403](https://github.com/githits-com/githits-cli/pull/403), merge
+`ce93eb1`.
 Initial internal technical review is clean; external Opus round 1 found only minor
 documentation issues, applied for a clean round under repository policy. Windows CI
 subsequently found a test-only LF assumption; corrected in the eighth dispatch with
@@ -1807,6 +2024,19 @@ truth.
 
 ## Plan review record
 
+- Phase 2b internal technical review (2026-09-18): accepted five initial findings.
+  Distinguished concrete exact pins from backend-compatible single-release
+  constraints; defined exact JSON placement for requested selector, resolved release,
+  `hasChangelog`, and detail-source provenance; named the independent eval MCP schema;
+  qualified repository migration guidance as code/discovery-only; and corrected
+  deployment status to development-only. Closure review found one remaining ambiguity
+  between requested constraints and resolved releases; `filter.version` now owns the
+  requested selector and `entries.items[0].version` owns the resolved release. Final
+  internal re-review returned no findings.
+- Phase 2b external Fable plan review (2026-09-18): not completed. The configured
+  Claude account reported its Fable usage limit before reading the task. The stalled
+  dispatch was diagnosed once and stopped; no review result, validation, or clean-round
+  claim is inferred, and no substitute model was used.
 - Phase 6 internal technical review (2026-09-17): accepted the experimental-copy
   eval coverage gap, calibrated as a bounded verification gap rather than an existing
   blocking product defect. Added existing resolution/site-resolution/diff cases for

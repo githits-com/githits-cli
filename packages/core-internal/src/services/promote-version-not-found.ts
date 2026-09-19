@@ -29,8 +29,7 @@
  *   can only reflect an unrelated upstream condition.
  * - `details.package` is qualified with the lowercase registry prefix
  *   (e.g. `"npm:lodash"`) when both `registry` and `packageName` are
- *   provided. In repo-URL addressing mode (`packageChangelog`) neither
- *   is available; `details.package` is omitted entirely.
+ *   provided. Changelog requests are package-only.
  * - `details.requestedVersion` preference order when multiple are
  *   set: `version` → `fromVersion` → `toVersion`. First non-null
  *   wins. Range-mode requests typically set `fromVersion`, which is
@@ -45,9 +44,8 @@ import {
 
 /**
  * Minimal shape shared by every versioned-query params type we route
- * through this helper. All fields optional so repo-URL-addressed
- * queries (`packageChangelog`) can also flow through — the helper
- * omits any detail it can't synthesize.
+ * through this helper. All fields optional so callers can omit unused
+ * version bounds.
  */
 export interface PromotableVersionedQueryParams {
   registry?: PkgseerRegistry;

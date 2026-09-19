@@ -915,8 +915,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const changelogText = assertDefaultText(
     await callTool(caller, "pkg_changelog", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       limit: 1,
     }),
     "pkg_changelog default",
@@ -939,8 +938,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const changelogBodyLinesText = assertDefaultText(
     await callTool(caller, "pkg_changelog", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       limit: 2,
       body_lines: 3,
     }),
@@ -959,8 +957,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const changelogJson = assertJsonResult(
     await callTool(caller, "pkg_changelog", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       limit: 1,
       format: "json",
     }),
@@ -969,10 +966,43 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   assertRecord(changelogJson, "pkg_changelog json");
   assertRecord(changelogJson.entries, "pkg_changelog json entries");
 
+  const changelogExact = assertJsonResult(
+    await callTool(caller, "pkg_changelog", {
+      target: "npm:express@5.2.1",
+      format: "json",
+    }),
+    "pkg_changelog exact json",
+  );
+  assertRecord(changelogExact, "pkg_changelog exact json");
+  assert(changelogExact.mode === "exact", "pkg_changelog exact json mode");
+  const exactEntries = changelogExact.entries as
+    | { items?: Array<{ hasChangelog?: unknown; version?: unknown }> }
+    | undefined;
+  assert(
+    exactEntries?.items?.[0]?.version === "5.2.1",
+    "pkg_changelog exact json resolved version",
+  );
+  assert(
+    typeof exactEntries?.items?.[0]?.hasChangelog === "boolean",
+    "pkg_changelog exact json missing hasChangelog",
+  );
+
+  const changelogRepo = await callTool(caller, "pkg_changelog", {
+    target: "github:expressjs/express",
+    format: "json",
+  });
+  const changelogRepoEnvelope = assertCleanErrorEnvelope(
+    changelogRepo,
+    "pkg_changelog repository target",
+  );
+  assert(
+    changelogRepoEnvelope.code === "INVALID_ARGUMENT",
+    `pkg_changelog repository target: expected INVALID_ARGUMENT, got ${changelogRepoEnvelope.code}`,
+  );
+
   const changelogTimeline = assertDefaultText(
     await callTool(caller, "pkg_changelog", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       limit: 2,
       omit_bodies: true,
     }),

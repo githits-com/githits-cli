@@ -21,12 +21,7 @@ import {
 } from "./types.js";
 
 export interface PackageChangelogArgs {
-  registry?: string;
-  package_name?: string;
-  repo_url?: string;
-  git_ref?: string;
-  from_version?: string;
-  to_version?: string;
+  target: string;
   limit?: number;
   omit_bodies?: boolean;
   verbose?: boolean;
@@ -35,68 +30,26 @@ export interface PackageChangelogArgs {
 }
 
 /**
- * Permissive schema — the shared `buildPackageChangelogParams` builder
- * is the single validation path. Raw Zod errors never surface to
- * agents. Matches the pattern established by the other pkg-intel
- * tools (`package_summary`, `package_vulnerabilities`,
- * `package_dependencies`).
- *
- * `package_changelog` is the first pkg-intel MCP tool with dual
- * addressing (`registry` + `package_name` XOR `repo_url`). The
- * underlying `packageChangelog` query is intrinsically repo-level
- * (sources: GitHub Releases / CHANGELOG.md / HexDocs), so exposing
- * `repo_url` isn't a bolt-on — it's a peer addressing mode on the
- * schema. The other pkg-intel tools omit it because their queries
- * are registry-metadata APIs with no repo-URL alternative.
+ * Strings remain permissive so package parsing and request validation
+ * return mapped domain errors. Missing or non-string targets fail SDK validation.
  */
 const schema: ZodRawShape = {
-  registry: z
+  target: z
     .string()
-    .optional()
     .describe(
-      `Package registry (with \`package_name\`). Mutually exclusive with \`repo_url\`. Supported: ${PKGSEER_REGISTRY_LIST}.`,
-    ),
-  package_name: z
-    .string()
-    .optional()
-    .describe(
-      "Package name (with `registry`). Scoped names ok (`@types/node`). Mutually exclusive with `repo_url`.",
-    ),
-  repo_url: z
-    .string()
-    .optional()
-    .describe(
-      "Full HTTPS repository URL (GitHub, Codeberg, or GitLab). Mutually exclusive with `registry` + `package_name`. Use when agents have a repo URL without a registry mapping.",
-    ),
-  from_version: z
-    .string()
-    .optional()
-    .describe(
-      "Exclusive start of version range. Returns every entry after `from_version` through `to_version` (or latest) with no count cap. Mutually exclusive with `limit`. Go accepts versions with or without its canonical `v` prefix; tag-style `v` prefixes are rejected for other registries except Swift.",
-    ),
-  to_version: z
-    .string()
-    .optional()
-    .describe(
-      "Inclusive range end or latest-mode upper cap, not an exact-release lookup. Defaults to latest on the wire. Go accepts versions with or without its canonical `v` prefix; tag-style `v` prefixes are rejected for other registries except Swift.",
+      `Package registry:name[@version|@from..to], for example npm:express@5.2.1; omit the version for latest. Open bounds from.. and ..to are accepted. Package-only; repository and site targets are rejected. Registries: ${PKGSEER_REGISTRY_LIST}.`,
     ),
   limit: z
     .number()
     .optional()
     .describe(
-      "Latest-mode cap on entry count (1–50, default 10). Rejected with `INVALID_ARGUMENT` when `from_version` is also set or when out of range.",
-    ),
-  git_ref: z
-    .string()
-    .optional()
-    .describe(
-      "Git branch or tag for CHANGELOG.md source (no effect on GitHub Releases or HexDocs). Defaults to the repository's default branch.",
+      "Latest-mode and upper-cap count (1-50, default 10). Rejected for a selected-release or lower-bound range target.",
     ),
   omit_bodies: z
     .boolean()
     .optional()
     .describe(
-      "When true, each entry in `entries.items[]` omits its `body` field. Default false. Use when you only need the version / date / URL timeline — drops 10 KB+ per entry on large release notes.",
+      "Omit each entry body (default false). Use for version/date/URL timelines; large notes drop 10 KB+ per entry.",
     ),
   verbose: z
     .boolean()
@@ -119,19 +72,13 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION_BASE: string =
-  "Find release notes and changelog history for a package or public repository. Default " +
+  "Find release notes and changelog history for a package. Default " +
   "latest mode returns up to ten entries; source ordering may interleave maintained release lines. " +
-  "Range mode returns every entry in `(from_version, to_version]` with no count cap. " +
-  "`to_version` is an upper cap, not an exact-release lookup. " +
-  "Address via `registry` + `package_name` or `repo_url` (mutually " +
-  "exclusive). Entries include markdown body previews. Example: " +
-  '`{"registry":"npm","package_name":"express","limit":2}`. ' +
-  "Text output previews 10 body lines by default; use `body_lines` " +
-  "to tune the preview or `verbose:true` for full text bodies. " +
-  "Package-version entries without changelog " +
-  "text succeed with `source` omitted; no-source plus no entries " +
-  "returns `NOT_FOUND`. Supports npm, PyPI, Hex, Crates, NuGet, " +
-  "Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift.";
+  "Pin `registry:name@version` for one selected release, or `registry:name@from..to` for a closed interval. " +
+  "`limit` applies only to latest and upper-cap targets. " +
+  "A selected release without notes succeeds with `hasChangelog: false`. " +
+  "Empty latest or range selections succeed with no entries. " +
+  "Text previews 10 body lines; use `body_lines` or `verbose:true` for more.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_CHANGELOG_GUARDRAIL}`;
 
@@ -149,30 +96,23 @@ export function createPackageChangelogTool(
         const bodyPreviewLines = textFormat
           ? validateTextOptions(args)
           : undefined;
-        const { params, explicitFilterFields } = buildPackageChangelogParams({
-          registry: args.registry,
-          packageName: args.package_name,
-          repoUrl: args.repo_url,
-          gitRef: args.git_ref,
-          fromVersion: args.from_version,
-          toVersion: args.to_version,
-          limit: args.limit,
-          includeBodies: args.omit_bodies !== true,
-        });
+        const { params, mode, explicitFilterFields } =
+          buildPackageChangelogParams({
+            target: args.target,
+            limit: args.limit,
+            includeBodies: args.omit_bodies !== true,
+          });
         const report = await service.packageChangelog(params);
         const payload = buildPackageChangelogSuccessPayload(report, {
-          registry: params.registry
-            ? toPkgseerRegistryLowercase(params.registry)
-            : undefined,
+          registry: toPkgseerRegistryLowercase(params.registry),
           name: params.packageName,
-          repoUrl: params.repoUrl,
-          mode: params.fromVersion ? "range" : "latest",
+          mode,
           explicitFilterFields,
           includeBodies: args.omit_bodies !== true,
           fromVersion: params.fromVersion,
           toVersion: params.toVersion,
           limit: params.limit,
-          gitRef: params.gitRef,
+          version: params.version,
         });
         if (textFormat) {
           return textResult(

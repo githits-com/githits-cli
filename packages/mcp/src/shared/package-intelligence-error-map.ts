@@ -13,7 +13,6 @@ import {
   MalformedPackageIntelligenceResponseError,
   PackageIntelligenceAccessError,
   PackageIntelligenceBackendError,
-  PackageIntelligenceChangelogSourceNotFoundError,
   PackageIntelligenceDocumentationSectionUnresolvedError,
   PackageIntelligenceFeatureFlagRequiredError,
   PackageIntelligenceGraphQLError,
@@ -52,10 +51,7 @@ function classify(error: unknown): MappedError {
   if (error instanceof ClientUpdateRequiredError) {
     return buildUpdateRequiredError(error.reason, error.currentVersion);
   }
-  if (
-    error instanceof PackageIntelligenceTargetNotFoundError ||
-    error instanceof PackageIntelligenceChangelogSourceNotFoundError
-  ) {
+  if (error instanceof PackageIntelligenceTargetNotFoundError) {
     return {
       code: "NOT_FOUND",
       message: error.message,

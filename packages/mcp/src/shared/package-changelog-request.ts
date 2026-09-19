@@ -1,61 +1,33 @@
 /**
- * Shared request builder for the `package_changelog` tool. The CLI
- * command and the MCP tool normalise their inputs here so the two
- * surfaces cannot diverge on addressing rules, version validation,
- * or mode/limit mutual exclusion.
+ * Shared request builder for `pkg_changelog`. CLI and MCP normalise
+ * inputs here so addressing, interval classification, version
+ * validation, and limit/mode exclusion cannot diverge.
  *
  * Responsibilities:
- * - Enforce addressing XOR: exactly one of (a) `<spec>` (registry +
- *   packageName) or (b) `repoUrl`. Reject both-present, none-present,
- *   and malformed `<spec>`.
- * - Normalise exact Go `fromVersion` / `toVersion` bounds to their
- *   canonical `v`-prefixed form. Reject tag-style versions for other
- *   registries except Swift, where `v`-prefixed release tags are accepted.
- * - Reject `<spec>@<version>`: the `pkg changelog` family does not
- *   give `@version` a meaning (unlike `pkg vulns` and `pkg deps`).
- *   Redirect callers to `--to` / `to_version`.
- * - Reject `fromVersion` + `limit` together (backend says range mode
- *   has no count cap; we catch it before the wire).
- * - Enforce `limit` range (1–50).
- * - Emit an `explicitFilterFields` set so the response envelope only
- *   echoes `filter.*` for caller-supplied fields, not backend
- *   defaults.
+ * - Require a package-only compact `target`.
+ * - Classify latest, exact, and interval suffixes.
+ * - Adapt legacy CLI `--from` / `--to` onto the same modes.
+ * - Reject exact/inline-endpoint conflicts and `limit` outside latest
+ *   or upper-cap mode.
+ * - Normalise Go / Swift version spelling.
+ * - Emit `explicitFilterFields` so the envelope echoes only caller
+ *   intent.
  */
 
 import type { PackageChangelogParams } from "@githits/core-internal";
-import {
-  isKnownPkgseerRegistryArg,
-  PKGSEER_REGISTRY_LIST,
-  type PkgseerRegistryArg,
-  toPkgseerRegistry,
-} from "@githits/core-internal";
-import {
-  InvalidPackageSpecError,
-  UnsupportedRegistryError,
-} from "./package-spec.js";
+import { toPkgseerRegistry } from "@githits/core-internal";
+import { parsePackageChangelogTarget } from "./package-changelog-target.js";
+import { InvalidPackageSpecError } from "./package-spec.js";
 import { normalisePackageVersion } from "./package-version.js";
 
-/**
- * Raw inputs from either CLI or MCP, pre-normalisation. Keep every
- * field optional so the builder is the single place enforcing the
- * XOR + co-occurrence rules.
- */
 export interface PackageChangelogRequestInput {
-  /** Lowercase registry surface value (`npm`, `pypi`, …). */
-  registry?: string;
-  /** Raw package name — trimmed before validation. */
-  packageName?: string;
-  /** Full HTTPS repository URL. Mutex with `registry` + `packageName`. */
-  repoUrl?: string;
-  /** Optional git branch/tag for CHANGELOG.md. */
-  gitRef?: string;
-  /** Optional `<spec>@<version>` captured from the spec parser. Always rejected here. */
-  specVersion?: string;
-  /** Range-mode start version. */
+  /** Compact package target. Required. */
+  target?: string;
+  /** CLI `--from` exclusive start. Duplicate of an inline from bound is rejected. */
   fromVersion?: string;
-  /** End-of-range / latest-mode cap. */
+  /** CLI `--to` inclusive end / latest-mode cap. Duplicate of an inline to bound is rejected. */
   toVersion?: string;
-  /** Latest-mode entry count cap. */
+  /** Latest-mode entry count cap. Rejected for exact and lower-bound range targets. */
   limit?: number;
   /** Include raw markdown bodies in entries. Defaults to true. */
   includeBodies?: boolean;
@@ -66,15 +38,17 @@ export type ExplicitFilterField =
   | "fromVersion"
   | "toVersion"
   | "limit"
-  | "gitRef";
+  | "version";
+
+export type PackageChangelogRequestMode = "latest" | "exact" | "range";
 
 export interface PackageChangelogRequestBuildResult {
   params: PackageChangelogParams;
+  mode: PackageChangelogRequestMode;
   /**
    * Set of filter fields the caller explicitly supplied. The envelope
-   * consults this set instead of `params.*` to decide whether to
-   * echo a field under `filter.*`, so backend defaults (latest = 10)
-   * don't accidentally round-trip as caller intent.
+   * consults this set instead of `params.*` so backend defaults
+   * (latest = 10) don't round-trip as caller intent.
    */
   explicitFilterFields: Set<ExplicitFilterField>;
 }
@@ -82,35 +56,64 @@ export interface PackageChangelogRequestBuildResult {
 export function buildPackageChangelogParams(
   input: PackageChangelogRequestInput,
 ): PackageChangelogRequestBuildResult {
-  if (input.specVersion !== undefined) {
+  const target = input.target?.trim() ?? "";
+  if (target.length === 0) {
     throw new InvalidPackageSpecError(
-      "`<spec>@<version>` isn't supported for pkg changelog — use `--to <version>` for entries up to a version, or `--from <version>` for a full range.",
+      "`pkg changelog` requires a package spec (e.g. `npm:express`).",
     );
   }
 
-  const addressing = resolveAddressing(input);
-  const gitRef = normaliseGitRef(input.gitRef);
-  const fromVersion = normalisePackageVersion(
-    input.fromVersion,
-    addressing.registry,
-    {
-      rejectLeadingV: true,
-      fieldName: "--from / from_version",
-    },
-  );
-  const toVersion = normalisePackageVersion(
-    input.toVersion,
-    addressing.registry,
-    {
-      rejectLeadingV: true,
-      fieldName: "--to / to_version",
-    },
-  );
+  const parsed = parsePackageChangelogTarget(target);
+  const registry = toPkgseerRegistry(parsed.registry);
+  const flagFrom = normaliseBound(input.fromVersion, registry, "--from");
+  const flagTo = normaliseBound(input.toVersion, registry, "--to");
   const limit = normaliseLimit(input.limit);
+
+  if (parsed.mode === "exact") {
+    rejectExactConflicts(flagFrom, flagTo, limit);
+    const version = normaliseBound(parsed.version, registry, "version");
+    if (version === undefined) {
+      throw new InvalidPackageSpecError(
+        "Selected-release target is missing a version.",
+      );
+    }
+    return {
+      mode: "exact",
+      params: {
+        registry,
+        packageName: parsed.name,
+        version,
+        includeBodies: input.includeBodies,
+      },
+      explicitFilterFields: new Set<ExplicitFilterField>(["version"]),
+    };
+  }
+
+  const inlineFrom =
+    parsed.mode === "range"
+      ? normaliseBound(parsed.fromVersion, registry, "from version")
+      : undefined;
+  const inlineTo = normaliseBound(parsed.toVersion, registry, "to version");
+
+  if (inlineFrom !== undefined && flagFrom !== undefined) {
+    throw new InvalidPackageSpecError(
+      "Positional range already contains a from version. Drop `--from`, or use a bare package target with `--from`.",
+    );
+  }
+  if (inlineTo !== undefined && flagTo !== undefined) {
+    throw new InvalidPackageSpecError(
+      "Positional target already contains a to version. Drop `--to`, or use a bare package target with `--to`.",
+    );
+  }
+
+  const fromVersion = inlineFrom ?? flagFrom;
+  const toVersion = inlineTo ?? flagTo;
+  const mode: PackageChangelogRequestMode =
+    fromVersion !== undefined ? "range" : "latest";
 
   if (fromVersion !== undefined && limit !== undefined) {
     throw new InvalidPackageSpecError(
-      "`--limit` / `limit` is a latest-mode input; drop `--limit` for range mode, or drop `--from` / `from_version` to cap by count instead.",
+      "`--limit` / `limit` is a latest-mode input; drop `--limit` for range mode, or drop `--from` / the from bound to cap by count instead.",
     );
   }
 
@@ -118,12 +121,12 @@ export function buildPackageChangelogParams(
   if (fromVersion !== undefined) explicit.add("fromVersion");
   if (toVersion !== undefined) explicit.add("toVersion");
   if (limit !== undefined) explicit.add("limit");
-  if (gitRef !== undefined) explicit.add("gitRef");
 
   return {
+    mode,
     params: {
-      ...addressing,
-      gitRef,
+      registry,
+      packageName: parsed.name,
       fromVersion,
       toVersion,
       limit,
@@ -133,67 +136,36 @@ export function buildPackageChangelogParams(
   };
 }
 
-type ResolvedAddressing =
-  | {
-      registry: PackageChangelogParams["registry"];
-      packageName: string;
-      repoUrl?: undefined;
-    }
-  | { repoUrl: string; registry?: undefined; packageName?: undefined };
-
-function resolveAddressing(
-  input: PackageChangelogRequestInput,
-): ResolvedAddressing {
-  const hasSpec =
-    hasNonBlankValue(input.registry) || hasNonBlankValue(input.packageName);
-  const hasRepoUrl = Boolean(input.repoUrl?.trim());
-
-  if (hasSpec && hasRepoUrl) {
-    throw new InvalidPackageSpecError(
-      "Provide either `<spec>` (registry + name) or `--repo-url` / `repo_url`, not both.",
-    );
-  }
-  if (!hasSpec && !hasRepoUrl) {
-    throw new InvalidPackageSpecError(
-      "`pkg changelog` requires a package spec (e.g. `npm:express`) or `--repo-url` / `repo_url`.",
-    );
-  }
-
-  if (hasRepoUrl) {
-    const repoUrl = (input.repoUrl as string).trim();
-    if (!isUrlShape(repoUrl)) {
-      throw new InvalidPackageSpecError(
-        `'${repoUrl}' does not look like a URL. Pass a full HTTPS repository URL (e.g. https://github.com/expressjs/express).`,
-      );
-    }
-    return { repoUrl };
-  }
-
-  const packageName = input.packageName?.trim() ?? "";
-  if (!packageName) {
-    throw new InvalidPackageSpecError("Package name is required.");
-  }
-
-  const normalisedRegistryArg = input.registry?.trim().toLowerCase() ?? "";
-  if (!isKnownPkgseerRegistryArg(normalisedRegistryArg)) {
-    throw new UnsupportedRegistryError(
-      `Unsupported registry '${input.registry}'. Supported: ${PKGSEER_REGISTRY_LIST}.`,
-    );
-  }
-  const registry = toPkgseerRegistry(
-    normalisedRegistryArg as PkgseerRegistryArg,
+function rejectExactConflicts(
+  fromVersion: string | undefined,
+  toVersion: string | undefined,
+  limit: number | undefined,
+): void {
+  const extras: string[] = [];
+  if (fromVersion !== undefined) extras.push("`--from`");
+  if (toVersion !== undefined) extras.push("`--to`");
+  if (limit !== undefined) extras.push("`limit`");
+  if (extras.length === 0) return;
+  throw new InvalidPackageSpecError(
+    `Inline single-release target already selects one release; drop ${joinList(extras)}.`,
   );
-  return { registry, packageName };
 }
 
-function hasNonBlankValue(value: string | undefined): boolean {
-  return value !== undefined && value.trim().length > 0;
+function joinList(items: string[]): string {
+  if (items.length === 1) return items[0]!;
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
 }
 
-function normaliseGitRef(raw: string | undefined): string | undefined {
-  if (raw === undefined) return undefined;
-  const trimmed = raw.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
+function normaliseBound(
+  raw: string | undefined,
+  registry: PackageChangelogParams["registry"],
+  fieldName: string,
+): string | undefined {
+  return normalisePackageVersion(raw, registry, {
+    rejectLeadingV: true,
+    fieldName,
+  });
 }
 
 function normaliseLimit(raw: number | undefined): number | undefined {
@@ -204,19 +176,4 @@ function normaliseLimit(raw: number | undefined): number | undefined {
     );
   }
   return raw;
-}
-
-/**
- * Minimal URL-shape test. We want to reject obvious non-URLs like
- * `"not a url"` client-side so agents get an actionable error instead
- * of an opaque `BACKEND_ERROR`. Backend handles host-specific
- * validation (supported repository hosts, for example).
- */
-function isUrlShape(raw: string): boolean {
-  try {
-    const parsed = new URL(raw);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
 }

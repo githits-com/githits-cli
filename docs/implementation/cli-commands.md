@@ -54,7 +54,7 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--transitive`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift), optionally including affected versions resolved in its dependency graph |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--depth`, `--issues`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional capped transitive graph, and opt-in dependency issue analysis (npm/pypi/hex/crates/nuget/maven/zig/vcpkg/packagist/rubygems/go/swift) |
-| `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or public repository (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
+| `pkg changelog <spec>` | package spec (`registry:name[@version\|@from..to]`) | `--from`, `--to`, `--limit`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package. Default shows each entry with a 10-line body preview; pin a version for one selected release; `--verbose` uncaps, `--no-body` drops. |
 | `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, positional package range, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. Reports facts only. |
 | `docs list <spec>` | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | List hosted/crawled and repository-backed documentation pages. Text emits target-based read commands; JSON retains `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, and exact repo-file metadata when available. |
 | `read <target> [path]` | docs target/page ID, or package/repo target plus exact path | `--lines`, `--wait`, `--verbose`, `--json`; code also accepts `--start`, `--end`, `--repo-url`, `--git-ref` | Compact unified read; target alone reads docs, path selects code, and the compact path calls `ReadService`/`Query.read` once. `--repo-url` remains the legacy compatibility path. Fragments select indexed sections without bounds. See [unified read](unified-read.md). |
@@ -696,34 +696,35 @@ Compact issue evidence also stays within the resolved terminal width, using ASCI
 
 ```
 githits pkg changelog npm:express
+githits pkg changelog npm:express@5.2.1
+githits pkg changelog npm:express@4.0.0..5.2.1
 githits pkg changelog npm:express --from 4.0.0
 githits pkg changelog npm:express --to 4.18.0 --limit 5
-githits pkg changelog --repo-url https://github.com/expressjs/express --git-ref main
 githits pkg changelog npm:express --json
 githits pkg changelog pypi:requests --no-body --json       # lean timeline
 ```
 
-Fetches release notes or changelog entries for a package or public repository. Output preserves source ordering, which may interleave maintained release lines, and includes a summary header identifying the source (GitHub Releases, CHANGELOG.md, or HexDocs).
+Fetches release notes or changelog entries for a package. Output preserves source ordering, which may interleave maintained release lines, and includes a summary header identifying the source.
 
-**Addressing.** `<spec>` (`registry:name`, same parser as `pkg info` / `pkg vulns` / `pkg deps`) **or** `--repo-url <url>`, mutually exclusive. Unlike the other `pkg` commands, `pkg changelog` is intrinsically repo-level, so repo-URL addressing is a first-class peer mode.
+**Addressing.** Required `<spec>` in `registry:name`, `registry:name@version`, or `registry:name@from..to` form. Repository and site targets are rejected.
 
-**`<spec>@<version>` rejected.** `pkg vulns` and `pkg deps` both treat `@version` as "for this exact version", but `pkg changelog` has no single-version query: all entries live on a timeline. Remapping `@version` to `--to` would be a silent semantic shift. CLI rejects with `INVALID_ARGUMENT` and a hint pointing to `--to <version>` (or `--from <version>` for range mode).
+**Exact selected release.** `<spec>@<version>` selects one backend-resolved release, including prereleases. Missing concrete versions return `VERSION_NOT_FOUND`. A selected release without notes succeeds and says release notes are unavailable.
 
-**Two modes.** Latest mode is the default; `--limit <n>` (1–50, default 10) caps entry count. `--from <version>` switches to range mode — returns every entry after `--from` through `--to` (or latest), `(from, to]`, with no count cap. The lower bound is exclusive. `--to <version>` is an upper cap in either mode, not an exact-release lookup. `--from` + `--limit` together is rejected client-side with a hint.
+**Three modes.** Latest mode is the default; `--limit <n>` (1–50, default 10) caps entry count. `--from <version>` or an inline from bound switches to range mode — returns every entry after the from bound through `--to` (or latest), `(from, to]`, with no count cap. An upper-cap target or `--to` remains latest mode. `--from` + `--limit` together is rejected client-side with a hint. Inline exact pins reject `--from`, `--to`, and `--limit`.
 
-**Pre-release versions.** Normalised versions flow through unchanged (`5.0.0-rc.1`, `2.32.0.dev0`, `1.7.0-rc.5` round-trip cleanly on `--from` / `--to`). Tag-style `v`-prefixed inputs are rejected on any version flag, consistent with `pkg vulns` / `pkg deps`.
+**Pre-release versions.** Normalised versions flow through unchanged (`5.0.0-rc.1`, `2.32.0.dev0`, `1.7.0-rc.5`). Tag-style `v`-prefixed inputs are rejected except for Go canonicalisation and Swift.
 
-**Default terminal output.** Summary header (`name | registry | source | mode | entry count`) followed by each entry's `version  date  url` header plus the first 10 lines of its markdown body, indented and dimmed. Bodies longer than the cap show a footer `... (+N more lines - use --verbose for the full body)`. Missing dates render as `-`; missing versions render as `(unversioned)`. The version column is padded to the longest entry in the current response (no fixed width).
+**Default terminal output.** Summary header (`name | registry | source | mode | entry count`) followed by each entry's `version  date  url` header plus the first 10 lines of its markdown body, indented and dimmed. Bodies longer than the cap show a footer `... (+N more lines - use --verbose for the full body)`. Missing dates render as `-`; missing versions render as `(unversioned)`. Exact mode labels the resolved release, not the requested selector. Exact no-notes results say `Release notes are unavailable.`
 
 **`--verbose`.** Uncaps the body preview — every entry's full markdown body renders, indented and dimmed, with no truncation footer. Terminal-only — does not change `--json` output.
 
-**`--no-body`.** Drops body fields from entries. Affects both terminal output (no body preview, no footer) and `--json` (entry objects lose the `body` field). Mirrors MCP's `omit_bodies: true`. Default `--json` keeps full markdown bodies; use `--no-body` when you only need the version / date / URL timeline (drops 10 KB+ per entry on large release notes — measured 5.13× size reduction on `npm:typescript --limit 20`).
+**`--no-body`.** Drops body fields from entries. Affects both terminal output (no body preview, no footer) and `--json` (entry objects lose the `body` field). Mirrors MCP's `omit_bodies: true`. Default `--json` keeps full markdown bodies; use `--no-body` when you only need the version / date / URL timeline.
 
-**JSON envelope.** `{registry?, name?, repoUrl?, source, mode, entries: {count, items}, filter?}`. `source` is always present (the null-source case is promoted to `NOT_FOUND` at the service boundary and never reaches this shape). `entries.count` is computed client-side from `items.length`. `filter` emits only when the caller explicitly supplied one of `--from`, `--to`, `--limit`, `--git-ref`; backend defaults don't round-trip as caller intent.
+**JSON envelope.** `{registry?, name?, source?, mode, entries: {count, items}, filter?}`. `source` is omitted when the backend returned no concrete source. `entries.count` is computed client-side from `items.length`. `filter` emits only when the caller explicitly supplied one of `--from`, `--to`, `--limit`, or an exact version selector; backend defaults don't round-trip as caller intent. Exact mode adds `filter.version` and `hasChangelog` on the single entry.
 
-**Per-entry shape.** `{version, normalizedVersion?, publishedAt?, htmlUrl?, body?}`. `version` is kept even when null so agents can map `items.map(e => e.version)` without guarding; other nullable fields are stripped. The backend's opaque per-entry `metadata` GenericJSON is deliberately dropped from the envelope — revisit via agent feedback.
+**Per-entry shape.** `{version, normalizedVersion?, publishedAt?, htmlUrl?, body?, hasChangelog?}`. `version` is kept even when null so agents can map `items.map(e => e.version)` without guarding; other nullable fields are stripped. `hasChangelog` is exact-mode only.
 
-**Errors.** `NOT_FOUND` covers both the backend's "package not found" case and the distinct "package exists but no changelog source resolved" case (typed `PackageIntelligenceChangelogSourceNotFoundError`; message names the sources that were tried). `VERSION_NOT_FOUND` enriches with structured `package` / `requested` / `available` detail lines from the shared `promoteGenericVersionNotFound` helper — which was extended in this PR to recognise `--from` and `--to` as promotable version inputs.
+**Errors.** `NOT_FOUND` covers a missing package. Empty timeline selections and exact releases without notes are successful. `VERSION_NOT_FOUND` enriches with structured `package` / `requested` / `available` detail lines.
 
 **Troubleshooting.** Same debug areas as the rest of the `pkg` family.
 

@@ -35,6 +35,7 @@ export * from "./shared/list-package-docs-response.js";
 export * from "./shared/list-package-docs-text.js";
 export * from "./shared/package-changelog-request.js";
 export * from "./shared/package-changelog-response.js";
+export * from "./shared/package-changelog-target.js";
 export * from "./shared/package-dependencies-request.js";
 export * from "./shared/package-dependencies-response.js";
 export * from "./shared/package-intelligence-error-map.js";

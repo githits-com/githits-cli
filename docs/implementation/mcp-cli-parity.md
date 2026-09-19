@@ -693,26 +693,12 @@ When a new tool lands with both MCP and CLI surfaces:
 
 ### `pkg_changelog`
 
-- **Dual addressing — the only pkg-intel tool with it.** `registry`
-  + `package_name` XOR `repo_url` on both surfaces, because
-  `packageChangelog` is intrinsically repo-level.
-- **`<spec>@<version>` rejected.** Other `pkg` commands give
-  `@version` a meaning, but changelog has no single-version query
-  — remapping to `to_version` would be a client-invented semantic
-  shift. Both surfaces redirect callers to `--to` / `to_version`.
-- **Mode mutex enforced client-side.** `--from` / `from_version` +
-  `--limit` / `limit` together → `INVALID_ARGUMENT`.
-- **`filter.*` echo tracks explicit fields only.** Backend-default
-  values never round-trip as caller intent.
-- **`entries: { count, items }` shape.** Mirrors `runtime: {count,
-  items}` from `pkg_deps`.
-- **Missing source with entries succeeds.** Package-version entries can
-  arrive with null or empty `source` when no concrete changelog text
-  exists for that version. Both surfaces omit `source` in the success
-  envelope and keep the version entries. Missing source plus no entries
-  is promoted to `PackageIntelligenceChangelogSourceNotFoundError` with
-  a message naming the sources tried (GitHub Releases, CHANGELOG.md,
-  HexDocs).
+- **Package-only compact target.** MCP `target` and CLI positional spec accept `registry:name`, `@version`, and `@from..to`. Repository and site targets are rejected before network access. CLI `--from` / `--to` remain human-oriented flags on a bare spec.
+- **Exact selected release.** `@version` queries `packageInfo.selectedVersion.changelog` and returns one resolved release. Missing pins are `VERSION_NOT_FOUND`; no-notes releases succeed with `hasChangelog: false`.
+- **Mode mutex enforced client-side.** A from bound + `--limit` / `limit` together → `INVALID_ARGUMENT`. Exact pins also reject `limit`.
+- **`filter.*` echo tracks explicit fields only.** Backend-default values never round-trip as caller intent. Exact mode echoes `filter.version`.
+- **`entries: { count, items }` shape.** Mirrors `runtime: {count, items}` from `pkg_deps`.
+- **Empty selections succeed.** `source: null` plus no entries is a successful empty timeline, not `NOT_FOUND`.
 - **`--verbose` / `--no-body` / `--json` interaction.** Default
   terminal output truncates each entry's body at 10 lines.
   `--verbose` lifts the cap (terminal-only). `--no-body` mirrors

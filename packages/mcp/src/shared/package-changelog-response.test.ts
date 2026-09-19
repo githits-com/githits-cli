@@ -68,16 +68,13 @@ describe("buildPackageChangelogSuccessPayload — envelope shape", () => {
     });
   });
 
-  it("emits the repo-URL addressing shape when no registry/name are set", () => {
-    const envelope = buildPackageChangelogSuccessPayload(baseReport, {
-      ...baseOptions,
-      registry: undefined,
-      name: undefined,
-      repoUrl: "https://github.com/expressjs/express",
-    });
-    expect(envelope.registry).toBeUndefined();
-    expect(envelope.name).toBeUndefined();
-    expect(envelope.repoUrl).toBe("https://github.com/expressjs/express");
+  it("emits the package addressing shape", () => {
+    const envelope = buildPackageChangelogSuccessPayload(
+      baseReport,
+      baseOptions,
+    );
+    expect(envelope.registry).toBe("npm");
+    expect(envelope.name).toBe("express");
   });
 });
 
@@ -174,6 +171,34 @@ describe("buildPackageChangelogSuccessPayload — mode derivation", () => {
     expect(envelope.filter?.fromVersion).toBe("5.0.0");
   });
 
+  it("emits mode: 'exact' with filter.version and hasChangelog", () => {
+    const report: ChangelogReport = {
+      ...baseReport,
+      source: "releases",
+      entries: [
+        {
+          version: "5.2.1",
+          normalizedVersion: "5.2.1",
+          publishedAt: "2026-01-15T12:00:00Z",
+          htmlUrl: "https://github.com/expressjs/express/releases/tag/5.2.1",
+          body: "## Patch",
+          hasChangelog: true,
+        },
+      ],
+    };
+    const envelope = buildPackageChangelogSuccessPayload(report, {
+      ...baseOptions,
+      mode: "exact",
+      version: "^5.0.0",
+      explicitFilterFields: new Set(["version"]),
+    });
+    expect(envelope.mode).toBe("exact");
+    expect(envelope.filter?.version).toBe("^5.0.0");
+    expect(envelope.entries.items).toHaveLength(1);
+    expect(envelope.entries.items[0]?.version).toBe("5.2.1");
+    expect(envelope.entries.items[0]?.hasChangelog).toBe(true);
+  });
+
   it("emits mode: 'latest' otherwise", () => {
     const envelope = buildPackageChangelogSuccessPayload(
       baseReport,
@@ -211,13 +236,14 @@ describe("buildPackageChangelogSuccessPayload — filter echo", () => {
     expect(envelope.filter).toBeUndefined();
   });
 
-  it("echoes gitRef when caller set it", () => {
+  it("echoes version when caller set an exact selector", () => {
     const envelope = buildPackageChangelogSuccessPayload(baseReport, {
       ...baseOptions,
-      gitRef: "develop",
-      explicitFilterFields: new Set(["gitRef"]),
+      mode: "exact",
+      version: "5.2.1",
+      explicitFilterFields: new Set(["version"]),
     });
-    expect(envelope.filter?.gitRef).toBe("develop");
+    expect(envelope.filter?.version).toBe("5.2.1");
   });
 });
 
@@ -501,17 +527,58 @@ describe("formatPackageChangelogTerminal", () => {
     expect(output).toContain("(empty release notes)");
   });
 
-  it("uses the repo URL as identity in repo-URL addressing", () => {
-    const envelope = buildPackageChangelogSuccessPayload(baseReport, {
+  it("says release notes are unavailable for exact no-notes results", () => {
+    const report: ChangelogReport = {
+      ...baseReport,
+      source: "package_version",
+      entries: [
+        {
+          version: "5.2.1",
+          hasChangelog: false,
+        },
+      ],
+    };
+    const envelope = buildPackageChangelogSuccessPayload(report, {
       ...baseOptions,
-      registry: undefined,
-      name: undefined,
-      repoUrl: "https://github.com/expressjs/express",
+      mode: "exact",
+      version: "5.2.1",
+      explicitFilterFields: new Set(["version"]),
     });
     const output = formatPackageChangelogTerminal(envelope, {
       verbose: false,
       useColors: false,
     });
-    expect(output).toContain("https://github.com/expressjs/express");
+    expect(output).toContain("exact 5.2.1");
+    expect(output).toContain("Release notes are unavailable.");
+  });
+
+  it("labels exact text with the resolved release, not the requested selector", () => {
+    const report: ChangelogReport = {
+      ...baseReport,
+      source: "releases",
+      entries: [
+        {
+          version: "5.2.1",
+          normalizedVersion: "5.2.1",
+          publishedAt: "2026-01-15T12:00:00Z",
+          htmlUrl: "https://github.com/expressjs/express/releases/tag/5.2.1",
+          body: "## Patch",
+          hasChangelog: true,
+        },
+      ],
+    };
+    const envelope = buildPackageChangelogSuccessPayload(report, {
+      ...baseOptions,
+      mode: "exact",
+      version: "^5.0.0",
+      explicitFilterFields: new Set(["version"]),
+    });
+    const output = formatPackageChangelogTerminal(envelope, {
+      verbose: false,
+      useColors: false,
+    });
+    expect(envelope.filter?.version).toBe("^5.0.0");
+    expect(output).toContain("exact 5.2.1");
+    expect(output).not.toContain("exact ^5.0.0");
   });
 });

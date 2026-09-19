@@ -168,12 +168,13 @@ const DESCRIPTION_ROUTING: Record<
   pkg_changelog: {
     prefix: /^Find release notes and changelog history/,
     exactPrefix:
-      "Find release notes and changelog history for a package or public repository. Def",
+      "Find release notes and changelog history for a package. Default latest mode retu",
     body: [
-      "`(from_version, to_version]`",
-      "upper cap, not an exact-release lookup",
+      "`registry:name@version`",
+      "one selected release",
+      "Empty latest or range selections succeed",
     ],
-    absent: ["newest-first", "most recent", "one exact release"],
+    absent: ["newest-first", "most recent", "repo_url", "from_version"],
   },
   pkg_upgrade_review: {
     prefix: /^Review a package upgrade/,
@@ -397,6 +398,10 @@ describe("MCP compact target schemas", () => {
         "target",
       ],
     ],
+    [
+      "pkg_changelog",
+      ["body_lines", "format", "limit", "omit_bodies", "target", "verbose"],
+    ],
   ] as const)("%s exposes the compact target schema", (name, properties) => {
     const descriptor = getMcpToolDescriptors().find(
       (candidate) => candidate.name === name,
@@ -413,7 +418,15 @@ describe("MCP compact target schemas", () => {
     expect(schema.properties?.target, name).toMatchObject({
       type: "string",
     });
-    for (const coordinate of ["registry", "package_name", "version"]) {
+    for (const coordinate of [
+      "registry",
+      "package_name",
+      "version",
+      "repo_url",
+      "git_ref",
+      "from_version",
+      "to_version",
+    ]) {
       expect(
         schema.properties?.[coordinate],
         `${name}: ${coordinate}`,
