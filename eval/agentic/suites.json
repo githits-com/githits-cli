@@ -110,6 +110,12 @@
       "suites": ["stable-full"]
     },
     {
+      "id": "package-changelog-exact",
+      "path": "eval/agentic/workloads/package-changelog-exact.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
       "id": "package-changelog-range",
       "path": "eval/agentic/workloads/package-changelog-range.md",
       "safety": "stable",
