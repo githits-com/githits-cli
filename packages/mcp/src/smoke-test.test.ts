@@ -275,6 +275,7 @@ describe("runMcpSmoke", () => {
       "pkg_info",
       "pkg_vulns",
       "pkg_deps",
+      "pkg_changelog",
     ]);
     const compactPackageCalls = calls.filter(({ name }) =>
       compactPackageNames.has(name),
@@ -900,6 +901,20 @@ function smokeResponse(
   name: string,
   args: Record<string, unknown>,
 ): McpSmokeToolResult {
+  if (
+    name === "pkg_changelog" &&
+    typeof args.target === "string" &&
+    (args.target.startsWith("github:") || args.target.startsWith("site:"))
+  ) {
+    return errorResult(
+      "INVALID_ARGUMENT",
+      JSON.stringify({
+        error: "pkg_changelog is package-only",
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      }),
+    );
+  }
   if (args.format === "json") return smokeJsonResponse(name, args);
 
   switch (name) {
@@ -1069,6 +1084,14 @@ function smokeJsonResponse(
         },
       });
     case "pkg_changelog":
+      if (args.target === "npm:express@5.2.1") {
+        return jsonResult({
+          mode: "exact",
+          entries: {
+            items: [{ version: "5.2.1", hasChangelog: true }],
+          },
+        });
+      }
       return jsonResult({ entries: {} });
     case "pkg_upgrade_review":
       return jsonResult({ summary: {}, reviews: [{}] });

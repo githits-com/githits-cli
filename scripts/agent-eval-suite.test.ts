@@ -393,10 +393,10 @@ describe("agent eval suites", () => {
   it("loads the checked-in manifest with the exact workload inventory", () => {
     const manifest = loadSuiteManifest();
     expect(manifest.schemaVersion).toBe(1);
-    expect(manifest.workloads).toHaveLength(30);
+    expect(manifest.workloads).toHaveLength(31);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stable"),
-    ).toHaveLength(24);
+    ).toHaveLength(25);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stateful"),
     ).toHaveLength(1);
@@ -434,6 +434,7 @@ describe("agent eval suites", () => {
       "global-example",
       "opencode-compaction",
       "package-changelog",
+      "package-changelog-exact",
       "package-changelog-range",
       "package-dependencies",
       "package-overview-vulnerabilities",

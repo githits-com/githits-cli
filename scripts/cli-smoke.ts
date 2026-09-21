@@ -130,8 +130,7 @@ export const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     cliArgs: ["pkg", "changelog", "npm:express", "--limit", "1", "--json"],
     mcpTool: "pkg_changelog",
     mcpArgs: {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       limit: 1,
       format: "json",
     },
@@ -1762,6 +1761,24 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   );
   assertRecord(changelogJson, "pkg changelog json");
   assertRecord(changelogJson.entries, "pkg changelog json entries");
+
+  const changelogExact = assertJsonOutput(
+    await runCli(["pkg", "changelog", "npm:express@5.2.1", "--json"]),
+    "pkg changelog exact json",
+  );
+  assertRecord(changelogExact, "pkg changelog exact json");
+  assert(changelogExact.mode === "exact", "pkg changelog exact json mode");
+  const exactEntries = changelogExact.entries as
+    | { items?: Array<{ hasChangelog?: unknown; version?: unknown }> }
+    | undefined;
+  assert(
+    exactEntries?.items?.[0]?.version === "5.2.1",
+    "pkg changelog exact json resolved version",
+  );
+  assert(
+    typeof exactEntries?.items?.[0]?.hasChangelog === "boolean",
+    "pkg changelog exact json missing hasChangelog",
+  );
 
   const upgradeReviewText = assertTerminalOutput(
     await runCli([
