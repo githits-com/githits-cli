@@ -33,14 +33,15 @@ This guide owns shared policy; selected tools own call syntax and exceptions.
 
 For comparisons, combine relevant package/source evidence with examples as needed.
 
-Public OSS only; never send local/private/proprietary source. Packages use
-`registry:name[@version]` for an indexed artifact/manifest root; Swift uses
+Public OSS only; never send local/private/proprietary source. Package/repository
+patterns are `registry:name@version` and `github:owner/repo@ref`. Omit the
+suffix for the latest package version or repository default branch. Package
+targets scope to the package subpath, including in monorepos. Swift uses
 `swift:github.com/<owner>/<repo>`, Zig `zig:gh/<owner>/<repo>`.
 Use public repository targets for full repositories or sibling packages:
 `github:`, `codeberg:`, `gitlab:`, or a supported full URL. Never infer a provider.
-Revisions use `@ref` and may contain later `@` characters; `#` is reserved
-for semantic fragments, not revisions. Selected tools state supported forms
-and pin/ref restrictions.
+A ref may be a branch, tag, or commit and contain later `@`; `#` is for
+semantic fragments, not revisions.
 
 For a package or site docs topic, use `search` with `source:"docs"`.
 `docs_list` browses package pages, not standalone `site:` targets.

@@ -22,9 +22,13 @@ describe("searchTool", () => {
     const targetSchema = JSON.stringify(jsonSchema.properties?.target);
 
     expect(targetSchema).toContain("compact");
-    expect(targetSchema).toContain("npm:react");
-    expect(targetSchema).toContain("github:facebook/react");
+    expect(targetSchema).toContain("npm:react@version");
+    expect(targetSchema).toContain("github:facebook/react@ref");
     expect(targetSchema).toContain("site:react.dev");
+    expect(targetSchema).toContain(
+      "Omit the suffix for the latest package version or repository default branch",
+    );
+    expect(targetSchema).toContain("a ref may be a branch, tag, or commit");
     expect(descriptor?.description.slice(0, 80)).toBe(
       "Discover relevant docs, code, and symbols in a known public target. Start here f",
     );
@@ -606,7 +610,7 @@ describe("searchTool", () => {
     await tool.handler(
       {
         query: "router middleware",
-        target: "https://github.com/expressjs/express",
+        target: "github:expressjs/express",
       },
       {},
     );

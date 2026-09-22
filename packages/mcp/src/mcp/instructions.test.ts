@@ -23,9 +23,17 @@ describe("buildLocalMcpQuickStart", () => {
 
     expect(quickStart).toContain("swift:github.com/<owner>/<repo>");
     expect(quickStart).toContain("zig:gh/<owner>/<repo>");
-    expect(quickStart).toContain("artifact/manifest root");
+    expect(quickStart).toContain("package subpath, including in monorepos");
     expect(quickStart).toContain("public repository");
     expect(quickStart).toContain("full repositories or sibling packages");
+    expect(quickStart).toContain(
+      "patterns are `registry:name@version` and `github:owner/repo@ref`",
+    );
+    expect(quickStart).toContain(
+      "suffix for the latest package version or repository default branch",
+    );
+    expect(quickStart).not.toContain("[@version]");
+    expect(quickStart).not.toContain("[@ref]");
     expect(quickStart).toContain(
       "Use snippets when sufficient; otherwise follow generated",
     );

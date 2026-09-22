@@ -24,10 +24,17 @@ describe("createListFilesTool — metadata", () => {
     const jsonSchema = z.toJSONSchema(z.object(descriptor?.schema ?? {}));
     const targetSchema = JSON.stringify(jsonSchema.properties?.target);
 
-    expect(targetSchema).toContain("Compact package or repository target");
-    expect(targetSchema).toContain("npm:react");
-    expect(targetSchema).toContain("github:facebook/react@main");
-    expect(targetSchema).toContain("#` is reserved for semantic fragments");
+    expect(targetSchema).toContain("Compact target");
+    expect(targetSchema).toContain("npm:react@version");
+    expect(targetSchema).toContain("github:facebook/react@ref");
+    expect(targetSchema).toContain(
+      "Omit the suffix for the latest package version or repository default branch",
+    );
+    expect(targetSchema).toContain("a ref may be a branch, tag, or commit");
+    expect(targetSchema).toContain("#` is for semantic fragments");
+    expect(targetSchema).toContain(
+      "Package targets scope to the package subpath; repository targets cover the full repository",
+    );
     expect(descriptor?.description.slice(0, 80)).toBe(
       "List indexed files and paths in a public repo or package. Discover paths before ",
     );
