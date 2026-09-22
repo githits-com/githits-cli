@@ -19,14 +19,20 @@ describe("selector read presentation", () => {
     };
     const request = { target: "github:owner/repo@abc", selector: "main" };
     const text = formatSelectorRead(response, request, "mcp-text");
-    expect(text).toContain("source=symbol");
+    expect(text).toContain('"source":"symbol"');
     expect(text).toContain("start_line and end_line");
     expect(
       JSON.parse(formatSelectorRead(response, request, "mcp-json")),
     ).toMatchObject({
       status: "SNAPSHOT_UNSUPPORTED",
-      action: expect.stringContaining("source=symbol"),
+      action: expect.stringContaining('"source":"symbol"'),
     });
+    expect(formatSelectorRead(response, request, "cli-text")).toContain(
+      "--start N --end M",
+    );
+    expect(formatSelectorRead(response, request, "cli-text")).toContain(
+      "--source symbol",
+    );
     expect(formatSelectorRead(response, request, "mcp-json")).not.toContain(
       "__typename",
     );

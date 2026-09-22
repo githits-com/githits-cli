@@ -31,11 +31,17 @@ export function formatSelectorRead(
 ): string {
   if (response.source === "symbol_resolution") {
     const result = response.result;
+    const cli = format === "cli-text" || format === "cli-json";
+    const searchAction = cli
+      ? `githits search ${JSON.stringify(request.selector)} --in ${JSON.stringify(request.target)} --source symbol`
+      : `search({"query":${JSON.stringify(request.selector)},"target":${JSON.stringify(request.target)},"source":"symbol"})`;
     const action =
       result.status === "SNAPSHOT_UNSUPPORTED"
-        ? `Search for ${JSON.stringify(request.selector)} with source=symbol, then read the returned exact path with start_line and end_line.`
+        ? cli
+          ? `Use ${searchAction}, then githits read <target> <path> --start N --end M with the returned file and range.`
+          : `Use ${searchAction}, then read the returned exact path with start_line and end_line.`
         : result.status === "NOT_FOUND" && result.suggestions.length === 0
-          ? `Search ${JSON.stringify(request.target)} with source=symbol for a related name or inspect its indexed files.`
+          ? `Search related names with ${searchAction} or inspect the indexed files.`
           : undefined;
     const payload = {
       status: result.status,
