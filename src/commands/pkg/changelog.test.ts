@@ -22,6 +22,7 @@ describe("pkg changelog help", () => {
     expect(help).toContain("up to ten latest-mode entries");
     expect(help).toContain("Package-only");
     expect(help).toContain("Exclusive start of version range");
+    expect(help).toContain("Latest-mode or upper-cap entry count");
     expect(help).toContain("npm:express@5.2.1");
     expect(help).not.toContain("--repo-url");
     expect(help).not.toContain("--git-ref");

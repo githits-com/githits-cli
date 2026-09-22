@@ -5,6 +5,35 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.21.0] - 2026-09-22
+
+Minor release: makes package changelog lookup package-only and adopts compact
+targets for its MCP and CLI surfaces.
+
+### Changed
+
+- **Package-only changelog targets** - MCP `pkg_changelog` replaces `registry`, `package_name`, `repo_url`, `git_ref`, `from_version`, and `to_version` with one required `target` (`npm:express`, `npm:express@5.2.1`, or `npm:express@4.21.2..5.2.1`). CLI drops `--repo-url` and `--git-ref`, accepts the same package forms, and keeps `--from`/`--to` as package range flags. Exact pins return one selected release or `VERSION_NOT_FOUND`; empty timeline selections succeed instead of becoming `NOT_FOUND`.
+- **Clarify compact targets** - Agent guidance, CLI help, and MCP target schemas now explain suffix omission for latest-package/default-branch selection, distinguish package-subpath scope from full-repository scope, and state where changelog `limit` is accepted or rejected.
+
+MCP callers must refresh tool discovery and migrate `pkg_changelog` calls to
+the required compact `target`. CLI users must replace repository changelog
+lookups with package targets. Hosted clients receive these changes only after
+`@githits/mcp` adoption and deployment by `remote-mcp`.
+
+## [@githits/mcp 0.21.0] - 2026-09-22
+
+Minor release: makes package changelog lookup package-only and adopts its
+compact target schema.
+
+### Changed
+
+- **Package-only changelog targets** - MCP `pkg_changelog` replaces `registry`, `package_name`, `repo_url`, `git_ref`, `from_version`, and `to_version` with one required `target` (`npm:express`, `npm:express@5.2.1`, or `npm:express@4.21.2..5.2.1`). CLI drops `--repo-url` and `--git-ref`, accepts the same package forms, and keeps `--from`/`--to` as package range flags. Exact pins return one selected release or `VERSION_NOT_FOUND`; empty timeline selections succeed instead of becoming `NOT_FOUND`.
+- **Clarify compact targets** - Agent guidance, CLI help, and MCP target schemas now explain suffix omission for latest-package/default-branch selection, distinguish package-subpath scope from full-repository scope, and state where changelog `limit` is accepted or rejected.
+
+MCP callers must refresh tool discovery and migrate `pkg_changelog` calls to
+the required compact `target`. Hosted clients receive these changes only after
+package adoption and deployment by `remote-mcp`.
+
 ## [githits 0.20.0] - 2026-09-18
 
 Minor release: adopts compact canonical targets across four MCP package tools.

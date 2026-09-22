@@ -197,7 +197,10 @@ export function registerPkgChangelogCommand(pkgCommand: Command): Command {
       "Exclusive start of version range (enables range mode; disables --limit)",
     )
     .option("--to <version>", "End of range / latest-mode cap")
-    .option("--limit <n>", "Latest-mode entry count (1-50, default 10)")
+    .option(
+      "--limit <n>",
+      "Latest-mode or upper-cap entry count (1-50, default 10)",
+    )
     .option(
       "-v, --verbose",
       "Uncap the markdown body preview (default cap: 10 lines per entry)",
