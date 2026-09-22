@@ -21,7 +21,7 @@ import {
 import { CODE_READ_GUARDRAIL } from "./guardrails.js";
 import { readSourceFile } from "./read-file.js";
 import { readDocumentationPage } from "./read-package-doc.js";
-import { mcpMappedErrorResult } from "./shared.js";
+import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import type { McpToolServices } from "./tool-services.js";
 import {
   OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
@@ -160,10 +160,11 @@ export function createReadTool(
                 path: locator.path,
                 endLine: args.end_line,
               },
-              args.format === "json" ? "json" : "mcp-text",
+              args.format === "json" ? "mcp-json" : "mcp-text",
             ),
           );
         } catch (error) {
+          throwIfCallerCancellation(error, context?.signal);
           const docsError = mapPackageIntelligenceError(error);
           return mcpMappedErrorResult(
             docsError.code !== "UNKNOWN"

@@ -340,7 +340,7 @@ interface NormalisedReadRequest extends ReadParams {
 }
 
 function normaliseReadRequest(params: ReadParams): NormalisedReadRequest {
-  const path = params.path?.trim();
+  const path = params.path?.trim() || undefined;
   const prefix = /^([a-z][a-z0-9+.-]*):/.exec(params.target)?.[1];
   const repositoryPageLike = /^(?:github|gitlab|codeberg):.+@[^/]+\/.+/.test(
     params.target,

@@ -301,27 +301,32 @@ describe("ReadServiceImpl", () => {
     });
   });
 
-  it("accepts repository documentation page IDs despite their code-like prefix", async () => {
-    const fetchFn = mock(() =>
-      Promise.resolve(jsonResponse({ data: { read: docsResult() } })),
-    );
-    const service = new ReadServiceImpl(
-      ENDPOINT,
-      createMockTokenProvider(),
-      fetchFn as unknown as typeof fetch,
-    );
-    const target = "github:owner/repo@abc/docs/README.md";
-    const response = await service.read({
-      target,
-      selector: "intro",
-      waitTimeoutMs: 0,
-    });
-    expect(response.source).toBe("docs");
-    expect(readRequest(fetchFn).variables).toEqual({
-      target,
-      selector: "intro",
-    });
-  });
+  it.each([
+    "github:owner/repo@abc/docs/README.md",
+    "github:owner/repo@release/1.x",
+  ])(
+    "gives slash-bearing repository IDs docs precedence: %s",
+    async (target) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(jsonResponse({ data: { read: docsResult() } })),
+      );
+      const service = new ReadServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        fetchFn as unknown as typeof fetch,
+      );
+      const response = await service.read({
+        target,
+        selector: "intro",
+        waitTimeoutMs: 0,
+      });
+      expect(response.source).toBe("docs");
+      expect(readRequest(fetchFn).variables).toEqual({
+        target,
+        selector: "intro",
+      });
+    },
+  );
   it("sends one compact code read with the exact effective variables and fields", async () => {
     const fetchFn = mock(() =>
       Promise.resolve(jsonResponse({ data: { read: codeResult() } })),

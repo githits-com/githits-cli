@@ -65,6 +65,71 @@ describe("top-level read", () => {
       log.mockRestore();
     }
   });
+
+  it("rejects --git-ref with a positional selector target", async () => {
+    const services = deps();
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    try {
+      await expect(
+        readAction(
+          "github:owner/repo",
+          undefined,
+          {
+            selector: "main",
+            gitRef: "release/v1",
+            json: true,
+          },
+          services,
+        ),
+      ).rejects.toThrow("exit");
+      expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+      expect(services.readService.read).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+      exit.mockRestore();
+    }
+  });
+
+  it("keeps complete selected code in CLI JSON output", async () => {
+    const services = deps();
+    const content = Array.from(
+      { length: 400 },
+      (_, index) => `line ${index + 1}`,
+    ).join("\n");
+    services.readService.read = mock(() =>
+      Promise.resolve({
+        source: "code" as const,
+        result: {
+          filePath: "src/big.ts",
+          startLine: 1,
+          endLine: 400,
+          totalLines: 400,
+          content,
+          isBinary: false,
+        },
+      }),
+    );
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await readAction(
+        "github:owner/repo@abc",
+        undefined,
+        { selector: "BigClass", json: true },
+        services,
+      );
+      const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
+      expect(payload.content).toContain("line 400");
+      expect(payload.endLine).toBe(400);
+      expect(payload.hint).toBeUndefined();
+    } finally {
+      log.mockRestore();
+    }
+  });
   it("registers new syntax and marks legacy commands deprecated in help", () => {
     const root = new Command();
     const read = registerReadCommand(root);

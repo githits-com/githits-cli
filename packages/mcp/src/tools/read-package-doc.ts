@@ -1,7 +1,10 @@
 import type { PackageIntelligenceService } from "@githits/core-internal";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { buildReadPackageDocParams } from "../shared/read-package-doc-request.js";
-import { buildReadPackageDocSuccessPayload } from "../shared/read-package-doc-response.js";
+import {
+  buildReadPackageDocContinuationHint,
+  buildReadPackageDocSuccessPayload,
+} from "../shared/read-package-doc-response.js";
 import { renderReadPackageDocText } from "../shared/read-package-doc-text.js";
 import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
@@ -51,7 +54,7 @@ export async function readDocumentationPage(
       result.contentRange.endLine !== undefined &&
       payload.endLine < result.contentRange.endLine
     ) {
-      payload.hint = buildContinuationHint(
+      payload.hint = buildReadPackageDocContinuationHint(
         payload.pageId,
         payload.endLine + 1,
         result.contentRange.endLine,
@@ -69,17 +72,4 @@ export async function readDocumentationPage(
 
 function isTextFormat(format: ReadPackageDocArgs["format"]): boolean {
   return format === undefined || format === "text";
-}
-
-function buildContinuationHint(
-  pageId: string,
-  nextStartLine: number,
-  backendEndLine: number,
-  maxOutputLines: number,
-): string {
-  const nextEndLine = Math.min(
-    backendEndLine,
-    nextStartLine + maxOutputLines - 1,
-  );
-  return `Continue with read target=${JSON.stringify(pageId)} start_line=${nextStartLine} end_line=${nextEndLine}.`;
 }

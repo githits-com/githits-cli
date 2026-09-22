@@ -17,6 +17,9 @@ validation. A nonempty `path` scopes code to one exact target-relative file.
 Without `selector`, that path reads the file and a pathless target remains an
 opaque documentation locator. With `selector`, a compact package/repository target
 selects an indexed code symbol and a documentation target selects a logical heading.
+Compact repository refs containing `/` can resemble repository documentation
+page IDs, which take precedence; supply an exact `path` or use the full provider
+HTTPS repository URL to select code at such a ref.
 Empty optional paths count as omitted. Preserve docs
 target bytes, including URL query strings, percent encoding, fragments, and pinned
 repository locators. Never infer the source from URL host or file extension, or
@@ -36,7 +39,8 @@ strings, matching `code_files` and `code_grep`. Existing target parsers still ow
 package/provider syntax and exact Git revision handling.
 
 The tool in `packages/mcp/src/tools/read.ts` injects `ReadService` and calls its
-`read` method once. The service returns a semantic code/docs union, and the
+`read` method once. The service returns code, docs, or typed code-resolution
+outcomes, and the
 existing source-specific payload builders, formatters, and error mapping remain
 in place. CLI uses the same locator interpretation but its own actions,
 retaining complete, content-only output for pipes. JSON result models remain

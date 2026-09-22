@@ -12,10 +12,14 @@ import {
   parseLinesOption,
   requireAuth,
   resolveReadLocator,
+  shouldUseColors,
   validateReadRange,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
+import { recordCliErrorClassification } from "../shared/cli-error-diagnostics.js";
+import { startSpinner } from "../shared/spinner.js";
+import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
 import {
   handleCodeNavCommandError,
   parseIntCliOption,
@@ -60,6 +64,11 @@ export async function readAction(
       const selector = options.selector;
       if (!selector.trim())
         throw new InvalidPackageSpecError("--selector must be nonblank.");
+      if (!options.repoUrl && options.gitRef !== undefined) {
+        throw new InvalidPackageSpecError(
+          "Provide either a compact target or --repo-url with optional --git-ref, not both.",
+        );
+      }
       const target = options.repoUrl
         ? `${options.repoUrl}${options.gitRef ? `@${options.gitRef}` : ""}`
         : (firstArg ?? "");
@@ -93,16 +102,19 @@ export async function readAction(
       const wait = normalizeReadWaitTimeoutMs(
         parseIntCliOption(options.wait, "--wait", 0, MAX_WAIT_TIMEOUT_MS),
       );
-      const response = await deps.readService.read({
-        target: locator.target,
-        ...(locator.path ? { path: locator.path } : {}),
-        selector,
-        ...(range.startLine !== undefined
-          ? { startLine: range.startLine }
-          : {}),
-        ...(range.endLine !== undefined ? { endLine: range.endLine } : {}),
-        waitTimeoutMs: wait,
-      });
+      const spinner = startSpinner(SPINNER_MESSAGES.code, !options.json);
+      const response = await deps.readService
+        .read({
+          target: locator.target,
+          ...(locator.path ? { path: locator.path } : {}),
+          selector,
+          ...(range.startLine !== undefined
+            ? { startLine: range.startLine }
+            : {}),
+          ...(range.endLine !== undefined ? { endLine: range.endLine } : {}),
+          waitTimeoutMs: wait,
+        })
+        .finally(() => spinner.stop());
       const rendered = formatSelectorRead(
         response,
         {
@@ -110,8 +122,10 @@ export async function readAction(
           selector,
           path: locator.path,
           verbose: options.verbose,
+          useColors: shouldUseColors(),
+          endLine: range.endLine,
         },
-        options.json ? "json" : "cli-text",
+        options.json ? "cli-json" : "cli-text",
       );
       if (options.json) console.log(rendered);
       else process.stdout.write(rendered);
@@ -122,6 +136,11 @@ export async function readAction(
         docsError.code !== "UNKNOWN"
           ? docsError
           : mapCodeNavigationError(error);
+      recordCliErrorClassification(
+        docsError.code !== "UNKNOWN" ? "pkg-intel" : "code-nav",
+        error,
+        mapped,
+      );
       if (options.json)
         console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
       else console.error(formatMappedErrorForTerminal(mapped));

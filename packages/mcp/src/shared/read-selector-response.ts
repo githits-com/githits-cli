@@ -1,11 +1,16 @@
 import type { ReadResult } from "@githits/core-internal";
 import {
+  MCP_READ_DEFAULT_SPAN,
+  MCP_READ_MAX_SPAN,
+} from "./code-navigation-defaults.js";
+import {
   buildReadFileSuccessPayload,
   formatReadFileTerminal,
   splitReadFileContentLines,
 } from "./read-file-response.js";
 import { renderReadFileText } from "./read-file-text.js";
 import {
+  buildReadPackageDocContinuationHint,
   buildReadPackageDocSuccessPayload,
   formatReadPackageDocTerminal,
 } from "./read-package-doc-response.js";
@@ -20,22 +25,33 @@ export function formatSelectorRead(
     path?: string;
     endLine?: number;
     verbose?: boolean;
+    useColors?: boolean;
   },
-  format: "mcp-text" | "cli-text" | "json",
+  format: "mcp-text" | "mcp-json" | "cli-text" | "cli-json",
 ): string {
   if (response.source === "symbol_resolution") {
     const result = response.result;
+    const action =
+      result.status === "SNAPSHOT_UNSUPPORTED"
+        ? `Search for ${JSON.stringify(request.selector)} with source=symbol, then read the returned exact path with start_line and end_line.`
+        : result.status === "NOT_FOUND" && result.suggestions.length === 0
+          ? `Search ${JSON.stringify(request.target)} with source=symbol for a related name or inspect its indexed files.`
+          : undefined;
     const payload = {
-      ...result,
+      status: result.status,
+      candidates: result.candidates,
+      suggestions: result.suggestions,
+      hasMore: result.hasMore,
+      repoUrl: result.repoUrl,
+      gitRef: result.gitRef,
+      codeIndexState: result.codeIndexState,
+      ...(result.message ? { message: result.message } : {}),
       target: request.target,
       selector: request.selector,
-      ...(result.status === "SNAPSHOT_UNSUPPORTED"
-        ? {
-            action: `Search for ${JSON.stringify(request.selector)} with source=symbol, then read the returned exact path with start_line and end_line.`,
-          }
-        : {}),
+      ...(action ? { action } : {}),
     };
-    if (format === "json") return JSON.stringify(payload);
+    if (format === "mcp-json" || format === "cli-json")
+      return JSON.stringify(payload);
     const lines = [
       `${result.status}: ${request.selector}`,
       `Repository: ${result.repoUrl}@${result.gitRef}`,
@@ -55,7 +71,7 @@ export function formatSelectorRead(
       lines.push(
         "More matches exist; narrow with an exact path or qualified selector.",
       );
-    if (result.status === "SNAPSHOT_UNSUPPORTED") lines.push(payload.action!);
+    if (action) lines.push(action);
     return lines.join("\n") + "\n";
   }
   if (response.source === "code") {
@@ -68,11 +84,14 @@ export function formatSelectorRead(
       requestedFilePath: request.path ?? "",
     });
     if (
-      format !== "cli-text" &&
+      (format === "mcp-text" || format === "mcp-json") &&
       payload.content &&
       payload.startLine !== undefined
     ) {
-      const maxLines = request.endLine === undefined ? 150 : 300;
+      const maxLines =
+        request.endLine === undefined
+          ? MCP_READ_DEFAULT_SPAN
+          : MCP_READ_MAX_SPAN;
       const lines = splitReadFileContentLines(payload);
       if (lines.length > maxLines) {
         payload.content = lines.slice(0, maxLines).join("\n");
@@ -80,10 +99,11 @@ export function formatSelectorRead(
         payload.hint = `Continue with read target=${JSON.stringify(request.target)} path=${JSON.stringify(payload.path)} start_line=${payload.endLine + 1}.`;
       }
     }
-    if (format === "json") return JSON.stringify(payload);
+    if (format === "mcp-json" || format === "cli-json")
+      return JSON.stringify(payload);
     return format === "cli-text"
       ? formatReadFileTerminal(payload, {
-          useColors: false,
+          useColors: request.useColors ?? false,
           verbose: request.verbose,
         })
       : renderReadFileText(payload);
@@ -91,8 +111,8 @@ export function formatSelectorRead(
   const maxOutputLines =
     format === "mcp-text"
       ? request.endLine === undefined
-        ? 150
-        : 300
+        ? MCP_READ_DEFAULT_SPAN
+        : MCP_READ_MAX_SPAN
       : undefined;
   const payload = buildReadPackageDocSuccessPayload(
     response.result,
@@ -105,12 +125,18 @@ export function formatSelectorRead(
     response.result.contentRange.endLine !== undefined &&
     payload.endLine < response.result.contentRange.endLine
   ) {
-    payload.hint = `Continue with read target=${JSON.stringify(request.target)} start_line=${payload.endLine + 1} end_line=${Math.min(response.result.contentRange.endLine, payload.endLine + maxOutputLines)}.`;
+    payload.hint = buildReadPackageDocContinuationHint(
+      request.target,
+      payload.endLine + 1,
+      response.result.contentRange.endLine,
+      maxOutputLines,
+    );
   }
-  if (format === "json") return JSON.stringify(payload);
+  if (format === "mcp-json" || format === "cli-json")
+    return JSON.stringify(payload);
   return format === "cli-text"
     ? formatReadPackageDocTerminal(payload, {
-        useColors: false,
+        useColors: request.useColors ?? false,
         verbose: request.verbose,
       })
     : renderReadPackageDocText(payload);

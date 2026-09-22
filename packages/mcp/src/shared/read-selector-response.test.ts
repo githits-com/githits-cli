@@ -22,11 +22,17 @@ describe("selector read presentation", () => {
     expect(text).toContain("source=symbol");
     expect(text).toContain("start_line and end_line");
     expect(
-      JSON.parse(formatSelectorRead(response, request, "json")),
+      JSON.parse(formatSelectorRead(response, request, "mcp-json")),
     ).toMatchObject({
       status: "SNAPSHOT_UNSUPPORTED",
       action: expect.stringContaining("source=symbol"),
     });
+    expect(formatSelectorRead(response, request, "mcp-json")).not.toContain(
+      "__typename",
+    );
+    expect(formatSelectorRead(response, request, "mcp-json")).not.toContain(
+      '"message":null',
+    );
   });
 
   it("caps MCP symbol content with a precise continuation while CLI retains it", () => {
@@ -55,18 +61,23 @@ describe("selector read presentation", () => {
       },
     };
     const request = { target: "github:owner/repo@abc", selector: "main" };
-    const mcp = JSON.parse(formatSelectorRead(response, request, "json"));
+    const mcp = JSON.parse(formatSelectorRead(response, request, "mcp-json"));
     expect(mcp.endLine).toBe(206);
     expect(mcp.content).not.toContain("line 151");
     expect(mcp.hint).toContain('path="eval/run.ts" start_line=207');
     expect(formatSelectorRead(response, request, "cli-text")).toContain(
       "line 185",
     );
+    const cliJson = JSON.parse(
+      formatSelectorRead(response, request, "cli-json"),
+    );
+    expect(cliJson.content).toContain("line 185");
+    expect(cliJson.endLine).toBe(241);
     expect(
       formatSelectorRead(response, { ...request, verbose: true }, "cli-text"),
     ).toContain("57  line 1");
     expect(
-      JSON.parse(formatSelectorRead(response, request, "json")),
+      JSON.parse(formatSelectorRead(response, request, "mcp-json")),
     ).toMatchObject({
       repoUrl: "https://github.com/owner/repo",
       gitRef: "abc",
