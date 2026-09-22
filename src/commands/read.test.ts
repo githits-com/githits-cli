@@ -1,4 +1,4 @@
-import { describe, expect, it, spyOn } from "bun:test";
+import { describe, expect, it, mock, spyOn } from "bun:test";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import { Command } from "commander";
 import {
@@ -26,6 +26,45 @@ function deps(): ReadCommandDependencies {
 }
 
 describe("top-level read", () => {
+  it("renders typed selector misses and forwards exact path", async () => {
+    const services = deps();
+    services.readService.read = mock(() =>
+      Promise.resolve({
+        source: "symbol_resolution" as const,
+        result: {
+          status: "NOT_FOUND" as const,
+          candidates: [],
+          suggestions: [],
+          hasMore: false,
+          repoUrl: "https://github.com/githits-com/githits-cli",
+          gitRef: "abc",
+          message: null,
+          codeIndexState: "CURRENT",
+        },
+      }),
+    );
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await readAction(
+        "github:githits-com/githits-cli@abc",
+        "src/container.ts",
+        { selector: "main", json: true },
+        services,
+      );
+      expect(services.readService.read).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: "src/container.ts",
+          selector: "main",
+        }),
+      );
+      expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+        status: "NOT_FOUND",
+        selector: "main",
+      });
+    } finally {
+      log.mockRestore();
+    }
+  });
   it("registers new syntax and marks legacy commands deprecated in help", () => {
     const root = new Command();
     const read = registerReadCommand(root);

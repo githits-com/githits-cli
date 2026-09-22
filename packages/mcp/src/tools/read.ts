@@ -6,12 +6,14 @@ import {
   MCP_READ_MAX_SPAN,
 } from "../shared/code-navigation-defaults.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
+import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { InvalidPackageSpecError } from "../shared/package-spec.js";
 import {
   normalizeReadWaitTimeoutMs,
   resolveReadLocator,
   validateReadRange,
 } from "../shared/read-request.js";
+import { formatSelectorRead } from "../shared/read-selector-response.js";
 import {
   createReadFileServiceAdapter,
   createReadPackageDocServiceAdapter,
@@ -24,12 +26,14 @@ import type { McpToolServices } from "./tool-services.js";
 import {
   OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
+  textResult,
   type ZodRawShape,
 } from "./types.js";
 
 export interface ReadArgs {
   target: string;
   path?: string;
+  selector?: string;
   start_line?: number;
   end_line?: number;
   wait_timeout_ms?: number;
@@ -39,6 +43,7 @@ export interface ReadArgs {
 interface ReadSchema extends ZodRawShape {
   target: z.ZodString;
   path: z.ZodOptional<z.ZodString>;
+  selector: z.ZodOptional<z.ZodString>;
   start_line: z.ZodOptional<z.ZodNumber>;
   end_line: z.ZodOptional<z.ZodNumber>;
   wait_timeout_ms: z.ZodOptional<z.ZodNumber>;
@@ -49,13 +54,19 @@ export const readSchema: ReadSchema = {
   target: z
     .string()
     .describe(
-      "With path: compact package or repo target, e.g. npm:react@18 or github:owner/repo@ref. Without path: emitted docsReadTarget or page ID; pass unchanged, including URL fragments.",
+      "With path: compact package or repo target, e.g. npm:react@18 or github:owner/repo@ref. Without path: docs target/page ID, or a compact code target when selector is set. Preserve docs URLs and fragments unchanged.",
     ),
   path: z
     .string()
     .optional()
     .describe(
       "Exact package/repo-relative file path from search, code_files or code_grep. Omit for documentation pages; empty means omitted.",
+    ),
+  selector: z
+    .string()
+    .optional()
+    .describe(
+      "Logical docs heading ID or indexed code symbol. With path, search exactly that file; omit path to search the code target. Do not combine with a docs URL fragment.",
     ),
   start_line: z
     .number()
@@ -84,8 +95,8 @@ export const readSchema: ReadSchema = {
 };
 
 export const DESCRIPTION_BASE: string =
-  "Read an indexed source file or documentation page, including a docs section. " +
-  "Pass target and path for a file; target alone for a docs page. " +
+  "Read an indexed source file, code symbol, or documentation section. " +
+  "Pass target and path for a file; use selector for a code symbol or docs heading. " +
   "Replaces code_read and docs_read. " +
   "Hosted/crawled HTTP(S) docs targets read mutable current content; repository-doc targets address snapshots. " +
   "A docs URL fragment needs no bounds and returns its heading with the full subtree through the next equal-or-higher heading; either bound replaces it with a page-relative range. " +
@@ -108,6 +119,14 @@ export function createReadTool(
       let wait: number;
       try {
         locator = resolveReadLocator(args.target, args.path);
+        if (
+          args.selector !== undefined &&
+          (typeof args.selector !== "string" || !args.selector.trim())
+        ) {
+          throw new InvalidPackageSpecError(
+            "selector must be a nonblank string.",
+          );
+        }
         validateReadRange(args.start_line, args.end_line);
         wait = normalizeReadWaitTimeoutMs(args.wait_timeout_ms);
         if (
@@ -119,6 +138,40 @@ export function createReadTool(
         }
       } catch (error) {
         return mcpMappedErrorResult(mapCodeNavigationError(error), context);
+      }
+      if (args.selector !== undefined) {
+        try {
+          const response = await services.readService.read({
+            target: locator.target,
+            ...(locator.path ? { path: locator.path } : {}),
+            selector: args.selector,
+            ...(args.start_line !== undefined
+              ? { startLine: args.start_line }
+              : {}),
+            ...(args.end_line !== undefined ? { endLine: args.end_line } : {}),
+            waitTimeoutMs: wait,
+          });
+          return textResult(
+            formatSelectorRead(
+              response,
+              {
+                target: locator.target,
+                selector: args.selector,
+                path: locator.path,
+                endLine: args.end_line,
+              },
+              args.format === "json" ? "json" : "mcp-text",
+            ),
+          );
+        } catch (error) {
+          const docsError = mapPackageIntelligenceError(error);
+          return mcpMappedErrorResult(
+            docsError.code !== "UNKNOWN"
+              ? docsError
+              : mapCodeNavigationError(error),
+            context,
+          );
+        }
       }
       if (locator.path !== undefined) {
         return readSourceFile(

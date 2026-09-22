@@ -205,6 +205,41 @@ export const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     },
   },
   {
+    name: "read_selector_code_miss",
+    cliArgs: [
+      "read",
+      "github:githits-com/githits-cli@af1ae5d1f9eb02a0d3a7968e69df0c41bcc2f4a5",
+      "src/container.ts",
+      "--selector",
+      "main",
+      "--json",
+    ],
+    mcpTool: "read",
+    mcpArgs: {
+      target:
+        "github:githits-com/githits-cli@af1ae5d1f9eb02a0d3a7968e69df0c41bcc2f4a5",
+      path: "src/container.ts",
+      selector: "main",
+      format: "json",
+    },
+  },
+  {
+    name: "read_selector_docs",
+    cliArgs: [
+      "read",
+      "https://expressjs.com/llms/api-5x.txt",
+      "--selector",
+      "expressjson",
+      "--json",
+    ],
+    mcpTool: "read",
+    mcpArgs: {
+      target: "https://expressjs.com/llms/api-5x.txt",
+      selector: "expressjson",
+      format: "json",
+    },
+  },
+  {
     name: "code_grep",
     cliArgs: [
       "code",
@@ -1046,6 +1081,7 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
 
     for (const args of [
       ["read", SMOKE_PACKAGE_SPEC, "package.json"],
+      ["read", SMOKE_PACKAGE_SPEC, "--selector", "main"],
       ["read", "https://docs.example.test/guide#section"],
       ["code", "read", SMOKE_PACKAGE_SPEC, "package.json"],
       ["docs", "read", "docs-id"],

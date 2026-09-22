@@ -101,13 +101,13 @@ const DESCRIPTION_ROUTING: Record<
   },
   read: {
     prefix:
-      /^Read an indexed source file or documentation page, including a docs section\./,
+      /^Read an indexed source file, code symbol, or documentation section\./,
     exactPrefix:
-      "Read an indexed source file or documentation page, including a docs section. Pas",
+      "Read an indexed source file, code symbol, or documentation section. Pass target ",
     body: [
       "use code_files",
       "search/code_grep",
-      "target and path for a file; target alone for a docs page",
+      "target and path for a file; use selector for a code symbol or docs heading",
       "Hosted/crawled HTTP(S) docs targets read mutable current content",
       "repository-doc targets address snapshots",
       "A docs URL fragment needs no bounds",
@@ -303,10 +303,10 @@ describe("MCP tool description catalog", () => {
     )?.description;
     expect(readDescription).toBeDefined();
     expect(readDescription?.slice(0, 79)).toBe(
-      "Read an indexed source file or documentation page, including a docs section. Pa",
+      "Read an indexed source file, code symbol, or documentation section. Pass target",
     );
     expect(readDescription?.slice(0, 80)).toBe(
-      "Read an indexed source file or documentation page, including a docs section. Pas",
+      "Read an indexed source file, code symbol, or documentation section. Pass target ",
     );
 
     const searchSchema = z.toJSONSchema(

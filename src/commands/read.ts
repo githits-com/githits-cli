@@ -3,11 +3,16 @@ import {
   createReadFileServiceAdapter,
   createReadPackageDocServiceAdapter,
   DEFAULT_WAIT_TIMEOUT_MS,
+  formatSelectorRead,
   InvalidPackageSpecError,
   MAX_WAIT_TIMEOUT_MS,
+  mapCodeNavigationError,
+  mapPackageIntelligenceError,
   normalizeReadWaitTimeoutMs,
+  parseLinesOption,
   requireAuth,
   resolveReadLocator,
+  validateReadRange,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
@@ -24,7 +29,10 @@ import {
   type DocsReadCommandDependencies,
   docsReadAction,
 } from "./docs/read.js";
-import { formatMappedErrorForTerminal } from "./format-mapped-error.js";
+import {
+  buildCliMappedErrorPayload,
+  formatMappedErrorForTerminal,
+} from "./format-mapped-error.js";
 
 export interface ReadCommandDependencies
   extends PkgReadCommandDependencies,
@@ -45,6 +53,80 @@ export async function readAction(
     if (options.json)
       handleCodeNavCommandError(error, true, formatMappedErrorForTerminal);
     throw error;
+  }
+
+  if (options.selector !== undefined) {
+    try {
+      const selector = options.selector;
+      if (!selector.trim())
+        throw new InvalidPackageSpecError("--selector must be nonblank.");
+      const target = options.repoUrl
+        ? `${options.repoUrl}${options.gitRef ? `@${options.gitRef}` : ""}`
+        : (firstArg ?? "");
+      const path = options.repoUrl ? firstArg : secondArg;
+      const locator = resolveReadLocator(target, path);
+      if (
+        options.lines !== undefined &&
+        (options.start !== undefined || options.end !== undefined)
+      ) {
+        throw new InvalidPackageSpecError(
+          "Use --lines or --start / --end, not both.",
+        );
+      }
+      const range = options.lines
+        ? parseLinesOption(options.lines)
+        : {
+            startLine: parseIntCliOption(
+              options.start,
+              "--start",
+              1,
+              Number.MAX_SAFE_INTEGER,
+            ),
+            endLine: parseIntCliOption(
+              options.end,
+              "--end",
+              1,
+              Number.MAX_SAFE_INTEGER,
+            ),
+          };
+      validateReadRange(range.startLine, range.endLine);
+      const wait = normalizeReadWaitTimeoutMs(
+        parseIntCliOption(options.wait, "--wait", 0, MAX_WAIT_TIMEOUT_MS),
+      );
+      const response = await deps.readService.read({
+        target: locator.target,
+        ...(locator.path ? { path: locator.path } : {}),
+        selector,
+        ...(range.startLine !== undefined
+          ? { startLine: range.startLine }
+          : {}),
+        ...(range.endLine !== undefined ? { endLine: range.endLine } : {}),
+        waitTimeoutMs: wait,
+      });
+      const rendered = formatSelectorRead(
+        response,
+        {
+          target: locator.target,
+          selector,
+          path: locator.path,
+          verbose: options.verbose,
+        },
+        options.json ? "json" : "cli-text",
+      );
+      if (options.json) console.log(rendered);
+      else process.stdout.write(rendered);
+      return;
+    } catch (error) {
+      const docsError = mapPackageIntelligenceError(error);
+      const mapped =
+        docsError.code !== "UNKNOWN"
+          ? docsError
+          : mapCodeNavigationError(error);
+      if (options.json)
+        console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
+      else console.error(formatMappedErrorForTerminal(mapped));
+      process.exit(1);
+    }
   }
 
   // Explicit repo mode keeps the existing single-path positional contract.
@@ -108,6 +190,10 @@ export function registerReadCommand(program: Command): Command {
     .argument("[path]", "Exact file path within the package or repository")
     .option("--repo-url <url>", "Repository URL addressing")
     .option("--git-ref <ref>", "Git ref for --repo-url (code only)")
+    .option(
+      "--selector <name>",
+      "Code symbol or logical documentation heading ID",
+    )
     .option("--lines <range>", "Inclusive line range, e.g. 10-40, 10-, or -40")
     .option("--start <n>", "Starting line (code only; alternative to --lines)")
     .option("--end <n>", "Ending line (code only; alternative to --lines)")
