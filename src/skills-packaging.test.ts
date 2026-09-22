@@ -90,7 +90,7 @@ describe("agent skills packaging", () => {
       expectContainsAll(content, [
         "swift:github.com/<owner>/<repo>",
         "zig:gh/<owner>/<repo>",
-        "artifact/manifest root",
+        "package subpath",
         "public repository",
         "full repositories or sibling packages",
       ]);
