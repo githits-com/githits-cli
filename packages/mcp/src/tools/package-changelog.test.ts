@@ -28,6 +28,9 @@ describe("createPackageChangelogTool — metadata", () => {
       "registry:name[@version|@from..to]",
     );
     expect(tool.schema.target?.description).toContain("Package-only");
+    expect(tool.schema.limit?.description).toContain(
+      "Do not pass with exact `@version`, closed `@from..to`, or lower-open `@from..` targets",
+    );
     expect(tool.schema.format?.description).toContain(
       "Set `json` only when code consumes",
     );

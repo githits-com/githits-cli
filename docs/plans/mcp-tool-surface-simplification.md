@@ -1168,7 +1168,15 @@ Authenticated `scripts/mcp-call.ts` against development: latest `npm:express`
 `npm:express@4.21.2..5.2.1` is `mode:range` with exclusive-start membership;
 `npm:express@5.2.1..5.2.1` is empty success (`count: 0`, no `source`);
 `github:expressjs/express` is client `INVALID_ARGUMENT`. Descriptor-only agent
-evals are still outstanding.
+evals completed during release preparation on 2026-09-22. Claude used the exact
+compact target directly. Its first range run incorrectly combined `limit` with
+`@from..to`; the `limit` schema now names every incompatible compact form, and
+the rerun used `npm:express@4.17.0..4.18.2` without an invalid call or retry.
+Codex intent-mode runs used the correct exact and range targets without
+structured-coordinate retries. Codex neutral-discovery runs instead chose its
+built-in web search and made no GitHits calls; preserve that qualitative routing
+limitation rather than counting the harness's successful final answers as GitHits
+tool-use evidence.
 
 ##### Phase 2b acceptance criteria
 

@@ -43,7 +43,7 @@ const schema: ZodRawShape = {
     .number()
     .optional()
     .describe(
-      "Latest-mode and upper-cap count (1-50, default 10). Rejected for a selected-release or lower-bound range target.",
+      "Latest-mode and upper-cap (`@..to`) count (1-50, default 10). Do not pass with exact `@version`, closed `@from..to`, or lower-open `@from..` targets.",
     ),
   omit_bodies: z
     .boolean()
