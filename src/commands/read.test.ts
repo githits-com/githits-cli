@@ -95,6 +95,35 @@ describe("top-level read", () => {
     }
   });
 
+  it("rejects two paths in selector --repo-url mode", async () => {
+    const services = deps();
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    try {
+      await expect(
+        readAction(
+          "first.ts",
+          "second.ts",
+          {
+            repoUrl: "https://github.com/owner/repo",
+            selector: "main",
+            json: true,
+          },
+          services,
+        ),
+      ).rejects.toThrow("exit");
+      expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+      expect(services.readService.read).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+      exit.mockRestore();
+    }
+  });
+
   it("keeps complete selected code in CLI JSON output", async () => {
     const services = deps();
     const content = Array.from(

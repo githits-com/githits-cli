@@ -69,6 +69,11 @@ export async function readAction(
           "Provide either a compact target or --repo-url with optional --git-ref, not both.",
         );
       }
+      if (options.repoUrl && secondArg !== undefined) {
+        throw new InvalidPackageSpecError(
+          "In --repo-url mode, pass at most one <path> positional.",
+        );
+      }
       const target = options.repoUrl
         ? `${options.repoUrl}${options.gitRef ? `@${options.gitRef}` : ""}`
         : (firstArg ?? "");
