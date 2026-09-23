@@ -3,4 +3,4 @@
 "@githits/mcp": patch
 ---
 
-- **Clarify unverified code search hits** - CLI and MCP text search show file-level headers for hits without proven source, omit fallback line ranges and summaries, and keep path-only hits compact.
+- **Clarify candidate code search hits** - CLI and MCP text search show bounded inspection windows and visible identifier-query fragments in candidate headers, without promoting fallback summaries to verified source matches.

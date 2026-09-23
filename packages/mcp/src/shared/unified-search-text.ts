@@ -98,7 +98,12 @@ export function renderUnifiedSearchPresentationText(
 
   if (result.results.length > 0) {
     lines.push("");
-    appendUnifiedSearchHits(lines, result.results, settings);
+    appendUnifiedSearchHits(
+      lines,
+      result.results,
+      identifierQueryFragments(presentation.query?.raw),
+      settings,
+    );
   }
 
   appendPresentationAction(lines, presentation, settings);
@@ -931,11 +936,12 @@ export function renderUnifiedSearchError(
 function appendUnifiedSearchHits(
   lines: string[],
   hits: UnifiedSearchHitPayload[],
+  queryFragments: string[],
   options: NormalizedTextOptions,
 ): void {
   hits.forEach((hit, idx) => {
     if (idx > 0) lines.push("");
-    appendHit(lines, idx + 1, hit, options);
+    appendHit(lines, idx + 1, hit, queryFragments, options);
   });
 }
 
@@ -943,9 +949,10 @@ function appendHit(
   lines: string[],
   index: number,
   hit: UnifiedSearchHitPayload,
+  queryFragments: string[],
   options: NormalizedTextOptions,
 ): void {
-  const header = formatHitHeader(hit);
+  const header = formatHitHeader(hit, queryFragments);
   const rank = `[${index}] `;
   const prefix = renderHitHeaderPrefix(header, options.useColors);
   const title = header.title;
@@ -979,7 +986,7 @@ function appendHit(
     );
   }
   if (hit.type === "repository_code" || hit.type === "repository_doc") {
-    if (!isPathOnlyHit(hit)) appendStructuralEvidence(lines, hit, options);
+    appendStructuralEvidence(lines, hit, options);
     return;
   }
   const preview =
@@ -1009,12 +1016,13 @@ function appendStructuralEvidence(
   hit: UnifiedSearchHitPayload,
   options: NormalizedTextOptions,
 ): void {
-  const source = hit.repositoryEvidence?.matchedSource;
+  const evidence = hit.repositoryEvidence;
+  const source = evidence?.matchedSource;
   if (!source) {
-    if (!hit.repositoryEvidence) lines.push("  Snippet unavailable");
+    if (!evidence) lines.push("  Snippet unavailable");
     return;
   }
-  const context = hit.repositoryEvidence?.semanticContext;
+  const context = evidence?.semanticContext;
   if (context) {
     if (context.scopeChainTruncated) lines.push("  ... outer scopes omitted");
     context.scopes.forEach((scope, index) => {
@@ -1174,7 +1182,10 @@ interface FormattedHitHeader {
   titleHighlights?: ReadonlyArray<readonly [number, number]>;
 }
 
-function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
+function formatHitHeader(
+  hit: UnifiedSearchHitPayload,
+  queryFragments: string[],
+): FormattedHitHeader {
   const loc = hit.locator;
   if (hit.type === "documentation_page") {
     const docsReadTarget =
@@ -1226,13 +1237,7 @@ function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
     : evidence.filePath
       ? `${evidence.filePath}${formatLineRange(evidence.startLine, evidence.endLine)}`
       : "location unavailable";
-  const sourceStatus = isPathOnlyHit(hit)
-    ? ", path match"
-    : (hit.type === "repository_code" || hit.type === "repository_doc") &&
-        hit.repositoryEvidence &&
-        !hit.repositoryEvidence.matchedSource
-      ? ", no verified match"
-      : "";
+  const sourceStatus = candidateHeaderStatus(hit, queryFragments);
   const type = `[${shortType(hit.type)}${sourceStatus}]`;
   const target = preferredRead
     ? semanticReadLocation(preferredRead).target
@@ -1274,6 +1279,62 @@ function isPathOnlyHit(hit: UnifiedSearchHitPayload): boolean {
   );
 }
 
+/** Split only bare identifiers; search syntax has no client-side term contract. */
+function identifierQueryFragments(raw: string | undefined): string[] {
+  if (!raw || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(raw)) return [];
+  return [
+    ...new Set(
+      raw
+        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+        .replace(/([A-Z])([A-Z][a-z])/g, "$1 $2")
+        .split(/[ _$]+/)
+        .filter(Boolean)
+        .map((fragment) => fragment.toLowerCase()),
+    ),
+  ];
+}
+
+const INDEXED_FIELD_SHORT_NAMES = {
+  SYMBOL_NAME: "name",
+  FILE_PATH: "path",
+  DOCUMENTATION: "docs",
+  SOURCE_IDENTIFIER: "identifiers",
+} as const;
+
+/** Visible fragments are literal preview facts, not producer-proven BM25 terms. */
+function candidateHeaderStatus(
+  hit: UnifiedSearchHitPayload,
+  queryFragments: string[],
+): string {
+  const evidence = hit.repositoryEvidence;
+  if (
+    (hit.type !== "repository_code" && hit.type !== "repository_doc") ||
+    !evidence ||
+    evidence.matchedSource
+  )
+    return "";
+  const fields = evidence.bm25MatchFields;
+  const visibleValues: string[] = [];
+  if (fields?.includes("SYMBOL_NAME") && hit.title)
+    visibleValues.push(hit.title.toLowerCase());
+  if (fields?.includes("FILE_PATH") && hit.locator.filePath)
+    visibleValues.push(hit.locator.filePath.toLowerCase());
+  if (
+    (fields?.includes("SOURCE_IDENTIFIER") ||
+      fields?.includes("DOCUMENTATION")) &&
+    hit.summary
+  )
+    visibleValues.push(hit.summary.toLowerCase());
+  const visible = queryFragments.filter((fragment) =>
+    visibleValues.some((value) => value.includes(fragment)),
+  );
+  if (visible.length > 0)
+    return `, candidate; visible terms: ${visible.join(", ")}`;
+  if (fields?.length)
+    return `, candidate; indexed: ${fields.map((field) => INDEXED_FIELD_SHORT_NAMES[field]).join("/")}`;
+  return ", candidate";
+}
+
 interface RepositoryEvidence {
   filePath?: string;
   startLine?: number;
@@ -1286,23 +1347,25 @@ function formatRepositoryEvidence(
   const loc = hit.locator;
   const source = hit.repositoryEvidence?.matchedSource;
   const preferredRead = hit.repositoryEvidence?.semanticContext?.preferredRead;
+  const candidateRead =
+    (hit.type === "repository_code" || hit.type === "repository_doc") && !source
+      ? preferredRead
+      : undefined;
   // Without producer-proven source, locator bounds can be fallback read windows.
-  const showRange =
-    (hit.type !== "repository_code" && hit.type !== "repository_doc") ||
-    !hit.repositoryEvidence ||
-    !!source;
   return {
     filePath: preferredRead
       ? semanticReadLocation(preferredRead).path
       : loc.filePath,
     startLine:
-      !showRange || isPathOnlyHit(hit)
-        ? undefined
-        : (source?.startLine ?? loc.evidenceRange?.startLine ?? loc.startLine),
+      source?.startLine ??
+      candidateRead?.startLine ??
+      loc.evidenceRange?.startLine ??
+      loc.startLine,
     endLine:
-      !showRange || isPathOnlyHit(hit)
-        ? undefined
-        : (source?.endLine ?? loc.evidenceRange?.endLine ?? loc.endLine),
+      source?.endLine ??
+      candidateRead?.endLine ??
+      loc.evidenceRange?.endLine ??
+      loc.endLine,
   };
 }
 

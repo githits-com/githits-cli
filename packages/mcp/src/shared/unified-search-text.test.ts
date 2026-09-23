@@ -400,13 +400,21 @@ describe("renderUnifiedSearchSuccess", () => {
       locator: { filePath: "test/app.router.js", startLine: 877, endLine: 880 },
       repositoryEvidence: matchedEvidence(879, 879, "next('router')"),
     });
-    const text = renderUnifiedSearchSuccess(completed([...unmatched, proven]));
+    const text = renderUnifiedSearchSuccess(
+      completed([...unmatched, proven], {
+        query: { raw: "clearAutoLoginAuthSessionMetadata" },
+      }),
+    );
 
-    expect(text).toContain("lib/auth-0.js [repo code, no verified match]");
-    expect(text).toContain("lib/auth-1.js [repo code, path match]");
-    expect(text).toContain("lib/auth-2.js [repo code, path match]");
-    expect(text).not.toContain("lib/auth-0.js:10-20");
-    expect(text).not.toContain("lib/auth-1.js:10-20");
+    expect(text).toContain(
+      "lib/auth-0.js:10-20 [repo code, candidate; visible terms: auth, session, metadata]",
+    );
+    expect(text).toContain(
+      "lib/auth-1.js:10-20 [repo code, candidate; visible terms: auth]",
+    );
+    expect(text).toContain(
+      "lib/auth-2.js:10-20 [repo code, candidate; visible terms: auth]",
+    );
     expect(text).not.toContain("session metadata");
     expect(text).not.toContain("clear auth session");
     expect(text).not.toContain("remove stored auth");

@@ -355,7 +355,9 @@ describe("search parity", () => {
     });
     const text = await cliTextForOutcome(outcome);
     expect(text).toBe(await mcpTextForOutcome(outcome));
-    expect(text).toContain("lib/client.ts [repo code, path match]");
+    expect(text).toContain(
+      "lib/client.ts:120-165 [repo code, candidate; indexed: path]",
+    );
     expect(text).not.toContain("response.status");
     expect(text).not.toContain("Client.send");
     expect(text).not.toContain("legacy preview");

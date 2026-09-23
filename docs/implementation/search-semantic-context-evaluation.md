@@ -226,10 +226,13 @@ September 23 follow-up: a three-hit Express code search returned nonempty summar
 and compatibility source, but no proven `matchedSource`, so text showed only
 `Snippet unavailable` for every hit. The first revision labeled the existing
 summary as unverified context, but its unnumbered block was not useful to agents.
-The final text contract shows a file-level `no verified match` header for hits
-with repository evidence but no matched source, keeps path-only hits header-only,
-and reserves numbered source and scope blocks for proven `matchedSource`.
-Unproven fallback bounds stay out of text headers.
+The next revision kept those hits header-only but made them actionable: a
+`candidate` header includes the backend's bounded inspection window and literal
+query fragments visible in contributing indexed title, path, or summary fields.
+It names indexed fields when no fragment is visible. The response has field
+provenance but no exact BM25 term list, so visible fragments are not claimed as
+producer-proven matching terms. Numbered source and scope blocks remain exclusive
+to proven `matchedSource`.
 Text still omits compatibility source and does not claim lower CAS cost.
 
 A minified Node-target build of the formatter was benchmarked before and after
@@ -249,6 +252,17 @@ for the header-only version (Node v24.15.0, plain text). This is local render
 work only; it does not measure network, CAS, or agent quality. The runner and
 bundles are under the ignored `.agent-eval/semantic-search/bench-render.mjs`
 and `render-{before,after}.mjs` paths.
+
+The visible-term candidate revision was compared with the header-only version
+using minified Node-target builds on Node v24.15.0 and captured JSON for the
+three-hit Express and ten-hit GitHits identifier searches. After 1,000 warmups,
+median milliseconds/render over five 10,000-render samples were 0.00172 ->
+0.00339 for Express and 0.00553 -> 0.01275 for GitHits. The added literal
+fragment scan raises local rendering time by roughly 2-7 microseconds per
+response; it makes no extra source request. The runner and bundles are under
+ignored `.agent-eval/semantic-search/bench-candidate-headers.mjs` and
+`render-{header-only,visible-terms}.mjs` paths. These timings exclude network,
+CAS, and agent behavior.
 
 After closure, `bun test` over follow-up commands, semantic text, existing search
 text, and CLI/MCP search parity passed 114 tests with 397 assertions. No finding

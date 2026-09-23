@@ -93,10 +93,14 @@ function semanticHit(): UnifiedSearchHitPayload {
   };
 }
 
-function render(hit: UnifiedSearchHitPayload, useColors = false): string {
+function render(
+  hit: UnifiedSearchHitPayload,
+  useColors = false,
+  rawQuery = "response",
+): string {
   return renderUnifiedSearchSuccess(
     {
-      query: { raw: "response" },
+      query: { raw: rawQuery },
       completed: true,
       partialResults: false,
       hasMore: false,
@@ -189,7 +193,9 @@ describe("semantic search text", () => {
     expect(render(sourceOnly)).not.toContain("class Client");
     const scopesOnly = semanticHit();
     scopesOnly.repositoryEvidence!.matchedSource = null;
-    expect(render(scopesOnly)).toContain("[repo code, no verified match]");
+    expect(render(scopesOnly)).toContain(
+      "src/client.ts:120-165 [repo code, candidate]",
+    );
     expect(render(scopesOnly)).not.toContain("- method Client.send");
     expect(render(scopesOnly)).not.toContain("LEGACY SUMMARY CONTEXT");
     expect(render(scopesOnly)).not.toContain("Snippet unavailable");
@@ -261,22 +267,25 @@ describe("semantic search text", () => {
 });
 
 describe("v31 search presentation", () => {
-  it("renders path-only hits as one actionable header without arbitrary chunk evidence", () => {
+  it("keeps path-only candidates to a file and bounded read header", () => {
     const hit = semanticHit();
     hit.repositoryEvidence!.bm25MatchFields = ["FILE_PATH"];
     hit.repositoryEvidence!.focusedSource =
       hit.repositoryEvidence!.matchedSource!;
     hit.repositoryEvidence!.matchedSource = null;
     const text = render(hit);
-    expect(text).toBe(
-      "1 result | 1 repo code hit\n\n[1] npm:pkg@1.2.3 src/client.ts [repo code, path match]",
+    expect(text).toContain(
+      "src/client.ts:120-165 [repo code, candidate; indexed: path]",
     );
     expect(text).not.toContain("send");
-    expect(text).not.toContain("142");
+    expect(text).not.toContain("return response");
     expect(text).not.toContain("Snippet unavailable");
+    expect(text.split("\n")).toHaveLength(3);
     hit.type = "repository_doc";
     hit.title = "Arbitrary heading";
-    expect(render(hit)).toContain("src/client.ts [repo doc, path match]");
+    expect(render(hit)).toContain(
+      "src/client.ts:120-165 [repo doc, candidate; indexed: path]",
+    );
     expect(render(hit)).not.toContain("Arbitrary heading");
   });
 
@@ -300,12 +309,15 @@ describe("v31 search presentation", () => {
   );
 
   it.each([
-    { fields: null },
-    { fields: ["SOURCE_IDENTIFIER"] },
-    { fields: ["FILE_PATH", "DOCUMENTATION"] },
+    { fields: null, label: "candidate" },
+    { fields: ["SOURCE_IDENTIFIER"], label: "candidate; indexed: identifiers" },
+    {
+      fields: ["FILE_PATH", "DOCUMENTATION"],
+      label: "candidate; indexed: path/docs",
+    },
   ] as const)(
-    "keeps unproven context out of text for provenance %j",
-    ({ fields }) => {
+    "keeps unproven source out of candidate header for provenance %j",
+    ({ fields, label }) => {
       const hit = semanticHit();
       hit.repositoryEvidence!.bm25MatchFields =
         fields === null ? null : [...fields];
@@ -313,22 +325,51 @@ describe("v31 search presentation", () => {
         hit.repositoryEvidence!.matchedSource!;
       hit.repositoryEvidence!.matchedSource = null;
       const text = render(hit);
-      expect(text).toContain("src/client.ts [repo code, no verified match]");
+      expect(text).toContain(`src/client.ts:120-165 [repo code, ${label}]`);
       expect(text).not.toContain("LEGACY SUMMARY CONTEXT");
       expect(text).not.toContain("- method Client.send");
       expect(text).not.toContain("return response");
       expect(text).not.toContain("> 143 |");
       expect(text).not.toContain("src/client.ts:1-9");
-      expect(text).not.toContain("path match");
+      expect(text).not.toContain("src/client.ts:1-9");
     },
   );
+
+  it("shows only literal query fragments visible in contributing fields", () => {
+    const hit = semanticHit();
+    hit.title = "responseHandler";
+    hit.repositoryEvidence!.matchedSource = null;
+    hit.repositoryEvidence!.bm25MatchFields = [
+      "SYMBOL_NAME",
+      "SOURCE_IDENTIFIER",
+    ];
+    const text = render(hit);
+    expect(text).toContain("[repo code, candidate; visible terms: response]");
+    expect(text).not.toContain("responseHandler");
+    expect(text).not.toContain("Indexed query terms");
+    hit.repositoryEvidence!.bm25MatchFields = ["SOURCE_IDENTIFIER"];
+    expect(render(hit)).not.toContain("responseHandler");
+    expect(render(hit)).toContain(
+      "[repo code, candidate; indexed: identifiers]",
+    );
+  });
+
+  it("does not parse query syntax into claimed visible terms", () => {
+    const hit = semanticHit();
+    hit.summary = "clear auth";
+    hit.repositoryEvidence!.matchedSource = null;
+    hit.repositoryEvidence!.bm25MatchFields = ["SOURCE_IDENTIFIER"];
+    const text = render(hit, false, "clear OR auth");
+    expect(text).toContain("[repo code, candidate; indexed: identifiers]");
+    expect(text).not.toContain("visible terms");
+  });
 
   it("keeps the same file header when an unproven summary is empty", () => {
     const hit = semanticHit();
     hit.repositoryEvidence!.matchedSource = null;
     hit.summary = "  ";
     expect(render(hit)).toContain(
-      "src/client.ts [repo code, no verified match]",
+      "src/client.ts:120-165 [repo code, candidate]",
     );
     expect(render(hit)).not.toContain("Snippet unavailable");
   });
@@ -338,7 +379,7 @@ describe("v31 search presentation", () => {
     hit.repositoryEvidence!.matchedSource = null;
     hit.highlights = { summary: [[0, 6]] };
     const text = render(hit, true);
-    expect(text).toContain("[repo code, no verified match]");
+    expect(text).toContain("[repo code, candidate]");
     expect(text).not.toContain(colors.yellow);
   });
 
