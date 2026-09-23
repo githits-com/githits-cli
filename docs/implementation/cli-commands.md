@@ -229,9 +229,12 @@ The original unified-search plan envisaged hiding partial mode entirely in v1 to
 Repository code/docs display proven numbered `matchedSource` and enclosing scope
 metadata, without routine authority captions. A file-path-only hit without matched
 source shows one file header marked `path match`; no arbitrary source, symbol name,
-or chunk range is printed. Other missing snippets use `Snippet unavailable` and
-retain navigation locators. Source is not prose-wrapped or renumbered, match gutters
-work without ANSI, and truncation/trust facts remain visible. Crawled documentation
+or chunk range is printed. Other hits with repository evidence and no matched
+source show a labeled, unverified summary when one exists; otherwise they use
+`Snippet unavailable`. Their text headers keep the file path but omit unproven
+fallback window bounds; structured navigation locators remain available. Proven
+source is not prose-wrapped or renumbered, match gutters work without ANSI, and
+truncation/trust facts remain visible. Crawled documentation
 uses its dedicated grapheme-highlighted preview. JSON preserves compatibility source
 and adds the full v31 evidence, independently of this compact text treatment. See
 [repository search evidence](tools.md) for authority, query cost, and rollout details.

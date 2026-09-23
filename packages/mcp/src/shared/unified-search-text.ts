@@ -1026,7 +1026,23 @@ function appendStructuralEvidence(
   }
   const source = hit.repositoryEvidence?.matchedSource;
   if (!source) {
-    lines.push("  Snippet unavailable");
+    // A legacy summary can provide context, but it does not prove a source match.
+    const summary = hit.repositoryEvidence
+      ? prepareSummary(hit.summary, hit.title)
+      : undefined;
+    if (summary) {
+      lines.push("  Context (source match unverified):");
+      lines.push(
+        ...wrapHighlightedText(
+          summary.text,
+          undefined,
+          Math.max(1, options.width - 4),
+          options.useColors,
+        ).map((line) => (line.length === 0 ? "" : `    ${line}`)),
+      );
+    } else {
+      lines.push("  Snippet unavailable");
+    }
     return;
   }
   if (source.linesOmittedBefore) lines.push("  ... lines omitted before");
@@ -1279,16 +1295,23 @@ function formatRepositoryEvidence(
   const loc = hit.locator;
   const source = hit.repositoryEvidence?.matchedSource;
   const preferredRead = hit.repositoryEvidence?.semanticContext?.preferredRead;
+  // Without producer-proven source, locator bounds can be fallback read windows.
+  const showRange =
+    (hit.type !== "repository_code" && hit.type !== "repository_doc") ||
+    !hit.repositoryEvidence ||
+    !!source;
   return {
     filePath: preferredRead
       ? semanticReadLocation(preferredRead).path
       : loc.filePath,
-    startLine: isPathOnlyHit(hit)
-      ? undefined
-      : (source?.startLine ?? loc.evidenceRange?.startLine ?? loc.startLine),
-    endLine: isPathOnlyHit(hit)
-      ? undefined
-      : (source?.endLine ?? loc.evidenceRange?.endLine ?? loc.endLine),
+    startLine:
+      !showRange || isPathOnlyHit(hit)
+        ? undefined
+        : (source?.startLine ?? loc.evidenceRange?.startLine ?? loc.startLine),
+    endLine:
+      !showRange || isPathOnlyHit(hit)
+        ? undefined
+        : (source?.endLine ?? loc.evidenceRange?.endLine ?? loc.endLine),
   };
 }
 

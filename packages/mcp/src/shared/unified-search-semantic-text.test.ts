@@ -10,7 +10,7 @@ function semanticHit(): UnifiedSearchHitPayload {
     type: "repository_code",
     target: "github:owner/monorepo@main",
     title: "send",
-    summary: "LEGACY SOURCE MUST NOT RENDER",
+    summary: "LEGACY SUMMARY CONTEXT",
     followUp: "DO NOT PRINT THIS COMMAND",
     locator: { filePath: "wrong-relative-path.ts", startLine: 1, endLine: 9 },
     repositoryEvidence: {
@@ -139,7 +139,7 @@ describe("semantic search text", () => {
     expect(text).toContain("> 143 |     return response;");
     expect(text).toContain("  145 | ");
     expect(text).not.toContain("144 |");
-    expect(text).not.toContain("LEGACY SOURCE");
+    expect(text).not.toContain("LEGACY SUMMARY CONTEXT");
     expect(text).not.toContain("DO NOT PRINT");
     expect(text).not.toContain("Read context");
     expect(text).not.toContain("outer-ref");
@@ -190,12 +190,13 @@ describe("semantic search text", () => {
     const scopesOnly = semanticHit();
     scopesOnly.repositoryEvidence!.matchedSource = null;
     expect(render(scopesOnly)).toContain("- method Client.send");
-    expect(render(scopesOnly)).toContain("Snippet unavailable");
-    expect(render(scopesOnly)).not.toContain("LEGACY SOURCE");
+    expect(render(scopesOnly)).toContain("Context (source match unverified):");
+    expect(render(scopesOnly)).toContain("LEGACY SUMMARY CONTEXT");
+    expect(render(scopesOnly)).not.toContain("Snippet unavailable");
     const neither = semanticHit();
     neither.repositoryEvidence = null;
     expect(render(neither)).toContain("Snippet unavailable");
-    expect(render(neither)).not.toContain("LEGACY SOURCE");
+    expect(render(neither)).not.toContain("LEGACY SUMMARY CONTEXT");
   });
 
   it("keeps scope gaps, source crops, and grapheme highlights distinct", () => {
@@ -253,7 +254,7 @@ describe("semantic search text", () => {
       hit.type = type;
       hit.repositoryEvidence = null;
       hit.title = "Independent title";
-      expect(render(hit)).toContain("LEGACY SOURCE MUST NOT RENDER");
+      expect(render(hit)).toContain("LEGACY SUMMARY CONTEXT");
       expect(render(hit)).not.toContain("Snippet unavailable");
     }
   });
@@ -303,7 +304,7 @@ describe("v31 search presentation", () => {
     { fields: ["SOURCE_IDENTIFIER"] },
     { fields: ["FILE_PATH", "DOCUMENTATION"] },
   ] as const)(
-    "never promotes compatibility source to proof for provenance %j",
+    "shows labeled summary without promoting compatibility source for provenance %j",
     ({ fields }) => {
       const hit = semanticHit();
       hit.repositoryEvidence!.bm25MatchFields =
@@ -312,19 +313,45 @@ describe("v31 search presentation", () => {
         hit.repositoryEvidence!.matchedSource!;
       hit.repositoryEvidence!.matchedSource = null;
       const text = render(hit);
-      expect(text).toContain("Snippet unavailable");
+      expect(text).toContain("Context (source match unverified):");
+      expect(text).toContain("LEGACY SUMMARY CONTEXT");
       expect(text).toContain("- method Client.send");
       expect(text).not.toContain("return response");
-      expect(text).not.toContain("LEGACY SOURCE");
+      expect(text).not.toContain("> 143 |");
+      expect(text).not.toContain("src/client.ts:1-9");
       expect(text).not.toContain("path match");
     },
   );
+
+  it("keeps the missing-snippet notice when there is no usable summary", () => {
+    const hit = semanticHit();
+    hit.repositoryEvidence!.matchedSource = null;
+    hit.summary = "  ";
+    expect(render(hit)).toContain("Snippet unavailable");
+    expect(render(hit)).not.toContain("Context (source match unverified):");
+  });
+
+  it("does not style unverified summary spans as source matches", () => {
+    const hit = semanticHit();
+    hit.repositoryEvidence!.matchedSource = null;
+    hit.highlights = { summary: [[0, 6]] };
+    const text = render(hit, true);
+    expect(text).toContain("Context (source match unverified):");
+    expect(text).not.toContain(colors.yellow);
+  });
+
+  it("keeps explicit symbol coordinates when repository evidence has no matched source", () => {
+    const hit = semanticHit();
+    hit.type = "repository_symbol";
+    hit.repositoryEvidence!.matchedSource = null;
+    expect(render(hit)).toContain("src/client.ts:1-9 [repo symbol]");
+  });
 
   it("does not render a repository summary when an older injected service has no evidence", () => {
     const hit = semanticHit();
     delete hit.repositoryEvidence;
     expect(render(hit)).toContain("Snippet unavailable");
-    expect(render(hit)).not.toContain("LEGACY SOURCE");
+    expect(render(hit)).not.toContain("LEGACY SUMMARY CONTEXT");
   });
 
   it("uses matched bounds even when compatibility source describes a different range", () => {
@@ -360,7 +387,7 @@ describe("v31 search presentation", () => {
       const plain = render(hit);
       const colored = render(hit, true);
       expect(plain).toContain("  é👩‍💻 target after");
-      expect(plain).not.toContain("LEGACY SOURCE");
+      expect(plain).not.toContain("LEGACY SUMMARY CONTEXT");
       expect(plain).not.toContain("======");
       expect(colored).toContain(
         `é👩‍💻 ${colors.bold}${colors.yellow}target${colors.reset} after`,
@@ -387,9 +414,9 @@ describe("v31 search presentation", () => {
     hit.documentationPreview.highlights = [];
     const plain = render(hit);
     expect(plain).toContain("🙂 matched");
-    expect(plain).not.toContain("LEGACY SOURCE");
+    expect(plain).not.toContain("LEGACY SUMMARY CONTEXT");
     hit.documentationPreview = null;
-    expect(render(hit)).not.toContain("LEGACY SOURCE");
+    expect(render(hit)).not.toContain("LEGACY SUMMARY CONTEXT");
     expect(render(hit)).not.toContain("Snippet unavailable");
   });
 });

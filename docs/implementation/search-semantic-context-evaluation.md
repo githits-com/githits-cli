@@ -217,9 +217,18 @@ subagents or additional rounds ran. Findings were adjudicated inline:
   explicitly report missing exact source. Reintroducing an unnumbered legacy
   snippet would undermine that distinction. This rejection is dated September 5,
   2026; reconsider only with new requirements or evidence.
+
 - Accepted after measurement: reuse the grapheme segmenter in the formatter
   instead of constructing it for each highlighted line. No text output changes.
   Legacy highlight-coordinate handling remains unchanged.
+
+September 23 follow-up: a three-hit Express code search returned nonempty summaries
+and compatibility source, but no proven `matchedSource`, so text showed only
+`Snippet unavailable` for every hit. The revised text contract labels the existing
+summary as unverified context when repository evidence exists, while keeping
+numbered source exclusive to `matchedSource`, dropping unproven fallback bounds
+from text headers, and keeping path-only hits header-only.
+Text still omits compatibility source and does not claim lower CAS cost.
 
 A minified Node-target build of the formatter was benchmarked before and after
 segmenter reuse on Node v24.15.0, using the captured three-hit Express payload.

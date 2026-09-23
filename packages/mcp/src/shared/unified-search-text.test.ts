@@ -363,6 +363,61 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("defined at");
   });
 
+  it("keeps fallback Express windows unverified and distinguishes a proven router hit", () => {
+    const unmatched = [
+      "session metadata",
+      "clear auth session",
+      "remove stored auth",
+    ].map((summary, index) =>
+      codeHit({
+        target: "npm:express@5.2.1",
+        summary,
+        locator: {
+          filePath: `lib/auth-${index}.js`,
+          startLine: 10,
+          endLine: 20,
+          // The backend's null matchLine/rangeKind normalize to absent fields.
+          evidenceRange: {
+            startLine: 10,
+            endLine: 20,
+            matchSpansTruncated: false,
+          },
+        },
+        repositoryEvidence: {
+          semanticContext: null,
+          bm25MatchFields:
+            index === 0 ? ["FILE_PATH", "SOURCE_IDENTIFIER"] : ["FILE_PATH"],
+          focusedSource: {
+            ...matchedEvidence(10, 10, "unverified source")!.matchedSource!,
+          },
+          matchedSource: null,
+        },
+      }),
+    );
+    const proven = codeHit({
+      target: "npm:express@5.2.1",
+      summary: "legacy summary should stay hidden",
+      locator: { filePath: "test/app.router.js", startLine: 877, endLine: 880 },
+      repositoryEvidence: matchedEvidence(879, 879, "next('router')"),
+    });
+    const text = renderUnifiedSearchSuccess(completed([...unmatched, proven]));
+
+    expect(text.match(/Context \(source match unverified\):/g)).toHaveLength(1);
+    expect(text).toContain("    session metadata");
+    expect(text).toContain("lib/auth-0.js [repo code]");
+    expect(text).toContain("lib/auth-1.js [repo code, path match]");
+    expect(text).toContain("lib/auth-2.js [repo code, path match]");
+    expect(text).not.toContain("lib/auth-0.js:10-20");
+    expect(text).not.toContain("lib/auth-1.js:10-20");
+    expect(text).not.toContain("clear auth session");
+    expect(text).not.toContain("remove stored auth");
+    expect(text).not.toContain("unverified source");
+    expect(text).not.toContain("Snippet unavailable");
+    expect(text).toContain("test/app.router.js:879 [repo code]");
+    expect(text).toContain("> 879 | next('router')");
+    expect(text).not.toContain("legacy summary should stay hidden");
+  });
+
   it("does not imply that a cross-file associated definition shares the evidence file", () => {
     const text = renderUnifiedSearchSuccess(
       completed([
