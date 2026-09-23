@@ -222,6 +222,111 @@ function readRequest(fetchFn: ReturnType<typeof mock>): {
 }
 
 describe("ReadServiceImpl", () => {
+  it("selects and parses bounded symbol resolution without content fields", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          data: {
+            read: {
+              __typename: "CodeSymbolResolutionResult",
+              status: "AMBIGUOUS",
+              candidates: [
+                {
+                  name: "main",
+                  qualifiedPath: "main",
+                  kind: "function",
+                  arity: null,
+                  filePath: "eval/run.ts",
+                  startLine: 57,
+                  endLine: 241,
+                },
+              ],
+              suggestions: [],
+              hasMore: false,
+              repoUrl: "https://github.com/githits-com/githits-cli",
+              gitRef: "abc",
+              message: null,
+              codeIndexState: "CURRENT",
+            },
+          },
+        }),
+      ),
+    );
+    const service = new ReadServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      fetchFn as unknown as typeof fetch,
+    );
+    const result = await service.read({
+      target: "github:githits-com/githits-cli@abc",
+      selector: "main",
+      path: "eval/run.ts",
+      waitTimeoutMs: 0,
+    });
+    expect(result).toMatchObject({
+      source: "symbol_resolution",
+      result: {
+        status: "AMBIGUOUS",
+        candidates: [{ filePath: "eval/run.ts" }],
+      },
+    });
+    const request = readRequest(fetchFn);
+    expect(request.variables).toEqual({
+      target: "github:githits-com/githits-cli@abc",
+      selector: "main",
+      path: "eval/run.ts",
+      waitTimeoutMs: 0,
+    });
+    expect(request.query).toContain("... on CodeSymbolResolutionResult");
+    expect(request.query).toContain("selector: $selector");
+  });
+
+  it("keeps docs selector requests free of code-only wait", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(jsonResponse({ data: { read: docsResult() } })),
+    );
+    const service = new ReadServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      fetchFn as unknown as typeof fetch,
+    );
+    await service.read({
+      target: "https://expressjs.com/llms/api-5x.txt",
+      selector: "expressjson",
+      waitTimeoutMs: 0,
+    });
+    expect(readRequest(fetchFn).variables).toEqual({
+      target: "https://expressjs.com/llms/api-5x.txt",
+      selector: "expressjson",
+    });
+  });
+
+  it.each([
+    "github:owner/repo@abc/docs/README.md",
+    "github:owner/repo@release/1.x",
+  ])(
+    "gives slash-bearing repository IDs docs precedence: %s",
+    async (target) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(jsonResponse({ data: { read: docsResult() } })),
+      );
+      const service = new ReadServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        fetchFn as unknown as typeof fetch,
+      );
+      const response = await service.read({
+        target,
+        selector: "intro",
+        waitTimeoutMs: 0,
+      });
+      expect(response.source).toBe("docs");
+      expect(readRequest(fetchFn).variables).toEqual({
+        target,
+        selector: "intro",
+      });
+    },
+  );
   it("sends one compact code read with the exact effective variables and fields", async () => {
     const fetchFn = mock(() =>
       Promise.resolve(jsonResponse({ data: { read: codeResult() } })),

@@ -3,14 +3,23 @@ import {
   createReadFileServiceAdapter,
   createReadPackageDocServiceAdapter,
   DEFAULT_WAIT_TIMEOUT_MS,
+  formatSelectorRead,
   InvalidPackageSpecError,
   MAX_WAIT_TIMEOUT_MS,
+  mapCodeNavigationError,
+  mapPackageIntelligenceError,
   normalizeReadWaitTimeoutMs,
+  parseLinesOption,
   requireAuth,
   resolveReadLocator,
+  shouldUseColors,
+  validateReadRange,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
+import { recordCliErrorClassification } from "../shared/cli-error-diagnostics.js";
+import { startSpinner } from "../shared/spinner.js";
+import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
 import {
   handleCodeNavCommandError,
   parseIntCliOption,
@@ -24,7 +33,10 @@ import {
   type DocsReadCommandDependencies,
   docsReadAction,
 } from "./docs/read.js";
-import { formatMappedErrorForTerminal } from "./format-mapped-error.js";
+import {
+  buildCliMappedErrorPayload,
+  formatMappedErrorForTerminal,
+} from "./format-mapped-error.js";
 
 export interface ReadCommandDependencies
   extends PkgReadCommandDependencies,
@@ -45,6 +57,100 @@ export async function readAction(
     if (options.json)
       handleCodeNavCommandError(error, true, formatMappedErrorForTerminal);
     throw error;
+  }
+
+  if (options.selector !== undefined) {
+    try {
+      const selector = options.selector;
+      if (!selector.trim())
+        throw new InvalidPackageSpecError("--selector must be nonblank.");
+      if (!options.repoUrl && options.gitRef !== undefined) {
+        throw new InvalidPackageSpecError(
+          "Provide either a compact target or --repo-url with optional --git-ref, not both.",
+        );
+      }
+      if (options.repoUrl && secondArg !== undefined) {
+        throw new InvalidPackageSpecError(
+          "In --repo-url mode, pass at most one <path> positional.",
+        );
+      }
+      const target = options.repoUrl
+        ? `${options.repoUrl}${options.gitRef ? `@${options.gitRef}` : ""}`
+        : (firstArg ?? "");
+      const path = options.repoUrl ? firstArg : secondArg;
+      const locator = resolveReadLocator(target, path);
+      if (
+        options.lines !== undefined &&
+        (options.start !== undefined || options.end !== undefined)
+      ) {
+        throw new InvalidPackageSpecError(
+          "Use --lines or --start / --end, not both.",
+        );
+      }
+      const range = options.lines
+        ? parseLinesOption(options.lines)
+        : {
+            startLine: parseIntCliOption(
+              options.start,
+              "--start",
+              1,
+              Number.MAX_SAFE_INTEGER,
+            ),
+            endLine: parseIntCliOption(
+              options.end,
+              "--end",
+              1,
+              Number.MAX_SAFE_INTEGER,
+            ),
+          };
+      validateReadRange(range.startLine, range.endLine);
+      const wait = normalizeReadWaitTimeoutMs(
+        parseIntCliOption(options.wait, "--wait", 0, MAX_WAIT_TIMEOUT_MS),
+      );
+      const spinner = startSpinner(SPINNER_MESSAGES.code, !options.json);
+      const response = await deps.readService
+        .read({
+          target: locator.target,
+          ...(locator.path ? { path: locator.path } : {}),
+          selector,
+          ...(range.startLine !== undefined
+            ? { startLine: range.startLine }
+            : {}),
+          ...(range.endLine !== undefined ? { endLine: range.endLine } : {}),
+          waitTimeoutMs: wait,
+        })
+        .finally(() => spinner.stop());
+      const rendered = formatSelectorRead(
+        response,
+        {
+          target: locator.target,
+          selector,
+          path: locator.path,
+          verbose: options.verbose,
+          useColors: shouldUseColors(),
+          endLine: range.endLine,
+        },
+        options.json ? "cli-json" : "cli-text",
+      );
+      if (options.json) console.log(rendered);
+      else process.stdout.write(rendered);
+      return;
+    } catch (error) {
+      const docsError = mapPackageIntelligenceError(error);
+      const mapped =
+        docsError.code !== "UNKNOWN"
+          ? docsError
+          : mapCodeNavigationError(error);
+      recordCliErrorClassification(
+        docsError.code !== "UNKNOWN" ? "pkg-intel" : "code-nav",
+        error,
+        mapped,
+      );
+      if (options.json)
+        console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
+      else console.error(formatMappedErrorForTerminal(mapped));
+      process.exit(1);
+    }
   }
 
   // Explicit repo mode keeps the existing single-path positional contract.
@@ -97,9 +203,9 @@ export async function readAction(
 export function registerReadCommand(program: Command): Command {
   return program
     .command("read")
-    .summary("Read an indexed file or documentation page")
+    .summary("Read an indexed file, code symbol, or docs section")
     .description(
-      "Read a file with <target> <path>, or a docs page with its emitted target alone. Hosted/crawled HTTP(S) docs targets read mutable current content; repository docs are snapshot-addressed. Pass docs URL fragments unchanged to select the heading and its full subtree through the next equal-or-higher heading; --lines overrides the fragment with an intentional page-relative range. Default output is complete content for piping. Package and repository targets use the same compact syntax as code files.",
+      "Read an exact file with <target> <path>, or a docs page with <target>. --selector selects a code symbol (path optional) or docs heading by its fragment ID; do not combine it with a docs URL fragment. Hosted/crawled docs read mutable current content; repository docs are snapshot-addressed. A docs URL fragment selects the heading's full subtree; --lines selects a page-relative range instead. Output is complete for piping.",
     )
     .argument(
       "[target-or-path]",
@@ -108,9 +214,19 @@ export function registerReadCommand(program: Command): Command {
     .argument("[path]", "Exact file path within the package or repository")
     .option("--repo-url <url>", "Repository URL addressing")
     .option("--git-ref <ref>", "Git ref for --repo-url (code only)")
+    .option(
+      "--selector <name>",
+      "Code symbol or logical documentation heading ID",
+    )
     .option("--lines <range>", "Inclusive line range, e.g. 10-40, 10-, or -40")
-    .option("--start <n>", "Starting line (code only; alternative to --lines)")
-    .option("--end <n>", "Ending line (code only; alternative to --lines)")
+    .option(
+      "--start <n>",
+      "Starting line (code or docs selector; alternative to --lines)",
+    )
+    .option(
+      "--end <n>",
+      "Ending line (code or docs selector; alternative to --lines)",
+    )
     .option(
       "--wait <ms>",
       `Code indexing wait (0-${MAX_WAIT_TIMEOUT_MS}, default ${DEFAULT_WAIT_TIMEOUT_MS}); validated but unused for docs`,

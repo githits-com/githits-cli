@@ -4,6 +4,7 @@ import {
   PkgseerTransportError,
   postPkgseerGraphql,
 } from "../shared/pkgseer-graphql.js";
+import { PKGSEER_REGISTRY_ARGS } from "../shared/pkgseer-registry.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import {
   CODE_CONTEXT_AVAILABLE_VERSIONS_SELECTION,
@@ -35,6 +36,7 @@ import type { TokenProvider } from "./token-provider.js";
 export interface ReadParams {
   target: string;
   path?: string;
+  selector?: string;
   startLine?: number;
   endLine?: number;
   waitTimeoutMs?: number;
@@ -50,7 +52,45 @@ export interface ReadDocsResult {
   result: PackageDocResult;
 }
 
-export type ReadResult = ReadCodeResult | ReadDocsResult;
+export interface CodeSymbolCandidate {
+  name: string | null;
+  qualifiedPath: string | null;
+  kind: string | null;
+  arity: number | null;
+  filePath: string | null;
+  startLine: number | null;
+  endLine: number | null;
+}
+
+export interface CodeSymbolSuggestion {
+  name: string;
+  qualifiedPath: string | null;
+  localId: string | null;
+  arity: number | null;
+  filePath: string | null;
+  reason: string | null;
+}
+
+export interface CodeSymbolResolution {
+  status: "AMBIGUOUS" | "NOT_FOUND" | "SNAPSHOT_UNSUPPORTED";
+  candidates: CodeSymbolCandidate[];
+  suggestions: CodeSymbolSuggestion[];
+  hasMore: boolean;
+  repoUrl: string;
+  gitRef: string;
+  message: string | null;
+  codeIndexState: string;
+}
+
+export interface ReadSymbolResolutionResult {
+  source: "symbol_resolution";
+  result: CodeSymbolResolution;
+}
+
+export type ReadResult =
+  | ReadCodeResult
+  | ReadDocsResult
+  | ReadSymbolResolutionResult;
 
 export interface ReadService {
   read(params: ReadParams): Promise<ReadResult>;
@@ -64,7 +104,46 @@ interface ReadServiceRuntime {
 }
 
 const readResultTypeSchema = z.object({
-  __typename: z.enum(["CodeContextResult", "GetDocPageResult"]),
+  __typename: z.enum([
+    "CodeContextResult",
+    "GetDocPageResult",
+    "CodeSymbolResolutionResult",
+  ]),
+});
+
+const symbolResolutionSchema = z.object({
+  __typename: z.literal("CodeSymbolResolutionResult"),
+  status: z.enum(["AMBIGUOUS", "NOT_FOUND", "SNAPSHOT_UNSUPPORTED"]),
+  candidates: z
+    .array(
+      z.object({
+        name: z.string().nullable(),
+        qualifiedPath: z.string().nullable(),
+        kind: z.string().nullable(),
+        arity: z.number().int().nullable(),
+        filePath: z.string().nullable(),
+        startLine: z.number().int().nullable(),
+        endLine: z.number().int().nullable(),
+      }),
+    )
+    .max(10),
+  suggestions: z
+    .array(
+      z.object({
+        name: z.string(),
+        qualifiedPath: z.string().nullable(),
+        localId: z.string().nullable(),
+        arity: z.number().int().nullable(),
+        filePath: z.string().nullable(),
+        reason: z.string().nullable(),
+      }),
+    )
+    .max(10),
+  hasMore: z.boolean(),
+  repoUrl: z.string(),
+  gitRef: z.string(),
+  message: z.string().nullable(),
+  codeIndexState: z.string(),
 });
 
 const readGraphQLErrorSchema = z.object({
@@ -86,6 +165,7 @@ const READ_QUERY = `
 query Read(
   $target: String!
   $path: String
+  $selector: String
   $startLine: Int
   $endLine: Int
   $waitTimeoutMs: Int
@@ -93,6 +173,7 @@ query Read(
   read(
     target: $target
     path: $path
+    selector: $selector
     startLine: $startLine
     endLine: $endLine
     waitTimeoutMs: $waitTimeoutMs
@@ -142,6 +223,16 @@ query Read(
         filePath
         baseUrl
       }
+    }
+    ... on CodeSymbolResolutionResult {
+      status
+      candidates { name qualifiedPath kind arity filePath startLine endLine }
+      suggestions { name qualifiedPath localId arity filePath reason }
+      hasMore
+      repoUrl
+      gitRef
+      message
+      codeIndexState
     }
   }
 }`;
@@ -219,17 +310,28 @@ export class ReadServiceImpl implements ReadService {
     const resultType = readResultTypeSchema.safeParse(data);
     if (!resultType.success) throw malformedReadResponse(request.source);
 
-    if (request.source === "code") {
-      if (resultType.data.__typename !== "CodeContextResult") {
-        throw malformedReadResponse("code");
-      }
+    const selectorWithoutPath =
+      request.selector !== undefined && request.path === undefined;
+    if (resultType.data.__typename === "CodeSymbolResolutionResult") {
+      if (request.source !== "code" && !selectorWithoutPath)
+        throw malformedReadResponse("docs");
+      const resolution = symbolResolutionSchema.safeParse(data);
+      if (!resolution.success) throw malformedReadResponse("code");
+      return { source: "symbol_resolution", result: resolution.data };
+    }
+    if (
+      resultType.data.__typename === "CodeContextResult" &&
+      (request.source === "code" || selectorWithoutPath)
+    ) {
       return { source: "code", result: parseCodeContextResult(data) };
     }
-
-    if (resultType.data.__typename !== "GetDocPageResult") {
-      throw malformedReadResponse("docs");
+    if (
+      resultType.data.__typename === "GetDocPageResult" &&
+      (request.source === "docs" || selectorWithoutPath)
+    ) {
+      return { source: "docs", result: parsePackageDocResult(data) };
     }
-    return { source: "docs", result: parsePackageDocResult(data) };
+    throw malformedReadResponse(request.source);
   }
 }
 
@@ -238,8 +340,21 @@ interface NormalisedReadRequest extends ReadParams {
 }
 
 function normaliseReadRequest(params: ReadParams): NormalisedReadRequest {
-  const path = params.path?.trim();
-  return path
+  const path = params.path?.trim() || undefined;
+  const prefix = /^([a-z][a-z0-9+.-]*):/.exec(params.target)?.[1];
+  const repositoryPageLike = /^(?:github|gitlab|codeberg):.+@[^/]+\/.+/.test(
+    params.target,
+  );
+  const codeSelector =
+    params.selector !== undefined &&
+    !repositoryPageLike &&
+    (/^(?:github|gitlab|codeberg):/.test(params.target) ||
+      /^(?:https?:\/\/)?(?:github\.com|gitlab\.com|codeberg\.org)\//.test(
+        params.target,
+      ) ||
+      (prefix !== undefined &&
+        PKGSEER_REGISTRY_ARGS.some((registry) => registry === prefix)));
+  return path || codeSelector
     ? { ...params, path, source: "code" }
     : { ...params, path: undefined, waitTimeoutMs: undefined, source: "docs" };
 }
@@ -250,6 +365,7 @@ function buildReadVariables(
   return {
     target: request.target,
     ...(request.path !== undefined ? { path: request.path } : {}),
+    ...(request.selector !== undefined ? { selector: request.selector } : {}),
     ...(request.startLine !== undefined
       ? { startLine: request.startLine }
       : {}),

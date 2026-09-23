@@ -25,6 +25,7 @@ import {
 } from "./code-nav-cli-helpers.js";
 
 export interface PkgReadCommandOptions {
+  selector?: string;
   repoUrl?: string;
   gitRef?: string;
   lines?: string;

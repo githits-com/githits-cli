@@ -1,4 +1,4 @@
-import { describe, expect, it, spyOn } from "bun:test";
+import { describe, expect, it, mock, spyOn } from "bun:test";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import { Command } from "commander";
 import {
@@ -26,13 +26,148 @@ function deps(): ReadCommandDependencies {
 }
 
 describe("top-level read", () => {
+  it("renders typed selector misses and forwards exact path", async () => {
+    const services = deps();
+    services.readService.read = mock(() =>
+      Promise.resolve({
+        source: "symbol_resolution" as const,
+        result: {
+          status: "NOT_FOUND" as const,
+          candidates: [],
+          suggestions: [],
+          hasMore: false,
+          repoUrl: "https://github.com/githits-com/githits-cli",
+          gitRef: "abc",
+          message: null,
+          codeIndexState: "CURRENT",
+        },
+      }),
+    );
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await readAction(
+        "github:githits-com/githits-cli@abc",
+        "src/container.ts",
+        { selector: "main", json: true },
+        services,
+      );
+      expect(services.readService.read).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: "src/container.ts",
+          selector: "main",
+        }),
+      );
+      expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+        status: "NOT_FOUND",
+        selector: "main",
+      });
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("rejects --git-ref with a positional selector target", async () => {
+    const services = deps();
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    try {
+      await expect(
+        readAction(
+          "github:owner/repo",
+          undefined,
+          {
+            selector: "main",
+            gitRef: "release/v1",
+            json: true,
+          },
+          services,
+        ),
+      ).rejects.toThrow("exit");
+      expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+      expect(services.readService.read).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+      exit.mockRestore();
+    }
+  });
+
+  it("rejects two paths in selector --repo-url mode", async () => {
+    const services = deps();
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    try {
+      await expect(
+        readAction(
+          "first.ts",
+          "second.ts",
+          {
+            repoUrl: "https://github.com/owner/repo",
+            selector: "main",
+            json: true,
+          },
+          services,
+        ),
+      ).rejects.toThrow("exit");
+      expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+      expect(services.readService.read).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+      exit.mockRestore();
+    }
+  });
+
+  it("keeps complete selected code in CLI JSON output", async () => {
+    const services = deps();
+    const content = Array.from(
+      { length: 400 },
+      (_, index) => `line ${index + 1}`,
+    ).join("\n");
+    services.readService.read = mock(() =>
+      Promise.resolve({
+        source: "code" as const,
+        result: {
+          filePath: "src/big.ts",
+          startLine: 1,
+          endLine: 400,
+          totalLines: 400,
+          content,
+          isBinary: false,
+        },
+      }),
+    );
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await readAction(
+        "github:owner/repo@abc",
+        undefined,
+        { selector: "BigClass", json: true },
+        services,
+      );
+      const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
+      expect(payload.content).toContain("line 400");
+      expect(payload.endLine).toBe(400);
+      expect(payload.hint).toBeUndefined();
+    } finally {
+      log.mockRestore();
+    }
+  });
   it("registers new syntax and marks legacy commands deprecated in help", () => {
     const root = new Command();
     const read = registerReadCommand(root);
     const readHelp = read.helpInformation();
     expect(read.name()).toBe("read");
     expect(readHelp).toContain("--lines");
-    expect(readHelp).toContain("mutable current content");
+    expect(readHelp).toMatch(/mutable\s+current content/);
+    expect(readHelp).toMatch(/--selector selects a code symbol/);
+    expect(readHelp).toMatch(/Starting line \(code or docs selector/);
     expect(readHelp).toMatch(/repository\s+docs are snapshot-addressed/);
     expect(readHelp).toContain("full subtree");
     expect(
