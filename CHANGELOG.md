@@ -5,6 +5,36 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.22.0] - 2026-09-23
+
+Minor release: adds selector reads and renames the experimental research entrypoints.
+
+### Added
+
+- **Selector reads** - `githits read --selector` and local MCP `read` with `selector` read documentation headings and indexed code symbols. Ambiguous, missing, and unsupported-snapshot symbol selections return typed outcomes with recovery guidance.
+
+### Changed
+
+- **Rename experimental research entrypoints** - The local MCP tool is now `research`; the CLI uses `githits research` and retains `githits ask` as an alias. Both CLI spellings now emit `command.research` telemetry instead of `command.ask`. Local MCP clients using `ask` must switch to `research` when experimental tools are enabled.
+
+### Fixed
+
+- **Clarify candidate code search hits** - CLI and local MCP text search show bounded inspection windows, visible identifier-query fragments, and known enclosing declarations in candidate headers, without presenting fallback summaries as verified source matches.
+- **Keep server error pages out of CLI and local MCP errors** - GraphQL HTTP errors retain status and safe JSON details without displaying HTML or plain-text response bodies.
+
+## [@githits/mcp 0.22.0] - 2026-09-23
+
+Minor release: adds selector reads to the public MCP `read` tool.
+
+### Added
+
+- **Selector reads** - MCP `read` accepts `selector` for documentation headings and indexed code symbols, including typed ambiguity, miss, and unsupported-snapshot outcomes. Hosted clients receive this after `@githits/mcp` adoption and deployment by `remote-mcp`.
+
+### Fixed
+
+- **Clarify candidate code search hits** - MCP text search shows bounded inspection windows, visible identifier-query fragments, and known enclosing declarations in candidate headers, without presenting fallback summaries as verified source matches.
+- **Keep server error pages out of MCP errors** - GraphQL HTTP errors retain status and safe JSON details without displaying HTML or plain-text response bodies.
+
 ## [githits 0.21.0] - 2026-09-22
 
 Minor release: makes package changelog lookup package-only and adopts compact

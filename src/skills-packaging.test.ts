@@ -411,8 +411,11 @@ describe("agent skills packaging", () => {
       "Add `--lines` only when intentionally selecting a current page range",
       "Use `--json` only for required range/source metadata",
     ]);
-    expect(content).toContain("githits docs read <docsReadTarget>");
-    expect(content).not.toContain("githits docs read <docsReadTarget> --lines");
+    expect(content).toContain("githits read <docsReadTarget>");
+    expect(content).toContain(
+      "githits read <docsReadTarget> --selector <heading-id>",
+    );
+    expect(content).not.toContain("githits read <docsReadTarget> --lines");
   });
 
   it("requires generated plugin asset validation before package creation", async () => {
