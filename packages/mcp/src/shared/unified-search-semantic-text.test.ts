@@ -189,9 +189,9 @@ describe("semantic search text", () => {
     expect(render(sourceOnly)).not.toContain("class Client");
     const scopesOnly = semanticHit();
     scopesOnly.repositoryEvidence!.matchedSource = null;
-    expect(render(scopesOnly)).toContain("- method Client.send");
-    expect(render(scopesOnly)).toContain("Context (source match unverified):");
-    expect(render(scopesOnly)).toContain("LEGACY SUMMARY CONTEXT");
+    expect(render(scopesOnly)).toContain("[repo code, no verified match]");
+    expect(render(scopesOnly)).not.toContain("- method Client.send");
+    expect(render(scopesOnly)).not.toContain("LEGACY SUMMARY CONTEXT");
     expect(render(scopesOnly)).not.toContain("Snippet unavailable");
     const neither = semanticHit();
     neither.repositoryEvidence = null;
@@ -304,7 +304,7 @@ describe("v31 search presentation", () => {
     { fields: ["SOURCE_IDENTIFIER"] },
     { fields: ["FILE_PATH", "DOCUMENTATION"] },
   ] as const)(
-    "shows labeled summary without promoting compatibility source for provenance %j",
+    "keeps unproven context out of text for provenance %j",
     ({ fields }) => {
       const hit = semanticHit();
       hit.repositoryEvidence!.bm25MatchFields =
@@ -313,9 +313,9 @@ describe("v31 search presentation", () => {
         hit.repositoryEvidence!.matchedSource!;
       hit.repositoryEvidence!.matchedSource = null;
       const text = render(hit);
-      expect(text).toContain("Context (source match unverified):");
-      expect(text).toContain("LEGACY SUMMARY CONTEXT");
-      expect(text).toContain("- method Client.send");
+      expect(text).toContain("src/client.ts [repo code, no verified match]");
+      expect(text).not.toContain("LEGACY SUMMARY CONTEXT");
+      expect(text).not.toContain("- method Client.send");
       expect(text).not.toContain("return response");
       expect(text).not.toContain("> 143 |");
       expect(text).not.toContain("src/client.ts:1-9");
@@ -323,20 +323,22 @@ describe("v31 search presentation", () => {
     },
   );
 
-  it("keeps the missing-snippet notice when there is no usable summary", () => {
+  it("keeps the same file header when an unproven summary is empty", () => {
     const hit = semanticHit();
     hit.repositoryEvidence!.matchedSource = null;
     hit.summary = "  ";
-    expect(render(hit)).toContain("Snippet unavailable");
-    expect(render(hit)).not.toContain("Context (source match unverified):");
+    expect(render(hit)).toContain(
+      "src/client.ts [repo code, no verified match]",
+    );
+    expect(render(hit)).not.toContain("Snippet unavailable");
   });
 
-  it("does not style unverified summary spans as source matches", () => {
+  it("does not render unverified summary highlights", () => {
     const hit = semanticHit();
     hit.repositoryEvidence!.matchedSource = null;
     hit.highlights = { summary: [[0, 6]] };
     const text = render(hit, true);
-    expect(text).toContain("Context (source match unverified):");
+    expect(text).toContain("[repo code, no verified match]");
     expect(text).not.toContain(colors.yellow);
   });
 

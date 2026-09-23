@@ -192,10 +192,10 @@ literal numbered source lines. The header carries the target/path locator and
 matched source range, with no repeated per-hit read command or authority caption.
 Path-only hits without matched source instead show a file-level `path match` header
 and omit arbitrary chunk titles, ranges, scopes, and compatibility snippets.
-Other hits without matched source show a summary labeled as unverified context
-when repository evidence and a usable summary exist; otherwise they use
-`Snippet unavailable`. Their headers omit fallback window bounds but retain
-file paths. A present matched snippet always survives regardless of
+Other hits with repository evidence but no matched source show a file-level
+`no verified match` header without summaries, scope blocks, or fallback window
+bounds. Older hits without repository evidence use `Snippet unavailable`.
+A present matched snippet always survives regardless of
 provenance. Both text callers omit the unused compatibility source selection;
 JSON/default service calls retain it.
 Crawled previews use grapheme offsets before heading trimming and wrapping.

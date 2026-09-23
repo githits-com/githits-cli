@@ -230,9 +230,10 @@ Repository code/docs display proven numbered `matchedSource` and enclosing scope
 metadata, without routine authority captions. A file-path-only hit without matched
 source shows one file header marked `path match`; no arbitrary source, symbol name,
 or chunk range is printed. Other hits with repository evidence and no matched
-source show a labeled, unverified summary when one exists; otherwise they use
-`Snippet unavailable`. Their text headers keep the file path but omit unproven
-fallback window bounds; structured navigation locators remain available. Proven
+source show a file-level header marked `no verified match`, without summaries,
+scope blocks, or unproven fallback window bounds. Older results without
+repository evidence still use `Snippet unavailable`; structured navigation
+locators remain available. Proven
 source is not prose-wrapped or renumbered, match gutters work without ANSI, and
 truncation/trust facts remain visible. Crawled documentation
 uses its dedicated grapheme-highlighted preview. JSON preserves compatibility source

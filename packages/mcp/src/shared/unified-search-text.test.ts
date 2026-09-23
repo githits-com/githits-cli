@@ -402,16 +402,16 @@ describe("renderUnifiedSearchSuccess", () => {
     });
     const text = renderUnifiedSearchSuccess(completed([...unmatched, proven]));
 
-    expect(text.match(/Context \(source match unverified\):/g)).toHaveLength(1);
-    expect(text).toContain("    session metadata");
-    expect(text).toContain("lib/auth-0.js [repo code]");
+    expect(text).toContain("lib/auth-0.js [repo code, no verified match]");
     expect(text).toContain("lib/auth-1.js [repo code, path match]");
     expect(text).toContain("lib/auth-2.js [repo code, path match]");
     expect(text).not.toContain("lib/auth-0.js:10-20");
     expect(text).not.toContain("lib/auth-1.js:10-20");
+    expect(text).not.toContain("session metadata");
     expect(text).not.toContain("clear auth session");
     expect(text).not.toContain("remove stored auth");
     expect(text).not.toContain("unverified source");
+    expect(text).not.toContain("Context (source match unverified):");
     expect(text).not.toContain("Snippet unavailable");
     expect(text).toContain("test/app.router.js:879 [repo code]");
     expect(text).toContain("> 879 | next('router')");

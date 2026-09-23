@@ -224,10 +224,12 @@ subagents or additional rounds ran. Findings were adjudicated inline:
 
 September 23 follow-up: a three-hit Express code search returned nonempty summaries
 and compatibility source, but no proven `matchedSource`, so text showed only
-`Snippet unavailable` for every hit. The revised text contract labels the existing
-summary as unverified context when repository evidence exists, while keeping
-numbered source exclusive to `matchedSource`, dropping unproven fallback bounds
-from text headers, and keeping path-only hits header-only.
+`Snippet unavailable` for every hit. The first revision labeled the existing
+summary as unverified context, but its unnumbered block was not useful to agents.
+The final text contract shows a file-level `no verified match` header for hits
+with repository evidence but no matched source, keeps path-only hits header-only,
+and reserves numbered source and scope blocks for proven `matchedSource`.
+Unproven fallback bounds stay out of text headers.
 Text still omits compatibility source and does not claim lower CAS cost.
 
 A minified Node-target build of the formatter was benchmarked before and after
@@ -238,6 +240,15 @@ renders. Median milliseconds/render: plain 0.00466 -> 0.00410; colored 0.03010 -
 work, excludes process startup and network, and does not imply lower agent cost.
 The benchmark and both bundled artifacts are preserved under the ignored
 `.agent-eval/semantic-search/formatter-*` and `renderer-{before,after}.mjs` paths.
+
+The September 23 header-only revision used a separate minified Node-target
+formatter benchmark with three unverified Express-shaped hits and one proven
+router control. After 1,000 warmups, the median of five 10,000-render samples
+was 0.00220 ms/render for the labeled-summary version and 0.00187 ms/render
+for the header-only version (Node v24.15.0, plain text). This is local render
+work only; it does not measure network, CAS, or agent quality. The runner and
+bundles are under the ignored `.agent-eval/semantic-search/bench-render.mjs`
+and `render-{before,after}.mjs` paths.
 
 After closure, `bun test` over follow-up commands, semantic text, existing search
 text, and CLI/MCP search parity passed 114 tests with 397 assertions. No finding

@@ -270,12 +270,10 @@ When fields are exactly `[FILE_PATH]` and matched source is absent, text shows o
 an actionable file-level header with `path match`: no arbitrary chunk range,
 symbol title, scope block, or compatibility snippet. A present matched snippet
 always wins, even with file-path-only or unknown provenance. Other repository hits
-without proven snippets retain locators and scope metadata. When repository
-evidence and a usable summary exist, text labels that summary
-`Context (source match unverified):`; it does not present the summary or
-compatibility source as matched lines. Their headers keep the file path but omit
-unproven fallback window bounds; unverified summary spans receive no match styling.
-Otherwise it shows `Snippet unavailable`.
+without proven snippets show a file-level header marked `no verified match`.
+They omit scope blocks, summaries, compatibility source, and unproven fallback
+window bounds. Older results without repository evidence still show
+`Snippet unavailable`.
 Ranking and pagination remain backend-owned; the client does not deduplicate hits
 sharing a file.
 

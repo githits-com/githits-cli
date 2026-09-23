@@ -1003,12 +1003,17 @@ function appendHit(
   }
 }
 
-/** Render backend scope facts separately from source-exact numbered lines. */
+/** Render scope facts only alongside source-exact numbered lines. */
 function appendStructuralEvidence(
   lines: string[],
   hit: UnifiedSearchHitPayload,
   options: NormalizedTextOptions,
 ): void {
+  const source = hit.repositoryEvidence?.matchedSource;
+  if (!source) {
+    if (!hit.repositoryEvidence) lines.push("  Snippet unavailable");
+    return;
+  }
   const context = hit.repositoryEvidence?.semanticContext;
   if (context) {
     if (context.scopeChainTruncated) lines.push("  ... outer scopes omitted");
@@ -1023,27 +1028,6 @@ function appendStructuralEvidence(
         `${prefix}- ${scope.kind} ${scope.qualifiedPath} | ${lineLabel} ${formatBareLineRange(scope.declarationStartLine, scope.declarationEndLine)}`,
       );
     });
-  }
-  const source = hit.repositoryEvidence?.matchedSource;
-  if (!source) {
-    // A legacy summary can provide context, but it does not prove a source match.
-    const summary = hit.repositoryEvidence
-      ? prepareSummary(hit.summary, hit.title)
-      : undefined;
-    if (summary) {
-      lines.push("  Context (source match unverified):");
-      lines.push(
-        ...wrapHighlightedText(
-          summary.text,
-          undefined,
-          Math.max(1, options.width - 4),
-          options.useColors,
-        ).map((line) => (line.length === 0 ? "" : `    ${line}`)),
-      );
-    } else {
-      lines.push("  Snippet unavailable");
-    }
-    return;
   }
   if (source.linesOmittedBefore) lines.push("  ... lines omitted before");
   const gutterWidth = String(source.endLine).length;
@@ -1242,7 +1226,14 @@ function formatHitHeader(hit: UnifiedSearchHitPayload): FormattedHitHeader {
     : evidence.filePath
       ? `${evidence.filePath}${formatLineRange(evidence.startLine, evidence.endLine)}`
       : "location unavailable";
-  const type = `[${shortType(hit.type)}${isPathOnlyHit(hit) ? ", path match" : ""}]`;
+  const sourceStatus = isPathOnlyHit(hit)
+    ? ", path match"
+    : (hit.type === "repository_code" || hit.type === "repository_doc") &&
+        hit.repositoryEvidence &&
+        !hit.repositoryEvidence.matchedSource
+      ? ", no verified match"
+      : "";
+  const type = `[${shortType(hit.type)}${sourceStatus}]`;
   const target = preferredRead
     ? semanticReadLocation(preferredRead).target
     : docsRead?.target || hit.target;
