@@ -711,32 +711,42 @@ describe("PackageIntelligenceServiceImpl", () => {
     ).rejects.toMatchObject({ name: "ClientUpdateRequiredError" });
   });
 
-  it("classifies 5xx plain-text body via parseDetail as PackageIntelligenceBackendError", async () => {
-    const fetchFn = mock(() =>
-      Promise.resolve(
-        new Response("Gateway Timeout", {
-          status: 504,
-          headers: { "Content-Type": "text/plain" },
-        }),
-      ),
-    );
-    const service = new PackageIntelligenceServiceImpl(
-      ENDPOINT,
-      createMockTokenProvider(),
-      asFetchFn(fetchFn),
-    );
-
-    try {
-      await service.packageSummary({ registry: "NPM", packageName: "x" });
-      throw new Error("expected backend error");
-    } catch (error) {
-      expect(error).toBeInstanceOf(PackageIntelligenceBackendError);
-      expect((error as PackageIntelligenceBackendError).status).toBe(504);
-      expect((error as PackageIntelligenceBackendError).message).toContain(
-        "Gateway Timeout",
+  it.each([
+    {
+      status: 502,
+      body: "<html>Cloudflare error page</html>",
+      contentType: "text/html",
+    },
+    { status: 504, body: "Gateway Timeout", contentType: "text/plain" },
+  ])(
+    "does not expose a non-JSON HTTP $status body",
+    async ({ status, body, contentType }) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(
+          new Response(body, {
+            status,
+            headers: { "Content-Type": contentType },
+          }),
+        ),
       );
-    }
-  });
+      const service = new PackageIntelligenceServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(fetchFn),
+      );
+
+      try {
+        await service.packageSummary({ registry: "NPM", packageName: "x" });
+        throw new Error("expected backend error");
+      } catch (error) {
+        expect(error).toBeInstanceOf(PackageIntelligenceBackendError);
+        expect(error).toMatchObject({
+          status,
+          message: `Server error (${status})`,
+        });
+      }
+    },
+  );
 
   it("classifies malformed JSON body (non-GraphQL shape) as MalformedPackageIntelligenceResponseError", async () => {
     const fetchFn = mock(() =>

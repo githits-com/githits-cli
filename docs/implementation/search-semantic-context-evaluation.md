@@ -217,9 +217,24 @@ subagents or additional rounds ran. Findings were adjudicated inline:
   explicitly report missing exact source. Reintroducing an unnumbered legacy
   snippet would undermine that distinction. This rejection is dated September 5,
   2026; reconsider only with new requirements or evidence.
+
 - Accepted after measurement: reuse the grapheme segmenter in the formatter
   instead of constructing it for each highlighted line. No text output changes.
   Legacy highlight-coordinate handling remains unchanged.
+
+September 23 follow-up: a three-hit Express code search returned nonempty summaries
+and compatibility source, but no proven `matchedSource`, so text showed only
+`Snippet unavailable` for every hit. The first revision labeled the existing
+summary as unverified context, but its unnumbered block was not useful to agents.
+The next revision kept those hits header-only but made them actionable: a
+`candidate` header includes the backend's bounded inspection window and literal
+query fragments visible in contributing indexed title, path, or summary fields.
+It names indexed fields when no fragment is visible. The response has field
+provenance but no exact BM25 term list, so visible fragments are not claimed as
+producer-proven matching terms. Numbered source and scope blocks remain exclusive
+to proven `matchedSource`. When the symbol definition contains the candidate
+window in the displayed file, the header ends with its kind and qualified name.
+Text still omits compatibility source and does not claim lower CAS cost.
 
 A minified Node-target build of the formatter was benchmarked before and after
 segmenter reuse on Node v24.15.0, using the captured three-hit Express payload.
@@ -229,6 +244,26 @@ renders. Median milliseconds/render: plain 0.00466 -> 0.00410; colored 0.03010 -
 work, excludes process startup and network, and does not imply lower agent cost.
 The benchmark and both bundled artifacts are preserved under the ignored
 `.agent-eval/semantic-search/formatter-*` and `renderer-{before,after}.mjs` paths.
+
+The September 23 header-only revision used a separate minified Node-target
+formatter benchmark with three unverified Express-shaped hits and one proven
+router control. After 1,000 warmups, the median of five 10,000-render samples
+was 0.00220 ms/render for the labeled-summary version and 0.00187 ms/render
+for the header-only version (Node v24.15.0, plain text). This is local render
+work only; it does not measure network, CAS, or agent quality. The runner and
+bundles are under the ignored `.agent-eval/semantic-search/bench-render.mjs`
+and `render-{before,after}.mjs` paths.
+
+The visible-term candidate revision was compared with the header-only version
+using minified Node-target builds on Node v24.15.0 and captured JSON for the
+three-hit Express and ten-hit GitHits identifier searches. After 1,000 warmups,
+median milliseconds/render over five 10,000-render samples were 0.00153 ->
+0.00364 for Express and 0.00556 -> 0.01394 for GitHits. The added literal
+fragment scan and symbol label raise local rendering time by roughly 2-8
+microseconds per response; it makes no extra source request. The runner and bundles are under
+ignored `.agent-eval/semantic-search/bench-candidate-headers.mjs` and
+`render-{header-only,visible-terms}.mjs` paths. These timings exclude network,
+CAS, and agent behavior.
 
 After closure, `bun test` over follow-up commands, semantic text, existing search
 text, and CLI/MCP search parity passed 114 tests with 397 assertions. No finding

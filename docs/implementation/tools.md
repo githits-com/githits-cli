@@ -266,13 +266,25 @@ boundaries are preserved without prose wrapping or client cropping. The `>` gutt
 marks highlighted lines without color. Whole-line omissions, inline crops,
 truncated scope chains, and incomplete highlights retain separate ASCII notices.
 
-When fields are exactly `[FILE_PATH]` and matched source is absent, text shows only
-an actionable file-level header with `path match`: no arbitrary chunk range,
-symbol title, scope block, or compatibility snippet. A present matched snippet
-always wins, even with file-path-only or unknown provenance. Other repository hits
-without proven snippets retain locators and scope metadata with `Snippet unavailable`;
-they never render a legacy summary as source. Ranking and pagination remain backend-
-owned; the client does not deduplicate hits sharing a file.
+When matched source is absent, repository text shows one candidate header with
+the backend's bounded read window as `file:start-end`; `candidate` makes clear
+that those coordinates do not prove a match. For a bare identifier query, the
+formatter splits camel-case/underscore fragments and reports only literal
+fragments visible in the corresponding returned text: title when `SYMBOL_NAME`
+contributed, path when `FILE_PATH` contributed, and summary when
+`SOURCE_IDENTIFIER` or `DOCUMENTATION` contributed. These `visible terms` are
+observed substrings of the returned text, not the producer's exact BM25 term
+list or a term-to-field map. If no fragment is visible, the header names the
+contributing indexed fields instead. Unknown
+field provenance stays a plain candidate. Candidate summaries, scope blocks,
+and compatibility source are not rendered as matched lines; older results
+without repository evidence still show `Snippet unavailable`. A present matched
+snippet always wins regardless of indexed-field provenance.
+When the returned symbol definition shares the displayed file and contains the
+candidate window, its kind and qualified name appear at the end of that header.
+This identifies the enclosing declaration without asserting a query match.
+Ranking and pagination remain backend-owned; the client does not deduplicate hits
+sharing a file.
 
 Crawled pages use `documentationPreview` text and zero-based half-open grapheme
 ranges. Convert offsets against the original preview before duplicate-heading
@@ -297,8 +309,10 @@ fields need no CAS, and crawled previews need no repository CAS. Matched source
 hydrates proven rows; identical source ranges selected together share a backend
 read. Legacy summary remains selected for symbol/legacy-preview consumers and can
 still cause repository hydration, so this is not a CAS or latency reduction claim.
-Rendering never fetches or stitches source. New clients require the producer's
-September 7 v31 additive schema; no older-schema retry is introduced. After client
+Rendering never fetches or stitches source; candidate fragments use the already
+selected summary and leave `omitFocusedSource` unchanged. New clients require
+the producer's September 7 v31 additive schema; no older-schema retry is
+introduced. After client
 publication the producer must retain that schema during rollback. Hosted clients
 adopt it only after the MCP package release and a separate remote-server dependency
 update/deployment.

@@ -190,11 +190,18 @@ unknown/null evidence is never coerced to an empty list or inferred source proof
 CLI and MCP text render the same enclosing declarations, inclusive ranges, and
 literal numbered source lines. The header carries the target/path locator and
 matched source range, with no repeated per-hit read command or authority caption.
-Path-only hits without matched source instead show a file-level `path match` header
-and omit arbitrary chunk titles, ranges, scopes, and compatibility snippets.
-Other absent repository snippets use `Snippet unavailable`. A present matched
-snippet always survives regardless of provenance. Both text callers omit the
-unused compatibility source selection; JSON/default service calls retain it.
+Hits with repository evidence but no matched source show a single `candidate`
+header with the backend's inspection window. For bare identifier queries, the
+header shows literal query fragments visible in contributing indexed fields;
+otherwise it names known fields. Neither the range nor the visible fragments
+assert an exact backend match. Candidate summaries, scope blocks, and
+compatibility snippets stay out of the body. A definition that contains the
+candidate window in the displayed file adds its kind and qualified name to the
+same header. Older hits without repository
+evidence use `Snippet unavailable`.
+A present matched snippet always survives regardless of
+provenance. Both text callers omit the unused compatibility source selection;
+JSON/default service calls retain it.
 Crawled previews use grapheme offsets before heading trimming and wrapping.
 Color is optional and the `>` match gutter
 retains meaning in plain text. Source grapheme highlights, whole-line omissions,

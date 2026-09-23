@@ -18,6 +18,7 @@
 
 import { z } from "zod";
 import { isFetchTimeoutError } from "../shared/fetch-timeout.js";
+import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import {
   type PkgseerGraphqlResponse,
   PkgseerTransportError,
@@ -4189,7 +4190,10 @@ export function createPackageIntelligenceHttpError(
   response: PkgseerGraphqlResponse,
 ): Error {
   const status = response.status;
-  const detail = parseDetail(response.responseBody);
+  const detail = parseHttpErrorDetail(response.responseBody, [
+    "detail",
+    "error",
+  ]);
 
   if (status === 401) {
     return new AuthenticationError(
@@ -4350,18 +4354,6 @@ function parseDocumentationSectionUnresolvedReason(
     default:
       return undefined;
   }
-}
-
-function parseDetail(body: string): string | undefined {
-  if (!body) return undefined;
-  try {
-    const parsed = JSON.parse(body) as Record<string, unknown>;
-    if (typeof parsed.detail === "string") return parsed.detail;
-    if (typeof parsed.error === "string") return parsed.error;
-  } catch {
-    return body;
-  }
-  return undefined;
 }
 
 function getPrimaryExtensions(
