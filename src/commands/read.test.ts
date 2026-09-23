@@ -165,7 +165,9 @@ describe("top-level read", () => {
     const readHelp = read.helpInformation();
     expect(read.name()).toBe("read");
     expect(readHelp).toContain("--lines");
-    expect(readHelp).toContain("mutable current content");
+    expect(readHelp).toMatch(/mutable\s+current content/);
+    expect(readHelp).toMatch(/--selector selects a code symbol/);
+    expect(readHelp).toMatch(/Starting line \(code or docs selector/);
     expect(readHelp).toMatch(/repository\s+docs are snapshot-addressed/);
     expect(readHelp).toContain("full subtree");
     expect(

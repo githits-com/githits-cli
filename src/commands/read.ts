@@ -203,9 +203,9 @@ export async function readAction(
 export function registerReadCommand(program: Command): Command {
   return program
     .command("read")
-    .summary("Read an indexed file or documentation page")
+    .summary("Read an indexed file, code symbol, or docs section")
     .description(
-      "Read a file with <target> <path>, or a docs page with its emitted target alone. Hosted/crawled HTTP(S) docs targets read mutable current content; repository docs are snapshot-addressed. Pass docs URL fragments unchanged to select the heading and its full subtree through the next equal-or-higher heading; --lines overrides the fragment with an intentional page-relative range. Default output is complete content for piping. Package and repository targets use the same compact syntax as code files.",
+      "Read an exact file with <target> <path>, or a docs page with <target>. --selector selects a code symbol (path optional) or docs heading by its fragment ID; do not combine it with a docs URL fragment. Hosted/crawled docs read mutable current content; repository docs are snapshot-addressed. A docs URL fragment selects the heading's full subtree; --lines selects a page-relative range instead. Output is complete for piping.",
     )
     .argument(
       "[target-or-path]",
@@ -219,8 +219,14 @@ export function registerReadCommand(program: Command): Command {
       "Code symbol or logical documentation heading ID",
     )
     .option("--lines <range>", "Inclusive line range, e.g. 10-40, 10-, or -40")
-    .option("--start <n>", "Starting line (code only; alternative to --lines)")
-    .option("--end <n>", "Ending line (code only; alternative to --lines)")
+    .option(
+      "--start <n>",
+      "Starting line (code or docs selector; alternative to --lines)",
+    )
+    .option(
+      "--end <n>",
+      "Ending line (code or docs selector; alternative to --lines)",
+    )
     .option(
       "--wait <ms>",
       `Code indexing wait (0-${MAX_WAIT_TIMEOUT_MS}, default ${DEFAULT_WAIT_TIMEOUT_MS}); validated but unused for docs`,
