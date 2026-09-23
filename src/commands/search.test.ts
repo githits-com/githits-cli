@@ -12,6 +12,7 @@ import {
   AuthenticationError,
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
+  createCodeNavigationHttpError,
   TermsAcceptanceRequiredError,
 } from "@githits/core-internal";
 import { AuthRequiredError } from "@githits/mcp/internal";
@@ -187,6 +188,43 @@ describe("searchAction", () => {
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
+
+  it.each([false, true])(
+    "keeps a 502 HTML body out of CLI search output with json=%s",
+    async (json) => {
+      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+        throw new Error("process.exit");
+      });
+      const backendError = createCodeNavigationHttpError({
+        status: 502,
+        responseBody: "<!doctype html><html>Cloudflare error page</html>",
+        parsedBody: null,
+      });
+
+      try {
+        await expect(
+          searchAction(
+            "router",
+            { in: ["npm:express"], json },
+            createDeps({
+              codeNavigationService: createMockCodeNavigationService({
+                search: mock(() => Promise.reject(backendError)),
+              }),
+            }),
+          ),
+        ).rejects.toThrow("process.exit");
+
+        const output = String(errorSpy.mock.calls[0]?.[0]);
+        expect(output).toContain("Server error (502)");
+        expect(output).not.toContain("Cloudflare");
+        expect(output).not.toContain("<html>");
+      } finally {
+        errorSpy.mockRestore();
+        exitSpy.mockRestore();
+      }
+    },
+  );
 
   it("preserves CLI terms remediation in JSON search errors", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
