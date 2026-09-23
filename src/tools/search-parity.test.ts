@@ -359,7 +359,7 @@ describe("search parity", () => {
       "lib/client.ts:120-165 [repo code, candidate; indexed: path]",
     );
     expect(text).not.toContain("response.status");
-    expect(text).not.toContain("Client.send");
+    expect(text).toContain(" - method Client.send");
     expect(text).not.toContain("legacy preview");
     expect(text).toContain("Router é👩‍💻 preview");
   });

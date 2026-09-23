@@ -195,7 +195,9 @@ header with the backend's inspection window. For bare identifier queries, the
 header shows literal query fragments visible in contributing indexed fields;
 otherwise it names known fields. Neither the range nor the visible fragments
 assert an exact backend match. Candidate summaries, scope blocks, and
-compatibility snippets stay out of the body. Older hits without repository
+compatibility snippets stay out of the body. A definition that contains the
+candidate window in the displayed file adds its kind and qualified name to the
+same header. Older hits without repository
 evidence use `Snippet unavailable`.
 A present matched snippet always survives regardless of
 provenance. Both text callers omit the unused compatibility source selection;

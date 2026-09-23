@@ -364,6 +364,17 @@ describe("v31 search presentation", () => {
     expect(text).not.toContain("visible terms");
   });
 
+  it("checks the displayed read path when an associated locator uses another file", () => {
+    const hit = semanticHit();
+    hit.repositoryEvidence!.matchedSource = null;
+    hit.repositoryEvidence!.bm25MatchFields = ["FILE_PATH"];
+    const text = render(hit, false, "wrongRelative");
+    expect(text).toContain(
+      "src/client.ts:120-165 [repo code, candidate; indexed: path]",
+    );
+    expect(text).not.toContain("visible terms");
+  });
+
   it("keeps the same file header when an unproven summary is empty", () => {
     const hit = semanticHit();
     hit.repositoryEvidence!.matchedSource = null;

@@ -426,6 +426,54 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("legacy summary should stay hidden");
   });
 
+  it("names a same-file candidate declaration on the header without claiming a match", () => {
+    const hit = codeHit({
+      target: "npm:githits@0.21.0",
+      title: "AuthSessionStore",
+      summary: "interface AuthSessionStore { clear(): void }",
+      locator: {
+        filePath: "src/auth.ts",
+        startLine: 17,
+        endLine: 27,
+        symbolContext: {
+          name: "AuthSessionStore",
+          qualifiedPath: "AuthSessionStore",
+          kind: "interface",
+          relation: "associated_with_indexed_chunk",
+          definitionRange: {
+            filePath: "src/auth.ts",
+            repositoryFilePath: "src/auth.ts",
+            startLine: 17,
+            endLine: 29,
+          },
+        },
+      },
+      repositoryEvidence: {
+        semanticContext: null,
+        bm25MatchFields: ["SYMBOL_NAME", "SOURCE_IDENTIFIER"],
+        focusedSource: null,
+        matchedSource: null,
+      },
+    });
+    const render = (): string =>
+      renderUnifiedSearchSuccess(
+        completed([hit], { query: { raw: "AuthSessionStore" } }),
+      );
+    expect(render()).toContain(
+      "src/auth.ts:17-27 [repo code, candidate; visible terms: auth, session, store] - interface AuthSessionStore",
+    );
+    expect(render().split("\n")).toHaveLength(3);
+    hit.locator.symbolContext!.definitionRange!.filePath = "src/other.ts";
+    hit.locator.symbolContext!.definitionRange!.repositoryFilePath =
+      "src/other.ts";
+    expect(render()).not.toContain("- interface AuthSessionStore");
+    hit.locator.symbolContext!.definitionRange!.filePath = "src/auth.ts";
+    hit.locator.symbolContext!.definitionRange!.repositoryFilePath =
+      "src/auth.ts";
+    hit.locator.symbolContext!.definitionRange!.endLine = 20;
+    expect(render()).not.toContain("- interface AuthSessionStore");
+  });
+
   it("does not imply that a cross-file associated definition shares the evidence file", () => {
     const text = renderUnifiedSearchSuccess(
       completed([

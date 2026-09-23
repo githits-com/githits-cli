@@ -1237,8 +1237,14 @@ function formatHitHeader(
     : evidence.filePath
       ? `${evidence.filePath}${formatLineRange(evidence.startLine, evidence.endLine)}`
       : "location unavailable";
-  const sourceStatus = candidateHeaderStatus(hit, queryFragments);
+  const sourceStatus = candidateHeaderStatus(
+    hit,
+    queryFragments,
+    evidence.filePath,
+  );
   const type = `[${shortType(hit.type)}${sourceStatus}]`;
+  const candidateSymbol = candidateSymbolLabel(hit, evidence);
+  const symbolSuffix = candidateSymbol ? ` - ${candidateSymbol}` : "";
   const target = preferredRead
     ? semanticReadLocation(preferredRead).target
     : docsRead?.target || hit.target;
@@ -1248,7 +1254,7 @@ function formatHitHeader(
     evidence.endLine,
   );
   return {
-    prefix: `${target}${location ? ` ${location}` : ""} ${type}`,
+    prefix: `${target}${location ? ` ${location}` : ""} ${type}${symbolSuffix}`,
     segments: [
       { text: target, style: "locator" },
       ...(location
@@ -1259,6 +1265,12 @@ function formatHitHeader(
         : []),
       { text: " ", style: "plain" },
       { text: type, style: "secondary" },
+      ...(candidateSymbol
+        ? ([
+            { text: " - ", style: "plain" },
+            { text: candidateSymbol, style: "secondary" },
+          ] satisfies HitHeaderSegment[])
+        : []),
     ],
     title: title.text,
     titleHighlights: offsetHighlightRanges(
@@ -1305,6 +1317,7 @@ const INDEXED_FIELD_SHORT_NAMES = {
 function candidateHeaderStatus(
   hit: UnifiedSearchHitPayload,
   queryFragments: string[],
+  displayedPath: string | undefined,
 ): string {
   const evidence = hit.repositoryEvidence;
   if (
@@ -1317,8 +1330,8 @@ function candidateHeaderStatus(
   const visibleValues: string[] = [];
   if (fields?.includes("SYMBOL_NAME") && hit.title)
     visibleValues.push(hit.title.toLowerCase());
-  if (fields?.includes("FILE_PATH") && hit.locator.filePath)
-    visibleValues.push(hit.locator.filePath.toLowerCase());
+  if (fields?.includes("FILE_PATH") && displayedPath)
+    visibleValues.push(displayedPath.toLowerCase());
   if (
     (fields?.includes("SOURCE_IDENTIFIER") ||
       fields?.includes("DOCUMENTATION")) &&
@@ -1367,6 +1380,35 @@ function formatRepositoryEvidence(
       loc.evidenceRange?.endLine ??
       loc.endLine,
   };
+}
+
+/** A candidate may name its declaration when the displayed window fits it. */
+function candidateSymbolLabel(
+  hit: UnifiedSearchHitPayload,
+  location: RepositoryEvidence,
+): string | undefined {
+  if (
+    hit.type !== "repository_code" ||
+    !hit.repositoryEvidence ||
+    hit.repositoryEvidence.matchedSource
+  )
+    return undefined;
+  const symbol = hit.locator.symbolContext;
+  const definition = symbol?.definitionRange;
+  if (
+    !symbol?.kind ||
+    !symbol.qualifiedPath ||
+    !definition ||
+    !location.filePath ||
+    location.startLine === undefined ||
+    location.endLine === undefined ||
+    (definition.filePath !== location.filePath &&
+      definition.repositoryFilePath !== location.filePath) ||
+    definition.startLine > location.startLine ||
+    definition.endLine < location.endLine
+  )
+    return undefined;
+  return `${symbol.kind} ${symbol.qualifiedPath}`;
 }
 
 interface RepositoryHitTitle {

@@ -232,7 +232,8 @@ query fragments visible in contributing indexed title, path, or summary fields.
 It names indexed fields when no fragment is visible. The response has field
 provenance but no exact BM25 term list, so visible fragments are not claimed as
 producer-proven matching terms. Numbered source and scope blocks remain exclusive
-to proven `matchedSource`.
+to proven `matchedSource`. When the symbol definition contains the candidate
+window in the displayed file, the header ends with its kind and qualified name.
 Text still omits compatibility source and does not claim lower CAS cost.
 
 A minified Node-target build of the formatter was benchmarked before and after
@@ -256,10 +257,10 @@ and `render-{before,after}.mjs` paths.
 The visible-term candidate revision was compared with the header-only version
 using minified Node-target builds on Node v24.15.0 and captured JSON for the
 three-hit Express and ten-hit GitHits identifier searches. After 1,000 warmups,
-median milliseconds/render over five 10,000-render samples were 0.00172 ->
-0.00339 for Express and 0.00553 -> 0.01275 for GitHits. The added literal
-fragment scan raises local rendering time by roughly 2-7 microseconds per
-response; it makes no extra source request. The runner and bundles are under
+median milliseconds/render over five 10,000-render samples were 0.00153 ->
+0.00364 for Express and 0.00556 -> 0.01394 for GitHits. The added literal
+fragment scan and symbol label raise local rendering time by roughly 2-8
+microseconds per response; it makes no extra source request. The runner and bundles are under
 ignored `.agent-eval/semantic-search/bench-candidate-headers.mjs` and
 `render-{header-only,visible-terms}.mjs` paths. These timings exclude network,
 CAS, and agent behavior.

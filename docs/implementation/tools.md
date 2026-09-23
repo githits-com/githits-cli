@@ -280,6 +280,9 @@ field provenance stays a plain candidate. Candidate summaries, scope blocks,
 and compatibility source are not rendered as matched lines; older results
 without repository evidence still show `Snippet unavailable`. A present matched
 snippet always wins regardless of indexed-field provenance.
+When the returned symbol definition shares the displayed file and contains the
+candidate window, its kind and qualified name appear at the end of that header.
+This identifies the enclosing declaration without asserting a query match.
 Ranking and pagination remain backend-owned; the client does not deduplicate hits
 sharing a file.
 
