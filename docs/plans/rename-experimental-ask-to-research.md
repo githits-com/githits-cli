@@ -207,8 +207,9 @@ changes or implementation verification were performed during planning.
   no public `@githits/mcp` package impact. Plugin generation produced no asset
   diff.
 - Verification: 318 focused tests passed; `bun run typecheck` passed; all
-  4,887 unit tests passed; `bun run build`, `bun run plugins:generate`, and
-  `bun run plugins:check` passed. Source CLI smoke passed stable and experimental
+  4,887 unit tests passed before integration. `bun run build`,
+  `bun run plugins:generate`, and `bun run plugins:check` passed. Source CLI
+  smoke passed stable and experimental
   live cohorts. Source MCP smoke passed stable and experimental live cohorts,
   including `research` text and thread-follow-up URL JSON calls. Built CLI
   unauthenticated smoke and built MCP registration smoke passed.
@@ -228,3 +229,7 @@ changes or implementation verification were performed during planning.
   was shortened to align with neighboring help rows, and 85 affected tests plus
   the 35-step source CLI unauthenticated smoke passed. Under the review rule,
   this wording-only round is clean after correction. No code findings remain.
+- `origin/main` advanced during review to `c992035898b40396769163863b08139d340f9506`.
+  The branch rebased cleanly onto that commit. On the combined tree, all 4,900
+  unit tests, build, built CLI/MCP smoke, public-package validation, and plugin
+  check passed. The working tree remained clean after the rebase.
