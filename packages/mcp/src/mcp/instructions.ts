@@ -95,7 +95,10 @@ export function buildMcpInstructions(
   return buildMcpQuickStart(options);
 }
 
-export type LocalExperimentalToolName = "ask" | "resolve_target" | "code_diff";
+export type LocalExperimentalToolName =
+  | "research"
+  | "resolve_target"
+  | "code_diff";
 
 export interface BuildLocalMcpQuickStartOptions {
   enabledExperimentalTools: readonly LocalExperimentalToolName[];
@@ -110,10 +113,10 @@ const LOCAL_EXPERIMENTAL_HEADING =
 const LOCAL_EXPERIMENTAL_PRIVACY =
   "Inputs are sent to GitHits. Never send credentials, personal data, private or proprietary content, local paths, or private targets.";
 
-const LOCAL_AGENTIC_ASK_GUIDANCE_START =
-  "- `ask` — ask a public repository or package question and receive a source-cited answer. Omit `target` and `thread_id` for question-only lookup. For candidates, ask the user to select a `target`, then retry.";
+const LOCAL_RESEARCH_GUIDANCE_START =
+  "- `research` — research a public repository or package to answer a question with sources. Omit `target` and `thread_id` for question-only lookup. For candidates, ask the user to select a `target`, then retry.";
 
-const LOCAL_AGENTIC_ASK_GUIDANCE_END =
+const LOCAL_RESEARCH_GUIDANCE_END =
   ' Reuse a returned `thread_id` for follow-ups. Change project, version, or topic in the follow-up question. Sources default to directly callable MCP tools; use `source_format:"url"` for original upstream URLs. Do not invent or rewrite sources.';
 
 const LOCAL_RESOLVE_TARGET_GUIDANCE =
@@ -137,9 +140,9 @@ export function buildLocalMcpQuickStart(
     LOCAL_EXPERIMENTAL_PRIVACY,
   ];
   const toolGuidance: string[] = [];
-  if (enabled.has("ask")) {
+  if (enabled.has("research")) {
     toolGuidance.push(
-      `${LOCAL_AGENTIC_ASK_GUIDANCE_START}${LOCAL_AGENTIC_ASK_GUIDANCE_END}`,
+      `${LOCAL_RESEARCH_GUIDANCE_START}${LOCAL_RESEARCH_GUIDANCE_END}`,
     );
   }
   if (enabled.has("resolve_target")) {

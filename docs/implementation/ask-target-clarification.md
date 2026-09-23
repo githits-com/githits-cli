@@ -31,10 +31,10 @@ CLI JSON preserves the typed resolution and `needs_target` outcome, and the comm
 completes successfully. Retry the question with a selected canonical target:
 
 ```sh
-githits ask github:openai/codex 'How does codex handle chat compaction?'
+githits research github:openai/codex 'How does codex handle chat compaction?'
 ```
 
-Local MCP Ask accepts the same question-only lookup: omit both `target` and
+Local MCP `research` accepts the same question-only lookup: omit both `target` and
 `thread_id`. Text and JSON return the same clarification and candidates as the CLI.
 Repeat the original question with a selected `target` to continue. Explicit targets
 and thread follow-ups remain supported, but cannot be supplied together.

@@ -1,11 +1,4 @@
 export {
-  type AskCommandDependencies,
-  type AskCommandOptions,
-  askAction,
-  registerAskCommand,
-  validateAskCommandBeforeAction,
-} from "./ask.js";
-export {
   type AuthStatusDependencies,
   authStatusAction,
   authTokenAction,
@@ -49,6 +42,13 @@ export {
 export { registerMcpCommand } from "./mcp.js";
 export { registerPkgCommandGroup } from "./pkg/index.js";
 export { readAction, registerReadCommand } from "./read.js";
+export {
+  type ResearchCommandDependencies,
+  type ResearchCommandOptions,
+  registerResearchCommand,
+  researchAction,
+  validateResearchCommandBeforeAction,
+} from "./research.js";
 export {
   type ResolveCommandDependencies,
   type ResolveCommandOptions,

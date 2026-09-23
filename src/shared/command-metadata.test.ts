@@ -7,7 +7,7 @@ import {
 describe("authenticated command metadata", () => {
   it("covers all authenticated JSON-capable commands", () => {
     expect(AUTHENTICATED_COMMANDS.map((entry) => entry.path)).toEqual([
-      "ask",
+      "research",
       "example",
       "resolve",
       "settings",
@@ -42,13 +42,14 @@ describe("authenticated command metadata", () => {
     });
   });
 
-  it("marks ask as auto-login eligible and JSON-capable", () => {
-    expect(getAuthenticatedCommandMetadata("ask")).toEqual({
-      path: "ask",
+  it("marks research as auto-login eligible and JSON-capable", () => {
+    expect(getAuthenticatedCommandMetadata("research")).toEqual({
+      path: "research",
       autoLoginEligible: true,
-      postLoginMessage: "Authentication complete. Running Agentic Ask...",
+      postLoginMessage: "Authentication complete. Running research...",
       jsonCapable: true,
     });
+    expect(getAuthenticatedCommandMetadata("ask")).toBeUndefined();
   });
 
   it("marks resolve as auto-login eligible and JSON-capable", () => {

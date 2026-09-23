@@ -335,7 +335,7 @@ describe("handleCliError", () => {
     }
   });
 
-  it("renders legacy Ask repository refs as a clean JSON argument error", async () => {
+  it("renders legacy repository refs through the ask alias as a clean JSON argument error", async () => {
     const configHome = mkdtempSync(join(tmpdir(), "githits-cli-ask-error-"));
     mkdirSync(join(configHome, "githits"), { recursive: true });
     writeFileSync(

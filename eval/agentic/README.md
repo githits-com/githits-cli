@@ -903,7 +903,7 @@ surface under test.
 
 ### Workload Selection
 
-Use `ask-version-followup.md` for Ask thread reuse across project and version changes.
+Use `ask-version-followup.md` for local `research` thread reuse across project and version changes.
 
 Use targeted workloads when a change affects a specific tool family. Use both
 Claude and Codex for instruction/tool-description/skill changes when practical;
@@ -982,7 +982,7 @@ add the workload from the table. Compare
 `tool-calls.json`, `metrics.json`, and the final JSON's answer/confidence across
 branches or against a published run.
 
-For question-only Ask parity, use `experimental-question-only-ask.md` with
+For question-only `research` parity, use `experimental-question-only-ask.md` with
 `--experimental-tools` and descriptor-only guidance. Inspect whether calls omit
 both selectors and whether returned candidates remain choices for the user;
 do not count authentication failures as behavioral evidence.

@@ -10,7 +10,6 @@ import {
   startUpdateCheckTaskForInvocation,
 } from "./cli/update-check.js";
 import {
-  registerAskCommand,
   registerAuthStatusCommand,
   registerCodeCommandGroup,
   registerDocsCommandGroup,
@@ -22,10 +21,11 @@ import {
   registerMcpCommand,
   registerPkgCommandGroup,
   registerReadCommand,
+  registerResearchCommand,
   registerResolveCommand,
   registerSettingsCommand,
   registerUnifiedSearchCommands,
-  validateAskCommandBeforeAction,
+  validateResearchCommandBeforeAction,
 } from "./commands/index.js";
 import { loginFlow, stderrLoginOutput } from "./commands/login.js";
 import {
@@ -83,8 +83,8 @@ async function main(): Promise<void> {
     "resolve",
     experimentalCliPolicy.tools,
   );
-  const askAvailable = shouldRegisterCliCommand(
-    "ask",
+  const researchAvailable = shouldRegisterCliCommand(
+    "research",
     experimentalCliPolicy.tools,
   );
 
@@ -114,7 +114,7 @@ async function main(): Promise<void> {
     })
     .hook("preAction", async (thisCommand, actionCommand) => {
       const command = actionCommand ?? thisCommand;
-      validateAskCommandBeforeAction(command);
+      validateResearchCommandBeforeAction(command);
       commandSpans.set(
         command,
         startTelemetrySpan(getTelemetryCommandName(command)),
@@ -127,7 +127,7 @@ async function main(): Promise<void> {
     })
     .addHelpText(
       "after",
-      buildGettingStartedText({ askAvailable, resolveAvailable }),
+      buildGettingStartedText({ researchAvailable, resolveAvailable }),
     );
 
   // Setup command
@@ -143,8 +143,8 @@ async function main(): Promise<void> {
   // CLI commands
   registerExampleCommand(program);
   registerDoctorCommand(program);
-  if (askAvailable) {
-    registerAskCommand(program);
+  if (researchAvailable) {
+    registerResearchCommand(program);
   }
   if (resolveAvailable) {
     registerResolveCommand(program);
@@ -260,11 +260,11 @@ function isSearchHelpTarget(value: string | undefined): boolean {
 }
 
 function buildGettingStartedText(options: {
-  askAvailable: boolean;
+  researchAvailable: boolean;
   resolveAvailable: boolean;
 }): string {
-  const experimentalAsk = options.askAvailable
-    ? '\n  githits ask npm:express "question"   Ask about one open-source target'
+  const experimentalResearch = options.researchAvailable
+    ? '\n  githits research npm:express "How?"  Research one open-source target'
     : "";
   const experimentalResolve = options.resolveAvailable
     ? "\n  githits resolve express              Resolve a package or repository name"
@@ -274,7 +274,7 @@ ${colorizeBrand("Getting started:", "primary", useColors, { bold: true })}
   githits init                         Connect GitHits to your coding agents
   githits login                        Sign in to your GitHits account
   githits mcp                          Show MCP setup instructions
-  githits example "query"              Find real-world implementations${experimentalAsk}${experimentalResolve}
+  githits example "query"              Find real-world implementations${experimentalResearch}${experimentalResolve}
 
 Learn more at https://githits.com
 Docs: https://docs.githits.com

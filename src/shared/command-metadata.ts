@@ -7,9 +7,9 @@ export interface AuthenticatedCommandMetadata {
 
 export const AUTHENTICATED_COMMANDS = [
   {
-    path: "ask",
+    path: "research",
     autoLoginEligible: true,
-    postLoginMessage: "Authentication complete. Running Agentic Ask...",
+    postLoginMessage: "Authentication complete. Running research...",
     jsonCapable: true,
   },
   {

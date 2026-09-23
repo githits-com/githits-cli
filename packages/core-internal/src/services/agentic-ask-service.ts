@@ -298,7 +298,7 @@ export class AgenticAskHttpError extends Error {
 
 export class AgenticAskRequestTimeoutError extends Error {
   constructor(readonly timeoutMs: number) {
-    super("Agentic Ask timed out. Try again.");
+    super("Research timed out. Try again.");
     this.name = "AgenticAskRequestTimeoutError";
   }
 }
@@ -317,7 +317,7 @@ export class AgenticAskConnectionError extends Error {
 
 export class MalformedAgenticAskResponseError extends Error {
   constructor(options?: { cause?: unknown }) {
-    super("GitHits returned an invalid Agentic Ask response.", {
+    super("GitHits returned an invalid Research response.", {
       cause: options?.cause,
     });
     this.name = "MalformedAgenticAskResponseError";
@@ -326,7 +326,7 @@ export class MalformedAgenticAskResponseError extends Error {
 
 export class AgenticAskResponseTooLargeError extends Error {
   constructor(readonly maxBytes: number = AGENTIC_ASK_MAX_RESPONSE_BYTES) {
-    super("GitHits returned an Agentic Ask response that was too large.");
+    super("GitHits returned a Research response that was too large.");
     this.name = "AgenticAskResponseTooLargeError";
   }
 }
@@ -594,7 +594,7 @@ function createHttpError(
           ? `${targetError.message} ${targetError.hint}`
           : request.target === undefined && request.threadId === undefined
             ? "GitHits could not answer this question for a supported target. Clarify the question or specify a public package or repository."
-            : "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo@ref or a package such as npm:prisma@version. To correct a follow-up, keep thread_id and name the exact project or version in the question.",
+            : "GitHits could not validate this Research request or its target. Check the question and use a repository such as github:owner/repo@ref or a package such as npm:prisma@version. To correct a follow-up, keep thread_id and name the exact project or version in the question.",
         status,
         toolCallId,
         undefined,
@@ -615,7 +615,7 @@ function createHttpError(
     case 403:
       return new AgenticAskHttpError(
         "ACCESS_DENIED",
-        "Access to Agentic Ask is denied.",
+        "Access to Research is denied.",
         status,
         toolCallId,
         undefined,
@@ -625,7 +625,7 @@ function createHttpError(
     case 404:
       return new AgenticAskHttpError(
         "THREAD_NOT_FOUND",
-        "Agentic Ask thread was not found.",
+        "Research thread was not found.",
         status,
         toolCallId,
         undefined,
@@ -635,7 +635,7 @@ function createHttpError(
     case 409:
       return new AgenticAskHttpError(
         "INVALID_REQUEST",
-        "This Agentic Ask thread cannot accept another follow-up.",
+        "This Research thread cannot accept another follow-up.",
         status,
         toolCallId,
         undefined,
@@ -645,7 +645,7 @@ function createHttpError(
     case 422:
       return new AgenticAskHttpError(
         "INVALID_REQUEST",
-        "GitHits rejected the Agentic Ask request.",
+        "GitHits rejected the Research request.",
         status,
         toolCallId,
         undefined,
@@ -655,7 +655,7 @@ function createHttpError(
     case 429:
       return new AgenticAskHttpError(
         "RATE_LIMITED",
-        "Agentic Ask is rate limited.",
+        "Research is rate limited.",
         status,
         toolCallId,
         parseRetryAfterSeconds(response.headers.get("Retry-After"), Date.now()),
@@ -665,7 +665,7 @@ function createHttpError(
     case 500:
       return new AgenticAskHttpError(
         "EXECUTION_FAILED",
-        "Agentic Ask failed.",
+        "Research failed.",
         status,
         toolCallId,
         undefined,
@@ -675,7 +675,7 @@ function createHttpError(
     case 503:
       return new AgenticAskHttpError(
         "SERVICE_UNAVAILABLE",
-        "Agentic Ask is temporarily unavailable.",
+        "Research is temporarily unavailable.",
         status,
         toolCallId,
         undefined,
@@ -685,7 +685,7 @@ function createHttpError(
     case 504:
       return new AgenticAskHttpError(
         "TIMEOUT",
-        "Agentic Ask timed out.",
+        "Research timed out.",
         status,
         toolCallId,
         undefined,
@@ -695,7 +695,7 @@ function createHttpError(
     default:
       return new AgenticAskHttpError(
         "HTTP_ERROR",
-        `Agentic Ask request failed with status ${status}.`,
+        `Research request failed with status ${status}.`,
         status,
         toolCallId,
         undefined,
