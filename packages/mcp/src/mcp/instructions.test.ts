@@ -7,7 +7,7 @@ import {
   type LocalExperimentalToolName,
 } from "./instructions.js";
 
-const EXPERIMENTAL_TOOLS = ["ask", "resolve_target", "code_diff"] as const;
+const EXPERIMENTAL_TOOLS = ["research", "resolve_target", "code_diff"] as const;
 
 function buildLocal(
   enabledExperimentalTools: readonly LocalExperimentalToolName[],
@@ -86,9 +86,10 @@ describe("buildLocalMcpQuickStart", () => {
 
     expect(instructions).toContain("Local experimental tools");
     expect(instructions).toContain("public OSS only");
-    expect(instructions).toContain("`ask`");
+    expect(instructions).toContain("`research`");
+    expect(instructions).not.toContain("`ask`");
     expect(instructions).toContain(
-      "public repository or package question and receive a source-cited answer",
+      "research a public repository or package to answer a question with sources",
     );
     expect(instructions).toContain("Omit `target` and `thread_id`");
     expect(instructions).toContain(
@@ -125,7 +126,7 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("diffs do not prove compatibility");
     expect(instructions).toContain("credentials");
     expect(instructions).toContain("private or proprietary content");
-    expect(instructions).toContain("targets.\n\n- `ask`");
+    expect(instructions).toContain("targets.\n\n- `research`");
     expect(instructions).toContain(
       "Do not invent or rewrite sources.\n- `resolve_target`",
     );
@@ -143,14 +144,14 @@ describe("buildLocalMcpQuickStart", () => {
       { enabled: [] as const, absent: EXPERIMENTAL_TOOLS },
       {
         enabled: ["resolve_target"] as const,
-        absent: ["ask", "code_diff"] as const,
+        absent: ["research", "code_diff"] as const,
       },
       {
         enabled: ["code_diff"] as const,
-        absent: ["ask", "resolve_target"] as const,
+        absent: ["research", "resolve_target"] as const,
       },
       {
-        enabled: ["ask"] as const,
+        enabled: ["research"] as const,
         absent: ["resolve_target", "code_diff"] as const,
       },
     ];

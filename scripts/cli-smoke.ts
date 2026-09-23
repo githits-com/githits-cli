@@ -89,7 +89,7 @@ export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
 
 export const EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS = [
   ...EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
-  "ask",
+  "research",
   "resolve",
 ] as const;
 
@@ -322,7 +322,7 @@ export function parseRootHelpCommands(helpText: string): string[] {
     }
     if (line.trim() === "") break;
     const match = /^ {2}(\S+)/.exec(line);
-    const command = match?.[1];
+    const command = match?.[1]?.split("|", 1)[0];
     if (command && command !== "help") commands.push(command);
   }
   return commands;
@@ -935,6 +935,10 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "stable root help should omit ask",
     );
     assert(
+      !helpResult.stdout.includes("research"),
+      "stable root help should omit research",
+    );
+    assert(
       !helpResult.stdout.includes("resolve"),
       "stable root help should omit resolve",
     );
@@ -955,38 +959,35 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "stable code help should omit diff",
     );
 
-    const disabledAsk = await runCliWithEnv(
-      ["ask", "npm:express", "How is routing implemented?"],
-      env,
-    );
-    assert(
-      disabledAsk.exitCode !== 0 &&
-        `${disabledAsk.stderr}\n${disabledAsk.stdout}`.includes(
-          `Experimental CLI command "ask" is disabled. Enable it in ${configPath} by adding:\n[experimental]\ntools = true`,
-        ),
-      "disabled ask should expose the exact config path and snippet",
-    );
+    for (const command of ["research", "ask"] as const) {
+      const disabled = await runCliWithEnv(
+        [command, "npm:express", "How is routing implemented?"],
+        env,
+      );
+      const disabledMessage = `Experimental CLI command "${command}" is disabled. Enable it in ${configPath} by adding:\n[experimental]\ntools = true`;
+      assert(
+        disabled.exitCode !== 0 &&
+          `${disabled.stderr}\n${disabled.stdout}`.includes(disabledMessage),
+        `disabled ${command} should echo its spelling and expose the config path and snippet`,
+      );
 
-    const disabledAskJson = await runCliWithEnv(
-      ["ask", "npm:express", "How is routing implemented?", "--json"],
-      env,
-    );
-    assertJsonErrorCode(
-      disabledAskJson,
-      "disabled ask JSON",
-      "INVALID_ARGUMENT",
-    );
-    assert(
-      disabledAskJson.stdout.trim() === "",
-      "disabled ask JSON should keep stdout empty",
-    );
-    assert(
-      assertCleanErrorEnvelope(
-        disabledAskJson.stderr,
-        "disabled ask JSON",
-      ).error.includes(`[experimental]\ntools = true`),
-      "disabled ask JSON should retain the enable snippet",
-    );
+      const disabledJson = await runCliWithEnv(
+        [command, "npm:express", "How is routing implemented?", "--json"],
+        env,
+      );
+      const context = `disabled ${command} JSON`;
+      assertJsonErrorCode(disabledJson, context, "INVALID_ARGUMENT");
+      assert(
+        disabledJson.stdout.trim() === "",
+        `${context} should keep stdout empty`,
+      );
+      assert(
+        assertCleanErrorEnvelope(disabledJson.stderr, context).error.includes(
+          disabledMessage,
+        ),
+        `${context} should echo its spelling and retain the enable snippet`,
+      );
+    }
 
     const disabledResolve = await runCliWithEnv(["resolve", "express"], env);
     assert(
@@ -1168,38 +1169,49 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
       EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS,
     );
     assert(
-      helpResult.stdout.includes('githits ask npm:express "question"'),
-      "experimental root help should include ask in Getting started",
+      helpResult.stdout.includes('githits research npm:express "How?"'),
+      "experimental root help should use research in Getting started",
+    );
+    assert(
+      helpResult.stdout.includes("research|ask"),
+      "experimental root help should list ask as the research alias",
     );
     assert(
       helpResult.stdout.includes("githits resolve express"),
       "experimental root help should include resolve in Getting started",
     );
 
-    const askHelp = await runCliWithEnv(["ask", "--help"], env);
-    assert(
-      askHelp.exitCode === 0 &&
-        askHelp.stdout.includes("[target] <question>") &&
-        askHelp.stdout.includes("Omit the target") &&
-        askHelp.stdout.includes("--thread <UUID>") &&
-        askHelp.stdout.includes("--source-format <format>") &&
-        askHelp.stdout.includes('choices: "cli", "url"') &&
-        askHelp.stdout.includes("--json"),
-      "experimental ask help should expose the bounded CLI contract",
-    );
+    for (const command of ["research", "ask"] as const) {
+      const commandHelp = await runCliWithEnv([command, "--help"], env);
+      assert(
+        commandHelp.exitCode === 0 &&
+          commandHelp.stdout.includes("[target] <question>") &&
+          commandHelp.stdout.includes("Omit the target") &&
+          commandHelp.stdout.includes("--thread <UUID>") &&
+          commandHelp.stdout.includes("--source-format <format>") &&
+          commandHelp.stdout.includes('choices: "cli", "url"') &&
+          commandHelp.stdout.includes("--json"),
+        `experimental ${command} help should expose the research CLI contract`,
+      );
+    }
 
-    const malformedAskJson = await runCliWithEnv(
-      ["ask", "--json", "--thread", "018f47a6-7b32-7b1e-8f45-6a2d39c81720"],
+    const malformedResearchJson = await runCliWithEnv(
+      [
+        "research",
+        "--json",
+        "--thread",
+        "018f47a6-7b32-7b1e-8f45-6a2d39c81720",
+      ],
       env,
     );
     assertJsonErrorCode(
-      malformedAskJson,
-      "experimental malformed ask",
+      malformedResearchJson,
+      "experimental malformed research",
       "INVALID_ARGUMENT",
     );
     assert(
-      malformedAskJson.stdout.trim() === "",
-      "experimental malformed ask should keep stdout empty",
+      malformedResearchJson.stdout.trim() === "",
+      "experimental malformed research should keep stdout empty",
     );
 
     const codeHelp = await runCliWithEnv(["code", "--help"], env);
@@ -1231,13 +1243,13 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
       "experimental unauthenticated resolve",
       "AUTH_REQUIRED",
     );
-    const askJson = await runCliWithEnv(
-      ["ask", "npm:express", "How is routing implemented?", "--json"],
+    const researchJson = await runCliWithEnv(
+      ["research", "npm:express", "How is routing implemented?", "--json"],
       env,
     );
     assertJsonErrorCode(
-      askJson,
-      "experimental unauthenticated ask",
+      researchJson,
+      "experimental unauthenticated research",
       "AUTH_REQUIRED",
     );
     const targetlessAskJson = await runCliWithEnv(
@@ -1246,7 +1258,7 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
     );
     assertJsonErrorCode(
       targetlessAskJson,
-      "experimental unauthenticated targetless ask",
+      "experimental unauthenticated targetless ask alias",
       "AUTH_REQUIRED",
     );
     const codeDiffJson = await runCliWithEnv(

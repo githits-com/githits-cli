@@ -278,12 +278,12 @@ describe("AgenticAskServiceImpl", () => {
     {
       subject: { target: "npm:example" },
       message:
-        "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo@ref or a package such as npm:prisma@version. To correct a follow-up, keep thread_id and name the exact project or version in the question.",
+        "GitHits could not validate this Research request or its target. Check the question and use a repository such as github:owner/repo@ref or a package such as npm:prisma@version. To correct a follow-up, keep thread_id and name the exact project or version in the question.",
     },
     {
       subject: { threadId: THREAD_ID },
       message:
-        "GitHits could not validate this Ask request or its target. Check the question and use a repository such as github:owner/repo@ref or a package such as npm:prisma@version. To correct a follow-up, keep thread_id and name the exact project or version in the question.",
+        "GitHits could not validate this Research request or its target. Check the question and use a repository such as github:owner/repo@ref or a package such as npm:prisma@version. To correct a follow-up, keep thread_id and name the exact project or version in the question.",
     },
   ])(
     "keeps 400 guidance accurate for the supplied subject: %j",
@@ -709,7 +709,7 @@ describe("AgenticAskServiceImpl", () => {
       service.ask({ target: "npm:example", question: "How?" }),
     ).rejects.toMatchObject({
       name: "MalformedAgenticAskResponseError",
-      message: "GitHits returned an invalid Agentic Ask response.",
+      message: "GitHits returned an invalid Research response.",
     });
   });
 
@@ -734,51 +734,73 @@ describe("AgenticAskServiceImpl", () => {
   });
 
   it.each([
-    [400, "INVALID_TARGET", false],
-    [401, "AUTH_REQUIRED", false],
-    [403, "ACCESS_DENIED", false],
-    [404, "THREAD_NOT_FOUND", false],
-    [409, "INVALID_REQUEST", false],
-    [422, "INVALID_REQUEST", false],
-    [429, "RATE_LIMITED", true],
-    [500, "EXECUTION_FAILED", false],
-    [503, "SERVICE_UNAVAILABLE", true],
-    [504, "TIMEOUT", true],
-    [418, "HTTP_ERROR", false],
-  ] as const)("maps HTTP %i to %s", async (status, code, retryable) => {
-    const fetchFn = mock(() =>
-      Promise.resolve(
-        new Response("private backend detail", {
-          status,
-          headers: {
-            "X-GitHits-Tool-Call-Id": TOOL_CALL_ID,
-            "X-GitHits-Thread-Id": THREAD_ID,
-            ...(status === 429 ? { "Retry-After": "17" } : {}),
-          },
-        }),
-      ),
-    ) as unknown as typeof fetch;
+    [
+      400,
+      "INVALID_TARGET",
+      false,
+      "GitHits could not validate this Research request or its target. " +
+        "Check the question and use a repository such as github:owner/repo@ref " +
+        "or a package such as npm:prisma@version. To correct a follow-up, " +
+        "keep thread_id and name the exact project or version in the question.",
+    ],
+    [
+      401,
+      "AUTH_REQUIRED",
+      false,
+      "GitHits could not accept the authentication token.",
+    ],
+    [403, "ACCESS_DENIED", false, "Access to Research is denied."],
+    [404, "THREAD_NOT_FOUND", false, "Research thread was not found."],
+    [
+      409,
+      "INVALID_REQUEST",
+      false,
+      "This Research thread cannot accept another follow-up.",
+    ],
+    [422, "INVALID_REQUEST", false, "GitHits rejected the Research request."],
+    [429, "RATE_LIMITED", true, "Research is rate limited."],
+    [500, "EXECUTION_FAILED", false, "Research failed."],
+    [503, "SERVICE_UNAVAILABLE", true, "Research is temporarily unavailable."],
+    [504, "TIMEOUT", true, "Research timed out."],
+    [418, "HTTP_ERROR", false, "Research request failed with status 418."],
+  ] as const)(
+    "maps HTTP %i to %s",
+    async (status, code, retryable, message) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(
+          new Response("private backend detail", {
+            status,
+            headers: {
+              "X-GitHits-Tool-Call-Id": TOOL_CALL_ID,
+              "X-GitHits-Thread-Id": THREAD_ID,
+              ...(status === 429 ? { "Retry-After": "17" } : {}),
+            },
+          }),
+        ),
+      ) as unknown as typeof fetch;
 
-    try {
-      await createService(fetchFn, {
-        tokenProvider: createMockTokenProvider({
-          getToken: mock(() => Promise.resolve("ghi-static-token")),
-        }),
-      }).ask({ target: "npm:example", question: "How?" });
-      throw new Error("expected request failure");
-    } catch (error) {
-      expect(error).toBeInstanceOf(AgenticAskHttpError);
-      expect(error).toMatchObject({
-        code,
-        status,
-        retryable,
-        toolCallId: TOOL_CALL_ID,
-        threadId: THREAD_ID,
-        ...(status === 429 ? { retryAfterSeconds: 17 } : {}),
-      });
-      expect((error as Error).message).not.toContain("private backend");
-    }
-  });
+      try {
+        await createService(fetchFn, {
+          tokenProvider: createMockTokenProvider({
+            getToken: mock(() => Promise.resolve("ghi-static-token")),
+          }),
+        }).ask({ target: "npm:example", question: "How?" });
+        throw new Error("expected request failure");
+      } catch (error) {
+        expect(error).toBeInstanceOf(AgenticAskHttpError);
+        expect(error).toMatchObject({
+          code,
+          status,
+          retryable,
+          message,
+          toolCallId: TOOL_CALL_ID,
+          threadId: THREAD_ID,
+          ...(status === 429 ? { retryAfterSeconds: 17 } : {}),
+        });
+        expect((error as Error).message).not.toContain("private backend");
+      }
+    },
+  );
 
   it("times out the entire request and aborts the transport", async () => {
     let capturedSignal: AbortSignal | undefined;
@@ -787,12 +809,16 @@ describe("AgenticAskServiceImpl", () => {
       return new Promise<Response>(() => undefined);
     }) as unknown as typeof fetch;
 
-    await expect(
-      createService(fetchFn, { timeoutMs: 5 }).ask({
+    const timeoutError = await createService(fetchFn, { timeoutMs: 5 })
+      .ask({
         target: "npm:example",
         question: "How?",
-      }),
-    ).rejects.toBeInstanceOf(AgenticAskRequestTimeoutError);
+      })
+      .catch((error: unknown) => error);
+    expect(timeoutError).toBeInstanceOf(AgenticAskRequestTimeoutError);
+    expect(timeoutError).toMatchObject({
+      message: "Research timed out. Try again.",
+    });
     expect(capturedSignal?.aborted).toBe(true);
   });
 
@@ -832,11 +858,15 @@ describe("AgenticAskServiceImpl", () => {
       },
     });
 
-    await expect(
-      createService(
-        mock(() => Promise.resolve(response)) as unknown as typeof fetch,
-      ).ask({ target: "npm:example", question: "How?" }),
-    ).rejects.toBeInstanceOf(AgenticAskResponseTooLargeError);
+    const tooLargeError = await createService(
+      mock(() => Promise.resolve(response)) as unknown as typeof fetch,
+    )
+      .ask({ target: "npm:example", question: "How?" })
+      .catch((error: unknown) => error);
+    expect(tooLargeError).toBeInstanceOf(AgenticAskResponseTooLargeError);
+    expect(tooLargeError).toMatchObject({
+      message: "GitHits returned a Research response that was too large.",
+    });
     // Bun may invoke one stream pull while constructing the Response, but the
     // service cancels from the header without acquiring a reader.
     expect(pulls).toBeLessThanOrEqual(1);
@@ -920,8 +950,8 @@ describe("normalizeAgenticAskThreadId", () => {
 describe("Ask target diagnostics", () => {
   const detail = {
     code: "TARGET_RESOLUTION_FAILED",
-    message: "The target lookup found no supported match.",
-    hint: "Check the exact repository or registry/package identity.",
+    message: "The Ask target lookup found no supported match.",
+    hint: "Check the exact repository or registry/package identity for Ask.",
     reason: "missing_best",
   };
 

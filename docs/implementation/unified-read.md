@@ -109,7 +109,7 @@ wait parameter.
 ## Ask compatibility
 
 The backend Ask contract still returns typed `code_read` and `docs_read` source
-pointers. `projectAskReadSources()` beside the local MCP Ask adapter projects these
+pointers. `projectAskReadSources()` beside the local MCP `research` adapter projects these
 into callable `read` pointers before text or JSON rendering. Typed code targets are
 also normalized from backend-authored legacy repository labels to canonical
 `provider:path@ref`; docs maps `page_id` to `target` without parsing it, so emitted
@@ -117,8 +117,9 @@ repository-backed documentation fragments and URL fragments remain byte-for-byte
 unchanged. All other response metadata is preserved and the original backend
 response is not mutated. URL and clarification responses pass through unchanged.
 
-Core service consumers still see the backend contract. CLI Ask recognizes only its
-validated `githits code read` argv tuple and normalizes that tuple's target before
+Core service consumers still see the backend contract. CLI `research` (including
+its `ask` alias) recognizes only the validated `githits code read` argv tuple
+and normalizes that tuple's target before
 text or JSON rendering. It never parses documentation argv, URLs, answer prose, or
 other opaque command shapes. Catalog names belong to the MCP adapter, not the
 backend service parser.

@@ -662,7 +662,7 @@ The `hint` field is emitted only when the cap *actually truncated* the response 
 ## Text response format (`format: "text"`)
 
 Every format-selectable MCP tool accepts only `text` and `json`, with `text` as
-the default. This includes stable tools and the local experimental `ask`,
+the default. This includes stable tools and the local experimental `research`,
 `resolve_target`, and `code_diff` tools. The format parameter recommends:
 "Use `text` (default) for reading and tool follow-ups; it is token-efficient.
 Use `json` only to parse responses in code or obtain fields absent from text." Tool-specific JSON-only details remain documented. The shared quick-start guide
@@ -929,7 +929,7 @@ payload whose privilege, visibility, and repetition vary by host.
 - **External-content block** — appended by default from `packages/mcp/src/tools/guardrails.ts`; tells agents to treat third-party prose as data, not instructions.
 - **Local experimental block** — appended only by the workspace-internal local
   composer when the host policy enables experimental tools. It names only the
-  registered local `ask`/`resolve_target`/`code_diff` subset, routes source-cited
+  registered local `research`/`resolve_target`/`code_diff` subset, routes source-cited
   question answering and fuzzy identity
   before canonical diff evidence, and permits direct reuse of a resolved target
   only for a non-ambiguous `EXACT` or `HIGH` best result with `CLEAR` or

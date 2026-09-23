@@ -673,8 +673,10 @@ describe("CLI root help smoke contract", () => {
     );
     expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).toContain("uninstall");
     expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).not.toContain("ask");
+    expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).not.toContain("research");
     expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).not.toContain("resolve");
-    expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toContain("ask");
+    expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toContain("research");
+    expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).not.toContain("ask");
     expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toContain("resolve");
     expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toHaveLength(
       EXPECTED_STABLE_TOP_LEVEL_COMMANDS.length + 2,
@@ -688,6 +690,18 @@ describe("CLI root help smoke contract", () => {
       ...EXPECTED_TOP_LEVEL_COMMANDS,
     ]);
     expect(() => assertRootHelpStructure(help)).not.toThrow();
+  });
+
+  it("parses research as canonical while retaining ask in the help alias", () => {
+    const help = rootHelpFixture(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS);
+
+    expect(help).toContain("  research|ask [options]");
+    expect(parseRootHelpCommands(help)).toEqual([
+      ...EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS,
+    ]);
+    expect(() =>
+      assertRootHelpStructure(help, EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS),
+    ).not.toThrow();
   });
 
   it("fails when a command disappears even if prose still mentions it", () => {
@@ -711,9 +725,10 @@ describe("CLI root help smoke contract", () => {
   });
 
   function rootHelpFixture(commands: readonly string[]): string {
-    const rows = commands.map(
-      (command) => `  ${command} [options]  ${command} description`,
-    );
+    const rows = commands.map((command) => {
+      const displayName = command === "research" ? "research|ask" : command;
+      return `  ${displayName} [options]  ${command} description`;
+    });
     return [
       "Usage: githits [options] [command]",
       "",
@@ -731,10 +746,12 @@ describe("MCP smoke cohorts", () => {
   it("keeps experimental inventory local and additive to the stable baseline", () => {
     expect(EXPECTED_EXPERIMENTAL_MCP_TOOLS).toEqual([
       ...EXPECTED_MCP_TOOLS,
-      "ask",
+      "research",
       "resolve_target",
       "code_diff",
     ]);
+    expect(EXPECTED_EXPERIMENTAL_MCP_TOOLS).toContain("research");
+    expect(EXPECTED_EXPERIMENTAL_MCP_TOOLS).not.toContain("ask");
   });
 
   it("pins every stable cohort to an explicit disabled experimental config", () => {

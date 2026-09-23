@@ -28,13 +28,13 @@ import {
   formatMappedErrorForTerminal,
 } from "./format-mapped-error.js";
 
-export interface AskCommandOptions {
+export interface ResearchCommandOptions {
   thread?: string;
   json?: boolean;
   sourceFormat?: "cli" | "url";
 }
 
-export interface AskCommandDependencies {
+export interface ResearchCommandDependencies {
   agenticAskService: AgenticAskService;
   hasValidToken: boolean;
   mcpUrl: string;
@@ -46,13 +46,13 @@ export interface AskCommandDependencies {
 const CLI_CODE_SOURCE_KIND_INDEX = 1;
 const CLI_CODE_SOURCE_TARGET_INDEX = 6;
 
-export async function askAction(
+export async function researchAction(
   target: string | undefined,
   question: string,
-  options: AskCommandOptions,
-  deps: AskCommandDependencies,
+  options: ResearchCommandOptions,
+  deps: ResearchCommandDependencies,
 ): Promise<void> {
-  const subject = resolveAskSubject(target, options.thread);
+  const subject = resolveResearchSubject(target, options.thread);
   try {
     requireAuth(deps);
   } catch (error) {
@@ -64,7 +64,8 @@ export async function askAction(
   }
 
   const spinner =
-    deps.createSpinner?.() ?? startSpinner(SPINNER_MESSAGES.ask, !options.json);
+    deps.createSpinner?.() ??
+    startSpinner(SPINNER_MESSAGES.research, !options.json);
   try {
     const requestOptions = deps.signal ? { signal: deps.signal } : undefined;
     const result =
@@ -102,7 +103,9 @@ export async function askAction(
         message: sanitizeTerminalText(failure.mapped.message),
       });
       const identifiers = [
-        ...(failure.toolCallId ? [`Ask run ID: ${failure.toolCallId}`] : []),
+        ...(failure.toolCallId
+          ? [`Research run ID: ${failure.toolCallId}`]
+          : []),
         ...(failure.threadId ? [`Thread ID: ${failure.threadId}`] : []),
       ];
       console.error([diagnostic, ...identifiers].join("\n"));
@@ -111,7 +114,7 @@ export async function askAction(
   }
 }
 
-/** Render the Ask answer, selected source pointers, and identifiers. */
+/** Render the research answer, selected source pointers, and identifiers. */
 export function formatAgenticAskHumanResponse(
   response:
     | AgenticAskCliResponse
@@ -136,7 +139,7 @@ export function formatAgenticAskHumanResponse(
     sections.push(["Sources:", ...sourceLines].join("\n"));
   }
   sections.push(
-    `Ask run ID: ${response.tool_call_id}\nThread ID: ${response.thread_id}\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.`,
+    `Research run ID: ${response.tool_call_id}\nThread ID: ${response.thread_id}\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.`,
   );
   return `${sections.join("\n\n")}\n`;
 }
@@ -204,7 +207,7 @@ function isCallerCancellation(
   );
 }
 
-function resolveAskSubject(
+function resolveResearchSubject(
   target: string | undefined,
   thread: string | undefined,
 ): { target?: string; threadId?: never } | { threadId: string } {
@@ -235,7 +238,7 @@ function resolveAskSubject(
 }
 
 /** One positional is the question; two preserve the explicit-target form. */
-export function resolveAskCommandPositionals(
+export function resolveResearchCommandPositionals(
   targetOrQuestion: string | undefined,
   question: string | undefined,
   thread: string | undefined,
@@ -273,24 +276,24 @@ export function resolveAskCommandPositionals(
   return { target: targetOrQuestion, question };
 }
 
-/** Reject invalid Ask shapes before the root pre-action can start auto-login. */
-export function validateAskCommandBeforeAction(command: Command): void {
-  if (command.name() !== "ask") return;
+/** Reject invalid research shapes before the root pre-action can start auto-login. */
+export function validateResearchCommandBeforeAction(command: Command): void {
+  if (command.name() !== "research") return;
 
   const [targetOrQuestion, question] = command.processedArgs as [
     string | undefined,
     string | undefined,
   ];
-  const options = command.opts<AskCommandOptions>();
-  const input = resolveAskCommandPositionals(
+  const options = command.opts<ResearchCommandOptions>();
+  const input = resolveResearchCommandPositionals(
     targetOrQuestion,
     question,
     options.thread,
   );
-  resolveAskSubject(input.target, options.thread);
+  resolveResearchSubject(input.target, options.thread);
 }
 
-const DESCRIPTION = `Ask a public repository or package question and receive a source-cited answer.
+const DESCRIPTION = `Research a public repository or package to answer a question with cited sources.
 
 Omit the target to let GitHits infer one public repository or package from your
 question. Quote multi-word questions. An explicit target keeps the search scoped.
@@ -298,13 +301,14 @@ question. Quote multi-word questions. An explicit target keeps the search scoped
 Use a returned thread ID with --thread for follow-ups. Name a new project,
 version, or topic in the question to change scope.`;
 
-export function registerAskCommand(program: Command): Command {
+export function registerResearchCommand(program: Command): Command {
   return program
-    .command("ask")
-    .summary("Ask a public repository or package question")
+    .command("research")
+    .alias("ask")
+    .summary("Research a public repository or package to answer a question")
     .description(DESCRIPTION)
     .usage(
-      "[options] [target] <question>\n       githits ask --thread <UUID> <question>",
+      "[options] [target] <question>\n       githits research --thread <UUID> <question>",
     )
     .argument(
       "[target-or-question]",
@@ -313,7 +317,7 @@ export function registerAskCommand(program: Command): Command {
     .argument("[question]", "Question to answer from indexed public sources")
     .option(
       "--thread <UUID>",
-      "Continue an existing Agentic Ask thread when a follow-up is needed",
+      "Continue an existing research thread when a follow-up is needed",
     )
     .addOption(
       new Option(
@@ -326,15 +330,15 @@ export function registerAskCommand(program: Command): Command {
       async (
         targetOrQuestion: string | undefined,
         question: string | undefined,
-        options: AskCommandOptions,
+        options: ResearchCommandOptions,
       ) => {
-        const input = resolveAskCommandPositionals(
+        const input = resolveResearchCommandPositionals(
           targetOrQuestion,
           question,
           options.thread,
         );
         const deps = await createContainer();
-        await askAction(input.target, input.question, options, {
+        await researchAction(input.target, input.question, options, {
           agenticAskService: deps.agenticAskService,
           hasValidToken: deps.hasValidToken,
           mcpUrl: deps.mcpUrl,

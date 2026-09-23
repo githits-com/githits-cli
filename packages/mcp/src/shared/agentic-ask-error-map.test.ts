@@ -1,5 +1,9 @@
 import { expect, it } from "bun:test";
-import { AgenticAskHttpError } from "@githits/core-internal";
+import {
+  AgenticAskHttpError,
+  AgenticAskResponseTooLargeError,
+  MalformedAgenticAskResponseError,
+} from "@githits/core-internal";
 import { mapAgenticAskError } from "./agentic-ask-error-map.js";
 
 it.each([
@@ -10,8 +14,8 @@ it.each([
   ({ code, reason }) => {
     const targetError = {
       code,
-      message: "The target lookup found no supported match.",
-      hint: "Check the exact repository or registry/package identity.",
+      message: "The Ask target lookup found no supported match.",
+      hint: "Check the exact repository or registry/package identity for Ask.",
       reason,
     };
     const message = `${targetError.message} ${targetError.hint}`;
@@ -71,5 +75,33 @@ it.each([
     status: 400,
     targetErrorCode: code,
     hint: targetError.hint,
+  });
+});
+
+it.each([
+  [
+    new MalformedAgenticAskResponseError(),
+    "GitHits returned an invalid Research response.",
+  ],
+  [
+    new AgenticAskResponseTooLargeError(),
+    "GitHits returned a Research response that was too large.",
+  ],
+] as const)(
+  "maps protocol failures with Research wording",
+  (error, message) => {
+    expect(mapAgenticAskError(error).mapped).toEqual({
+      code: "PROTOCOL_ERROR",
+      message,
+      retryable: false,
+    });
+  },
+);
+
+it("uses Research wording for an unexpected failure", () => {
+  expect(mapAgenticAskError(new Error("private failure")).mapped).toEqual({
+    code: "UNKNOWN",
+    message: "Research failed unexpectedly.",
+    retryable: false,
   });
 });

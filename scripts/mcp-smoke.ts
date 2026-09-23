@@ -35,7 +35,7 @@ export interface McpSmokeScriptOptions {
 
 export const EXPECTED_EXPERIMENTAL_MCP_TOOLS = [
   ...EXPECTED_MCP_TOOLS,
-  "ask",
+  "research",
   "resolve_target",
   "code_diff",
 ] as const;
@@ -193,7 +193,8 @@ async function assertExperimentalMcpSession(
     `${context}: quick_start`,
   );
   assert(
-    quickStart.includes("ask") &&
+    quickStart.includes("`research`") &&
+      !quickStart.includes("`ask`") &&
       quickStart.includes("resolve_target") &&
       quickStart.includes("code_diff") &&
       quickStart.includes("site:<host[/path]>") &&
@@ -279,11 +280,11 @@ async function runExperimentalRegistrationSmoke(
       async (client) => {
         await assertExperimentalMcpSession(client, "experimental registration");
         for (const subject of [{ target: "npm:express" }, {}]) {
-          const askResult = (await trackSmokeStep(
-            `mcp ask ${JSON.stringify(subject)} registration`,
+          const researchResult = (await trackSmokeStep(
+            `mcp research ${JSON.stringify(subject)} registration`,
             () =>
               client.callTool({
-                name: "ask",
+                name: "research",
                 arguments: {
                   ...subject,
                   question: "Where is Express router dispatch implemented?",
@@ -291,9 +292,9 @@ async function runExperimentalRegistrationSmoke(
               }),
           )) as McpSmokeToolResult;
           assert(
-            assertCleanErrorEnvelope(askResult, "ask registration").code ===
-              "AUTH_REQUIRED",
-            "ask registration should require auth",
+            assertCleanErrorEnvelope(researchResult, "research registration")
+              .code === "AUTH_REQUIRED",
+            "research registration should require auth",
           );
         }
 
@@ -407,41 +408,41 @@ async function runExperimentalLiveSmoke(
           return;
         }
 
-        const askText = (await trackSmokeStep(
-          "mcp ask default text experimental live",
+        const researchText = (await trackSmokeStep(
+          "mcp research default text experimental live",
           () =>
             client.callTool({
-              name: "ask",
+              name: "research",
               arguments: {
                 target: "npm:express",
                 question: "Where is router dispatch implemented?",
               },
             }),
         )) as McpSmokeToolResult;
-        const askTextBody = assertDefaultText(
-          askText,
-          "experimental ask default text",
+        const researchTextBody = assertDefaultText(
+          researchText,
+          "experimental research default text",
         );
-        const askThreadMatch = askTextBody.match(
+        const researchThreadMatch = researchTextBody.match(
           /\nThread ID: ([0-9a-f-]+)\nUse this thread ID for follow-ups; name a new project or version in the question to change scope\./,
         );
         assert(
-          askTextBody.includes("\n\nSources:\n") &&
-            /\n\s+\d+\. read\(\{[^\n]+\}\)/.test(askTextBody) &&
-            /\n\nAsk run ID: [0-9a-f-]+\nThread ID: [0-9a-f-]+\n/.test(
-              askTextBody,
+          researchTextBody.includes("\n\nSources:\n") &&
+            /\n\s+\d+\. read\(\{[^\n]+\}\)/.test(researchTextBody) &&
+            /\n\nResearch run ID: [0-9a-f-]+\nThread ID: [0-9a-f-]+\n/.test(
+              researchTextBody,
             ) &&
-            askThreadMatch?.[1] !== undefined,
-          "experimental ask text should append callable sources, replay IDs, and scope-changing follow-up guidance",
+            researchThreadMatch?.[1] !== undefined,
+          "experimental research text should append callable sources, replay IDs, and scope-changing follow-up guidance",
         );
 
-        const askUrlJson = (await trackSmokeStep(
-          "mcp ask URL JSON experimental live",
+        const researchUrlJson = (await trackSmokeStep(
+          "mcp research URL JSON experimental live",
           () =>
             client.callTool({
-              name: "ask",
+              name: "research",
               arguments: {
-                thread_id: askThreadMatch[1],
+                thread_id: researchThreadMatch[1],
                 question:
                   "How is the matched route handler invoked after dispatch?",
                 source_format: "url",
@@ -449,24 +450,24 @@ async function runExperimentalLiveSmoke(
               },
             }),
         )) as McpSmokeToolResult;
-        const askUrlPayload = assertJsonResult(
-          askUrlJson,
-          "experimental ask URL JSON",
+        const researchUrlPayload = assertJsonResult(
+          researchUrlJson,
+          "experimental research URL JSON",
         );
         assert(
-          askUrlPayload !== null &&
-            typeof askUrlPayload === "object" &&
-            !Array.isArray(askUrlPayload),
-          "experimental ask URL JSON should be an object",
+          researchUrlPayload !== null &&
+            typeof researchUrlPayload === "object" &&
+            !Array.isArray(researchUrlPayload),
+          "experimental research URL JSON should be an object",
         );
-        const askUrlRecord = askUrlPayload as Record<string, unknown>;
+        const researchUrlRecord = researchUrlPayload as Record<string, unknown>;
         assert(
-          askUrlRecord.source_format === "url" &&
-            typeof askUrlRecord.tool_call_id === "string" &&
-            typeof askUrlRecord.thread_id === "string" &&
-            typeof askUrlRecord.answer_markdown === "string" &&
-            Array.isArray(askUrlRecord.sources) &&
-            askUrlRecord.sources.every(
+          researchUrlRecord.source_format === "url" &&
+            typeof researchUrlRecord.tool_call_id === "string" &&
+            typeof researchUrlRecord.thread_id === "string" &&
+            typeof researchUrlRecord.answer_markdown === "string" &&
+            Array.isArray(researchUrlRecord.sources) &&
+            researchUrlRecord.sources.every(
               (source) =>
                 source !== null &&
                 typeof source === "object" &&
@@ -476,8 +477,8 @@ async function runExperimentalLiveSmoke(
                   (source as Record<string, string>).url ?? "",
                 ),
             ) &&
-            !("usage" in askUrlRecord),
-          "experimental ask URL JSON should contain only validated upstream URLs without usage",
+            !("usage" in researchUrlRecord),
+          "experimental research URL JSON should contain only validated upstream URLs without usage",
         );
 
         const resolveText = (await trackSmokeStep(
