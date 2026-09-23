@@ -11,7 +11,7 @@ This guide owns shared policy; selected tools own call syntax and exceptions.
 | Find a known literal or regex in a public repository/package | \`code_grep\` |
 | Find relevant source, symbols, tests, or documentation for a topic | \`search\` |
 | List paths or browse a source directory | \`code_files\` |
-| Read a source file, documentation page, or focused section | \`read\` |
+| Read a source file, code symbol, or documentation section | \`read\` |
 | Browse package documentation pages | \`docs_list\` |
 | Assess a package's license, adoption, maintenance, or overall health | \`pkg_info\` |
 | Inspect vulnerabilities in a package or version | \`pkg_vulns\` |
@@ -46,6 +46,8 @@ Repository docs are snapshot-addressed and keep returned ranges. Add explicit
 For source, locate paths or matches, then read focused lines; never probe
 directories with \`read\`. Prefer source, symbols, tests, and call sites for
 behavioral claims.
+When the exact indexed code symbol or docs heading ID is known, pass it as
+\`selector\` to \`read\`; an optional exact \`path\` narrows code symbol lookup.
 
 Omit \`wait_timeout_ms\` for the default; \`0\` returns without waiting.
 Follow rendered continuation/recovery actions, not repeated calls to poll.

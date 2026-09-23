@@ -165,14 +165,13 @@ without `selector`.
 The stable MCP quick-start and embedded `skills/githits-mcp/SKILL.md` guide remain
 release-synchronized under the exact-parity exception. Other public skills are
 served from main before npm release and must follow their release-boundary policy.
-When the release guidance is updated, change `skills/githits-code/SKILL.md` and
-`skills/githits-code/references/code-and-docs.md`: prefer `githits read`, retain
-legacy commands only as compatibility guidance, and replace both retired MCP
-mappings with `read` (target alone for docs, target plus path for code). Also audit
-`skills/githits-package` and references for read examples. Regenerate/check plugin
-assets after canonical skill edits. This release-boundary work is intentional;
-CLI alias removal remains a separate product decision. Selector examples in
-public skills follow their release-boundary policy after the CLI/MCP release.
+The 0.22.0 release branch updates `skills/githits-code/SKILL.md` and its
+reference to prefer `githits read`, show selector reads, and retain legacy
+commands only as compatibility guidance. Its command-to-MCP mapping uses `read`
+with a docs target, or a code target plus path or selector. The stable MCP guide
+and `buildMcpQuickStart()` both route known symbols and heading IDs to `read`.
+The package skill has no read examples to change. CLI alias removal remains a
+separate product decision.
 
 ## Validation evidence
 

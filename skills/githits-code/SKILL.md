@@ -25,9 +25,9 @@ Use GitHits for evidence from real open-source code instead of guessing from mod
 - Need package metadata, vulnerability/advisory status, dependency graphs, or release notes: stop and use the `githits-package` skill instead.
 - Inspecting a known dependency or public repository: start with `githits search` scoped by `--in`.
 - Searching an exact standalone documentation site: use `githits search "<topic>" --source docs --in site:<host[/path]>`. If the result reports suggested site targets, retry one explicitly; suggestions are advisory targets, not aliases.
-- Need file/path enumeration: use `githits code files`; do not probe directories with `code read`.
+- Need file/path enumeration: use `githits code files`; do not probe directories with `githits read`.
 - Know the exact text to match: use `githits code grep` (literal by default). Pass `--regex` for RE2 syntax; lookaround and backreferences are unsupported. Use `githits search` for discovery.
-- Need documentation pages: use `githits search "<topic>" --source docs --in <target>` for topic search, or `githits docs list <spec>` to browse available pages.
+- Need documentation pages: use `githits search "<topic>" --source docs --in <target>` for topic search, or `githits docs list <spec>` to browse available pages. Read returned targets with `githits read`.
 
 ## Core Commands
 
@@ -42,20 +42,22 @@ githits search "middleware" --in site:expressjs.com --source docs
 githits search-status <searchRef>
 
 githits code files npm:express@5.2.1 lib/ --ext js --limit 100
-githits code read npm:express@5.2.1 lib/express.js --lines 1-90
+githits read npm:express@5.2.1 lib/express.js --lines 1-90
+githits read npm:express@5.2.1 --selector Router
 githits code grep npm:express@5.2.1 "require('router')" lib/ -C 3
 githits code grep --repo-url https://github.com/expressjs/express --git-ref v5.2.1 "require('router')" lib/
 
 githits docs list npm:express --limit 20
-githits docs read <docsReadTarget>
+githits read <docsReadTarget>
+githits read <docsReadTarget> --selector <heading-id>
 ```
 
 ## Strategy
 
 - For behavioral claims, prefer source, symbols, tests, and call sites over docs prose.
 - Package targets inspect published artifacts and omitted versions resolve to the latest release; repository targets inspect repository trees. For source-layout questions, always pin and report the package version or Git ref.
-- For source work, locate symbols or matches first, then read a focused window with explicit `--lines`.
-- For docs reads, use the search snippet when sufficient; otherwise run its generated `followUp`. From text, pass the displayed `[docs page]` target unchanged; from `docs list`, pass `docsReadTarget`. Hosted/crawled HTTP(S) targets address mutable current content, so automatic follow-ups forward the exact URL or fragment without search bounds. A fragment returns its heading and full subtree through the next equal-or-higher heading. Repository docs remain snapshot-addressed and keep returned ranges. Add `--lines` only when intentionally selecting a current page range; either bound replaces fragment selection. Historical `pageId` works. Use `--json` only for required range/source metadata.
+- For source work, locate symbols or matches first, then read a focused window with explicit `--lines`. Use `--selector <name>` when the exact indexed symbol is known; add an exact path to narrow ambiguous symbols.
+- For docs reads, use the search snippet when sufficient; otherwise run its generated `followUp`. From text, pass the displayed `[docs page]` target unchanged; from `docs list`, pass `docsReadTarget`. Hosted/crawled HTTP(S) targets address mutable current content, so automatic follow-ups forward the exact URL or fragment without search bounds. A fragment returns its heading and full subtree through the next equal-or-higher heading. Use `--selector <heading-id>` for a known logical heading ID without a URL fragment. Repository docs remain snapshot-addressed and keep returned ranges. Add `--lines` only when intentionally selecting a current page range; either bound replaces heading selection. Historical `pageId` works. Use `--json` only for required range/source metadata.
 - For multi-step code/docs investigations, keep raw CLI output out of the final answer unless it is the evidence the user needs.
 - Reuse returned targets, paths, locators, references, and ranges; never invent them. Cite the served target and report stale/provisional evidence, truncation, and coverage limits.
 - Partial and capped documentation coverage are usable published evidence. Report the disclosed limit, but infer neither indexing progress nor retryability from coverage; follow only `searchRef` and the evidence notice.

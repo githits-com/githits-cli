@@ -115,11 +115,12 @@ describe("buildMcpQuickStart", () => {
   it("preserves directory and documentation routing and emitted locators", () => {
     const instructions = buildMcpQuickStart();
     expect(instructions).toContain(
-      "Read a source file, documentation page, or focused section | `read`",
+      "Read a source file, code symbol, or documentation section | `read`",
     );
     expect(instructions).not.toContain("`code_read`");
     expect(instructions).not.toContain("`docs_read`");
     expect(instructions).toContain("never probe\ndirectories with `read`");
+    expect(instructions).toContain("pass it as\n`selector` to `read`");
     expect(instructions).toContain(
       "Reuse returned targets, paths, locators, references, and ranges",
     );
