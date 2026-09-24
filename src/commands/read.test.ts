@@ -388,6 +388,71 @@ describe("top-level read", () => {
     }
   });
 
+  it("keeps a #-bearing file path in legacy --repo-url mode", async () => {
+    const services = deps();
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await readAction(
+        "npm:foo#bar",
+        undefined,
+        { repoUrl: "https://github.com/owner/repo", json: true },
+        services,
+      );
+      expect(services.codeNavigationService!.readFile).toHaveBeenCalledWith(
+        expect.objectContaining({ filePath: "npm:foo#bar" }),
+      );
+      expect(services.readService.read).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("does not treat a #-bearing --repo-url path as a target fragment with --selector", async () => {
+    const services = deps();
+    services.readService.read = mock(() =>
+      Promise.resolve({
+        source: "symbol_resolution" as const,
+        result: {
+          status: "NOT_FOUND" as const,
+          candidates: [],
+          suggestions: [],
+          hasMore: false,
+          repoUrl: "https://github.com/owner/repo",
+          gitRef: "main",
+          message: null,
+          codeIndexState: "CURRENT",
+        },
+      }),
+    );
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await readAction(
+        "npm:foo#bar",
+        undefined,
+        {
+          repoUrl: "https://github.com/owner/repo",
+          gitRef: "main",
+          selector: "missing",
+          json: true,
+        },
+        services,
+      );
+      expect(services.readService.read).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target: "https://github.com/owner/repo@main",
+          path: "npm:foo#bar",
+          selector: "missing",
+        }),
+      );
+      const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
+      expect(payload.action).toContain(
+        '--in "https://github.com/owner/repo@main"',
+      );
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   it("keeps default stdout content-only", async () => {
     const output: string[] = [];
     const write = spyOn(process.stdout, "write").mockImplementation(((

@@ -62,7 +62,9 @@ export async function readAction(
     throw error;
   }
 
-  const fragment = compactCodeSymbolFragment(firstArg ?? "", secondArg);
+  const fragment = options.repoUrl
+    ? undefined
+    : compactCodeSymbolFragment(firstArg ?? "", secondArg);
   if (options.selector !== undefined || fragment !== undefined) {
     try {
       const selector = options.selector;

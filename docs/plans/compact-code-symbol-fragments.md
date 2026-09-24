@@ -35,6 +35,7 @@
 - Targeted Codex and Claude agent eval attempts made zero tool calls because the local model sessions did not start successfully; this is an eval-environment limitation, not a passed qualitative result.
 - Internal pre-flight review found the slash-ref plus exact-path presentation gap; its follow-up was clean. A second internal closure pass after external findings was also clean.
 - External review round 1 found that symbol-miss search actions and code continuations incorrectly kept the fragment, and that refless repository docs page IDs could be misclassified. Both were corrected in the shared formatter/classifier and related tests before round 2. Live dev CLI/MCP symbol misses now emit base-target search actions.
+- External review round 2 closed both earlier findings, then found that a `--repo-url` file path resembling `target#symbol` could trigger fragment routing. CLI now skips compact-target detection in `--repo-url` mode; focused read tests passed (110 tests across three affected files), including the legacy and explicit-selector branches. The full suite passed (4,937 tests), and the root build passed. Round 3 is pending.
 
 ## Pending clarification
 
