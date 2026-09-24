@@ -9,7 +9,7 @@ export interface ReadLocator {
   path?: string;
 }
 
-/** A path selects an exact source file; otherwise preserve the opaque docs target. */
+/** Normalize the optional file path; preserve target bytes for read classification. */
 export function resolveReadLocator(target: string, path?: string): ReadLocator {
   if (typeof target !== "string" || !target.trim()) {
     throw new InvalidPackageSpecError("A nonempty string target is required.");

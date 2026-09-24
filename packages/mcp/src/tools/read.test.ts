@@ -10,6 +10,7 @@ import {
   defaultPackageDocResult,
   defaultReadFileResult,
 } from "../services/test-helpers.js";
+import { InvalidPackageSpecError } from "../shared/package-spec.js";
 import { createReadTool, type ReadArgs } from "./read.js";
 
 function setup(): {
@@ -21,6 +22,49 @@ function setup(): {
 }
 
 describe("unified read contract", () => {
+  it.each([undefined, "index.js"])(
+    "reads a compact symbol fragment with optional exact path %s",
+    async (path) => {
+      const { services, tool } = setup();
+      services.readService.read = mock(() =>
+        Promise.resolve({
+          source: "code" as const,
+          result: defaultReadFileResult,
+        }),
+      );
+      const target = "npm:express@5.2.1#create%41pplication";
+      const result = await tool.handler({ target, path, format: "json" });
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target,
+        ...(path ? { path } : {}),
+        waitTimeoutMs: 30000,
+      });
+      expect(JSON.parse(result.content[0]!.text)).toHaveProperty("content");
+    },
+  );
+
+  it.each([
+    { target: "npm:express@5.2.1#", selector: undefined },
+    { target: "npm:express@5.2.1#createApplication", selector: "other" },
+  ])(
+    "surfaces a fragment error without a docs retry: %j",
+    async ({ target, selector }) => {
+      const { services, tool } = setup();
+      services.readService.read = mock(() =>
+        Promise.reject(new InvalidPackageSpecError("Invalid code fragment.")),
+      );
+      const result = await tool.handler({ target, selector, format: "json" });
+      expect(result.isError).toBe(true);
+      expect(services.readService.read).toHaveBeenCalledWith(
+        expect.objectContaining({ target, ...(selector ? { selector } : {}) }),
+      );
+      expect(services.readService.read).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(result.content[0]!.text)).toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+    },
+  );
+
   it("advertises one compact read schema with an optional selector", () => {
     const { tool } = setup();
     expect(tool.name).toBe("read");
@@ -49,51 +93,66 @@ describe("unified read contract", () => {
     );
   });
 
-  it("forwards a scoped symbol and renders bounded ambiguity", async () => {
-    const { services, tool } = setup();
-    services.readService.read = mock(() =>
-      Promise.resolve({
-        source: "symbol_resolution" as const,
-        result: {
-          status: "AMBIGUOUS" as const,
-          candidates: [
-            {
-              name: "main",
-              qualifiedPath: "main",
-              kind: "FUNCTION",
-              arity: 0,
-              filePath: "eval/run.ts",
-              startLine: 10,
-              endLine: 20,
-            },
-          ],
-          suggestions: [],
-          hasMore: false,
-          repoUrl: "https://github.com/githits-com/githits-cli",
-          gitRef: "abc",
-          message: null,
-          codeIndexState: "CURRENT",
-        },
-      }),
-    );
-    const result = await tool.handler({
-      target: "github:githits-com/githits-cli@abc",
-      path: "eval/run.ts",
-      selector: "main",
-      format: "json",
-    });
-    expect(services.readService.read).toHaveBeenCalledWith(
-      expect.objectContaining({
-        target: "github:githits-com/githits-cli@abc",
+  it.each([
+    { target: "github:githits-com/githits-cli@abc", selector: "main" },
+    {
+      target: "github:githits-com/githits-cli@release/v1#main",
+      selector: undefined,
+    },
+  ])(
+    "forwards a scoped symbol and renders bounded ambiguity: %j",
+    async ({ target, selector }) => {
+      const { services, tool } = setup();
+      services.readService.read = mock(() =>
+        Promise.resolve({
+          source: "symbol_resolution" as const,
+          result: {
+            status: "AMBIGUOUS" as const,
+            candidates: [
+              {
+                name: "main",
+                qualifiedPath: "main",
+                kind: "FUNCTION",
+                arity: 0,
+                filePath: "eval/run.ts",
+                startLine: 10,
+                endLine: 20,
+              },
+            ],
+            suggestions: [],
+            hasMore: false,
+            repoUrl: "https://github.com/githits-com/githits-cli",
+            gitRef: "abc",
+            message: null,
+            codeIndexState: "CURRENT",
+          },
+        }),
+      );
+      const result = await tool.handler({
+        target,
         path: "eval/run.ts",
-        selector: "main",
-      }),
-    );
-    expect(JSON.parse(result.content[0]!.text)).toMatchObject({
-      status: "AMBIGUOUS",
-      candidates: [{ filePath: "eval/run.ts" }],
-    });
-  });
+        selector,
+        format: "json",
+      });
+      expect(services.readService.read).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target,
+          path: "eval/run.ts",
+          ...(selector ? { selector } : {}),
+        }),
+      );
+      if (selector === undefined) {
+        expect(
+          (services.readService.read as ReturnType<typeof mock>).mock
+            .calls[0]?.[0],
+        ).not.toHaveProperty("selector");
+      }
+      expect(JSON.parse(result.content[0]!.text)).toMatchObject({
+        status: "AMBIGUOUS",
+        candidates: [{ filePath: "eval/run.ts" }],
+      });
+    },
+  );
 
   it("forwards a docs heading selector without a code wait", async () => {
     const { services, tool } = setup();
@@ -119,6 +178,15 @@ describe("unified read contract", () => {
       expect(services.readService.read).toHaveBeenCalledTimes(1);
     },
   );
+
+  it.each([
+    "https://github.com/owner/repo#readme",
+    "github:owner/repo@abc/docs/guide.md#routing",
+  ])("preserves documentation fragment %s", async (target) => {
+    const { services, tool } = setup();
+    await tool.handler({ target });
+    expect(services.readService.read).toHaveBeenCalledWith({ target });
+  });
 
   it("forwards explicit documentation bounds unchanged", async () => {
     const { services, tool } = setup();

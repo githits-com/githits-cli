@@ -1,4 +1,7 @@
-import type { ReadService } from "@githits/core-internal";
+import {
+  compactCodeSymbolFragment,
+  type ReadService,
+} from "@githits/core-internal";
 import {
   createReadFileServiceAdapter,
   createReadPackageDocServiceAdapter,
@@ -59,10 +62,11 @@ export async function readAction(
     throw error;
   }
 
-  if (options.selector !== undefined) {
+  const fragment = compactCodeSymbolFragment(firstArg ?? "", secondArg);
+  if (options.selector !== undefined || fragment !== undefined) {
     try {
       const selector = options.selector;
-      if (!selector.trim())
+      if (selector !== undefined && !selector.trim())
         throw new InvalidPackageSpecError("--selector must be nonblank.");
       if (!options.repoUrl && options.gitRef !== undefined) {
         throw new InvalidPackageSpecError(
@@ -112,7 +116,7 @@ export async function readAction(
         .read({
           target: locator.target,
           ...(locator.path ? { path: locator.path } : {}),
-          selector,
+          ...(selector !== undefined ? { selector } : {}),
           ...(range.startLine !== undefined
             ? { startLine: range.startLine }
             : {}),
@@ -124,7 +128,7 @@ export async function readAction(
         response,
         {
           target: locator.target,
-          selector,
+          selector: selector ?? fragment ?? "",
           path: locator.path,
           verbose: options.verbose,
           useColors: shouldUseColors(),
@@ -205,7 +209,7 @@ export function registerReadCommand(program: Command): Command {
     .command("read")
     .summary("Read an indexed file, code symbol, or docs section")
     .description(
-      "Read an exact file with <target> <path>, or a docs page with <target>. --selector selects a code symbol (path optional) or docs heading by its fragment ID; do not combine it with a docs URL fragment. Hosted/crawled docs read mutable current content; repository docs are snapshot-addressed. A docs URL fragment selects the heading's full subtree; --lines selects a page-relative range instead. Output is complete for piping.",
+      "Read an exact file with <target> <path>, a compact code symbol with <target>#symbol (optional exact path), or a docs page with <target>. --selector selects a code symbol or docs heading by its fragment ID; do not combine it with a docs URL fragment. Hosted/crawled docs read mutable current content; repository docs are snapshot-addressed. An HTTP(S) docs URL fragment selects the heading's full subtree; --lines selects a page-relative range instead. Output is complete for piping.",
     )
     .argument(
       "[target-or-path]",

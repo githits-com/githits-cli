@@ -14,13 +14,21 @@ public MCP server.
 
 `packages/mcp/src/shared/read-request.ts` owns transport-neutral locator and range
 validation. A nonempty `path` scopes code to one exact target-relative file.
-Without `selector`, that path reads the file and a pathless target remains an
-opaque documentation locator. With `selector`, a compact package/repository target
-selects an indexed code symbol and a documentation target selects a logical heading.
+Without `selector`, that path reads the file. A pathless compact package or
+repository `target#symbol` selects an indexed code symbol; other pathless targets
+remain opaque documentation locators. With `selector`, a compact
+package/repository target selects an indexed code symbol and a documentation
+target selects a logical heading. `ReadServiceImpl` owns this classification and
+exports the same raw-fragment detector to CLI and MCP for presentation routing.
+The client never strips or decodes the fragment, or adds a `selector` for it;
+the backend decodes and validates it once.
 Compact repository refs containing `/` can resemble repository documentation
-page IDs, which take precedence; supply an exact `path` or use the full provider
-HTTPS repository URL to select code at such a ref.
-Empty optional paths count as omitted. Preserve docs
+page IDs, which take precedence when no exact path is given. Supply an exact
+`path` to select a code symbol by fragment at such a ref. An explicit
+`selector` can also use the full provider HTTPS repository URL with such a ref;
+HTTP(S) URL fragments remain documentation locators.
+Empty optional paths count as omitted. Absolute HTTP(S) URLs are documentation
+locators even when they contain fragments or use a provider host. Preserve docs
 target bytes, including URL query strings, percent encoding, fragments, and pinned
 repository locators. Never infer the source from URL host or file extension, or
 retry a failed read against the other backend.
@@ -90,6 +98,10 @@ fallback for compact reads.
   file's normal read-range rules. A successful symbol read may omit language.
   MCP presentation caps selected code to 150 lines by default or 300 with an
   explicit end, then supplies an exact-file continuation; CLI keeps full output.
+- Compact code `target#symbol` uses the same result presentation and optional
+  exact-path narrowing as an explicit selector. Empty fragments and a fragment
+  combined with an explicit selector surface the backend's invalid argument
+  response without a documentation retry.
 - Docs text displays at most 150 selected lines by default, or 300 with an explicit
   end. Docs JSON retains the full backend selection. Code reads cap before fetching
   at 150 lines by default or 300 with an explicit end, including JSON.
@@ -130,6 +142,7 @@ backend service parser.
 compact code read(target, path, ...) -> Query.read(target, path, ...)
 compact docs read(target, ...)        -> Query.read(target, ...)
 code selector read(target, selector, optional path) -> Query.read(...)
+compact symbol read(target#symbol, optional path) -> Query.read(...)
 docs selector read(target, selector)  -> Query.read(...)
 githits code read ...                 -> legacy fetchCodeContext
 githits docs read ...                 -> legacy getDocPage

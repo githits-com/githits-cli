@@ -13,7 +13,7 @@ import {
   PackageIntelligenceDocumentationSectionUnresolvedError,
   PackageIntelligenceNetworkError,
 } from "./package-intelligence-service.js";
-import { ReadServiceImpl } from "./read-service.js";
+import { compactCodeSymbolFragment, ReadServiceImpl } from "./read-service.js";
 import { createMockTokenProvider } from "./test-helpers.js";
 
 const ENDPOINT = "https://pkgseer.dev";
@@ -222,6 +222,76 @@ function readRequest(fetchFn: ReturnType<typeof mock>): {
 }
 
 describe("ReadServiceImpl", () => {
+  it.each([
+    ["npm:express@5.2.1#createApplication", "createApplication"],
+    ["npm:express@5.2.1#create%20Application", "create%20Application"],
+    ["npm:express@5.2.1#", ""],
+    ["github:owner/repo@main#makeApp", "makeApp"],
+    ["codeberg:owner/repo#makeApp", "makeApp"],
+    ["gitlab:group/repo#makeApp", "makeApp"],
+    ["github.com/owner/repo#makeApp", "makeApp"],
+    ["https://github.com/owner/repo#makeApp", undefined],
+    ["https://docs.example.test/guide#makeApp", undefined],
+    ["github:owner/repo@abc/docs/guide.md#heading", undefined],
+    ["page-id#heading", undefined],
+  ])("classifies fragment target %s", (target, fragment) => {
+    expect(compactCodeSymbolFragment(target)).toBe(fragment);
+  });
+
+  it("uses an exact path to disambiguate a slash-bearing repository ref", () => {
+    expect(
+      compactCodeSymbolFragment(
+        "github:owner/repo@release/v1#makeApp",
+        "src/index.ts",
+      ),
+    ).toBe("makeApp");
+  });
+
+  it.each([undefined, " index.js "])(
+    "forwards a compact symbol fragment unchanged with path %s",
+    async (path) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(jsonResponse({ data: { read: codeResult() } })),
+      );
+      const service = new ReadServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        fetchFn as unknown as typeof fetch,
+      );
+      const target = "npm:express@5.2.1#create%41pplication";
+      const response = await service.read({ target, path, waitTimeoutMs: 0 });
+      expect(response.source).toBe("code");
+      expect(readRequest(fetchFn).variables).toEqual({
+        target,
+        ...(path ? { path: "index.js" } : {}),
+        waitTimeoutMs: 0,
+      });
+    },
+  );
+
+  it("uses code errors for invalid compact fragments without retrying docs", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [
+            {
+              message: "Invalid fragment",
+              extensions: { code: "INVALID_ARGUMENT" },
+            },
+          ],
+        }),
+      ),
+    );
+    const service = new ReadServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      fetchFn as unknown as typeof fetch,
+    );
+    await expect(
+      service.read({ target: "npm:express@5.2.1#" }),
+    ).rejects.toBeInstanceOf(CodeNavigationBackendError);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
   it("selects and parses bounded symbol resolution without content fields", async () => {
     const fetchFn = mock(() =>
       Promise.resolve(

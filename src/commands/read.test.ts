@@ -1,10 +1,14 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
-import { AuthRequiredError } from "@githits/mcp/internal";
+import {
+  AuthRequiredError,
+  InvalidPackageSpecError,
+} from "@githits/mcp/internal";
 import { Command } from "commander";
 import {
   createMockCodeNavigationService,
   createMockPackageIntelligenceService,
   createMockReadService,
+  defaultReadFileResult,
 } from "../services/test-helpers.js";
 import { registerCodeReadCommand } from "./code/read.js";
 import { registerDocsReadCommand } from "./docs/read.js";
@@ -26,45 +30,126 @@ function deps(): ReadCommandDependencies {
 }
 
 describe("top-level read", () => {
-  it("renders typed selector misses and forwards exact path", async () => {
-    const services = deps();
-    services.readService.read = mock(() =>
-      Promise.resolve({
-        source: "symbol_resolution" as const,
-        result: {
-          status: "NOT_FOUND" as const,
-          candidates: [],
-          suggestions: [],
-          hasMore: false,
-          repoUrl: "https://github.com/githits-com/githits-cli",
-          gitRef: "abc",
-          message: null,
-          codeIndexState: "CURRENT",
-        },
-      }),
-    );
-    const log = spyOn(console, "log").mockImplementation(() => {});
-    try {
-      await readAction(
-        "github:githits-com/githits-cli@abc",
-        "src/container.ts",
-        { selector: "main", json: true },
-        services,
-      );
-      expect(services.readService.read).toHaveBeenCalledWith(
-        expect.objectContaining({
-          path: "src/container.ts",
-          selector: "main",
+  it.each([undefined, "index.js"])(
+    "reads a compact symbol fragment with optional exact path %s",
+    async (path) => {
+      const services = deps();
+      services.readService.read = mock(() =>
+        Promise.resolve({
+          source: "code" as const,
+          result: defaultReadFileResult,
         }),
       );
-      expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
-        status: "NOT_FOUND",
-        selector: "main",
-      });
-    } finally {
-      log.mockRestore();
-    }
-  });
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        const target = "npm:express@5.2.1#create%41pplication";
+        await readAction(target, path, { json: true, wait: "0" }, services);
+        expect(services.readService.read).toHaveBeenCalledWith({
+          target,
+          ...(path ? { path } : {}),
+          waitTimeoutMs: 0,
+        });
+        expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toHaveProperty(
+          "content",
+        );
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
+
+  it.each([
+    { target: "npm:express@5.2.1#", selector: undefined },
+    { target: "npm:express@5.2.1#createApplication", selector: "other" },
+  ])(
+    "surfaces a fragment error without a docs retry: %j",
+    async ({ target, selector }) => {
+      const services = deps();
+      services.readService.read = mock(() =>
+        Promise.reject(new InvalidPackageSpecError("Invalid code fragment.")),
+      );
+      const error = spyOn(console, "error").mockImplementation(() => {});
+      const exit = spyOn(process, "exit").mockImplementation((() => {
+        throw new Error("exit");
+      }) as never);
+      try {
+        await expect(
+          readAction(target, undefined, { selector, json: true }, services),
+        ).rejects.toThrow("exit");
+        expect(services.readService.read).toHaveBeenCalledWith(
+          expect.objectContaining({
+            target,
+            ...(selector ? { selector } : {}),
+          }),
+        );
+        expect(services.readService.read).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
+          code: "INVALID_ARGUMENT",
+        });
+      } finally {
+        error.mockRestore();
+        exit.mockRestore();
+      }
+    },
+  );
+
+  it.each([
+    {
+      target: "github:githits-com/githits-cli@abc",
+      selector: "main",
+    },
+    {
+      target: "github:githits-com/githits-cli@release/v1#main",
+      selector: undefined,
+    },
+  ])(
+    "renders typed symbol misses and forwards an exact path: %j",
+    async ({ target, selector }) => {
+      const services = deps();
+      services.readService.read = mock(() =>
+        Promise.resolve({
+          source: "symbol_resolution" as const,
+          result: {
+            status: "NOT_FOUND" as const,
+            candidates: [],
+            suggestions: [],
+            hasMore: false,
+            repoUrl: "https://github.com/githits-com/githits-cli",
+            gitRef: "abc",
+            message: null,
+            codeIndexState: "CURRENT",
+          },
+        }),
+      );
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await readAction(
+          target,
+          "src/container.ts",
+          { selector, json: true },
+          services,
+        );
+        expect(services.readService.read).toHaveBeenCalledWith(
+          expect.objectContaining({
+            path: "src/container.ts",
+            ...(selector ? { selector } : {}),
+          }),
+        );
+        if (selector === undefined) {
+          expect(
+            (services.readService.read as ReturnType<typeof mock>).mock
+              .calls[0]?.[0],
+          ).not.toHaveProperty("selector");
+        }
+        expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+          status: "NOT_FOUND",
+          selector: "main",
+        });
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
 
   it("rejects --git-ref with a positional selector target", async () => {
     const services = deps();
@@ -166,7 +251,8 @@ describe("top-level read", () => {
     expect(read.name()).toBe("read");
     expect(readHelp).toContain("--lines");
     expect(readHelp).toMatch(/mutable\s+current content/);
-    expect(readHelp).toMatch(/--selector selects a code symbol/);
+    expect(readHelp).toMatch(/--selector\s+selects a code symbol/);
+    expect(readHelp).toContain("<target>#symbol");
     expect(readHelp).toMatch(/Starting line \(code or docs selector/);
     expect(readHelp).toMatch(/repository\s+docs are snapshot-addressed/);
     expect(readHelp).toContain("full subtree");
@@ -182,25 +268,36 @@ describe("top-level read", () => {
     expect(docsReadHelp).toContain("full subtree");
   });
 
-  it("reads docs fragments unchanged with no default range or wait", async () => {
-    const services = deps();
-    const log = spyOn(console, "log").mockImplementation(() => {});
-    try {
-      const target = "https://docs.example.test/guide#routing";
-      await readAction(target, undefined, { json: true, wait: "0" }, services);
-      expect(services.readService.read).toHaveBeenCalledWith({ target });
-      expect(services.readService.read).toHaveBeenCalledTimes(1);
-      expect(services.codeNavigationService!.readFile).not.toHaveBeenCalled();
-      expect(
-        services.packageIntelligenceService!.readPackageDoc,
-      ).not.toHaveBeenCalled();
-      expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toHaveProperty(
-        "content",
-      );
-    } finally {
-      log.mockRestore();
-    }
-  });
+  it.each([
+    "https://docs.example.test/guide#routing",
+    "https://github.com/owner/repo#readme",
+    "github:owner/repo@abc/docs/guide.md#routing",
+  ])(
+    "reads docs fragment %s unchanged with no default range or wait",
+    async (target) => {
+      const services = deps();
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await readAction(
+          target,
+          undefined,
+          { json: true, wait: "0" },
+          services,
+        );
+        expect(services.readService.read).toHaveBeenCalledWith({ target });
+        expect(services.readService.read).toHaveBeenCalledTimes(1);
+        expect(services.codeNavigationService!.readFile).not.toHaveBeenCalled();
+        expect(
+          services.packageIntelligenceService!.readPackageDoc,
+        ).not.toHaveBeenCalled();
+        expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toHaveProperty(
+          "content",
+        );
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
 
   it("overrides a docs fragment with a one-sided range", async () => {
     const services = deps();

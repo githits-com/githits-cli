@@ -224,6 +224,44 @@ export const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     },
   },
   {
+    name: "read_symbol_fragment",
+    cliArgs: ["read", `${SMOKE_PACKAGE_SPEC}#createApplication`, "--json"],
+    mcpTool: "read",
+    mcpArgs: {
+      target: `${SMOKE_PACKAGE_SPEC}#createApplication`,
+      format: "json",
+    },
+  },
+  {
+    name: "read_symbol_selector",
+    cliArgs: [
+      "read",
+      SMOKE_PACKAGE_SPEC,
+      "--selector",
+      "createApplication",
+      "--json",
+    ],
+    mcpTool: "read",
+    mcpArgs: {
+      target: SMOKE_PACKAGE_SPEC,
+      selector: "createApplication",
+      format: "json",
+    },
+  },
+  {
+    name: "read_docs_fragment",
+    cliArgs: [
+      "read",
+      "https://expressjs.com/en/5x/starter/basic-routing/#overview",
+      "--json",
+    ],
+    mcpTool: "read",
+    mcpArgs: {
+      target: "https://expressjs.com/en/5x/starter/basic-routing/#overview",
+      format: "json",
+    },
+  },
+  {
     name: "read_selector_docs",
     cliArgs: [
       "read",

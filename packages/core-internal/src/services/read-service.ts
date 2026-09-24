@@ -339,6 +339,29 @@ interface NormalisedReadRequest extends ReadParams {
   source: "code" | "docs";
 }
 
+/** Return the raw symbol fragment only for compact code targets. */
+export function compactCodeSymbolFragment(
+  target: string,
+  path?: string,
+): string | undefined {
+  const hash = target.indexOf("#");
+  if (hash < 0 || /^https?:\/\//.test(target)) return undefined;
+  const base = target.slice(0, hash);
+  // Repository documentation page IDs include a ref and a page path.
+  if (!path?.trim() && /^(?:github|gitlab|codeberg):.+@[^/]+\/.+/.test(base))
+    return undefined;
+  const prefix = /^([a-z][a-z0-9+.-]*):/.exec(base)?.[1];
+  if (
+    /^(?:github|gitlab|codeberg):/.test(base) ||
+    /^github\.com\//.test(base) ||
+    (prefix !== undefined &&
+      PKGSEER_REGISTRY_ARGS.some((registry) => registry === prefix))
+  ) {
+    return target.slice(hash + 1);
+  }
+  return undefined;
+}
+
 function normaliseReadRequest(params: ReadParams): NormalisedReadRequest {
   const path = params.path?.trim() || undefined;
   const prefix = /^([a-z][a-z0-9+.-]*):/.exec(params.target)?.[1];
@@ -354,7 +377,9 @@ function normaliseReadRequest(params: ReadParams): NormalisedReadRequest {
       ) ||
       (prefix !== undefined &&
         PKGSEER_REGISTRY_ARGS.some((registry) => registry === prefix)));
-  return path || codeSelector
+  return path ||
+    codeSelector ||
+    compactCodeSymbolFragment(params.target, path) !== undefined
     ? { ...params, path, source: "code" }
     : { ...params, path: undefined, waitTimeoutMs: undefined, source: "docs" };
 }

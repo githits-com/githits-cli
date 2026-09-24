@@ -1,3 +1,4 @@
+import { compactCodeSymbolFragment } from "@githits/core-internal";
 import { z } from "zod";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
@@ -54,7 +55,7 @@ export const readSchema: ReadSchema = {
   target: z
     .string()
     .describe(
-      "With path: compact package or repo target, e.g. npm:react@18 or github:owner/repo@ref. Without path: docs target/page ID, or a compact code target when selector is set. Preserve docs URLs and fragments unchanged.",
+      "With path: compact package or repo target, e.g. npm:react@18 or github:owner/repo@ref. Without path: docs target/page ID, compact code target#symbol, or compact code target with selector. Preserve HTTP(S) docs URLs and fragments unchanged.",
     ),
   path: z
     .string()
@@ -96,7 +97,7 @@ export const readSchema: ReadSchema = {
 
 export const DESCRIPTION_BASE: string =
   "Read an indexed source file, code symbol, or documentation section. " +
-  "Pass target and path for a file; use selector for a code symbol or docs heading. " +
+  "Pass target and path for a file; use compact target#symbol or selector for a code symbol, and selector for a docs heading. " +
   "Replaces code_read and docs_read. " +
   "Hosted/crawled HTTP(S) docs targets read mutable current content; repository-doc targets address snapshots. " +
   "A docs URL fragment needs no bounds and returns its heading with the full subtree through the next equal-or-higher heading; either bound replaces it with a page-relative range. " +
@@ -139,12 +140,13 @@ export function createReadTool(
       } catch (error) {
         return mcpMappedErrorResult(mapCodeNavigationError(error), context);
       }
-      if (args.selector !== undefined) {
+      const fragment = compactCodeSymbolFragment(locator.target, locator.path);
+      if (args.selector !== undefined || fragment !== undefined) {
         try {
           const response = await services.readService.read({
             target: locator.target,
             ...(locator.path ? { path: locator.path } : {}),
-            selector: args.selector,
+            ...(args.selector !== undefined ? { selector: args.selector } : {}),
             ...(args.start_line !== undefined
               ? { startLine: args.start_line }
               : {}),
@@ -156,7 +158,7 @@ export function createReadTool(
               response,
               {
                 target: locator.target,
-                selector: args.selector,
+                selector: args.selector ?? fragment ?? "",
                 path: locator.path,
                 endLine: args.end_line,
               },
