@@ -129,6 +129,7 @@ export async function readAction(
         {
           target: locator.target,
           selector: selector ?? fragment ?? "",
+          codeFragment: fragment,
           path: locator.path,
           verbose: options.verbose,
           useColors: shouldUseColors(),

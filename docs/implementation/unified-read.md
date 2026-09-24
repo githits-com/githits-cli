@@ -20,13 +20,17 @@ remain opaque documentation locators. With `selector`, a compact
 package/repository target selects an indexed code symbol and a documentation
 target selects a logical heading. `ReadServiceImpl` owns this classification and
 exports the same raw-fragment detector to CLI and MCP for presentation routing.
-The client never strips or decodes the fragment, or adds a `selector` for it;
-the backend decodes and validates it once.
+The client sends the fragment unchanged to the backend without adding a
+`selector`; the backend decodes and validates it once. Search actions after a symbol miss and
+exact-file continuation hints use the base target because those follow-ups do
+not accept symbol fragments; this does not change the backend read request.
 Compact repository refs containing `/` can resemble repository documentation
 page IDs, which take precedence when no exact path is given. Supply an exact
 `path` to select a code symbol by fragment at such a ref. An explicit
 `selector` can also use the full provider HTTPS repository URL with such a ref;
 HTTP(S) URL fragments remain documentation locators.
+Refless GitHub and Codeberg page IDs with a path after owner/repository also
+remain documentation locators.
 Empty optional paths count as omitted. Absolute HTTP(S) URLs are documentation
 locators even when they contain fragments or use a provider host. Preserve docs
 target bytes, including URL query strings, percent encoding, fragments, and pinned

@@ -168,6 +168,34 @@ describe("unified read contract", () => {
     });
   });
 
+  it("uses the base target in a fragment miss recovery action", async () => {
+    const { services, tool } = setup();
+    services.readService.read = mock(() =>
+      Promise.resolve({
+        source: "symbol_resolution" as const,
+        result: {
+          status: "NOT_FOUND" as const,
+          candidates: [],
+          suggestions: [],
+          hasMore: false,
+          repoUrl: "https://github.com/expressjs/express",
+          gitRef: "abc",
+          message: null,
+          codeIndexState: "CURRENT",
+        },
+      }),
+    );
+    const target = "npm:express@5.2.1#missing";
+    const result = await tool.handler({ target, format: "json" });
+    const payload = JSON.parse(result.content[0]!.text);
+    expect(payload.target).toBe(target);
+    expect(payload.action).toContain('"target":"npm:express@5.2.1"');
+    expect(payload.action).not.toContain("#missing");
+    expect(services.readService.read).toHaveBeenCalledWith(
+      expect.objectContaining({ target }),
+    );
+  });
+
   it.each([undefined, "", "  "])(
     "reads opaque docs with optional path %j without default bounds or wait",
     async (path) => {
@@ -182,6 +210,7 @@ describe("unified read contract", () => {
   it.each([
     "https://github.com/owner/repo#readme",
     "github:owner/repo@abc/docs/guide.md#routing",
+    "github:owner/repo/README.md#routing",
   ])("preserves documentation fragment %s", async (target) => {
     const { services, tool } = setup();
     await tool.handler({ target });

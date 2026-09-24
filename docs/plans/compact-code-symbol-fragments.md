@@ -10,6 +10,7 @@
 - The user verified deployed development GraphQL `read` returns `CodeContextResult` for `npm:express@5.2.1#createApplication`, matching the explicit-selector read; the current CLI instead takes the docs branch and reports `PROTOCOL_ERROR`.
 - `ReadServiceImpl` owns transport source classification and maps source-specific errors. CLI and MCP own caller validation and formatting; both currently route pathless requests without an explicit selector through documentation adapters.
 - Existing repository documentation page IDs use `provider:owner/repo@ref/path`; an optional trailing heading fragment must remain documentation. This shape is ambiguous with refs containing `/`, so the existing slash-bearing page-ID precedence remains the compatibility rule for pathless reads. An exact path disambiguates a slash-bearing code ref and uses symbol presentation.
+- Search can also emit refless GitHub documentation page IDs such as `github:owner/repo/README.md`; those must keep docs precedence with a heading fragment. Codeberg uses the same owner/repository path shape.
 - Absolute HTTP(S) URLs remain documentation locators, including provider roots. Targets and percent escapes are passed unchanged; only the backend decodes fragments.
 
 ## Design and ownership
@@ -26,13 +27,14 @@
 
 ## Verification to date
 
-- Focused read and descriptor tests: 115 passed after the slash-ref correction; TypeScript typecheck passed.
-- Full repository tests before that correction: 4,926 passed. Root and MCP package builds passed.
+- Focused read, formatter, and descriptor tests: 123 passed after external review fixes; TypeScript typecheck passed.
+- Full repository tests after external review fixes: 4,935 passed. Root and MCP package builds passed.
 - CLI live dev smoke passed, including persistent fragment, selector, and docs-fragment CLI/MCP parity fixtures. Built CLI and MCP registration smoke passed.
 - MCP stable live smoke passed. Its separate experimental `research` cohort failed on a reproduced dev `TIMEOUT` (`research` returned `retryable: true`), unrelated to fragment read.
 - Direct dev CLI and local MCP reads of `npm:express@5.2.1#createApplication` matched explicit-selector content and exact file path. A percent-encoded fragment matched the unencoded result. A search-emitted HTTP(S) docs fragment and repository docs page ID returned docs in both clients. Empty and conflicting fragments returned `INVALID_ARGUMENT` in both.
 - Targeted Codex and Claude agent eval attempts made zero tool calls because the local model sessions did not start successfully; this is an eval-environment limitation, not a passed qualitative result.
-- Internal pre-flight review found the slash-ref plus exact-path presentation gap; the revised full delta received a clean follow-up review.
+- Internal pre-flight review found the slash-ref plus exact-path presentation gap; its follow-up was clean. A second internal closure pass after external findings was also clean.
+- External review round 1 found that symbol-miss search actions and code continuations incorrectly kept the fragment, and that refless repository docs page IDs could be misclassified. Both were corrected in the shared formatter/classifier and related tests before round 2. Live dev CLI/MCP symbol misses now emit base-target search actions.
 
 ## Pending clarification
 

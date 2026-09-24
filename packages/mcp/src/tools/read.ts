@@ -159,6 +159,7 @@ export function createReadTool(
               {
                 target: locator.target,
                 selector: args.selector ?? fragment ?? "",
+                codeFragment: fragment,
                 path: locator.path,
                 endLine: args.end_line,
               },

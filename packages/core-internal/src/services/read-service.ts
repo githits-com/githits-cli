@@ -347,8 +347,12 @@ export function compactCodeSymbolFragment(
   const hash = target.indexOf("#");
   if (hash < 0 || /^https?:\/\//.test(target)) return undefined;
   const base = target.slice(0, hash);
-  // Repository documentation page IDs include a ref and a page path.
-  if (!path?.trim() && /^(?:github|gitlab|codeberg):.+@[^/]+\/.+/.test(base))
+  // Repository documentation page IDs can be snapshot-addressed or refless.
+  if (
+    !path?.trim() &&
+    (/^(?:github|gitlab|codeberg):.+@[^/]+\/.+/.test(base) ||
+      /^(?:github|codeberg):[^/]+\/[^/]+\/.+/.test(base))
+  )
     return undefined;
   const prefix = /^([a-z][a-z0-9+.-]*):/.exec(base)?.[1];
   if (

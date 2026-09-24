@@ -145,6 +145,13 @@ describe("top-level read", () => {
           status: "NOT_FOUND",
           selector: "main",
         });
+        if (selector === undefined) {
+          const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
+          expect(payload.action).toContain(
+            '--in "github:githits-com/githits-cli@release/v1"',
+          );
+          expect(payload.action).not.toContain("#main");
+        }
       } finally {
         log.mockRestore();
       }
@@ -272,6 +279,7 @@ describe("top-level read", () => {
     "https://docs.example.test/guide#routing",
     "https://github.com/owner/repo#readme",
     "github:owner/repo@abc/docs/guide.md#routing",
+    "github:owner/repo/README.md#routing",
   ])(
     "reads docs fragment %s unchanged with no default range or wait",
     async (target) => {

@@ -233,6 +233,8 @@ describe("ReadServiceImpl", () => {
     ["https://github.com/owner/repo#makeApp", undefined],
     ["https://docs.example.test/guide#makeApp", undefined],
     ["github:owner/repo@abc/docs/guide.md#heading", undefined],
+    ["github:owner/repo/README.md#heading", undefined],
+    ["codeberg:owner/repo/docs/guide.md#heading", undefined],
     ["page-id#heading", undefined],
   ])("classifies fragment target %s", (target, fragment) => {
     expect(compactCodeSymbolFragment(target)).toBe(fragment);

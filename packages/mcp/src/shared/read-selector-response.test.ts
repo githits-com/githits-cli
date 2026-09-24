@@ -41,6 +41,34 @@ describe("selector read presentation", () => {
     );
   });
 
+  it("uses the base target in fragment miss recovery actions", () => {
+    const response: ReadResult = {
+      source: "symbol_resolution",
+      result: {
+        status: "NOT_FOUND",
+        candidates: [],
+        suggestions: [],
+        hasMore: false,
+        repoUrl: "https://github.com/owner/repo",
+        gitRef: "abc",
+        message: null,
+        codeIndexState: "CURRENT",
+      },
+    };
+    const request = {
+      target: "npm:express@5.2.1#missing",
+      selector: "missing",
+      codeFragment: "missing",
+    };
+    const mcp = JSON.parse(formatSelectorRead(response, request, "mcp-json"));
+    expect(mcp.target).toBe(request.target);
+    expect(mcp.action).toContain('"target":"npm:express@5.2.1"');
+    expect(mcp.action).not.toContain("#missing");
+    expect(formatSelectorRead(response, request, "cli-text")).toContain(
+      '--in "npm:express@5.2.1"',
+    );
+  });
+
   it("caps MCP symbol content with a precise continuation while CLI retains it", () => {
     const content = Array.from(
       { length: 185 },
@@ -71,6 +99,21 @@ describe("selector read presentation", () => {
     expect(mcp.endLine).toBe(206);
     expect(mcp.content).not.toContain("line 151");
     expect(mcp.hint).toContain('path="eval/run.ts" start_line=207');
+    const fragmentContinuation = JSON.parse(
+      formatSelectorRead(
+        response,
+        {
+          target: "github:owner/repo@abc#main",
+          selector: "main",
+          codeFragment: "main",
+        },
+        "mcp-json",
+      ),
+    );
+    expect(fragmentContinuation.hint).toContain(
+      'target="github:owner/repo@abc" path="eval/run.ts"',
+    );
+    expect(fragmentContinuation.hint).not.toContain("#main");
     expect(formatSelectorRead(response, request, "cli-text")).toContain(
       "line 185",
     );
