@@ -2,7 +2,7 @@
 
 ## Status
 
-- Implementation and external review complete on 2026-09-24; PR delivery pending.
+- Implementation and external review complete on 2026-09-24; draft PR [#414](https://github.com/githits-com/githits-cli/pull/414) is open for CI and user review.
 - Owner: `githits-cli` read client, CLI command, and public MCP package.
 
 ## Verified contract and assumptions
@@ -30,7 +30,7 @@
 - Focused read, formatter, and descriptor tests: 123 passed after external review round 1; final MCP read/descriptor tests passed (63 tests). TypeScript typecheck passed.
 - Full repository tests after external review round 2: 4,937 passed. Root and MCP package builds passed.
 - CLI live dev smoke passed, including persistent fragment, selector, and docs-fragment CLI/MCP parity fixtures. Built CLI and MCP registration smoke passed.
-- MCP stable live smoke passed. Its separate experimental `research` cohort failed on a reproduced dev `TIMEOUT` (`research` returned `retryable: true`), unrelated to fragment read.
+- MCP stable live smoke passed, including a final rerun against explicit dev endpoints. Its separate experimental `research` cohort failed on a reproduced dev `TIMEOUT` (`research` returned `retryable: true` in the earlier run); the final rerun timed out on experimental research URL JSON. A separate smoke attempt with the default endpoint timed out on live `pkg_info`, while unauthenticated and registration checks passed. None of these failures exercise fragment read.
 - Direct dev CLI and local MCP reads of `npm:express@5.2.1#createApplication` matched explicit-selector content and exact file path. A percent-encoded fragment matched the unencoded result. A search-emitted HTTP(S) docs fragment and repository docs page ID returned docs in both clients. Empty and conflicting fragments returned `INVALID_ARGUMENT` in both.
 - Targeted Codex and Claude agent eval attempts made zero tool calls because the local model sessions did not start successfully; this is an eval-environment limitation, not a passed qualitative result. A descriptor-only Codex rerun after the final wording fix also made zero calls because the configured model hit its usage limit.
 - Internal pre-flight review found the slash-ref plus exact-path presentation gap; its follow-up was clean. A second internal closure pass after external findings was also clean.
