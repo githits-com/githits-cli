@@ -48,9 +48,10 @@ directories with \`read\`. Prefer source, symbols, tests, and call sites for
 behavioral claims.
 When the exact indexed code symbol or docs heading ID is known, pass it as
 \`selector\` to \`read\`; an optional exact \`path\` narrows code symbol lookup.
-Compact package and repository \`target#symbol\` reads select code symbols;
+Use compact package and repository \`target#symbol\` for code symbol reads;
 keep the fragment in \`target\` unchanged and use an exact \`path\` to narrow it.
-HTTP(S) URL fragments and repository documentation page IDs remain docs reads.
+Pass HTTP(S) fragments and emitted repository docs page IDs unchanged.
+The unified read result determines whether the target resolved to code or docs.
 
 Omit \`wait_timeout_ms\` for the default; \`0\` returns without waiting.
 Follow rendered continuation/recovery actions, not repeated calls to poll.

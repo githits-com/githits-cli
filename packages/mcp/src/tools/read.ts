@@ -1,4 +1,3 @@
-import { compactCodeSymbolFragment } from "@githits/core-internal";
 import { z } from "zod";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
@@ -14,14 +13,10 @@ import {
   resolveReadLocator,
   validateReadRange,
 } from "../shared/read-request.js";
-import { formatSelectorRead } from "../shared/read-selector-response.js";
-import {
-  createReadFileServiceAdapter,
-  createReadPackageDocServiceAdapter,
-} from "../shared/read-service-adapters.js";
+import { formatReadResult } from "../shared/read-result-response.js";
+import { createReadFileServiceAdapter } from "../shared/read-service-adapters.js";
 import { CODE_READ_GUARDRAIL } from "./guardrails.js";
 import { readSourceFile } from "./read-file.js";
-import { readDocumentationPage } from "./read-package-doc.js";
 import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import type { McpToolServices } from "./tool-services.js";
 import {
@@ -55,7 +50,7 @@ export const readSchema: ReadSchema = {
   target: z
     .string()
     .describe(
-      "With path: compact package or repo target, e.g. npm:react@18 or github:owner/repo@ref; target#symbol narrows the symbol read to that file. Without path: docs target/page ID, compact code target#symbol, or compact code target with selector. Preserve HTTP(S) docs URLs and fragments unchanged.",
+      "With path: compact package or repo target, e.g. npm:react@18 or github:owner/repo@ref; target#symbol narrows a symbol read to that file. Without path: pass a docs target/page ID or compact target#symbol unchanged. The resolved result determines code or docs. Preserve HTTP(S) docs URLs and fragments unchanged.",
     ),
   path: z
     .string()
@@ -85,7 +80,7 @@ export const readSchema: ReadSchema = {
     .number()
     .optional()
     .describe(
-      `Code indexing wait in ms (0-${MAX_WAIT_TIMEOUT_MS}, default ${DEFAULT_WAIT_TIMEOUT_MS}); validated but unused for docs.`,
+      `Indexing wait in ms (0-${MAX_WAIT_TIMEOUT_MS}, default ${DEFAULT_WAIT_TIMEOUT_MS}); the backend applies it when relevant.`,
     ),
   format: z
     .enum(["text", "json"])
@@ -98,6 +93,7 @@ export const readSchema: ReadSchema = {
 export const DESCRIPTION_BASE: string =
   "Read an indexed source file, code symbol, or documentation section. " +
   "Pass target and path for a file; use compact target#symbol or selector for a code symbol, and selector for a docs heading. " +
+  "Preserve emitted documentation targets; the resolved result determines code or docs. " +
   "Replaces code_read and docs_read. " +
   "Hosted/crawled HTTP(S) docs targets read mutable current content; repository-doc targets address snapshots. " +
   "A docs URL fragment needs no bounds and returns its heading with the full subtree through the next equal-or-higher heading; either bound replaces it with a page-relative range. " +
@@ -140,8 +136,11 @@ export function createReadTool(
       } catch (error) {
         return mcpMappedErrorResult(mapCodeNavigationError(error), context);
       }
-      const fragment = compactCodeSymbolFragment(locator.target, locator.path);
-      if (args.selector !== undefined || fragment !== undefined) {
+      if (
+        args.selector !== undefined ||
+        locator.path === undefined ||
+        locator.target.includes("#")
+      ) {
         try {
           const response = await services.readService.read({
             target: locator.target,
@@ -154,12 +153,11 @@ export function createReadTool(
             waitTimeoutMs: wait,
           });
           return textResult(
-            formatSelectorRead(
+            formatReadResult(
               response,
               {
                 target: locator.target,
-                selector: args.selector ?? fragment ?? "",
-                codeFragment: fragment,
+                selector: args.selector,
                 path: locator.path,
                 endLine: args.end_line,
               },
@@ -177,26 +175,14 @@ export function createReadTool(
           );
         }
       }
-      if (locator.path !== undefined) {
-        return readSourceFile(
-          {
-            ...args,
-            target: locator.target,
-            path: locator.path,
-            wait_timeout_ms: wait,
-          },
-          createReadFileServiceAdapter(services.readService, locator.target),
-          context,
-        );
-      }
-      return readDocumentationPage(
+      return readSourceFile(
         {
-          page_id: locator.target,
-          start_line: args.start_line,
-          end_line: args.end_line,
-          format: args.format,
+          ...args,
+          target: locator.target,
+          path: locator.path,
+          wait_timeout_ms: wait,
         },
-        createReadPackageDocServiceAdapter(services.readService),
+        createReadFileServiceAdapter(services.readService, locator.target),
         context,
       );
     },

@@ -197,12 +197,15 @@ describe("unified read contract", () => {
   });
 
   it.each([undefined, "", "  "])(
-    "reads opaque docs with optional path %j without default bounds or wait",
+    "reads opaque docs with optional empty path %j through unified service",
     async (path) => {
       const { services, tool } = setup();
       const target = "https://docs.example.test/a%2Fb?q=exact#section";
       await tool.handler({ target, path, wait_timeout_ms: 0 });
-      expect(services.readService.read).toHaveBeenCalledWith({ target });
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target,
+        waitTimeoutMs: 0,
+      });
       expect(services.readService.read).toHaveBeenCalledTimes(1);
     },
   );
@@ -214,7 +217,10 @@ describe("unified read contract", () => {
   ])("preserves documentation fragment %s", async (target) => {
     const { services, tool } = setup();
     await tool.handler({ target });
-    expect(services.readService.read).toHaveBeenCalledWith({ target });
+    expect(services.readService.read).toHaveBeenCalledWith({
+      target,
+      waitTimeoutMs: 30_000,
+    });
   });
 
   it("forwards explicit documentation bounds unchanged", async () => {
@@ -227,6 +233,7 @@ describe("unified read contract", () => {
       target,
       startLine: 81,
       endLine: 93,
+      waitTimeoutMs: 30_000,
     });
     expect(services.readService.read).toHaveBeenCalledTimes(1);
   });
@@ -355,19 +362,30 @@ describe("unified read contract", () => {
     expect(services.readService.read).toHaveBeenCalledTimes(1);
   });
 
-  it("maps a code result returned for a docs request to a docs protocol error", async () => {
+  it("presents backend code for a docs-shaped pathless target", async () => {
     const { services, tool } = setup();
     services.readService.read = mock(
       (): Promise<ReadResult> =>
         Promise.resolve({ source: "code", result: defaultReadFileResult }),
     );
 
-    const result = await tool.handler({ target: "docs-id" });
-
-    expect(result.isError).toBe(true);
-    expect(JSON.parse(result.content[0]!.text)).toMatchObject({
-      code: "PROTOCOL_ERROR",
+    const result = await tool.handler({
+      target: "github:owner/repo@release/v1#makeApp",
     });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0]!.text).toContain("Express entry point");
+    expect(services.readService.read).toHaveBeenCalledTimes(1);
+  });
+
+  it("presents backend docs for a code-shaped pathless target", async () => {
+    const { services, tool } = setup();
+    const result = await tool.handler({
+      target: "npm:express@5.2.1#routing",
+      format: "json",
+    });
+    expect(result.isError).toBeUndefined();
+    expect(JSON.parse(result.content[0]!.text)).toHaveProperty("pageId");
     expect(services.readService.read).toHaveBeenCalledTimes(1);
   });
 });

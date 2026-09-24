@@ -779,4 +779,4 @@ envelope shape.
 
 See [Repository target grammar](repository-targets.md) for the shared GitHub, Codeberg, and GitLab addressing contract and provider-preserving response identity.
 
-See [Unified read](unified-read.md) for source routing, fragment ranges, code-only waits, Ask pointer translation and release migration.
+See [Unified read](unified-read.md) for backend-owned source resolution, fragment ranges, indexing waits, Ask pointer translation and release migration.

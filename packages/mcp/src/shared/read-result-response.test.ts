@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import type { ReadResult } from "@githits/core-internal";
-import { formatSelectorRead } from "./read-selector-response.js";
+import { formatReadResult } from "./read-result-response.js";
 
-describe("selector read presentation", () => {
+describe("unified read presentation", () => {
   it("renders an actionable unsupported snapshot without source content", () => {
     const response: ReadResult = {
       source: "symbol_resolution",
@@ -18,25 +18,25 @@ describe("selector read presentation", () => {
       },
     };
     const request = { target: "github:owner/repo@abc", selector: "main" };
-    const text = formatSelectorRead(response, request, "mcp-text");
+    const text = formatReadResult(response, request, "mcp-text");
     expect(text).toContain('"source":"symbol"');
     expect(text).toContain("start_line and end_line");
     expect(
-      JSON.parse(formatSelectorRead(response, request, "mcp-json")),
+      JSON.parse(formatReadResult(response, request, "mcp-json")),
     ).toMatchObject({
       status: "SNAPSHOT_UNSUPPORTED",
       action: expect.stringContaining('"source":"symbol"'),
     });
-    expect(formatSelectorRead(response, request, "cli-text")).toContain(
+    expect(formatReadResult(response, request, "cli-text")).toContain(
       "--start N --end M",
     );
-    expect(formatSelectorRead(response, request, "cli-text")).toContain(
+    expect(formatReadResult(response, request, "cli-text")).toContain(
       "--source symbol",
     );
-    expect(formatSelectorRead(response, request, "mcp-json")).not.toContain(
+    expect(formatReadResult(response, request, "mcp-json")).not.toContain(
       "__typename",
     );
-    expect(formatSelectorRead(response, request, "mcp-json")).not.toContain(
+    expect(formatReadResult(response, request, "mcp-json")).not.toContain(
       '"message":null',
     );
   });
@@ -57,14 +57,12 @@ describe("selector read presentation", () => {
     };
     const request = {
       target: "npm:express@5.2.1#missing",
-      selector: "missing",
-      codeFragment: "missing",
     };
-    const mcp = JSON.parse(formatSelectorRead(response, request, "mcp-json"));
+    const mcp = JSON.parse(formatReadResult(response, request, "mcp-json"));
     expect(mcp.target).toBe(request.target);
     expect(mcp.action).toContain('"target":"npm:express@5.2.1"');
     expect(mcp.action).not.toContain("#missing");
-    expect(formatSelectorRead(response, request, "cli-text")).toContain(
+    expect(formatReadResult(response, request, "cli-text")).toContain(
       '--in "npm:express@5.2.1"',
     );
   });
@@ -95,17 +93,15 @@ describe("selector read presentation", () => {
       },
     };
     const request = { target: "github:owner/repo@abc", selector: "main" };
-    const mcp = JSON.parse(formatSelectorRead(response, request, "mcp-json"));
+    const mcp = JSON.parse(formatReadResult(response, request, "mcp-json"));
     expect(mcp.endLine).toBe(206);
     expect(mcp.content).not.toContain("line 151");
     expect(mcp.hint).toContain('path="eval/run.ts" start_line=207');
     const fragmentContinuation = JSON.parse(
-      formatSelectorRead(
+      formatReadResult(
         response,
         {
           target: "github:owner/repo@abc#main",
-          selector: "main",
-          codeFragment: "main",
         },
         "mcp-json",
       ),
@@ -114,25 +110,23 @@ describe("selector read presentation", () => {
       'target="github:owner/repo@abc" path="eval/run.ts"',
     );
     expect(fragmentContinuation.hint).not.toContain("#main");
-    expect(formatSelectorRead(response, request, "cli-text")).toContain(
+    expect(formatReadResult(response, request, "cli-text")).toContain(
       "line 185",
     );
-    const cliJson = JSON.parse(
-      formatSelectorRead(response, request, "cli-json"),
-    );
+    const cliJson = JSON.parse(formatReadResult(response, request, "cli-json"));
     expect(cliJson.content).toContain("line 185");
     expect(cliJson.endLine).toBe(241);
     expect(
-      formatSelectorRead(response, { ...request, verbose: true }, "cli-text"),
+      formatReadResult(response, { ...request, verbose: true }, "cli-text"),
     ).toContain("57  line 1");
     expect(
-      JSON.parse(formatSelectorRead(response, request, "mcp-json")),
+      JSON.parse(formatReadResult(response, request, "mcp-json")),
     ).toMatchObject({
       repoUrl: "https://github.com/owner/repo",
       gitRef: "abc",
     });
     expect(
-      formatSelectorRead(
+      formatReadResult(
         response,
         {
           target: "https://github.com/owner/repo#abc",

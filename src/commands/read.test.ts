@@ -6,7 +6,6 @@ import {
 import { Command } from "commander";
 import {
   createMockCodeNavigationService,
-  createMockPackageIntelligenceService,
   createMockReadService,
   defaultReadFileResult,
 } from "../services/test-helpers.js";
@@ -21,7 +20,6 @@ import {
 function deps(): ReadCommandDependencies {
   return {
     codeNavigationService: createMockCodeNavigationService(),
-    packageIntelligenceService: createMockPackageIntelligenceService(),
     readService: createMockReadService(),
     codeNavigationUrl: "https://pkgseer.dev",
     hasValidToken: true,
@@ -260,7 +258,8 @@ describe("top-level read", () => {
     expect(readHelp).toMatch(/mutable\s+current content/);
     expect(readHelp).toMatch(/--selector\s+selects a code symbol/);
     expect(readHelp).toContain("<target>#symbol");
-    expect(readHelp).toMatch(/Starting line \(code or docs selector/);
+    expect(readHelp).toContain("Starting line (alternative to --lines)");
+    expect(readHelp).toMatch(/resolved target\s+determines code or docs/);
     expect(readHelp).toMatch(/repository\s+docs are snapshot-addressed/);
     expect(readHelp).toContain("full subtree");
     expect(
@@ -281,7 +280,7 @@ describe("top-level read", () => {
     "github:owner/repo@abc/docs/guide.md#routing",
     "github:owner/repo/README.md#routing",
   ])(
-    "reads docs fragment %s unchanged with no default range or wait",
+    "reads docs fragment %s unchanged through the unified service",
     async (target) => {
       const services = deps();
       const log = spyOn(console, "log").mockImplementation(() => {});
@@ -292,12 +291,12 @@ describe("top-level read", () => {
           { json: true, wait: "0" },
           services,
         );
-        expect(services.readService.read).toHaveBeenCalledWith({ target });
+        expect(services.readService.read).toHaveBeenCalledWith({
+          target,
+          waitTimeoutMs: 0,
+        });
         expect(services.readService.read).toHaveBeenCalledTimes(1);
         expect(services.codeNavigationService!.readFile).not.toHaveBeenCalled();
-        expect(
-          services.packageIntelligenceService!.readPackageDoc,
-        ).not.toHaveBeenCalled();
         expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toHaveProperty(
           "content",
         );
@@ -320,11 +319,52 @@ describe("top-level read", () => {
       expect(services.readService.read).toHaveBeenCalledWith({
         target: "https://docs.example.test/guide#routing",
         startLine: 10,
+        waitTimeoutMs: 30_000,
       });
       expect(services.readService.read).toHaveBeenCalledTimes(1);
-      expect(
-        services.packageIntelligenceService!.readPackageDoc,
-      ).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("presents backend code for a docs-shaped pathless target with --start", async () => {
+    const services = deps();
+    services.readService.read = mock(() =>
+      Promise.resolve({
+        source: "code" as const,
+        result: defaultReadFileResult,
+      }),
+    );
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const target = "github:owner/repo@release/v1#makeApp";
+      await readAction(target, undefined, { start: "5", json: true }, services);
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target,
+        startLine: 5,
+        waitTimeoutMs: 30_000,
+      });
+      expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toHaveProperty(
+        "content",
+      );
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("presents backend docs for a code-shaped pathless target", async () => {
+    const services = deps();
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const target = "npm:express@5.2.1#routing";
+      await readAction(target, undefined, { json: true }, services);
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target,
+        waitTimeoutMs: 30_000,
+      });
+      expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toHaveProperty(
+        "pageId",
+      );
     } finally {
       log.mockRestore();
     }
@@ -349,9 +389,6 @@ describe("top-level read", () => {
       });
       expect(services.readService.read).toHaveBeenCalledTimes(1);
       expect(services.codeNavigationService!.readFile).not.toHaveBeenCalled();
-      expect(
-        services.packageIntelligenceService!.readPackageDoc,
-      ).not.toHaveBeenCalled();
     } finally {
       log.mockRestore();
     }
@@ -470,14 +507,8 @@ describe("top-level read", () => {
     }
   });
 
-  it.each([
-    { start: "1" },
-    { end: "20" },
-    { gitRef: "main" },
-    { wait: "-1" },
-    { wait: "60001" },
-  ])(
-    "rejects invalid docs options before a service call: %j",
+  it.each([{ gitRef: "main" }, { wait: "-1" }, { wait: "60001" }])(
+    "rejects invalid pathless options before a service call: %j",
     async (options) => {
       const services = deps();
       const error = spyOn(console, "error").mockImplementation(() => {});
@@ -499,9 +530,6 @@ describe("top-level read", () => {
         );
         expect(services.readService.read).not.toHaveBeenCalled();
         expect(services.codeNavigationService!.readFile).not.toHaveBeenCalled();
-        expect(
-          services.packageIntelligenceService!.readPackageDoc,
-        ).not.toHaveBeenCalled();
       } finally {
         error.mockRestore();
         exit.mockRestore();

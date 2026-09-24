@@ -2,7 +2,7 @@
 
 ## Status
 
-- Draft PR [#414](https://github.com/githits-com/githits-cli/pull/414) is open. A user-identified ownership correction is ready for implementation and review before merge.
+- Draft PR [#414](https://github.com/githits-com/githits-cli/pull/414) is open. The user-identified ownership correction is implemented locally and awaiting external review and refreshed PR CI.
 - Owner: `githits-cli` read client, CLI command, and public MCP package.
 
 ## Verified contract and assumptions
@@ -21,7 +21,7 @@ The backend resolver owns source selection because it has the target and returns
 
 ## Ownership correction: next increment
 
-- **Status:** ready. **Outcome:** Pathless normal CLI/MCP reads accept the backend's code, docs, or symbol-resolution result even when the target string resembles another source.
+- **Status:** implemented; review and refreshed CI pending. **Outcome:** Pathless normal CLI/MCP reads accept the backend's code, docs, or symbol-resolution result even when the target string resembles another source.
 - **Assumptions:** Backend `__typename` is authoritative for successful unified reads; verified for known dev code and docs targets. Backend resolution for a valid slash-bearing ref that also spells a documentation page ID has not been demonstrated; this client increment will not prescribe that backend choice.
 - **Product decisions:** none for this client increment. The user directed backend-owned source resolution. Backend policy for a genuinely ambiguous valid target remains backend-owned and outside this worktree.
 - **Dependencies:** Deployed unified `read` union and existing shared formatter. No new infrastructure.
@@ -39,6 +39,10 @@ The backend resolver owns source selection because it has the target and returns
 
 ## Verification to date
 
+- Ownership correction: 146 focused tests pass across read service, CLI/MCP read, presentation, descriptors, and skill parity. The full suite passed with 4,927 tests before the final neutral typed-parser error fix; its two targeted new cases pass. Typecheck, format check, lint, root/MCP builds, public package validation, and plugin generation/check pass.
+- Refreshed CLI live dev smoke passed both stable and experimental cohorts, including fragment/selector and documentation-fragment CLI/MCP JSON parity. MCP stable live cohort passed; the unrelated experimental `research` URL JSON case hit the SDK's 60-second request timeout. Direct CLI and local MCP dev probes both returned `INVALID_ARGUMENT` for empty/conflicting fragments and `DOCUMENTATION_SECTION_UNRESOLVED` for a missing docs heading.
+- Targeted Claude descriptor agent eval ended in an API error before any tool call; its artifact has zero tool calls and no final answer. Qualitative behavior remains unmeasured by that run.
+- Internal pre-flight found that malformed typed branches retained legacy source-specific messages; the shared read service now maps those parser failures to a neutral malformed-read error while preserving indexing errors. Two targeted malformed-branch tests pass.
 - Focused read, formatter, and descriptor tests: 123 passed after external review round 1; final MCP read/descriptor tests passed (63 tests). TypeScript typecheck passed.
 - Full repository tests after external review round 2: 4,937 passed. Root and MCP package builds passed.
 - CLI live dev smoke passed, including persistent fragment, selector, and docs-fragment CLI/MCP parity fixtures. Built CLI and MCP registration smoke passed.
