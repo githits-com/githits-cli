@@ -55,7 +55,7 @@ export const readSchema: ReadSchema = {
   target: z
     .string()
     .describe(
-      "With path: compact package or repo target, e.g. npm:react@18 or github:owner/repo@ref. Without path: docs target/page ID, compact code target#symbol, or compact code target with selector. Preserve HTTP(S) docs URLs and fragments unchanged.",
+      "With path: compact package or repo target, e.g. npm:react@18 or github:owner/repo@ref; target#symbol narrows the symbol read to that file. Without path: docs target/page ID, compact code target#symbol, or compact code target with selector. Preserve HTTP(S) docs URLs and fragments unchanged.",
     ),
   path: z
     .string()
@@ -67,7 +67,7 @@ export const readSchema: ReadSchema = {
     .string()
     .optional()
     .describe(
-      "Logical docs heading ID or indexed code symbol. With path, search exactly that file; omit path to search the code target. Do not combine with a docs URL fragment.",
+      "Logical docs heading ID or indexed code symbol. With path, search exactly that file; omit path to search the code target. Do not combine with a docs URL fragment or compact target#symbol.",
     ),
   start_line: z
     .number()
