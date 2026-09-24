@@ -154,7 +154,7 @@ describe("unified read contract", () => {
     },
   );
 
-  it("forwards a docs heading selector without a code wait", async () => {
+  it("forwards a docs heading selector with the requested wait", async () => {
     const { services, tool } = setup();
     await tool.handler({
       target: "https://expressjs.com/llms/api-5x.txt",

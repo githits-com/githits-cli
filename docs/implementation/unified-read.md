@@ -26,8 +26,8 @@ not accept symbol fragments; this does not change the backend read request.
 Compact repository refs containing `/` can resemble repository documentation
 page IDs. The backend owns that ambiguous resolution; an exact `path` explicitly
 scopes a code read. An explicit `selector` can also use the full provider HTTPS
-repository URL with such a ref. Direct dev reads of HTTP(S) URL fragments
-without a selector or path returned documentation, including provider roots.
+repository URL with such a ref. The backend resolves HTTP(S) URL fragments
+without a selector or path as documentation, including provider roots.
 Refless GitHub and Codeberg page IDs with a path after owner/repository are
 emitted as documentation locators; the client forwards them unchanged.
 Empty optional paths count as omitted. Preserve docs
