@@ -24,9 +24,11 @@ The client sends the fragment unchanged to the backend without adding a
 exact-file continuation hints use the base target because those follow-ups do
 not accept symbol fragments; this does not change the backend read request.
 Compact repository refs containing `/` can resemble repository documentation
-page IDs. The backend owns that ambiguous resolution; an exact `path` explicitly
-scopes a code read. An explicit `selector` can also use the full provider HTTPS
-repository URL with such a ref. The backend resolves HTTP(S) URL fragments
+page IDs. The backend contract uses a fragment as a documentation anchor only
+when the target identifies an exact page path; otherwise it resolves a code
+symbol, with an optional exact `path` narrowing the match. The client presents
+the returned type without reproducing that rule. An explicit `selector` can
+also use the full provider HTTPS repository URL with such a ref. The backend resolves HTTP(S) URL fragments
 without a selector or path as documentation, including provider roots.
 Refless GitHub and Codeberg page IDs with a path after owner/repository are
 emitted as documentation locators; the client forwards them unchanged.

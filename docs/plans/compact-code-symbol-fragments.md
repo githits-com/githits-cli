@@ -2,7 +2,7 @@
 
 ## Status
 
-- Draft PR [#414](https://github.com/githits-com/githits-cli/pull/414) is open. The user-identified ownership correction is pushed and externally reviewed.
+- Draft PR [#414](https://github.com/githits-com/githits-cli/pull/414) is open. The user-identified ownership correction is pushed and externally reviewed. Merge is blocked until the confirmed backend repository-page fragment bug is fixed and verified on dev.
 - Owner: `githits-cli` read client, CLI command, and public MCP package.
 
 ## Verified contract and assumptions
@@ -11,7 +11,7 @@
 - The backend `read` query returns a typed union: `CodeContextResult`, `GetDocPageResult`, or `CodeSymbolResolutionResult`. Direct dev GraphQL returned docs and code result types for known docs and symbol targets, respectively, even with `waitTimeoutMs: 0` supplied.
 - Direct dev error probes returned `extensions.code` without a result type: `VALIDATION_ERROR` for empty/conflicting code fragments, `DOCUMENTATION_SECTION_UNRESOLVED` for a missing docs heading, and `NOT_FOUND` for a synthetic ambiguous locator. These codes support error mapping without guessing source from the target.
 - Before the ownership correction, `ReadServiceImpl` predicted a source from target syntax and rejected a typed backend result that contradicted the prediction. CLI and MCP also sent pathless requests without an explicit selector through docs-only adapters. These client decisions prevented the backend from owning source resolution.
-- Existing repository documentation page IDs use `provider:owner/repo@ref/path`; an optional trailing heading fragment must remain documentation. This shape is ambiguous with refs containing `/`. The backend must decide it from the unified read contract; the client cannot infer the source from the spelling alone.
+- Existing repository documentation page IDs use `provider:owner/repo@ref/path`. The backend team confirmed that a fragment selects a documentation anchor only for an exact page path; otherwise it selects a code symbol, narrowed by an optional exact `path`. The client presents the backend's typed result without duplicating that rule.
 - Search can also emit refless GitHub documentation page IDs such as `github:owner/repo/README.md`; the backend must resolve those page IDs and their heading fragments as docs. Codeberg uses the same owner/repository path shape.
 - Direct dev reads of absolute HTTP(S) URL fragments without an explicit code selector or path returned documentation, including provider roots. The client does not enforce that source from URL spelling. Targets and percent escapes are passed unchanged; only the backend decodes fragments.
 
@@ -21,10 +21,10 @@ The backend resolver owns source selection because it has the target and returns
 
 ## Ownership correction: next increment
 
-- **Status:** implemented and reviewed; the draft PR remains unmerged. **Outcome:** Pathless normal CLI/MCP reads accept the backend's code, docs, or symbol-resolution result even when the target string resembles another source.
-- **Assumptions:** Backend `__typename` is authoritative for successful unified reads; verified for known dev code and docs targets. Backend resolution for a valid slash-bearing ref that also spells a documentation page ID has not been demonstrated; this client increment will not prescribe that backend choice.
-- **Product decisions:** none for this client increment. The user directed backend-owned source resolution. Backend policy for a genuinely ambiguous valid target remains backend-owned and outside this worktree.
-- **Dependencies:** Deployed unified `read` union and existing shared formatter. No new infrastructure.
+- **Status:** implemented and reviewed; merge blocked by the confirmed backend repository-page fragment bug. **Outcome:** Pathless normal CLI/MCP reads accept the backend's code, docs, or symbol-resolution result even when the target string resembles another source.
+- **Assumptions:** Backend `__typename` is authoritative for successful unified reads; verified for known dev code and docs targets. The backend team confirmed exact-page-path anchor resolution and symbol resolution otherwise, but deployed dev has a repository-page fragment defect described below.
+- **Product decisions:** none for this client increment. The user directed backend-owned source resolution and explicitly delayed merge until the backend defect is fixed.
+- **Dependencies:** Deployed unified `read` union and existing shared formatter. Before merge, the backend must fix repository-page fragment resolution. No new client infrastructure.
 - **Implementation:** Accept each typed backend result in `ReadServiceImpl` without checking a guessed source. Keep raw target and optional path/selector/bounds, including wait, available to the backend. Route pathless CLI/MCP reads through `ReadService.read`, then render code/docs/resolution by result type. CLI pathless validation accepts either `--lines` or `--start`/`--end` and rejects `--git-ref` without `--repo-url`, without calling a pathless target docs in advance. GraphQL `DOCUMENTATION_SECTION_UNRESOLVED` uses the docs error constructor; all other codes use the code constructor, with neutral wording for `FORBIDDEN`. Transport/HTTP/protocol errors reuse the code error classes with neutral messages. Preserve exact-path caps and legacy `--repo-url` file semantics. Avoid cross-source retries. Remove stale client precedence claims from help, instructions, and implementation docs.
 - **Acceptance:** Tests prove a docs-shaped target can return code and a code-shaped target can return docs; pathless CLI/MCP calls present both correctly. A docs-shaped target with a code indexing error retains `INDEXING`; a code-shaped target with a docs section error retains `DOCUMENTATION_SECTION_UNRESOLVED`; pathless `VERSION_NOT_FOUND` and `NOT_FOUND` preserve code recovery details; transport/HTTP/protocol failures have neutral read messages. A pathless CLI target that resolves to code accepts `--start`/`--end`. Existing fragment/selector parity, docs fragments and page IDs, exact-file, legacy, invalid/conflict, and follow-up behavior remain covered. Focused tests, build, CLI/MCP smoke, direct dev probes, a clean review round, and PR CI pass.
 - **Completion:** Update permanent implementation docs and the existing release fragment, then keep this temporary plan until PR merge. After merge, transfer any remaining durable details and delete the plan under the repository's plan lifecycle.
@@ -35,7 +35,7 @@ The backend resolver owns source selection because it has the target and returns
 - Absolute HTTP(S) fragments and repository page IDs retain backend documentation outcomes; explicit `--selector`, exact-file reads, and legacy commands retain behavior.
 - Invalid and conflicting fragments produce one coherent error, without docs fallback.
 - CLI help, MCP description/schema/instructions, stable public guide, tests, and release fragment agree.
-- Focused tests, build, required smoke, and live development checks pass; the revised PR receives a clean review round and green CI.
+- Focused tests, build, required smoke, and live development checks pass; the revised PR receives a clean review round and green CI. Before merge, a dev read of an emitted repository page ID with a valid heading fragment succeeds as docs, while an invalid heading returns `DOCUMENTATION_SECTION_UNRESOLVED` rather than page `NOT_FOUND`.
 
 ## Verification to date
 
@@ -57,4 +57,4 @@ The backend resolver owns source selection because it has the target and returns
 
 ## Backend boundary to report
 
-A genuinely ambiguous target such as `provider:owner/repo@release/v1#symbol` can still require a backend resolution rule. This client PR will report the backend's typed outcome instead of enforcing docs precedence. No backend repository changes are in scope for this lane.
+The backend team confirmed exact-page-path anchor resolution and symbol resolution otherwise. On deployed dev, `github:expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336/SECURITY.md` succeeds, but adding its real `#reporting-a-bug` heading returns `NOT_FOUND: Documentation page not found`; an invalid heading returns the same unhelpful error. A crawled Express page distinguishes valid anchors from invalid ones correctly. The backend agent confirmed the defect. Keep PR #414 draft and do not merge until the backend fix is deployed and the repository-page cases above pass through CLI and MCP. No backend repository changes are in this lane.
