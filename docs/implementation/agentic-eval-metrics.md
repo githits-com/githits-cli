@@ -53,7 +53,7 @@ child model identity and report format. Braintrust rejects mixed suite identity
 and records model/effort/report format on rows and experiment metadata.
 
 The shared `.github/workflows/agent-evals.yml` owns the standard matrix: two
-discovery cells, 24 intent cells, and 24 full-guidance cells (50 total), with
+discovery cells, 25 intent cells, and 25 full-guidance cells (52 total), with
 concurrency two/four/four. The trusted same-repository `agent-eval-openrouter`
 PR label selects the operator-committed `eval/agentic/openrouter.toml`,
 prompt-json and Codex 0.154.0. The repository provides only
@@ -726,7 +726,7 @@ present.
 ## Named suite and comparison artifacts
 
 The suite layer emits schema-v3 `suite.json` around child run artifacts.
-The fixed execution matrix is Codex `gpt-5.6-luna`, reasoning `low`, local MCP;
+The fixed execution matrix is Codex `gpt-6-luna`, reasoning `low`, local MCP;
 its scenario-keyed shards may run concurrently, and each shard runs workloads
 through a bounded pool selected by `workloadConcurrency` (default `1`). Results
 remain in manifest order. The closed scenarios are `discovery`
@@ -1089,7 +1089,7 @@ cache-write input 60, total tokens 110). The Luna live canary had zero
 cache-write input, so it did not independently verify a nonzero cache-write
 case.
 
-The Luna base-rate snapshot is effective 2026-08-28 and sourced from the
+The historical GPT-5.6 Luna base-rate snapshot is effective 2026-08-28 and sourced from the
 [OpenAI gpt-5.6-luna model page](https://developers.openai.com/api/docs/models/gpt-5.6-luna):
 
 | Bucket            | USD per million tokens |
@@ -1098,6 +1098,12 @@ The Luna base-rate snapshot is effective 2026-08-28 and sourced from the
 | Cached input      |                   0.02 |
 | Cache-write input |                   0.25 |
 | Output            |                   1.20 |
+
+New GPT-6 Luna runs use the [OpenAI GPT-6 Luna model page](https://developers.openai.com/api/docs/models/gpt-6-luna)
+rate snapshot effective 2026-09-25. The standard short-context rates per
+million tokens are $0.10 uncached input, $0.01 cached input, $0.125 cache-write
+input, and $0.50 output. Historical GPT-5.6 Luna artifacts retain their
+original snapshot and cost estimate when read or compared.
 
 The estimate is not billed, exact, or an upper bound. Codex exposes a
 turn-level aggregate rather than request-level usage. When inclusive input is
@@ -1147,8 +1153,8 @@ Run the smallest one-workload scenario pair when changing MCP descriptions,
 guidance, or the harness:
 
 ```bash
-bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile descriptors --workload eval/agentic/workloads/express-router.md
-bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile descriptors --intent-profile githits --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --model gpt-6-luna --reasoning-effort low --server local --guidance-profile descriptors --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --model gpt-6-luna --reasoning-effort low --server local --guidance-profile descriptors --intent-profile githits --workload eval/agentic/workloads/express-router.md
 ```
 
 The first command is `discovery`; the second is `intent`. Add

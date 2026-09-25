@@ -894,6 +894,12 @@ describe("agent eval suites", () => {
       }
       const parsed = parseSuiteArtifact(v1);
       expect(parsed.schemaVersion).toBe(3);
+      expect(
+        parseSuiteArtifact({
+          ...v1,
+          matrix: { ...v1.matrix, model: "gpt-5.6-luna" },
+        }).matrix.model,
+      ).toBe("gpt-5.6-luna");
       expect(parsed.workloadConcurrency).toBe(1);
       expect(parsed.matrix.scenarios).toEqual(["discovery", "full"]);
       expect(parsed.cells.map((cell) => cell.scenario)).toEqual([

@@ -549,6 +549,7 @@ describe("agent eval harness", () => {
 
   it("defaults automated Codex evals to Luna with high reasoning", () => {
     const options = parseArgs(["--agent", "codex", "--dry-run"], "/repo");
+    expect(DEFAULT_CODEX_MODEL).toBe("gpt-6-luna");
     expect(options.model).toBe(DEFAULT_CODEX_MODEL);
     expect(options.reasoningEffort).toBe(DEFAULT_CODEX_REASONING_EFFORT);
     expect(options.guidanceProfile).toBe("descriptors");
@@ -3041,7 +3042,7 @@ describe("agent eval harness", () => {
       cacheWriteInputTokens: 20,
       outputTokens: 10,
       reasoningOutputTokens: 4,
-      baseRateEstimatedCostUsd: 0.0000258,
+      baseRateEstimatedCostUsd: 0.0000119,
     });
     const serialized = JSON.stringify(metrics);
     expect(serialized).not.toContain("githits search express");
@@ -4477,7 +4478,7 @@ describe("agent eval harness", () => {
       },
       cost: {
         kind: "base_rate_estimate",
-        usd: 0.0000258,
+        usd: 0.0000119,
         uncertainty: "rate_based_estimate",
       },
       logicalToolCount: 2,
@@ -4501,14 +4502,14 @@ describe("agent eval harness", () => {
       cacheWriteInputTokens: 40,
       outputTokens: 40,
       reasoningOutputTokens: 9,
-      baseRateEstimatedCostUsd: 0.0000848,
+      baseRateEstimatedCostUsd: 0.0000384,
     });
     const formatted = formatRunReport(report);
     expect(formatted).toContain("tokens=uncachedInput=40");
     expect(formatted).toContain("output=10 reasoning(detail)=4");
-    expect(formatted).toContain("cost=base_rate_estimate costUsd=0.0000258");
+    expect(formatted).toContain("cost=base_rate_estimate costUsd=0.0000119");
     expect(formatted).toContain("aggregate workloads=2");
-    expect(formatted).toContain("baseRateCostUsd=0.0000848");
+    expect(formatted).toContain("baseRateCostUsd=0.0000384");
     expect(formatted).not.toContain("output=14");
 
     const longContextRunDir = mkdtempSync(

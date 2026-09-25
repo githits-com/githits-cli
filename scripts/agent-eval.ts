@@ -43,6 +43,7 @@ import {
   GITHITS_INTENT_FRAGMENT,
   GITHITS_INTENT_FRAGMENT_HASH,
   type IntentProfile,
+  LUNA_MODEL,
   type PersistedToolCall,
   unknownAgentUsage,
 } from "./agent-eval-metrics.ts";
@@ -73,7 +74,7 @@ export type CodexReasoningEffort =
   | "ultra";
 export const CODEX_REPORT_FORMATS = ["json-schema", "prompt-json"] as const;
 export type CodexReportFormat = (typeof CODEX_REPORT_FORMATS)[number];
-export const DEFAULT_CODEX_MODEL = "gpt-5.6-luna";
+export const DEFAULT_CODEX_MODEL = LUNA_MODEL;
 export const DEFAULT_CODEX_REASONING_EFFORT: CodexReasoningEffort = "high";
 type RunStatus = "dry-run" | "success" | "failed" | "timeout";
 

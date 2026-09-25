@@ -684,7 +684,7 @@ const suiteV1ArtifactSchema = z.object({
   targetGit: suiteGitMetadataSchema,
   matrix: z.object({
     agent: z.literal("codex"),
-    model: z.literal(LUNA_MODEL),
+    model: z.enum(["gpt-5.6-luna", LUNA_MODEL]),
     reasoningEffort: z.literal("low"),
     surface: z.literal("mcp"),
     server: z.literal("local"),
