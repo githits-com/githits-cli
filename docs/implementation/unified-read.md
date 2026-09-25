@@ -169,8 +169,9 @@ use `Query.read`. These
 paths have no removal date or threshold in this documentation; usage statistics
 are evidence for a future product decision.
 
-Local CLI and stdio MCP use the new service after the package release. Hosted
-adoption is separate: release `@githits/mcp`, update `remote-mcp` to construct
+The root `githits` 0.22.1 release carries CLI and local stdio MCP fragment
+reads; published `@githits/mcp` 0.22.0 already contains the MCP implementation.
+Hosted adoption is separate: update `remote-mcp` to construct
 `ReadServiceImpl` per request with the same token, headers, endpoint/config,
 fetch function, and diagnostics policy, then deploy that host. Until those
 steps occur, hosted traffic remains on its currently published package and
@@ -186,11 +187,12 @@ without `selector`.
 The stable MCP quick-start and embedded `skills/githits-mcp/SKILL.md` guide remain
 release-synchronized under the exact-parity exception. Other public skills are
 served from main before npm release and must follow their release-boundary policy.
-The 0.22.0 release branch updates `skills/githits-code/SKILL.md` and its
+The 0.22.0 release branch updated `skills/githits-code/SKILL.md` and its
 reference to prefer `githits read`, show selector reads, and retain legacy
-commands only as compatibility guidance. Its command-to-MCP mapping uses `read`
-with a docs target, or a code target plus path or selector. The stable MCP guide
-and `buildMcpQuickStart()` both route known symbols and heading IDs to `read`.
+commands only as compatibility guidance. The root 0.22.1 release branch adds
+compact `target#symbol` reads to the CLI skill and its command-to-MCP mapping.
+The stable MCP guide and `buildMcpQuickStart()` both route known symbols and
+heading IDs to `read`.
 The package skill has no read examples to change. CLI alias removal remains a
 separate product decision.
 
