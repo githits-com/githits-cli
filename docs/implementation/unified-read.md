@@ -27,9 +27,13 @@ Compact repository refs containing `/` can resemble repository documentation
 page IDs. The backend contract uses a fragment as a documentation anchor only
 when the target identifies an exact page path; otherwise it resolves a code
 symbol, with an optional exact `path` narrowing the match. The client presents
-the returned type without reproducing that rule. An explicit `selector` can
-also use the full provider HTTPS repository URL with such a ref. The backend resolves HTTP(S) URL fragments
-without a selector or path as documentation, including provider roots.
+the returned type without reproducing that rule. Put a code file path in the
+separate `path` argument, not inside `target` before `#symbol`. An embedded
+path has no reliable text-only boundary: GitLab repositories can have nested
+group names, refs can contain `/`, and repository documentation page IDs also
+contain file paths. An explicit `selector` can also use the full provider
+HTTPS repository URL with such a ref. The backend resolves HTTP(S) URL
+fragments without a selector or path as documentation, including provider roots.
 Refless GitHub and Codeberg page IDs with a path after owner/repository are
 emitted as documentation locators; the client forwards them unchanged.
 Empty optional paths count as omitted. Preserve docs
