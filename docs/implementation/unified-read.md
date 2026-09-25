@@ -4,9 +4,10 @@ MCP advertises one `read` tool. CLI provides `githits read`; `githits code read`
 and `githits docs read` remain compatible commands, marked deprecated in help.
 Compact advertised MCP reads and compact top-level CLI reads, including exact
 files, call the transport-neutral `ReadService` once, which sends one backend
-`Query.read` request. Validation, range caps, formatting, and error recovery remain owned by
-the MCP and CLI surfaces. `ReadService` lives in `packages/core-internal` and is
-publicly available only through `@githits/mcp/client`; the required
+`Query.read` request. Validation, range caps, formatting, and error recovery
+remain owned by the MCP and CLI surfaces. `ReadService` lives in
+`packages/core-internal` and is publicly available only through
+`@githits/mcp/client`; the required
 `McpToolServices.readService` is the request-scoped provider boundary for the
 public MCP server.
 
@@ -20,14 +21,14 @@ the backend's unified `read` resolver. The returned union type determines
 whether CLI/MCP present code, documentation, or a symbol-resolution outcome.
 The client does not classify a pathless target from its spelling.
 The client sends the fragment unchanged to the backend without adding a
-`selector`; the backend decodes and validates it once. Search actions after a symbol miss and
-exact-file continuation hints use the base target because those follow-ups do
-not accept symbol fragments; this does not change the backend read request.
+`selector`; the backend decodes and validates it once. Search actions after a
+symbol miss and exact-file continuation hints use the base target because those
+follow-ups do not accept symbol fragments; this does not change the read request.
 Compact repository refs containing `/` can resemble repository page IDs. The
 backend interprets snapshot page IDs and their `#heading` or line continuations
 as indexed file reads; other fragments can resolve code symbols, with an
-optional exact `path` narrowing the match. The client presents
-the returned type without reproducing that rule. Put a code file path in the
+optional exact `path` narrowing the match. The client presents the returned
+type without reproducing that rule. Put a code file path in the
 separate `path` argument, not inside `target` before `#symbol`. An embedded
 path has no reliable text-only boundary: GitLab repositories can have nested
 group names, refs can contain `/`, and repository documentation page IDs also
@@ -40,9 +41,10 @@ repository locators. Never infer the source from URL host or file extension, or
 retry a failed read against the other backend.
 
 A current snapshot repository page ID has the form
-`provider:owner/repo@SHA/path`. The backend serves it as an indexed file, even
-when the caller supplies the same path separately for a continuation. For that
-exact-file form, CLI JSON identity uses `targetResolution.served.commitSha`;
+`provider:namespace/repo@SHA/path` (with possible nested GitLab groups). The
+backend serves it as an indexed file, even when the caller supplies the same
+path separately for a continuation. For that exact-file form, CLI JSON identity
+uses `targetResolution.served.commitSha`;
 the generic code-target parser would otherwise mistake `SHA/path` for the ref.
 The `#` suffix selects a symbol or heading; compact repository refs use `@`.
 Structured `--git-ref` remains available for unusual refs containing `#`.
@@ -119,16 +121,16 @@ fallback for compact reads.
   exact-path narrowing as an explicit selector. Empty fragments and a fragment
   combined with an explicit selector surface the backend's invalid argument
   response without a documentation retry.
-- MCP docs text displays at most 150 selected lines by default, or 300 with an explicit
-  end. MCP docs JSON retains the full backend selection. MCP exact-file code reads cap
-  before fetching at 150 lines by default or 300 with an explicit end, including
-  JSON; symbol result presentation applies the same cap to selected content.
+- MCP docs text displays at most 150 selected lines by default, or 300 with an
+  explicit end. MCP docs JSON retains the full backend selection. MCP exact-file
+  code reads cap before fetching at 150 lines by default or 300 with an explicit
+  end, including JSON; symbol result presentation applies the same cap.
 - Validate requested positive integer bounds and their order before applying caps;
   a fractional end beyond the cap must not silently become a valid bounded request.
 - `wait_timeout_ms` is forwarded to unified `read`: default 30,000 ms, range
   0–60,000, including explicit zero. The backend applies it when indexing is
-  relevant. INDEXING retains backend
-  metadata and supplies recovery through the same read locator. No client retry loop.
+  relevant. INDEXING retains backend metadata and supplies recovery through the
+  same read locator. No client retry loop.
 
 CLI uses `--lines` or `--start`/`--end` for either backend result, with the
 same explicit bounds sent to unified `read`. Exact-file paths also accept
