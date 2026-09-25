@@ -404,7 +404,7 @@ this phase. `experimental` contains only
 subset of smoke, smoke is a subset of stable-full, and stateful or experimental
 workloads never enter those stable suites.
 
-Every named suite uses exactly Codex `gpt-5.6-luna`, reasoning `low`, local MCP,
+Every named suite uses exactly Codex `gpt-6-luna`, reasoning `low`, local MCP,
 and scenario-keyed shards. Shards may run concurrently; each shard runs its
 workloads through a bounded pool selected by `workloadConcurrency`, which
 defaults to `1` locally. Results remain in manifest order and the value is
@@ -835,7 +835,7 @@ Normal GitHits backend overrides are passed through when set:
 
 Secret-like values are redacted in run metadata.
 
-Automated Codex runs default to `gpt-5.6-luna` with `high` reasoning. Use
+Automated Codex runs default to `gpt-6-luna` with `high` reasoning. Use
 `--model` and `--reasoning-effort` to evaluate another Codex configuration;
 explicit values always win. Claude accepts aliases such as `sonnet` and
 `haiku`; explicit Codex examples include `gpt-5.4-mini` or `gpt-5.4-nano` when
@@ -931,8 +931,8 @@ For broad MCP quick-start or description edits, start with the cheap Luna-low
 canary's `discovery` and `intent` scenarios:
 
 ```bash
-bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile descriptors --workload eval/agentic/workloads/express-router.md
-bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile descriptors --intent-profile githits --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --model gpt-6-luna --reasoning-effort low --server local --guidance-profile descriptors --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --model gpt-6-luna --reasoning-effort low --server local --guidance-profile descriptors --intent-profile githits --workload eval/agentic/workloads/express-router.md
 ```
 
 These two commands are the smallest local Luna-low metrics pair. Each run
