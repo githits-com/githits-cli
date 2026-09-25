@@ -35,7 +35,7 @@ Useful filters: `--path`, repeatable `--glob`, repeatable `--ext`, repeatable `-
 
 `githits read <target> <path>` reads one exact target-relative file. Use `--lines 10-80`, `--start`, or `--end` for focused windows. You can also append a range to the path: `src/index.js:10-80`. `githits code read` remains a compatibility alias.
 
-`githits read <target> --selector <name>` reads a known indexed code symbol; add an exact `<path>` to narrow resolution to one file. Ambiguous, missing, or unsupported snapshots return recovery guidance. For repository addressing, prefer a compact repository target; `githits read --repo-url <url> [--git-ref <ref>] <path>` remains a compatibility path.
+`githits read '<target>#<symbol>'` or `githits read <target> --selector <name>` reads a known indexed code symbol; add an exact `<path>` to narrow resolution to one file. The backend decides whether a repository fragment identifies a code symbol or a documentation heading. Ambiguous, missing, or unsupported snapshots return recovery guidance. For repository addressing, prefer a compact repository target; `githits read --repo-url <url> [--git-ref <ref>] <path>` remains a compatibility path.
 
 ## Code Grep
 
@@ -63,6 +63,7 @@ Partial and capped documentation coverage are usable published evidence. Report 
 - `githits code grep` maps to MCP `code_grep`.
 - `githits read <target> <path>` maps to MCP `read` with `target` and `path`.
 - `githits read <target> --selector <name>` maps to MCP `read` with `target` and `selector`, optionally with `path` for code.
+- `githits read '<target>#<symbol>'` maps to MCP `read` with the fragment in `target`, optionally with `path` for code.
 - `githits docs list` maps to MCP `docs_list`.
 - `githits read <docs-target>` maps to MCP `read` with `target` alone.
 

@@ -34,8 +34,11 @@ jobs:
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
 
                   if git rev-parse "$TAG" >/dev/null 2>&1; then
+                    TAG_EXISTS=true
+                    TAG_COMMIT=$(git rev-parse "$TAG^{commit}")
                     echo "tag_exists=true" >> $GITHUB_OUTPUT
                   else
+                    TAG_EXISTS=false
                     echo "tag_exists=false" >> $GITHUB_OUTPUT
                   fi
 
@@ -47,8 +50,16 @@ jobs:
 
                   if npm view "githits@$VERSION" version >/dev/null 2>&1; then
                     echo "npm_published=true" >> $GITHUB_OUTPUT
+                    if [ "$TAG_EXISTS" != "true" ]; then
+                      echo "::error::githits@$VERSION is published, but $TAG is missing. Refusing to create a tag at a later commit."
+                      exit 1
+                    fi
                   else
                     echo "npm_published=false" >> $GITHUB_OUTPUT
+                    if [ "$TAG_EXISTS" = "true" ] && [ "$TAG_COMMIT" != "$(git rev-parse HEAD)" ]; then
+                      echo "::error::Existing unpublished tag $TAG points to $TAG_COMMIT, not HEAD."
+                      exit 1
+                    fi
                   fi
 
                   if git rev-parse "$TAG" >/dev/null 2>&1 && npm view "githits@$VERSION" version >/dev/null 2>&1 && gh release view "$TAG" >/dev/null 2>&1; then
@@ -83,6 +94,13 @@ jobs:
             - name: Build
               if: steps.version.outputs.should_release == 'true'
               run: bun run build
+
+            - name: Create root git tag
+              if: steps.version.outputs.should_release == 'true' && steps.version.outputs.tag_exists == 'false'
+              run: |
+                  TAG="v${{ steps.version.outputs.version }}"
+                  git tag "$TAG" HEAD
+                  git push origin "refs/tags/$TAG"
 
             # Authentication via npm Trusted Publishing (OIDC)
             # - No NPM_TOKEN secret needed
@@ -206,13 +224,6 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: |
                   TAG="v${{ steps.version.outputs.version }}"
-                  if [ "${{ steps.version.outputs.tag_exists }}" = "true" ]; then
-                    gh release create "$TAG" --verify-tag \
-                      --title "$TAG" \
-                      --generate-notes
-                  else
-                    gh release create "$TAG" \
-                      --target "$(git rev-parse HEAD)" \
-                      --title "$TAG" \
-                      --generate-notes
-                  fi
+                  gh release create "$TAG" --verify-tag \
+                    --title "$TAG" \
+                    --generate-notes

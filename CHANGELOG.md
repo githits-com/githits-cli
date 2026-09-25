@@ -5,6 +5,18 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.22.1] - 2026-09-25
+
+Patch release: adds compact code-symbol reads to the CLI and local MCP server.
+
+### Added
+
+- **Compact code-symbol reads** - Read package and repository symbols with `target#symbol` and an optional exact path. The backend's unified result chooses code or documentation presentation, preserving HTTP(S) documentation fragments and emitted repository page IDs. `@githits/mcp@0.22.0` already includes this MCP behavior; hosted clients still require adoption and deployment by `remote-mcp`.
+
+### Fixed
+
+- **Protect root release tag provenance** - The release workflow creates the root tag before npm publication, so a failed release can resume at its original source commit. It stops if a published version has no tag instead of tagging a later main commit.
+
 ## [githits 0.22.0] - 2026-09-23
 
 Minor release: adds selector reads and renames the experimental research entrypoints.
