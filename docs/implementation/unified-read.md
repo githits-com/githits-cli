@@ -14,12 +14,24 @@ public MCP server.
 
 `packages/mcp/src/shared/read-request.ts` owns transport-neutral locator and range
 validation. A nonempty `path` scopes code to one exact target-relative file.
-Without `selector`, that path reads the file and a pathless target remains an
-opaque documentation locator. With `selector`, a compact package/repository target
-selects an indexed code symbol and a documentation target selects a logical heading.
+Without `selector`, that path reads the file. Pathless targets, including
+compact package/repository fragments and emitted documentation locators, go to
+the backend's unified `read` resolver. The returned union type determines
+whether CLI/MCP present code, documentation, or a symbol-resolution outcome.
+The client does not classify a pathless target from its spelling.
+The client sends the fragment unchanged to the backend without adding a
+`selector`; the backend decodes and validates it once. Search actions after a symbol miss and
+exact-file continuation hints use the base target because those follow-ups do
+not accept symbol fragments; this does not change the backend read request.
 Compact repository refs containing `/` can resemble repository documentation
-page IDs, which take precedence; supply an exact `path` or use the full provider
-HTTPS repository URL to select code at such a ref.
+page IDs. The backend contract uses a fragment as a documentation anchor only
+when the target identifies an exact page path; otherwise it resolves a code
+symbol, with an optional exact `path` narrowing the match. The client presents
+the returned type without reproducing that rule. An explicit `selector` can
+also use the full provider HTTPS repository URL with such a ref. The backend resolves HTTP(S) URL fragments
+without a selector or path as documentation, including provider roots.
+Refless GitHub and Codeberg page IDs with a path after owner/repository are
+emitted as documentation locators; the client forwards them unchanged.
 Empty optional paths count as omitted. Preserve docs
 target bytes, including URL query strings, percent encoding, fragments, and pinned
 repository locators. Never infer the source from URL host or file extension, or
@@ -65,10 +77,13 @@ up to ten suggestions, truncation, snapshot identity, message, and index state.
 resolution outcomes without source content. The last outcome explains how to
 search symbols and use exact-path, line-bounded `read` as a workaround.
 
-The returned `__typename` must match the source selected by path and target/selector.
-A missing or
-mismatched union branch is a source-specific malformed-response error; it is
-never retried against the other branch or a legacy root. There is no schema
+The returned `__typename` determines the presented source. A missing or unknown
+union branch is a malformed unified-read response; it is never retried against
+another branch or a legacy root. GraphQL failures without a result type use the
+backend's `extensions.code`: documentation-section failures retain their docs
+classification, while shared and code-specific codes retain the code mapper's
+richer version/ref recovery metadata. Transport, HTTP, and malformed-response
+messages are source-neutral. There is no schema
 fallback for compact reads. Custom endpoints configured with
 `GITHITS_CODE_NAV_URL` (or its legacy `PKGSEER_URL` alias) must implement
 `Query.read`, both union branches, and this selected minimum schema. The legacy
@@ -90,21 +105,26 @@ fallback for compact reads.
   file's normal read-range rules. A successful symbol read may omit language.
   MCP presentation caps selected code to 150 lines by default or 300 with an
   explicit end, then supplies an exact-file continuation; CLI keeps full output.
+- Compact code `target#symbol` uses the same result presentation and optional
+  exact-path narrowing as an explicit selector. Empty fragments and a fragment
+  combined with an explicit selector surface the backend's invalid argument
+  response without a documentation retry.
 - Docs text displays at most 150 selected lines by default, or 300 with an explicit
-  end. Docs JSON retains the full backend selection. Code reads cap before fetching
-  at 150 lines by default or 300 with an explicit end, including JSON.
+  end. Docs JSON retains the full backend selection. Exact-file code reads cap
+  before fetching at 150 lines by default or 300 with an explicit end, including
+  JSON; symbol result presentation applies the same cap to selected content.
 - Validate requested positive integer bounds and their order before applying caps;
   a fractional end beyond the cap must not silently become a valid bounded request.
-- `wait_timeout_ms` is the code indexing wait: default 30,000 ms, range 0–60,000,
-  including explicit zero. Docs validates supplied values but does not forward them,
-  since its backend operation has no wait parameter. INDEXING retains backend
+- `wait_timeout_ms` is forwarded to unified `read`: default 30,000 ms, range
+  0–60,000, including explicit zero. The backend applies it when indexing is
+  relevant. INDEXING retains backend
   metadata and supplies recovery through the same read locator. No client retry loop.
 
-CLI uses `--lines` for either source. Code also retains `--start`, `--end`, path
-suffix ranges and `--repo-url`/`--git-ref`. Docs rejects the code-only bound/ref
-options when selector is omitted. With selector, CLI also accepts `--start` and
-`--end` for explicit bounds. CLI `--wait` has the same applicability as the MCP
-wait parameter.
+CLI uses `--lines` or `--start`/`--end` for either backend result, with the
+same explicit bounds sent to unified `read`. Exact-file paths retain path suffix
+ranges; `--repo-url`/`--git-ref` retain their compatibility route. `--git-ref`
+without `--repo-url` remains invalid. CLI `--wait` has the same applicability
+as the MCP wait parameter.
 
 ## Ask compatibility
 
@@ -130,6 +150,7 @@ backend service parser.
 compact code read(target, path, ...) -> Query.read(target, path, ...)
 compact docs read(target, ...)        -> Query.read(target, ...)
 code selector read(target, selector, optional path) -> Query.read(...)
+compact symbol read(target#symbol, optional path) -> Query.read(...)
 docs selector read(target, selector)  -> Query.read(...)
 githits code read ...                 -> legacy fetchCodeContext
 githits docs read ...                 -> legacy getDocPage

@@ -1,9 +1,8 @@
 import type { ReadService } from "@githits/core-internal";
 import {
   createReadFileServiceAdapter,
-  createReadPackageDocServiceAdapter,
   DEFAULT_WAIT_TIMEOUT_MS,
-  formatSelectorRead,
+  formatReadResult,
   InvalidPackageSpecError,
   MAX_WAIT_TIMEOUT_MS,
   mapCodeNavigationError,
@@ -19,7 +18,6 @@ import type { Command } from "commander";
 import { createContainer } from "../container.js";
 import { recordCliErrorClassification } from "../shared/cli-error-diagnostics.js";
 import { startSpinner } from "../shared/spinner.js";
-import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
 import {
   handleCodeNavCommandError,
   parseIntCliOption,
@@ -30,17 +28,11 @@ import {
   pkgReadAction,
 } from "./code/read.js";
 import {
-  type DocsReadCommandDependencies,
-  docsReadAction,
-} from "./docs/read.js";
-import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,
 } from "./format-mapped-error.js";
 
-export interface ReadCommandDependencies
-  extends PkgReadCommandDependencies,
-    DocsReadCommandDependencies {
+export interface ReadCommandDependencies extends PkgReadCommandDependencies {
   readService: ReadService;
 }
 
@@ -59,10 +51,13 @@ export async function readAction(
     throw error;
   }
 
-  if (options.selector !== undefined) {
+  if (
+    options.selector !== undefined ||
+    (!options.repoUrl && (!secondArg?.trim() || firstArg?.includes("#")))
+  ) {
     try {
       const selector = options.selector;
-      if (!selector.trim())
+      if (selector !== undefined && !selector.trim())
         throw new InvalidPackageSpecError("--selector must be nonblank.");
       if (!options.repoUrl && options.gitRef !== undefined) {
         throw new InvalidPackageSpecError(
@@ -107,12 +102,12 @@ export async function readAction(
       const wait = normalizeReadWaitTimeoutMs(
         parseIntCliOption(options.wait, "--wait", 0, MAX_WAIT_TIMEOUT_MS),
       );
-      const spinner = startSpinner(SPINNER_MESSAGES.code, !options.json);
+      const spinner = startSpinner("Reading indexed content...", !options.json);
       const response = await deps.readService
         .read({
           target: locator.target,
           ...(locator.path ? { path: locator.path } : {}),
-          selector,
+          ...(selector !== undefined ? { selector } : {}),
           ...(range.startLine !== undefined
             ? { startLine: range.startLine }
             : {}),
@@ -120,7 +115,7 @@ export async function readAction(
           waitTimeoutMs: wait,
         })
         .finally(() => spinner.stop());
-      const rendered = formatSelectorRead(
+      const rendered = formatReadResult(
         response,
         {
           target: locator.target,
@@ -161,20 +156,6 @@ export async function readAction(
   let path: string | undefined;
   try {
     ({ target, path } = resolveReadLocator(firstArg ?? "", secondArg));
-    if (!path) {
-      if (
-        options.start !== undefined ||
-        options.end !== undefined ||
-        options.gitRef !== undefined
-      ) {
-        throw new InvalidPackageSpecError(
-          "Documentation reads use --lines for page-relative ranges; --start, --end and --git-ref are code-only.",
-        );
-      }
-      normalizeReadWaitTimeoutMs(
-        parseIntCliOption(options.wait, "--wait", 0, MAX_WAIT_TIMEOUT_MS),
-      );
-    }
   } catch (error) {
     handleCodeNavCommandError(
       error,
@@ -182,22 +163,13 @@ export async function readAction(
       formatMappedErrorForTerminal,
     );
   }
-  if (path) {
-    await pkgReadAction(target, path, options, {
-      ...deps,
-      codeNavigationService: createReadFileServiceAdapter(
-        deps.readService,
-        target,
-      ),
-    });
-  } else {
-    await docsReadAction(target, options, {
-      ...deps,
-      packageIntelligenceService: createReadPackageDocServiceAdapter(
-        deps.readService,
-      ),
-    });
-  }
+  await pkgReadAction(target, path, options, {
+    ...deps,
+    codeNavigationService: createReadFileServiceAdapter(
+      deps.readService,
+      target,
+    ),
+  });
 }
 
 export function registerReadCommand(program: Command): Command {
@@ -205,7 +177,7 @@ export function registerReadCommand(program: Command): Command {
     .command("read")
     .summary("Read an indexed file, code symbol, or docs section")
     .description(
-      "Read an exact file with <target> <path>, or a docs page with <target>. --selector selects a code symbol (path optional) or docs heading by its fragment ID; do not combine it with a docs URL fragment. Hosted/crawled docs read mutable current content; repository docs are snapshot-addressed. A docs URL fragment selects the heading's full subtree; --lines selects a page-relative range instead. Output is complete for piping.",
+      "Read an exact file with <target> <path>, a code symbol with <target>#symbol (optional exact path), or a docs page with <target>. The resolved target determines code or docs presentation; preserve emitted docs locators. --selector selects a code symbol or docs heading by its fragment ID; do not combine it with a docs URL fragment. Hosted/crawled docs read mutable current content; repository docs are snapshot-addressed. An HTTP(S) docs URL fragment selects the heading's full subtree; explicit bounds select a page-relative range instead. Output is complete for piping.",
     )
     .argument(
       "[target-or-path]",
@@ -219,17 +191,11 @@ export function registerReadCommand(program: Command): Command {
       "Code symbol or logical documentation heading ID",
     )
     .option("--lines <range>", "Inclusive line range, e.g. 10-40, 10-, or -40")
-    .option(
-      "--start <n>",
-      "Starting line (code or docs selector; alternative to --lines)",
-    )
-    .option(
-      "--end <n>",
-      "Ending line (code or docs selector; alternative to --lines)",
-    )
+    .option("--start <n>", "Starting line (alternative to --lines)")
+    .option("--end <n>", "Ending line (alternative to --lines)")
     .option(
       "--wait <ms>",
-      `Code indexing wait (0-${MAX_WAIT_TIMEOUT_MS}, default ${DEFAULT_WAIT_TIMEOUT_MS}); validated but unused for docs`,
+      `Indexing wait (0-${MAX_WAIT_TIMEOUT_MS}, default ${DEFAULT_WAIT_TIMEOUT_MS})`,
     )
     .option("-v, --verbose", "Show metadata and line numbers")
     .option("--json", "Emit the JSON envelope")

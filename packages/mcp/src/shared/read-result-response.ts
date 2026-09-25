@@ -16,12 +16,12 @@ import {
 } from "./read-package-doc-response.js";
 import { renderReadPackageDocText } from "./read-package-doc-text.js";
 
-/** Present selector outcomes at the shared CLI and local MCP boundary. */
-export function formatSelectorRead(
+/** Present the backend's typed read outcome at the shared CLI and MCP boundary. */
+export function formatReadResult(
   response: ReadResult,
   request: {
     target: string;
-    selector: string;
+    selector?: string;
     path?: string;
     endLine?: number;
     verbose?: boolean;
@@ -29,12 +29,22 @@ export function formatSelectorRead(
   },
   format: "mcp-text" | "mcp-json" | "cli-text" | "cli-json",
 ): string {
+  const hash = request.target.indexOf("#");
+  const codeFragment =
+    response.source !== "docs" && request.selector === undefined && hash >= 0
+      ? request.target.slice(hash + 1)
+      : undefined;
+  // Follow-up searches and exact-file continuations address the base target.
+  // The original fragment remains in the read request and returned payload.
+  const followUpTarget =
+    codeFragment === undefined ? request.target : request.target.slice(0, hash);
   if (response.source === "symbol_resolution") {
     const result = response.result;
+    const selector = request.selector ?? codeFragment ?? "";
     const cli = format === "cli-text" || format === "cli-json";
     const searchAction = cli
-      ? `githits search ${JSON.stringify(request.selector)} --in ${JSON.stringify(request.target)} --source symbol`
-      : `search({"query":${JSON.stringify(request.selector)},"target":${JSON.stringify(request.target)},"source":"symbol"})`;
+      ? `githits search ${JSON.stringify(selector)} --in ${JSON.stringify(followUpTarget)} --source symbol`
+      : `search({"query":${JSON.stringify(selector)},"target":${JSON.stringify(followUpTarget)},"source":"symbol"})`;
     const action =
       result.status === "SNAPSHOT_UNSUPPORTED"
         ? cli
@@ -53,19 +63,19 @@ export function formatSelectorRead(
       codeIndexState: result.codeIndexState,
       ...(result.message ? { message: result.message } : {}),
       target: request.target,
-      selector: request.selector,
+      selector,
       ...(action ? { action } : {}),
     };
     if (format === "mcp-json" || format === "cli-json")
       return JSON.stringify(payload);
     const lines = [
-      `${result.status}: ${request.selector}`,
+      `${result.status}: ${selector}`,
       `Repository: ${result.repoUrl}@${result.gitRef}`,
     ];
     if (result.message) lines.push(result.message);
     for (const candidate of result.candidates) {
       lines.push(
-        `Candidate: ${candidate.qualifiedPath ?? candidate.name ?? request.selector} | ${candidate.filePath ?? "?"}:${candidate.startLine ?? "?"}-${candidate.endLine ?? "?"}`,
+        `Candidate: ${candidate.qualifiedPath ?? candidate.name ?? selector} | ${candidate.filePath ?? "?"}:${candidate.startLine ?? "?"}-${candidate.endLine ?? "?"}`,
       );
     }
     for (const suggestion of result.suggestions) {
@@ -75,7 +85,9 @@ export function formatSelectorRead(
     }
     if (result.hasMore)
       lines.push(
-        "More matches exist; narrow with an exact path or qualified selector.",
+        codeFragment === undefined
+          ? "More matches exist; narrow with an exact path or qualified selector."
+          : "More matches exist; narrow with an exact path.",
       );
     if (action) lines.push(action);
     return lines.join("\n") + "\n";
@@ -102,7 +114,7 @@ export function formatSelectorRead(
       if (lines.length > maxLines) {
         payload.content = lines.slice(0, maxLines).join("\n");
         payload.endLine = payload.startLine + maxLines - 1;
-        payload.hint = `Continue with read target=${JSON.stringify(request.target)} path=${JSON.stringify(payload.path)} start_line=${payload.endLine + 1}.`;
+        payload.hint = `Continue with read target=${JSON.stringify(followUpTarget)} path=${JSON.stringify(payload.path)} start_line=${payload.endLine + 1}.`;
       }
     }
     if (format === "mcp-json" || format === "cli-json")
@@ -132,7 +144,7 @@ export function formatSelectorRead(
     payload.endLine < response.result.contentRange.endLine
   ) {
     payload.hint = buildReadPackageDocContinuationHint(
-      request.target,
+      payload.pageId,
       payload.endLine + 1,
       response.result.contentRange.endLine,
       maxOutputLines,

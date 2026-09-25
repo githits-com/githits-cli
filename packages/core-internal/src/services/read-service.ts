@@ -1,16 +1,18 @@
 import { z } from "zod";
+import { isFetchTimeoutError } from "../shared/fetch-timeout.js";
 import {
   type PkgseerGraphqlResponse,
   PkgseerTransportError,
   postPkgseerGraphql,
 } from "../shared/pkgseer-graphql.js";
-import { PKGSEER_REGISTRY_ARGS } from "../shared/pkgseer-registry.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import {
   CODE_CONTEXT_AVAILABLE_VERSIONS_SELECTION,
+  CodeNavigationAccessError,
+  CodeNavigationBackendError,
+  CodeNavigationNetworkError,
   createCodeNavigationGraphQLError,
   createCodeNavigationHttpError,
-  createCodeNavigationTransportError,
   INDEXING_DURATION_ESTIMATE_SELECTION,
   MalformedCodeNavigationResponseError,
   parseCodeContextResult,
@@ -21,8 +23,6 @@ import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import { isTokenRefreshableError } from "./githits-service.js";
 import {
   createPackageIntelligenceGraphQLError,
-  createPackageIntelligenceHttpError,
-  createPackageIntelligenceTransportError,
   MalformedPackageIntelligenceResponseError,
   type PackageDocResult,
   parsePackageDocResult,
@@ -263,7 +263,7 @@ export class ReadServiceImpl implements ReadService {
 
   private async executeRead(
     token: string,
-    request: NormalisedReadRequest,
+    request: ReadParams,
   ): Promise<ReadResult> {
     let response: PkgseerGraphqlResponse;
     try {
@@ -279,89 +279,83 @@ export class ReadServiceImpl implements ReadService {
       });
     } catch (cause) {
       if (cause instanceof PkgseerTransportError) {
-        throw request.source === "code"
-          ? createCodeNavigationTransportError(cause)
-          : createPackageIntelligenceTransportError(cause);
+        if (isFetchTimeoutError(cause.cause)) {
+          throw new CodeNavigationBackendError(
+            "Read request timed out.",
+            undefined,
+            "TIMEOUT",
+            true,
+          );
+        }
+        throw new CodeNavigationNetworkError(
+          "Could not reach the read service. Check your connection or set GITHITS_CODE_NAV_URL.",
+          { cause },
+        );
       }
       throw cause;
     }
 
     if (response.status < 200 || response.status >= 300) {
-      throw request.source === "code"
-        ? createCodeNavigationHttpError(response)
-        : createPackageIntelligenceHttpError(response);
+      const error = createCodeNavigationHttpError(response);
+      if (
+        error instanceof CodeNavigationAccessError &&
+        error.message === "Code navigation access denied."
+      ) {
+        throw new CodeNavigationAccessError("Read access denied.");
+      }
+      throw error;
     }
 
     const parsed = readGraphQLResponseSchema.safeParse(response.parsedBody);
-    if (!parsed.success) throw malformedReadResponse(request.source);
+    if (!parsed.success) throw malformedReadResponse();
 
     if (parsed.data.errors && parsed.data.errors.length > 0) {
-      throw request.source === "code"
-        ? createCodeNavigationGraphQLError(parsed.data.errors, this.runtime)
-        : createPackageIntelligenceGraphQLError(
-            parsed.data.errors,
-            this.runtime.clientVersion,
-            this.runtime.diagnostics,
-          );
+      const backendCode = parsed.data.errors[0]?.extensions?.code;
+      if (backendCode === "DOCUMENTATION_SECTION_UNRESOLVED") {
+        throw createPackageIntelligenceGraphQLError(
+          parsed.data.errors,
+          this.runtime.clientVersion,
+          this.runtime.diagnostics,
+        );
+      }
+      if (backendCode === "FORBIDDEN") {
+        throw new CodeNavigationAccessError("Read access denied.");
+      }
+      throw createCodeNavigationGraphQLError(parsed.data.errors, this.runtime);
     }
 
     const data = parsed.data.data?.read;
-    if (!data) throw malformedReadResponse(request.source);
+    if (!data) throw malformedReadResponse();
     const resultType = readResultTypeSchema.safeParse(data);
-    if (!resultType.success) throw malformedReadResponse(request.source);
+    if (!resultType.success) throw malformedReadResponse();
 
-    const selectorWithoutPath =
-      request.selector !== undefined && request.path === undefined;
     if (resultType.data.__typename === "CodeSymbolResolutionResult") {
-      if (request.source !== "code" && !selectorWithoutPath)
-        throw malformedReadResponse("docs");
       const resolution = symbolResolutionSchema.safeParse(data);
-      if (!resolution.success) throw malformedReadResponse("code");
+      if (!resolution.success) throw malformedReadResponse();
       return { source: "symbol_resolution", result: resolution.data };
     }
-    if (
-      resultType.data.__typename === "CodeContextResult" &&
-      (request.source === "code" || selectorWithoutPath)
-    ) {
-      return { source: "code", result: parseCodeContextResult(data) };
+    if (resultType.data.__typename === "CodeContextResult") {
+      return {
+        source: "code",
+        result: parseReadBranch(parseCodeContextResult, data),
+      };
     }
-    if (
-      resultType.data.__typename === "GetDocPageResult" &&
-      (request.source === "docs" || selectorWithoutPath)
-    ) {
-      return { source: "docs", result: parsePackageDocResult(data) };
+    if (resultType.data.__typename === "GetDocPageResult") {
+      return {
+        source: "docs",
+        result: parseReadBranch(parsePackageDocResult, data),
+      };
     }
-    throw malformedReadResponse(request.source);
+    throw malformedReadResponse();
   }
 }
 
-interface NormalisedReadRequest extends ReadParams {
-  source: "code" | "docs";
-}
-
-function normaliseReadRequest(params: ReadParams): NormalisedReadRequest {
+function normaliseReadRequest(params: ReadParams): ReadParams {
   const path = params.path?.trim() || undefined;
-  const prefix = /^([a-z][a-z0-9+.-]*):/.exec(params.target)?.[1];
-  const repositoryPageLike = /^(?:github|gitlab|codeberg):.+@[^/]+\/.+/.test(
-    params.target,
-  );
-  const codeSelector =
-    params.selector !== undefined &&
-    !repositoryPageLike &&
-    (/^(?:github|gitlab|codeberg):/.test(params.target) ||
-      /^(?:https?:\/\/)?(?:github\.com|gitlab\.com|codeberg\.org)\//.test(
-        params.target,
-      ) ||
-      (prefix !== undefined &&
-        PKGSEER_REGISTRY_ARGS.some((registry) => registry === prefix)));
-  return path || codeSelector
-    ? { ...params, path, source: "code" }
-    : { ...params, path: undefined, waitTimeoutMs: undefined, source: "docs" };
+  return { ...params, path };
 }
 
-function buildReadVariables(
-  request: NormalisedReadRequest,
-): Record<string, unknown> {
+function buildReadVariables(request: ReadParams): Record<string, unknown> {
   return {
     target: request.target,
     ...(request.path !== undefined ? { path: request.path } : {}),
@@ -376,12 +370,22 @@ function buildReadVariables(
   };
 }
 
-function malformedReadResponse(source: NormalisedReadRequest["source"]): Error {
-  return source === "code"
-    ? new MalformedCodeNavigationResponseError(
-        "Malformed response from code navigation service.",
-      )
-    : new MalformedPackageIntelligenceResponseError(
-        "Malformed response from the package-intelligence service.",
-      );
+function malformedReadResponse(): Error {
+  return new MalformedCodeNavigationResponseError(
+    "Malformed response from read service.",
+  );
+}
+
+function parseReadBranch<T>(parse: (data: unknown) => T, data: unknown): T {
+  try {
+    return parse(data);
+  } catch (error) {
+    if (
+      error instanceof MalformedCodeNavigationResponseError ||
+      error instanceof MalformedPackageIntelligenceResponseError
+    ) {
+      throw malformedReadResponse();
+    }
+    throw error;
+  }
 }

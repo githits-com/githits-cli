@@ -107,7 +107,8 @@ const DESCRIPTION_ROUTING: Record<
     body: [
       "use code_files",
       "search/code_grep",
-      "target and path for a file; use selector for a code symbol or docs heading",
+      "target and path for a file; use compact target#symbol or selector for a code symbol",
+      "resolved result determines code or docs",
       "Hosted/crawled HTTP(S) docs targets read mutable current content",
       "repository-doc targets address snapshots",
       "A docs URL fragment needs no bounds",

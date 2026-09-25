@@ -150,7 +150,7 @@ describe("buildMcpQuickStart", () => {
     );
     expect(reader?.description).toContain("page-relative range");
     expect(reader?.schema.wait_timeout_ms?.description).toContain(
-      "validated but unused for docs",
+      "backend applies it when relevant",
     );
   });
 
