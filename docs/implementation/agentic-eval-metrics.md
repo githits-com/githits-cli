@@ -53,7 +53,7 @@ child model identity and report format. Braintrust rejects mixed suite identity
 and records model/effort/report format on rows and experiment metadata.
 
 The shared `.github/workflows/agent-evals.yml` owns the standard matrix: two
-discovery cells, 24 intent cells, and 24 full-guidance cells (50 total), with
+discovery cells, 25 intent cells, and 25 full-guidance cells (52 total), with
 concurrency two/four/four. The trusted same-repository `agent-eval-openrouter`
 PR label selects the operator-committed `eval/agentic/openrouter.toml`,
 prompt-json and Codex 0.154.0. The repository provides only

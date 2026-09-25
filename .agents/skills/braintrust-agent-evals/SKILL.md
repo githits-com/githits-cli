@@ -84,8 +84,8 @@ Its null base is the expected one-time bootstrap result. Main pushes now
 temporarily run the same matrix, in addition to the daily/manual/label paths,
 to collect variance and workload-optimization evidence.
 
-The current `agent-eval-openrouter` label runs the shared 50-cell main matrix
-on trusted same-repository PRs: discovery 2, intent 24, and full guidance 24.
+The current `agent-eval-openrouter` label runs the shared 52-cell main matrix
+on trusted same-repository PRs: discovery 2, intent 25, and full guidance 25.
 The trial PR must commit credential-free `eval/agentic/openrouter.toml` selecting
 its exact candidate model; the repository's blank-model example deliberately
 selects none. Keep the active config out of main and use `OPENROUTER_API_KEY` as
