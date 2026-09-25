@@ -2076,6 +2076,28 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "docs read repo-backed ID json missing snapshot locators, content, or range",
   );
 
+  const snapshotPath = /@[a-f0-9]{40}\/(.+)$/i.exec(
+    repoPage.docsReadTarget as string,
+  )?.[1];
+  assert(snapshotPath, "repo-backed target must contain a snapshot file path");
+  const snapshotFileRead = assertJsonOutput(
+    await runCli([
+      "read",
+      repoPage.docsReadTarget as string,
+      snapshotPath,
+      "--json",
+    ]),
+    "unified read repo-backed ID plus path json",
+  );
+  assertRecord(snapshotFileRead, "unified read repo-backed ID plus path json");
+  assert(
+    snapshotFileRead.path === snapshotPath &&
+      typeof snapshotFileRead.content === "string" &&
+      snapshotFileRead.gitRef ===
+        /@([a-f0-9]{40})\//i.exec(repoPage.docsReadTarget as string)?.[1],
+    "unified read repo-backed ID plus path lost snapshot file identity",
+  );
+
   assertJsonErrorCode(
     await runCli([
       "docs",
@@ -2154,6 +2176,26 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   assert(
     typeof codeReadJson.content === "string",
     "code read json missing content",
+  );
+
+  const unifiedCodeReadJson = assertJsonOutput(
+    await runCli([
+      "read",
+      SMOKE_PACKAGE_SPEC,
+      "package.json",
+      "--lines",
+      "1-5",
+      "--json",
+    ]),
+    "unified read exact file json",
+  );
+  assertRecord(unifiedCodeReadJson, "unified read exact file json");
+  assert(
+    unifiedCodeReadJson.path === codeReadJson.path &&
+      unifiedCodeReadJson.content === codeReadJson.content &&
+      unifiedCodeReadJson.registry === codeReadJson.registry &&
+      unifiedCodeReadJson.name === codeReadJson.name,
+    "unified read exact file changed legacy content or target identity",
   );
 
   const codeReadInvalid = await runCli([

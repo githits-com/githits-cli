@@ -7,6 +7,7 @@ import {
   formatReadFileTerminal,
   InvalidPackageSpecError,
   MAX_WAIT_TIMEOUT_MS,
+  parseLinesOption,
   type ReadFileRequestBuildResult,
   type ReadFileRequestInput,
   requireAuth,
@@ -154,7 +155,7 @@ export async function pkgReadAction(
  * Translate CLI-reachable MCP validation tokens. Unchanged errors are rethrown
  * so this boundary does not mask unrelated shared validation failures.
  */
-function buildCliReadFileParams(
+export function buildCliReadFileParams(
   input: ReadFileRequestInput,
 ): ReadFileRequestBuildResult {
   try {
@@ -197,18 +198,18 @@ function resolvePositionals(
   return { spec: firstArg, path: secondArg };
 }
 
-interface LineRange {
+export interface LineRange {
   startLine?: number;
   endLine?: number;
 }
 
-interface ParsedPathWithRange {
+export interface ParsedPathWithRange {
   filePath: string;
   startLine?: number;
   endLine?: number;
 }
 
-function resolveLineRange(
+export function resolveLineRange(
   options: PkgReadCommandOptions,
   pathWithRange: ParsedPathWithRange,
 ): LineRange {
@@ -239,7 +240,10 @@ function resolveLineRange(
   }
 
   if (hasLines) {
-    return parseLinesOption(options.lines as string);
+    const range = parseLinesOption(options.lines as string);
+    return range.startLine === undefined && range.endLine !== undefined
+      ? { startLine: 1, endLine: range.endLine }
+      : range;
   }
 
   return {
@@ -258,53 +262,7 @@ function resolveLineRange(
   };
 }
 
-/**
- * Parse the `--lines` concise form. Grammar pinned to:
- *  `"N-M"` → start=N, end=M (both integers)
- *  `"N-"`  → start=N, end=EOF
- *  `"-M"`  → start=1, end=M
- * Anything else rejects with a hint.
- */
-function parseLinesOption(raw: string): LineRange {
-  const trimmed = raw.trim();
-  const dashIndex = trimmed.indexOf("-");
-  if (dashIndex < 0) {
-    throw new InvalidPackageSpecError(
-      `--lines expects a range like \`10-40\`, \`10-\`, or \`-40\`. Single-line form isn't accepted — use --start ${trimmed}.`,
-    );
-  }
-
-  const startRaw = trimmed.slice(0, dashIndex).trim();
-  const endRaw = trimmed.slice(dashIndex + 1).trim();
-
-  if (startRaw.length === 0 && endRaw.length === 0) {
-    throw new InvalidPackageSpecError(
-      "--lines requires at least one bound. Use `10-40`, `10-` for open end, or `-40` for open start.",
-    );
-  }
-
-  const startLine =
-    startRaw.length > 0
-      ? requirePositiveInteger(startRaw, "--lines start")
-      : undefined;
-  const endLine =
-    endRaw.length > 0
-      ? requirePositiveInteger(endRaw, "--lines end")
-      : undefined;
-
-  if (startLine !== undefined && endLine !== undefined && startLine > endLine) {
-    throw new InvalidPackageSpecError(
-      `--lines range is reversed: ${startLine} > ${endLine}.`,
-    );
-  }
-
-  if (startLine === undefined && endLine !== undefined) {
-    return { startLine: 1, endLine };
-  }
-  return { startLine, endLine };
-}
-
-function parsePathWithOptionalRange(path: string): ParsedPathWithRange {
+export function parsePathWithOptionalRange(path: string): ParsedPathWithRange {
   const match = path.match(/^(.*):(\d+)(?:-(\d+)?)?$/);
   if (!match) {
     return { filePath: path };
