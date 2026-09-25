@@ -42,7 +42,7 @@ export function validateReadRange(startLine?: number, endLine?: number): void {
   }
 }
 
-/** Code indexing wait; docs validate but do not forward this unsupported field. */
+/** Validate the unified read wait; the backend applies it when relevant. */
 export function normalizeReadWaitTimeoutMs(value?: number): number {
   if (value === undefined) return DEFAULT_WAIT_TIMEOUT_MS;
   if (!Number.isInteger(value) || value < 0 || value > MAX_WAIT_TIMEOUT_MS) {
