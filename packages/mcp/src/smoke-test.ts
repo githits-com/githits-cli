@@ -1211,17 +1211,15 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "read repo-backed ID json",
   );
   assertRecord(repoRead, "read repo-backed ID json");
-  const repoPagePath = /@[a-f0-9]{40}\/(.+)$/i.exec(
-    repoPage.docsReadTarget,
-  )?.[1];
-  assert(repoPagePath, "repo-backed ID must contain a snapshot file path");
   assert(
-    repoRead.path === repoPagePath &&
+    repoRead.docsReadTarget === repoPage.docsReadTarget &&
+      repoRead.pageId === repoPage.pageId &&
       typeof repoRead.content === "string" &&
       typeof repoRead.totalLines === "number" &&
-      typeof repoRead.startLine === "number" &&
-      typeof repoRead.endLine === "number",
-    "read repo-backed ID json missing indexed file path, content, or range",
+      (repoRead.totalLines === 0 ||
+        (typeof repoRead.startLine === "number" &&
+          typeof repoRead.endLine === "number")),
+    "read repo-backed ID json missing snapshot locators, content, or range",
   );
 
   assertErrorCode(
