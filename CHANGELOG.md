@@ -16,6 +16,7 @@ Patch release: adds compact code-symbol reads to the CLI and local MCP server.
 ### Fixed
 
 - **Protect root release tag provenance** - The release workflow creates the root tag before npm publication, so a failed release can resume at its original source commit. It stops if a published version has no tag instead of tagging a later main commit.
+- **Keep package builds deterministic** - Root and MCP builds clean their output directories before bundling, preventing an intermittent missing-file failure during release validation.
 
 ## [githits 0.22.0] - 2026-09-23
 
