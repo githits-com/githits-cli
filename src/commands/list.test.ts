@@ -8,6 +8,7 @@ import {
 } from "../services/test-helpers.js";
 import {
   type ListCommandDependencies,
+  type ListCommandOptions,
   listAction,
   registerListCommand,
 } from "./list.js";
@@ -48,6 +49,97 @@ describe("unified list CLI", () => {
       expect(help).toContain(flag);
     }
   });
+
+  it("parses paths interleaved with repeatable options through Commander", async () => {
+    const list = mock((_params: ListParams) =>
+      Promise.resolve(defaultListResult),
+    );
+    const service = createMockListService({ list });
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    const stop = mock(() => {});
+    const deps = createDeps({
+      listService: service,
+      createSpinner: () => ({ stop }),
+    });
+    const program = new Command("githits");
+    registerListCommand(program, async () => deps);
+
+    try {
+      await program.parseAsync([
+        "node",
+        "githits",
+        "list",
+        "npm:express",
+        "src/",
+        "--file-type",
+        "source",
+        "lib/",
+        "--language",
+        "TypeScript",
+        "**/*.md",
+        "--file-type",
+        "doc",
+        "docs/",
+        "--language",
+        "Rust",
+        "--recursive",
+        "--json",
+      ]);
+
+      expect(list).toHaveBeenCalledTimes(1);
+      expect(list.mock.calls[0]?.[0]).toEqual({
+        target: "npm:express",
+        paths: ["src/", "lib/", "**/*.md", "docs/"],
+        recursive: true,
+        fileTypes: ["source", "doc"],
+        languages: ["TypeScript", "Rust"],
+        includeDetailedFields: true,
+      });
+      expect(stop).toHaveBeenCalledTimes(1);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it.each([
+    [
+      "dash-leading target",
+      ["--json", "--", "-npm:express", "src/"],
+      "-npm:express",
+      ["src/"],
+    ],
+    [
+      "dash-leading path",
+      ["--json", "--limit", "5", "npm:express", "--", "-src/"],
+      "npm:express",
+      ["-src/"],
+    ],
+  ])(
+    "parses a %s after the end-of-options marker",
+    async (_label, args, target, paths) => {
+      const list = mock((_params: ListParams) =>
+        Promise.resolve(defaultListResult),
+      );
+      const service = createMockListService({ list });
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      const program = new Command("githits");
+      registerListCommand(program, async () =>
+        createDeps({ listService: service }),
+      );
+
+      try {
+        await program.parseAsync(["node", "githits", "list", ...args]);
+
+        expect(list).toHaveBeenCalledTimes(1);
+        expect(list.mock.calls[0]?.[0]).toMatchObject({ target, paths });
+        if (args.includes("--limit")) {
+          expect(list.mock.calls[0]?.[0].limit).toBe(5);
+        }
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
 
   it.each([
     ["npm:express@5.2.1", ["src/", "**/*.md"]],
@@ -188,7 +280,7 @@ describe("unified list CLI", () => {
     }
   });
 
-  it("validates source-only filters locally for site targets", async () => {
+  it("rewrites shared validation fields to their CLI labels", async () => {
     const list = mock((_params: ListParams) =>
       Promise.resolve(defaultListResult),
     );
@@ -198,19 +290,48 @@ describe("unified list CLI", () => {
       throw new Error("process.exit");
     });
     try {
-      await expect(
-        listAction(
-          "site:docs.example.test",
-          undefined,
-          { language: ["typescript"], json: true },
-          createDeps({ listService: service }),
-        ),
-      ).rejects.toThrow("process.exit");
+      const invalidRequests: Array<{
+        target: string;
+        options: ListCommandOptions;
+        label: string;
+        internalField: string;
+      }> = [
+        {
+          target: "npm:express",
+          options: { wait: "invalid", json: true },
+          label: "--wait",
+          internalField: "waitTimeoutMs",
+        },
+        {
+          target: "site:docs.example.test",
+          options: { fileType: ["source"], json: true },
+          label: "--file-type",
+          internalField: "fileTypes",
+        },
+      ];
+
+      for (const request of invalidRequests) {
+        await expect(
+          listAction(
+            request.target,
+            undefined,
+            request.options,
+            createDeps({ listService: service }),
+          ),
+        ).rejects.toThrow("process.exit");
+        const payload = JSON.parse(String(error.mock.calls.at(-1)?.[0])) as {
+          code: string;
+          error: string;
+          retryable: boolean;
+        };
+        expect(payload).toMatchObject({
+          code: "INVALID_ARGUMENT",
+          retryable: false,
+        });
+        expect(payload.error).toContain(request.label);
+        expect(payload.error).not.toContain(request.internalField);
+      }
       expect(list).not.toHaveBeenCalled();
-      expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
-        code: "INVALID_ARGUMENT",
-        retryable: false,
-      });
     } finally {
       error.mockRestore();
       exit.mockRestore();
@@ -344,6 +465,36 @@ describe("unified list CLI", () => {
       expect(stop).toHaveBeenCalledTimes(1);
     } finally {
       log.mockRestore();
+    }
+  });
+
+  it("stops the spinner once when the service rejects", async () => {
+    const list = mock((_params: ListParams) =>
+      Promise.reject(new Error("failed")),
+    );
+    const service = createMockListService({ list });
+    const stop = mock(() => {});
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      await expect(
+        listAction(
+          "npm:express",
+          undefined,
+          { json: true },
+          createDeps({
+            listService: service,
+            createSpinner: () => ({ stop }),
+          }),
+        ),
+      ).rejects.toThrow("process.exit");
+      expect(stop).toHaveBeenCalledTimes(1);
+    } finally {
+      error.mockRestore();
+      exit.mockRestore();
     }
   });
 });
