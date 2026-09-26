@@ -5,6 +5,7 @@ export * from "./services/code-navigation-service.js";
 export * from "./services/config.js";
 export * from "./services/execute-with-token-refresh.js";
 export * from "./services/githits-service.js";
+export * from "./services/list-service.js";
 export * from "./services/package-intelligence-service.js";
 export * from "./services/promote-version-not-found.js";
 export * from "./services/read-service.js";
