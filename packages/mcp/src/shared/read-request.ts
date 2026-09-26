@@ -9,7 +9,7 @@ export interface ReadLocator {
   path?: string;
 }
 
-/** A path selects an exact source file; otherwise preserve the opaque docs target. */
+/** Normalize the optional file path; preserve target bytes for read classification. */
 export function resolveReadLocator(target: string, path?: string): ReadLocator {
   if (typeof target !== "string" || !target.trim()) {
     throw new InvalidPackageSpecError("A nonempty string target is required.");
@@ -42,7 +42,7 @@ export function validateReadRange(startLine?: number, endLine?: number): void {
   }
 }
 
-/** Code indexing wait; docs validate but do not forward this unsupported field. */
+/** Validate the unified read wait; the backend applies it when relevant. */
 export function normalizeReadWaitTimeoutMs(value?: number): number {
   if (value === undefined) return DEFAULT_WAIT_TIMEOUT_MS;
   if (!Number.isInteger(value) || value < 0 || value > MAX_WAIT_TIMEOUT_MS) {

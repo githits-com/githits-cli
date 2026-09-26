@@ -1,7 +1,7 @@
 {
   "name": "githits",
   "description": "The code context layer for AI coding agents",
-  "version": "0.17.1",
+  "version": "0.22.1",
   "mcpName": "com.githits/githits",
   "type": "module",
   "workspaces": [
@@ -40,7 +40,7 @@
     "githits": "dist/cli.js"
   },
   "scripts": {
-    "build": "bunup && bun -e \"import { chmodSync } from 'node:fs'; chmodSync('dist/cli.js', 0o755);\"",
+    "build": "bun -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\" && bunup --no-clean && bun -e \"import { chmodSync } from 'node:fs'; chmodSync('dist/cli.js', 0o755);\"",
     "dev": "bun run ./src/cli.ts",
     "inspector": "npx @modelcontextprotocol/inspector bun run dev mcp",
     "smoke:cli": "bun run scripts/cli-smoke.ts",

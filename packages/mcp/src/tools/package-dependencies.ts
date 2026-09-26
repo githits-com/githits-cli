@@ -9,6 +9,7 @@ import {
   formatPackageDependenciesTerminal,
 } from "../shared/package-dependencies-response.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
+import { parsePackageSpec } from "../shared/package-spec.js";
 import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
   OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
@@ -18,9 +19,7 @@ import {
 } from "./types.js";
 
 export interface PackageDependenciesArgs {
-  registry: string;
-  package_name: string;
-  version?: string;
+  target: string;
   lifecycle?: string | string[];
   include_importers?: boolean;
   include_issues?: boolean;
@@ -29,28 +28,18 @@ export interface PackageDependenciesArgs {
 }
 
 /**
- * Permissive schema — in-handler validation via
- * `buildPackageDependenciesParams` is the single validation path so
- * raw Zod errors never surface to agents.
+ * Strings remain permissive so package parsing and request validation
+ * return mapped domain errors. Missing or non-string targets fail SDK validation.
  *
  * No `include_groups` input. `lifecycle` is the single breadth knob:
  * omit it for runtime-only, pass a concrete lifecycle for filtered
  * groups, or pass `all` for the full groups view.
  */
 const schema: ZodRawShape = {
-  registry: z
+  target: z
     .string()
     .describe(
-      `Package registry. Dependency data is available on ${SUPPORTED_DEPS_REGISTRIES_LIST}.`,
-    ),
-  package_name: z
-    .string()
-    .describe("Package name (scoped names ok: @types/node)."),
-  version: z
-    .string()
-    .optional()
-    .describe(
-      "Specific version to inspect. Defaults to latest when omitted. Go accepts `v1.2.3` or `1.2.3` and sends canonical `v1.2.3`; tag-style inputs with a leading `v` are rejected for other registries except Swift.",
+      "Package registry:name[@version], for example npm:express@5.2.1; omit the version for latest. Go accepts versions with or without v; other registries reject v-prefixed git tags except Swift.",
     ),
   lifecycle: z
     .union([z.string(), z.array(z.string())])
@@ -77,7 +66,7 @@ const schema: ZodRawShape = {
     .max(10)
     .optional()
     .describe(
-      "Add a `transitive` block and cap traversal at this depth (1-10). Omit for direct dependencies only.",
+      "Add a `transitive` block and cap traversal at this depth (1-10). Omit for direct output unless `include_importers` is true; `include_issues` can still analyze the full graph.",
     ),
   format: z
     .enum(["text", "json"])
@@ -89,20 +78,11 @@ const schema: ZodRawShape = {
 
 const DESCRIPTION =
   "Inspect what a package depends on, directly or transitively. Lists direct runtime " +
-  "dependencies with resolved versions; non-runtime groups are " +
-  "omitted by default. Use `lifecycle` with a concrete value for " +
-  "matching dependency groups, or `all` for every available group. " +
-  "Runtime group rows include resolved versions when available. " +
-  "Pass `max_depth` to add a `transitive` block with the capped " +
-  "install footprint, conflict detection, and circular-dependency " +
-  "flags; layer `include_importers: true` on top when you also need " +
-  "per-package provenance. Supports " +
-  `${SUPPORTED_DEPS_REGISTRIES_LIST}. Use ` +
-  "`include_issues: true` for deprecated, outdated, duplicate, " +
-  "and conflict analysis across the resolved dependency graph. JSON exposes " +
-  "complete issue rows for direct code consumption. Without `max_depth`, issues scan the full graph; " +
-  "`max_depth` bounds cost and scope. " +
-  "Use `pkg_info` for latest package health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence.";
+  "dependencies with resolved versions; non-runtime groups are omitted by default. " +
+  "Opt into transitive footprint, per-package provenance, or issue analysis with " +
+  "the corresponding fields; full-graph analysis is not local application lockfile " +
+  "or reachability evidence. Supports " +
+  `${SUPPORTED_DEPS_REGISTRIES_LIST}.`;
 
 export function createPackageDependenciesTool(
   service: PackageIntelligenceService,
@@ -114,6 +94,7 @@ export function createPackageDependenciesTool(
     annotations: OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       try {
+        const target = parsePackageSpec(args.target.trim());
         const includeIssues = args.include_issues;
         const includeTransitiveOutput =
           args.max_depth !== undefined || args.include_importers === true;
@@ -126,9 +107,9 @@ export function createPackageDependenciesTool(
             ? args.max_depth
             : 1;
         const { params, canonicalLifecycles } = buildPackageDependenciesParams({
-          registry: args.registry,
-          packageName: args.package_name,
-          version: args.version,
+          registry: target.registry,
+          packageName: target.name,
+          version: target.version,
           includeTransitive: true,
           maxDepth: wireMaxDepth,
           lifecycle: args.lifecycle,

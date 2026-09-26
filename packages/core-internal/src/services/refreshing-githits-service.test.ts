@@ -236,45 +236,6 @@ describe("RefreshingGitHitsService", () => {
     });
   });
 
-  describe("getLanguages", () => {
-    it("delegates to inner service", async () => {
-      const innerService = createMockGitHitsService();
-      const tokenProvider = createMockTokenProvider();
-      const factory = mock(() => innerService);
-
-      const service = new RefreshingGitHitsService(
-        API_URL,
-        tokenProvider,
-        factory,
-      );
-
-      const result = await service.getLanguages();
-
-      expect(result).toHaveLength(3);
-      expect(innerService.getLanguages).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe("searchLanguages", () => {
-    it("delegates to inner service with query and limit", async () => {
-      const innerService = createMockGitHitsService();
-      const tokenProvider = createMockTokenProvider();
-      const factory = mock(() => innerService);
-
-      const service = new RefreshingGitHitsService(
-        API_URL,
-        tokenProvider,
-        factory,
-      );
-
-      const result = await service.searchLanguages("ts", 5);
-
-      expect(result).toHaveLength(1);
-      expect(innerService.searchLanguages).toHaveBeenCalledWith("ts", 5);
-      expect(innerService.getLanguages).not.toHaveBeenCalled();
-    });
-  });
-
   describe("no token available", () => {
     it("does not look up a token when the caller is already aborted", async () => {
       const controller = new AbortController();

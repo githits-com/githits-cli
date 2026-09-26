@@ -2,7 +2,7 @@
 
 ## Package Info
 
-`githits pkg info <registry:name>` returns latest-version triage: license, description, repository popularity, downloads, publish age, and separate latest-affected and package-wide advisory-history scopes. Use `--verbose` for GitHub language/topics/last-pushed, package-wide advisory history (all versions), published-version count, download freshness, and recent changes. Use `--json` for structured fields.
+`githits pkg info <registry:name>` returns latest-version triage: license, description, repository popularity, downloads, publish age, and separate latest-affected and package-wide advisory-history scopes. Use `--verbose` for GitHub language/topics/last-pushed, package-wide advisory history (all versions), published-version count, download freshness, and recent changes. Use `--json` only for code consuming raw fields or required fields absent from text.
 
 Supported registries include npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, vcpkg, and Zig.
 Swift package targets use `swift:github.com/<owner>/<repo>` or `swift:gitlab.com/<group>/<project>`; Zig package targets use `zig:gh/<owner>/<repo>` or `zig:cb/<owner>/<repo>`. Keep these registry-native coordinates for package evidence; direct repository targets inspect the full repository.
@@ -23,21 +23,19 @@ Supported registries: npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems,
 
 `githits pkg deps <registry:name[@version]>` lists direct runtime dependencies by default.
 
-Flags: `--lifecycle runtime|development|build|peer|optional|all`, `--depth 1-10`, `--verbose`, `--json`.
+Flags: `--lifecycle runtime|development|build|peer|optional|all`, `--depth 1-10`, `--issues`, `--verbose`, `--json`.
 
 Supported dependency registries: npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, vcpkg, and Zig.
 
-Use `--depth` to request transitive output capped to that traversal depth. Omit it for direct dependencies only.
+Use `--depth` to request capped transitive output. Without it, output is direct dependencies only, but `--issues` still scans the full graph. `--verbose` shows complete issue details.
 
 ## Changelog
 
-`githits pkg changelog <registry:name>` returns recent release notes. `--limit` caps latest mode. `--from` is the exclusive lower bound for range mode, which returns entries after `--from` through `--to` (or latest).
+`githits pkg changelog <registry:name[@version|@from..to]>` returns release notes for a package. Bare targets use latest mode. Pin `@version` for one selected release. Use `@from..to`, `@from..`, or `@..to` for interval and upper-cap forms.
 
-Flags: `--repo-url <url>`, `--from <version>`, `--to <version>`, `--limit 1-50`, `--git-ref <ref>`, `--verbose`, `--no-body`, `--json`.
+Flags: `--from <version>`, `--to <version>`, `--limit 1-50`, `--verbose`, `--no-body`, `--json`.
 
-Do not use `registry:name@version` for changelog. Use `--to <version>`.
-
-For repository changelogs, pass a full HTTPS URL on github.com, codeberg.org, or gitlab.com to `--repo-url`; use `--git-ref` for a branch or tag. Codeberg requires owner/repo; GitLab permits nested namespaces. Do not pass compact `github:`, `codeberg:`, or `gitlab:` targets to this URL field.
+`--from` and `--to` remain package range flags on a bare spec. Inline single-release targets reject those flags and `--limit`. Repository and site targets are not supported.
 
 ## Upgrade Review
 

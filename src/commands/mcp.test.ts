@@ -88,7 +88,6 @@ function createTestServices(
 const EXPECTED_TOOL_NAMES = [
   "quick_start",
   "get_example",
-  "search_language",
   "search",
   "search_status",
   "code_files",
@@ -126,7 +125,7 @@ describe("createMcpServer", () => {
     const tools = getMcpToolDefinitions(services);
 
     expect(tools.map((tool) => tool.name)).toEqual([...EXPECTED_TOOL_NAMES]);
-    expect(tools.map((tool) => tool.name)).toHaveLength(14);
+    expect(tools.map((tool) => tool.name)).toHaveLength(13);
     expect(tools.map((tool) => tool.name)).toContain("read");
     expect(tools.map((tool) => tool.name)).not.toContain("code_read");
     expect(tools.map((tool) => tool.name)).not.toContain("docs_read");
@@ -299,7 +298,7 @@ describe("createMcpServer", () => {
     const provider = mock(() => createTestServices());
     registerMcpTools(server, { services: provider });
 
-    await registeredTool(server, "search_language").handler(
+    await registeredTool(server, "get_example").handler(
       { query: "python", format: "json" },
       undefined as unknown as RequestHandlerExtra<
         ServerRequest,
@@ -318,7 +317,7 @@ describe("createMcpServer", () => {
       },
     });
 
-    const result = await registeredTool(server, "search_language").handler(
+    const result = await registeredTool(server, "get_example").handler(
       { query: "python", format: "json" },
       undefined as unknown as RequestHandlerExtra<
         ServerRequest,
@@ -340,7 +339,7 @@ describe("createMcpServer", () => {
       services: () => Promise.reject(new AuthenticationError()),
     });
 
-    const result = await registeredTool(server, "search_language").handler(
+    const result = await registeredTool(server, "get_example").handler(
       { query: "python", format: "json" },
       undefined as unknown as RequestHandlerExtra<
         ServerRequest,
@@ -368,7 +367,6 @@ describe("createMcpServer", () => {
     const names = tools.map((tool) => tool.name);
     for (const name of [
       "get_example",
-      "search_language",
       "search",
       "search_status",
       "code_files",

@@ -59,11 +59,7 @@ export function createContextFixtureServer(
             ],
           };
         }
-        if (
-          tool.name === "pkg_info" &&
-          args.registry === "npm" &&
-          args.package_name === "zod"
-        ) {
+        if (tool.name === "pkg_info" && args.target === "npm:zod") {
           return {
             content: [
               {

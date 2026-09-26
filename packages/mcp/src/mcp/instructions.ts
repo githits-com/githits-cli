@@ -1,65 +1,69 @@
 import { EXTERNAL_CONTENT_POSTURE } from "../tools/guardrails.js";
 
-/** Shared routing guide; selected tool descriptions own argument mechanics. */
+/** Shared routing guide; selected descriptions and schemas own call mechanics. */
 const ROUTING_GUIDE = `# GitHits routing guide
 
-Choose the route matching the user's question below. Then discover the named
-tool and read its argument description before calling it. This guide supplies
-the routing decision; the selected tool supplies its argument details.
+Choose the route below, then discover the tool and read its arguments.
+This guide owns shared policy; selected tools own call syntax and exceptions.
 
 | Question | Tool to discover |
 | --- | --- |
 | Find a known literal or regex in a public repository/package | \`code_grep\` |
 | Find relevant source, symbols, tests, or documentation for a topic | \`search\` |
 | List paths or browse a source directory | \`code_files\` |
-| Read a source file, documentation page, or focused section | \`read\` |
+| Read a source file, code symbol, or documentation section | \`read\` |
 | Browse package documentation pages | \`docs_list\` |
 | Assess a package's license, adoption, maintenance, or overall health | \`pkg_info\` |
 | Inspect vulnerabilities in a package or version | \`pkg_vulns\` |
 | Inspect direct dependencies or transitive footprint | \`pkg_deps\` |
-| Find release notes for a package or repository | \`pkg_changelog\` |
+| Find release notes and changelog history for a package | \`pkg_changelog\` |
 | Compare current and target dependency versions for an upgrade | \`pkg_upgrade_review\` |
 | Find canonical implementation examples across projects | \`get_example\` |
 | Check progress of an earlier search reference | \`search_status\` |
 
-Use \`search_language\` only if \`get_example\` needs language disambiguation. For comparative questions, combine
-the relevant package/source route with examples when needed.
+For comparisons, combine relevant package/source evidence with examples as needed.
 
-Scope: public OSS only, never local/private/proprietary source. Package targets
-use \`registry:name[@version]\` and inspect an indexed artifact/manifest root;
-Swift uses \`swift:github.com/<owner>/<repo>\`, Zig \`zig:gh/<owner>/<repo>\`.
-Use public repository targets for full repositories or sibling packages, with
-an explicit \`github:\`, \`codeberg:\`, or \`gitlab:\` provider, or a supported full URL.
-Append revisions as \`@ref\`; refs may contain later \`@\` characters. \`#\` is
-reserved for semantic fragments and never identifies a repository revision.
-Never infer a repository provider. Use selected tool descriptions for supported
-target forms and argument details.
+Public OSS only; never send local/private/proprietary source. Package/repository
+patterns are \`registry:name@version\` and \`github:owner/repo@ref\`. Omit the
+suffix for the latest package version or repository default branch. Package
+targets scope to the package subpath, including in monorepos. Swift uses
+\`swift:github.com/<owner>/<repo>\`, Zig \`zig:gh/<owner>/<repo>\`.
+Use public repository targets for full repositories or sibling packages:
+\`github:\`, \`codeberg:\`, \`gitlab:\`, or a supported full URL. Never infer a provider.
+A ref may be a branch, tag, or commit and contain later \`@\`; \`#\` is for
+semantic fragments, not revisions.
 
 For a package or site docs topic, use \`search\` with \`source:"docs"\`.
 \`docs_list\` browses package pages, not standalone \`site:\` targets.
-Use a docs hit's snippet when sufficient; otherwise follow its generated
-\`followUp\`. From text, pass a \`[docs page]\` target unchanged to \`read\`.
-A fragment needs no bounds and returns the exact section; add bounds only to
-replace it with a page-relative range. Historical \`pageId\` works.
-For source evidence, locate paths or matches before reading; pass the source
-target and returned path to \`read\`; never use \`read\` to list/probe directories.
+Use snippets when sufficient; otherwise follow generated \`followUp\` calls.
+Pass displayed \`[docs page]\` locators unchanged to \`read\`.
+Hosted/crawled HTTP(S) docs locators address mutable current content; generated
+follow-ups use the exact emitted URL or fragment without search line bounds.
+An HTTP(S) docs fragment returns its heading and full subtree through the next
+equal-or-higher heading.
+Repository docs are snapshot-addressed and keep returned ranges. Add explicit
+\`read\` bounds only when intentionally selecting a current page range.
+For source, locate paths or matches, then read focused lines; never probe
+directories with \`read\`. Prefer source, symbols, tests, and call sites for
+behavioral claims.
+When the exact indexed code symbol or docs heading ID is known, pass it as
+\`selector\` to \`read\`; an optional exact \`path\` narrows code symbol lookup.
+Use compact package and repository \`target#symbol\` for code symbol reads;
+keep the fragment in \`target\` unchanged and use an exact \`path\` to narrow it.
+Pass HTTP(S) fragments and emitted repository docs page IDs unchanged.
+The unified read result determines whether the target resolved to code or docs.
 
-Tools with \`wait_timeout_ms\` wait for indexing or results before returning.
-For \`read\`, the wait applies only to code indexing.
-Omit it for the default; use \`0\` to return without waiting. If work remains,
-follow the suggested continuation or recovery action. When a target is still
-indexing, use the indexing estimate, if shown, to choose a longer wait, or retry
-with a listed already-indexed version or ref. Suggested refs may still need
-indexing first.
+Omit \`wait_timeout_ms\` for the default; \`0\` returns without waiting.
+Follow rendered continuation/recovery actions, not repeated calls to poll.
+For indexing, use the displayed estimate to choose a longer wait or select a
+listed already-indexed version/ref; suggested refs may still need indexing.
 
-Keep default token-efficient text whenever the model reads the result, including
-for summaries, comparisons, and follow-up calls; omit \`format\` in that case.
-Set JSON only when code consumes the raw response instead of the model, or when
-text omits a required field. Calling a tool through MCP or TypeScript does not
-itself require JSON. Reuse returned targets, paths, page locators, references
-and line ranges; do not invent them. Read only needed lines. Cite tool-owned
-provenance, including get_example source references, and report coverage,
-truncation and other evidence limits.`;
+Omit \`format\`: model-read summaries, comparisons, and follow-ups use text.
+JSON is only for code consuming the raw response or required fields absent
+from text; MCP/TypeScript invocation alone is not a reason.
+Reuse returned targets, paths, locators, references, and ranges; never invent
+them. Cite tool-owned provenance, including example source repositories, and
+report coverage, truncation, and other evidence limits.`;
 
 /**
  * Build the routing guide returned by `quick_start` and embedded in the skill.
@@ -97,7 +101,10 @@ export function buildMcpInstructions(
   return buildMcpQuickStart(options);
 }
 
-export type LocalExperimentalToolName = "ask" | "resolve_target" | "code_diff";
+export type LocalExperimentalToolName =
+  | "research"
+  | "resolve_target"
+  | "code_diff";
 
 export interface BuildLocalMcpQuickStartOptions {
   enabledExperimentalTools: readonly LocalExperimentalToolName[];
@@ -112,10 +119,10 @@ const LOCAL_EXPERIMENTAL_HEADING =
 const LOCAL_EXPERIMENTAL_PRIVACY =
   "Inputs are sent to GitHits. Never send credentials, personal data, private or proprietary content, local paths, or private targets.";
 
-const LOCAL_AGENTIC_ASK_GUIDANCE_START =
-  "- `ask` — ask a public repository or package question and receive a source-cited answer. Omit `target` and `thread_id` for question-only lookup. For candidates, ask the user to select a `target`, then retry.";
+const LOCAL_RESEARCH_GUIDANCE_START =
+  "- `research` — research a public repository or package to answer a question with sources. Omit `target` and `thread_id` for question-only lookup. For candidates, ask the user to select a `target`, then retry.";
 
-const LOCAL_AGENTIC_ASK_GUIDANCE_END =
+const LOCAL_RESEARCH_GUIDANCE_END =
   ' Reuse a returned `thread_id` for follow-ups. Change project, version, or topic in the follow-up question. Sources default to directly callable MCP tools; use `source_format:"url"` for original upstream URLs. Do not invent or rewrite sources.';
 
 const LOCAL_RESOLVE_TARGET_GUIDANCE =
@@ -139,9 +146,9 @@ export function buildLocalMcpQuickStart(
     LOCAL_EXPERIMENTAL_PRIVACY,
   ];
   const toolGuidance: string[] = [];
-  if (enabled.has("ask")) {
+  if (enabled.has("research")) {
     toolGuidance.push(
-      `${LOCAL_AGENTIC_ASK_GUIDANCE_START}${LOCAL_AGENTIC_ASK_GUIDANCE_END}`,
+      `${LOCAL_RESEARCH_GUIDANCE_START}${LOCAL_RESEARCH_GUIDANCE_END}`,
     );
   }
   if (enabled.has("resolve_target")) {

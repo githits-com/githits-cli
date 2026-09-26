@@ -13,6 +13,7 @@ import {
   EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
   EXPECTED_TOP_LEVEL_COMMANDS,
   formatCliLiveCohortSummary,
+  JSON_PARITY_FIXTURES,
   parseCliSmokeArgs,
   parseRootHelpCommands,
 } from "./cli-smoke.ts";
@@ -515,8 +516,7 @@ describe("smoke script options", () => {
     const entry = createEntry("path with spaces/cli.js");
     const target = parseCliSmokeArgs(["--cli-entry", entry]).target;
     const command = buildMcpParityCommand(target, "pkg_info", {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
     });
     const scriptArgs = command.slice(3);
 
@@ -527,7 +527,7 @@ describe("smoke script options", () => {
       "--cli-entry",
       entry,
       "pkg_info",
-      '{"registry":"npm","package_name":"express"}',
+      '{"target":"npm:express"}',
     ]);
     const nested = parseMcpCallArgs(scriptArgs);
     expect(toStdioLaunch(nested.target, ["mcp", "start"])).toEqual({
@@ -537,8 +537,107 @@ describe("smoke script options", () => {
     expect(nested.toolName).toBe("pkg_info");
   });
 
+  it("keeps curated CLI parity fixtures on compact package targets", () => {
+    const compactMcpTools = new Set([
+      "docs_list",
+      "pkg_info",
+      "pkg_vulns",
+      "pkg_deps",
+    ]);
+    const compactPackageFixtures = JSON_PARITY_FIXTURES.filter(({ mcpTool }) =>
+      compactMcpTools.has(mcpTool),
+    );
+    expect(
+      new Set(compactPackageFixtures.map(({ mcpTool }) => mcpTool)),
+    ).toEqual(compactMcpTools);
+
+    for (const fixture of compactPackageFixtures) {
+      expect(typeof fixture.mcpArgs.target, `${fixture.name} target`).toBe(
+        "string",
+      );
+      expect(fixture.mcpArgs, `${fixture.name} registry`).not.toHaveProperty(
+        "registry",
+      );
+      expect(
+        fixture.mcpArgs,
+        `${fixture.name} package_name`,
+      ).not.toHaveProperty("package_name");
+      expect(fixture.mcpArgs, `${fixture.name} version`).not.toHaveProperty(
+        "version",
+      );
+    }
+
+    expect(compactPackageFixtures).toEqual([
+      {
+        name: "pkg_info",
+        cliArgs: ["pkg", "info", "npm:express", "--json"],
+        mcpTool: "pkg_info",
+        mcpArgs: { target: "npm:express", format: "json" },
+      },
+      {
+        name: "pkg_deps",
+        cliArgs: ["pkg", "deps", "npm:express", "--json"],
+        mcpTool: "pkg_deps",
+        mcpArgs: { target: "npm:express", format: "json" },
+      },
+      {
+        name: "pkg_deps_issues",
+        cliArgs: ["pkg", "deps", "npm:express", "--issues", "--json"],
+        mcpTool: "pkg_deps",
+        mcpArgs: {
+          target: "npm:express",
+          include_issues: true,
+          format: "json",
+        },
+      },
+      {
+        name: "pkg_vulns",
+        cliArgs: ["pkg", "vulns", "npm:express", "--json"],
+        mcpTool: "pkg_vulns",
+        mcpArgs: { target: "npm:express", format: "json" },
+      },
+      {
+        name: "docs_list",
+        cliArgs: [
+          "docs",
+          "list",
+          "npm:express@5.2.1",
+          "--limit",
+          "2",
+          "--json",
+        ],
+        mcpTool: "docs_list",
+        mcpArgs: {
+          target: "npm:express@5.2.1",
+          limit: 2,
+          format: "json",
+        },
+      },
+    ]);
+
+    expect(
+      JSON_PARITY_FIXTURES.find(({ name }) => name === "pkg_changelog")
+        ?.mcpArgs,
+    ).toEqual({
+      target: "npm:express",
+      limit: 1,
+      format: "json",
+    });
+    expect(
+      JSON_PARITY_FIXTURES.find(({ name }) => name === "pkg_upgrade_review")
+        ?.mcpArgs,
+    ).toEqual({
+      registry: "npm",
+      package_name: "express",
+      current_version: "5.0.0",
+      target_version: "5.2.1",
+      skip_transitive_security: true,
+      format: "json",
+    });
+  });
+
   it("parses the default mcp-call source target", () => {
-    const options = parseMcpCallArgs(["search_language", '{"query":"go"}']);
+    const options = parseMcpCallArgs(["get_example", '{"query":"go"}']);
 
     expect(toStdioLaunch(options.target, ["mcp", "start"])).toEqual({
       command: "bun",
@@ -574,8 +673,10 @@ describe("CLI root help smoke contract", () => {
     );
     expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).toContain("uninstall");
     expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).not.toContain("ask");
+    expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).not.toContain("research");
     expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).not.toContain("resolve");
-    expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toContain("ask");
+    expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toContain("research");
+    expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).not.toContain("ask");
     expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toContain("resolve");
     expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toHaveLength(
       EXPECTED_STABLE_TOP_LEVEL_COMMANDS.length + 2,
@@ -589,6 +690,18 @@ describe("CLI root help smoke contract", () => {
       ...EXPECTED_TOP_LEVEL_COMMANDS,
     ]);
     expect(() => assertRootHelpStructure(help)).not.toThrow();
+  });
+
+  it("parses research as canonical while retaining ask in the help alias", () => {
+    const help = rootHelpFixture(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS);
+
+    expect(help).toContain("  research|ask [options]");
+    expect(parseRootHelpCommands(help)).toEqual([
+      ...EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS,
+    ]);
+    expect(() =>
+      assertRootHelpStructure(help, EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS),
+    ).not.toThrow();
   });
 
   it("fails when a command disappears even if prose still mentions it", () => {
@@ -612,9 +725,10 @@ describe("CLI root help smoke contract", () => {
   });
 
   function rootHelpFixture(commands: readonly string[]): string {
-    const rows = commands.map(
-      (command) => `  ${command} [options]  ${command} description`,
-    );
+    const rows = commands.map((command) => {
+      const displayName = command === "research" ? "research|ask" : command;
+      return `  ${displayName} [options]  ${command} description`;
+    });
     return [
       "Usage: githits [options] [command]",
       "",
@@ -632,10 +746,12 @@ describe("MCP smoke cohorts", () => {
   it("keeps experimental inventory local and additive to the stable baseline", () => {
     expect(EXPECTED_EXPERIMENTAL_MCP_TOOLS).toEqual([
       ...EXPECTED_MCP_TOOLS,
-      "ask",
+      "research",
       "resolve_target",
       "code_diff",
     ]);
+    expect(EXPECTED_EXPERIMENTAL_MCP_TOOLS).toContain("research");
+    expect(EXPECTED_EXPERIMENTAL_MCP_TOOLS).not.toContain("ask");
   });
 
   it("pins every stable cohort to an explicit disabled experimental config", () => {

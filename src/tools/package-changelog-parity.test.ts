@@ -9,16 +9,13 @@
 //   - Service-sourced success / error fixtures use `toEqual`: both
 //     surfaces route through the same request builder and envelope
 //     shaper, so envelopes are byte-identical.
-//   - `INVALID_ARGUMENT` fixtures use `toMatchObject`: CLI rejects in
-//     `buildPackageChangelogParams` after `parsePackageSpec`; MCP
-//     rejects in the same builder. Same envelope shape, surface-
-//     specific error text.
+//   - `INVALID_ARGUMENT` fixtures use `toMatchObject` when surface
+//     wording can differ; identical compact targets use `toEqual`.
 
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
   type ChangelogReport,
   PackageIntelligenceBackendError,
-  PackageIntelligenceChangelogSourceNotFoundError,
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceVersionNotFoundError,
 } from "@githits/core-internal";
@@ -48,7 +45,7 @@ function cliDeps(
 }
 
 async function cliJson(
-  spec: string | undefined,
+  spec: string,
   options: Parameters<typeof pkgChangelogAction>[1] = {},
   deps: PkgChangelogCommandDependencies = cliDeps(),
 ): Promise<unknown> {
@@ -75,13 +72,8 @@ async function cliJson(
 }
 
 interface McpArgs {
-  registry?: string;
-  package_name?: string;
-  repo_url?: string;
-  from_version?: string;
-  to_version?: string;
+  target: string;
   limit?: number;
-  git_ref?: string;
   omit_bodies?: boolean;
 }
 
@@ -115,7 +107,7 @@ describe("package_changelog parity", () => {
       }),
     );
     const { json, isError } = await mcpJson(
-      { registry: "npm", package_name: "express" },
+      { target: "npm:express" },
       fn as never,
     );
     expect(isError).toBeUndefined();
@@ -134,15 +126,15 @@ describe("package_changelog parity", () => {
     expect(envelope.entries.count).toBe(2);
   });
 
-  it("PARITY-JSON-KEYS: range mode (--from / from_version) echoes filter and flips mode", async () => {
-    const rangeReport: ChangelogReport = {
+  it("PARITY-JSON-KEYS: exact pin CLI === MCP", async () => {
+    const exactReport: ChangelogReport = {
       ...defaultChangelogReport,
-      entries: [defaultChangelogReport.entries[0]!],
+      entries: [{ ...defaultChangelogReport.entries[0]!, hasChangelog: true }],
     };
-    const fn = mock(() => Promise.resolve(rangeReport));
+    const fn = mock(() => Promise.resolve(exactReport));
     const cli = await cliJson(
-      "npm:express",
-      { from: "5.0.0" },
+      "npm:express@5.2.1",
+      {},
       cliDeps({
         packageIntelligenceService: createMockPackageIntelligenceService({
           packageChangelog: fn as never,
@@ -150,7 +142,38 @@ describe("package_changelog parity", () => {
       }),
     );
     const { json } = await mcpJson(
-      { registry: "npm", package_name: "express", from_version: "5.0.0" },
+      { target: "npm:express@5.2.1" },
+      fn as never,
+    );
+    expect(cli).toEqual(json);
+    const envelope = cli as {
+      mode: string;
+      filter?: { version?: string };
+      entries: { items: Array<{ hasChangelog?: boolean; version?: string }> };
+    };
+    expect(envelope.mode).toBe("exact");
+    expect(envelope.filter?.version).toBe("5.2.1");
+    expect(envelope.entries.items[0]?.hasChangelog).toBe(true);
+    expect(envelope.entries.items[0]?.version).toBe("5.2.1");
+  });
+
+  it("PARITY-JSON-KEYS: range mode echoes filter and flips mode", async () => {
+    const rangeReport: ChangelogReport = {
+      ...defaultChangelogReport,
+      entries: [defaultChangelogReport.entries[0]!],
+    };
+    const fn = mock(() => Promise.resolve(rangeReport));
+    const cli = await cliJson(
+      "npm:express@5.0.0..",
+      {},
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageChangelog: fn as never,
+        }),
+      }),
+    );
+    const { json } = await mcpJson(
+      { target: "npm:express@5.0.0.." },
       fn as never,
     );
     expect(cli).toEqual(json);
@@ -161,36 +184,6 @@ describe("package_changelog parity", () => {
     expect(envelope.mode).toBe("range");
     expect(envelope.filter?.fromVersion).toBe("5.0.0");
   });
-
-  it.each([
-    "https://github.com/expressjs/express",
-    "https://codeberg.org/zigil/decimal",
-    "https://gitlab.com/group/subgroup/project",
-  ])(
-    "PARITY-JSON-KEYS: repo-URL addressing (CLI --repo-url === MCP repo_url) %s",
-    async (repoUrl) => {
-      const fn = mock(() => Promise.resolve(defaultChangelogReport));
-      const cli = await cliJson(
-        undefined,
-        { repoUrl: repoUrl },
-        cliDeps({
-          packageIntelligenceService: createMockPackageIntelligenceService({
-            packageChangelog: fn as never,
-          }),
-        }),
-      );
-      const { json } = await mcpJson({ repo_url: repoUrl }, fn as never);
-      expect(cli).toEqual(json);
-      const envelope = cli as {
-        repoUrl?: string;
-        registry?: string;
-        name?: string;
-      };
-      expect(envelope.repoUrl).toBe(repoUrl);
-      expect(envelope.registry).toBeUndefined();
-      expect(envelope.name).toBeUndefined();
-    },
-  );
 
   it("PARITY-JSON-KEYS: no-body (CLI --no-body === MCP omit_bodies: true)", async () => {
     const fn = mock(() => Promise.resolve(defaultChangelogReport));
@@ -204,7 +197,7 @@ describe("package_changelog parity", () => {
       }),
     );
     const { json } = await mcpJson(
-      { registry: "npm", package_name: "express", omit_bodies: true },
+      { target: "npm:express", omit_bodies: true },
       fn as never,
     );
     expect(cli).toEqual(json);
@@ -227,10 +220,7 @@ describe("package_changelog parity", () => {
         }),
       }),
     );
-    const { json } = await mcpJson(
-      { registry: "npm", package_name: "express" },
-      fn as never,
-    );
+    const { json } = await mcpJson({ target: "npm:express" }, fn as never);
     expect(cli).toEqual(json);
     const envelope = cli as {
       entries: { items: Array<{ body?: string }> };
@@ -241,6 +231,7 @@ describe("package_changelog parity", () => {
   it("PARITY-JSON-KEYS: empty entries lossless on both surfaces", async () => {
     const emptyReport: ChangelogReport = {
       ...defaultChangelogReport,
+      source: undefined,
       entries: [],
     };
     const fn = mock(() => Promise.resolve(emptyReport));
@@ -253,12 +244,13 @@ describe("package_changelog parity", () => {
         }),
       }),
     );
-    const { json } = await mcpJson(
-      { registry: "npm", package_name: "express" },
-      fn as never,
-    );
+    const { json } = await mcpJson({ target: "npm:express" }, fn as never);
     expect(cli).toEqual(json);
-    const envelope = cli as { entries: { count: number; items: unknown[] } };
+    const envelope = cli as {
+      source?: string;
+      entries: { count: number; items: unknown[] };
+    };
+    expect(envelope.source).toBeUndefined();
     expect(envelope.entries.count).toBe(0);
     expect(envelope.entries.items).toEqual([]);
   });
@@ -280,7 +272,7 @@ describe("package_changelog parity", () => {
       }),
     );
     const { json, isError } = await mcpJson(
-      { registry: "npm", package_name: "express" },
+      { target: "npm:express" },
       fn as never,
     );
     expect(isError).toBeUndefined();
@@ -292,31 +284,6 @@ describe("package_changelog parity", () => {
     expect(envelope.source).toBeUndefined();
     expect(envelope.entries.count).toBe(1);
     expect(envelope.entries.items[0]?.version).toBe("5.2.1");
-  });
-
-  it("PARITY-ERROR-ENVELOPE: NOT_FOUND (no changelog source) identical on both surfaces", async () => {
-    const fn = mock(() =>
-      Promise.reject(
-        new PackageIntelligenceChangelogSourceNotFoundError(
-          "No changelog source available for npm:obscure (tried GitHub Releases, CHANGELOG.md, and HexDocs).",
-        ),
-      ),
-    );
-    const cli = await cliJson(
-      "npm:obscure",
-      {},
-      cliDeps({
-        packageIntelligenceService: createMockPackageIntelligenceService({
-          packageChangelog: fn as never,
-        }),
-      }),
-    );
-    const { json } = await mcpJson(
-      { registry: "npm", package_name: "obscure" },
-      fn as never,
-    );
-    expect(cli).toEqual(json);
-    expect((cli as { code: string }).code).toBe("NOT_FOUND");
   });
 
   it("PARITY-ERROR-ENVELOPE: PackageIntelligenceTargetNotFoundError (package missing) identical", async () => {
@@ -335,7 +302,7 @@ describe("package_changelog parity", () => {
       }),
     );
     const { json } = await mcpJson(
-      { registry: "npm", package_name: "does-not-exist" },
+      { target: "npm:does-not-exist" },
       fn as never,
     );
     expect(cli).toEqual(json);
@@ -348,14 +315,14 @@ describe("package_changelog parity", () => {
         new PackageIntelligenceVersionNotFoundError(
           "No matching version found",
           "npm:express",
-          "99.0.0",
+          "5.2.999",
           undefined,
         ),
       ),
     );
     const cli = await cliJson(
-      "npm:express",
-      { from: "99.0.0" },
+      "npm:express@5.2.999",
+      {},
       cliDeps({
         packageIntelligenceService: createMockPackageIntelligenceService({
           packageChangelog: fn as never,
@@ -363,7 +330,7 @@ describe("package_changelog parity", () => {
       }),
     );
     const { json } = await mcpJson(
-      { registry: "npm", package_name: "express", from_version: "99.0.0" },
+      { target: "npm:express@5.2.999" },
       fn as never,
     );
     expect(cli).toEqual(json);
@@ -373,7 +340,7 @@ describe("package_changelog parity", () => {
     };
     expect(envelope.code).toBe("VERSION_NOT_FOUND");
     expect(envelope.details?.package).toBe("npm:express");
-    expect(envelope.details?.requestedVersion).toBe("99.0.0");
+    expect(envelope.details?.requestedVersion).toBe("5.2.999");
   });
 
   it("PARITY-ERROR-ENVELOPE: BACKEND_ERROR identical on both surfaces", async () => {
@@ -396,59 +363,29 @@ describe("package_changelog parity", () => {
         }),
       }),
     );
-    const { json } = await mcpJson(
-      { registry: "npm", package_name: "express" },
-      fn as never,
-    );
+    const { json } = await mcpJson({ target: "npm:express" }, fn as never);
     expect(cli).toEqual(json);
     expect((cli as { code: string }).code).toBe("BACKEND_ERROR");
     expect((cli as { retryable: boolean }).retryable).toBe(true);
   });
 
-  it("PARITY-ERROR-ENVELOPE: INVALID_ARGUMENT for <spec>@<version> matches shape", async () => {
-    const cli = await cliJson("npm:express@5.0.0", {});
-    const { json } = await mcpJson({
-      registry: "npm",
-      package_name: "express",
-      // The MCP surface has no `<spec>@<version>` channel; we test
-      // the equivalent rule from the other direction — a different
-      // builder rule (from + limit). The shape is the concern here,
-      // not identical text.
-    });
-    // CLI envelope is an error; MCP hits the default service mock
-    // happy path, so shapes differ by design. Instead assert CLI
-    // matches the shared envelope contract.
+  it("PARITY-ERROR-ENVELOPE: INVALID_ARGUMENT for repository targets matches on both surfaces", async () => {
+    const cli = await cliJson("github:expressjs/express", {});
+    const { json } = await mcpJson({ target: "github:expressjs/express" });
+    expect(cli).toEqual(json);
     expect(cli).toMatchObject({
       code: "INVALID_ARGUMENT",
-      error: expect.any(String),
+      error: expect.stringContaining("package-only"),
       retryable: false,
     });
-    // Sanity: MCP rejects from + limit with INVALID_ARGUMENT too.
-    const mcpReject = await mcpJson({
-      registry: "npm",
-      package_name: "express",
-      from_version: "5.0.0",
-      limit: 10,
-    });
-    expect(mcpReject.json).toMatchObject({
-      code: "INVALID_ARGUMENT",
-      error: expect.any(String),
-      retryable: false,
-    });
-    // Suppress unused-var warning on `json` — we don't compare it.
-    void json;
   });
 
   it("PARITY-ERROR-ENVELOPE: INVALID_ARGUMENT for from + limit matches on both surfaces", async () => {
     const cli = await cliJson("npm:express", { from: "5.0.0", limit: "10" });
     const { json } = await mcpJson({
-      registry: "npm",
-      package_name: "express",
-      from_version: "5.0.0",
+      target: "npm:express@5.0.0..",
       limit: 10,
     });
-    // Shape parity — message text differs (CLI gets the Node error
-    // surface, MCP the JSON payload). toMatchObject covers both.
     expect(cli).toMatchObject({
       code: "INVALID_ARGUMENT",
       error: expect.stringContaining("latest-mode"),

@@ -27,7 +27,6 @@ import {
 const EXPECTED_STABLE_NAMES = [
   "quick_start",
   "get_example",
-  "search_language",
   "search",
   "search_status",
   "code_files",
@@ -43,7 +42,7 @@ const EXPECTED_STABLE_NAMES = [
 
 const EXPECTED_EXPERIMENTAL_NAMES = [
   ...EXPECTED_STABLE_NAMES,
-  "ask",
+  "research",
   "resolve_target",
   "code_diff",
 ] as const;
@@ -126,7 +125,7 @@ describe("createLocalMcpServer", () => {
         expect(tool.annotations, name).toEqual({
           readOnlyHint: true,
           destructiveHint: false,
-          openWorldHint: !["quick_start", "search_language"].includes(name),
+          openWorldHint: name !== "quick_start",
         });
       }
     },
@@ -143,7 +142,9 @@ describe("createLocalMcpServer", () => {
       });
 
       expect(registeredToolNames(server)).toEqual([...EXPECTED_STABLE_NAMES]);
-      expect(registeredToolNames(server)).toHaveLength(14);
+      expect(registeredToolNames(server)).not.toContain("ask");
+      expect(registeredToolNames(server)).not.toContain("research");
+      expect(registeredToolNames(server)).toHaveLength(13);
       expect(registeredToolNames(server)).toContain("read");
       expect(registeredToolNames(server)).not.toContain("code_read");
       expect(registeredToolNames(server)).not.toContain("docs_read");
@@ -175,11 +176,13 @@ describe("createLocalMcpServer", () => {
     expect(registeredToolNames(server)).toEqual([
       ...EXPECTED_EXPERIMENTAL_NAMES,
     ]);
-    expect(registeredToolNames(server)).toHaveLength(17);
+    expect(registeredToolNames(server)).toContain("research");
+    expect(registeredToolNames(server)).not.toContain("ask");
+    expect(registeredToolNames(server)).toHaveLength(16);
     expect(registeredToolNames(server)).not.toContain("code_read");
     expect(registeredToolNames(server)).not.toContain("docs_read");
     expect(serverInstructions(server)).toBeUndefined();
-    for (const name of ["ask", "resolve_target", "code_diff"] as const) {
+    for (const name of ["research", "resolve_target", "code_diff"] as const) {
       expect(registeredTools(server)[name]?.description).toEndWith(
         QUICK_START_PREREQUISITE,
       );
@@ -193,7 +196,7 @@ describe("createLocalMcpServer", () => {
     );
     expect(result.content[0]?.text).toBe(
       buildLocalMcpQuickStart({
-        enabledExperimentalTools: ["ask", "resolve_target", "code_diff"],
+        enabledExperimentalTools: ["research", "resolve_target", "code_diff"],
       }),
     );
     for (const name of EXPECTED_EXPERIMENTAL_NAMES.filter(
@@ -201,6 +204,38 @@ describe("createLocalMcpServer", () => {
     )) {
       expect(result.content[0]?.text).toContain(`\`${name}\``);
     }
+  });
+
+  it("renders complete experimental selection sentences", () => {
+    const server = createLocalMcpServer({
+      metadata: { name: "local-githits", version: "0.0.0" },
+      services: createServices(),
+      policy: { tools: true },
+    });
+    const expectedSentences = {
+      research:
+        "Research a public repository or package to answer a question with sources.",
+      resolve_target:
+        "Resolve package, repository, or documentation-site names to canonical targets.",
+      code_diff:
+        "Compare source across exact package versions or public repository refs.",
+    } as const;
+    const firstSentences = Object.entries(expectedSentences).map(
+      ([name, expected]) => {
+        const description = registeredTools(server)[name]?.description;
+        expect(description, name).toBeDefined();
+        const match = description?.match(/^([^.]*\.)(?:\s|$)/);
+        expect(match, name).not.toBeNull();
+        const firstSentence = match?.[1] ?? "";
+        expect(firstSentence, name).toBe(expected);
+        expect(firstSentence, name).not.toContain("...");
+        expect(firstSentence.length, name).toBeGreaterThan(0);
+        expect(firstSentence.length, name).toBeLessThanOrEqual(79);
+        expect(description?.slice(0, 80), name).toStartWith(firstSentence);
+        return firstSentence;
+      },
+    );
+    expect(new Set(firstSentences)).toHaveLength(3);
   });
 
   it("uses compact string targets for stable and experimental navigation tools", () => {
@@ -302,14 +337,14 @@ describe("createLocalMcpServer", () => {
       }
     )._registeredTools.resolve_target!;
 
-    const askResult = await registeredTools(server).ask!.handler(
+    const researchResult = await registeredTools(server).research!.handler(
       { question: "How does Express routing work?", format: "json" },
       undefined as unknown as RequestHandlerExtra<
         ServerRequest,
         ServerNotification
       >,
     );
-    expect(askResult.isError).toBeUndefined();
+    expect(researchResult.isError).toBeUndefined();
     expect(ask).toHaveBeenCalledWith(
       {
         question: "How does Express routing work?",

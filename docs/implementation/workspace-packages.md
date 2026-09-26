@@ -106,6 +106,12 @@ manifest move is complete.
 
 ## Build Lessons
 
+- Bunup 0.16.32 starts its asynchronous output cleanup without awaiting it.
+  Main's public package validation observed an MCP `dist/index.js`
+  missing-file failure when rebuilding immediately after a successful build.
+  The root and MCP build scripts therefore remove their own `dist`
+  directories synchronously and run `bunup --no-clean`. Keep those operations
+  paired until an upstream fix is verified.
 - Do not publish a package that still references `@githits/core-internal`,
   `core-internal`, source aliases, or `workspace:*` in shipped artifacts.
 - Public package builds that consume private workspace source must bundle private

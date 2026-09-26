@@ -107,6 +107,102 @@ Re-run the first command to refresh that dedicated login. To switch accounts,
 run `CODEX_HOME="$HOME/.codex-eval" codex logout` first. Re-authentication does
 not reset an account's usage limits.
 
+### Custom Codex model configuration
+
+One-off runs and named suite `run` accept `--codex-config <file>`. Supply a
+main `config.toml` from a dedicated eval home; no named Codex profile is needed.
+The runner reads model/provider/effort/catalog settings and converts them to
+explicit CLI overrides. It keeps `--ignore-user-config`, disposable workload
+homes, instruction/skill preflight, and app/plugin disables. Other root settings
+and unselected providers are excluded, so ambient MCP servers and instructions
+cannot enter the workload. Codex MCP runs require GitHits startup before the
+first model request.
+
+The selected provider accepts only `name`, `base_url`, `env_key`, and
+`wire_api = "responses"`. Inline tokens, auth commands, and URLs containing
+credentials, query parameters, or fragments are rejected with safe errors.
+Optional `model_catalog_json` paths resolve relative to the config file. Explicit
+one-off `--model` and `--reasoning-effort` override config defaults; omitted
+reasoning defaults to high for one-off runs and low for named suites.
+
+For occasional OpenRouter model trials, copy the credential-free main-config
+template and set `model` to the exact OpenRouter model ID you want to test:
+
+```bash
+cp eval/agentic/openrouter.example.toml eval/agentic/openrouter.toml
+```
+
+The template deliberately has an empty model; no OpenRouter candidate is selected
+by default. Choose a reasoning effort the model supports. Omitting effort uses
+the suite's existing `low` default, rather than a provider default. Keep the
+provider `env_key` as `OPENROUTER_API_KEY`; it is the provider credential wired
+by CI. Supply its value through your credential store/environment, never in
+TOML or a commit.
+
+With `OPENROUTER_API_KEY` already set, a local two-workload trial is:
+
+```bash
+export CODEX_HOME="$HOME/.codex-eval-openrouter"
+mkdir -p "$CODEX_HOME"
+bun run agent:e2e:suite run --suite canary --scenario intent --concurrency 2 \
+  --codex-config eval/agentic/openrouter.toml \
+  --codex-report-format prompt-json --out .agent-eval/openrouter-trial
+```
+
+The main config selects any model the provider exposes; it is not a named
+Codex profile. The existing loader reads the original path, so optional model
+catalog paths remain relative to that file. Configuration support does not
+guarantee that an untried model supports Codex Responses tools or the selected
+reasoning budget; inspect its actual trial traces and report failures honestly.
+
+The caller reads its credential store into the selected environment variable;
+the runner does not discover key files. That variable is added to the existing
+environment allowlist and redacted, including JSON-escaped values, in artifacts.
+`run.json` and workload metadata record effective model/effort,
+`codexReportFormat`, and `codexConfig` with source path, SHA-256, optional catalog
+SHA-256, and provider ID. Suite matrix/cell/shard identity reflects the selected
+model; imports and Braintrust exports reject conflicting model/report formats.
+
+`--codex-report-format prompt-json` omits enforced wire-level JSON schema while
+retaining the exact reporting prompt and final JSON validation. Invalid reports
+remain failures; there is no repair or fallback. The default is `json-schema`.
+Compatibility probes on 2026-09-16 showed that OpenRouter invokes Codex namespace
+tools, while the configured Modal adapter does not. Combining tools with enforced
+JSON schema suppressed actual calls through both tested DeepSeek routes. A real
+Codex/OpenRouter MCP canary without enforced schema completed GitHits calls.
+See [the retained compatibility findings](../../docs/implementation/agentic-eval-metrics.md#modal-pilot-compatibility-result--2026-09-16).
+
+For a trusted same-repository PR, commit the filled
+`eval/agentic/openrouter.toml` on the trial branch and add `agent-eval-openrouter`
+to run the standard 52-cell matrix: two discovery cells, 25 intent cells, and
+25 full-guidance cells, followed by one aggregate Braintrust export. Keep the
+active trial config out of `main`: leave the trial PR unmerged or remove the
+config before merging; only the blank example belongs in the permanent setup.
+The shared `.github/workflows/agent-evals.yml` owns this coverage. It requires
+`OPENROUTER_API_KEY`, `GITHITS_API_TOKEN`, and `BRAINTRUST_API_KEY` repository
+secrets, pins Codex `0.154.0`, and uses prompt-json with unchanged final validation.
+The old `agent-eval-deepseek` label no longer starts a run. Luna stays the default
+for schedules, main pushes, manual-main runs and the `agent-eval` PR label.
+OpenRouter trials remain PR experiments linked to the latest main Luna baseline;
+inspect actual model/reasoning/report-format metadata and linked base before
+interpreting differences. No automatic quality grade or replacement decision
+is made.
+
+The completed [50-cell comparison](../../docs/implementation/agentic-eval-metrics.md#full-deepseek-matrix-comparison--2026-09-16)
+exported all cells against its actual main Luna baseline with 50 matching stable
+inputs. DeepSeek validated 48 reports versus Luna's 50, made 495 MCP calls versus
+205, and took 2950.371 cumulative seconds versus 787.752. Two DeepSeek finals
+failed JSON validation; summary failure correctly preserves that result. This
+single preset comparison does not justify changing the Luna default.
+
+Unconfigured model rate cards retain `unknown` cost with
+`rate_card_not_configured`; never substitute Luna rates. OpenRouter may route to
+different providers. Env-key auth without an explicit catalog uses Codex's
+fallback model metadata, so these runs do not validate long-context behavior.
+Codex `0.154.0` omits `-c temperature=0` from requests and rejects it under strict
+config; these runs use provider defaults without temperature control. Reasoning
+labels do not imply equal vendor budgets; workload duration is not model tokens/s.
+
 Claude workload runs cannot reuse an ordinary host subscription login because
 the acting agent receives a disposable `HOME`. Runs made before disposable-home
 isolation could reuse that login without additional setup. For current
@@ -308,7 +404,7 @@ this phase. `experimental` contains only
 subset of smoke, smoke is a subset of stable-full, and stateful or experimental
 workloads never enter those stable suites.
 
-Every named suite uses exactly Codex `gpt-5.6-luna`, reasoning `low`, local MCP,
+Every named suite uses exactly Codex `gpt-6-luna`, reasoning `low`, local MCP,
 and scenario-keyed shards. Shards may run concurrently; each shard runs its
 workloads through a bounded pool selected by `workloadConcurrency`, which
 defaults to `1` locally. Results remain in manifest order and the value is
@@ -594,8 +690,8 @@ targeting `main`. The push trigger is intentionally temporary while
 maintainers collect run-to-run variance and workload-optimization evidence; it
 does not change the advisory, non-gating policy. A pull request run is
 authorized only when the event label is exactly
-`agent-eval` and `github.event.pull_request.head.repo.full_name` equals the
-repository; forks cannot consume the provider secrets. The workflow checks out
+`agent-eval` (Luna) or `agent-eval-openrouter` (explicit candidate), with
+`github.event.pull_request.head.repo.full_name` equal to the repository; forks cannot consume the provider secrets. The workflow checks out
 the immutable labeled head SHA for that event and `github.sha` for scheduled or
 manual runs. Later commits on a still-labeled pull request do not rerun the
 workflow; remove and re-add the label to authorize the newer SHA. Applying the
@@ -608,14 +704,19 @@ under `runner.temp` before checkout or setup. It installs the current Codex CLI
 and records `codex --version`, creates an empty per-scenario `CODEX_HOME`, and
 authenticates through Codex's stdin API-key flow. `OPENAI_API_KEY` is scoped to
 that authentication step; `GITHITS_API_TOKEN` is scoped only to the paid suite
-execution. Local subscription state, Keychain data, personal skills, and user
+execution. For the OpenRouter label, it instead installs Codex 0.154.0, reads
+the explicitly selected main config from `eval/agentic/openrouter.toml`, skips
+OpenAI login, and binds `OPENROUTER_API_KEY` only to execution. Suite config and
+prompt-json arguments are selected only for that label; Luna retains its default
+low/schema preset.
+Local subscription state, Keychain data, personal skills, and user
 configuration are never copied into CI. The scenario directories are uploaded
 as `agent-eval-discovery`, `agent-eval-intent`, and `agent-eval-full` artifacts
 for 14 days.
 
 The final summary job always runs for an authorized workflow, downloads all three
 scenario artifacts without flattening them, appends the concise report to
-`GITHUB_STEP_SUMMARY`, and then exports the normalized 48-cell result to
+`GITHUB_STEP_SUMMARY`, and then exports the normalized 52-cell result to
 Braintrust. The local equivalent report command is:
 
 ```bash
@@ -734,7 +835,7 @@ Normal GitHits backend overrides are passed through when set:
 
 Secret-like values are redacted in run metadata.
 
-Automated Codex runs default to `gpt-5.6-luna` with `high` reasoning. Use
+Automated Codex runs default to `gpt-6-luna` with `high` reasoning. Use
 `--model` and `--reasoning-effort` to evaluate another Codex configuration;
 explicit values always win. Claude accepts aliases such as `sonnet` and
 `haiku`; explicit Codex examples include `gpt-5.4-mini` or `gpt-5.4-nano` when
@@ -802,7 +903,7 @@ surface under test.
 
 ### Workload Selection
 
-Use `ask-version-followup.md` for Ask thread reuse across project and version changes.
+Use `ask-version-followup.md` for local `research` thread reuse across project and version changes.
 
 Use targeted workloads when a change affects a specific tool family. Use both
 Claude and Codex for instruction/tool-description/skill changes when practical;
@@ -811,13 +912,13 @@ use at least one agent for quick iteration.
 | Affected Area                                                      | Workload                                                                                                                                                                                                                                                                              |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Agent-driven GitHits onboarding and setup UX                       | `githits-onboarding.md`                                                                                                                                                                                                                                                               |
-| Core global examples, `get_example`, `search_language` | `global-example.md`                                                                                                                                                                                                                                                                   |
-| Unified `search` / `search_status` behavior                        | `unified-search-investigation.md`; use `search-source-ergonomics.md` when changing `search` source-selection arguments or minimal-call guidance; use `opencode-compaction.md` for the remote-MCP routing regression                                                                   |
+| Core global examples, `get_example` | `global-example.md` |
+| Unified `search` / `search_status` behavior                        | `unified-search-investigation.md`; use `search-inline-qualifiers.md` for query constraint syntax, `search-source-ergonomics.md` for source-selection arguments or minimal-call guidance, and `opencode-compaction.md` for the remote-MCP routing regression                            |
 | Explicit standalone site targets in unified `search`               | `site-search-explicit.md`                                                                                                                                                                                                                                                             |
 | Package overview or vulnerability UX, `pkg_info`, `pkg_vulns`      | `package-overview-vulnerabilities.md`; use `package-vulnerability-filter.md` for severity/version filtering behavior, `package-vulnerability-history.md` for historical/non-affecting advisory scope behavior, `package-vulnerability-transitive.md` for npm-audit-style resolved dependency evidence, and `package-vulnerability-rubygems.md` for non-npm descriptor routing |
 | `quick_start` catalog salience in the reported claude.ai layout    | `probes/claude-ai-deferred-catalog.md`; inspect whether `quick_start` is the first GitHits call, exactly once, before package evidence tools                                                                                                                                         |
 | Dependency graph UX, `pkg_deps`                                    | `package-dependencies.md`                                                                                                                                                                                                                                                             |
-| Release notes UX, `pkg_changelog`                                  | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior                                                                                                                                                                                              |
+| Release notes UX, `pkg_changelog`                                  | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior and `package-changelog-exact.md` for a pinned selected-release call                                                                                                                                                                                           |
 | Upgrade evidence UX, `pkg_upgrade_review`                          | `package-upgrade-safety.md`                                                                                                                                                                                                                                                           |
 | Documentation browsing, `docs_list`, `read`                   | `docs-discovery.md`; use `docs-search-followup.md` for search-to-read handoff and `docs-search-noise.md` for noisy docs-result recovery; use `docs-fragment-read.md` for exact indexed section selection                                                                                                                                               |
 | File listing / file read UX, `code_files`, `read`             | `code-file-navigation.md`; use `code-files-listing.md` for focused listing behavior; use `code-read-window.md` for focused source-window behavior                                                                                                                                     |
@@ -830,8 +931,8 @@ For broad MCP quick-start or description edits, start with the cheap Luna-low
 canary's `discovery` and `intent` scenarios:
 
 ```bash
-bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile descriptors --workload eval/agentic/workloads/express-router.md
-bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile descriptors --intent-profile githits --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --model gpt-6-luna --reasoning-effort low --server local --guidance-profile descriptors --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --model gpt-6-luna --reasoning-effort low --server local --guidance-profile descriptors --intent-profile githits --workload eval/agentic/workloads/express-router.md
 ```
 
 These two commands are the smallest local Luna-low metrics pair. Each run
@@ -881,7 +982,7 @@ add the workload from the table. Compare
 `tool-calls.json`, `metrics.json`, and the final JSON's answer/confidence across
 branches or against a published run.
 
-For question-only Ask parity, use `experimental-question-only-ask.md` with
+For question-only `research` parity, use `experimental-question-only-ask.md` with
 `--experimental-tools` and descriptor-only guidance. Inspect whether calls omit
 both selectors and whether returned candidates remain choices for the user;
 do not count authentication failures as behavioral evidence.

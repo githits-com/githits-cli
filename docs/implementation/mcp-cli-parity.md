@@ -45,7 +45,6 @@ shared MCP smoke runner and CLI smoke script if the covered UX contract changes.
 The dual-surface tools today are:
 
 - `get_example` ↔ `githits example`
-- `search_language` ↔ `githits languages`
 - `search` ↔ `githits search`
 - `search_status` ↔ `githits search-status`
 - `code_files` ↔ `githits code files`
@@ -191,11 +190,18 @@ unknown/null evidence is never coerced to an empty list or inferred source proof
 CLI and MCP text render the same enclosing declarations, inclusive ranges, and
 literal numbered source lines. The header carries the target/path locator and
 matched source range, with no repeated per-hit read command or authority caption.
-Path-only hits without matched source instead show a file-level `path match` header
-and omit arbitrary chunk titles, ranges, scopes, and compatibility snippets.
-Other absent repository snippets use `Snippet unavailable`. A present matched
-snippet always survives regardless of provenance. Both text callers omit the
-unused compatibility source selection; JSON/default service calls retain it.
+Hits with repository evidence but no matched source show a single `candidate`
+header with the backend's inspection window. For bare identifier queries, the
+header shows literal query fragments visible in contributing indexed fields;
+otherwise it names known fields. Neither the range nor the visible fragments
+assert an exact backend match. Candidate summaries, scope blocks, and
+compatibility snippets stay out of the body. A definition that contains the
+candidate window in the displayed file adds its kind and qualified name to the
+same header. Older hits without repository
+evidence use `Snippet unavailable`.
+A present matched snippet always survives regardless of
+provenance. Both text callers omit the unused compatibility source selection;
+JSON/default service calls retain it.
 Crawled previews use grapheme offsets before heading trimming and wrapping.
 Color is optional and the `>` match gutter
 retains meaning in plain text. Source grapheme highlights, whole-line omissions,
@@ -389,11 +395,12 @@ MCP text apart from those supplied command dialects; line breaks can differ
 because CLI uses the terminal width while MCP uses the 80-column default.
 
 Documentation discovery and list envelopes retain three distinct locator roles:
-preferred `docsReadTarget`, stable replay `pageId`, and provenance `sourceUrl`.
+preferred `docsReadTarget`, compatible `pageId`, and provenance `sourceUrl`.
 Text and generated read follow-ups prefer `docsReadTarget` and fall back to
 `pageId` only for discovery results where the target is absent. The compatible
 MCP argument is `target`; both MCP and CLI pass URL or ID values through
-unchanged and return the same ranged content.
+unchanged and return the same ranged content. Hosted HTTP(S) locators address
+mutable current content; repository locators remain snapshot-addressed.
 
 CLI `--json` output and MCP `format: "json"` output remain the structured parity
 boundary: every
@@ -435,7 +442,7 @@ surface-native follow-up and pagination syntax plus ANSI differ.
 - Backend error messages, hints, indexing estimates, available versions/refs,
   and suggested refs are preserved when supplied. Clients do not replace
   specific backend guidance or synthesize target candidates.
-- The REST-backed `example` and `languages` CLI commands preserve
+- The REST-backed `example` CLI command preserves
   this envelope for generic transport/backend failures as well as typed auth
   failures. Human mode renders the same message as terminal text.
 
@@ -500,7 +507,7 @@ When a new tool lands with both MCP and CLI surfaces:
 | `packages/mcp/src/shared/mapped-error.ts` | Transport-neutral `MappedError`, `MappedErrorCode`, and `MappedErrorDetails` contracts shared by all error mappers. |
 | `packages/core-internal/src/shared/pkgseer-graphql.ts` | Low-level authenticated package/source POST helper shared by the service clients. |
 | `packages/core-internal/src/shared/pkgseer-registry.ts` | Registry taxonomy (registry union type + lowercase↔uppercase converters). |
-| `packages/mcp/src/shared/unified-search-request.ts` | Shared request builder for unified `search`; compiles structured query fields and applies defaulting. |
+| `packages/mcp/src/shared/unified-search-request.ts` | Shared request builder for unified `search`; trims the query, adapts CLI structured flags, and applies defaulting. |
 | `packages/mcp/src/shared/unified-search-response.ts` | Shared JSON envelope builders for unified `search` and follow-up `search_status`. |
 | `packages/mcp/src/shared/package-summary-request.ts` | Shared request builder for `pkg_info`. |
 | `packages/mcp/src/shared/package-summary-response.ts` | Lean JSON envelope builder and shared text/terminal formatter for `pkg_info`. |
@@ -543,11 +550,12 @@ When a new tool lands with both MCP and CLI surfaces:
 ### `pkg_info`
 
 - **Permissive MCP schema + in-handler validation.**
-  `buildPackageSummaryParams` is the single validator used by both
-  surfaces; raw Zod errors never surface in the envelope.
-- **`@version` rejection.** CLI-only. The MCP tool has no `version`
-  input. The CLI's `pkg info` throws `InvalidPackageSpecError` on
-  any non-null parsed version — never silently swaps to latest.
+  Both surfaces use `parsePackageSpec` and `buildPackageSummaryParams`.
+  MCP requires string `target`; domain errors use the shared mapped envelope,
+  while missing or non-string targets fail SDK schema validation.
+- **`@version` rejection.** Both surfaces reject any embedded version
+  with actionable `INVALID_ARGUMENT` before calling the service; neither
+  silently swaps to latest.
 - **Shared package-summary envelope and formatter.** CLI `--json` and MCP
   `format: "json"` use the same lean envelope, including additive
   `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total` fields.
@@ -692,26 +700,12 @@ When a new tool lands with both MCP and CLI surfaces:
 
 ### `pkg_changelog`
 
-- **Dual addressing — the only pkg-intel tool with it.** `registry`
-  + `package_name` XOR `repo_url` on both surfaces, because
-  `packageChangelog` is intrinsically repo-level.
-- **`<spec>@<version>` rejected.** Other `pkg` commands give
-  `@version` a meaning, but changelog has no single-version query
-  — remapping to `to_version` would be a client-invented semantic
-  shift. Both surfaces redirect callers to `--to` / `to_version`.
-- **Mode mutex enforced client-side.** `--from` / `from_version` +
-  `--limit` / `limit` together → `INVALID_ARGUMENT`.
-- **`filter.*` echo tracks explicit fields only.** Backend-default
-  values never round-trip as caller intent.
-- **`entries: { count, items }` shape.** Mirrors `runtime: {count,
-  items}` from `pkg_deps`.
-- **Missing source with entries succeeds.** Package-version entries can
-  arrive with null or empty `source` when no concrete changelog text
-  exists for that version. Both surfaces omit `source` in the success
-  envelope and keep the version entries. Missing source plus no entries
-  is promoted to `PackageIntelligenceChangelogSourceNotFoundError` with
-  a message naming the sources tried (GitHub Releases, CHANGELOG.md,
-  HexDocs).
+- **Package-only compact target.** MCP `target` and CLI positional spec accept `registry:name`, `@version`, and `@from..to`. Repository and site targets are rejected before network access. CLI `--from` / `--to` remain human-oriented flags on a bare spec.
+- **Exact selected release.** `@version` queries `packageInfo.selectedVersion.changelog` and returns one resolved release. Missing pins are `VERSION_NOT_FOUND`; no-notes releases succeed with `hasChangelog: false`.
+- **Mode mutex enforced client-side.** A from bound + `--limit` / `limit` together → `INVALID_ARGUMENT`. Exact pins also reject `limit`.
+- **`filter.*` echo tracks explicit fields only.** Backend-default values never round-trip as caller intent. Exact mode echoes `filter.version`.
+- **`entries: { count, items }` shape.** Mirrors `runtime: {count, items}` from `pkg_deps`.
+- **Empty selections succeed.** `source: null` plus no entries is a successful empty timeline, not `NOT_FOUND`.
 - **`--verbose` / `--no-body` / `--json` interaction.** Default
   terminal output truncates each entry's body at 10 lines.
   `--verbose` lifts the cap (terminal-only). `--no-body` mirrors
@@ -785,4 +779,4 @@ envelope shape.
 
 See [Repository target grammar](repository-targets.md) for the shared GitHub, Codeberg, and GitLab addressing contract and provider-preserving response identity.
 
-See [Unified read](unified-read.md) for source routing, fragment ranges, code-only waits, Ask pointer translation and release migration.
+See [Unified read](unified-read.md) for backend-owned source resolution, fragment ranges, indexing waits, Ask pointer translation and release migration.

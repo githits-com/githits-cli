@@ -240,6 +240,31 @@ describe("exampleAction", () => {
     exitSpy.mockRestore();
   });
 
+  it("prints unresolved-language 400 candidates from the backend", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const detail =
+      "Request failed with status 400. Language 'pythn' could not be resolved. Retry with one of these names: python (Python). If none match, omit language.";
+    const deps = createDeps({
+      githitsService: createMockGitHitsService({
+        search: mock(() => Promise.reject(new Error(detail))),
+      }),
+    });
+
+    await expect(
+      exampleAction("test", { lang: "pythn" }, deps),
+    ).rejects.toThrow("process.exit");
+
+    expect(errorSpy.mock.calls[0]?.[0]).toBe(
+      `Failed to get example: ${detail}`,
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
   it("prints provider-neutral rate-limit guidance in terminal output", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {

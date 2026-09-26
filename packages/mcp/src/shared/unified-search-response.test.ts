@@ -1063,6 +1063,47 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
   });
 
+  it("retains hosted-page evidence coordinates without replaying them against a later publication", () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed") {
+      throw new Error("expected completed outcome fixture");
+    }
+    const hit = defaultUnifiedSearchOutcome.result.results[0]!;
+    const docsReadTarget = "https://docs.example.test/guide";
+    const payload = buildUnifiedSearchSuccessPayload(
+      params,
+      "router middleware",
+      "router middleware",
+      {
+        ...defaultUnifiedSearchOutcome,
+        result: {
+          ...defaultUnifiedSearchOutcome.result,
+          results: [
+            {
+              ...hit,
+              resultType: "DOCUMENTATION_PAGE",
+              locator: {
+                pageId: docsReadTarget,
+                docsReadTarget,
+                sourceUrl: docsReadTarget,
+                startLine: 81,
+                endLine: 93,
+              },
+            },
+          ],
+        },
+      },
+    );
+
+    expect(payload.results[0]?.locator).toMatchObject({
+      docsReadTarget,
+      startLine: 81,
+      endLine: 93,
+    });
+    expect(payload.results[0]?.followUp).toBe(
+      `read target=${JSON.stringify(docsReadTarget)}`,
+    );
+  });
+
   it("canonicalizes repository hit target labels containing @ in refs", () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");

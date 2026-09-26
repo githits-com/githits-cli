@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes setup/auth commands, `doctor`, `example`, `languages`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. `resolve` and `code diff` are experimental, host-config-gated commands. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities. Unified search also shares its presentation model and text formatter with MCP; the CLI supplies ANSI enablement and executable CLI action syntax.
+The CLI exposes setup/auth commands, `doctor`, `example`, top-level indexed `search` / `search-status`, and the `code`, `docs`, and `pkg` command groups by default. `resolve` and `code diff` are experimental, host-config-gated commands. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities. Unified search also shares its presentation model and text formatter with MCP; the CLI supplies ANSI enablement and executable CLI action syntax.
 
 ## Experimental CLI commands
 
@@ -42,7 +42,6 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `example <query>` | `<query>` | `-l, --lang <language>`, `--license <mode>`, `--explain`, `--json` | Search for code examples |
 | `search <query>` | `--in <target>` | `--source <source>`, `--kind <kind>`, `--category <category>`, `--path-prefix <prefix>`, `--intent <intent>`, `--public`, `--name <name>`, `--lang <language>`, `--allow-partial`, `--limit <n>`, `--offset <n>`, `--wait <seconds>`, `--json` | Unified indexed search across dependency/repository code, docs, and symbols. Defaults to 10 results. |
 | `search-status <search-ref>` | `<search-ref>` | `--wait <seconds>`, `--json` | Check progress, fetch partial hits, or fetch final results for a prior unified search; waits up to 30 seconds by default |
-| `languages [query]` | — | `--json` | List or filter supported languages |
 | `doctor` | — | `--json` | Print redacted diagnostics for GitHits runtime, environment, service URLs, config, and auth storage |
 | `resolve <name>` *(experimental; config-gated)* | package or public repository name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--verbose`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
 | `settings` | — | `--json` | Show canonical preferences, privacy and terms, and account limits |
@@ -55,10 +54,10 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--transitive`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift), optionally including affected versions resolved in its dependency graph |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--depth`, `--issues`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional capped transitive graph, and opt-in dependency issue analysis (npm/pypi/hex/crates/nuget/maven/zig/vcpkg/packagist/rubygems/go/swift) |
-| `pkg changelog [spec]` | package spec OR `--repo-url` | `--from`, `--to`, `--limit`, `--git-ref`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package or public repository (GitHub Releases, CHANGELOG.md, or HexDocs). Default shows each entry with a 10-line body preview; `--verbose` uncaps, `--no-body` drops. |
+| `pkg changelog <spec>` | package spec (`registry:name[@version\|@from..to]`) | `--from`, `--to`, `--limit`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package. Default shows each entry with a 10-line body preview; pin a version for one selected release; `--verbose` uncaps, `--no-body` drops. |
 | `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, positional package range, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. Reports facts only. |
 | `docs list <spec>` | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | List hosted/crawled and repository-backed documentation pages. Text emits target-based read commands; JSON retains `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, and exact repo-file metadata when available. |
-| `read <target> [path]` | docs target/page ID, or package/repo target plus exact path | `--lines`, `--wait`, `--verbose`, `--json`; code also accepts `--start`, `--end`, `--repo-url`, `--git-ref` | Compact unified read; target alone reads docs, path selects code, and the compact path calls `ReadService`/`Query.read` once. `--repo-url` remains the legacy compatibility path. Fragments select indexed sections without bounds. See [unified read](unified-read.md). |
+| `read <target> [path]` | docs target/page ID, compact `target#symbol`, or package/repo target with exact path or selector | `--selector`, `--lines`, `--start`, `--end`, `--wait`, `--verbose`, `--json`; `--repo-url` and `--git-ref` retain legacy repo addressing | Compact unified read passes the locator unchanged to the backend and presents the returned code, docs, or symbol-resolution type. An exact path narrows code selection, while `--selector` selects a docs heading or indexed code symbol. HTTP(S) URL fragments and emitted repository docs page IDs retain their backend-resolved documentation behavior. The compact path calls `ReadService`/`Query.read` once. `--repo-url` remains the legacy compatibility path without selector. See [unified read](unified-read.md). |
 | `docs read <target>` (deprecated alias) | emitted `docsReadTarget` or historical page ID | `--lines`, `--verbose`, `--json` | Read a documentation page by preferred target or compatible page ID. Default output is content-only; `--lines` fetches a bounded range for long pages. |
 | `code diff <target> <from>..<to>` *(experimental; config-gated)* | unversioned package/repository target and exact range, or `--repo-url` and range | `--patch`, `--stat`, `--name-only`, `--name-status`, `--max-files`, `--max-patch-bytes`, `--verbose`, `--json`, one glob after `--` | Silently dogfood bounded repository-wide tree diffs resolved from package versions or repository refs; local-only MCP `code_diff` is available when experimental tools are enabled, while public/remote MCP and shared Agent Skill guidance remain unchanged |
 | `code files [spec] [path-prefix]` | package spec OR `--repo-url` with optional `--git-ref`; optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, repeatable `--file-type`, repeatable `--language`, repeatable `--file-intent`, repeatable `--exclude-intent`, `--exclude-docs`, `--exclude-tests`, `--hidden`, `--limit`, `--wait`, `--verbose`, `--json` | List files in an indexed dependency. Selectors (`[path-prefix]`, `--path`, `--glob`) are OR-ed; the other flags filter that scope down further. Plain output is one path per line; `--verbose` adds language / type / size annotations. Indexing errors include elapsed/expected duration when available plus retry via `--wait` or indexed refs/versions from the error detail. |
@@ -190,7 +189,7 @@ githits example "react hooks patterns" -l typescript --explain
 githits example "react hooks patterns" -l typescript --json
 ```
 
-Default output is markdown (the API response). `--lang` is optional; when omitted, the backend infers the language from the query. With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>", "solution_id": "<uuid>" }` (`solution_id` is omitted only if the markdown lacks a solution URL). The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
+Default output is markdown with source provenance. `--lang` is optional; omit it to infer the language. If GitHits cannot match `--lang`, the error lists languages to retry with. With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>", "solution_id": "<uuid>" }` (`solution_id` is omitted only if the markdown lacks a solution URL). The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
 
 API rate-limit and timeout responses use the shared structured error envelope.
 Example requests use a longer client deadline than shorter metadata operations.
@@ -225,14 +224,20 @@ Unified search spans indexed dependency and repository code, docs, and explicit 
 
 The original unified-search plan envisaged hiding partial mode entirely in v1 to make results trustworthy by default. We kept the flag exposed because some agent and CLI flows benefit from "show me what you have so far." The trust contract is preserved by keeping the default atomic across runnable target/source pairs: callers must explicitly opt into a serveable subset, while any unflagged interim evidence still covers every runnable pair and carries its `searchRef` and freshness signals.
 
-**Output.** CLI human output and MCP `text-v1` use one shared outcome-first formatter. The headline combines result count/type breakdown, active or terminal lifecycle, aggregate readiness, and pagination when applicable. Ordinary completed current results collapse to one `Sources: <target> - <sources>` row: code and symbols use compact lane names, while documentation contributors retain canonical `site:<host[/path]>` and `github:<owner>/<repo>@<revision>` locators. A source identical to its standalone target is written once; a sole pinned repository source replaces its less-specific ref-less repository target, while an already-pinned target remains beside its resolved commit. Compact repository provenance requires both the repository URL and commit. Documentation without concrete provenance stays in detailed target-state form. Any stale, provisional, coverage, constraint, alternative, suggestion, terminal, or other trust fact keeps every requested target in the same detailed list. Each target identity is followed by deterministic `using`, `searched`, `indexing`, terminal/unavailable, `available`, `indexed`, and constraint segments as applicable. Detailed lanes are `code`, `symbols`, `repository docs`, concrete site docs, and docs. Hits remain a separate numbered ranked evidence list with their follow-up locators: `[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01` or `[2] https://expressjs.com/en/4x/api/router/#routerroute [docs page] npm:express - router.route()`. Proven repository snippets use their matched range in the header; path-only hits show an actionable file header without arbitrary chunk coordinates. Explicit symbol hits preserve qualified identity, signature detail, kind, and any differing definition range. A differing indexed range without a definition is labelled as a chunk; equal ranges are printed once. Documentation headers promote an exact indexed `docsReadTarget#fragment` as the read target, otherwise prefer the emitted `docsReadTarget`, and fall back to stable `pageId` only when discovery omits the target; formatter-authored punctuation is ASCII and Unicode in backend payloads passes through unchanged. Executable read command lines and qualified internal IDs stay omitted from default text. Active empty output is `No results yet | indexing | 0/1 ready`; no-snapshot output is `No result snapshot yet | indexing | 0/1 ready`, with the corresponding lower-case lifecycle for other active states. Terminal no-snapshot output is `No result snapshot | failed | 0/1 ready`, and completed output omits lifecycle/readiness. Query-wide warnings appear once after target rows and before hits. There is no separate session row: at most one `Next:` line follows the hit list, and an active `searchRef` appears exactly once there. CLI uses `Next: githits search-status <ref> --wait <seconds>`; MCP uses its own `search_status` syntax. Active follow-up waits use the largest indexing upper bound plus ten seconds, rounded upward to ten seconds and capped at 120. Missing ranges use the 30-second default as a floor; no ranges keep 30 seconds. The examples below show that default. Completed evidence-status retrieval keeps the default. These are advisory total indexing durations, not remaining time or a search ETA; JSON progress preserves the full `indexingEstimates` evidence. See [discovery indexing estimates](tools.md) for the contract and production backend rollout prerequisite. CLI enables ANSI emphasis when supported, but removing ANSI leaves the same hierarchy and wording apart from surface-native actions; line breaks can differ because CLI uses terminal width while MCP defaults to 80 columns. `--json` emits the shared stable success/error envelope used by MCP `search`, including the full initial `query` echo and exact result-bearing `partialResults` Boolean. Repository hit locators preserve legacy target-relative evidence coordinates plus `commitSha`, `repositoryFilePath`, `evidenceRange`, `indexedRange`, and relation-aware `symbolContext`; the preferred `followUp` uses semantic `preferredRead` when available, otherwise the proven definition or focused evidence at the exact served repository snapshot. JSON remains lossless while text is optimized for agent decisions.
+**Output.** CLI human output and MCP `text-v1` use one shared outcome-first formatter. The headline combines result count/type breakdown, active or terminal lifecycle, aggregate readiness, and pagination when applicable. Ordinary completed current results collapse to one `Sources: <target> - <sources>` row: code and symbols use compact lane names, while documentation contributors retain canonical `site:<host[/path]>` and `github:<owner>/<repo>@<revision>` locators. A source identical to its standalone target is written once; a sole pinned repository source replaces its less-specific ref-less repository target, while an already-pinned target remains beside its resolved commit. Compact repository provenance requires both the repository URL and commit. Documentation without concrete provenance stays in detailed target-state form. Any stale, provisional, coverage, constraint, alternative, suggestion, terminal, or other trust fact keeps every requested target in the same detailed list. Each target identity is followed by deterministic `using`, `searched`, `indexing`, terminal/unavailable, `available`, `indexed`, and constraint segments as applicable. Detailed lanes are `code`, `symbols`, `repository docs`, concrete site docs, and docs. Hits remain a separate numbered ranked evidence list with their follow-up locators: `[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01` or `[2] https://expressjs.com/en/4x/api/router/#routerroute [docs page] npm:express - router.route()`. Proven repository snippets use their matched range in the header; candidate hits show a labeled bounded inspection window and visible identifier-query fragments when available. Explicit symbol hits preserve qualified identity, signature detail, kind, and any differing definition range. A differing indexed range without a definition is labelled as a chunk; equal ranges are printed once. Documentation headers promote an exact indexed `docsReadTarget#fragment` as the read target, otherwise prefer the emitted `docsReadTarget`, and fall back to compatible `pageId` only when discovery omits the target; formatter-authored punctuation is ASCII and Unicode in backend payloads passes through unchanged. Executable read command lines and qualified internal IDs stay omitted from default text. Active empty output is `No results yet | indexing | 0/1 ready`; no-snapshot output is `No result snapshot yet | indexing | 0/1 ready`, with the corresponding lower-case lifecycle for other active states. Terminal no-snapshot output is `No result snapshot | failed | 0/1 ready`, and completed output omits lifecycle/readiness. Query-wide warnings appear once after target rows and before hits. There is no separate session row: at most one `Next:` line follows the hit list, and an active `searchRef` appears exactly once there. CLI uses `Next: githits search-status <ref> --wait <seconds>`; MCP uses its own `search_status` syntax. Active follow-up waits use the largest indexing upper bound plus ten seconds, rounded upward to ten seconds and capped at 120. Missing ranges use the 30-second default as a floor; no ranges keep 30 seconds. The examples below show that default. Completed evidence-status retrieval keeps the default. These are advisory total indexing durations, not remaining time or a search ETA; JSON progress preserves the full `indexingEstimates` evidence. See [discovery indexing estimates](tools.md) for the contract and production backend rollout prerequisite. CLI enables ANSI emphasis when supported, but removing ANSI leaves the same hierarchy and wording apart from surface-native actions; line breaks can differ because CLI uses terminal width while MCP defaults to 80 columns. `--json` emits the shared stable success/error envelope used by MCP `search`, including the full initial `query` echo and exact result-bearing `partialResults` Boolean. Repository hit locators preserve legacy target-relative evidence coordinates plus `commitSha`, `repositoryFilePath`, `evidenceRange`, `indexedRange`, and relation-aware `symbolContext`; the preferred `followUp` uses semantic `preferredRead` when available, otherwise the proven definition or focused evidence at the exact served repository snapshot. JSON remains lossless while text is optimized for agent decisions.
 
 Repository code/docs display proven numbered `matchedSource` and enclosing scope
-metadata, without routine authority captions. A file-path-only hit without matched
-source shows one file header marked `path match`; no arbitrary source, symbol name,
-or chunk range is printed. Other missing snippets use `Snippet unavailable` and
-retain navigation locators. Source is not prose-wrapped or renumbered, match gutters
-work without ANSI, and truncation/trust facts remain visible. Crawled documentation
+metadata, without routine authority captions. Hits without matched source show
+one `candidate` header with the bounded read window. Bare identifier queries
+show literal fragments visible in contributing indexed title, path, or summary
+fields; other cases name the contributing fields when known. The candidate range
+is an inspection window, not a verified source match. Summaries and scopes are
+not rendered as matched source. A same-file definition that contains the window
+adds its kind and qualified name to the header. Older results without repository
+evidence still use `Snippet unavailable`; structured navigation locators remain
+available. Proven
+source is not prose-wrapped or renumbered, match gutters work without ANSI, and
+truncation/trust facts remain visible. Crawled documentation
 uses its dedicated grapheme-highlighted preview. JSON preserves compatibility source
 and adds the full v31 evidence, independently of this compact text treatment. See
 [repository search evidence](tools.md) for authority, query cost, and rollout details.
@@ -276,16 +281,18 @@ same projection and documentation-source formatter for both commands; contributo
 duplicated onto generic progress targets. JSON remains the stable, lossless
 follow-up contract even when text collapses healthy sources or groups recovery inline.
 
-### `githits ask` (experimental)
+### `githits research` (experimental; `githits ask` alias)
 
 ```sh
-githits ask "How does Express routing work?"
-githits ask npm:express "How is routing implemented?"
-githits ask --thread <UUID> "Where is that checked?"
-githits ask "How does Express routing work?" --source-format url --json
+githits research "How does Express routing work?"
+githits research npm:express "How is routing implemented?"
+githits research --thread <UUID> "Where is that checked?"
+githits research "How does Express routing work?" --source-format url --json
 ```
 
-Requires experimental tools to be enabled in local configuration. One positional
+Requires experimental tools to be enabled in local configuration. The `ask`
+alias uses the same registration, handler, auth metadata, and `command.research`
+telemetry name. A disabled direct invocation reports the spelling typed. One positional
 argument is the question; two are target and question. Quote multi-word questions.
 With neither a target nor `--thread`, GitHits uses the question to identify a
 public package or repository.
@@ -293,19 +300,10 @@ public package or repository.
 Explicit targets remain supported, including documentation-site targets supported
 by the backend. `--thread` continues the existing bound scope and cannot be
 combined with an explicit target. Use it only when the previous answer needs a
-follow-up. Source formatting, run/thread IDs, authentication, and the existing
-210-second client timeout are unchanged. This CLI change does not change the
-local MCP Ask schema.
-
-### `githits languages`
-
-```
-githits languages              # list all supported languages
-githits languages python       # filter by name/alias (top 5)
-githits languages type --json  # JSON output for piping
-```
-
-Without a query, lists all languages. With a query, filters to top 5 matches using the same logic as the `search_language` MCP tool (case-insensitive substring match on name, display_name, and aliases). Default output uses colored terminal formatting. JSON output is `[{ "name": "...", "display_name": "...", "aliases": [...] }, ...]`.
+follow-up. Source formatting, structured run/thread IDs, authentication, and the
+existing 210-second client timeout are unchanged. Human text labels the run ID
+"Research run ID". The local MCP tool is named `research`; its structured
+schema is unchanged apart from description prose.
 
 ### `githits doctor`
 
@@ -707,34 +705,35 @@ Compact issue evidence also stays within the resolved terminal width, using ASCI
 
 ```
 githits pkg changelog npm:express
+githits pkg changelog npm:express@5.2.1
+githits pkg changelog npm:express@4.0.0..5.2.1
 githits pkg changelog npm:express --from 4.0.0
 githits pkg changelog npm:express --to 4.18.0 --limit 5
-githits pkg changelog --repo-url https://github.com/expressjs/express --git-ref main
 githits pkg changelog npm:express --json
 githits pkg changelog pypi:requests --no-body --json       # lean timeline
 ```
 
-Fetches release notes or changelog entries for a package or public repository. Output preserves source ordering, which may interleave maintained release lines, and includes a summary header identifying the source (GitHub Releases, CHANGELOG.md, or HexDocs).
+Fetches release notes or changelog entries for a package. Output preserves source ordering, which may interleave maintained release lines, and includes a summary header identifying the source.
 
-**Addressing.** `<spec>` (`registry:name`, same parser as `pkg info` / `pkg vulns` / `pkg deps`) **or** `--repo-url <url>`, mutually exclusive. Unlike the other `pkg` commands, `pkg changelog` is intrinsically repo-level, so repo-URL addressing is a first-class peer mode.
+**Addressing.** Required `<spec>` in `registry:name`, `registry:name@version`, or `registry:name@from..to` form. Repository and site targets are rejected.
 
-**`<spec>@<version>` rejected.** `pkg vulns` and `pkg deps` both treat `@version` as "for this exact version", but `pkg changelog` has no single-version query: all entries live on a timeline. Remapping `@version` to `--to` would be a silent semantic shift. CLI rejects with `INVALID_ARGUMENT` and a hint pointing to `--to <version>` (or `--from <version>` for range mode).
+**Exact selected release.** `<spec>@<version>` selects one backend-resolved release, including prereleases. Missing concrete versions return `VERSION_NOT_FOUND`. A selected release without notes succeeds and says release notes are unavailable.
 
-**Two modes.** Latest mode is the default; `--limit <n>` (1–50, default 10) caps entry count. `--from <version>` switches to range mode — returns every entry after `--from` through `--to` (or latest), `(from, to]`, with no count cap. The lower bound is exclusive, so use latest mode with `--to <version> --limit 1` for one exact release. `--to <version>` works in either mode. `--from` + `--limit` together is rejected client-side with a hint.
+**Three modes.** Latest mode is the default; `--limit <n>` (1–50, default 10) caps entry count. `--from <version>` or an inline from bound switches to range mode — returns every entry after the from bound through `--to` (or latest), `(from, to]`, with no count cap. An upper-cap target or `--to` remains latest mode. `--from` + `--limit` together is rejected client-side with a hint. Inline exact pins reject `--from`, `--to`, and `--limit`.
 
-**Pre-release versions.** Normalised versions flow through unchanged (`5.0.0-rc.1`, `2.32.0.dev0`, `1.7.0-rc.5` round-trip cleanly on `--from` / `--to`). Tag-style `v`-prefixed inputs are rejected on any version flag, consistent with `pkg vulns` / `pkg deps`.
+**Pre-release versions.** Normalised versions flow through unchanged (`5.0.0-rc.1`, `2.32.0.dev0`, `1.7.0-rc.5`). Tag-style `v`-prefixed inputs are rejected except for Go canonicalisation and Swift.
 
-**Default terminal output.** Summary header (`name | registry | source | mode | entry count`) followed by each entry's `version  date  url` header plus the first 10 lines of its markdown body, indented and dimmed. Bodies longer than the cap show a footer `... (+N more lines - use --verbose for the full body)`. Missing dates render as `-`; missing versions render as `(unversioned)`. The version column is padded to the longest entry in the current response (no fixed width).
+**Default terminal output.** Summary header (`name | registry | source | mode | entry count`) followed by each entry's `version  date  url` header plus the first 10 lines of its markdown body, indented and dimmed. Bodies longer than the cap show a footer `... (+N more lines - use --verbose for the full body)`. Missing dates render as `-`; missing versions render as `(unversioned)`. Exact mode labels the resolved release, not the requested selector. Exact no-notes results say `Release notes are unavailable.`
 
 **`--verbose`.** Uncaps the body preview — every entry's full markdown body renders, indented and dimmed, with no truncation footer. Terminal-only — does not change `--json` output.
 
-**`--no-body`.** Drops body fields from entries. Affects both terminal output (no body preview, no footer) and `--json` (entry objects lose the `body` field). Mirrors MCP's `omit_bodies: true`. Default `--json` keeps full markdown bodies; use `--no-body` when you only need the version / date / URL timeline (drops 10 KB+ per entry on large release notes — measured 5.13× size reduction on `npm:typescript --limit 20`).
+**`--no-body`.** Drops body fields from entries. Affects both terminal output (no body preview, no footer) and `--json` (entry objects lose the `body` field). Mirrors MCP's `omit_bodies: true`. Default `--json` keeps full markdown bodies; use `--no-body` when you only need the version / date / URL timeline.
 
-**JSON envelope.** `{registry?, name?, repoUrl?, source, mode, entries: {count, items}, filter?}`. `source` is always present (the null-source case is promoted to `NOT_FOUND` at the service boundary and never reaches this shape). `entries.count` is computed client-side from `items.length`. `filter` emits only when the caller explicitly supplied one of `--from`, `--to`, `--limit`, `--git-ref`; backend defaults don't round-trip as caller intent.
+**JSON envelope.** `{registry?, name?, source?, mode, entries: {count, items}, filter?}`. `source` is omitted when the backend returned no concrete source. `entries.count` is computed client-side from `items.length`. `filter` emits only when the caller explicitly supplied one of `--from`, `--to`, `--limit`, or an exact version selector; backend defaults don't round-trip as caller intent. Exact mode adds `filter.version` and `hasChangelog` on the single entry.
 
-**Per-entry shape.** `{version, normalizedVersion?, publishedAt?, htmlUrl?, body?}`. `version` is kept even when null so agents can map `items.map(e => e.version)` without guarding; other nullable fields are stripped. The backend's opaque per-entry `metadata` GenericJSON is deliberately dropped from the envelope — revisit via agent feedback.
+**Per-entry shape.** `{version, normalizedVersion?, publishedAt?, htmlUrl?, body?, hasChangelog?}`. `version` is kept even when null so agents can map `items.map(e => e.version)` without guarding; other nullable fields are stripped. `hasChangelog` is exact-mode only.
 
-**Errors.** `NOT_FOUND` covers both the backend's "package not found" case and the distinct "package exists but no changelog source resolved" case (typed `PackageIntelligenceChangelogSourceNotFoundError`; message names the sources that were tried). `VERSION_NOT_FOUND` enriches with structured `package` / `requested` / `available` detail lines from the shared `promoteGenericVersionNotFound` helper — which was extended in this PR to recognise `--from` and `--to` as promotable version inputs.
+**Errors.** `NOT_FOUND` covers a missing package. Empty timeline selections and exact releases without notes are successful. `VERSION_NOT_FOUND` enriches with structured `package` / `requested` / `available` detail lines.
 
 **Troubleshooting.** Same debug areas as the rest of the `pkg` family.
 
@@ -784,7 +783,7 @@ githits docs list npm:express --limit 20
 githits docs list npm:express --json
 ```
 
-Lists hosted/crawled and repository-backed documentation pages for a package. Each row includes the stable page ID, a source badge, any distinct provenance, and a shell-quoted `read` command using the emitted `docsReadTarget`. Active crawled pages therefore use their publisher HTTP(S) URL, while retired crawled and snapshot-pinned repository pages use stable IDs. JSON retains all three locator roles and includes repo URL / git ref / file path for repository-backed docs so callers can follow up with `code read` when source context is needed.
+Lists hosted/crawled and repository-backed documentation pages for a package. Each row includes the compatible page ID, a source badge, any distinct provenance, and a shell-quoted `read` command using the emitted `docsReadTarget`. Hosted/crawled HTTP(S) targets address mutable current content; no docpack or page-row identifier is a stable snapshot address. Repository targets remain snapshot-addressed. JSON retains all three locator roles and includes repo URL / git ref / file path for repository-backed docs so callers can follow up with `code read` when source context is needed.
 
 The response also retains the backend's exact `codeIndexState`. `PENDING` and `INDEXING` empty results are rendered as preparation still in progress with a replayable `docs list` action, never as “No documentation pages found.” `PROVISIONAL` results keep and render every available page while clearly marking that indexing continues. CLI `--json` and MCP `format: "json"` share the same lifecycle-bearing envelope.
 
@@ -807,11 +806,11 @@ githits docs read <docs-read-target> --verbose
 githits docs read <docs-read-target> --json
 ```
 
-Reads a documentation page returned by `docs list` or search results. Use a sufficient search snippet directly; otherwise run its generated follow-up. From text, pass the displayed `[docs page]` target unchanged; from `docs list`, pass `docsReadTarget`. Search text promotes an exact indexed fragment to that displayed target. Historical crawled IDs and snapshot-pinned repository IDs remain compatible. URL reads resolve only active existing content and never enqueue crawling. Default output is content-only for easy piping; `--verbose` adds a metadata header.
+Reads a documentation page returned by `docs list` or search results. Use a sufficient search snippet directly; otherwise run its generated follow-up. From text, pass the displayed `[docs page]` target unchanged; from `docs list`, pass `docsReadTarget`. Hosted/crawled HTTP(S) targets address mutable current content. Automatic search follow-ups therefore forward the exact emitted page URL or fragment without the search hit's display/evidence line coordinates. Search text promotes only an exact emitted fragment; it never derives an anchor. Snapshot-pinned repository documentation keeps its target and ranges. Historical crawled IDs remain compatible. URL reads resolve only active existing content and never enqueue crawling. Default output is content-only for easy piping; `--verbose` adds a metadata header.
 
-**Fragments and line ranges.** An HTTP(S) fragment needs no explicit range and resolves exactly one indexed section in the backend. `--lines 10-40`, `--lines 10-`, and `--lines -40` are supported and forward only their written bounds; either bound replaces fragment resolution with a page-relative range. The backend defaults omitted bounds, clamps an end beyond EOF, and rejects invalid starts/ranges. The CLI never strips or normalizes opaque IDs and does not infer publisher anchor slugs.
+**Fragments and line ranges.** An HTTP(S) fragment needs no explicit range and resolves the heading plus its full subtree through the next equal-or-higher heading. `--lines 10-40`, `--lines 10-`, and `--lines -40` are supported and forward only their written bounds; either caller-supplied bound intentionally replaces fragment resolution with a page-relative range. The backend defaults omitted bounds, clamps an end beyond EOF, and rejects invalid starts/ranges. The CLI never strips or normalizes opaque IDs and does not infer publisher anchor slugs.
 
-**Output envelope.** `{docsReadTarget, pageId, title?, sourceKind?, sourceUrl?, repoUrl?, gitRef?, filePath?, totalLines, startLine?, endLine?, anchor?, content}`. `pageId` remains the stable replay pointer and `sourceUrl` remains provenance. The range is the actual returned absolute page range, `totalLines` is the whole stored page extent including a trailing empty line, and an empty page has no bounds. `anchor` identifies a successfully resolved indexed section. Verbose text prints each distinct locator once plus range/anchor metadata. Repo-backed docs include exact source metadata for `code read` follow-up.
+**Output envelope.** `{docsReadTarget, pageId, title?, sourceKind?, sourceUrl?, repoUrl?, gitRef?, filePath?, totalLines, startLine?, endLine?, anchor?, content}`. `pageId` remains a compatible locator and `sourceUrl` remains provenance. Hosted/crawled locators resolve mutable current content rather than a snapshot; repository targets remain snapshot-addressed. The range is the actual returned absolute page range, `totalLines` is the whole stored page extent including a trailing empty line, and an empty page has no bounds. `anchor` identifies a successfully resolved indexed section. Verbose text prints each distinct locator once plus range/anchor metadata. Repo-backed docs include exact source metadata for `code read` follow-up.
 
 `DOCUMENTATION_SECTION_UNRESOLVED` is a non-retryable section error with reason `not_found`, `ambiguous`, `inexact_range`, or `unsupported_format`; page absence remains non-retryable `NOT_FOUND`. This deprecated alias remains on the legacy `getDocPage` root. Compact `githits read <docs-target>` uses `ReadService` and the backend `Query.read` union, which requires both `CodeContextResult` and `GetDocPageResult` branches plus the selected minimum fields, including `contentRange`. Roll out that backend schema first; compact reads have no old-schema fallback.
 
@@ -988,10 +987,9 @@ Each command follows this pattern:
 
 | Shared Module | Used By |
 |---|---|
-| `GitHitsService` (via container) | `example`, `languages`, and always-on MCP tools |
+| `GitHitsService` (via container) | `example` and always-on MCP tools |
 | `CodeNavigationService` (via container) | top-level unified `search` / `search-status`, MCP indexed-search tools (`search`, `search_status`, `code_files`, `code_grep`), and the `githits code` command group |
 | `ReadService` (via container) | compact top-level `read` and advertised MCP `read`, backed by one `Query.read` request |
-| `filterLanguages()` from `packages/mcp/src/shared/language-filter.ts` | `search_language` MCP tool + `languages` CLI command |
 | `requireAuth()` from `packages/mcp/src/shared/require-auth.ts` | all CLI commands and auth-required MCP tool handlers |
 
 ## Adding a New CLI Command
@@ -1007,7 +1005,7 @@ For complex commands with multiple submodules, a subdirectory (`src/commands/xxx
 ## Error Handling
 
 - **Auth errors** — `requireAuth()` prints instructions and calls `process.exit(1)`
-- **Service errors** — Caught in action, printed to stderr via `console.error("Failed to <operation>: <message>")`, then `process.exit(1)`. REST transport errors distinguish connection failures from timeouts, and HTTP errors never print raw HTML/plain-text response bodies.
+- **Service errors** — Caught in action, printed to stderr via `console.error("Failed to <operation>: <message>")`, then `process.exit(1)`. REST transport errors distinguish connection failures from timeouts. REST and GraphQL HTTP classifiers retain the status and bounded JSON details; non-JSON HTML/plain-text response bodies are not printed.
 - **Validation errors** — Checked before service call (e.g., mutually exclusive target selectors), printed to stderr, `process.exit(1)`
 - **Unexpected errors** — All asynchronous startup, registration, pre-action, and action failures terminate through the root CLI boundary. The default output is a normalized single-line message plus doctor/issue guidance, never a Node stack trace.
 - **Debug stacks** — Set `GITHITS_DEBUG=cli` or `GITHITS_DEBUG=*` to include the original stack for diagnostics.
@@ -1017,7 +1015,7 @@ For complex commands with multiple submodules, a subdirectory (`src/commands/xxx
 
 All commands support two output modes:
 
-- **Default** — Human-readable terminal output (markdown for `example`, formatted result blocks for unified `search`, colored list for `languages`)
+- **Default** — Human-readable terminal output (markdown for `example`, formatted result blocks for unified `search`)
 - **`--json`** — Machine-readable JSON for piping to `jq`, other tools, or agent consumption
 
 ## Global Flags
@@ -1057,8 +1055,6 @@ commands in one step with a two-minute combined timeout.
 |---|---|
 | `src/commands/example.ts` | Example-search command implementation |
 | `src/commands/search.ts` | Unified search and search-status command implementation |
-| `src/commands/languages.ts` | Languages command with colored output |
-| `packages/mcp/src/shared/language-filter.ts` | Pure `filterLanguages()` shared with MCP tool |
 | `packages/mcp/src/shared/require-auth.ts` | Auth guard shared with MCP server |
 | `packages/mcp/src/shared/colors.ts` | ANSI color utilities and `shouldUseColors()` |
 | `src/container.ts` | Dependency container with `githitsService`, source services, and `readService` |

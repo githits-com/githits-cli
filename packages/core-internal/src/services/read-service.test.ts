@@ -1,18 +1,16 @@
 import { describe, expect, it, mock } from "bun:test";
 import {
+  CodeNavigationAccessError,
   CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
   CodeNavigationIndexingError,
   CodeNavigationNetworkError,
+  CodeNavigationTargetNotFoundError,
+  CodeNavigationVersionNotFoundError,
   MalformedCodeNavigationResponseError,
 } from "./code-navigation-service.js";
 import { AuthenticationError } from "./githits-service.js";
-import {
-  MalformedPackageIntelligenceResponseError,
-  PackageIntelligenceBackendError,
-  PackageIntelligenceDocumentationSectionUnresolvedError,
-  PackageIntelligenceNetworkError,
-} from "./package-intelligence-service.js";
+import { PackageIntelligenceDocumentationSectionUnresolvedError } from "./package-intelligence-service.js";
 import { ReadServiceImpl } from "./read-service.js";
 import { createMockTokenProvider } from "./test-helpers.js";
 
@@ -222,6 +220,158 @@ function readRequest(fetchFn: ReturnType<typeof mock>): {
 }
 
 describe("ReadServiceImpl", () => {
+  it.each([undefined, " index.js "])(
+    "forwards a compact symbol fragment unchanged with path %s",
+    async (path) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(jsonResponse({ data: { read: codeResult() } })),
+      );
+      const service = new ReadServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        fetchFn as unknown as typeof fetch,
+      );
+      const target = "npm:express@5.2.1#create%41pplication";
+      const response = await service.read({ target, path, waitTimeoutMs: 0 });
+      expect(response.source).toBe("code");
+      expect(readRequest(fetchFn).variables).toEqual({
+        target,
+        ...(path ? { path: "index.js" } : {}),
+        waitTimeoutMs: 0,
+      });
+    },
+  );
+
+  it("uses code errors for invalid compact fragments without retrying docs", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [
+            {
+              message: "Invalid fragment",
+              extensions: { code: "INVALID_ARGUMENT" },
+            },
+          ],
+        }),
+      ),
+    );
+    const service = new ReadServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      fetchFn as unknown as typeof fetch,
+    );
+    await expect(
+      service.read({ target: "npm:express@5.2.1#" }),
+    ).rejects.toBeInstanceOf(CodeNavigationBackendError);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+  it("selects and parses bounded symbol resolution without content fields", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          data: {
+            read: {
+              __typename: "CodeSymbolResolutionResult",
+              status: "AMBIGUOUS",
+              candidates: [
+                {
+                  name: "main",
+                  qualifiedPath: "main",
+                  kind: "function",
+                  arity: null,
+                  filePath: "eval/run.ts",
+                  startLine: 57,
+                  endLine: 241,
+                },
+              ],
+              suggestions: [],
+              hasMore: false,
+              repoUrl: "https://github.com/githits-com/githits-cli",
+              gitRef: "abc",
+              message: null,
+              codeIndexState: "CURRENT",
+            },
+          },
+        }),
+      ),
+    );
+    const service = new ReadServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      fetchFn as unknown as typeof fetch,
+    );
+    const result = await service.read({
+      target: "github:githits-com/githits-cli@abc",
+      selector: "main",
+      path: "eval/run.ts",
+      waitTimeoutMs: 0,
+    });
+    expect(result).toMatchObject({
+      source: "symbol_resolution",
+      result: {
+        status: "AMBIGUOUS",
+        candidates: [{ filePath: "eval/run.ts" }],
+      },
+    });
+    const request = readRequest(fetchFn);
+    expect(request.variables).toEqual({
+      target: "github:githits-com/githits-cli@abc",
+      selector: "main",
+      path: "eval/run.ts",
+      waitTimeoutMs: 0,
+    });
+    expect(request.query).toContain("... on CodeSymbolResolutionResult");
+    expect(request.query).toContain("selector: $selector");
+  });
+
+  it("forwards wait to the backend for docs selector requests", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(jsonResponse({ data: { read: docsResult() } })),
+    );
+    const service = new ReadServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      fetchFn as unknown as typeof fetch,
+    );
+    await service.read({
+      target: "https://expressjs.com/llms/api-5x.txt",
+      selector: "expressjson",
+      waitTimeoutMs: 0,
+    });
+    expect(readRequest(fetchFn).variables).toEqual({
+      target: "https://expressjs.com/llms/api-5x.txt",
+      selector: "expressjson",
+      waitTimeoutMs: 0,
+    });
+  });
+
+  it.each([
+    "github:owner/repo@abc/docs/README.md",
+    "github:owner/repo@release/1.x",
+  ])(
+    "accepts backend docs results for slash-bearing repository IDs: %s",
+    async (target) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(jsonResponse({ data: { read: docsResult() } })),
+      );
+      const service = new ReadServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        fetchFn as unknown as typeof fetch,
+      );
+      const response = await service.read({
+        target,
+        selector: "intro",
+        waitTimeoutMs: 0,
+      });
+      expect(response.source).toBe("docs");
+      expect(readRequest(fetchFn).variables).toEqual({
+        target,
+        selector: "intro",
+        waitTimeoutMs: 0,
+      });
+    },
+  );
   it("sends one compact code read with the exact effective variables and fields", async () => {
     const fetchFn = mock(() =>
       Promise.resolve(jsonResponse({ data: { read: codeResult() } })),
@@ -277,7 +427,7 @@ describe("ReadServiceImpl", () => {
     });
   });
 
-  it("preserves an opaque docs target and omits path and code-only wait", async () => {
+  it("preserves an opaque docs target and omits an empty path", async () => {
     const target =
       "https://expressjs.com/en/guide/routing.html?q=a%2Fb#routing";
     const fetchFn = mock(() =>
@@ -302,6 +452,7 @@ describe("ReadServiceImpl", () => {
       target,
       startLine: 10,
       endLine: 20,
+      waitTimeoutMs: 42,
     });
     expect(result.source).toBe("docs");
     if (result.source !== "docs") throw new Error("expected docs result");
@@ -319,28 +470,32 @@ describe("ReadServiceImpl", () => {
     expect(result.result.page?.linkName).toBeUndefined();
   });
 
-  it("rejects a response branch that conflicts with the requested source", async () => {
+  it("uses the backend result type for docs-shaped code and code-shaped docs", async () => {
     const codeService = new ReadServiceImpl(
-      ENDPOINT,
-      createMockTokenProvider(),
-      mock(() =>
-        Promise.resolve(jsonResponse({ data: { read: docsResult() } })),
-      ) as unknown as typeof fetch,
-    );
-    const docsService = new ReadServiceImpl(
       ENDPOINT,
       createMockTokenProvider(),
       mock(() =>
         Promise.resolve(jsonResponse({ data: { read: codeResult() } })),
       ) as unknown as typeof fetch,
     );
+    const docsService = new ReadServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      mock(() =>
+        Promise.resolve(jsonResponse({ data: { read: docsResult() } })),
+      ) as unknown as typeof fetch,
+    );
 
-    await expect(
-      codeService.read({ target: "npm:express", path: "index.js" }),
-    ).rejects.toBeInstanceOf(MalformedCodeNavigationResponseError);
-    await expect(
-      docsService.read({ target: "page-id" }),
-    ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+    expect(
+      (
+        await codeService.read({
+          target: "github:owner/repo@release/v1#makeApp",
+        })
+      ).source,
+    ).toBe("code");
+    expect(
+      (await docsService.read({ target: "npm:express@5.2.1#heading" })).source,
+    ).toBe("docs");
   });
 
   it.each([
@@ -354,7 +509,7 @@ describe("ReadServiceImpl", () => {
       name: "unknown docs branch",
       params: { target: "page-id" },
       body: { data: { read: { __typename: "FutureReadResult" } } },
-      expected: MalformedPackageIntelligenceResponseError,
+      expected: MalformedCodeNavigationResponseError,
     },
   ])(
     "rejects $name without a legacy retry",
@@ -401,7 +556,7 @@ describe("ReadServiceImpl", () => {
     }
   });
 
-  it("maps GraphQL errors through the requested source family", async () => {
+  it("maps GraphQL errors from backend codes despite target shape", async () => {
     const codeService = new ReadServiceImpl(
       ENDPOINT,
       createMockTokenProvider(),
@@ -442,10 +597,10 @@ describe("ReadServiceImpl", () => {
     );
 
     await expect(
-      codeService.read({ target: "npm:express", path: "missing.ts" }),
+      codeService.read({ target: "github:owner/repo@release/v1#missing" }),
     ).rejects.toBeInstanceOf(CodeNavigationFileNotFoundError);
     try {
-      await docsService.read({ target: "page#duplicate" });
+      await docsService.read({ target: "npm:express@5.2.1#duplicate" });
       throw new Error("expected docs error");
     } catch (error) {
       expect(error).toBeInstanceOf(
@@ -455,6 +610,93 @@ describe("ReadServiceImpl", () => {
         (error as PackageIntelligenceDocumentationSectionUnresolvedError)
           .reason,
       ).toBe("ambiguous");
+    }
+  });
+
+  it("keeps indexing and access errors source-neutral for docs-shaped targets", async () => {
+    const responses = [
+      {
+        errors: [
+          { message: "Indexing", extensions: { code: "PACKAGE_INDEXING" } },
+        ],
+      },
+      { errors: [{ message: "Forbidden", extensions: { code: "FORBIDDEN" } }] },
+    ];
+    const fetchFn = mock(() =>
+      Promise.resolve(jsonResponse(responses.shift())),
+    );
+    const service = new ReadServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      fetchFn as unknown as typeof fetch,
+    );
+    const target = "github:owner/repo@release/v1#makeApp";
+    await expect(service.read({ target })).rejects.toBeInstanceOf(
+      CodeNavigationIndexingError,
+    );
+    try {
+      await service.read({ target });
+      throw new Error("expected access error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationAccessError);
+      expect((error as Error).message).toBe("Read access denied.");
+    }
+  });
+
+  it("keeps recovery metadata for shared version and target errors", async () => {
+    const responses = [
+      {
+        errors: [
+          {
+            message: "Version not found",
+            extensions: {
+              code: "VERSION_NOT_FOUND",
+              package: "npm/express",
+              requested_version: "missing",
+              latest_indexed: "5.2.1",
+              available_versions: [{ version: "5.2.1", ref: "v5.2.1" }],
+            },
+          },
+        ],
+      },
+      {
+        errors: [
+          {
+            message: "Target not found",
+            extensions: {
+              code: "NOT_FOUND",
+              repo_url: "https://github.com/owner/repo",
+              git_ref: "release/v1",
+            },
+          },
+        ],
+      },
+    ];
+    const fetchFn = mock(() =>
+      Promise.resolve(jsonResponse(responses.shift())),
+    );
+    const service = new ReadServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      fetchFn as unknown as typeof fetch,
+    );
+    try {
+      await service.read({ target: "github:owner/repo@release/v1#symbol" });
+      throw new Error("expected version error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationVersionNotFoundError);
+      expect((error as CodeNavigationVersionNotFoundError).latestIndexed).toBe(
+        "5.2.1",
+      );
+    }
+    try {
+      await service.read({ target: "github:owner/repo@release/v1#symbol" });
+      throw new Error("expected target error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationTargetNotFoundError);
+      expect((error as CodeNavigationTargetNotFoundError).requestedRef).toBe(
+        "release/v1",
+      );
     }
   });
 
@@ -469,7 +711,7 @@ describe("ReadServiceImpl", () => {
       name: "docs HTTP failure",
       params: { target: "page-id" },
       fetchFn: mock(() => Promise.resolve(jsonResponse({}, 503))),
-      expected: PackageIntelligenceBackendError,
+      expected: CodeNavigationBackendError,
     },
     {
       name: "code transport failure",
@@ -481,10 +723,10 @@ describe("ReadServiceImpl", () => {
       name: "docs transport failure",
       params: { target: "page-id" },
       fetchFn: mock(() => Promise.reject(new Error("offline"))),
-      expected: PackageIntelligenceNetworkError,
+      expected: CodeNavigationNetworkError,
     },
   ])(
-    "maps $name through the requested source family",
+    "maps $name through neutral read errors",
     async ({ params, fetchFn, expected }) => {
       const service = new ReadServiceImpl(
         ENDPOINT,
@@ -494,6 +736,65 @@ describe("ReadServiceImpl", () => {
 
       await expect(service.read(params)).rejects.toBeInstanceOf(expected);
       expect(fetchFn).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("uses neutral messages for source-free transport, HTTP and protocol errors", async () => {
+    const responses = [
+      mock(() => Promise.reject(new Error("offline"))),
+      mock(() => Promise.resolve(jsonResponse({}, 403))),
+      mock(() => Promise.resolve(jsonResponse({ data: { read: null } }))),
+    ];
+    const expected = [
+      [CodeNavigationNetworkError, "Could not reach the read service"],
+      [CodeNavigationAccessError, "Read access denied."],
+      [
+        MalformedCodeNavigationResponseError,
+        "Malformed response from read service.",
+      ],
+    ] as const;
+    for (const [index, fetchFn] of responses.entries()) {
+      const service = new ReadServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        fetchFn as unknown as typeof fetch,
+      );
+      try {
+        await service.read({ target: "page-id" });
+        throw new Error("expected read error");
+      } catch (error) {
+        expect(error).toBeInstanceOf(expected[index]![0]);
+        expect((error as Error).message).toContain(expected[index]![1]);
+      }
+    }
+  });
+
+  it.each([
+    { target: "npm:express#makeApp", result: codeResult({ content: 42 }) },
+    {
+      target: "https://expressjs.com/guide#routing",
+      result: docsResult({ contentRange: null }),
+    },
+  ])(
+    "uses a neutral protocol error for malformed typed result $target",
+    async ({ target, result }) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(jsonResponse({ data: { read: result } })),
+      );
+      const service = new ReadServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        fetchFn as unknown as typeof fetch,
+      );
+      try {
+        await service.read({ target });
+        throw new Error("expected malformed read response");
+      } catch (error) {
+        expect(error).toBeInstanceOf(MalformedCodeNavigationResponseError);
+        expect((error as Error).message).toBe(
+          "Malformed response from read service.",
+        );
+      }
     },
   );
 

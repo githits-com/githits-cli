@@ -12,12 +12,12 @@ import { TermsAcceptanceRequiredError } from "@githits/core-internal/browser";
 import { z } from "zod";
 import { ASK_NEEDS_TARGET_WIRE } from "../../../core-internal/src/services/ask-needs-target.fixture.js";
 import {
-  type AgenticAskMcpArgs,
-  createLocalAgenticAskTool,
+  createLocalResearchTool,
   DESCRIPTION,
-  formatAgenticAskMcpText,
+  formatResearchMcpText,
+  type LocalResearchMcpArgs,
   projectAskReadSources,
-} from "./local-agentic-ask.js";
+} from "./local-research.js";
 
 const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
 const THREAD_ID = "018f47a6-7b32-7b1e-8f45-6a2d39c81720";
@@ -82,25 +82,28 @@ function createService(
 }
 
 function invoke(
-  tool: ReturnType<typeof createLocalAgenticAskTool>,
-  args: AgenticAskMcpArgs,
+  tool: ReturnType<typeof createLocalResearchTool>,
+  args: LocalResearchMcpArgs,
   signal?: AbortSignal,
 ) {
   return tool.handler(args, signal ? { signal } : undefined);
 }
 
-describe("local ask MCP adapter", () => {
-  it("publishes the bounded-write descriptor and standard format schema", () => {
-    const tool = createLocalAgenticAskTool(createService());
+describe("local research MCP adapter", () => {
+  it("publishes the open-world read-only descriptor and standard format schema", () => {
+    const tool = createLocalResearchTool(createService());
     const jsonSchema = z.toJSONSchema(z.object(tool.schema));
 
-    expect(tool.name).toBe("ask");
+    expect(tool.name).toBe("research");
     const firstSentence = `${DESCRIPTION.split(".", 1)[0]}.`;
     expect(firstSentence).toBe(
-      "Ask a public repository or package question and receive a source-cited answer.",
+      "Research a public repository or package to answer a question with sources.",
     );
-    expect(firstSentence.length).toBeLessThanOrEqual(79);
+    expect(firstSentence.length).toBe(74);
     expect(DESCRIPTION.slice(0, 80)).toStartWith(firstSentence);
+    expect(DESCRIPTION).toContain("If Research returns candidates");
+    expect(tool.schema.thread_id?.description).toContain("research call");
+    expect(tool.schema.question?.description).toContain("research question");
     expect(DESCRIPTION).toContain(
       "Omit target and thread_id to identify the target from the question",
     );
@@ -145,7 +148,7 @@ describe("local ask MCP adapter", () => {
 
   it("always requests MCP sources and renders them in backend order", async () => {
     const ask = mock(() => Promise.resolve(response()));
-    const result = await invoke(createLocalAgenticAskTool(createService(ask)), {
+    const result = await invoke(createLocalResearchTool(createService(ask)), {
       target: "npm:example",
       question: "How?",
     });
@@ -162,18 +165,18 @@ describe("local ask MCP adapter", () => {
       content: [
         {
           type: "text",
-          text: formatAgenticAskMcpText(projectAskReadSources(response())),
+          text: formatResearchMcpText(projectAskReadSources(response())),
         },
       ],
     });
     expect(result.content[0]?.text).toBe(
-      'Use the documented API.\n\nSources:\n  1. read({"target":"npm:example","path":"src/index.ts","start_line":10,"end_line":20})\n  2. read({"target":"docs:example:guide","start_line":3,"end_line":8})\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n',
+      'Use the documented API.\n\nSources:\n  1. read({"target":"npm:example","path":"src/index.ts","start_line":10,"end_line":20})\n  2. read({"target":"docs:example:guide","start_line":3,"end_line":8})\n\nResearch run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n',
     );
   });
 
   it("continues a thread without resending a target", async () => {
     const ask = mock(() => Promise.resolve(response()));
-    await invoke(createLocalAgenticAskTool(createService(ask)), {
+    await invoke(createLocalResearchTool(createService(ask)), {
       thread_id: THREAD_ID,
       question: "Where is that checked?",
     });
@@ -190,8 +193,8 @@ describe("local ask MCP adapter", () => {
 
   it("rejects conflicting and malformed selectors before the service call", async () => {
     const ask = mock(() => Promise.resolve(response()));
-    const tool = createLocalAgenticAskTool(createService(ask));
-    const invalidArgs: AgenticAskMcpArgs[] = [
+    const tool = createLocalResearchTool(createService(ask));
+    const invalidArgs: LocalResearchMcpArgs[] = [
       { target: "npm:example", thread_id: THREAD_ID, question: "How?" },
       { thread_id: "not-a-uuid", question: "How?" },
     ];
@@ -209,7 +212,7 @@ describe("local ask MCP adapter", () => {
 
   it("rejects a legacy repository target with the exact @ref migration", async () => {
     const ask = mock(() => Promise.resolve(response()));
-    const result = await invoke(createLocalAgenticAskTool(createService(ask)), {
+    const result = await invoke(createLocalResearchTool(createService(ask)), {
       target: "github:expressjs/express#main",
       question: "How?",
     });
@@ -231,13 +234,10 @@ describe("local ask MCP adapter", () => {
     "leaves non-repository URL target %s for backend classification",
     async (target) => {
       const ask = mock(() => Promise.resolve(response()));
-      const result = await invoke(
-        createLocalAgenticAskTool(createService(ask)),
-        {
-          target,
-          question: "How?",
-        },
-      );
+      const result = await invoke(createLocalResearchTool(createService(ask)), {
+        target,
+        question: "How?",
+      });
 
       expect(result.isError).toBeUndefined();
       expect(ask).toHaveBeenCalledWith(
@@ -254,7 +254,7 @@ describe("local ask MCP adapter", () => {
       const ask = mock(() => Promise.resolve(answer));
       const signal = new AbortController().signal;
       const result = await invoke(
-        createLocalAgenticAskTool(createService(ask)),
+        createLocalResearchTool(createService(ask)),
         {
           question: "How does express routing work?",
           source_format: sourceFormat,
@@ -270,7 +270,7 @@ describe("local ask MCP adapter", () => {
       );
       expect(result.isError).toBeUndefined();
       expect(result.content[0]?.text).toBe(
-        formatAgenticAskMcpText(projectAskReadSources(answer)),
+        formatResearchMcpText(projectAskReadSources(answer)),
       );
     },
   );
@@ -288,13 +288,10 @@ describe("local ask MCP adapter", () => {
         resolution,
       };
       const ask = mock(() => Promise.resolve(clarification));
-      const result = await invoke(
-        createLocalAgenticAskTool(createService(ask)),
-        {
-          question: "How does codex handle chat compaction?",
-          format,
-        },
-      );
+      const result = await invoke(createLocalResearchTool(createService(ask)), {
+        question: "How does codex handle chat compaction?",
+        format,
+      });
       expect(ask).toHaveBeenCalledTimes(1);
       expect(ask).toHaveBeenCalledWith(
         {
@@ -318,7 +315,7 @@ describe("local ask MCP adapter", () => {
   );
 
   it("returns only the validated MCP envelope for JSON", async () => {
-    const result = await invoke(createLocalAgenticAskTool(createService()), {
+    const result = await invoke(createLocalResearchTool(createService()), {
       target: "npm:example",
       question: "How?",
       format: "json",
@@ -333,7 +330,7 @@ describe("local ask MCP adapter", () => {
   it("requests and renders original upstream URLs when selected", async () => {
     const response = urlResponse();
     const ask = mock(() => Promise.resolve(response));
-    const result = await invoke(createLocalAgenticAskTool(createService(ask)), {
+    const result = await invoke(createLocalResearchTool(createService(ask)), {
       target: "npm:example",
       question: "How?",
       source_format: "url",
@@ -348,14 +345,14 @@ describe("local ask MCP adapter", () => {
       undefined,
     );
     expect(result.content[0]?.text).toBe(
-      "Use the documented API.\n\nSources:\n  1. https://github.com/example/project/blob/main/src/index.ts#L10-L20\n  2. https://example.com/docs/guide#L3-L8\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n",
+      "Use the documented API.\n\nSources:\n  1. https://github.com/example/project/blob/main/src/index.ts#L10-L20\n  2. https://example.com/docs/guide#L3-L8\n\nResearch run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n",
     );
   });
 
   it("returns only the URL envelope for JSON when selected", async () => {
     const response = urlResponse();
     const result = await invoke(
-      createLocalAgenticAskTool(
+      createLocalResearchTool(
         createService(mock(() => Promise.resolve(response))),
       ),
       {
@@ -373,7 +370,7 @@ describe("local ask MCP adapter", () => {
   it("includes a validated failure run ID in the standard MCP error", async () => {
     const error = new AgenticAskHttpError(
       "RATE_LIMITED",
-      "Agentic Ask is rate limited.",
+      "Research is rate limited.",
       429,
       TOOL_CALL_ID,
       12,
@@ -381,14 +378,14 @@ describe("local ask MCP adapter", () => {
       THREAD_ID,
     );
     const ask = mock(() => Promise.reject(error));
-    const result = await invoke(createLocalAgenticAskTool(createService(ask)), {
+    const result = await invoke(createLocalResearchTool(createService(ask)), {
       target: "npm:example",
       question: "How?",
     });
 
     expect(result.isError).toBe(true);
     expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({
-      error: "Agentic Ask is rate limited.",
+      error: "Research is rate limited.",
       code: "RATE_LIMITED",
       retryable: true,
       details: { status: 429, retryAfterSeconds: 12 },
@@ -398,10 +395,10 @@ describe("local ask MCP adapter", () => {
   });
 
   it.each([
-    ["THREAD_NOT_FOUND", "Agentic Ask thread was not found.", 404, "NOT_FOUND"],
+    ["THREAD_NOT_FOUND", "Research thread was not found.", 404, "NOT_FOUND"],
     [
       "INVALID_REQUEST",
-      "This Agentic Ask thread cannot accept another follow-up.",
+      "This Research thread cannot accept another follow-up.",
       409,
       "INVALID_ARGUMENT",
     ],
@@ -411,13 +408,10 @@ describe("local ask MCP adapter", () => {
       const ask = mock(() =>
         Promise.reject(new AgenticAskHttpError(errorCode, message, status)),
       );
-      const result = await invoke(
-        createLocalAgenticAskTool(createService(ask)),
-        {
-          thread_id: THREAD_ID,
-          question: "How?",
-        },
-      );
+      const result = await invoke(createLocalResearchTool(createService(ask)), {
+        thread_id: THREAD_ID,
+        question: "How?",
+      });
 
       expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({
         error: message,
@@ -433,12 +427,12 @@ describe("local ask MCP adapter", () => {
       Promise.reject(
         new AgenticAskHttpError(
           "SERVICE_UNAVAILABLE",
-          "Agentic Ask is temporarily unavailable.",
+          "Research is temporarily unavailable.",
           503,
         ),
       ),
     );
-    const result = await invoke(createLocalAgenticAskTool(createService(ask)), {
+    const result = await invoke(createLocalResearchTool(createService(ask)), {
       question: "How does Express routing work?",
     });
 
@@ -457,7 +451,7 @@ describe("local ask MCP adapter", () => {
 
   it("uses the local terms remediation without exposing backend details", async () => {
     const ask = mock(() => Promise.reject(new TermsAcceptanceRequiredError()));
-    const tool = createLocalAgenticAskTool(createService(ask));
+    const tool = createLocalResearchTool(createService(ask));
     const result = await tool.handler(
       { target: "npm:example", question: "How?" },
       {
@@ -478,7 +472,7 @@ describe("local ask MCP adapter", () => {
 
   it("uses the local authentication action", async () => {
     const ask = mock(() => Promise.reject(new AuthenticationError()));
-    const tool = createLocalAgenticAskTool(createService(ask));
+    const tool = createLocalResearchTool(createService(ask));
     const result = await tool.handler(
       { target: "npm:example", question: "How?" },
       { authAction: "Authenticate locally, then retry." },
@@ -499,7 +493,7 @@ describe("local ask MCP adapter", () => {
 
     await expect(
       invoke(
-        createLocalAgenticAskTool(createService(ask)),
+        createLocalResearchTool(createService(ask)),
         { target: "npm:example", question: "How?" },
         controller.signal,
       ),
@@ -543,7 +537,7 @@ describe("Ask read source projection", () => {
       ],
     });
     expect(wire).toEqual(original);
-    const text = formatAgenticAskMcpText(projected);
+    const text = formatResearchMcpText(projected);
     expect(text).toContain('read({"target":"docs:example:guide"');
     expect(text).not.toMatch(/code_read|docs_read|page_id/);
   });

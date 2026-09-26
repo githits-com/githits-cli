@@ -14,6 +14,266 @@ daily, temporary per-main-push, or explicitly authorized pull-request
 execution, and normalized per-workload history are implemented here;
 answer-quality scoring remains a later phase.
 
+## Custom Codex model configuration
+
+One-off workloads and named suite `run` accept `--codex-config <file>` with an
+explicit main TOML config. `scripts/agent-eval-codex-config.ts` owns safe model
+projection; the runner owns effective selection, environment passthrough,
+isolation, and redaction. The suite resolves one model/reasoning/report-format
+matrix and propagates it to child execution and artifacts.
+See [usage](../../eval/agentic/README.md#custom-codex-model-configuration).
+
+Only model/provider/effort/catalog settings are projected. Other root keys and
+unselected providers cannot enable ambient MCP servers, instructions, skills,
+plugins, or shell settings. The selected Responses provider must use env-key
+auth, with no literal token, auth command, or credential-bearing URL. Parse
+errors do not echo source text. Model/effort overrides remain explicit.
+Dedicated eval `CODEX_HOME`, disposable workload OS homes, instruction/skill
+preflight, `--ignore-user-config`, and external app/plugin disables remain.
+Codex 0.154 suppresses native profile loading with that isolation flag, so the
+runner injects model settings through CLI overrides instead of `-p`.
+
+Codex MCP runs require GitHits startup in generated config and launch arguments.
+A wire probe reproduced optional startup sending the first inference request
+before MCP initialization/tool listing. Required startup exposed all 17 tools
+before inference. The runtime-generated `codex-config.toml` remains the MCP
+configuration audit; selected provider overrides appear in launch metadata.
+
+The caller supplies the selected provider's credential environment variable; the
+runner does not locate key files. That variable is added to the existing
+allowlist and its raw/JSON-escaped values are redacted. `run.json` and workload
+metadata record `codexConfig.path`, `sha256`, `catalogSha256`, and `provider`,
+effective model/effort, and `codexReportFormat`.
+
+`prompt-json` omits wire-level schema enforcement but keeps the reporting prompt
+and existing final JSON validation. Invalid reports are retained as failures
+without repair or fallback. Default format is `json-schema`; historical format
+omission normalizes to that default. Suite imports check matrix, shard, cell,
+child model identity and report format. Braintrust rejects mixed suite identity
+and records model/effort/report format on rows and experiment metadata.
+
+The shared `.github/workflows/agent-evals.yml` owns the standard matrix: two
+discovery cells, 25 intent cells, and 25 full-guidance cells (52 total), with
+concurrency two/four/four. The trusted same-repository `agent-eval-openrouter`
+PR label selects the operator-committed `eval/agentic/openrouter.toml`,
+prompt-json and Codex 0.154.0. The repository provides only
+`eval/agentic/openrouter.example.toml`, with a blank model and a low effort
+example; no OpenRouter model is selected by default. Operators fill its exact
+model ID and supported effort on a trial PR and keep the active config out of
+main (leave the trial PR unmerged or remove it before merging). Keep its provider
+`env_key` as `OPENROUTER_API_KEY`, the provider credential wired by CI. Schedule,
+main push, manual-main and `agent-eval` PR runs retain Luna/low/json-schema and
+current Codex. The old DeepSeek label no longer triggers a run; the measured
+DeepSeek comparison below remains historical evidence.
+
+Each scenario uses an isolated Codex home. OpenRouter execution reads the
+original main-config path through the existing loader, preserving relative
+optional catalog paths, skips OpenAI login and scopes
+`OPENROUTER_API_KEY`/GitHits auth to execution; Luna retains stdin OpenAI API-key
+login. Missing or blank config fails existing preflight before model execution.
+No profile, config renderer, model registry or provider fallback is added. `BRAINTRUST_API_KEY` is
+scoped only to the one aggregate export. Both job guards preserve same-repository
+label authorization. Execution/report/export failures remain job failures, and
+all three artifacts are retained. Runtime paths use step-level `runner.temp`;
+GitHub rejects that context in job-level env. Validate with
+`actionlint .github/workflows/agent-evals.yml` plus the Bun workflow contract
+coverage; YAML parsing alone does not check context availability. The exporter
+links PRs to the latest main experiment, currently Luna. Compare actual linked
+base IDs, cell IDs and stable inputs before interpreting cross-model outcomes.
+A single full attempt does not establish repeat consistency or replacement
+quality, and has no automatic quality score.
+
+No temperature control is added: a secret-free Codex 0.154 probe omitted
+`temperature=0` from the wire and strict config rejected it. Reasoning labels
+are vendor settings, not equal budgets. Whole-workload duration includes tools
+and network, so it cannot establish model tokens/s. Unconfigured rate cards
+retain unknown cost. OpenRouter routing may vary providers; env-key auth without
+an explicit catalog uses fallback metadata, so long-context behavior is untested.
+
+### OpenRouter CI proof — 2026-09-16
+
+[Canary run 35093150512](https://github.com/githits-com/githits-cli/actions/runs/35093150512)
+on [draft PR #401](https://github.com/githits-com/githits-cli/pull/401), code SHA
+`e3fe68c40b80ac74d0c9fa59b0009b28c0841660`, passed execution, report, export and
+finalization. Both workloads returned validated JSON and made 25 completed MCP
+calls (package 5, router 20), with zero failed calls or isolation violations.
+Regular CI also passed, including Windows. Downloaded output is retained at
+`.agent-eval/deepseek-modal-pilot/github-openrouter-35093150512`; its 28-file
+credential audit found zero matches.
+
+[Braintrust `pr-401-r35093150512-a1`](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-401-r35093150512-a1)
+(ID `cf6ec867-e67a-4adb-86bf-ace617b30dc0`) read back two eval spans and 25 tool
+spans, with experiment metadata DeepSeek/high/prompt-json, channel PR,
+exporter/schema 3. The SDK reported the actual base `main-r35085880981-a1`
+(ID `13590571-39c1-4a33-831d-db144fb1fc7a`), whose sampled eval row is Luna/low.
+This proves PR linkage under the current naming/export contract. Normalized
+DeepSeek cost stays unknown; this canary has no quality scorer and establishes
+integration rather than replacement quality or repetition consistency.
+
+### Full-matrix runner incident — 2026-09-16
+
+[Full run 35097872660](https://github.com/githits-com/githits-cli/actions/runs/35097872660)
+on reviewed SHA `2d394d9fb9c30c1efc107f8835e0ad8f90e4cf0e` completed discovery
+and intent with 26 valid reports, 219 MCP calls, four recovered tool errors and
+zero isolation violations. Full-guidance evidence has 21 valid finals, two
+malformed JSON finals (`docs-search-noise`, `docs-discovery`) and one cell with
+no captured output (`package-upgrade-safety`). That shard lacks run/suite
+artifacts despite exit zero. The summary failed and Braintrust correctly
+rejected the missing suite before creating an experiment. Do not fabricate
+missing lifecycle timing or treat the first attempt as a complete experiment.
+All 553 downloaded files are retained; known-credential and runtime credential
+field checks found zero matches.
+
+A credential-free isolated driver reproduces the runner lifecycle fault:
+`runWithTimeout()` waits on an unreferenced escalation timer after terminating
+its child. With no remaining referenced work, Bun exits zero before that
+promise settles and before reports are generated. Keeping the already-awaited
+cleanup timer referenced (removing `unref` and its unused handle) fixes the
+fault at its runner owner. The same driver now emits completion with
+`timedOut: true`; ordinary completion, isolated timeout reporting and POSIX
+process-group cleanup regression tests pass. Workload timeout stays 300 seconds;
+no report repair or fallback is added. The complete rerun below retained all
+50 cells and exported accurate evidence, including two final-validation failures.
+
+### Full DeepSeek matrix comparison — 2026-09-16
+
+[Full run 35099796991](https://github.com/githits-com/githits-cli/actions/runs/35099796991)
+on SHA `81f4ae78f4c968689689e227f4f34fc6d6a53355` retained every cell and
+successfully exported experiment
+[`pr-401-r35099796991-a1`](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-401-r35099796991-a1)
+(ID `a6313674-e0cd-45b0-8d5b-037d885f1876`). Native readback contains exactly
+50 eval roots and 495 structural tool children. Its persisted `base_exp_id`
+is `13590571-39c1-4a33-831d-db144fb1fc7a`, the actual linked
+[`main-r35085880981-a1`](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/main-r35085880981-a1)
+Luna baseline on main SHA `b2d4513a9b910682f314a8e78dc344ae279d2e37`.
+All 50 `metadata.cellId` pairs have identical stable inputs, including full
+prompts and `promptSha256`. Scenario target-guidance identities, reporting
+contract and result-schema hashes also match. Both use Codex CLI 0.154.0 and
+the current 16-tool GitHits catalog. The PR adds model/reporting setup and the
+runner lifecycle fix; this is not a change to the evaluated tool behavior.
+
+| Observed metric | Main Luna | DeepSeek OpenRouter |
+| --- | ---: | ---: |
+| Validated successful reports | 50 / 50 | 48 / 50 |
+| Cumulative workload duration | 787.752 s | 2950.371 s |
+| Median workload duration | 13.556 s | 42.363 s |
+| MCP calls | 205 | 495 |
+| Failed logical tool calls | 5 | 3 |
+| CLI tool calls | 0 | 0 |
+| Total tokens, including cached input | 5,452,005 | 10,015,782 |
+| Cached input tokens | 4,130,792 | 8,243,328 |
+| Output tokens, including reasoning | 43,966 | 186,411 |
+| Estimated cost | $0.454645, base-rate estimate | Unknown |
+| Isolation violations | 0 | 0 |
+
+| Scenario | Valid Luna / DeepSeek | Wall seconds Luna / DeepSeek | MCP calls Luna / DeepSeek |
+| --- | ---: | ---: | ---: |
+| Discovery, concurrency 2 | 2 / 2 | 18.187 / 50.905 | 7 / 24 |
+| Intent, concurrency 4 | 24 / 23 | 97.516 / 392.632 | 112 / 234 |
+| Full guidance, concurrency 4 | 24 / 23 | 114.328 / 411.488 | 86 / 237 |
+
+Two cells failed unchanged final validation: `intent/package-overview-vulnerabilities`
+returned a second JSON object after its first object; `full/code-file-navigation`
+contained literal newlines inside its JSON answer string. Both Codex processes
+exited zero, neither timed out, and their usage/tool/lifecycle evidence remains
+complete. Thus the harness's process/report outcome is failed despite a zero
+native exit code. The aggregate exporter succeeded and the summary's final
+status correctly failed. Do not repair either final or relabel these outcomes
+as success. All other 48 reports validated and self-reported success; that is
+not a correctness grade. The three recovered tool failures were two `code_grep`
+calls in `full/package-dependencies` and one `pkg_changelog` in
+`intent/package-vulnerability-filter`.
+
+Sampled paired answers illustrate the extra work without establishing better
+quality. In `full/code-read-window`, both describe the same lazy router getter
+and its two constructor options; Luna uses one MCP call, DeepSeek eight and a
+much longer answer. In `full/docs-search-noise`, both explain Flask route
+binding, variable rules and slash behavior; DeepSeek adds converters, URL
+building and HTTP methods, using six calls versus two. In
+`full/package-upgrade-safety`, both distinguish release/dependency/security
+concerns and recommend manual verification; DeepSeek uses 23 calls versus
+Luna's one batch review. These are manual observations of retained answers,
+not judge scores or evidence that every additional statement is correct.
+
+Source paths also differ. DeepSeek used MCP in every cell and made no native
+web-search calls. Luna's discovery package answer used two native web searches
+and a registry/OSV shell request, with zero MCP calls; its intent site-search
+cell used one native web search. DeepSeek's 25 full-guidance shell executions
+mostly read installed skills or list the disposable workspace; one checks an
+OpenCode tag with `git ls-remote`. These are not GitHits CLI tool calls. More
+MCP calls therefore cannot be interpreted as a quality improvement.
+
+DeepSeek/high/prompt-json and Luna/low/json-schema are operational presets with
+different vendor reasoning budgets and report enforcement. In this single
+complete attempt, DeepSeek takes 3.75 times the cumulative workload duration,
+3.13 times the median duration, 2.41 times the MCP calls and 1.84 times the total
+tokens, while two finals fail formatting. Workload timing includes tool/network
+work and does not measure provider tokens/s. No temperature control, automatic
+quality scorer or provider-matched DeepSeek rate card was added. Keep Luna as
+the default; this evidence does not support replacing it with this DeepSeek
+preset yet. It also does not establish repeat consistency or relative model
+strength under equal budgets.
+
+All 564 downloaded files passed a known-credential audit before inspection;
+raw malformed finals and the first attempt remain preserved. Local paired
+answer/metric JSON and native comparison output are under
+`.agent-eval/deepseek-modal-pilot/github-openrouter-full-35099796991/`.
+The normalized Braintrust experiment and CI artifacts are the durable shared
+sources. [Regular CI 35099722242](https://github.com/githits-com/githits-cli/actions/runs/35099722242)
+passes Ubuntu/Windows tests, build/checks and Node/Bun compatibility on the
+executed SHA. Internal preparation and the bounded external Opus follow-up
+review of the lifecycle fix are clean.
+
+### Modal pilot compatibility result — 2026-09-16
+
+Modal authenticated and returned structured finals/usage but made no MCP calls.
+Required startup repaired the initial omission of GitHits tools; a transparent
+relay confirmed all 17 functions reached Modal in the `mcp__githits` namespace.
+Direct flat function calls worked. Namespace/custom probes under `required`
+returned HTTP 400 requiring a function; under `auto` they returned HTTP 200 but
+no call, with 44 input tokens versus 319 for the callable flat function. This
+points to adapter tool translation rather than a model capability result.
+Native Codex/Modal also could not call GitHits after `/mcp` showed it connected.
+Global MCP config is inherited by native profiles; duplicating it cannot change
+the namespace wire format. Ordinary flat coding tools can still work.
+
+A separate probe established that enforced JSON schema suppresses DeepSeek tool
+calls. Modal rejected required flat tools plus schema with “Cannot combine tool
+calls with constrained decoding”; automatic choice produced JSON promising a
+call without calling. Removing schema in a diagnostic skills workload allowed
+real CLI calls (`pkg_info`, `pkg_vulns`) but timed out at 180 seconds with no final.
+
+OpenRouter improved namespace compatibility: its direct namespace probe returned
+a function call carrying the correct namespace. Namespace plus enforced schema
+still produced final JSON promising a call without calling. A real Codex test
+using a dedicated main config and no schema completed GitHits `quick_start` and
+`pkg_info`, returned the package result, and exited 0 without timeout/error events.
+This proves tool integration, not task quality or repeated-run consistency.
+
+The final isolated runner was also exercised with env-key auth, no explicit
+model catalog, high effort, and `prompt-json`, matching the PR provider setup.
+The package-overview-vulnerabilities workload completed five real MCP calls
+(`quick_start`, `pkg_info`, two `pkg_vulns`, `pkg_changelog`) and returned a
+validated final JSON report, process exit 0, no timeout or isolation violation.
+Recorded workload duration was 60,900 ms; this is integration evidence, not a
+model speed benchmark or a quality grade. A credential audit across 308 retained
+pilot files found no raw or JSON-escaped credential matches.
+
+Evidence is retained under ignored `.agent-eval/deepseek-modal-pilot/`:
+`luna-1`/`luna-2`/`luna-3` preserve six completed baseline cells with actual tools
+and no isolation violations; `deepseek-1` preserves the initial provider-override
+failure; `deepseek-1-v2` the optional-startup omission; `deepseek-required-1` the
+tool-free Modal canary. `tools-diagnostic-required/wire-tools-summary.json`,
+`modal-tool-shapes.json`, `modal-tool-shapes-auto.json`,
+`modal-flat-tool-schema-probe.json`, `native-profile-probe-2`,
+`skills-prompt-json-probe`, `openrouter-tool-compatibility.json`, and
+`openrouter-main-config-mcp-probe`, and `openrouter-runner-package` retain the
+specific compatibility evidence.
+The diagnostic prompt-json run separately records its actual schema-free
+command; its original runner command metadata is not a matched measurement.
+Failed evidence is preserved, and no numerical quality/speed/cost comparison is
+reported from tool-free or incomplete output.
+
 ## Braintrust persistence contract
 
 `scripts/agent-eval-braintrust.ts` is a post-run mapper and exporter. It loads
@@ -37,7 +297,7 @@ span named by `cellId` for each row, creates and closes its validated structural
 tool children, closes the eval root, calls `flush()`, and then calls
 `summarize({ summarizeScores: false })` for the permalink. Agent execution is
 not traced or instrumented by this boundary.
-The exporter metadata contract is schema/version 2; both values are retained
+The exporter metadata contract is schema/version 3; both values are retained
 in experiment metadata for regression attribution. The safe CLI result uses its
 separate result-file schema version 2.
 
@@ -86,9 +346,8 @@ name/link and actual base name/ID (or explicit bootstrap/no-base text) to the
 step summary. Validate-only builds and prints the same identity/name without
 credentials, network access, or baseline discovery; its base is reported as
 unresolved/not queried. This identity and linkage behavior is deterministic
-and covered by the focused tests, but it has not yet been live-proven for a
-later main run linking to main, a PR linking to main, and a local run linking
-to main. Historical `github-*` experiments retain their old identity and
+and covered by focused tests. The OpenRouter CI proof above also verifies a PR
+linking to main under the current naming/export contract. Historical `github-*` experiments retain their old identity and
 null-linkage observations and are not evidence for this new contract.
 For an export, the reported experiment name is the SDK's actual `Experiment.name`
 readback after flush, so it remains accurate if an explicit local name is
@@ -467,7 +726,7 @@ present.
 ## Named suite and comparison artifacts
 
 The suite layer emits schema-v3 `suite.json` around child run artifacts.
-The fixed execution matrix is Codex `gpt-5.6-luna`, reasoning `low`, local MCP;
+The fixed execution matrix is Codex `gpt-6-luna`, reasoning `low`, local MCP;
 its scenario-keyed shards may run concurrently, and each shard runs workloads
 through a bounded pool selected by `workloadConcurrency` (default `1`). Results
 remain in manifest order. The closed scenarios are `discovery`
@@ -574,19 +833,21 @@ perform no retries, service export, persistence, Haiku runs, or quality judging.
 ## Phase 3 CI workflow
 
 `.github/workflows/agent-evals.yml` composes the validated local runner and CI
-reporter into two independent matrix entries on GitHub-hosted Ubuntu:
+reporter into three independent matrix entries on GitHub-hosted Ubuntu:
 
 | Entry     | Suite        | Scenario    | Workload concurrency | Timeout |
 | --------- | ------------ | ----------- | -------------------: | -------: |
 | discovery | `canary`      | `discovery` |                    2 | 40 min  |
 | intent    | `stable-full` | `intent`    |                    4 | 40 min  |
+| full      | `stable-full` | `full`      |                    4 | 40 min  |
 
 It triggers on every push to `main`, at `03:00` UTC from the default branch, on
 `workflow_dispatch`, and on `pull_request` events of type `labeled` targeting
 `main`. The push trigger is temporary data-collection policy for measuring
 run-to-run variance and selecting workloads to optimize; daily/manual/label
 coverage remains available and the workflow remains advisory. The paid jobs run
-for a pull request only when the event label is exactly `agent-eval` and the
+for a pull request only when the event label is exactly `agent-eval` (Luna) or
+`agent-eval-openrouter` (explicit candidate) and the
 head repository is the current repository. They check out the immutable
 labeled head SHA; scheduled and manual runs use `github.sha`. A later
 `synchronize` event does not rerun while the label remains. Removing and
@@ -600,8 +861,10 @@ Node, frozen dependencies, and the current `@openai/codex` CLI, and records
 `runner.temp` and authenticates with the official stdin API-key flow.
 `OPENAI_API_KEY` is scoped only to authentication; `GITHITS_API_TOKEN` is
 scoped only to paid suite execution. No local subscription state, Keychain
-data, user config, or personal skills are copied into the runner. Scenario
-outputs are uploaded as `agent-eval-discovery` and `agent-eval-intent` with
+data, user config, or personal skills are copied into the runner. OpenRouter trials
+use the explicit main config and execution-only provider auth described above,
+without OpenAI login. Scenario outputs are uploaded as `agent-eval-discovery`,
+`agent-eval-intent`, and `agent-eval-full` with
 14-day retention, including partial setup/execution evidence.
 
 The unconditional summary job downloads those artifacts into separate,
@@ -826,7 +1089,7 @@ cache-write input 60, total tokens 110). The Luna live canary had zero
 cache-write input, so it did not independently verify a nonzero cache-write
 case.
 
-The Luna base-rate snapshot is effective 2026-08-28 and sourced from the
+The historical GPT-5.6 Luna base-rate snapshot is effective 2026-08-28 and sourced from the
 [OpenAI gpt-5.6-luna model page](https://developers.openai.com/api/docs/models/gpt-5.6-luna):
 
 | Bucket            | USD per million tokens |
@@ -835,6 +1098,12 @@ The Luna base-rate snapshot is effective 2026-08-28 and sourced from the
 | Cached input      |                   0.02 |
 | Cache-write input |                   0.25 |
 | Output            |                   1.20 |
+
+New GPT-6 Luna runs use the [OpenAI GPT-6 Luna model page](https://developers.openai.com/api/docs/models/gpt-6-luna)
+rate snapshot effective 2026-09-25. The standard short-context rates per
+million tokens are $0.10 uncached input, $0.01 cached input, $0.125 cache-write
+input, and $0.50 output. Historical GPT-5.6 Luna artifacts retain their
+original snapshot and cost estimate when read or compared.
 
 The estimate is not billed, exact, or an upper bound. Codex exposes a
 turn-level aggregate rather than request-level usage. When inclusive input is
@@ -884,8 +1153,8 @@ Run the smallest one-workload scenario pair when changing MCP descriptions,
 guidance, or the harness:
 
 ```bash
-bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile descriptors --workload eval/agentic/workloads/express-router.md
-bun run agent:e2e --agent codex --model gpt-5.6-luna --reasoning-effort low --server local --guidance-profile descriptors --intent-profile githits --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --model gpt-6-luna --reasoning-effort low --server local --guidance-profile descriptors --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --model gpt-6-luna --reasoning-effort low --server local --guidance-profile descriptors --intent-profile githits --workload eval/agentic/workloads/express-router.md
 ```
 
 The first command is `discovery`; the second is `intent`. Add
@@ -927,6 +1196,6 @@ artifacts that resolve outside the run directory.
 | `scripts/agent-eval-suite.test.ts`   | Suite, comparison, CLI, failure, and containment coverage                                        |
 | `scripts/agent-eval.test.ts`         | Runner, report, fallback, safety, and integration coverage                                       |
 | `scripts/agent-eval-metrics.test.ts` | Adapter and metrics-contract coverage                                                            |
-| `.github/workflows/agent-evals.yml`  | Daily, labeled-PR, and manual Luna execution plus unconditional summary                         |
+| `.github/workflows/agent-evals.yml`  | Daily/manual Luna and label-selected Luna/OpenRouter execution plus unconditional summary                         |
 | `eval/agentic/README.md`             | User-facing harness usage, workload guidance, and limitations                                    |
 | `.agents/skills/braintrust-agent-evals/SKILL.md` | Internal read/query/export operating commands                                  |

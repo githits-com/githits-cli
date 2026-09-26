@@ -1027,6 +1027,60 @@ describe("CodeNavigationServiceImpl", () => {
     }
   });
 
+  it("keeps a 502 HTML search error short and preserves its status", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(
+          "<!doctype html><html><body>Cloudflare error page</body></html>",
+          {
+            status: 502,
+            headers: { "Content-Type": "text/html" },
+          },
+        ),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    try {
+      await service.search({
+        targets: [{ registry: "NPM", packageName: "express" }],
+        query: "router",
+      });
+      throw new Error("expected backend error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CodeNavigationBackendError);
+      expect(error).toMatchObject({
+        status: 502,
+        message: "Server error (502)",
+      });
+    }
+  });
+
+  it("retains a concise JSON detail for server errors", async () => {
+    mockFetch(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ detail: "Gateway unavailable" }), {
+          status: 502,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    const service = new CodeNavigationServiceImpl(
+      BASE_URL,
+      createMockTokenProvider(),
+    );
+
+    await expect(
+      service.search({
+        targets: [{ registry: "NPM", packageName: "express" }],
+        query: "router",
+      }),
+    ).rejects.toThrow("Server error (502): Gateway unavailable");
+  });
+
   it("throws CodeNavigationIndexingError for data-path INDEXING sentinel on listFiles", async () => {
     mockFetch(() =>
       Promise.resolve(

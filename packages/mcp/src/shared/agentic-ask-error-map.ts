@@ -89,7 +89,7 @@ export function mapAgenticAskError(error: unknown): AgenticAskMappedError {
   return {
     mapped: {
       code: "UNKNOWN",
-      message: "Agentic Ask failed unexpectedly.",
+      message: "Research failed unexpectedly.",
       retryable: false,
     },
   };

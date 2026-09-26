@@ -1,6 +1,6 @@
 # GitHits Code And Docs CLI Reference
 
-Package target syntax requires an explicit registry: `registry:name[@version]`, for example `npm:express@5.2.1`; omit `@version` for the latest release. Package targets inspect an indexed artifact/manifest root. Swift package targets use `swift:github.com/<owner>/<repo>` and Zig package targets use `zig:gh/<owner>/<repo>`. Use public repository targets for full repositories or sibling packages. Repository compact targets use `github:org/repo[@ref]`, `codeberg:owner/repo[@ref]`, `gitlab:group[/subgroup...]/project[@ref]`, `github.com/org/repo[@ref]`, or `https://github.com/org/repo[@ref]`; omitted refs request the backend default-branch intent. Exact standalone documentation sites use `site:<host[/path]>`. Output uses canonical `provider:path@ref` formatting so refs can contain `@` safely. `code` commands also support `--repo-url <url> [--git-ref <ref>]`.
+Package target syntax requires an explicit registry: `registry:name@version`, for example `npm:express@5.2.1`; omit `@version` for the latest release. Package targets scope to the package subpath, including within monorepos. Swift package targets use `swift:github.com/<owner>/<repo>` and Zig package targets use `zig:gh/<owner>/<repo>`. Use public repository targets for full repositories or sibling packages. Repository compact targets use `github:org/repo@ref`, `codeberg:owner/repo@ref`, `gitlab:group/subgroup/project@ref`, `github.com/org/repo@ref`, or `https://github.com/org/repo@ref`; omit `@ref` for the backend default branch. Exact standalone documentation sites use `site:<host[/path]>`. Output uses canonical `provider:path@ref` formatting so refs can contain `@` safely. `code` commands also support `--repo-url <url>` with optional `--git-ref <ref>`.
 
 ## Search
 
@@ -27,15 +27,15 @@ If a missing or ambiguous site returns suggested site targets, retry one of thos
 
 ## Code Files
 
-`githits code files <spec> [path-prefix]` lists paths. Use this before `code read` when you do not know the exact file path.
+`githits code files <spec> [path-prefix]` lists paths. Use this before `githits read` when you do not know the exact file path.
 
 Useful filters: `--path`, repeatable `--glob`, repeatable `--ext`, repeatable `--file-type`, repeatable `--language`, repeatable `--file-intent`, repeatable `--exclude-intent`, `--exclude-docs`, `--exclude-tests`, `--hidden`, `--limit`, `--wait`, `--verbose`, `--json`.
 
 ## Code Read
 
-`githits code read <spec> <path>` reads one exact package-relative file. Use `--lines 10-80`, `--start`, or `--end` for focused windows. You can also append a range to the path: `src/index.js:10-80`.
+`githits read <target> <path>` reads one exact target-relative file. Use `--lines 10-80`, `--start`, or `--end` for focused windows. You can also append a range to the path: `src/index.js:10-80`. `githits code read` remains a compatibility alias.
 
-For repository addressing: `githits code read --repo-url <url> [--git-ref <ref>] <path>`.
+`githits read '<target>#<symbol>'` or `githits read <target> --selector <name>` reads a known indexed code symbol; add an exact `<path>` to narrow resolution to one file. The backend decides whether a repository fragment identifies a code symbol or a documentation heading. Ambiguous, missing, or unsupported snapshots return recovery guidance. For repository addressing, prefer a compact repository target; `githits read --repo-url <url> [--git-ref <ref>] <path>` remains a compatibility path.
 
 ## Code Grep
 
@@ -48,7 +48,7 @@ When grep returns no matches, do not repeat it unchanged. Change or shorten the 
 
 `githits docs list <spec>` browses available documentation pages. It is not topic search.
 
-For `githits docs read <target>`, use the search snippet when sufficient; otherwise run its generated `followUp`. From text, pass the displayed `[docs page]` target unchanged; from `docs list`, pass `docsReadTarget`. A fragment needs no `--lines` and returns its exact indexed section; add bounds only to replace it with a page-relative range. Historical `pageId` values remain supported. Use `--json` only for required range/source metadata.
+For `githits read <target>`, use the search snippet when sufficient; otherwise run its generated `followUp`. From text, pass the displayed `[docs page]` target unchanged; from `docs list`, pass `docsReadTarget`. Hosted/crawled HTTP(S) targets address mutable current content, so automatic follow-ups forward the exact URL or fragment without search bounds. A fragment returns its heading and full subtree through the next equal-or-higher heading. Use `--selector <heading-id>` for a known logical heading ID without a URL fragment. Repository docs remain snapshot-addressed and keep returned ranges. Add `--lines` only when intentionally selecting a current page range; either bound replaces heading selection. Historical `pageId` values remain supported. `githits docs read` remains a compatibility alias. Use `--json` only for required range/source metadata.
 
 For topic search, use `githits search "<topic>" --source docs --in <target>`, then run its generated follow-up or pass the displayed text target.
 
@@ -57,14 +57,15 @@ Partial and capped documentation coverage are usable published evidence. Report 
 ## Command Name Mapping
 
 - `githits example` maps to MCP `get_example`.
-- `githits languages` maps to MCP `search_language`.
 - `githits search` maps to MCP `search`.
 - `githits search-status` maps to MCP `search_status`.
 - `githits code files` maps to MCP `code_files`.
 - `githits code grep` maps to MCP `code_grep`.
-- `githits code read` maps to MCP `read` with `target` and `path`.
+- `githits read <target> <path>` maps to MCP `read` with `target` and `path`.
+- `githits read <target> --selector <name>` maps to MCP `read` with `target` and `selector`, optionally with `path` for code.
+- `githits read '<target>#<symbol>'` maps to MCP `read` with the fragment in `target`, optionally with `path` for code.
 - `githits docs list` maps to MCP `docs_list`.
-- `githits docs read` maps to MCP `read` with `target` alone.
+- `githits read <docs-target>` maps to MCP `read` with `target` alone.
 
 Direct repository targets accept approved full HTTPS URLs on github.com, codeberg.org, and gitlab.com. Codeberg requires exactly owner/repo; GitLab allows nested namespaces. Only GitHub supports host shorthand and HTTP compatibility. Never infer a provider from bare owner/repo. Repository refs use an @ suffix and may themselves contain / and @; # is reserved for semantic fragments. Empty refs and mixed suffixes are invalid. Credentials, queries, provider web subpaths, and unsupported/self-hosted hosts are rejected. Package targets keep registry-native coordinates, including `zig:cb/owner/repo` and `swift:gitlab.com/group/project`. Changelog repo URL fields remain full HTTPS URLs.
 

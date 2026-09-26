@@ -60,20 +60,23 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
       "Advisories can be published or revised after training; a cutoff disclaimer is not current evidence.",
     );
     expect(tool.description).toContain(
-      '`{"registry":"npm","package_name":"next","advisory_scope":"all"}`',
+      '`{"target":"npm:next","advisory_scope":"all"}`',
     );
     expect(tool.description).toContain(
       "identifiers and aliases, including CVEs when available",
     );
     expect(tool.description).toContain("identifier aliases (including CVEs)");
-    expect(tool.description).toContain(
-      "dependency vulnerability evidence covering the resolved graph",
+    expect(tool.schema.include_transitive?.description).toContain(
+      "dependency vulnerability evidence for the resolved graph",
     );
-    expect(tool.description).toContain(
-      "`min_severity` and `advisory_scope` apply to direct and transitive rows",
+    expect(tool.schema.include_transitive?.description).toContain(
+      "min_severity and advisory_scope apply to direct and transitive rows",
     );
-    expect(tool.description).toContain(
-      "`include_withdrawn` affects direct rows only",
+    expect(tool.schema.include_transitive?.description).toContain(
+      "include_withdrawn affects direct rows only",
+    );
+    expect(tool.schema.include_transitive?.description).toContain(
+      "Transitive withdrawn advisories remain excluded",
     );
     expect(Object.keys(tool.schema).sort()).toEqual([
       "advisory_scope",
@@ -81,11 +84,12 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
       "include_transitive",
       "include_withdrawn",
       "min_severity",
-      "package_name",
-      "registry",
+      "target",
       "verbose",
-      "version",
     ]);
+    expect(tool.schema.target?.description).toContain(
+      "for example npm:lodash@4.17.20",
+    );
     expect(tool.annotations?.readOnlyHint).toBe(true);
   });
 
@@ -114,9 +118,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
 
     await tool.handler(
       {
-        registry: "npm",
-        package_name: "express",
-        version: "4.18.0",
+        target: "npm:express@4.18.0",
         min_severity: "high",
         advisory_scope: "all",
         include_withdrawn: true,
@@ -144,6 +146,125 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     expect(calls[0]?.[0]?.advisoryScope).toBe("ALL");
   });
 
+  it("normalizes a trimmed uppercase npm scoped pin exactly", async () => {
+    const packageVulnerabilities = mock(() =>
+      Promise.resolve(defaultVulnerabilityReport),
+    );
+    const tool = createPackageVulnerabilitiesTool(
+      createMockPackageIntelligenceService({ packageVulnerabilities }),
+    );
+
+    await tool.handler({ target: " NPM:@types/node@22.0.0 " }, {});
+
+    expect(packageVulnerabilities).toHaveBeenCalledWith({
+      registry: "NPM",
+      packageName: "@types/node",
+      version: "22.0.0",
+      minSeverity: undefined,
+      includeWithdrawn: undefined,
+      includeTransitive: undefined,
+      advisoryScope: undefined,
+      includeTransitiveAdvisoryDetails: false,
+    });
+  });
+
+  it("normalizes an unpinned npm target exactly", async () => {
+    const packageVulnerabilities = mock(() =>
+      Promise.resolve(defaultVulnerabilityReport),
+    );
+    const tool = createPackageVulnerabilitiesTool(
+      createMockPackageIntelligenceService({ packageVulnerabilities }),
+    );
+
+    await tool.handler({ target: "npm:express" }, {});
+
+    expect(packageVulnerabilities).toHaveBeenCalledWith({
+      registry: "NPM",
+      packageName: "express",
+      version: undefined,
+      minSeverity: undefined,
+      includeWithdrawn: undefined,
+      includeTransitive: undefined,
+      advisoryScope: undefined,
+      includeTransitiveAdvisoryDetails: false,
+    });
+  });
+
+  it.each([
+    "go:github.com/gin-gonic/gin@1.2.3",
+    "go:github.com/gin-gonic/gin@v1.2.3",
+  ])("normalizes Go target %s exactly", async (target) => {
+    const packageVulnerabilities = mock(() =>
+      Promise.resolve(defaultVulnerabilityReport),
+    );
+    const tool = createPackageVulnerabilitiesTool(
+      createMockPackageIntelligenceService({ packageVulnerabilities }),
+    );
+
+    await tool.handler({ target }, {});
+
+    expect(packageVulnerabilities).toHaveBeenCalledWith({
+      registry: "GO",
+      packageName: "github.com/gin-gonic/gin",
+      version: "v1.2.3",
+      minSeverity: undefined,
+      includeWithdrawn: undefined,
+      includeTransitive: undefined,
+      advisoryScope: undefined,
+      includeTransitiveAdvisoryDetails: false,
+    });
+  });
+
+  it("normalizes a Swift target exactly while preserving name casing", async () => {
+    const packageVulnerabilities = mock(() =>
+      Promise.resolve(defaultVulnerabilityReport),
+    );
+    const tool = createPackageVulnerabilitiesTool(
+      createMockPackageIntelligenceService({ packageVulnerabilities }),
+    );
+
+    await tool.handler(
+      { target: "swift:github.com/Apple/Swift-Argument-Parser@v1.5.0" },
+      {},
+    );
+
+    expect(packageVulnerabilities).toHaveBeenCalledWith({
+      registry: "SWIFT",
+      packageName: "github.com/Apple/Swift-Argument-Parser",
+      version: "v1.5.0",
+      minSeverity: undefined,
+      includeWithdrawn: undefined,
+      includeTransitive: undefined,
+      advisoryScope: undefined,
+      includeTransitiveAdvisoryDetails: false,
+    });
+  });
+
+  it("normalizes a Maven target exactly while preserving its colon", async () => {
+    const packageVulnerabilities = mock(() =>
+      Promise.resolve(defaultVulnerabilityReport),
+    );
+    const tool = createPackageVulnerabilitiesTool(
+      createMockPackageIntelligenceService({ packageVulnerabilities }),
+    );
+
+    await tool.handler(
+      { target: "maven:org.apache.commons:commons-lang3@3.17.0" },
+      {},
+    );
+
+    expect(packageVulnerabilities).toHaveBeenCalledWith({
+      registry: "MAVEN",
+      packageName: "org.apache.commons:commons-lang3",
+      version: "3.17.0",
+      minSeverity: undefined,
+      includeWithdrawn: undefined,
+      includeTransitive: undefined,
+      advisoryScope: undefined,
+      includeTransitiveAdvisoryDetails: false,
+    });
+  });
+
   it("uses the canonical Go version for wire and response comparisons", async () => {
     const goReport = structuredClone(defaultVulnerabilityReport);
     goReport.package = {
@@ -158,18 +279,14 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
 
     const jsonResult = await tool.handler(
       {
-        registry: "go",
-        package_name: "example.com/mod",
-        version: "1.2.3",
+        target: "go:example.com/mod@1.2.3",
         format: "json",
       },
       {},
     );
     const textResult = await tool.handler(
       {
-        registry: "go",
-        package_name: "example.com/mod",
-        version: "1.2.3",
+        target: "go:example.com/mod@1.2.3",
       },
       {},
     );
@@ -191,10 +308,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     const tool = createPackageVulnerabilitiesTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler(
-      { registry: "npm", package_name: "express" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:express" }, {});
     expect(result.isError).toBeUndefined();
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("express @ 4.18.0 | npm");
@@ -207,7 +321,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
       createMockPackageIntelligenceService(),
     );
     const result = await tool.handler(
-      { registry: "npm", package_name: "express", verbose: true },
+      { target: "npm:express", verbose: true },
       {},
     );
     const text = result.content[0]?.text ?? "";
@@ -227,8 +341,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
       );
       await tool.handler(
         {
-          registry: "npm",
-          package_name: "express",
+          target: "npm:express",
           min_severity: "high",
           advisory_scope: "all",
           include_withdrawn: true,
@@ -302,10 +415,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
         createMockPackageIntelligenceService({ packageVulnerabilities }),
       );
 
-      await tool.handler(
-        { registry: "npm", package_name: "express", ...args },
-        {},
-      );
+      await tool.handler({ target: "npm:express", ...args }, {});
 
       const params = (
         packageVulnerabilities.mock.calls as unknown as Array<
@@ -331,15 +441,14 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
       createMockPackageIntelligenceService({ packageVulnerabilities }),
     );
     const textResult = await tool.handler(
-      { registry: "npm", package_name: "express", include_transitive: true },
+      { target: "npm:express", include_transitive: true },
       {},
     );
     expect(textResult.content[0]?.text).toContain("Resolved dependencies");
     expect(textResult.content[0]?.text).toContain("body-parser@1.19.0");
     const verboseResult = await tool.handler(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         include_transitive: true,
         verbose: true,
       },
@@ -350,8 +459,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
 
     const jsonResult = await tool.handler(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         include_transitive: true,
         format: "json",
       },
@@ -376,10 +484,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     const tool = createPackageVulnerabilitiesTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler(
-      { registry: "npm", package_name: "express" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:express" }, {});
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("... (+1 more; use verbose=true or format=json)");
     expect(text).not.toContain("use -v");
@@ -390,7 +495,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
       createMockPackageIntelligenceService(),
     );
     const result = await tool.handler(
-      { registry: "npm", package_name: "express", format: "json" },
+      { target: "npm:express", format: "json" },
       {},
     );
     const payload = parseText(result) as Record<string, unknown>;
@@ -406,8 +511,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     );
     const result = await tool.handler(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         min_severity: "HIGH",
         advisory_scope: "non_affecting",
         include_withdrawn: true,
@@ -438,8 +542,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     );
     const result = await tool.handler(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         min_severity: "high",
         advisory_scope: "all",
         include_withdrawn: true,
@@ -477,13 +580,12 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
       createMockPackageIntelligenceService(),
     );
     const normal = await tool.handler(
-      { registry: "npm", package_name: "express", format: "json" },
+      { target: "npm:express", format: "json" },
       {},
     );
     const verbose = await tool.handler(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         format: "json",
         verbose: true,
       },
@@ -498,9 +600,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     );
     const result = await tool.handler(
       {
-        registry: "npm",
-        package_name: "express",
-        version: "4.17",
+        target: "npm:express@4.17",
         format: "json",
       },
       {},
@@ -513,10 +613,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     const tool = createPackageVulnerabilitiesTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler(
-      { registry: "npm", package_name: "express", version: "v4.18.0" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:express@v4.18.0" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string; error: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
@@ -524,15 +621,44 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
   });
 });
 
-describe("createPackageVulnerabilitiesTool — validation errors via in-handler builder", () => {
+describe("createPackageVulnerabilitiesTool — compact target validation", () => {
+  it.each([
+    "",
+    "   ",
+    "express",
+    "npm:",
+    "npm:express@",
+    "madeup:express",
+    "github:expressjs/express",
+    "site:expressjs.com",
+  ])(
+    "rejects invalid compact target %j without calling service",
+    async (target) => {
+      const packageVulnerabilities = mock(() =>
+        Promise.resolve(defaultVulnerabilityReport),
+      );
+      const tool = createPackageVulnerabilitiesTool(
+        createMockPackageIntelligenceService({ packageVulnerabilities }),
+      );
+
+      const result = await tool.handler({ target }, {});
+
+      expect(result.isError).toBe(true);
+      expect(parseText(result)).toMatchObject({
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      });
+      expect(packageVulnerabilities).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe("createPackageVulnerabilitiesTool — validation errors via shared parsing and builder", () => {
   it("returns INVALID_ARGUMENT envelope for unsupported registry (vcpkg)", async () => {
     const tool = createPackageVulnerabilitiesTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler(
-      { registry: "vcpkg", package_name: "foo" },
-      {},
-    );
+    const result = await tool.handler({ target: "vcpkg:foo" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as {
       code: string;
@@ -550,24 +676,18 @@ describe("createPackageVulnerabilitiesTool — validation errors via in-handler 
     const tool = createPackageVulnerabilitiesTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler(
-      { registry: "cargo", package_name: "serde" },
-      {},
-    );
+    const result = await tool.handler({ target: "cargo:serde" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string; error: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
     expect(payload.error.toLowerCase()).toContain("unsupported registry");
   });
 
-  it("returns INVALID_ARGUMENT envelope for empty package_name", async () => {
+  it("returns INVALID_ARGUMENT envelope for a missing package name", async () => {
     const tool = createPackageVulnerabilitiesTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler(
-      { registry: "npm", package_name: "" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
@@ -584,10 +704,7 @@ describe("createPackageVulnerabilitiesTool — service errors", () => {
       ),
     });
     const tool = createPackageVulnerabilitiesTool(service);
-    const result = await tool.handler(
-      { registry: "npm", package_name: "ghost" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:ghost" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("NOT_FOUND");
@@ -598,10 +715,7 @@ describe("createPackageVulnerabilitiesTool — service errors", () => {
       packageVulnerabilities: mock(() => Promise.reject(new Error("boom"))),
     });
     const tool = createPackageVulnerabilitiesTool(service);
-    const result = await tool.handler(
-      { registry: "npm", package_name: "express" },
-      {},
-    );
+    const result = await tool.handler({ target: "npm:express" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("UNKNOWN");
@@ -619,8 +733,7 @@ describe("createPackageVulnerabilitiesTool — service errors", () => {
     await expect(
       tool.handler(
         {
-          registry: "npm",
-          package_name: "express",
+          target: "npm:express",
           include_transitive: true,
         },
         { signal: controller.signal },

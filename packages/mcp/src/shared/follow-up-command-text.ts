@@ -93,16 +93,17 @@ export function documentationReadLocator(
 ): DocumentationReadLocator {
   const loc = hit.locator;
   const target = loc.docsReadTarget ?? loc.pageId ?? "";
-  if (hasHttpFragment(target)) return { target };
+  if (hit.type === "documentation_page" && isHttpUrl(target)) {
+    if (hasHttpFragment(target)) return { target };
 
-  const fragmentPrefix = `${target}#`;
-  if (
-    hit.type === "documentation_page" &&
-    isHttpUrl(target) &&
-    loc.sourceUrl?.startsWith(fragmentPrefix) &&
-    loc.sourceUrl.length > fragmentPrefix.length
-  ) {
-    return { target: loc.sourceUrl };
+    const fragmentPrefix = `${target}#`;
+    if (
+      loc.sourceUrl?.startsWith(fragmentPrefix) &&
+      loc.sourceUrl.length > fragmentPrefix.length
+    ) {
+      return { target: loc.sourceUrl };
+    }
+    return { target };
   }
 
   return {

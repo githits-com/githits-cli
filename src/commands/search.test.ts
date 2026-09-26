@@ -12,6 +12,7 @@ import {
   AuthenticationError,
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
+  createCodeNavigationHttpError,
   TermsAcceptanceRequiredError,
 } from "@githits/core-internal";
 import { AuthRequiredError } from "@githits/mcp/internal";
@@ -187,6 +188,43 @@ describe("searchAction", () => {
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
+
+  it.each([false, true])(
+    "keeps a 502 HTML body out of CLI search output with json=%s",
+    async (json) => {
+      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+        throw new Error("process.exit");
+      });
+      const backendError = createCodeNavigationHttpError({
+        status: 502,
+        responseBody: "<!doctype html><html>Cloudflare error page</html>",
+        parsedBody: null,
+      });
+
+      try {
+        await expect(
+          searchAction(
+            "router",
+            { in: ["npm:express"], json },
+            createDeps({
+              codeNavigationService: createMockCodeNavigationService({
+                search: mock(() => Promise.reject(backendError)),
+              }),
+            }),
+          ),
+        ).rejects.toThrow("process.exit");
+
+        const output = String(errorSpy.mock.calls[0]?.[0]);
+        expect(output).toContain("Server error (502)");
+        expect(output).not.toContain("Cloudflare");
+        expect(output).not.toContain("<html>");
+      } finally {
+        errorSpy.mockRestore();
+        exitSpy.mockRestore();
+      }
+    },
+  );
 
   it("preserves CLI terms remediation in JSON search errors", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
@@ -1810,7 +1848,7 @@ describe("searchAction", () => {
     }
   });
 
-  it("shows direct source URLs and retains page IDs for documentation pages", async () => {
+  it("shows the exact mutable hosted target without its internal page ID", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
     if (defaultUnifiedSearchOutcome.state !== "completed") {
@@ -1832,8 +1870,11 @@ describe("searchAction", () => {
               packageName: "express",
               version: "5.2.1",
               pageId: "docs-123",
+              docsReadTarget: "https://hexdocs.pm/express/getting-started.html",
               sourceKind: "CRAWLED",
               sourceUrl: "https://hexdocs.pm/express/getting-started.html",
+              startLine: 81,
+              endLine: 93,
             },
           },
         ],
@@ -1852,10 +1893,10 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain(
-      "[1] docs-123 [docs page] npm:express - hexdocs.pm/express/getting-started.html -\n  Using Express middleware",
+      "[1] https://hexdocs.pm/express/getting-started.html [docs page] npm:express -\n  Using Express middleware",
     );
     expect(output).toContain("hexdocs.pm/express/getting-started.html");
-    expect(output).toContain("docs-123");
+    expect(output).not.toContain("docs-123");
     expect(output).toContain("Using Express middleware");
     expect(output).not.toContain("source:");
     expect(output).not.toContain("npm:express@4.18.2 [docs page]");

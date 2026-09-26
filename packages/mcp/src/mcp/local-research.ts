@@ -27,7 +27,7 @@ import {
   type ZodRawShape,
 } from "../tools/types.js";
 
-export interface AgenticAskMcpArgs {
+export interface LocalResearchMcpArgs {
   target?: string;
   thread_id?: string;
   question: string;
@@ -48,13 +48,13 @@ const schema: ZodRawShape = {
     .min(1)
     .optional()
     .describe(
-      "Thread UUID returned by an earlier ask call. Cannot be combined with target. Reuse it for follow-ups; name a new project or version in the question to change scope.",
+      "Thread UUID returned by an earlier research call. Cannot be combined with target. Reuse it for follow-ups; name a new project or version in the question to change scope.",
     ),
   question: z
     .string()
     .min(1)
     .describe(
-      "One question to answer from indexed public evidence. Do not include credentials, personal data, private code, or proprietary content.",
+      "One research question to answer from indexed public evidence. Do not include credentials, personal data, private code, or proprietary content.",
     ),
   source_format: z
     .enum(["mcp", "url"])
@@ -71,18 +71,18 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION =
-  "Ask a public repository or package question and receive a source-cited answer. Omit target and thread_id to identify the target from the question. If Ask returns candidates, ask the user to select a target before retrying. Supply at most one of target or thread_id. Continue a prior thread by its returned thread_id. Follow-ups can change project, version, or topic; state changes in the question. Sources default to actionable MCP calls; request source_format=url for original upstream URLs.";
+  "Research a public repository or package to answer a question with sources. Omit target and thread_id to identify the target from the question. If Research returns candidates, ask the user to select a target before retrying. Supply at most one of target or thread_id. Continue a prior thread by its returned thread_id. Follow-ups can change project, version, or topic; state changes in the question. Sources default to actionable MCP calls; request source_format=url for original upstream URLs.";
 
-export function createLocalAgenticAskTool(
+export function createLocalResearchTool(
   service: AgenticAskService,
-): ToolDefinition<AgenticAskMcpArgs, typeof schema> {
+): ToolDefinition<LocalResearchMcpArgs, typeof schema> {
   return {
-    name: "ask",
+    name: "research",
     description: DESCRIPTION,
     schema,
     annotations: OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
-      const subject = resolveMcpAskSubject(args);
+      const subject = resolveResearchSubject(args);
       if ("error" in subject) {
         return errorResult(
           JSON.stringify({
@@ -117,7 +117,7 @@ export function createLocalAgenticAskTool(
         const projected = projectAskReadSources(response);
         return textResult(
           isTextFormat(args.format)
-            ? formatAgenticAskMcpText(projected)
+            ? formatResearchMcpText(projected)
             : JSON.stringify(projected),
         );
       } catch (error) {
@@ -183,7 +183,7 @@ export function projectAskReadSources(
 }
 
 /** Render the validated answer, selected source pointers, and identifiers. */
-export function formatAgenticAskMcpText(
+export function formatResearchMcpText(
   response:
     | ProjectedAskMcpResponse
     | AgenticAskUrlResponse
@@ -205,7 +205,7 @@ export function formatAgenticAskMcpText(
     sections.push(["Sources:", ...sourceLines].join("\n"));
   }
   sections.push(
-    `Ask run ID: ${response.tool_call_id}\nThread ID: ${response.thread_id}\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.`,
+    `Research run ID: ${response.tool_call_id}\nThread ID: ${response.thread_id}\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.`,
   );
   return `${sections.join("\n\n")}\n`;
 }
@@ -214,12 +214,12 @@ function formatMcpSourceCall(source: AskReadSource): string {
   return `${source.name}(${JSON.stringify(source.arguments)})`;
 }
 
-function isTextFormat(format: AgenticAskMcpArgs["format"]): boolean {
+function isTextFormat(format: LocalResearchMcpArgs["format"]): boolean {
   return format === undefined || format === "text";
 }
 
-function resolveMcpAskSubject(
-  args: AgenticAskMcpArgs,
+function resolveResearchSubject(
+  args: LocalResearchMcpArgs,
 ): { target?: string } | { threadId: string } | { error: string } {
   if (args.target !== undefined && args.thread_id !== undefined) {
     return { error: "Provide at most one of target or thread_id." };

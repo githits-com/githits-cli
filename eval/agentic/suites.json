@@ -110,6 +110,12 @@
       "suites": ["stable-full"]
     },
     {
+      "id": "package-changelog-exact",
+      "path": "eval/agentic/workloads/package-changelog-exact.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
       "id": "package-changelog-range",
       "path": "eval/agentic/workloads/package-changelog-range.md",
       "safety": "stable",
@@ -154,6 +160,12 @@
     {
       "id": "package-vulnerability-rubygems",
       "path": "eval/agentic/workloads/package-vulnerability-rubygems.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "search-inline-qualifiers",
+      "path": "eval/agentic/workloads/search-inline-qualifiers.md",
       "safety": "stable",
       "suites": ["stable-full"]
     },

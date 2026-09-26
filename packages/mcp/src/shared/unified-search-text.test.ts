@@ -363,6 +363,117 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("defined at");
   });
 
+  it("keeps fallback Express windows unverified and distinguishes a proven router hit", () => {
+    const unmatched = [
+      "session metadata",
+      "clear auth session",
+      "remove stored auth",
+    ].map((summary, index) =>
+      codeHit({
+        target: "npm:express@5.2.1",
+        summary,
+        locator: {
+          filePath: `lib/auth-${index}.js`,
+          startLine: 10,
+          endLine: 20,
+          // The backend's null matchLine/rangeKind normalize to absent fields.
+          evidenceRange: {
+            startLine: 10,
+            endLine: 20,
+            matchSpansTruncated: false,
+          },
+        },
+        repositoryEvidence: {
+          semanticContext: null,
+          bm25MatchFields:
+            index === 0 ? ["FILE_PATH", "SOURCE_IDENTIFIER"] : ["FILE_PATH"],
+          focusedSource: {
+            ...matchedEvidence(10, 10, "unverified source")!.matchedSource!,
+          },
+          matchedSource: null,
+        },
+      }),
+    );
+    const proven = codeHit({
+      target: "npm:express@5.2.1",
+      summary: "legacy summary should stay hidden",
+      locator: { filePath: "test/app.router.js", startLine: 877, endLine: 880 },
+      repositoryEvidence: matchedEvidence(879, 879, "next('router')"),
+    });
+    const text = renderUnifiedSearchSuccess(
+      completed([...unmatched, proven], {
+        query: { raw: "clearAutoLoginAuthSessionMetadata" },
+      }),
+    );
+
+    expect(text).toContain(
+      "lib/auth-0.js:10-20 [repo code, candidate; visible terms: auth, session, metadata]",
+    );
+    expect(text).toContain(
+      "lib/auth-1.js:10-20 [repo code, candidate; visible terms: auth]",
+    );
+    expect(text).toContain(
+      "lib/auth-2.js:10-20 [repo code, candidate; visible terms: auth]",
+    );
+    expect(text).not.toContain("session metadata");
+    expect(text).not.toContain("clear auth session");
+    expect(text).not.toContain("remove stored auth");
+    expect(text).not.toContain("unverified source");
+    expect(text).not.toContain("Context (source match unverified):");
+    expect(text).not.toContain("Snippet unavailable");
+    expect(text).toContain("test/app.router.js:879 [repo code]");
+    expect(text).toContain("> 879 | next('router')");
+    expect(text).not.toContain("legacy summary should stay hidden");
+  });
+
+  it("names a same-file candidate declaration on the header without claiming a match", () => {
+    const hit = codeHit({
+      target: "npm:githits@0.21.0",
+      title: "AuthSessionStore",
+      summary: "interface AuthSessionStore { clear(): void }",
+      locator: {
+        filePath: "src/auth.ts",
+        startLine: 17,
+        endLine: 27,
+        symbolContext: {
+          name: "AuthSessionStore",
+          qualifiedPath: "AuthSessionStore",
+          kind: "interface",
+          relation: "associated_with_indexed_chunk",
+          definitionRange: {
+            filePath: "src/auth.ts",
+            repositoryFilePath: "src/auth.ts",
+            startLine: 17,
+            endLine: 29,
+          },
+        },
+      },
+      repositoryEvidence: {
+        semanticContext: null,
+        bm25MatchFields: ["SYMBOL_NAME", "SOURCE_IDENTIFIER"],
+        focusedSource: null,
+        matchedSource: null,
+      },
+    });
+    const render = (): string =>
+      renderUnifiedSearchSuccess(
+        completed([hit], { query: { raw: "AuthSessionStore" } }),
+      );
+    expect(render()).toContain(
+      "src/auth.ts:17-27 [repo code, candidate; visible terms: auth, session, store] - interface AuthSessionStore",
+    );
+    expect(render().split("\n")).toHaveLength(3);
+    hit.locator.symbolContext!.definitionRange!.filePath = "src/other.ts";
+    hit.locator.symbolContext!.definitionRange!.repositoryFilePath =
+      "src/other.ts";
+    expect(render()).not.toContain("- interface AuthSessionStore");
+    hit.locator.symbolContext!.definitionRange!.filePath = "src/auth.ts";
+    hit.locator.symbolContext!.definitionRange!.repositoryFilePath =
+      "src/auth.ts";
+    hit.locator.symbolContext!.definitionRange!.endLine = 20;
+    expect(render()).not.toContain("- interface AuthSessionStore");
+  });
+
   it("does not imply that a cross-file associated definition shares the evidence file", () => {
     const text = renderUnifiedSearchSuccess(
       completed([

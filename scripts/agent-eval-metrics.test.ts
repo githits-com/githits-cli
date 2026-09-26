@@ -515,14 +515,40 @@ describe("agent eval usage metrics", () => {
     });
     expect(metrics.cost.kind).toBe("base_rate_estimate");
     if (metrics.cost.kind !== "base_rate_estimate") return;
-    expect(metrics.cost.usd).toBeCloseTo(0.0000258, 12);
-    expect(metrics.cost.usd).not.toBeCloseTo(0.0000306, 12);
+    expect(metrics.cost.usd).toBeCloseTo(0.0000119, 12);
+    expect(metrics.cost.usd).not.toBeCloseTo(0.0000139, 12);
     expect(metrics.cost.rateSnapshot).toMatchObject({
       model: LUNA_MODEL,
       effectiveDate: LUNA_RATE_EFFECTIVE_DATE,
       source: LUNA_RATE_SOURCE,
+      rates: {
+        uncachedInputUsdPerMillion: 0.1,
+        cachedInputUsdPerMillion: 0.01,
+        cacheWriteInputUsdPerMillion: 0.125,
+        outputUsdPerMillion: 0.5,
+      },
     });
     expect(metrics.warnings).toEqual([]);
+    expect(agentUsageMetricsSchema.parse(metrics)).toEqual(metrics);
+  });
+
+  it("keeps historical Luna usage and rate snapshots readable", () => {
+    const metrics = adaptAgentUsage(
+      codexUsageEvent({
+        input_tokens: 100,
+        cached_input_tokens: 40,
+        cache_write_input_tokens: 20,
+        output_tokens: 10,
+        reasoning_output_tokens: 4,
+      }),
+      "codex",
+      "gpt-5.6-luna",
+    );
+
+    expect(metrics.cost.kind).toBe("base_rate_estimate");
+    if (metrics.cost.kind !== "base_rate_estimate") return;
+    expect(metrics.cost.usd).toBeCloseTo(0.0000258, 12);
+    expect(metrics.cost.rateSnapshot.model).toBe("gpt-5.6-luna");
     expect(agentUsageMetricsSchema.parse(metrics)).toEqual(metrics);
   });
 
@@ -706,7 +732,7 @@ describe("agent eval usage metrics", () => {
       cacheWriteInputTokens: 20,
       outputTokens: 10,
       reasoningOutputTokens: 4,
-      baseRateEstimatedCostUsd: 0.0000258,
+      baseRateEstimatedCostUsd: 0.0000119,
     });
     expect(metrics.warnings).toEqual(["codex_terminal_usage_missing"]);
   });
@@ -895,7 +921,7 @@ describe("agent eval usage metrics", () => {
       cacheWriteInputTokens: 40,
       outputTokens: 40,
       reasoningOutputTokens: 9,
-      baseRateEstimatedCostUsd: 0.0000848,
+      baseRateEstimatedCostUsd: 0.0000384,
     });
   });
 

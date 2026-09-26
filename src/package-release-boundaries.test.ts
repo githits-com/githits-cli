@@ -192,6 +192,35 @@ describe("package release boundaries", () => {
     expect(createTagIndex).toBeLessThan(publishIndex);
   });
 
+  it("refuses to recreate a published root release tag at a later commit", async () => {
+    const root = join(import.meta.dir, "..");
+    const workflow = await readFile(
+      join(root, ".github", "workflows", "release.yml"),
+      "utf8",
+    );
+    const npmPublishedCheckIndex = workflow.indexOf(
+      'if npm view "githits@$VERSION" version',
+    );
+    const missingTagGuardIndex = workflow.indexOf(
+      "Refusing to create a tag at a later commit.",
+    );
+    const createTagIndex = workflow.indexOf("- name: Create root git tag");
+    const publishIndex = workflow.indexOf("- name: Publish to npm");
+    const createReleaseIndex = workflow.indexOf(
+      "- name: Create GitHub Release",
+    );
+
+    expect(npmPublishedCheckIndex).toBeGreaterThan(-1);
+    expect(missingTagGuardIndex).toBeGreaterThan(npmPublishedCheckIndex);
+    expect(workflow).toContain(
+      'if [ "$TAG_EXISTS" = "true" ] && [ "$TAG_COMMIT" != "$(git rev-parse HEAD)" ]; then',
+    );
+    expect(createTagIndex).toBeGreaterThan(missingTagGuardIndex);
+    expect(createTagIndex).toBeLessThan(publishIndex);
+    expect(workflow).toContain('git push origin "refs/tags/$TAG"');
+    expect(createReleaseIndex).toBeGreaterThan(missingTagGuardIndex);
+  });
+
   it("requires separate human approval to merge a release PR", async () => {
     const root = join(import.meta.dir, "..");
     const instructionPaths = [
@@ -275,7 +304,8 @@ describe("package release boundaries", () => {
         const release = steps.find(
           (step) => step.name === "Create GitHub Release",
         )!;
-        expect(release.run).toContain('--target "$(git rev-parse HEAD)"');
+        expect(release.run).toContain("--verify-tag");
+        expect(release.run).not.toContain("--target");
       }
     }
   });

@@ -16,6 +16,9 @@ export type {
   CodeDiffTarget,
   CodeDiffVersionSource,
   CodeNavigationService,
+  CodeSymbolCandidate,
+  CodeSymbolResolution,
+  CodeSymbolSuggestion,
   ContentModification,
   ContentSafety,
   GitHitsService,
@@ -35,6 +38,7 @@ export type {
   ReadParams,
   ReadResult,
   ReadService,
+  ReadSymbolResolutionResult,
   ServiceDiagnostics,
   TokenProvider,
 } from "@githits/core-internal";

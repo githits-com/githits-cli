@@ -5,6 +5,161 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.22.1] - 2026-09-25
+
+Patch release: adds compact code-symbol reads to the CLI and local MCP server.
+
+### Added
+
+- **Compact code-symbol reads** - Read package and repository symbols with `target#symbol` and an optional exact path. The backend's unified result chooses code or documentation presentation, preserving HTTP(S) documentation fragments and emitted repository page IDs. `@githits/mcp@0.22.0` already includes this MCP behavior; hosted clients still require adoption and deployment by `remote-mcp`.
+
+### Fixed
+
+- **Protect root release tag provenance** - The release workflow creates the root tag before npm publication, so a failed release can resume at its original source commit. It stops if a published version has no tag instead of tagging a later main commit.
+- **Keep package builds deterministic** - Root and MCP builds clean their output directories before bundling, preventing an intermittent missing-file failure during release validation.
+
+## [githits 0.22.0] - 2026-09-23
+
+Minor release: adds selector reads and renames the experimental research entrypoints.
+
+### Added
+
+- **Selector reads** - `githits read --selector` and local MCP `read` with `selector` read documentation headings and indexed code symbols. Ambiguous, missing, and unsupported-snapshot symbol selections return typed outcomes with recovery guidance.
+
+### Changed
+
+- **Rename experimental research entrypoints** - The local MCP tool is now `research`; the CLI uses `githits research` and retains `githits ask` as an alias. Both CLI spellings now emit `command.research` telemetry instead of `command.ask`. Local MCP clients using `ask` must switch to `research` when experimental tools are enabled.
+
+### Fixed
+
+- **Clarify candidate code search hits** - CLI and local MCP text search show bounded inspection windows, visible identifier-query fragments, and known enclosing declarations in candidate headers, without presenting fallback summaries as verified source matches.
+- **Keep server error pages out of CLI and local MCP errors** - GraphQL HTTP errors retain status and safe JSON details without displaying HTML or plain-text response bodies.
+
+## [@githits/mcp 0.22.0] - 2026-09-23
+
+Minor release: adds selector reads to the public MCP `read` tool.
+
+### Added
+
+- **Selector reads** - MCP `read` accepts `selector` for documentation headings and indexed code symbols, including typed ambiguity, miss, and unsupported-snapshot outcomes. Hosted clients receive this after `@githits/mcp` adoption and deployment by `remote-mcp`.
+
+### Fixed
+
+- **Clarify candidate code search hits** - MCP text search shows bounded inspection windows, visible identifier-query fragments, and known enclosing declarations in candidate headers, without presenting fallback summaries as verified source matches.
+- **Keep server error pages out of MCP errors** - GraphQL HTTP errors retain status and safe JSON details without displaying HTML or plain-text response bodies.
+
+## [githits 0.21.0] - 2026-09-22
+
+Minor release: makes package changelog lookup package-only and adopts compact
+targets for its MCP and CLI surfaces.
+
+### Changed
+
+- **Package-only changelog targets** - MCP `pkg_changelog` replaces `registry`, `package_name`, `repo_url`, `git_ref`, `from_version`, and `to_version` with one required `target` (`npm:express`, `npm:express@5.2.1`, or `npm:express@4.21.2..5.2.1`). CLI drops `--repo-url` and `--git-ref`, accepts the same package forms, and keeps `--from`/`--to` as package range flags. Exact pins return one selected release or `VERSION_NOT_FOUND`; empty timeline selections succeed instead of becoming `NOT_FOUND`.
+- **Clarify compact targets** - Agent guidance, CLI help, and MCP target schemas now explain suffix omission for latest-package/default-branch selection, distinguish package-subpath scope from full-repository scope, and state where changelog `limit` is accepted or rejected.
+
+MCP callers must refresh tool discovery and migrate `pkg_changelog` calls to
+the required compact `target`. CLI users must replace repository changelog
+lookups with package targets. Hosted clients receive these changes only after
+`@githits/mcp` adoption and deployment by `remote-mcp`.
+
+## [@githits/mcp 0.21.0] - 2026-09-22
+
+Minor release: makes package changelog lookup package-only and adopts its
+compact target schema.
+
+### Changed
+
+- **Package-only changelog targets** - MCP `pkg_changelog` replaces `registry`, `package_name`, `repo_url`, `git_ref`, `from_version`, and `to_version` with one required `target` (`npm:express`, `npm:express@5.2.1`, or `npm:express@4.21.2..5.2.1`). CLI drops `--repo-url` and `--git-ref`, accepts the same package forms, and keeps `--from`/`--to` as package range flags. Exact pins return one selected release or `VERSION_NOT_FOUND`; empty timeline selections succeed instead of becoming `NOT_FOUND`.
+- **Clarify compact targets** - Agent guidance, CLI help, and MCP target schemas now explain suffix omission for latest-package/default-branch selection, distinguish package-subpath scope from full-repository scope, and state where changelog `limit` is accepted or rejected.
+
+MCP callers must refresh tool discovery and migrate `pkg_changelog` calls to
+the required compact `target`. Hosted clients receive these changes only after
+package adoption and deployment by `remote-mcp`.
+
+## [githits 0.20.0] - 2026-09-18
+
+Minor release: adopts compact canonical targets across four MCP package tools.
+
+### Added
+
+- **OpenRouter Codex model trials** - Explicit main model config and prompt-based JSON reporting enable isolated caller-selected OpenRouter workload/suite runs with truthful model identity and credential redaction; the trusted generic OpenRouter PR label and an explicitly committed candidate config select the shared full main matrix and aggregate Braintrust export while Luna remains the default.
+
+### Changed
+
+- **Compact package tool targets** - MCP `docs_list`, `pkg_info`, `pkg_vulns`, and `pkg_deps` replace `registry`, `package_name`, and `version` inputs with string `target` (for example `npm:express@5.2.1`); `pkg_info` requires an unpinned latest-only target. CLI syntax, filters, and service requests are unchanged; output is unchanged except that `docs_list` retry hints use the new target syntax. `pkg_changelog` and `pkg_upgrade_review` retain their structured inputs.
+- **Compact agent instructions** - Centralize shared policy in the routing guide and skills, retain selected-tool call essentials and original format/safety reminders, and make catalog selection sentences complete within 79 characters. Clarify changelog upper caps and dependency graph opt-ins without changing runtime behavior. Hosted MCP clients require the next MCP package release and server adoption; bootstrap remains guidance, not enforcement.
+
+### Fixed
+
+- **Agent eval timeout reporting** - Keep awaited subprocess cleanup alive so a final workload timeout cannot make Bun exit successfully before failed-run and suite reports are written.
+- **Keep hosted documentation follow-ups stable across publications** - Automatic search follow-ups now reuse mutable hosted page URLs or exact emitted fragments without stale search line bounds, while repository-document snapshots and explicit read ranges remain unchanged.
+
+MCP callers must refresh tool discovery and migrate the four changed package
+tool call shapes after updating. Hosted clients receive these changes only
+after `@githits/mcp` adoption and deployment by `remote-mcp`.
+
+## [@githits/mcp 0.20.0] - 2026-09-18
+
+Minor release: adopts compact canonical targets across four MCP package tools.
+
+### Changed
+
+- **Compact package tool targets** - MCP `docs_list`, `pkg_info`, `pkg_vulns`, and `pkg_deps` replace `registry`, `package_name`, and `version` inputs with string `target` (for example `npm:express@5.2.1`); `pkg_info` requires an unpinned latest-only target. CLI syntax, filters, and service requests are unchanged; output is unchanged except that `docs_list` retry hints use the new target syntax. `pkg_changelog` and `pkg_upgrade_review` retain their structured inputs.
+- **Compact agent instructions** - Centralize shared policy in the routing guide and skills, retain selected-tool call essentials and original format/safety reminders, and make catalog selection sentences complete within 79 characters. Clarify changelog upper caps and dependency graph opt-ins without changing runtime behavior. Hosted MCP clients require the next MCP package release and server adoption; bootstrap remains guidance, not enforcement.
+
+### Fixed
+
+- **Keep hosted documentation follow-ups stable across publications** - Automatic search follow-ups now reuse mutable hosted page URLs or exact emitted fragments without stale search line bounds, while repository-document snapshots and explicit read ranges remain unchanged.
+
+MCP callers must refresh tool discovery and migrate the four changed package
+tool call shapes after updating. Hosted clients receive these changes only
+after package adoption and deployment by `remote-mcp`.
+
+## [githits 0.19.0] - 2026-09-16
+
+### Removed
+
+- **Remove language discovery** - MCP `search_language` and `githits languages` are gone. Pass a language to `get_example` / `githits example --lang`, or omit it to infer. If GitHits cannot match the language, the error lists alternatives to retry with. Callers of `GitHitsService.getLanguages` / `searchLanguages` must migrate.
+
+MCP callers must refresh tool discovery after updating. Hosted clients receive
+these changes only after `@githits/mcp` adoption and deployment by `remote-mcp`.
+
+## [@githits/mcp 0.19.0] - 2026-09-16
+
+### Removed
+
+- **Remove language discovery** - MCP `search_language` is gone. Pass a language to `get_example`, or omit it to infer. If GitHits cannot match the language, the error lists alternatives to retry with. Callers of `GitHitsService.getLanguages` / `searchLanguages` must migrate.
+
+MCP callers must refresh tool discovery after updating. Hosted clients receive
+these changes only after `@githits/mcp` adoption and deployment by `remote-mcp`.
+
+## [githits 0.18.0] - 2026-09-16
+
+### Changed
+
+- **Use compact MCP targets** - `search`, `code_files`, `code_grep`, and experimental `code_diff` now require target strings: migrate `{registry:"npm",package_name:"express",version:"5.2.1"}` to `"npm:express@5.2.1"`, `{repo_url:"https://github.com/expressjs/express",git_ref:"main"}` to `"github:expressjs/express@main"`, and search `{site:"https://expressjs.com/"}` to `"site:expressjs.com"`; CLI syntax is unchanged.
+- **Unify compact reads** - Compact reads now use backend `Query.read`; deprecated reads and `--repo-url` compatibility paths remain on legacy roots so migration usage stays observable. `McpToolServices.readService` is now required, with `ReadService` and `ReadServiceImpl` exported from `@githits/mcp/client` for hosts. Custom `GITHITS_CODE_NAV_URL` or `PKGSEER_URL` endpoints must implement `Query.read` for compact reads.
+- **Separate repository revisions from fragments** - Repository targets now use `provider:path@ref`, preserve later `@` characters inside refs, and reject legacy `#ref` input with the exact canonical replacement. Package `registry:name@version` targets and documentation fragments remain unchanged.
+- **Use inline MCP search qualifiers** - Move `category`, `kind`, `path_prefix`, `file_intent`, `name`, and `language` into `query` as `category:callable`, `kind:function`, `path:lib/`, `intent:production`, `name:Router`, and `lang:typescript`; CLI flags, `public_only`, results, and continuation behavior are unchanged.
+
+MCP callers must refresh tool discovery after updating. Hosted clients receive
+these changes only after `@githits/mcp` adoption and deployment by `remote-mcp`;
+custom hosts must supply the newly required `readService`.
+
+## [@githits/mcp 0.18.0] - 2026-09-16
+
+### Changed
+
+- **Use compact MCP targets** - `search`, `code_files`, `code_grep`, and experimental `code_diff` now require target strings: migrate `{registry:"npm",package_name:"express",version:"5.2.1"}` to `"npm:express@5.2.1"`, `{repo_url:"https://github.com/expressjs/express",git_ref:"main"}` to `"github:expressjs/express@main"`, and search `{site:"https://expressjs.com/"}` to `"site:expressjs.com"`; CLI syntax is unchanged.
+- **Unify compact reads** - Compact reads now use backend `Query.read`; deprecated reads and `--repo-url` compatibility paths remain on legacy roots so migration usage stays observable. `McpToolServices.readService` is now required, with `ReadService` and `ReadServiceImpl` exported from `@githits/mcp/client` for hosts. Custom `GITHITS_CODE_NAV_URL` or `PKGSEER_URL` endpoints must implement `Query.read` for compact reads.
+- **Separate repository revisions from fragments** - Repository targets now use `provider:path@ref`, preserve later `@` characters inside refs, and reject legacy `#ref` input with the exact canonical replacement. Package `registry:name@version` targets and documentation fragments remain unchanged.
+- **Use inline MCP search qualifiers** - Move `category`, `kind`, `path_prefix`, `file_intent`, `name`, and `language` into `query` as `category:callable`, `kind:function`, `path:lib/`, `intent:production`, `name:Router`, and `lang:typescript`; CLI flags, `public_only`, results, and continuation behavior are unchanged.
+
+MCP callers must refresh tool discovery after updating. Hosted clients receive
+these changes only after `@githits/mcp` adoption and deployment by `remote-mcp`;
+custom hosts must supply the newly required `readService`.
+
 ## [githits 0.17.1] - 2026-09-14
 
 ### Fixed

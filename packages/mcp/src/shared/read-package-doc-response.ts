@@ -33,6 +33,20 @@ export interface LeanPackageDocEnvelope {
   hint?: string;
 }
 
+/** Build an absolute page-range follow-up after an MCP display cap. */
+export function buildReadPackageDocContinuationHint(
+  pageId: string,
+  nextStartLine: number,
+  backendEndLine: number,
+  maxOutputLines: number,
+): string {
+  const nextEndLine = Math.min(
+    backendEndLine,
+    nextStartLine + maxOutputLines - 1,
+  );
+  return `Continue with read target=${JSON.stringify(pageId)} start_line=${nextStartLine} end_line=${nextEndLine}.`;
+}
+
 export function buildReadPackageDocSuccessPayload(
   result: PackageDocResult,
   requestedPageId: string,

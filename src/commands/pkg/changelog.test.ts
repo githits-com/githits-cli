@@ -1,6 +1,5 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
-  PackageIntelligenceChangelogSourceNotFoundError,
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceVersionNotFoundError,
 } from "@githits/core-internal";
@@ -21,7 +20,12 @@ describe("pkg changelog help", () => {
     const help = command.helpInformation().replace(/\s+/g, " ");
 
     expect(help).toContain("up to ten latest-mode entries");
+    expect(help).toContain("Package-only");
     expect(help).toContain("Exclusive start of version range");
+    expect(help).toContain("Latest-mode or upper-cap entry count");
+    expect(help).toContain("npm:express@5.2.1");
+    expect(help).not.toContain("--repo-url");
+    expect(help).not.toContain("--git-ref");
     expect(help).not.toContain("ten most recent entries");
   });
 });
@@ -248,25 +252,30 @@ describe("pkgChangelogAction", () => {
     );
 
     const calls = packageChangelog.mock.calls as unknown as Array<
-      [{ registry?: string; packageName?: string; repoUrl?: string }]
+      [{ registry?: string; packageName?: string; version?: string }]
     >;
     expect(calls[0]?.[0]?.registry).toBe("NPM");
     expect(calls[0]?.[0]?.packageName).toBe("express");
-    expect(calls[0]?.[0]?.repoUrl).toBeUndefined();
+    expect(calls[0]?.[0]?.version).toBeUndefined();
     writeSpy.mockRestore();
   });
 
-  it("sends repo-url addressing when --repo-url is set", async () => {
+  it("sends an exact pin as version", async () => {
     const packageChangelog = mock(() =>
-      Promise.resolve(defaultChangelogReport),
+      Promise.resolve({
+        ...defaultChangelogReport,
+        entries: [
+          { ...defaultChangelogReport.entries[0]!, hasChangelog: true },
+        ],
+      }),
     );
     const writeSpy = spyOn(process.stdout, "write").mockImplementation(
       (() => true) as typeof process.stdout.write,
     );
 
     await pkgChangelogAction(
-      undefined,
-      { repoUrl: "https://github.com/expressjs/express" },
+      "npm:express@5.2.1",
+      {},
       createDeps({
         packageIntelligenceService: createMockPackageIntelligenceService({
           packageChangelog,
@@ -275,29 +284,39 @@ describe("pkgChangelogAction", () => {
     );
 
     const calls = packageChangelog.mock.calls as unknown as Array<
-      [{ registry?: string; packageName?: string; repoUrl?: string }]
+      [{ version?: string; fromVersion?: string }]
     >;
-    expect(calls[0]?.[0]?.registry).toBeUndefined();
-    expect(calls[0]?.[0]?.packageName).toBeUndefined();
-    expect(calls[0]?.[0]?.repoUrl).toBe("https://github.com/expressjs/express");
+    expect(calls[0]?.[0]?.version).toBe("5.2.1");
+    expect(calls[0]?.[0]?.fromVersion).toBeUndefined();
     writeSpy.mockRestore();
   });
 
-  it("rejects <spec>@<version> with a hint pointing to --to / --from", async () => {
+  it("rejects a repository target before service access", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit");
     });
+    const packageChangelog = mock(() =>
+      Promise.resolve(defaultChangelogReport),
+    );
 
     try {
-      await pkgChangelogAction("npm:express@5.0.0", {}, createDeps());
+      await pkgChangelogAction(
+        "github:expressjs/express",
+        {},
+        createDeps({
+          packageIntelligenceService: createMockPackageIntelligenceService({
+            packageChangelog,
+          }),
+        }),
+      );
     } catch {
       /* expected */
     }
 
     const msg = errorSpy.mock.calls[0]?.[0] as string;
-    expect(msg).toContain("--to");
-    expect(msg).toContain("--from");
+    expect(msg).toContain("package-only");
+    expect(packageChangelog).not.toHaveBeenCalled();
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
@@ -384,36 +403,36 @@ describe("pkgChangelogAction", () => {
     exitSpy.mockRestore();
   });
 
-  it("routes NOT_FOUND (no changelog source) through the error envelope", async () => {
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("process.exit");
-    });
-
-    try {
-      await pkgChangelogAction(
-        "npm:obscure-pkg",
-        { json: true },
-        createDeps({
-          packageIntelligenceService: createMockPackageIntelligenceService({
-            packageChangelog: mock(() =>
-              Promise.reject(
-                new PackageIntelligenceChangelogSourceNotFoundError(
-                  "No changelog source available for npm:obscure-pkg.",
-                ),
-              ),
-            ),
-          }),
-        }),
+  it("renders empty timeline selections as success", async () => {
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
       );
-    } catch {
-      /* expected */
-    }
+      return true;
+    }) as typeof process.stdout.write);
 
-    const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string);
-    expect(payload.code).toBe("NOT_FOUND");
-    errorSpy.mockRestore();
-    exitSpy.mockRestore();
+    await pkgChangelogAction(
+      "npm:express@9.0.0..9.1.0",
+      {},
+      createDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageChangelog: mock(() =>
+            Promise.resolve({
+              ...defaultChangelogReport,
+              source: undefined,
+              entries: [],
+            }),
+          ),
+        }),
+      }),
+    );
+
+    const combined = writes.join("");
+    expect(combined).toContain("No entries in this range.");
+    writeSpy.mockRestore();
   });
 
   it("renders VERSION_NOT_FOUND with structured detail lines", async () => {

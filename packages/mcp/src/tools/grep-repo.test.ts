@@ -23,11 +23,14 @@ describe("createGrepRepoTool — metadata", () => {
     expect(tool.description).toContain(
       "Find text, regex, or identifier matches in a public repo or package",
     );
+    expect(tool.description).toContain("deterministic and paginated");
     expect(tool.description).toContain(
-      "Use `search` for conceptual or open-ended discovery",
+      "Defaults to whole-target grep; scope with `path`, `path_prefix`, `globs`, or `extensions`",
     );
     expect(tool.description).toContain("`read`");
-    expect(tool.description).toContain("`code_files`");
+    expect(tool.description).toContain(
+      "follow `details.action` to inspect available paths",
+    );
     expect(tool.description).toContain(
       "`FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, or `SOURCE_FILE_INVENTORY_UNKNOWN`",
     );

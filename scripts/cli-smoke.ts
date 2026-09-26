@@ -76,7 +76,6 @@ export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
   "logout",
   "mcp",
   "example",
-  "languages",
   "doctor",
   "settings",
   "read",
@@ -90,33 +89,32 @@ export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
 
 export const EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS = [
   ...EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
-  "ask",
+  "research",
   "resolve",
 ] as const;
 
 /** Backwards-compatible name for the exact stable baseline command set. */
 export const EXPECTED_TOP_LEVEL_COMMANDS = EXPECTED_STABLE_TOP_LEVEL_COMMANDS;
 
-const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
+export const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
   {
     name: "pkg_info",
     cliArgs: ["pkg", "info", "npm:express", "--json"],
     mcpTool: "pkg_info",
-    mcpArgs: { registry: "npm", package_name: "express", format: "json" },
+    mcpArgs: { target: "npm:express", format: "json" },
   },
   {
     name: "pkg_deps",
     cliArgs: ["pkg", "deps", "npm:express", "--json"],
     mcpTool: "pkg_deps",
-    mcpArgs: { registry: "npm", package_name: "express", format: "json" },
+    mcpArgs: { target: "npm:express", format: "json" },
   },
   {
     name: "pkg_deps_issues",
     cliArgs: ["pkg", "deps", "npm:express", "--issues", "--json"],
     mcpTool: "pkg_deps",
     mcpArgs: {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       include_issues: true,
       format: "json",
     },
@@ -125,15 +123,14 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     name: "pkg_vulns",
     cliArgs: ["pkg", "vulns", "npm:express", "--json"],
     mcpTool: "pkg_vulns",
-    mcpArgs: { registry: "npm", package_name: "express", format: "json" },
+    mcpArgs: { target: "npm:express", format: "json" },
   },
   {
     name: "pkg_changelog",
     cliArgs: ["pkg", "changelog", "npm:express", "--limit", "1", "--json"],
     mcpTool: "pkg_changelog",
     mcpArgs: {
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       limit: 1,
       format: "json",
     },
@@ -164,9 +161,7 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     cliArgs: ["docs", "list", SMOKE_PACKAGE_SPEC, "--limit", "2", "--json"],
     mcpTool: "docs_list",
     mcpArgs: {
-      registry: "npm",
-      package_name: "express",
-      version: "5.2.1",
+      target: SMOKE_PACKAGE_SPEC,
       limit: 2,
       format: "json",
     },
@@ -206,6 +201,79 @@ const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
       path: "package.json",
       start_line: 1,
       end_line: 5,
+      format: "json",
+    },
+  },
+  {
+    name: "read_selector_code_miss",
+    cliArgs: [
+      "read",
+      "github:githits-com/githits-cli@af1ae5d1f9eb02a0d3a7968e69df0c41bcc2f4a5",
+      "src/container.ts",
+      "--selector",
+      "main",
+      "--json",
+    ],
+    mcpTool: "read",
+    mcpArgs: {
+      target:
+        "github:githits-com/githits-cli@af1ae5d1f9eb02a0d3a7968e69df0c41bcc2f4a5",
+      path: "src/container.ts",
+      selector: "main",
+      format: "json",
+    },
+  },
+  {
+    name: "read_symbol_fragment",
+    cliArgs: ["read", `${SMOKE_PACKAGE_SPEC}#createApplication`, "--json"],
+    mcpTool: "read",
+    mcpArgs: {
+      target: `${SMOKE_PACKAGE_SPEC}#createApplication`,
+      format: "json",
+    },
+  },
+  {
+    name: "read_symbol_selector",
+    cliArgs: [
+      "read",
+      SMOKE_PACKAGE_SPEC,
+      "--selector",
+      "createApplication",
+      "--json",
+    ],
+    mcpTool: "read",
+    mcpArgs: {
+      target: SMOKE_PACKAGE_SPEC,
+      selector: "createApplication",
+      format: "json",
+    },
+  },
+  {
+    name: "read_docs_fragment",
+    cliArgs: [
+      "read",
+      "https://expressjs.com/en/5x/starter/basic-routing/#overview",
+      "--json",
+    ],
+    mcpTool: "read",
+    mcpArgs: {
+      target: "https://expressjs.com/en/5x/starter/basic-routing/#overview",
+      format: "json",
+    },
+  },
+  {
+    name: "read_selector_docs",
+    cliArgs: [
+      "read",
+      "https://expressjs.com/llms/api-5x.txt",
+      "--selector",
+      "expressjson",
+      "--json",
+    ],
+    mcpTool: "read",
+    mcpArgs: {
+      target: "https://expressjs.com/llms/api-5x.txt",
+      selector: "expressjson",
       format: "json",
     },
   },
@@ -292,7 +360,7 @@ export function parseRootHelpCommands(helpText: string): string[] {
     }
     if (line.trim() === "") break;
     const match = /^ {2}(\S+)/.exec(line);
-    const command = match?.[1];
+    const command = match?.[1]?.split("|", 1)[0];
     if (command && command !== "help") commands.push(command);
   }
   return commands;
@@ -686,6 +754,92 @@ function assertJsonErrorCode(
   );
 }
 
+function assertInlineSearchSuccess(
+  value: unknown,
+  expectedQuery: string,
+  context: string,
+): void {
+  assertRecord(value, context);
+  assertRecord(value.query, `${context}: query`);
+  assert(value.query.raw === expectedQuery, `${context}: raw query mismatch`);
+  assert(
+    Array.isArray(value.results) && value.results.length > 0,
+    `${context}: missing ranked results`,
+  );
+  for (const [index, result] of value.results.entries()) {
+    assertRecord(result, `${context}: results[${index}]`);
+    assertRecord(result.locator, `${context}: results[${index}].locator`);
+    const filePath = result.locator.filePath;
+    assert(
+      typeof filePath === "string" &&
+        filePath.startsWith("lib/") &&
+        filePath.endsWith(".js"),
+      `${context}: result escaped JavaScript lib/ scope`,
+    );
+  }
+
+  if ("warnings" in value) {
+    assert(
+      Array.isArray(value.warnings),
+      `${context}: warnings must be an array`,
+    );
+  }
+  if (!("sourceStatus" in value)) return;
+
+  assert(
+    Array.isArray(value.sourceStatus),
+    `${context}: sourceStatus must be an array`,
+  );
+  const unsupportedFeatures: string[] = [];
+  for (const [index, entry] of value.sourceStatus.entries()) {
+    assertRecord(entry, `${context}: sourceStatus[${index}] must be an object`);
+    for (const field of ["ignoredQueryFeatures", "incompatibleQueryFeatures"]) {
+      const features = entry[field];
+      if (features === undefined) continue;
+      assert(
+        Array.isArray(features),
+        `${context}: sourceStatus[${index}].${field} must be an array`,
+      );
+      for (const feature of features) {
+        assert(
+          typeof feature === "string",
+          `${context}: sourceStatus[${index}].${field} must contain strings`,
+        );
+        unsupportedFeatures.push(feature);
+      }
+    }
+  }
+
+  if (unsupportedFeatures.length === 0) return;
+  assert(
+    Array.isArray(value.warnings),
+    `${context}: unsupported qualifiers must be surfaced in warnings`,
+  );
+  const warningText = value.warnings.join(" ").toLowerCase();
+  for (const feature of unsupportedFeatures) {
+    assert(
+      warningText.includes(feature.toLowerCase()),
+      `${context}: qualifier ${feature} was lost without a warning`,
+    );
+  }
+}
+
+function assertInlineSearchError(result: CommandResult, context: string): void {
+  assert(result.exitCode !== 0, `${context}: expected command failure`);
+  const envelope = assertCleanErrorEnvelope(result.stderr, context);
+  assert(
+    envelope.code === "INVALID_ARGUMENT",
+    `${context}: expected INVALID_ARGUMENT, got ${envelope.code}`,
+  );
+  assert(
+    envelope.retryable === false,
+    `${context}: error must not be retryable`,
+  );
+  for (const field of ["searchRef", "search_ref", "continuation"]) {
+    assert(!(field in envelope), `${context}: error exposed ${field}`);
+  }
+}
+
 async function runCliWithEnv(
   args: string[],
   baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined>,
@@ -819,6 +973,10 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "stable root help should omit ask",
     );
     assert(
+      !helpResult.stdout.includes("research"),
+      "stable root help should omit research",
+    );
+    assert(
       !helpResult.stdout.includes("resolve"),
       "stable root help should omit resolve",
     );
@@ -839,38 +997,35 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "stable code help should omit diff",
     );
 
-    const disabledAsk = await runCliWithEnv(
-      ["ask", "npm:express", "How is routing implemented?"],
-      env,
-    );
-    assert(
-      disabledAsk.exitCode !== 0 &&
-        `${disabledAsk.stderr}\n${disabledAsk.stdout}`.includes(
-          `Experimental CLI command "ask" is disabled. Enable it in ${configPath} by adding:\n[experimental]\ntools = true`,
-        ),
-      "disabled ask should expose the exact config path and snippet",
-    );
+    for (const command of ["research", "ask"] as const) {
+      const disabled = await runCliWithEnv(
+        [command, "npm:express", "How is routing implemented?"],
+        env,
+      );
+      const disabledMessage = `Experimental CLI command "${command}" is disabled. Enable it in ${configPath} by adding:\n[experimental]\ntools = true`;
+      assert(
+        disabled.exitCode !== 0 &&
+          `${disabled.stderr}\n${disabled.stdout}`.includes(disabledMessage),
+        `disabled ${command} should echo its spelling and expose the config path and snippet`,
+      );
 
-    const disabledAskJson = await runCliWithEnv(
-      ["ask", "npm:express", "How is routing implemented?", "--json"],
-      env,
-    );
-    assertJsonErrorCode(
-      disabledAskJson,
-      "disabled ask JSON",
-      "INVALID_ARGUMENT",
-    );
-    assert(
-      disabledAskJson.stdout.trim() === "",
-      "disabled ask JSON should keep stdout empty",
-    );
-    assert(
-      assertCleanErrorEnvelope(
-        disabledAskJson.stderr,
-        "disabled ask JSON",
-      ).error.includes(`[experimental]\ntools = true`),
-      "disabled ask JSON should retain the enable snippet",
-    );
+      const disabledJson = await runCliWithEnv(
+        [command, "npm:express", "How is routing implemented?", "--json"],
+        env,
+      );
+      const context = `disabled ${command} JSON`;
+      assertJsonErrorCode(disabledJson, context, "INVALID_ARGUMENT");
+      assert(
+        disabledJson.stdout.trim() === "",
+        `${context} should keep stdout empty`,
+      );
+      assert(
+        assertCleanErrorEnvelope(disabledJson.stderr, context).error.includes(
+          disabledMessage,
+        ),
+        `${context} should echo its spelling and retain the enable snippet`,
+      );
+    }
 
     const disabledResolve = await runCliWithEnv(["resolve", "express"], env);
     assert(
@@ -965,6 +1120,7 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
 
     for (const args of [
       ["read", SMOKE_PACKAGE_SPEC, "package.json"],
+      ["read", SMOKE_PACKAGE_SPEC, "--selector", "main"],
       ["read", "https://docs.example.test/guide#section"],
       ["code", "read", SMOKE_PACKAGE_SPEC, "package.json"],
       ["docs", "read", "docs-id"],
@@ -989,15 +1145,15 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       );
     }
 
-    const result = await runCliWithEnv(["languages", "python", "--json"], env);
-    assert(result.exitCode !== 0, "unauthenticated languages should fail");
+    const result = await runCliWithEnv(["example", "python", "--json"], env);
+    assert(result.exitCode !== 0, "unauthenticated example should fail");
     assert(
       result.stdout.trim() === "",
       "unauthenticated JSON probe should keep stdout clean",
     );
     const payload = assertCleanErrorEnvelope(
       result.stderr,
-      "unauthenticated languages",
+      "unauthenticated example",
     );
     assertDeepEqual(
       payload,
@@ -1007,10 +1163,10 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
         retryable: false,
         details: { authSource: "local" },
       },
-      "unauthenticated languages JSON envelope",
+      "unauthenticated example JSON envelope",
     );
 
-    const terminalResult = await runCliWithEnv(["languages", "python"], env);
+    const terminalResult = await runCliWithEnv(["example", "python"], env);
     assert(
       terminalResult.exitCode !== 0,
       "unauthenticated terminal probe should fail",
@@ -1051,38 +1207,49 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
       EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS,
     );
     assert(
-      helpResult.stdout.includes('githits ask npm:express "question"'),
-      "experimental root help should include ask in Getting started",
+      helpResult.stdout.includes('githits research npm:express "How?"'),
+      "experimental root help should use research in Getting started",
+    );
+    assert(
+      helpResult.stdout.includes("research|ask"),
+      "experimental root help should list ask as the research alias",
     );
     assert(
       helpResult.stdout.includes("githits resolve express"),
       "experimental root help should include resolve in Getting started",
     );
 
-    const askHelp = await runCliWithEnv(["ask", "--help"], env);
-    assert(
-      askHelp.exitCode === 0 &&
-        askHelp.stdout.includes("[target] <question>") &&
-        askHelp.stdout.includes("Omit the target") &&
-        askHelp.stdout.includes("--thread <UUID>") &&
-        askHelp.stdout.includes("--source-format <format>") &&
-        askHelp.stdout.includes('choices: "cli", "url"') &&
-        askHelp.stdout.includes("--json"),
-      "experimental ask help should expose the bounded CLI contract",
-    );
+    for (const command of ["research", "ask"] as const) {
+      const commandHelp = await runCliWithEnv([command, "--help"], env);
+      assert(
+        commandHelp.exitCode === 0 &&
+          commandHelp.stdout.includes("[target] <question>") &&
+          commandHelp.stdout.includes("Omit the target") &&
+          commandHelp.stdout.includes("--thread <UUID>") &&
+          commandHelp.stdout.includes("--source-format <format>") &&
+          commandHelp.stdout.includes('choices: "cli", "url"') &&
+          commandHelp.stdout.includes("--json"),
+        `experimental ${command} help should expose the research CLI contract`,
+      );
+    }
 
-    const malformedAskJson = await runCliWithEnv(
-      ["ask", "--json", "--thread", "018f47a6-7b32-7b1e-8f45-6a2d39c81720"],
+    const malformedResearchJson = await runCliWithEnv(
+      [
+        "research",
+        "--json",
+        "--thread",
+        "018f47a6-7b32-7b1e-8f45-6a2d39c81720",
+      ],
       env,
     );
     assertJsonErrorCode(
-      malformedAskJson,
-      "experimental malformed ask",
+      malformedResearchJson,
+      "experimental malformed research",
       "INVALID_ARGUMENT",
     );
     assert(
-      malformedAskJson.stdout.trim() === "",
-      "experimental malformed ask should keep stdout empty",
+      malformedResearchJson.stdout.trim() === "",
+      "experimental malformed research should keep stdout empty",
     );
 
     const codeHelp = await runCliWithEnv(["code", "--help"], env);
@@ -1114,13 +1281,13 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
       "experimental unauthenticated resolve",
       "AUTH_REQUIRED",
     );
-    const askJson = await runCliWithEnv(
-      ["ask", "npm:express", "How is routing implemented?", "--json"],
+    const researchJson = await runCliWithEnv(
+      ["research", "npm:express", "How is routing implemented?", "--json"],
       env,
     );
     assertJsonErrorCode(
-      askJson,
-      "experimental unauthenticated ask",
+      researchJson,
+      "experimental unauthenticated research",
       "AUTH_REQUIRED",
     );
     const targetlessAskJson = await runCliWithEnv(
@@ -1129,7 +1296,7 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
     );
     assertJsonErrorCode(
       targetlessAskJson,
-      "experimental unauthenticated targetless ask",
+      "experimental unauthenticated targetless ask alias",
       "AUTH_REQUIRED",
     );
     const codeDiffJson = await runCliWithEnv(
@@ -1149,47 +1316,6 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
 async function assertLiveOrAuthRequired(
   env: Record<string, string> = inheritedEnv(),
 ): Promise<boolean> {
-  const languagesResult = await runCliWithEnv(
-    ["languages", "python", "--json"],
-    env,
-  );
-  if (languagesResult.exitCode !== 0) {
-    const jsonAuthPayload = assertCleanErrorEnvelope(
-      languagesResult.stderr,
-      "languages auth probe",
-    );
-    if (jsonAuthPayload.code === "AUTH_REQUIRED") {
-      console.log("AUTH_REQUIRED: live CLI smoke skipped");
-      return false;
-    }
-
-    // Non-JSON auth guidance currently comes from requireAuth(), which writes
-    // friendly instructions to stdout before throwing. Accept either stream so
-    // this smoke gate validates guidance without forcing a broader CLI
-    // stream-policy change.
-    const authGuidance =
-      `${languagesResult.stderr}\n${languagesResult.stdout}`.trim();
-    assert(
-      authGuidance.includes("Authentication required"),
-      "auth probe missing authentication guidance",
-    );
-    assert(
-      authGuidance.includes("githits login"),
-      "auth probe missing login guidance",
-    );
-    console.log("AUTH_REQUIRED: live CLI smoke skipped");
-    return false;
-  }
-
-  const languagesPayload = parseJson(
-    languagesResult.stdout,
-    "languages auth probe",
-  );
-  assert(
-    Array.isArray(languagesPayload),
-    "languages auth probe: expected array",
-  );
-
   const packageResult = await runCliWithEnv(
     ["pkg", "info", "npm:express", "--json"],
     env,
@@ -1435,22 +1561,6 @@ async function runExperimentalLiveSmoke(
 async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   const runCli = (args: string[]): Promise<CommandResult> =>
     runCliWithEnv(args, env);
-  const languagesText = assertTerminalOutput(
-    await runCli(["languages", "python"]),
-    "languages terminal",
-  );
-  assert(languagesText.includes("python"), "languages terminal missing python");
-  assert(
-    languagesText.includes("Python"),
-    "languages terminal missing display name",
-  );
-
-  const languagesJson = assertJsonOutput(
-    await runCli(["languages", "python", "--json"]),
-    "languages json",
-  );
-  assert(Array.isArray(languagesJson), "languages json: expected array");
-
   const exampleText = assertTerminalOutput(
     await runCli(["example", "express hello world", "--lang", "javascript"]),
     "example terminal",
@@ -1737,6 +1847,24 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   );
   assertRecord(changelogJson, "pkg changelog json");
   assertRecord(changelogJson.entries, "pkg changelog json entries");
+
+  const changelogExact = assertJsonOutput(
+    await runCli(["pkg", "changelog", "npm:express@5.2.1", "--json"]),
+    "pkg changelog exact json",
+  );
+  assertRecord(changelogExact, "pkg changelog exact json");
+  assert(changelogExact.mode === "exact", "pkg changelog exact json mode");
+  const exactEntries = changelogExact.entries as
+    | { items?: Array<{ hasChangelog?: unknown; version?: unknown }> }
+    | undefined;
+  assert(
+    exactEntries?.items?.[0]?.version === "5.2.1",
+    "pkg changelog exact json resolved version",
+  );
+  assert(
+    typeof exactEntries?.items?.[0]?.hasChangelog === "boolean",
+    "pkg changelog exact json missing hasChangelog",
+  );
 
   const upgradeReviewText = assertTerminalOutput(
     await runCli([
@@ -2124,6 +2252,47 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
       searchInvalidPrefixEnvelope.code === "INVALID_ARGUMENT",
     "search must reject unsupported path prefixes",
   );
+
+  const inlineSearchQuery =
+    "application path:lib/ intent:production lang:javascript";
+  const inlineSearchJson = assertJsonOutput(
+    await runCli([
+      "search",
+      inlineSearchQuery,
+      "--in",
+      SMOKE_PACKAGE_SPEC,
+      "--source",
+      "code",
+      "--limit",
+      "1",
+      "--json",
+    ]),
+    "search inline qualifiers",
+  );
+  assertInlineSearchSuccess(
+    inlineSearchJson,
+    inlineSearchQuery,
+    "search inline qualifiers",
+  );
+
+  for (const [qualifier, source] of [
+    ["kind:bogus", "symbol"],
+    ["category:bogus", "symbol"],
+    ["intent:bogus", "code"],
+  ] as const) {
+    assertInlineSearchError(
+      await runCli([
+        "search",
+        `router ${qualifier}`,
+        "--in",
+        SMOKE_PACKAGE_SPEC,
+        "--source",
+        source,
+        "--json",
+      ]),
+      `search invalid inline qualifier ${qualifier}`,
+    );
+  }
 
   const searchText = assertTerminalOutput(
     await runCli([

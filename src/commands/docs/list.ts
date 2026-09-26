@@ -113,10 +113,11 @@ function handleDocsListError(error: unknown, json: boolean): never {
 const DOCS_LIST_DESCRIPTION = `List package documentation pages from mixed sources.
 
 Docs are mixed by default: hosted/crawled docs and repository-backed docs
-appear together. Every entry shows its stable page ID, source badge, provenance,
-and a ready-to-run command using the preferred docsReadTarget. JSON retains the
-target, page ID, and source URL. Repo-backed docs also carry exact file follow-up
-metadata.
+appear together. Every entry shows its compatible page ID, source badge,
+provenance, and a ready-to-run command using the preferred docsReadTarget.
+Hosted/crawled HTTP(S) targets address mutable current content; repository-backed
+targets are snapshot-addressed. JSON retains the target, page ID, and source URL.
+Repo-backed docs also carry exact file follow-up metadata.
 
 Package spec: <registry>:<name>[@version]. Go accepts exact versions with or
 without the canonical v prefix.`;

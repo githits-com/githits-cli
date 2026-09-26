@@ -6,7 +6,6 @@ import { readState } from "../mock-mcp/state.js";
 type MockCliTool =
   | FixtureTool
   | "get_example"
-  | "search_language"
   | "search"
   | "search_status"
   | "code_files"
@@ -46,7 +45,6 @@ export function detectFixtureTool(
       : "docs_read";
   }
   if (first === "example") return "get_example";
-  if (first === "languages") return "search_language";
   if (first === "search") return "search";
   if (first === "search-status") return "search_status";
   if (first === "pkg") {
@@ -97,7 +95,6 @@ function fixtureSupportOutput(
   }
   if (tool === "get_example")
     return "No canonical examples in this eval fixture.";
-  if (tool === "search_language") return "typescript";
   if (tool === "search_status")
     return "Search completed. No additional eval fixture hits.";
   return `[eval-mock] this cell expected the agent to call \`${expectedTool}\`, not \`${tool}\`. No data returned.`;

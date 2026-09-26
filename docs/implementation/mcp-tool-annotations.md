@@ -6,30 +6,30 @@ result storage, caching, background preparation, and research-thread state.
 It does not assert that the backend performs no database writes.
 
 The canonical factories in `@githits/mcp` own these annotations. The stable
-catalog contains 14 tools; local experimental mode adds `ask`, `resolve_target`,
+catalog contains 13 tools; local experimental mode adds `research`, `resolve_target`,
 and `code_diff`. All tools remain non-destructive and omit `idempotentHint`.
 
 `openWorldHint` describes the domain of interaction independently of writes,
 authentication, and evidence quality. Twelve stable public-evidence tools and
 all three experimental tools advertise `openWorldHint: true`. This includes
 `search_status`: retrieving an existing search still returns public evidence.
-Only `quick_start` and `search_language` advertise `openWorldHint: false`, since
-they return bundled guidance or the fixed supported-language catalog.
+Only `quick_start` advertises `openWorldHint: false`, since it returns bundled
+usage guidance.
 
 The two read-only constants in `tools/types.ts` distinguish these domains;
-factories select the appropriate constant. Catalog tests cover both exceptions
+factories select the appropriate constant. Catalog tests cover the closed-world exception
 and all evidence tools, and registration smoke verifies the wire annotations.
-No handler, schema, description, output, or authentication behavior changes.
+These annotation choices do not change request or response behavior.
 
 | Tools | Purpose |
 | --- | --- |
 | `quick_start` | Return GitHits usage guidance. |
-| `get_example`, `search_language` | Find canonical examples and supported languages. |
+| `get_example` | Find canonical examples. |
 | `search`, `search_status` | Discover indexed evidence and retrieve search progress/results. |
 | `code_files`, `code_grep`, `read` | Navigate and read public source. |
 | `docs_list`, `read` | Discover and retrieve public documentation. |
 | `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review` | Retrieve and compute package facts and upgrade evidence. |
-| Local experimental `ask`, `resolve_target`, `code_diff` | Generate cited answers, resolve targets, and compare source versions. |
+| Local experimental `research`, `resolve_target`, `code_diff` | Generate cited answers, resolve targets, and compare source versions. |
 
 Feedback is retired from MCP and CLI, including `GitHitsService.submitFeedback`
 and the concrete `/client` methods. Old invocations fail through the normal
