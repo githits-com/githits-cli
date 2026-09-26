@@ -65,6 +65,9 @@ export function buildListParams(input: ListRequestInput): ListParams {
   if (typeof input.target !== "string" || input.target.trim().length === 0) {
     throw invalid("target", "`target` is required.");
   }
+  if (hasLoneSurrogate(input.target)) {
+    throw invalid("target", "`target` must contain valid Unicode.");
+  }
   if (typeof input.includeDetailedFields !== "boolean") {
     throw invalid(
       "includeDetailedFields",
@@ -83,10 +86,7 @@ export function buildListParams(input: ListRequestInput): ListParams {
     MIN_WAIT_TIMEOUT_MS,
     MAX_WAIT_TIMEOUT_MS,
   );
-  const after =
-    input.after === undefined || input.after.trim().length === 0
-      ? undefined
-      : input.after;
+  const after = normalizeAfter(input.after);
 
   if (
     input.target.trim().startsWith("site:") &&
@@ -151,6 +151,9 @@ function normalizeStringList(
   }
 
   return values.map((value) => {
+    if (hasLoneSurrogate(value)) {
+      throw invalid(field, `${field} entries must contain valid Unicode.`);
+    }
     const trimmed = value.trim();
     if (trimmed.length === 0) {
       throw invalid(field, `${field} entries cannot be blank.`);
@@ -171,6 +174,9 @@ function normalizeIntents(
   }
 
   return values.map((value) => {
+    if (hasLoneSurrogate(value)) {
+      throw invalid("intents", "`intents` entries must contain valid Unicode.");
+    }
     const trimmed = value.trim();
     const intent = uppercaseAscii(trimmed);
     if (!LIST_FILE_INTENTS.some((known) => known === intent)) {
@@ -181,6 +187,14 @@ function normalizeIntents(
     }
     return intent as ListFileIntent;
   });
+}
+
+function normalizeAfter(after: string | undefined): string | undefined {
+  if (after === undefined || after.trim().length === 0) return undefined;
+  if (hasLoneSurrogate(after)) {
+    throw invalid("after", "`after` must contain valid Unicode.");
+  }
+  return after;
 }
 
 function normalizeInteger(

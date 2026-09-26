@@ -13,7 +13,7 @@ import type {
   ListTargetResolution,
 } from "@githits/core-internal";
 import { colorize } from "./colors.js";
-import { shellQuote } from "./shell-quote.js";
+import { shellQuoteExact } from "./shell-quote.js";
 import { padTerminalEnd, terminalWidth } from "./terminal-width.js";
 
 const SEP = " | ";
@@ -39,7 +39,9 @@ export function formatListText(
     );
   }
 
-  const rowLabels = result.entries.map((entry) => plainRowLabel(entry));
+  const rowLabels = result.entries.map((entry) =>
+    sanitizeText(plainRowLabel(entry)),
+  );
   const rowColumnWidth = alignedWidth(rowLabels, options.width);
   for (let index = 0; index < result.entries.length; index += 1) {
     const entry = result.entries[index];
@@ -145,7 +147,9 @@ function formatEntry(
 }
 
 function plainRowLabel(entry: ListEntry): string {
-  return `${entry.kind} ${stringValue(entry.path)}`;
+  const path =
+    entry.path === null ? "null" : JSON.stringify(sanitizeText(entry.path));
+  return `${entry.kind} ${path}`;
 }
 
 function alignedWidth(labels: string[], width: number | undefined): number {
@@ -166,7 +170,12 @@ function findSharedSourceReadTarget(result: ListResult): string | undefined {
   const target = files[0]?.read?.target;
   if (
     target === undefined ||
-    files.some((entry) => entry.read?.target !== target)
+    containsNul([target]) ||
+    files.some(
+      (entry) =>
+        entry.read?.target !== target ||
+        entry.read.path?.includes("\u0000") === true,
+    )
   ) {
     return undefined;
   }
@@ -177,21 +186,24 @@ function renderReadTarget(
   target: string,
   surface: FormatListTextOptions["surface"],
 ): string {
-  return surface === "cli"
-    ? `githits read ${shellQuote(sanitizeText(target))}`
-    : `read target=${jsonValue(target)}`;
+  if (surface === "mcp") return `read target=${jsonValue(target)}`;
+  if (containsNul([target])) {
+    return `read target=${jsonValue(target)} (not shell-executable: contains NUL)`;
+  }
+  return `githits read ${shellQuoteExact(target)}`;
 }
 
 function formatGroupedReadPath(
   action: ListReadAction,
   surface: FormatListTextOptions["surface"],
 ): string {
-  if (action.path === null || action.path === undefined) {
-    return surface === "cli" ? "read path=null" : "read path=null";
+  if (action.path === null || action.path === undefined)
+    return "read path=null";
+  if (surface === "mcp") return `read path=${jsonValue(action.path)}`;
+  if (containsNul([action.path])) {
+    return `read path=${jsonValue(action.path)} (not shell-executable: contains NUL)`;
   }
-  return surface === "cli"
-    ? `read path ${shellQuote(sanitizeText(action.path))}`
-    : `read path=${jsonValue(action.path)}`;
+  return `read path ${shellQuoteExact(action.path)}`;
 }
 
 function renderReadAction(
@@ -199,11 +211,27 @@ function renderReadAction(
   surface: FormatListTextOptions["surface"],
 ): string {
   if (surface === "cli") {
+    if (
+      containsNul([
+        action.target,
+        ...(action.path === undefined || action.path === null
+          ? []
+          : [action.path]),
+      ])
+    ) {
+      return [
+        `read target=${jsonValue(action.target)}`,
+        ...(action.path !== undefined
+          ? [`path=${action.path === null ? "null" : jsonValue(action.path)}`]
+          : []),
+        "(not shell-executable: contains NUL)",
+      ].join(" ");
+    }
     return [
       "githits read",
-      shellQuote(sanitizeText(action.target)),
+      shellQuoteExact(action.target),
       ...(action.path !== undefined && action.path !== null
-        ? [shellQuote(sanitizeText(action.path))]
+        ? [shellQuoteExact(action.path)]
         : []),
     ].join(" ");
   }
@@ -220,12 +248,26 @@ function renderBrowseAction(
   surface: FormatListTextOptions["surface"],
 ): string {
   if (surface === "cli") {
+    const actionPaths =
+      action.paths === undefined || action.paths === null ? [] : action.paths;
+    if (containsNul([action.target, ...actionPaths])) {
+      return [
+        `list target=${jsonValue(action.target)}`,
+        ...(action.paths !== undefined
+          ? [
+              `paths=${
+                action.paths === null ? "null" : jsonArray(action.paths)
+              }`,
+            ]
+          : []),
+        "(not shell-executable: contains NUL)",
+      ].join(" ");
+    }
+    const operands = [action.target, ...actionPaths];
     return [
       "githits list",
-      shellQuote(sanitizeText(action.target)),
-      ...(action.paths && action.paths.length > 0
-        ? action.paths.map((path) => shellQuote(sanitizeText(path)))
-        : []),
+      ...(operands.some(startsWithDash) ? ["--"] : []),
+      ...operands.map((operand) => shellQuoteExact(operand)),
     ].join(" ");
   }
   return [
@@ -329,21 +371,67 @@ function buildCliContinuation(
   cursor: string,
   verbose: boolean,
 ): string {
-  const parts = ["githits list", shellQuote(sanitizeText(params.target))];
-  if (params.paths) {
-    parts.push(...params.paths.map((path) => shellQuote(sanitizeText(path))));
+  const paths = params.paths ?? [];
+  if (
+    containsNul([
+      params.target,
+      ...paths,
+      ...(params.fileTypes ?? []),
+      ...(params.languages ?? []),
+      ...(params.intents ?? []),
+      cursor,
+    ])
+  ) {
+    return buildNonExecutableCliContinuation(params, cursor, verbose);
   }
-  if (params.recursive) parts.push("--recursive");
-  appendCliRepeated(parts, "--file-type", params.fileTypes);
-  appendCliRepeated(parts, "--language", params.languages);
-  appendCliRepeated(parts, "--intent", params.intents);
-  if (params.limit !== undefined) parts.push("--limit", String(params.limit));
-  parts.push("--after", shellQuote(sanitizeText(cursor)));
+
+  const positionals = [params.target, ...paths];
+  const quotedPositionals = positionals.map((value) => shellQuoteExact(value));
+  const options: string[] = [];
+  if (params.recursive) options.push("--recursive");
+  appendCliRepeated(options, "--file-type", params.fileTypes);
+  appendCliRepeated(options, "--language", params.languages);
+  appendCliRepeated(options, "--intent", params.intents);
+  if (params.limit !== undefined) {
+    options.push("--limit", String(params.limit));
+  }
+  options.push("--after", shellQuoteExact(cursor));
   if (params.waitTimeoutMs !== undefined) {
-    parts.push("--wait", String(params.waitTimeoutMs));
+    options.push("--wait", String(params.waitTimeoutMs));
   }
-  if (verbose) parts.push("--verbose");
-  return parts.join(" ");
+  if (verbose) options.push("--verbose");
+
+  return positionals.some(startsWithDash)
+    ? ["githits list", ...options, "--", ...quotedPositionals].join(" ")
+    : ["githits list", ...quotedPositionals, ...options].join(" ");
+}
+
+function buildNonExecutableCliContinuation(
+  params: ListParams,
+  cursor: string,
+  verbose: boolean,
+): string {
+  const fields = [`target=${jsonValue(params.target)}`];
+  if (params.paths && params.paths.length > 0) {
+    fields.push(`paths=${jsonArray(params.paths)}`);
+  }
+  if (params.recursive) fields.push("recursive=true");
+  if (params.fileTypes && params.fileTypes.length > 0) {
+    fields.push(`fileTypes=${jsonArray(params.fileTypes)}`);
+  }
+  if (params.languages && params.languages.length > 0) {
+    fields.push(`languages=${jsonArray(params.languages)}`);
+  }
+  if (params.intents && params.intents.length > 0) {
+    fields.push(`intents=${jsonArray(params.intents)}`);
+  }
+  if (params.limit !== undefined) fields.push(`limit=${params.limit}`);
+  fields.push(`after=${jsonValue(cursor)}`);
+  if (params.waitTimeoutMs !== undefined) {
+    fields.push(`waitTimeoutMs=${params.waitTimeoutMs}`);
+  }
+  if (verbose) fields.push("verbose=true");
+  return `list ${fields.join(" ")} (not shell-executable: contains NUL)`;
 }
 
 function appendCliRepeated(
@@ -353,7 +441,7 @@ function appendCliRepeated(
 ): void {
   if (!values) return;
   for (const value of values) {
-    parts.push(option, shellQuote(sanitizeText(value)));
+    parts.push(option, shellQuoteExact(value));
   }
 }
 
@@ -395,7 +483,18 @@ function numberValue(value: number | null): string {
 }
 
 function jsonValue(value: string): string {
-  return JSON.stringify(sanitizeText(value));
+  return JSON.stringify(value).replace(/[\u007f-\u009f]/gu, (character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return `\\u${codePoint.toString(16).padStart(4, "0")}`;
+  });
+}
+
+function containsNul(values: readonly string[]): boolean {
+  return values.some((value) => value.includes("\u0000"));
+}
+
+function startsWithDash(value: string): boolean {
+  return value.startsWith("-");
 }
 
 function sanitizeText(value: string): string {
