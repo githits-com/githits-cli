@@ -170,28 +170,36 @@ function parseAnsiCQuoted(
   command: string,
   start: number,
 ): { value: string; nextIndex: number } {
-  let value = "";
+  const bytes: number[] = [];
   let index = start;
   while (index < command.length) {
     const character = command[index];
-    if (character === "'") return { value, nextIndex: index + 1 };
+    if (character === "'") {
+      return {
+        value: new TextDecoder("utf-8", { fatal: true }).decode(
+          new Uint8Array(bytes),
+        ),
+        nextIndex: index + 1,
+      };
+    }
     if (character !== "\\") {
-      value += character;
-      index += 1;
+      const codePoint = command.codePointAt(index) ?? 0;
+      bytes.push(...new TextEncoder().encode(String.fromCodePoint(codePoint)));
+      index += codePoint > 0xffff ? 2 : 1;
       continue;
     }
 
     const escapeChar = command[index + 1];
     if (escapeChar === "\\" || escapeChar === "'") {
-      value += escapeChar;
+      bytes.push(...new TextEncoder().encode(escapeChar));
       index += 2;
-    } else if (escapeChar === "u") {
-      const hexadecimal = command.slice(index + 2, index + 6);
-      if (!/^[0-9a-f]{4}$/iu.test(hexadecimal)) {
-        throw new Error("Invalid Unicode escape in ANSI-C shell value.");
+    } else if (escapeChar === "x") {
+      const hexadecimal = command.slice(index + 2, index + 4);
+      if (!/^[0-9a-f]{2}$/iu.test(hexadecimal)) {
+        throw new Error("Invalid byte escape in ANSI-C shell value.");
       }
-      value += String.fromCharCode(Number.parseInt(hexadecimal, 16));
-      index += 6;
+      bytes.push(Number.parseInt(hexadecimal, 16));
+      index += 4;
     } else {
       throw new Error(`Unsupported ANSI-C escape \\${escapeChar}.`);
     }

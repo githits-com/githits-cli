@@ -8,7 +8,10 @@ describe("shell quoting", () => {
 
   it("uses ANSI-C quoting for exact control-character arguments", () => {
     expect(shellQuoteExact("line\tbreak\n\u0085")).toBe(
-      "$'line\\u0009break\\u000a\\u0085'",
+      "$'line\\x09break\\x0a\\xc2\\x85'",
+    );
+    expect(shellQuoteExact("\u0001\u007f\u009f")).toBe(
+      "$'\\x01\\x7f\\xc2\\x9f'",
     );
     expect(shellQuoteExact("O'Reilly\\path")).toBe(
       shellQuote("O'Reilly\\path"),
