@@ -3,10 +3,7 @@
 ## Status and expected outcome
 
 **Status: IN PROGRESS.** Phase 1A's transport and shared contract are
-implemented; the stacked Phase 1B CLI increment remains. The contract was
-verified against GitHits CLI commit `175c15c` and the clean `pkgseer-backend`
-`main` checkout at commit
-`ff2643a37627e044876bc9dd511f73e6a53a923f` on 2026-09-26.
+implemented; the stacked Phase 1B CLI increment remains.
 
 Replace the advertised MCP `code_files` and `docs_list` tools with one `list`
 tool, and add the matching top-level `githits list` command. The new surface
