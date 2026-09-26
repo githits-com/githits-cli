@@ -477,17 +477,28 @@ describe("formatListText", () => {
     expect(text).not.toContain("No entries matched.");
   });
 
-  it("sanitizes control sequences without losing Unicode or encoded paths", () => {
-    const value = "docs/雪%2Fguide\n\u001b[31m";
+  it("renders path labels with exact JSON escaping for controls and Unicode", () => {
+    const value =
+      'c0\n\u0001 c1\u007f\u0085\u009f lone\uD800 Unicode-雪%2F😀 quote" slash\\';
     const text = formatListText(
-      sourceResult({ entries: [file(value, "npm:pkg", value)] }),
+      sourceResult({
+        entries: [
+          {
+            kind: "DIRECTORY",
+            path: value,
+            title: null,
+            read: null,
+            browse: null,
+          },
+        ],
+      }),
       params(),
       options({ width: 1 }),
     );
-    expect(text).toContain("雪%2Fguide");
-    expect(text).toContain("\\u{a}");
-    expect(text).toContain("\\u{1b}[31m");
-    expect(text).not.toContain("\u001b");
+    expect(text.split("\n")[1]).toBe(
+      'DIRECTORY "c0\\n\\u0001 c1\\u007f\\u0085\\u009f lone\\ud800 Unicode-雪%2F😀 quote\\" slash\\\\"',
+    );
+    assertNoRawControls(text);
   });
 
   it("round-trips JSON and CLI actions with controls and encoded Unicode", () => {
