@@ -2,6 +2,8 @@ import type { ListService } from "@githits/core-internal";
 import {
   buildListParams,
   formatListText,
+  InvalidListRequestError,
+  type ListRequestField,
   projectListResult,
   requireAuth,
   sanitizeTerminalText,
@@ -36,6 +38,22 @@ export interface ListCommandDependencies {
   mcpUrl: string;
   createSpinner?: () => Spinner;
 }
+
+export type ListCommandDependenciesFactory =
+  () => Promise<ListCommandDependencies>;
+
+const LIST_CLI_FIELD_LABELS = {
+  target: "<target>",
+  paths: "[paths...]",
+  recursive: "--recursive",
+  fileTypes: "--file-type",
+  languages: "--language",
+  intents: "--intent",
+  limit: "--limit",
+  after: "--after",
+  waitTimeoutMs: "--wait",
+  includeDetailedFields: "internal detail-field selection",
+} satisfies Record<ListRequestField, string>;
 
 /** List a single package, repository, or documentation-site inventory. */
 export async function listAction(
@@ -101,7 +119,17 @@ function handleListError(
   json: boolean,
   hasAfter: boolean,
 ): never {
-  const mapped = mapListErrorForCli(error, { hasAfter });
+  const sharedMapped = mapListErrorForCli(error, { hasAfter });
+  const mapped =
+    error instanceof InvalidListRequestError
+      ? {
+          ...sharedMapped,
+          message: rewriteListRequestFieldLabel(
+            sharedMapped.message,
+            error.field,
+          ),
+        }
+      : sharedMapped;
   if (json) {
     console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
   } else {
@@ -122,11 +150,24 @@ function handleListError(
   process.exit(1);
 }
 
+function rewriteListRequestFieldLabel(
+  message: string,
+  field: ListRequestField,
+): string {
+  const label = LIST_CLI_FIELD_LABELS[field];
+  return message.replace(/`?[A-Za-z][A-Za-z0-9_]*`?/g, (token) =>
+    token.replaceAll("`", "") === field ? label : token,
+  );
+}
+
 function collectOption(value: string, previous: string[] = []): string[] {
   return [...previous, value];
 }
 
-export function registerListCommand(program: Command): Command {
+export function registerListCommand(
+  program: Command,
+  dependenciesFactory: ListCommandDependenciesFactory = createContainer,
+): Command {
   return program
     .command("list")
     .summary("List files and documentation in a target")
@@ -162,7 +203,7 @@ export function registerListCommand(program: Command): Command {
         paths: string[] | undefined,
         options: ListCommandOptions,
       ) => {
-        const deps = await createContainer();
+        const deps = await dependenciesFactory();
         await listAction(target, paths, options, deps);
       },
     );
