@@ -59,6 +59,7 @@ interface JsonParityFixture {
   cliArgs: string[];
   mcpTool: string;
   mcpArgs: Record<string, unknown>;
+  expectedStatus?: string;
 }
 
 const DEFAULT_TEXT_LIMIT = 20_000;
@@ -206,19 +207,19 @@ export const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
   },
   {
     name: "read_selector_code_miss",
+    expectedStatus: "NOT_FOUND",
     cliArgs: [
       "read",
-      "github:githits-com/githits-cli@af1ae5d1f9eb02a0d3a7968e69df0c41bcc2f4a5",
-      "src/container.ts",
+      SMOKE_PACKAGE_SPEC,
+      "package.json",
       "--selector",
       "main",
       "--json",
     ],
     mcpTool: "read",
     mcpArgs: {
-      target:
-        "github:githits-com/githits-cli@af1ae5d1f9eb02a0d3a7968e69df0c41bcc2f4a5",
-      path: "src/container.ts",
+      target: SMOKE_PACKAGE_SPEC,
+      path: "package.json",
       selector: "main",
       format: "json",
     },
@@ -948,6 +949,15 @@ async function assertJsonParity(
           jsonContractShape(cliPayload),
           `${fixture.name} CLI/MCP JSON shape`,
         );
+        if (fixture.expectedStatus !== undefined) {
+          assertRecord(cliPayload, `${fixture.name} CLI status`);
+          assertRecord(mcpPayload, `${fixture.name} MCP status`);
+          assert(
+            cliPayload.status === fixture.expectedStatus &&
+              mcpPayload.status === fixture.expectedStatus,
+            `${fixture.name} CLI/MCP status should be ${fixture.expectedStatus}; got CLI ${String(cliPayload.status)}, MCP ${String(mcpPayload.status)}`,
+          );
+        }
       });
     },
   );
