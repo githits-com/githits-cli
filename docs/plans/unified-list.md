@@ -2,8 +2,8 @@
 
 ## Status and expected outcome
 
-**Status: IN PROGRESS.** Phase 1A's transport and shared contract are
-implemented; the stacked Phase 1B CLI increment remains.
+**Status: IN PROGRESS.** Phase 1A and the stacked Phase 1B CLI increment are
+implemented and verified; both are awaiting merge.
 
 Replace the advertised MCP `code_files` and `docs_list` tools with one `list`
 tool, and add the matching top-level `githits list` command. The new surface
@@ -93,8 +93,11 @@ Evidence:
 - `~/proj/githits/pkgseer-backend/docs/implementation/UNIFIED_LIST.md`
 
 The changelog section is unreleased. The committed schema is the implementation
-contract; availability on the hosted endpoint has not been verified and is a
-rollout dependency, not a reason for a legacy client fallback.
+contract. Authenticated live CLI conformance on 2026-09-26 verified that the
+hosted endpoint exposes `Query.list` for package, repository, and site targets;
+the covered semantics and remaining Phase 2 cases are recorded in
+`docs/implementation/unified-list.md`. Endpoint availability is no longer a
+rollout unknown and is not a reason for a legacy client fallback.
 
 ### Current GitHits client surface
 
@@ -345,9 +348,6 @@ Overall assumptions:
 
 Overall unknowns:
 
-- The date when `Query.list` reaches an authenticated test and hosted GraphQL
-  endpoint is unknown. It must be resolved before Phase 2 agent/live validation
-  and Phase 3 release/deployment, not before Phase 1 implementation.
 - Final released package versions and remote deployment timing are unknown and
   are chosen during authorized release/adoption work.
 
@@ -360,13 +360,13 @@ filter, paging, action, and lifecycle details.
 
 | Phase | Status | Outcome |
 | --- | --- | --- |
-| 1. Add the shared contract and CLI | **IN PROGRESS; split at size threshold** | `githits list` browses the committed backend contract through a tested transport-neutral service and shared formatter; legacy grouped commands keep their execution behavior. |
-| 2. Consolidate the MCP surface | **PLANNED; test-endpoint dependent** | The advertised catalog contains `list` instead of `code_files` and `docs_list`, and agent guidance routes package/repository/site browsing and follow-up actions correctly. |
+| 1. Add the shared contract and CLI | **IN PROGRESS** | Increments 1A and 1B are implemented and verified, and await merge; `githits list` browses the committed backend contract through a tested transport-neutral service and shared formatter. |
+| 2. Consolidate the MCP surface | **PLANNED; Phase 1 merge dependent** | The advertised catalog contains `list` instead of `code_files` and `docs_list`, and agent guidance routes package/repository/site browsing and follow-up actions correctly. The authenticated hosted endpoint is available for the remaining live and agent checks. |
 | 3. Release and hosted adoption | **PLANNED; authorization/deployment dependent** | Published CLI and hosted MCP expose the same unified list contract, and live list-to-read/list-to-list paths pass against the deployed backend. |
 
 ## Phase 1 detailed plan — shared contract and CLI
 
-**Status:** IN PROGRESS; the foundation is implemented and the CLI increment remains.
+**Status:** IN PROGRESS; increments 1A and 1B are implemented and verified, and await merge.
 
 **Expected outcome:** the root CLI implements the committed backend contract
 through a transport-neutral `ListService`. `githits list` can browse all three
@@ -472,8 +472,9 @@ projection from CLI/formatter wiring rather than adding mechanism.
 
 ## Phase 2 detailed plan — consolidate the MCP surface
 
-**Status:** PLANNED; becomes READY after Phase 1 reorientation and an
-authenticated test endpoint exposes `Query.list` for required agent evaluation.
+**Status:** PLANNED; becomes READY after Phase 1 reorientation. The
+authenticated hosted endpoint exposes `Query.list` for required agent
+evaluation.
 
 **Expected outcome:** stdio MCP and the public MCP package advertise one `list`
 tool in place of `code_files` and `docs_list`. Its request, output, errors, and
@@ -481,16 +482,16 @@ actions remain identical to the Phase 1 shared contract. Quick-start and public
 skills teach package/repository browsing, explicit site browsing, and
 package-to-site discovery.
 
-**Assumptions:** Phase 1's service/formatter API remains adequate; the test
-endpoint implements the verified SDL; docs search can expose related explicit
-`site:` targets, while locally enabled `resolve_target` remains an additional
-route for fuzzy or natural names.
+**Assumptions:** Phase 1's service/formatter API remains adequate; the hosted
+endpoint continues to implement the verified SDL; docs search can expose
+related explicit `site:` targets, while locally enabled `resolve_target`
+remains an additional route for fuzzy or natural names.
 
-**Unknowns or product decisions:** endpoint availability date only. Resolve at
-the Phase 1 boundary. No product decision is open.
+**Unknowns or product decisions:** none. Endpoint availability was verified on
+2026-09-26. No product decision is open.
 
-**Dependencies:** Phase 1 merged; authenticated test endpoint; the
-plugin-maintenance workflow for public guidance.
+**Dependencies:** Phase 1 merged; the plugin-maintenance workflow for public
+guidance.
 
 ### Ordered implementation
 
@@ -539,12 +540,14 @@ above with Claude and Codex where practical. Inspect `tool-calls.json`,
 `final.json`, `metrics.json`, and `isolation-violations.json`; harness completion
 alone is not quality evidence.
 
-Backend semantic conformance is checked here with authenticated calls: literals,
-all supported glob forms, union/deduplication, recursion on selected
-directories, source filters before hierarchy, package boundary isolation,
-dot-prefixed source paths, host-qualified site paths, continuation, and
-list-to-read/list-to-list actions. Client unit tests assert only wire replay and
-projection; the live checks establish backend behavior.
+Backend semantic conformance was established with authenticated CLI calls on
+2026-09-26: literals, all supported glob forms, union/deduplication, recursion
+on selected directories, source filters before hierarchy, package boundary
+isolation, dot-prefixed source paths, host-qualified site paths, continuation,
+and list-to-read/list-to-list actions all passed. Client unit tests assert only
+wire replay and projection. Phase 2 uses the same endpoint to verify the MCP
+projection and agent routing, and repeats backend cases only if the schema or
+endpoint changes.
 
 Phase 2 is accepted when deterministic and targeted live/eval checks pass; the
 catalog advertises `list` and no longer advertises `code_files`/`docs_list`;

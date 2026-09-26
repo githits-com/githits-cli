@@ -22,7 +22,10 @@ GitHits separates its MCP server (which handles OAuth discovery and the MCP prot
 Environment overrides must use HTTPS. Plain HTTP is accepted only for exact loopback hosts (`localhost`, `127.0.0.1`, and `[::1]`) so local backend development continues to work without permitting bearer tokens or OAuth credentials over remote cleartext connections. The same rule applies to the legacy `PKGSEER_URL` fallback and to OAuth registration/token endpoints returned by discovery.
 
 Compact `read` calls use `ReadServiceImpl` against the configured package/source
-endpoint and send one `Query.read` request. A custom `GITHITS_CODE_NAV_URL` (or
+endpoint and send one `Query.read` request. The top-level `list` command uses
+`ListServiceImpl` against the same endpoint and sends one `Query.list` request;
+package/repository and explicit `site:` inventories remain separate. A custom
+`GITHITS_CODE_NAV_URL` (or
 legacy `PKGSEER_URL`) endpoint serving compact reads must implement
 `Query.read` with both `CodeContextResult` and `GetDocPageResult` union branches
 and the selected minimum fields required by the client. There is no schema
@@ -51,7 +54,7 @@ The container (`src/container.ts`) resolves authentication in priority order:
 | `/search` | Full access | Full access | Blocked |
 | `/functions/v1/settings/me` | Full access | Full access | Blocked |
 
-Package/source access uses the package/source service URL from `GITHITS_CODE_NAV_URL`, defaulting to the GitHits-managed endpoint. MCP registration for `search`, `search_status`, `docs_*`, `pkg_*`, `code_files`, `read`, and `code_grep` is always on; CLI registration for top-level `search` / `search-status` / `read` plus the `githits code`, `githits pkg`, and `githits docs` groups is also always on.
+Package/source access uses the package/source service URL from `GITHITS_CODE_NAV_URL`, defaulting to the GitHits-managed endpoint. MCP registration for `search`, `search_status`, `docs_*`, `pkg_*`, `code_files`, `read`, and `code_grep` is always on; CLI registration for top-level `search` / `search-status` / `read` / `list` plus the `githits code`, `githits pkg`, and `githits docs` groups is also always on.
 
 ## Environment Variables
 
@@ -162,7 +165,7 @@ Environment variables + config.toml
   └─ src/container.ts (createContainer)
        ├─ mcpUrl → passed to auth commands, used as storage key
        ├─ apiUrl → passed to GitHitsServiceImpl constructor
-       ├─ codeNavigationUrl → passed to CodeNavigationServiceImpl, PackageIntelligenceServiceImpl, and ReadServiceImpl
+       ├─ codeNavigationUrl → passed to CodeNavigationServiceImpl, PackageIntelligenceServiceImpl, ReadServiceImpl, and ListServiceImpl
        ├─ auth.storage → controls OAuth credential persistence
        ├─ experimental.tools → local CLI/MCP availability
        ├─ apiToken → resolved from env var or OAuth storage

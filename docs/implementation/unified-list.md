@@ -2,13 +2,12 @@
 
 ## Purpose and delivery state
 
-This document records the client foundation for the backend's unified
-`Query.list` inventory. The transport service and workspace-internal shared
-helpers are implemented, but the user-facing `githits list` command and the
-MCP `list` catalog tool have not landed. Until their later increments, the
-existing `githits code files` / `code_files` and `githits docs list` /
-`docs_list` surfaces remain separate compatibility paths. The new service
-does not route through them or fall back to their GraphQL roots.
+This document records the client implementation for the backend's unified
+`Query.list` inventory. The root CLI now exposes `githits list`; the MCP catalog
+still exposes its existing `code_files` and `docs_list` tools until Phase 2.
+Legacy `githits code files` and `githits docs list` execution remains unchanged
+for compatibility, with help pointing to the new target model. The new service
+does not route through legacy services or fall back to their GraphQL roots.
 
 ## Contract and ownership
 
@@ -50,11 +49,12 @@ response. The backend's opaque cursor is otherwise preserved exactly.
 
 The core service owns the network and backend contract because it is shared by
 both surfaces. The MCP shared modules own input normalization, error and result
-projection, and text because both callers need identical semantics. Future CLI
-and MCP adapters own only their command/tool schemas, registration, and
-invocation. `packages/mcp/src/internal.ts` exports the shared helpers only
-through the workspace-internal boundary; they are not yet a public MCP client
-API.
+projection, and text because both callers need identical semantics. The root
+CLI owns Commander parsing, authentication entry, spinner, terminal width and
+colors, while its command delegates list semantics to those shared helpers.
+The MCP adapter is a later increment. `packages/mcp/src/internal.ts` exports
+the helpers only through the workspace-internal boundary; they are not a public
+MCP client API.
 
 ## Actions and lifecycle
 
@@ -83,13 +83,29 @@ legacy-root fallback is used for unsupported API or pagination errors.
 Core service tests cover exact GraphQL variables and selections, compact versus
 detailed fields, nullable response projection, cursor validation, error
 classification, and authentication refresh. Shared request and error tests
-cover normalization and mapped envelopes. Response and text tests compare
+cover normalization and mapped envelopes. CLI tests cover Commander flags,
+package/repository/site forwarding, pagination, compact versus detailed calls,
+action rendering, diagnostics, authentication, and the absence of a legacy
+service fallback. Response and text tests compare
 repository-root, package-subtree, recursive-glob, and site-subtree fixtures,
 including exact actions, continuation replay, null fidelity, and lifecycle
 combinations. These client tests do not claim to validate backend path/glob
 matching, inventory scope, hierarchy, or site membership; those semantics are
 owned by the backend contract and require backend-side or live conformance
 evidence.
+
+Authenticated live CLI conformance on 2026-09-26 verified that the hosted
+endpoint exposes `Query.list` for package, repository, and site targets. The
+run covered literal and union paths, `**` and character-class globs, source and
+site directory recursion, combined file-type/language/intent filters,
+dot-prefixed root entries, package and site pagination, cursor selection
+binding, source-only filter rejection for sites, indexing wait, package-scope
+failure with its explicit pinned-repository alternative, and exact emitted
+read, browse, and continuation actions. It used Express and Lodash packages,
+the Express, Requests, and Babel repositories, and React and Node.js
+documentation sites. All 20 checks passed, including `?`, escaped glob
+metacharacters, union deduplication, and Babel monorepo package-boundary
+isolation. Phase 2 retains MCP/agent and package-to-site discovery validation.
 
 ## Key reference files
 

@@ -28,6 +28,7 @@ export {
   initUninstallAction,
   registerInitCommand,
 } from "./init/index.js";
+export { listAction, registerListCommand } from "./list.js";
 export {
   type LoginDependencies,
   type LoginOptions,

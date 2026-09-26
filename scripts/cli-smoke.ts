@@ -79,6 +79,7 @@ export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
   "doctor",
   "settings",
   "read",
+  "list",
   "search",
   "search-status",
   "code",
@@ -1136,6 +1137,15 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
         "read must require authentication",
       );
     }
+    const listJson = await runCliWithEnv(
+      ["list", SMOKE_PACKAGE_SPEC, "--json"],
+      env,
+    );
+    assert(
+      listJson.exitCode !== 0 && listJson.stdout.trim() === "",
+      "unauthenticated list JSON must keep stdout clean",
+    );
+    assertJsonErrorCode(listJson, "unauthenticated list JSON", "AUTH_REQUIRED");
     for (const group of ["code", "docs"]) {
       const help = await runCliWithEnv([group, "read", "--help"], env);
       assert(
