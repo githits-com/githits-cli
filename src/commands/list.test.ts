@@ -1,0 +1,349 @@
+import { describe, expect, it, mock, spyOn } from "bun:test";
+import type { ListParams, ListResult } from "@githits/core-internal";
+import { ListGraphQLError } from "@githits/core-internal";
+import { Command } from "commander";
+import {
+  createMockListService,
+  defaultListResult,
+} from "../services/test-helpers.js";
+import {
+  type ListCommandDependencies,
+  listAction,
+  registerListCommand,
+} from "./list.js";
+
+function createDeps(
+  overrides: Partial<ListCommandDependencies> = {},
+): ListCommandDependencies {
+  return {
+    listService: createMockListService(),
+    hasValidToken: true,
+    mcpUrl: "https://mcp.githits.com",
+    ...overrides,
+  };
+}
+
+function listResult(overrides: Partial<ListResult> = {}): ListResult {
+  return { ...defaultListResult, ...overrides };
+}
+
+describe("unified list CLI", () => {
+  it("registers the target, variadic selectors, and ls-style options", () => {
+    const command = registerListCommand(new Command());
+    const help = command.helpInformation();
+
+    expect(command.name()).toBe("list");
+    expect(help).toContain("<target> [paths...]");
+    for (const flag of [
+      "-R, --recursive",
+      "--file-type <type>",
+      "--language <language>",
+      "--intent <intent>",
+      "--limit <n>",
+      "--after <cursor>",
+      "--wait <ms>",
+      "-v, --verbose",
+      "--json",
+    ]) {
+      expect(help).toContain(flag);
+    }
+  });
+
+  it.each([
+    ["npm:express@5.2.1", ["src/", "**/*.md"]],
+    ["github:acme/service@main", ["packages/api/**"]],
+    ["site:docs.example.test/guide", ["reference/**"]],
+  ])(
+    "sends target and path selectors unchanged for %s",
+    async (target, paths) => {
+      const list = mock((_params: ListParams) =>
+        Promise.resolve(defaultListResult),
+      );
+      const service = createMockListService({ list });
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await listAction(
+          target,
+          paths,
+          { json: true },
+          createDeps({ listService: service }),
+        );
+        expect(list).toHaveBeenCalledTimes(1);
+        expect(list.mock.calls[0]?.[0]).toMatchObject({
+          target,
+          paths,
+          includeDetailedFields: true,
+        });
+        expect(list.mock.calls[0]?.[0]).not.toHaveProperty("limit");
+        expect(list.mock.calls[0]?.[0]).not.toHaveProperty("waitTimeoutMs");
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
+
+  it("preserves explicit false, zero, repeated filters, and pagination inputs", async () => {
+    const list = mock((_params: ListParams) =>
+      Promise.resolve(defaultListResult),
+    );
+    const service = createMockListService({ list });
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    const write = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+    try {
+      await listAction(
+        "  github:acme/service@main  ",
+        ["dir/", "**/*.md"],
+        {
+          recursive: false,
+          fileType: [" source ", "doc"],
+          language: [" TypeScript ", "rust"],
+          intent: ["test", "Production"],
+          limit: "500",
+          after: " cursor/%2F ",
+          wait: "0",
+          verbose: true,
+        },
+        createDeps({ listService: service }),
+      );
+
+      expect(list.mock.calls[0]?.[0]).toEqual({
+        target: "  github:acme/service@main  ",
+        paths: ["dir/", "**/*.md"],
+        recursive: false,
+        fileTypes: ["source", "doc"],
+        languages: ["TypeScript", "rust"],
+        intents: ["TEST", "PRODUCTION"],
+        limit: 500,
+        after: " cursor/%2F ",
+        waitTimeoutMs: 0,
+        includeDetailedFields: true,
+      });
+    } finally {
+      log.mockRestore();
+      write.mockRestore();
+    }
+  });
+
+  it("uses compact fields by default and detailed fields for JSON", async () => {
+    const list = mock((_params: ListParams) =>
+      Promise.resolve(defaultListResult),
+    );
+    const service = createMockListService({ list });
+    const write = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await listAction(
+        "npm:express",
+        undefined,
+        {},
+        createDeps({ listService: service }),
+      );
+      await listAction(
+        "npm:express",
+        undefined,
+        { json: true },
+        createDeps({ listService: service }),
+      );
+      expect(
+        list.mock.calls.map(([params]) => params.includeDetailedFields),
+      ).toEqual([false, true]);
+    } finally {
+      write.mockRestore();
+      log.mockRestore();
+    }
+  });
+
+  it("omits empty selectors and blank cursors while retaining exact target", async () => {
+    const list = mock((_params: ListParams) =>
+      Promise.resolve(defaultListResult),
+    );
+    const service = createMockListService({ list });
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    const write = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+    try {
+      await listAction(
+        "npm:express",
+        [],
+        {
+          fileType: [],
+          language: [],
+          intent: [],
+          after: " \t ",
+        },
+        createDeps({ listService: service }),
+      );
+      expect(list.mock.calls[0]?.[0]).toEqual({
+        target: "npm:express",
+        includeDetailedFields: false,
+      });
+    } finally {
+      log.mockRestore();
+      write.mockRestore();
+    }
+  });
+
+  it("validates source-only filters locally for site targets", async () => {
+    const list = mock((_params: ListParams) =>
+      Promise.resolve(defaultListResult),
+    );
+    const service = createMockListService({ list });
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    try {
+      await expect(
+        listAction(
+          "site:docs.example.test",
+          undefined,
+          { language: ["typescript"], json: true },
+          createDeps({ listService: service }),
+        ),
+      ).rejects.toThrow("process.exit");
+      expect(list).not.toHaveBeenCalled();
+      expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      });
+    } finally {
+      error.mockRestore();
+      exit.mockRestore();
+    }
+  });
+
+  it("projects JSON without changing backend actions, nulls, or cursor bytes", async () => {
+    const result = listResult({
+      canonicalTarget: null,
+      entries: [
+        {
+          kind: "FILE",
+          path: "src/café%2F.ts",
+          title: null,
+          language: null,
+          fileType: null,
+          intent: null,
+          byteSize: null,
+          lineCount: null,
+          contentHash: null,
+          read: { target: "npm:express@5.2.1", path: "src/café%2F.ts" },
+          browse: null,
+        },
+      ],
+      hasMore: true,
+      nextCursor: "opaque/%2F+cursor",
+    });
+    const service = createMockListService({
+      list: mock(() => Promise.resolve(result)),
+    });
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await listAction(
+        "npm:express@5.2.1",
+        undefined,
+        { json: true },
+        createDeps({ listService: service }),
+      );
+      expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual(result);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("renders backend actions and a continuation using the normalized request", async () => {
+    const result = listResult({
+      entries: [
+        {
+          kind: "FILE",
+          path: "src/index.ts",
+          title: null,
+          read: { target: "npm:express@5.2.1", path: "src/index.ts" },
+          browse: null,
+        },
+      ],
+      hasMore: true,
+      nextCursor: "next/%2F cursor",
+    });
+    const service = createMockListService({
+      list: mock(() => Promise.resolve(result)),
+    });
+    const writes: string[] = [];
+    const write = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+    try {
+      await listAction(
+        "npm:express@5.2.1",
+        ["src/"],
+        { recursive: true, fileType: ["source"], limit: "25", wait: "0" },
+        createDeps({ listService: service }),
+      );
+      const output = writes.join("");
+      expect(output).toContain(
+        "githits read 'npm:express@5.2.1' 'src/index.ts'",
+      );
+      expect(output).toContain("--recursive");
+      expect(output).toContain("--file-type 'source'");
+      expect(output).toContain("--limit 25");
+      expect(output).toContain("--wait 0");
+      expect(output).toContain("--after 'next/%2F cursor'");
+      expect(output).not.toContain("total");
+    } finally {
+      write.mockRestore();
+    }
+  });
+
+  it("maps cursor validation errors with restart guidance and never falls back", async () => {
+    const list = mock((_params: ListParams) =>
+      Promise.reject(new ListGraphQLError("bad cursor", "VALIDATION_ERROR")),
+    );
+    const service = createMockListService({ list });
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    try {
+      await expect(
+        listAction(
+          "github:acme/service",
+          undefined,
+          { after: "opaque", json: true },
+          createDeps({ listService: service }),
+        ),
+      ).rejects.toThrow("process.exit");
+      expect(list).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(String(error.mock.calls[0]?.[0])).error).toContain(
+        "Retry once without `after`; if validation still fails, correct the request.",
+      );
+    } finally {
+      error.mockRestore();
+      exit.mockRestore();
+    }
+  });
+
+  it("stops the spinner after service completion", async () => {
+    const stop = mock(() => {});
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await listAction(
+        "site:docs.example.test",
+        undefined,
+        { json: true },
+        createDeps({ createSpinner: () => ({ stop }) }),
+      );
+      expect(stop).toHaveBeenCalledTimes(1);
+    } finally {
+      log.mockRestore();
+    }
+  });
+});

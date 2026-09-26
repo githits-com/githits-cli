@@ -1,11 +1,12 @@
 import {
   type MappedError,
   mapCodeNavigationError,
+  mapListError,
   mapPackageIntelligenceError,
 } from "@githits/mcp/internal";
 import { debugLog } from "./debug-log.js";
 
-export type CliErrorDiagnosticsArea = "code-nav" | "pkg-intel";
+export type CliErrorDiagnosticsArea = "code-nav" | "list" | "pkg-intel";
 
 /**
  * Classify an error for a CLI command and retain the existing opt-in
@@ -21,6 +22,16 @@ export function mapCodeNavigationErrorForCli(error: unknown): MappedError {
 export function mapPackageIntelligenceErrorForCli(error: unknown): MappedError {
   const mapped = mapPackageIntelligenceError(error);
   recordCliErrorClassification("pkg-intel", error, mapped);
+  return mapped;
+}
+
+/** Classify a unified-list failure and emit its CLI-only debug event. */
+export function mapListErrorForCli(
+  error: unknown,
+  context?: Parameters<typeof mapListError>[1],
+): MappedError {
+  const mapped = mapListError(error, context);
+  recordCliErrorClassification("list", error, mapped);
   return mapped;
 }
 

@@ -1,13 +1,24 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import { PackageIntelligenceTargetNotFoundError } from "@githits/core-internal";
 import { AuthRequiredError } from "@githits/mcp/internal";
+import { Command } from "commander";
 import {
   createMockPackageIntelligenceService,
   defaultPackageDocsList,
 } from "../../services/test-helpers.js";
-import { type DocsListCommandDependencies, docsListAction } from "./list.js";
+import {
+  type DocsListCommandDependencies,
+  docsListAction,
+  registerDocsListCommand,
+} from "./list.js";
 
 describe("docsListAction", () => {
+  it("explains the separate site and package-local list targets in help", () => {
+    const help = registerDocsListCommand(new Command("docs")).helpInformation();
+    expect(help).toMatch(/githits list\s+site:<host\[\/path\]>/);
+    expect(help).toMatch(/Package-local\s+documentation files/);
+  });
+
   function createDeps(
     overrides: Partial<DocsListCommandDependencies> = {},
   ): DocsListCommandDependencies {

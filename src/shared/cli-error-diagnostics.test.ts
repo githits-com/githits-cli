@@ -1,15 +1,54 @@
 import { describe, expect, it, spyOn } from "bun:test";
 import {
   CodeNavigationTargetNotFoundError,
+  ListGraphQLError,
   PackageIntelligenceTargetNotFoundError,
 } from "@githits/core-internal";
 import {
   mapCodeNavigationErrorForCli,
+  mapListErrorForCli,
   mapPackageIntelligenceErrorForCli,
   recordCliErrorClassification,
 } from "./cli-error-diagnostics.js";
 
 describe("CLI error diagnostics", () => {
+  it("emits list classification with detail keys only", () => {
+    const previous = process.env.GITHITS_DEBUG;
+    process.env.GITHITS_DEBUG = "list";
+    const errorSpy = spyOn(process.stderr, "write").mockImplementation(
+      () => true,
+    );
+
+    try {
+      const error = new ListGraphQLError(
+        "private backend text",
+        "INDEXING",
+        true,
+        undefined,
+        undefined,
+        "ref-123",
+        "wait longer",
+      );
+      const mapped = mapListErrorForCli(error, { hasAfter: false });
+      expect(mapped.code).toBe("INDEXING");
+      const payload = JSON.parse(String(errorSpy.mock.calls[0]?.[0]));
+      expect(payload).toMatchObject({
+        area: "list",
+        event: "error-classified",
+        code: "INDEXING",
+        errorName: "ListGraphQLError",
+        detailKeys: ["graphqlCode", "indexingRef", "hint"],
+      });
+      expect(String(errorSpy.mock.calls[0]?.[0])).not.toContain(
+        "private backend text",
+      );
+    } finally {
+      errorSpy.mockRestore();
+      if (previous === undefined) delete process.env.GITHITS_DEBUG;
+      else process.env.GITHITS_DEBUG = previous;
+    }
+  });
+
   it("emits the package classification event without the error message", () => {
     const previous = process.env.GITHITS_DEBUG;
     process.env.GITHITS_DEBUG = "pkg-intel";

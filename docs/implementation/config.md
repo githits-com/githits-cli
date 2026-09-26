@@ -27,13 +27,16 @@ Environment overrides must use HTTPS. Plain HTTP is accepted only for exact loop
 
 Compact `read` calls use `ReadServiceImpl` against the configured package/source
 endpoint selected by `GITHITS_ENV` or overridden with `GITHITS_CODE_NAV_URL`,
-and send one `Query.read` request. A custom `GITHITS_CODE_NAV_URL` endpoint
-serving compact reads must implement
+and send one `Query.read` request. The top-level `list` command uses
+`ListServiceImpl` against the same endpoint and sends one `Query.list` request;
+package/repository and explicit `site:` inventories remain separate. A custom
+`GITHITS_CODE_NAV_URL` endpoint serving compact reads must implement
 `Query.read` with both `CodeContextResult` and `GetDocPageResult` union branches
-and the selected minimum fields required by the client. There is no schema
-fallback for compact reads. Deprecated compatibility commands may continue to
-use the legacy `fetchCodeContext` and `getDocPage` roots, but those roots are
-not fallback paths for compact reads.
+and the selected minimum fields required by the client; serving `list` also
+requires `Query.list`. There is no schema fallback for either compact command.
+Deprecated compatibility commands may continue to use the legacy
+`fetchCodeContext`, `getDocPage`, and `listRepoFiles` roots, but those roots are
+not fallback paths for compact reads or lists.
 
 Network URL validation is deferred until a network-capable path resolves or uses the endpoint. Local-only recovery paths such as help, version output, `doctor`, uninstall, auth metadata cleanup, and `logout` remain available when an endpoint override or `GITHITS_ENV` is malformed. `doctor` reports an invalid selector; auth composition rejects it before discovery, registration, exchange, or refresh requests. Storage-only local inspection and cleanup do not validate the selector or URLs. If the selector is invalid and no `GITHITS_MCP_URL` override is set, those recovery paths use the production MCP storage namespace; this fallback cannot route a network request. A bad network setting must not prevent diagnostics or credential removal.
 
@@ -56,7 +59,7 @@ The container (`src/container.ts`) resolves authentication in priority order:
 | `/search` | Full access | Full access | Blocked |
 | `/functions/v1/settings/me` | Full access | Full access | Blocked |
 
-Package/source access uses the OSS service URL selected by `GITHITS_ENV` unless `GITHITS_CODE_NAV_URL` overrides it. MCP registration for `search`, `search_status`, `docs_*`, `pkg_*`, `code_files`, `read`, and `code_grep` is always on; CLI registration for top-level `search` / `search-status` / `read` plus the `githits code`, `githits pkg`, and `githits docs` groups is also always on.
+Package/source access uses the OSS service URL selected by `GITHITS_ENV` unless `GITHITS_CODE_NAV_URL` overrides it. MCP registration for `search`, `search_status`, `docs_*`, `pkg_*`, `code_files`, `read`, and `code_grep` is always on; CLI registration for top-level `search` / `search-status` / `read` / `list` plus the `githits code`, `githits pkg`, and `githits docs` groups is also always on.
 
 ## Environment Variables
 
@@ -169,7 +172,7 @@ Environment variables + config.toml
   └─ src/container.ts (createContainer)
        ├─ mcpUrl → selected preset or override, passed to auth commands and used as storage key
        ├─ apiUrl → passed to GitHitsServiceImpl constructor
-       ├─ codeNavigationUrl → passed to CodeNavigationServiceImpl, PackageIntelligenceServiceImpl, and ReadServiceImpl
+       ├─ codeNavigationUrl → passed to CodeNavigationServiceImpl, PackageIntelligenceServiceImpl, ReadServiceImpl, and ListServiceImpl
        ├─ auth.storage → controls OAuth credential persistence
        ├─ experimental.tools → local CLI/MCP availability
        ├─ apiToken → resolved from env var or OAuth storage

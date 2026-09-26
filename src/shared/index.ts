@@ -184,6 +184,7 @@ export {
 export {
   type CliErrorDiagnosticsArea,
   mapCodeNavigationErrorForCli,
+  mapListErrorForCli,
   mapPackageIntelligenceErrorForCli,
   recordCliErrorClassification,
 } from "./cli-error-diagnostics.js";

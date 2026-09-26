@@ -110,7 +110,9 @@ function handleDocsListError(error: unknown, json: boolean): never {
   process.exit(1);
 }
 
-const DOCS_LIST_DESCRIPTION = `List package documentation pages from mixed sources.
+const DOCS_LIST_DESCRIPTION = `Hosted documentation pages require an explicit site target with \`githits list site:<host[/path]>\`. Package-local documentation files are listed from the package target with \`githits list <package-target> [paths...]\`.
+
+This legacy command retains its existing behavior for compatibility.
 
 Docs are mixed by default: hosted/crawled docs and repository-backed docs
 appear together. Every entry shows its compatible page ID, source badge,

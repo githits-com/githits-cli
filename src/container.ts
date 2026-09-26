@@ -16,6 +16,8 @@ import {
   getGitHitsEnvironment,
   getMcpStorageKeyUrl,
   getMcpUrl,
+  type ListService,
+  ListServiceImpl,
   type PackageIntelligenceService,
   PackageIntelligenceServiceImpl,
   type ReadService,
@@ -300,6 +302,8 @@ export interface Dependencies {
    * service.
    */
   packageIntelligenceService: PackageIntelligenceService;
+  /** Unified source/site inventory service used by `githits list`. */
+  listService: ListService;
   /** Unified compact code/documentation read service. */
   readService: ReadService;
   /** Resolves fuzzy package/repository names for the CLI dogfood surface. */
@@ -382,6 +386,12 @@ export async function createContainer(
         fetchFn,
         serviceRuntime,
       );
+      const listService = new ListServiceImpl(
+        codeNavigationUrl,
+        tokenProvider,
+        fetchFn,
+        serviceRuntime,
+      );
       const resolveTargetService = new ResolveTargetServiceImpl(
         codeNavigationUrl,
         tokenProvider,
@@ -409,6 +419,7 @@ export async function createContainer(
         codeNavigationService,
         packageIntelligenceService,
         readService,
+        listService,
         resolveTargetService,
         agenticAskService,
         githitsService: new GitHitsServiceImpl(
@@ -459,6 +470,12 @@ export async function createContainer(
       fetchFn,
       serviceRuntime,
     );
+    const listService = new ListServiceImpl(
+      codeNavigationUrl,
+      tokenManager,
+      fetchFn,
+      serviceRuntime,
+    );
     const resolveTargetService = new ResolveTargetServiceImpl(
       codeNavigationUrl,
       tokenManager,
@@ -486,6 +503,7 @@ export async function createContainer(
       codeNavigationService,
       packageIntelligenceService,
       readService,
+      listService,
       resolveTargetService,
       agenticAskService,
       githitsService: new RefreshingGitHitsService(

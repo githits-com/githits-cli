@@ -225,7 +225,9 @@ function resolvePositionals(
   return { spec: firstArg, pathPrefix: secondArg };
 }
 
-const PKG_FILES_DESCRIPTION = `List files in an indexed dependency. Default returns up to 200
+const PKG_FILES_DESCRIPTION = `Deprecated: use \`githits list <target> [paths...]\` for the unified inventory. This command retains its existing behavior for compatibility.
+
+List files in an indexed dependency. Default returns up to 200
 entries; pass [path-prefix] to scope to a directory and --limit to
 fetch more. Returned paths feed directly into \`githits read\`
 and \`githits code grep\`.

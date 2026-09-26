@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   AgenticAskServiceImpl,
+  ListServiceImpl,
   ReadServiceImpl,
   ResolveTargetServiceImpl,
 } from "@githits/core-internal";
@@ -401,6 +402,7 @@ describe("createContainer", () => {
         );
         expect(deps.agenticAskService).toBeInstanceOf(AgenticAskServiceImpl);
         expect(deps.readService).toBeInstanceOf(ReadServiceImpl);
+        expect(deps.listService).toBeInstanceOf(ListServiceImpl);
       }),
     );
   });
@@ -415,6 +417,7 @@ describe("createContainer", () => {
           );
           expect(deps.agenticAskService).toBeInstanceOf(AgenticAskServiceImpl);
           expect(deps.readService).toBeInstanceOf(ReadServiceImpl);
+          expect(deps.listService).toBeInstanceOf(ListServiceImpl);
         }),
       ),
     );

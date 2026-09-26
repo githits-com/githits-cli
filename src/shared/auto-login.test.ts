@@ -101,6 +101,7 @@ describe("isAutoLoginEligibleCommand", () => {
       ["search"],
       ["search-status"],
       ["read"],
+      ["list"],
       ["resolve"],
       ["code", "files"],
       ["code", "read"],

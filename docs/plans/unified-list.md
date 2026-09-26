@@ -360,13 +360,13 @@ filter, paging, action, and lifecycle details.
 
 | Phase | Status | Outcome |
 | --- | --- | --- |
-| 1. Add the shared contract and CLI | **IN PROGRESS; split at size threshold** | `githits list` browses the committed backend contract through a tested transport-neutral service and shared formatter; legacy grouped commands keep their execution behavior. |
+| 1. Add the shared contract and CLI | **COMPLETE** | `githits list` browses the committed backend contract through a tested transport-neutral service and shared formatter; legacy grouped commands keep their execution behavior. |
 | 2. Consolidate the MCP surface | **PLANNED; test-endpoint dependent** | The advertised catalog contains `list` instead of `code_files` and `docs_list`, and agent guidance routes package/repository/site browsing and follow-up actions correctly. |
 | 3. Release and hosted adoption | **PLANNED; authorization/deployment dependent** | Published CLI and hosted MCP expose the same unified list contract, and live list-to-read/list-to-list paths pass against the deployed backend. |
 
 ## Phase 1 detailed plan — shared contract and CLI
 
-**Status:** IN PROGRESS; the foundation is implemented and the CLI increment remains.
+**Status:** COMPLETE; increments 1A and 1B are implemented and their acceptance checks pass.
 
 **Expected outcome:** the root CLI implements the committed backend contract
 through a transport-neutral `ListService`. `githits list` can browse all three

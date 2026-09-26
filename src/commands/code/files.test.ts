@@ -4,14 +4,26 @@ import {
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
 } from "@githits/core-internal";
+import { Command } from "commander";
 import {
   createMockCodeNavigationService,
   defaultListFilesResult,
 } from "../../services/test-helpers.js";
-import { type PkgFilesCommandDependencies, pkgFilesAction } from "./files.js";
+import {
+  type PkgFilesCommandDependencies,
+  pkgFilesAction,
+  registerCodeFilesCommand,
+} from "./files.js";
 
 describe("pkgFilesAction", () => {
   const mcpUrl = "https://mcp.githits.com";
+
+  it("points legacy help to the unified list command", () => {
+    const help = registerCodeFilesCommand(new Command("pkg")).helpInformation();
+    expect(help).toContain(
+      "Deprecated: use `githits list <target> [paths...]`",
+    );
+  });
 
   function createDeps(
     overrides: Partial<PkgFilesCommandDependencies> = {},
