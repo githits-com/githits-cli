@@ -177,6 +177,48 @@ describe("buildListParams", () => {
     );
   });
 
+  it("rejects lone surrogates in every string field and preserves valid pairs", () => {
+    const paired = "value-😀-end";
+    expect(
+      buildListParams(
+        input({
+          target: `npm:${paired}`,
+          paths: [paired],
+          fileTypes: [` ${paired} `],
+          languages: [` ${paired} `],
+          intents: [" test "],
+          after: paired,
+        }),
+      ),
+    ).toMatchObject({
+      target: `npm:${paired}`,
+      paths: [paired],
+      fileTypes: [paired],
+      languages: [paired],
+      intents: ["TEST"],
+      after: paired,
+    });
+
+    expectInvalid("target", () =>
+      buildListParams(input({ target: "npm:\uD800" })),
+    );
+    expectInvalid("paths", () =>
+      buildListParams(input({ paths: ["path-\uD800"] })),
+    );
+    expectInvalid("fileTypes", () =>
+      buildListParams(input({ fileTypes: ["type-\uD800"] })),
+    );
+    expectInvalid("languages", () =>
+      buildListParams(input({ languages: ["language-\uD800"] })),
+    );
+    expectInvalid("intents", () =>
+      buildListParams(input({ intents: ["TEST-\uD800"] })),
+    );
+    expectInvalid("after", () =>
+      buildListParams(input({ after: "cursor-\uD800" })),
+    );
+  });
+
   it("rejects blank paths and blank trimmed source filters", () => {
     expectInvalid("paths", () => buildListParams(input({ paths: [""] })));
     expectInvalid("paths", () => buildListParams(input({ paths: [" \t "] })));

@@ -77,6 +77,136 @@ function file(
   };
 }
 
+function jsonStringAfter(text: string, marker: string): string {
+  const token = jsonTokenAfter(text, marker);
+  return JSON.parse(token) as string;
+}
+
+function jsonStringArrayAfter(text: string, marker: string): string[] {
+  const token = jsonTokenAfter(text, marker);
+  return JSON.parse(token) as string[];
+}
+
+function jsonTokenAfter(text: string, marker: string): string {
+  const markerIndex = text.indexOf(marker);
+  if (markerIndex < 0) throw new Error(`Missing field ${marker}.`);
+  const start = markerIndex + marker.length;
+  const first = text[start];
+  if (first === '"') {
+    let escaped = false;
+    for (let index = start + 1; index < text.length; index += 1) {
+      const character = text[index];
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        return text.slice(start, index + 1);
+      }
+    }
+  } else if (first === "[") {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = start; index < text.length; index += 1) {
+      const character = text[index];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (character === "\\") {
+          escaped = true;
+        } else if (character === '"') {
+          inString = false;
+        }
+      } else if (character === '"') {
+        inString = true;
+      } else if (character === "[") {
+        depth += 1;
+      } else if (character === "]") {
+        depth -= 1;
+        if (depth === 0) return text.slice(start, index + 1);
+      }
+    }
+  }
+  throw new Error(`Invalid JSON field ${marker}.`);
+}
+
+function parseShellWords(command: string): string[] {
+  const words: string[] = [];
+  let index = 0;
+  while (index < command.length) {
+    while (index < command.length && /\s/u.test(command[index] ?? "")) {
+      index += 1;
+    }
+    if (index >= command.length) break;
+
+    let word = "";
+    while (index < command.length && !/\s/u.test(command[index] ?? "")) {
+      if (command.startsWith("$'", index)) {
+        const parsed = parseAnsiCQuoted(command, index + 2);
+        word += parsed.value;
+        index = parsed.nextIndex;
+      } else if (command[index] === "'") {
+        const end = command.indexOf("'", index + 1);
+        if (end < 0) throw new Error("Unclosed single-quoted shell value.");
+        word += command.slice(index + 1, end);
+        index = end + 1;
+      } else if (command[index] === '"') {
+        const end = command.indexOf('"', index + 1);
+        if (end < 0) throw new Error("Unclosed double-quoted shell value.");
+        word += command.slice(index + 1, end);
+        index = end + 1;
+      } else {
+        word += command[index];
+        index += 1;
+      }
+    }
+    words.push(word);
+  }
+  return words;
+}
+
+function parseAnsiCQuoted(
+  command: string,
+  start: number,
+): { value: string; nextIndex: number } {
+  let value = "";
+  let index = start;
+  while (index < command.length) {
+    const character = command[index];
+    if (character === "'") return { value, nextIndex: index + 1 };
+    if (character !== "\\") {
+      value += character;
+      index += 1;
+      continue;
+    }
+
+    const escapeChar = command[index + 1];
+    if (escapeChar === "\\" || escapeChar === "'") {
+      value += escapeChar;
+      index += 2;
+    } else if (escapeChar === "u") {
+      const hexadecimal = command.slice(index + 2, index + 6);
+      if (!/^[0-9a-f]{4}$/iu.test(hexadecimal)) {
+        throw new Error("Invalid Unicode escape in ANSI-C shell value.");
+      }
+      value += String.fromCharCode(Number.parseInt(hexadecimal, 16));
+      index += 6;
+    } else {
+      throw new Error(`Unsupported ANSI-C escape \\${escapeChar}.`);
+    }
+  }
+  throw new Error("Unclosed ANSI-C shell value.");
+}
+
+function assertNoRawControls(text: string): void {
+  const hasRawControl = [...text.replaceAll("\n", "")].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
+  });
+  expect(hasRawControl).toBe(false);
+}
+
 describe("formatListText", () => {
   it("compares repository root and package subtree actions without totals", () => {
     const pinnedTarget = `github:example/repo@${"a".repeat(120)}`;
@@ -350,5 +480,228 @@ describe("formatListText", () => {
     expect(text).toContain("\\u{a}");
     expect(text).toContain("\\u{1b}[31m");
     expect(text).not.toContain("\u001b");
+  });
+
+  it("round-trips JSON and CLI actions with controls and encoded Unicode", () => {
+    const value =
+      "tab\tline\ncontrol\u0001\u001f\u007f\u0085\u009f quote\" apostrophe' slash\\ percent%2F snow-雪 pair-😀";
+    const result = sourceResult({
+      entries: [
+        {
+          ...file("display path", value, value),
+          browse: { target: value, paths: [value] },
+        },
+      ],
+      hasMore: true,
+      nextCursor: value,
+    });
+    const request = params({
+      target: value,
+      paths: [value],
+      fileTypes: [value],
+      languages: [value],
+      intents: ["TEST"],
+      limit: 7,
+      after: "old-cursor",
+      waitTimeoutMs: 0,
+    });
+
+    const mcpText = formatListText(result, request, options());
+    const mcpRow = mcpText.split("\n").find((line) => line.startsWith("FILE "));
+    const mcpContinuation = mcpText
+      .split("\n")
+      .find((line) => line.startsWith("Continue: "));
+    if (!mcpRow || !mcpContinuation)
+      throw new Error("Missing MCP output rows.");
+    expect(jsonStringAfter(mcpRow, "read target=")).toBe(value);
+    expect(jsonStringAfter(mcpRow, "path=")).toBe(value);
+    expect(jsonStringAfter(mcpRow, "browse: list target=")).toBe(value);
+    expect(jsonStringArrayAfter(mcpRow, "paths=")).toEqual([value]);
+    expect(jsonStringAfter(mcpContinuation, "target=")).toBe(value);
+    expect(jsonStringArrayAfter(mcpContinuation, "paths=")).toEqual([value]);
+    expect(jsonStringAfter(mcpContinuation, "after=")).toBe(value);
+    assertNoRawControls(mcpText);
+
+    const cliText = formatListText(
+      result,
+      request,
+      options({ surface: "cli" }),
+    );
+    const cliRow = cliText.split("\n").find((line) => line.startsWith("FILE "));
+    const cliContinuation = cliText
+      .split("\n")
+      .find((line) => line.startsWith("Continue: "));
+    if (!cliRow || !cliContinuation)
+      throw new Error("Missing CLI output rows.");
+    const browseSeparator = cliRow.indexOf(" | browse: ");
+    const readStart = cliRow.indexOf("read: ");
+    expect(
+      parseShellWords(
+        cliRow.slice(readStart + "read: ".length, browseSeparator),
+      ),
+    ).toEqual(["githits", "read", value, value]);
+    expect(
+      parseShellWords(cliRow.slice(browseSeparator + " | browse: ".length)),
+    ).toEqual(["githits", "list", value, value]);
+    expect(parseShellWords(cliContinuation.slice("Continue: ".length))).toEqual(
+      [
+        "githits",
+        "list",
+        value,
+        value,
+        "--file-type",
+        value,
+        "--language",
+        value,
+        "--intent",
+        "TEST",
+        "--limit",
+        "7",
+        "--after",
+        value,
+        "--wait",
+        "0",
+      ],
+    );
+    assertNoRawControls(cliText);
+  });
+
+  it("uses lossless non-executable fields for CLI actions containing NUL", () => {
+    const nulValue = "before\u0000after\u0085";
+    const result = sourceResult({
+      entries: [
+        {
+          ...file(
+            "display path",
+            `read-target-${nulValue}`,
+            `read-path-${nulValue}`,
+          ),
+          browse: {
+            target: `browse-target-${nulValue}`,
+            paths: [`browse-path-${nulValue}`],
+          },
+        },
+        file("second display path", `read-target-${nulValue}`, "safe-path"),
+      ],
+      hasMore: true,
+      nextCursor: `cursor-${nulValue}`,
+    });
+    const request = params({ target: "github:example/repo", paths: ["docs"] });
+
+    const cliText = formatListText(
+      result,
+      request,
+      options({ surface: "cli" }),
+    );
+    const cliRow = cliText.split("\n").find((line) => line.startsWith("FILE "));
+    const cliContinuation = cliText
+      .split("\n")
+      .find((line) => line.startsWith("Continue: "));
+    if (!cliRow || !cliContinuation)
+      throw new Error("Missing CLI output rows.");
+    const readStart = cliRow.indexOf("read: ");
+    const browseSeparator = cliRow.indexOf(" | browse: ");
+    const readFields = cliRow.slice(
+      readStart + "read: ".length,
+      browseSeparator,
+    );
+    const browseFields = cliRow.slice(browseSeparator + " | browse: ".length);
+    expect(readFields).toContain("not shell-executable: contains NUL");
+    expect(readFields).not.toContain("githits read");
+    expect(jsonStringAfter(readFields, "read target=")).toBe(
+      `read-target-${nulValue}`,
+    );
+    expect(jsonStringAfter(readFields, "path=")).toBe(`read-path-${nulValue}`);
+    expect(browseFields).toContain("not shell-executable: contains NUL");
+    expect(browseFields).not.toContain("githits list");
+    expect(jsonStringAfter(browseFields, "target=")).toBe(
+      `browse-target-${nulValue}`,
+    );
+    expect(jsonStringArrayAfter(browseFields, "paths=")).toEqual([
+      `browse-path-${nulValue}`,
+    ]);
+    expect(cliContinuation).toContain("not shell-executable: contains NUL");
+    expect(cliContinuation).not.toContain("githits list");
+    expect(jsonStringAfter(cliContinuation, "target=")).toBe(
+      "github:example/repo",
+    );
+    expect(jsonStringArrayAfter(cliContinuation, "paths=")).toEqual(["docs"]);
+    expect(jsonStringAfter(cliContinuation, "after=")).toBe(
+      `cursor-${nulValue}`,
+    );
+    assertNoRawControls(cliText);
+
+    const mcpText = formatListText(result, request, options());
+    const mcpRow = mcpText.split("\n").find((line) => line.startsWith("FILE "));
+    const mcpContinuation = mcpText
+      .split("\n")
+      .find((line) => line.startsWith("Continue: "));
+    if (!mcpRow || !mcpContinuation)
+      throw new Error("Missing MCP output rows.");
+    expect(jsonStringAfter(mcpRow, "read target=")).toBe(
+      `read-target-${nulValue}`,
+    );
+    expect(jsonStringAfter(mcpRow, "path=")).toBe(`read-path-${nulValue}`);
+    expect(jsonStringAfter(mcpRow, "browse: list target=")).toBe(
+      `browse-target-${nulValue}`,
+    );
+    expect(jsonStringArrayAfter(mcpRow, "paths=")).toEqual([
+      `browse-path-${nulValue}`,
+    ]);
+    expect(jsonStringAfter(mcpContinuation, "after=")).toBe(
+      `cursor-${nulValue}`,
+    );
+    assertNoRawControls(mcpText);
+  });
+
+  it("places list options before -- when target or path begins with a dash", () => {
+    const browseResult = sourceResult({
+      entries: [
+        {
+          kind: "DIRECTORY",
+          path: "display",
+          title: null,
+          read: null,
+          browse: { target: "-site:docs.example.test", paths: ["-docs/"] },
+        },
+      ],
+    });
+    const browseText = formatListText(
+      browseResult,
+      params(),
+      options({ surface: "cli" }),
+    );
+    expect(browseText).toContain(
+      "browse: githits list -- '-site:docs.example.test' '-docs/'",
+    );
+
+    const continuationResult = sourceResult({
+      hasMore: true,
+      nextCursor: "next",
+    });
+    const continuationText = formatListText(
+      continuationResult,
+      params({
+        target: "-github:example/repo",
+        paths: ["-docs"],
+        recursive: true,
+        fileTypes: ["source"],
+      }),
+      options({ surface: "cli" }),
+    );
+    const continuation = continuationText
+      .split("\n")
+      .find((line) => line.startsWith("Continue: "));
+    if (!continuation) throw new Error("Missing continuation.");
+    expect(continuation).toBe(
+      "Continue: githits list --recursive --file-type 'source' --after 'next' -- '-github:example/repo' '-docs'",
+    );
+    const words = parseShellWords(continuation.slice("Continue: ".length));
+    const marker = words.indexOf("--");
+    expect(marker).toBeGreaterThan(0);
+    expect(words.slice(0, marker)).toContain("--recursive");
+    expect(words.slice(0, marker)).toContain("--file-type");
+    expect(words.slice(0, marker)).toContain("--after");
+    expect(words.slice(marker + 1)).toEqual(["-github:example/repo", "-docs"]);
   });
 });
