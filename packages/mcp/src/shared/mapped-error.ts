@@ -57,7 +57,7 @@ export interface MappedErrorDetails {
   requestedVersion?: string;
   /** Fully-qualified package identifier (for `VERSION_NOT_FOUND`). */
   package?: string;
-  /** Repository URL for `REF_NOT_FOUND`. */
+  /** Repository URL for ref recovery or a list scope alternative. */
   repoUrl?: string;
   /** Served commit SHA accompanying a repository-scope alternative. */
   commitSha?: string;
