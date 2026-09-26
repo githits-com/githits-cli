@@ -533,6 +533,7 @@ When a new tool lands with both MCP and CLI surfaces:
 | `packages/mcp/src/tools/grep-repo.ts` | MCP tool definition for `code_grep`. |
 | `packages/mcp/src/tools/list-package-docs.ts` / `read-package-doc.ts` | MCP tool definitions for the docs surface. |
 | `src/commands/search.ts` | Top-level CLI commands for unified `search` and `search-status`. |
+| `src/commands/list.ts` | Top-level CLI `list` command; currently CLI-only until Phase 2 MCP consolidation. |
 | `src/commands/pkg/info.ts` / `vulns.ts` / `deps.ts` / `changelog.ts` | CLI commands for the `pkg` group. |
 | `src/commands/code/files.ts` / `read.ts` / `grep.ts` | CLI commands for the `code` group. |
 | `src/commands/docs/list.ts` / `read.ts` | CLI commands for the `docs` group. |

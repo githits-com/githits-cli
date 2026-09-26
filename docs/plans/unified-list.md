@@ -2,8 +2,8 @@
 
 ## Status and expected outcome
 
-**Status: IN PROGRESS.** Phase 1A's transport and shared contract are
-implemented; the stacked Phase 1B CLI increment remains.
+**Status: IN PROGRESS.** Phase 1A and the stacked Phase 1B CLI increment are
+implemented and verified; both are awaiting merge.
 
 Replace the advertised MCP `code_files` and `docs_list` tools with one `list`
 tool, and add the matching top-level `githits list` command. The new surface
@@ -360,13 +360,13 @@ filter, paging, action, and lifecycle details.
 
 | Phase | Status | Outcome |
 | --- | --- | --- |
-| 1. Add the shared contract and CLI | **COMPLETE** | `githits list` browses the committed backend contract through a tested transport-neutral service and shared formatter; legacy grouped commands keep their execution behavior. |
+| 1. Add the shared contract and CLI | **IN PROGRESS** | Increments 1A and 1B are implemented and verified, and await merge; `githits list` browses the committed backend contract through a tested transport-neutral service and shared formatter. |
 | 2. Consolidate the MCP surface | **PLANNED; test-endpoint dependent** | The advertised catalog contains `list` instead of `code_files` and `docs_list`, and agent guidance routes package/repository/site browsing and follow-up actions correctly. |
 | 3. Release and hosted adoption | **PLANNED; authorization/deployment dependent** | Published CLI and hosted MCP expose the same unified list contract, and live list-to-read/list-to-list paths pass against the deployed backend. |
 
 ## Phase 1 detailed plan — shared contract and CLI
 
-**Status:** COMPLETE; increments 1A and 1B are implemented and their acceptance checks pass.
+**Status:** IN PROGRESS; increments 1A and 1B are implemented and verified, and await merge.
 
 **Expected outcome:** the root CLI implements the committed backend contract
 through a transport-neutral `ListService`. `githits list` can browse all three
