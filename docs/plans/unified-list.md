@@ -540,12 +540,14 @@ above with Claude and Codex where practical. Inspect `tool-calls.json`,
 `final.json`, `metrics.json`, and `isolation-violations.json`; harness completion
 alone is not quality evidence.
 
-Backend semantic conformance is checked here with authenticated calls: literals,
-all supported glob forms, union/deduplication, recursion on selected
-directories, source filters before hierarchy, package boundary isolation,
-dot-prefixed source paths, host-qualified site paths, continuation, and
-list-to-read/list-to-list actions. Client unit tests assert only wire replay and
-projection; the live checks establish backend behavior.
+Backend semantic conformance was established with authenticated CLI calls on
+2026-09-26: literals, all supported glob forms, union/deduplication, recursion
+on selected directories, source filters before hierarchy, package boundary
+isolation, dot-prefixed source paths, host-qualified site paths, continuation,
+and list-to-read/list-to-list actions all passed. Client unit tests assert only
+wire replay and projection. Phase 2 uses the same endpoint to verify the MCP
+projection and agent routing, and repeats backend cases only if the schema or
+endpoint changes.
 
 Phase 2 is accepted when deterministic and targeted live/eval checks pass; the
 catalog advertises `list` and no longer advertises `code_files`/`docs_list`;

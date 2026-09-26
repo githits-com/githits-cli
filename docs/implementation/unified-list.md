@@ -102,10 +102,10 @@ dot-prefixed root entries, package and site pagination, cursor selection
 binding, source-only filter rejection for sites, indexing wait, package-scope
 failure with its explicit pinned-repository alternative, and exact emitted
 read, browse, and continuation actions. It used Express and Lodash packages,
-the Express and Requests repositories, and React and Node.js documentation
-sites. All 16 checks passed. Phase 2 still owns the remaining live cases for
-`?`, escaped glob metacharacters, union deduplication, package-boundary
-isolation, and the MCP/agent surface.
+the Express, Requests, and Babel repositories, and React and Node.js
+documentation sites. All 20 checks passed, including `?`, escaped glob
+metacharacters, union deduplication, and Babel monorepo package-boundary
+isolation. Phase 2 retains MCP/agent and package-to-site discovery validation.
 
 ## Key reference files
 
