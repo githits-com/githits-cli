@@ -11,7 +11,6 @@ import { pkgReadAction } from "./code/read.js";
 import { docsListAction } from "./docs/list.js";
 import { docsReadAction } from "./docs/read.js";
 import { exampleAction } from "./example.js";
-import { languagesAction } from "./languages.js";
 import { listAction } from "./list.js";
 import { pkgChangelogAction } from "./pkg/changelog.js";
 import { pkgDepsAction } from "./pkg/deps.js";
@@ -52,10 +51,6 @@ describe("authenticated command JSON auth failures", () => {
     {
       name: "example",
       run: () => exampleAction("router", { json: true }, gitHitsDeps),
-    },
-    {
-      name: "languages",
-      run: () => languagesAction(undefined, { json: true }, gitHitsDeps),
     },
     {
       name: "search",

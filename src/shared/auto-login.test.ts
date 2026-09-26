@@ -134,7 +134,7 @@ describe("isAutoLoginEligibleCommand", () => {
 
   it("skips eligible commands when stdout is not interactive", () => {
     expect(
-      isAutoLoginEligibleCommand(createCommand(["languages"]), {
+      isAutoLoginEligibleCommand(createCommand(["example"]), {
         stdinIsTTY: true,
         stdoutIsTTY: false,
       }),
@@ -281,7 +281,7 @@ describe("maybeAutoLoginBeforeCommand", () => {
     );
 
     const result = await maybeAutoLoginBeforeCommand(
-      createCommand(["languages"]),
+      createCommand(["example"]),
       {
         createContainer,
         loginFlow: login,
@@ -329,7 +329,7 @@ describe("maybeAutoLoginBeforeCommand", () => {
     );
 
     const result = await maybeAutoLoginBeforeCommand(
-      createCommand(["languages"]),
+      createCommand(["example"]),
       {
         createContainer,
         loginFlow: login,

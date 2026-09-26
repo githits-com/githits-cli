@@ -1,11 +1,4 @@
 export {
-  type AskCommandDependencies,
-  type AskCommandOptions,
-  askAction,
-  registerAskCommand,
-  validateAskCommandBeforeAction,
-} from "./ask.js";
-export {
   type AuthStatusDependencies,
   authStatusAction,
   authTokenAction,
@@ -35,12 +28,6 @@ export {
   initUninstallAction,
   registerInitCommand,
 } from "./init/index.js";
-export {
-  type LanguagesDependencies,
-  type LanguagesOptions,
-  languagesAction,
-  registerLanguagesCommand,
-} from "./languages.js";
 export { listAction, registerListCommand } from "./list.js";
 export {
   type LoginDependencies,
@@ -56,6 +43,13 @@ export {
 export { registerMcpCommand } from "./mcp.js";
 export { registerPkgCommandGroup } from "./pkg/index.js";
 export { readAction, registerReadCommand } from "./read.js";
+export {
+  type ResearchCommandDependencies,
+  type ResearchCommandOptions,
+  registerResearchCommand,
+  researchAction,
+  validateResearchCommandBeforeAction,
+} from "./research.js";
 export {
   type ResolveCommandDependencies,
   type ResolveCommandOptions,

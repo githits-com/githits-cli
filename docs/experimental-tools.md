@@ -5,7 +5,7 @@ dogfooding before they are considered for the stable surface:
 
 | MCP tool | CLI command | Purpose |
 |---|---|---|
-| `ask` | `githits ask` | Answer a grounded question about one canonical open-source target and return executable source-reading calls or original upstream URLs. |
+| `research` | `githits research` (`githits ask` alias) | Research a grounded question about one canonical open-source target and return executable source-reading calls or original upstream URLs. |
 | `resolve_target` | `githits resolve` | Rank canonical package, public GitHub repository, or standalone documentation-site targets for a fuzzy, misspelled, or ambiguous name. |
 | `code_diff` | `githits code diff` | Compare repository trees resolved from two exact package versions or public GitHub refs. |
 
@@ -55,12 +55,12 @@ Confirm the CLI opt-in:
 
 ```sh
 githits --help
-githits ask --help
+githits research --help
 githits resolve --help
 githits code diff --help
 ```
 
-The first command should list `ask` and `resolve`; `githits code --help` should
+The first command should list `research|ask` and `resolve`; `githits code --help` should
 list `diff`. If an explicit experimental command is still disabled, its error
 names the config path GitHits read.
 
@@ -70,22 +70,24 @@ evaluation infrastructure, not the user opt-in. It affects only that process. Us
 
 ## Use the CLI commands
 
-Ask a question about a public package or repository, optionally supplying a
-canonical target:
+Research a public package or repository by asking a question, optionally
+supplying a canonical target:
 
 ```sh
-githits ask "How does FastAPI dependency injection resolve nested dependencies?"
-githits ask pypi:fastapi "How does dependency injection resolve nested dependencies?"
-githits ask github:expressjs/express "Where is router dispatch implemented?" --json
-githits ask npm:express "Where is router dispatch implemented?" --source-format url
-githits ask --thread 019c4f26-79b2-7bcb-b729-f9e39043a94b "How does that interact with route parameters?"
+githits research "How does FastAPI dependency injection resolve nested dependencies?"
+githits research pypi:fastapi "How does dependency injection resolve nested dependencies?"
+githits research github:expressjs/express "Where is router dispatch implemented?" --json
+githits research npm:express "Where is router dispatch implemented?" --source-format url
+githits research --thread 019c4f26-79b2-7bcb-b729-f9e39043a94b "How does that interact with route parameters?"
 ```
 
 With one positional argument, GitHits uses the question to identify a public
 package or repository. With two positional arguments, the first is an explicit
 target and the second is the question. Quote multi-word questions.
 
-By default, human output contains the grounded answer, an Ask run ID, the
+`githits ask` remains an alias with the same options, opt-in policy, and output.
+
+By default, human output contains the grounded answer, a Research run ID, the
 thread ID, and source commands in the form `npx githits@latest ...` that can be
 executed directly. Pass the returned thread ID to `--thread` for a follow-up.
 Name a new project, version, or topic in the question to change scope; threads
@@ -96,15 +98,15 @@ terminal control sequences.
 Use `--source-format url` to return the original upstream HTTP URLs instead of
 CLI source commands. This changes only source presentation.
 
-The local MCP `ask` tool also accepts a question alone. Omit both `target` and
+The local MCP `research` tool also accepts a question alone. Omit both `target` and
 `thread_id` to identify the target from the question, supply `target` to choose
 one explicitly, or use `thread_id` for a needed follow-up. Do not combine them.
 It defaults to MCP-native `read` source calls, projected from the backend pointers. Set
 `source_format` to `url` for original upstream HTTP URLs. Answer text includes
-source pointers, the Ask run ID, thread ID, and conditional follow-up guidance.
+source pointers, the Research run ID, thread ID, and conditional follow-up guidance.
 JSON returns the response for the selected source format.
 
-When Ask cannot confidently select a target, both CLI and local MCP return a
+When Research cannot confidently select a target, both CLI and local MCP return a
 clarification with resolver candidates instead of an answer or thread. JSON
 identifies this as `outcome: "needs_target"`. Repeat the question with a selected
 target; do not infer identity from popularity or silently pick an ambiguous hit.
@@ -154,9 +156,10 @@ API compatibility or upgrade safety; prefer `pkg_changelog` or
 `pkg_upgrade_review` for an upgrade summary.
 
 For MCP, no separate server flag or host configuration is required after the
-`config.toml` opt-in. A restarted local server registers `ask`,
+`config.toml` opt-in. A restarted local server registers `research`,
 `resolve_target`, and `code_diff` and adds their usage guidance to
-`quick_start`. The hosted MCP inventory remains unchanged.
+`quick_start`. The local MCP `ask` name is no longer registered; the hosted MCP
+inventory remains unchanged.
 
 ## Disable the tools
 

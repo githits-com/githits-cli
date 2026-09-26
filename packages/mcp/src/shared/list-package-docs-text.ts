@@ -83,11 +83,6 @@ function buildHeader(envelope: LeanPackageDocsEnvelope): string {
 }
 
 function buildMcpDocsListCall(envelope: LeanPackageDocsEnvelope): string {
-  const args = [
-    `registry=${JSON.stringify(envelope.registry ?? "")}`,
-    `package_name=${JSON.stringify(envelope.name ?? "")}`,
-  ];
-  if (envelope.version)
-    args.push(`version=${JSON.stringify(envelope.version)}`);
-  return `\`docs_list ${args.join(" ")}\``;
+  const target = `${envelope.registry ?? ""}:${envelope.name ?? ""}${envelope.version ? `@${envelope.version}` : ""}`;
+  return `\`docs_list target=${JSON.stringify(target)}\``;
 }

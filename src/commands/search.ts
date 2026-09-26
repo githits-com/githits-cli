@@ -177,6 +177,11 @@ terminal recovery guidance without a searchRef. Use \`githits example\` for
 canonical cross-project examples; \`--source symbol\`
 here returns symbol-shaped hits.
 
+Hosted/crawled [docs page] HTTP(S) targets address mutable current content.
+Pass the displayed URL or fragment unchanged to githits read; automatic
+follow-ups omit search line coordinates. Repository docs are snapshot-addressed
+and keep their returned ranges. Add --lines only for an intentional page range.
+
 The query supports implicit AND, uppercase OR, parens, unary -, "phrases",
 and qualifiers (kind:, category:, path:, lang:, name:, intent:, registry:,
 package:, version:, repo:).

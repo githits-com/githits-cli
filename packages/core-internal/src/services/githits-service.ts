@@ -1,4 +1,3 @@
-import { z } from "zod";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   FetchTimeoutError,
@@ -94,17 +93,6 @@ export function parseRetryAfterSeconds(
 }
 
 /**
- * Language data from the API.
- */
-export interface Language {
-  id: string;
-  name: string;
-  display_name: string;
-  aliases: string[];
-  search_priority?: number;
-}
-
-/**
  * Parameters for search API call.
  */
 export interface SearchParams {
@@ -126,15 +114,6 @@ export interface GitHitsServiceRuntimeOptions {
   diagnostics?: ServiceDiagnostics;
 }
 
-const LANGUAGE_SCHEMA = z.object({
-  id: z.string(),
-  name: z.string(),
-  display_name: z.string(),
-  aliases: z.array(z.string()),
-  search_priority: z.number().optional(),
-});
-const LANGUAGES_SCHEMA = z.array(LANGUAGE_SCHEMA);
-
 /**
  * Service interface for GitHits REST API.
  */
@@ -144,12 +123,6 @@ export interface GitHitsService {
     params: SearchParams,
     options?: GitHitsServiceRequestOptions,
   ): Promise<string>;
-
-  /** Get all supported languages. */
-  getLanguages(): Promise<Language[]>;
-
-  /** Search supported languages using backend-ranked matching. */
-  searchLanguages(query: string, limit?: number): Promise<Language[]>;
 }
 
 /**
@@ -199,46 +172,6 @@ export class GitHitsServiceImpl implements GitHitsService {
     );
   }
 
-  async getLanguages(): Promise<Language[]> {
-    return withServiceDiagnostics(
-      this.runtime.diagnostics,
-      "githits.languages.request",
-      async () => {
-        const response = await this.request("/languages", {
-          headers: this.headers(),
-        });
-
-        if (!response.ok) {
-          throw await this.createError(response);
-        }
-
-        return this.parseLanguages(response);
-      },
-    );
-  }
-
-  async searchLanguages(query: string, limit: number = 5): Promise<Language[]> {
-    return withServiceDiagnostics(
-      this.runtime.diagnostics,
-      "githits.languages.search.request",
-      async () => {
-        const params = new URLSearchParams({
-          query,
-          limit: String(limit),
-        });
-        const response = await this.request(`/languages?${params.toString()}`, {
-          headers: this.headers(),
-        });
-
-        if (!response.ok) {
-          throw await this.createError(response);
-        }
-
-        return this.parseLanguages(response);
-      },
-    );
-  }
-
   private headers(): Record<string, string> {
     return {
       ...this.runtime.clientHeaders?.(),
@@ -284,25 +217,6 @@ export class GitHitsServiceImpl implements GitHitsService {
       }
       throw cause;
     }
-  }
-
-  private async parseLanguages(response: Response): Promise<Language[]> {
-    let data: unknown;
-    try {
-      data = await response.json();
-    } catch (cause) {
-      throw new Error("GitHits returned an invalid languages response.", {
-        cause,
-      });
-    }
-
-    const parsed = LANGUAGES_SCHEMA.safeParse(data);
-    if (!parsed.success) {
-      throw new Error("GitHits returned an invalid languages response.", {
-        cause: parsed.error,
-      });
-    }
-    return parsed.data;
   }
 
   private async createError(response: Response): Promise<Error> {

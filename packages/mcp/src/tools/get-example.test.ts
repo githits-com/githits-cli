@@ -11,16 +11,22 @@ describe("getExampleTool", () => {
     expect(tool.description).not.toContain("feedback");
     expect(tool.description).toContain("when no single target is the answer");
     expect(tool.description).toContain("source repository provenance");
-    expect(tool.description).toContain("source repositories/citations");
-    expect(tool.description).toContain(
-      "GitHits' generated references/provenance section",
-    );
+    expect(tool.description).toContain("generated references");
     expect(tool.schema.format?.description).toBe(
       "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
     );
     expect(tool.schema.license_mode?.description).toContain(
       "`yolo` disables filtering",
     );
+    expect(tool.schema.language?.description).toContain("Omit to infer it");
+    expect(tool.schema.language?.description).toContain(
+      "suggested language from the error",
+    );
+    expect(tool.description).toContain(
+      "markdown with source repository provenance",
+    );
+    expect(tool.description).not.toContain("suggested language from the error");
+    expect(tool.description).not.toContain("search_language");
   });
 
   it("returns markdown result from service", async () => {

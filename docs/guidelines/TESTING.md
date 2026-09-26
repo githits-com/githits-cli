@@ -58,9 +58,6 @@ export function createMockGitHitsService(
 ): GitHitsService {
   return {
     search: mock(() => Promise.resolve("# Example\n```js\nconsole.log('hi')\n```")),
-    getLanguages: mock(() => Promise.resolve([
-      { id: "1", name: "javascript", display_name: "JavaScript", aliases: ["js"] },
-    ])),
     ...impl, // Override specific methods
   };
 }

@@ -4,7 +4,6 @@ import {
   registerCodeCommandGroup,
   registerDocsCommandGroup,
   registerExampleCommand,
-  registerLanguagesCommand,
   registerListCommand,
   registerPkgCommandGroup,
   registerUnifiedSearchCommands,
@@ -109,7 +108,6 @@ async function createProgramForHelpSurface(): Promise<Command> {
   program.name("githits");
 
   registerExampleCommand(program);
-  registerLanguagesCommand(program);
   registerListCommand(program);
   await registerUnifiedSearchCommands(program);
   await registerCodeCommandGroup(program, { experimentalTools: true });
@@ -257,64 +255,6 @@ describe("root CLI preAction", () => {
     await program.parseAsync(["node", "githits", "example"]);
 
     expect(clearAuthSessionMetadata).toHaveBeenCalledTimes(1);
-  });
-
-  it("prints the languages continuation message after successful auto-login", async () => {
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const container = createLoginDeps({ hasValidToken: false });
-    const createContainer = mock(() => Promise.resolve(container));
-    const loginFlow = mock(() =>
-      Promise.resolve({
-        status: "success" as const,
-        message: "Logged in successfully.",
-      }),
-    );
-    const program = createProgramWithRootPreAction({
-      createContainer,
-      loginFlow,
-    });
-
-    let ran = false;
-    program.command("languages").action(() => {
-      ran = true;
-    });
-
-    await program.parseAsync(["node", "githits", "languages"]);
-
-    expect(ran).toBe(true);
-    expect(errorSpy.mock.calls.map((call) => call[0])).toEqual([
-      "Authentication complete. Loading supported languages...",
-    ]);
-    errorSpy.mockRestore();
-  });
-
-  it("prints the languages continuation message after successful auto-login", async () => {
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const container = createLoginDeps({ hasValidToken: false });
-    const createContainer = mock(() => Promise.resolve(container));
-    const loginFlow = mock(() =>
-      Promise.resolve({
-        status: "success" as const,
-        message: "Logged in successfully.",
-      }),
-    );
-    const program = createProgramWithRootPreAction({
-      createContainer,
-      loginFlow,
-    });
-
-    let ran = false;
-    program.command("languages").action(() => {
-      ran = true;
-    });
-
-    await program.parseAsync(["node", "githits", "languages"]);
-
-    expect(ran).toBe(true);
-    expect(errorSpy.mock.calls.map((call) => call[0])).toEqual([
-      "Authentication complete. Loading supported languages...",
-    ]);
-    errorSpy.mockRestore();
   });
 
   it("leaves init auth handling to the init command", async () => {
@@ -509,12 +449,22 @@ describe("CLI help surface", () => {
     const help = program.helpInformation();
 
     expect(help).toMatch(/^\s{2}example\b/m);
-    expect(help).toMatch(/^\s{2}languages\b/m);
     expect(help).toMatch(/^\s{2}list\b/m);
+    expect(help).not.toMatch(/^\s{2}languages\b/m);
     expect(help).not.toMatch(/^\s{2}feedback\b/m);
     expect(help).toMatch(/^\s{2}search\b/m);
     expect(help).toMatch(/^\s{2}code\b/m);
     expect(help).toMatch(/^\s{2}docs\b/m);
     expect(help).toMatch(/^\s{2}pkg\b/m);
+
+    const search = program.commands.find(
+      (command) => command.name() === "search",
+    );
+    expect(search?.helpInformation()).toContain(
+      "Hosted/crawled [docs page] HTTP(S) targets address mutable current content",
+    );
+    expect(search?.helpInformation()).toContain(
+      "Repository docs are snapshot-addressed",
+    );
   });
 });

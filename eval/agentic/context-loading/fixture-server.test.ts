@@ -42,11 +42,35 @@ describe("context fixture MCP contract", () => {
       ).toBeLessThan(79);
       const info = await client.callTool({
         name: "pkg_info",
-        arguments: { registry: "npm", package_name: "zod" },
+        arguments: { target: "npm:zod" },
       });
       expect(info.isError).not.toBe(true);
       expect(JSON.stringify(info.content)).toContain(
         "not live package coverage",
+      );
+      const oldOnlyInfo = await client.callTool({
+        name: "pkg_info",
+        arguments: { registry: "npm", package_name: "zod" },
+      });
+      expect(oldOnlyInfo.isError).toBe(true);
+      expect(JSON.stringify(oldOnlyInfo.content)).toContain(
+        "Invalid arguments",
+      );
+      expect(JSON.stringify(oldOnlyInfo.content)).not.toContain(
+        "fixed context-loading fixture",
+      );
+      const objectTargetInfo = await client.callTool({
+        name: "pkg_info",
+        arguments: {
+          target: { registry: "npm", package_name: "zod" },
+        },
+      });
+      expect(objectTargetInfo.isError).toBe(true);
+      expect(JSON.stringify(objectTargetInfo.content)).toContain(
+        "Invalid arguments",
+      );
+      expect(JSON.stringify(objectTargetInfo.content)).not.toContain(
+        "fixed context-loading fixture",
       );
       const search = await client.callTool({
         name: "search",

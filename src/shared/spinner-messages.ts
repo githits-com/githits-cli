@@ -3,7 +3,7 @@
  * a command waits on the GitHits backend, so long requests feel alive.
  */
 export const SPINNER_MESSAGES = {
-  ask: [
+  research: [
     "Investigating indexed sources...",
     "Tracing the relevant implementation...",
     "Grounding the answer...",

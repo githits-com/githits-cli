@@ -549,6 +549,7 @@ describe("agent eval harness", () => {
 
   it("defaults automated Codex evals to Luna with high reasoning", () => {
     const options = parseArgs(["--agent", "codex", "--dry-run"], "/repo");
+    expect(DEFAULT_CODEX_MODEL).toBe("gpt-6-luna");
     expect(options.model).toBe(DEFAULT_CODEX_MODEL);
     expect(options.reasoningEffort).toBe(DEFAULT_CODEX_REASONING_EFFORT);
     expect(options.guidanceProfile).toBe("descriptors");
@@ -733,6 +734,41 @@ describe("agent eval harness", () => {
     expect(process.listenerCount("SIGTERM")).toBe(before.sigterm);
   });
 
+  it("finishes timeout reporting when no other subprocess work keeps Bun alive", async () => {
+    const root = mkdtempSync(join(tmpdir(), "agent-eval-timeout-liveness-"));
+    const driverPath = join(root, "driver.ts");
+    const runnerPath = join(import.meta.dir, "agent-eval.ts");
+    writeFileSync(
+      driverPath,
+      [
+        `import { runWithTimeout } from ${JSON.stringify(runnerPath)};`,
+        'runWithTimeout([process.execPath, "-e", "setTimeout(() => {}, 10000)"], process.cwd(), {}, 0.2)',
+        "  .then(result => console.log(JSON.stringify({ timedOut: result.timedOut, finished: true })));",
+      ].join("\n"),
+    );
+    try {
+      const driver = Bun.spawn([process.execPath, driverPath], {
+        cwd: root,
+        env: {
+          PATH: process.env.PATH ?? "",
+          SystemRoot: process.env.SystemRoot ?? "",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(driver.stdout).text(),
+        new Response(driver.stderr).text(),
+        driver.exited,
+      ]);
+      expect(stderr).toBe("");
+      expect(exitCode).toBe(0);
+      expect(JSON.parse(stdout)).toEqual({ timedOut: true, finished: true });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 15000);
+
   it("observes complete JSONL lines across chunks and a final unterminated line", async () => {
     const timestamps = [
       "2026-08-28T10:00:00.000Z",
@@ -816,7 +852,7 @@ describe("agent eval harness", () => {
       {},
     );
     expect(config).toBe(
-      '[mcp_servers.githits]\ncommand = "bun"\nargs = ["run","--cwd","/repo/githits-cli","dev","mcp","start"]\n',
+      '[mcp_servers.githits]\nrequired = true\ncommand = "bun"\nargs = ["run","--cwd","/repo/githits-cli","dev","mcp","start"]\n',
     );
     expect(config).not.toContain("env_vars");
   });
@@ -831,6 +867,8 @@ describe("agent eval harness", () => {
       {},
     );
     expect(args).toEqual([
+      "-c",
+      "mcp_servers.githits.required=true",
       "-c",
       'mcp_servers.githits.command="npx"',
       "-c",
@@ -3004,7 +3042,7 @@ describe("agent eval harness", () => {
       cacheWriteInputTokens: 20,
       outputTokens: 10,
       reasoningOutputTokens: 4,
-      baseRateEstimatedCostUsd: 0.0000258,
+      baseRateEstimatedCostUsd: 0.0000119,
     });
     const serialized = JSON.stringify(metrics);
     expect(serialized).not.toContain("githits search express");
@@ -4440,7 +4478,7 @@ describe("agent eval harness", () => {
       },
       cost: {
         kind: "base_rate_estimate",
-        usd: 0.0000258,
+        usd: 0.0000119,
         uncertainty: "rate_based_estimate",
       },
       logicalToolCount: 2,
@@ -4464,14 +4502,14 @@ describe("agent eval harness", () => {
       cacheWriteInputTokens: 40,
       outputTokens: 40,
       reasoningOutputTokens: 9,
-      baseRateEstimatedCostUsd: 0.0000848,
+      baseRateEstimatedCostUsd: 0.0000384,
     });
     const formatted = formatRunReport(report);
     expect(formatted).toContain("tokens=uncachedInput=40");
     expect(formatted).toContain("output=10 reasoning(detail)=4");
-    expect(formatted).toContain("cost=base_rate_estimate costUsd=0.0000258");
+    expect(formatted).toContain("cost=base_rate_estimate costUsd=0.0000119");
     expect(formatted).toContain("aggregate workloads=2");
-    expect(formatted).toContain("baseRateCostUsd=0.0000848");
+    expect(formatted).toContain("baseRateCostUsd=0.0000384");
     expect(formatted).not.toContain("output=14");
 
     const longContextRunDir = mkdtempSync(

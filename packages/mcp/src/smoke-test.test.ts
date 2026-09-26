@@ -44,7 +44,7 @@ function createCaller(callTool: McpSmokeCaller["callTool"]): McpSmokeCaller {
         name,
         annotations: {
           readOnlyHint: true,
-          openWorldHint: !["quick_start", "search_language"].includes(name),
+          openWorldHint: name !== "quick_start",
           destructiveHint: false,
         },
       })),
@@ -56,15 +56,15 @@ function createCaller(callTool: McpSmokeCaller["callTool"]): McpSmokeCaller {
 describe("MCP smoke-test helpers", () => {
   it("extracts successful tool text and throws MCP error text", async () => {
     const successCaller = createCaller(async () => textResult("ok"));
-    await expect(
-      callToolText(successCaller, "search_language", {}),
-    ).resolves.toBe("ok");
+    await expect(callToolText(successCaller, "get_example", {})).resolves.toBe(
+      "ok",
+    );
 
     const failingCaller = createCaller(async () =>
       errorResult("AUTH_REQUIRED", "auth required"),
     );
     await expect(
-      callToolText(failingCaller, "search_language", {}),
+      callToolText(failingCaller, "get_example", {}),
     ).rejects.toThrow("auth required");
   });
 
@@ -106,7 +106,6 @@ describe("runMcpSmoke", () => {
     ["get_example", false],
     ["search_status", undefined],
     ["quick_start", true],
-    ["search_language", undefined],
     ["ask", false],
   ] as const)(
     "rejects incorrect open-world annotation for %s: %s",
@@ -126,7 +125,7 @@ describe("runMcpSmoke", () => {
       caller.listTools = async () => ({
         tools: [...tools.filter((tool) => tool.name !== name), changed],
       });
-      const expected = !["quick_start", "search_language"].includes(name);
+      const expected = name !== "quick_start";
       await expect(
         runMcpSmoke(caller, { includeLiveTools: false }),
       ).rejects.toThrow(
@@ -164,7 +163,7 @@ describe("runMcpSmoke", () => {
           name,
           annotations: {
             readOnlyHint: true,
-            openWorldHint: !["quick_start", "search_language"].includes(name),
+            openWorldHint: name !== "quick_start",
             destructiveHint: false,
           },
         })),
@@ -202,7 +201,7 @@ describe("runMcpSmoke", () => {
         name,
         annotations: {
           readOnlyHint: true,
-          openWorldHint: !["quick_start", "search_language"].includes(name),
+          openWorldHint: name !== "quick_start",
           destructiveHint: false,
         },
       })),
@@ -240,9 +239,10 @@ describe("runMcpSmoke", () => {
 
   it("skips the live corpus when the auth probe returns AUTH_REQUIRED", async () => {
     const logs: string[] = [];
-    const caller = createCaller(async (name) => {
+    const caller = createCaller(async (name, args) => {
       if (name === "quick_start") return smokeResponse(name, {});
-      expect(name).toBe("search_language");
+      expect(name).toBe("pkg_info");
+      expect(args).toEqual({ target: "npm:express" });
       return errorResult("AUTH_REQUIRED");
     });
 
@@ -270,19 +270,36 @@ describe("runMcpSmoke", () => {
       new Set(EXPECTED_MCP_TOOLS),
     );
     expect(calls.some(({ name }) => name === "feedback")).toBe(false);
+    const compactPackageNames = new Set([
+      "docs_list",
+      "pkg_info",
+      "pkg_vulns",
+      "pkg_deps",
+      "pkg_changelog",
+    ]);
+    const compactPackageCalls = calls.filter(({ name }) =>
+      compactPackageNames.has(name),
+    );
+    expect(new Set(compactPackageCalls.map(({ name }) => name))).toEqual(
+      compactPackageNames,
+    );
+    for (const { name, args } of compactPackageCalls) {
+      expect(typeof args.target, `${name} target`).toBe("string");
+      expect(args, `${name} registry`).not.toHaveProperty("registry");
+      expect(args, `${name} package_name`).not.toHaveProperty("package_name");
+      expect(args, `${name} version`).not.toHaveProperty("version");
+    }
     expect(calls).toContainEqual({
       name: "pkg_deps",
       args: {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         include_issues: true,
       },
     });
     expect(calls).toContainEqual({
       name: "pkg_deps",
       args: {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         include_issues: true,
         format: "json",
       },
@@ -290,23 +307,77 @@ describe("runMcpSmoke", () => {
     expect(calls).toContainEqual({
       name: "pkg_vulns",
       args: {
-        registry: "npm",
-        package_name: "express",
-        version: "4.17.1",
+        target: "npm:express@4.17.1",
         include_transitive: true,
       },
     });
     expect(calls).toContainEqual({
       name: "pkg_vulns",
       args: {
-        registry: "npm",
-        package_name: "express",
-        version: "4.17.1",
+        target: "npm:express@4.17.1",
         include_transitive: true,
         advisory_scope: "all",
         format: "json",
       },
     });
+  });
+
+  it("rejects hosted documentation follow-ups that replay search bounds", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.source === "docs") {
+        return jsonResult({
+          completed: true,
+          results: [
+            {
+              type: "documentation_page",
+              locator: {
+                docsReadTarget: SMOKE_CRAWLED_DOC_TARGET,
+                startLine: 81,
+                endLine: 93,
+              },
+              followUp: `read target=${JSON.stringify(SMOKE_CRAWLED_DOC_TARGET)} start_line=81 end_line=93`,
+            },
+          ],
+        });
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).rejects.toThrow(
+      "hosted documentation follow-up replayed search line bounds",
+    );
+  });
+
+  it("continues an in-progress hosted documentation smoke search once", async () => {
+    let docsStatusCalls = 0;
+    const caller = createCaller(async (name, args) => {
+      if (name === "search" && args.source === "docs") {
+        return jsonResult({
+          completed: false,
+          results: [],
+          searchRef: "docs-smoke-ref",
+        });
+      }
+      if (name === "search_status" && args.search_ref === "docs-smoke-ref") {
+        docsStatusCalls += 1;
+        return jsonResult({
+          completed: true,
+          result: {
+            results: [
+              {
+                type: "documentation_page",
+                locator: { docsReadTarget: SMOKE_CRAWLED_DOC_TARGET },
+                followUp: `read target=${JSON.stringify(SMOKE_CRAWLED_DOC_TARGET)}`,
+              },
+            ],
+          },
+        });
+      }
+      return smokeResponse(name, args);
+    });
+
+    await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+    expect(docsStatusCalls).toBe(1);
   });
 
   it("rejects arbitrary snippets beneath path-only search hits", async () => {
@@ -830,13 +901,25 @@ function smokeResponse(
   name: string,
   args: Record<string, unknown>,
 ): McpSmokeToolResult {
+  if (
+    name === "pkg_changelog" &&
+    typeof args.target === "string" &&
+    (args.target.startsWith("github:") || args.target.startsWith("site:"))
+  ) {
+    return errorResult(
+      "INVALID_ARGUMENT",
+      JSON.stringify({
+        error: "pkg_changelog is package-only",
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      }),
+    );
+  }
   if (args.format === "json") return smokeJsonResponse(name, args);
 
   switch (name) {
     case "quick_start":
       return textResult("GitHits routing guide for `search` and `code_grep`");
-    case "search_language":
-      return textResult("python (Python)\naliases: py");
     case "get_example":
       return textResult("example\nsolution_id: smoke");
     case "pkg_info":
@@ -935,8 +1018,6 @@ function smokeJsonResponse(
   args: Record<string, unknown>,
 ): McpSmokeToolResult {
   switch (name) {
-    case "search_language":
-      return jsonResult([]);
     case "get_example":
       return jsonResult({ result: "example" });
     case "pkg_info":
@@ -1003,6 +1084,14 @@ function smokeJsonResponse(
         },
       });
     case "pkg_changelog":
+      if (args.target === "npm:express@5.2.1") {
+        return jsonResult({
+          mode: "exact",
+          entries: {
+            items: [{ version: "5.2.1", hasChangelog: true }],
+          },
+        });
+      }
       return jsonResult({ entries: {} });
     case "pkg_upgrade_review":
       return jsonResult({ summary: {}, reviews: [{}] });
@@ -1063,21 +1152,56 @@ function smokeJsonResponse(
           effectiveAfter: 10,
         },
       });
-    case "search":
-      if (args.path_prefix)
-        return {
-          isError: true,
-          ...jsonResult({
-            error: "Path prefixes require a code search source",
-            code: "INVALID_ARGUMENT",
-            retryable: false,
-          }),
-        };
+    case "search": {
+      const query = typeof args.query === "string" ? args.query : "";
+      const invalidQualifier =
+        /(?:^|\s)(kind|category|intent):bogus(?:\s|$)/.exec(query);
+      if (invalidQualifier) {
+        return errorResult("INVALID_ARGUMENT");
+      }
+      if (query.includes("path:lib/") && query.includes("lang:javascript")) {
+        return jsonResult({
+          completed: true,
+          hasMore: false,
+          query: { raw: query },
+          results: [
+            {
+              target: "npm:express@5.2.1",
+              locator: { filePath: "lib/router/index.js" },
+            },
+          ],
+          sourceStatus: [
+            {
+              source: "CODE",
+              ignoredQueryFeatures: [],
+              incompatibleQueryFeatures: [],
+            },
+          ],
+        });
+      }
+      if (args.source === "docs") {
+        return jsonResult({
+          completed: true,
+          results: [
+            {
+              type: "documentation_page",
+              locator: {
+                docsReadTarget: SMOKE_CRAWLED_DOC_TARGET,
+                sourceUrl: SMOKE_CRAWLED_DOC_TARGET,
+                startLine: 81,
+                endLine: 93,
+              },
+              followUp: `read target=${JSON.stringify(SMOKE_CRAWLED_DOC_TARGET)}`,
+            },
+          ],
+        });
+      }
       return jsonResult({
         completed: false,
         searchRef: "smoke-ref",
         progress: { status: "INDEXING", targetsReady: 0, targetsTotal: 1 },
       });
+    }
     case "search_status":
       return jsonResult({ completed: true });
     default:

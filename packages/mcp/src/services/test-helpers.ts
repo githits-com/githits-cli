@@ -148,62 +148,6 @@ export function createMockGitHitsService(
     search: mock(() =>
       Promise.resolve("# Example\n```js\nconsole.log('hi')\n```"),
     ),
-    getLanguages: mock(() =>
-      Promise.resolve([
-        {
-          id: "1",
-          name: "javascript",
-          display_name: "JavaScript",
-          aliases: ["js"],
-        },
-        {
-          id: "2",
-          name: "typescript",
-          display_name: "TypeScript",
-          aliases: ["ts"],
-        },
-        {
-          id: "3",
-          name: "python",
-          display_name: "Python",
-          aliases: ["py"],
-        },
-      ]),
-    ),
-    searchLanguages: mock((query: string, limit: number = 5) => {
-      const lowerQuery = query.toLowerCase();
-      return Promise.resolve(
-        [
-          {
-            id: "1",
-            name: "javascript",
-            display_name: "JavaScript",
-            aliases: ["js"],
-          },
-          {
-            id: "2",
-            name: "typescript",
-            display_name: "TypeScript",
-            aliases: ["ts"],
-          },
-          {
-            id: "3",
-            name: "python",
-            display_name: "Python",
-            aliases: ["py"],
-          },
-        ]
-          .filter(
-            (language) =>
-              language.name.toLowerCase().includes(lowerQuery) ||
-              language.display_name.toLowerCase().includes(lowerQuery) ||
-              language.aliases.some((alias) =>
-                alias.toLowerCase().includes(lowerQuery),
-              ),
-          )
-          .slice(0, limit),
-      );
-    }),
     ...impl,
   };
 }
@@ -657,7 +601,6 @@ export const defaultChangelogReport: ChangelogReport = {
   package: {
     name: "express",
     registry: "npm",
-    repoUrl: undefined,
     fromVersion: undefined,
     toVersion: undefined,
     limit: 10,

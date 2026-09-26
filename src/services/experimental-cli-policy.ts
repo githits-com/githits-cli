@@ -8,6 +8,7 @@ import type { FileSystemService } from "./filesystem-service.js";
 
 /** The CLI command paths gated by the experimental tools setting. */
 export const EXPERIMENTAL_CLI_COMMANDS = [
+  "research",
   "ask",
   "resolve",
   "code diff",

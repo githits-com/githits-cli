@@ -9,13 +9,16 @@
 //   - Service-sourced success and error fixtures use `toEqual`: both
 //     surfaces route through the same request builder and envelope
 //     shaper, so envelopes are byte-identical.
-//   - `INVALID_ARGUMENT` fixtures use `toMatchObject`: CLI rejects
-//     in `buildPackageDependenciesParams` after `parsePackageSpec`;
-//     MCP rejects in the same builder via the in-handler pattern.
-//     Same envelope shape, surface-specific error text.
+//   - `INVALID_ARGUMENT` fixtures use `toMatchObject`: both surfaces
+//     parse the canonical compact target and run the shared builder
+//     in their handlers. Same envelope shape, potentially
+//     surface-specific error text.
 
 import { describe, expect, it, mock, spyOn } from "bun:test";
-import type { DependencyReport } from "@githits/core-internal";
+import type {
+  DependencyReport,
+  PackageIntelligenceService,
+} from "@githits/core-internal";
 import {
   PackageIntelligenceBackendError,
   PackageIntelligenceTargetNotFoundError,
@@ -160,9 +163,7 @@ async function cliJson(
 
 async function mcpJson(
   args: {
-    registry: string;
-    package_name: string;
-    version?: string;
+    target: string;
     lifecycle?: string;
     include_importers?: boolean;
     include_issues?: boolean;
@@ -185,31 +186,121 @@ async function mcpJson(
 
 describe("package_dependencies parity", () => {
   it("PARITY-JSON-KEYS: happy flat-runtime CLI === MCP", async () => {
-    const cli = await cliJson("npm:express");
-    const { json, isError } = await mcpJson({
-      registry: "npm",
-      package_name: "express",
+    const packageDependencies = mock(
+      (
+        _params?: Parameters<
+          PackageIntelligenceService["packageDependencies"]
+        >[0],
+      ) => Promise.resolve(defaultDependencyReport),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageDependencies: packageDependencies as never,
     });
+    const cli = await cliJson(
+      "npm:express",
+      {},
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const { json, isError } = await mcpJson(
+      { target: "npm:express" },
+      packageDependencies,
+    );
     expect(isError).toBeUndefined();
+    expect(packageDependencies).toHaveBeenCalledTimes(2);
+    expect(packageDependencies.mock.calls).toEqual([
+      [
+        {
+          registry: "NPM",
+          packageName: "express",
+          version: undefined,
+          includeTransitive: true,
+          includeTransitiveDetails: false,
+          includeGroups: false,
+          includeDependencyIssues: undefined,
+          maxDepth: 1,
+          lifecycle: undefined,
+        },
+      ],
+      [
+        {
+          registry: "NPM",
+          packageName: "express",
+          version: undefined,
+          includeTransitive: true,
+          includeTransitiveDetails: false,
+          includeGroups: false,
+          includeDependencyIssues: undefined,
+          maxDepth: 1,
+          lifecycle: undefined,
+        },
+      ],
+    ]);
+    expect(cli).toEqual(json);
+  });
+
+  it("PARITY-JSON-KEYS: Go pinned target CLI === MCP", async () => {
+    const packageDependencies = mock(
+      (
+        _params?: Parameters<
+          PackageIntelligenceService["packageDependencies"]
+        >[0],
+      ) => Promise.resolve(defaultDependencyReport),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageDependencies: packageDependencies as never,
+    });
+    const cli = await cliJson(
+      "go:github.com/gin-gonic/gin@1.2.3",
+      {},
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const { json, isError } = await mcpJson(
+      { target: "go:github.com/gin-gonic/gin@1.2.3" },
+      packageDependencies,
+    );
+
+    expect(isError).toBeUndefined();
+    expect(packageDependencies).toHaveBeenCalledTimes(2);
+    expect(packageDependencies.mock.calls).toEqual([
+      [
+        {
+          registry: "GO",
+          packageName: "github.com/gin-gonic/gin",
+          version: "v1.2.3",
+          includeTransitive: true,
+          includeTransitiveDetails: false,
+          includeGroups: false,
+          includeDependencyIssues: undefined,
+          maxDepth: 1,
+          lifecycle: undefined,
+        },
+      ],
+      [
+        {
+          registry: "GO",
+          packageName: "github.com/gin-gonic/gin",
+          version: "v1.2.3",
+          includeTransitive: true,
+          includeTransitiveDetails: false,
+          includeGroups: false,
+          includeDependencyIssues: undefined,
+          maxDepth: 1,
+          lifecycle: undefined,
+        },
+      ],
+    ]);
     expect(cli).toEqual(json);
   });
 
   it.each([
-    ["nuget:Newtonsoft.Json", "nuget", "Newtonsoft.Json"],
-    [
-      "maven:org.apache.commons:commons-lang3",
-      "maven",
-      "org.apache.commons:commons-lang3",
-    ],
-    ["packagist:monolog/monolog", "packagist", "monolog/monolog"],
+    "nuget:Newtonsoft.Json",
+    "maven:org.apache.commons:commons-lang3",
+    "packagist:monolog/monolog",
   ] as const)(
     "PARITY-JSON-KEYS: %s accepted registry CLI === MCP",
-    async (spec, registry, packageName) => {
+    async (spec) => {
       const cli = await cliJson(spec);
-      const { json, isError } = await mcpJson({
-        registry,
-        package_name: packageName,
-      });
+      const { json, isError } = await mcpJson({ target: spec });
       expect(isError).toBeUndefined();
       expect(cli).toEqual(json);
     },
@@ -226,10 +317,7 @@ describe("package_dependencies parity", () => {
         }),
       }),
     );
-    const { json } = await mcpJson(
-      { registry: "npm", package_name: "left-pad" },
-      zeroFn as never,
-    );
+    const { json } = await mcpJson({ target: "npm:left-pad" }, zeroFn as never);
     expect(cli).toEqual(json);
     expect((cli as { groups?: unknown }).groups).toBeUndefined();
   });
@@ -246,7 +334,7 @@ describe("package_dependencies parity", () => {
       }),
     );
     const { json } = await mcpJson(
-      { registry: "npm", package_name: "express", lifecycle: "all" },
+      { target: "npm:express", lifecycle: "all" },
       fn as never,
     );
     expect(cli).toEqual(json);
@@ -265,8 +353,7 @@ describe("package_dependencies parity", () => {
     );
     const { json } = await mcpJson(
       {
-        registry: "crates",
-        package_name: "tokio",
+        target: "crates:tokio",
         lifecycle: "optional",
       },
       fn as never,
@@ -287,8 +374,7 @@ describe("package_dependencies parity", () => {
     );
     const { json } = await mcpJson(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         lifecycle: "runtime,development",
       },
       fn as never,
@@ -322,8 +408,7 @@ describe("package_dependencies parity", () => {
     );
     const { json } = await mcpJson(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         lifecycle: "build",
       },
       fn as never,
@@ -346,7 +431,7 @@ describe("package_dependencies parity", () => {
       }),
     );
     const { json } = await mcpJson(
-      { registry: "crates", package_name: "tokio", lifecycle: "all" },
+      { target: "crates:tokio", lifecycle: "all" },
       fn as never,
     );
     expect(cli).toEqual(json);
@@ -405,8 +490,7 @@ describe("package_dependencies parity", () => {
     );
     const { json } = await mcpJson(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         max_depth: 10,
         include_importers: true,
       },
@@ -479,8 +563,7 @@ describe("package_dependencies parity", () => {
     );
     const { json } = await mcpJson(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         max_depth: 10,
       },
       fn as never,
@@ -507,8 +590,7 @@ describe("package_dependencies parity", () => {
     );
     const { json } = await mcpJson(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         include_issues: true,
       },
       fn as never,
@@ -541,8 +623,7 @@ describe("package_dependencies parity", () => {
     );
     const { json } = await mcpJson(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         include_issues: true,
         max_depth: 4,
       },
@@ -570,8 +651,7 @@ describe("package_dependencies parity", () => {
     );
     const { json } = await mcpJson(
       {
-        registry: "npm",
-        package_name: "express",
+        target: "npm:express",
         include_issues: false,
       },
       fn as never,
@@ -593,7 +673,7 @@ describe("package_dependencies parity", () => {
       }),
     );
     const { json } = await mcpJson(
-      { registry: "npm", package_name: "express", version: "5.2.1" },
+      { target: "npm:express@5.2.1" },
       fn as never,
     );
     expect(cli).toEqual(json);
@@ -617,10 +697,7 @@ describe("package_dependencies parity", () => {
         }),
       }),
     );
-    const { json } = await mcpJson(
-      { registry: "npm", package_name: "express", version: "4.17" },
-      fn as never,
-    );
+    const { json } = await mcpJson({ target: "npm:express@4.17" }, fn as never);
     expect(cli).toEqual(json);
     expect((cli as { requestedVersion?: string }).requestedVersion).toBe(
       "4.17",
@@ -642,7 +719,7 @@ describe("package_dependencies parity", () => {
       }),
     );
     const { json, isError } = await mcpJson(
-      { registry: "npm", package_name: "ghost" },
+      { target: "npm:ghost" },
       fn as never,
     );
     expect(isError).toBe(true);
@@ -673,9 +750,7 @@ describe("package_dependencies parity", () => {
     );
     const { json } = await mcpJson(
       {
-        registry: "npm",
-        package_name: "express",
-        version: "99.0.0",
+        target: "npm:express@99.0.0",
       },
       fn as never,
     );
@@ -711,7 +786,7 @@ describe("package_dependencies parity", () => {
       }),
     );
     const { json, isError } = await mcpJson(
-      { registry: "npm", package_name: "express" },
+      { target: "npm:express" },
       fn as never,
     );
     expect(isError).toBe(true);
@@ -725,10 +800,7 @@ describe("package_dependencies parity", () => {
 
   it("PARITY-ERROR-ENVELOPE: INVALID_ARGUMENT (unknown registry) — shape match", async () => {
     const cli = await cliJson("cargo:foo");
-    const { json, isError } = await mcpJson({
-      registry: "cargo",
-      package_name: "foo",
-    });
+    const { json, isError } = await mcpJson({ target: "cargo:foo" });
     expect(isError).toBe(true);
     expect(cli).toMatchObject({
       code: "INVALID_ARGUMENT",
@@ -748,9 +820,7 @@ describe("package_dependencies parity", () => {
   it("PARITY-ERROR-ENVELOPE: INVALID_ARGUMENT (tag-style version) — shape match", async () => {
     const cli = await cliJson("npm:express@v4.18.0");
     const { json, isError } = await mcpJson({
-      registry: "npm",
-      package_name: "express",
-      version: "v4.18.0",
+      target: "npm:express@v4.18.0",
     });
     expect(isError).toBe(true);
     expect(cli).toMatchObject({ code: "INVALID_ARGUMENT", retryable: false });
@@ -760,8 +830,7 @@ describe("package_dependencies parity", () => {
   it("PARITY-ERROR-ENVELOPE: INVALID_ARGUMENT (invalid lifecycle token) — shape match", async () => {
     const cli = await cliJson("npm:express", { lifecycle: "dev" });
     const { json, isError } = await mcpJson({
-      registry: "npm",
-      package_name: "express",
+      target: "npm:express",
       lifecycle: "dev",
     });
     expect(isError).toBe(true);

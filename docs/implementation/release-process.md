@@ -150,10 +150,12 @@ publishing configuration, then verifies that the exact package name and version
 are publicly readable from `registry.npmjs.org`. Successful upload alone does
 not complete the step. The root workflow waits before MCP registry registration;
 both workflows wait before creating their GitHub release.
-When creating a new root release tag, the workflow targets its checked-out
-commit explicitly so commits arriving on `main` during scanning do not change
-which source revision the tag identifies. MCP tags are already created from
-the checked-out commit before uploading.
+Both workflows create a new release tag at their checked-out commit before npm
+publication. A rerun can therefore finish a partial release without assigning
+its published version to a later `main` commit. If npm has a version but the
+matching tag is missing, the workflow stops for provenance recovery rather than
+creating a new tag. Before npm publication, a rerun also stops if an existing
+tag points away from the checked-out commit.
 
 npm scans new uploads before making them available. Its
 [publish-time scanning announcement](https://github.blog/changelog/2026-07-28-npm-publish-time-malware-scanning-and-dual-use-metadata/)

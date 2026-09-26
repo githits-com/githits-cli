@@ -270,8 +270,9 @@ function writeShardArtifacts(
     startedAt: "2026-08-28T10:00:00.000Z",
     completedAt: "2026-08-28T10:00:02.000Z",
     agent: "codex",
-    model: LUNA_MODEL,
-    reasoningEffort: "low",
+    model: options.matrix.model,
+    reasoningEffort: options.matrix.reasoningEffort,
+    codexReportFormat: options.matrix.codexReportFormat,
     surface: "mcp",
     server: "local",
     guidanceProfile: options.profile,
@@ -392,10 +393,10 @@ describe("agent eval suites", () => {
   it("loads the checked-in manifest with the exact workload inventory", () => {
     const manifest = loadSuiteManifest();
     expect(manifest.schemaVersion).toBe(1);
-    expect(manifest.workloads).toHaveLength(29);
+    expect(manifest.workloads).toHaveLength(31);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stable"),
-    ).toHaveLength(23);
+    ).toHaveLength(25);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stateful"),
     ).toHaveLength(1);
@@ -433,6 +434,7 @@ describe("agent eval suites", () => {
       "global-example",
       "opencode-compaction",
       "package-changelog",
+      "package-changelog-exact",
       "package-changelog-range",
       "package-dependencies",
       "package-overview-vulnerabilities",
@@ -441,6 +443,7 @@ describe("agent eval suites", () => {
       "package-vulnerability-history",
       "package-vulnerability-rubygems",
       "package-vulnerability-transitive",
+      "search-inline-qualifiers",
       "search-source-ergonomics",
       "site-search-explicit",
       "unified-search-investigation",
@@ -891,6 +894,12 @@ describe("agent eval suites", () => {
       }
       const parsed = parseSuiteArtifact(v1);
       expect(parsed.schemaVersion).toBe(3);
+      expect(
+        parseSuiteArtifact({
+          ...v1,
+          matrix: { ...v1.matrix, model: "gpt-5.6-luna" },
+        }).matrix.model,
+      ).toBe("gpt-5.6-luna");
       expect(parsed.workloadConcurrency).toBe(1);
       expect(parsed.matrix.scenarios).toEqual(["discovery", "full"]);
       expect(parsed.cells.map((cell) => cell.scenario)).toEqual([
@@ -3269,6 +3278,81 @@ describe("agent eval suites", () => {
       rmSync(baselineOutDir, { recursive: true, force: true });
       rmSync(candidateOutDir, { recursive: true, force: true });
       rmSync(outputDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("Explicit suite model configuration", () => {
+  it("propagates DeepSeek identity and rejects conflicting imported cells", async () => {
+    const fixture = createSuiteExecutionFixture();
+    const model = "deepseek/deepseek-v4.1-flash";
+    const configPath = join(fixture.root, "config.toml");
+    const outDir = join(fixture.root, "out");
+    try {
+      writeFileSync(
+        configPath,
+        `model = "${model}"\nmodel_provider = "openrouter"\nmodel_reasoning_effort = "high"\n[model_providers.openrouter]\nname = "OpenRouter"\nbase_url = "https://openrouter.ai/api/v1"\nenv_key = "OPENROUTER_API_KEY"\nwire_api = "responses"\n`,
+      );
+      const artifact = await runAgentEvalSuite({
+        suite: "stable-full",
+        repoRoot: fixture.root,
+        targetRoot: fixture.targetRoot,
+        outDir,
+        manifestPath: fixture.manifestPath,
+        workloadsDir: fixture.workloadsDir,
+        reportingPath: fixture.reportingPath,
+        schemaPath: fixture.schemaPath,
+        codexConfigPath: configPath,
+        codexReportFormat: "prompt-json",
+        scenarios: ["intent"],
+        shardExecutor: async (options) => {
+          expect(options.matrix).toMatchObject({
+            model,
+            reasoningEffort: "high",
+            codexReportFormat: "prompt-json",
+          });
+          expect(options.codexConfig?.metadata.path).toBe(configPath);
+          writeShardArtifacts(
+            options,
+            options.workloads.map((w) =>
+              suiteRecord(w.id, {
+                requestedModel: model,
+                reasoningEffort: "high",
+                usage: unknownAgentUsage("codex", model),
+              }),
+            ),
+          );
+          return { runDir: options.outDir, status: "success" };
+        },
+      });
+      expect(artifact.status).toBe("success");
+      expect(artifact.cells[0]).toMatchObject({
+        model,
+        reasoningEffort: "high",
+      });
+      const path = join(outDir, "suite.json");
+      expect(loadImportedSuite(path).artifact.matrix.codexReportFormat).toBe(
+        "prompt-json",
+      );
+      artifact.cells[0]!.model = LUNA_MODEL;
+      writeJson(path, artifact);
+      expect(() => loadImportedSuite(path)).toThrow("cell identity");
+      expect(
+        parseAgentEvalSuiteCliArgs([
+          "run",
+          "--suite",
+          "canary",
+          "--codex-config",
+          configPath,
+          "--codex-report-format",
+          "prompt-json",
+        ]),
+      ).toMatchObject({
+        codexConfigPath: configPath,
+        codexReportFormat: "prompt-json",
+      });
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
     }
   });
 });

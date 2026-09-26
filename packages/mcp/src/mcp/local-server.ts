@@ -12,7 +12,7 @@ import {
   buildLocalMcpQuickStart,
   type LocalExperimentalToolName,
 } from "./instructions.js";
-import { createLocalAgenticAskTool } from "./local-agentic-ask.js";
+import { createLocalResearchTool } from "./local-research.js";
 import {
   createDescriptorServices,
   createMcpServerWithFactories,
@@ -85,9 +85,9 @@ const LOCAL_CODE_DIFF_FACTORY: McpToolFactory<LocalMcpToolServices> = (
   services,
 ) => eraseMcpTool(createCodeDiffTool(services.codeNavigationService));
 
-const LOCAL_AGENTIC_ASK_FACTORY: McpToolFactory<LocalMcpToolServices> = (
+const LOCAL_RESEARCH_FACTORY: McpToolFactory<LocalMcpToolServices> = (
   services,
-) => eraseMcpTool(createLocalAgenticAskTool(services.agenticAskService));
+) => eraseMcpTool(createLocalResearchTool(services.agenticAskService));
 
 interface LocalExperimentalToolDefinition {
   name: LocalExperimentalToolName;
@@ -96,7 +96,7 @@ interface LocalExperimentalToolDefinition {
 
 const LOCAL_EXPERIMENTAL_TOOL_DEFINITIONS: readonly LocalExperimentalToolDefinition[] =
   [
-    { name: "ask", factory: LOCAL_AGENTIC_ASK_FACTORY },
+    { name: "research", factory: LOCAL_RESEARCH_FACTORY },
     { name: "resolve_target", factory: LOCAL_RESOLVE_TARGET_FACTORY },
     { name: "code_diff", factory: LOCAL_CODE_DIFF_FACTORY },
   ];

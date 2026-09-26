@@ -80,8 +80,16 @@ repeats the same prerequisite at MCP composition time; there are no
 tool-specific exceptions. Runtime-only `buildLocalMcpQuickStart()` appendices
 are excluded from the public skill copy and do not change the bootstrap rule. The skill
 metadata asks agents to read the guide before evidence-tool discovery; its
-question-to-tool table selects the route, while each selected descriptor owns
-argument syntax. This is guidance, not a host-enforced loading-order guarantee.
+question-to-tool table selects the route. The guide owns recurring public scope,
+target conventions, model-read text versus code-consumed JSON, evidence reuse,
+citation/coverage limits, continuation discipline, and the shared safety posture.
+Each selected descriptor plus schema remains self-sufficient for its distinct job,
+minimum call shape, supported target family, and operation-specific exceptions;
+do not repeat long cross-tool policy or parameter inventories in every body.
+Short local reminders and the composed bootstrap footer remain intentional.
+CLI code/package skills express equivalent common policy independently with CLI
+spelling; they do not require the MCP skill. This is guidance, not a
+host-enforced loading-order guarantee.
 The same routing guide is returned to clients that need `quick_start`.
 
 There are no authored host-specific skill copies. If a host later requires a

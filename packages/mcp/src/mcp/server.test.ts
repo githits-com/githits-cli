@@ -21,7 +21,6 @@ import {
 
 const FORMAT_SELECTABLE_TOOLS = new Set([
   "get_example",
-  "search_language",
   "search",
   "search_status",
   "code_files",
@@ -38,7 +37,6 @@ const FORMAT_SELECTABLE_TOOLS = new Set([
 const STABLE_MCP_TOOL_NAMES = [
   "quick_start",
   "get_example",
-  "search_language",
   "search",
   "search_status",
   "code_files",
@@ -63,35 +61,34 @@ const DESCRIPTION_ROUTING: Record<
 > = {
   quick_start: {
     prefix:
-      /^Choose the GitHits tool for an OSS question before discovering evidence tools\./,
+      /^Call quick_start first to choose tools and load untrusted-content rules\./,
     exactPrefix:
-      "Choose the GitHits tool for an OSS question before discovering evidence tools. C",
+      "Call quick_start first to choose tools and load untrusted-content rules. Call on",
     body: [
-      "Call this routing guide first",
+      "Call once per session before discovering evidence tools",
       "untrusted-content rules",
-      "unless the loaded githits-mcp skill already contains it",
+      "unless the loaded githits-mcp skill already contains this guide",
     ],
   },
   get_example: {
     prefix: /^Find canonical cross-project examples/,
-    body: ["`search`", "`read`", "`code_grep`", "`search_language`"],
-  },
-  search_language: {
-    prefix: /^Resolve a supported language name or alias/,
-    body: ["`get_example`", "Do not use this for source search"],
+    body: [
+      "target-scoped search came up short",
+      "source repository provenance",
+    ],
   },
   search: {
-    prefix: /^Discover relevant evidence in a known target before exact grep/,
+    prefix:
+      /^Discover relevant docs, code, and symbols in a known public target\./,
     body: [
       "Start here for open-ended",
-      "Omit `source` to let GitHits select the best sources",
+      "`query` plus either `target` or `targets`",
       "`search_status`",
-      "`code_grep`",
       "`read`",
     ],
   },
   search_status: {
-    prefix: /^Continue an explicit `search` reference/,
+    prefix: /^Continue an explicit search reference for progress and results\./,
     body: [
       "only after a prior `search` response explicitly supplies",
       "`searchRef`",
@@ -104,14 +101,18 @@ const DESCRIPTION_ROUTING: Record<
   },
   read: {
     prefix:
-      /^Read an indexed source file or documentation page, including a docs section\./,
+      /^Read an indexed source file, code symbol, or documentation section\./,
     exactPrefix:
-      "Read an indexed source file or documentation page, including a docs section. Pas",
+      "Read an indexed source file, code symbol, or documentation section. Pass target ",
     body: [
       "use code_files",
       "search/code_grep",
-      "target and path for a file; target alone for a docs page",
+      "target and path for a file; use compact target#symbol or selector for a code symbol",
+      "resolved result determines code or docs",
+      "Hosted/crawled HTTP(S) docs targets read mutable current content",
+      "repository-doc targets address snapshots",
       "A docs URL fragment needs no bounds",
+      "full subtree through the next equal-or-higher heading",
       "either bound replaces it with a page-relative range",
       "exact revisions",
       "does not list directories",
@@ -122,22 +123,24 @@ const DESCRIPTION_ROUTING: Record<
   code_grep: {
     prefix:
       /^Find text, regex, or identifier matches in a public repo or package\./,
-    body: ["deterministic and paginated", "`search`", "`read`", "`code_files`"],
+    body: ["deterministic and paginated", "`read.path`", "`match.line`"],
   },
   docs_list: {
     prefix: /^List package documentation targets for follow-up reads\./,
-    body: ["`read`", "`search`", "`docsReadTarget`"],
+    body: [
+      "`read.target`",
+      "`docsReadTarget`",
+      "not standalone `site:` targets",
+    ],
   },
   pkg_info: {
     prefix: /^Assess latest package health and adoption/,
     exactPrefix:
       "Assess latest package health and adoption: license, downloads, and activity. Pro",
     body: [
-      "`pkg_vulns`",
-      'Use `pkg_vulns` for version-specific vulnerability details, or pass `advisory_scope: "all"` for package-wide history;',
-      "`pkg_deps`",
-      "`pkg_changelog`",
-      "`pkg_upgrade_review`",
+      "unpinned package target",
+      "always returns latest",
+      "Historical counts are not current-version risk",
     ],
   },
   pkg_vulns: {
@@ -147,12 +150,11 @@ const DESCRIPTION_ROUTING: Record<
     body: [
       "a cutoff disclaimer is not current evidence",
       '`advisory_scope:"all"`',
-      '`{"registry":"npm","package_name":"next","advisory_scope":"all"}`',
-      "Pinned lookup",
+      '`{"target":"npm:next","advisory_scope":"all"}`',
+      "unpinned target",
       "identifiers and aliases, including CVEs when available",
       "identifier aliases (including CVEs)",
-      "`pkg_info`",
-      "`pkg_upgrade_review`",
+      "Transitive evidence is opt-in",
     ],
   },
   pkg_deps: {
@@ -160,29 +162,26 @@ const DESCRIPTION_ROUTING: Record<
     exactPrefix:
       "Inspect what a package depends on, directly or transitively. Lists direct runtim",
     body: [
-      "`pkg_info`",
-      "`pkg_vulns`",
-      "`pkg_upgrade_review`",
-      "`include_issues: true`",
+      "non-runtime groups are omitted by default",
+      "not local application lockfile",
     ],
   },
   pkg_changelog: {
     prefix: /^Find release notes and changelog history/,
     exactPrefix:
-      "Find release notes and changelog history for a package or public repository. Def",
+      "Find release notes and changelog history for a package. Default latest mode retu",
     body: [
-      "`(from_version, to_version]`",
-      "one exact release",
-      "`pkg_info`",
-      "`pkg_upgrade_review`",
+      "`registry:name@version`",
+      "one selected release",
+      "Empty latest or range selections succeed",
     ],
-    absent: ["newest-first", "most recent"],
+    absent: ["newest-first", "most recent", "repo_url", "from_version"],
   },
   pkg_upgrade_review: {
     prefix: /^Review a package upgrade/,
     exactPrefix:
       "Review a package upgrade: vulnerabilities, releases, peers, dependency changes. ",
-    body: ["`pkg_info`", "`pkg_changelog`", "`pkg_vulns`", "`pkg_deps`"],
+    body: ["facts only", "does not assign risk", "at most 30 upgrades"],
   },
 };
 
@@ -202,7 +201,7 @@ describe("MCP tool annotations", () => {
     const descriptors = getMcpToolDescriptors();
 
     expect(descriptors.map(({ name }) => name)).not.toContain("feedback");
-    expect(descriptors).toHaveLength(14);
+    expect(descriptors).toHaveLength(13);
     expect(descriptors.map(({ name }) => name)).toContain("read");
     expect(descriptors.map(({ name }) => name)).not.toContain("code_read");
     expect(descriptors.map(({ name }) => name)).not.toContain("docs_read");
@@ -210,9 +209,7 @@ describe("MCP tool annotations", () => {
     for (const descriptor of descriptors) {
       expect(descriptor.annotations, descriptor.name).toEqual({
         readOnlyHint: true,
-        openWorldHint: !["quick_start", "search_language"].includes(
-          descriptor.name,
-        ),
+        openWorldHint: descriptor.name !== "quick_start",
         destructiveHint: false,
       });
     }
@@ -256,18 +253,14 @@ describe("MCP tool description catalog", () => {
       if (routing.exactPrefix !== undefined) {
         expect(catalogPrefix, descriptor.name).toBe(routing.exactPrefix);
       }
-      if (
-        ["code_files", "read", "code_grep", "pkg_changelog"].includes(
-          descriptor.name,
-        )
-      ) {
-        expect(
-          descriptor.description.split(".")[0]!.length + 1,
-        ).toBeLessThanOrEqual(79);
-        expect(catalogSummary).not.toEndWith("…");
-      }
+      expect(
+        descriptor.description.split(".")[0]!.length + 1,
+        descriptor.name,
+      ).toBeLessThanOrEqual(79);
+      expect(catalogSummary, descriptor.name).not.toEndWith("…");
       if (descriptor.name === "quick_start") {
-        expect(catalogSummary).toContain("before discovering evidence tools");
+        expect(catalogSummary).toContain("Call quick_start first");
+        expect(catalogSummary).toContain("untrusted-content rules");
         expect(catalogSummary).not.toContain("githits-mcp");
         expect(catalogSummary).not.toEndWith("…");
         expect(catalogPrefix).not.toContain("githits-mcp");
@@ -311,10 +304,10 @@ describe("MCP tool description catalog", () => {
     )?.description;
     expect(readDescription).toBeDefined();
     expect(readDescription?.slice(0, 79)).toBe(
-      "Read an indexed source file or documentation page, including a docs section. Pa",
+      "Read an indexed source file, code symbol, or documentation section. Pass target",
     );
     expect(readDescription?.slice(0, 80)).toBe(
-      "Read an indexed source file or documentation page, including a docs section. Pas",
+      "Read an indexed source file, code symbol, or documentation section. Pass target ",
     );
 
     const searchSchema = z.toJSONSchema(
@@ -380,6 +373,68 @@ describe("MCP code_grep schema", () => {
 });
 
 describe("MCP compact target schemas", () => {
+  it.each([
+    ["docs_list", ["after", "format", "limit", "target"]],
+    ["pkg_info", ["format", "target", "verbose"]],
+    [
+      "pkg_vulns",
+      [
+        "advisory_scope",
+        "format",
+        "include_transitive",
+        "include_withdrawn",
+        "min_severity",
+        "target",
+        "verbose",
+      ],
+    ],
+    [
+      "pkg_deps",
+      [
+        "format",
+        "include_importers",
+        "include_issues",
+        "lifecycle",
+        "max_depth",
+        "target",
+      ],
+    ],
+    [
+      "pkg_changelog",
+      ["body_lines", "format", "limit", "omit_bodies", "target", "verbose"],
+    ],
+  ] as const)("%s exposes the compact target schema", (name, properties) => {
+    const descriptor = getMcpToolDescriptors().find(
+      (candidate) => candidate.name === name,
+    );
+    expect(descriptor).toBeDefined();
+
+    const schema = z.toJSONSchema(z.object(descriptor?.schema ?? {}), {
+      io: "input",
+    });
+    expect(Object.keys(schema.properties ?? {}).sort(), name).toEqual([
+      ...properties,
+    ]);
+    expect(schema.required, name).toEqual(["target"]);
+    expect(schema.properties?.target, name).toMatchObject({
+      type: "string",
+    });
+    for (const coordinate of [
+      "registry",
+      "package_name",
+      "version",
+      "repo_url",
+      "git_ref",
+      "from_version",
+      "to_version",
+    ]) {
+      expect(
+        schema.properties?.[coordinate],
+        `${name}: ${coordinate}`,
+      ).toBeUndefined();
+    }
+  });
+
   it("uses strings for code and discovery targets without nested coordinates", () => {
     const descriptors = getMcpToolDescriptors();
     for (const name of ["code_files", "code_grep"] as const) {
@@ -411,6 +466,29 @@ describe("MCP compact target schemas", () => {
       items: { type: "string" },
     });
     expect(targetsSchema?.items?.properties).toBeUndefined();
+  });
+});
+
+describe("MCP search schema", () => {
+  it("keeps query and public_only without duplicate structured qualifiers", () => {
+    const search = getMcpToolDescriptors().find(
+      (candidate) => candidate.name === "search",
+    );
+    expect(search).toBeDefined();
+
+    const schema = z.toJSONSchema(z.object(search?.schema ?? {}));
+    for (const field of [
+      "category",
+      "kind",
+      "path_prefix",
+      "file_intent",
+      "name",
+      "language",
+    ]) {
+      expect(schema.properties?.[field], field).toBeUndefined();
+    }
+    expect(schema.properties?.query).toBeDefined();
+    expect(schema.properties?.public_only).toBeDefined();
   });
 });
 

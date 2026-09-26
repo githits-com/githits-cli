@@ -55,7 +55,6 @@ These are human-invoked commands where auto-login is a clear UX improvement:
 - `init`
 - `init --skip-login` remains an explicit opt-out
 - `example`
-- `languages`
 - `search` / `search-status`
 - `code files` / `code read` / `code grep`
 - `docs list` / `docs read`
@@ -154,4 +153,3 @@ Use these rules when implementing the feature:
 | `src/commands/docs/index.ts` | `docs` group package-service URL registration. |
 | `src/commands/pkg/index.ts` | `pkg` group package-service URL registration. |
 | `src/commands/example.ts` | Auth-required command action still protected by `requireAuth()`. |
-| `src/commands/languages.ts` | Auth-required command action still protected by `requireAuth()`. |

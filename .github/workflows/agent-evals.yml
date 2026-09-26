@@ -22,7 +22,7 @@ jobs:
     if: >-
       (github.event_name != 'workflow_dispatch' || github.ref_name == 'main') &&
       (github.event_name != 'pull_request' ||
-      (github.event.label.name == 'agent-eval' &&
+      ((github.event.label.name == 'agent-eval' || github.event.label.name == 'agent-eval-openrouter') &&
       github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -71,18 +71,23 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Install current Codex CLI
-        run: npm install --global @openai/codex@latest
+      - name: Install selected Codex CLI
+        env:
+          CODEX_VERSION: ${{ github.event.label.name == 'agent-eval-openrouter' && '0.154.0' || 'latest' }}
+        run: npm install --global "@openai/codex@$CODEX_VERSION"
 
       - name: Record Codex CLI version
         run: codex --version
 
-      - name: Initialize empty Codex home
+      - name: Initialize isolated Codex home
         env:
           CODEX_HOME: ${{ runner.temp }}/agent-eval-codex-home-${{ matrix.id }}
-        run: mkdir -p "$CODEX_HOME"
+        run: |
+          set -euo pipefail
+          mkdir -p "$CODEX_HOME"
 
       - name: Authenticate Codex with API key
+        if: github.event.label.name != 'agent-eval-openrouter'
         env:
           CODEX_HOME: ${{ runner.temp }}/agent-eval-codex-home-${{ matrix.id }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -95,13 +100,20 @@ jobs:
           CODEX_HOME: ${{ runner.temp }}/agent-eval-codex-home-${{ matrix.id }}
           SCENARIO_OUT: ${{ runner.temp }}/agent-eval-${{ matrix.id }}
           GITHITS_API_TOKEN: ${{ secrets.GITHITS_API_TOKEN }}
+          EVAL_LABEL: ${{ github.event.label.name || '' }}
+          OPENROUTER_API_KEY: ${{ github.event.label.name == 'agent-eval-openrouter' && secrets.OPENROUTER_API_KEY || '' }}
         run: |
           set -euo pipefail
+          codex_args=()
+          if [ "$EVAL_LABEL" = "agent-eval-openrouter" ]; then
+            codex_args+=(--codex-config "$GITHUB_WORKSPACE/eval/agentic/openrouter.toml" --codex-report-format prompt-json)
+          fi
           bun run agent:e2e:suite run \
             --suite "${{ matrix.suite }}" \
             --scenario "${{ matrix.scenario }}" \
             --concurrency "${{ matrix.workload-concurrency }}" \
-            --out "$SCENARIO_OUT"
+            --out "$SCENARIO_OUT" \
+            "${codex_args[@]}"
 
       - name: Upload ${{ matrix.label }} artifacts
         if: always()
@@ -118,7 +130,7 @@ jobs:
       always() &&
       (github.event_name != 'workflow_dispatch' || github.ref_name == 'main') &&
       (github.event_name != 'pull_request' ||
-      (github.event.label.name == 'agent-eval' &&
+      ((github.event.label.name == 'agent-eval' || github.event.label.name == 'agent-eval-openrouter') &&
       github.event.pull_request.head.repo.full_name == github.repository))
     needs: scenario
     runs-on: ubuntu-latest
@@ -232,12 +244,12 @@ jobs:
               const fs = require("node:fs");
               const result = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
               const lines = [];
-              if (typeof result.experiment === "string") lines.push(`- Braintrust experiment: ${result.experiment}`);
-              if (typeof result.url === "string") lines.push(`- Braintrust link: ${result.url}`);
+              if (typeof result.experiment === "string") lines.push("- Braintrust experiment: " + result.experiment);
+              if (typeof result.url === "string") lines.push("- Braintrust link: " + result.url);
               const base = result.baseExperiment;
               if (base === null) lines.push("- Braintrust base: none (bootstrap/no base)");
-              else if (base && typeof base.id === "string" && typeof base.name === "string") lines.push(`- Braintrust base: ${base.name} (${base.id})`);
-              if (lines.length > 0) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\n${lines.join("\n")}\n`);
+              else if (base && typeof base.id === "string" && typeof base.name === "string") lines.push("- Braintrust base: " + base.name + " (" + base.id + ")");
+              if (lines.length > 0) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "\n" + lines.join("\n") + "\n");
             ' "$RESULT_OUT"
           fi
 

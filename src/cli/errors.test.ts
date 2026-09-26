@@ -248,7 +248,7 @@ describe("handleCliError", () => {
       "[experimental]\ntools = false\n",
     );
     const proc = Bun.spawn(
-      ["bun", "run", "src/cli.ts", "languages", "--json"],
+      ["bun", "run", "src/cli.ts", "example", "test", "--json"],
       {
         cwd: process.cwd(),
         stdout: "pipe",
@@ -305,7 +305,7 @@ describe("handleCliError", () => {
     env.GITHITS_DEBUG = "";
     env.NO_COLOR = "1";
     const proc = Bun.spawn(
-      ["bun", "run", "src/cli.ts", "languages", "--json"],
+      ["bun", "run", "src/cli.ts", "example", "test", "--json"],
       {
         cwd: process.cwd(),
         stdout: "pipe",
@@ -335,7 +335,7 @@ describe("handleCliError", () => {
     }
   });
 
-  it("renders legacy Ask repository refs as a clean JSON argument error", async () => {
+  it("renders legacy repository refs through the ask alias as a clean JSON argument error", async () => {
     const configHome = mkdtempSync(join(tmpdir(), "githits-cli-ask-error-"));
     mkdirSync(join(configHome, "githits"), { recursive: true });
     writeFileSync(

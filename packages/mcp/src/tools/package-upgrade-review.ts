@@ -121,8 +121,7 @@ const DESCRIPTION =
   "The tool reports facts only and does not assign risk or decide whether to accept an upgrade. " +
   "Use this instead of inferring acceptability from semver, including patch bumps. " +
   "Accepts either one package via registry/package_name/current_version/" +
-  `target_version or batch \`packages[]\` with at most ${PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES} upgrades. ` +
-  "Use `pkg_info` for latest health, `pkg_changelog` for release notes, `pkg_vulns` for advisory detail, or `pkg_deps` for dependency graphs." +
+  `target_version or batch \`packages[]\` with at most ${PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES} upgrades.` +
   `\n\n${PKG_UPGRADE_REVIEW_GUARDRAIL}`;
 
 export function createPackageUpgradeReviewTool(

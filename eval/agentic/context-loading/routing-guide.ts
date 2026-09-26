@@ -26,13 +26,13 @@ the routing decision; the selected tool supplies its argument details.
 | Assess a package's license, adoption, maintenance, or overall health | pkg_info |
 | Inspect vulnerabilities in a package or version | pkg_vulns |
 | Inspect direct dependencies or transitive footprint | pkg_deps |
-| Find release notes for a package or repository | pkg_changelog |
+| Find release notes and changelog history for a package | pkg_changelog |
 | Compare current and target dependency versions for an upgrade | pkg_upgrade_review |
 | Find canonical implementation examples across projects | get_example |
 | Check progress of an earlier search reference | search_status |
 
-Use search_language only if get_example needs language disambiguation. Use
-feedback after helpful or flawed results. For comparative questions, combine
+If get_example cannot match a language, retry with a suggested language from
+the error, or omit language. For comparative questions, combine
 the relevant package/source route with examples when needed.
 
 Scope: public OSS only, never local/private/proprietary source. Keep explicit

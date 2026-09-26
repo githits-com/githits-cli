@@ -13,19 +13,50 @@ public MCP server.
 ## Locators and ownership
 
 `packages/mcp/src/shared/read-request.ts` owns transport-neutral locator and range
-validation. A nonempty `path` selects an exact code file; otherwise `target` is an
-opaque documentation locator. Empty optional paths count as omitted. Preserve docs
+validation. A nonempty `path` scopes code to one exact target-relative file.
+Without `selector`, that path reads the file. Pathless targets, including
+compact package/repository fragments and emitted documentation locators, go to
+the backend's unified `read` resolver. The returned union type determines
+whether CLI/MCP present code, documentation, or a symbol-resolution outcome.
+The client does not classify a pathless target from its spelling.
+The client sends the fragment unchanged to the backend without adding a
+`selector`; the backend decodes and validates it once. Search actions after a symbol miss and
+exact-file continuation hints use the base target because those follow-ups do
+not accept symbol fragments; this does not change the backend read request.
+Compact repository refs containing `/` can resemble repository documentation
+page IDs. The backend contract uses a fragment as a documentation anchor only
+when the target identifies an exact page path; otherwise it resolves a code
+symbol, with an optional exact `path` narrowing the match. The client presents
+the returned type without reproducing that rule. Put a code file path in the
+separate `path` argument, not inside `target` before `#symbol`. An embedded
+path has no reliable text-only boundary: GitLab repositories can have nested
+group names, refs can contain `/`, and repository documentation page IDs also
+contain file paths. An explicit `selector` can also use the full provider
+HTTPS repository URL with such a ref. The backend resolves HTTP(S) URL
+fragments without a selector or path as documentation, including provider roots.
+Refless GitHub and Codeberg page IDs with a path after owner/repository are
+emitted as documentation locators; the client forwards them unchanged.
+Empty optional paths count as omitted. Preserve docs
 target bytes, including URL query strings, percent encoding, fragments, and pinned
 repository locators. Never infer the source from URL host or file extension, or
 retry a failed read against the other backend.
 
-The MCP tool accepts `target`, optional `path`, `start_line`, `end_line`,
+Automatic search follow-ups select those opaque targets earlier in
+`packages/mcp/src/shared/follow-up-command-text.ts`. Hosted/crawled
+`documentation_page` HTTP(S) targets are mutable current-content addresses, so
+their generated actions forward the exact emitted page URL or fragment without
+search display/evidence coordinates. Repository documentation is
+snapshot-addressed and retains its exact target and ranges. This automatic-action
+policy does not alter explicit `read` arguments handled here.
+
+The MCP tool accepts `target`, optional `path`, `selector`, `start_line`, `end_line`,
 `wait_timeout_ms`, and `format`. Targets for code are compact package/repository
 strings, matching `code_files` and `code_grep`. Existing target parsers still own
 package/provider syntax and exact Git revision handling.
 
 The tool in `packages/mcp/src/tools/read.ts` injects `ReadService` and calls its
-`read` method once. The service returns a semantic code/docs union, and the
+`read` method once. The service returns code, docs, or typed code-resolution
+outcomes, and the
 existing source-specific payload builders, formatters, and error mapping remain
 in place. CLI uses the same locator interpretation but its own actions,
 retaining complete, content-only output for pipes. JSON result models remain
@@ -34,7 +65,7 @@ source-specific.
 ## Backend contract and schema ownership
 
 `ReadServiceImpl` sends the compact request directly to `Query.read`, selecting
-`__typename` and the complete minimum fields needed by both union branches. The
+`__typename` and the complete minimum fields needed by all union branches. The
 `CodeContextResult` branch selects `content`, `filePath`, `language`,
 `totalLines`, `startLine`, `endLine`, `isBinary`, `codeIndexState`,
 `indexingRef`, `availableVersions`, `indexingEstimate`, and
@@ -44,10 +75,19 @@ source-specific.
 page's `id`, `docsReadTarget`, `title`, `content`, `contentFormat`,
 `breadcrumbs`, `lastUpdatedAt`, `sourceKind`, `source { url label }`, `repoUrl`,
 `gitRef`, `requestedRef`, `filePath`, and `baseUrl` fields.
+The `CodeSymbolResolutionResult` branch selects status, up to ten candidates,
+up to ten suggestions, truncation, snapshot identity, message, and index state.
+`AMBIGUOUS`, `NOT_FOUND`, and `SNAPSHOT_UNSUPPORTED` are successful typed
+resolution outcomes without source content. The last outcome explains how to
+search symbols and use exact-path, line-bounded `read` as a workaround.
 
-The returned `__typename` must match the source selected by `path`. A missing or
-mismatched union branch is a source-specific malformed-response error; it is
-never retried against the other branch or a legacy root. There is no schema
+The returned `__typename` determines the presented source. A missing or unknown
+union branch is a malformed unified-read response; it is never retried against
+another branch or a legacy root. GraphQL failures without a result type use the
+backend's `extensions.code`: documentation-section failures retain their docs
+classification, while shared and code-specific codes retain the code mapper's
+richer version/ref recovery metadata. Transport, HTTP, and malformed-response
+messages are source-neutral. There is no schema
 fallback for compact reads. Custom endpoints configured with
 `GITHITS_CODE_NAV_URL` (or its legacy `PKGSEER_URL` alias) must implement
 `Query.read`, both union branches, and this selected minimum schema. The legacy
@@ -56,28 +96,44 @@ fallback for compact reads.
 
 ## Sections, windows, and waiting
 
-- A docs URL fragment with no explicit bounds selects its exact indexed section.
-  Do not synthesize line defaults before that backend call.
+- A docs URL fragment with no explicit bounds selects its exact indexed section:
+  the heading and full subtree through the next equal-or-higher heading. Do not
+  synthesize line defaults before that backend call.
 - Either explicit bound overrides a docs fragment with a page-relative range.
   Returned positions and continuation bounds are absolute page line numbers.
+- An explicit docs selector is the logical fragment ID, for example
+  `--selector expressjson` for `#expressjson`; a docs URL fragment cannot be
+  combined with it. Either explicit bound overrides heading selection.
+- A code selector returns the indexed definition range by default. With `path`,
+  resolution is restricted to that exact file. Explicit bounds use the selected
+  file's normal read-range rules. A successful symbol read may omit language.
+  MCP presentation caps selected code to 150 lines by default or 300 with an
+  explicit end, then supplies an exact-file continuation; CLI keeps full output.
+- Compact code `target#symbol` uses the same result presentation and optional
+  exact-path narrowing as an explicit selector. Empty fragments and a fragment
+  combined with an explicit selector surface the backend's invalid argument
+  response without a documentation retry.
 - Docs text displays at most 150 selected lines by default, or 300 with an explicit
-  end. Docs JSON retains the full backend selection. Code reads cap before fetching
-  at 150 lines by default or 300 with an explicit end, including JSON.
+  end. Docs JSON retains the full backend selection. Exact-file code reads cap
+  before fetching at 150 lines by default or 300 with an explicit end, including
+  JSON; symbol result presentation applies the same cap to selected content.
 - Validate requested positive integer bounds and their order before applying caps;
   a fractional end beyond the cap must not silently become a valid bounded request.
-- `wait_timeout_ms` is the code indexing wait: default 30,000 ms, range 0–60,000,
-  including explicit zero. Docs validates supplied values but does not forward them,
-  since its backend operation has no wait parameter. INDEXING retains backend
+- `wait_timeout_ms` is forwarded to unified `read`: default 30,000 ms, range
+  0–60,000, including explicit zero. The backend applies it when indexing is
+  relevant. INDEXING retains backend
   metadata and supplies recovery through the same read locator. No client retry loop.
 
-CLI uses `--lines` for either source. Code also retains `--start`, `--end`, path
-suffix ranges and `--repo-url`/`--git-ref`. Docs rejects the code-only bound/ref
-options. CLI `--wait` has the same applicability as the MCP wait parameter.
+CLI uses `--lines` or `--start`/`--end` for either backend result, with the
+same explicit bounds sent to unified `read`. Exact-file paths retain path suffix
+ranges; `--repo-url`/`--git-ref` retain their compatibility route. `--git-ref`
+without `--repo-url` remains invalid. CLI `--wait` has the same applicability
+as the MCP wait parameter.
 
 ## Ask compatibility
 
 The backend Ask contract still returns typed `code_read` and `docs_read` source
-pointers. `projectAskReadSources()` beside the local MCP Ask adapter projects these
+pointers. `projectAskReadSources()` beside the local MCP `research` adapter projects these
 into callable `read` pointers before text or JSON rendering. Typed code targets are
 also normalized from backend-authored legacy repository labels to canonical
 `provider:path@ref`; docs maps `page_id` to `target` without parsing it, so emitted
@@ -85,8 +141,9 @@ repository-backed documentation fragments and URL fragments remain byte-for-byte
 unchanged. All other response metadata is preserved and the original backend
 response is not mutated. URL and clarification responses pass through unchanged.
 
-Core service consumers still see the backend contract. CLI Ask recognizes only its
-validated `githits code read` argv tuple and normalizes that tuple's target before
+Core service consumers still see the backend contract. CLI `research` (including
+its `ask` alias) recognizes only the validated `githits code read` argv tuple
+and normalizes that tuple's target before
 text or JSON rendering. It never parses documentation argv, URLs, answer prose, or
 other opaque command shapes. Catalog names belong to the MCP adapter, not the
 backend service parser.
@@ -96,46 +153,52 @@ backend service parser.
 ```text
 compact code read(target, path, ...) -> Query.read(target, path, ...)
 compact docs read(target, ...)        -> Query.read(target, ...)
+code selector read(target, selector, optional path) -> Query.read(...)
+compact symbol read(target#symbol, optional path) -> Query.read(...)
+docs selector read(target, selector)  -> Query.read(...)
 githits code read ...                 -> legacy fetchCodeContext
 githits docs read ...                 -> legacy getDocPage
 githits read --repo-url ...           -> legacy fetchCodeContext
+githits read --repo-url ... --selector <name> -> Query.read(...)
 ```
 
 The compact MCP tool and compact top-level CLI command are the canonical read
 surfaces and record backend usage as `read`. Deprecated `githits code read` and
 `githits docs read` stay on their legacy roots so their usage remains an
 observable compatibility cohort; backend analytics distinguish canonical
-`read` from legacy `code_read`/`docs_read`. Top-level `githits read --repo-url ...` also
-stays on `fetchCodeContext`: its structured repository URL plus git-ref input
-is an independent interface and does not require compact-target parsing. These
+`read` from legacy `code_read`/`docs_read`. Top-level `githits read --repo-url ...`
+without selector also stays on `fetchCodeContext`: its structured repository URL
+plus git-ref input is an independent compatibility interface. Selector reads
+use `Query.read`. These
 paths have no removal date or threshold in this documentation; usage statistics
 are evidence for a future product decision.
 
-Local CLI and stdio MCP use the new service after the package release. Hosted
-adoption is separate: release `@githits/mcp`, update `remote-mcp` to construct
+The root `githits` 0.22.1 release carries CLI and local stdio MCP fragment
+reads; published `@githits/mcp` 0.22.0 already contains the MCP implementation.
+Hosted adoption is separate: update `remote-mcp` to construct
 `ReadServiceImpl` per request with the same token, headers, endpoint/config,
 fetch function, and diagnostics policy, then deploy that host. Until those
 steps occur, hosted traffic remains on its currently published package and
 legacy/current behavior. This repository does not deploy the hosted server.
 
-Symbols are future-only: a future `symbol` selector beside `target` and `path` can
-select a backend-resolved symbol, with explicit bounds overriding semantic
-selection. No symbol parameter is currently advertised or implemented. Git refs
-and file paths are not repurposed to encode symbols. The backend must own symbol
-identity, revision resolution, and ambiguous/overloaded definitions when added.
+Code selectors use backend-owned symbol identity and strict resolution. The
+client does not pick a duplicate or infer a symbol from source text. Returned
+repository targets use `@ref`; existing exact-file and docs reads remain valid
+without `selector`.
 
 ## Public skill release follow-through
 
 The stable MCP quick-start and embedded `skills/githits-mcp/SKILL.md` guide remain
 release-synchronized under the exact-parity exception. Other public skills are
 served from main before npm release and must follow their release-boundary policy.
-When the release guidance is updated, change `skills/githits-code/SKILL.md` and
-`skills/githits-code/references/code-and-docs.md`: prefer `githits read`, retain
-legacy commands only as compatibility guidance, and replace both retired MCP
-mappings with `read` (target alone for docs, target plus path for code). Also audit
-`skills/githits-package` and references for read examples. Regenerate/check plugin
-assets after canonical skill edits. This release-boundary work is intentional;
-CLI alias removal and working symbol lookup require separate product decisions.
+The 0.22.0 release branch updated `skills/githits-code/SKILL.md` and its
+reference to prefer `githits read`, show selector reads, and retain legacy
+commands only as compatibility guidance. The root 0.22.1 release branch adds
+compact `target#symbol` reads to the CLI skill and its command-to-MCP mapping.
+The stable MCP guide and `buildMcpQuickStart()` both route known symbols and
+heading IDs to `read`.
+The package skill has no read examples to change. CLI alias removal remains a
+separate product decision.
 
 ## Validation evidence
 

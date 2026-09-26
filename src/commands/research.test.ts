@@ -12,17 +12,17 @@ import { TermsAcceptanceRequiredError } from "@githits/core-internal/browser";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import { Command } from "commander";
 import { ASK_NEEDS_TARGET_WIRE } from "../../packages/core-internal/src/services/ask-needs-target.fixture.js";
-import { formatAgenticAskMcpText } from "../../packages/mcp/src/mcp/local-agentic-ask.js";
+import { formatResearchMcpText } from "../../packages/mcp/src/mcp/local-research.js";
 import {
-  type AskCommandDependencies,
-  askAction,
   formatAgenticAskHumanResponse,
   formatAgenticAskSourceCommand,
   projectAgenticAskCliSources,
-  registerAskCommand,
-  resolveAskCommandPositionals,
-  validateAskCommandBeforeAction,
-} from "./ask.js";
+  type ResearchCommandDependencies,
+  registerResearchCommand,
+  researchAction,
+  resolveResearchCommandPositionals,
+  validateResearchCommandBeforeAction,
+} from "./research.js";
 
 const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
 const THREAD_ID = "018f47a6-7b32-7b1e-8f45-6a2d39c81720";
@@ -107,7 +107,7 @@ describe("Ask target clarification", () => {
   it("renders provider grouping and confidence consistently in CLI and MCP", () => {
     const result = clarification();
     const text = formatAgenticAskHumanResponse(result);
-    expect(text).toBe(formatAgenticAskMcpText(result));
+    expect(text).toBe(formatResearchMcpText(result));
     expect(text).toContain("Did you mean any of these?");
     expect(text).toContain("github:openai/codex [medium]");
     expect(text).toContain("Related targets:");
@@ -133,7 +133,7 @@ describe("Ask target clarification", () => {
       throw new Error("process.exit");
     });
     const ask = mock(() => Promise.resolve(clarification()));
-    await askAction(
+    await researchAction(
       undefined,
       "How does codex handle chat compaction?",
       { json: true },
@@ -149,8 +149,8 @@ describe("Ask target clarification", () => {
 
 function createDeps(
   ask: CliAsk = mock(() => Promise.resolve(result())),
-  overrides: Partial<AskCommandDependencies> = {},
-): AskCommandDependencies {
+  overrides: Partial<ResearchCommandDependencies> = {},
+): ResearchCommandDependencies {
   return {
     agenticAskService: {
       ask: ask as unknown as AgenticAskService["ask"],
@@ -165,12 +165,12 @@ afterEach(() => {
   mock.restore();
 });
 
-describe("askAction", () => {
+describe("researchAction", () => {
   it("forwards target and question and prints readable source commands", async () => {
     const ask = mock(() => Promise.resolve(result()));
     const write = spyOn(process.stdout, "write").mockImplementation(() => true);
 
-    await askAction(
+    await researchAction(
       "npm:example",
       "How is the client created?",
       {},
@@ -191,7 +191,9 @@ describe("askAction", () => {
     expect(write.mock.calls[0]?.[0]).toContain(
       "npx githits@latest docs read --lines 3-8 -- docs:example:guide",
     );
-    expect(write.mock.calls[0]?.[0]).toContain(`Ask run ID: ${TOOL_CALL_ID}`);
+    expect(write.mock.calls[0]?.[0]).toContain(
+      `Research run ID: ${TOOL_CALL_ID}`,
+    );
     expect(write.mock.calls[0]?.[0]).toContain(`Thread ID: ${THREAD_ID}`);
   });
 
@@ -199,7 +201,7 @@ describe("askAction", () => {
     const ask = mock(() => Promise.resolve(result()));
     spyOn(process.stdout, "write").mockImplementation(() => true);
 
-    await askAction(
+    await researchAction(
       undefined,
       "Where is that choice checked?",
       { thread: THREAD_ID },
@@ -222,7 +224,7 @@ describe("askAction", () => {
         Promise.resolve(sourceFormat === "url" ? urlResult() : result()),
       );
       spyOn(console, "log").mockImplementation(() => undefined);
-      await askAction(
+      await researchAction(
         undefined,
         "How does Express routing work?",
         { json: true, sourceFormat },
@@ -242,10 +244,20 @@ describe("askAction", () => {
     const ask = mock(() => Promise.resolve(result()));
 
     await expect(
-      askAction("npm:example", "How?", { thread: THREAD_ID }, createDeps(ask)),
+      researchAction(
+        "npm:example",
+        "How?",
+        { thread: THREAD_ID },
+        createDeps(ask),
+      ),
     ).rejects.toThrow("Do not provide a target");
     await expect(
-      askAction(undefined, "How?", { thread: "not-a-uuid" }, createDeps(ask)),
+      researchAction(
+        undefined,
+        "How?",
+        { thread: "not-a-uuid" },
+        createDeps(ask),
+      ),
     ).rejects.toThrow("thread UUID");
     expect(ask).not.toHaveBeenCalled();
   });
@@ -254,7 +266,7 @@ describe("askAction", () => {
     const ask = mock(() => Promise.resolve(result()));
 
     await expect(
-      askAction(
+      researchAction(
         "github:expressjs/express#main",
         "How?",
         {},
@@ -275,7 +287,7 @@ describe("askAction", () => {
       const ask = mock(() => Promise.resolve(result()));
       spyOn(process.stdout, "write").mockImplementation(() => true);
 
-      await askAction(target, "How?", {}, createDeps(ask));
+      await researchAction(target, "How?", {}, createDeps(ask));
 
       expect(ask).toHaveBeenCalledWith({ target, question: "How?" }, undefined);
     },
@@ -286,7 +298,7 @@ describe("askAction", () => {
     const log = spyOn(console, "log").mockImplementation(() => undefined);
     const write = spyOn(process.stdout, "write").mockImplementation(() => true);
 
-    await askAction(
+    await researchAction(
       "npm:example",
       "How?",
       { json: true },
@@ -303,7 +315,7 @@ describe("askAction", () => {
     const ask = mock(() => Promise.resolve(response));
     const write = spyOn(process.stdout, "write").mockImplementation(() => true);
 
-    await askAction(
+    await researchAction(
       "npm:example",
       "How?",
       { sourceFormat: "url" },
@@ -319,7 +331,7 @@ describe("askAction", () => {
       undefined,
     );
     expect(write.mock.calls[0]?.[0]).toBe(
-      "Use the public factory.\n\nSources:\n  1. https://github.com/example/project/blob/main/src/index.ts#L10-L20\n  2. https://example.com/docs/guide#L3-L8\n\nAsk run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n",
+      "Use the public factory.\n\nSources:\n  1. https://github.com/example/project/blob/main/src/index.ts#L10-L20\n  2. https://example.com/docs/guide#L3-L8\n\nResearch run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n",
     );
   });
 
@@ -327,7 +339,7 @@ describe("askAction", () => {
     const response = urlResult();
     const log = spyOn(console, "log").mockImplementation(() => undefined);
 
-    await askAction(
+    await researchAction(
       "npm:example",
       "How?",
       { json: true, sourceFormat: "url" },
@@ -345,7 +357,7 @@ describe("askAction", () => {
       return true;
     });
 
-    await askAction(
+    await researchAction(
       "npm:example",
       "How?",
       {},
@@ -361,7 +373,7 @@ describe("askAction", () => {
   it("throws the standard auth error before invoking the service", async () => {
     const ask = mock(() => Promise.resolve(result()));
     await expect(
-      askAction(
+      researchAction(
         "npm:example",
         "How?",
         {},
@@ -378,7 +390,7 @@ describe("askAction", () => {
     });
 
     await expect(
-      askAction(
+      researchAction(
         "npm:example",
         "How?",
         { json: true },
@@ -402,7 +414,7 @@ describe("askAction", () => {
     });
     const failure = new AgenticAskHttpError(
       "RATE_LIMITED",
-      "Agentic Ask is rate limited.",
+      "Research is rate limited.",
       429,
       TOOL_CALL_ID,
       12,
@@ -411,7 +423,7 @@ describe("askAction", () => {
     );
 
     await expect(
-      askAction(
+      researchAction(
         "npm:example",
         "How?",
         {},
@@ -420,7 +432,7 @@ describe("askAction", () => {
     ).rejects.toThrow("process.exit");
 
     expect(error.mock.calls[0]?.[0]).toBe(
-      `Agentic Ask is rate limited. Try again in 12 seconds.\nAsk run ID: ${TOOL_CALL_ID}\nThread ID: ${THREAD_ID}`,
+      `Research is rate limited. Try again in 12 seconds.\nResearch run ID: ${TOOL_CALL_ID}\nThread ID: ${THREAD_ID}`,
     );
   });
 
@@ -431,7 +443,7 @@ describe("askAction", () => {
     });
 
     await expect(
-      askAction(
+      researchAction(
         "npm:example",
         "How?",
         {},
@@ -453,7 +465,7 @@ describe("askAction", () => {
     });
 
     await expect(
-      askAction(
+      researchAction(
         "npm:example",
         "How?",
         {},
@@ -481,7 +493,7 @@ describe("askAction", () => {
     });
 
     await expect(
-      askAction(
+      researchAction(
         "npm:example",
         "How?",
         { json: true },
@@ -494,7 +506,7 @@ describe("askAction", () => {
     ).rejects.toThrow("process.exit");
 
     expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toEqual({
-      error: "Agentic Ask timed out. Try again.",
+      error: "Research timed out. Try again.",
       code: "TIMEOUT",
       retryable: true,
       details: { timeoutMs: 210_000 },
@@ -508,7 +520,7 @@ describe("askAction", () => {
     });
 
     await expect(
-      askAction(
+      researchAction(
         "npm:example",
         "How?",
         { json: true },
@@ -517,7 +529,7 @@ describe("askAction", () => {
             Promise.reject(
               new AgenticAskHttpError(
                 "SERVICE_UNAVAILABLE",
-                "Agentic Ask is temporarily unavailable.",
+                "Research is temporarily unavailable.",
                 503,
                 undefined,
                 undefined,
@@ -543,7 +555,7 @@ describe("askAction", () => {
     });
 
     await expect(
-      askAction(
+      researchAction(
         "npm:example",
         "How?",
         {},
@@ -553,7 +565,7 @@ describe("askAction", () => {
   });
 });
 
-describe("Agentic Ask human formatting", () => {
+describe("Research human formatting", () => {
   it("canonicalizes legacy code source targets without mutating docs locators", () => {
     const wire = result({
       sources: [
@@ -684,12 +696,12 @@ describe("Agentic Ask human formatting", () => {
   });
 });
 
-describe("Agentic Ask positional parsing", () => {
+describe("Research positional parsing", () => {
   it.each(["How does Express routing work?", "express", "npm:example"])(
     "treats one positional as the question without guessing target syntax: %s",
     (question) => {
       expect(
-        resolveAskCommandPositionals(question, undefined, undefined),
+        resolveResearchCommandPositionals(question, undefined, undefined),
       ).toEqual({
         target: undefined,
         question,
@@ -699,13 +711,13 @@ describe("Agentic Ask positional parsing", () => {
 
   it("keeps the initial target and question form", () => {
     expect(
-      resolveAskCommandPositionals("npm:example", "How?", undefined),
+      resolveResearchCommandPositionals("npm:example", "How?", undefined),
     ).toEqual({ target: "npm:example", question: "How?" });
   });
 
   it("treats the only positional as the question with --thread", () => {
     expect(
-      resolveAskCommandPositionals(
+      resolveResearchCommandPositionals(
         "Where is that checked?",
         undefined,
         THREAD_ID,
@@ -715,24 +727,26 @@ describe("Agentic Ask positional parsing", () => {
 
   it("rejects ambiguous and incomplete positional forms", () => {
     expect(() =>
-      resolveAskCommandPositionals("npm:example", "How?", THREAD_ID),
+      resolveResearchCommandPositionals("npm:example", "How?", THREAD_ID),
     ).toThrow("Do not provide a target");
     expect(() =>
-      resolveAskCommandPositionals(undefined, undefined, undefined),
+      resolveResearchCommandPositionals(undefined, undefined, undefined),
     ).toThrow("Provide a question");
     expect(() =>
-      resolveAskCommandPositionals(undefined, undefined, THREAD_ID),
+      resolveResearchCommandPositionals(undefined, undefined, THREAD_ID),
     ).toThrow("Provide a question");
   });
 });
 
-describe("Agentic Ask registration", () => {
+describe("Research registration", () => {
   it.each(
-    ["", " ", "\t\n"].flatMap((question) => [
-      { args: ["ask", question] },
-      { args: ["ask", "npm:example", question] },
-      { args: ["ask", "--thread", THREAD_ID, question] },
-    ]),
+    ["research", "ask"].flatMap((command) =>
+      ["", " ", "\t\n"].flatMap((question) => [
+        { args: [command, question] },
+        { args: [command, "npm:example", question] },
+        { args: [command, "--thread", THREAD_ID, question] },
+      ]),
+    ),
   )(
     "rejects blank questions before root command work: %j",
     async ({ args }) => {
@@ -740,10 +754,10 @@ describe("Agentic Ask registration", () => {
       let rootWorkStarted = false;
       const action = mock(() => undefined);
       program.hook("preAction", (_thisCommand, actionCommand) => {
-        validateAskCommandBeforeAction(actionCommand);
+        validateResearchCommandBeforeAction(actionCommand);
         rootWorkStarted = true;
       });
-      registerAskCommand(program).action(action);
+      registerResearchCommand(program).action(action);
       await expect(
         program.parseAsync(["node", "githits", ...args]),
       ).rejects.toThrow("non-empty question");
@@ -753,45 +767,56 @@ describe("Agentic Ask registration", () => {
   );
 
   it.each(
-    [
-      ["ask", "How does Express routing work?"],
+    ["research", "ask"].flatMap((command) =>
       [
-        "ask",
-        "--json",
-        "How does Express routing work?",
-        "--source-format",
-        "url",
-      ],
-      ["ask", "npm:express", "How is routing implemented?"],
-      ["ask", "--thread", THREAD_ID, "Where is that checked?"],
-    ].map((args) => ({ args })),
+        [command, "How does Express routing work?"],
+        [
+          command,
+          "--json",
+          "How does Express routing work?",
+          "--source-format",
+          "url",
+        ],
+        [command, "npm:express", "How is routing implemented?"],
+        [command, "--thread", THREAD_ID, "Where is that checked?"],
+      ].map((args) => ({ args })),
+    ),
   )("accepts valid positionals through Commander: %j", async ({ args }) => {
     const program = new Command().name("githits").exitOverride();
     const action = mock(() => undefined);
     program.hook("preAction", (_thisCommand, actionCommand) => {
-      validateAskCommandBeforeAction(actionCommand);
+      expect(actionCommand.name()).toBe("research");
+      validateResearchCommandBeforeAction(actionCommand);
     });
-    registerAskCommand(program).action(action);
+    registerResearchCommand(program).action(action);
     await program.parseAsync(["node", "githits", ...args]);
     expect(action).toHaveBeenCalledTimes(1);
   });
 
-  it.each([
-    ["missing follow-up question", ["ask", "--thread", THREAD_ID]],
-    ["missing initial question", ["ask"]],
-    [
-      "target combined with thread",
-      ["ask", "npm:example", "How?", "--thread", THREAD_ID],
-    ],
-    ["malformed thread", ["ask", "--thread", "not-a-uuid", "How?"]],
-  ])("rejects %s before root command work", async (_name, args) => {
+  it.each(
+    ["research", "ask"].flatMap((command) => [
+      [
+        `${command}: missing follow-up question`,
+        [command, "--thread", THREAD_ID],
+      ],
+      [`${command}: missing initial question`, [command]],
+      [
+        `${command}: target combined with thread`,
+        [command, "npm:example", "How?", "--thread", THREAD_ID],
+      ],
+      [
+        `${command}: malformed thread`,
+        [command, "--thread", "not-a-uuid", "How?"],
+      ],
+    ]),
+  )("rejects %s before root command work", async (_name, args) => {
     const program = new Command().name("githits").exitOverride();
     let rootWorkStarted = false;
     program.hook("preAction", (_thisCommand, actionCommand) => {
-      validateAskCommandBeforeAction(actionCommand);
+      validateResearchCommandBeforeAction(actionCommand);
       rootWorkStarted = true;
     });
-    registerAskCommand(program);
+    registerResearchCommand(program);
 
     await expect(
       program.parseAsync(["node", "githits", ...args]),

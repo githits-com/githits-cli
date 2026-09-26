@@ -35,11 +35,27 @@ describe("package docs list lifecycle output", () => {
       expect(output).toContain("preparation is still in progress");
       expect(output).not.toContain("No documentation pages found.");
     }
-    expect(mcp).toContain(
-      '`docs_list registry="npm" package_name="express" version="5.2.1"`',
-    );
+    expect(mcp).toContain('`docs_list target="npm:express@5.2.1"`');
     expect(cli).toContain("`githits docs list 'npm:express@5.2.1'`");
   });
+
+  it.each([
+    ["express", undefined, "npm:express"],
+    ["@types/node", "22.0.0", "npm:@types/node@22.0.0"],
+  ] as const)(
+    "keeps the %s retry target callable",
+    (packageName, version, target) => {
+      const envelope = buildEnvelope({
+        codeIndexState: "PENDING",
+        packageName,
+        version,
+      });
+
+      expect(renderListPackageDocsText(envelope)).toContain(
+        `\`docs_list target=${JSON.stringify(target)}\``,
+      );
+    },
+  );
 
   it("retains pages while marking a provisional snapshot", () => {
     const envelope = buildEnvelope({

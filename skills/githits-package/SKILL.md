@@ -13,7 +13,7 @@ Use GitHits package intelligence before making dependency claims from memory.
 
 - Run commands as `githits ...`.
 - If `githits` is not found, retry the same command as `npx -y githits@latest ...`.
-- Use `--json` when comparing versions, counting vulnerabilities, or extracting fields.
+- Keep default text for model-read summaries, comparisons, and counts. Use `--json` only when code consumes the raw response or text omits a required field.
 - Do not expose credentials. If auth is required interactively, run `githits login`; use `githits login --no-browser` only when the user can complete the printed URL flow. In noninteractive eval/CI, do not start OAuth; report that `GITHITS_API_TOKEN` or prior login is required.
 - If a command returns `TERMS_ACCEPTANCE_REQUIRED`, run `githits settings terms accept` or use the returned authenticated acceptance URL, then retry once.
 
@@ -21,29 +21,29 @@ Use GitHits package intelligence before making dependency claims from memory.
 
 - Most package commands use `<registry>:<name>[@<version>]`, for example `npm:lodash@4.17.20` or `pypi:requests`.
 - `pkg info` always reports the latest published version and does not accept a version pin.
-- `pkg changelog` accepts `<registry>:<name>` or `--repo-url <url>`; do not pass `<spec>@<version>` to changelog. Use `--to <version>` instead.
+- `pkg changelog` is package-only. Pin `@version` for one release; use `@from..to` or `--from`/`--to` for ranges. Repository and site targets are rejected.
 
 ## Core Commands
 
 ```bash
 githits pkg info npm:express
-githits pkg info npm:express --verbose --json
+githits pkg info npm:express --verbose
 
 githits pkg vulns npm:lodash@4.17.20 --severity high
-githits pkg vulns npm:lodash --scope all --include-withdrawn --json
+githits pkg vulns npm:lodash --scope all --include-withdrawn
 githits pkg vulns npm:lodash@4.17.21 --scope non_affecting
-githits pkg vulns npm:express@4.17.1 --transitive --scope all --json
+githits pkg vulns npm:express@4.17.1 --transitive --scope all
 
 githits pkg deps npm:express
 githits pkg deps npm:express --lifecycle all
-githits pkg deps npm:express --depth 3 --json
+githits pkg deps npm:express --depth 3
 
 githits pkg changelog npm:express --limit 3
+githits pkg changelog npm:express@5.2.1
 githits pkg changelog npm:express --from 4.18.0 --to 4.19.0
-githits pkg changelog --repo-url https://github.com/expressjs/express --limit 2 --no-body
 
 githits pkg upgrade-review npm:zod@4.3.6 --to 4.4.3
-githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-staged@16.2.7..16.4.0 --json
+githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-staged@16.2.7..16.4.0
 ```
 
 ## Decision Flow
@@ -54,7 +54,7 @@ githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-sta
 - Need historical advisories that do not affect the inspected version: use `pkg vulns --scope non_affecting`; use `--scope all` for affected plus historical rows.
 - Need dependency footprint: start with `pkg deps`; add `--lifecycle all` for non-runtime groups and `--depth <n>` for aggregate transitive graph data.
 - Need upgrade evidence for dependency updates, outdated package bumps, or lockfile changes: prefer `pkg upgrade-review` because it compares current vs target vulnerabilities, changelog range evidence, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. It reports facts only; you still own the final assessment.
-- Need release notes without a current-to-target comparison: use `pkg changelog`; use `--from`/`--to` for ranges and `--no-body` for compact timelines.
+- Need release notes without a current-to-target comparison: use `pkg changelog`; `--no-body` for compact timelines.
 
 ## Gotchas
 
@@ -62,7 +62,7 @@ githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-sta
 - Dependency graphs support npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, Zig, vcpkg, RubyGems, Go, and Swift.
 - Go exact-version inputs accept either `v1.2.3` or `1.2.3` (including pseudo versions) and are sent in canonical `v`-prefixed form. Other changelog range inputs omit a leading `v`, except Swift release tags.
 - For repeatable `pkg upgrade-review --package` entries, use `<registry>:<name>@<current>..<target>`.
-- Prefer structured JSON for final comparisons; terminal text is optimized for human scanning.
+- Reuse returned versions and provenance; report graph scope, truncation, and other evidence limits. Public package graphs do not establish your application's lockfile or reachability.
 
 ## External Content Posture
 

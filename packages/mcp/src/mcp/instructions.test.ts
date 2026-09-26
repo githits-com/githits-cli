@@ -7,7 +7,7 @@ import {
   type LocalExperimentalToolName,
 } from "./instructions.js";
 
-const EXPERIMENTAL_TOOLS = ["ask", "resolve_target", "code_diff"] as const;
+const EXPERIMENTAL_TOOLS = ["research", "resolve_target", "code_diff"] as const;
 
 function buildLocal(
   enabledExperimentalTools: readonly LocalExperimentalToolName[],
@@ -23,16 +23,44 @@ describe("buildLocalMcpQuickStart", () => {
 
     expect(quickStart).toContain("swift:github.com/<owner>/<repo>");
     expect(quickStart).toContain("zig:gh/<owner>/<repo>");
-    expect(quickStart).toContain("artifact/manifest root");
+    expect(quickStart).toContain("package subpath, including in monorepos");
     expect(quickStart).toContain("public repository");
     expect(quickStart).toContain("full repositories or sibling packages");
     expect(quickStart).toContain(
-      "Use a docs hit's snippet when sufficient; otherwise follow its generated",
+      "patterns are `registry:name@version` and `github:owner/repo@ref`",
     );
     expect(quickStart).toContain(
-      "A fragment needs no bounds and returns the exact section; add bounds only to",
+      "suffix for the latest package version or repository default branch",
     );
-    expect(quickStart).toContain("replace it with a page-relative range");
+    expect(quickStart).not.toContain("[@version]");
+    expect(quickStart).not.toContain("[@ref]");
+    expect(quickStart).toContain(
+      "Use snippets when sufficient; otherwise follow generated",
+    );
+    expect(quickStart).toContain(
+      "Hosted/crawled HTTP(S) docs locators address mutable current content",
+    );
+    expect(quickStart).toContain(
+      "exact emitted URL or fragment without search line bounds",
+    );
+    expect(quickStart).toContain(
+      "fragment returns its heading and full subtree through the next",
+    );
+    expect(quickStart).toContain(
+      "Repository docs are snapshot-addressed and keep returned ranges",
+    );
+    expect(quickStart).toContain(
+      "`read` bounds only when intentionally selecting a current page range",
+    );
+    expect(quickStart).toContain(
+      "This guide owns shared policy; selected tools own call syntax and exceptions",
+    );
+    expect(quickStart).toContain("never probe");
+    expect(quickStart).toContain("directories with `read`");
+    expect(quickStart).toContain(
+      "JSON is only for code consuming the raw response or required fields absent",
+    );
+    expect(quickStart).not.toContain("A fragment needs no bounds");
   });
 
   it("keeps deprecated instruction builders as exact compatibility aliases", () => {
@@ -58,9 +86,10 @@ describe("buildLocalMcpQuickStart", () => {
 
     expect(instructions).toContain("Local experimental tools");
     expect(instructions).toContain("public OSS only");
-    expect(instructions).toContain("`ask`");
+    expect(instructions).toContain("`research`");
+    expect(instructions).not.toContain("`ask`");
     expect(instructions).toContain(
-      "public repository or package question and receive a source-cited answer",
+      "research a public repository or package to answer a question with sources",
     );
     expect(instructions).toContain("Omit `target` and `thread_id`");
     expect(instructions).toContain(
@@ -97,7 +126,7 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("diffs do not prove compatibility");
     expect(instructions).toContain("credentials");
     expect(instructions).toContain("private or proprietary content");
-    expect(instructions).toContain("targets.\n\n- `ask`");
+    expect(instructions).toContain("targets.\n\n- `research`");
     expect(instructions).toContain(
       "Do not invent or rewrite sources.\n- `resolve_target`",
     );
@@ -115,14 +144,14 @@ describe("buildLocalMcpQuickStart", () => {
       { enabled: [] as const, absent: EXPERIMENTAL_TOOLS },
       {
         enabled: ["resolve_target"] as const,
-        absent: ["ask", "code_diff"] as const,
+        absent: ["research", "code_diff"] as const,
       },
       {
         enabled: ["code_diff"] as const,
-        absent: ["ask", "resolve_target"] as const,
+        absent: ["research", "resolve_target"] as const,
       },
       {
-        enabled: ["ask"] as const,
+        enabled: ["research"] as const,
         absent: ["resolve_target", "code_diff"] as const,
       },
     ];

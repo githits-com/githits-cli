@@ -2,6 +2,10 @@ import type { PackageIntelligenceService } from "@githits/core-internal";
 import { PKGSEER_REGISTRY_LIST } from "@githits/core-internal";
 import { z } from "zod";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
+import {
+  InvalidPackageSpecError,
+  parsePackageSpec,
+} from "../shared/package-spec.js";
 import { buildPackageSummaryParams } from "../shared/package-summary-request.js";
 import {
   buildPackageSummarySuccessPayload,
@@ -17,26 +21,21 @@ import {
 } from "./types.js";
 
 export interface PackageSummaryArgs {
-  registry: string;
-  package_name: string;
+  target: string;
   verbose?: boolean;
   format?: "text" | "json";
 }
 
 /**
- * Permissive schema by design — validation happens inside the handler
- * via `buildPackageSummaryParams`. That way, malformed input produces
- * the structured `{error, code, retryable}` envelope (same as CLI),
- * rather than a raw Zod error that agents would have to parse
- * separately.
+ * Strings remain permissive so package parsing and request validation
+ * return mapped domain errors. Missing or non-string targets fail SDK validation.
  */
 const schema: ZodRawShape = {
-  registry: z
+  target: z
     .string()
-    .describe(`Package registry. One of: ${PKGSEER_REGISTRY_LIST}.`),
-  package_name: z
-    .string()
-    .describe("Package name (scoped names ok: @types/node)."),
+    .describe(
+      `Latest-only package registry:name, for example npm:express or npm:@types/node; omit version pins. Registries: ${PKGSEER_REGISTRY_LIST}.`,
+    ),
   verbose: z
     .boolean()
     .optional()
@@ -53,18 +52,12 @@ const schema: ZodRawShape = {
 
 export const DESCRIPTION_BASE: string =
   "Assess latest package health and adoption: license, downloads, and activity. Provide " +
-  "`registry` and `package_name` (for example `npm` + `express`). " +
+  "an unpinned package target; this tool always returns latest. " +
   "Default text returns license, description, repository popularity " +
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
   "publish age, latest affected count, and separate package-wide advisory " +
-  "history count. These counts are shown separately. Set `verbose: true` for " +
-  "GitHub language/topics/last-pushed, " +
-  "published-version count, download refresh date, package-wide advisory " +
-  "history (all versions), " +
-  'and recent changes. For code consuming raw output, `format: "json"` exposes structured fields ' +
-  "including `versionCount`, `downloads.refreshedAt`, and " +
-  "`advisoryHistory.total`. Use " +
-  '`pkg_vulns` for version-specific vulnerability details, or pass `advisory_scope: "all"` for package-wide history; use `pkg_deps` for the dependency graph, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison.';
+  "history count, shown separately. Historical counts are not current-version risk. " +
+  "Use `verbose: true` for additional health and history details.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_INFO_GUARDRAIL}`;
 
@@ -78,9 +71,15 @@ export function createPackageSummaryTool(
     annotations: OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       try {
+        const target = parsePackageSpec(args.target.trim());
+        if (target.version !== undefined) {
+          throw new InvalidPackageSpecError(
+            `pkg_info always returns the latest version; omit @${target.version}.`,
+          );
+        }
         const { params } = buildPackageSummaryParams({
-          registry: args.registry,
-          packageName: args.package_name,
+          registry: target.registry,
+          packageName: target.name,
         });
         const textFormat = isTextFormat(args.format);
         const summary = await service.packageSummary({

@@ -1,0 +1,161 @@
+import type { ReadResult } from "@githits/core-internal";
+import {
+  MCP_READ_DEFAULT_SPAN,
+  MCP_READ_MAX_SPAN,
+} from "./code-navigation-defaults.js";
+import {
+  buildReadFileSuccessPayload,
+  formatReadFileTerminal,
+  splitReadFileContentLines,
+} from "./read-file-response.js";
+import { renderReadFileText } from "./read-file-text.js";
+import {
+  buildReadPackageDocContinuationHint,
+  buildReadPackageDocSuccessPayload,
+  formatReadPackageDocTerminal,
+} from "./read-package-doc-response.js";
+import { renderReadPackageDocText } from "./read-package-doc-text.js";
+
+/** Present the backend's typed read outcome at the shared CLI and MCP boundary. */
+export function formatReadResult(
+  response: ReadResult,
+  request: {
+    target: string;
+    selector?: string;
+    path?: string;
+    endLine?: number;
+    verbose?: boolean;
+    useColors?: boolean;
+  },
+  format: "mcp-text" | "mcp-json" | "cli-text" | "cli-json",
+): string {
+  const hash = request.target.indexOf("#");
+  const codeFragment =
+    response.source !== "docs" && request.selector === undefined && hash >= 0
+      ? request.target.slice(hash + 1)
+      : undefined;
+  // Follow-up searches and exact-file continuations address the base target.
+  // The original fragment remains in the read request and returned payload.
+  const followUpTarget =
+    codeFragment === undefined ? request.target : request.target.slice(0, hash);
+  if (response.source === "symbol_resolution") {
+    const result = response.result;
+    const selector = request.selector ?? codeFragment ?? "";
+    const cli = format === "cli-text" || format === "cli-json";
+    const searchAction = cli
+      ? `githits search ${JSON.stringify(selector)} --in ${JSON.stringify(followUpTarget)} --source symbol`
+      : `search({"query":${JSON.stringify(selector)},"target":${JSON.stringify(followUpTarget)},"source":"symbol"})`;
+    const action =
+      result.status === "SNAPSHOT_UNSUPPORTED"
+        ? cli
+          ? `Use ${searchAction}, then githits read <target> <path> --start N --end M with the returned file and range.`
+          : `Use ${searchAction}, then read the returned exact path with start_line and end_line.`
+        : result.status === "NOT_FOUND" && result.suggestions.length === 0
+          ? `Search related names with ${searchAction} or inspect the indexed files.`
+          : undefined;
+    const payload = {
+      status: result.status,
+      candidates: result.candidates,
+      suggestions: result.suggestions,
+      hasMore: result.hasMore,
+      repoUrl: result.repoUrl,
+      gitRef: result.gitRef,
+      codeIndexState: result.codeIndexState,
+      ...(result.message ? { message: result.message } : {}),
+      target: request.target,
+      selector,
+      ...(action ? { action } : {}),
+    };
+    if (format === "mcp-json" || format === "cli-json")
+      return JSON.stringify(payload);
+    const lines = [
+      `${result.status}: ${selector}`,
+      `Repository: ${result.repoUrl}@${result.gitRef}`,
+    ];
+    if (result.message) lines.push(result.message);
+    for (const candidate of result.candidates) {
+      lines.push(
+        `Candidate: ${candidate.qualifiedPath ?? candidate.name ?? selector} | ${candidate.filePath ?? "?"}:${candidate.startLine ?? "?"}-${candidate.endLine ?? "?"}`,
+      );
+    }
+    for (const suggestion of result.suggestions) {
+      lines.push(
+        `Suggestion: ${suggestion.qualifiedPath ?? suggestion.name} | ${suggestion.filePath ?? "?"}${suggestion.reason ? ` | ${suggestion.reason}` : ""}`,
+      );
+    }
+    if (result.hasMore)
+      lines.push(
+        codeFragment === undefined
+          ? "More matches exist; narrow with an exact path or qualified selector."
+          : "More matches exist; narrow with an exact path.",
+      );
+    if (action) lines.push(action);
+    return lines.join("\n") + "\n";
+  }
+  if (response.source === "code") {
+    const requested = response.result.targetResolution?.requested;
+    const payload = buildReadFileSuccessPayload(response.result, {
+      registry: requested?.registry?.toLowerCase(),
+      name: requested?.packageName,
+      repoUrl: requested?.repoUrl,
+      gitRef: requested?.gitRef,
+      requestedFilePath: request.path ?? "",
+    });
+    if (
+      (format === "mcp-text" || format === "mcp-json") &&
+      payload.content &&
+      payload.startLine !== undefined
+    ) {
+      const maxLines =
+        request.endLine === undefined
+          ? MCP_READ_DEFAULT_SPAN
+          : MCP_READ_MAX_SPAN;
+      const lines = splitReadFileContentLines(payload);
+      if (lines.length > maxLines) {
+        payload.content = lines.slice(0, maxLines).join("\n");
+        payload.endLine = payload.startLine + maxLines - 1;
+        payload.hint = `Continue with read target=${JSON.stringify(followUpTarget)} path=${JSON.stringify(payload.path)} start_line=${payload.endLine + 1}.`;
+      }
+    }
+    if (format === "mcp-json" || format === "cli-json")
+      return JSON.stringify(payload);
+    return format === "cli-text"
+      ? formatReadFileTerminal(payload, {
+          useColors: request.useColors ?? false,
+          verbose: request.verbose,
+        })
+      : renderReadFileText(payload);
+  }
+  const maxOutputLines =
+    format === "mcp-text"
+      ? request.endLine === undefined
+        ? MCP_READ_DEFAULT_SPAN
+        : MCP_READ_MAX_SPAN
+      : undefined;
+  const payload = buildReadPackageDocSuccessPayload(
+    response.result,
+    request.target,
+    maxOutputLines,
+  );
+  if (
+    maxOutputLines !== undefined &&
+    payload.endLine !== undefined &&
+    response.result.contentRange.endLine !== undefined &&
+    payload.endLine < response.result.contentRange.endLine
+  ) {
+    payload.hint = buildReadPackageDocContinuationHint(
+      payload.pageId,
+      payload.endLine + 1,
+      response.result.contentRange.endLine,
+      maxOutputLines,
+    );
+  }
+  if (format === "mcp-json" || format === "cli-json")
+    return JSON.stringify(payload);
+  return format === "cli-text"
+    ? formatReadPackageDocTerminal(payload, {
+        useColors: request.useColors ?? false,
+        verbose: request.verbose,
+      })
+    : renderReadPackageDocText(payload);
+}

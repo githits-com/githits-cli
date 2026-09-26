@@ -10,16 +10,27 @@ export const GITHITS_INTENT_FRAGMENT_HASH = createHash("sha256")
   .update(GITHITS_INTENT_FRAGMENT, "utf8")
   .digest("hex");
 
-export const LUNA_MODEL = "gpt-5.6-luna" as const;
+export const LUNA_MODEL = "gpt-6-luna" as const;
 export const LUNA_RATE_SOURCE =
-  "https://developers.openai.com/api/docs/models/gpt-5.6-luna" as const;
-export const LUNA_RATE_EFFECTIVE_DATE = "2026-08-28" as const;
+  "https://developers.openai.com/api/docs/models/gpt-6-luna" as const;
+export const LUNA_RATE_EFFECTIVE_DATE = "2026-09-25" as const;
 
-const LUNA_RATES = {
+const PREVIOUS_LUNA_MODEL = "gpt-5.6-luna" as const;
+const PREVIOUS_LUNA_RATE_SOURCE =
+  "https://developers.openai.com/api/docs/models/gpt-5.6-luna" as const;
+const PREVIOUS_LUNA_RATE_EFFECTIVE_DATE = "2026-08-28" as const;
+const PREVIOUS_LUNA_RATES = {
   uncachedInputUsdPerMillion: 0.2,
   cachedInputUsdPerMillion: 0.02,
   cacheWriteInputUsdPerMillion: 0.25,
   outputUsdPerMillion: 1.2,
+} as const;
+
+const LUNA_RATES = {
+  uncachedInputUsdPerMillion: 0.1,
+  cachedInputUsdPerMillion: 0.01,
+  cacheWriteInputUsdPerMillion: 0.125,
+  outputUsdPerMillion: 0.5,
 } as const;
 
 const nonNegativeInteger = z.number().int().nonnegative();
@@ -34,7 +45,7 @@ export const codexProviderUsageSchema = z.object({
 
 export type CodexProviderUsage = z.infer<typeof codexProviderUsageSchema>;
 
-export const lunaRateSnapshotSchema = z.object({
+const currentLunaRateSnapshotSchema = z.object({
   model: z.literal(LUNA_MODEL),
   currency: z.literal("USD"),
   unit: z.literal("per_million_tokens"),
@@ -51,6 +62,31 @@ export const lunaRateSnapshotSchema = z.object({
     outputUsdPerMillion: z.literal(LUNA_RATES.outputUsdPerMillion),
   }),
 });
+
+const previousLunaRateSnapshotSchema = z.object({
+  model: z.literal(PREVIOUS_LUNA_MODEL),
+  currency: z.literal("USD"),
+  unit: z.literal("per_million_tokens"),
+  effectiveDate: z.literal(PREVIOUS_LUNA_RATE_EFFECTIVE_DATE),
+  source: z.literal(PREVIOUS_LUNA_RATE_SOURCE),
+  rates: z.object({
+    uncachedInputUsdPerMillion: z.literal(
+      PREVIOUS_LUNA_RATES.uncachedInputUsdPerMillion,
+    ),
+    cachedInputUsdPerMillion: z.literal(
+      PREVIOUS_LUNA_RATES.cachedInputUsdPerMillion,
+    ),
+    cacheWriteInputUsdPerMillion: z.literal(
+      PREVIOUS_LUNA_RATES.cacheWriteInputUsdPerMillion,
+    ),
+    outputUsdPerMillion: z.literal(PREVIOUS_LUNA_RATES.outputUsdPerMillion),
+  }),
+});
+
+export const lunaRateSnapshotSchema = z.discriminatedUnion("model", [
+  previousLunaRateSnapshotSchema,
+  currentLunaRateSnapshotSchema,
+]);
 
 export type LunaRateSnapshot = z.infer<typeof lunaRateSnapshotSchema>;
 
@@ -467,6 +503,7 @@ function lastCodexTerminalUsage(stdout: string): {
 function lunaCost(
   tokens: AgentUsageMetrics["normalizedTokens"],
   longContext: boolean,
+  model: typeof LUNA_MODEL | typeof PREVIOUS_LUNA_MODEL,
 ): AgentUsageMetrics["cost"] {
   const uncachedInputTokens = tokens.uncachedInputTokens;
   const cachedInputTokens = tokens.cachedInputTokens;
@@ -480,11 +517,12 @@ function lunaCost(
   ) {
     return unknownCost();
   }
+  const rates = model === LUNA_MODEL ? LUNA_RATES : PREVIOUS_LUNA_RATES;
   const usd =
-    (uncachedInputTokens * LUNA_RATES.uncachedInputUsdPerMillion +
-      cachedInputTokens * LUNA_RATES.cachedInputUsdPerMillion +
-      cacheWriteInputTokens * LUNA_RATES.cacheWriteInputUsdPerMillion +
-      outputTokens * LUNA_RATES.outputUsdPerMillion) /
+    (uncachedInputTokens * rates.uncachedInputUsdPerMillion +
+      cachedInputTokens * rates.cachedInputUsdPerMillion +
+      cacheWriteInputTokens * rates.cacheWriteInputUsdPerMillion +
+      outputTokens * rates.outputUsdPerMillion) /
     1_000_000;
   return {
     kind: "base_rate_estimate",
@@ -492,14 +530,24 @@ function lunaCost(
     uncertainty: longContext
       ? "long_context_pricing_not_attributable"
       : "rate_based_estimate",
-    rateSnapshot: {
-      model: LUNA_MODEL,
-      currency: "USD",
-      unit: "per_million_tokens",
-      effectiveDate: LUNA_RATE_EFFECTIVE_DATE,
-      source: LUNA_RATE_SOURCE,
-      rates: LUNA_RATES,
-    },
+    rateSnapshot:
+      model === LUNA_MODEL
+        ? {
+            model,
+            currency: "USD",
+            unit: "per_million_tokens",
+            effectiveDate: LUNA_RATE_EFFECTIVE_DATE,
+            source: LUNA_RATE_SOURCE,
+            rates: LUNA_RATES,
+          }
+        : {
+            model,
+            currency: "USD",
+            unit: "per_million_tokens",
+            effectiveDate: PREVIOUS_LUNA_RATE_EFFECTIVE_DATE,
+            source: PREVIOUS_LUNA_RATE_SOURCE,
+            rates: PREVIOUS_LUNA_RATES,
+          },
   };
 }
 
@@ -508,7 +556,8 @@ function unavailableCodexWarnings(
   warning: string,
 ): string[] {
   const warnings = [warning];
-  if (model !== LUNA_MODEL) warnings.push("rate_card_not_configured");
+  if (model !== LUNA_MODEL && model !== PREVIOUS_LUNA_MODEL)
+    warnings.push("rate_card_not_configured");
   return warnings;
 }
 
@@ -569,8 +618,8 @@ export function adaptAgentUsage(
   const longContext = providerUsage.input_tokens > LONG_CONTEXT_INPUT_LIMIT;
   const warnings: string[] = [];
   let cost = unknownCost();
-  if (model === LUNA_MODEL) {
-    cost = lunaCost(normalizedTokens, longContext);
+  if (model === LUNA_MODEL || model === PREVIOUS_LUNA_MODEL) {
+    cost = lunaCost(normalizedTokens, longContext, model);
     if (longContext) warnings.push("long_context_pricing_not_attributable");
   } else {
     warnings.push("rate_card_not_configured");

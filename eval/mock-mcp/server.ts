@@ -5,6 +5,8 @@
  * Mirrors the real `githits` MCP server's quick-start guide and
  * production tool descriptions so the agent under test sees the same
  * orientation it would see against the real CLI.
+ * `pkg_info`, `pkg_vulns`, and `pkg_changelog` use the canonical string-target schemas; their
+ * fixture handlers deliberately ignore args, as before, and return only fixture state.
  *
  * Behavior:
  * - Registers four production tools: `pkg_vulns`, `pkg_changelog`,
@@ -13,7 +15,7 @@
  *   others return a `no data for this fixture` placeholder so
  *   accidental cross-tool calls don't conflate results.
  * - Imports the external-content posture (shared block) and per-tool
- *   addenda from `src/tools/guardrails.ts`. Production wires both
+ *   addenda from `packages/mcp/src/tools/guardrails.ts`. Production wires both
  *   through `buildMcpQuickStart` and per-tool `DESCRIPTION`
  *   constants; the mock controls whether they're included per cell
  *   via the `EVAL_MCP_GUARDRAIL` env var so we can measure
@@ -122,9 +124,7 @@ server.registerTool(
       includeToolAddenda,
     ),
     inputSchema: {
-      registry: z.string(),
-      package_name: z.string(),
-      version: z.string().optional(),
+      target: z.string(),
       min_severity: z.string().optional(),
       include_withdrawn: z.boolean().optional(),
       format: z.enum(["json", "text", "text-v1"]).optional(),
@@ -146,8 +146,7 @@ server.registerTool(
       includeToolAddenda,
     ),
     inputSchema: {
-      registry: z.string(),
-      package_name: z.string(),
+      target: z.string(),
       format: z.enum(["json", "text", "text-v1"]).optional(),
     },
     annotations: { readOnlyHint: true },
@@ -167,13 +166,11 @@ server.registerTool(
       includeToolAddenda,
     ),
     inputSchema: {
-      registry: z.string().optional(),
-      package_name: z.string().optional(),
-      repo_url: z.string().optional(),
-      from_version: z.string().optional(),
-      to_version: z.string().optional(),
+      target: z.string(),
       limit: z.number().int().optional(),
       omit_bodies: z.boolean().optional(),
+      verbose: z.boolean().optional(),
+      body_lines: z.number().optional(),
       format: z.enum(["json", "text", "text-v1"]).optional(),
     },
     annotations: { readOnlyHint: true },

@@ -36,10 +36,11 @@ tool's distinct role; keep it within 79 characters when it must render whole.
 Keep the first 80 raw characters useful for clients that expose a raw prefix.
 Keep registry counts and enumerations in the loaded definition because they
 crowd out trigger language and can imply incomplete or inconsistent catalog
-boundaries. The loaded definition owns the complete use/avoid boundary,
-argument constraints, and the exact name of each immediate follow-up tool.
-Repeat those handoffs on both sides of a workflow so a client can recover when
-it loads only one tool.
+boundaries. The selected description plus schema owns the distinct job, minimum
+call shape, supported target family, operation-specific exceptions, and callable
+follow-up mapping. It must not require a neighboring evidence descriptor to
+explain its own arguments. The guide/skill owns recurring cross-tool policy;
+retain short local reminders rather than copying full policy or parameter lists.
 
 The raw 80-character boundary comes from an August 2026 Claude Desktop connector
 session with no GitHits memories or user instruction to use GitHits. Its
@@ -92,7 +93,8 @@ byte-for-byte aligned under `src/skills-packaging.test.ts`. Local
 `buildLocalMcpQuickStart()` appendices are runtime-only and excluded from that
 public copy; they do not change when `quick_start` is called. Individual tool
 descriptions remain self-contained so direct tool selection can still find the
-right evidence tool before the bootstrap.
+right evidence tool before the bootstrap. The footer is guidance, not proof that
+the guide loaded: current Haiku descriptor-only baselines sometimes skip it.
 The shared guide owns general wait and indexing-recovery guidance using the
 estimates, indexed alternatives, and suggested actions visible in the output,
 without requiring JSON field paths. Wait parameter
@@ -106,9 +108,11 @@ The `quick_start` catalog sentence was corrected after a September 2026
 claude.ai session skipped `quick_start`: exact-name retrieval matched the
 prerequisite footer repeated by the dependent tools, while `quick_start`'s own
 catalog sentence included the loaded-skill exception and omitted both the
-literal `quick_start` token and the safety consequence. The replacement
-sentence includes both because the
-observed retrieval matched description bodies rather than tool names. The
+literal `quick_start` token and the safety consequence. The literal-name fix
+shipped in `6e7b4e8` but was reverted by `2a02a2e` without correcting these docs.
+The current 72-character sentence restores the token, first-call purpose, and
+safety benefit because the observed retrieval matched description bodies rather
+than tool names. This is a discovery correction, not enforced bootstrap. The
 transcript-derived probe in
 `eval/agentic/probes/claude-ai-deferred-catalog.md` preserves that catalog layout
 and substitutes the current rendered `quick_start` sentence.
@@ -125,25 +129,26 @@ Use the tools in these roles:
 - **Navigation and documentation:** Use `code_files` to enumerate paths,
   `read` to read an exact source window or emitted docs target, and `docs_list`
   to browse package pages.
-  These tools advertise their immediate exact-name handoffs reciprocally.
+  The routing guide selects among these tools; selected descriptions and schemas
+  retain callable follow-up mapping.
   `get_example` is for canonical
   cross-project examples and unknown-target/global patterns; for a known
   package or repository, use `search`, `docs_*`, or `code_*` instead.
 - **Conditional search continuation:** Call `search_status` only when the
   preceding `search` response explicitly supplies both a `searchRef` and a
-  `search_status` action. The initial `search` call can complete, and reissuing
-  the same search is valid while it waits on the same underlying work. A
+  `search_status` action. The initial `search` call can complete directly; never
+  repeat it to poll. A
   terminal or unrecognized status ends that reference; start a later search
   when a fresh session is needed.
 - **Package intelligence:** Use `pkg_info` for a latest-version health and
   adoption overview, `pkg_vulns` for CVEs/advisories and affected or fixed
   versions, `pkg_deps` for dependency graphs, `pkg_changelog` for release and
   changelog evidence, and `pkg_upgrade_review` for current-versus-target
-  evidence. Each package description advertises the nearest alternatives.
+  evidence. The routing guide selects among package tools; descriptions retain
+  their own call contract rather than neighboring-tool menus.
   `pkg_changelog` does not promise newest-first ordering or any other date
   ordering; callers should use the returned dates and versions.
-- **Language selection:** Use `search_language` only to resolve a
-  supported language name for `get_example`, not to search source.
+- **Language selection:** Omit `get_example.language` to infer it. If GitHits cannot match it, retry with a suggested language from the error or omit `language`.
 
 For locator selection, fragment precedence, Ask adaptation, and CLI compatibility,
 see [Unified read](unified-read.md).
@@ -159,22 +164,30 @@ execution.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `quick_start` | none | Required first call for a plain GitHits MCP session. Loads untrusted-content safety rules, cross-tool routing, target syntax, and compact-output rules. A plain session that skips it lacks those rules; skip only when the `githits-mcp` skill is loaded. |
-| `get_example` | `query`, `language?`, `license_mode?`, `format?` | Find canonical cross-project examples when no single target is the answer or target-scoped search came up short. For a known package or repository, use `search`, `docs_*`, or `code_*`. Defaults to markdown with source provenance and an optional `solution_id` for result identification; pass `format: "json"` for `{result, solution_id?}`. |
-| `search_language` | `query`, `format?` | Resolve a supported language name or alias for `get_example`; do not use it for source search. Defaults to one compact line per match; pass `format: "json"` for structured matches. |
-| `search` | `query`, `target?` (compact string), `targets?` (compact strings), `source?`, `category?`, `kind?`, `path_prefix?`, `file_intent?`, `public_only?`, `name?`, `language?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Discover relevant evidence in a known target before exact grep: docs, specs, code, symbols, tests, and examples ranked by relevance. Open-ended “how does”, “where is”, “find”, “locate”, or loosely phrased “grep the source” questions start here; omit `source` for broad discovery. A `search` call can return complete results directly; use `search_status` only when the response explicitly supplies a `searchRef` and action. |
-| `search_status` | `search_ref`, `wait_timeout_ms?`, `format?` | Continue an explicit `search` reference only after that response supplies a `searchRef` and `search_status` action. Inspect progress or retrieve interim, partial, or final hits; terminal and unrecognized statuses end that reference, so use a later `search` for a fresh session. |
-| `docs_list` | `registry`, `package_name`, `version?`, `limit?`, `after?`, `format?` | List package documentation targets and hand off to `read`; use `search` for topic discovery. Entries retain `docsReadTarget`, stable `pageId`, and provenance `sourceUrl`. Exact Go versions accept both `v`-prefixed and unprefixed forms. Repo-backed entries include exact source metadata for `read` when available. Active empty results remain preparation/indexing outcomes rather than becoming “not found”; provisional results retain already-available pages and lifecycle state. |
-| `pkg_info` | `registry`, `package_name`, `verbose?`, `format?` | Assess latest package health and adoption through license, downloads, and activity. Use `pkg_vulns` for advisory detail, `pkg_deps` for dependency graphs, `pkg_changelog` for release evidence, or `pkg_upgrade_review` for current-vs-target comparison. |
-| `pkg_vulns` | `registry`, `package_name`, `version?`, `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `include_transitive?`, `verbose?`, `format?` | Check current package advisories instead of trusting memory for vulnerabilities. Advisories can be published or revised after training, so a cutoff disclaimer is not current evidence. Covers pinned releases, latest-version risk, and package security history. Use `include_transitive: true` for resolved dependency evidence; `advisory_scope: "all"` includes historical advisories for those dependency packages. Use `pkg_info` for a latest health overview or `pkg_upgrade_review` for current-vs-target evidence. |
-| `pkg_deps` | `registry`, `package_name`, `version?`, `lifecycle?`, `include_importers?`, `include_issues?`, `max_depth?`, `format?` | Inspect direct/transitive dependencies or opt into deprecated, outdated, duplicate, and conflict analysis. Use `pkg_info` for health, `pkg_vulns` for advisories, or `pkg_upgrade_review` for current-vs-target evidence. |
-| `pkg_changelog` | `registry?`, `package_name?`, `repo_url?`, `from_version?`, `to_version?`, `limit?`, `git_ref?`, `omit_bodies?`, `verbose?`, `body_lines?`, `format?` | Find release notes and changelog history for a package or public repository. Latest mode returns recent entries without promising date order; range mode covers `(from_version, to_version]`. Use latest mode with `to_version` and `limit: 1` for one exact release. Use `pkg_info` for a quick health view or `pkg_upgrade_review` for upgrade evidence. |
-| `pkg_upgrade_review` | `registry?`, `package_name?`, `current_version?`, `target_version?`, `packages?`, `skip_transitive_security?`, `include_dependency_issues?`, `min_severity?`, `verbose?`, `format?` | Review a package upgrade using vulnerability, release, peer, and dependency-change evidence. Use `pkg_info` for health, `pkg_changelog` for release notes, `pkg_vulns` for advisory detail, or `pkg_deps` for dependency graphs. |
-| `code_files` | `target` (compact string), `path?`, `path_prefix?`, `globs?`, `extensions?`, `file_types?`, `languages?`, `file_intent?`, `file_intents?`, `exclude_file_intents?`, `exclude_doc_files?`, `exclude_test_files?`, `include_hidden?`, `limit?`, `wait_timeout_ms?`, `format?` | List indexed files and paths in any public repository or package, then hand off to `read` or `code_grep`. Selectors narrow the listing; `INDEXING` errors expose available retry candidates when known. |
-| `read` | `target` (string), `path?`, `start_line?`, `end_line?`, `wait_timeout_ms?`, `format?` | Read a code file with target + path, or docs page with target alone. Fragments select indexed sections unless explicit bounds override them. Text displays 150/300 lines; code caps before fetching, while docs JSON keeps the backend selection. Wait applies to code indexing only. See [unified read](unified-read.md). |
-| `code_grep` | `target` (compact string), `pattern`, `path?`, `path_prefix?`, `globs?`, `extensions?`, `pattern_type?`, `case_sensitive?`, `exclude_doc_files?`, `exclude_test_files?`, `context_lines?`, `context_lines_before?`, `context_lines_after?`, `max_matches?`, `max_matches_per_file?`, `cursor?`, `symbol_fields?`, `wait_timeout_ms?`, `format?` | Enumerate text, regex, or identifier matches in any public repository or package; results are deterministic and paginated. `max_matches_per_file` defaults to `max_matches`. |
+| `quick_start` | none | Required first call for a plain GitHits MCP session. Loads shared safety, routing, target, output, and evidence rules. Skip only when the loaded `githits-mcp` skill already supplies the guide; descriptor reminders do not enforce loading. |
+| `get_example` | `query`, `language?`, `license_mode?`, `format?` | Find canonical cross-project examples when no single target is the answer. Also use when target-scoped search came up short; verify version-sensitive patterns against source/docs. Markdown includes source provenance, generated references and optional `solution_id`; the language field owns correction guidance. |
+| `search` | `query`, `target?` (compact string), `targets?` (compact strings), `source?`, `public_only?`, `allow_partial_results?`, `limit?`, `offset?`, `wait_timeout_ms?`, `format?` | Discover relevant docs, code, and symbols in a known public target. Pass `query` and either `target` or `targets`, not both. Constraints belong in `query`; inspect qualifier/source warnings. Continue only with an explicit `searchRef` and `search_status` action. |
+| `search_status` | `search_ref`, `wait_timeout_ms?`, `format?` | Continue an explicit search reference for progress and results. Pass the returned `searchRef` as `search_ref` only with an explicit continuation action. Partial hits require the original opt-in; terminal or unrecognized statuses are not polled. |
+| `docs_list` | `target` (package string), `limit?`, `after?`, `format?` | List package documentation targets for follow-up reads. Packages only, not standalone `site:` targets. Entries retain `docsReadTarget`, compatible `pageId`, and provenance `sourceUrl`. Hosted HTTP(S) targets address mutable current content; repository targets are snapshot-addressed. Exact Go versions accept both `v`-prefixed and unprefixed forms. Repo-backed entries include exact source metadata for `read` when available. Active empty results remain preparation/indexing outcomes rather than becoming “not found”; provisional results retain already-available pages and lifecycle state. |
+| `pkg_info` | `target` (unpinned package string), `verbose?`, `format?` | Assess latest package health and adoption: license, downloads, and activity. Requires an unpinned package target and always returns latest; latest-affected and package-wide history counts are distinct. |
+| `pkg_vulns` | `target` (package string), `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `include_transitive?`, `verbose?`, `format?` | Check current package advisories. Use current evidence, not memory or cutoff disclaimers; distinguish selected-version risk from package history. Transitive evidence is opt-in and adds graph-analysis cost; selected fields define filter/scope limits. |
+| `pkg_deps` | `target` (package string), `lifecycle?`, `include_importers?`, `include_issues?`, `max_depth?`, `format?` | Inspect what a package depends on, directly or transitively. Direct runtime dependencies are the default; fields opt into other groups, transitive footprint, importer provenance or issue analysis. Public graphs are not application lockfile/reachability evidence. |
+| `pkg_changelog` | `target`, `limit?`, `omit_bodies?`, `verbose?`, `body_lines?`, `format?` | Find release notes and changelog history for a package. Latest mode caps entries; pin `target` for one selected release; `@from..to` covers a closed interval. Empty selections succeed with no entries. |
+| `pkg_upgrade_review` | `registry?`, `package_name?`, `current_version?`, `target_version?`, `packages?`, `skip_transitive_security?`, `include_dependency_issues?`, `min_severity?`, `verbose?`, `format?` | Review a package upgrade: vulnerabilities, releases, peers, dependency changes. Reports facts, not upgrade risk or acceptance. Supports a single package or at most 30 batch upgrades. |
+| `code_files` | `target` (compact string), `path?`, `path_prefix?`, `globs?`, `extensions?`, `file_types?`, `languages?`, `file_intent?`, `file_intents?`, `exclude_file_intents?`, `exclude_doc_files?`, `exclude_test_files?`, `include_hidden?`, `limit?`, `wait_timeout_ms?`, `format?` | List indexed files and paths in a public repo or package. Returned paths chain into `read.path` or scope `code_grep`; `path_prefix` narrows directory enumeration. `INDEXING` errors expose retry candidates when known. |
+| `read` | `target` (string), `path?`, `selector?`, `start_line?`, `end_line?`, `wait_timeout_ms?`, `format?` | Pass a code file target + path, a compact `target#symbol` or selector, or an emitted docs target to unified backend read; the returned type determines code/docs presentation. HTTP(S) docs fragments select sections unless explicit bounds override them. Text displays 150/300 lines; exact-file code caps before fetching, while docs JSON keeps the backend selection. The backend applies wait where relevant. See [unified read](unified-read.md). |
+| `code_grep` | `target` (compact string), `pattern`, `path?`, `path_prefix?`, `globs?`, `extensions?`, `pattern_type?`, `case_sensitive?`, `exclude_doc_files?`, `exclude_test_files?`, `context_lines?`, `context_lines_before?`, `context_lines_after?`, `max_matches?`, `max_matches_per_file?`, `cursor?`, `symbol_fields?`, `wait_timeout_ms?`, `format?` | Find text, regex, or identifier matches in a public repo or package. Results are deterministic and paginated; `max_matches_per_file` defaults to `max_matches`. |
 
-`quick_start`, `get_example`, `search_language`, `search`, `search_status`, `docs_list`, `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review`, `code_files`, `read`, and `code_grep` are registered by default. The package/source service URL defaults to the GitHits-managed endpoint and can be overridden via `GITHITS_CODE_NAV_URL` for local development.
+`quick_start`, `get_example`, `search`, `search_status`, `docs_list`, `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review`, `code_files`, `read`, and `code_grep` are registered by default. The package/source service URL defaults to the GitHits-managed endpoint and can be overridden via `GITHITS_CODE_NAV_URL` for local development.
+
+`docs_list`, `pkg_vulns`, `pkg_deps`, and `pkg_changelog` require
+`target: "registry:name[@version]"`, for example `npm:express@5.2.1`; omit the
+pin for latest. `pkg_changelog` also accepts `@from..to` intervals.
+`pkg_info` requires an unpinned target such as `npm:express`. These tools accept
+package coordinates, not repository, site, or read locators. Scoped npm and Maven
+names retain their `@` and `:` respectively. Their old separate coordinate inputs
+are removed, not aliases. `pkg_upgrade_review` still uses the structured inputs
+listed above; CLI positional specs and options for it are unchanged.
 
 ## Transitive vulnerability audits
 
@@ -233,7 +246,7 @@ bun run audit:pkg-ecosystems --out tmp/pkg-ecosystem-audit.jsonl
 
 Treat failures as live backend or contract findings, not deterministic unit-test failures. Before filing a backend issue, reproduce the failing package with `npx githits@latest` and include the command, JSON error envelope, registry/package name, and whether comparable packages in the same registry pass.
 
-**Unified `search` query syntax.** The `search.query` field is the backend discovery query syntax, not a raw pass-through to a per-source search engine. It supports implicit `AND`, uppercase `OR`, parentheses, unary `-`, quoted phrases, semantic qualifiers (`kind:`, `category:`, `path:`, `lang:`, `name:`, `intent:`), and routing qualifiers (`registry:`, `package:`, `version:`, `repo:`). The backend parses the query once and compiles it per source. Structured `name` and `language` inputs are compiled into `name:` / `lang:` qualifiers and AND-ed with the query before sending. Per-source support, ignored features, and incompatibilities are reported in `sourceStatus`.
+**Unified `search` query syntax.** The `search.query` field is the backend discovery query syntax, not a raw pass-through to a per-source search engine. It supports implicit `AND`, uppercase `OR`, parentheses, unary `-`, quoted phrases, semantic qualifiers (`kind:`, `category:`, `path:`, `lang:`, `name:`, `intent:`), and routing qualifiers (`registry:`, `package:`, `version:`, `repo:`). MCP callers put these constraints directly in `query`; the backend owns parsing, current enum validation, recovery warnings, and per-source compilation. Per-source support, ignored features, and incompatibilities are reported in `sourceStatus`. CLI users retain `--kind`, `--category`, `--path-prefix`, `--intent`, `--name`, and `--lang`; the shared request builder adapts those human-facing flags to the same backend operation.
 
 **Partial-result truth.** Every result-bearing initial `search` payload and stored `search_status.result` carries the backend's exact `partialResults: boolean`, including `false` for an atomic serveable interim snapshot and `true` for a subset of requested evidence. A progress-only response with no result snapshot omits the field. This additive field is retained unchanged in CLI `--json` and MCP `format: "json"`; text-v1 uses it only to label active results as interim or partial.
 
@@ -260,13 +273,25 @@ boundaries are preserved without prose wrapping or client cropping. The `>` gutt
 marks highlighted lines without color. Whole-line omissions, inline crops,
 truncated scope chains, and incomplete highlights retain separate ASCII notices.
 
-When fields are exactly `[FILE_PATH]` and matched source is absent, text shows only
-an actionable file-level header with `path match`: no arbitrary chunk range,
-symbol title, scope block, or compatibility snippet. A present matched snippet
-always wins, even with file-path-only or unknown provenance. Other repository hits
-without proven snippets retain locators and scope metadata with `Snippet unavailable`;
-they never render a legacy summary as source. Ranking and pagination remain backend-
-owned; the client does not deduplicate hits sharing a file.
+When matched source is absent, repository text shows one candidate header with
+the backend's bounded read window as `file:start-end`; `candidate` makes clear
+that those coordinates do not prove a match. For a bare identifier query, the
+formatter splits camel-case/underscore fragments and reports only literal
+fragments visible in the corresponding returned text: title when `SYMBOL_NAME`
+contributed, path when `FILE_PATH` contributed, and summary when
+`SOURCE_IDENTIFIER` or `DOCUMENTATION` contributed. These `visible terms` are
+observed substrings of the returned text, not the producer's exact BM25 term
+list or a term-to-field map. If no fragment is visible, the header names the
+contributing indexed fields instead. Unknown
+field provenance stays a plain candidate. Candidate summaries, scope blocks,
+and compatibility source are not rendered as matched lines; older results
+without repository evidence still show `Snippet unavailable`. A present matched
+snippet always wins regardless of indexed-field provenance.
+When the returned symbol definition shares the displayed file and contains the
+candidate window, its kind and qualified name appear at the end of that header.
+This identifies the enclosing declaration without asserting a query match.
+Ranking and pagination remain backend-owned; the client does not deduplicate hits
+sharing a file.
 
 Crawled pages use `documentationPreview` text and zero-based half-open grapheme
 ranges. Convert offsets against the original preview before duplicate-heading
@@ -291,8 +316,10 @@ fields need no CAS, and crawled previews need no repository CAS. Matched source
 hydrates proven rows; identical source ranges selected together share a backend
 read. Legacy summary remains selected for symbol/legacy-preview consumers and can
 still cause repository hydration, so this is not a CAS or latency reduction claim.
-Rendering never fetches or stitches source. New clients require the producer's
-September 7 v31 additive schema; no older-schema retry is introduced. After client
+Rendering never fetches or stitches source; candidate fragments use the already
+selected summary and leave `omitFocusedSource` unchanged. New clients require
+the producer's September 7 v31 additive schema; no older-schema retry is
+introduced. After client
 publication the producer must retain that schema during rollback. Hosted clients
 adopt it only after the MCP package release and a separate remote-server dependency
 update/deployment.
@@ -356,17 +383,17 @@ contributors are not copied onto generic progress targets, and
 
 ### `pkg_info` response shape
 
-**Default MCP text + JSON opt-in.** `pkg_info` defaults to compact triage text for agent turns: identity/license, description, repository popularity (stars/forks/issues and `[ARCHIVED]` when available), publish age, downloads, and explicit vulnerability status. Its vulnerability line labels the independent scopes as `Latest: ...` and `History: ...`: `vulnerabilities.total` remains the numeric count affecting the latest returned version, while `advisoryHistory.total` is the package-wide non-withdrawn, deduplicated advisory count across all versions. The history block is emitted whenever security data exists, including zero, and remains available when the nullable latest count is unavailable; an absent security block is not invented as zero. The field contains evidence only, with no inline action. CLI help routes full-history inspection to `githits pkg vulns <registry>:<name> --scope all`; the MCP descriptor routes it to `pkg_vulns` with `advisory_scope: "all"`. Color-enabled CLI output uses non-bold cyan for repository/homepage URL substrings without coloring attached statistics; no-color CLI and MCP output retain the same content and hierarchy.
+**Default MCP text + JSON opt-in.** `pkg_info` defaults to compact triage text for agent turns: identity/license, description, repository popularity (stars/forks/issues and `[ARCHIVED]` when available), publish age, downloads, and explicit vulnerability status. Its vulnerability line labels the independent scopes as `Latest: ...` and `History: ...`: `vulnerabilities.total` remains the numeric count affecting the latest returned version, while `advisoryHistory.total` is the package-wide non-withdrawn, deduplicated advisory count across all versions. The history block is emitted whenever security data exists, including zero, and remains available when the nullable latest count is unavailable; an absent security block is not invented as zero. The field contains evidence only, with no inline action. CLI help routes full-history inspection to `githits pkg vulns <registry>:<name> --scope all`; the MCP routing guide selects `pkg_vulns`, whose `advisory_scope` field defines `"all"` history inspection. Color-enabled CLI output uses non-bold cyan for repository/homepage URL substrings without coloring attached statistics; no-color CLI and MCP output retain the same content and hierarchy.
 
 `verbose: true` adds GitHub language/topics/last-pushed, published-version count, download refresh date (when a download count is present), package-wide advisory rows under `Advisory history (all versions)`, and recent changes. `format: "json"` returns a lean payload designed for programmatic consumers and requests the detailed fields. The exact additive fields are top-level `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total`; `downloads` is retained when it has only `refreshedAt`. Null scalars are omitted, and empty blocks/arrays are omitted. `vulnerabilities` is emitted whenever the backend reports a numeric latest-version count, including `total: 0`; its `affectsLatest` boolean and package-wide `recent` advisory rows retain their existing meanings. Recent advisory severity values include a CVSS-banded `severityLabel` (`critical` ≥9, `high` ≥7, `medium` ≥4, else `low`) for agent convenience. Compact/default requests select `allVulnerabilityCount` unconditionally; `versionCount` and `downloadsRefreshedAt` are selected only when `includeVerboseFields` is true.
 
-**No quickstart.** `pkg_info` intentionally does not expose install commands or usage snippets. Those values are package-manager-specific and not verified enough for dependency evaluation. Use `docs_*`, `search`, or `get_example` when usage guidance is needed.
+**No quickstart.** `pkg_info` intentionally does not expose install commands or usage snippets. Those values are package-manager-specific and not verified enough for dependency evaluation. Use `docs_list` and `read`, `search`, or `get_example` when usage guidance is needed.
 
-**Validation.** The MCP schema is permissive (`registry: z.string()`, `package_name: z.string()`) — validation happens in-handler via `buildPackageSummaryParams`, producing the same structured `{error, code, retryable}` envelope as CLI. Raw Zod errors are never surfaced to agents.
+**Validation.** MCP requires `target: z.string()`. The handler trims and parses it with the shared `parsePackageSpec`, then uses `buildPackageSummaryParams`; domain failures produce the same mapped `{error, code, retryable}` envelope as CLI. Missing or non-string targets fail SDK schema validation.
 
-**Always latest.** The query exposes no `version` input because the upstream `packageSummary` resolver always returns the latest published version. The CLI `githits pkg info` rejects `<spec>@<version>` with `INVALID_ARGUMENT` rather than silently swapping — a silent-swap would break security-testing workflows that pin to an older vulnerable release.
+**Always latest.** The upstream `packageSummary` resolver always returns the latest published version. Both MCP `pkg_info` and CLI `githits pkg info` reject an embedded `@version` with actionable `INVALID_ARGUMENT` before any service call rather than silently swapping to latest.
 
-`pkg_info` shares its envelope builder, text formatter, and error classifier with the CLI `githits pkg info` command via `packages/mcp/src/shared/package-summary-request.ts`, `packages/mcp/src/shared/package-summary-response.ts`, and `packages/mcp/src/shared/package-intelligence-error-map.ts`. The parity test (`src/tools/package-summary-parity.test.ts`) passes `format: "json"` and asserts `toEqual` between CLI `--json` and MCP JSON output for service-sourced fixtures, and `toMatchObject` for the `INVALID_ARGUMENT` fixture where surface-specific error text is acceptable.
+`pkg_info` shares its envelope builder, text formatter, and error classifier with the CLI `githits pkg info` command via `packages/mcp/src/shared/package-summary-request.ts`, `packages/mcp/src/shared/package-summary-response.ts`, and `packages/mcp/src/shared/package-intelligence-error-map.ts`. The parity test (`src/tools/package-summary-parity.test.ts`) proves exact normalized requests, equal JSON envelopes, and no-service latest-only pin rejection.
 
 ### `pkg_vulns` response shape
 
@@ -461,31 +488,31 @@ JSON retains backend order and multiplicity.
 
 **Version validation.** Same shared rule as `pkg_vulns`: exact Go inputs are accepted with or without `v` and sent with canonical `v`; unsupported tag-style inputs remain client-side `INVALID_ARGUMENT` errors.
 
-**MCP schema notes.** Permissive (`registry: z.string()`, `package_name: z.string()`, …) with validation in-handler via `buildPackageDependenciesParams`. Deliberately no `include_groups` input — with the data-first envelope emitting `groups` unconditionally when the backend returns `dependencyGroups`, the flag would be a silently ignored no-op. `max_depth` / CLI `--depth` is optional; when omitted the surface shows direct dependencies only while still fetching depth 1 on the wire to resolve direct dependency versions. Passing `max_depth` requests the transitive block and caps traversal. `include_importers` adds importer provenance; if used without `max_depth`, it also requests transitive output. `include_issues` is an independent opt-in: it requests the issue summary and companion graph, uses full traversal when `max_depth` is omitted, and does not expose the ordinary transitive block unless `max_depth` or `include_importers` is also supplied. Omitted and explicit `false` preserve the current selections and cost, including conditional omission of the issue subtree.
+**MCP schema notes.** Package coordinates use required `target: z.string()`, parsed in-handler by `parsePackageSpec` before `buildPackageDependenciesParams`. Deliberately no `include_groups` input — with the data-first envelope emitting `groups` unconditionally when the backend returns `dependencyGroups`, the flag would be a silently ignored no-op. `max_depth` / CLI `--depth` is optional; when omitted the surface shows direct dependencies only while still fetching depth 1 on the wire to resolve direct dependency versions. Passing `max_depth` requests the transitive block and caps traversal. `include_importers` adds importer provenance; if used without `max_depth`, it also requests transitive output. `include_issues` is an independent opt-in: it requests the issue summary and companion graph, uses full traversal when `max_depth` is omitted, and does not expose the ordinary transitive block unless `max_depth` or `include_importers` is also supplied. Omitted and explicit `false` preserve the current selections and cost, including conditional omission of the issue subtree.
 
 `pkg_deps` shares its envelope builder and text formatter with the CLI `githits pkg deps` command via `packages/mcp/src/shared/package-dependencies-request.ts` and `packages/mcp/src/shared/package-dependencies-response.ts`. MCP defaults to compact text and uses MCP-native hints such as `pass lifecycle="all"`; CLI hints remain CLI-native. The parity test (`src/tools/package-dependencies-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across every service-sourced success / error fixture (runtime, zero-dep, full-view, optional-lifecycle, multi-lifecycle, filter-matched-nothing, Crates-target-cfg dedup round-trip, transitive, versioned match / diff, NOT_FOUND, VERSION_NOT_FOUND, BACKEND_ERROR), and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT` (unknown registry, tag-style version, unknown lifecycle).
 
 ### `pkg_changelog` response shape
 
-**Data-first envelope.** The top level carries addressing (`registry` + `name` for spec addressing, or `repoUrl` for repo-URL addressing), optional `source` (`"releases"` / `"changelog_file"` / `"hexdocs"`) when a concrete changelog source exists, and `mode` (`"latest"` or `"range"`). Entries live under `entries: { count, items }` — matching the `{count, items}` shape used by `pkg_deps.runtime`. `count` is computed client-side from `items.length`, so the invariant holds regardless of backend drift.
+**Data-first envelope.** The top level carries addressing (`registry` + `name`), optional `source` when a concrete changelog source exists, and `mode` (`"latest"`, `"exact"`, or `"range"`). Entries live under `entries: { count, items }`. `count` is computed client-side from `items.length`.
 
-**Per-entry shape.** `{version, normalizedVersion?, publishedAt?, htmlUrl?, body?}`. `version` is kept in the envelope even when `null` so agents can write `items.map(e => e.version)` without guarding; every other nullable field is stripped when absent. `body` is additionally stripped when the caller set `omit_bodies: true`. The backend's opaque per-entry `metadata` GenericJSON is deliberately dropped from the envelope in v1 — revisit via agent feedback.
+**Per-entry shape.** `{version, normalizedVersion?, publishedAt?, htmlUrl?, body?, hasChangelog?}`. `version` is kept even when `null` so agents can write `items.map(e => e.version)` without guarding; every other nullable field is stripped when absent. `hasChangelog` is present only for exact selected-release results. `body` is additionally stripped when the caller set `omit_bodies: true`. The backend's opaque per-entry `metadata` GenericJSON is deliberately dropped from the envelope.
 
-**Dual addressing (`registry` + `package_name` XOR `repo_url`).** `pkg_changelog` is the only metadata-side MCP tool with dual addressing. `pkg_info` / `pkg_vulns` / `pkg_deps` all accept only `registry` + `package_name` because they are registry-metadata lookups without repo-URL alternatives. `pkg_changelog` is intrinsically repo-level — its sources are GitHub Releases, CHANGELOG.md, and HexDocs — so `repoUrl` is a peer addressing mode, not a bolt-on. Future tool authors should not cargo-cult the asymmetry without reading this rationale.
+**Package-only compact target.** MCP `pkg_changelog` takes one required `target` string: `registry:name` for latest, `registry:name@version` for one selected release, and `registry:name@from..to` for a closed interval. Open bounds `from..` and `..to` are accepted. Repository and site targets are rejected before network access. Exact pins query `packageInfo.selectedVersion.changelog`; latest and interval targets query `packageChangelog`.
 
-**Mode selection.** `from_version` triggers range mode (returns every entry in `(fromVersion, toVersion]` with no cap). The lower bound is exclusive, so an equal start/end range has no entries. Latest mode is the default, capped by `limit` (1–50, backend default 10); use `to_version` with `limit: 1` to fetch one exact release. `from_version` + `limit` is rejected client-side with `INVALID_ARGUMENT` rather than silently routed to one mode.
+**Mode selection.** A from bound triggers range mode (every entry in `(fromVersion, toVersion]` with no cap). Latest mode is the default, capped by `limit` (1–50, backend default 10); an upper-cap target or `--to` supplies a latest-mode cap. Exact mode returns exactly one backend-selected release. `limit` is rejected for exact and lower-bound range targets.
 
-**`omit_bodies` lever and body previews.** Release bodies on large packages (Kubernetes, Node) can run 10 KB+ per entry; a 100-entry range could produce a multi-hundred-KB envelope. `omit_bodies: true` opts out explicitly in JSON and text — not silent truncation. Other fields (version / normalizedVersion / publishedAt / htmlUrl) remain so agents still get the release timeline. Text mode caps each body preview at 10 lines by default. MCP adds text-only `body_lines` (1-50) to tune the cap and `verbose:true` to uncap text bodies; both are ignored for JSON. `verbose:true` conflicts with `omit_bodies:true` and `body_lines`. CLI terminal output uses the same default preview cap and gives the CLI-native `--verbose` hint; `--verbose` uncaps terminal previews but does not change `--json` output.
+**`omit_bodies` lever and body previews.** Release bodies on large packages (Kubernetes, Node) can run 10 KB+ per entry; a 100-entry range could produce a multi-hundred-KB envelope. `omit_bodies: true` opts out explicitly in JSON and text — not silent truncation. Other fields (version / normalizedVersion / publishedAt / htmlUrl) remain so agents still get the release timeline. Text mode caps each body preview at 10 lines by default. MCP adds text-only `body_lines` (1-50) to tune the cap and `verbose:true` to uncap text bodies; both are ignored for JSON. `verbose:true` conflicts with `omit_bodies:true` and `body_lines`. CLI terminal output uses the same default preview cap and gives the CLI-native `--verbose` hint; `--verbose` uncaps terminal previews but does not change `--json` output. Exact results without notes say "Release notes are unavailable."
 
-**`filter.*` echo.** `filter` is emitted only when the caller explicitly supplied at least one of `from_version`, `to_version`, `limit`, or `git_ref`. Backend-default `limit: 10` / `toVersion: <latest>` is never echoed. The request builder tracks explicit-vs-defaulted via an `explicitFilterFields` set so defaults don't round-trip as caller intent.
+**`filter.*` echo.** `filter` is emitted only when the caller explicitly supplied at least one of `fromVersion`, `toVersion`, `limit`, or `version`. Backend-default `limit: 10` / `toVersion: <latest>` is never echoed. Exact mode always echoes `filter.version` as the normalized requested selector; `entries.items[0].version` is the resolved concrete release.
 
-**Version validation.** Same shared rule as `pkg_vulns` / `pkg_deps`: exact Go `from_version` / `to_version` bounds are accepted with or without `v` and sent with canonical `v`; unsupported tag-style inputs remain client-side `INVALID_ARGUMENT` errors. `<spec>@<version>` is still rejected — the `pkg changelog` family has no single-version query, and silently remapping to `to_version` would be a client-invented semantic shift. Hint text redirects callers to `--to` / `to_version`.
+**Version validation.** Same shared rule as `pkg_vulns` / `pkg_deps`: exact Go bounds are accepted with or without `v` and sent with canonical `v`; unsupported tag-style inputs remain client-side `INVALID_ARGUMENT` errors. A non-range suffix is a registry-aware single-release selector, not a client SemVer validator.
 
-**NOT_FOUND semantics.** Backend `source === null` or `source === ""` means there is no concrete changelog source for the returned package versions. If entries are present, this is a success and the envelope omits `source`; terminal output labels it `source: package versions`. If both source and entries are absent, the service promotes the response to `PackageIntelligenceChangelogSourceNotFoundError`, which the shared classifier routes to the `NOT_FOUND` envelope with a message naming the sources that were tried. Empty `entries.items: []` with a valid `source` is also a success — "no entries in this range" is a legitimate neutral outcome.
+**Empty and no-notes success.** Backend `source === null` plus empty entries is a successful empty timeline. Exact selected releases without notes succeed with `hasChangelog: false`. Actual missing packages and missing exact versions continue through `NOT_FOUND` / `VERSION_NOT_FOUND`.
 
-**Overlap with `pkg_info`.** `pkg_info` already surfaces a short-form `recentChanges` block (from the backend's `latestChangelogs` field on `PackageSummaryResult`). For a quick "what shipped recently" glance embedded in a package overview, use `pkg_info`. For the full range-capable, body-rich, `omit_bodies`-toggleable changelog with `--no-body` timeline mode and repo-URL addressing, use `pkg_changelog`.
+**Overlap with `pkg_info`.** `pkg_info` already surfaces a short-form `recentChanges` block (from the backend's `latestChangelogs` field on `PackageSummaryResult`). For a quick "what shipped recently" glance embedded in a package overview, use `pkg_info`. For range-capable, exact-release, body-rich changelog lookup, use `pkg_changelog`.
 
-`pkg_changelog` shares its envelope builder and text formatter with the CLI `githits pkg changelog` command via `packages/mcp/src/shared/package-changelog-request.ts` and `packages/mcp/src/shared/package-changelog-response.ts`. MCP defaults to compact text with MCP-native `verbose=true`, `body_lines=<n>`, and `format="json"` hints for full bodies. The parity test (`src/tools/package-changelog-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across every service-sourced success / error fixture (happy latest, range mode, repo-URL addressing, no-source package-version entries, `--no-body` / `omit_bodies: true`, default bodies, empty entries, NOT_FOUND, PackageIntelligenceTargetNotFoundError, VERSION_NOT_FOUND, BACKEND_ERROR), and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT`.
+`pkg_changelog` shares its envelope builder and text formatter with the CLI `githits pkg changelog` command via `packages/mcp/src/shared/package-changelog-request.ts` and `packages/mcp/src/shared/package-changelog-response.ts`. MCP defaults to compact text with MCP-native `verbose=true`, `body_lines=<n>`, and `format="json"` hints for full bodies. The parity test (`src/tools/package-changelog-parity.test.ts`) passes `format: "json"` and asserts CLI/MCP equality for latest, exact, range, omitted bodies, empty selections, and mapped errors.
 
 ### `pkg_upgrade_review` response shape
 
@@ -642,7 +669,7 @@ The `hint` field is emitted only when the cap *actually truncated* the response 
 ## Text response format (`format: "text"`)
 
 Every format-selectable MCP tool accepts only `text` and `json`, with `text` as
-the default. This includes stable tools and the local experimental `ask`,
+the default. This includes stable tools and the local experimental `research`,
 `resolve_target`, and `code_diff` tools. The format parameter recommends:
 "Use `text` (default) for reading and tool follow-ups; it is token-efficient.
 Use `json` only to parse responses in code or obtain fields absent from text." Tool-specific JSON-only details remain documented. The shared quick-start guide
@@ -664,7 +691,7 @@ cost savings. Captures and reproduction scripts are under ignored
 
 **Compact punctuation.** Formatter-authored punctuation is ASCII, including the ` | ` and ` - ` separators; ellipsis is `...`; no box-drawing or decorative punctuation. Unicode in backend payloads (titles, summaries, paths, URLs, and notes) passes through unchanged. Tokenizer behavior for multi-byte UTF-8 varies across BPE variants, and the format runs into Claude, Codex CLI, OpenCode, Cline, Cursor, etc. — the small fixed vocabulary keeps it predictable.
 
-**Example-search anatomy.** `get_example` text mode returns markdown directly, followed by `solution_id: <id>` when the REST response includes an app URL. This avoids JSON-wrapped markdown while preserving result identity. `search_language` text mode returns one match per line as `name (Display Name) aliases: a, b`; agents should pass the `name` value to `get_example.language`.
+**Example-search anatomy.** `get_example` text mode returns markdown with source provenance, followed by `solution_id: <id>` when the response includes an app URL. This avoids JSON-wrapped markdown while preserving result identity. Omit `language` to infer it; if GitHits cannot match it, the error lists languages to retry with.
 
 **Package metadata anatomy.** `pkg_info`, `pkg_vulns`, `pkg_deps`, and `pkg_changelog` text mode reuse their shared no-color terminal formatters and inject surface-native hints where needed. `pkg_upgrade_review` uses one shared CLI/MCP formatter with caller width and ANSI as inputs. `pkg_deps` hides non-runtime groups by default and says `pass lifecycle="all"` when groups exist. `pkg_changelog` caps body previews and says `pass verbose=true`, `body_lines=<n>`, or `format="json"` when text omitted lines. Package tools keep JSON errors in all formats because agents can reliably branch on `{error, code, retryable, details?}`.
 
@@ -751,7 +778,7 @@ explicit `documentation target unavailable`, `target unavailable`,
 `read` / `read` command
 lines, qualified non-follow-up internal result IDs, and kind/category tails are
 omitted from default text; the emitted target remains because it is the
-`read` follow-up locator, and JSON keeps `docsReadTarget`, stable `pageId`,
+`read` follow-up locator, and JSON keeps `docsReadTarget`, compatible `pageId`,
 provenance `sourceUrl`, and the generated follow-up. Discovery falls back to
 `pageId` only when its nullable `docsReadTarget` is absent. Repository hits
 without a file path use the explicit `location unavailable` value and do not
@@ -769,7 +796,7 @@ Breakdowns use `repo code hit(s)` and `repo symbol(s)` alongside `repo doc(s)`
 and `docs page(s)`. When more results exist without a next offset, the final field is
 `more available`. Pagination is not repeated as a bottom paragraph.
 
-**Follow-up — crawled-doc section anchors.** Unified search can label a crawled documentation hit with a matching section title. Callers can use a sufficient search snippet directly; when more context is needed, they follow the generated action or displayed read target. When its emitted `sourceUrl` is byte-for-byte the HTTP(S) `docsReadTarget` plus a nonempty fragment, the shared formatter promotes that exact URL to the displayed read target and generated follow-up and omits the search preview's line bounds. A `docsReadTarget` that already contains a fragment is also passed unchanged without bounds. The backend then resolves exactly one indexed section and reports its absolute page range. Missing, duplicate, windowed/inexact, or unsupported sections return non-retryable `DOCUMENTATION_SECTION_UNRESOLVED` with a reason; they never become `NOT_FOUND` or a successful full-page read. Publisher-only IDs omitted during ingestion remain unavailable. The client never decodes or normalizes locator bytes and does not synthesize website slug rules.
+**Follow-up — mutable hosted docs and crawled-doc section anchors.** Hosted/crawled `documentation_page` HTTP(S) targets address mutable current content, while repository documentation is separately snapshot-addressed. Search `startLine` / `endLine` values are display/evidence coordinates, so the shared formatter retains them in structured locator evidence but never attaches them to an automatic hosted-doc follow-up. Page-only actions forward the exact emitted `docsReadTarget` (or HTTP(S) `pageId` fallback) without bounds. When an emitted `sourceUrl` is byte-for-byte the page target plus a nonempty fragment, the formatter promotes that exact URL unchanged; a target already containing a fragment also passes unchanged. Repository-doc actions retain their exact snapshot target and ranges. Explicit caller-supplied read bounds remain intentional page-relative selection and still reach the public read boundary unchanged. A sufficient search snippet needs no read. For a fragment read, the backend resolves the heading and its full subtree through the next equal-or-higher heading and reports its absolute page range. Missing, duplicate, windowed/inexact, or unsupported sections return non-retryable `DOCUMENTATION_SECTION_UNRESOLVED` with a reason; they never become `NOT_FOUND` or a successful full-page read. Publisher-only IDs omitted during ingestion remain unavailable. The client never decodes or normalizes locator bytes and does not synthesize website slug rules.
 
 Completed-empty action selection is target-aware: exact terminal lanes with no
 searched/indexing peer get local recovery, while searched-empty evidence can get
@@ -839,7 +866,7 @@ The required backend `contentRange` supplies `startLine`, `endLine`, `totalLines
 
 `read` passes the docs `target` string through unchanged, whether it
 is an emitted HTTP(S) `docsReadTarget` or a historical page ID. Successful JSON
-reads retain `docsReadTarget`, stable replay `pageId`, and provenance
+reads retain `docsReadTarget`, compatible `pageId`, and provenance
 `sourceUrl`, plus the actual returned `startLine` / `endLine`, whole-page
 `totalLines`, and any resolved `anchor`. Opaque and snapshot-pinned IDs are not
 trimmed, percent-decoded, fragment-stripped, or otherwise normalized. Unknown
@@ -878,14 +905,14 @@ handled that field as hidden guidance, privileged guidance, namespace metadata,
 or a prefix repeated on every tool. Plain MCP clients use the `quick_start`
 tool to expose shared guidance once, on demand. The loaded `githits-mcp` skill
 contains the same stable guide and therefore makes no bootstrap call;
-current tool descriptions remain the source of truth for tool-specific
+selected descriptions and schemas remain the source of truth for tool-specific
 routing, arguments, output, and recovery. The bootstrap descriptor's complete
 catalog sentence identifies it as the required first call, includes the literal
 `quick_start` retrieval token, and states the untrusted-content safety benefit;
 the skill-loaded exception follows later. Every evidence and preparatory
 descriptor repeats the same prerequisite
-in a centrally composed footer, so selecting a direct tool still routes a plain
-MCP agent through `quick_start`. The footer is absent from transport-neutral
+in a centrally composed footer to remind direct-tool callers to load
+`quick_start`; it does not enforce that call. The footer is absent from transport-neutral
 callable tools, which may not expose a bootstrap tool. There are no
 tool-specific exceptions.
 
@@ -902,15 +929,15 @@ payload whose privilege, visibility, and repetition vary by host.
 
 `packages/mcp/src/mcp/instructions.ts` owns the `quick_start` guide sections:
 
-- **Core block** — always loaded. Introduces GitHits, defines its public-only scope, expands trigger criteria to include comparative cross-OSS questions and "how does X actually implement this" archaeology, and walks through the `get_example` / `search_language` workflow.
-- **External-content block** — included by default from `packages/mcp/src/tools/guardrails.ts`; tells agents to treat third-party prose as data, not instructions.
-- **Package-tools block** — always appended. Contains a preamble plus one bullet
-  per package/code tool and a reference-first strategy: source, symbols, tests,
-  and call sites beat docs prose; enumerate paths first, locate symbols or
-  lines, then read focused windows.
+- **Routing guide** — question-to-tool table and recurring public scope, canonical
+  targets, model-read text/JSON policy, evidence reuse/citations/limits, focused
+  reads, and wait/recovery discipline. Selected descriptions/schemas own language
+  retry, docs fragment/range behavior, and other single-tool mechanics.
+- **External-content block** — appended by default from `packages/mcp/src/tools/guardrails.ts`; tells agents to treat third-party prose as data, not instructions.
 - **Local experimental block** — appended only by the workspace-internal local
   composer when the host policy enables experimental tools. It names only the
-  registered local `resolve_target`/`code_diff` subset, routes fuzzy identity
+  registered local `research`/`resolve_target`/`code_diff` subset, routes source-cited
+  question answering and fuzzy identity
   before canonical diff evidence, and permits direct reuse of a resolved target
   only for a non-ambiguous `EXACT` or `HIGH` best result with `CLEAR` or
   `NOT_APPLICABLE` malicious-content status. `CLEAR` is not a vulnerability-free
@@ -1085,16 +1112,14 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 | `packages/mcp/src/tools/get-example.ts` | Example-search MCP tool definition |
 | `packages/mcp/src/tools/search.ts` | Unified indexed-search MCP tool definition |
 | `packages/mcp/src/tools/search-status.ts` | Follow-up MCP tool for incomplete unified searches |
-| `packages/mcp/src/tools/search-language.ts` | Tool with client-side filtering logic |
 | `packages/mcp/src/tools/types.ts` | `ToolDefinition` interface, `textResult`/`errorResult` helpers |
 | `packages/mcp/src/tools/shared.ts` | Shared MCP error/action helpers |
 | `packages/mcp/src/services/test-helpers.ts` | Mock service factories |
 | `packages/mcp/src/mcp/server.ts` | Transport-neutral MCP server construction and tool registration |
 | `packages/mcp/src/mcp/instructions.ts` | Stable guide builder returned by `quick_start` and copied into the loaded `githits-mcp` skill |
 | `src/commands/mcp.ts` | CLI stdio startup, request-header mode setup, and TTY setup instructions |
-| `packages/core-internal/src/services/githits-service.ts` | REST API client for example search and languages |
+| `packages/core-internal/src/services/githits-service.ts` | REST API client for example search |
 | `packages/core-internal/src/services/code-navigation-service.ts` | Package/source service client for unified `search`, `search_status`, `code_files`, `read`, and `code_grep` |
-| `packages/mcp/src/shared/language-filter.ts` | Pure `filterLanguages()` function shared between MCP tool and CLI |
 
 ## Related Documentation
 
@@ -1106,17 +1131,12 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 
 See [Repository target grammar](repository-targets.md) for the shared GitHub, Codeberg, and GitLab addressing contract and provider-preserving response identity.
 
-### Search path-prefix compatibility
+### Search path compatibility
 
-Search `path_prefix` (CLI `--path-prefix`) applies only to the code source, including
-automatic selection for package/repository targets. Documentation and symbol
-sources do not apply it, including repository documentation. Site-only automatic
-search selects docs and cannot use it. The shared request builder rejects nonempty
-prefixes when no code source is selected, returning `INVALID_ARGUMENT` before
-`service.search`; it does not silently discard the requested scope. Empty strings
-remain omitted. Explicit mixed sources and automatic mixed targets remain valid
-when code is selected. Other existing docs-only filter normalization is unchanged.
-
-This mirrors the backend request source/filter contract verified on 2026-09-11.
-Hosted MCP receives the guard after the updated `@githits/mcp` package is released,
-adopted by the remote server, and deployed.
+MCP callers use `path:<prefix>` in `query`; the backend reports ignored or
+incompatible query features in `sourceStatus` instead of the client preflighting
+source combinations. CLI `--path-prefix` remains a structured code-source filter.
+The shared request builder rejects a nonempty CLI prefix when no code source is
+selected, returning `INVALID_ARGUMENT` before `service.search`; it does not silently
+discard the requested scope. Empty CLI values remain omitted, while explicit mixed
+sources and automatic mixed targets remain valid when code is selected.

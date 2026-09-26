@@ -19,20 +19,32 @@ function configFile(contents: string) {
 
 describe("experimental CLI policy", () => {
   it("keeps experimental CLI membership in one data list", () => {
-    expect(EXPERIMENTAL_CLI_COMMANDS).toEqual(["ask", "resolve", "code diff"]);
+    expect(EXPERIMENTAL_CLI_COMMANDS).toEqual([
+      "research",
+      "ask",
+      "resolve",
+      "code diff",
+    ]);
+    expect(isExperimentalCliCommand("research")).toBe(true);
     expect(isExperimentalCliCommand("ask")).toBe(true);
     expect(isExperimentalCliCommand("resolve")).toBe(true);
     expect(isExperimentalCliCommand("code diff")).toBe(true);
     expect(isExperimentalCliCommand("code files")).toBe(false);
     expect(shouldRegisterCliCommand("resolve", false)).toBe(false);
+    expect(shouldRegisterCliCommand("research", false)).toBe(false);
     expect(shouldRegisterCliCommand("ask", false)).toBe(false);
     expect(shouldRegisterCliCommand("code diff", false)).toBe(false);
     expect(shouldRegisterCliCommand("resolve", true)).toBe(true);
+    expect(shouldRegisterCliCommand("research", true)).toBe(true);
     expect(shouldRegisterCliCommand("code diff", true)).toBe(true);
     expect(shouldRegisterCliCommand("code files", false)).toBe(true);
   });
 
   it("detects direct commands and their help forms", () => {
+    expect(getExperimentalCliCommand(["research", "npm:express", "How?"])).toBe(
+      "research",
+    );
+    expect(getExperimentalCliCommand(["help", "research"])).toBe("research");
     expect(getExperimentalCliCommand(["ask", "npm:express", "How?"])).toBe(
       "ask",
     );
@@ -78,6 +90,12 @@ describe("experimental CLI policy", () => {
     await expect(
       resolveExperimentalCliPolicy(
         configFile("[experimental]\ntools = true\n"),
+        ["research", "--help"],
+      ),
+    ).resolves.toMatchObject({ tools: true });
+    await expect(
+      resolveExperimentalCliPolicy(
+        configFile("[experimental]\ntools = true\n"),
         ["ask", "--help"],
       ),
     ).resolves.toMatchObject({ tools: true });
@@ -90,6 +108,14 @@ describe("experimental CLI policy", () => {
         "express",
       ]),
     ).rejects.toBeInstanceOf(ExperimentalConfigError);
+    for (const command of ["research", "ask"]) {
+      await expect(
+        resolveExperimentalCliPolicy(configFile("[experimental\n"), [
+          command,
+          "--help",
+        ]),
+      ).rejects.toBeInstanceOf(ExperimentalConfigError);
+    }
   });
 
   it("falls back to stable policy for non-experimental invocations", async () => {
