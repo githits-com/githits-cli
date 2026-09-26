@@ -40,13 +40,9 @@ function successBody(
         hasMore: false,
         nextCursor: null,
         indexedVersion: "5.2.1",
-        resolution: null,
-        targetResolution: null,
         codeIndexState: "CURRENT",
         indexingStatus: "COMPLETED",
         indexingRef: null,
-        availableVersions: [],
-        indexingEstimate: null,
         inventoryState: null,
         crawlStatus: null,
         coverageState: null,
@@ -183,16 +179,9 @@ describe("ListServiceImpl", () => {
                 kind: "FILE",
                 path: "src/index.ts",
                 title: null,
-                language: null,
-                fileType: null,
-                intent: null,
-                byteSize: null,
-                lineCount: null,
-                contentHash: null,
                 read: {
                   target: "github:expressjs/express@abc123",
                   path: "src/a%2Fb.ts",
-                  paths: null,
                 },
                 browse: null,
               },
@@ -203,7 +192,6 @@ describe("ListServiceImpl", () => {
                 read: null,
                 browse: {
                   target: "npm:express@5.2.1",
-                  path: null,
                   paths: ["src/\\*"],
                 },
               },
@@ -255,11 +243,14 @@ describe("ListServiceImpl", () => {
     expect(result.entries[0]).toEqual({
       kind: "FILE",
       path: "src/index.ts",
+      title: null,
       read: {
         target: "github:expressjs/express@abc123",
         path: "src/a%2Fb.ts",
       },
+      browse: null,
     });
+    expect(result.canonicalTarget).toBe("npm:express@5.2.1");
     expect(result.entries[1]?.browse).toEqual({
       target: "npm:express@5.2.1",
       paths: ["src/\\*"],
@@ -290,11 +281,9 @@ describe("ListServiceImpl", () => {
                 read: {
                   target: "https://docs.example.test/api%2Fv1?lang=en#part",
                   path: null,
-                  paths: null,
                 },
                 browse: {
                   target: "site:docs.example.test",
-                  path: null,
                   paths: ["docs.example.test/api%2Fv1"],
                 },
               },
@@ -321,7 +310,10 @@ describe("ListServiceImpl", () => {
             preparation: {
               selected: 2,
               enqueued: 1,
-              activeJobs: [{ mode: "incremental_recrawl", state: "RUNNING" }],
+              activeJobs: [
+                { mode: "incremental_recrawl", state: "RUNNING" },
+                { mode: null, state: "QUEUED" },
+              ],
               awaited: [{ mode: null, outcome: "TIMEOUT" }],
             },
           }),
@@ -360,8 +352,11 @@ describe("ListServiceImpl", () => {
       preparation: {
         selected: 2,
         enqueued: 1,
-        activeJobs: [{ mode: "incremental_recrawl", state: "RUNNING" }],
-        awaited: [{ outcome: "TIMEOUT" }],
+        activeJobs: [
+          { mode: "incremental_recrawl", state: "RUNNING" },
+          { mode: null, state: "QUEUED" },
+        ],
+        awaited: [{ mode: null, outcome: "TIMEOUT" }],
       },
       entries: [
         {
@@ -378,8 +373,24 @@ describe("ListServiceImpl", () => {
         },
       ],
     });
-    expect(result.canonicalTarget).toBeUndefined();
-    expect(result.preparation?.awaited[0]?.mode).toBeUndefined();
+    expect(result.canonicalTarget).toBeNull();
+    expect(result.entries[0]?.read).toEqual({
+      target: "https://docs.example.test/api%2Fv1?lang=en#part",
+      path: null,
+    });
+    expect(result.entries[0]?.language).toBeNull();
+    expect(result.entries[0]?.contentHash).toBeNull();
+    expect(result.indexingStatus).toBeNull();
+    expect(result.indexingRef).toBeNull();
+    expect(result.resolution).toEqual({
+      requestedVersion: null,
+      requestedRef: null,
+      resolvedRef: null,
+      commitSha: null,
+    });
+    expect(result.availableVersions).toBeNull();
+    expect(result.indexingEstimate).toBeNull();
+    expect(result.preparation?.awaited[0]?.mode).toBeNull();
   });
 
   it("wire projection rejects hasMore without a nonempty cursor", async () => {
@@ -465,6 +476,7 @@ describe("ListServiceImpl", () => {
     });
     expect(result.resolution).toEqual({
       requestedVersion: "^5.2",
+      requestedRef: null,
       resolvedRef: "v5.2.1",
       commitSha: "abc123",
     });
@@ -474,7 +486,11 @@ describe("ListServiceImpl", () => {
         registry: "npm",
         packageName: "express",
         version: "5.2.1",
+        repoUrl: null,
+        gitRef: null,
+        commitSha: null,
       },
+      resolvedRequested: null,
       served: {
         kind: "package_exact_version",
         registry: "npm",
@@ -486,9 +502,10 @@ describe("ListServiceImpl", () => {
       },
       freshness: "current",
       freshnessReason: "exact_current",
+      indexingRef: null,
       availableVersions: [{ version: "5.2.1", ref: "v5.2.1" }],
-      availableRefs: [{ ref: "v5.2.1" }],
-      suggestedRefs: [{ ref: "v5.2.2" }],
+      availableRefs: [{ version: null, ref: "v5.2.1" }],
+      suggestedRefs: [{ version: null, ref: "v5.2.2" }],
     });
     expect(result.indexingEstimate).toEqual({
       lowerSeconds: 3,

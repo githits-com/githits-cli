@@ -55,75 +55,81 @@ export type ListSiteWaitOutcome =
   | "CANCELLED"
   | "TIMEOUT";
 
-export interface ListAction {
+export interface ListReadAction {
   target: string;
-  path?: string;
-  paths?: string[];
+  path: string | null;
 }
+
+export interface ListBrowseAction {
+  target: string;
+  paths: string[] | null;
+}
+
+export type ListAction = ListReadAction | ListBrowseAction;
 
 export interface ListEntry {
   kind: ListEntryKind;
   path: string;
-  title?: string;
-  language?: string;
-  fileType?: string;
-  intent?: string;
-  byteSize?: number;
-  lineCount?: number;
-  contentHash?: string;
-  read?: ListAction;
-  browse?: ListAction;
+  title: string | null;
+  language?: string | null;
+  fileType?: string | null;
+  intent?: string | null;
+  byteSize?: number | null;
+  lineCount?: number | null;
+  contentHash?: string | null;
+  read: ListReadAction | null;
+  browse: ListBrowseAction | null;
 }
 
 export interface ListAvailableVersion {
-  version?: string;
+  version: string | null;
   ref: string;
 }
 
 export interface ListResolution {
-  requestedVersion?: string;
-  requestedRef?: string;
-  resolvedRef?: string;
-  commitSha?: string;
+  requestedVersion: string | null;
+  requestedRef: string | null;
+  resolvedRef: string | null;
+  commitSha: string | null;
 }
 
 export interface ListTargetIdentity {
-  kind?: string;
-  registry?: string;
-  packageName?: string;
-  version?: string;
-  repoUrl?: string;
-  gitRef?: string;
-  commitSha?: string;
+  kind: string | null;
+  registry: string | null;
+  packageName: string | null;
+  version: string | null;
+  repoUrl: string | null;
+  gitRef: string | null;
+  commitSha: string | null;
 }
 
 export interface ListTargetResolution {
-  requested?: ListTargetIdentity;
-  resolvedRequested?: ListTargetIdentity;
-  served?: ListTargetIdentity;
-  freshness?: string;
-  freshnessReason?: string;
-  indexingRef?: string;
-  availableVersions?: ListAvailableVersion[];
-  availableRefs?: ListAvailableVersion[];
-  suggestedRefs?: ListAvailableVersion[];
+  requested: ListTargetIdentity | null;
+  resolvedRequested: ListTargetIdentity | null;
+  served: ListTargetIdentity | null;
+  freshness: string | null;
+  freshnessReason: string | null;
+  indexingRef: string | null;
+  availableVersions: ListAvailableVersion[] | null;
+  availableRefs: ListAvailableVersion[] | null;
+  suggestedRefs: ListAvailableVersion[] | null;
 }
 
 export interface ListIndexingEstimate {
-  lowerSeconds?: number;
-  upperSeconds?: number;
-  elapsedSeconds?: number;
-  sampleCount?: number;
-  source?: string;
+  lowerSeconds: number | null;
+  upperSeconds: number | null;
+  elapsedSeconds: number | null;
+  sampleCount: number | null;
+  source: string | null;
 }
 
 export interface ListSiteJob {
-  mode?: string;
+  mode: string | null;
   state: string;
 }
 
 export interface ListSiteWait {
-  mode?: string;
+  mode: string | null;
   outcome: ListSiteWaitOutcome;
 }
 
@@ -137,23 +143,23 @@ export interface ListSitePreparation {
 export interface ListResult {
   inventoryKind: ListInventoryKind;
   requestedTarget: string;
-  canonicalTarget?: string;
+  canonicalTarget: string | null;
   entries: ListEntry[];
   hasMore: boolean;
-  nextCursor?: string;
-  indexedVersion?: string;
-  resolution?: ListResolution;
-  targetResolution?: ListTargetResolution;
-  codeIndexState?: string;
-  indexingStatus?: string;
-  indexingRef?: string;
-  availableVersions?: ListAvailableVersion[];
-  indexingEstimate?: ListIndexingEstimate;
-  inventoryState?: "AVAILABLE" | "EMPTY";
-  crawlStatus?: "IDLE" | "RUNNING" | "COMPLETE" | "FAILED";
-  coverageState?: "NONE" | "PARTIAL" | "CAPPED" | "COMPLETE";
-  coverageReason?: string;
-  preparation?: ListSitePreparation;
+  nextCursor: string | null;
+  indexedVersion: string | null;
+  resolution?: ListResolution | null;
+  targetResolution?: ListTargetResolution | null;
+  codeIndexState: string | null;
+  indexingStatus: string | null;
+  indexingRef: string | null;
+  availableVersions?: ListAvailableVersion[] | null;
+  indexingEstimate?: ListIndexingEstimate | null;
+  inventoryState: "AVAILABLE" | "EMPTY" | null;
+  crawlStatus: "IDLE" | "RUNNING" | "COMPLETE" | "FAILED" | null;
+  coverageState: "NONE" | "PARTIAL" | "CAPPED" | "COMPLETE" | null;
+  coverageReason: string | null;
+  preparation: ListSitePreparation | null;
 }
 
 export interface ListService {
@@ -215,30 +221,30 @@ export class MalformedListResponseError extends Error {
   }
 }
 
-const nullableString = z.string().nullable().optional();
-const nullableInt = z.number().int().nullable().optional();
+const nullableString = z.string().nullable();
+const optionalNullableString = nullableString.optional();
+const nullableInt = z.number().int().nullable();
+const optionalNullableInt = nullableInt.optional();
 
-const listActionSchema = z
-  .object({
-    target: z.string(),
-    path: nullableString,
-    paths: z.array(z.string()).nullable().optional(),
-  })
-  .nullable()
-  .optional();
+const listReadActionSchema = z
+  .object({ target: z.string(), path: nullableString })
+  .nullable();
+const listBrowseActionSchema = z
+  .object({ target: z.string(), paths: z.array(z.string()).nullable() })
+  .nullable();
 
 const listEntrySchema = z.object({
   kind: z.enum(["FILE", "PAGE", "DIRECTORY"]),
   path: z.string(),
   title: nullableString,
-  language: nullableString,
-  fileType: nullableString,
-  intent: nullableString,
-  byteSize: nullableInt,
-  lineCount: nullableInt,
-  contentHash: nullableString,
-  read: listActionSchema,
-  browse: listActionSchema,
+  language: optionalNullableString,
+  fileType: optionalNullableString,
+  intent: optionalNullableString,
+  byteSize: optionalNullableInt,
+  lineCount: optionalNullableInt,
+  contentHash: optionalNullableString,
+  read: listReadActionSchema,
+  browse: listBrowseActionSchema,
 });
 
 const availableVersionSchema = z.object({
@@ -264,15 +270,15 @@ const targetIdentitySchema = z.object({
 });
 
 const targetResolutionSchema = z.object({
-  requested: targetIdentitySchema.nullable().optional(),
-  resolvedRequested: targetIdentitySchema.nullable().optional(),
-  served: targetIdentitySchema.nullable().optional(),
+  requested: targetIdentitySchema.nullable(),
+  resolvedRequested: targetIdentitySchema.nullable(),
+  served: targetIdentitySchema.nullable(),
   freshness: nullableString,
   freshnessReason: nullableString,
   indexingRef: nullableString,
-  availableVersions: z.array(availableVersionSchema).nullable().optional(),
-  availableRefs: z.array(availableVersionSchema).nullable().optional(),
-  suggestedRefs: z.array(availableVersionSchema).nullable().optional(),
+  availableVersions: z.array(availableVersionSchema).nullable(),
+  availableRefs: z.array(availableVersionSchema).nullable(),
+  suggestedRefs: z.array(availableVersionSchema).nullable(),
 });
 
 const indexingEstimateSchema = z.object({
@@ -295,8 +301,7 @@ const sitePreparationSchema = z
       }),
     ),
   })
-  .nullable()
-  .optional();
+  .nullable();
 
 const listResultSchema = z.object({
   inventoryKind: z.enum(["SOURCE", "SITE"]),
@@ -313,15 +318,9 @@ const listResultSchema = z.object({
   indexingRef: nullableString,
   availableVersions: z.array(availableVersionSchema).nullable().optional(),
   indexingEstimate: indexingEstimateSchema.nullable().optional(),
-  inventoryState: z.enum(["AVAILABLE", "EMPTY"]).nullable().optional(),
-  crawlStatus: z
-    .enum(["IDLE", "RUNNING", "COMPLETE", "FAILED"])
-    .nullable()
-    .optional(),
-  coverageState: z
-    .enum(["NONE", "PARTIAL", "CAPPED", "COMPLETE"])
-    .nullable()
-    .optional(),
+  inventoryState: z.enum(["AVAILABLE", "EMPTY"]).nullable(),
+  crawlStatus: z.enum(["IDLE", "RUNNING", "COMPLETE", "FAILED"]).nullable(),
+  coverageState: z.enum(["NONE", "PARTIAL", "CAPPED", "COMPLETE"]).nullable(),
   coverageReason: nullableString,
   preparation: sitePreparationSchema,
 });
@@ -534,14 +533,14 @@ export class ListServiceImpl implements ListService {
 
     const resultParsed = listResultSchema.safeParse(parsed.data.data?.list);
     if (!resultParsed.success) throw new MalformedListResponseError();
-    const result = resultParsed.data;
+    const result: ListResult = resultParsed.data;
     if (result.hasMore && !result.nextCursor) {
       throw new MalformedListResponseError(
         "Malformed response from the list service: a continuation cursor is missing.",
       );
     }
 
-    return omitNullValues(result) as ListResult;
+    return result;
   }
 }
 
@@ -665,16 +664,4 @@ function createListGraphQLError(
       : undefined,
     typeof extensions?.hint === "string" ? extensions.hint : undefined,
   );
-}
-
-function omitNullValues<T>(value: T): T {
-  if (Array.isArray(value)) {
-    return value.map((item) => omitNullValues(item)) as T;
-  }
-  if (!value || typeof value !== "object") return value;
-  const result: Record<string, unknown> = {};
-  for (const [key, child] of Object.entries(value)) {
-    if (child !== null) result[key] = omitNullValues(child);
-  }
-  return result as T;
 }
