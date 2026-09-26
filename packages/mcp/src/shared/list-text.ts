@@ -200,9 +200,6 @@ function renderReadTarget(
   needsEndOfOptions = false,
 ): string {
   if (surface === "mcp") return `read target=${jsonValue(target)}`;
-  if (containsNul([target])) {
-    return `read target=${jsonValue(target)} (not shell-executable: contains NUL)`;
-  }
   return [
     "githits read",
     ...(needsEndOfOptions || startsWithDash(target) ? ["--"] : []),
@@ -217,9 +214,6 @@ function formatGroupedReadPath(
   if (action.path === null || action.path === undefined)
     return "read path=null";
   if (surface === "mcp") return `read path=${jsonValue(action.path)}`;
-  if (containsNul([action.path])) {
-    return `read path=${jsonValue(action.path)} (not shell-executable: contains NUL)`;
-  }
   return `read path ${shellQuoteExact(action.path)}`;
 }
 

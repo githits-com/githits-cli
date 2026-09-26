@@ -2,7 +2,7 @@ export function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 
-/** Quote a value exactly for shells such as Bash and Zsh that support ANSI-C quoting. */
+/** Quote values for shells with ANSI-C quoting; callers must handle NUL separately. */
 export function shellQuoteExact(value: string): string {
   if (hasShellControl(value)) {
     let escaped = "";
@@ -16,7 +16,10 @@ export function shellQuoteExact(value: string): string {
         codePoint <= 0x1f ||
         (codePoint >= 0x7f && codePoint <= 0x9f)
       ) {
-        escaped += `\\u${codePoint.toString(16).padStart(4, "0")}`;
+        const bytes = codePoint <= 0x7f ? [codePoint] : [0xc2, codePoint];
+        escaped += bytes
+          .map((byte) => `\\x${byte.toString(16).padStart(2, "0")}`)
+          .join("");
       } else {
         escaped += character;
       }
