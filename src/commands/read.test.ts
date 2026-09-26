@@ -1,5 +1,9 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import {
+  CodeNavigationBackendError,
+  CodeNavigationFileNotFoundError,
+} from "@githits/core-internal";
+import {
   AuthRequiredError,
   InvalidPackageSpecError,
 } from "@githits/mcp/internal";
@@ -28,6 +32,304 @@ function deps(): ReadCommandDependencies {
 }
 
 describe("top-level read", () => {
+  it.each([
+    ["npm:express@5.2.1", "npm", "express", undefined, undefined],
+    [
+      "github:owner/repo@abc123",
+      undefined,
+      undefined,
+      "https://github.com/owner/repo",
+      "abc123",
+    ],
+  ])(
+    "preserves exact-file JSON identity for %s",
+    async (target, registry, name, repoUrl, gitRef) => {
+      const services = deps();
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await readAction(target, "src/index.ts", { json: true }, services);
+        expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+          ...(registry ? { registry, name } : { repoUrl, gitRef }),
+          path: defaultReadFileResult.filePath,
+          content: defaultReadFileResult.content,
+        });
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
+
+  it("uses the served SHA for a snapshot page ID plus matching path", async () => {
+    const services = deps();
+    const sha = "0123456789abcdef0123456789abcdef01234567";
+    const target = `github:owner/repo@${sha}/docs/guide.md`;
+    services.readService.read = mock(() =>
+      Promise.resolve({
+        source: "code" as const,
+        result: {
+          ...defaultReadFileResult,
+          filePath: "docs/guide.md",
+          targetResolution: {
+            served: { commitSha: sha },
+            availableVersions: [],
+            availableRefs: [],
+          },
+        },
+      }),
+    );
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await readAction(target, "docs/guide.md", { json: true }, services);
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target,
+        path: "docs/guide.md",
+        waitTimeoutMs: 30_000,
+      });
+      expect(services.readService.read).toHaveBeenCalledTimes(1);
+      expect(services.codeNavigationService!.readFile).not.toHaveBeenCalled();
+      expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+        repoUrl: "https://github.com/owner/repo",
+        gitRef: sha,
+        path: "docs/guide.md",
+      });
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it.each([
+    ["", {}],
+    ["#overview", {}],
+    ["", { start: "5", end: "9" }],
+  ])(
+    "forwards a snapshot page ID%s unchanged as an indexed file",
+    async (suffix, options) => {
+      const services = deps();
+      services.readService.read = mock(() =>
+        Promise.resolve({
+          source: "code" as const,
+          result: defaultReadFileResult,
+        }),
+      );
+      const target = `github:owner/repo@0123456789abcdef0123456789abcdef01234567/docs/guide.md${suffix}`;
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await readAction(
+          target,
+          undefined,
+          { ...options, json: true },
+          services,
+        );
+        expect(services.readService.read).toHaveBeenCalledWith(
+          expect.objectContaining({
+            target,
+            ...("start" in options ? { startLine: 5, endLine: 9 } : {}),
+          }),
+        );
+        expect(services.readService.read).toHaveBeenCalledTimes(1);
+        expect(services.codeNavigationService!.readFile).not.toHaveBeenCalled();
+        expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toHaveProperty(
+          "content",
+        );
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
+
+  it("rejects an invalid compact exact-file target locally", async () => {
+    const services = deps();
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    try {
+      await expect(
+        readAction(
+          "site:example.com",
+          "src/index.ts",
+          { json: true },
+          services,
+        ),
+      ).rejects.toThrow("exit");
+      expect(JSON.parse(String(error.mock.calls[0]?.[0])).code).toBe(
+        "INVALID_ARGUMENT",
+      );
+      expect(services.readService.read).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+      exit.mockRestore();
+    }
+  });
+
+  it("preserves the exact-file verbose header", async () => {
+    const write = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+    try {
+      await readAction(
+        "npm:express",
+        "src/index.ts",
+        { verbose: true },
+        deps(),
+      );
+      expect(String(write.mock.calls[0]?.[0])).toContain(
+        "src/index.js · javascript · lines 1-5 of 5",
+      );
+    } finally {
+      write.mockRestore();
+    }
+  });
+
+  it.each([
+    ["src/index.ts:3-8", {}, 3, 8],
+    ["src/index.ts", { lines: "-40" }, 1, 40],
+    ["src/index.ts", { start: "3", end: "8" }, 3, 8],
+  ])(
+    "preserves exact-file range %s %j",
+    async (path, options, startLine, endLine) => {
+      const services = deps();
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await readAction(
+          "npm:express",
+          path,
+          { ...options, json: true },
+          services,
+        );
+        expect(services.readService.read).toHaveBeenCalledWith(
+          expect.objectContaining({
+            target: "npm:express",
+            path: "src/index.ts",
+            startLine,
+            endLine,
+          }),
+        );
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
+
+  it.each([
+    ["src/index.ts:3-8", { lines: "4-5" }, "Use one line-range form only"],
+    [
+      "src/index.ts",
+      { lines: "4-5", start: "3" },
+      "Use one line-range form only",
+    ],
+    [
+      "src/index.ts",
+      { start: "8", end: "3" },
+      "--start (8) must be ≤ --end (3)",
+    ],
+    ["src/", {}, "`<path>` must be an exact file path"],
+  ])(
+    "rejects invalid exact-file input before transport: %s %j",
+    async (path, options, message) => {
+      const services = deps();
+      const error = spyOn(console, "error").mockImplementation(() => {});
+      const exit = spyOn(process, "exit").mockImplementation((() => {
+        throw new Error("exit");
+      }) as never);
+      try {
+        await expect(
+          readAction("npm:express", path, { ...options, json: true }, services),
+        ).rejects.toThrow("exit");
+        expect(String(error.mock.calls[0]?.[0])).toContain(message);
+        expect(services.readService.read).not.toHaveBeenCalled();
+      } finally {
+        error.mockRestore();
+        exit.mockRestore();
+      }
+    },
+  );
+
+  it("does not parse a path range on a symbol read", async () => {
+    const services = deps();
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await readAction(
+        "npm:express#createApp",
+        "src/index.ts:3-8",
+        { json: true },
+        services,
+      );
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target: "npm:express#createApp",
+        path: "src/index.ts:3-8",
+        waitTimeoutMs: 30_000,
+      });
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it.each([
+    new CodeNavigationFileNotFoundError(
+      "File not found: docs/missing.md",
+      "docs/missing.md",
+    ),
+    new CodeNavigationBackendError(
+      "Exact path is not queryable.",
+      undefined,
+      "FILE_PATH_EXCLUDED",
+      false,
+      { filePath: "docs/missing.md" },
+    ),
+    new CodeNavigationBackendError(
+      "Exact path is not queryable.",
+      undefined,
+      "SOURCE_FILE_INVENTORY_UNKNOWN",
+      false,
+      { filePath: "docs/missing.md" },
+    ),
+  ])("preserves exact-file JSON recovery for %s", async (failure) => {
+    const services = deps();
+    services.readService.read = mock(() => Promise.reject(failure));
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    try {
+      await expect(
+        readAction("npm:express", "docs/missing.md", { json: true }, services),
+      ).rejects.toThrow("exit");
+      const payload = JSON.parse(String(error.mock.calls[0]?.[0]));
+      expect(payload.details.action).toContain("`githits code files`");
+      expect(payload.details.action).toContain("`githits read`");
+    } finally {
+      error.mockRestore();
+      exit.mockRestore();
+    }
+  });
+
+  it("preserves the exact-file text recovery hint", async () => {
+    const services = deps();
+    services.readService.read = mock(() =>
+      Promise.reject(
+        new CodeNavigationFileNotFoundError(
+          "File not found: docs/missing.md",
+          "docs/missing.md",
+        ),
+      ),
+    );
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as never);
+    try {
+      await expect(
+        readAction("npm:express", "docs/missing.md", {}, services),
+      ).rejects.toThrow("exit");
+      expect(String(error.mock.calls[0]?.[0])).toContain(
+        "Use `code files` to list available paths.",
+      );
+    } finally {
+      error.mockRestore();
+      exit.mockRestore();
+    }
+  });
   it.each([undefined, "index.js"])(
     "reads a compact symbol fragment with optional exact path %s",
     async (path) => {

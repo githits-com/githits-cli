@@ -1,7 +1,12 @@
-import type { ReadService } from "@githits/core-internal";
 import {
-  createReadFileServiceAdapter,
+  MalformedCodeNavigationResponseError,
+  type ReadService,
+  toPkgseerRegistryLowercase,
+} from "@githits/core-internal";
+import {
+  buildReadFileSuccessPayload,
   DEFAULT_WAIT_TIMEOUT_MS,
+  formatReadFileTerminal,
   formatReadResult,
   InvalidPackageSpecError,
   MAX_WAIT_TIMEOUT_MS,
@@ -19,13 +24,19 @@ import { createContainer } from "../container.js";
 import { recordCliErrorClassification } from "../shared/cli-error-diagnostics.js";
 import { startSpinner } from "../shared/spinner.js";
 import {
+  formatFileErrorWithFilesHint,
   handleCodeNavCommandError,
   parseIntCliOption,
+  resolveCliCodeNavTarget,
+  withCliReadFileRecovery,
 } from "./code/code-nav-cli-helpers.js";
 import {
+  buildCliReadFileParams,
   type PkgReadCommandDependencies,
   type PkgReadCommandOptions,
+  parsePathWithOptionalRange,
   pkgReadAction,
+  resolveLineRange,
 } from "./code/read.js";
 import {
   buildCliMappedErrorPayload,
@@ -51,10 +62,12 @@ export async function readAction(
     throw error;
   }
 
-  if (
-    options.selector !== undefined ||
-    (!options.repoUrl && (!secondArg?.trim() || firstArg?.includes("#")))
-  ) {
+  if (options.selector !== undefined || !options.repoUrl) {
+    let requestedFilePath = "";
+    let exactFile = false;
+    let exactRequest:
+      | ReturnType<typeof buildCliReadFileParams>["params"]
+      | undefined;
     try {
       const selector = options.selector;
       if (selector !== undefined && !selector.trim())
@@ -74,7 +87,17 @@ export async function readAction(
         : (firstArg ?? "");
       const path = options.repoUrl ? firstArg : secondArg;
       const locator = resolveReadLocator(target, path);
+      exactFile =
+        selector === undefined &&
+        locator.path !== undefined &&
+        !locator.target.includes("#");
+      const pathWithRange =
+        exactFile && locator.path
+          ? parsePathWithOptionalRange(locator.path)
+          : undefined;
+      if (pathWithRange) requestedFilePath = pathWithRange.filePath;
       if (
+        !exactFile &&
         options.lines !== undefined &&
         (options.start !== undefined || options.end !== undefined)
       ) {
@@ -82,31 +105,47 @@ export async function readAction(
           "Use --lines or --start / --end, not both.",
         );
       }
-      const range = options.lines
-        ? parseLinesOption(options.lines)
-        : {
-            startLine: parseIntCliOption(
-              options.start,
-              "--start",
-              1,
-              Number.MAX_SAFE_INTEGER,
-            ),
-            endLine: parseIntCliOption(
-              options.end,
-              "--end",
-              1,
-              Number.MAX_SAFE_INTEGER,
-            ),
-          };
-      validateReadRange(range.startLine, range.endLine);
+      const range = pathWithRange
+        ? resolveLineRange(options, pathWithRange)
+        : options.lines
+          ? parseLinesOption(options.lines)
+          : {
+              startLine: parseIntCliOption(
+                options.start,
+                "--start",
+                1,
+                Number.MAX_SAFE_INTEGER,
+              ),
+              endLine: parseIntCliOption(
+                options.end,
+                "--end",
+                1,
+                Number.MAX_SAFE_INTEGER,
+              ),
+            };
+      if (!exactFile) validateReadRange(range.startLine, range.endLine);
       const wait = normalizeReadWaitTimeoutMs(
         parseIntCliOption(options.wait, "--wait", 0, MAX_WAIT_TIMEOUT_MS),
       );
+      if (pathWithRange) {
+        const exactTarget = resolveCliCodeNavTarget(locator.target, {});
+        const build = buildCliReadFileParams({
+          target: exactTarget,
+          filePath: pathWithRange.filePath,
+          startLine: range.startLine,
+          endLine: range.endLine,
+          waitTimeoutMs: wait,
+        });
+        exactRequest = build.params;
+        requestedFilePath = exactRequest.filePath;
+      }
       const spinner = startSpinner("Reading indexed content...", !options.json);
       const response = await deps.readService
         .read({
           target: locator.target,
-          ...(locator.path ? { path: locator.path } : {}),
+          ...(locator.path
+            ? { path: exactRequest?.filePath ?? locator.path }
+            : {}),
           ...(selector !== undefined ? { selector } : {}),
           ...(range.startLine !== undefined
             ? { startLine: range.startLine }
@@ -115,6 +154,37 @@ export async function readAction(
           waitTimeoutMs: wait,
         })
         .finally(() => spinner.stop());
+      if (exactRequest) {
+        if (response.source !== "code") {
+          throw new MalformedCodeNavigationResponseError(
+            "Malformed response from code navigation service.",
+          );
+        }
+        const servedSha = response.result.targetResolution?.served?.commitSha;
+        // Current repository-page IDs append the file path to a pinned SHA.
+        // The code-target parser treats that suffix as part of the ref.
+        const snapshotPageId =
+          /@[a-f0-9]{40}\//i.test(locator.target) &&
+          locator.target.endsWith(`/${requestedFilePath}`);
+        const payload = buildReadFileSuccessPayload(response.result, {
+          registry: exactRequest.target.registry
+            ? toPkgseerRegistryLowercase(exactRequest.target.registry)
+            : undefined,
+          name: exactRequest.target.packageName,
+          repoUrl: exactRequest.target.repoUrl,
+          gitRef: snapshotPageId ? servedSha : exactRequest.target.gitRef,
+          requestedFilePath,
+        });
+        if (options.json) console.log(JSON.stringify(payload));
+        else
+          process.stdout.write(
+            formatReadFileTerminal(payload, {
+              useColors: shouldUseColors(),
+              verbose: options.verbose,
+            }),
+          );
+        return;
+      }
       const rendered = formatReadResult(
         response,
         {
@@ -131,6 +201,15 @@ export async function readAction(
       else process.stdout.write(rendered);
       return;
     } catch (error) {
+      if (exactFile) {
+        handleCodeNavCommandError(
+          error,
+          options.json ?? false,
+          formatFileErrorWithFilesHint,
+          1,
+          (mapped) => withCliReadFileRecovery(mapped, requestedFilePath),
+        );
+      }
       const docsError = mapPackageIntelligenceError(error);
       const mapped =
         docsError.code !== "UNKNOWN"
@@ -149,27 +228,7 @@ export async function readAction(
   }
 
   // Explicit repo mode keeps the existing single-path positional contract.
-  if (options.repoUrl !== undefined) {
-    return pkgReadAction(firstArg, secondArg, options, deps);
-  }
-  let target: string;
-  let path: string | undefined;
-  try {
-    ({ target, path } = resolveReadLocator(firstArg ?? "", secondArg));
-  } catch (error) {
-    handleCodeNavCommandError(
-      error,
-      options.json ?? false,
-      formatMappedErrorForTerminal,
-    );
-  }
-  await pkgReadAction(target, path, options, {
-    ...deps,
-    codeNavigationService: createReadFileServiceAdapter(
-      deps.readService,
-      target,
-    ),
-  });
+  return pkgReadAction(firstArg, secondArg, options, deps);
 }
 
 export function registerReadCommand(program: Command): Command {
@@ -177,7 +236,7 @@ export function registerReadCommand(program: Command): Command {
     .command("read")
     .summary("Read an indexed file, code symbol, or docs section")
     .description(
-      "Read an exact file with <target> <path>, a code symbol with <target>#symbol (optional exact path), or a docs page with <target>. The resolved target determines code or docs presentation; preserve emitted docs locators. --selector selects a code symbol or docs heading by its fragment ID; do not combine it with a docs URL fragment. Hosted/crawled docs read mutable current content; repository docs are snapshot-addressed. An HTTP(S) docs URL fragment selects the heading's full subtree; explicit bounds select a page-relative range instead. Output is complete for piping.",
+      "Read an exact file with <target> <path> (optionally <path>:N-M), a code symbol with <target>#symbol (optional exact path), or a docs page with <target>. The resolved target determines code or docs presentation; preserve emitted docs locators. --selector selects a code symbol or docs heading by its fragment ID; do not combine it with a docs URL fragment. Hosted/crawled docs read mutable current content; repository docs are snapshot-addressed and return indexed file content. An HTTP(S) docs URL fragment selects the heading's full subtree; explicit bounds select a page-relative range instead. Output is complete for piping.",
     )
     .argument(
       "[target-or-path]",

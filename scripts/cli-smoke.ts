@@ -59,6 +59,7 @@ interface JsonParityFixture {
   cliArgs: string[];
   mcpTool: string;
   mcpArgs: Record<string, unknown>;
+  expectedStatus?: string;
 }
 
 const DEFAULT_TEXT_LIMIT = 20_000;
@@ -206,19 +207,19 @@ export const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
   },
   {
     name: "read_selector_code_miss",
+    expectedStatus: "NOT_FOUND",
     cliArgs: [
       "read",
-      "github:githits-com/githits-cli@af1ae5d1f9eb02a0d3a7968e69df0c41bcc2f4a5",
-      "src/container.ts",
+      SMOKE_PACKAGE_SPEC,
+      "package.json",
       "--selector",
       "main",
       "--json",
     ],
     mcpTool: "read",
     mcpArgs: {
-      target:
-        "github:githits-com/githits-cli@af1ae5d1f9eb02a0d3a7968e69df0c41bcc2f4a5",
-      path: "src/container.ts",
+      target: SMOKE_PACKAGE_SPEC,
+      path: "package.json",
       selector: "main",
       format: "json",
     },
@@ -948,6 +949,15 @@ async function assertJsonParity(
           jsonContractShape(cliPayload),
           `${fixture.name} CLI/MCP JSON shape`,
         );
+        if (fixture.expectedStatus !== undefined) {
+          assertRecord(cliPayload, `${fixture.name} CLI status`);
+          assertRecord(mcpPayload, `${fixture.name} MCP status`);
+          assert(
+            cliPayload.status === fixture.expectedStatus &&
+              mcpPayload.status === fixture.expectedStatus,
+            `${fixture.name} CLI/MCP status should be ${fixture.expectedStatus}; got CLI ${String(cliPayload.status)}, MCP ${String(mcpPayload.status)}`,
+          );
+        }
       });
     },
   );
@@ -2076,6 +2086,28 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "docs read repo-backed ID json missing snapshot locators, content, or range",
   );
 
+  const snapshotPath = /@[a-f0-9]{40}\/(.+)$/i.exec(
+    repoPage.docsReadTarget as string,
+  )?.[1];
+  assert(snapshotPath, "repo-backed target must contain a snapshot file path");
+  const snapshotFileRead = assertJsonOutput(
+    await runCli([
+      "read",
+      repoPage.docsReadTarget as string,
+      snapshotPath,
+      "--json",
+    ]),
+    "unified read repo-backed ID plus path json",
+  );
+  assertRecord(snapshotFileRead, "unified read repo-backed ID plus path json");
+  assert(
+    snapshotFileRead.path === snapshotPath &&
+      typeof snapshotFileRead.content === "string" &&
+      snapshotFileRead.gitRef ===
+        /@([a-f0-9]{40})\//i.exec(repoPage.docsReadTarget as string)?.[1],
+    "unified read repo-backed ID plus path lost snapshot file identity",
+  );
+
   assertJsonErrorCode(
     await runCli([
       "docs",
@@ -2154,6 +2186,26 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   assert(
     typeof codeReadJson.content === "string",
     "code read json missing content",
+  );
+
+  const unifiedCodeReadJson = assertJsonOutput(
+    await runCli([
+      "read",
+      SMOKE_PACKAGE_SPEC,
+      "package.json",
+      "--lines",
+      "1-5",
+      "--json",
+    ]),
+    "unified read exact file json",
+  );
+  assertRecord(unifiedCodeReadJson, "unified read exact file json");
+  assert(
+    unifiedCodeReadJson.path === codeReadJson.path &&
+      unifiedCodeReadJson.content === codeReadJson.content &&
+      unifiedCodeReadJson.registry === codeReadJson.registry &&
+      unifiedCodeReadJson.name === codeReadJson.name,
+    "unified read exact file changed legacy content or target identity",
   );
 
   const codeReadInvalid = await runCli([
