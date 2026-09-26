@@ -51,9 +51,7 @@ export function formatListText(
     );
   }
 
-  const rowLabels = result.entries.map((entry) =>
-    sanitizeText(plainRowLabel(entry)),
-  );
+  const rowLabels = result.entries.map((entry) => plainRowLabel(entry));
   const rowColumnWidth = alignedWidth(rowLabels, options.width);
   for (let index = 0; index < result.entries.length; index += 1) {
     const entry = result.entries[index];
@@ -159,8 +157,7 @@ function formatEntry(
 }
 
 function plainRowLabel(entry: ListEntry): string {
-  const path =
-    entry.path === null ? "null" : JSON.stringify(sanitizeText(entry.path));
+  const path = entry.path === null ? "null" : jsonValue(entry.path);
   return `${entry.kind} ${path}`;
 }
 
@@ -510,21 +507,4 @@ function containsNul(values: readonly string[]): boolean {
 
 function startsWithDash(value: string): boolean {
   return value.startsWith("-");
-}
-
-function sanitizeText(value: string): string {
-  let sanitized = "";
-  for (const character of value) {
-    const codePoint = character.codePointAt(0) ?? 0;
-    if (
-      codePoint <= 0x1f ||
-      (codePoint >= 0x7f && codePoint <= 0x9f) ||
-      (codePoint >= 0xd800 && codePoint <= 0xdfff)
-    ) {
-      sanitized += `\\u{${codePoint.toString(16)}}`;
-    } else {
-      sanitized += character;
-    }
-  }
-  return sanitized;
 }
