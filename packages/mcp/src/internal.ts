@@ -28,6 +28,7 @@ export * from "./shared/grep-repo-request.js";
 export * from "./shared/grep-repo-response.js";
 export * from "./shared/grep-repo-text.js";
 export * from "./shared/language-filter.js";
+export * from "./shared/list-error-map.js";
 export * from "./shared/list-files-request.js";
 export * from "./shared/list-files-response.js";
 export * from "./shared/list-files-text.js";

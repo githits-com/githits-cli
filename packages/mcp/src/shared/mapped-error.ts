@@ -15,6 +15,9 @@ export type MappedErrorCode =
   | "FILE_NOT_FOUND"
   | "FILE_PATH_EXCLUDED"
   | "SOURCE_FILE_INVENTORY_UNKNOWN"
+  | "SOURCE_INVENTORY_SCOPE_UNAVAILABLE"
+  | "LIST_UNSUPPORTED_API"
+  | "LIST_PAGE_TOO_LARGE"
   | "REF_NOT_FOUND"
   | "VERSION_NOT_FOUND"
   | "INDEXING"
@@ -56,6 +59,8 @@ export interface MappedErrorDetails {
   package?: string;
   /** Repository URL for `REF_NOT_FOUND`. */
   repoUrl?: string;
+  /** Served commit SHA accompanying a repository-scope alternative. */
+  commitSha?: string;
   /** Git ref the caller asked for (for `REF_NOT_FOUND`). */
   requestedRef?: string;
   /** The exact file path involved in a path-authority error. */
