@@ -895,7 +895,8 @@ describe("runMcpSmoke", () => {
 
 const SMOKE_CRAWLED_DOC_TARGET = "https://expressjs.com/en/guide/routing.html";
 const SMOKE_CRAWLED_DOC_ID = "legacy-routing-id";
-const SMOKE_REPO_DOC_ID = "github:expressjs/express@abc123/README.md";
+const SMOKE_REPO_SHA = "0123456789abcdef0123456789abcdef01234567";
+const SMOKE_REPO_DOC_ID = `github:expressjs/express@${SMOKE_REPO_SHA}/README.md`;
 
 function smokeResponse(
   name: string,
@@ -1102,8 +1103,7 @@ function smokeJsonResponse(
             docsReadTarget: SMOKE_REPO_DOC_ID,
             pageId: SMOKE_REPO_DOC_ID,
             sourceKind: "repo",
-            sourceUrl:
-              "https://github.com/expressjs/express/blob/abc123/README.md",
+            sourceUrl: `https://github.com/expressjs/express/blob/${SMOKE_REPO_SHA}/README.md`,
           },
           ...(args.limit === 1
             ? []
@@ -1125,15 +1125,20 @@ function smokeJsonResponse(
       ) {
         return errorResult("NOT_FOUND");
       }
-      const repoBacked = args.target === SMOKE_REPO_DOC_ID;
+      if (args.target === SMOKE_REPO_DOC_ID) {
+        return jsonResult({
+          path: "README.md",
+          content: "documentation content",
+          startLine: 1,
+          endLine: 1,
+          totalLines: 1,
+          targetResolution: { served: { commitSha: SMOKE_REPO_SHA } },
+        });
+      }
       return jsonResult({
-        docsReadTarget: repoBacked
-          ? SMOKE_REPO_DOC_ID
-          : SMOKE_CRAWLED_DOC_TARGET,
-        pageId: repoBacked ? SMOKE_REPO_DOC_ID : SMOKE_CRAWLED_DOC_ID,
-        sourceUrl: repoBacked
-          ? "https://github.com/expressjs/express/blob/abc123/README.md"
-          : SMOKE_CRAWLED_DOC_TARGET,
+        docsReadTarget: SMOKE_CRAWLED_DOC_TARGET,
+        pageId: SMOKE_CRAWLED_DOC_ID,
+        sourceUrl: SMOKE_CRAWLED_DOC_TARGET,
         content: "documentation content",
         startLine: 1,
         endLine: 1,
