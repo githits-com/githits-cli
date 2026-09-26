@@ -34,8 +34,20 @@ export function formatListText(
   const lines = [formatHeader(result, options)];
   const groupedReadTarget = findSharedSourceReadTarget(result);
   if (groupedReadTarget !== undefined) {
+    const groupedReadNeedsEndOfOptions =
+      startsWithDash(groupedReadTarget) ||
+      result.entries.some(
+        (entry) =>
+          entry.kind === "FILE" &&
+          entry.read?.target === groupedReadTarget &&
+          entry.read.path?.startsWith("-") === true,
+      );
     lines.push(
-      `Read target: ${renderReadTarget(groupedReadTarget, options.surface)}`,
+      `Read target: ${renderReadTarget(
+        groupedReadTarget,
+        options.surface,
+        groupedReadNeedsEndOfOptions,
+      )}`,
     );
   }
 
@@ -185,12 +197,17 @@ function findSharedSourceReadTarget(result: ListResult): string | undefined {
 function renderReadTarget(
   target: string,
   surface: FormatListTextOptions["surface"],
+  needsEndOfOptions = false,
 ): string {
   if (surface === "mcp") return `read target=${jsonValue(target)}`;
   if (containsNul([target])) {
     return `read target=${jsonValue(target)} (not shell-executable: contains NUL)`;
   }
-  return `githits read ${shellQuoteExact(target)}`;
+  return [
+    "githits read",
+    ...(needsEndOfOptions || startsWithDash(target) ? ["--"] : []),
+    shellQuoteExact(target),
+  ].join(" ");
 }
 
 function formatGroupedReadPath(
@@ -227,12 +244,16 @@ function renderReadAction(
         "(not shell-executable: contains NUL)",
       ].join(" ");
     }
+    const positionals = [
+      action.target,
+      ...(action.path !== undefined && action.path !== null
+        ? [action.path]
+        : []),
+    ];
     return [
       "githits read",
-      shellQuoteExact(action.target),
-      ...(action.path !== undefined && action.path !== null
-        ? [shellQuoteExact(action.path)]
-        : []),
+      ...(positionals.some(startsWithDash) ? ["--"] : []),
+      ...positionals.map((value) => shellQuoteExact(value)),
     ].join(" ");
   }
   return [

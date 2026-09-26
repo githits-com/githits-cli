@@ -704,4 +704,84 @@ describe("formatListText", () => {
     expect(words.slice(0, marker)).toContain("--after");
     expect(words.slice(marker + 1)).toEqual(["-github:example/repo", "-docs"]);
   });
+
+  it("keeps individual and grouped read actions safe for dash-leading operands", () => {
+    const individualText = formatListText(
+      sourceResult({
+        entries: [
+          file("target dash", "-github:example/repo", "src/file.ts"),
+          file("path dash", "github:example/repo", "-docs/file.md"),
+        ],
+      }),
+      params(),
+      options({ surface: "cli" }),
+    );
+    const individualRows = individualText
+      .split("\n")
+      .filter((line) => line.startsWith("FILE "));
+    expect(
+      individualRows.map((line) => {
+        const actionStart = line.indexOf("read: ");
+        return parseShellWords(line.slice(actionStart + "read: ".length));
+      }),
+    ).toEqual([
+      ["githits", "read", "--", "-github:example/repo", "src/file.ts"],
+      ["githits", "read", "--", "github:example/repo", "-docs/file.md"],
+    ]);
+
+    const sharedTarget = "github:example/shared";
+    const groupedPathText = formatListText(
+      sourceResult({
+        requestedTarget: "shared source",
+        canonicalTarget: "shared source",
+        entries: [
+          file("normal path", sharedTarget, "src/file.ts"),
+          file("dash path", sharedTarget, "-docs/file.md"),
+        ],
+      }),
+      params(),
+      options({ surface: "cli" }),
+    );
+    const groupedPathHeader = groupedPathText
+      .split("\n")
+      .find((line) => line.startsWith("Read target: "));
+    const groupedPathRows = groupedPathText
+      .split("\n")
+      .filter((line) => line.startsWith("FILE "));
+    if (!groupedPathHeader) throw new Error("Missing grouped read target.");
+    const groupedPathPrefix = parseShellWords(
+      groupedPathHeader.slice("Read target: ".length),
+    );
+    expect(groupedPathPrefix).toEqual(["githits", "read", "--", sharedTarget]);
+    const groupedPaths = groupedPathRows.map((line) => {
+      const pathStart = line.indexOf("read path ");
+      return parseShellWords(line.slice(pathStart + "read path ".length));
+    });
+    expect(groupedPaths).toEqual([["src/file.ts"], ["-docs/file.md"]]);
+    expect(groupedPathRows.join("\n")).not.toContain("githits read");
+
+    const dashTarget = "-github:example/shared";
+    const groupedTargetText = formatListText(
+      sourceResult({
+        requestedTarget: "shared source",
+        canonicalTarget: "shared source",
+        entries: [
+          file("first", dashTarget, "src/first.ts"),
+          file("second", dashTarget, "src/second.ts"),
+        ],
+      }),
+      params(),
+      options({ surface: "cli" }),
+    );
+    const groupedTargetHeader = groupedTargetText
+      .split("\n")
+      .find((line) => line.startsWith("Read target: "));
+    if (!groupedTargetHeader) throw new Error("Missing grouped read target.");
+    expect(
+      parseShellWords(groupedTargetHeader.slice("Read target: ".length)),
+    ).toEqual(["githits", "read", "--", dashTarget]);
+    expect(groupedTargetText.match(/-github:example\/shared/gu)).toHaveLength(
+      1,
+    );
+  });
 });
