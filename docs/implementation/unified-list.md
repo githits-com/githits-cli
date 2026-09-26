@@ -94,6 +94,19 @@ matching, inventory scope, hierarchy, or site membership; those semantics are
 owned by the backend contract and require backend-side or live conformance
 evidence.
 
+Authenticated live CLI conformance on 2026-09-26 verified that the hosted
+endpoint exposes `Query.list` for package, repository, and site targets. The
+run covered literal and union paths, `**` and character-class globs, source and
+site directory recursion, combined file-type/language/intent filters,
+dot-prefixed root entries, package and site pagination, cursor selection
+binding, source-only filter rejection for sites, indexing wait, package-scope
+failure with its explicit pinned-repository alternative, and exact emitted
+read, browse, and continuation actions. It used Express and Lodash packages,
+the Express and Requests repositories, and React and Node.js documentation
+sites. All 16 checks passed. Phase 2 still owns the remaining live cases for
+`?`, escaped glob metacharacters, union deduplication, package-boundary
+isolation, and the MCP/agent surface.
+
 ## Key reference files
 
 | File | Responsibility |
