@@ -21,6 +21,7 @@ describe("authenticated command metadata", () => {
       "search",
       "search-status",
       "read",
+      "list",
       "code files",
       "code read",
       "code grep",
@@ -39,6 +40,15 @@ describe("authenticated command metadata", () => {
       path: "read",
       autoLoginEligible: true,
       postLoginMessage: "Authentication complete. Running command...",
+      jsonCapable: true,
+    });
+  });
+
+  it("marks unified list as auto-login eligible and JSON-capable", () => {
+    expect(getAuthenticatedCommandMetadata("list")).toEqual({
+      path: "list",
+      autoLoginEligible: true,
+      postLoginMessage: "Authentication complete. Listing target inventory...",
       jsonCapable: true,
     });
   });

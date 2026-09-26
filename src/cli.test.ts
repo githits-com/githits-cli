@@ -5,6 +5,7 @@ import {
   registerDocsCommandGroup,
   registerExampleCommand,
   registerLanguagesCommand,
+  registerListCommand,
   registerPkgCommandGroup,
   registerUnifiedSearchCommands,
 } from "./commands/index.js";
@@ -109,6 +110,7 @@ async function createProgramForHelpSurface(): Promise<Command> {
 
   registerExampleCommand(program);
   registerLanguagesCommand(program);
+  registerListCommand(program);
   await registerUnifiedSearchCommands(program);
   await registerCodeCommandGroup(program, { experimentalTools: true });
   await registerDocsCommandGroup(program);
@@ -206,6 +208,31 @@ describe("root CLI preAction", () => {
     expect(loadAuthSessionMetadata).toHaveBeenCalledTimes(1);
     expect(createContainer).not.toHaveBeenCalled();
     expect(loginFlow).not.toHaveBeenCalled();
+  });
+
+  it("runs the top-level list command through the standard auth metadata gate", async () => {
+    const container = createLoginDeps({ hasValidToken: false });
+    const createContainer = mock(() => Promise.resolve(container));
+    const loginFlow = mock(() =>
+      Promise.resolve({
+        status: "success" as const,
+        message: "Logged in successfully.",
+      }),
+    );
+    const program = createProgramWithRootPreAction({
+      createContainer,
+      loginFlow,
+    });
+    let ran = false;
+    program.command("list").action(() => {
+      ran = true;
+    });
+
+    await program.parseAsync(["node", "githits", "list"]);
+
+    expect(ran).toBe(true);
+    expect(createContainer).toHaveBeenCalledTimes(1);
+    expect(loginFlow).toHaveBeenCalledWith({}, container);
   });
 
   it("clears stale metadata when stored credentials are missing", async () => {
@@ -483,6 +510,7 @@ describe("CLI help surface", () => {
 
     expect(help).toMatch(/^\s{2}example\b/m);
     expect(help).toMatch(/^\s{2}languages\b/m);
+    expect(help).toMatch(/^\s{2}list\b/m);
     expect(help).not.toMatch(/^\s{2}feedback\b/m);
     expect(help).toMatch(/^\s{2}search\b/m);
     expect(help).toMatch(/^\s{2}code\b/m);

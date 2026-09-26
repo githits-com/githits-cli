@@ -2,6 +2,7 @@ import { describe, expect, it, spyOn } from "bun:test";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
+  createMockListService,
   createMockPackageIntelligenceService,
 } from "../services/test-helpers.js";
 import { pkgFilesAction } from "./code/files.js";
@@ -11,6 +12,7 @@ import { docsListAction } from "./docs/list.js";
 import { docsReadAction } from "./docs/read.js";
 import { exampleAction } from "./example.js";
 import { languagesAction } from "./languages.js";
+import { listAction } from "./list.js";
 import { pkgChangelogAction } from "./pkg/changelog.js";
 import { pkgDepsAction } from "./pkg/deps.js";
 import { pkgInfoAction } from "./pkg/info.js";
@@ -38,6 +40,11 @@ const packageDeps = {
   ...missingAuth,
   codeNavigationUrl: "https://pkgseer.dev",
   packageIntelligenceService: createMockPackageIntelligenceService(),
+};
+
+const listDeps = {
+  ...missingAuth,
+  listService: createMockListService(),
 };
 
 describe("authenticated command JSON auth failures", () => {
@@ -83,6 +90,10 @@ describe("authenticated command JSON auth failures", () => {
     {
       name: "docs list",
       run: () => docsListAction("npm:express", { json: true }, packageDeps),
+    },
+    {
+      name: "unified list",
+      run: () => listAction("npm:express", undefined, { json: true }, listDeps),
     },
     {
       name: "docs read",

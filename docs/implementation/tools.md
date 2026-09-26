@@ -150,6 +150,13 @@ see [Unified read](unified-read.md).
 
 ## Current Tools
 
+The root CLI has a separate `githits list <target> [paths...]` command backed by
+`Query.list`. It lists package/repository source inventories (including
+package-local documentation files) or an explicitly targeted `site:` inventory.
+The MCP catalog in this document remains on `code_files` and `docs_list` until
+the later MCP migration; this CLI command does not change their schemas or
+execution.
+
 | Tool | Parameters | Description |
 |---|---|---|
 | `quick_start` | none | Required first call for a plain GitHits MCP session. Loads untrusted-content safety rules, cross-tool routing, target syntax, and compact-output rules. A plain session that skips it lacks those rules; skip only when the `githits-mcp` skill is loaded. |

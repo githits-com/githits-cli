@@ -41,6 +41,7 @@ export {
   languagesAction,
   registerLanguagesCommand,
 } from "./languages.js";
+export { listAction, registerListCommand } from "./list.js";
 export {
   type LoginDependencies,
   type LoginOptions,

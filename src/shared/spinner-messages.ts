@@ -30,4 +30,9 @@ export const SPINNER_MESSAGES = {
     "Resolving references...",
     "Collecting package docs...",
   ],
+  list: [
+    "Listing indexed paths...",
+    "Checking inventory coverage...",
+    "Preparing matching entries...",
+  ],
 } as const;

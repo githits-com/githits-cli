@@ -8,6 +8,9 @@ import type {
   DependencyReport,
   GitHitsService,
   GrepRepoResult,
+  ListParams,
+  ListResult,
+  ListService,
   PackageDocResult,
   PackageDocsList,
   PackageIntelligenceService,
@@ -1070,6 +1073,34 @@ export function createMockReadService(
             : { source: "docs", result: defaultPackageDocResult },
         ),
     ),
+    ...impl,
+  };
+}
+
+export const defaultListResult: ListResult = {
+  inventoryKind: "SOURCE",
+  requestedTarget: "npm:express@5.2.1",
+  canonicalTarget: "npm:express@5.2.1",
+  entries: [],
+  hasMore: false,
+  nextCursor: null,
+  indexedVersion: "5.2.1",
+  codeIndexState: "READY",
+  indexingStatus: "READY",
+  indexingRef: "v5.2.1",
+  inventoryState: null,
+  crawlStatus: null,
+  coverageState: null,
+  coverageReason: null,
+  preparation: null,
+};
+
+/** Creates a mock unified list service with a valid empty source result. */
+export function createMockListService(
+  impl: Partial<ListService> = {},
+): ListService {
+  return {
+    list: mock((_params: ListParams) => Promise.resolve(defaultListResult)),
     ...impl,
   };
 }

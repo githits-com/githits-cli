@@ -75,6 +75,12 @@ export const AUTHENTICATED_COMMANDS = [
   "search",
   "search-status",
   "read",
+  {
+    path: "list",
+    autoLoginEligible: true,
+    postLoginMessage: "Authentication complete. Listing target inventory...",
+    jsonCapable: true,
+  },
   "code files",
   "code read",
   "code grep",
