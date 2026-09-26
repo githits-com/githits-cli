@@ -122,6 +122,7 @@ function mapGraphQLError(
     case "NOT_FOUND":
       return build("NOT_FOUND", false);
     case "INDEXING":
+    case "PACKAGE_INDEXING":
       return build("INDEXING", true);
     case "VALIDATION_ERROR":
       return build(

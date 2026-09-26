@@ -91,6 +91,7 @@ describe("mapListError", () => {
   it.each([
     ["NOT_FOUND", "NOT_FOUND", false],
     ["INDEXING", "INDEXING", true],
+    ["PACKAGE_INDEXING", "INDEXING", true],
     ["VALIDATION_ERROR", "INVALID_ARGUMENT", false],
     [
       "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
