@@ -452,6 +452,63 @@ describe("unified list CLI", () => {
     }
   });
 
+  it("sanitizes terminal GraphQL errors while preserving JSON control bytes", async () => {
+    const backendMessage = "\u001b[31mIndexing failed\u001b[0m";
+    const backendHint = "\u001b[2JRefresh the index";
+    const list = mock((_params: ListParams) =>
+      Promise.reject(
+        new ListGraphQLError(
+          backendMessage,
+          "PACKAGE_INDEXING",
+          undefined,
+          undefined,
+          undefined,
+          "main",
+          backendHint,
+        ),
+      ),
+    );
+    const service = createMockListService({ list });
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+
+    try {
+      await expect(
+        listAction(
+          "npm:express",
+          undefined,
+          {},
+          createDeps({ listService: service }),
+        ),
+      ).rejects.toThrow("process.exit");
+      const terminalOutput = String(error.mock.calls.at(-1)?.[0]);
+      expect(terminalOutput).not.toContain("\u001b");
+
+      error.mockClear();
+      await expect(
+        listAction(
+          "npm:express",
+          undefined,
+          { json: true },
+          createDeps({ listService: service }),
+        ),
+      ).rejects.toThrow("process.exit");
+      const payload = JSON.parse(String(error.mock.calls.at(-1)?.[0])) as {
+        error: string;
+        details: { hint: string; indexingRef: string };
+      };
+      expect(payload.error).toContain(backendMessage);
+      expect(payload.details.hint).toBe(backendHint);
+      expect(payload.details.indexingRef).toBe("main");
+      expect(list).toHaveBeenCalledTimes(2);
+    } finally {
+      error.mockRestore();
+      exit.mockRestore();
+    }
+  });
+
   it("stops the spinner after service completion", async () => {
     const stop = mock(() => {});
     const log = spyOn(console, "log").mockImplementation(() => {});
