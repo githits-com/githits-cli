@@ -46,8 +46,9 @@ response. The backend's opaque cursor is otherwise preserved exactly.
   the Phase 2 MCP tool must reuse: `# source <canonical-target>` followed by one
   path per line. The requested target is the fallback when canonical identity
   is unavailable, and ` | more` means another page exists. CLI dims this line
-  when color is enabled; MCP emits the same plain text without ANSI. When
-  every returned site page has an exact read target on one origin, the header
+  when color is enabled; MCP emits the same plain text without ANSI. Source
+  inventories add `follow up with "read <canonical-target> $path"`. When every
+  returned site page has an exact read target on one origin, the header
   adds `follow up with "read <origin>$path"`. Page rows use exact URL paths with
   a leading `/`, while directory rows remain relative and end in `/`. An exact
   root target without a slash retains its full URL and the header marks URL rows
@@ -114,8 +115,8 @@ queries before and after the output change:
 
 | Query | Previous bytes | Path-only bytes | Reduction |
 | --- | ---: | ---: | ---: |
-| `npm:express@5.2.1 --limit 100` | 1,038 | 192 | 81.5% |
-| `npm:express@5.2.1 examples/ --recursive --limit 500` | 7,399 | 2,793 | 62.3% |
+| `npm:express@5.2.1 --limit 100` | 1,038 | 240 | 76.9% |
+| `npm:express@5.2.1 examples/ --recursive --limit 500` | 7,399 | 2,841 | 61.6% |
 | `site:react.dev react.dev/reference/ --recursive --limit 500` | 20,727 | 4,802 | 76.8% |
 
 These are UTF-8 output sizes, not tokenizer-specific token counts. The durable

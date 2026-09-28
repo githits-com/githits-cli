@@ -421,7 +421,7 @@ describe("unified list CLI", () => {
         createDeps({ listService: service }),
       );
       expect(writes.join("")).toBe(
-        `${["# source npm:express@5.2.1 | more", "src/index.ts"].join("\n")}\n`,
+        `${['# source npm:express@5.2.1 | follow up with "read npm:express@5.2.1 $path" | more', "src/index.ts"].join("\n")}\n`,
       );
     } finally {
       write.mockRestore();

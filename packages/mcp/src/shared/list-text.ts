@@ -23,6 +23,7 @@ function formatHeader(
   useColors: boolean,
 ): string {
   const source = result.canonicalTarget ?? result.requestedTarget;
+  const escapedSource = escapeLineValue(source);
   const hasExactUrlRow =
     siteOrigin !== undefined &&
     result.entries.some(
@@ -32,10 +33,12 @@ function formatHeader(
         relativeReadTarget(entry.read.target, siteOrigin) === "",
     );
   const followUp =
-    siteOrigin === undefined
-      ? ""
-      : ` | follow up with "read ${escapeLineValue(siteOrigin)}$path"${hasExactUrlRow ? " (URLs as-is)" : ""}`;
-  const header = `# source ${escapeLineValue(source)}${followUp}${result.hasMore ? " | more" : ""}`;
+    siteOrigin !== undefined
+      ? ` | follow up with "read ${escapeLineValue(siteOrigin)}$path"${hasExactUrlRow ? " (URLs as-is)" : ""}`
+      : result.inventoryKind === "SOURCE"
+        ? ` | follow up with "read ${escapedSource} $path"`
+        : "";
+  const header = `# source ${escapedSource}${followUp}${result.hasMore ? " | more" : ""}`;
   return dim(header, useColors);
 }
 
