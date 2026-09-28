@@ -531,7 +531,7 @@ UTF-8 bytes, 2,395 bytes (46.2%) below the 5,188-byte retired pair baseline.
 The serialized stable catalog is 32,455 UTF-8 bytes. These are payload
 measurements, not model-token or latency claims.
 
-Final deterministic verification on 2026-09-28 passed 4,980 tests with zero
+Final deterministic verification on 2026-09-28 passed 4,997 tests with zero
 failures, typecheck, formatting, lint with only the repository's pre-existing
 warnings, root and MCP builds, plugin generation/checks, public-package
 validation, source and built unauthenticated CLI smoke, and source and built MCP
