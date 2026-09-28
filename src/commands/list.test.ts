@@ -428,6 +428,54 @@ describe("unified list CLI", () => {
     }
   });
 
+  it("renders site actions as reusable target and path operands", async () => {
+    const result = listResult({
+      inventoryKind: "SITE",
+      requestedTarget: "site:expressjs.com",
+      canonicalTarget: "site:expressjs.com",
+      entries: [
+        {
+          kind: "PAGE",
+          path: "expressjs.com/en/resources/",
+          read: { target: "site:expressjs.com", path: "en/resources" },
+        },
+        {
+          kind: "DIRECTORY",
+          path: "expressjs.com/en/guide/",
+          read: null,
+        },
+      ],
+      inventoryState: "AVAILABLE",
+      crawlStatus: "COMPLETE",
+      coverageState: "COMPLETE",
+    });
+    const service = createMockListService({
+      list: mock(() => Promise.resolve(result)),
+    });
+    const writes: string[] = [];
+    const write = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+    try {
+      await listAction(
+        "site:expressjs.com",
+        undefined,
+        {},
+        createDeps({ listService: service }),
+      );
+      expect(writes.join("")).toBe(
+        `${['# source site:expressjs.com | follow up with "read site:expressjs.com $path"', "en/resources", "en/guide/"].join("\n")}\n`,
+      );
+    } finally {
+      write.mockRestore();
+    }
+  });
+
   it("maps cursor validation errors with restart guidance and never falls back", async () => {
     const list = mock((_params: ListParams) =>
       Promise.reject(new ListGraphQLError("bad cursor", "VALIDATION_ERROR")),

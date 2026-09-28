@@ -22,8 +22,8 @@ target. A result identifies `SOURCE` or `SITE` and contains `FILE`, `PAGE`, or
 authentication refresh, diagnostics, and list-specific transport and GraphQL
 errors. Its compact query selects inventory identity, entry kinds and paths,
 continuation, and lifecycle fields. Compact site text also selects exact entry
-read actions so it can expose valid hosted-page follow-ups without constructing
-URLs. `includeDetailedFields` conditionally selects entry titles, browse
+read actions so it can replay backend-authored site targets and page paths.
+`includeDetailedFields` conditionally selects entry titles, browse
 actions, file metadata, source resolution, available refs and versions, and
 indexing estimates. It does not request content or snippets.
 
@@ -47,13 +47,13 @@ response. The backend's opaque cursor is otherwise preserved exactly.
   path per line. The requested target is the fallback when canonical identity
   is unavailable, and ` | more` means another page exists. CLI dims this line
   when color is enabled; MCP emits the same plain text without ANSI. Source
-  inventories add `follow up with "read <canonical-target> $path"`. When every
-  returned site page has an exact read target on one origin, the header
-  adds `follow up with "read <origin>$path"`. Page rows use exact URL paths with
-  a leading `/`, while directory rows remain relative and end in `/`. An exact
-  root target without a slash retains its full URL and the header marks URL rows
-  to be read as-is. If one origin cannot represent every page, page rows use
-  their exact backend-authored read targets.
+  inventories add `follow up with "read <canonical-target> $path"`. Site
+  inventories use the shared `read.target` from their PAGE actions and render
+  each corresponding `read.path`; `/` denotes the root. Directory rows use
+  their host-relative inventory display path and end in `/`. Exceptional PAGE
+  actions that cannot use site addressing retain and display their exact URL.
+  If returned logical PAGE actions disagree on their target, the formatter
+  omits site follow-up guidance rather than reconstructing one.
   Controls and backslashes are escaped to keep every entry on one unambiguous
   line, while quotes, ordinary Unicode, spaces, and encoded path bytes are
   retained.
@@ -72,13 +72,13 @@ workspace-internal boundary; they are not a public MCP client API.
 The entry `path` is display identity, not a locator. A non-null `read` action's
 backend-authored `target` and nullable `path`, and a non-null `browse` action's
 `target` and nullable `paths`, are authoritative. JSON preserves these values
-exactly. For site text, page rows use the exact read target when present and the
-returned pages span origins; a page without one retains its display path. When
-every returned page shares one origin, the header provides the exact
-`read <origin>$path` template and rows omit that repeated origin. The leading
-slash distinguishes a page URL path from a relative directory path without
-discarding a meaningful trailing slash. A site display path without either
-form is not a read locator.
+exactly. For site text, PAGE actions using a `site:` target render their exact
+host-relative `read.path`, while the header reuses their shared `read.target`.
+Root is `/`. The backend normally removes one non-root trailing slash when the
+slashless path is unambiguous; it retains the slash when distinct slashless and
+slash-terminated pages coexist. Exceptional URL-only actions render their
+exact target. DIRECTORY rows remain relative and end in `/`. A site display
+path without an action is not promoted into a read locator.
 
 Continuation uses the returned `nextCursor`; callers do not reuse the previous
 cursor or modify its contents. Lossless JSON exposes the cursor, while the
@@ -124,7 +124,7 @@ These are UTF-8 output sizes, not tokenizer-specific token counts. The durable
 text sizes without requiring network access. It also compares the prior compact
 entry selection (`kind`, `path`, `title`, `read`, `browse`) with the new
 source `kind`/`path` selection. Compact site text additionally fetches exact
-`read.target` values.
+`read.target` and `read.path` values.
 
 Authenticated live CLI conformance on 2026-09-26 verified that the hosted
 endpoint exposes `Query.list` for package, repository, and site targets. The
@@ -135,9 +135,15 @@ binding, source-only filter rejection for sites, indexing wait, package-scope
 failure with its explicit pinned-repository alternative, and exact emitted
 read, browse, and continuation actions. It used Express and Lodash packages,
 the Express, Requests, and Babel repositories, and React and Node.js
-documentation sites. All 20 checks passed, including `?`, escaped glob
+documentation sites. All 20 checks passed against the earlier exact-URL PAGE
+action contract, including `?`, escaped glob
 metacharacters, union deduplication, and Babel monorepo package-boundary
-isolation. Phase 2 retains MCP/agent and package-to-site discovery validation.
+isolation. Backend PR #2817 changes PAGE actions to `site:` target plus
+host-relative path and adds matching unified reads. The client fixtures and
+formatter are aligned with its schema hash
+`sha256:cbddb30fa7d08ac5af41799828767c607a704dc88880c33ae201e14c5d2cc672`;
+authenticated action replay remains pending its merge and dev deployment.
+Phase 2 retains MCP/agent and package-to-site discovery validation.
 
 ## Key reference files
 

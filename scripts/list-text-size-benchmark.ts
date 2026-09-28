@@ -27,8 +27,8 @@ function siteEntry(index: number): ListEntry {
     path,
     title: `Reference topic ${index}`,
     read: {
-      target: `https://docs.example.test/reference/topic-${index}`,
-      path: null,
+      target: "site:docs.example.test",
+      path: `reference/topic-${index}`,
     },
     browse: {
       target: "site:docs.example.test",
@@ -85,14 +85,18 @@ for (const benchmarkCase of cases) {
       browse,
     })),
   );
-  const pathEntries = JSON.stringify(
-    benchmarkCase.entries.map(({ kind, path }) => ({ kind, path })),
+  const compactEntries = JSON.stringify(
+    benchmarkCase.entries.map(({ kind, path, read }) => ({
+      kind,
+      path,
+      ...(benchmarkCase.inventoryKind === "SITE" ? { read } : {}),
+    })),
   );
   const textBytes = utf8Bytes(output);
   const previousCompactBytes = utf8Bytes(previousCompactEntries);
-  const pathBytes = utf8Bytes(pathEntries);
+  const compactBytes = utf8Bytes(compactEntries);
   console.log(
-    `${benchmarkCase.inventoryKind.toLowerCase()}: ${benchmarkCase.entries.length} entries, text=${textBytes} bytes, compact-entry selection=${previousCompactBytes}->${pathBytes} bytes (${reduction(previousCompactBytes, pathBytes)}% reduction)`,
+    `${benchmarkCase.inventoryKind.toLowerCase()}: ${benchmarkCase.entries.length} entries, text=${textBytes} bytes, compact-entry selection=${previousCompactBytes}->${compactBytes} bytes (${reduction(previousCompactBytes, compactBytes)}% reduction)`,
   );
 }
 

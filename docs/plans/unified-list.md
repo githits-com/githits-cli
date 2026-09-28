@@ -2,16 +2,21 @@
 
 ## Status and expected outcome
 
-**Status: IN PROGRESS.** Phase 1A and Phase 1B are implemented, verified, and
-integrated on open PR #421. PR #422 merged the CLI increment into that stacked
-base at `485ba1b9b66f304eb382ea9c7fb993aafc2dc70e` on 2026-09-28. Phase 1 still
-awaits merge to `main`; Phase 2 has not started.
+**Status: IN PROGRESS.** Phase 1A and Phase 1B are implemented on open PR #421,
+which is rebased onto current `main`. PR #422 previously merged the CLI
+increment into that stacked base at
+`485ba1b9b66f304eb382ea9c7fb993aafc2dc70e` on 2026-09-28. The branch is being
+aligned directly with backend PR #2817's site-scoped PAGE actions; Phase 1
+awaits its dev deployment and live action replay before merge. Phase 2 has not
+started.
 
-The integrated Phase 1 branch passed 4,999 tests, typecheck, formatting, build,
-137-step live CLI smoke, 63-step live MCP smoke, 36-step built CLI smoke, and
+The rebased Phase 1 branch passed 5,022 tests, typecheck, formatting, build,
+139-step live CLI smoke, 63-step live MCP smoke, 36-step built CLI smoke, and
 9-step built MCP registration smoke. Authenticated package, repository, and
-site list/read follow-ups also passed. The backend `Query.list` contract is
-deployed, but the client work is not on `main`, released, or deployed.
+site list/read follow-ups passed against the earlier URL action shape. The base
+`Query.list` contract is deployed. Backend PR #2817's `site:` target plus
+host-relative page path shape is not yet merged or deployed, and the client
+work is not on `main`, released, or deployed.
 
 Replace the advertised MCP `code_files` and `docs_list` tools with one `list`
 tool, and add the matching top-level `githits list` command. The new surface
@@ -29,10 +34,11 @@ enumerates known inventory.
 
 ### Backend contract
 
-The committed backend schema hash is
-`sha256:ac9f53af41edea8cdabe792de51c5f7f3a4a136b3fc71bf3adf96af8acfa6ac2`;
-the newest `priv/graphql/CHANGELOG.md` entry records the matching
-`sha256:ac9f53af41ed` prefix under **Unreleased**. It adds:
+The target backend schema is PR #2817 commit
+`d7837a6c2506395ce7a17ea0b9467b831e0bb0b0`, with full schema hash
+`sha256:cbddb30fa7d08ac5af41799828767c607a704dc88880c33ae201e14c5d2cc672`.
+Its `priv/graphql/CHANGELOG.md` entry records the matching
+`sha256:cbddb30fa7d0` prefix. The already-deployed base contract adds:
 
 ```graphql
 list(
@@ -83,8 +89,11 @@ The permanent backend documentation establishes these semantics:
 - Source file reads are pinned to a repository commit and exact
   repository-relative path. Package directory browsing stays package-scoped
   and version-pinned; it is unavailable when the backend cannot form a
-  versioned package target. Hosted page reads use their exact persisted URL and
-  reopen the latest active publication for that logical page.
+  versioned package target. Hosted PAGE actions use the requested `site:`
+  target plus a host-relative path when that pair resolves the stored URL.
+  `/` addresses the root. A single non-root trailing slash is omitted when no
+  active slashless counterpart exists; distinct slash variants remain exact.
+  Exceptional origins retain exact-URL actions.
 - An unprepared source at zero wait returns its typed indexing error. Positive
   wait can return an `INDEXING` result with empty entries. Sites return active
   pages during refresh and report inventory, crawl, coverage, and preparation
@@ -100,12 +109,13 @@ Evidence:
 - `~/proj/githits/pkgseer-backend/graphql-docs/docs/list.md`
 - `~/proj/githits/pkgseer-backend/docs/implementation/UNIFIED_LIST.md`
 
-The changelog section is unreleased. The committed schema is the implementation
-contract. Authenticated live CLI conformance on 2026-09-26 verified that the
-hosted endpoint exposes `Query.list` for package, repository, and site targets;
-the covered semantics and remaining Phase 2 cases are recorded in
-`docs/implementation/unified-list.md`. Endpoint availability is no longer a
-rollout unknown and is not a reason for a legacy client fallback.
+The site-read changelog section is committed on open backend PR #2817 and is
+the client implementation contract. Authenticated live CLI conformance on
+2026-09-26 verified that the hosted endpoint exposes the base `Query.list` for
+package, repository, and site targets; the covered semantics and remaining
+Phase 2 cases are recorded in `docs/implementation/unified-list.md`. The new
+site action replay requires #2817's merge and dev deployment. Neither state is
+a reason for a legacy client fallback.
 
 ### Current GitHits client surface
 
@@ -226,29 +236,21 @@ If no canonical target is available, the header uses the requested target.
 CLI dims the header when color is enabled; MCP uses the same text without ANSI.
 Source inventories add `follow up with "read <canonical-target> $path"` so a
 returned file can be read without reconstructing its source identity.
-Directory paths end in `/`; source files have no prefix. Site page URL paths
-start with `/` so they remain distinct from relative directories. Paths escape
+Directory paths end in `/`; source files have no prefix. Paths escape
 controls and backslashes so the line-oriented format stays unambiguous; quotes,
 spaces, and ordinary Unicode remain literal. The text surface omits titles,
 entry kinds, counts, per-entry commands, lifecycle diagnostics, and continuation
-commands. For sites, compact projection includes exact `read.target` values. If
-all returned pages share one exact origin, the header adds
-`follow up with "read <origin>$path"`. Page rows omit that repeated origin and
-retain a leading `/`; directory rows remain relative. An exact root target
-without a slash keeps its full URL and the header says URL rows are read as-is.
-If pages do not share an origin, their rows use exact read targets when present
-and otherwise retain their display paths.
-The formatter never derives an HTTPS URL from a `site:` target. Callers that
+commands. For sites, compact projection includes exact `read.target` and
+`read.path` values. The header reuses a shared site action target, and PAGE
+rows render the corresponding host-relative path; `/` is the root. DIRECTORY
+rows remain relative and end in `/`. A meaningful PAGE trailing slash is
+preserved when the backend must distinguish coexisting slash variants.
+Exceptional URL-only PAGE actions render their exact target. If logical PAGE
+actions disagree on the site target, the header omits follow-up guidance.
+The formatter never derives an action from a site display path. Callers that
 need the opaque cursor, structured actions,
 lifecycle, or metadata use JSON. This keeps one token-efficient text contract
 for CLI and MCP.
-
-A separate backend-dependent follow-up may replace exact HTTPS page paths with
-site-scoped logical paths after `Query.read` accepts a `site:` target plus page
-path and list actions expose that address. The intended convention is a page
-such as `en/resources` and a directory such as `llms/`, reserving the trailing
-slash for directories. The root-page spelling is still undecided; `/` is the
-current candidate. This increment does not assume that later contract.
 
 ### Errors and continuation
 
@@ -360,8 +362,8 @@ neither fetches bodies, snippets, or section trees.
 
 Overall assumptions:
 
-- The committed backend SDL and permanent list documentation are the client
-  contract.
+- Backend PR #2817's committed SDL and permanent list/read documentation are
+  the client contract for site actions.
 - `Query.read` continues to accept the exact list actions preserved in JSON.
 - Hosted MCP continues to consume the published `@githits/mcp` package and
   compose services per request.
@@ -374,22 +376,22 @@ Overall unknowns:
 Open product decisions for Phases 1-3: **none**. The user chose one paths/glob
 input, separate target inventories, combined files/docs within source targets,
 and `ls`-like query ergonomics. The backend contract resolves glob,
-hidden-path, recursion, filter, paging, action, and lifecycle details. The
-separate backend-owned site-addressing follow-up retains its own root-path
-question and does not block this plan's current contract or Phase 2.
+hidden-path, recursion, filter, paging, action, and lifecycle details. Backend
+PR #2817 resolves site addressing, including `/` for the root.
 
 ## Phase map
 
 | Phase | Status | Outcome |
 | --- | --- | --- |
-| 1. Add the shared contract and CLI | **INTEGRATED; PR #421 OPEN** | Increments 1A and 1B are implemented, verified, and combined at merge commit `485ba1b`; `githits list` browses the committed backend contract through a tested transport-neutral service and shared formatter. Phase 1 completes when #421 merges to `main`. |
-| 2. Consolidate the MCP surface | **PLANNED; PR #421 merge dependent** | The advertised catalog contains `list` instead of `code_files` and `docs_list`, and agent guidance routes package/repository/site browsing and follow-up actions correctly. The authenticated hosted endpoint is available for the remaining live and agent checks. |
+| 1. Add the shared contract and CLI | **IN PROGRESS; PR #421 OPEN** | Increments 1A and 1B are implemented and rebased onto `main`; `githits list` browses the backend contract through a tested transport-neutral service and shared formatter. Phase 1 requires #2817's dev deployment, live site action replay, and #421 merge. |
+| 2. Consolidate the MCP surface | **PLANNED; PR #421 merge dependent** | The advertised catalog contains `list` instead of `code_files` and `docs_list`, and agent guidance routes package/repository/site browsing and follow-up actions correctly. |
 | 3. Release and hosted adoption | **PLANNED; authorization/deployment dependent** | Published CLI and hosted MCP expose the same unified list contract, and live list-to-read/list-to-list paths pass against the deployed backend. |
 
 ## Phase 1 detailed plan — shared contract and CLI
 
-**Status:** INTEGRATED; increments 1A and 1B are implemented, verified, and
-combined at `485ba1b`; open PR #421 awaits merge to `main`.
+**Status:** IN PROGRESS; increments 1A and 1B are implemented and rebased onto
+current `main`. Open PR #421 awaits backend PR #2817's dev deployment and live
+site action replay before merge.
 
 **Expected outcome:** the root CLI implements the committed backend contract
 through a transport-neutral `ListService`. `githits list` can browse all three
@@ -398,15 +400,15 @@ exact read/browse actions in JSON. Existing
 grouped CLI commands keep their legacy execution paths and point users toward
 the new command.
 
-**Assumptions:** the verified SDL is stable for this increment; existing endpoint,
-token refresh, headers, diagnostics, error envelopes, and formatter conventions
-remain reusable.
+**Assumptions:** backend PR #2817's SDL is stable for this increment; existing
+endpoint, token refresh, headers, diagnostics, error envelopes, and formatter
+conventions remain reusable.
 
-**Unknowns or product decisions:** none. Hosted availability is not required to
-implement or deterministically validate transport, projection, and CLI behavior.
+**Unknowns or product decisions:** none. Deployment timing is unknown; it does
+not block deterministic transport, projection, and CLI validation.
 
-**Dependencies:** backend commits containing schema hash
-`sha256:ac9f53af41ed`; current unified `read` implementation.
+**Dependencies:** backend PR #2817 with schema hash
+`sha256:cbddb30fa7d0`; current unified `read` implementation.
 
 **Delivery split:** implementation reached about 1,700 changed non-test lines
 after the transport and shared-contract work, before CLI wiring. Per the
@@ -458,7 +460,8 @@ increments pass their acceptance checks and merge.
 - Package, repository, and site response fixtures prove projection of exact
   read/browse actions, nullable canonical/browse values, and simultaneous
   landing-page actions. Text fixtures prove path-only rendering of
-  package-relative source paths and host-qualified site paths. They do not
+  package-relative source paths, backend-authored host-relative site read
+  paths, exceptional URL actions, and relative site directories. They do not
   claim to prove backend scope or hierarchy.
 - Pagination projection requires a nonempty cursor with `hasMore: true`, never
   infers a total, and preserves opaque cursor bytes. Any `VALIDATION_ERROR` on a
@@ -497,9 +500,8 @@ projection from CLI/formatter wiring rather than adding mechanism.
 
 ## Phase 2 detailed plan — consolidate the MCP surface
 
-**Status:** PLANNED; becomes READY when PR #421 merges to `main`. The
-authenticated hosted endpoint exposes `Query.list` for required agent
-evaluation, and no further product decision is required.
+**Status:** PLANNED; becomes READY when PR #421 merges to `main`. No further
+product decision is required.
 
 **Expected outcome:** stdio MCP and the public MCP package advertise one `list`
 tool in place of `code_files` and `docs_list`. Its request, output, errors, and
@@ -513,8 +515,9 @@ endpoint continues to implement the verified SDL; docs search can expose
 related explicit `site:` targets, while locally enabled `resolve_target`
 remains an additional route for fuzzy or natural names.
 
-**Unknowns or product decisions:** none. Endpoint availability was verified on
-2026-09-26. No product decision is open.
+**Unknowns or product decisions:** none. Base endpoint availability was verified
+on 2026-09-26; the #2817 site-read shape will be verified in Phase 1 after dev
+deployment. No product decision is open.
 
 **Dependencies:** Phase 1 merged; the plugin-maintenance workflow for public
 guidance.
@@ -569,11 +572,12 @@ alone is not quality evidence.
 Backend semantic conformance was established with authenticated CLI calls on
 2026-09-26: literals, all supported glob forms, union/deduplication, recursion
 on selected directories, source filters before hierarchy, package boundary
-isolation, dot-prefixed source paths, host-qualified site paths, continuation,
-and list-to-read/list-to-list actions all passed. Client unit tests assert only
-wire replay and projection. Phase 2 uses the same endpoint to verify the MCP
-projection and agent routing, and repeats backend cases only if the schema or
-endpoint changes.
+isolation, dot-prefixed source paths, host-qualified site inventory paths,
+continuation, and the earlier URL-based list-to-read actions all passed. Client
+unit tests assert only wire replay and projection. Phase 1 repeats site action
+replay after #2817 deploys because that schema behavior changed. Phase 2 uses
+the same endpoint to verify the MCP projection and agent routing, and repeats
+other backend cases only if the schema or endpoint changes.
 
 Phase 2 is accepted when deterministic and targeted live/eval checks pass; the
 catalog advertises `list` and no longer advertises `code_files`/`docs_list`;

@@ -130,8 +130,8 @@ function siteSubtreeFixture(): ListResult {
         path: "docs.example.test/api/",
         title: "API 雪",
         read: {
-          target: "https://docs.example.test/api/?lang=en%2Fja#intro",
-          path: null,
+          target: "site:docs.example.test/api",
+          path: "api?lang=en%2Fja",
         },
         browse: {
           target: "site:docs.example.test",

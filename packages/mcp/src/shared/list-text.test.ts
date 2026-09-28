@@ -42,12 +42,13 @@ function entry(
   kind: "FILE" | "PAGE" | "DIRECTORY",
   path: string,
   readTarget = "exact-backend-target",
+  readPath: string | null = "exact-backend-path",
 ): ListResult["entries"][number] {
   return {
     kind,
     path,
     title: "metadata is omitted",
-    read: { target: readTarget, path: "exact-backend-path" },
+    read: { target: readTarget, path: readPath },
     browse: { target: "exact-backend-target", paths: ["exact-backend-path"] },
   };
 }
@@ -76,14 +77,21 @@ describe("formatListText", () => {
     );
   });
 
-  it("uses leading-slash page URL paths and relative site directories", () => {
+  it("uses exact site read paths and relative site directories", () => {
     const result = siteResult({
+      requestedTarget: "site:legacy.example.test/api",
       entries: [
-        entry("PAGE", "docs.example.test/", "https://docs.example.test"),
+        entry(
+          "PAGE",
+          "docs.example.test/",
+          "site:legacy.example.test/api",
+          "/",
+        ),
         entry(
           "PAGE",
           "docs.example.test/api/client/",
-          "https://docs.example.test/api/client/",
+          "site:legacy.example.test/api",
+          "api/client",
         ),
         entry("DIRECTORY", "docs.example.test/api/reference"),
       ],
@@ -91,57 +99,73 @@ describe("formatListText", () => {
 
     expect(formatListText(result)).toBe(
       [
-        '# source site:docs.example.test/api | follow up with "read https://docs.example.test$path" (URLs as-is)',
-        "https://docs.example.test",
-        "/api/client/",
+        '# source site:docs.example.test/api | follow up with "read site:legacy.example.test/api $path"',
+        "/",
+        "api/client",
         "api/reference/",
       ].join("\n"),
     );
   });
 
-  it("uses a slash-terminated root target as the root URL path", () => {
+  it("preserves a meaningful trailing slash in an exact site page action", () => {
     const result = siteResult({
       entries: [
-        entry("PAGE", "docs.example.test/", "https://docs.example.test/"),
         entry(
           "PAGE",
-          "docs.example.test/guide/",
-          "https://docs.example.test/guide/",
+          "docs.example.test/api/pair/",
+          "site:docs.example.test/api",
+          "api/pair/",
         ),
+        entry("DIRECTORY", "docs.example.test/api/reference"),
       ],
     });
 
     expect(formatListText(result)).toBe(
       [
-        '# source site:docs.example.test/api | follow up with "read https://docs.example.test$path"',
-        "/",
-        "/guide/",
+        '# source site:docs.example.test/api | follow up with "read site:docs.example.test/api $path"',
+        "api/pair/",
+        "api/reference/",
       ].join("\n"),
     );
   });
 
-  it("renders exact page targets when one site page spans multiple origins", () => {
+  it("renders exceptional URL actions as-is beside logical site paths", () => {
     const result = siteResult({
       entries: [
         entry(
           "PAGE",
           "docs.example.test/guide",
-          "https://docs.example.test/guide",
+          "site:docs.example.test/api",
+          "guide",
         ),
         entry(
           "PAGE",
           "legacy.example.test/guide",
           "http://legacy.example.test/guide?version=1",
+          null,
         ),
       ],
     });
 
     expect(formatListText(result)).toBe(
       [
-        "# source site:docs.example.test/api",
-        "https://docs.example.test/guide",
+        '# source site:docs.example.test/api | follow up with "read site:docs.example.test/api $path"',
+        "guide",
         "http://legacy.example.test/guide?version=1",
       ].join("\n"),
+    );
+  });
+
+  it("omits site follow-up guidance when page actions have different targets", () => {
+    const result = siteResult({
+      entries: [
+        entry("PAGE", "docs.example.test/a", "site:docs.example.test", "a"),
+        entry("PAGE", "docs.example.test/b", "site:legacy.example.test", "b"),
+      ],
+    });
+
+    expect(formatListText(result)).toBe(
+      ["# source site:docs.example.test/api", "a", "b"].join("\n"),
     );
   });
 

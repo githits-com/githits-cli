@@ -238,7 +238,7 @@ describe("ListServiceImpl", () => {
     expect(result.entries[1]).toEqual({ kind: "DIRECTORY", path: "src" });
   });
 
-  it("compact site projection selects exact read actions without other details", async () => {
+  it("compact site projection selects logical read actions without other details", async () => {
     const fetchFn = mock((_url: string, _init?: RequestInit) =>
       Promise.resolve(
         jsonResponse(
@@ -251,8 +251,8 @@ describe("ListServiceImpl", () => {
                 kind: "PAGE",
                 path: "docs.example.test/guide/",
                 read: {
-                  target: "https://docs.example.test/guide/",
-                  path: null,
+                  target: "site:docs.example.test",
+                  path: "guide",
                 },
               },
             ],
@@ -281,8 +281,8 @@ describe("ListServiceImpl", () => {
       kind: "PAGE",
       path: "docs.example.test/guide/",
       read: {
-        target: "https://docs.example.test/guide/",
-        path: null,
+        target: "site:docs.example.test",
+        path: "guide",
       },
     });
   });
@@ -309,8 +309,8 @@ describe("ListServiceImpl", () => {
                 lineCount: null,
                 contentHash: null,
                 read: {
-                  target: "https://docs.example.test/api%2Fv1?lang=en#part",
-                  path: null,
+                  target: "site:docs.example.test",
+                  path: "api%2Fv1?lang=en",
                 },
                 browse: {
                   target: "site:docs.example.test",
@@ -395,7 +395,8 @@ describe("ListServiceImpl", () => {
           path: "docs.example.test/api%2Fv1",
           title: "API",
           read: {
-            target: "https://docs.example.test/api%2Fv1?lang=en#part",
+            target: "site:docs.example.test",
+            path: "api%2Fv1?lang=en",
           },
           browse: {
             target: "site:docs.example.test",
@@ -406,8 +407,8 @@ describe("ListServiceImpl", () => {
     });
     expect(result.canonicalTarget).toBeNull();
     expect(result.entries[0]?.read).toEqual({
-      target: "https://docs.example.test/api%2Fv1?lang=en#part",
-      path: null,
+      target: "site:docs.example.test",
+      path: "api%2Fv1?lang=en",
     });
     expect(result.entries[0]?.language).toBeNull();
     expect(result.entries[0]?.contentHash).toBeNull();
