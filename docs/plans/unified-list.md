@@ -2,8 +2,16 @@
 
 ## Status and expected outcome
 
-**Status: IN PROGRESS.** Phase 1A and the stacked Phase 1B CLI increment are
-implemented and verified; both are awaiting merge.
+**Status: IN PROGRESS.** Phase 1A and Phase 1B are implemented, verified, and
+integrated on open PR #421. PR #422 merged the CLI increment into that stacked
+base at `485ba1b9b66f304eb382ea9c7fb993aafc2dc70e` on 2026-09-28. Phase 1 still
+awaits merge to `main`; Phase 2 has not started.
+
+The integrated Phase 1 branch passed 4,999 tests, typecheck, formatting, build,
+137-step live CLI smoke, 63-step live MCP smoke, 36-step built CLI smoke, and
+9-step built MCP registration smoke. Authenticated package, repository, and
+site list/read follow-ups also passed. The backend `Query.list` contract is
+deployed, but the client work is not on `main`, released, or deployed.
 
 Replace the advertised MCP `code_files` and `docs_list` tools with one `list`
 tool, and add the matching top-level `githits list` command. The new surface
@@ -363,22 +371,25 @@ Overall unknowns:
 - Final released package versions and remote deployment timing are unknown and
   are chosen during authorized release/adoption work.
 
-Open product decisions: **none**. The user chose one paths/glob input, separate
-target inventories, combined files/docs within source targets, and `ls`-like
-query ergonomics. The backend contract resolves glob, hidden-path, recursion,
-filter, paging, action, and lifecycle details.
+Open product decisions for Phases 1-3: **none**. The user chose one paths/glob
+input, separate target inventories, combined files/docs within source targets,
+and `ls`-like query ergonomics. The backend contract resolves glob,
+hidden-path, recursion, filter, paging, action, and lifecycle details. The
+separate backend-owned site-addressing follow-up retains its own root-path
+question and does not block this plan's current contract or Phase 2.
 
 ## Phase map
 
 | Phase | Status | Outcome |
 | --- | --- | --- |
-| 1. Add the shared contract and CLI | **IN PROGRESS** | Increments 1A and 1B are implemented and verified, and await merge; `githits list` browses the committed backend contract through a tested transport-neutral service and shared formatter. |
-| 2. Consolidate the MCP surface | **PLANNED; Phase 1 merge dependent** | The advertised catalog contains `list` instead of `code_files` and `docs_list`, and agent guidance routes package/repository/site browsing and follow-up actions correctly. The authenticated hosted endpoint is available for the remaining live and agent checks. |
+| 1. Add the shared contract and CLI | **INTEGRATED; PR #421 OPEN** | Increments 1A and 1B are implemented, verified, and combined at merge commit `485ba1b`; `githits list` browses the committed backend contract through a tested transport-neutral service and shared formatter. Phase 1 completes when #421 merges to `main`. |
+| 2. Consolidate the MCP surface | **PLANNED; PR #421 merge dependent** | The advertised catalog contains `list` instead of `code_files` and `docs_list`, and agent guidance routes package/repository/site browsing and follow-up actions correctly. The authenticated hosted endpoint is available for the remaining live and agent checks. |
 | 3. Release and hosted adoption | **PLANNED; authorization/deployment dependent** | Published CLI and hosted MCP expose the same unified list contract, and live list-to-read/list-to-list paths pass against the deployed backend. |
 
 ## Phase 1 detailed plan — shared contract and CLI
 
-**Status:** IN PROGRESS; increments 1A and 1B are implemented and verified, and await merge.
+**Status:** INTEGRATED; increments 1A and 1B are implemented, verified, and
+combined at `485ba1b`; open PR #421 awaits merge to `main`.
 
 **Expected outcome:** the root CLI implements the committed backend contract
 through a transport-neutral `ListService`. `githits list` can browse all three
@@ -486,9 +497,9 @@ projection from CLI/formatter wiring rather than adding mechanism.
 
 ## Phase 2 detailed plan — consolidate the MCP surface
 
-**Status:** PLANNED; becomes READY after Phase 1 reorientation. The
+**Status:** PLANNED; becomes READY when PR #421 merges to `main`. The
 authenticated hosted endpoint exposes `Query.list` for required agent
-evaluation.
+evaluation, and no further product decision is required.
 
 **Expected outcome:** stdio MCP and the public MCP package advertise one `list`
 tool in place of `code_files` and `docs_list`. Its request, output, errors, and
