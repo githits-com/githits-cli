@@ -98,6 +98,36 @@
       "suites": ["smoke", "stable-full"]
     },
     {
+      "id": "list-continuation",
+      "path": "eval/agentic/workloads/list-continuation.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "list-package-docs-site",
+      "path": "eval/agentic/workloads/list-package-docs-site.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "list-package-repository",
+      "path": "eval/agentic/workloads/list-package-repository.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "list-recursion-glob",
+      "path": "eval/agentic/workloads/list-recursion-glob.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "list-site-read",
+      "path": "eval/agentic/workloads/list-site-read.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
       "id": "opencode-compaction",
       "path": "eval/agentic/workloads/opencode-compaction.md",
       "safety": "stable",
