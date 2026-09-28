@@ -205,6 +205,7 @@ describe("ListServiceImpl", () => {
       after: "",
       waitTimeoutMs: 0,
       includeDetailedFields: false,
+      includeReadActions: false,
     });
 
     expect(fetchFn).toHaveBeenCalledTimes(1);
@@ -220,6 +221,7 @@ describe("ListServiceImpl", () => {
       after: "",
       waitTimeoutMs: 0,
       includeDetailedFields: false,
+      includeReadActions: false,
     });
     expect(request.query).toContain("query List(");
     expect(request.query).toContain("list(");
@@ -234,6 +236,55 @@ describe("ListServiceImpl", () => {
     });
     expect(result.canonicalTarget).toBe("npm:express@5.2.1");
     expect(result.entries[1]).toEqual({ kind: "DIRECTORY", path: "src" });
+  });
+
+  it("compact site projection selects exact read actions without other details", async () => {
+    const fetchFn = mock((_url: string, _init?: RequestInit) =>
+      Promise.resolve(
+        jsonResponse(
+          successBody({
+            inventoryKind: "SITE",
+            requestedTarget: "site:docs.example.test",
+            canonicalTarget: "site:docs.example.test",
+            entries: [
+              {
+                kind: "PAGE",
+                path: "docs.example.test/guide/",
+                read: {
+                  target: "https://docs.example.test/guide/",
+                  path: null,
+                },
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    const service = new ListServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.list({
+      target: "site:docs.example.test",
+      includeDetailedFields: false,
+      includeReadActions: true,
+    });
+
+    expect(readRequest(fetchFn).variables).toEqual({
+      target: "site:docs.example.test",
+      includeDetailedFields: false,
+      includeReadActions: true,
+    });
+    expect(result.entries[0]).toEqual({
+      kind: "PAGE",
+      path: "docs.example.test/guide/",
+      read: {
+        target: "https://docs.example.test/guide/",
+        path: null,
+      },
+    });
   });
 
   it("wire projection parses detailed resolution and site lifecycle fields", async () => {
@@ -317,6 +368,7 @@ describe("ListServiceImpl", () => {
     expect(request.variables).toEqual({
       target: "site:docs.example.test",
       includeDetailedFields: true,
+      includeReadActions: true,
     });
     expect(parseListSelection(request.query)).toEqual(expectedListSelection());
     expect(result).toMatchObject({
@@ -787,6 +839,7 @@ describe("ListServiceImpl", () => {
 
 function expectedListSelection(): SelectionTree {
   const includeDetailed = "@include(if:$includeDetailedFields)";
+  const includeReadActions = "@include(if:$includeReadActions)";
   const detailed = (selection?: SelectionTree) => ({
     __directive: includeDetailed,
     ...(selection ? { __selection: selection } : {}),
@@ -814,7 +867,10 @@ function expectedListSelection(): SelectionTree {
       byteSize: detailed(),
       lineCount: detailed(),
       contentHash: detailed(),
-      read: detailed({ target: null, path: null }),
+      read: {
+        __directive: includeReadActions,
+        __selection: { target: null, path: null },
+      },
       browse: detailed({ target: null, paths: null }),
     },
     hasMore: null,

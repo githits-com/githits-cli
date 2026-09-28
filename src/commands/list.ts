@@ -7,6 +7,7 @@ import {
   projectListResult,
   requireAuth,
   sanitizeTerminalText,
+  shouldUseColors,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
@@ -85,7 +86,9 @@ export async function listAction(
     if (options.json) {
       console.log(JSON.stringify(projected));
     } else {
-      process.stdout.write(`${formatListText(projected)}\n`);
+      process.stdout.write(
+        `${formatListText(projected, { useColors: shouldUseColors() })}\n`,
+      );
     }
   } catch (error) {
     handleListError(

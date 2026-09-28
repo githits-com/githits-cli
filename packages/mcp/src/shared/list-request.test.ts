@@ -78,6 +78,7 @@ describe("buildListParams", () => {
       after: " cursor/with=opaque ",
       waitTimeoutMs: 0,
       includeDetailedFields: true,
+      includeReadActions: true,
     } satisfies ListParams);
   });
 
@@ -98,6 +99,7 @@ describe("buildListParams", () => {
       target: " site:docs.example.test ",
       recursive: false,
       includeDetailedFields: false,
+      includeReadActions: true,
     });
     expect(result.limit).toBeUndefined();
     expect(result.waitTimeoutMs).toBeUndefined();

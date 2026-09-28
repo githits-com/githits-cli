@@ -21,10 +21,11 @@ target. A result identifies `SOURCE` or `SITE` and contains `FILE`, `PAGE`, or
 `ListService`, the GraphQL document and variables, Zod response validation,
 authentication refresh, diagnostics, and list-specific transport and GraphQL
 errors. Its compact query selects inventory identity, entry kinds and paths,
-continuation, and lifecycle fields. `includeDetailedFields` conditionally
-selects entry titles and actions, file metadata, source resolution, available
-refs and versions, and indexing estimates. It does not request content or
-snippets.
+continuation, and lifecycle fields. Compact site text also selects exact entry
+read actions so it can expose valid hosted-page follow-ups without constructing
+URLs. `includeDetailedFields` conditionally selects entry titles, browse
+actions, file metadata, source resolution, available refs and versions, and
+indexing estimates. It does not request content or snippets.
 
 The service models selected nullable fields as nullable values and preserves
 them in its result. Detail fields excluded by the GraphQL directive remain
@@ -42,11 +43,19 @@ response. The backend's opaque cursor is otherwise preserved exactly.
   It preserves meaningful `null`s and omitted conditional details, clones
   nested values, and adds no total, filter echo, or reconstructed action.
 - `list-text.ts` defines the one token-efficient format that CLI uses now and
-  the Phase 2 MCP tool must reuse: an inventory header followed by one path per
-  line. A `+` after the header count means another page exists. Directory paths
-  end in `/`. Controls and backslashes are escaped to keep every entry on one
-  unambiguous line, while quotes, ordinary Unicode, spaces, and encoded path
-  bytes are retained.
+  the Phase 2 MCP tool must reuse: `# source <canonical-target>` followed by one
+  path per line. The requested target is the fallback when canonical identity
+  is unavailable, and ` | more` means another page exists. CLI colors this line
+  gray when color is enabled; MCP emits the same plain text without ANSI. When
+  every returned site page has an exact read target on one origin, the header
+  adds `follow up with "read <origin>/$path"` and page/directory rows use paths
+  relative to that origin. A root page retains its exact URL because its
+  relative path is empty; the header marks URL rows to be read as-is. If one
+  origin cannot represent every page, page rows use their exact backend-authored
+  read targets. Directory paths end in `/`.
+  Controls and backslashes are escaped to keep every entry on one unambiguous
+  line, while quotes, ordinary Unicode, spaces, and encoded path bytes are
+  retained.
 
 The core service owns the network and backend contract because it is shared by
 both surfaces. The MCP shared modules own input normalization, error and result
@@ -62,8 +71,11 @@ workspace-internal boundary; they are not a public MCP client API.
 The entry `path` is display identity, not a locator. A non-null `read` action's
 backend-authored `target` and nullable `path`, and a non-null `browse` action's
 `target` and nullable `paths`, are authoritative. JSON preserves these values
-exactly. Compact text deliberately contains paths only and does not imply that
-a displayed site path can be passed to `read` unchanged.
+exactly. For site text, page rows use the exact read target when present and the
+returned pages span origins; a page without one retains its display path. When
+every returned page shares one origin, the header provides the exact
+`read <origin>/$path` template and rows omit that repeated origin. A site
+display path without either form is not a read locator.
 
 Continuation uses the returned `nextCursor`; callers do not reuse the previous
 cursor or modify its contents. Lossless JSON exposes the cursor, while the
@@ -87,9 +99,10 @@ cover normalization and mapped envelopes. CLI tests cover Commander flags,
 package/repository/site forwarding, pagination, compact versus detailed calls,
 path rendering, diagnostics, authentication, and the absence of a legacy
 service fallback. Response tests cover exact actions, cursors, null fidelity,
-and lifecycle combinations. Text tests cover the shared header, path-only rows,
-directory suffixes, empty results, and control-character escaping. These client
-tests do not claim to validate backend path/glob
+and lifecycle combinations. Text tests cover canonical/requested source
+identity, pagination, gray CLI presentation, path-only rows, directory
+suffixes, empty results, and control-character escaping. These client tests do
+not claim to validate backend path/glob
 matching, inventory scope, hierarchy, or site membership; those semantics are
 owned by the backend contract and require backend-side or live conformance
 evidence.
@@ -99,15 +112,16 @@ queries before and after the output change:
 
 | Query | Previous bytes | Path-only bytes | Reduction |
 | --- | ---: | ---: | ---: |
-| `npm:express@5.2.1 --limit 100` | 1,038 | 247 | 76.2% |
-| `npm:express@5.2.1 examples/ --recursive --limit 500` | 7,399 | 2,848 | 61.5% |
-| `site:react.dev react.dev/reference/ --recursive --limit 500` | 20,727 | 5,958 | 71.3% |
+| `npm:express@5.2.1 --limit 100` | 1,038 | 192 | 81.5% |
+| `npm:express@5.2.1 examples/ --recursive --limit 500` | 7,399 | 2,793 | 62.3% |
+| `site:react.dev react.dev/reference/ --recursive --limit 500` | 20,727 | 4,675 | 77.4% |
 
 These are UTF-8 output sizes, not tokenizer-specific token counts. The durable
 `bun run bench:list-text` fixture reports current 100-entry source and site
 text sizes without requiring network access. It also compares the prior compact
 entry selection (`kind`, `path`, `title`, `read`, `browse`) with the new
-`kind`/`path` selection.
+source `kind`/`path` selection. Compact site text additionally fetches exact
+`read.target` values.
 
 Authenticated live CLI conformance on 2026-09-26 verified that the hosted
 endpoint exposes `Query.list` for package, repository, and site targets. The

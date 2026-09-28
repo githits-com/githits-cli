@@ -14,6 +14,7 @@ export const colors = {
   magenta: "\x1b[35m",
   cyan: "\x1b[36m",
   red: "\x1b[31m",
+  gray: "\x1b[90m",
 };
 
 export interface TerminalColor {
