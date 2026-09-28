@@ -538,18 +538,19 @@ describe("smoke script options", () => {
   });
 
   it("keeps curated CLI parity fixtures on compact package targets", () => {
-    const compactMcpTools = new Set([
-      "docs_list",
+    const compactPackageFixtureNames = new Set([
+      "list_package",
       "pkg_info",
       "pkg_vulns",
       "pkg_deps",
+      "pkg_deps_issues",
     ]);
-    const compactPackageFixtures = JSON_PARITY_FIXTURES.filter(({ mcpTool }) =>
-      compactMcpTools.has(mcpTool),
+    const compactPackageFixtures = JSON_PARITY_FIXTURES.filter(({ name }) =>
+      compactPackageFixtureNames.has(name),
     );
     expect(
       new Set(compactPackageFixtures.map(({ mcpTool }) => mcpTool)),
-    ).toEqual(compactMcpTools);
+    ).toEqual(new Set(["list", "pkg_info", "pkg_vulns", "pkg_deps"]));
 
     for (const fixture of compactPackageFixtures) {
       expect(typeof fixture.mcpArgs.target, `${fixture.name} target`).toBe(
@@ -597,23 +598,45 @@ describe("smoke script options", () => {
         mcpArgs: { target: "npm:express", format: "json" },
       },
       {
-        name: "docs_list",
+        name: "list_package",
         cliArgs: [
-          "docs",
           "list",
           "npm:express@5.2.1",
+          "package.json",
           "--limit",
-          "2",
+          "1",
           "--json",
         ],
-        mcpTool: "docs_list",
+        mcpTool: "list",
         mcpArgs: {
           target: "npm:express@5.2.1",
-          limit: 2,
+          paths: ["package.json"],
+          limit: 1,
           format: "json",
         },
       },
     ]);
+
+    expect(
+      JSON_PARITY_FIXTURES.find(({ name }) => name === "list_site"),
+    ).toEqual({
+      name: "list_site",
+      cliArgs: [
+        "list",
+        "site:expressjs.com",
+        "en/resources/",
+        "--limit",
+        "20",
+        "--json",
+      ],
+      mcpTool: "list",
+      mcpArgs: {
+        target: "site:expressjs.com",
+        paths: ["en/resources/"],
+        limit: 20,
+        format: "json",
+      },
+    });
 
     expect(
       JSON_PARITY_FIXTURES.find(({ name }) => name === "pkg_changelog")
