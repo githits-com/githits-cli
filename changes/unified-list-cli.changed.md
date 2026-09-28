@@ -3,4 +3,4 @@
 "@githits/mcp": none
 ---
 
-- **Add unified CLI listing** - `githits list` browses package, repository, and explicitly targeted documentation-site inventories with shared filtering, paging, and reusable actions; legacy grouped command execution remains available.
+- **Add unified CLI listing** - `githits list` browses package, repository, and explicitly targeted documentation-site inventories with shared filtering and paging, path-only text, and lossless JSON; legacy grouped command execution remains available.

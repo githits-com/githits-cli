@@ -22,9 +22,18 @@ export function projectListResult(result: ListResult): ListResponse {
     entries: result.entries.map((entry) => ({
       kind: entry.kind,
       path: entry.path,
-      title: entry.title,
-      read: entry.read === null ? null : projectReadAction(entry.read),
-      browse: entry.browse === null ? null : projectBrowseAction(entry.browse),
+      ...(entry.title !== undefined ? { title: entry.title } : {}),
+      ...(entry.read !== undefined
+        ? {
+            read: entry.read === null ? null : projectReadAction(entry.read),
+          }
+        : {}),
+      ...(entry.browse !== undefined
+        ? {
+            browse:
+              entry.browse === null ? null : projectBrowseAction(entry.browse),
+          }
+        : {}),
       ...(entry.language !== undefined ? { language: entry.language } : {}),
       ...(entry.fileType !== undefined ? { fileType: entry.fileType } : {}),
       ...(entry.intent !== undefined ? { intent: entry.intent } : {}),

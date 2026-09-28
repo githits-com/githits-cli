@@ -70,15 +70,15 @@ export type ListAction = ListReadAction | ListBrowseAction;
 export interface ListEntry {
   kind: ListEntryKind;
   path: string;
-  title: string | null;
+  title?: string | null;
   language?: string | null;
   fileType?: string | null;
   intent?: string | null;
   byteSize?: number | null;
   lineCount?: number | null;
   contentHash?: string | null;
-  read: ListReadAction | null;
-  browse: ListBrowseAction | null;
+  read?: ListReadAction | null;
+  browse?: ListBrowseAction | null;
 }
 
 export interface ListAvailableVersion {
@@ -236,15 +236,15 @@ const listBrowseActionSchema = z
 const listEntrySchema = z.object({
   kind: z.enum(["FILE", "PAGE", "DIRECTORY"]),
   path: z.string(),
-  title: nullableString,
+  title: optionalNullableString,
   language: optionalNullableString,
   fileType: optionalNullableString,
   intent: optionalNullableString,
   byteSize: optionalNullableInt,
   lineCount: optionalNullableInt,
   contentHash: optionalNullableString,
-  read: listReadActionSchema,
-  browse: listBrowseActionSchema,
+  read: listReadActionSchema.optional(),
+  browse: listBrowseActionSchema.optional(),
 });
 
 const availableVersionSchema = z.object({
@@ -368,18 +368,18 @@ query List(
     entries {
       kind
       path
-      title
+      title @include(if: $includeDetailedFields)
       language @include(if: $includeDetailedFields)
       fileType @include(if: $includeDetailedFields)
       intent @include(if: $includeDetailedFields)
       byteSize @include(if: $includeDetailedFields)
       lineCount @include(if: $includeDetailedFields)
       contentHash @include(if: $includeDetailedFields)
-      read {
+      read @include(if: $includeDetailedFields) {
         target
         path
       }
-      browse {
+      browse @include(if: $includeDetailedFields) {
         target
         paths
       }

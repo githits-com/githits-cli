@@ -43,11 +43,11 @@ describe("unified list CLI", () => {
       "--limit <n>",
       "--after <cursor>",
       "--wait <ms>",
-      "-v, --verbose",
       "--json",
     ]) {
       expect(help).toContain(flag);
     }
+    expect(help).not.toContain("--verbose");
   });
 
   it("parses paths interleaved with repeatable options through Commander", async () => {
@@ -195,7 +195,6 @@ describe("unified list CLI", () => {
           limit: "500",
           after: " cursor/%2F ",
           wait: "0",
-          verbose: true,
         },
         createDeps({ listService: service }),
       );
@@ -210,7 +209,7 @@ describe("unified list CLI", () => {
         limit: 500,
         after: " cursor/%2F ",
         waitTimeoutMs: 0,
-        includeDetailedFields: true,
+        includeDetailedFields: false,
       });
     } finally {
       log.mockRestore();
@@ -376,7 +375,7 @@ describe("unified list CLI", () => {
     }
   });
 
-  it("renders backend actions and a continuation using the normalized request", async () => {
+  it("renders the shared path-only text format", async () => {
     const result = listResult({
       entries: [
         {
@@ -409,16 +408,12 @@ describe("unified list CLI", () => {
         { recursive: true, fileType: ["source"], limit: "25", wait: "0" },
         createDeps({ listService: service }),
       );
-      const output = writes.join("");
-      expect(output).toContain(
-        "githits read 'npm:express@5.2.1' 'src/index.ts'",
+      expect(writes.join("")).toBe(
+        `${[
+          'SOURCE | requested="npm:express@5.2.1" canonical="npm:express@5.2.1" | 1+ entries',
+          "src/index.ts",
+        ].join("\n")}\n`,
       );
-      expect(output).toContain("--recursive");
-      expect(output).toContain("--file-type 'source'");
-      expect(output).toContain("--limit 25");
-      expect(output).toContain("--wait 0");
-      expect(output).toContain("--after 'next/%2F cursor'");
-      expect(output).not.toContain("total");
     } finally {
       write.mockRestore();
     }

@@ -8,9 +8,9 @@ implemented and verified; both are awaiting merge.
 Replace the advertised MCP `code_files` and `docs_list` tools with one `list`
 tool, and add the matching top-level `githits list` command. The new surface
 browses exactly one package source tree, repository snapshot, or hosted
-documentation site, follows familiar path/glob semantics, paginates with an
-opaque cursor, and emits backend-authored actions that feed directly into
-`read` or another `list` call.
+documentation site, follows familiar path/glob semantics, and paginates with
+an opaque cursor. Compact text is a path inventory; lossless JSON retains
+backend-authored actions that feed directly into `read` or another `list` call.
 
 Package and repository inventories contain source files and documentation
 files together. Hosted pages remain a separate inventory selected by an
@@ -181,15 +181,14 @@ githits list <target> [paths...]
   --limit <n>
   --after <cursor>
   --wait <ms>
-  -v, --verbose
   --json
 ```
 
 Paths are variadic positional operands so calls read like `ls` while retaining
 the backend's single `paths` union. Help tells shell users to quote globs.
-`--verbose` adds source metadata to terminal rows and enables the detailed
-GraphQL projection. MCP text uses the compact projection; JSON uses the
-detailed projection and carries the complete selected metadata.
+CLI and MCP text use one compact path-only format. JSON uses the detailed
+GraphQL projection and carries complete selected metadata, actions, and paging
+state.
 `--after` deliberately matches `Query.list` and the existing docs-list cursor
 flag; `--wait <ms>` matches `githits read` and code navigation commands. This
 command does not adopt the search commands' seconds unit or grep's `--cursor`
@@ -213,24 +212,15 @@ and indexing fields, and site inventory/crawl/coverage/preparation fields.
 Nullable fields stay nullable where absence is meaningful; no synthetic total
 or reconstructed action is added.
 
-Text output has one inventory/resolution header, one compact row per entry, and
-only relevant lifecycle and continuation footers. It must:
-
-- make `FILE`, `PAGE`, and `DIRECTORY` distinguishable;
-- retain page titles and exact readable URLs;
-- expose each available read/browse action without treating display paths as
-  selectors;
-- group repeated source read targets where doing so preserves exact per-entry
-  action paths;
-- emit a directly reusable continuation call with the original selection and
-  new cursor; and
-- state incomplete/active preparation honestly rather than converting it to an
-  empty/not-found message.
-
-Formatter-authored punctuation is ASCII, backend Unicode is preserved, color
-never carries meaning, and width/color are inputs. Before finalizing the text
-layout, compare repository-root, nested-package, recursive-glob, and site
-subtree fixtures for serialized output size and successful follow-up actions.
+Text output has one inventory header followed by one unquoted path per line.
+The header appends `+` to the returned count when another page exists.
+Directory paths end in `/`; file and page paths have no prefix. Paths escape
+controls and backslashes so the line-oriented format stays unambiguous; quotes,
+spaces, and ordinary Unicode remain literal. The text surface omits titles,
+entry kinds, actions, lifecycle diagnostics, and
+continuation commands. Callers that need the opaque cursor, exact actions,
+lifecycle, or metadata use JSON. This keeps one token-efficient text contract
+for CLI and MCP and avoids presenting site display paths as read locators.
 
 ### Errors and continuation
 
@@ -288,18 +278,19 @@ flowchart LR
   D --> C
   C --> E[shared result + error projection]
   E --> F[text formatter or JSON]
-  F --> G[read action or fresh list browse action]
+  F --> G[path inventory or structured follow-up]
 ```
 
 `ListService` is exported by `packages/core-internal/src/index.ts`. Phase 2
 exports it through the public `@githits/mcp/client` entrypoint and makes
 `McpToolServices.listService` a required host integration field, following
-`readService`. Its request has an
-internal compact/detailed projection choice: MCP text and non-verbose CLI text
-select common identity, actions, continuation, and displayed lifecycle fields;
-JSON and verbose CLI additionally select file metadata and full resolution,
-availability, estimate, coverage-reason, and preparation detail through
-GraphQL `@include` variables. Response schemas accept omitted detail fields.
+`readService`. Its request has an internal compact/detailed projection choice.
+The compact query fetches the base shared result: identity, entry kinds and
+paths, cursor, and bounded lifecycle fields, including coverage reason and site
+preparation. The text formatter emits only the header and paths. JSON
+additionally selects entry titles/actions, file metadata, full resolution,
+availability, and indexing estimates through GraphQL `@include` variables.
+Response schemas accept omitted detail fields.
 Wire tests assert variables and selections for both projections, including that
 neither fetches bodies, snippets, or section trees.
 
@@ -342,7 +333,7 @@ Overall assumptions:
 
 - The committed backend SDL and permanent list documentation are the client
   contract.
-- `Query.read` continues to accept emitted list actions unchanged.
+- `Query.read` continues to accept the exact list actions preserved in JSON.
 - Hosted MCP continues to consume the published `@githits/mcp` package and
   compose services per request.
 
@@ -370,7 +361,8 @@ filter, paging, action, and lifecycle details.
 
 **Expected outcome:** the root CLI implements the committed backend contract
 through a transport-neutral `ListService`. `githits list` can browse all three
-target kinds, continue pages, and render exact read/browse actions. Existing
+target kinds, continue pages, render a path-only text inventory, and preserve
+exact read/browse actions in JSON. Existing
 grouped CLI commands keep their legacy execution paths and point users toward
 the new command.
 
@@ -412,7 +404,7 @@ increments pass their acceptance checks and merge.
    preservation, nullable package canonical/browse values,
    the sanctioned pinned `repo_url@commit_sha` alternative only when both
    values exist, cursor/request validation guidance based on presence of
-   `after`, source indexing, and site lifecycle without branching on backend
+   `after`, and a shared path-only text format without branching on backend
    message text.
 3. **Increment 1B:** add `src/commands/list.ts`, export/register it eagerly, construct
    `ListService` in both container auth paths, and use the shared formatter.
@@ -431,10 +423,11 @@ increments pass their acceptance checks and merge.
 - Wire tests prove literal/glob path arrays, ordered unions, explicit
   `recursive: false`, source filters, `after`, and bounds pass through exactly;
   empty arrays/cursors are omitted. They do not re-test backend matching.
-- Package, repository, and site response fixtures prove projection and rendering
-  of package-relative/source paths, host-qualified site paths, exact read and
-  browse actions, nullable canonical/browse values, and simultaneous landing
-  page actions. They do not claim to prove backend scope or hierarchy.
+- Package, repository, and site response fixtures prove projection of exact
+  read/browse actions, nullable canonical/browse values, and simultaneous
+  landing-page actions. Text fixtures prove path-only rendering of
+  package-relative source paths and host-qualified site paths. They do not
+  claim to prove backend scope or hierarchy.
 - Pagination projection requires a nonempty cursor with `hasMore: true`, never
   infers a total, and preserves opaque cursor bytes. Any `VALIDATION_ERROR` on a
   request with `after` renders the two-step restart/correct guidance; the same
@@ -444,8 +437,8 @@ increments pass their acceptance checks and merge.
   errors never invoke legacy list services. Scope-unavailable forms the exact
   `<repo_url>@<commit_sha>` alternative only when both typed extensions exist;
   missing-field fixtures retain the backend message without an action.
-- Text and JSON preserve Unicode and encoded paths; terminal follow-ups safely
-  quote shell-sensitive targets, paths, and cursors.
+- Text and JSON preserve Unicode and encoded paths; text escapes line-breaking
+  and terminal control characters and appends `/` to directory rows.
 - GraphQL wire tests assert exact variables and selected fields for compact and
   detailed projections across target/lifecycle fixtures and prove
   bodies/content are absent.
@@ -463,8 +456,8 @@ bun run smoke:cli:built
 ```
 
 The CLI smoke suites remain useful unauthenticated by verifying auth handling.
-Phase 1 is accepted when these checks pass; `githits list` and its JSON output
-match the shared contract; exact actions and all error/lifecycle shapes work in
+Phase 1 is accepted when these checks pass; `githits list` text and JSON match
+the shared contract; exact JSON actions and all error/lifecycle shapes work in
 fixtures; legacy grouped command execution remains covered; and implementation
 code stays below the repository threshold. If implementation approaches 2,000
 changed non-test/documentation lines, stop and split core service/request
@@ -478,11 +471,12 @@ evaluation.
 
 **Expected outcome:** stdio MCP and the public MCP package advertise one `list`
 tool in place of `code_files` and `docs_list`. Its request, output, errors, and
-actions remain identical to the Phase 1 shared contract. Quick-start and public
-skills teach package/repository browsing, explicit site browsing, and
+path-only text remain identical to the Phase 1 shared contract. Quick-start and
+public skills teach package/repository browsing, explicit site browsing, and
 package-to-site discovery.
 
-**Assumptions:** Phase 1's service/formatter API remains adequate; the hosted
+**Assumptions:** Phase 1's service/formatter API remains adequate; lossless JSON
+is the follow-up surface for exact actions and opaque cursors; the hosted
 endpoint continues to implement the verified SDL; docs search can expose
 related explicit `site:` targets, while locally enabled `resolve_target`
 remains an additional route for fuzzy or natural names.
