@@ -360,54 +360,53 @@ the existing CLI's successful-empty-result convention.
 
 ## Ordered phases
 
-### Phase 1 — top-level CLI mixed grep (IMPLEMENTED; LIVE SIGNOFF BLOCKED)
+### Phase 1 — top-level CLI mixed grep (IMPLEMENTED; REVIEWING CORRECTION)
 
-Implementation checkpoint (2026-09-28):
+Implementation checkpoint after the backend small-page correction (2026-09-28):
 
 - Core query/types/runtime validation, shared request/projection/error/text,
   root command and both auth branches are implemented. Projection reuses the
   core wire allowlist. No MCP catalog/public-provider or legacy CLI changes.
-- Corrected selector validation to 1,000 per target after tracing backend
-  `GrepRepo.canonical_scope`; a two-target 2,000-selector fixture verifies it.
-- Native `aigrep-grep` `MatchIter` emits individual matches, including several
-  on one line. The formatter keeps different slice windows in separate blocks.
-- `bun test`: 5,095 passed / 0 failed, 18,512 assertions across 222 files.
-  Typecheck, build, formatting and public-package validation pass. Source
-  CLI/MCP unauthenticated smoke passes; built Node CLI/MCP smoke passes.
-  Revised internal review is clean after both finding closures. External
-  implementation round 2 is clean, including its fresh-context final check.
-- Authenticated `GITHITS_ENV=dev bun run smoke:cli` fails at the strict new
-  `router npm:express@5.2.1 --path lib/express.js --limit 1 --json` assertion
-  with the backend protocol error below. Earlier stable smoke assertions pass;
-  subsequent assertions are not reached. Authenticated MCP smoke passes for stable and experimental cohorts.
-- Fresh dev authentication now works through the default macOS Keychain. No
-  credentials were printed. Express source and mixed source/site requests
-  return both hit kinds; selected/explicit site attribution is `[0, 1]`.
-  Repository and hosted exact reads replay successfully. Case-sensitive and
-  ignore-case behavior passes for both hit kinds; `ALL` includes `Readme.md`
-  while `source` excludes it and retains independently selected hosted docs.
-  A site-only absent literal returns complete zero hits without omissions.
-- Fresh evidence contradicts the historical Plug fixture: package-only
-  `middleware` currently returns complete zero hits, while explicit
-  `site:hexdocs.pm/plug` fails with nonretryable `site_ambiguous`. Use verified
-  `npm:express` plus `site:expressjs.com` for current conformance instead.
-- Pagination works with two distinct mixed pages at limit 100, and two
-  distinct pinned-repository pages at limit 1. Mixed/package requests at limit
-  1 fail before client projection with backend
-  `GREP_BACKEND_PROTOCOL_ERROR` / retryable true. This also affects the new
-  strict live CLI smoke. Keep the requested limit and surface the typed error;
-  do not add a fallback or alter the smoke to conceal it. Small mixed-page
-  acceptance remains UNPROVEN until the backend is fixed and replayed.
-
+- Backend PR #2832 is merged; dev includes the fix in
+  `c7389fe5a2f3489902c5b8a2c20014093f6960f3`. The updated schema at
+  `~/proj/githits/pkgseer-backend/priv/graphql/schema.graphql` documents
+  `UNSPECIFIED`: a scope not visited before the page limit, retained with
+  `RESUMABLE_LIMIT` traversal and original input attribution. Production
+  deployment remains blocked, per the user; validation is dev-only.
+- Captured complete detailed package/mixed first pages reproduced the CLI's
+  missing-enum parser failure, while their CURRENT continuation pages passed.
+  The exact live CLI repro also reached dev and failed at this parser.
+  Compact and detailed one-match parser regressions failed before the fix.
+- The core type/Zod enum now explicitly accepts `UNSPECIFIED`; unknown
+  readiness and other malformed fields remain rejected. All eight complete
+  captured detailed pages parse with deep equality, preserving every selected
+  status, attribution, hit, traversal and cursor. The four backend-only compact
+  captures omit the CLI's required slices/read/status fields and are not client
+  parser fixtures; fresh client compact-query replay provides that proof.
+- Text explains an unvisited scope and retains continuation; JSON keeps the
+  enum unchanged. CLI cursor help and durable docs explain the state. Strict
+  live smoke asserts retained selected-site attribution and resumability.
+- Current focused checks: 28 passed, 0 failed, 175 assertions across the
+  service, projector/formatter and CLI tests. Full tests pass: 5,098 tests / 0 failures, 18,527 assertions across 222 files;
+  typecheck, formatting and public-package validation pass (including builds).
+  Exact live CLI repro and mixed two-page replay pass; fresh core service
+  compact/detailed limit-1 replay preserves both scopes and attribution, with
+  UNSPECIFIED on page one and CURRENT on page two. Authenticated dev CLI smoke passes for stable and experimental cohorts;
+  built Node CLI/MCP smoke passes. Authenticated dev MCP smoke also passes.
+  Prior PR CI and review were clean; this correction requires re-review.
+- Selector bounds remain 1,000 per target; native individual match/slice
+  semantics and ordered output remain unchanged. Original proof files under
+  `/tmp/unified-grep-*` are preserved; new evidence uses `/tmp/nuckelavee-grep-*`.
 
 Expected outcome: users can grep ordered source/site scopes with one CLI
 invocation and replay exact reads or continuation, while MCP and the legacy
 CLI command retain current behavior.
 
 Assumptions: existing read/list service wiring and transport conventions remain
-applicable; the backend owns target expansion and preparation. Unknowns: small mixed-page backend protocol failure remains unresolved. Fresh
-authenticated dev replay of that case must pass before signoff. Production
-conformance is outside this increment. Production v6 promotion is not a Phase 1 dependency.
+applicable; the backend owns target expansion and preparation. The documented
+unvisited-scope state is accepted explicitly, without changing budgets or
+adding retries/fallbacks. Unknowns: the retained external reviewer must finish the correction review. Production deployment is blocked and outside this increment;
+production readiness is not a Phase 1 dev-acceptance dependency.
 Product decisions: none blocking implementation of this proposal.
 Dependencies: backend `Query.grep` and dev v6 access for mixed-source validation.
 
@@ -730,7 +729,7 @@ External implementation round 1 closure (2026-09-28):
 No rejected findings in this implementation round. No final subagent check
 ran because round 1 had code findings. Re-review is required after focused
 verification and the full revised internal pass. The backend small-page
-acceptance blocker remains unchanged and explicit.
+blocker at that review checkpoint is resolved by the correction below.
 
 Final revision verification: `bun test` passes 5,095 tests across 222 files
 (18,512 assertions); the four changed grep modules pass 25 focused tests
@@ -742,11 +741,11 @@ product failure. Kept those logs; built Node CLI and MCP smoke both pass when re
 validation completes.
 The revised internal code-review round is clean. External round 2 is clean.
 
-The authenticated CLI text path also passes for `-F 'var Router'` against the
+At the initial pre-correction delivery, the authenticated CLI text path passed for `-F 'var Router'` against the
 emitted pinned Express repository and exact `lib/express.js`: one complete
-match, current scope, numbered source line and exact replay action. This is
-supplemental proof; it does not replace the failing strict package limit-1
-smoke or satisfy the small mixed-page criterion.
+match, current scope, numbered source line and exact replay action. That was
+supplemental proof; the later corrected replay covers the strict package
+limit-1 and small mixed-page criteria.
 
 External implementation round 2 is clean with no findings. The reviewer
 verified all round 1 closures over the full revised delta; its one permitted
@@ -754,14 +753,11 @@ fresh-context final code-reviewer check also returned no findings. Projection
 using the shared schema preserves optional detailed fields and was verified
 as valid. The reviewer is retained for follow-up through merge approval.
 
-Phase 1 client implementation and review are complete; **live signoff remains
-blocked**, and the draft must not be treated as merge-ready. Required next
-proof is replaying the strict mixed/package `--limit 1` case and authenticated
-CLI smoke after the backend correction. The backend/native grep owner must
-resolve the protocol failure; the current evidence establishes where the error
-is returned, not its exact internal cause. Phase 2 remains pending Phase 1
-merge. No backend worktree was changed, no scope was reduced and no fallback,
-retry, polling mechanism or infrastructure was added.
+The initial delivery was blocked on backend small-page protocol validation.
+Backend PR #2832 resolved that failure; the resulting unvisited-scope enum
+requires the client correction recorded in the current checkpoint above.
+Phase 2 remains pending Phase 1 merge. No backend worktree is changed by this
+client correction, and no limits, scopes or acceptance requirements are reduced.
 
 Orchestration delivery: eight sequential Luna dispatches covered request
 normalization, DI/mock wiring, registration and bounded follow-up exports or
@@ -771,3 +767,29 @@ dispatch and focused verification. During the final predicate export, the
 coordinator corrected its evidence command to include the required detailed
 mode flag and preserve raw target bytes. Transport, projection, formatting,
 errors, CLI semantics, validation and review remained coordinator-owned.
+
+Post-deployment contract correction (2026-09-28): accepted the verified enum
+omission reported by the backend agent. Root cause was the core client's
+readiness allowlist lagging the documented GraphQL enum. Core owns that wire
+validation; shared text owns the unvisited-scope explanation. Scope is this
+existing PR's correction, with internal delta review and the retained external
+Claude session required before completion. No new infrastructure or public MCP
+API/catalog/guide change. Production remains blocked; no deployment is authorized.
+
+Correction validation (2026-09-28): `bun test` 5,098 pass / 0 fail,
+18,527 assertions in 222 files; focused grep tests 28 pass / 0 fail.
+Typecheck, formatting/Biome, build/public-package validation and built Node
+CLI/MCP smoke pass. Authenticated dev CLI smoke passes all 154 steps across
+stable and experimental cohorts; authenticated MCP smoke passes. The exact
+source repro and mixed two-page CLI/client compact+detailed replays pass.
+All dev commands unset `GITHITS_API_TOKEN`, select `GITHITS_ENV=dev`, and set
+`GITHITS_MCP_URL=https://mcp-dev.githits.com`,
+`GITHITS_API_URL=https://api-dev.githits.com`, and
+`GITHITS_CODE_NAV_URL=https://pkgseer-backend-dev.fly.dev` inline. Keychain
+access worked in this lane; earlier stalled attempts from the backend lane
+are not claimed as passing evidence. No credentials were printed.
+
+The changed-delta internal review is clean. External correction review and
+updated PR CI remain pending. Production remains blocked; no production query,
+backend edit or deployment was performed. Original proof artifacts remain
+unchanged; new proof is under `/tmp/nuckelavee-grep-*`.

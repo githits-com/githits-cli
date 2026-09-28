@@ -198,7 +198,7 @@ export function registerGrepCommand(
     )
     .option(
       "--cursor <cursor>",
-      "Continue with the same ordered operands and controls",
+      "Continue with the same ordered operands and controls, including unvisited scopes",
     )
     .option("--wait <ms>", "Wait for target preparation (0-300000 ms)")
     .option("--json", "Emit the detailed lossless JSON page")

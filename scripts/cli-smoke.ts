@@ -2003,6 +2003,26 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
       Array.isArray(grepPage.targets),
     "unified grep must return a bounded source match and statuses",
   );
+  const selectedSite = (grepPage.targets as unknown[]).find(
+    (target) =>
+      typeof target === "object" &&
+      target !== null &&
+      "kind" in target &&
+      target.kind === "SITE",
+  );
+  assertRecord(selectedSite, "unified grep retained selected site");
+  assert(
+    Array.isArray(selectedSite.requestedInputIndices) &&
+      selectedSite.requestedInputIndices.includes(0),
+    "unified grep must retain selected-site input attribution",
+  );
+  if (selectedSite.readiness === "UNSPECIFIED")
+    assert(
+      selectedSite.traversal === "RESUMABLE_LIMIT" &&
+        selectedSite.errorCode === null &&
+        typeof grepPage.nextCursor === "string",
+      "unvisited grep scope must retain resumable traversal without failure",
+    );
   const grepHit = grepPage.hits[0] as unknown;
   assertRecord(grepHit, "unified grep source hit");
   assert(

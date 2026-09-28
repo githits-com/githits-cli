@@ -74,6 +74,13 @@ read paths are repository-root paths at an exact commit. Hosted actions use
 persisted URLs and read latest active content, which can change after search.
 The client never hydrates hits or guesses paths.
 
+`UNSPECIFIED` readiness means this page stopped before visiting that scope.
+The scope stays in `targets`, retains its input attribution, and reports
+`RESUMABLE_LIMIT` traversal. Continue with `nextCursor` and identical ordered
+operands/controls to inspect it. Readiness has not yet been observed; this
+status does not indicate target failure or unavailable content. Text explains
+the unvisited scope, while JSON preserves the backend enum and full status.
+
 Stale/failed scopes, skips, issues, omitted issue counts, safety normalization
 and unavailable targets stay visible on zero-hit pages. `No matches.` is
 exhaustive only for complete traversal without coverage gaps. Other empty
@@ -97,8 +104,7 @@ refresh. CLI smoke covers registration, unauthenticated errors and source
 grep. Fresh mixed-site, pagination, read replay, case and corpus conformance
 is checked against dev before Phase 1 signoff.
 
-Current dev limitation (2026-09-28): mixed/package requests with `--limit 1`
-return backend `GREP_BACKEND_PROTOCOL_ERROR`. Mixed continuation at limit 100
-and pinned-repository continuation at limit 1 work. The client preserves the
-requested limit and reports the typed error; small mixed-page live acceptance
-and Phase 1 signoff await the backend correction.
+Dev supports package/mixed `--limit 1` pages, including retained unvisited
+scopes. Production deployment of that backend change remains blocked as of
+2026-09-28; fresh client validation uses dev. Unknown readiness values and
+other malformed output still fail validation.

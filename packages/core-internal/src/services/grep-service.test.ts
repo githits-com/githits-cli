@@ -12,6 +12,7 @@ import {
   type GrepResult,
   GrepServiceImpl,
   MalformedGrepResponseError,
+  parseGrepResult,
 } from "./grep-service.js";
 import { createMockTokenProvider } from "./test-helpers.js";
 
@@ -117,7 +118,56 @@ function mixed(): GrepResult {
   };
 }
 
+function detailedMixed(): GrepResult {
+  const data = mixed();
+  for (const hit of data.hits) {
+    Object.assign(hit, {
+      lineContent: "router",
+      matchStartByte: 0,
+      matchEndByte: 6,
+      sourceMatchStartByte: 5,
+      sourceMatchEndByte: 11,
+      contentSafety: { filtered: false, modifications: [] },
+    });
+    if (hit.__typename === "GrepRepositoryHit")
+      Object.assign(hit, {
+        repoUrl: "https://github.com/o/r",
+        commitSha: "sha",
+        repositoryFilePath: "packages/x/lib/a.ts",
+      });
+  }
+  for (const target of data.targets)
+    Object.assign(target, {
+      repoUrl: null,
+      canonicalSite: null,
+      urlPrefixes: [],
+    });
+  return data;
+}
+
 describe("unified grep service", () => {
+  for (const detailed of [false, true]) {
+    it(`preserves an unvisited scope on a ${detailed ? "detailed" : "compact"} one-match page and its visited continuation`, () => {
+      const first = detailed ? detailedMixed() : mixed();
+      first.hits = [first.hits[0]!];
+      first.totalMatches = 1;
+      first.traversal = "RESUMABLE_LIMIT";
+      first.nextCursor = "page-two";
+      Object.assign(first.targets[1]!, {
+        readiness: "UNSPECIFIED",
+        traversal: "RESUMABLE_LIMIT",
+        requestedInputIndices: [0, 1],
+      });
+      const second = detailed ? detailedMixed() : mixed();
+      second.hits = [second.hits[1]!];
+      second.totalMatches = 1;
+      second.targets[1]!.requestedInputIndices = [0, 1];
+      expect(parseGrepResult(first, detailed)).toEqual(first);
+      expect(parseGrepResult(second, detailed)).toEqual(second);
+      expect(first.targets[1]!.errorCode).toBeNull();
+      expect(first.unavailableTargets).toEqual([]);
+    });
+  }
   it("allows the advertised preparation wait before the transport deadline", async () => {
     const timeout = spyOn(AbortSignal, "timeout").mockImplementation(
       (milliseconds: number) => {
@@ -175,29 +225,7 @@ describe("unified grep service", () => {
     expect(out.hits[1]?.read.path).toBeNull();
   });
   it("requires all selected detail fields and preserves nulls and both coordinate systems", async () => {
-    const data = mixed();
-    for (const hit of data.hits) {
-      Object.assign(hit, {
-        lineContent: "router",
-        matchStartByte: 0,
-        matchEndByte: 6,
-        sourceMatchStartByte: 5,
-        sourceMatchEndByte: 11,
-        contentSafety: { filtered: false, modifications: [] },
-      });
-      if (hit.__typename === "GrepRepositoryHit")
-        Object.assign(hit, {
-          repoUrl: "https://github.com/o/r",
-          commitSha: "sha",
-          repositoryFilePath: "packages/x/lib/a.ts",
-        });
-    }
-    for (const target of data.targets)
-      Object.assign(target, {
-        repoUrl: null,
-        canonicalSite: null,
-        urlPrefixes: [],
-      });
+    const data = detailedMixed();
     const fetcher = mock(
       async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
         expect(
@@ -221,6 +249,13 @@ describe("unified grep service", () => {
     for (const data of [
       { ...mixed(), hits: [{ ...mixed().hits[0], __typename: "UnknownHit" }] },
       { ...mixed(), targets: [] },
+      {
+        ...mixed(),
+        targets: mixed().targets.map((target) => ({
+          ...target,
+          readiness: "UNKNOWN_READINESS",
+        })),
+      },
       { ...result(), traversal: "RESUMABLE_LIMIT", nextCursor: null },
       { ...result(), totalMatches: "0" },
     ])

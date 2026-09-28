@@ -50,7 +50,7 @@ export function formatGrepText(
       scope.errorCode
     )
       prose(
-        `  Coverage: ${scope.errorCode ?? (scope.readiness === "CURRENT" ? scope.traversal : scope.readiness)}; retryable ${scope.retryable}${scope.publicMessage ? `; ${scope.publicMessage}` : ""}`,
+        `  Coverage: ${scope.errorCode ?? (scope.readiness === "UNSPECIFIED" ? "not visited in this page" : scope.readiness === "CURRENT" ? scope.traversal : scope.readiness)}; retryable ${scope.retryable}${scope.publicMessage ? `; ${scope.publicMessage}` : ""}`,
       );
     if (scope.binaryFilesSkipped)
       prose(`  Skipped ${scope.binaryFilesSkipped} binary file(s).`);

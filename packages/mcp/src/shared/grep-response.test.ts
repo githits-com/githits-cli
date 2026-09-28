@@ -62,6 +62,32 @@ function result(overrides: Partial<GrepResult> = {}): GrepResult {
 }
 
 describe("unified grep result and text", () => {
+  it("retains an unvisited selected site and explains its continuation", () => {
+    const page = result({
+      targets: [
+        target,
+        {
+          ...target,
+          targetIndex: 8,
+          requestedInputIndices: [0, 1],
+          kind: "SITE",
+          target: "site:docs.test",
+          corpus: null,
+          readiness: "UNSPECIFIED",
+          traversal: "RESUMABLE_LIMIT",
+        },
+      ],
+      traversal: "RESUMABLE_LIMIT",
+      nextCursor: "opaque",
+    });
+    expect(projectGrepResult(page)).toEqual(page);
+    const output = formatGrepText(page);
+    expect(output).toContain("inputs 0, 1 | UNSPECIFIED / RESUMABLE_LIMIT");
+    expect(output).toContain("Coverage: not visited in this page");
+    expect(output).toContain("--cursor 'opaque'");
+    expect(output).not.toContain("Unavailable input");
+    expect(output).toContain("2: router");
+  });
   it("preserves source and context backslashes while escaping terminal controls", () => {
     const source = String.raw`const re = /\d+/; s.split("\n")`;
     const context = String.raw`const path = "C:\src\file.ts"`;

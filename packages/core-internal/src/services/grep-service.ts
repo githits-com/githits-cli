@@ -35,7 +35,9 @@ export type GrepTraversal =
   | "NON_RESUMABLE_PARTIAL"
   | "FAILED"
   | "CURSOR_EXPIRED";
+/** Observed readiness; UNSPECIFIED denotes a scope not yet visited in this page. */
 export type GrepReadiness =
+  | "UNSPECIFIED"
   | "CURRENT"
   | "STALE"
   | "NOT_AVAILABLE"
@@ -286,6 +288,7 @@ function resultSchema(detailed: boolean): z.ZodType<GrepResult> {
         target: z.string(),
         traversal,
         readiness: z.enum([
+          "UNSPECIFIED",
           "CURRENT",
           "STALE",
           "NOT_AVAILABLE",
