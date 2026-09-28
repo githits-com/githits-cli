@@ -7,18 +7,18 @@ which is rebased onto current `main`. PR #422 previously merged the CLI
 increment into that stacked base at
 `485ba1b9b66f304eb382ea9c7fb993aafc2dc70e` on 2026-09-28. The branch is being
 aligned directly with backend PR #2817's site-scoped PAGE actions; Phase 1
-has completed live action replay against its dev deployment and awaits review
-and merge. Phase 2 has not started.
+has completed live action replay against production, passed review, and awaits
+merge. Phase 2 has not started.
 
-The rebased Phase 1 branch passed 5,030 tests, typecheck, formatting, build,
-148-step live CLI smoke, 65-step live MCP smoke, 36-step built CLI smoke, and
-9-step built MCP registration smoke against the dev endpoints. Authenticated
+The rebased Phase 1 branch passed 5,044 tests, typecheck, formatting, build,
+149-step live CLI smoke, 65-step live MCP smoke, 36-step built CLI smoke, and
+9-step built MCP registration smoke against production. Authenticated
 package, repository, and site list/read follow-ups passed. Backend
 PR #2817 merged as `518e45d301d0ba3f451ff56034551addc2bfc7fe` and its
-`site:` target plus host-relative page path shape is deployed to dev. Live CLI
-replay passes for the Express site root, a normal page with and without its
-trailing slash, and the same page through a nested site scope. The client work
-is not on `main`, released, or deployed.
+`site:` target plus host-relative page path shape is deployed to production.
+Live CLI replay passes for the Express site root, a normal page with and
+without its trailing slash, and the same page through a nested site scope. The
+client work is not on `main`, released, or deployed.
 
 Replace the advertised MCP `code_files` and `docs_list` tools with one `list`
 tool, and add the matching top-level `githits list` command. The new surface
@@ -116,7 +116,7 @@ implementation contract. Authenticated live CLI conformance on
 2026-09-26 verified that the hosted endpoint exposes the base `Query.list` for
 package, repository, and site targets; the covered semantics and remaining
 Phase 2 cases are recorded in `docs/implementation/unified-list.md`. On
-2026-09-28, the deployed dev endpoint emitted the new logical PAGE actions and
+2026-09-28, the production endpoint emitted the new logical PAGE actions and
 accepted their `site:` target plus host-relative path for root, normal,
 trailing-slash, and nested-scope reads.
 
@@ -234,9 +234,13 @@ Nullable fields stay nullable where absence is meaningful; no synthetic total
 or reconstructed action is added.
 
 Text output starts with `# source <canonical-target>` followed by one unquoted
-path per line. When the backend has another page, the header adds ` | more`.
+path per line. When the backend has another page, the header adds
+` | more results available`.
 If no canonical target is available, the header uses the requested target.
 CLI dims the header when color is enabled; MCP uses the same text without ANSI.
+CLI `-s, --silent` omits the header and progress display so stdout contains
+only path lines for piping; an empty inventory emits no bytes. JSON is
+unchanged.
 Source inventories add `follow up with "read <canonical-target> $path"` so a
 returned file can be read without reconstructing its source identity.
 Directory paths end in `/`; source files have no prefix. Paths escape
@@ -386,15 +390,15 @@ PR #2817 resolves site addressing, including `/` for the root.
 
 | Phase | Status | Outcome |
 | --- | --- | --- |
-| 1. Add the shared contract and CLI | **IN PROGRESS; PR #421 OPEN** | Increments 1A and 1B are implemented and rebased onto `main`; `githits list` browses the backend contract through a tested transport-neutral service and shared formatter. Backend #2817 dev conformance and live site action replay pass; Phase 1 awaits review and #421 merge. |
+| 1. Add the shared contract and CLI | **IN PROGRESS; PR #421 OPEN** | Increments 1A and 1B are implemented and rebased onto `main`; `githits list` browses the backend contract through a tested transport-neutral service and shared formatter. Backend #2817 production conformance and live site action replay pass; Phase 1 passed review and awaits #421 merge. |
 | 2. Consolidate the MCP surface | **PLANNED; PR #421 merge dependent** | The advertised catalog contains `list` instead of `code_files` and `docs_list`, and agent guidance routes package/repository/site browsing and follow-up actions correctly. |
 | 3. Release and hosted adoption | **PLANNED; authorization/deployment dependent** | Published CLI and hosted MCP expose the same unified list contract, and live list-to-read/list-to-list paths pass against the deployed backend. |
 
 ## Phase 1 detailed plan — shared contract and CLI
 
 **Status:** IN PROGRESS; increments 1A and 1B are implemented and rebased onto
-current `main`. Backend PR #2817 is deployed to dev and live site action replay
-passes. Open PR #421 awaits review and merge.
+current `main`. Backend PR #2817 is deployed to production and live site action
+replay passes. Open PR #421 passed review and awaits merge.
 
 **Expected outcome:** the root CLI implements the committed backend contract
 through a transport-neutral `ListService`. `githits list` can browse all three

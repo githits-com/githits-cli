@@ -43,6 +43,7 @@ describe("unified list CLI", () => {
       "--limit <n>",
       "--after <cursor>",
       "--wait <ms>",
+      "-s, --silent",
       "--json",
     ]) {
       expect(help).toContain(flag);
@@ -421,8 +422,54 @@ describe("unified list CLI", () => {
         createDeps({ listService: service }),
       );
       expect(writes.join("")).toBe(
-        `${['# source npm:express@5.2.1 | follow up with "read npm:express@5.2.1 $path" | more', "src/index.ts"].join("\n")}\n`,
+        `${['# source npm:express@5.2.1 | follow up with "read npm:express@5.2.1 $path" | more results available', "src/index.ts"].join("\n")}\n`,
       );
+    } finally {
+      write.mockRestore();
+    }
+  });
+
+  it("emits only paths in silent mode and writes nothing for an empty inventory", async () => {
+    const results = [
+      listResult({
+        entries: [
+          { kind: "FILE", path: "src/index.ts" },
+          { kind: "DIRECTORY", path: "docs" },
+        ],
+        hasMore: true,
+        nextCursor: "opaque-cursor",
+      }),
+      listResult({ entries: [] }),
+    ];
+    const service = createMockListService({
+      list: mock(() => Promise.resolve(results.shift() ?? listResult())),
+    });
+    const writes: string[] = [];
+    const write = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+    try {
+      await listAction(
+        "npm:express@5.2.1",
+        undefined,
+        { silent: true },
+        createDeps({ listService: service }),
+      );
+      expect(writes.join("")).toBe("src/index.ts\ndocs/\n");
+
+      writes.length = 0;
+      await listAction(
+        "npm:express@5.2.1",
+        undefined,
+        { silent: true },
+        createDeps({ listService: service }),
+      );
+      expect(writes).toEqual([]);
     } finally {
       write.mockRestore();
     }

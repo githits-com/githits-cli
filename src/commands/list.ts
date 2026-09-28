@@ -29,6 +29,7 @@ export interface ListCommandOptions {
   after?: string;
   wait?: string;
   json?: boolean;
+  silent?: boolean;
 }
 
 export interface ListCommandDependencies {
@@ -77,7 +78,7 @@ export async function listAction(
     });
     const spinner =
       deps.createSpinner?.() ??
-      startSpinner(SPINNER_MESSAGES.list, !options.json);
+      startSpinner(SPINNER_MESSAGES.list, !options.json && !options.silent);
     const result = await deps.listService
       .list(params)
       .finally(() => spinner.stop());
@@ -86,9 +87,11 @@ export async function listAction(
     if (options.json) {
       console.log(JSON.stringify(projected));
     } else {
-      process.stdout.write(
-        `${formatListText(projected, { useColors: shouldUseColors() })}\n`,
-      );
+      const output = formatListText(projected, {
+        useColors: shouldUseColors(),
+        includeHeader: !options.silent,
+      });
+      if (output.length > 0) process.stdout.write(`${output}\n`);
     }
   } catch (error) {
     handleListError(
@@ -166,7 +169,7 @@ export function registerListCommand(
     .command("list")
     .summary("List files and documentation in a target")
     .description(
-      "List the files and documentation entries for one package, repository, or hosted site. Package and repository targets stay within their source inventory; use site:<host[/path]> for hosted documentation. Pass paths as literals or globs, and add --recursive to traverse matched directories. Text output is one path per line; use --json for actions, cursors, and metadata.",
+      "List the files and documentation entries for one package, repository, or hosted site. Package and repository targets stay within their source inventory; use site:<host[/path]> for hosted documentation. Pass paths as literals or globs, and add --recursive to traverse matched directories. Text output is one path per line; use --silent for paths only or --json for actions, cursors, and metadata.",
     )
     .argument("<target>", "Package, repository, or site target")
     .argument("[paths...]", "Literal path selectors or glob patterns")
@@ -189,6 +192,7 @@ export function registerListCommand(
     .option("--limit <n>", "Maximum entries to return (1-500)")
     .option("--after <cursor>", "Continue from a prior opaque cursor")
     .option("--wait <ms>", "Wait for source indexing (0-300000 ms)")
+    .option("-s, --silent", "Emit only paths in text mode")
     .option("--json", "Emit the lossless JSON result")
     .action(
       async (

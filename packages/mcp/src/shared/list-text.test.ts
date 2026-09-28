@@ -68,7 +68,7 @@ describe("formatListText", () => {
 
     expect(formatListText(result)).toBe(
       [
-        '# source github:example/repo@main | follow up with "read github:example/repo@main $path" | more',
+        '# source github:example/repo@main | follow up with "read github:example/repo@main $path" | more results available',
         "src/index.ts",
         "docs/",
         "examples/",
@@ -183,6 +183,19 @@ describe("formatListText", () => {
     expect(output).toBe(
       '\u001b[2m# source github:example/repo@main | follow up with "read github:example/repo@main $path"\u001b[0m\nsrc/index.ts',
     );
+  });
+
+  it("can omit the source line for paths-only output", () => {
+    const result = sourceResult({
+      entries: [entry("FILE", "src/index.ts"), entry("DIRECTORY", "docs")],
+      hasMore: true,
+      nextCursor: "opaque-cursor",
+    });
+
+    expect(
+      formatListText(result, { includeHeader: false, useColors: true }),
+    ).toBe("src/index.ts\ndocs/");
+    expect(formatListText(sourceResult(), { includeHeader: false })).toBe("");
   });
 
   it("escapes line-breaking and terminal control characters without quoting ordinary paths", () => {

@@ -45,8 +45,10 @@ response. The backend's opaque cursor is otherwise preserved exactly.
 - `list-text.ts` defines the one token-efficient format that CLI uses now and
   the Phase 2 MCP tool must reuse: `# source <canonical-target>` followed by one
   path per line. The requested target is the fallback when canonical identity
-  is unavailable, and ` | more` means another page exists. CLI dims this line
-  when color is enabled; MCP emits the same plain text without ANSI. Source
+  is unavailable, and ` | more results available` means another page exists.
+  CLI dims this line when color is enabled; MCP emits the same plain text
+  without ANSI. CLI `--silent` omits the header and emits only path lines for
+  piping; an empty inventory then emits no bytes. Source
   inventories add `follow up with "read <canonical-target> $path"`. Site
   inventories use the shared `read.target` from their PAGE actions and render
   each corresponding `read.path`; `/` denotes the root. Directory rows use
@@ -142,12 +144,12 @@ isolation. Backend PR #2817 changed PAGE actions to `site:` target plus
 host-relative path and added matching unified reads. The client fixtures and
 formatter are aligned with its schema hash
 `sha256:cbddb30fa7d08ac5af41799828767c607a704dc88880c33ae201e14c5d2cc672`;
-authenticated action replay against its dev deployment passed on 2026-09-28
+authenticated action replay against its production deployment passed on 2026-09-28
 for the Express root, a normal page with and without a trailing slash, and the
 same page through a nested site scope. Package and repository list-to-read
-regression checks also passed against the dev endpoints. The permanent CLI
-smoke now covers package and site text/JSON listings, package continuation, and
-replaying a site PAGE action through unified `read`.
+regression checks also passed against production. The permanent CLI smoke now
+covers package and site text/JSON listings, paths-only package output, package
+continuation, and replaying a site PAGE action through unified `read`.
 Phase 2 retains MCP/agent and package-to-site discovery validation.
 
 The text inventory preserves backend-authored PAGE read paths exactly. A

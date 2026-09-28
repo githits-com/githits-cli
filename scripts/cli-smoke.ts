@@ -1976,6 +1976,19 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "list package terminal missing source header or paths",
   );
 
+  const packageListSilent = assertTerminalOutput(
+    await runCli(["list", SMOKE_PACKAGE_SPEC, "--limit", "2", "--silent"]),
+    "list package silent",
+  );
+  const silentPaths = packageListSilent.split("\n");
+  assert(
+    silentPaths.length === 2 &&
+      silentPaths.every(
+        (path) => path.length > 0 && !path.startsWith("# source "),
+      ),
+    "list package silent must contain only result paths",
+  );
+
   const packageListJson = assertJsonOutput(
     await runCli(["list", SMOKE_PACKAGE_SPEC, "--limit", "1", "--json"]),
     "list package json",

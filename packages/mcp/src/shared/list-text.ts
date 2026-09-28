@@ -3,6 +3,7 @@ import { dim } from "./colors.js";
 
 export interface FormatListTextOptions {
   useColors?: boolean;
+  includeHeader?: boolean;
 }
 
 /** Render one token-efficient inventory shared by CLI and MCP text surfaces. */
@@ -11,9 +12,13 @@ export function formatListText(
   options: FormatListTextOptions = {},
 ): string {
   const siteReadTarget = findSharedSiteReadTarget(result);
+  const paths = result.entries.map((entry) =>
+    formatPath(entry, result.inventoryKind),
+  );
+  if (options.includeHeader === false) return paths.join("\n");
   return [
     formatHeader(result, siteReadTarget, options.useColors === true),
-    ...result.entries.map((entry) => formatPath(entry, result.inventoryKind)),
+    ...paths,
   ].join("\n");
 }
 
@@ -30,7 +35,7 @@ function formatHeader(
     followUpTarget === undefined
       ? ""
       : ` | follow up with "read ${escapeLineValue(followUpTarget)} $path"`;
-  const header = `# source ${escapedSource}${followUp}${result.hasMore ? " | more" : ""}`;
+  const header = `# source ${escapedSource}${followUp}${result.hasMore ? " | more results available" : ""}`;
   return dim(header, useColors);
 }
 
