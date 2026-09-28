@@ -62,6 +62,36 @@ function result(overrides: Partial<GrepResult> = {}): GrepResult {
 }
 
 describe("unified grep result and text", () => {
+  it("preserves source and context backslashes while escaping terminal controls", () => {
+    const source = String.raw`const re = /\d+/; s.split("\n")`;
+    const context = String.raw`const path = "C:\src\file.ts"`;
+    const output = formatGrepText(
+      result({
+        hits: [
+          {
+            ...hit,
+            lineSlice: {
+              content: `${source}\x1b`,
+              startByte: 0,
+              endByte: source.length + 1,
+              originalLineBytes: source.length + 1,
+            },
+            contextBeforeSlices: [
+              {
+                content: context,
+                startByte: 0,
+                endByte: context.length,
+                originalLineBytes: context.length,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(output).toContain(`2: ${source}\\u001b`);
+    expect(output).toContain(`1- ${context}`);
+    expect(output).not.toContain("\x1b");
+  });
   it("preserves different match windows on the same long physical line", () => {
     const first = {
       ...hit,

@@ -85,7 +85,8 @@ sibling hits and omissions remain visible.
 Complete/partial pages exit zero, including zero hits. Failures exit nonzero;
 JSON errors go to stderr with clean stdout. Preparation errors map to `INDEXING`
 and preserve up to 20 public `targetIssues` with backend keys and per-input
-recovery data. Invalid cursors map to `INVALID_ARGUMENT` with distinct
+recovery data. Retryable preparation errors include CLI `--wait <ms>` recovery
+guidance. Invalid cursors map to `INVALID_ARGUMENT` with distinct
 `graphqlCode`. Protocol, transport, auth, terms, update, deadline and HTTP
 failures retain mapped categories. There is no legacy fallback or automatic
 preparation retry/cursor restart.

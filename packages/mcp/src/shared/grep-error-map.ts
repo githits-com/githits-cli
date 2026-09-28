@@ -105,7 +105,7 @@ export function mapGrepError(error: unknown): MappedError {
     }
     if (graphqlCode === "GREP_CURSOR_INVALID")
       details.hint =
-        "Restart explicitly without --cursor, using the same targets and controls.";
+        "Restart explicitly without the cursor, using the same targets and controls.";
     return {
       code,
       message: error.message,

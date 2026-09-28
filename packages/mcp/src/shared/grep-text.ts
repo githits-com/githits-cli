@@ -200,7 +200,7 @@ function addLine(
   if (match || !lines.has(number)) lines.set(number, { number, slice, match });
 }
 function renderSlice(slice: GrepLineSlice): string {
-  return `${slice.startByte > 0 ? "[...] " : ""}${escapeText(slice.content)}${slice.endByte < slice.originalLineBytes ? " [...]" : ""}`;
+  return `${slice.startByte > 0 ? "[...] " : ""}${escapeControls(slice.content)}${slice.endByte < slice.originalLineBytes ? " [...]" : ""}`;
 }
 /** Replay the backend action verbatim, using the caller's argument syntax. */
 export function formatReadAction(
@@ -214,11 +214,14 @@ export function formatReadAction(
   return `githits read ${shellQuoteExact(action.target)}${action.path !== null ? ` ${shellQuoteExact(action.path)}` : ""} --lines ${action.startLine}-${action.endLine}`;
 }
 function escapeText(value: string): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: Escape terminal controls deliberately.
-  return value.replace(/[\\\u0000-\u001f\u007f-\u009f]/g, (character) =>
-    character === "\\"
-      ? "\\\\"
-      : `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  return escapeControls(value.replace(/\\/g, "\\\\"));
+}
+function escapeControls(value: string): string {
+  return value.replace(
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: Escape terminal controls deliberately.
+    /[\u0000-\u001f\u007f-\u009f]/g,
+    (character) =>
+      `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
   );
 }
 function wrap(text: string, width: number): string[] {

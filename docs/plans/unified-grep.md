@@ -360,7 +360,7 @@ the existing CLI's successful-empty-result convention.
 
 ## Ordered phases
 
-### Phase 1 — top-level CLI mixed grep (IN PROGRESS)
+### Phase 1 — top-level CLI mixed grep (IMPLEMENTED; LIVE SIGNOFF BLOCKED)
 
 Implementation checkpoint (2026-09-28):
 
@@ -371,15 +371,15 @@ Implementation checkpoint (2026-09-28):
   `GrepRepo.canonical_scope`; a two-target 2,000-selector fixture verifies it.
 - Native `aigrep-grep` `MatchIter` emits individual matches, including several
   on one line. The formatter keeps different slice windows in separate blocks.
-- `bun test`: 5,094 passed / 0 failed, 18,504 assertions across 222 files.
+- `bun test`: 5,095 passed / 0 failed, 18,512 assertions across 222 files.
   Typecheck, build, formatting and public-package validation pass. Source
   CLI/MCP unauthenticated smoke passes; built Node CLI/MCP smoke passes.
-  Internal review is clean after the repeated-context correction. External
-  implementation review remains pending.
+  Revised internal review is clean after both finding closures. External
+  implementation round 2 remains pending.
 - Authenticated `GITHITS_ENV=dev bun run smoke:cli` fails at the strict new
   `router npm:express@5.2.1 --path lib/express.js --limit 1 --json` assertion
   with the backend protocol error below. Earlier stable smoke assertions pass;
-  subsequent assertions are not reached. Authenticated MCP smoke is in progress.
+  subsequent assertions are not reached. Authenticated MCP smoke passes for stable and experimental cohorts.
 - Fresh dev authentication now works through the default macOS Keychain. No
   credentials were printed. Express source and mixed source/site requests
   return both hit kinds; selected/explicit site attribution is `[0, 1]`.
@@ -398,7 +398,6 @@ Implementation checkpoint (2026-09-28):
   strict live CLI smoke. Keep the requested limit and surface the typed error;
   do not add a fallback or alter the smoke to conceal it. Small mixed-page
   acceptance remains UNPROVEN until the backend is fixed and replayed.
-
 
 
 Expected outcome: users can grep ordered source/site scopes with one CLI
@@ -679,7 +678,6 @@ All product steering is resolved. No rejected findings, unresolved review
 items, deferred development, or new infrastructure. Phase 1 can begin from
 this design; fresh authenticated conformance remains implementation acceptance.
 
-
 Implementation preflight closure (2026-09-28):
 
 - Config registration list omitted grep: accepted; added it to
@@ -695,7 +693,6 @@ Implementation preflight closure (2026-09-28):
   here would require a cast or duplicate validation in the adapter. Clarified the
   boundary in JSDoc; the unused input alias is already absent.
 
-
 Internal code-review closure (2026-09-28):
 
 - Repeated context flags could hide an invalid earlier value: accepted. The
@@ -710,3 +707,43 @@ The full revised internal code-review round is clean. The earlier context
 finding is closed; no additional code findings were raised. Remaining live
 small mixed-page acceptance is an external backend dependency, not a client
 fallback or reduced scope. No refactor or new infrastructure was needed.
+
+External implementation round 1 closure (2026-09-28):
+
+- Source/context backslashes doubled: accepted medium output-fidelity finding.
+  Ordinary regex/string/path lines displayed different code. Formatter content
+  now escapes terminal controls only; locator/prose escaping remains explicit.
+  Added a source+context regression with regex escapes, a Windows path and ESC.
+- Retryable preparation had no wait recovery: accepted low CLI UX finding.
+  CLI owns flag-specific recovery; append `--wait <ms>` guidance only to
+  retryable INDEXING, preserving all public per-input details. Shared error
+  classification remains transport-neutral. Checked nonretryable behavior.
+- Shared invalid-cursor hint used CLI syntax: accepted low wording finding.
+  Use neutral “without the cursor” for CLI/MCP reuse; no new syntax switch.
+- Parallel selector collectors and site predicates: accepted low simplicity
+  finding. CLI now has one ordered event-built selector list used by both real
+  calls and direct tests. The existing shared normalizer exports its site
+  predicate internally for CLI reuse. No new module or public MCP API.
+- Stale MCP-smoke progress and blank lines: accepted; recorded passing current
+  authenticated MCP smoke and removed repeated blank lines.
+
+No rejected findings in this implementation round. No final subagent check
+ran because round 1 had code findings. Re-review is required after focused
+verification and the full revised internal pass. The backend small-page
+acceptance blocker remains unchanged and explicit.
+
+Final revision verification: `bun test` passes 5,095 tests across 222 files
+(18,512 assertions); the four changed grep modules pass 25 focused tests
+(160 assertions). Typecheck, changed-file Biome, build and public-package
+validation pass. The coordinator initially started built smoke concurrently
+with package validation, which rebuilds `dist`; both smoke entry checks failed
+while the file was absent. This was a verification sequencing error, not a
+product failure. Kept those logs; built Node CLI and MCP smoke both pass when rerun after
+validation completes.
+The revised internal code-review round is clean. External round 2 is pending.
+
+The authenticated CLI text path also passes for `-F 'var Router'` against the
+emitted pinned Express repository and exact `lib/express.js`: one complete
+match, current scope, numbered source line and exact replay action. This is
+supplemental proof; it does not replace the failing strict package limit-1
+smoke or satisfy the small mixed-page criterion.

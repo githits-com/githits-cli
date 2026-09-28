@@ -4,6 +4,7 @@ import {
   formatGrepText,
   type GrepRequestTargetInput,
   InvalidGrepRequestError,
+  isGrepSiteTarget,
   mapGrepError,
   normalizeGrepContextLines,
   projectGrepResult,
@@ -27,9 +28,6 @@ export interface GrepCommandOptions {
   afterContext?: string[];
   beforeContext?: string[];
   context?: string[];
-  path?: string[];
-  pathPrefix?: string[];
-  glob?: string[];
   corpus?: string;
   limit?: string;
   cursor?: string;
@@ -58,34 +56,18 @@ export async function grepAction(
     const context = contextValue(options.context, "--context");
     const before = contextValue(options.beforeContext, "--before-context");
     const after = contextValue(options.afterContext, "--after-context");
+    const pathSelectors = options.pathSelectors ?? [];
     const sourceOptions =
-      options.corpus !== undefined ||
-      options.path !== undefined ||
-      options.pathPrefix !== undefined ||
-      options.glob !== undefined;
-    if (sourceOptions && targets.every(isSite))
+      options.corpus !== undefined || pathSelectors.length > 0;
+    if (sourceOptions && targets.every(isGrepSiteTarget))
       throw new InvalidGrepRequestError(
         "targets",
         "Source flags require a package or repository operand.",
       );
-    const pathSelectors = options.pathSelectors ?? [
-      ...(options.path ?? []).map((value) => ({
-        kind: "exact" as const,
-        value,
-      })),
-      ...(options.pathPrefix ?? []).map((value) => ({
-        kind: "prefix" as const,
-        value,
-      })),
-      ...(options.glob ?? []).map((value) => ({
-        kind: "glob" as const,
-        value,
-      })),
-    ];
     const params = buildGrepParams({
       pattern,
       targets: targets.map((target) =>
-        isSite(target)
+        isGrepSiteTarget(target)
           ? { target }
           : { target, corpus: options.corpus, pathSelectors },
       ),
@@ -112,6 +94,17 @@ export async function grepAction(
       );
   } catch (error) {
     const mapped = mapGrepError(error);
+    if (mapped.code === "INDEXING" && mapped.retryable) {
+      mapped.details = {
+        ...mapped.details,
+        hint: [
+          mapped.details?.hint,
+          "Retry with --wait <ms> to wait for target preparation (up to 300000 ms).",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      };
+    }
     if (error instanceof InvalidGrepRequestError) {
       const label = CLI_FIELDS[error.field];
       if (label) mapped.message = mapped.message.replace(error.field, label);
@@ -159,9 +152,6 @@ function contextValue(
     ?.map((value) => normalizeGrepContextLines(numeric(value), field))
     .at(-1);
 }
-function isSite(target: string): boolean {
-  return target.trim().toLowerCase().startsWith("site:");
-}
 function collect(value: string, previous: string[] = []): string[] {
   return [...previous, value];
 }
@@ -195,14 +185,9 @@ export function registerGrepCommand(
     .option(
       "--path <path>",
       "Exact source path, applied to every source operand (repeatable)",
-      collect,
     )
-    .option(
-      "--path-prefix <prefix>",
-      "Source path prefix (repeatable)",
-      collect,
-    )
-    .option("--glob <glob>", "Source path glob (repeatable)", collect)
+    .option("--path-prefix <prefix>", "Source path prefix (repeatable)")
+    .option("--glob <glob>", "Source path glob (repeatable)")
     .option(
       "--corpus <corpus>",
       "Repository files: source, documentation, or all (default: all)",

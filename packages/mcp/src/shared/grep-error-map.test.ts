@@ -46,7 +46,10 @@ describe("unified grep errors", () => {
     ).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
-      details: { graphqlCode: "GREP_CURSOR_INVALID" },
+      details: {
+        graphqlCode: "GREP_CURSOR_INVALID",
+        hint: "Restart explicitly without the cursor, using the same targets and controls.",
+      },
     });
     expect(
       mapGrepError(

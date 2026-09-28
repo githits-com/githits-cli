@@ -69,6 +69,10 @@ describe("unified grep CLI", () => {
           "site:docs.test",
           "--path",
           "a.ts",
+          "--path-prefix",
+          "lib/",
+          "--glob",
+          "**/*.js",
           "npm:x",
           "--json",
         ],
@@ -83,6 +87,8 @@ describe("unified grep CLI", () => {
             pathSelectors: [
               { kind: "GLOB", value: "**/*.ts" },
               { kind: "EXACT", value: "a.ts" },
+              { kind: "PREFIX", value: "lib/" },
+              { kind: "GLOB", value: "**/*.js" },
             ],
           },
           { target: "site:docs.test" },
@@ -93,6 +99,8 @@ describe("unified grep CLI", () => {
             pathSelectors: [
               { kind: "GLOB", value: "**/*.ts" },
               { kind: "EXACT", value: "a.ts" },
+              { kind: "PREFIX", value: "lib/" },
+              { kind: "GLOB", value: "**/*.js" },
             ],
           },
         ],
@@ -236,8 +244,8 @@ describe("unified grep CLI", () => {
         { beforeContext: ["-1"] },
         { afterContext: ["1.2"] },
         { corpus: "all" },
-        { path: ["a"] },
-        { glob: ["*"] },
+        { pathSelectors: [{ kind: "exact", value: "a" }] },
+        { pathSelectors: [{ kind: "glob", value: "*" }] },
       ] satisfies GrepCommandOptions[]) {
         const d = deps();
         await expect(
@@ -336,7 +344,39 @@ describe("unified grep CLI", () => {
         JSON.parse(String(error.mock.calls.at(-1)?.[0])).details.targetIssues[0]
           .progress_ref,
       ).toBe("index:1");
-      expect(stop).toHaveBeenCalledTimes(1);
+      expect(
+        JSON.parse(String(error.mock.calls.at(-1)?.[0])).details.hint,
+      ).toContain("--wait <ms>");
+      await expect(
+        grepAction(
+          "router",
+          ["site:docs.test"],
+          { json: true },
+          deps({
+            createSpinner: () => ({ stop }),
+            grepService: createMockGrepService({
+              grep: async () => {
+                throw new GrepGraphQLError("ambiguous", {
+                  code: "GREP_TARGET_PREPARATION_REQUIRED",
+                  retryable: false,
+                  target_issues: [
+                    {
+                      input_index: 0,
+                      reason: "site_ambiguous",
+                      retryable: false,
+                    },
+                  ],
+                });
+              },
+            }),
+          }),
+        ),
+      ).rejects.toThrow("exit");
+      const ambiguous = JSON.parse(String(error.mock.calls.at(-1)?.[0]));
+      expect(ambiguous.retryable).toBe(false);
+      expect(ambiguous.details.hint).toContain("site_ambiguous");
+      expect(ambiguous.details.hint).not.toContain("--wait");
+      expect(stop).toHaveBeenCalledTimes(2);
       expect(log).not.toHaveBeenCalled();
     } finally {
       log.mockRestore();

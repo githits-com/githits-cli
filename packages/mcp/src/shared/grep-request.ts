@@ -131,7 +131,7 @@ export function buildGrepParams(input: GrepRequestInput): GrepParams {
       `${field}.pathSelectors`,
     );
 
-    if (isSiteTarget(target)) {
+    if (isGrepSiteTarget(target)) {
       if (targetInput.corpus !== undefined) {
         throw invalid(
           `${field}.corpus`,
@@ -305,7 +305,8 @@ function normalizeCursor(value: string | undefined): string | undefined {
   return value.trim().length === 0 ? undefined : value;
 }
 
-function isSiteTarget(target: string): boolean {
+/** Classify targets by a trimmed, case-insensitive `site:` prefix. */
+export function isGrepSiteTarget(target: string): boolean {
   return target.trim().toLowerCase().startsWith("site:");
 }
 
