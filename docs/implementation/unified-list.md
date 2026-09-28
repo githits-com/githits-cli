@@ -145,8 +145,16 @@ formatter are aligned with its schema hash
 authenticated action replay against its dev deployment passed on 2026-09-28
 for the Express root, a normal page with and without a trailing slash, and the
 same page through a nested site scope. Package and repository list-to-read
-regression checks also passed against the dev endpoints.
+regression checks also passed against the dev endpoints. The permanent CLI
+smoke now covers package and site text/JSON listings, package continuation, and
+replaying a site PAGE action through unified `read`.
 Phase 2 retains MCP/agent and package-to-site discovery validation.
+
+The text inventory preserves backend-authored PAGE read paths exactly. A
+trailing slash normally marks a directory, but a PAGE also retains it when the
+backend reports distinct slashless and slashful pages. In that exceptional
+case the path remains directly readable and JSON `kind` distinguishes the
+page from a directory.
 
 ## Key reference files
 

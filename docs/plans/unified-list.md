@@ -11,7 +11,7 @@ has completed live action replay against its dev deployment and awaits review
 and merge. Phase 2 has not started.
 
 The rebased Phase 1 branch passed 5,030 tests, typecheck, formatting, build,
-142-step live CLI smoke, 65-step live MCP smoke, 36-step built CLI smoke, and
+148-step live CLI smoke, 65-step live MCP smoke, 36-step built CLI smoke, and
 9-step built MCP registration smoke against the dev endpoints. Authenticated
 package, repository, and site list/read follow-ups passed. Backend
 PR #2817 merged as `518e45d301d0ba3f451ff56034551addc2bfc7fe` and its
