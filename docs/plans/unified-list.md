@@ -525,11 +525,11 @@ plugin-maintenance workflow governs public guidance changes.
    fragment for both public artifacts.
 
 Implementation landed as focused service, catalog, migration, smoke, eval,
-documentation, and review-fix commits beginning at `38be5ab`. The stable
-catalog has 12 tools. The serialized replacement descriptor (`name`,
-description, input schema) is 2,793 UTF-8 bytes, 2,395 bytes (46.2%) below the
-5,188-byte retired pair baseline. The serialized stable catalog is 32,455
-UTF-8 bytes. These are payload measurements, not model-token or latency claims.
+documentation, and review-fix commits. The stable catalog has 12 tools. The
+serialized replacement descriptor (`name`, description, input schema) is 2,793
+UTF-8 bytes, 2,395 bytes (46.2%) below the 5,188-byte retired pair baseline.
+The serialized stable catalog is 32,455 UTF-8 bytes. These are payload
+measurements, not model-token or latency claims.
 
 Final deterministic verification on 2026-09-28 passed 4,980 tests with zero
 failures, typecheck, formatting, lint with only the repository's pre-existing
@@ -677,10 +677,10 @@ clean under the documentation-only finding rule.
 Phase 2 implementation review completed on 2026-09-28. Luna pre-flight found
 no code, documentation, or interface mismatch and identified only the unproven
 authenticated/eval gates. Internal code review found one accepted smoke gap:
-the continuation probe could skip after an exact-file query; `18e2796` replaced
+the continuation probe could skip after an exact-file query; `e0889b7` replaced
 it with required root pagination and a distinct second entry. External Claude
 round 1 found two low-severity maintenance gaps: the release fragment omitted
 the required host `listService` migration, and retired unregistered MCP list
-factories plus MCP-only renderers remained dead. `2167e59` documented the host
+factories plus MCP-only renderers remained dead. `e04bfc8` documented the host
 contract and removed that dead code while preserving grouped CLI helpers and
 their tests. External round 2 re-ran focused tests and typecheck and was clean.
