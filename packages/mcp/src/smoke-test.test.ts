@@ -310,7 +310,14 @@ describe("runMcpSmoke", () => {
       name: "list",
       args: {
         target: SMOKE_PACKAGE_TARGET,
-        paths: ["package.json"],
+        limit: 1,
+        format: "json",
+      },
+    });
+    expect(calls).toContainEqual({
+      name: "list",
+      args: {
+        target: SMOKE_PACKAGE_TARGET,
         limit: 1,
         after: SMOKE_LIST_CURSOR,
         format: "json",
@@ -970,8 +977,14 @@ function smokeListResult(
     throw new Error("list smoke requires a target");
   }
   const isSite = target.startsWith("site:");
+  const isRootPackageQuery = !isSite && args.paths === undefined;
   const hasMore =
-    !isSite && args.limit === 1 && args.after !== SMOKE_LIST_CURSOR;
+    isRootPackageQuery && args.limit === 1 && args.after !== SMOKE_LIST_CURSOR;
+  const packagePath = isRootPackageQuery
+    ? args.after === SMOKE_LIST_CURSOR
+      ? "index.js"
+      : "History.md"
+    : "package.json";
   return {
     inventoryKind: isSite ? "SITE" : "SOURCE",
     requestedTarget: target,
@@ -987,8 +1000,8 @@ function smokeListResult(
       : [
           {
             kind: "FILE",
-            path: "package.json",
-            read: { target: SMOKE_PACKAGE_TARGET, path: "package.json" },
+            path: packagePath,
+            read: { target: SMOKE_PACKAGE_TARGET, path: packagePath },
           },
         ],
     hasMore,
@@ -1013,7 +1026,8 @@ function smokeListText(args: Record<string, unknown>): string {
     ? ' | follow up with "read site:expressjs.com $path"'
     : "";
   const more = result.hasMore ? " | more results available" : "";
-  const path = isSite ? SMOKE_SITE_PAGE_PATH : "package.json";
+  const entries = result.entries as Array<Record<string, unknown>>;
+  const path = entries[0]?.path;
   return `# source ${String(source)}${followUp}${more}\n${path}`;
 }
 

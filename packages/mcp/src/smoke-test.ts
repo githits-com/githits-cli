@@ -1123,27 +1123,58 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
       (packageListJson.hasMore || packageListJson.nextCursor === null),
     "list package json hasMore/nextCursor mismatch",
   );
-  if (packageListJson.hasMore) {
-    const continuedList = assertJsonResult(
-      await callTool(caller, "list", {
-        ...packageListArgs,
-        after: packageListJson.nextCursor,
-        format: "json",
-      }),
-      "list package continuation json",
-    );
-    assertRecord(continuedList, "list package continuation json");
-    assert(
-      continuedList.requestedTarget === SMOKE_PACKAGE_TARGET &&
-        continuedList.inventoryKind === "SOURCE" &&
-        typeof continuedList.hasMore === "boolean" &&
-        continuedList.hasMore ===
-          (typeof continuedList.nextCursor === "string" &&
-            continuedList.nextCursor.length > 0) &&
-        (continuedList.hasMore || continuedList.nextCursor === null),
-      "list package continuation json has invalid identity or cursor state",
-    );
-  }
+  const rootListArgs = { target: SMOKE_PACKAGE_TARGET, limit: 1 };
+  const firstRootPage = assertJsonResult(
+    await callTool(caller, "list", { ...rootListArgs, format: "json" }),
+    "list package root first page json",
+  );
+  assertRecord(firstRootPage, "list package root first page json");
+  assert(
+    firstRootPage.inventoryKind === "SOURCE" &&
+      firstRootPage.requestedTarget === SMOKE_PACKAGE_TARGET &&
+      Array.isArray(firstRootPage.entries) &&
+      firstRootPage.entries.length === 1 &&
+      firstRootPage.hasMore === true &&
+      typeof firstRootPage.nextCursor === "string" &&
+      firstRootPage.nextCursor.length > 0,
+    "list package root first page must contain one entry and a continuation cursor",
+  );
+  const firstRootEntry = firstRootPage.entries[0];
+  assertRecord(firstRootEntry, "list package root first entry");
+  const firstRootPath = firstRootEntry.path;
+  assert(
+    typeof firstRootPath === "string" && firstRootPath.length > 0,
+    "list package root first entry missing path",
+  );
+
+  const secondRootPage = assertJsonResult(
+    await callTool(caller, "list", {
+      ...rootListArgs,
+      after: firstRootPage.nextCursor,
+      format: "json",
+    }),
+    "list package root continuation json",
+  );
+  assertRecord(secondRootPage, "list package root continuation json");
+  assert(
+    secondRootPage.inventoryKind === "SOURCE" &&
+      secondRootPage.requestedTarget === SMOKE_PACKAGE_TARGET &&
+      Array.isArray(secondRootPage.entries) &&
+      secondRootPage.entries.length === 1 &&
+      typeof secondRootPage.hasMore === "boolean" &&
+      secondRootPage.hasMore ===
+        (typeof secondRootPage.nextCursor === "string" &&
+          secondRootPage.nextCursor.length > 0) &&
+      (secondRootPage.hasMore || secondRootPage.nextCursor === null),
+    "list package root continuation json has invalid identity, entries, or cursor state",
+  );
+  const secondRootEntry = secondRootPage.entries[0];
+  assertRecord(secondRootEntry, "list package root continuation entry");
+  assert(
+    typeof secondRootEntry.path === "string" &&
+      secondRootEntry.path !== firstRootPath,
+    "list package root continuation repeated its first entry",
+  );
 
   const packageReadText = assertDefaultText(
     await callTool(caller, "read", {
