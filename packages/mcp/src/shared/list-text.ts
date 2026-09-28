@@ -1,5 +1,5 @@
 import type { ListEntry, ListResult } from "@githits/core-internal";
-import { colorize } from "./colors.js";
+import { dim } from "./colors.js";
 
 export interface FormatListTextOptions {
   useColors?: boolean;
@@ -36,7 +36,7 @@ function formatHeader(
       ? ""
       : ` | follow up with "read ${escapeLineValue(siteOrigin)}/$path"${hasExactUrlRow ? " (URLs as-is)" : ""}`;
   const header = `# source ${escapeLineValue(source)}${followUp}${result.hasMore ? " | more" : ""}`;
-  return colorize(header, "gray", useColors);
+  return dim(header, useColors);
 }
 
 function formatPath(entry: ListEntry, siteOrigin: string | undefined): string {

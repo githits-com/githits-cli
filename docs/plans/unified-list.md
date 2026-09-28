@@ -215,8 +215,7 @@ or reconstructed action is added.
 Text output starts with `# source <canonical-target>` followed by one unquoted
 path per line. When the backend has another page, the header adds ` | more`.
 If no canonical target is available, the header uses the requested target.
-CLI colors the header gray when color is enabled; MCP uses the same text
-without ANSI.
+CLI dims the header when color is enabled; MCP uses the same text without ANSI.
 Directory paths end in `/`; file and page paths have no prefix. Paths escape
 controls and backslashes so the line-oriented format stays unambiguous; quotes,
 spaces, and ordinary Unicode remain literal. The text surface omits titles,
