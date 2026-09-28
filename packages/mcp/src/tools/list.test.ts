@@ -8,7 +8,7 @@ import { ListGraphQLError } from "@githits/core-internal";
 import { z } from "zod";
 import { projectListResult } from "../shared/list-response.js";
 import { formatListText } from "../shared/list-text.js";
-import { createListTool, type ListArgs } from "./list.js";
+import { createListTool } from "./list.js";
 
 const FIRST_SENTENCE =
   "List files or documentation pages in a package, repository, or site.";
