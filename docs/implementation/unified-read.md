@@ -14,8 +14,11 @@ public MCP server.
 ## Locators and ownership
 
 `packages/mcp/src/shared/read-request.ts` owns transport-neutral locator and range
-validation. A nonempty `path` scopes code to one exact target-relative file.
-Without `selector`, that path reads the file. Pathless targets, including
+validation and recognizes the explicit lowercase `site:` target whose path
+selects hosted documentation. Other nonempty paths scope code to one exact
+target-relative file; without `selector`, that path reads the file. A site path
+is host-relative, preserves query and encoded bytes, and uses `/` for the root.
+Pathless targets, including
 compact package/repository fragments and emitted documentation locators, go to
 the backend's unified `read` resolver. The returned union type determines
 whether CLI/MCP present code, documentation, or a symbol-resolution outcome.
@@ -77,8 +80,10 @@ snapshot guarantee than the backend's package-to-repository resolution.
 
 The MCP tool accepts `target`, optional `path`, `selector`, `start_line`, `end_line`,
 `wait_timeout_ms`, and `format`. Targets for code are compact package/repository
-strings, matching `code_files` and `code_grep`. Existing target parsers still own
-package/provider syntax and exact Git revision handling.
+strings, matching `code_files` and `code_grep`. An explicit `site:` target plus
+path addresses hosted documentation through the backend's authorized inventory;
+the target and path emitted by `list` are replayed unchanged. Existing target
+parsers still own package/provider syntax and exact Git revision handling.
 
 The tool in `packages/mcp/src/tools/read.ts` injects `ReadService` and calls its
 `read` method once. The service returns code, docs, or typed code-resolution

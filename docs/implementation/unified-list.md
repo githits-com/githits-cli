@@ -138,11 +138,14 @@ the Express, Requests, and Babel repositories, and React and Node.js
 documentation sites. All 20 checks passed against the earlier exact-URL PAGE
 action contract, including `?`, escaped glob
 metacharacters, union deduplication, and Babel monorepo package-boundary
-isolation. Backend PR #2817 changes PAGE actions to `site:` target plus
-host-relative path and adds matching unified reads. The client fixtures and
+isolation. Backend PR #2817 changed PAGE actions to `site:` target plus
+host-relative path and added matching unified reads. The client fixtures and
 formatter are aligned with its schema hash
 `sha256:cbddb30fa7d08ac5af41799828767c607a704dc88880c33ae201e14c5d2cc672`;
-authenticated action replay remains pending its merge and dev deployment.
+authenticated action replay against its dev deployment passed on 2026-09-28
+for the Express root, a normal page with and without a trailing slash, and the
+same page through a nested site scope. Package and repository list-to-read
+regression checks also passed against the dev endpoints.
 Phase 2 retains MCP/agent and package-to-site discovery validation.
 
 ## Key reference files

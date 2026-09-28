@@ -9,6 +9,11 @@ export interface ReadLocator {
   path?: string;
 }
 
+/** Identify the explicit hosted-site target whose path selects documentation. */
+export function isSiteReadTarget(target: string): boolean {
+  return target.trim().startsWith("site:");
+}
+
 /** Normalize the optional file path; preserve target bytes for read classification. */
 export function resolveReadLocator(target: string, path?: string): ReadLocator {
   if (typeof target !== "string" || !target.trim()) {

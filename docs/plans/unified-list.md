@@ -7,16 +7,18 @@ which is rebased onto current `main`. PR #422 previously merged the CLI
 increment into that stacked base at
 `485ba1b9b66f304eb382ea9c7fb993aafc2dc70e` on 2026-09-28. The branch is being
 aligned directly with backend PR #2817's site-scoped PAGE actions; Phase 1
-awaits its dev deployment and live action replay before merge. Phase 2 has not
-started.
+has completed live action replay against its dev deployment and awaits review
+and merge. Phase 2 has not started.
 
-The rebased Phase 1 branch passed 5,022 tests, typecheck, formatting, build,
-139-step live CLI smoke, 63-step live MCP smoke, 36-step built CLI smoke, and
-9-step built MCP registration smoke. Authenticated package, repository, and
-site list/read follow-ups passed against the earlier URL action shape. The base
-`Query.list` contract is deployed. Backend PR #2817's `site:` target plus
-host-relative page path shape is not yet merged or deployed, and the client
-work is not on `main`, released, or deployed.
+The rebased Phase 1 branch passed 5,030 tests, typecheck, formatting, build,
+142-step live CLI smoke, 65-step live MCP smoke, 36-step built CLI smoke, and
+9-step built MCP registration smoke against the dev endpoints. Authenticated
+package, repository, and site list/read follow-ups passed. Backend
+PR #2817 merged as `518e45d301d0ba3f451ff56034551addc2bfc7fe` and its
+`site:` target plus host-relative page path shape is deployed to dev. Live CLI
+replay passes for the Express site root, a normal page with and without its
+trailing slash, and the same page through a nested site scope. The client work
+is not on `main`, released, or deployed.
 
 Replace the advertised MCP `code_files` and `docs_list` tools with one `list`
 tool, and add the matching top-level `githits list` command. The new surface
@@ -109,13 +111,14 @@ Evidence:
 - `~/proj/githits/pkgseer-backend/graphql-docs/docs/list.md`
 - `~/proj/githits/pkgseer-backend/docs/implementation/UNIFIED_LIST.md`
 
-The site-read changelog section is committed on open backend PR #2817 and is
-the client implementation contract. Authenticated live CLI conformance on
+The site-read changelog section merged in backend PR #2817 and is the client
+implementation contract. Authenticated live CLI conformance on
 2026-09-26 verified that the hosted endpoint exposes the base `Query.list` for
 package, repository, and site targets; the covered semantics and remaining
-Phase 2 cases are recorded in `docs/implementation/unified-list.md`. The new
-site action replay requires #2817's merge and dev deployment. Neither state is
-a reason for a legacy client fallback.
+Phase 2 cases are recorded in `docs/implementation/unified-list.md`. On
+2026-09-28, the deployed dev endpoint emitted the new logical PAGE actions and
+accepted their `site:` target plus host-relative path for root, normal,
+trailing-slash, and nested-scope reads.
 
 ### Current GitHits client surface
 
@@ -383,15 +386,15 @@ PR #2817 resolves site addressing, including `/` for the root.
 
 | Phase | Status | Outcome |
 | --- | --- | --- |
-| 1. Add the shared contract and CLI | **IN PROGRESS; PR #421 OPEN** | Increments 1A and 1B are implemented and rebased onto `main`; `githits list` browses the backend contract through a tested transport-neutral service and shared formatter. Phase 1 requires #2817's dev deployment, live site action replay, and #421 merge. |
+| 1. Add the shared contract and CLI | **IN PROGRESS; PR #421 OPEN** | Increments 1A and 1B are implemented and rebased onto `main`; `githits list` browses the backend contract through a tested transport-neutral service and shared formatter. Backend #2817 dev conformance and live site action replay pass; Phase 1 awaits review and #421 merge. |
 | 2. Consolidate the MCP surface | **PLANNED; PR #421 merge dependent** | The advertised catalog contains `list` instead of `code_files` and `docs_list`, and agent guidance routes package/repository/site browsing and follow-up actions correctly. |
 | 3. Release and hosted adoption | **PLANNED; authorization/deployment dependent** | Published CLI and hosted MCP expose the same unified list contract, and live list-to-read/list-to-list paths pass against the deployed backend. |
 
 ## Phase 1 detailed plan — shared contract and CLI
 
 **Status:** IN PROGRESS; increments 1A and 1B are implemented and rebased onto
-current `main`. Open PR #421 awaits backend PR #2817's dev deployment and live
-site action replay before merge.
+current `main`. Backend PR #2817 is deployed to dev and live site action replay
+passes. Open PR #421 awaits review and merge.
 
 **Expected outcome:** the root CLI implements the committed backend contract
 through a transport-neutral `ListService`. `githits list` can browse all three
@@ -404,8 +407,7 @@ the new command.
 endpoint, token refresh, headers, diagnostics, error envelopes, and formatter
 conventions remain reusable.
 
-**Unknowns or product decisions:** none. Deployment timing is unknown; it does
-not block deterministic transport, projection, and CLI validation.
+**Unknowns or product decisions:** none.
 
 **Dependencies:** backend PR #2817 with schema hash
 `sha256:cbddb30fa7d0`; current unified `read` implementation.
@@ -448,9 +450,11 @@ increments pass their acceptance checks and merge.
    `githits list site:<host[/path]>`, while package-local documentation files
    remain available from the package target.
 4. **Across 1A and 1B:** add focused core-service, shared-builder/formatter/error, CLI action,
-   container, registration, and CLI smoke coverage. Start
+   container, registration, and CLI smoke coverage. Admit emitted site target
+   plus page path actions through the existing unified CLI and MCP read adapters.
+   Start
    `docs/implementation/unified-list.md`, update the active CLI/tools/config
-   documentation, and add a `githits: minor`, `@githits/mcp: none` fragment.
+   documentation, and add a `githits: minor`, `@githits/mcp: minor` fragment.
 
 ### Required Phase 1 coverage
 
@@ -487,7 +491,9 @@ bun test
 bun run typecheck
 bun run build
 bun run smoke:cli
+bun run smoke:mcp
 bun run smoke:cli:built
+bun run smoke:mcp:built
 ```
 
 The CLI smoke suites remain useful unauthenticated by verifying auth handling.
@@ -497,6 +503,13 @@ fixtures; legacy grouped command execution remains covered; and implementation
 code stays below the repository threshold. If implementation approaches 2,000
 changed non-test/documentation lines, stop and split core service/request
 projection from CLI/formatter wiring rather than adding mechanism.
+
+The 2026-09-28 descriptor-only `docs-fragment-read` eval completed with both
+Codex and Claude. In neutral discovery both answered without tools. With the
+GitHits intent profile, both used `read` and returned the requested section;
+Claude also exercised the new `site:` target plus page-path shape while
+recovering from a Flask site target that the dev backend did not recognize.
+No isolation violations were reported.
 
 ## Phase 2 detailed plan — consolidate the MCP surface
 
@@ -516,8 +529,8 @@ related explicit `site:` targets, while locally enabled `resolve_target`
 remains an additional route for fuzzy or natural names.
 
 **Unknowns or product decisions:** none. Base endpoint availability was verified
-on 2026-09-26; the #2817 site-read shape will be verified in Phase 1 after dev
-deployment. No product decision is open.
+on 2026-09-26; the deployed #2817 site-read shape passed Phase 1 live replay on
+2026-09-28. No product decision is open.
 
 **Dependencies:** Phase 1 merged; the plugin-maintenance workflow for public
 guidance.
@@ -574,8 +587,8 @@ Backend semantic conformance was established with authenticated CLI calls on
 on selected directories, source filters before hierarchy, package boundary
 isolation, dot-prefixed source paths, host-qualified site inventory paths,
 continuation, and the earlier URL-based list-to-read actions all passed. Client
-unit tests assert only wire replay and projection. Phase 1 repeats site action
-replay after #2817 deploys because that schema behavior changed. Phase 2 uses
+unit tests assert only wire replay and projection. Phase 1 repeated site action
+replay after #2817 deployed because that schema behavior changed. Phase 2 uses
 the same endpoint to verify the MCP projection and agent routing, and repeats
 other backend cases only if the schema or endpoint changes.
 

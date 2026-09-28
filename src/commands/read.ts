@@ -9,6 +9,7 @@ import {
   formatReadFileTerminal,
   formatReadResult,
   InvalidPackageSpecError,
+  isSiteReadTarget,
   MAX_WAIT_TIMEOUT_MS,
   mapCodeNavigationError,
   mapPackageIntelligenceError,
@@ -90,7 +91,8 @@ export async function readAction(
       exactFile =
         selector === undefined &&
         locator.path !== undefined &&
-        !locator.target.includes("#");
+        !locator.target.includes("#") &&
+        !isSiteReadTarget(locator.target);
       const pathWithRange =
         exactFile && locator.path
           ? parsePathWithOptionalRange(locator.path)
@@ -236,13 +238,16 @@ export function registerReadCommand(program: Command): Command {
     .command("read")
     .summary("Read an indexed file, code symbol, or docs section")
     .description(
-      "Read an exact file with <target> <path> (optionally <path>:N-M), a code symbol with <target>#symbol (optional exact path), or a docs page with <target>. The resolved target determines code or docs presentation; preserve emitted docs locators. --selector selects a code symbol or docs heading by its fragment ID; do not combine it with a docs URL fragment. Hosted/crawled docs read mutable current content; repository docs are snapshot-addressed and return indexed file content. An HTTP(S) docs URL fragment selects the heading's full subtree; explicit bounds select a page-relative range instead. Output is complete for piping.",
+      "Read an exact file with <target> <path> (optionally <path>:N-M), a hosted page with <site-target> <path>, a code symbol with <target>#symbol (optional exact path), or a docs page with <target>. The resolved target determines code or docs presentation; preserve emitted docs locators. --selector selects a code symbol or docs heading by its fragment ID; do not combine it with a docs URL fragment. Hosted/crawled docs read mutable current content; repository docs are snapshot-addressed and return indexed file content. An HTTP(S) docs URL fragment selects the heading's full subtree; explicit bounds select a page-relative range instead. Output is complete for piping.",
     )
     .argument(
       "[target-or-path]",
-      "Docs target/page ID or package/repository target; with --repo-url, the file path",
+      "Docs/site target, page ID, or package/repository target; with --repo-url, the file path",
     )
-    .argument("[path]", "Exact file path within the package or repository")
+    .argument(
+      "[path]",
+      "Exact file path within a package/repository, or page path within a site",
+    )
     .option("--repo-url <url>", "Repository URL addressing")
     .option("--git-ref <ref>", "Git ref for --repo-url (code only)")
     .option(

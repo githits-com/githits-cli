@@ -1187,6 +1187,39 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "read crawled URL json missing locators, content, or backend range",
   );
 
+  const sitePathReadText = assertDefaultText(
+    await callTool(caller, "read", {
+      target: "site:expressjs.com",
+      path: "en/resources",
+      start_line: 1,
+      end_line: 5,
+    }),
+    "read site path default",
+  );
+  assert(sitePathReadText.length > 0, "read site path default missing content");
+
+  const sitePathReadJson = assertJsonResult(
+    await callTool(caller, "read", {
+      target: "site:expressjs.com",
+      path: "en/resources",
+      start_line: 1,
+      end_line: 5,
+      format: "json",
+    }),
+    "read site path json",
+  );
+  assertRecord(sitePathReadJson, "read site path json");
+  assert(
+    typeof sitePathReadJson.content === "string" &&
+      sitePathReadJson.startLine === 1 &&
+      typeof sitePathReadJson.endLine === "number" &&
+      sitePathReadJson.endLine >= 1 &&
+      sitePathReadJson.endLine <= 5 &&
+      typeof sitePathReadJson.totalLines === "number" &&
+      sitePathReadJson.totalLines >= sitePathReadJson.endLine,
+    "read site path json missing content or backend range",
+  );
+
   const legacyCrawledRead = assertJsonResult(
     await callTool(caller, "read", {
       target: crawledPage.pageId,

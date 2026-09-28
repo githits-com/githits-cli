@@ -9,6 +9,7 @@ import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { InvalidPackageSpecError } from "../shared/package-spec.js";
 import {
+  isSiteReadTarget,
   normalizeReadWaitTimeoutMs,
   resolveReadLocator,
   validateReadRange,
@@ -50,19 +51,19 @@ export const readSchema: ReadSchema = {
   target: z
     .string()
     .describe(
-      "With path: compact package or repo target, e.g. npm:react@18 or github:owner/repo@ref; target#symbol narrows a symbol read to that file. Without path: pass a docs target/page ID or compact target#symbol unchanged. The resolved result determines code or docs. Preserve HTTP(S) docs URLs and fragments unchanged.",
+      "With path: explicit site: target for a hosted page, or compact package/repo target for a file; target#symbol narrows a symbol read to that file. Without path: pass a docs target/page ID or compact target#symbol unchanged. The resolved result determines code or docs. Preserve emitted targets unchanged.",
     ),
   path: z
     .string()
     .optional()
     .describe(
-      "Exact package/repo-relative file path from search, code_files or code_grep. Omit for documentation pages; empty means omitted.",
+      "Host-relative page path for an explicit site: target, or exact package/repo-relative file path from search, code_files or code_grep. Omit for other documentation targets; empty means omitted.",
     ),
   selector: z
     .string()
     .optional()
     .describe(
-      "Logical docs heading ID or indexed code symbol. With path, search exactly that file; omit path to search the code target. Do not combine with a docs URL fragment or compact target#symbol.",
+      "Logical docs heading ID or indexed code symbol. With a site path it selects a hosted heading; with a code path it searches exactly that file. Omit path to search a code target. Do not combine with a docs URL fragment or compact target#symbol.",
     ),
   start_line: z
     .number()
@@ -92,7 +93,7 @@ export const readSchema: ReadSchema = {
 
 export const DESCRIPTION_BASE: string =
   "Read an indexed source file, code symbol, or documentation section. " +
-  "Pass target and path for a file; use compact target#symbol or selector for a code symbol, and selector for a docs heading. " +
+  "Pass target and path for a file or site page; use compact target#symbol or selector for a code symbol, and selector for a docs heading. " +
   "Preserve emitted documentation targets; the resolved result determines code or docs. " +
   "Replaces code_read and docs_read. " +
   "Hosted/crawled HTTP(S) docs targets read mutable current content; repository-doc targets address snapshots. " +
@@ -139,7 +140,8 @@ export function createReadTool(
       if (
         args.selector !== undefined ||
         locator.path === undefined ||
-        locator.target.includes("#")
+        locator.target.includes("#") ||
+        isSiteReadTarget(locator.target)
       ) {
         try {
           const response = await services.readService.read({

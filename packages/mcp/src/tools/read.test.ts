@@ -79,6 +79,9 @@ describe("unified read contract", () => {
     ]);
     const schema = z.toJSONSchema(z.object(tool.schema), { io: "input" });
     expect(schema.properties?.target).toMatchObject({ type: "string" });
+    expect(schema.properties?.path).toMatchObject({
+      description: expect.stringContaining("site: target"),
+    });
     expect(schema.required).toEqual(["target"]);
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
@@ -207,6 +210,35 @@ describe("unified read contract", () => {
         waitTimeoutMs: 0,
       });
       expect(services.readService.read).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["en/resources", "/", "en/pair/", "guide/a%2Fb?lang=en"])(
+    "reads site page path %s through the unified docs route",
+    async (path) => {
+      const { services, tool } = setup();
+      services.readService.read = mock(() =>
+        Promise.resolve({
+          source: "docs" as const,
+          result: defaultPackageDocResult,
+        }),
+      );
+      const target = " site:WWW.Example.com/en/ ";
+
+      const result = await tool.handler({
+        target,
+        path,
+        wait_timeout_ms: 0,
+        format: "json",
+      });
+
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target,
+        path,
+        waitTimeoutMs: 0,
+      });
+      expect(services.readService.read).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(result.content[0]!.text)).toHaveProperty("pageId");
     },
   );
 

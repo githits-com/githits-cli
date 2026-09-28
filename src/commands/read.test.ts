@@ -11,6 +11,7 @@ import { Command } from "commander";
 import {
   createMockCodeNavigationService,
   createMockReadService,
+  defaultPackageDocResult,
   defaultReadFileResult,
 } from "../services/test-helpers.js";
 import { registerCodeReadCommand } from "./code/read.js";
@@ -137,7 +138,7 @@ describe("top-level read", () => {
     },
   );
 
-  it("rejects an invalid compact exact-file target locally", async () => {
+  it("rejects an unsupported compact exact-file target locally", async () => {
     const services = deps();
     const error = spyOn(console, "error").mockImplementation(() => {});
     const exit = spyOn(process, "exit").mockImplementation((() => {
@@ -145,12 +146,7 @@ describe("top-level read", () => {
     }) as never);
     try {
       await expect(
-        readAction(
-          "site:example.com",
-          "src/index.ts",
-          { json: true },
-          services,
-        ),
+        readAction("unknown:example", "src/index.ts", { json: true }, services),
       ).rejects.toThrow("exit");
       expect(JSON.parse(String(error.mock.calls[0]?.[0])).code).toBe(
         "INVALID_ARGUMENT",
@@ -161,6 +157,36 @@ describe("top-level read", () => {
       exit.mockRestore();
     }
   });
+
+  it.each(["en/resources", "/", "en/pair/", "guide/a%2Fb?lang=en"])(
+    "reads site page path %s through the unified docs route",
+    async (path) => {
+      const services = deps();
+      services.readService.read = mock(() =>
+        Promise.resolve({
+          source: "docs" as const,
+          result: defaultPackageDocResult,
+        }),
+      );
+      const target = " site:WWW.Example.com/en/ ";
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await readAction(target, path, { json: true, wait: "0" }, services);
+        expect(services.readService.read).toHaveBeenCalledWith({
+          target,
+          path,
+          waitTimeoutMs: 0,
+        });
+        expect(services.readService.read).toHaveBeenCalledTimes(1);
+        expect(services.codeNavigationService!.readFile).not.toHaveBeenCalled();
+        expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toHaveProperty(
+          "pageId",
+        );
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
 
   it("preserves the exact-file verbose header", async () => {
     const write = spyOn(process.stdout, "write").mockImplementation(
@@ -562,7 +588,7 @@ describe("top-level read", () => {
     expect(readHelp).toContain("<target>#symbol");
     expect(readHelp).toContain("Starting line (alternative to --lines)");
     expect(readHelp).toMatch(/resolved target\s+determines code or docs/);
-    expect(readHelp).toMatch(/repository\s+docs are snapshot-addressed/);
+    expect(readHelp).toMatch(/repository\s+docs are\s+snapshot-addressed/);
     expect(readHelp).toContain("full subtree");
     expect(
       registerCodeReadCommand(new Command("code")).helpInformation(),

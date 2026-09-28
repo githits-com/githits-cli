@@ -264,6 +264,25 @@ export const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     },
   },
   {
+    name: "read_site_path",
+    cliArgs: [
+      "read",
+      "site:expressjs.com",
+      "en/resources",
+      "--lines",
+      "1-5",
+      "--json",
+    ],
+    mcpTool: "read",
+    mcpArgs: {
+      target: "site:expressjs.com",
+      path: "en/resources",
+      start_line: 1,
+      end_line: 5,
+      format: "json",
+    },
+  },
+  {
     name: "read_selector_docs",
     cliArgs: [
       "read",

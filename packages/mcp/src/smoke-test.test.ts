@@ -1119,6 +1119,20 @@ function smokeJsonResponse(
         ...(args.limit === 1 ? { nextCursor: "smoke-doc-cursor" } : {}),
       });
     case "read": {
+      if (
+        args.target === "site:expressjs.com" &&
+        args.path === "en/resources"
+      ) {
+        return jsonResult({
+          docsReadTarget: "https://expressjs.com/en/resources/",
+          pageId: "express-resources",
+          sourceUrl: "https://expressjs.com/en/resources/",
+          content: "documentation content",
+          startLine: 1,
+          endLine: 1,
+          totalLines: 1,
+        });
+      }
       if (args.path) return jsonResult({ path: "package.json" });
       if (
         args.target === "https://docs.example.invalid/githits-smoke-unknown"
