@@ -216,20 +216,29 @@ Text output starts with `# source <canonical-target>` followed by one unquoted
 path per line. When the backend has another page, the header adds ` | more`.
 If no canonical target is available, the header uses the requested target.
 CLI dims the header when color is enabled; MCP uses the same text without ANSI.
-Directory paths end in `/`; file and page paths have no prefix. Paths escape
+Directory paths end in `/`; source files have no prefix. Site page URL paths
+start with `/` so they remain distinct from relative directories. Paths escape
 controls and backslashes so the line-oriented format stays unambiguous; quotes,
 spaces, and ordinary Unicode remain literal. The text surface omits titles,
 entry kinds, counts, per-entry commands, lifecycle diagnostics, and continuation
 commands. For sites, compact projection includes exact `read.target` values. If
 all returned pages share one exact origin, the header adds
-`follow up with "read <origin>/$path"` and rows omit that repeated origin; a
-root page keeps its exact URL and the header says URL rows are read as-is. If
-they do not share an origin, page rows use their exact read targets when present
+`follow up with "read <origin>$path"`. Page rows omit that repeated origin and
+retain a leading `/`; directory rows remain relative. An exact root target
+without a slash keeps its full URL and the header says URL rows are read as-is.
+If pages do not share an origin, their rows use exact read targets when present
 and otherwise retain their display paths.
 The formatter never derives an HTTPS URL from a `site:` target. Callers that
 need the opaque cursor, structured actions,
 lifecycle, or metadata use JSON. This keeps one token-efficient text contract
 for CLI and MCP.
+
+A separate backend-dependent follow-up may replace exact HTTPS page paths with
+site-scoped logical paths after `Query.read` accepts a `site:` target plus page
+path and list actions expose that address. The intended convention is a page
+such as `en/resources` and a directory such as `llms/`, reserving the trailing
+slash for directories. The root-page spelling is still undecided; `/` is the
+current candidate. This increment does not assume that later contract.
 
 ### Errors and continuation
 

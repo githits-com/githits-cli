@@ -76,7 +76,7 @@ describe("formatListText", () => {
     );
   });
 
-  it("uses the same path-only format for site inventories", () => {
+  it("uses leading-slash page URL paths and relative site directories", () => {
     const result = siteResult({
       entries: [
         entry("PAGE", "docs.example.test/", "https://docs.example.test"),
@@ -91,15 +91,15 @@ describe("formatListText", () => {
 
     expect(formatListText(result)).toBe(
       [
-        '# source site:docs.example.test/api | follow up with "read https://docs.example.test/$path" (URLs as-is)',
+        '# source site:docs.example.test/api | follow up with "read https://docs.example.test$path" (URLs as-is)',
         "https://docs.example.test",
-        "api/client/",
+        "/api/client/",
         "api/reference/",
       ].join("\n"),
     );
   });
 
-  it("reads a slash-terminated root target as an exact URL", () => {
+  it("uses a slash-terminated root target as the root URL path", () => {
     const result = siteResult({
       entries: [
         entry("PAGE", "docs.example.test/", "https://docs.example.test/"),
@@ -113,9 +113,9 @@ describe("formatListText", () => {
 
     expect(formatListText(result)).toBe(
       [
-        '# source site:docs.example.test/api | follow up with "read https://docs.example.test/$path" (URLs as-is)',
-        "https://docs.example.test/",
-        "guide/",
+        '# source site:docs.example.test/api | follow up with "read https://docs.example.test$path"',
+        "/",
+        "/guide/",
       ].join("\n"),
     );
   });
