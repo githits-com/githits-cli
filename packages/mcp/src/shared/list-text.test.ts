@@ -67,7 +67,7 @@ describe("formatListText", () => {
 
     expect(formatListText(result)).toBe(
       [
-        "# source github:example/repo@main | more",
+        '# source github:example/repo@main | follow up with "read github:example/repo@main $path" | more',
         "src/index.ts",
         "docs/",
         "examples/",
@@ -147,7 +147,7 @@ describe("formatListText", () => {
 
   it("falls back to the requested source for an empty inventory", () => {
     expect(formatListText(sourceResult({ canonicalTarget: null }))).toBe(
-      "# source github:example/repo@main",
+      '# source github:example/repo@main | follow up with "read github:example/repo@main $path"',
     );
   });
 
@@ -157,7 +157,7 @@ describe("formatListText", () => {
       { useColors: true },
     );
     expect(output).toBe(
-      "\u001b[2m# source github:example/repo@main\u001b[0m\nsrc/index.ts",
+      '\u001b[2m# source github:example/repo@main | follow up with "read github:example/repo@main $path"\u001b[0m\nsrc/index.ts',
     );
   });
 

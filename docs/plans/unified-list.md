@@ -216,6 +216,8 @@ Text output starts with `# source <canonical-target>` followed by one unquoted
 path per line. When the backend has another page, the header adds ` | more`.
 If no canonical target is available, the header uses the requested target.
 CLI dims the header when color is enabled; MCP uses the same text without ANSI.
+Source inventories add `follow up with "read <canonical-target> $path"` so a
+returned file can be read without reconstructing its source identity.
 Directory paths end in `/`; source files have no prefix. Site page URL paths
 start with `/` so they remain distinct from relative directories. Paths escape
 controls and backslashes so the line-oriented format stays unambiguous; quotes,
