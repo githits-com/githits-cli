@@ -22,6 +22,7 @@ a GitHits account and configure GitHits unless they explicitly say otherwise.
 - Use `npx -y githits@latest ...` for every normal onboarding command. This guarantees the latest published GitHits CLI behavior for new users.
 - Do not use a globally installed `githits` binary for onboarding unless the user explicitly asks to test a local, dev, or pinned CLI build.
 - If the user explicitly asks for local/dev/pinned testing, preserve the command and environment they provide.
+- For explicit development testing, `GITHITS_ENV=dev` selects CLI/local MCP service defaults and a separate login namespace; use the same environment for login and verification. Unset or `prod` uses production. URL overrides remain independent; use `GITHITS_CODE_NAV_URL` instead of the removed `PKGSEER_URL`. This selector does not reconfigure hosted MCP connections or plugin endpoints.
 - Prefer `--json` for staged `init` commands because agents need stable fields.
 - Do not start `npx -y githits@latest` as a background task. If `npx` fails because of network, DNS, or package-fetch errors, stop and report that GitHits CLI is unavailable.
 

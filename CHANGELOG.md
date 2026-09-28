@@ -5,6 +5,57 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.23.0] - 2026-09-28
+
+Minor release: adds unified CLI inventories and site-page reads, adopts v31
+search evidence, and selects development services with `GITHITS_ENV`.
+
+### Changed
+
+- **Update public CLI skills for this release** - Route inventory discovery to `githits list`, document site-page reads and opaque-cursor paging, remove retired search JSON claims, and explain development login selection. MCP guidance retains the existing `code_files` and `docs_list` catalog.
+- **Service environment presets** - `GITHITS_ENV=dev` selects development MCP, REST, OSS, and CLI accounts defaults; unset, blank, or `prod` selects production. URL overrides remain independent. The production OSS default is now `https://oss.githits.dev`. Development uses a separate MCP login namespace; run login with the same environment. `doctor` reports the selected environment or invalid selector, and local recovery commands remain available with malformed network settings. This does not reconfigure hosted MCP or plugin endpoints.
+- **GPT-6 Luna agent evals** - Use GPT-6 Luna for new local and PR eval runs, with its current rate card while retaining historical GPT-5.6 Luna metrics.
+- **Unified CLI listing and site reads** - `githits list <target> [paths...]` browses package, repository, and explicit documentation-site inventories with path/glob selectors, recursive traversal, filters, opaque-cursor paging, direct `read` guidance, paths-only `--silent` output, and lossless JSON. CLI and local MCP `read` accept emitted `site:` targets plus host-relative page paths. `githits code files` is deprecated in help; grouped command execution remains available. The MCP catalog retains `code_files` and `docs_list`.
+- **Direct exact-file reads** - Compact `githits read` file requests now use the unified typed read operation while preserving CLI ranges, output identity, and file recovery guidance. Custom OSS endpoints must implement `Query.read`; the new inventory command requires `Query.list`.
+
+### Removed
+
+- **Remove legacy Discovery hit fields** - Search and search status no longer select or emit `summary`, `highlights.summary`, hit `contentSafety`, or `repositoryEvidence.focusedSource`. JSON consumers must use v31 repository evidence (`matchedSource`, indexed-field provenance, and semantic context) and `documentationPreview`. Text shows proven repository source, navigation candidates, and crawled documentation previews without legacy summary hydration.
+- **Remove the `PKGSEER_URL` alias** - `PKGSEER_URL` no longer configures the OSS backend or passes through eval launches; move custom OSS endpoint values to the existing `GITHITS_CODE_NAV_URL`. This applies to the CLI, local MCP, and consumers of `@githits/mcp/client` URL getters; it does not change hosted MCP configuration.
+
+### Fixed
+
+- **Claude plugin listing metadata and packaged icon** - Add the approved Pulse monogram icon and privacy-policy link to the generated Claude manifest, and ship the referenced SVG in npm packages.
+- **Consistent package-addressed repo docs** - Search displays package-attributed repository documentation with the served package target and target-relative path and line range, matching repo code headers; generated unified-read follow-ups use the same package addressing while JSON retains snapshot provenance.
+
+Hosted clients receive MCP tool changes after `@githits/mcp@0.23.0` adoption
+and deployment by `remote-mcp`. Local environment selection does not change
+hosted configuration.
+
+## [@githits/mcp 0.23.0] - 2026-09-28
+
+Minor release: adds site-page reads, adopts v31 search evidence, and updates
+public client URL configuration.
+
+### Changed
+
+- **Client service environment presets** - `@githits/mcp/client` URL getters accept an optional environment object and select production or development defaults through `GITHITS_ENV=prod|dev`. Unset or blank selects production; existing URL overrides remain independent. The production OSS default is now `https://oss.githits.dev`. This affects hosts using these getters and does not reconfigure separately managed hosted endpoints.
+- **Site-page reads** - MCP `read` accepts an emitted `site:` target plus a host-relative page `path`, with optional heading selection. The MCP inventory catalog remains `code_files` and `docs_list`; unified MCP `list` is a later increment.
+
+### Removed
+
+- **Remove legacy Discovery hit fields** - Search and search status no longer select or emit `summary`, `highlights.summary`, hit `contentSafety`, or `repositoryEvidence.focusedSource`. JSON consumers must use v31 repository evidence (`matchedSource`, indexed-field provenance, and semantic context) and `documentationPreview`. Text shows proven repository source, navigation candidates, and crawled documentation previews without legacy summary hydration.
+- **Remove the `PKGSEER_URL` alias** - Consumers of `@githits/mcp/client` URL getters must move custom OSS endpoint values to `GITHITS_CODE_NAV_URL`; `PKGSEER_URL` is ignored.
+
+### Fixed
+
+- **Repository-page smoke checks** - The public MCP smoke helper now validates repository-page reads as indexed files with snapshot identity, matching the current backend result.
+- **Consistent package-addressed repo docs** - Search displays package-attributed repository documentation with the served package target and target-relative path and line range, matching repo code headers; generated unified-read follow-ups use the same package addressing while JSON retains snapshot provenance.
+
+Hosted clients receive MCP tool changes after `@githits/mcp@0.23.0` adoption
+and deployment by `remote-mcp`. Local environment selection does not change
+hosted configuration.
+
 ## [githits 0.22.1] - 2026-09-25
 
 Patch release: adds compact code-symbol reads to the CLI and local MCP server.

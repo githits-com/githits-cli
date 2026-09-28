@@ -42,6 +42,21 @@ Network URL validation is deferred until a network-capable path resolves or uses
 
 The selected MCP URL is also used as the storage key for tokens and client registrations (trailing slashes are stripped for consistent key matching). Start the CLI or local MCP process with `GITHITS_ENV=dev` to use the separate dev namespace; run `githits login` when no dev credentials exist. Returning to `prod` or leaving the selector unset finds the existing production credentials without migration. An explicit `GITHITS_MCP_URL` selects that service URL and namespace only.
 
+## Environment adoption evidence
+
+Service presets merged in PR [#426](https://github.com/githits-com/githits-cli/pull/426)
+on 2026-09-28. Authenticated development CLI and MCP smoke suites and a targeted
+Codex package-intelligence eval completed successfully. Initial dev request
+latency varied; its cause is unproven and no timeout or retry workaround was added.
+Strict CI package builds and outside-workspace consumers verify declaration and
+runtime compatibility. Keep configuration exports explicitly typed for isolated
+declaration emission; an inferred private Zod enum previously failed strict CI.
+
+The separately owned hosted resolver uses its own endpoint configuration and
+`GITHITS_ENVIRONMENT=production|development` contract. Package upgrades alone do
+not migrate that resolver to branded OSS defaults; any hosted endpoint migration
+belongs to `remote-mcp` and its separately approved deployment.
+
 ## Authentication Modes
 
 The container (`src/container.ts`) resolves authentication in priority order:

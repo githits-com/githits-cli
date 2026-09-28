@@ -316,6 +316,15 @@ skips CAS for path-only or unfocused hits. It requests the numbered
 fields, and crawled previews need no repository CAS. This establishes a per-hit
 read contract, not a measured latency improvement. Rendering never fetches or
 stitches source.
+
+The v31 evidence client merged in PR
+[#423](https://github.com/githits-com/githits-cli/pull/423) on 2026-09-28.
+CLI/MCP live smoke and a targeted Codex descriptor eval passed, with no reported
+isolation violations. Development queries verified path-only hits, matched source,
+and crawled previews without retired fields. Producer source and tests established
+the per-hit CAS selection contract; no live CAS telemetry or latency improvement
+was measured. Review corrected stale output types before merge.
+
 New clients require
 the producer's September 7 v31 additive schema; no older-schema retry is
 introduced. After client

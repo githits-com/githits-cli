@@ -537,3 +537,15 @@ Artifacts are retained locally under `.agent-eval/ci-pr388/fixed1`, `fixed2`, an
 `fixed3`; GitHub keeps uploaded artifacts for 14 days. Normalized eval rows and
 structural tool spans are retained in the linked Braintrust experiments. No raw
 stdout, provider events, or credentials were exported by this comparison.
+
+## Package-addressed documentation validation
+
+PR [#424](https://github.com/githits-com/githits-cli/pull/424) merged on
+2026-09-28. Live reads from displayed githits and Flask package-relative rows
+returned the expected source; CLI/MCP live smoke and the Claude
+`docs-search-noise` descriptor eval passed. The trace used a separate pinned
+package target and exact path, plus a hosted fragment read. No answer-quality
+grading was performed. Tests cover monorepo path coordinates, repository-only
+and incomplete locators, semantic preferred-read precedence, and the 300-line
+MCP follow-up cap. Ordinary repo-code JSON follow-ups retain their existing
+addressing; package-doc follow-up consistency does not assert parity for them.

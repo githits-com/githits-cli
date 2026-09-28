@@ -52,7 +52,8 @@ outputs instead of creating or deleting them.
 The Claude manifest points to the root SVG icon and the public GitHits privacy
 policy. The icon is the Pulse monogram avatar from the GitHits product-context
 brand assets. Keep both manifest fields in the generator so regenerated manifests
-retain them.
+retain them. The root npm `files` allow-list includes `githits-icon.svg`;
+public-package validation checks the packed tarball contains it.
 
 ## Skill Contract
 

@@ -496,6 +496,12 @@ async function scanPackFileList(
     tempRoot,
     `list ${packageInfo.id} tarball`,
   );
+  if (
+    packageInfo.id === "root" &&
+    !list.split("\n").includes("package/githits-icon.svg")
+  ) {
+    throw new Error("Root tarball omits the Claude plugin icon");
+  }
   for (const line of list.split("\n")) {
     if (!line.trim()) continue;
     if (
