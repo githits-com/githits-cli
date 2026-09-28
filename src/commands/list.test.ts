@@ -94,6 +94,7 @@ describe("unified list CLI", () => {
         fileTypes: ["source", "doc"],
         languages: ["TypeScript", "Rust"],
         includeDetailedFields: true,
+        includeReadActions: true,
       });
       expect(stop).toHaveBeenCalledTimes(1);
     } finally {
@@ -210,6 +211,7 @@ describe("unified list CLI", () => {
         after: " cursor/%2F ",
         waitTimeoutMs: 0,
         includeDetailedFields: false,
+        includeReadActions: false,
       });
     } finally {
       log.mockRestore();
@@ -217,7 +219,7 @@ describe("unified list CLI", () => {
     }
   });
 
-  it("uses compact fields by default and detailed fields for JSON", async () => {
+  it("uses read actions only for JSON and compact site text", async () => {
     const list = mock((_params: ListParams) =>
       Promise.resolve(defaultListResult),
     );
@@ -239,9 +241,18 @@ describe("unified list CLI", () => {
         { json: true },
         createDeps({ listService: service }),
       );
+      await listAction(
+        "site:docs.example.test",
+        undefined,
+        {},
+        createDeps({ listService: service }),
+      );
       expect(
         list.mock.calls.map(([params]) => params.includeDetailedFields),
-      ).toEqual([false, true]);
+      ).toEqual([false, true, false]);
+      expect(
+        list.mock.calls.map(([params]) => params.includeReadActions),
+      ).toEqual([false, true, true]);
     } finally {
       write.mockRestore();
       log.mockRestore();
@@ -272,6 +283,7 @@ describe("unified list CLI", () => {
       expect(list.mock.calls[0]?.[0]).toEqual({
         target: "npm:express",
         includeDetailedFields: false,
+        includeReadActions: false,
       });
     } finally {
       log.mockRestore();
@@ -409,10 +421,7 @@ describe("unified list CLI", () => {
         createDeps({ listService: service }),
       );
       expect(writes.join("")).toBe(
-        `${[
-          'SOURCE | requested="npm:express@5.2.1" canonical="npm:express@5.2.1" | 1+ entries',
-          "src/index.ts",
-        ].join("\n")}\n`,
+        `${["# source npm:express@5.2.1 | more", "src/index.ts"].join("\n")}\n`,
       );
     } finally {
       write.mockRestore();

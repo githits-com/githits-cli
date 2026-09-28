@@ -212,15 +212,25 @@ and indexing fields, and site inventory/crawl/coverage/preparation fields.
 Nullable fields stay nullable where absence is meaningful; no synthetic total
 or reconstructed action is added.
 
-Text output has one inventory header followed by one unquoted path per line.
-The header appends `+` to the returned count when another page exists.
+Text output starts with `# source <canonical-target>` followed by one unquoted
+path per line. When the backend has another page, the header adds ` | more`.
+If no canonical target is available, the header uses the requested target.
+CLI colors the header gray when color is enabled; MCP uses the same text
+without ANSI.
 Directory paths end in `/`; file and page paths have no prefix. Paths escape
 controls and backslashes so the line-oriented format stays unambiguous; quotes,
 spaces, and ordinary Unicode remain literal. The text surface omits titles,
-entry kinds, actions, lifecycle diagnostics, and
-continuation commands. Callers that need the opaque cursor, exact actions,
+entry kinds, counts, per-entry commands, lifecycle diagnostics, and continuation
+commands. For sites, compact projection includes exact `read.target` values. If
+all returned pages share one exact origin, the header adds
+`follow up with "read <origin>/$path"` and rows omit that repeated origin; a
+root page keeps its exact URL and the header says URL rows are read as-is. If
+they do not share an origin, page rows use their exact read targets when present
+and otherwise retain their display paths.
+The formatter never derives an HTTPS URL from a `site:` target. Callers that
+need the opaque cursor, structured actions,
 lifecycle, or metadata use JSON. This keeps one token-efficient text contract
-for CLI and MCP and avoids presenting site display paths as read locators.
+for CLI and MCP.
 
 ### Errors and continuation
 
@@ -287,10 +297,11 @@ exports it through the public `@githits/mcp/client` entrypoint and makes
 `readService`. Its request has an internal compact/detailed projection choice.
 The compact query fetches the base shared result: identity, entry kinds and
 paths, cursor, and bounded lifecycle fields, including coverage reason and site
-preparation. The text formatter emits only the header and paths. JSON
-additionally selects entry titles/actions, file metadata, full resolution,
-availability, and indexing estimates through GraphQL `@include` variables.
-Response schemas accept omitted detail fields.
+preparation. Site text also fetches exact read actions; source text does not.
+The text formatter emits only the header and paths. JSON additionally selects
+entry titles/browse actions, file metadata, full resolution, availability, and
+indexing estimates through GraphQL `@include` variables. Response schemas
+accept omitted detail fields.
 Wire tests assert variables and selections for both projections, including that
 neither fetches bodies, snippets, or section trees.
 

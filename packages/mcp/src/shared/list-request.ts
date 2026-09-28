@@ -112,6 +112,8 @@ export function buildListParams(input: ListRequestInput): ListParams {
     ...(after !== undefined ? { after } : {}),
     ...(waitTimeoutMs !== undefined ? { waitTimeoutMs } : {}),
     includeDetailedFields: input.includeDetailedFields,
+    includeReadActions:
+      input.includeDetailedFields || input.target.trim().startsWith("site:"),
   };
 }
 

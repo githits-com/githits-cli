@@ -45,6 +45,8 @@ export interface ListParams {
   after?: string;
   waitTimeoutMs?: number;
   includeDetailedFields: boolean;
+  /** Select exact read actions for compact site text; detailed fields always include them. */
+  includeReadActions?: boolean;
 }
 
 export type ListInventoryKind = "SOURCE" | "SITE";
@@ -350,6 +352,7 @@ query List(
   $after: String
   $waitTimeoutMs: Int
   $includeDetailedFields: Boolean!
+  $includeReadActions: Boolean!
 ) {
   list(
     target: $target
@@ -375,7 +378,7 @@ query List(
       byteSize @include(if: $includeDetailedFields)
       lineCount @include(if: $includeDetailedFields)
       contentHash @include(if: $includeDetailedFields)
-      read @include(if: $includeDetailedFields) {
+      read @include(if: $includeReadActions) {
         target
         path
       }
@@ -558,6 +561,8 @@ function buildListVariables(params: ListParams): Record<string, unknown> {
       ? { waitTimeoutMs: params.waitTimeoutMs }
       : {}),
     includeDetailedFields: params.includeDetailedFields,
+    includeReadActions:
+      params.includeDetailedFields || params.includeReadActions === true,
   };
 }
 

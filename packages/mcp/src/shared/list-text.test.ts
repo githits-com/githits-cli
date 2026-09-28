@@ -41,12 +41,13 @@ function siteResult(overrides: Partial<ListResult> = {}): ListResult {
 function entry(
   kind: "FILE" | "PAGE" | "DIRECTORY",
   path: string,
+  readTarget = "exact-backend-target",
 ): ListResult["entries"][number] {
   return {
     kind,
     path,
     title: "metadata is omitted",
-    read: { target: "exact-backend-target", path: "exact-backend-path" },
+    read: { target: readTarget, path: "exact-backend-path" },
     browse: { target: "exact-backend-target", paths: ["exact-backend-path"] },
   };
 }
@@ -66,7 +67,7 @@ describe("formatListText", () => {
 
     expect(formatListText(result)).toBe(
       [
-        'SOURCE | requested="github:example/repo@main" canonical="github:example/repo@main" | 4+ entries',
+        "# source github:example/repo@main | more",
         "src/index.ts",
         "docs/",
         "examples/",
@@ -78,29 +79,92 @@ describe("formatListText", () => {
   it("uses the same path-only format for site inventories", () => {
     const result = siteResult({
       entries: [
-        entry("PAGE", "docs.example.test/api/client"),
+        entry("PAGE", "docs.example.test/", "https://docs.example.test"),
+        entry(
+          "PAGE",
+          "docs.example.test/api/client/",
+          "https://docs.example.test/api/client/",
+        ),
         entry("DIRECTORY", "docs.example.test/api/reference"),
       ],
     });
 
     expect(formatListText(result)).toBe(
       [
-        'SITE | requested="site:docs.example.test/api" canonical="site:docs.example.test/api" | 2 entries',
-        "docs.example.test/api/client",
-        "docs.example.test/api/reference/",
+        '# source site:docs.example.test/api | follow up with "read https://docs.example.test/$path" (URLs as-is)',
+        "https://docs.example.test",
+        "api/client/",
+        "api/reference/",
       ].join("\n"),
     );
   });
 
-  it("renders an empty inventory as the header alone", () => {
+  it("reads a slash-terminated root target as an exact URL", () => {
+    const result = siteResult({
+      entries: [
+        entry("PAGE", "docs.example.test/", "https://docs.example.test/"),
+        entry(
+          "PAGE",
+          "docs.example.test/guide/",
+          "https://docs.example.test/guide/",
+        ),
+      ],
+    });
+
+    expect(formatListText(result)).toBe(
+      [
+        '# source site:docs.example.test/api | follow up with "read https://docs.example.test/$path" (URLs as-is)',
+        "https://docs.example.test/",
+        "guide/",
+      ].join("\n"),
+    );
+  });
+
+  it("renders exact page targets when one site page spans multiple origins", () => {
+    const result = siteResult({
+      entries: [
+        entry(
+          "PAGE",
+          "docs.example.test/guide",
+          "https://docs.example.test/guide",
+        ),
+        entry(
+          "PAGE",
+          "legacy.example.test/guide",
+          "http://legacy.example.test/guide?version=1",
+        ),
+      ],
+    });
+
+    expect(formatListText(result)).toBe(
+      [
+        "# source site:docs.example.test/api",
+        "https://docs.example.test/guide",
+        "http://legacy.example.test/guide?version=1",
+      ].join("\n"),
+    );
+  });
+
+  it("falls back to the requested source for an empty inventory", () => {
     expect(formatListText(sourceResult({ canonicalTarget: null }))).toBe(
-      'SOURCE | requested="github:example/repo@main" canonical=null | 0 entries',
+      "# source github:example/repo@main",
+    );
+  });
+
+  it("colors only the source line gray when colors are enabled", () => {
+    const output = formatListText(
+      sourceResult({ entries: [entry("FILE", "src/index.ts")] }),
+      { useColors: true },
+    );
+    expect(output).toBe(
+      "\u001b[90m# source github:example/repo@main\u001b[0m\nsrc/index.ts",
     );
   });
 
   it("escapes line-breaking and terminal control characters without quoting ordinary paths", () => {
     const result = sourceResult({
       requestedTarget: 'github:exa"mple/repo\n\u0085\u2028',
+      canonicalTarget: 'github:exa"mple/repo\n\u0085\u2028',
       entries: [
         entry("FILE", 'docs/space name-π-😀-"quote"-\\slash-\ud800.md'),
         entry("FILE", "docs/line\nbreak\t\u001b\u0085\u2029.md"),
@@ -108,9 +172,7 @@ describe("formatListText", () => {
     });
     const output = formatListText(result);
 
-    expect(output).toContain(
-      'requested="github:exa\\"mple/repo\\n\\u0085\\u2028"',
-    );
+    expect(output).toContain('# source github:exa"mple/repo\\n\\u0085\\u2028');
     expect(output.split("\n").slice(1)).toEqual([
       'docs/space name-π-😀-"quote"-\\\\slash-\\ud800.md',
       "docs/line\\nbreak\\t\\u001b\\u0085\\u2029.md",
