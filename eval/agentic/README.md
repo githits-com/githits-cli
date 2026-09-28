@@ -943,12 +943,22 @@ use at least one agent for quick iteration.
 | Dependency graph UX, `pkg_deps`                                    | `package-dependencies.md`                                                                                                                                                                                                                                                             |
 | Release notes UX, `pkg_changelog`                                  | `package-changelog.md`; use `package-changelog-range.md` for range/body-preview behavior and `package-changelog-exact.md` for a pinned selected-release call                                                                                                                                                                                           |
 | Upgrade evidence UX, `pkg_upgrade_review`                          | `package-upgrade-safety.md`                                                                                                                                                                                                                                                           |
-| Documentation browsing, `docs_list`, `read`                   | `docs-discovery.md`; use `docs-search-followup.md` for search-to-read handoff and `docs-search-noise.md` for noisy docs-result recovery; use `docs-fragment-read.md` for exact indexed section selection                                                                                                                                               |
-| File listing / file read UX, `code_files`, `read`             | `code-file-navigation.md`; use `code-files-listing.md` for focused listing behavior; use `code-read-window.md` for focused source-window behavior                                                                                                                                     |
+| Package, repository, and site inventory plus exact file/page follow-up, `list`, `read` | `list-package-repository.md`, `list-recursion-glob.md`, `list-site-read.md`, `list-continuation.md`, and `list-package-docs-site.md`; use `code-file-navigation.md` and `code-read-window.md` for source navigation, and `docs-discovery.md`, `docs-search-followup.md`, `docs-search-noise.md`, and `docs-fragment-read.md` for documentation search and page selection |
 | Deterministic source search UX, `code_grep`                        | `code-grep-investigation.md`                                                                                                                                                                                                                                                          |
 | Multi-tool code navigation strategy and MCP/skill guidance         | `express-router.md`; `opencode-compaction.md` is the remote-MCP routing regression derived from the connector transcript                                                                                                                                                              |
-| Experimental target resolution                                     | `experimental-resolution-follow-up.md`; use `experimental-site-resolution-follow-up.md` for site resolution into docs search                                                                                                                                                          |
+| Experimental target resolution                                     | `experimental-resolution-follow-up.md`; use `experimental-site-resolution-follow-up.md` for site resolution into documentation search or inventory browsing                                                                                                                                                          |
 | Experimental exact source diff                                     | `experimental-code-diff.md`                                                                                                                                                                                                                                                           |
+
+The unified inventory workloads cover separate behavior boundaries:
+
+- `list-recursion-glob.md` distinguishes immediate directory children from
+  glob depth, which is independent of recursive directory expansion.
+- `list-continuation.md` checks that a returned cursor continues the same
+  inventory query and reports whether another page remains.
+- `list-site-read.md` checks exact site-page locator reuse from inventory into
+  page follow-up.
+- `list-package-docs-site.md` checks package documentation search followed by
+  browsing the explicitly emitted site target.
 
 For broad MCP quick-start or description edits, start with the cheap Luna-low
 canary's `discovery` and `intent` scenarios:
@@ -1074,12 +1084,13 @@ Notable findings to keep in mind when evaluating future changes:
   names a source file and line area. Claude Haiku does this directly; Codex mini
   has been observed doing package/search preflight before the eventual bounded
   `read`, so review raw calls when tuning general tool-selection guidance.
-- `code-files-listing.md` should show direct path enumeration with `code_files`.
-  Claude Haiku does this directly. Codex mini has been observed oscillating
-  between `read`, `code_grep`, and `code_files`, and can self-report that
-  `code_files` is unavailable even when earlier runs used it; treat raw calls as
-  the source of truth and fix concrete validation/error issues rather than
-  overfitting instructions to one noisy run.
+- Historical `code-files-listing.md` runs predate unified inventory: Claude
+  Haiku selected `code_files` directly, while Codex mini sometimes oscillated
+  between `read`, `code_grep`, and `code_files`, including a self-report that it
+  was unavailable. These are historical observations. For future inventory
+  behavior, use `list-package-repository.md` or `list-recursion-glob.md` and
+  expect `list`; use raw calls as the source of truth rather than overfitting
+  instructions to one noisy run.
 - `tool-calls.json` is the source of truth for tool usage. The final JSON records
   only the agent's result status, answer, and confidence; quality assessment is
   a later review concern.
