@@ -30,10 +30,9 @@ const EXPECTED_STABLE_NAMES = [
   "get_example",
   "search",
   "search_status",
-  "code_files",
+  "list",
   "read",
   "code_grep",
-  "docs_list",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -152,7 +151,10 @@ describe("createLocalMcpServer", () => {
       expect(registeredToolNames(server)).toEqual([...EXPECTED_STABLE_NAMES]);
       expect(registeredToolNames(server)).not.toContain("ask");
       expect(registeredToolNames(server)).not.toContain("research");
-      expect(registeredToolNames(server)).toHaveLength(13);
+      expect(registeredToolNames(server)).toHaveLength(12);
+      expect(registeredToolNames(server)).toContain("list");
+      expect(registeredToolNames(server)).not.toContain("code_files");
+      expect(registeredToolNames(server)).not.toContain("docs_list");
       expect(registeredToolNames(server)).toContain("read");
       expect(registeredToolNames(server)).not.toContain("code_read");
       expect(registeredToolNames(server)).not.toContain("docs_read");
@@ -186,7 +188,10 @@ describe("createLocalMcpServer", () => {
     ]);
     expect(registeredToolNames(server)).toContain("research");
     expect(registeredToolNames(server)).not.toContain("ask");
-    expect(registeredToolNames(server)).toHaveLength(16);
+    expect(registeredToolNames(server)).toHaveLength(15);
+    expect(registeredToolNames(server)).toContain("list");
+    expect(registeredToolNames(server)).not.toContain("code_files");
+    expect(registeredToolNames(server)).not.toContain("docs_list");
     expect(registeredToolNames(server)).not.toContain("code_read");
     expect(registeredToolNames(server)).not.toContain("docs_read");
     expect(serverInstructions(server)).toBeUndefined();
@@ -254,7 +259,7 @@ describe("createLocalMcpServer", () => {
     });
     const tools = registeredTools(server);
 
-    for (const name of ["code_files", "code_grep", "code_diff"] as const) {
+    for (const name of ["list", "code_grep", "code_diff"] as const) {
       const schema = z.toJSONSchema(tools[name]?.inputSchema as z.ZodObject);
       const targetSchema = schema.properties?.target as
         | { properties?: unknown; type?: string }

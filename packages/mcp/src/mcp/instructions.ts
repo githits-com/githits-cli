@@ -10,9 +10,8 @@ This guide owns shared policy; selected tools own call syntax and exceptions.
 | --- | --- |
 | Find a known literal or regex in a public repository/package | \`code_grep\` |
 | Find relevant source, symbols, tests, or documentation for a topic | \`search\` |
-| List paths or browse a source directory | \`code_files\` |
+| List files or documentation pages in a package, repository, or site | \`list\` |
 | Read a source file, code symbol, or documentation section | \`read\` |
-| Browse package documentation pages | \`docs_list\` |
 | Assess a package's license, adoption, maintenance, or overall health | \`pkg_info\` |
 | Inspect vulnerabilities in a package or version | \`pkg_vulns\` |
 | Inspect direct dependencies or transitive footprint | \`pkg_deps\` |
@@ -33,17 +32,20 @@ Use public repository targets for full repositories or sibling packages:
 A ref may be a branch, tag, or commit and contain later \`@\`; \`#\` is for
 semantic fragments, not revisions.
 
-For a package or site docs topic, use \`search\` with \`source:"docs"\`.
-\`docs_list\` browses package pages, not standalone \`site:\` targets.
-Use snippets when sufficient; otherwise read the target in a \`[docs page]\`
-search header. For an exact section or bounds, request search JSON and replay
-its \`followUp\` unchanged, including supplied \`selector\` and bounds.
-Replay a \`docs_list\` read action unchanged when browsing package pages.
+\`list\` enumerates a package's own source tree or a whole repository snapshot;
+both include source and documentation files together. It also enumerates one
+explicit \`site:\` inventory and does not discover hosted sites. For hosted
+package docs, search the package with \`source:"docs"\`, then pass the explicit
+\`site:\` target from a \`[docs page]\` search header to \`list\`.
+Use snippets when sufficient; otherwise read the target in that header. For an
+exact section or bounds, request search JSON and replay its \`followUp\`
+unchanged, including supplied \`selector\` and bounds. Replay a \`list\` read
+action unchanged when browsing paths.
 Hosted/crawled HTTP(S) docs locators address mutable current content.
 A direct HTTP(S) docs fragment read without explicit bounds returns its heading
 and full subtree through the next equal-or-higher heading.
 Repository docs are snapshot-addressed and keep returned ranges. When composing
-a direct \`read\`, add bounds only to intentionally select a current page range.
+a direct `read`, add bounds only to intentionally select a current page range.
 For source, locate paths or matches, then read focused lines; never probe
 directories with \`read\`. Prefer source, symbols, tests, and call sites for
 behavioral claims.
@@ -127,7 +129,7 @@ const LOCAL_RESEARCH_GUIDANCE_END =
   ' Reuse a returned `thread_id` for follow-ups. Change project, version, or topic in the follow-up question. Sources default to directly callable MCP tools; use `source_format:"url"` for original upstream URLs. Do not invent or rewrite sources.';
 
 const LOCAL_RESOLVE_TARGET_GUIDANCE =
-  '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, `codeberg:owner/repo`, `gitlab:group/subgroup/project`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` is docs-only: pass it to `search` with `source:"docs"`; request JSON only for missing fields; replay the complete emitted read action unchanged, otherwise use its returned target/range.';
+  '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, `codeberg:owner/repo`, `gitlab:group/subgroup/project`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` is docs-only: pass it to `list` to browse pages or to `search` with `source:"docs"` for topic search; keep text unless code consumes the raw response; replay the complete emitted read action unchanged, otherwise use its returned target/range.';
 
 const LOCAL_CODE_DIFF_GUIDANCE =
   "- `code_diff` — compare exact package versions or public repository refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text`; use `json` only for required fields absent from text or the full returned patch. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";

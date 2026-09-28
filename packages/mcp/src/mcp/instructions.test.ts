@@ -30,6 +30,20 @@ describe("buildLocalMcpQuickStart", () => {
       "patterns are `registry:name@version` and `github:owner/repo@ref`",
     );
     expect(quickStart).toContain(
+      "List files or documentation pages in a package, repository, or site | `list`",
+    );
+    expect(quickStart).toContain(
+      "a package's own source tree or a whole repository snapshot",
+    );
+    expect(quickStart).toContain(
+      "both include source and documentation files together",
+    );
+    expect(quickStart).toContain(
+      "explicit `site:` inventory and does not discover hosted sites",
+    );
+    expect(quickStart).not.toContain("`code_files`");
+    expect(quickStart).not.toContain("`docs_list`");
+    expect(quickStart).toContain(
       "suffix for the latest package version or repository default branch",
     );
     expect(quickStart).not.toContain("[@version]");
@@ -113,6 +127,10 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("documentation-site names");
     expect(instructions).toContain("`site:<host[/path]>`");
     expect(instructions).toContain('`source:"docs"`');
+    expect(instructions).toContain("pass it to `list` to browse pages");
+    expect(instructions).toContain(
+      'or to `search` with `source:"docs"` for topic search',
+    );
     expect(instructions).toContain("request JSON only for missing fields");
     expect(instructions).toContain(
       "replay the complete emitted read action unchanged, otherwise use its returned target/range",
