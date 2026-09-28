@@ -416,12 +416,12 @@ bun run agent:e2e:suite compare \
 Canary has `express-router` and
 `package-overview-vulnerabilities`; smoke adds `global-example`,
 `unified-search-investigation`, `docs-search-followup`, and
-`package-upgrade-safety`; stable-full contains all 22 stable workloads.
+`package-upgrade-safety`; stable-full contains all 25 stable workloads.
 `stateful-manual` contains only `githits-onboarding` and is dry-run-only in
 this phase. `experimental` contains only
 `ask-version-followup`, `experimental-code-diff`, `experimental-question-only-ask`, `experimental-resolution-follow-up`, and
 `experimental-site-resolution-follow-up`. The manifest therefore classifies
-28 workloads: 22 stable, one stateful, and five experimental. Canary is a
+31 workloads: 25 stable, one stateful, and five experimental. Canary is a
 subset of smoke, smoke is a subset of stable-full, and stateful or experimental
 workloads never enter those stable suites.
 
