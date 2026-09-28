@@ -168,7 +168,7 @@ function diagnosticRuntime(area: string): ServiceDiagnostics {
 }
 
 describe("ListServiceImpl", () => {
-  it("wire projection preserves exact variables, actions, and compact fields", async () => {
+  it("compact wire projection omits detailed entry fields", async () => {
     const fetchFn = mock((_url: string, _init?: RequestInit) =>
       Promise.resolve(
         jsonResponse(
@@ -178,22 +178,10 @@ describe("ListServiceImpl", () => {
               {
                 kind: "FILE",
                 path: "src/index.ts",
-                title: null,
-                read: {
-                  target: "github:expressjs/express@abc123",
-                  path: "src/a%2Fb.ts",
-                },
-                browse: null,
               },
               {
                 kind: "DIRECTORY",
                 path: "src",
-                title: null,
-                read: null,
-                browse: {
-                  target: "npm:express@5.2.1",
-                  paths: ["src/\\*"],
-                },
               },
             ],
           }),
@@ -243,18 +231,9 @@ describe("ListServiceImpl", () => {
     expect(result.entries[0]).toEqual({
       kind: "FILE",
       path: "src/index.ts",
-      title: null,
-      read: {
-        target: "github:expressjs/express@abc123",
-        path: "src/a%2Fb.ts",
-      },
-      browse: null,
     });
     expect(result.canonicalTarget).toBe("npm:express@5.2.1");
-    expect(result.entries[1]?.browse).toEqual({
-      target: "npm:express@5.2.1",
-      paths: ["src/\\*"],
-    });
+    expect(result.entries[1]).toEqual({ kind: "DIRECTORY", path: "src" });
   });
 
   it("wire projection parses detailed resolution and site lifecycle fields", async () => {
@@ -828,15 +807,15 @@ function expectedListSelection(): SelectionTree {
     entries: {
       kind: null,
       path: null,
-      title: null,
+      title: detailed(),
       language: detailed(),
       fileType: detailed(),
       intent: detailed(),
       byteSize: detailed(),
       lineCount: detailed(),
       contentHash: detailed(),
-      read: { target: null, path: null },
-      browse: { target: null, paths: null },
+      read: detailed({ target: null, path: null }),
+      browse: detailed({ target: null, paths: null }),
     },
     hasMore: null,
     nextCursor: null,

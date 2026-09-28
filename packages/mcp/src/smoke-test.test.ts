@@ -896,6 +896,9 @@ describe("runMcpSmoke", () => {
 const SMOKE_CRAWLED_DOC_TARGET = "https://expressjs.com/en/guide/routing.html";
 const SMOKE_CRAWLED_DOC_ID = "legacy-routing-id";
 const SMOKE_REPO_DOC_ID = "github:expressjs/express@abc123/README.md";
+const SMOKE_REPO_URL = "https://github.com/expressjs/express";
+const SMOKE_REPO_REF = "abc123";
+const SMOKE_REPO_PATH = "README.md";
 
 function smokeResponse(
   name: string,
@@ -1102,6 +1105,9 @@ function smokeJsonResponse(
             docsReadTarget: SMOKE_REPO_DOC_ID,
             pageId: SMOKE_REPO_DOC_ID,
             sourceKind: "repo",
+            repoUrl: SMOKE_REPO_URL,
+            gitRef: SMOKE_REPO_REF,
+            filePath: SMOKE_REPO_PATH,
             sourceUrl:
               "https://github.com/expressjs/express/blob/abc123/README.md",
           },
@@ -1126,14 +1132,21 @@ function smokeJsonResponse(
         return errorResult("NOT_FOUND");
       }
       const repoBacked = args.target === SMOKE_REPO_DOC_ID;
+      if (repoBacked) {
+        return jsonResult({
+          repoUrl: SMOKE_REPO_URL,
+          gitRef: SMOKE_REPO_REF,
+          path: SMOKE_REPO_PATH,
+          content: "documentation content",
+          startLine: 1,
+          endLine: 1,
+          totalLines: 1,
+        });
+      }
       return jsonResult({
-        docsReadTarget: repoBacked
-          ? SMOKE_REPO_DOC_ID
-          : SMOKE_CRAWLED_DOC_TARGET,
-        pageId: repoBacked ? SMOKE_REPO_DOC_ID : SMOKE_CRAWLED_DOC_ID,
-        sourceUrl: repoBacked
-          ? "https://github.com/expressjs/express/blob/abc123/README.md"
-          : SMOKE_CRAWLED_DOC_TARGET,
+        docsReadTarget: SMOKE_CRAWLED_DOC_TARGET,
+        pageId: SMOKE_CRAWLED_DOC_ID,
+        sourceUrl: SMOKE_CRAWLED_DOC_TARGET,
         content: "documentation content",
         startLine: 1,
         endLine: 1,

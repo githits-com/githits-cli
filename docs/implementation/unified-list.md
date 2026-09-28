@@ -20,10 +20,11 @@ target. A result identifies `SOURCE` or `SITE` and contains `FILE`, `PAGE`, or
 `packages/core-internal/src/services/list-service.ts` owns the transport-neutral
 `ListService`, the GraphQL document and variables, Zod response validation,
 authentication refresh, diagnostics, and list-specific transport and GraphQL
-errors. Its compact query selects inventory identity, entries and actions,
+errors. Its compact query selects inventory identity, entry kinds and paths,
 continuation, and lifecycle fields. `includeDetailedFields` conditionally
-selects entry metadata, source resolution, available refs and versions, and
-indexing estimates. It does not request content or snippets.
+selects entry titles and actions, file metadata, source resolution, available
+refs and versions, and indexing estimates. It does not request content or
+snippets.
 
 The service models selected nullable fields as nullable values and preserves
 them in its result. Detail fields excluded by the GraphQL directive remain
@@ -40,43 +41,42 @@ response. The backend's opaque cursor is otherwise preserved exactly.
 - `list-response.ts` copies only the selected camelCase `ListResult` fields.
   It preserves meaningful `null`s and omitted conditional details, clones
   nested values, and adds no total, filter echo, or reconstructed action.
-- `list-text.ts` renders the same result for CLI and MCP text. It shows one
-  inventory header, one row per entry, available backend actions, relevant
-  lifecycle state, and a continuation that replays the original selection with
-  the new cursor. CLI arguments are shell-quoted; MCP arguments use JSON-style
-  values. Control characters are rendered visibly while Unicode and encoded
-  path bytes are retained.
+- `list-text.ts` defines the one token-efficient format that CLI uses now and
+  the Phase 2 MCP tool must reuse: an inventory header followed by one path per
+  line. A `+` after the header count means another page exists. Directory paths
+  end in `/`. Controls and backslashes are escaped to keep every entry on one
+  unambiguous line, while quotes, ordinary Unicode, spaces, and encoded path
+  bytes are retained.
 
 The core service owns the network and backend contract because it is shared by
 both surfaces. The MCP shared modules own input normalization, error and result
 projection, and text because both callers need identical semantics. The root
-CLI owns Commander parsing, authentication entry, spinner, terminal width and
-colors, while its command delegates list semantics to those shared helpers.
-The MCP adapter is a later increment. `packages/mcp/src/internal.ts` exports
-the helpers only through the workspace-internal boundary; they are not a public
-MCP client API.
+CLI owns Commander parsing, authentication entry, and the spinner, while its
+command delegates list semantics to those shared helpers.
+The MCP adapter is a later increment, so current runtime use is CLI-only.
+`packages/mcp/src/internal.ts` exports the helpers only through the
+workspace-internal boundary; they are not a public MCP client API.
 
 ## Actions and lifecycle
 
 The entry `path` is display identity, not a locator. A non-null `read` action's
 backend-authored `target` and nullable `path`, and a non-null `browse` action's
 `target` and nullable `paths`, are authoritative. JSON preserves these values
-exactly. Text renders only actions that exist and never derives an action from
-the displayed entry path. Repeated SOURCE FILE read targets are grouped while
-each row retains its own action path.
+exactly. Compact text deliberately contains paths only and does not imply that
+a displayed site path can be passed to `read` unchanged.
 
 Continuation uses the returned `nextCursor`; callers do not reuse the previous
-cursor or modify its contents. The formatter repeats target, paths, recursion,
-and source filters. Limit and wait may also be replayed. The service itself
-does not scan pages or reconstruct inventory client-side.
+cursor or modify its contents. Lossless JSON exposes the cursor, while the
+original request supplies the selection that must be replayed. Compact text
+does not add a continuation footer. The service itself does not scan pages or
+reconstruct inventory client-side.
 
 SOURCE indexing metadata (`codeIndexState`, `indexingStatus`, `indexingRef`,
-and detailed resolution data) remains distinct from an empty result. In
-particular, text identifies an empty result whose `indexingStatus` is
-`INDEXING`. SITE `inventoryState`, `crawlStatus`, `coverageState`,
-`coverageReason`, and `preparation` are reported separately; an empty site
-inventory does not erase running or failed crawl/preparation state. No
-legacy-root fallback is used for unsupported API or pagination errors.
+and detailed resolution data) remains distinct from an empty result in JSON.
+SITE `inventoryState`, `crawlStatus`, `coverageState`, `coverageReason`, and
+`preparation` are also preserved there. Compact text represents an empty
+inventory with its zero-entry header alone. No legacy-root fallback is used
+for unsupported API or pagination errors.
 
 ## Testing boundaries
 
@@ -85,14 +85,29 @@ detailed fields, nullable response projection, cursor validation, error
 classification, and authentication refresh. Shared request and error tests
 cover normalization and mapped envelopes. CLI tests cover Commander flags,
 package/repository/site forwarding, pagination, compact versus detailed calls,
-action rendering, diagnostics, authentication, and the absence of a legacy
-service fallback. Response and text tests compare
-repository-root, package-subtree, recursive-glob, and site-subtree fixtures,
-including exact actions, continuation replay, null fidelity, and lifecycle
-combinations. These client tests do not claim to validate backend path/glob
+path rendering, diagnostics, authentication, and the absence of a legacy
+service fallback. Response tests cover exact actions, cursors, null fidelity,
+and lifecycle combinations. Text tests cover the shared header, path-only rows,
+directory suffixes, empty results, and control-character escaping. These client
+tests do not claim to validate backend path/glob
 matching, inventory scope, hierarchy, or site membership; those semantics are
 owned by the backend contract and require backend-side or live conformance
 evidence.
+
+The path-only formatter was measured against the same authenticated built-CLI
+queries before and after the output change:
+
+| Query | Previous bytes | Path-only bytes | Reduction |
+| --- | ---: | ---: | ---: |
+| `npm:express@5.2.1 --limit 100` | 1,038 | 247 | 76.2% |
+| `npm:express@5.2.1 examples/ --recursive --limit 500` | 7,399 | 2,848 | 61.5% |
+| `site:react.dev react.dev/reference/ --recursive --limit 500` | 20,727 | 5,958 | 71.3% |
+
+These are UTF-8 output sizes, not tokenizer-specific token counts. The durable
+`bun run bench:list-text` fixture reports current 100-entry source and site
+text sizes without requiring network access. It also compares the prior compact
+entry selection (`kind`, `path`, `title`, `read`, `browse`) with the new
+`kind`/`path` selection.
 
 Authenticated live CLI conformance on 2026-09-26 verified that the hosted
 endpoint exposes `Query.list` for package, repository, and site targets. The
@@ -115,6 +130,6 @@ isolation. Phase 2 retains MCP/agent and package-to-site discovery validation.
 | `packages/mcp/src/shared/list-request.ts` | Shared request validation and normalization |
 | `packages/mcp/src/shared/list-error-map.ts` | Mapping list errors into the shared envelope |
 | `packages/mcp/src/shared/list-response.ts` | Allowlisted, null-preserving JSON projection |
-| `packages/mcp/src/shared/list-text.ts` | Shared CLI/MCP text and follow-up rendering |
+| `packages/mcp/src/shared/list-text.ts` | Shared path-only CLI/MCP text rendering |
 | `packages/mcp/src/internal.ts` | Workspace-only exports for shared helpers |
 | `pkgseer-backend/priv/graphql/schema.graphql` | Backend `Query.list` schema source |

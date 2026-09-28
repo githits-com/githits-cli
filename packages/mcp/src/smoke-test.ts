@@ -1112,8 +1112,10 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     repoPage &&
       typeof repoPage.docsReadTarget === "string" &&
       typeof repoPage.pageId === "string" &&
-      typeof repoPage.sourceUrl === "string",
-    "docs_list json missing repo-backed target, compatible page ID, or source URL",
+      typeof repoPage.repoUrl === "string" &&
+      typeof repoPage.gitRef === "string" &&
+      typeof repoPage.filePath === "string",
+    "docs_list json missing repo-backed target, compatible page ID, or source coordinates",
   );
   assert(
     repoPage.docsReadTarget === repoPage.pageId,
@@ -1212,14 +1214,15 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   );
   assertRecord(repoRead, "read repo-backed ID json");
   assert(
-    repoRead.docsReadTarget === repoPage.docsReadTarget &&
-      repoRead.pageId === repoPage.pageId &&
+    repoRead.repoUrl === repoPage.repoUrl &&
+      repoRead.gitRef === repoPage.gitRef &&
+      repoRead.path === repoPage.filePath &&
       typeof repoRead.content === "string" &&
       typeof repoRead.totalLines === "number" &&
       (repoRead.totalLines === 0 ||
         (typeof repoRead.startLine === "number" &&
           typeof repoRead.endLine === "number")),
-    "read repo-backed ID json missing snapshot locators, content, or range",
+    "read repo-backed ID json missing source coordinates, content, or range",
   );
 
   assertErrorCode(

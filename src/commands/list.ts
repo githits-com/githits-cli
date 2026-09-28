@@ -7,7 +7,6 @@ import {
   projectListResult,
   requireAuth,
   sanitizeTerminalText,
-  shouldUseColors,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
@@ -28,7 +27,6 @@ export interface ListCommandOptions {
   limit?: string;
   after?: string;
   wait?: string;
-  verbose?: boolean;
   json?: boolean;
 }
 
@@ -74,7 +72,7 @@ export async function listAction(
       limit: parseNumericOption(options.limit),
       after: options.after,
       waitTimeoutMs: parseNumericOption(options.wait),
-      includeDetailedFields: options.json === true || options.verbose === true,
+      includeDetailedFields: options.json === true,
     });
     const spinner =
       deps.createSpinner?.() ??
@@ -87,14 +85,7 @@ export async function listAction(
     if (options.json) {
       console.log(JSON.stringify(projected));
     } else {
-      process.stdout.write(
-        formatListText(projected, params, {
-          surface: "cli",
-          verbose: options.verbose === true,
-          useColors: shouldUseColors(),
-          width: process.stdout.columns,
-        }),
-      );
+      process.stdout.write(`${formatListText(projected)}\n`);
     }
   } catch (error) {
     handleListError(
@@ -172,7 +163,7 @@ export function registerListCommand(
     .command("list")
     .summary("List files and documentation in a target")
     .description(
-      "List the files and documentation entries for one package, repository, or hosted site. Package and repository targets stay within their source inventory; use site:<host[/path]> for hosted documentation. Pass paths as literals or globs, and add --recursive to traverse matched directories. Use returned actions and cursors unchanged.",
+      "List the files and documentation entries for one package, repository, or hosted site. Package and repository targets stay within their source inventory; use site:<host[/path]> for hosted documentation. Pass paths as literals or globs, and add --recursive to traverse matched directories. Text output is one path per line; use --json for actions, cursors, and metadata.",
     )
     .argument("<target>", "Package, repository, or site target")
     .argument("[paths...]", "Literal path selectors or glob patterns")
@@ -195,7 +186,6 @@ export function registerListCommand(
     .option("--limit <n>", "Maximum entries to return (1-500)")
     .option("--after <cursor>", "Continue from a prior opaque cursor")
     .option("--wait <ms>", "Wait for source indexing (0-300000 ms)")
-    .option("-v, --verbose", "Show detailed source and resolution metadata")
     .option("--json", "Emit the lossless JSON result")
     .action(
       async (

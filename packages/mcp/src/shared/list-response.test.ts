@@ -186,6 +186,18 @@ describe("projectListResult", () => {
     expect(compact.resolution).toBeUndefined();
     expect(compact.entries[0]?.browse).toBeNull();
     expect("language" in (compact.entries[0] ?? {})).toBe(false);
+
+    const minimal = packageSubtreeFixture();
+    const minimalEntry = minimal.entries[0];
+    if (!minimalEntry) throw new Error("fixture missing entry");
+    delete minimalEntry.title;
+    delete minimalEntry.read;
+    delete minimalEntry.browse;
+    const projectedMinimal = projectListResult(minimal);
+    expect(projectedMinimal.entries[0]).toEqual({
+      kind: "DIRECTORY",
+      path: "docs",
+    });
   });
 
   it("uses an allowlist, clones nested data, and adds no totals or filter echoes", () => {
