@@ -34,7 +34,7 @@ function formatHeader(
   const followUp =
     siteOrigin === undefined
       ? ""
-      : ` | follow up with "read ${escapeLineValue(siteOrigin)}/$path"${hasExactUrlRow ? " (URLs as-is)" : ""}`;
+      : ` | follow up with "read ${escapeLineValue(siteOrigin)}$path"${hasExactUrlRow ? " (URLs as-is)" : ""}`;
   const header = `# source ${escapeLineValue(source)}${followUp}${result.hasMore ? " | more" : ""}`;
   return dim(header, useColors);
 }
@@ -113,8 +113,9 @@ function relativeReadTarget(
   origin: string,
 ): string | undefined {
   if (target === origin) return "";
-  const prefix = `${origin}/`;
-  return target.startsWith(prefix) ? target.slice(prefix.length) : undefined;
+  if (!target.startsWith(origin)) return undefined;
+  const relative = target.slice(origin.length);
+  return relative.startsWith("/") ? relative : undefined;
 }
 
 /** Escape controls and backslashes while keeping ordinary path text literal. */

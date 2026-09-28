@@ -48,11 +48,11 @@ response. The backend's opaque cursor is otherwise preserved exactly.
   is unavailable, and ` | more` means another page exists. CLI dims this line
   when color is enabled; MCP emits the same plain text without ANSI. When
   every returned site page has an exact read target on one origin, the header
-  adds `follow up with "read <origin>/$path"` and page/directory rows use paths
-  relative to that origin. A root page retains its exact URL because its
-  relative path is empty; the header marks URL rows to be read as-is. If one
-  origin cannot represent every page, page rows use their exact backend-authored
-  read targets. Directory paths end in `/`.
+  adds `follow up with "read <origin>$path"`. Page rows use exact URL paths with
+  a leading `/`, while directory rows remain relative and end in `/`. An exact
+  root target without a slash retains its full URL and the header marks URL rows
+  to be read as-is. If one origin cannot represent every page, page rows use
+  their exact backend-authored read targets.
   Controls and backslashes are escaped to keep every entry on one unambiguous
   line, while quotes, ordinary Unicode, spaces, and encoded path bytes are
   retained.
@@ -74,8 +74,10 @@ backend-authored `target` and nullable `path`, and a non-null `browse` action's
 exactly. For site text, page rows use the exact read target when present and the
 returned pages span origins; a page without one retains its display path. When
 every returned page shares one origin, the header provides the exact
-`read <origin>/$path` template and rows omit that repeated origin. A site
-display path without either form is not a read locator.
+`read <origin>$path` template and rows omit that repeated origin. The leading
+slash distinguishes a page URL path from a relative directory path without
+discarding a meaningful trailing slash. A site display path without either
+form is not a read locator.
 
 Continuation uses the returned `nextCursor`; callers do not reuse the previous
 cursor or modify its contents. Lossless JSON exposes the cursor, while the
@@ -114,7 +116,7 @@ queries before and after the output change:
 | --- | ---: | ---: | ---: |
 | `npm:express@5.2.1 --limit 100` | 1,038 | 192 | 81.5% |
 | `npm:express@5.2.1 examples/ --recursive --limit 500` | 7,399 | 2,793 | 62.3% |
-| `site:react.dev react.dev/reference/ --recursive --limit 500` | 20,727 | 4,675 | 77.4% |
+| `site:react.dev react.dev/reference/ --recursive --limit 500` | 20,727 | 4,802 | 76.8% |
 
 These are UTF-8 output sizes, not tokenizer-specific token counts. The durable
 `bun run bench:list-text` fixture reports current 100-entry source and site
