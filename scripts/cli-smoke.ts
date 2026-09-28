@@ -2033,14 +2033,18 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   );
   assertRecord(siteListJson, "list site json");
   assert(Array.isArray(siteListJson.entries), "list site json missing entries");
-  const sitePage = siteListJson.entries.find(
-    (entry) =>
-      typeof entry === "object" &&
-      entry !== null &&
-      (entry as Record<string, unknown>).kind === "PAGE" &&
-      typeof (entry as Record<string, unknown>).read === "object" &&
-      (entry as Record<string, unknown>).read !== null,
-  ) as Record<string, unknown> | undefined;
+  const sitePage = siteListJson.entries.find((entry) => {
+    if (typeof entry !== "object" || entry === null) return false;
+    const record = entry as Record<string, unknown>;
+    if (typeof record.read !== "object" || record.read === null) return false;
+    const read = record.read as Record<string, unknown>;
+    return (
+      record.kind === "PAGE" &&
+      typeof read.target === "string" &&
+      read.target.startsWith("site:") &&
+      typeof read.path === "string"
+    );
+  }) as Record<string, unknown> | undefined;
   assert(sitePage, "list site json missing readable page");
   assertRecord(sitePage.read, "list site page read action");
   assert(
