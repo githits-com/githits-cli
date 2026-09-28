@@ -3794,6 +3794,64 @@ describe("agent eval harness", () => {
     ).toMatchObject([{ providerCallId: "mcp-1", observedAt }]);
   });
 
+  it.each([
+    [
+      "list",
+      "/bin/zsh -lc 'githits list npm:express lib/ --recursive --limit 100'",
+    ],
+    [
+      "read",
+      "/bin/zsh -lc 'githits read npm:express lib/express.js --lines 1-90'",
+    ],
+  ])(
+    "extracts top-level %s CLI calls from shell-wrapped events",
+    (tool, command) => {
+      const stdout = JSON.stringify({
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          id: "inventory-command",
+          command,
+          status: "completed",
+        },
+      });
+
+      expect(extractToolCalls(stdout, "codex")).toEqual([
+        {
+          agent: "codex",
+          server: "githits-cli",
+          tool,
+          providerCallId: "inventory-command",
+          status: "completed",
+          arguments: { command },
+        },
+      ]);
+    },
+  );
+
+  it.each(["list", "read"])(
+    "flags top-level %s as a CLI fallback in MCP evals",
+    (tool) => {
+      const stdout = JSON.stringify({
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          command: `githits ${tool} npm:express lib/express.js`,
+          status: "completed",
+        },
+      });
+
+      expect(
+        extractEvalValidationViolations(
+          stdout,
+          { surface: "mcp", guidanceProfile: "descriptors" },
+          tmpdir(),
+          "codex",
+        ),
+      ).toEqual([{ category: "mcp-cli-fallback", tool }]);
+    },
+  );
+
   it("preserves Codex provider IDs and statuses for paired MCP and CLI events", () => {
     const events = [
       {

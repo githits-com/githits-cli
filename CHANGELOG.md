@@ -25,6 +25,7 @@ search evidence, and selects development services with `GITHITS_ENV`.
 
 ### Fixed
 
+- **Count unified CLI calls in agent evals** - Recognize top-level `githits list` and `githits read` in captured shell events so new eval metrics and MCP CLI-fallback validation include those operations; historical artifacts are unchanged. Document private token injection from the existing host login for authenticated isolated evals.
 - **Claude plugin listing metadata and packaged icon** - Add the approved Pulse monogram icon and privacy-policy link to the generated Claude manifest, and ship the referenced SVG in npm packages.
 - **Consistent package-addressed repo docs** - Search displays package-attributed repository documentation with the served package target and target-relative path and line range, matching repo code headers; generated unified-read follow-ups use the same package addressing while JSON retains snapshot provenance.
 

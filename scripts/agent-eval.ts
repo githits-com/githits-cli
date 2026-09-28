@@ -1713,6 +1713,7 @@ function cliToolNameFromCommand(command: string): string | undefined {
   if (first === "feedback") return "feedback";
   if (first === "search") return "search";
   if (first === "search-status") return "search_status";
+  if (first === "list" || first === "read") return first;
   if (first === "code" && second) return `code_${second.replace(/-/g, "_")}`;
   if (first === "docs" && second) return `docs_${second.replace(/-/g, "_")}`;
   if (first === "pkg" && second) return `pkg_${second.replace(/-/g, "_")}`;
