@@ -81,6 +81,7 @@ export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
   "settings",
   "read",
   "list",
+  "grep",
   "search",
   "search-status",
   "code",
@@ -1175,6 +1176,22 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "unauthenticated list JSON must keep stdout clean",
     );
     assertJsonErrorCode(listJson, "unauthenticated list JSON", "AUTH_REQUIRED");
+    const grepJson = await runCliWithEnv(
+      ["grep", "router", SMOKE_PACKAGE_SPEC, "--json"],
+      env,
+    );
+    assert(
+      grepJson.exitCode !== 0 && grepJson.stdout.trim() === "",
+      "unauthenticated grep JSON must keep stdout clean",
+    );
+    assertJsonErrorCode(grepJson, "unauthenticated grep JSON", "AUTH_REQUIRED");
+    const grepHelp = await runCliWithEnv(["grep", "--help"], env);
+    assert(
+      grepHelp.exitCode === 0 &&
+        grepHelp.stdout.includes("--fixed-strings") &&
+        grepHelp.stdout.includes("global page cap"),
+      "grep help must expose matching defaults and page limits",
+    );
     for (const group of ["code", "docs"]) {
       const help = await runCliWithEnv([group, "read", "--help"], env);
       assert(
@@ -1965,6 +1982,73 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
       `pkg upgrade-review json leaked judgment field ${forbidden}`,
     );
   }
+
+  const grepPage = assertJsonOutput(
+    await runCli([
+      "grep",
+      "router",
+      SMOKE_PACKAGE_SPEC,
+      "--path",
+      "lib/express.js",
+      "--limit",
+      "1",
+      "--json",
+    ]),
+    "unified grep source JSON",
+  );
+  assertRecord(grepPage, "unified grep source JSON");
+  assert(
+    Array.isArray(grepPage.hits) &&
+      grepPage.hits.length === 1 &&
+      Array.isArray(grepPage.targets),
+    "unified grep must return a bounded source match and statuses",
+  );
+  const grepHit = grepPage.hits[0] as unknown;
+  assertRecord(grepHit, "unified grep source hit");
+  assert(
+    grepHit.__typename === "GrepRepositoryHit" &&
+      grepHit.filePath === "lib/express.js" &&
+      typeof grepHit.sourceMatchStartByte === "number",
+    "unified grep must retain source identities and physical coordinates",
+  );
+  assertRecord(grepHit.read, "unified grep exact read");
+  const grepRead = grepHit.read;
+  assert(
+    typeof grepRead.target === "string" &&
+      typeof grepRead.path === "string" &&
+      typeof grepRead.startLine === "number" &&
+      typeof grepRead.endLine === "number",
+    "unified grep read action must be complete",
+  );
+  assertJsonOutput(
+    await runCli([
+      "read",
+      grepRead.target,
+      grepRead.path,
+      "--lines",
+      `${grepRead.startLine}-${grepRead.endLine}`,
+      "--json",
+    ]),
+    "unified grep exact read replay",
+  );
+  const grepText = assertTerminalOutput(
+    await runCli([
+      "grep",
+      "router",
+      SMOKE_PACKAGE_SPEC,
+      "--path",
+      "lib/express.js",
+      "--limit",
+      "1",
+    ]),
+    "unified grep source text",
+  );
+  assert(
+    grepText.includes("match in this page") &&
+      grepText.includes("lib/express.js") &&
+      grepText.includes("Read: githits read"),
+    "unified grep text must retain result, locator and read action",
+  );
 
   const packageListText = assertTerminalOutput(
     await runCli(["list", SMOKE_PACKAGE_SPEC, "--limit", "2"]),

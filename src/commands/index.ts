@@ -20,6 +20,7 @@ export {
   exampleAction,
   registerExampleCommand,
 } from "./example.js";
+export { grepAction, registerGrepCommand } from "./grep.js";
 export {
   type InitDependencies,
   type InitOptions,

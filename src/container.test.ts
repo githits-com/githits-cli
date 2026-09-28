@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   AgenticAskServiceImpl,
+  GrepServiceImpl,
   ListServiceImpl,
   ReadServiceImpl,
   ResolveTargetServiceImpl,
@@ -408,6 +409,7 @@ describe("createContainer", () => {
         expect(deps.agenticAskService).toBeInstanceOf(AgenticAskServiceImpl);
         expect(deps.readService).toBeInstanceOf(ReadServiceImpl);
         expect(deps.listService).toBeInstanceOf(ListServiceImpl);
+        expect(deps.grepService).toBeInstanceOf(GrepServiceImpl);
       }),
     );
   });
@@ -423,6 +425,7 @@ describe("createContainer", () => {
           expect(deps.agenticAskService).toBeInstanceOf(AgenticAskServiceImpl);
           expect(deps.readService).toBeInstanceOf(ReadServiceImpl);
           expect(deps.listService).toBeInstanceOf(ListServiceImpl);
+          expect(deps.grepService).toBeInstanceOf(GrepServiceImpl);
         }),
       ),
     );

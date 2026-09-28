@@ -7,7 +7,10 @@ import type {
   CodeNavigationService,
   DependencyReport,
   GitHitsService,
+  GrepParams,
   GrepRepoResult,
+  GrepResult,
+  GrepService,
   ListParams,
   ListResult,
   ListService,
@@ -1044,6 +1047,25 @@ export function createMockListService(
 ): ListService {
   return {
     list: mock((_params: ListParams) => Promise.resolve(defaultListResult)),
+    ...impl,
+  };
+}
+
+export const defaultGrepResult: GrepResult = {
+  hits: [],
+  targets: [],
+  unavailableTargets: [],
+  traversal: "COMPLETE",
+  nextCursor: null,
+  totalMatches: 0,
+};
+
+/** Creates a mock unified grep service with a valid empty result. */
+export function createMockGrepService(
+  impl: Partial<GrepService> = {},
+): GrepService {
+  return {
+    grep: mock((_params: GrepParams) => Promise.resolve(defaultGrepResult)),
     ...impl,
   };
 }

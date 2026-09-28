@@ -15,6 +15,7 @@ import {
   registerDocsCommandGroup,
   registerDoctorCommand,
   registerExampleCommand,
+  registerGrepCommand,
   registerInitCommand,
   registerListCommand,
   registerLoginCommand,
@@ -153,6 +154,7 @@ async function main(): Promise<void> {
   registerSettingsCommand(program);
   registerReadCommand(program);
   registerListCommand(program);
+  registerGrepCommand(program);
   const registrationArgv = stripRootRegistrationOptions(argv);
   const updateCheckTask = startUpdateCheckTaskForInvocation({
     args: argv,

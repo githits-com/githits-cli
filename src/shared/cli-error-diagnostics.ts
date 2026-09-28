@@ -6,7 +6,11 @@ import {
 } from "@githits/mcp/internal";
 import { debugLog } from "./debug-log.js";
 
-export type CliErrorDiagnosticsArea = "code-nav" | "list" | "pkg-intel";
+export type CliErrorDiagnosticsArea =
+  | "code-nav"
+  | "list"
+  | "pkg-intel"
+  | "grep";
 
 /**
  * Classify an error for a CLI command and retain the existing opt-in
