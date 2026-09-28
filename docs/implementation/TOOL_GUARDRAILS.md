@@ -129,12 +129,12 @@ maintainer-controlled content:
 - `pkg_info` — registry description, repository topics and recent release notes
 - `pkg_changelog` — release-notes body
 - `pkg_upgrade_review` — release-note excerpts and package deprecation text
-- `read` and `docs_list` — repo READMEs and crawled docs
+- `list` and `read` — repository documentation paths and crawled docs pages
 - `read` and `code_grep` — repo source code (comments + strings)
 - `search` — multi-source search snippets
 - `get_example` — backend-synthesized examples
 
-Other tools (`quick_start`, `pkg_deps`, `code_files`, `search_status`) have no third-party prose surface or attacker
+Other tools (`quick_start`, `pkg_deps`, `search_status`) have no third-party prose surface or attacker
 control and need no per-tool addendum. The shared posture is available to plain
 MCP agents after they call `quick_start`; a loaded `githits-mcp` skill already
 carries the stable posture. The runtime-only local appendices are not embedded

@@ -2,10 +2,9 @@
 
 ## Status and expected outcome
 
-**Status: IN PROGRESS.** Phase 1A and Phase 1B merged in PR #421 at
-`5e541604935f1d7bb030742e2602356b9ef1e88c` on 2026-09-28. PR #422
-previously merged the CLI increment into its stacked base. Phase 2 has not
-started; Phase 1 is complete.
+**Status: IN PROGRESS.** Phase 1 is complete. PR #421 merged to `main` as
+`5e541604935f1d7bb030742e2602356b9ef1e88c` on 2026-09-28. Phase 2 is
+implemented on `jlitola/unified-list-mcp`; verification and review remain.
 
 The rebased Phase 1 branch passed 5,044 tests, typecheck, formatting, build,
 149-step live CLI smoke, 65-step live MCP smoke, 36-step built CLI smoke, and
@@ -396,8 +395,8 @@ PR #2817 resolves site addressing, including `/` for the root.
 
 | Phase | Status | Outcome |
 | --- | --- | --- |
-| 1. Add the shared contract and CLI | **COMPLETE; PR #421 MERGED** | `githits list` browses the backend contract through the tested transport-neutral service and shared formatter. Backend #2817 production conformance and live site action replay pass. |
-| 2. Consolidate the MCP surface | **PLANNED; merge dependency satisfied** | The advertised catalog contains `list` instead of `code_files` and `docs_list`, and agent guidance routes package/repository/site browsing and follow-up actions correctly. |
+| 1. Add the shared contract and CLI | **COMPLETE; merged as `5e54160`** | `githits list` browses the backend contract through the tested transport-neutral service and shared formatter. Backend #2817 production conformance and live site action replay pass. |
+| 2. Consolidate the MCP surface | **IN PROGRESS; IMPLEMENTED** | The callable catalog contains `list` instead of `code_files` and `docs_list`; the replacement description retains both legacy names, and current guidance routes package/repository/site browsing and follow-up actions correctly. Verification and review remain. |
 | 3. Release and hosted adoption | **PLANNED; authorization/deployment dependent** | Published CLI and hosted MCP expose the same unified list contract, and live list-to-read/list-to-list paths pass against the deployed backend. |
 
 ## Phase 1 detailed plan — shared contract and CLI
@@ -522,15 +521,26 @@ No isolation violations were reported.
 
 ## Phase 2 detailed plan — consolidate the MCP surface
 
-**Status:** PLANNED; PR #421 has merged to `main`, satisfying the recorded
-merge dependency. Reorient before implementation. No further product decision
-is recorded.
+**Status:** IN PROGRESS; implementation complete, verification and review in
+progress. PR #421 is present on `origin/main` at `5e54160`; no further product
+decision is required.
 
-**Expected outcome:** stdio MCP and the public MCP package advertise one `list`
-tool in place of `code_files` and `docs_list`. Its request, output, errors, and
-path-only text remain identical to the Phase 1 shared contract. Quick-start and
-public skills teach package/repository browsing, explicit site browsing, and
-package-to-site discovery.
+The 2026-09-28 readiness check confirmed that `origin/main` still registers
+`code_files` and `docs_list`, while the public MCP client does not export
+`ListService` and `McpToolServices` does not require it. The merged shared list
+request, projection, error, and formatter helpers remain available for the new
+MCP tool. Main has since merged unified `grep`, target-relative site rendering,
+and backend-selected read actions; Phase 2 preserves those contracts.
+
+**Expected outcome:** stdio MCP and the public MCP package advertise one
+callable `list` tool in place of `code_files` and `docs_list`. Its first
+description sentence remains focused on listing intent, while a later sentence
+names both retired tools so full-description tool search from stale client
+skills can discover the replacement.
+Its request, output, errors, and path-only text remain identical to the Phase 1
+shared contract. The stable MCP quick-start skill teaches package/repository
+browsing, explicit site browsing, and package-to-site discovery. The public
+CLI `githits-code` skill remains on released behavior until Phase 3 adoption.
 
 **Assumptions:** Phase 1's service/formatter API remains adequate; lossless JSON
 is the follow-up surface for exact actions and opaque cursors; the hosted
@@ -561,9 +571,13 @@ guidance.
    local experimental `resolve_target` guidance to send selected sites to
    `list` as well as `search`.
 4. Update `packages/mcp/src/mcp/instructions.ts` and
-   `skills/githits-mcp/SKILL.md` together, then update the canonical
-   `githits-code` skill/reference and implementation docs. Run the plugin
-   generator/checker. Reconcile Phase 4 of
+   `skills/githits-mcp/SKILL.md` together, then update implementation docs. Run
+   the plugin generator/checker. The public `githits-code` skill advertises
+   released CLI behavior and therefore moves to Phase 3 after the matching
+   artifacts publish; updating it before release would violate the Agent Skill
+   lifecycle. Treat MCP guide changes as current guidance for new or refreshed
+   clients; do not assume already-installed skills update with the release.
+   Reconcile Phase 4 of
    `docs/plans/mcp-tool-surface-simplification.md` so it does not independently
    expand `code_files`.
 5. Update catalog, local server, public surface, parity, smoke, and package
@@ -572,6 +586,13 @@ guidance.
    emitted explicit site -> site listing. Cover the enabled `resolve_target` ->
    site-list route in its focused guidance tests. Add a separate `minor`
    fragment for both public artifacts.
+
+Implementation landed as eleven focused commits from `38be5ab` through
+`b99a6a7`, including `0226bcf` for packed-client validation. The stable catalog
+has 12 tools. The serialized replacement descriptor (`name`, description,
+input schema) is 2,793 UTF-8 bytes, 2,395 bytes (46.2%) below the 5,188-byte
+retired pair baseline. The serialized stable catalog is 32,455 UTF-8 bytes.
+These are payload measurements, not model-token or latency claims.
 
 ### Verification and acceptance
 
@@ -629,6 +650,12 @@ is intentionally deferred.
 **Dependencies:** Phases 1-2 merged; `Query.list` deployed; explicit
 authorization for release, remote dependency update, and deployment at each
 protected step.
+
+After the matching CLI package is published, update the canonical
+`skills/githits-code` guidance and generated reference to prefer top-level
+`githits list`, while retaining the documented legacy grouped commands through
+their grace period. This release-gated skill change is deliberately excluded
+from Phase 2.
 
 **Acceptance criteria:** outside-workspace packed CLI and public MCP imports
 construct `ListService`; published CLI and hosted MCP catalogs expose `list`;
