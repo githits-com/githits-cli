@@ -15,8 +15,10 @@ package, repository, and site list/read follow-ups passed. Backend
 PR #2817 merged as `518e45d301d0ba3f451ff56034551addc2bfc7fe` and its
 `site:` target plus host-relative page path shape is deployed to production.
 Live CLI replay passes for the Express site root, a normal page with and
-without its trailing slash, and the same page through a nested site scope.
-Phase 1 is on `main`; its public artifacts are not yet released or deployed.
+without its trailing slash, and the same page through a nested site scope. The
+client work is on `main`; package publication remains pending. The 0.23.0
+release preparation includes Phase 1 CLI listing and shared site-page reads.
+It does not claim Phase 2 MCP catalog consolidation or Phase 3 hosted adoption.
 
 Replace the callable MCP `code_files` and `docs_list` tools with one `list`
 tool, and add the matching top-level `githits list` command. The `list`
@@ -436,7 +438,7 @@ list/read follow-ups, package continuation, paths-only output, root and normal
 site pages, trailing-slash handling, and nested site scope. PR checks passed on
 Ubuntu, Windows, Bun, Node 20, 22, 24, and 26, including public MCP package
 validation. Backend PR #2817 is deployed to production; the CLI and MCP package
-changes remain unreleased.
+versions are prepared at 0.23.0, and publication remains pending.
 
 ## Phase 2 detailed plan — consolidate the MCP surface
 
