@@ -67,7 +67,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Literal directory prefix to scope grep, matching `code_files` / `search` naming.",
+      'Literal directory prefix to scope grep. Pass the same directory to `list` with `paths: ["docs/"]` to enumerate it.',
     ),
   globs: z
     .array(z.string())

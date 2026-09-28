@@ -84,6 +84,9 @@ describe("unified read contract", () => {
         "relative to the supplied site: target; do not repeat its scope",
       ),
     });
+    expect(tool.schema.path?.description).toContain(
+      "from search, list, or code_grep",
+    );
     expect(schema.required).toEqual(["target"]);
     expect(tool.annotations).toEqual({
       readOnlyHint: true,

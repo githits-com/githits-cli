@@ -293,7 +293,9 @@ describe("createCodeReadTool — validation errors", () => {
     const payload = parseText(result) as { code: string; error: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
     expect(payload.error).toContain("exact file path");
-    expect(payload.error).toContain('path_prefix: "lib/"');
+    expect(payload.error).toContain('`list` with `paths: ["lib/"]`');
+    expect(payload.error).not.toContain("code_files");
+    expect(payload.error).not.toContain("path_prefix");
     expect(readFile).not.toHaveBeenCalled();
   });
 });
@@ -325,8 +327,9 @@ describe("createCodeReadTool — service errors", () => {
     };
     expect(payload.code).toBe("FILE_NOT_FOUND");
     expect(payload.details?.filePath).toBe("nope.js");
-    expect(payload.details?.action).toContain("`code_files`");
-    expect(payload.details?.action).toContain("without `path_prefix`");
+    expect(payload.details?.action).toContain("Use `list` without `paths`");
+    expect(payload.details?.action).not.toContain("code_files");
+    expect(payload.details?.action).not.toContain("path_prefix");
     expect(payload.details?.action).toContain("emitted `path`");
   });
 
@@ -361,8 +364,11 @@ describe("createCodeReadTool — service errors", () => {
         details?: { action?: string };
       };
       expect(payload.details?.action).toContain(expectedGuidance);
-      expect(payload.details?.action).toContain("`code_files`");
-      expect(payload.details?.action).toContain('path_prefix: "bench/data/"');
+      expect(payload.details?.action).toContain(
+        '`list` with `paths: ["bench/data/"]`',
+      );
+      expect(payload.details?.action).not.toContain("code_files");
+      expect(payload.details?.action).not.toContain("path_prefix");
       expect(payload.details?.action).toContain("`read`");
       expect(payload.details?.action).not.toContain("githits code");
     },
@@ -390,12 +396,12 @@ describe("createCodeReadTool — service errors", () => {
     const payload = parseText(result) as {
       details?: { action?: string };
     };
-    expect(payload.details?.action).toContain('path_prefix: "lib/"');
+    expect(payload.details?.action).toContain('`list` with `paths: ["lib/"]`');
     expect(payload.details?.action).not.toContain("./lib/");
     expect(payload.details?.action).not.toContain("lib/internal/");
   });
 
-  it("points directory-looking NOT_FOUND errors at code_files path_prefix", async () => {
+  it("points directory-looking NOT_FOUND errors at list paths", async () => {
     const service = createMockCodeNavigationService({
       readFile: mock(() =>
         Promise.reject(
@@ -418,7 +424,9 @@ describe("createCodeReadTool — service errors", () => {
     };
     expect(payload.code).toBe("NOT_FOUND");
     expect(payload.details?.action).toContain("reads files only");
-    expect(payload.details?.action).toContain('path_prefix: "lib/"');
+    expect(payload.details?.action).toContain('`list` with `paths: ["lib/"]`');
+    expect(payload.details?.action).not.toContain("code_files");
+    expect(payload.details?.action).not.toContain("path_prefix");
   });
 
   it("does not add file recovery to unrelated NOT_FOUND errors", async () => {

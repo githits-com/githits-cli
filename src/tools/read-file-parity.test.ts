@@ -260,12 +260,15 @@ describe("read_file parity", () => {
       details: mcpDetails,
     });
     expect(cliEnvelope.code).toBe("FILE_NOT_FOUND");
-    expect(cliAction).toContain("`githits code files`");
+    expect(cliAction).toContain("`githits list <target>`");
     expect(cliAction).toContain("`githits read`");
-    expect(cliAction).toContain("without a path prefix");
-    expect(mcpAction).toContain("`code_files`");
+    expect(cliAction).not.toContain("paths:");
+    expect(cliAction).not.toContain("code_files");
+    expect(cliAction).not.toContain("path_prefix");
+    expect(mcpAction).toContain("`list` without `paths`");
     expect(mcpAction).toContain("`read`");
-    expect(mcpAction).toContain("without `path_prefix`");
+    expect(mcpAction).not.toContain("code_files");
+    expect(mcpAction).not.toContain("path_prefix");
   });
 
   it("PARITY-ERROR-ENVELOPE: INDEXING identical on both surfaces", async () => {

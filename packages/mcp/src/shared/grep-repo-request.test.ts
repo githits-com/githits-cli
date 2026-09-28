@@ -177,13 +177,13 @@ describe("buildGrepRepoParams", () => {
     expect(params.pattern).toBe(" middleware ");
   });
 
-  it("rejects omitted patterns with a code_files recovery hint", () => {
+  it("routes omitted patterns to list when the intent is file enumeration", () => {
     expect(() =>
       buildGrepRepoParams({
         target,
         pathPrefix: "lib/",
       }),
-    ).toThrow(/pattern.*code_files/);
+    ).toThrow(/pattern.*use `list` instead/);
   });
 });
 

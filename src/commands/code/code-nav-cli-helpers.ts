@@ -140,7 +140,7 @@ export function formatIndexingError(mapped: MappedError): string {
 
 /**
  * Terminal error renderer for `code read` / `code grep`. Adds the
- * `code files` recovery hint for concrete missing-path cases, even
+ * `githits list` recovery hint for concrete missing-path cases, even
  * when the backend still collapses them into generic `NOT_FOUND`.
  * Leaves unrelated repository / indexing-state `NOT_FOUND` errors
  * alone so we don't send users toward path debugging for the wrong
@@ -151,20 +151,20 @@ export function formatFileErrorWithFilesHint(mapped: MappedError): string {
     return formatMappedErrorForTerminal(mapped);
   }
   if (mapped.code === "FILE_NOT_FOUND") {
-    return `${formatMappedErrorForTerminal(mapped)}\n  Use \`code files\` to list available paths.`;
+    return `${formatMappedErrorForTerminal(mapped)}\n  Use \`githits list <target>\` to list available paths.`;
   }
   if (isExactPathAuthorityError(mapped)) {
     const guidance =
       mapped.code === "FILE_PATH_EXCLUDED"
-        ? "This path is excluded from the indexed source; use `code files` to list indexed paths."
-        : "The source inventory cannot verify this path; use `code files` to list indexed paths it can currently verify.";
+        ? "This path is excluded from the indexed source; use `githits list <target>` to list indexed paths."
+        : "The source inventory cannot verify this path; use `githits list <target>` to list indexed paths it can currently verify.";
     return `${formatMappedErrorForTerminal(mapped)}\n  ${guidance}`;
   }
   if (
     mapped.code === "NOT_FOUND" &&
     looksLikeMissingFileMessage(mapped.message)
   ) {
-    return `${formatMappedErrorForTerminal(mapped)}\n  Use \`code files\` to list available paths.`;
+    return `${formatMappedErrorForTerminal(mapped)}\n  Use \`githits list <target>\` to list available paths.`;
   }
   if (mapped.code === "REF_NOT_FOUND") {
     return `${formatMappedErrorForTerminal(mapped)}\n  Check that the repository URL and git ref exist and are publicly accessible.`;
@@ -239,8 +239,8 @@ function withCliExactPathAuthorityRecovery(
   const prefix = buildContainingPathPrefix(mapped.details.filePath);
   const listing =
     prefix === ""
-      ? "Use `githits code files` without a path prefix"
-      : `Use \`githits code files\` with path prefix ${JSON.stringify(prefix)}`;
+      ? "Use `githits list <target>`"
+      : `Use \`githits list <target> ${JSON.stringify(prefix)}\``;
   const reason =
     mapped.code === "FILE_PATH_EXCLUDED"
       ? "This path is excluded from the indexed source."
@@ -277,8 +277,8 @@ function withCliPathRecovery(
       : "";
   const listing =
     prefix === ""
-      ? "Use `githits code files` without a path prefix"
-      : `Use \`githits code files\` with path prefix ${JSON.stringify(prefix)}`;
+      ? "Use `githits list <target>`"
+      : `Use \`githits list <target> ${JSON.stringify(prefix)}\``;
 
   return {
     ...mapped,
@@ -306,7 +306,7 @@ function looksLikeMissingNavpackMessage(message: string): boolean {
  *
  * Each command passes its own `terminalRenderer` so the hint
  * message can differ (e.g. `code files` doesn't need the
- * `code files`-as-recovery hint; `code read` / `code grep` do).
+ * `githits list`-as-recovery hint; `code read` / `code grep` do).
  *
  * `exitCode` defaults to 1; `code grep` overrides to 2 so callers
  * can distinguish "no matches" (exit 1, `grep` convention) from

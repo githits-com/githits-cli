@@ -381,8 +381,9 @@ describe("public MCP package surface", () => {
     const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
       details?: { action?: string };
     };
-    expect(payload.details?.action).toContain("`code_files`");
-    expect(payload.details?.action).toContain('path_prefix: "docs/"');
+    expect(payload.details?.action).toContain('`list` with `paths: ["docs/"]`');
+    expect(payload.details?.action).not.toContain("code_files");
+    expect(payload.details?.action).not.toContain("path_prefix");
     expect(payload.details?.action).toContain("`code_grep`");
     expect(payload.details?.action).not.toContain("githits code");
   });

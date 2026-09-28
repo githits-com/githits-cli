@@ -235,8 +235,8 @@ function collectRepeatable(value: string, previous: string[] = []): string[] {
 }
 
 /**
- * Translate CLI-reachable, backtick-delimited MCP validation tokens. Anchored
- * rules prevent replacements inside user values echoed after `Got:`.
+ * Translate CLI-reachable MCP validation wording. Anchored and exact
+ * replacements leave user values echoed after `Got:` unchanged.
  */
 function buildCliGrepParams(
   input: GrepRepoRequestInput,
@@ -250,7 +250,7 @@ function buildCliGrepParams(
       .replace(/`globs`/g, "`--glob`")
       .replace(/`extensions`/g, "`--ext`")
       .replace(/^`symbol_fields`/, "`--symbol-field`")
-      .replace(/`code_files`/g, "`githits code files`");
+      .replace("use `list` instead.", "use `githits list <target>` instead.");
     if (rewritten === error.message) throw error;
     throw new InvalidPackageSpecError(rewritten);
   }
@@ -288,7 +288,7 @@ repeatable --ext for extension filtering. When [path-prefix], --path, and
 use --ext to narrow further (intersection).
 
 If an exact --path is missing, excluded, or cannot be verified by the source
-inventory, use \`code files\` to inspect the indexed paths.
+inventory, use \`githits list <target>\` to inspect the indexed paths.
 
 Default output is \`file:line:text\`, pipe-friendly like grep. Use -C / -A / -B
 for context, --verbose for grouped output, and --cursor to continue a paginated

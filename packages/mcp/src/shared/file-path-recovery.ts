@@ -16,8 +16,8 @@ export function withGrepFileRecovery(mapped: MappedError): MappedError {
   const prefix = buildContainingPathPrefix(mapped.details.filePath);
   const listing =
     prefix === ""
-      ? "Use `code_files` without `path_prefix`"
-      : `Use \`code_files\` with \`path_prefix: ${JSON.stringify(prefix)}\``;
+      ? "Use `list` without `paths`"
+      : `Use \`list\` with \`paths: ${JSON.stringify([prefix])}\``;
   return {
     ...mapped,
     details: {
@@ -52,8 +52,8 @@ export function withExactPathAuthorityRecovery(
   const prefix = buildContainingPathPrefix(mapped.details.filePath);
   const listing =
     prefix === ""
-      ? "Use `code_files` without `path_prefix`"
-      : `Use \`code_files\` with \`path_prefix: ${JSON.stringify(prefix)}\``;
+      ? "Use `list` without `paths`"
+      : `Use \`list\` with \`paths: ${JSON.stringify([prefix])}\``;
   const reason =
     mapped.code === "FILE_PATH_EXCLUDED"
       ? "This path is excluded from the indexed source."

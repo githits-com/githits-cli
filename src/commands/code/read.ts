@@ -152,8 +152,8 @@ export async function pkgReadAction(
 }
 
 /**
- * Translate CLI-reachable MCP validation tokens. Unchanged errors are rethrown
- * so this boundary does not mask unrelated shared validation failures.
+ * Translate shared validation failures to CLI-native argument names and
+ * listing syntax. Unchanged errors are rethrown at this boundary.
  */
 export function buildCliReadFileParams(
   input: ReadFileRequestInput,
@@ -162,15 +162,16 @@ export function buildCliReadFileParams(
     return buildReadFileParams(input);
   } catch (error) {
     if (!(error instanceof InvalidPackageSpecError)) throw error;
+    const filePath = input.filePath.trim();
+    if (filePath.endsWith("/")) {
+      throw new InvalidPackageSpecError(
+        `\`<path>\` must be an exact file path, not a directory prefix. Use \`githits list <target> ${JSON.stringify(filePath)}\` to list files, then pass an emitted path to \`githits read\`.`,
+      );
+    }
     const rewritten = error.message
-      .replace(/`file_path`/g, "`<path>`")
+      .replace(/^`file_path`/, "`<path>`")
       .replace("start_line (", "--start (")
       .replace("end_line (", "--end (")
-      .replace(/`code_files`/g, "`githits code files`")
-      .replace(
-        /`path_prefix: ([\s\S]+)` to list files/g,
-        "path prefix $1 to list files",
-      )
       .replace(/emitted `path`/g, "emitted path")
       .replace(/`read`/g, "`githits read`");
     if (rewritten === error.message) throw error;

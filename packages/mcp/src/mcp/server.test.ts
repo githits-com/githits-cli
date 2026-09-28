@@ -105,7 +105,7 @@ const DESCRIPTION_ROUTING: Record<
     exactPrefix:
       "Read an indexed source file, code symbol, or documentation section. Pass target ",
     body: [
-      "use code_files",
+      "use list",
       "search/code_grep",
       "target and path for a file or site page; use compact target#symbol or selector for a code symbol",
       "resolved result determines code or docs",
