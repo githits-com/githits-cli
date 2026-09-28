@@ -257,11 +257,13 @@ describe("detection configuration", () => {
 
   it("claude-desktop checks multiple Windows paths on win32", () => {
     const originalPlatform = process.platform;
+    const originalAppdata = process.env.APPDATA;
     const originalLocalAppdata = process.env.LOCALAPPDATA;
     Object.defineProperty(process, "platform", {
       value: "win32",
       configurable: true,
     });
+    process.env.APPDATA = "C:\\Users\\test\\AppData\\Roaming";
     process.env.LOCALAPPDATA = "C:\\Users\\test\\AppData\\Local";
     try {
       const fs = createWindowsFileSystemService();
@@ -278,6 +280,11 @@ describe("detection configuration", () => {
         value: originalPlatform,
         configurable: true,
       });
+      if (originalAppdata !== undefined) {
+        process.env.APPDATA = originalAppdata;
+      } else {
+        delete process.env.APPDATA;
+      }
       if (originalLocalAppdata !== undefined) {
         process.env.LOCALAPPDATA = originalLocalAppdata;
       } else {

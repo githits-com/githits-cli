@@ -2197,74 +2197,93 @@ describe("agent eval harness", () => {
     }
   });
 
-  it("enforces the direct Codex skills contract for dry and live evals", async () => {
-    const codexHome = mkdtempSync(join(tmpdir(), "agent-eval-codex-home-"));
-    const workload = resolve("eval/agentic/workloads/express-router.md");
-    let availabilityCalls = 0;
-    let versionCalls = 0;
-    let commandCalls = 0;
-    const runProbe = async (dryRun: boolean): Promise<void> => {
-      const outDir = mkdtempSync(
-        join(tmpdir(), "agent-eval-skills-preflight-"),
-      );
-      try {
-        await runAgentEval(
-          parseArgs(
-            [
-              "--agent",
-              "codex",
-              "--out",
-              outDir,
-              "--workload",
-              workload,
-              ...(dryRun ? ["--dry-run"] : []),
-            ],
-            process.cwd(),
-          ),
-          {
-            baseEnv: { PATH: "/bin", CODEX_HOME: codexHome },
-            assertAgentAvailable: async () => {
-              availabilityCalls += 1;
-            },
-            collectAgentVersions: async () => {
-              versionCalls += 1;
-              return [undefined, "codex-test", undefined];
-            },
-            runCommand: async () => {
-              commandCalls += 1;
-              return {
-                stdout: JSON.stringify({
-                  status: "success",
-                  answer: "Injected result",
-                  confidence: "high",
-                }),
-                stderr: "",
-                exitCode: 0,
-                timedOut: false,
-              };
-            },
-          },
+  it.each([
+    { skillsDirectory: null, dryRun: true },
+    { skillsDirectory: null, dryRun: false },
+    { skillsDirectory: "skills", dryRun: true },
+    { skillsDirectory: "skills", dryRun: false },
+    { skillsDirectory: join("skills", ".system"), dryRun: true },
+    { skillsDirectory: join("skills", ".system"), dryRun: false },
+  ])(
+    "accepts the direct Codex skills contract %j",
+    async ({ skillsDirectory, dryRun }) => {
+      const codexHome = mkdtempSync(join(tmpdir(), "agent-eval-codex-home-"));
+      const workload = resolve("eval/agentic/workloads/express-router.md");
+      let availabilityCalls = 0;
+      let versionCalls = 0;
+      let commandCalls = 0;
+      const runProbe = async (dryRun: boolean): Promise<void> => {
+        const outDir = mkdtempSync(
+          join(tmpdir(), "agent-eval-skills-preflight-"),
         );
+        try {
+          await runAgentEval(
+            parseArgs(
+              [
+                "--agent",
+                "codex",
+                "--out",
+                outDir,
+                "--workload",
+                workload,
+                ...(dryRun ? ["--dry-run"] : []),
+              ],
+              process.cwd(),
+            ),
+            {
+              baseEnv: { PATH: "/bin", CODEX_HOME: codexHome },
+              assertAgentAvailable: async () => {
+                availabilityCalls += 1;
+              },
+              collectAgentVersions: async () => {
+                versionCalls += 1;
+                return [undefined, "codex-test", undefined];
+              },
+              runCommand: async () => {
+                commandCalls += 1;
+                return {
+                  stdout: JSON.stringify({
+                    status: "success",
+                    answer: "Injected result",
+                    confidence: "high",
+                  }),
+                  stderr: "",
+                  exitCode: 0,
+                  timedOut: false,
+                };
+              },
+            },
+          );
+        } finally {
+          rmSync(outDir, { recursive: true, force: true });
+        }
+      };
+
+      try {
+        if (skillsDirectory !== null) {
+          mkdirSync(join(codexHome, skillsDirectory), { recursive: true });
+        }
+        await runProbe(dryRun);
+        const expectedLiveCalls = dryRun ? 0 : 1;
+        expect(availabilityCalls).toBe(expectedLiveCalls);
+        expect(versionCalls).toBe(expectedLiveCalls);
+        expect(commandCalls).toBe(expectedLiveCalls);
       } finally {
-        rmSync(outDir, { recursive: true, force: true });
+        rmSync(codexHome, { recursive: true, force: true });
       }
-    };
+    },
+  );
 
-    try {
-      for (const skillsSetup of [
-        undefined,
-        (home: string) => mkdirSync(join(home, "skills"), { recursive: true }),
-        (home: string) =>
-          mkdirSync(join(home, "skills", ".system"), { recursive: true }),
-      ]) {
-        skillsSetup?.(codexHome);
-        await runProbe(true);
-        await runProbe(false);
-        rmSync(join(codexHome, "skills"), { recursive: true, force: true });
-      }
-
-      mkdirSync(join(codexHome, "skills", "personal"), { recursive: true });
-      for (const dryRun of [true, false]) {
+  it.each([true, false])(
+    "rejects personal skills before direct Codex eval startup (dryRun=%s)",
+    async (dryRun) => {
+      const codexHome = mkdtempSync(join(tmpdir(), "agent-eval-codex-home-"));
+      const workload = resolve("eval/agentic/workloads/express-router.md");
+      let availabilityCalls = 0;
+      let versionCalls = 0;
+      let commandCalls = 0;
+      try {
+        mkdirSync(join(codexHome, "skills", "personal"), { recursive: true });
         const outDir = mkdtempSync(join(tmpdir(), "agent-eval-skills-reject-"));
         try {
           await expect(
@@ -2306,14 +2325,14 @@ describe("agent eval harness", () => {
         } finally {
           rmSync(outDir, { recursive: true, force: true });
         }
+        expect(availabilityCalls).toBe(0);
+        expect(versionCalls).toBe(0);
+        expect(commandCalls).toBe(0);
+      } finally {
+        rmSync(codexHome, { recursive: true, force: true });
       }
-      expect(availabilityCalls).toBe(3);
-      expect(versionCalls).toBe(3);
-      expect(commandCalls).toBe(3);
-    } finally {
-      rmSync(codexHome, { recursive: true, force: true });
-    }
-  });
+    },
+  );
 
   it("runs a Codex skills eval with a valid managed home and injected command", async () => {
     const codexHome = mkdtempSync(join(tmpdir(), "agent-eval-codex-home-"));
