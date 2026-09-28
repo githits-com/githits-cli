@@ -5,6 +5,7 @@ import { EXTERNAL_CONTENT_POSTURE } from "../../packages/mcp/src/tools/guardrail
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
+  createMockListService,
   createMockPackageIntelligenceService,
   createMockReadService,
 } from "../services/test-helpers.js";
@@ -16,6 +17,7 @@ function createTestServices(
     codeNavigationService: createMockCodeNavigationService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
     githitsService: createMockGitHitsService(),
+    listService: createMockListService(),
     readService: createMockReadService(),
     ...overrides,
   };

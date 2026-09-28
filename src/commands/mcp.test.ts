@@ -28,6 +28,7 @@ import { Command } from "commander";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
+  createMockListService,
   createMockPackageIntelligenceService,
   createMockReadService,
   createMockResolveTargetService,
@@ -79,6 +80,7 @@ function createTestServices(
     codeNavigationService: createMockCodeNavigationService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
     githitsService: createMockGitHitsService(),
+    listService: createMockListService(),
     readService: createMockReadService(),
     resolveTargetService: createMockResolveTargetService(),
     ...overrides,

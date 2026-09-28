@@ -26,6 +26,7 @@ import * as publicMcpClient from "../packages/mcp/src/client.js";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
+  createMockListService,
   createMockPackageIntelligenceService,
   createMockReadService,
 } from "./services/test-helpers.js";
@@ -48,6 +49,7 @@ function createServices(
     codeNavigationService: createMockCodeNavigationService(),
     githitsService: createMockGitHitsService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
+    listService: createMockListService(),
     readService: createMockReadService(),
     ...overrides,
   };
@@ -138,6 +140,8 @@ describe("public MCP package surface", () => {
     expect("createLocalMcpServer" in publicMcp).toBe(false);
     expect("ReadServiceImpl" in publicMcp).toBe(false);
     expect(publicMcpClient.ReadServiceImpl).toBeDefined();
+    expect("ListServiceImpl" in publicMcp).toBe(false);
+    expect(publicMcpClient.ListServiceImpl).toBeDefined();
     expect("AgenticAskServiceImpl" in publicMcpClient).toBe(false);
   });
 

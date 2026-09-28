@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from "bun:test";
 import type {
   AgenticAskService,
+  ListService,
   ResolveTargetService,
 } from "@githits/core-internal";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
@@ -70,6 +71,7 @@ function createServices(
     githitsService: createMockGitHitsService(),
     codeNavigationService: createMockCodeNavigationService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
+    listService: createMockListService(),
     readService: createMockReadService(),
     agenticAskService: {
       ask: mock(() =>
@@ -78,6 +80,12 @@ function createServices(
     },
     resolveTargetService,
     ...overrides,
+  };
+}
+
+function createMockListService(): ListService {
+  return {
+    list: mock(() => Promise.reject(new Error("unused"))),
   };
 }
 
