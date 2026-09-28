@@ -61,7 +61,12 @@ The release CI's first Windows attempt timed out a six-probe eval test and a
 three-container auth test; the latter left temporary `APPDATA` visible to a
 later path test. The unchanged rerun passed. The tests now run one setup per
 case with separate fixtures, and the Windows path test supplies both AppData
-directories. Auth locking and eval production behavior are unchanged.
+directories. A second Windows attempt showed that a single lock-owner probe can
+reach its own five-second deadline, matching Bun's default test deadline. The
+auth fixture now performs one token resolution instead of redundantly loading
+tokens again and has a ten-second integration-test budget so the bounded probe
+and environment cleanup can finish. Auth locking and eval production behavior
+are unchanged.
 
 ## Custom Codex model configuration
 

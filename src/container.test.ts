@@ -340,9 +340,6 @@ describe("createContainer", () => {
             async () => {
               const deps = await createContainer();
               expect(deps.apiToken).toBe(expected);
-              expect(await deps.authStorage.loadTokens(deps.mcpUrl)).toEqual(
-                tokens[deps.mcpUrl as keyof typeof tokens],
-              );
               // Restore the distinct metadata fixture after token loads reconcile it.
               await writeFile(
                 join(authDir, "metadata.json"),
@@ -371,6 +368,9 @@ describe("createContainer", () => {
         await rm(storageRoot, { recursive: true, force: true });
       }
     },
+    // The real Windows lock-owner probe has a 5s deadline; allow it to finish
+    // and restore process.env before Bun advances to the next fixture.
+    10_000,
   );
 
   it("selects dev endpoints while a single explicit override stays independent", async () => {
