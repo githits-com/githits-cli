@@ -375,7 +375,7 @@ Implementation checkpoint (2026-09-28):
   Typecheck, build, formatting and public-package validation pass. Source
   CLI/MCP unauthenticated smoke passes; built Node CLI/MCP smoke passes.
   Revised internal review is clean after both finding closures. External
-  implementation round 2 remains pending.
+  implementation round 2 is clean, including its fresh-context final check.
 - Authenticated `GITHITS_ENV=dev bun run smoke:cli` fails at the strict new
   `router npm:express@5.2.1 --path lib/express.js --limit 1 --json` assertion
   with the backend protocol error below. Earlier stable smoke assertions pass;
@@ -740,10 +740,34 @@ with package validation, which rebuilds `dist`; both smoke entry checks failed
 while the file was absent. This was a verification sequencing error, not a
 product failure. Kept those logs; built Node CLI and MCP smoke both pass when rerun after
 validation completes.
-The revised internal code-review round is clean. External round 2 is pending.
+The revised internal code-review round is clean. External round 2 is clean.
 
 The authenticated CLI text path also passes for `-F 'var Router'` against the
 emitted pinned Express repository and exact `lib/express.js`: one complete
 match, current scope, numbered source line and exact replay action. This is
 supplemental proof; it does not replace the failing strict package limit-1
 smoke or satisfy the small mixed-page criterion.
+
+External implementation round 2 is clean with no findings. The reviewer
+verified all round 1 closures over the full revised delta; its one permitted
+fresh-context final code-reviewer check also returned no findings. Projection
+using the shared schema preserves optional detailed fields and was verified
+as valid. The reviewer is retained for follow-up through merge approval.
+
+Phase 1 client implementation and review are complete; **live signoff remains
+blocked**, and the draft must not be treated as merge-ready. Required next
+proof is replaying the strict mixed/package `--limit 1` case and authenticated
+CLI smoke after the backend correction. The backend/native grep owner must
+resolve the protocol failure; the current evidence establishes where the error
+is returned, not its exact internal cause. Phase 2 remains pending Phase 1
+merge. No backend worktree was changed, no scope was reduced and no fallback,
+retry, polling mechanism or infrastructure was added.
+
+Orchestration delivery: eight sequential Luna dispatches covered request
+normalization, DI/mock wiring, registration and bounded follow-up exports or
+mechanical fixes. The per-target selector-cap correction came from the
+coordinator's initial interpretation of the contract; it cost one corrective
+dispatch and focused verification. During the final predicate export, the
+coordinator corrected its evidence command to include the required detailed
+mode flag and preserve raw target bytes. Transport, projection, formatting,
+errors, CLI semantics, validation and review remained coordinator-owned.
