@@ -2,8 +2,6 @@ export { createGetExampleTool } from "./get-example.js";
 export { createGrepRepoTool } from "./grep-repo.js";
 export * from "./guardrails.js";
 export { createListTool } from "./list.js";
-export { createListFilesTool } from "./list-files.js";
-export { createListPackageDocsTool } from "./list-package-docs.js";
 export {
   createPackageChangelogTool,
   DESCRIPTION as PACKAGE_CHANGELOG_DESCRIPTION,

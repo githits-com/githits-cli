@@ -550,7 +550,6 @@ When a new tool lands with both MCP and CLI surfaces:
 | `packages/mcp/src/tools/list.ts` | Stable MCP tool definition for unified `list`. |
 | `packages/mcp/src/tools/read-file.ts` | Code branch of unified `read`; `tools/read.ts` owns the advertised definition. |
 | `packages/mcp/src/tools/grep-repo.ts` | MCP tool definition for `code_grep`. |
-| `packages/mcp/src/tools/list-files.ts` / `list-package-docs.ts` | Unregistered legacy factories retained for direct compatibility-unit coverage. |
 | `src/commands/search.ts` | Top-level CLI commands for unified `search` and `search-status`. |
 | `src/commands/list.ts` | Top-level CLI `list` command sharing its contract and formatter with MCP. |
 | `src/commands/pkg/info.ts` / `vulns.ts` / `deps.ts` / `changelog.ts` | CLI commands for the `pkg` group. |
