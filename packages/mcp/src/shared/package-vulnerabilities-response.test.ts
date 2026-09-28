@@ -1189,6 +1189,73 @@ describe("buildPackageVulnerabilitiesSuccessPayload — alias-cluster dedup inte
 });
 
 describe("formatPackageVulnerabilitiesTerminal", () => {
+  it.each([
+    { surface: "cli" as const, verbose: false },
+    { surface: "cli" as const, verbose: true },
+    { surface: "mcp" as const, verbose: false },
+    { surface: "mcp" as const, verbose: true },
+  ])(
+    "labels each mixed-scope advisory's inspected-version status %j",
+    (options) => {
+      const fixture = zeroVulnsFixture();
+      fixture.security = {
+        affectedVulnerabilityCount: 1,
+        nonAffectingVulnerabilityCount: 1,
+        allVulnerabilityCount: 2,
+        currentVersionAffected: true,
+        vulnerabilities: [
+          {
+            osvId: "GHSA-historical",
+            summary: "Already fixed critical issue",
+            severityScore: 10,
+            affectsInspectedVersion: false,
+          },
+          {
+            osvId: "GHSA-affecting",
+            summary: "Current high issue",
+            severityScore: 8,
+            affectsInspectedVersion: true,
+          },
+        ],
+      };
+      const output = formatPackageVulnerabilitiesTerminal(fixture, {
+        ...options,
+        useColors: false,
+        filter: { advisoryScope: "all" },
+      });
+      expect(output).toContain("1 vulnerability affects this version");
+      expect(output).toMatch(/GHSA-historical\s+\[historical\]/);
+      expect(output).toMatch(/GHSA-affecting\s+\[affects this version\]/);
+      expect(
+        buildPackageVulnerabilitiesSuccessPayload(fixture).advisories,
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: "GHSA-historical",
+            affectsInspectedVersion: false,
+          }),
+          expect.objectContaining({
+            id: "GHSA-affecting",
+            affectsInspectedVersion: true,
+          }),
+        ]),
+      );
+    },
+  );
+
+  it("leaves advisory applicability unlabeled when the service omits it", () => {
+    const fixture = cloneFixture();
+    for (const advisory of fixture.security?.vulnerabilities ?? []) {
+      delete advisory.affectsInspectedVersion;
+    }
+    const output = formatPackageVulnerabilitiesTerminal(fixture, {
+      filter: { advisoryScope: "all" },
+      verbose: true,
+    });
+    expect(output).not.toContain("[historical]");
+    expect(output).not.toContain("[affects this version]");
+  });
+
   it("appends positive resolved-dependency evidence after direct clean evidence", () => {
     const output = formatPackageVulnerabilitiesTerminal(
       transitiveVulnerabilityFixture(),

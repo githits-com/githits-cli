@@ -1363,6 +1363,11 @@ function formatAdvisoryLines(
 
   const parts: string[] = [colouredLabel];
   if (advisory.id) parts.push(sanitizeIdentity(advisory.id));
+  if (advisory.affectsInspectedVersion === true) {
+    parts.push("[affects this version]");
+  } else if (advisory.affectsInspectedVersion === false) {
+    parts.push("[historical]");
+  }
   if (advisory.publishedAt) parts.push(sanitizeIdentity(advisory.publishedAt));
   if (advisory.summary) parts.push(sanitizeProse(advisory.summary));
 

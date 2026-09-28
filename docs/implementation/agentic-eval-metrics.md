@@ -14,6 +14,55 @@ daily, temporary per-main-push, or explicitly authorized pull-request
 execution, and normalized per-workload history are implemented here;
 answer-quality scoring remains a later phase.
 
+## Release 0.23 review — 2026-09-28
+
+The initial [52-cell PR run](https://github.com/githits-com/githits-cli/actions/runs/36414741106)
+evaluated PR #427 at `10f39893d35feecd5188a87a65a41bf5da9ee7b5` with Codex
+0.158.0, GPT-6 Luna, low reasoning, and local MCP. Its persisted experiment is
+[pr-427-r36414741106-a1](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-427-r36414741106-a1),
+linked to `main-r36412221139-a1`. Readback verified 52 successful eval roots
+and identical inputs for all 52 matched baseline cells. Offline comparisons
+also accepted the model, reasoning, prompts, reporting contract, result schema,
+and guidance identities; harness Git differed, preventing repository-only
+attribution. The published 0.22.1 baseline used GPT-5.6 Luna and cannot isolate
+release effects from the model change. The earlier GPT-6 baseline
+`main-r36114327507-a1` has the same 52 inputs but older agent/runtime identity.
+
+| Scenario | Cells | Main → PR logical calls | Main → PR cumulative seconds |
+| --- | ---: | ---: | ---: |
+| Discovery | 2 | 3 → 0 | 21.9 → 24.8 |
+| Intent | 25 | 119 → 126 | 341.0 → 389.9 |
+| Full guidance | 25 | 72 → 80 | 330.2 → 390.5 |
+
+Estimated base-rate cost rose from $0.22084 to $0.23392. These single-run
+measurements include network/model variation and do not establish a performance
+regression. Execution/report success and self-reported confidence are not
+answer-quality grades. Raw tool traces and final answers revealed:
+
+- All 50 intent/full cells used GitHits. Both discovery canaries used web
+  evidence instead; the baseline router canary already bypassed GitHits, and
+  earlier GPT-6 runs also contain zero-call cells. This is routing variability,
+  not proof that the changed package broke discovery.
+- Two `express.Router` heading reads returned
+  `DOCUMENTATION_SECTION_UNRESOLVED`, and one guessed OpenCode file returned
+  `FILE_NOT_FOUND`; all three agents recovered. Main already had heading and
+  missing-file recovery cases.
+- The full RubyGems answer incorrectly treated the historical critical
+  CVE-2022-30123 as affecting Rack 2.2.8 after requesting `advisory_scope: all`.
+  The text mixed 25 affecting and 25 historical records without per-record
+  applicability labels. The shared CLI/MCP formatter now labels the existing
+  service boolean explicitly; four mixed-scope regressions failed before the
+  fix and pass afterward. JSON is unchanged.
+- A Lodash answer lowered confidence because upstream advisory/fix/deprecation
+  evidence conflicts; the earlier GPT-6 baseline reported the same conflict.
+  This repository's formatter cannot resolve upstream advisory data.
+
+The release CI's first Windows attempt timed out a six-probe eval test and a
+three-container auth test; the latter left temporary `APPDATA` visible to a
+later path test. The unchanged rerun passed. The tests now run one setup per
+case with separate fixtures, and the Windows path test supplies both AppData
+directories. Auth locking and eval production behavior are unchanged.
+
 ## Custom Codex model configuration
 
 One-off workloads and named suite `run` accept `--codex-config <file>` with an
