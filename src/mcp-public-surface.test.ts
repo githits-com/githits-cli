@@ -68,10 +68,9 @@ const EXPECTED_DESCRIPTOR_NAMES = [
   "get_example",
   "search",
   "search_status",
-  "code_files",
+  "list",
   "read",
   "code_grep",
-  "docs_list",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -82,17 +81,16 @@ const EXPECTED_DESCRIPTOR_NAMES = [
 const EXPECTED_SMOKE_NAMES = [
   "quick_start",
   "get_example",
-  "pkg_info",
-  "pkg_deps",
-  "pkg_vulns",
-  "pkg_changelog",
-  "pkg_upgrade_review",
-  "docs_list",
-  "code_files",
-  "read",
-  "code_grep",
   "search",
   "search_status",
+  "list",
+  "read",
+  "code_grep",
+  "pkg_info",
+  "pkg_vulns",
+  "pkg_deps",
+  "pkg_changelog",
+  "pkg_upgrade_review",
 ] as const;
 
 describe("public MCP package surface", () => {
@@ -114,7 +112,8 @@ describe("public MCP package surface", () => {
     );
 
     expect(names).toEqual([...EXPECTED_DESCRIPTOR_NAMES]);
-    expect(names).toHaveLength(13);
+    expect(names).toHaveLength(12);
+    expect(names).toContain("list");
     expect(names).toContain("read");
     expect(names).not.toContain("code_read");
     expect(names).not.toContain("docs_read");
@@ -136,6 +135,8 @@ describe("public MCP package surface", () => {
       expect(inventory).not.toContain("ask");
       expect(inventory).not.toContain("code_read");
       expect(inventory).not.toContain("docs_read");
+      expect(inventory).not.toContain("docs_list");
+      expect(inventory).not.toContain("code_files");
     }
     expect("createLocalMcpServer" in publicMcp).toBe(false);
     expect("ReadServiceImpl" in publicMcp).toBe(false);
