@@ -45,8 +45,8 @@ response. The backend's opaque cursor is otherwise preserved exactly.
 - `list-text.ts` defines the one token-efficient format that CLI uses now and
   the Phase 2 MCP tool must reuse: `# source <canonical-target>` followed by one
   path per line. The requested target is the fallback when canonical identity
-  is unavailable, and ` | more` means another page exists. CLI colors this line
-  gray when color is enabled; MCP emits the same plain text without ANSI. When
+  is unavailable, and ` | more` means another page exists. CLI dims this line
+  when color is enabled; MCP emits the same plain text without ANSI. When
   every returned site page has an exact read target on one origin, the header
   adds `follow up with "read <origin>/$path"` and page/directory rows use paths
   relative to that origin. A root page retains its exact URL because its
@@ -100,7 +100,7 @@ package/repository/site forwarding, pagination, compact versus detailed calls,
 path rendering, diagnostics, authentication, and the absence of a legacy
 service fallback. Response tests cover exact actions, cursors, null fidelity,
 and lifecycle combinations. Text tests cover canonical/requested source
-identity, pagination, gray CLI presentation, path-only rows, directory
+identity, pagination, dim CLI presentation, path-only rows, directory
 suffixes, empty results, and control-character escaping. These client tests do
 not claim to validate backend path/glob
 matching, inventory scope, hierarchy, or site membership; those semantics are

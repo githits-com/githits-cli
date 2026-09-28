@@ -151,13 +151,13 @@ describe("formatListText", () => {
     );
   });
 
-  it("colors only the source line gray when colors are enabled", () => {
+  it("dims only the source line when colors are enabled", () => {
     const output = formatListText(
       sourceResult({ entries: [entry("FILE", "src/index.ts")] }),
       { useColors: true },
     );
     expect(output).toBe(
-      "\u001b[90m# source github:example/repo@main\u001b[0m\nsrc/index.ts",
+      "\u001b[2m# source github:example/repo@main\u001b[0m\nsrc/index.ts",
     );
   });
 
