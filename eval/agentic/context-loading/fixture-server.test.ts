@@ -35,8 +35,22 @@ describe("context fixture MCP contract", () => {
       expect(result.content).toEqual([
         { type: "text", text: buildRoutingGuide() },
       ]);
-      expect(buildRoutingGuide()).toContain(EXTERNAL_CONTENT_POSTURE);
-      expect(buildRoutingGuide()).not.toContain("ALL_TOOLS");
+      const routingGuide = buildRoutingGuide();
+      expect(routingGuide).toContain(EXTERNAL_CONTENT_POSTURE);
+      expect(routingGuide).not.toContain("ALL_TOOLS");
+      expect(routingGuide).toContain(
+        "| List files or documentation pages in a package, repository, or explicit site | list |",
+      );
+      expect(routingGuide).toContain("returned by search or list | read |");
+      expect(routingGuide).toContain(
+        "reuse an emitted explicit site target before listing pages",
+      );
+      for (const retiredName of [
+        ["code", "files"].join("_"),
+        ["docs", "list"].join("_"),
+      ]) {
+        expect(routingGuide).not.toContain(retiredName);
+      }
       expect(
         ROUTING_QUICK_START_DESCRIPTION.split(".")[0]?.length,
       ).toBeLessThan(79);

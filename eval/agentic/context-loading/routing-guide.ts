@@ -19,10 +19,8 @@ the routing decision; the selected tool supplies its argument details.
 | --- | --- |
 | Find a known literal or regex in a public repository/package | code_grep |
 | Find relevant source, symbols, tests, or documentation for a topic | search |
-| List paths or browse a source directory | code_files |
-| Read a known exact source file or matched lines | read |
-| Browse package documentation pages | docs_list |
-| Read a documentation page returned by search or docs_list | read |
+| List files or documentation pages in a package, repository, or explicit site | list |
+| Read an exact source file or documentation page returned by search or list | read |
 | Assess a package's license, adoption, maintenance, or overall health | pkg_info |
 | Inspect vulnerabilities in a package or version | pkg_vulns |
 | Inspect direct dependencies or transitive footprint | pkg_deps |
@@ -30,6 +28,11 @@ the routing decision; the selected tool supplies its argument details.
 | Compare current and target dependency versions for an upgrade | pkg_upgrade_review |
 | Find canonical implementation examples across projects | get_example |
 | Check progress of an earlier search reference | search_status |
+
+Package and repository inventories include their own source and documentation
+files. Hosted documentation uses an explicit site target; listing a package does
+not discover its hosted site. For package-hosted docs, search the package
+documentation and reuse an emitted explicit site target before listing pages.
 
 If get_example cannot match a language, retry with a suggested language from
 the error, or omit language. For comparative questions, combine
