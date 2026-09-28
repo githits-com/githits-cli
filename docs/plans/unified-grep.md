@@ -360,7 +360,7 @@ the existing CLI's successful-empty-result convention.
 
 ## Ordered phases
 
-### Phase 1 — top-level CLI mixed grep (IMPLEMENTED; REVIEWING CORRECTION)
+### Phase 1 — top-level CLI mixed grep (COMPLETE; PENDING MERGE)
 
 Implementation checkpoint after the backend small-page correction (2026-09-28):
 
@@ -393,7 +393,8 @@ Implementation checkpoint after the backend small-page correction (2026-09-28):
   compact/detailed limit-1 replay preserves both scopes and attribution, with
   UNSPECIFIED on page one and CURRENT on page two. Authenticated dev CLI smoke passes for stable and experimental cohorts;
   built Node CLI/MCP smoke passes. Authenticated dev MCP smoke also passes.
-  Prior PR CI and review were clean; this correction requires re-review.
+  Correction CI and internal/external delta review are clean, including the
+  external reviewer's fresh-context final check.
 - Selector bounds remain 1,000 per target; native individual match/slice
   semantics and ordered output remain unchanged. Original proof files under
   `/tmp/unified-grep-*` are preserved; new evidence uses `/tmp/nuckelavee-grep-*`.
@@ -405,7 +406,7 @@ CLI command retain current behavior.
 Assumptions: existing read/list service wiring and transport conventions remain
 applicable; the backend owns target expansion and preparation. The documented
 unvisited-scope state is accepted explicitly, without changing budgets or
-adding retries/fallbacks. Unknowns: the retained external reviewer must finish the correction review. Production deployment is blocked and outside this increment;
+adding retries/fallbacks. Production deployment is blocked and outside this increment;
 production readiness is not a Phase 1 dev-acceptance dependency.
 Product decisions: none blocking implementation of this proposal.
 Dependencies: backend `Query.grep` and dev v6 access for mixed-source validation.
@@ -731,7 +732,7 @@ ran because round 1 had code findings. Re-review is required after focused
 verification and the full revised internal pass. The backend small-page
 blocker at that review checkpoint is resolved by the correction below.
 
-Final revision verification: `bun test` passes 5,095 tests across 222 files
+Initial pre-correction revision verification: `bun test` passes 5,095 tests across 222 files
 (18,512 assertions); the four changed grep modules pass 25 focused tests
 (160 assertions). Typecheck, changed-file Biome, build and public-package
 validation pass. The coordinator initially started built smoke concurrently
@@ -789,7 +790,19 @@ All dev commands unset `GITHITS_API_TOKEN`, select `GITHITS_ENV=dev`, and set
 access worked in this lane; earlier stalled attempts from the backend lane
 are not claimed as passing evidence. No credentials were printed.
 
-The changed-delta internal review is clean. External correction review and
-updated PR CI remain pending. Production remains blocked; no production query,
+The changed-delta internal review and external round 3 are clean. The retained
+Claude reviewer checked `git diff efa39fd..67cb848`; its fresh-context final
+code-reviewer check also found no issues. Two non-blocking observations are
+closed without changes: the manual authenticated dev smoke intentionally
+requires the selected hosted-doc scope, as verified in live responses; the
+Coverage line preserves `retryable: false` while the unvisited-scope text and
+cursor guide continuation. Retryability does not replace pagination, and
+altering the backend status would violate the lossless result contract.
+
+Correction CI is green: [Main](https://github.com/githits-com/githits-cli/actions/runs/36459079262)
+passes build/checks, Linux/Windows tests, Bun and Node 20/22/24/26 compatibility;
+[MCP package validation](https://github.com/githits-com/githits-cli/actions/runs/36459078714)
+passes. The reviewer remains retained through merge approval. Production
+remains blocked; no production query,
 backend edit or deployment was performed. Original proof artifacts remain
 unchanged; new proof is under `/tmp/nuckelavee-grep-*`.
