@@ -131,10 +131,13 @@ describe("buildMcpQuickStart", () => {
       "`docs_list` browses package pages, not standalone `site:` targets",
     );
     expect(instructions).toContain(
-      "Use snippets when sufficient; otherwise follow generated",
+      "Use snippets when sufficient; otherwise replay the complete emitted read action",
     );
     expect(instructions).toContain(
-      "Pass displayed `[docs page]` locators unchanged to `read`",
+      "or generated `followUp` unchanged, including supplied `selector` and bounds",
+    );
+    expect(instructions).toContain(
+      "A `[docs page]` header is a page locator; use its complete action for the section",
     );
     expect(instructions).toContain(
       "Hosted/crawled HTTP(S) docs locators address mutable current content",

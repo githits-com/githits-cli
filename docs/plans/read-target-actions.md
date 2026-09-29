@@ -358,3 +358,17 @@ review packet. Durable Ask assumptions and the release fragment were corrected. 
 two repairs are part of the full delta for root internal verification and retained
 Claude round2; all reviews and the same two isolated qualitative evals remain
 pending. No additional worker/preflight/reviewer was spawned.
+
+## User-owned final verification
+
+The user took direct ownership after the worker checkpoint and requested final
+review plus live all-tools repository/site read-target checks. The interrupted
+Claude round2 found the CLI's duplicate quick-start test still required removed
+header-only wording. Verified with `bun test src/commands/mcp-instructions.test.ts`:
+one failure. The bounded sibling scan found no other positive assertions for that
+retired prescription. Its assertions now require complete action replay and the
+header/section distinction. The CLI test, package instructions test and exact
+skill packaging tests pass31 cases/420 assertions. Logs:
+`/tmp/read-target-final-stale-guide-red.log`,
+`/tmp/read-target-final-guide-green.log`. Production behavior is unchanged.
+Final full-delta review and live matrix evidence follow in the verification report.
