@@ -1,6 +1,8 @@
 # Site-relative list rendering
 
-Status: Implemented, locally verified, and reviewed clean; draft PR delivery ready.
+Status: Complete. Implemented, locally verified, and reviewed clean; delivered as
+[draft PR #432](https://github.com/githits-com/githits-cli/pull/432) to `main`.
+CI is running. Merge, release, publication, and deployment remain unauthorized.
 
 ## Outcome and evidence
 
