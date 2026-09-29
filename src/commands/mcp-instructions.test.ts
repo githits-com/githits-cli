@@ -62,7 +62,7 @@ describe("buildMcpQuickStart", () => {
       "Find a known literal or regex in a public repository/package | `code_grep`",
     );
     expect(instructions).toContain(
-      "List files or documentation pages in a package, repository, or site | `list`",
+      "Browse files or documentation pages in a known package, repository, or site | `list`",
     );
     expect(instructions).not.toContain("`code_files`");
     expect(instructions).not.toContain("`docs_list`");
@@ -128,10 +128,10 @@ describe("buildMcpQuickStart", () => {
       "Reuse returned targets, paths, locators, references, and ranges",
     );
     expect(instructions).toMatch(
-      /For hosted\s+package docs, search the package with `source:"docs"`, then pass an emitted\s+explicit `site:` target to `list`/,
+      /For hosted package docs, search the package with\s+`source:"docs"`, then pass an emitted `site:` target to `list`/,
     );
     expect(instructions).toContain(
-      "`list` enumerates a package's own source tree or a whole repository snapshot",
+      "`list` is for a known target when you need its structure or an exact path",
     );
     expect(instructions).not.toContain("`code_files`");
     expect(instructions).not.toContain("`docs_list`");
@@ -229,7 +229,7 @@ describe("buildMcpQuickStart", () => {
       "Discover relevant docs, code, and symbols in a known public target",
     );
     expect(descriptions.get("list")).toStartWith(
-      "List files or documentation pages in a package, repository, or site.",
+      "List files and documentation paths in a known package, repository, or site.",
     );
     expect(descriptions.get("code_grep")).toStartWith(
       "Find text, regex, or identifier matches in a public repo or package",

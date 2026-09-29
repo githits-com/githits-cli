@@ -92,7 +92,7 @@ describe("package docs list lifecycle output", () => {
     ).toContain("No documentation pages found.");
   });
 
-  it("renders one canonical action per hosted and repo page on both surfaces", () => {
+  it("renders one canonical CLI action per hosted and repo page", () => {
     const hostedTarget = "https://docs.example.test/guide";
     const repoTarget = "github:owner/repo@immutable-sha/README.md";
     const envelope = buildEnvelope({
@@ -118,15 +118,8 @@ describe("package docs list lifecycle output", () => {
       ],
       pageInfo: { hasNextPage: false, totalCount: 2 },
     });
-    const mcp = renderListPackageDocsText(envelope);
     const cli = formatListPackageDocsTerminal(envelope, { useColors: false });
 
-    expect(
-      mcp.split("\n").filter((line) => line.startsWith("  read target=")),
-    ).toEqual([
-      `  read target=${JSON.stringify(hostedTarget)}`,
-      `  read target=${JSON.stringify(repoTarget)}`,
-    ]);
     expect(
       cli.split("\n").filter((line) => line.startsWith("  githits read ")),
     ).toEqual([

@@ -422,7 +422,13 @@ describe("unified list CLI", () => {
         createDeps({ listService: service }),
       );
       expect(writes.join("")).toBe(
-        `${['# source npm:express@5.2.1 | follow up with "read npm:express@5.2.1 $path" | more results available', "src/index.ts"].join("\n")}\n`,
+        `${[
+          '# source npm:express@5.2.1 | follow up with "read npm:express@5.2.1 $path" | more results available',
+          "src/index.ts",
+          "",
+          "More results: reuse the same target, paths, and options with:",
+          "  --after 'next/%2F cursor'",
+        ].join("\n")}\n`,
       );
     } finally {
       write.mockRestore();

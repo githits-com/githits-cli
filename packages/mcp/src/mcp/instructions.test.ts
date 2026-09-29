@@ -30,16 +30,15 @@ describe("buildLocalMcpQuickStart", () => {
       "patterns are `registry:name@version` and `github:owner/repo@ref`",
     );
     expect(quickStart).toContain(
-      "List files or documentation pages in a package, repository, or site | `list`",
+      "Browse files or documentation pages in a known package, repository, or site | `list`",
     );
     expect(quickStart).toContain(
-      "a package's own source tree or a whole repository snapshot",
+      "`list` is for a known target when you need its structure or an exact path",
     );
+    expect(quickStart).toContain("use `search` for content by topic");
+    expect(quickStart).toContain("both include source and\ndocumentation");
     expect(quickStart).toContain(
-      "both include source and documentation files together",
-    );
-    expect(quickStart).toContain(
-      "explicit `site:` inventory and does not discover hosted sites",
+      "explicit `site:` inventory that\n`list` does not discover",
     );
     expect(quickStart).not.toContain("`code_files`");
     expect(quickStart).not.toContain("`docs_list`");
@@ -131,7 +130,9 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain(
       'or to `search` with `source:"docs"` for topic search',
     );
-    expect(instructions).toContain("request JSON only for missing fields");
+    expect(instructions).toContain(
+      "keep text unless code consumes the raw response",
+    );
     expect(instructions).toContain(
       "replay the complete emitted read action unchanged, otherwise use its returned target/range",
     );
@@ -146,7 +147,9 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("`pkg_upgrade_review`");
     expect(instructions).toContain("public repository refs repository-wide");
     expect(instructions).toContain("name-status");
-    expect(instructions).toContain("full returned patch");
+    expect(instructions).toContain(
+      "use `json` only for required fields absent from text or the full returned patch",
+    );
     expect(instructions).toContain("diffs do not prove compatibility");
     expect(instructions).toContain("credentials");
     expect(instructions).toContain("private or proprietary content");

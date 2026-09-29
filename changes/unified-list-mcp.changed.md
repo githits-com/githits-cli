@@ -9,4 +9,5 @@
   searches, while legacy grouped CLI commands remain available. Hosts must
   provide the now-required `McpToolServices.listService`; `ListService` and
   `ListServiceImpl` are exported from `@githits/mcp/client`. Custom endpoints
-  must implement `Query.list` for the unified inventory service.
+  must implement `Query.list` for the unified inventory service. Default text
+  includes the opaque `after` continuation when more entries are available.

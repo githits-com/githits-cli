@@ -44,14 +44,14 @@ const schema: ZodRawShape = {
   target: z
     .string()
     .describe(
-      "Compact package target such as `npm:express@5.2.1` or repository target such as `github:expressjs/express`; use `site:<host[/path]>` for hosted documentation.",
+      "Known package such as `npm:express@5.2.1`, repository such as `github:expressjs/express`, or hosted docs site such as `site:expressjs.com`.",
     ),
   paths: z
     .array(z.string())
     .max(1000)
     .optional()
     .describe(
-      "Literal paths and glob patterns form a union. Omit `paths` or pass `[]` to browse roots.",
+      "Target-relative literal paths and globs form a union for packages, repositories, and sites. Omit or pass `[]` to browse the root.",
     ),
   recursive: z
     .boolean()
@@ -87,7 +87,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Opaque cursor from a prior list response; an empty value is omitted.",
+      "Opaque `nextCursor` from a prior list response. Reuse the same target, paths, filters, recursion, and limit; empty is omitted.",
     ),
   wait_timeout_ms: z
     .number()
@@ -100,21 +100,22 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
+      "Omit `format` to use token-efficient text when the model reads the result or follows read and continuation guidance. Set `json` only when code consumes the raw response instead of the model by parsing or filtering it programmatically.",
     ),
 };
 
 const DESCRIPTION =
-  "List files or documentation pages in a package, repository, or site. " +
-  "Browse a known target to enumerate its paths.\n\n" +
-  "Replaces code_files and docs_list. A package target covers one package-owned " +
-  "source tree; a repository target covers the whole repository snapshot. " +
-  "Package and repository inventories contain source and documentation files " +
-  "together. Hosted documentation uses a separate inventory selected with an " +
-  "explicit site target. Paths select a literal/glob union; omit paths to " +
-  "browse roots. Selected directories show immediate children unless " +
-  "recursive expands them; glob depth is independent of recursion. Text returns " +
-  "a path inventory, while JSON carries exact read/browse actions for follow-up calls.";
+  "List files and documentation paths in a known package, repository, or site. " +
+  "Use it to browse structure or find an exact path before `read`; use `search` " +
+  "for topics.\n\n" +
+  "Replaces code_files and docs_list. Package targets cover one package-owned " +
+  "tree; repository targets cover the whole snapshot. Both include source and " +
+  "documentation. Hosted docs use a separate explicit `site:` target from docs " +
+  "search. `paths` are target-relative literals or globs for every target and " +
+  "form a union; omit them for the root. Directories show immediate children " +
+  "unless `recursive` expands them; glob depth is independent of recursion. Keep text for " +
+  "model use, including read and continuation guidance; use JSON only when code " +
+  "consumes the raw response programmatically.";
 
 export function createListTool(
   service: ListService,
@@ -142,7 +143,9 @@ export function createListTool(
         const result = await service.list(builtParams);
         const payload = projectListResult(result);
         if (args.format !== "json") {
-          return textResult(formatListText(payload, { useColors: false }));
+          return textResult(
+            formatListText(payload, { useColors: false, syntax: "mcp" }),
+          );
         }
         return textResult(JSON.stringify(payload));
       } catch (error) {

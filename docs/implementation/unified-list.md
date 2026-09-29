@@ -56,7 +56,10 @@ response. The backend's opaque cursor is otherwise preserved exactly.
   canonical target, falling back to the requested target. SITE headers use the
   shared PAGE action target or the requested target, preserving the base of
   emitted relative paths; a broader canonical site owner remains JSON metadata.
-  ` | more results available` means another page exists.
+  ` | more results available` means another page exists. When the backend
+  returns a cursor, a dim footer tells CLI callers to rerun with `--after` and
+  MCP callers to repeat the same list with `after`; both preserve the opaque
+  cursor exactly.
   CLI dims this line when color is enabled; MCP emits the same plain text
   without ANSI. CLI `--silent` omits the header and emits only path lines for
   piping; an empty inventory then emits no bytes. Source
@@ -101,10 +104,11 @@ actions remain authoritative for exceptional URL/query/encoding identities;
 the client formatter does not reconstruct them from display paths.
 
 Continuation uses the returned `nextCursor`; callers do not reuse the previous
-cursor or modify its contents. Lossless JSON exposes the cursor, while the
-original request supplies the selection that must be replayed. Compact text
-does not add a continuation footer. The service itself does not scan pages or
-reconstruct inventory client-side.
+cursor or modify its contents. Default text exposes it in a surface-native
+continuation footer and tells callers to reuse the same target, paths, and
+options. Lossless JSON also preserves it for programmatic consumers. Silent
+CLI output remains paths-only and therefore omits the footer. The service
+itself does not scan pages or reconstruct inventory client-side.
 
 SOURCE indexing metadata (`codeIndexState`, `indexingStatus`, `indexingRef`,
 and detailed resolution data) remains distinct from an empty result in JSON.
@@ -146,7 +150,9 @@ These are UTF-8 output sizes, not tokenizer-specific token counts. The durable
 text sizes without requiring network access. It also compares the prior compact
 entry selection (`kind`, `path`, `title`, `read`, `browse`) with the new
 source `kind`/`path` selection. Compact site text additionally fetches exact
-`read.target` and `read.path` values.
+`read.target` and `read.path` values. Before the text continuation footer, its
+100-entry source/site cases were 3,613/2,119 bytes. The same cases are now
+3,702/2,208 bytes, an 89-byte continuation cost (2.5%/4.2%).
 
 Authenticated live CLI conformance on 2026-09-26 verified that the hosted
 endpoint exposes `Query.list` for package, repository, and site targets. The
@@ -169,13 +175,14 @@ for the Express root, a normal page with and without a trailing slash, and the
 same page through a nested site scope. Package and repository list-to-read
 regression checks also passed against production. The permanent CLI and MCP
 smoke suites cover package and site text/JSON listings, CLI paths-only output,
-continuation, JSON parity, and replaying exact package and site actions through
-unified `read`. Descriptor-only agent workloads cover package/repository
+default-text continuation, JSON parity, and replaying exact package and site
+actions through unified `read`. Descriptor-only agent workloads cover package/repository
 boundaries, directory recursion versus glob depth, continuation, exact-site
 browse/read, and package documentation search followed by an emitted explicit
 site target.
 
-Backend PR #2857 corrected target-relative site paths. Dev deployment and a
+Backend PR #2857 corrected target-relative site paths and is deployed to
+production. Its earlier dev deployment and a
 fresh external installation of published `githits@0.23.0` verified
 Express `en/resources/community` replay (82 lines, 3324 content characters)
 and scoped `site:reference.langchain.com/python/langchain` paths: `agents/`
@@ -192,8 +199,8 @@ Built CLI dev replay on 2026-09-29 verified all four descendant directories,
 corpus-relative `agents/.../` directories, and Express `en/.../` directories.
 Replaying the descendant's unchanged `_subagent_transformer/` browse action
 then `_subagent_transformer/AsyncSubagentRunStream` read action returned
-nonempty Markdown with that same deeper target. This is dev evidence; it does
-not establish production deployment of the corrected backend contract.
+nonempty Markdown with that same deeper target. The later production checks
+below verify the deployed corrected contract.
 
 The MCP read-path parameter now states the same target-relative contract.
 Focused schema tests and built-CLI dev replay cover the separate path argument.

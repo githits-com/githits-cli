@@ -1,4 +1,7 @@
-import { buildCliDocsReadCommand } from "@githits/mcp/internal";
+import {
+  buildCliDocsReadCommand,
+  shellQuoteExact,
+} from "@githits/mcp/internal";
 import { isResolveDirectTargetUnwarned } from "./resolve-smoke-guidance.ts";
 import {
   createIsolatedSmokeEnvironment,
@@ -2127,7 +2130,25 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   const firstPackageEntry = packageListJson.entries[0] as unknown;
   assertRecord(firstPackageEntry, "list package first entry");
 
-  const packageListNext = assertJsonOutput(
+  const packageListFirstText = assertTerminalOutput(
+    await runCli(["list", SMOKE_PACKAGE_SPEC, "--limit", "1"]),
+    "list package first page text",
+  );
+  assert(
+    packageListFirstText.includes(
+      `More results: reuse the same target, paths, and options with:\n  --after ${shellQuoteExact(packageListJson.nextCursor)}`,
+    ),
+    "list package first page text missing exact continuation cursor",
+  );
+  const firstPackagePath = packageListFirstText.split("\n")[1];
+  assert(
+    typeof firstPackagePath === "string" &&
+      firstPackagePath.length > 0 &&
+      firstPackagePath === firstPackageEntry.path,
+    "list package first page text missing path",
+  );
+
+  const packageListNext = assertTerminalOutput(
     await runCli([
       "list",
       SMOKE_PACKAGE_SPEC,
@@ -2135,21 +2156,15 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
       "1",
       "--after",
       packageListJson.nextCursor,
-      "--json",
     ]),
-    "list package continuation",
+    "list package continuation text",
   );
-  assertRecord(packageListNext, "list package continuation");
+  const nextPackagePath = packageListNext.split("\n")[1];
   assert(
-    Array.isArray(packageListNext.entries) &&
-      packageListNext.entries.length === 1,
-    "list package continuation missing entry",
-  );
-  const nextPackageEntry = packageListNext.entries[0] as unknown;
-  assertRecord(nextPackageEntry, "list package continuation entry");
-  assert(
-    nextPackageEntry.path !== firstPackageEntry.path,
-    "list package continuation repeated the first entry",
+    typeof nextPackagePath === "string" &&
+      nextPackagePath.length > 0 &&
+      nextPackagePath !== firstPackagePath,
+    "list package text continuation repeated the first entry",
   );
 
   const siteListText = assertTerminalOutput(
@@ -2534,7 +2549,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   assert(
     codeReadInvalid.exitCode !== 0 &&
       codeReadInvalidEnvelope.code === "INVALID_ARGUMENT" &&
-      codeReadInvalidEnvelope.error.includes("githits code files") &&
+      codeReadInvalidEnvelope.error.includes("githits list") &&
       codeReadInvalidEnvelope.error.includes("githits read") &&
       !codeReadInvalidEnvelope.error.includes("code_files"),
     "code read invalid json missing CLI-native recovery",
@@ -2591,7 +2606,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     codeGrepInvalid.exitCode !== 0 &&
       codeGrepInvalidEnvelope.code === "INVALID_ARGUMENT" &&
       codeGrepInvalidEnvelope.error.includes("<pattern>") &&
-      codeGrepInvalidEnvelope.error.includes("githits code files") &&
+      codeGrepInvalidEnvelope.error.includes("githits list") &&
       !codeGrepInvalidEnvelope.error.includes("code_files"),
     "code grep invalid json missing CLI-native recovery",
   );

@@ -311,7 +311,6 @@ describe("runMcpSmoke", () => {
       args: {
         target: SMOKE_PACKAGE_TARGET,
         limit: 1,
-        format: "json",
       },
     });
     expect(calls).toContainEqual({
@@ -320,7 +319,6 @@ describe("runMcpSmoke", () => {
         target: SMOKE_PACKAGE_TARGET,
         limit: 1,
         after: SMOKE_LIST_CURSOR,
-        format: "json",
       },
     });
     expect(calls).toContainEqual({
@@ -1028,7 +1026,10 @@ function smokeListText(args: Record<string, unknown>): string {
   const more = result.hasMore ? " | more results available" : "";
   const entries = result.entries as Array<Record<string, unknown>>;
   const path = entries[0]?.path;
-  return `# source ${String(source)}${followUp}${more}\n${path}`;
+  const continuation = result.nextCursor
+    ? `\n\nMore results: reuse the same target, paths, and options with:\n  after=${JSON.stringify(result.nextCursor)}`
+    : "";
+  return `# source ${String(source)}${followUp}${more}\n${path}${continuation}`;
 }
 
 function smokeResponse(

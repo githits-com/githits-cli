@@ -11,7 +11,7 @@ import { formatListText } from "../shared/list-text.js";
 import { createListTool } from "./list.js";
 
 const FIRST_SENTENCE =
-  "List files or documentation pages in a package, repository, or site.";
+  "List files and documentation paths in a known package, repository, or site.";
 
 function listResult(overrides: Partial<ListResult> = {}): ListResult {
   return {
@@ -61,26 +61,29 @@ describe("createListTool", () => {
     });
     expect(firstSentence).toBe(FIRST_SENTENCE);
     expect(firstSentence.length).toBeLessThanOrEqual(79);
-    expect(first80).toStartWith(`${FIRST_SENTENCE} Browse`);
+    expect(first80).toStartWith(`${FIRST_SENTENCE} Use`);
     expect(first80).not.toContain("code_files");
     expect(first80).not.toContain("docs_list");
     expect(tool.description).toContain("Replaces code_files and docs_list.");
-    expect(tool.description).toContain("one package-owned source tree");
-    expect(tool.description).toContain("whole repository snapshot");
+    expect(tool.description).toContain("find an exact path before `read`");
+    expect(tool.description).toContain("use `search` for topics");
+    expect(tool.description).toContain("one package-owned tree");
+    expect(tool.description).toContain("whole snapshot");
+    expect(tool.description).toContain("Both include source and documentation");
+    expect(tool.description).toContain("explicit `site:` target");
+    expect(tool.description).toContain("target-relative literals or globs");
     expect(tool.description).toContain(
-      "source and documentation files together",
-    );
-    expect(tool.description).toContain("explicit site target");
-    expect(tool.description).toContain("literal/glob union");
-    expect(tool.description).toContain(
-      "Selected directories show immediate children unless recursive",
+      "Directories show immediate children unless `recursive`",
     );
     expect(tool.description).toContain(
       "glob depth is independent of recursion",
     );
-    expect(tool.description).toContain("Text returns a path inventory");
+    expect(tool.description).toContain("read and continuation guidance");
     expect(tool.description).toContain(
-      "JSON carries exact read/browse actions",
+      "use JSON only when code consumes the raw response programmatically",
+    );
+    expect(tool.schema.format!.description).toContain(
+      "parsing or filtering it programmatically",
     );
   });
 
@@ -109,8 +112,10 @@ describe("createListTool", () => {
       "wait_timeout_ms",
       "format",
     ]);
-    expect(tool.schema.target!.description).toContain("site:<host[/path]>");
-    expect(tool.schema.paths!.description).toContain("Literal paths and glob");
+    expect(tool.schema.target!.description).toContain("site:expressjs.com");
+    expect(tool.schema.paths!.description).toContain(
+      "Target-relative literal paths and globs",
+    );
     expect(tool.schema.recursive!.description).toContain(
       "independent of recursion",
     );
@@ -123,7 +128,7 @@ describe("createListTool", () => {
     expect(tool.schema.intents!.description).toContain(
       "Source inventories only",
     );
-    expect(tool.schema.after!.description).toContain("empty value is omitted");
+    expect(tool.schema.after!.description).toContain("same target, paths");
     expect(tool.schema.format!.description).toContain("token-efficient text");
     expect(parsed.format).toBe("text");
     expect(parsed.paths).toEqual([]);
@@ -246,7 +251,10 @@ describe("createListTool", () => {
       includeReadActions: false,
     });
     expect(result.content[0]?.text).toBe(
-      formatListText(projectListResult(response), { useColors: false }),
+      formatListText(projectListResult(response), {
+        useColors: false,
+        syntax: "mcp",
+      }),
     );
     expect(result.content[0]?.text).toBe(
       '# source npm:express@5.2.1 | follow up with "read npm:express@5.2.1 $path"\nsrc/\nREADME.md',
@@ -264,7 +272,7 @@ describe("createListTool", () => {
           path: "expressjs.com/en/resources/",
           read: { target: "site:expressjs.com", path: "en/resources/" },
         },
-        { kind: "DIRECTORY", path: "expressjs.com/en/resources/guide/" },
+        { kind: "DIRECTORY", path: "en/resources/guide/" },
       ],
     });
     const list = mock(async (_params: ListParams) => response);
@@ -278,7 +286,10 @@ describe("createListTool", () => {
       includeReadActions: true,
     });
     expect(result.content[0]?.text).toBe(
-      formatListText(projectListResult(response), { useColors: false }),
+      formatListText(projectListResult(response), {
+        useColors: false,
+        syntax: "mcp",
+      }),
     );
     expect(result.content[0]?.text).toBe(
       '# source site:expressjs.com | follow up with "read site:expressjs.com $path"\nen/resources/\nen/resources/guide/',

@@ -4,16 +4,16 @@
 
 **Status: IN PROGRESS.** Phase 1 is complete. PR #421 merged to `main` as
 `5e541604935f1d7bb030742e2602356b9ef1e88c` on 2026-09-28. Phase 2 is
-implemented and review-clean on `jlitola/unified-list-mcp`. Deterministic and
-secret-free smoke gates pass; authenticated live and agent-eval gates remain
-unproven because the local macOS Keychain blocks before request execution.
+implemented, verified, and review-clean on `jlitola/unified-list-mcp` after its
+rebase. Deterministic, live, and Codex agent verification pass.
 
 The merged Phase 1 head passed 5,044 tests, typecheck, formatting, build,
 149-step live CLI smoke, 65-step live MCP smoke, 36-step built CLI smoke, and
 9-step built MCP registration smoke against production. Authenticated
 package, repository, and site list/read follow-ups passed. Backend
-PR #2817 merged as `518e45d301d0ba3f451ff56034551addc2bfc7fe` and its
-`site:` target plus host-relative page path shape is deployed to production.
+PR #2817 merged as `518e45d301d0ba3f451ff56034551addc2bfc7fe`; backend
+PR #2857 subsequently corrected site actions to target-relative paths and is
+deployed to production.
 Live CLI replay passes for the Express site root, a normal page with and
 without its trailing slash, and the same page through a nested site scope. The
 client work is on `main`; package publication remains pending. The 0.23.0
@@ -77,9 +77,9 @@ The permanent backend documentation establishes these semantics:
 - Omitted paths browse immediate roots. Literal paths and globs form a union.
   `*`, `?`, character classes, backslash escaping, and whole-component `**` are
   supported. Dot-prefixed paths are ordinary inventory entries.
-- Source paths are package- or repository-relative. Site paths are logical,
-  host-qualified paths such as `expressjs.com/en/5x/api/`; emitted browse paths
-  are the safest selectors and must be replayed unchanged.
+- Source paths are package- or repository-relative. Site paths are relative to
+  the supplied `site:` target. Emitted browse paths are authoritative and must
+  be replayed unchanged with their supplied target.
 - Glob depth is independent of recursion. With recursion off, selected
   directories expose immediate children. With recursion on, selected
   directories expand to descendant leaves and no directory rows are emitted.
@@ -96,7 +96,7 @@ The permanent backend documentation establishes these semantics:
   repository-relative path. Package directory browsing stays package-scoped
   and version-pinned; it is unavailable when the backend cannot form a
   versioned package target. Hosted PAGE actions use the requested `site:`
-  target plus a host-relative path when that pair resolves the stored URL.
+  target plus a target-relative path when that pair resolves the stored URL.
   `/` addresses the root. A single non-root trailing slash is omitted when no
   active slashless counterpart exists; distinct slash variants remain exact.
   Exceptional origins retain exact-URL actions.
@@ -172,7 +172,7 @@ snapshot/cache infrastructure. It does not keep callable MCP aliases for
 
 The MCP tool is named `list`. Its first description sentence is:
 
-> List files or documentation pages in a package, repository, or site.
+> List files and documentation paths in a known package, repository, or site.
 
 This intent-focused sentence is under 80 characters and distinguishes
 enumeration from content search on the standalone deferred-tool selection
@@ -237,7 +237,7 @@ Examples:
 githits list npm:express@5.2.1
 githits list npm:express@5.2.1 lib/ -R
 githits list github:expressjs/express@v5.2.1 '**/*.md'
-githits list site:expressjs.com 'expressjs.com/en/5x/api/'
+githits list site:expressjs.com 'en/5x/api/'
 ```
 
 ### Result and output behavior
@@ -262,18 +262,19 @@ returned file can be read without reconstructing its source identity.
 Directory paths end in `/`; source files have no prefix. Paths escape
 controls and backslashes so the line-oriented format stays unambiguous; quotes,
 spaces, and ordinary Unicode remain literal. The text surface omits titles,
-entry kinds, counts, per-entry commands, lifecycle diagnostics, and continuation
-commands. For sites, compact projection includes exact `read.target` and
+entry kinds, counts, per-entry commands, and lifecycle diagnostics. When a
+cursor is available, a footer tells CLI callers to reuse the same list with
+`--after` and MCP callers with `after`. For sites, compact projection includes exact `read.target` and
 `read.path` values. The header reuses a shared site action target, and PAGE
-rows render the corresponding host-relative path; `/` is the root. DIRECTORY
+rows render the corresponding target-relative path; `/` is the root. DIRECTORY
 rows remain relative and end in `/`. A meaningful PAGE trailing slash is
 preserved when the backend must distinguish coexisting slash variants.
 Exceptional URL-only PAGE actions render their exact target. If logical PAGE
 actions disagree on the site target, the header omits follow-up guidance.
-The formatter never derives an action from a site display path. Callers that
-need the opaque cursor, structured actions,
-lifecycle, or metadata use JSON. This keeps one token-efficient text contract
-for CLI and MCP.
+The formatter never derives an action from a site display path. Default text
+contains the cursor and follow-up guidance needed by agents. JSON remains for
+programmatic consumers that parse structured actions, lifecycle, or metadata.
+This keeps one token-efficient text contract for CLI and MCP.
 
 ### Errors and continuation
 
@@ -415,7 +416,7 @@ PR #2817 resolves site addressing, including `/` for the root.
 | Phase | Status | Outcome |
 | --- | --- | --- |
 | 1. Add the shared contract and CLI | **COMPLETE; merged as `5e54160`** | `githits list` browses the backend contract through a tested transport-neutral service and shared formatter. Backend #2817 production conformance and live site action replay pass. |
-| 2. Consolidate the MCP surface | **IN PROGRESS; IMPLEMENTED** | The callable catalog contains `list` instead of `code_files` and `docs_list`; the replacement description retains both legacy names, and current guidance routes package/repository/site browsing and follow-up actions correctly. Verification and review remain. |
+| 2. Consolidate the MCP surface | **IN PROGRESS; REVIEW-CLEAN** | The callable catalog contains `list` instead of `code_files` and `docs_list`; the replacement description retains both legacy names, and current guidance routes package/repository/site browsing and follow-up actions correctly. Deterministic, live, and Codex agent verification pass. |
 | 3. Release and hosted adoption | **PLANNED; authorization/deployment dependent** | Published CLI and hosted MCP expose the same unified list contract, and live list-to-read/list-to-list paths pass against the deployed backend. |
 
 ## Phase 1 completion record — shared contract and CLI
@@ -442,9 +443,9 @@ versions are prepared at 0.23.0, and publication remains pending.
 
 ## Phase 2 detailed plan — consolidate the MCP surface
 
-**Status:** IN PROGRESS; implementation and review complete, authenticated
-verification blocked by the local Keychain. PR #421 is present on `origin/main`
-at `5e54160`; no further product decision is required.
+**Status:** IN PROGRESS; implementation, verification, and review complete.
+PR #421 is present on `origin/main` at `5e54160`; no further product decision
+is required.
 
 The 2026-09-28 readiness check confirmed that `origin/main` still registers
 `code_files` and `docs_list`, while the public MCP client does not export
@@ -465,8 +466,8 @@ shared contract. The stable MCP quick-start skill teaches package/repository
 browsing, explicit site browsing, and package-to-site discovery. The public
 CLI `githits-code` skill remains on released behavior until Phase 3 adoption.
 
-**Assumptions:** Phase 1's service/formatter API remains adequate; lossless JSON
-is the follow-up surface for exact actions and opaque cursors; the hosted
+**Assumptions:** Phase 1's service/formatter API remains adequate; default text
+is the agent follow-up surface for read actions and opaque cursors; the hosted
 endpoint continues to implement the verified SDL; docs search can expose
 related explicit `site:` targets, while locally enabled `resolve_target`
 remains an additional route for fuzzy or natural names. Installed client
@@ -490,7 +491,7 @@ plugin-maintenance workflow governs public guidance changes.
    and read-only annotations. Replace `code_files`/`docs_list` factories in the
    stable catalog without registering callable aliases. Lock the exact
    intent-focused first sentence
-   `List files or documentation pages in a package, repository, or site.` and
+   `List files and documentation paths in a known package, repository, or site.` and
    its first 80 raw characters. Add the later exact compatibility sentence
    `Replaces code_files and docs_list.` and test that the full description
    contains both legacy identifiers.
@@ -526,27 +527,27 @@ plugin-maintenance workflow governs public guidance changes.
 
 Implementation landed as focused service, catalog, migration, smoke, eval,
 documentation, and review-fix commits. The stable catalog has 12 tools. The
-serialized replacement descriptor (`name`, description, input schema) is 2,793
-UTF-8 bytes, 2,395 bytes (46.2%) below the 5,188-byte retired pair baseline.
-The serialized stable catalog is 32,455 UTF-8 bytes. These are payload
+serialized replacement descriptor (`name`, description, input schema) is 2,892
+UTF-8 bytes, 2,296 bytes (44.3%) below the 5,188-byte retired pair baseline.
+The serialized stable catalog is 32,282 UTF-8 bytes. These are payload
 measurements, not model-token or latency claims.
 
-Final deterministic verification on 2026-09-28 passed 4,997 tests with zero
-failures, typecheck, formatting, lint with only the repository's pre-existing
-warnings, root and MCP builds, plugin generation/checks, public-package
-validation, source and built unauthenticated CLI smoke, and source and built MCP
-registration smoke. The built smoke checks passed after a sequential rebuild;
-an earlier parallel attempt raced public-package validation removing `dist/`
-and failed before product launch. The final MCP continuation smoke requires a
-real cursor and a distinct second entry.
+Final rebased verification on 2026-09-29 passed 5,168 tests with zero failures,
+typecheck, formatting, lint with only the repository's pre-existing warnings,
+root and MCP builds, plugin generation/checks, public-package validation,
+157-step production CLI smoke, 65-step production MCP smoke, 38-step built CLI
+smoke, and 9-step built MCP registration smoke. The MCP continuation smoke
+requires a real cursor and a distinct second entry.
 
-Authenticated live CLI/MCP smoke and descriptor-only agent evals remain
-unproven. `githits auth status`, package info, and `list` all block in macOS
-`SecKeychainFindGenericPassword` before any GitHits request; a process sample
-established that common root cause. File-storage unauthenticated mode and both
-endpoints respond normally. No credentials were read or exposed. Resume these
-gates after the local Keychain is available; do not treat the current absence
-as product evidence.
+Five targeted Codex descriptor workloads passed with high confidence and used
+default text throughout: continuation, site list-to-read, package/repository
+boundaries, recursion versus glob depth, and package-docs discovery followed by
+site list/read. Continuation replayed the opaque `after` value; the site case
+replayed target-relative `target` and `path`. A matching Claude run could not
+start because the local Claude CLI was logged out, so it produced no product
+evidence. Codex plus deterministic and live coverage satisfy the practical
+"where practical" cross-model requirement without treating that auth failure
+as a product result.
 
 ### Verification and acceptance
 
@@ -684,3 +685,10 @@ the required host `listService` migration, and retired unregistered MCP list
 factories plus MCP-only renderers remained dead. `e04bfc8` documented the host
 contract and removed that dead code while preserving grouped CLI helpers and
 their tests. External round 2 re-ran focused tests and typecheck and was clean.
+
+The 2026-09-29 post-rebase review found the list implementation clean and one
+minor shared-guidance mismatch: a blanket JSON sentence conflicted with
+`code_diff`, whose text intentionally omits most of a full patch. The shared
+guide retained its existing required-field exception, while the `list`
+descriptor keeps the stricter programmatic-consumer rule. This keeps ownership
+with each tool's formatter and resolved the only finding.

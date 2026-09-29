@@ -243,6 +243,24 @@ export function assertDefaultText(
   return text;
 }
 
+function listTextFirstPath(text: string, context: string): string {
+  const [header, path] = text.split("\n");
+  assert(header?.startsWith("# source "), `${context}: missing source header`);
+  assert(path !== undefined && path.length > 0, `${context}: missing path`);
+  return path;
+}
+
+function listTextContinuation(text: string, context: string): string {
+  const line = text.split("\n").find((value) => value.startsWith("  after="));
+  assert(line !== undefined, `${context}: missing after continuation`);
+  const parsed = parseJson(line.slice("  after=".length), context);
+  assert(
+    typeof parsed === "string" && parsed.length > 0,
+    `${context}: invalid after continuation`,
+  );
+  return parsed;
+}
+
 function assertSearchDefaultText(text: string, context: string): void {
   const lines = text.split("\n");
   let pathOnlyBlock = false;
@@ -1124,55 +1142,38 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "list package json hasMore/nextCursor mismatch",
   );
   const rootListArgs = { target: SMOKE_PACKAGE_TARGET, limit: 1 };
-  const firstRootPage = assertJsonResult(
-    await callTool(caller, "list", { ...rootListArgs, format: "json" }),
-    "list package root first page json",
+  const firstRootPage = assertDefaultText(
+    await callTool(caller, "list", rootListArgs),
+    "list package root first page text",
   );
-  assertRecord(firstRootPage, "list package root first page json");
-  assert(
-    firstRootPage.inventoryKind === "SOURCE" &&
-      firstRootPage.requestedTarget === SMOKE_PACKAGE_TARGET &&
-      Array.isArray(firstRootPage.entries) &&
-      firstRootPage.entries.length === 1 &&
-      firstRootPage.hasMore === true &&
-      typeof firstRootPage.nextCursor === "string" &&
-      firstRootPage.nextCursor.length > 0,
-    "list package root first page must contain one entry and a continuation cursor",
+  const firstRootPath = listTextFirstPath(
+    firstRootPage,
+    "list package root first page text",
   );
-  const firstRootEntry = firstRootPage.entries[0];
-  assertRecord(firstRootEntry, "list package root first entry");
-  const firstRootPath = firstRootEntry.path;
+  const nextCursor = listTextContinuation(
+    firstRootPage,
+    "list package root first page text",
+  );
   assert(
-    typeof firstRootPath === "string" && firstRootPath.length > 0,
-    "list package root first entry missing path",
+    firstRootPage.includes("| more results available") &&
+      firstRootPath.length > 0 &&
+      nextCursor.length > 0,
+    "list package root first page must expose one path and a text continuation",
   );
 
-  const secondRootPage = assertJsonResult(
+  const secondRootPage = assertDefaultText(
     await callTool(caller, "list", {
       ...rootListArgs,
-      after: firstRootPage.nextCursor,
-      format: "json",
+      after: nextCursor,
     }),
-    "list package root continuation json",
+    "list package root continuation text",
   );
-  assertRecord(secondRootPage, "list package root continuation json");
-  assert(
-    secondRootPage.inventoryKind === "SOURCE" &&
-      secondRootPage.requestedTarget === SMOKE_PACKAGE_TARGET &&
-      Array.isArray(secondRootPage.entries) &&
-      secondRootPage.entries.length === 1 &&
-      typeof secondRootPage.hasMore === "boolean" &&
-      secondRootPage.hasMore ===
-        (typeof secondRootPage.nextCursor === "string" &&
-          secondRootPage.nextCursor.length > 0) &&
-      (secondRootPage.hasMore || secondRootPage.nextCursor === null),
-    "list package root continuation json has invalid identity, entries, or cursor state",
+  const secondRootPath = listTextFirstPath(
+    secondRootPage,
+    "list package root continuation text",
   );
-  const secondRootEntry = secondRootPage.entries[0];
-  assertRecord(secondRootEntry, "list package root continuation entry");
   assert(
-    typeof secondRootEntry.path === "string" &&
-      secondRootEntry.path !== firstRootPath,
+    secondRootPath.length > 0 && secondRootPath !== firstRootPath,
     "list package root continuation repeated its first entry",
   );
 

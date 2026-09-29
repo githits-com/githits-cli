@@ -95,19 +95,21 @@ const DESCRIPTION_ROUTING: Record<
   },
   list: {
     prefix:
-      /^List files or documentation pages in a package, repository, or site\./,
+      /^List files and documentation paths in a known package, repository, or site\./,
     exactPrefix:
-      "List files or documentation pages in a package, repository, or site. Browse a kn",
+      "List files and documentation paths in a known package, repository, or site. Use ",
     body: [
       "Replaces code_files and docs_list.",
-      "one package-owned source tree",
-      "whole repository snapshot",
-      "source and documentation files together",
-      "explicit site target",
-      "literal/glob union",
-      "glob depth is independent of recursion",
-      "Text returns a path inventory",
-      "JSON carries exact read/browse actions",
+      "find an exact path before `read`",
+      "use `search` for topics",
+      "one package-owned tree",
+      "whole snapshot",
+      "Both include source and documentation",
+      "explicit `site:` target",
+      "target-relative literals or globs",
+      "glob depth is independent",
+      "read and continuation guidance",
+      "use JSON only when code consumes",
     ],
   },
   read: {
@@ -298,7 +300,7 @@ describe("MCP tool description catalog", () => {
           descriptor.description,
         );
         expect(firstSentence).toBe(
-          "List files or documentation pages in a package, repository, or site.",
+          "List files and documentation paths in a known package, repository, or site.",
         );
         expect(firstSentence.length).toBeLessThanOrEqual(79);
         expect(descriptor.description.slice(0, 80)).not.toContain("code_files");
