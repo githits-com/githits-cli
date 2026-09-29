@@ -397,20 +397,30 @@ describe("agent skills packaging", () => {
     }
   });
 
-  it("keeps code skill documentation reads aligned with fragment semantics", async () => {
-    const content = await read(githitsCodeSkillPath);
-
-    expectContainsAll(content, [
-      "use the search snippet when sufficient; otherwise run its generated `followUp`",
-      "pass the displayed `[docs page]` target unchanged",
-      "from `docs list`, pass `docsReadTarget`",
-      "Hosted/crawled HTTP(S) targets address mutable current content",
-      "automatic follow-ups forward the exact URL or fragment without search bounds",
-      "fragment returns its heading and full subtree through the next equal-or-higher heading",
-      "Repository docs remain snapshot-addressed and keep returned ranges",
-      "Add `--lines` only when intentionally selecting a current page range",
-      "Use `--json` only for required range/source metadata",
+  it("keeps code skill documentation reads aligned with complete actions and direct fragments", async () => {
+    const [content, reference] = await Promise.all([
+      read(githitsCodeSkillPath),
+      read(
+        join(root, "skills", "githits-code", "references", "code-and-docs.md"),
+      ),
     ]);
+
+    for (const guidance of [content, reference]) {
+      expectContainsAll(guidance, [
+        "use the search snippet when sufficient; otherwise replay its generated `followUp`",
+        "with every supplied argument unchanged, including selectors and bounds",
+        "From `docs list`, pass `docsReadTarget`",
+        "Hosted/crawled HTTP(S) targets address mutable current content",
+        "A direct HTTP(S) fragment read without explicit bounds returns its heading and full subtree through the next equal-or-higher heading",
+        "Repository docs remain snapshot-addressed and keep returned ranges",
+        "When composing a direct read, add `--lines` only to intentionally select a current page range",
+        "Use `--json` only for required range/source metadata",
+      ]);
+      expect(guidance).not.toContain("without search bounds");
+      expect(guidance).not.toContain(
+        "pass the displayed `[docs page]` target unchanged",
+      );
+    }
     expect(content).toContain("githits read <docsReadTarget>");
     expect(content).toContain(
       "githits read <docsReadTarget> --selector <heading-id>",

@@ -30,12 +30,18 @@ function renderMcpReadTarget(action: ReadTarget): string {
 
 function renderCliReadTarget(action: ReadTarget): string {
   const parts = [`githits read ${shellQuote(action.target)}`];
-  if (action.path !== undefined) parts.push(shellQuote(action.path));
+  const pathNeedsTerminator = action.path?.startsWith("-") === true;
+  if (action.path !== undefined && !pathNeedsTerminator) {
+    parts.push(shellQuote(action.path));
+  }
   if (action.selector !== undefined) {
     parts.push("--selector", shellQuote(action.selector));
   }
   if (action.startLine !== undefined || action.endLine !== undefined) {
     parts.push("--lines", `${action.startLine ?? ""}-${action.endLine ?? ""}`);
+  }
+  if (action.path !== undefined && pathNeedsTerminator) {
+    parts.push("--", shellQuote(action.path));
   }
   return parts.join(" ");
 }

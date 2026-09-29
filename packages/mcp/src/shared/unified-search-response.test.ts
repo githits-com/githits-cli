@@ -17,6 +17,9 @@ import {
   buildUnifiedSearchErrorPayload,
   projectUnifiedSearchStatusPayload,
   projectUnifiedSearchSuccessPayload,
+  type UnifiedSearchCompletedPresentation,
+  type UnifiedSearchIncompletePresentation,
+  type UnifiedSearchStatusResultPresentation,
 } from "./unified-search-response.js";
 
 function buildUnifiedSearchSuccessPayload(
@@ -3527,6 +3530,113 @@ describe("buildUnifiedSearchStatusPayload", () => {
 });
 
 describe("internal action/public JSON boundary", () => {
+  const privateHit = {
+    type: "documentation_page",
+    target: "npm:express",
+    locator: {
+      docsReadTarget: "https://docs.test/page",
+      startLine: 503,
+      endLine: 508,
+    },
+    readTarget: { target: "https://docs.test/page", selector: "router" },
+    repositoryEvidence: null,
+    documentationPreview: null,
+  };
+  const publicHit = {
+    type: privateHit.type,
+    target: privateHit.target,
+    locator: privateHit.locator,
+    repositoryEvidence: null,
+    documentationPreview: null,
+  };
+  const progress = {
+    status: "INDEXING",
+    targetsReady: 0,
+    targetsTotal: 1,
+    elapsedMs: 5,
+  };
+
+  it("retains all current completed/incomplete search envelope fields", () => {
+    const completed: UnifiedSearchCompletedPresentation = {
+      query: { raw: "router" },
+      completed: true,
+      partialResults: false,
+      hasMore: true,
+      nextOffset: 11,
+      results: [privateHit],
+      searchRef: "retained",
+      warnings: ["warning"],
+      sourceStatus: [],
+      evidenceNotice: "coverage note",
+    };
+    const incomplete: UnifiedSearchIncompletePresentation = {
+      ...completed,
+      completed: false,
+      searchRef: "interim",
+      progress,
+    };
+    for (const payload of [completed, incomplete])
+      expect(projectUnifiedSearchSuccessPayload(payload)).toEqual({
+        ...payload,
+        results: [publicHit],
+      });
+  });
+
+  it("retains all current completed/interim status envelope and result fields", () => {
+    const result: UnifiedSearchStatusResultPresentation = {
+      query: { raw: "router" },
+      partialResults: true,
+      warnings: ["warning"],
+      sources: ["docs"],
+      hasMore: true,
+      nextOffset: 11,
+      results: [privateHit],
+      sourceStatus: [],
+      evidenceNotice: "coverage note",
+    };
+    const completed = {
+      completed: true as const,
+      searchRef: "retained",
+      result,
+    };
+    const incomplete = {
+      completed: false as const,
+      searchRef: "interim",
+      progress,
+      result,
+      warnings: ["pending"],
+    };
+    for (const payload of [completed, incomplete])
+      expect(projectUnifiedSearchStatusPayload(payload)).toEqual({
+        ...payload,
+        result: { ...result, results: [publicHit] },
+      });
+  });
+
+  it("keeps absent incomplete result and partialResults fields omitted", () => {
+    const status = {
+      completed: false as const,
+      searchRef: "pending",
+      progress,
+      warnings: [],
+    };
+    const search = {
+      completed: false as const,
+      query: { raw: "router" },
+      hasMore: false,
+      results: [],
+      searchRef: "pending",
+    };
+    expect(projectUnifiedSearchStatusPayload(status)).toEqual(status);
+    expect(projectUnifiedSearchStatusPayload(status)).not.toHaveProperty(
+      "result",
+    );
+    expect(projectUnifiedSearchSuccessPayload(search)).toEqual(search);
+    expect(projectUnifiedSearchSuccessPayload(search)).not.toHaveProperty(
+      "partialResults",
+    );
+  });
+
   it.each(["completed", "incomplete"] as const)(
     "projects %s search and retained status without leaking descriptors",
     (state) => {

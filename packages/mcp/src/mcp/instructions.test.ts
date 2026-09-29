@@ -35,13 +35,16 @@ describe("buildLocalMcpQuickStart", () => {
     expect(quickStart).not.toContain("[@version]");
     expect(quickStart).not.toContain("[@ref]");
     expect(quickStart).toContain(
-      "Use snippets when sufficient; otherwise replay generated",
+      "Use snippets when sufficient; otherwise replay the complete emitted read action",
     );
     expect(quickStart).toContain(
       "Hosted/crawled HTTP(S) docs locators address mutable current content",
     );
     expect(quickStart).toContain(
-      "unchanged, including supplied `selector` and line bounds",
+      "A `[docs page]` header is a page locator; use its complete action for the section",
+    );
+    expect(quickStart).toContain(
+      "or generated `followUp` unchanged, including supplied `selector` and bounds",
     );
     expect(quickStart).toContain(
       "A direct HTTP(S) docs fragment read without explicit bounds returns its heading",
@@ -112,7 +115,7 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain('`source:"docs"`');
     expect(instructions).toContain("request JSON only for missing fields");
     expect(instructions).toContain(
-      "use a `[docs page]` target unchanged, otherwise its returned target/range",
+      "replay the complete emitted read action unchanged, otherwise use its returned target/range",
     );
     expect(instructions).toContain("EXACT/HIGH");
     expect(instructions).toContain("CLEAR or NOT_APPLICABLE");

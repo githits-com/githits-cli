@@ -165,18 +165,20 @@ export function projectAskReadSources(
       (source): AskReadSource => ({
         name: "read",
         arguments:
-          source.name === "code_read"
-            ? {
-                ...source.arguments,
-                target:
-                  formatRepositoryTargetLabel(source.arguments.target) ??
-                  source.arguments.target,
-              }
-            : {
-                target: source.arguments.page_id,
-                start_line: source.arguments.start_line,
-                end_line: source.arguments.end_line,
-              },
+          source.name === "read"
+            ? source.arguments
+            : source.name === "code_read"
+              ? {
+                  ...source.arguments,
+                  target:
+                    formatRepositoryTargetLabel(source.arguments.target) ??
+                    source.arguments.target,
+                }
+              : {
+                  target: source.arguments.page_id,
+                  start_line: source.arguments.start_line,
+                  end_line: source.arguments.end_line,
+                },
       }),
     ),
   };

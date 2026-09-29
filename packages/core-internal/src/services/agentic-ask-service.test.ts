@@ -390,6 +390,58 @@ describe("AgenticAskServiceImpl", () => {
     });
   });
 
+  it("accepts canonical read sources with opaque optional arguments", async () => {
+    const body: AgenticAskMcpResponse = {
+      ...mcpResponseBody(),
+      source_format: "mcp",
+      sources: [
+        {
+          name: "read",
+          arguments: {
+            target: "github:owner/repo@abc123",
+            path: "src/O'Reilly file.ts",
+            selector: "-Heading%2FName",
+            start_line: 10,
+            end_line: 20,
+          },
+        },
+        {
+          name: "read",
+          arguments: { target: "npm:example", path: "lib/index.js" },
+        },
+        {
+          name: "read",
+          arguments: { target: "https://docs.test/guide", selector: "router" },
+        },
+        {
+          name: "read",
+          arguments: { target: "https://docs.test/guide", start_line: 5 },
+        },
+        {
+          name: "read",
+          arguments: { target: "https://docs.test/guide", end_line: 8 },
+        },
+        { name: "read", arguments: { target: "https://docs.test/guide" } },
+        {
+          name: "read",
+          arguments: { target: "https://docs.test/guide", path: "" },
+        },
+      ],
+    };
+    const fetchFn = mock(() =>
+      Promise.resolve(jsonResponse(body)),
+    ) as unknown as typeof fetch;
+
+    const result = await createService(fetchFn).ask({
+      target: "npm:example",
+      question: "How?",
+      sourceFormat: "mcp",
+    });
+
+    expect(result).toEqual(body);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
   it("continues a thread without resending its target", async () => {
     let capturedInit: RequestInit | undefined;
     const fetchFn = mock((_url: string | URL | Request, init?: RequestInit) => {
@@ -485,6 +537,19 @@ describe("AgenticAskServiceImpl", () => {
         ],
       }),
       mcpResponseBody({ sources: [{ name: "shell", arguments: {} }] }),
+      ...[
+        {},
+        { target: "" },
+        { target: " " },
+        { target: "npm:example", path: null },
+        { target: "npm:example", selector: [] },
+        { target: "npm:example", selector: " " },
+        { target: "npm:example", start_line: 0 },
+        { target: "npm:example", end_line: 1.5 },
+        { target: "npm:example", start_line: 10, end_line: 9 },
+      ].map((args) =>
+        mcpResponseBody({ sources: [{ name: "read", arguments: args }] }),
+      ),
     ];
 
     for (const body of invalidBodies) {

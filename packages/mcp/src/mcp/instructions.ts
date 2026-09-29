@@ -35,9 +35,9 @@ semantic fragments, not revisions.
 
 For a package or site docs topic, use \`search\` with \`source:"docs"\`.
 \`docs_list\` browses package pages, not standalone \`site:\` targets.
-Use snippets when sufficient; otherwise replay generated \`followUp\` calls
-unchanged, including supplied \`selector\` and line bounds.
-Pass displayed \`[docs page]\` locators unchanged to \`read\`.
+Use snippets when sufficient; otherwise replay the complete emitted read action
+or generated \`followUp\` unchanged, including supplied \`selector\` and bounds.
+A \`[docs page]\` header is a page locator; use its complete action for the section.
 Hosted/crawled HTTP(S) docs locators address mutable current content.
 A direct HTTP(S) docs fragment read without explicit bounds returns its heading
 and full subtree through the next equal-or-higher heading.
@@ -126,7 +126,7 @@ const LOCAL_RESEARCH_GUIDANCE_END =
   ' Reuse a returned `thread_id` for follow-ups. Change project, version, or topic in the follow-up question. Sources default to directly callable MCP tools; use `source_format:"url"` for original upstream URLs. Do not invent or rewrite sources.';
 
 const LOCAL_RESOLVE_TARGET_GUIDANCE =
-  '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, `codeberg:owner/repo`, `gitlab:group/subgroup/project`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` is docs-only: pass it to `search` with `source:"docs"`; request JSON only for missing fields; use a `[docs page]` target unchanged, otherwise its returned target/range.';
+  '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, `codeberg:owner/repo`, `gitlab:group/subgroup/project`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` is docs-only: pass it to `search` with `source:"docs"`; request JSON only for missing fields; replay the complete emitted read action unchanged, otherwise use its returned target/range.';
 
 const LOCAL_CODE_DIFF_GUIDANCE =
   "- `code_diff` — compare exact package versions or public repository refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text`; use `json` only for required fields absent from text or the full returned patch. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";

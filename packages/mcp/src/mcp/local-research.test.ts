@@ -510,6 +510,56 @@ describe("local research MCP adapter", () => {
 });
 
 describe("Ask read source projection", () => {
+  it("passes canonical read actions unchanged through text and JSON", async () => {
+    const wire = {
+      ...response(),
+      sources: [
+        {
+          name: "read",
+          arguments: {
+            target: "github:owner/repo#release@stable",
+            path: "src/O'Reilly file.ts",
+            selector: "-Heading%2FName",
+            start_line: 10,
+            end_line: 20,
+          },
+        },
+        {
+          name: "read",
+          arguments: { target: "https://docs.test/guide", selector: "router" },
+        },
+        {
+          name: "read",
+          arguments: { target: "npm:example", path: "lib/index.js" },
+        },
+      ],
+    } satisfies AgenticAskMcpResponse;
+    const original = structuredClone(wire);
+    const projected = projectAskReadSources(wire);
+    expect(projected).toEqual(original);
+    expect(wire).toEqual(original);
+
+    const tool = createLocalResearchTool(
+      createService(() => Promise.resolve(wire)),
+    );
+    const text = await invoke(tool, {
+      target: "npm:example",
+      question: "How?",
+    });
+    const json = await invoke(tool, {
+      target: "npm:example",
+      question: "How?",
+      format: "json",
+    });
+    expect(text.isError).not.toBe(true);
+    for (const source of wire.sources) {
+      expect(text.content[0]?.text).toContain(
+        `read(${JSON.stringify(source.arguments)})`,
+      );
+    }
+    expect(JSON.parse(json.content[0]?.text ?? "{}")).toEqual(original);
+  });
+
   it("projects both typed pointers without mutating backend data or losing metadata", () => {
     const wire = response();
     const original = structuredClone(wire);

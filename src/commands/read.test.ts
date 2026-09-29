@@ -8,6 +8,7 @@ import {
   InvalidPackageSpecError,
 } from "@githits/mcp/internal";
 import { Command } from "commander";
+import { renderReadTarget } from "../../packages/mcp/src/shared/read-target-text.js";
 import {
   createMockCodeNavigationService,
   createMockReadService,
@@ -33,6 +34,38 @@ function deps(): ReadCommandDependencies {
 }
 
 describe("top-level read", () => {
+  it.each(["-index.ts", "--config.ts", "src/index.ts"])(
+    "replays emitted opaque path %s through the registered parser",
+    async (path) => {
+      const action = {
+        target: "npm:express@5.2.1",
+        path,
+        selector: "-heading",
+        startLine: 2,
+        endLine: 7,
+      };
+      const command = renderReadTarget(action, "cli");
+      // These ASCII fixtures have no spaces or embedded quotes. Remove the
+      // uniform shell quotes before Commander sees the actual argv values.
+      const argv = command
+        .split(" ")
+        .map((argument) => argument.replace(/^'(.*)'$/, "$1"));
+      const collect = mock((..._args: unknown[]) => {});
+      const root = new Command().exitOverride();
+      root.configureOutput({ writeErr: () => {} });
+      registerReadCommand(root).action(collect);
+
+      await root.parseAsync(argv.slice(1), { from: "user" });
+
+      expect(collect).toHaveBeenCalledTimes(1);
+      expect(collect.mock.calls[0]?.slice(0, 3)).toEqual([
+        action.target,
+        action.path,
+        { selector: action.selector, lines: "2-7" },
+      ]);
+    },
+  );
+
   it.each([
     ["npm:express@5.2.1", "npm", "express", undefined, undefined],
     [

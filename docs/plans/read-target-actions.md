@@ -38,6 +38,12 @@ implementation documentation and retire it.
   owns internal/Claude reviews and draft PR approval after this checkpoint.
 - Dev only for network verification. Eval authentication must be pre-provisioned
   by a trusted launcher; no credentials are extracted or exposed.
+- Closure live verification contradicted the durable assumption that Ask MCP
+  sources contain only legacy `code_read`/`docs_read`. Dev HTTP200 returned
+  canonical `read` calls, including a path-only call without bounds. Core owns
+  this wire acceptance; the MCP adapter translates only legacy sources. Root
+  authorized the bounded contract correction here; the separate backend owner
+  was neither changed nor contacted. CLI Ask source format remains unchanged.
 
 ## Responsibility and mechanical slice sequence
 
@@ -204,12 +210,16 @@ the correction (stable and experimental live coverage, no auth skip); logs are
 `/tmp/read-target-phase4-guide-smoke-mcp.log`. The two isolated qualitative evals
 remain pending trusted provisioning.
 
-The public `githits-code` skill and `references/code-and-docs.md` still describe
-the previous automatic hosted-doc follow-up spelling. Their broader promotion
-remains at the applicable release boundary, as approved; review and update those
-two passages when the backing behavior is released or included in release
-preparation. The `githits-package` skill/reference scan found no corresponding
-action-selection claim. Report: `/tmp/read-target-phase4-preflight.md`.
+Claude round1 subsequently found the public `githits-code` skill and
+`references/code-and-docs.md` still prescribed header-only reads and unconditional
+no-bounds hosted follow-ups. Root corrected their deferral: both passages now say
+to replay generated followUp with every supplied argument unchanged, including
+selectors/bounds, and retain direct fragment semantics without explicit bounds.
+This is version-neutral guidance valid for released0.23 and the new behavior;
+it adds no new per-hit layout, descriptor details or promise of newly emitted
+text actions. Wider behavior promotion remains at its applicable release boundary.
+The `githits-package` scan found no corresponding action-selection claim.
+Original preflight report: `/tmp/read-target-phase4-preflight.md`.
 
 ## Internal continuation finding closure
 
@@ -255,3 +265,96 @@ client-action replays passed (ordinary code36-51, symbol43-51, hosted docs503-50
 metadata only. Logs: `/tmp/read-target-phase4-continuation-smoke-mcp.log` and
 `/tmp/read-target-phase4-continuation-client-replay.jsonl`. These supplement the
 deterministic multi-window handler proof; no qualitative score is claimed.
+
+## Claude round1 low finding closure
+
+Root accepted all three low findings; no product/architecture decision or major
+finding. The round is not clean because F3 changes code. Root owns the fresh full
+internal verification and same retained Claude reviewer round2 after this commit.
+
+- F1 -> header-only/no-bounds guidance confused a page locator with the selected
+  section. Stable MCP builder/exact skill copy and late search description now
+  prefer the complete emitted action/followUp with supplied selector/bounds.
+  Mutable hosted provenance, repository snapshots and direct unbounded fragment
+  subtree semantics remain. The local resolve-target appendix had the same
+  header-only advice and was corrected. Current CLI docs name the page-locator
+  distinction. Public CLI-code skill/reference changes are version-neutral:
+  replay generated followUp with every supplied argument; no new per-hit layout,
+  descriptor detail or text-action promise. The reference's topic-search sentence
+  had the same prescription and was fixed. Root explicitly superseded the earlier
+  deferral of these minor passages; broader behavior promotion stays separate.
+- F2 -> current tools.md anatomy still showed a fragment in the heading target,
+  no action line, and deleted package/semantic reconstruction priorities. The
+  example now distinguishes producer evidence/page locator and one native action.
+  Repository headers keep producer attribution/path/ranges; canonical read
+  identity stays on the action. The five current phase4 implementation docs and
+  both CLI guide passages were scanned for this class; historical records stay
+  unchanged.
+- F3 -> public envelope metadata was unnecessarily re-enumerated despite private
+  descriptor metadata existing only on hits. Verified presentation interfaces
+  differ from public interfaces only in hits/results. Success/status/result now
+  retain their public envelopes and map hits through the existing allowlist.
+  All four CLI/MCP initial/status serialization sites were inspected. No raw
+  internal hit/service spread, new helper, future fake-field guard or current
+  data-loss claim. Completed/incomplete and omitted-result semantics remain.
+
+Named proof: `bun test packages/mcp/src/shared/unified-search-response.test.ts
+packages/mcp/src/tools/search.test.ts packages/mcp/src/tools/search-status.test.ts
+src/commands/search.test.ts src/tools/search-parity.test.ts
+packages/mcp/src/mcp/instructions.test.ts src/skills-packaging.test.ts` passes
+260 tests, 1193 assertions. Tests cover every current envelope field, explicit
+null hit facts, absent result/partialResults, nested retained/interim hits,
+private descriptor absence, exact stable-guide parity and unchanged first80.
+Typecheck and seven-file Biome pass. Generator/check validate10 assets without
+a generated diff. Build/packed validation and clean-dev source smoke evidence
+are recorded in `/tmp/read-target-phase4-review.md`.
+No new Luna dispatch/preflight/reviewer: counts remain nine implementation slices
+and one preflight. All closure is inline guidance/JSON judgment.
+
+The SAME two isolated local-MCP Codex workloads remain pending trusted dev auth:
+`docs-search-followup.md` and `unified-search-investigation.md`. Their acceptance
+must inspect actual tool calls for replay of the complete heading action including
+selector/bounds, rather than a page-header-only read (dev router selection503-508
+versus page start). Inspect final/metrics/isolation artifacts; no auth-only trace,
+provisioning change or qualitative score substitutes for that evidence.
+
+## Root follow-up closure before round2
+
+- CLI positional boundary -> uniform shell quoting preserved bytes but did not
+  prevent Commander interpreting a dash-leading filename as an option. The CLI
+  renderer owns this syntax boundary. It now places flags before `--` and the
+  literal path only for dash-leading paths, retaining ordinary command spelling.
+  Actual `registerReadCommand()` parser tests override the action with a collector
+  and make no auth/service call. Known ASCII fixtures remove shell quotes before
+  parsing; baseline had two `commander.unknownOption` failures for `-index.ts`
+  and `--config.ts`. All three replay cases now preserve path, `-heading` selector
+  and bounds, including the unchanged normal-path control. No selector guard or
+  new parser was introduced. Logs: `/tmp/read-target-phase4-r1-dash-{red,green}.log`.
+- Canonical Ask sources -> authenticated MCP smoke failed experimental research
+  with non-retryable `PROTOCOL_ERROR`; a targeted same-request diagnostic reproduced
+  it. Secret-free response shape confirmed HTTP200, `source_format:mcp`, valid
+  UUIDv7 IDs, nonempty answer and three `name:read` calls. Two supplied
+  target/path/start_line/end_line and one omitted both bounds. Existing core schema
+  accepted only the two legacy names, so the normal canonical response failed
+  before projection. Core now accepts canonical optional arguments with current
+  read value/range validation; the existing MCP adapter passes them unchanged,
+  including selector, opaque identity and omitted bounds. Only legacy sources
+  undergo their previous catalog/repository translation. Wire/projection tests
+  prove boundless calls, code/docs selectors, metadata preservation and malformed
+  values. No backend change, new infrastructure, retry or polling workaround.
+  Original smoke/diagnosis: `/tmp/read-target-phase4-r1-smoke-mcp.log`,
+  `/tmp/read-target-phase4-r1-research-probe.jsonl`,
+  `/tmp/read-target-phase4-r1-research-shape.jsonl`.
+
+Final eleven-file focused run passes437 tests/1676 assertions. Typecheck, thirteen
+changed-TypeScript Biome check, build and public package validation pass. Initial
+added-test typing errors were corrected in fixtures/mocks; production types pass.
+After the contract correction the complete clean-dev MCP smoke passes65 steps,
+108325ms wall, including experimental research text and URL JSON without auth
+skips. Final renderer-affected CLI smoke also passes149 steps,103904ms wall with
+stable and experimental live cohorts and no auth skips. Logs:
+`/tmp/read-target-phase4-r1-smoke-{mcp,cli}-fixed.log`; commit is recorded in the
+review packet. Durable Ask assumptions and the release fragment were corrected. These
+two repairs are part of the full delta for root internal verification and retained
+Claude round2; all reviews and the same two isolated qualitative evals remain
+pending. No additional worker/preflight/reviewer was spawned.

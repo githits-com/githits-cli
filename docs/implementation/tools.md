@@ -776,28 +776,27 @@ available. Repository documentation retains its heading. JSON retains titles.
 **Hit anatomy within unified search text-v1:**
 
 ```
-[1] <target> <path:line-range> [repo doc] - <title>
-  <summary line 1>
-  <summary line 2 (wrapped at output width)>
+[1] <producer-target> <path:preview-range> [repo doc] - <title>
+  <evidence or summary, wrapped at output width>
+  read target="<served-target>" path="<exact-path>" start_line=N end_line=M
 [blank]
-[2] <docs-read-target#anchor> [docs page] <target> - <title>
+[2] <page-target> [docs page] <package-attribution> - #<heading> - <title>
   <summary, when informative>
+  read target="<page-target>" selector="<heading>"
 ```
 
 Hit headers are numbered so ranked results can be referenced as `[1]` through
-`[N]`. Repository and code hits keep the exact target and file location needed
-for `read` before a bracketed type tag (`[repo doc]`, `[repo code]`, or
-`[repo symbol]`); their free-form title is the final header tail. Package-attributed
-repository docs with complete registry/name/version and target-relative file path
-use the served package address and `filePath:lines`, just like code headers;
-JSON-derived follow-ups pass that package target and separate exact path to
-unified `read`. The original `docsReadTarget`, page ID, repository commit and
-repository-root path remain provenance in JSON. Semantic preferred reads retain
-precedence; repository-only and incomplete legacy docs retain the emitted page
-locator with separate bounds. `docsReadTarget` is a legacy-named field accepted
-by unified read, not an exclusive instruction to use the deprecated docs reader.
-Hosted documentation headers show the backend descriptor target, package
-attribution, distinct source provenance and title. Source provenance uses
+`[N]`. Repository headers preserve producer package/repository attribution,
+target-relative file paths and preview/source ranges before the type tag
+(`[repo doc]`, `[repo code]`, or `[repo symbol]`). Their title is the final tail.
+These evidence facts do not select the read address: the separate native action
+carries the canonical target, exact path, selector and bounds selected by the
+backend. Replay that complete action unchanged for more context. The original
+`docsReadTarget`, page ID, repository commit and repository-root path remain
+provenance in JSON. `docsReadTarget` is accepted by unified read, not an exclusive
+instruction to use the deprecated docs reader.
+Hosted documentation headers show a page locator, package attribution, distinct
+heading/source provenance and title; the complete action selects the section. Source provenance uses
 `host/path#anchor` without the protocol; when it is the target plus a fragment,
 only that distinct fragment is shown. It never chooses an action or promotes a
 fragment into its target. Exact duplicate locators are omitted. Unavailable

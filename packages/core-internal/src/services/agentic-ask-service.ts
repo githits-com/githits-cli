@@ -112,6 +112,31 @@ const mcpDocumentationReadSourceCallSchema = z.object({
   }),
 });
 
+const mcpReadSourceCallSchema = z.object({
+  name: z.literal("read"),
+  arguments: z
+    .object({
+      target: z.string().refine((value) => Boolean(value.trim())),
+      path: z.string().optional(),
+      selector: z
+        .string()
+        .refine((value) => Boolean(value.trim()))
+        .optional(),
+      start_line: z.number().int().min(1).optional(),
+      end_line: z.number().int().min(1).optional(),
+    })
+    .refine(
+      (value) =>
+        value.start_line === undefined ||
+        value.end_line === undefined ||
+        value.end_line >= value.start_line,
+      {
+        path: ["end_line"],
+        message: "end_line must be greater than or equal to start_line",
+      },
+    ),
+});
+
 const mcpResponseSchema = z.object({
   source_format: z.literal("mcp"),
   tool_call_id: z.string().regex(UUID_V7_PATTERN),
@@ -119,6 +144,7 @@ const mcpResponseSchema = z.object({
   answer_markdown: z.string().min(1),
   sources: z.array(
     z.discriminatedUnion("name", [
+      mcpReadSourceCallSchema,
       mcpCodeReadSourceCallSchema,
       mcpDocumentationReadSourceCallSchema,
     ]),
@@ -212,7 +238,19 @@ export interface AgenticAskMcpDocumentationReadSourceCall {
   };
 }
 
+export interface AgenticAskMcpReadSourceCall {
+  name: "read";
+  arguments: {
+    target: string;
+    path?: string;
+    selector?: string;
+    start_line?: number;
+    end_line?: number;
+  };
+}
+
 export type AgenticAskMcpSourceCall =
+  | AgenticAskMcpReadSourceCall
   | AgenticAskMcpCodeReadSourceCall
   | AgenticAskMcpDocumentationReadSourceCall;
 

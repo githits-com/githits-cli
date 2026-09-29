@@ -56,7 +56,10 @@ The backend owns each automatic read action as `ReadTarget`: opaque `target`,
 optional `path`, target-dependent `selector` (code symbol or docs anchor), and
 optional absolute `startLine`/`endLine`. Core validates these facts without
 parsing identity, resolving refs or decoding selectors. Shared presentation
-quotes the same action for CLI and MCP. Search/status select all five fields;
+quotes the same action for CLI and MCP. For a dash-leading CLI path, it emits
+selector/range flags before an option terminator and the literal positional path,
+so Commander preserves that filename after shell quotes are removed.
+Search/status select all five fields;
 semantic/package/repository address priority is entirely backend-owned.
 Legacy locator and `preferredRead` metadata remain evidence and provenance,
 without choosing an alternate action. Search text retains producer attribution,
@@ -202,21 +205,24 @@ as the MCP wait parameter.
 
 ## Ask compatibility
 
-The backend Ask contract still returns typed `code_read` and `docs_read` source
-pointers. `projectAskReadSources()` beside the local MCP `research` adapter projects these
-into callable `read` pointers before text or JSON rendering. Typed code targets are
-also normalized from backend-authored legacy repository labels to canonical
-`provider:path@ref`; docs maps `page_id` to `target` without parsing it, so emitted
-repository-backed documentation fragments and URL fragments remain byte-for-byte
-unchanged. All other response metadata is preserved and the original backend
-response is not mutated. URL and clarification responses pass through unchanged.
+The backend Ask MCP contract returns canonical `read` source calls with optional
+path, selector and bounds. Core validates these arguments without changing opaque
+strings or adding omitted bounds. `projectAskReadSources()` beside the local MCP
+`research` adapter passes canonical calls unchanged into text and JSON output.
+The verified older `code_read` and `docs_read` source shapes remain accepted:
+the adapter translates only those legacy pointers into callable `read` sources.
+Legacy code targets are normalized from backend-authored repository labels to
+`provider:path@ref`; legacy docs map `page_id` to `target` without parsing it.
+Canonical targets never pass through that legacy repository formatter. All other
+response metadata is preserved and the original backend response is not mutated.
+URL and clarification responses pass through unchanged.
 
 Core service consumers still see the backend contract. CLI `research` (including
 its `ask` alias) recognizes only the validated `githits code read` argv tuple
 and normalizes that tuple's target before
 text or JSON rendering. It never parses documentation argv, URLs, answer prose, or
-other opaque command shapes. Catalog names belong to the MCP adapter, not the
-backend service parser.
+other opaque command shapes. Core owns accepted Ask wire shapes; the MCP adapter
+owns translation of legacy source names into its callable catalog.
 
 ## Migration and future extension
 
@@ -272,8 +278,12 @@ boundary; the stable MCP guide has the bounded same-PR exception below.
 The stable MCP quick-start builder and embedded `skills/githits-mcp/SKILL.md` copy
 change together with the backing behavior in this PR under the explicit
 exact-parity exception. This accepts a bounded main-to-release window and ships
-with the next applicable CLI/MCP artifacts. Other public skills retain their
-release-boundary policy because main can serve them before npm release.
+with the next applicable CLI/MCP artifacts. The CLI-code skill and reference
+also receive a bounded version-neutral wording correction now: replay generated
+follow-ups with every supplied argument unchanged, including selectors/bounds.
+That rule works for released fragment actions and current selector actions, and
+adds no new layout or behavior promise. Wider skill promotion retains its
+release-boundary policy because main can serve those skills before npm release.
 The 0.22.0 release branch updated `skills/githits-code/SKILL.md` and its
 reference to prefer `githits read`, show selector reads, and retain legacy
 commands only as compatibility guidance. The root 0.22.1 release branch adds

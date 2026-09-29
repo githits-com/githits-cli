@@ -330,68 +330,24 @@ function projectHitPayload(
   };
 }
 
-/** Strip internal descriptors before either surface serializes search success. */
+/** Retain the public envelope and strip private descriptors at the hit boundary. */
 export function projectUnifiedSearchSuccessPayload(
   payload:
     | UnifiedSearchCompletedPresentation
     | UnifiedSearchIncompletePresentation,
 ): UnifiedSearchCompletedPayload | UnifiedSearchIncompletePayload {
-  const common = {
-    query: payload.query,
-    hasMore: payload.hasMore,
+  return {
+    ...payload,
     results: payload.results.map(projectHitPayload),
-    ...(payload.nextOffset !== undefined
-      ? { nextOffset: payload.nextOffset }
-      : {}),
-    ...(payload.warnings !== undefined ? { warnings: payload.warnings } : {}),
-    ...(payload.sourceStatus !== undefined
-      ? { sourceStatus: payload.sourceStatus }
-      : {}),
-    ...(payload.evidenceNotice !== undefined
-      ? { evidenceNotice: payload.evidenceNotice }
-      : {}),
   };
-  return payload.completed
-    ? {
-        ...common,
-        completed: true,
-        partialResults: payload.partialResults,
-        ...(payload.searchRef !== undefined
-          ? { searchRef: payload.searchRef }
-          : {}),
-      }
-    : {
-        ...common,
-        completed: false,
-        searchRef: payload.searchRef,
-        ...(payload.partialResults !== undefined
-          ? { partialResults: payload.partialResults }
-          : {}),
-        ...(payload.progress !== undefined
-          ? { progress: payload.progress }
-          : {}),
-      };
 }
 
 function projectStatusResultPayload(
   payload: UnifiedSearchStatusResultPresentation,
 ): UnifiedSearchStatusResultPayload {
   return {
-    partialResults: payload.partialResults,
-    hasMore: payload.hasMore,
+    ...payload,
     results: payload.results.map(projectHitPayload),
-    ...(payload.query !== undefined ? { query: payload.query } : {}),
-    ...(payload.warnings !== undefined ? { warnings: payload.warnings } : {}),
-    ...(payload.sources !== undefined ? { sources: payload.sources } : {}),
-    ...(payload.nextOffset !== undefined
-      ? { nextOffset: payload.nextOffset }
-      : {}),
-    ...(payload.sourceStatus !== undefined
-      ? { sourceStatus: payload.sourceStatus }
-      : {}),
-    ...(payload.evidenceNotice !== undefined
-      ? { evidenceNotice: payload.evidenceNotice }
-      : {}),
   };
 }
 
@@ -403,23 +359,13 @@ export function projectUnifiedSearchStatusPayload(
 ): UnifiedSearchStatusCompletedPayload | UnifiedSearchStatusIncompletePayload {
   return payload.completed
     ? {
-        completed: true,
+        ...payload,
         result: projectStatusResultPayload(payload.result),
-        ...(payload.searchRef !== undefined
-          ? { searchRef: payload.searchRef }
-          : {}),
       }
     : {
-        completed: false,
-        searchRef: payload.searchRef,
+        ...payload,
         ...(payload.result !== undefined
           ? { result: projectStatusResultPayload(payload.result) }
-          : {}),
-        ...(payload.progress !== undefined
-          ? { progress: payload.progress }
-          : {}),
-        ...(payload.warnings !== undefined
-          ? { warnings: payload.warnings }
           : {}),
       };
 }
