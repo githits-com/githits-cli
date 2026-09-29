@@ -890,7 +890,16 @@ CLI have no local display cap. The deprecated `githits docs read` command keeps
 its legacy `getDocPage` root and is documented separately in
 `cli-commands.md`.
 
-The required backend `contentRange` supplies `startLine`, `endLine`, `totalLines`, and resolved `anchor`. `page.content` is already the selected body, so the client never reapplies absolute bounds. Local MCP truncation slices only the returned prefix from `contentRange.startLine`, reports the actual displayed absolute range, and points continuation at the stable `pageId`; it stops at the backend selection end so continuing a section cannot leak into the next section. `totalLines` is the whole stored page extent and counts newline splits, including a trailing empty line. Empty pages report `totalLines: 0` with absent output bounds. `anchor` is present only for a resolved indexed section.
+The required backend `contentRange` supplies `startLine`, `endLine`, `totalLines`,
+and resolved `anchor`. `page.content` is already the selected body, so the client
+never reapplies absolute bounds. Local MCP truncation slices the returned prefix
+and reports the displayed absolute range. Its concrete continuation retains the
+served target/path, clears the selector, and selects the whole remaining range
+through `contentRange.endLine`; the next response applies its own cap. Retaining
+that end across retries covers the entire section without entering the next one.
+`totalLines` counts the whole stored page, including a trailing empty line. Empty
+pages report `totalLines: 0` with absent bounds. `anchor` is present only for a
+resolved indexed section.
 
 `read` passes the docs `target` string through unchanged, whether it
 is an emitted HTTP(S) `docsReadTarget` or a historical page ID. Successful JSON

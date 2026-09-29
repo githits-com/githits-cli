@@ -34,8 +34,8 @@ export function formatReadResult(
     response.source !== "docs" && request.selector === undefined && hash >= 0
       ? request.target.slice(hash + 1)
       : undefined;
-  // Follow-up searches and exact-file continuations address the base target.
-  // The original fragment remains in the read request and returned payload.
+  // Symbol-search recovery addresses the requested base target. Concrete read
+  // continuations below use the served descriptor; the request stays unchanged.
   const followUpTarget =
     codeFragment === undefined ? request.target : request.target.slice(0, hash);
   if (response.source === "symbol_resolution") {
@@ -90,7 +90,7 @@ export function formatReadResult(
           : "More matches exist; narrow with an exact path.",
       );
     if (action) lines.push(action);
-    return lines.join("\n") + "\n";
+    return `${lines.join("\n")}\n`;
   }
   if (response.source === "code") {
     const requested = response.result.targetResolution?.requested;
@@ -121,7 +121,6 @@ export function formatReadResult(
           response.result.readTarget,
           payload.endLine + 1,
           returnedEndLine,
-          maxLines,
         );
       }
     }
@@ -155,7 +154,6 @@ export function formatReadResult(
       response.result.readTarget,
       payload.endLine + 1,
       response.result.contentRange.endLine,
-      maxOutputLines,
     );
   }
   if (format === "mcp-json" || format === "cli-json")

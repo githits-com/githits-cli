@@ -623,7 +623,7 @@ describe("createCodeReadTool — span cap", () => {
     expect(payload.hint).toContain("explicit-range ceiling: 300 lines");
     expect(payload.hint).toContain("you requested lines 1-600");
     // Concrete next-call suggestion removes the math-on-the-agent.
-    expect(payload.hint).toContain("retry with start_line=301");
+    expect(payload.hint).toContain("retry with start_line=301 end_line=600.");
     expect(payload.hint).toContain("read only the lines needed");
     expect(payload.hint).toContain("retry also costs context");
   });
@@ -645,6 +645,32 @@ describe("createCodeReadTool — span cap", () => {
     const payload = parseText(result) as { hint?: string };
     expect(payload.hint).toContain("default span: 150 lines");
     expect(payload.hint).toContain("you requested no range");
+    expect(payload.hint).toContain("To continue, retry with start_line=151.");
+  });
+
+  it("clamps a retained explicit retry endpoint to the actual file extent", async () => {
+    const tool = createCodeReadTool(
+      createMockCodeNavigationService({
+        readFile: wideFileMock({
+          startLine: 200,
+          endLine: 499,
+          totalLines: 900,
+        }),
+      }),
+    );
+    const result = await tool.handler(
+      {
+        target: "npm:express",
+        path: "src/index.js",
+        start_line: 200,
+        end_line: 2000,
+        format: "json",
+      },
+      {},
+    );
+    expect((parseText(result) as { hint?: string }).hint).toContain(
+      "To continue, retry with start_line=500 end_line=900.",
+    );
   });
 
   it("does not emit hint when range is within the cap", async () => {

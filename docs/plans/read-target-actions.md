@@ -210,3 +210,48 @@ remains at the applicable release boundary, as approved; review and update those
 two passages when the backing behavior is released or included in release
 preparation. The `githits-package` skill/reference scan found no corresponding
 action-selection claim. Report: `/tmp/read-target-phase4-preflight.md`.
+
+## Internal continuation finding closure
+
+Root internal review found a medium correctness bug under ordinary selections
+larger than a display cap: a selected symbol at 700-1100 emitted 850-999 after
+showing 700-849. Replaying that exact-file action completed without a hint and
+silently omitted 1000-1100. Headings shared the display narrowing; longer code
+replays also lost the selected end in generic exact-file cap retry guidance.
+
+MCP presentation owns the remaining returned selection; the existing exact-file
+request cap owns the explicit requested end. Ownership is correct at both seams.
+The bounded fix retains returnedEndLine in the concrete action and originalEnd
+(clamped to totalLines) in an explicit generic retry. Response caps still apply
+per call, and default unbounded-file guidance stays start-only. No new state,
+field, token, parser, fallback, extra fetch, caller constraint or infrastructure.
+
+The sibling scan covered code text/JSON, docs capped text versus uncapped JSON,
+selector/fragment clearing, default150/explicit300, EOF and old optional-end DTOs.
+The docs paragraph still mentioning pageId continuation was corrected to describe
+the existing served action identity and whole remaining range. CLI retains its
+full selected output. Search action caps and unrelated legacy roots are untouched.
+
+Actual createReadTool replay tests use source-aware async service mocks that no
+longer know a symbol/heading's endpoint once selector/fragment is cleared. The ten
+cases assert monotonic nonoverlapping displayed ranges, every selected line once,
+no content beyond selection, served identity/path, cleared selector, one backend
+call per step, caps and final hint absence. The baseline had nine failures; after
+only the display fix, three code cases still failed at generic retries. Both
+seams corrected: `bun test packages/mcp/src/tools/read.test.ts
+packages/mcp/src/tools/read-file.test.ts
+packages/mcp/src/shared/read-result-response.test.ts
+packages/mcp/src/tools/read-package-doc.test.ts` passes 119 tests, 797 assertions.
+Logs: `/tmp/read-target-phase4-continuation-{red,intermediate,focused}.log`.
+Typecheck and six-file Biome check pass. Build, authenticated dev MCP smoke and
+existing emitted-action replay evidence are recorded in the updated review packet.
+No new delegation/preflight/reviewer was added; dispatch accounting stays nine.
+Root owns internal closure verification and the fresh Claude round. The two
+isolated qualitative evals remain pending trusted dev provisioning.
+
+Closure live evidence: cleaned-env dev `bun run smoke:mcp` passed stable and
+experimental live coverage, exit0 without auth skips. The existing three emitted
+client-action replays passed (ordinary code36-51, symbol43-51, hosted docs503-508),
+metadata only. Logs: `/tmp/read-target-phase4-continuation-smoke-mcp.log` and
+`/tmp/read-target-phase4-continuation-client-replay.jsonl`. These supplement the
+deterministic multi-window handler proof; no qualitative score is claimed.

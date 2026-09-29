@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import type { ReadResult } from "@githits/core-internal";
+import type { ReadParams, ReadResult } from "@githits/core-internal";
 import {
   CodeNavigationIndexingError,
   PackageIntelligenceTargetNotFoundError,
@@ -419,5 +419,241 @@ describe("unified read contract", () => {
     expect(result.isError).toBeUndefined();
     expect(JSON.parse(result.content[0]!.text)).toHaveProperty("pageId");
     expect(services.readService.read).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("selected read continuation replay", () => {
+  interface ReplayCase {
+    name: string;
+    source: "code" | "docs";
+    format: "text" | "json";
+    end: number;
+    total: number;
+    explicitEnd?: boolean;
+    fragment?: boolean;
+    omitEnd?: boolean;
+  }
+
+  const cases: ReplayCase[] = [
+    {
+      name: "default symbol JSON",
+      source: "code",
+      format: "json",
+      end: 1100,
+      total: 2000,
+    },
+    {
+      name: "default symbol fragment text",
+      source: "code",
+      format: "text",
+      end: 1100,
+      total: 2000,
+      fragment: true,
+    },
+    {
+      name: "multiple explicit symbol caps JSON",
+      source: "code",
+      format: "json",
+      end: 1700,
+      total: 2000,
+      explicitEnd: true,
+    },
+    {
+      name: "multiple explicit symbol caps text",
+      source: "code",
+      format: "text",
+      end: 1700,
+      total: 2000,
+      explicitEnd: true,
+    },
+    {
+      name: "symbol EOF",
+      source: "code",
+      format: "json",
+      end: 1700,
+      total: 1700,
+    },
+    {
+      name: "old optional-end code DTO",
+      source: "code",
+      format: "json",
+      end: 1100,
+      total: 2000,
+      omitEnd: true,
+    },
+    {
+      name: "hosted heading fragment text",
+      source: "docs",
+      format: "text",
+      end: 1700,
+      total: 2000,
+      fragment: true,
+    },
+    {
+      name: "multiple explicit heading caps",
+      source: "docs",
+      format: "text",
+      end: 1700,
+      total: 2000,
+      explicitEnd: true,
+    },
+    {
+      name: "heading EOF",
+      source: "docs",
+      format: "text",
+      end: 1700,
+      total: 1700,
+    },
+    {
+      name: "uncapped heading JSON",
+      source: "docs",
+      format: "json",
+      end: 1700,
+      total: 2000,
+    },
+  ];
+
+  it.each(cases)("replays every selected line for $name", async (item) => {
+    const servedTarget =
+      item.source === "code"
+        ? "github:owner/repo@served-sha"
+        : "https://docs.test/served?x=%25";
+    const servedPath = item.source === "code" ? "root/exact.ts" : undefined;
+    const read = mock(async (params: ReadParams): Promise<ReadResult> => {
+      // An exact range replay has no knowledge of the original symbol/heading.
+      const selecting =
+        params.selector !== undefined || params.target.includes("#");
+      const startLine = params.startLine ?? (selecting ? 700 : 1);
+      const endLine = Math.min(
+        params.endLine ?? (selecting ? item.end : item.total),
+        item.total,
+      );
+      const content = Array.from(
+        { length: endLine - startLine + 1 },
+        (_, i) => `line ${startLine + i}`,
+      ).join("\n");
+      const readTarget = {
+        target: servedTarget,
+        ...(servedPath === undefined ? {} : { path: servedPath }),
+        ...(selecting ? { selector: "logical selection" } : {}),
+        startLine,
+        endLine,
+      };
+      return item.source === "code"
+        ? {
+            source: "code",
+            result: {
+              filePath: "display.ts",
+              startLine,
+              ...(item.omitEnd ? {} : { endLine }),
+              totalLines: item.total,
+              content: `${content}\n`,
+              readTarget,
+            },
+          }
+        : {
+            source: "docs",
+            result: {
+              readTarget,
+              contentRange: { startLine, endLine, totalLines: item.total },
+              page: {
+                id: "stored-page",
+                docsReadTarget: servedTarget,
+                content,
+              },
+            },
+          };
+    });
+    const tool = createReadTool({
+      readService: createMockReadService({ read }),
+    });
+    const requestedTarget =
+      item.source === "code"
+        ? "github:owner/repo@main"
+        : "https://docs.test/requested";
+    let args: ReadArgs = {
+      target: requestedTarget + (item.fragment ? "#logical" : ""),
+      ...(item.fragment ? {} : { selector: "logical selection" }),
+      ...(item.explicitEnd ? { start_line: 700, end_line: item.end } : {}),
+      format: item.format,
+    };
+    const observed: number[] = [];
+    let nextLine = 700;
+    let steps = 0;
+    while (nextLine <= item.end) {
+      const response = await tool.handler(args);
+      expect(response.isError).toBeUndefined();
+      expect(read).toHaveBeenCalledTimes(++steps);
+      if (steps > 1) {
+        const replayed = read.mock.calls.at(-1)![0];
+        expect(replayed.target).toBe(servedTarget);
+        expect(replayed.path).toBe(servedPath);
+        expect(replayed).not.toHaveProperty("selector");
+        if (item.source === "code")
+          expect(
+            replayed.endLine! - replayed.startLine! + 1,
+          ).toBeLessThanOrEqual(300);
+      }
+      const text = response.content[0]!.text;
+      const payload = item.format === "json" ? JSON.parse(text) : undefined;
+      const body: string = payload ? payload.content : text;
+      const displayed = [
+        ...body.matchAll(/(?:^|\n)(?:\s*\d+\s+)?line (\d+)(?=\n|$)/g),
+      ].map((match) => Number(match[1]));
+      expect(displayed.length).toBeGreaterThan(0);
+      expect(displayed).toEqual(
+        Array.from({ length: displayed.length }, (_, i) => nextLine + i),
+      );
+      expect(displayed.at(-1)).toBeLessThanOrEqual(item.end);
+      if (!(item.source === "docs" && item.format === "json"))
+        expect(displayed.length).toBeLessThanOrEqual(
+          args.end_line === undefined ? 150 : 300,
+        );
+      if (payload) expect(payload).not.toHaveProperty("readTarget");
+      observed.push(...displayed);
+      nextLine = displayed.at(-1)! + 1;
+      const hint: string | undefined = payload
+        ? payload.hint
+        : text.match(/^hint: (.*)$/m)?.[1];
+      if (nextLine > item.end) {
+        expect(hint).toBeUndefined();
+        break;
+      }
+      expect(hint).toBeDefined();
+      const range = hint!.match(/start_line=(\d+)(?: end_line=(\d+))?/);
+      expect(Number(range?.[1])).toBe(nextLine);
+      expect(Number(range?.[2])).toBe(item.end);
+      if (hint!.startsWith("Continue with")) {
+        const identity = hint!.match(
+          /target=("(?:\\.|[^"\\])*")(?: path=("(?:\\.|[^"\\])*"))?/,
+        );
+        expect(JSON.parse(identity![1]!)).toBe(servedTarget);
+        expect(
+          identity?.[2] === undefined ? undefined : JSON.parse(identity[2]),
+        ).toBe(servedPath);
+        expect(hint).not.toContain("selector=");
+        expect(hint).not.toContain("#logical");
+      } else {
+        expect(hint).toContain("To continue, retry with");
+        expect(args.target).toBe(servedTarget);
+        expect(args.path).toBe(servedPath);
+      }
+      args = {
+        target: servedTarget,
+        ...(servedPath === undefined ? {} : { path: servedPath }),
+        start_line: Number(range![1]),
+        end_line: Number(range![2]),
+        format: item.format,
+      };
+      expect(args).not.toHaveProperty("selector");
+      expect(read.mock.calls.at(-1)![0].target).toBe(
+        steps === 1
+          ? requestedTarget + (item.fragment ? "#logical" : "")
+          : servedTarget,
+      );
+    }
+    expect(observed).toEqual(
+      Array.from({ length: item.end - 699 }, (_, i) => 700 + i),
+    );
   });
 });

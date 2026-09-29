@@ -176,12 +176,16 @@ extra body hydration is made.
   same read locator. No client retry loop.
 
 Display-cap continuations retain the served `target`/`path`, clear `selector`,
-and replace bounds with the remaining absolute window inside the returned
-selection. Symbol/heading continuations cannot exceed that selection. Code
+and select the whole remaining returned range from the next line through the
+returned selection endpoint. The next request/display cap limits its response;
+the action's end is never narrowed to just that next capped window.
+Symbol/heading continuations cannot exceed that selection. Code
 providers with no `endLine` use the existing returned-content line splitter to
 establish its endpoint before truncation, including trailing-newline handling.
-Exact-file fetch caps retain their generic retry guidance and reported file
-extent. Empty/binary reads produce no fabricated action or zero bounds. All
+Exact-file fetch caps retain generic retry guidance and reported file extent.
+For an explicit selection, each retry preserves its end, clamped to actual EOF;
+unbounded file retries keep their existing start-only guidance. Empty/binary
+reads produce no fabricated action or zero bounds. All
 compact reads remain one backend call; no broader read is added for a hint.
 CLI text/JSON keeps full selected content; MCP code caps apply to text/JSON,
 whereas MCP docs caps apply only to text.

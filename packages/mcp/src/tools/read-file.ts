@@ -177,7 +177,7 @@ function isTextFormat(format: ReadFileArgs["format"]): boolean {
 function shouldEmitCappedHint(
   bounded: BoundedRange,
   payload: LeanReadFileEnvelope,
-): boolean {
+): payload is LeanReadFileEnvelope & { endLine: number; totalLines: number } {
   if (!bounded.capped) return false;
   if (payload.isBinary) return false;
   if (payload.endLine === undefined) return false;
@@ -186,19 +186,19 @@ function shouldEmitCappedHint(
 }
 
 function buildCappedHint(
-  payload: LeanReadFileEnvelope,
+  payload: LeanReadFileEnvelope & { endLine: number; totalLines: number },
   originalStart: number | undefined,
   originalEnd: number | undefined,
   spanLimit: number,
 ): string {
   const requested = describeRequest(originalStart, originalEnd);
-  // Suppress the bare end-line if `endLine` is missing — exhaustive
-  // suppression already happens upstream in `shouldEmitCappedHint`,
-  // but we read `endLine` defensively here.
-  const continuation =
-    payload.endLine !== undefined
-      ? ` To continue, retry with start_line=${payload.endLine + 1}.`
-      : "";
+  // The cap-hint guard requires totalLines. Preserve an explicit selection end
+  // across retries, limited to the actual file extent; unbounded reads stay open.
+  const endArgument =
+    originalEnd === undefined
+      ? ""
+      : ` end_line=${Math.min(originalEnd, payload.totalLines)}`;
+  const continuation = ` To continue, retry with start_line=${payload.endLine + 1}${endArgument}.`;
   return (
     `Returned lines ${payload.startLine}-${payload.endLine}/${payload.totalLines} ` +
     `(${originalEnd === undefined ? "default span" : "explicit-range ceiling"}: ${spanLimit} lines; you requested ${requested}).` +

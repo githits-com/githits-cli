@@ -29,19 +29,18 @@ export function capSearchReadTarget(
   };
 }
 
-/** Continue an already-served selection without reapplying its selector. */
+/** Preserve the remaining served selection; the next response applies its cap. */
 export function buildReadContinuationHint(
   action: ReadTarget | null | undefined,
   nextStartLine: number,
   returnedEndLine: number,
-  maxLines: number,
 ): string {
   if (!action) return "Continuation unavailable: missing read target.";
   const continuation: ReadTarget = {
     target: action.target,
     ...(action.path !== undefined ? { path: action.path } : {}),
     startLine: nextStartLine,
-    endLine: Math.min(returnedEndLine, nextStartLine + maxLines - 1),
+    endLine: returnedEndLine,
   };
   return `Continue with ${renderReadTarget(continuation)}.`;
 }

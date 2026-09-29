@@ -187,7 +187,7 @@ describe("served read action cap matrix", () => {
       expect(payload.content.split("\n")).toHaveLength(limit);
       expect(payload.endLine).toBe(699 + limit);
       expect(payload.hint).toBe(
-        `Continue with read target="github:owner/repo@served-sha" path="exact.ts" start_line=${700 + limit} end_line=${Math.min(1100, 699 + 2 * limit)}.`,
+        `Continue with read target="github:owner/repo@served-sha" path="exact.ts" start_line=${700 + limit} end_line=1100.`,
       );
       expect(payload.hint).not.toContain("selector");
       for (const format of ["cli-json", "cli-text"] as const)
@@ -228,7 +228,7 @@ describe("served read action cap matrix", () => {
       const limit = endLine === undefined ? 150 : 300;
       const text = formatReadResult(response, request, "mcp-text");
       expect(text).toContain(
-        `Continue with read target="https://docs.test/served?x=%25" path="/exact/page" start_line=${700 + limit} end_line=${Math.min(1100, 699 + 2 * limit)}.`,
+        `Continue with read target="https://docs.test/served?x=%25" path="/exact/page" start_line=${700 + limit} end_line=1100.`,
       );
       expect(text).not.toContain(`line ${700 + limit}`);
       for (const format of ["mcp-json", "cli-json"] as const) {
@@ -253,7 +253,7 @@ describe("served read action cap matrix", () => {
         filePath: "display.ts",
         startLine: 700,
         totalLines: 2000,
-        content: content + "\n",
+        content: `${content}\n`,
       },
     };
     const payload = JSON.parse(
@@ -264,7 +264,7 @@ describe("served read action cap matrix", () => {
       ),
     );
     expect(payload.hint).toBe(
-      'Continue with read target="github:owner/repo@served-sha" path="exact.ts" start_line=850 end_line=999.',
+      'Continue with read target="github:owner/repo@served-sha" path="exact.ts" start_line=850 end_line=1100.',
     );
     expect(payload.content.split("\n")).toHaveLength(150);
   });
