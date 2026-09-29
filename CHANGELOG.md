@@ -5,6 +5,47 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.24.0] - 2026-09-29
+
+Minor release: adds unified CLI grep and improves exact read follow-ups across
+search, listing, and research results.
+
+### Added
+
+- **Unified grep CLI** - Add `githits grep` across ordered package, repository and hosted documentation targets, defaulting to regex, case-sensitive matching and zero context, with `-F`, `-i`, rg-style `-s`, exact read actions and explicit partial coverage, including retained unvisited scopes and cursor continuation. Legacy CLI `code grep` and MCP `code_grep` remain available pending the MCP migration.
+
+### Changed
+
+- **Claude plugin metadata** - Add the GitHits display name, publisher contact email, and publisher website to the generated Claude plugin manifest.
+- **Backend-owned read actions** - Search/status and docs lists emit canonical read commands using backend-selected targets, paths, selectors and bounds, preserving producer attribution and existing JSON shapes and caps. CLI commands safely handle dash-leading filenames; capped MCP continuations retain the whole remaining selection and served revision. Additive SDK metadata preserves custom-provider compatibility, and agent guidance tells callers to replay complete actions. Production descriptor support gates publication; the stable MCP guide and exact public skill copy ship in this release.
+- **Grouped grep output** - Group unified CLI grep matches by file or page with aligned line numbers, native match highlighting and numbered copyable file/page locators and one source summary. Remove repeated rows, read footers and routine status scaffolding while retaining coverage warnings, every distinct evidence window and lossless JSON.
+- **Compact search results** - Omit repeated per-hit read commands from CLI and MCP search text; headers remain usable for reads and JSON retains exact follow-up actions.
+
+### Fixed
+
+- **Research source parsing** - Accept unified `read` sources with optional selectors and line bounds, preserving exact targets and paths in CLI and MCP output. Requires the matching Research API response contract; legacy source commands are rejected.
+- **Site directory paths** - Fix CLI list text losing the first directory component or printing repeated `/` entries, and keep descendant-site headers compatible with emitted relative paths. Correct CLI and MCP read-path guidance while preserving exact read/browse actions.
+
+Hosted clients receive MCP changes after `@githits/mcp@0.24.0` adoption and
+deployment by `remote-mcp`.
+
+## [@githits/mcp 0.24.0] - 2026-09-29
+
+Coordinated release: improves exact read follow-ups and compact search text.
+
+### Changed
+
+- **Backend-owned read actions** - MCP search/status and docs lists emit backend-selected read targets, paths, selectors and bounds. Capped continuations retain the whole remaining selection and served revision; JSON shapes and caps remain stable. Additive SDK metadata preserves custom-provider compatibility, and the stable MCP guide tells agents to replay complete actions. Production descriptor support gates publication.
+- **Compact search results** - Omit repeated per-hit read commands from MCP search text; headers remain usable for reads and JSON retains exact follow-up actions.
+
+### Fixed
+
+- **Research source parsing** - Accept unified `read` sources with optional selectors and line bounds, preserving exact targets and paths in MCP output. Requires the matching Research API response contract; legacy source commands are rejected.
+- **Site directory paths** - Correct MCP read-path guidance for descendant sites while preserving exact read/browse actions.
+
+Hosted clients receive these changes after adoption and deployment by
+`remote-mcp`.
+
 ## [githits 0.23.0] - 2026-09-28
 
 Minor release: adds unified CLI inventories and site-page reads, adopts v31
