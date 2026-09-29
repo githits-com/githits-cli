@@ -346,17 +346,6 @@ function formatReadRecipe(
     return `read target=${JSON.stringify(action.target)}${action.path !== null ? ' path="<read-path>"' : ""} start_line=<start> end_line=<end>`;
   return `githits read --lines '<start>-<end>' -- ${shellQuoteExact(action.target)}${action.path !== null ? " '<read-path>'" : ""}`;
 }
-/** Replay the backend action verbatim, using the caller's argument syntax. */
-export function formatReadAction(
-  action: GrepReadAction,
-  syntax: "cli" | "mcp",
-): string {
-  if (syntax === "mcp")
-    return `read target=${JSON.stringify(action.target)}${action.path !== null ? ` path=${JSON.stringify(action.path)}` : ""} start_line=${action.startLine} end_line=${action.endLine}`;
-  if (action.target.startsWith("-") || action.path?.startsWith("-"))
-    return `githits read --lines ${action.startLine}-${action.endLine} -- ${shellQuoteExact(action.target)}${action.path !== null ? ` ${shellQuoteExact(action.path)}` : ""}`;
-  return `githits read ${shellQuoteExact(action.target)}${action.path !== null ? ` ${shellQuoteExact(action.path)}` : ""} --lines ${action.startLine}-${action.endLine}`;
-}
 function escapeText(value: string): string {
   return escapeControls(value.replace(/\\/g, "\\\\"));
 }

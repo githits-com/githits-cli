@@ -5,7 +5,7 @@ import type {
   GrepTargetStatus,
 } from "@githits/core-internal";
 import { projectGrepResult } from "./grep-response.js";
-import { formatGrepText, formatReadAction } from "./grep-text.js";
+import { formatGrepText } from "./grep-text.js";
 
 const slice = {
   content: "router",
@@ -351,13 +351,21 @@ describe("unified grep result and text", () => {
     expect(output).not.toContain("\x1b");
     expect(output.replace(/\s+/g, " ")).toContain("Long words should");
     expect(
-      formatReadAction({ ...hit.read, target: "github:o/r@abc\n" }, "cli"),
+      formatGrepText(
+        result({
+          hits: [{ ...hit, read: { ...hit.read, target: "github:o/r@abc\n" } }],
+        }),
+      ),
     ).toContain("\\x0a");
-    expect(formatReadAction(hit.read, "mcp")).toContain(
-      'path="packages/x/lib/a.ts"',
+    expect(formatGrepText(result(), { syntax: "mcp" })).toContain(
+      'path="<read-path>" start_line=<start> end_line=<end>',
     );
-    expect(formatReadAction({ ...hit.read, path: "-README.md" }, "cli")).toBe(
-      "githits read --lines 2-2 -- 'github:o/r@abc' '-README.md'",
+    const leadingDash = formatGrepText(
+      result({ hits: [{ ...hit, read: { ...hit.read, path: "-README.md" } }] }),
+    );
+    expect(leadingDash).toContain("Read path: -README.md");
+    expect(leadingDash).toContain(
+      "githits read --lines '<start>-<end>' -- 'github:o/r@abc' '<read-path>'",
     );
   });
 });
