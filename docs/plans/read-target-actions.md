@@ -182,7 +182,31 @@ Its two stale-guidance findings were inspected: the remaining tools.md paragraph
 about omitted actions, fragment promotion and page-ID fallback was fixed in place.
 The plan status now records implemented/review-pending; branch and starting-base
 metadata remain a dated verification record rather than a claim about future HEAD.
-The MCP quick-start wording finding was escalated to root because the governing
-phase explicitly excludes instruction changes and public Agent Skill adoption
-follows its release lifecycle; no guide/parity asset change was made pending that
-scope decision. Report: `/tmp/read-target-phase4-preflight.md`.
+The MCP quick-start wording finding was escalated to root. Root corrected the
+phase's exclusion assumption: the stable MCP guide has a same-PR exact-parity
+exception in `docs/implementation/release-process.md` (Public Agent Skill
+lifecycle). The builder and its public `githits-mcp` copy now say to replay
+generated actions unchanged, including supplied selector/bounds; hosted docs
+retain mutable provenance and direct fragment reads retain subtree semantics.
+This accepts the bounded main-to-release window and ships with the next
+applicable `githits` and `@githits/mcp` artifacts. No wider guide redesign or
+descriptor exposure is included. Root declared this wording-only preflight clean
+once applied; no second preflight is required.
+
+The bounded correction passed `bun run plugins:generate` (10 assets; no generated
+diff), `bun run plugins:check` (10 validated), and
+`bun test packages/mcp/src/mcp/instructions.test.ts src/skills-packaging.test.ts`
+(23 pass, 316 assertions, including exact guide parity). Biome checked the two
+instruction TypeScript files without changes; build and external packed-package
+validation passed again. Required dev source CLI/MCP smoke rechecks passed after
+the correction (stable and experimental live coverage, no auth skip); logs are
+`/tmp/read-target-phase4-guide-smoke-cli.log` and
+`/tmp/read-target-phase4-guide-smoke-mcp.log`. The two isolated qualitative evals
+remain pending trusted provisioning.
+
+The public `githits-code` skill and `references/code-and-docs.md` still describe
+the previous automatic hosted-doc follow-up spelling. Their broader promotion
+remains at the applicable release boundary, as approved; review and update those
+two passages when the backing behavior is released or included in release
+preparation. The `githits-package` skill/reference scan found no corresponding
+action-selection claim. Report: `/tmp/read-target-phase4-preflight.md`.

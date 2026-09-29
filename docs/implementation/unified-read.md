@@ -260,14 +260,16 @@ requires the full selected schema on authenticated production and any configured
 client API endpoint. Old clients remain compatible with additive backend fields;
 rollback is the prior client package, with fields retained and no runtime schema
 fallback. Hosted adoption still requires its own MCP dependency update and deploy.
-Public CLI/package skills must describe this behavior only in its release branch
-or after release; their delayed update belongs to release preparation.
+Broader public CLI/package skill promotion remains at the applicable release
+boundary; the stable MCP guide has the bounded same-PR exception below.
 
 ## Public skill release follow-through
 
-The stable MCP quick-start and embedded `skills/githits-mcp/SKILL.md` guide remain
-release-synchronized under the exact-parity exception. Other public skills are
-served from main before npm release and must follow their release-boundary policy.
+The stable MCP quick-start builder and embedded `skills/githits-mcp/SKILL.md` copy
+change together with the backing behavior in this PR under the explicit
+exact-parity exception. This accepts a bounded main-to-release window and ships
+with the next applicable CLI/MCP artifacts. Other public skills retain their
+release-boundary policy because main can serve them before npm release.
 The 0.22.0 release branch updated `skills/githits-code/SKILL.md` and its
 reference to prefer `githits read`, show selector reads, and retain legacy
 commands only as compatibility guidance. The root 0.22.1 release branch adds
