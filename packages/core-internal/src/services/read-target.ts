@@ -51,15 +51,16 @@ function normaliseReadTarget(
 }
 
 /** Parse a full descriptor or target-only/path projection. */
-export const readTargetSchema =
+export const readTargetSchema: z.ZodType<ReadTarget> =
   readTargetInputSchema.transform(normaliseReadTarget);
 
 /** Validate the complete nullable shape returned by a full field selection. */
-export const selectedReadTargetSchema = readTargetInputSchema
-  .safeExtend({
-    path: z.string().nullable(),
-    selector: z.string().nullable(),
-    startLine: positiveLineSchema.nullable(),
-    endLine: positiveLineSchema.nullable(),
-  })
-  .transform(normaliseReadTarget);
+export const selectedReadTargetSchema: z.ZodType<ReadTarget> =
+  readTargetInputSchema
+    .safeExtend({
+      path: z.string().nullable(),
+      selector: z.string().nullable(),
+      startLine: positiveLineSchema.nullable(),
+      endLine: positiveLineSchema.nullable(),
+    })
+    .transform(normaliseReadTarget);

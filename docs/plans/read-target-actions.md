@@ -1,8 +1,9 @@
 # Phase 4: backend-owned read actions
 
 Status: implementation complete; final review and live repository/site verification
-passed. Draft PR delivery authorized by the user on 2026-09-29. Main integration
-verification passed; CI results will be recorded on the PR.
+passed. Draft PR [#434](https://github.com/githits-com/githits-cli/pull/434) opened
+on 2026-09-29. Main integration and local CI-closure verification passed;
+updated GitHub checks run on the closure commit.
 
 Branch: `jlitola/unified-read-target-clients`.
 Original implementation base: `1739290b03ebcb8dee920f536c30f9ac1e0145e8`.
@@ -127,11 +128,49 @@ conflict markers or incompatible SDK imports.
 
 The nine affected Research/list/read/skills/release-boundary test files passed
 357 tests and 1,552 assertions. Typecheck, root build, MCP package build and
-external packed-package validation passed on the integrated tree. A fresh cleaned-env
+external packed-package validation passed on the integrated tree. The local MCP
+build emitted TS9010 warnings despite returning success; the later CI-mode
+reproduction and fix are recorded below. A fresh cleaned-env
 dev probe exercised both MCP and CLI Research; every returned canonical source
 replayed through its native read interface and contained the cited Route code.
 Logs: `/tmp/read-target-pr-integration-{tests,typecheck,build,mcp-build,packages}.log`
 and `/tmp/read-target-pr-live-integration.jsonl`.
+
+## PR CI closure
+
+Initial PR CI at ae7ec93 exposed two declaration-generation TS9010 errors and
+four stale assertions in sibling tests. `CI=true bun run build` in packages/mcp
+reproduced the declaration failure. Explicit `z.ZodType<ReadTarget>` annotations
+on both exported schemas fix declaration emission without changing runtime parsing
+or output types; inferred input remains unknown and is validated at runtime.
+The provider parity fixtures now supply backend descriptors with a contradictory
+locator SHA, proving that actions retain backend ownership. The catalog assertion
+checks the reviewed complete-action wording.
+
+- `CI=true bun run build` in packages/mcp: failed before the annotations, passed
+  after them without TS9010 diagnostics. `CI=true bun run build` at root passed.
+- `bun run typecheck`: passed without diagnostics.
+- Five affected core parser/service test files: 273 tests / 1,227 assertions.
+- `bun test src/tools/repository-target-parity.test.ts
+  packages/mcp/src/mcp/server.test.ts`: four failing cases before correction;
+  32 tests / 434 assertions passed after correction and the explicit MCP locator-SHA
+  rejection assertion.
+- Full `bun test`: 5,210 passed, zero failed, 19,370 assertions across 225 files.
+- `bun run validate:packages:mcp-publish`: external package validation passed;
+  npm publish dry-run was skipped because @githits/mcp 0.23.0 already exists.
+  No package was published.
+- The internal CI-closure code review found no findings in the exact three-file
+  delta. Claude CI-closure round 1 accepted the fixes and identified a Biome line-wrap
+  mismatch and a missing explicit MCP locator-SHA rejection assertion. Both were
+  corrected; the complete three-file Biome check and 32 affected tests passed.
+  Claude CI-closure round 2 returned no findings; its required one-time fresh-context
+  check also found no findings. The reviewer remains retained through merge approval.
+
+Failure evidence: [MCP build](https://github.com/githits-com/githits-cli/actions/runs/36568191644/job/109405264216)
+and [unit suite](https://github.com/githits-com/githits-cli/actions/runs/36568192257/job/109405266622).
+Local closure logs: `/tmp/read-target-pr-ci-fixes-{full-tests,root-build,typecheck,packages-dry-run}.log`,
+`/tmp/read-target-pr-schema-build-{red,green}.log` and
+`/tmp/read-target-pr-stale-fixtures-{red,green}.log`.
 
 ## Remaining limits and delivery boundaries
 

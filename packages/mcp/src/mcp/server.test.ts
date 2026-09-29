@@ -84,7 +84,7 @@ const DESCRIPTION_ROUTING: Record<
       "Start here for open-ended",
       "`query` plus either `target` or `targets`",
       "`search_status`",
-      "`read`",
+      "complete emitted read action",
     ],
   },
   search_status: {

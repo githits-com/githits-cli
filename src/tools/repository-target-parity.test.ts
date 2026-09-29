@@ -167,22 +167,29 @@ describe("provider target consumer parity", () => {
       const hit = {
         type: "repository_code",
         target: compact,
+        readTarget: {
+          target: `${compact}@0123456789abcdef`,
+          path: "src/file.ts",
+          startLine: 2,
+          endLine: 5,
+        },
         locator: {
           repoUrl,
           gitRef: "main",
-          commitSha: "0123456789abcdef",
+          commitSha: "fedcba9876543210",
           filePath: "src/file.ts",
           repositoryFilePath: "src/file.ts",
           startLine: 2,
           endLine: 5,
         },
       };
-      expect(buildSearchHitFollowUpCommand(hit)).toContain(
-        `${compact}@0123456789abcdef`,
-      );
+      const mcp = buildSearchHitFollowUpCommand(hit);
+      expect(mcp).toContain(`${compact}@0123456789abcdef`);
+      expect(mcp).not.toContain("fedcba9876543210");
       const cli = buildSearchHitFollowUpCommand(hit, "cli");
-      expect(cli).toContain(repoUrl);
+      expect(cli).toContain(`${compact}@0123456789abcdef`);
       expect(cli).toContain("0123456789abcdef");
+      expect(cli).not.toContain("fedcba9876543210");
       expect(cli).not.toContain("--git-ref main");
     });
   }
