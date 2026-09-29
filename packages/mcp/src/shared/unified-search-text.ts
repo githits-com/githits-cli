@@ -16,7 +16,6 @@
  */
 
 import { colors, dim, highlight, highlightRanges } from "./colors.js";
-import { buildSearchHitFollowUpCommand } from "./follow-up-command-text.js";
 import {
   formatRepositoryTarget,
   parseRepositoryTargetSpec,
@@ -65,7 +64,7 @@ export function renderUnifiedSearchSuccess(
 export interface UnifiedSearchTextOptions {
   /** Apply terminal emphasis; false keeps the MCP/CLI wording plain. */
   useColors?: boolean;
-  /** Surface-native syntax for read and search continuation actions. */
+  /** Surface-native syntax for search continuation actions. */
   actionSyntax?: "mcp" | "cli";
   /** Full output width, including indentation. Defaults to 80 columns. */
   width?: number;
@@ -977,7 +976,6 @@ function appendHit(
 
   if (hit.type === "repository_code" || hit.type === "repository_doc") {
     appendStructuralEvidence(lines, hit, options);
-    lines.push(`  ${buildSearchHitFollowUpCommand(hit, options.actionSyntax)}`);
     return;
   }
   const preview =
@@ -996,7 +994,6 @@ function appendHit(
       ).map((line) => (line.length === 0 ? "" : `  ${line}`)),
     );
   }
-  lines.push(`  ${buildSearchHitFollowUpCommand(hit, options.actionSyntax)}`);
 }
 
 /** Render scope facts only alongside source-exact numbered lines. */

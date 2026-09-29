@@ -194,10 +194,9 @@ unknown/null evidence is never coerced to an empty list or inferred source proof
 
 CLI and MCP text render the same enclosing declarations, inclusive ranges, and
 literal numbered source lines. The header keeps producer target attribution,
-target-relative paths and matched source range,
-followed by exactly one unwrapped descriptor read action. There is no authority
-caption. CLI commands keep complete selected bounds; MCP commands keep current
-path-only action caps. Both carry an opaque selector separately when present.
+target-relative paths and matched source range. Per-hit read commands are omitted
+from both text surfaces. JSON retains the backend-selected read action; CLI and
+MCP use the same structured `followUp` syntax and cap policy.
 Hits with repository evidence but no matched source show a single `candidate`
 header with the backend's inspection window. For bare identifier queries, the
 header shows literal query fragments visible in contributing indexed fields;
@@ -399,16 +398,16 @@ MCP renders `Next: search_status search_ref=... wait_timeout_ms=...`; CLI render
 `Next: githits search-status ... --wait ...`. An active continuation reference
 appears exactly once, in that surface-native final `Next:` action; stopped terminal
 references are not rendered. Raw diagnostic fields are never rendered.
-Search-result follow-ups likewise use
-`read` in MCP and `githits read` in
-CLI. ANSI-stripped CLI output shares the same hierarchy and wording as no-color
-MCP text apart from those supplied command dialects; line breaks can differ
-because CLI uses the terminal width while MCP uses the 80-column default.
+Search results omit per-hit read commands from both text surfaces. ANSI-stripped
+CLI output shares the same hierarchy and wording as no-color MCP text; line
+breaks can differ because CLI uses the terminal width while MCP uses the
+80-column default.
 
 Documentation JSON retains `docsReadTarget`, compatible `pageId`, and provenance
-`sourceUrl`. Search/status text and generated follow-ups consume the backend
-`ReadTarget` directly; an absent descriptor reports unavailable guidance. Docs
-inventory maps target-only descriptors into its existing required `docsReadTarget`
+`sourceUrl`. Search/status JSON follow-ups consume the backend `ReadTarget`
+directly; an absent descriptor records unavailable guidance in JSON. Search
+text uses the page target in the header. Docs inventory maps target-only
+descriptors into its existing required `docsReadTarget`
 string. MCP and CLI preserve URL or ID bytes and separate selectors. Hosted
 HTTP(S) locators address mutable current content; repository locators remain
 snapshot-addressed.

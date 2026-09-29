@@ -778,32 +778,29 @@ available. Repository documentation retains its heading. JSON retains titles.
 ```
 [1] <producer-target> <path:preview-range> [repo doc] - <title>
   <evidence or summary, wrapped at output width>
-  read target="<served-target>" path="<exact-path>" start_line=N end_line=M
 [blank]
 [2] <page-target> [docs page] <package-attribution> - #<heading> - <title>
   <summary, when informative>
-  read target="<page-target>" selector="<heading>"
 ```
 
 Hit headers are numbered so ranked results can be referenced as `[1]` through
 `[N]`. Repository headers preserve producer package/repository attribution,
 target-relative file paths and preview/source ranges before the type tag
 (`[repo doc]`, `[repo code]`, or `[repo symbol]`). Their title is the final tail.
-These evidence facts do not select the read address: the separate native action
-carries the canonical target, exact path, selector and bounds selected by the
-backend. Replay that complete action unchanged for more context. The original
-`docsReadTarget`, page ID, repository commit and repository-root path remain
-provenance in JSON. `docsReadTarget` is accepted by unified read, not an exclusive
-instruction to use the deprecated docs reader.
+These header coordinates can be reused with unified read. The exact backend
+read action remains in JSON `followUp`, which may use a different repository
+address, root-relative path, selector, or range. The original `docsReadTarget`,
+page ID, repository commit and repository-root path remain provenance in JSON.
+`docsReadTarget` is accepted by unified read, not an exclusive instruction to
+use the deprecated docs reader.
 Hosted documentation headers show a page locator, package attribution, distinct
-heading/source provenance and title; the complete action selects the section. Source provenance uses
+heading/source provenance and title. Source provenance uses
 `host/path#anchor` without the protocol; when it is the target plus a fragment,
 only that distinct fragment is shown. It never chooses an action or promotes a
 fragment into its target. Exact duplicate locators are omitted. Unavailable
 fields retain explicit `documentation target unavailable`, `target unavailable`,
-`source URL unavailable`, or `title unavailable` values. One unwrapped native
-read action follows each hit and preserves the descriptor selector and bounds;
-missing metadata produces unavailable guidance. Qualified non-follow-up internal
+`source URL unavailable`, or `title unavailable` values. Text omits per-hit read
+commands and unavailable-action guidance. Qualified non-follow-up internal
 IDs and kind/category tails stay out of default text. JSON keeps existing
 `docsReadTarget`, compatible `pageId`, provenance `sourceUrl` and `followUp`,
 without internal descriptors. Repository headers preserve producer target/path

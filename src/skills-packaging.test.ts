@@ -397,7 +397,7 @@ describe("agent skills packaging", () => {
     }
   });
 
-  it("keeps code skill documentation reads aligned with complete actions and direct fragments", async () => {
+  it("keeps code skill documentation reads aligned with headers and exact JSON actions", async () => {
     const [content, reference] = await Promise.all([
       read(githitsCodeSkillPath),
       read(
@@ -407,8 +407,8 @@ describe("agent skills packaging", () => {
 
     for (const guidance of [content, reference]) {
       expectContainsAll(guidance, [
-        "use the search snippet when sufficient; otherwise replay its generated `followUp`",
-        "with every supplied argument unchanged, including selectors and bounds",
+        "use the search snippet when sufficient; otherwise read the page target in its header",
+        "then replay its `followUp` with every supplied argument unchanged",
         "From `docs list`, pass `docsReadTarget`",
         "Hosted/crawled HTTP(S) targets address mutable current content",
         "A direct HTTP(S) fragment read without explicit bounds returns its heading and full subtree through the next equal-or-higher heading",

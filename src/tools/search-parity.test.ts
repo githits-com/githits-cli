@@ -321,13 +321,6 @@ function structuralEvidenceOutcome(): UnifiedSearchOutcome {
   };
 }
 
-function withoutReadActions(text: string): string {
-  return text
-    .split("\n")
-    .filter((line) => !/^ {2}(?:githits read |read target=)/.test(line))
-    .join("\n");
-}
-
 describe("search parity", () => {
   it("PARITY-PACKAGE-DOCS: headers and JSON follow-ups use package-relative addressing", async () => {
     const outcome = outcomeWithPartial(false);
@@ -436,9 +429,9 @@ describe("search parity", () => {
     expect(results[1]).not.toHaveProperty("summary");
     const text = await cliTextForOutcome(outcome);
     const mcpText = await mcpTextForOutcome(outcome);
-    expect(withoutReadActions(text)).toBe(withoutReadActions(mcpText));
-    expect(text).toContain("githits read ");
-    expect(mcpText).toContain("read target=");
+    expect(text).toBe(mcpText);
+    expect(text).not.toContain("githits read ");
+    expect(mcpText).not.toContain("read target=");
     expect(text).toContain(
       "lib/client.ts:120-165 [repo code, candidate; indexed: path]",
     );
@@ -483,13 +476,13 @@ describe("search parity", () => {
     });
   });
 
-  it("PARITY-TEXT-FORMATTER: shared evidence with native read action syntax", async () => {
+  it("PARITY-TEXT-FORMATTER: shared evidence without read commands", async () => {
     const outcome = evidenceOutcome();
     const cli = await cliTextForOutcome(outcome);
     const mcp = await mcpTextForOutcome(outcome);
-    expect(withoutReadActions(cli)).toBe(withoutReadActions(mcp));
-    expect(cli).toContain("githits read ");
-    expect(mcp).toContain("read target=");
+    expect(cli).toBe(mcp);
+    expect(cli).not.toContain("githits read ");
+    expect(mcp).not.toContain("read target=");
   });
 
   it("PARITY-STRUCTURAL-JSON: CLI === MCP and preserves structural evidence", async () => {
@@ -539,13 +532,9 @@ describe("search parity", () => {
     const cli = await cliTextForOutcome(outcome);
     const mcp = await mcpTextForOutcome(outcome);
 
-    expect(withoutReadActions(cli)).toBe(withoutReadActions(mcp));
-    expect(cli).toContain(
-      "githits read 'npm:express@4.18.2' 'lib/client.ts' --lines 120-165",
-    );
-    expect(mcp).toContain(
-      'read target="npm:express@4.18.2" path="lib/client.ts" start_line=120 end_line=165',
-    );
+    expect(cli).toBe(mcp);
+    expect(cli).not.toContain("githits read ");
+    expect(mcp).not.toContain("read target=");
     expect(cli).toContain(
       "[1] npm:express@4.18.2 lib/client.ts:142-145 [repo code]",
     );

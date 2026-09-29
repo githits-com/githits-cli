@@ -45,9 +45,10 @@ semantic fragments, not revisions.
 
 For a package or site docs topic, use `search` with `source:"docs"`.
 `docs_list` browses package pages, not standalone `site:` targets.
-Use snippets when sufficient; otherwise replay the complete emitted read action
-or generated `followUp` unchanged, including supplied `selector` and bounds.
-A `[docs page]` header is a page locator; use its complete action for the section.
+Use snippets when sufficient; otherwise read the target in a `[docs page]`
+search header. For an exact section or bounds, request search JSON and replay
+its `followUp` unchanged, including supplied `selector` and bounds.
+Replay a `docs_list` read action unchanged when browsing package pages.
 Hosted/crawled HTTP(S) docs locators address mutable current content.
 A direct HTTP(S) docs fragment read without explicit bounds returns its heading
 and full subtree through the next equal-or-higher heading.

@@ -133,7 +133,7 @@ describe("semantic search text", () => {
     expect(render(hit)).toContain("Session storage");
   });
 
-  it("renders readable scopes and literal numbered source with one backend-selected action", () => {
+  it("renders readable scopes and literal numbered source without a read command", () => {
     const text = render(semanticHit());
     expect(text).toContain(
       "[1] npm:pkg@1.2.3 src/client.ts:142-145 [repo code]",
@@ -161,7 +161,7 @@ describe("semantic search text", () => {
     expect(render(hit)).toContain("  - class Client | lines 20-620");
   });
 
-  it("preserves repository producer attribution independently of its served action", () => {
+  it("preserves repository producer attribution without exposing the served read action", () => {
     const hit = semanticHit();
     const read = hit.repositoryEvidence!.semanticContext!.preferredRead;
     hit.readTarget = {
@@ -178,13 +178,11 @@ describe("semantic search text", () => {
     expect(render(hit)).toContain(
       "github:owner/monorepo@main packages/pkg/src/client.ts:142-145",
     );
-    expect(render(hit)).toContain(
-      `read target="github:owner/monorepo@${sha}" path="packages/pkg/src/client.ts" start_line=120 end_line=165`,
-    );
+    expect(render(hit)).not.toContain("read target=");
   });
 
   it.each(["github:owner/monorepo@main", "owner/monorepo@main"])(
-    "preserves producer header %s while the action uses its served revision",
+    "preserves producer header %s while omitting the served read action",
     (targetLabel) => {
       const hit = semanticHit();
       const read = hit.repositoryEvidence!.semanticContext!.preferredRead;
@@ -202,9 +200,7 @@ describe("semantic search text", () => {
       expect(text).toContain(
         `${targetLabel} packages/pkg/src/client.ts:142-145`,
       );
-      expect(text).toContain(
-        `read target="github:owner/monorepo@${sha}" path="packages/pkg/src/client.ts" start_line=120 end_line=165`,
-      );
+      expect(text).not.toContain("read target=");
       expect(text).not.toContain("npm:pkg");
       expect(text).not.toContain("#main");
     },
@@ -283,7 +279,7 @@ describe("semantic search text", () => {
 });
 
 describe("v31 search presentation", () => {
-  it("keeps path-only candidates to a file and bounded read header", () => {
+  it("keeps path-only candidates to a file header", () => {
     const hit = semanticHit();
     hit.repositoryEvidence!.bm25MatchFields = ["FILE_PATH"];
     hit.repositoryEvidence!.matchedSource = null;
@@ -294,7 +290,7 @@ describe("v31 search presentation", () => {
     expect(text).not.toContain("send");
     expect(text).not.toContain("return response");
     expect(text).not.toContain("Snippet unavailable");
-    expect(text.split("\n")).toHaveLength(4);
+    expect(text.split("\n")).toHaveLength(3);
     hit.type = "repository_doc";
     hit.title = "Arbitrary heading";
     expect(render(hit)).toContain(

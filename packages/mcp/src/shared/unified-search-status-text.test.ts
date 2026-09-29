@@ -90,7 +90,7 @@ describe("renderUnifiedSearchStatusText", () => {
   });
 
   it.each([false, true])(
-    "renders backend selectors in stored results (completed=%s)",
+    "omits read commands from stored results (completed=%s)",
     (completed) => {
       const actionHit: UnifiedSearchHitPresentation = {
         ...hit(),
@@ -117,14 +117,9 @@ describe("renderUnifiedSearchStatusText", () => {
       const cli = renderUnifiedSearchStatusText(payload, {
         actionSyntax: "cli",
       });
-      expect(mcp).toContain(
-        'read target="opaque-page" selector="Routing heading"',
-      );
-      expect(cli).toContain(
-        "githits read 'opaque-page' --selector 'Routing heading'",
-      );
-      expect(mcp.match(/read target=/g)).toHaveLength(1);
-      expect(cli.match(/githits read /g)).toHaveLength(1);
+      expect(mcp).toContain("[1] opaque-page [docs page]");
+      expect(mcp).not.toContain("read target=");
+      expect(cli).not.toContain("githits read ");
       expect(mcp).toContain("next_offset=5");
       expect(cli).toContain("next_offset=5");
       if (!completed) {
@@ -134,7 +129,7 @@ describe("renderUnifiedSearchStatusText", () => {
     },
   );
 
-  it("keeps full CLI selections and caps MCP file actions in retained status", () => {
+  it("omits backend read selections in retained status text", () => {
     const actionHit: UnifiedSearchHitPresentation = {
       ...hit(),
       type: "repository_code",
@@ -146,15 +141,15 @@ describe("renderUnifiedSearchStatusText", () => {
       },
     };
     const payload = active({ result: result({ results: [actionHit] }) });
-    expect(renderUnifiedSearchStatusText(payload)).toContain(
-      'read target="served-revision" path="actual.ts" start_line=1 end_line=300',
+    expect(renderUnifiedSearchStatusText(payload)).not.toContain(
+      "read target=",
     );
     expect(
       renderUnifiedSearchStatusText(payload, { actionSyntax: "cli" }),
-    ).toContain("githits read 'served-revision' 'actual.ts' --lines 1-900");
+    ).not.toContain("githits read ");
   });
 
-  it("keeps pathless docs preview ranges separate from its full action", () => {
+  it("keeps pathless docs preview ranges without a read action", () => {
     const actionHit: UnifiedSearchHitPresentation = {
       ...hit(),
       type: "repository_doc",
@@ -175,9 +170,7 @@ describe("renderUnifiedSearchStatusText", () => {
       active({ result: result({ results: [actionHit] }) }),
     );
     expect(text).toContain("npm:express@5.2.1 guide.md:42-48 [repo doc]");
-    expect(text).toContain(
-      'read target="opaque-page" selector="chapter" start_line=1 end_line=900',
-    );
+    expect(text).not.toContain("read target=");
   });
 
   it("retains package attribution and producer preview despite a different canonical action", () => {
@@ -228,9 +221,7 @@ describe("renderUnifiedSearchStatusText", () => {
       "[1] npm:package@1.2.3 src/view.ts:90-95 [repo code]",
     );
     expect(text).toContain("> 90 | export const view = 1");
-    expect(text).toContain(
-      "githits read 'github:owner/monorepo@served-sha' 'packages/package/src/view.ts' --lines 1-500",
-    );
+    expect(text).not.toContain("githits read ");
   });
 
   it("renders progress-only status without inventing sources or a no-hits claim", () => {
