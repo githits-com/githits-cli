@@ -160,9 +160,8 @@ covers package and site text/JSON listings, paths-only package output, package
 continuation, and replaying a site PAGE action through unified `read`.
 Phase 2 retains MCP/agent and package-to-site discovery validation.
 
-Backend PR #2857 (`2eba44f5478dc6a42185ae3cc60f91a1a3f9dd6d`)
-corrected target-relative site paths. Its [dev deployment](https://github.com/githits-com/pkgseer-backend/actions/runs/36556409287)
-and a fresh external installation of published `githits@0.23.0` verified
+Backend PR #2857 corrected target-relative site paths. Dev deployment and a
+fresh external installation of published `githits@0.23.0` verified
 Express `en/resources/community` replay (82 lines, 3324 content characters)
 and scoped `site:reference.langchain.com/python/langchain` paths: `agents/`
 returned 4 immediate entries and 176 recursively, and

@@ -1,6 +1,6 @@
 # Site-relative list rendering
 
-Status: Implemented and locally verified; review and draft PR delivery pending.
+Status: Implemented, locally verified, and reviewed clean; draft PR delivery ready.
 
 ## Outcome and evidence
 
@@ -9,8 +9,9 @@ usable target, including strict descendants of a canonical site owner.
 Published `githits@0.23.0` rendered four valid directories as `/` for
 `site:reference.langchain.com/python/langchain/agents`. The raw JSON retains
 `_subagent_transformer/`, `factory/`, `middleware/`, and `structured_output/`
-with browse actions using the requested target. Evidence is retained under
-`/tmp/pkgseer-site-cli-dev.RSEeBA/deeper-target.{json,txt}`.
+with browse actions using the requested target. The supplied dev JSON/text
+captures establish this reproduction; built-CLI verification artifacts below
+record the corrected behavior.
 
 ## Ownership and scope
 
@@ -116,3 +117,9 @@ transport changes, backend edits, publication, or production probes.
 - Accepted the smoke assertion correction: expected DIRECTORY text includes its
   trailing slash even when the backend path omits it. Existing formatter tests
   cover that rendering behavior. No normalization was added to the client.
+- Internal pre-flight of the complete revised delta: no findings.
+- External round 2 and its fresh-context final check: no code findings. The
+  reviewer's claimed rule prohibiting internal repository references was absent
+  from the supplied instructions; independently accepted removing backend
+  deployment identifiers from public docs as unnecessary reader detail. Minor
+  wording fix applied; the round is clean under the review policy.
