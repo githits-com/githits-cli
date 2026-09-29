@@ -104,7 +104,9 @@ refresh. CLI smoke covers registration, unauthenticated errors and source
 grep. Fresh mixed-site, pagination, read replay, case and corpus conformance
 is checked against dev before Phase 1 signoff.
 
-Dev supports package/mixed `--limit 1` pages, including retained unvisited
-scopes. Production deployment of that backend change remains blocked as of
-2026-09-28; fresh client validation uses dev. Unknown readiness values and
-other malformed output still fail validation.
+Dev and production support package/mixed `--limit 1` pages, including retained
+unvisited scopes. Production client replay on 2026-09-29 verified the exact
+source repro, mixed two-page CLI continuation and compact/detailed service
+pages: both scopes and input attribution are retained, with a source hit on
+page one and a hosted-doc hit on page two. Unknown readiness values and other
+malformed output still fail validation.

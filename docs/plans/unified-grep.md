@@ -27,8 +27,8 @@ for compatibility. Backend case-sensitive support was verified from the schema,
 fresh matching conformance is a Phase 1 acceptance check.
 Overall product decisions: none blocking the proposed design. The CLI argument
 order and whole-target convenience below are design proposals, not previously
-user-confirmed preferences. Backend production readiness is an operational
-unknown, not permission to change backend deployment or publication policy.
+user-confirmed preferences. Production grep conformance is verified below;
+that does not change backend deployment or publication authorization.
 Dependencies: the checked-in backend contract, existing auth/transport helpers,
 and Phase 1 before Phase 2. Completion criteria: both phases merged, their
 surface-specific validation passing, and durable docs updated. Hosted adoption
@@ -362,7 +362,7 @@ the existing CLI's successful-empty-result convention.
 
 ### Phase 1 — top-level CLI mixed grep (COMPLETE; PENDING MERGE)
 
-Implementation checkpoint after the backend small-page correction (2026-09-28):
+Implementation checkpoint after the backend small-page correction and production verification (2026-09-29):
 
 - Core query/types/runtime validation, shared request/projection/error/text,
   root command and both auth branches are implemented. Projection reuses the
@@ -371,8 +371,10 @@ Implementation checkpoint after the backend small-page correction (2026-09-28):
   `c7389fe5a2f3489902c5b8a2c20014093f6960f3`. The updated schema at
   `~/proj/githits/pkgseer-backend/priv/graphql/schema.graphql` documents
   `UNSPECIFIED`: a scope not visited before the page limit, retained with
-  `RESUMABLE_LIMIT` traversal and original input attribution. Production
-  deployment remains blocked, per the user; validation is dev-only.
+  `RESUMABLE_LIMIT` traversal and original input attribution. The user confirmed
+  production deployment on 2026-09-29; fresh production client replay passes
+  the exact source repro, mixed two-page CLI continuation and compact/detailed
+  service pages, retaining both scopes and source/site hits.
 - Captured complete detailed package/mixed first pages reproduced the CLI's
   missing-enum parser failure, while their CURRENT continuation pages passed.
   The exact live CLI repro also reached dev and failed at this parser.
@@ -406,8 +408,8 @@ CLI command retain current behavior.
 Assumptions: existing read/list service wiring and transport conventions remain
 applicable; the backend owns target expansion and preparation. The documented
 unvisited-scope state is accepted explicitly, without changing budgets or
-adding retries/fallbacks. Production deployment is blocked and outside this increment;
-production readiness is not a Phase 1 dev-acceptance dependency.
+adding retries/fallbacks. Production grep conformance is verified; deployment
+and publication remain outside this increment's authorization.
 Product decisions: none blocking implementation of this proposal.
 Dependencies: backend `Query.grep` and dev v6 access for mixed-source validation.
 
@@ -496,8 +498,9 @@ Legacy source-only flags disappear from MCP, with migration documented.
 
 Assumptions: Phase 1 semantics and shared helpers prove sufficient; required
 provider service additions follow the existing read-service precedent.
-Unknowns: current main's list consolidation status and backend production v6
-status must be rechecked at this boundary. Resolve routing against whatever
+Unknowns: current main's list consolidation status must be rechecked at this
+boundary. Production grep v6 conformance passed on 2026-09-29; recheck the
+deployed contract when Phase 2 starts. Resolve routing against whatever
 inventory tool is actually advertised, without taking ownership of list work.
 Product decisions: none; MCP removal is requested. Dependencies: Phase 1 merged,
 public package compatibility validation, and dev access for MCP conformance.
@@ -775,7 +778,8 @@ readiness allowlist lagging the documented GraphQL enum. Core owns that wire
 validation; shared text owns the unvisited-scope explanation. Scope is this
 existing PR's correction, with internal delta review and the retained external
 Claude session required before completion. No new infrastructure or public MCP
-API/catalog/guide change. Production remains blocked; no deployment is authorized.
+API/catalog/guide change. Production was blocked at this 2026-09-28 checkpoint;
+no deployment was authorized by the client correction request.
 
 Correction validation (2026-09-28): `bun test` 5,098 pass / 0 fail,
 18,527 assertions in 222 files; focused grep tests 28 pass / 0 fail.
@@ -802,7 +806,30 @@ altering the backend status would violate the lossless result contract.
 Correction CI is green: [Main](https://github.com/githits-com/githits-cli/actions/runs/36459079262)
 passes build/checks, Linux/Windows tests, Bun and Node 20/22/24/26 compatibility;
 [MCP package validation](https://github.com/githits-com/githits-cli/actions/runs/36459078714)
-passes. The reviewer remains retained through merge approval. Production
-remains blocked; no production query,
+passes. The reviewer remains retained through merge approval. At this
+2026-09-28 checkpoint, production remained blocked; no production query,
 backend edit or deployment was performed. Original proof artifacts remain
 unchanged; new proof is under `/tmp/nuckelavee-grep-*`.
+
+Production verification (2026-09-29), after the user confirmed deployment:
+
+- Replayed `bun run src/cli.ts grep router npm:express@5.2.1 --path
+  lib/express.js --limit 1 --json`: one source hit, retained selected SITE
+  scope with UNSPECIFIED/RESUMABLE_LIMIT, and a continuation cursor.
+- Mixed CLI pages with identical ordered `npm:express` and
+  `site:expressjs.com` operands and `--limit 1` returned distinct source then
+  hosted-doc hits. Both scopes and site attribution `[0,1]` remain present;
+  the site becomes CURRENT on page two. CLI text explains the unvisited scope
+  and cursor. Compact and detailed service queries pass the same assertions.
+- `bun run smoke:cli` passes all 154 steps, stable and experimental live
+  cohorts; `bun run smoke:mcp` passes all 65 steps. All three verification
+  processes exit zero; none skipped authenticated coverage.
+- Every command uses `env -u GITHITS_API_TOKEN GITHITS_ENV=prod` with inline
+  `GITHITS_MCP_URL=https://mcp.githits.com`,
+  `GITHITS_API_URL=https://api.githits.com`, and
+  `GITHITS_CODE_NAV_URL=https://oss.githits.dev`. No inherited URL overrides
+  or API tokens were present. Production credentials stayed private.
+- Evidence: `/tmp/nuckelavee-grep-prod-replay.ts`, its `.log` and
+  `-results.json`, plus `/tmp/nuckelavee-grep-prod-smoke-cli.log` and
+  `/tmp/nuckelavee-grep-prod-smoke-mcp.log`. Original dev proof is preserved.
+  No implementation change, backend edit, merge or deployment was performed.
