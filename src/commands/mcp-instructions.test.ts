@@ -128,7 +128,7 @@ describe("buildMcpQuickStart", () => {
       "Reuse returned targets, paths, locators, references, and ranges",
     );
     expect(instructions).toMatch(
-      /For hosted package docs, search the package with\s+`source:"docs"`, then pass an emitted `site:` target to `list`/,
+      /For hosted package docs, search the package with\s+`source:"docs"`, then pass the explicit `site:` target from a `\[docs page\]`\s+search header to `list`/,
     );
     expect(instructions).toContain(
       "`list` is for a known target when you need its structure or an exact path",
@@ -136,13 +136,13 @@ describe("buildMcpQuickStart", () => {
     expect(instructions).not.toContain("`code_files`");
     expect(instructions).not.toContain("`docs_list`");
     expect(instructions).toContain(
-      "Use snippets when sufficient; otherwise read the target in a `[docs page]`",
+      "Use snippets when sufficient; otherwise read the\ntarget in that header",
     );
     expect(instructions).toContain(
       "its `followUp` unchanged, including supplied `selector` and bounds",
     );
     expect(instructions).toContain(
-      "search header. For an exact section or bounds, request search JSON",
+      "target in that header. For an exact section or bounds, request search JSON",
     );
     expect(instructions).toContain(
       "Hosted/crawled HTTP(S) docs locators address mutable current content",
