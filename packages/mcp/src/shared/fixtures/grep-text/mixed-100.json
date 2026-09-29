@@ -1,0 +1,2550 @@
+{
+  "traversal": "RESUMABLE_LIMIT",
+  "nextCursor": "TUdSUALkFPOMGmQmwMT9g3skeFq0I3qsSqWvFi2a7YQGlMZAKwACAABAAAEBZAAAAAAABAAAAAAAAAAAAAEgfKalBjGIr_089cv89Ti326x0GkmlpkM2twwG6FwuJwbjYzYyAAEAAAAAAgFkAAAAAAAEAIAAAAAAAAABAi2I6eMfCYe6LjvxHR-aNkEsz2Oumeyt0hFne_LMeIQTdmbjgUmp1C3fffsRaoTNAtvgGoT0aFOJQRyVtcNRvIUfNR0AAAAAADIAAAAAAAA",
+  "totalMatches": 100,
+  "unavailableTargets": [],
+  "hits": [
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 29,
+      "lineSlice": {
+        "content": "* deps: `router@^2.2.0`",
+        "startByte": 0,
+        "endByte": 23,
+        "originalLineBytes": 23
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 29,
+        "endLine": 29
+      },
+      "matchStartByte": 9,
+      "matchEndByte": 15,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 108,
+      "lineSlice": {
+        "content": "- `strict routing` Enable strict routing, by default “/foo” and “/foo/” are treated the same by the router",
+        "startByte": 0,
+        "endByte": 114,
+        "originalLineBytes": 114
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/3x/api/application/",
+        "path": null,
+        "startLine": 108,
+        "endLine": 108
+      },
+      "matchStartByte": 108,
+      "matchEndByte": 114,
+      "pageUrl": "https://expressjs.com/en/3x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 93,
+      "lineSlice": {
+        "content": "  * deps: router@2.0.0-beta.1",
+        "startByte": 0,
+        "endByte": 29,
+        "originalLineBytes": 29
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 93,
+        "endLine": 93
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 51,
+      "lineSlice": {
+        "content": "[### express() Learn about the express() function, which creates an Express application.](/en/4x/api/express/)[### Application Object Learn about the properties and methods of the Express 4.x application object.](/en/4x/api/application/)[### Request Object Learn about the properties and methods of the Express 4.x request object.](/en/4x/api/request/)[### Response Object Learn about the properties and methods of the Express 4.x response object.](/en/4x/api/response/)[### Router Learn about the properties and methods of the Express 4.x router.](/en/4x/api/router/)",
+        "startByte": 0,
+        "endByte": 568,
+        "originalLineBytes": 568
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/",
+        "path": null,
+        "startLine": 51,
+        "endLine": 51
+      },
+      "matchStartByte": 540,
+      "matchEndByte": 546,
+      "pageUrl": "https://expressjs.com/en/4x/api/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 95,
+      "lineSlice": {
+        "content": "    - Internalize private `router.process_params` method",
+        "startByte": 0,
+        "endByte": 56,
+        "originalLineBytes": 56
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 95,
+        "endLine": 95
+      },
+      "matchStartByte": 27,
+      "matchEndByte": 33,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 51,
+      "lineSlice": {
+        "content": "[### express() Learn about the express() function, which creates an Express application.](/en/4x/api/express/)[### Application Object Learn about the properties and methods of the Express 4.x application object.](/en/4x/api/application/)[### Request Object Learn about the properties and methods of the Express 4.x request object.](/en/4x/api/request/)[### Response Object Learn about the properties and methods of the Express 4.x response object.](/en/4x/api/response/)[### Router Learn about the properties and methods of the Express 4.x router.](/en/4x/api/router/)",
+        "startByte": 0,
+        "endByte": 568,
+        "originalLineBytes": 568
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/",
+        "path": null,
+        "startLine": 51,
+        "endLine": 51
+      },
+      "matchStartByte": 560,
+      "matchEndByte": 566,
+      "pageUrl": "https://expressjs.com/en/4x/api/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 130,
+      "lineSlice": {
+        "content": "Promises in the router.",
+        "startByte": 0,
+        "endByte": 23,
+        "originalLineBytes": 23
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 130,
+        "endLine": 130
+      },
+      "matchStartByte": 16,
+      "matchEndByte": 22,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 173,
+      "lineSlice": {
+        "content": "admin.use('/secr*t', secret); // load the 'secret' router on '/secr*t', on the 'admin' sub app",
+        "startByte": 0,
+        "endByte": 94,
+        "originalLineBytes": 94
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 173,
+        "endLine": 173
+      },
+      "matchStartByte": 51,
+      "matchEndByte": 57,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 140,
+      "lineSlice": {
+        "content": "  * deps: router@2.0.0-alpha.1",
+        "startByte": 0,
+        "endByte": 30,
+        "originalLineBytes": 30
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 140,
+        "endLine": 140
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 174,
+      "lineSlice": {
+        "content": "app.use(['/adm*n', '/manager'], admin); // load the 'admin' router on '/adm*n' and '/manager', on the parent app",
+        "startByte": 0,
+        "endByte": 112,
+        "originalLineBytes": 112
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 174,
+        "endLine": 174
+      },
+      "matchStartByte": 60,
+      "matchEndByte": 66,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 157,
+      "lineSlice": {
+        "content": "  * deps: router@~1.3.1",
+        "startByte": 0,
+        "endByte": 23,
+        "originalLineBytes": 23
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 157,
+        "endLine": 157
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 193,
+      "lineSlice": {
+        "content": "admin.use('/secr*t', secret); // load the 'secret' router on '/secr*t', on the 'admin' sub app",
+        "startByte": 0,
+        "endByte": 94,
+        "originalLineBytes": 94
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 193,
+        "endLine": 193
+      },
+      "matchStartByte": 51,
+      "matchEndByte": 57,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 174,
+      "lineSlice": {
+        "content": "  * deps: router@~1.3.0",
+        "startByte": 0,
+        "endByte": 23,
+        "originalLineBytes": 23
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 174,
+        "endLine": 174
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 194,
+      "lineSlice": {
+        "content": "app.use(['/adm*n', '/manager'], admin); // load the 'admin' router on '/adm*n' and '/manager', on the parent app",
+        "startByte": 0,
+        "endByte": 112,
+        "originalLineBytes": 112
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 194,
+        "endLine": 194
+      },
+      "matchStartByte": 60,
+      "matchEndByte": 66,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 175,
+      "lineSlice": {
+        "content": "    - Add `next(\"router\")` to exit from router",
+        "startByte": 0,
+        "endByte": 46,
+        "originalLineBytes": 46
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 175,
+        "endLine": 175
+      },
+      "matchStartByte": 17,
+      "matchEndByte": 23,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 269,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 269,
+        "endLine": 269
+      },
+      "matchStartByte": 61,
+      "matchEndByte": 67,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 175,
+      "lineSlice": {
+        "content": "    - Add `next(\"router\")` to exit from router",
+        "startByte": 0,
+        "endByte": 46,
+        "originalLineBytes": 46
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 175,
+        "endLine": 175
+      },
+      "matchStartByte": 40,
+      "matchEndByte": 46,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 269,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 269,
+        "endLine": 269
+      },
+      "matchStartByte": 80,
+      "matchEndByte": 86,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 176,
+      "lineSlice": {
+        "content": "    - Fix case where `router.use` skipped requests routes did not",
+        "startByte": 0,
+        "endByte": 65,
+        "originalLineBytes": 65
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 176,
+        "endLine": 176
+      },
+      "matchStartByte": 22,
+      "matchEndByte": 28,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 341,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 341,
+        "endLine": 341
+      },
+      "matchStartByte": 61,
+      "matchEndByte": 67,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 195,
+      "lineSlice": {
+        "content": "  * deps: router@~1.1.5",
+        "startByte": 0,
+        "endByte": 23,
+        "originalLineBytes": 23
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 195,
+        "endLine": 195
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 341,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 341,
+        "endLine": 341
+      },
+      "matchStartByte": 80,
+      "matchEndByte": 86,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 213,
+      "lineSlice": {
+        "content": "    - Use `router` module for routing",
+        "startByte": 0,
+        "endByte": 37,
+        "originalLineBytes": 37
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 213,
+        "endLine": 213
+      },
+      "matchStartByte": 11,
+      "matchEndByte": 17,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 573,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 573,
+        "endLine": 573
+      },
+      "matchStartByte": 61,
+      "matchEndByte": 67,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 236,
+      "lineSlice": {
+        "content": "    - `app.router` is a reference to the base router",
+        "startByte": 0,
+        "endByte": 52,
+        "originalLineBytes": 52
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 236,
+        "endLine": 236
+      },
+      "matchStartByte": 11,
+      "matchEndByte": 17,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 573,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 573,
+        "endLine": 573
+      },
+      "matchStartByte": 80,
+      "matchEndByte": 86,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 236,
+      "lineSlice": {
+        "content": "    - `app.router` is a reference to the base router",
+        "startByte": 0,
+        "endByte": 52,
+        "originalLineBytes": 52
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 236,
+        "endLine": 236
+      },
+      "matchStartByte": 46,
+      "matchEndByte": 52,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 729,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 729,
+        "endLine": 729
+      },
+      "matchStartByte": 61,
+      "matchEndByte": 67,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 643,
+      "lineSlice": {
+        "content": "  * Add `next(\"router\")` to exit from router",
+        "startByte": 0,
+        "endByte": 44,
+        "originalLineBytes": 44
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 643,
+        "endLine": 643
+      },
+      "matchStartByte": 15,
+      "matchEndByte": 21,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 729,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 729,
+        "endLine": 729
+      },
+      "matchStartByte": 80,
+      "matchEndByte": 86,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 643,
+      "lineSlice": {
+        "content": "  * Add `next(\"router\")` to exit from router",
+        "startByte": 0,
+        "endByte": 44,
+        "originalLineBytes": 44
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 643,
+        "endLine": 643
+      },
+      "matchStartByte": 38,
+      "matchEndByte": 44,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 833,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 833,
+        "endLine": 833
+      },
+      "matchStartByte": 61,
+      "matchEndByte": 67,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 644,
+      "lineSlice": {
+        "content": "  * Fix case where `router.use` skipped requests routes did not",
+        "startByte": 0,
+        "endByte": 63,
+        "originalLineBytes": 63
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 644,
+        "endLine": 644
+      },
+      "matchStartByte": 20,
+      "matchEndByte": 26,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 833,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 833,
+        "endLine": 833
+      },
+      "matchStartByte": 80,
+      "matchEndByte": 86,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1148,
+      "lineSlice": {
+        "content": "  * Correctly invoke async router callback asynchronously",
+        "startByte": 0,
+        "endByte": 57,
+        "originalLineBytes": 57
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1148,
+        "endLine": 1148
+      },
+      "matchStartByte": 27,
+      "matchEndByte": 33,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 921,
+      "lineSlice": {
+        "content": "Param callback functions are local to the router on which they are defined. They are not inherited by mounted apps or routers, nor are they triggered for route parameters inherited from parent routers. Hence, param callbacks defined on `app` will be triggered only by route parameters defined on `app` routes.",
+        "startByte": 0,
+        "endByte": 309,
+        "originalLineBytes": 309
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 921,
+        "endLine": 921
+      },
+      "matchStartByte": 42,
+      "matchEndByte": 48,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1247,
+      "lineSlice": {
+        "content": "  * Fix `router.use` to accept array of middleware without path",
+        "startByte": 0,
+        "endByte": 63,
+        "originalLineBytes": 63
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1247,
+        "endLine": 1247
+      },
+      "matchStartByte": 9,
+      "matchEndByte": 15,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 921,
+      "lineSlice": {
+        "content": "Param callback functions are local to the router on which they are defined. They are not inherited by mounted apps or routers, nor are they triggered for route parameters inherited from parent routers. Hence, param callbacks defined on `app` will be triggered only by route parameters defined on `app` routes.",
+        "startByte": 0,
+        "endByte": 309,
+        "originalLineBytes": 309
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 921,
+        "endLine": 921
+      },
+      "matchStartByte": 118,
+      "matchEndByte": 124,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1473,
+      "lineSlice": {
+        "content": "  * router: fix optimization on router exit",
+        "startByte": 0,
+        "endByte": 43,
+        "originalLineBytes": 43
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1473,
+        "endLine": 1473
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 921,
+      "lineSlice": {
+        "content": "Param callback functions are local to the router on which they are defined. They are not inherited by mounted apps or routers, nor are they triggered for route parameters inherited from parent routers. Hence, param callbacks defined on `app` will be triggered only by route parameters defined on `app` routes.",
+        "startByte": 0,
+        "endByte": 309,
+        "originalLineBytes": 309
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 921,
+        "endLine": 921
+      },
+      "matchStartByte": 193,
+      "matchEndByte": 199,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1473,
+      "lineSlice": {
+        "content": "  * router: fix optimization on router exit",
+        "startByte": 0,
+        "endByte": 43,
+        "originalLineBytes": 43
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1473,
+        "endLine": 1473
+      },
+      "matchStartByte": 32,
+      "matchEndByte": 38,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1118,
+      "lineSlice": {
+        "content": "> router.get('/[0-9]+-[[\\w]]*', function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 59,
+        "originalLineBytes": 59
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1118,
+        "endLine": 1118
+      },
+      "matchStartByte": 2,
+      "matchEndByte": 8,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1474,
+      "lineSlice": {
+        "content": "  * router: refactor location of `try` blocks",
+        "startByte": 0,
+        "endByte": 45,
+        "originalLineBytes": 45
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1474,
+        "endLine": 1474
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1122,
+      "lineSlice": {
+        "content": "> router.get('/[0-9]+-[[\\S]]*', function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 59,
+        "originalLineBytes": 59
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1122,
+        "endLine": 1122
+      },
+      "matchStartByte": 2,
+      "matchEndByte": 8,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1475,
+      "lineSlice": {
+        "content": "  * router: speed up standard `app.use(fn)`",
+        "startByte": 0,
+        "endByte": 43,
+        "originalLineBytes": 43
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1475,
+        "endLine": 1475
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1126,
+      "lineSlice": {
+        "content": "> router.get('[[\\s\\S]]*', function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 53,
+        "originalLineBytes": 53
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1126,
+        "endLine": 1126
+      },
+      "matchStartByte": 2,
+      "matchEndByte": 8,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1512,
+      "lineSlice": {
+        "content": " * invoke `router.param()` only when route matches",
+        "startByte": 0,
+        "endByte": 50,
+        "originalLineBytes": 50
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1512,
+        "endLine": 1512
+      },
+      "matchStartByte": 11,
+      "matchEndByte": 17,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1133,
+      "lineSlice": {
+        "content": "> router.get('/[0-9]+-[[\\w]]*', function (req: Request, res: Response, next: NextFunction) {",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1133,
+        "endLine": 1133
+      },
+      "matchStartByte": 2,
+      "matchEndByte": 8,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1513,
+      "lineSlice": {
+        "content": " * restore `req.params` after invoking router",
+        "startByte": 0,
+        "endByte": 45,
+        "originalLineBytes": 45
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1513,
+        "endLine": 1513
+      },
+      "matchStartByte": 39,
+      "matchEndByte": 45,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1137,
+      "lineSlice": {
+        "content": "> router.get('/[0-9]+-[[\\S]]*', function (req: Request, res: Response, next: NextFunction) {",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1137,
+        "endLine": 1137
+      },
+      "matchStartByte": 2,
+      "matchEndByte": 8,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1537,
+      "lineSlice": {
+        "content": " * fix \"trim prefix\" debug message in `express:router`",
+        "startByte": 0,
+        "endByte": 54,
+        "originalLineBytes": 54
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1537,
+        "endLine": 1537
+      },
+      "matchStartByte": 47,
+      "matchEndByte": 53,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1141,
+      "lineSlice": {
+        "content": "> router.get('[[\\s\\S]]*', function (req: Request, res: Response, next: NextFunction) {",
+        "startByte": 0,
+        "endByte": 86,
+        "originalLineBytes": 86
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1141,
+        "endLine": 1141
+      },
+      "matchStartByte": 2,
+      "matchEndByte": 8,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1608,
+      "lineSlice": {
+        "content": " * fix handling of errors from `router.param()` callbacks",
+        "startByte": 0,
+        "endByte": 57,
+        "originalLineBytes": 57
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1608,
+        "endLine": 1608
+      },
+      "matchStartByte": 32,
+      "matchEndByte": 38,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1201,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1201,
+        "endLine": 1201
+      },
+      "matchStartByte": 61,
+      "matchEndByte": 67,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1621,
+      "lineSlice": {
+        "content": " * fix issue routing requests among sub routers",
+        "startByte": 0,
+        "endByte": 47,
+        "originalLineBytes": 47
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1621,
+        "endLine": 1621
+      },
+      "matchStartByte": 40,
+      "matchEndByte": 46,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1201,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1201,
+        "endLine": 1201
+      },
+      "matchStartByte": 80,
+      "matchEndByte": 86,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1622,
+      "lineSlice": {
+        "content": " * invoke `router.param()` only when necessary instead of every match",
+        "startByte": 0,
+        "endByte": 69,
+        "originalLineBytes": 69
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1622,
+        "endLine": 1622
+      },
+      "matchStartByte": 11,
+      "matchEndByte": 17,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1242,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1242,
+        "endLine": 1242
+      },
+      "matchStartByte": 61,
+      "matchEndByte": 67,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1643,
+      "lineSlice": {
+        "content": " * fix `req.next` when inside router instance",
+        "startByte": 0,
+        "endByte": 45,
+        "originalLineBytes": 45
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1643,
+        "endLine": 1643
+      },
+      "matchStartByte": 30,
+      "matchEndByte": 36,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1242,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1242,
+        "endLine": 1242
+      },
+      "matchStartByte": 80,
+      "matchEndByte": 86,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1648,
+      "lineSlice": {
+        "content": "   - add `router.purge`",
+        "startByte": 0,
+        "endByte": 23,
+        "originalLineBytes": 23
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1648,
+        "endLine": 1648
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1446,
+      "lineSlice": {
+        "content": "Enable strict routing. When enabled, the router treats “/foo” and “/foo/” as different. Otherwise, the router treats “/foo” and “/foo/” as the same.",
+        "startByte": 0,
+        "endByte": 164,
+        "originalLineBytes": 164
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1446,
+        "endLine": 1446
+      },
+      "matchStartByte": 41,
+      "matchEndByte": 47,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1709,
+      "lineSlice": {
+        "content": "   - `app.router` - is removed",
+        "startByte": 0,
+        "endByte": 30,
+        "originalLineBytes": 30
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1709,
+        "endLine": 1709
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1446,
+      "lineSlice": {
+        "content": "Enable strict routing. When enabled, the router treats “/foo” and “/foo/” as different. Otherwise, the router treats “/foo” and “/foo/” as the same.",
+        "startByte": 0,
+        "endByte": 164,
+        "originalLineBytes": 164
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1446,
+        "endLine": 1446
+      },
+      "matchStartByte": 111,
+      "matchEndByte": 117,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 1727,
+      "lineSlice": {
+        "content": "   - `app.router()` - returns the app Router instance",
+        "startByte": 0,
+        "endByte": 53,
+        "originalLineBytes": 53
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 1727,
+        "endLine": 1727
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1579,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1579,
+        "endLine": 1579
+      },
+      "matchStartByte": 61,
+      "matchEndByte": 67,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 2565,
+      "lineSlice": {
+        "content": "   - add `router.purge`",
+        "startByte": 0,
+        "endByte": 23,
+        "originalLineBytes": 23
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 2565,
+        "endLine": 2565
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1579,
+      "lineSlice": {
+        "content": "there is no reason to proceed with the current route. Since [router](/en/4x/api/router/) and",
+        "startByte": 0,
+        "endByte": 92,
+        "originalLineBytes": 92
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1579,
+        "endLine": 1579
+      },
+      "matchStartByte": 80,
+      "matchEndByte": 86,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 2636,
+      "lineSlice": {
+        "content": " * router: add Router.all() method",
+        "startByte": 0,
+        "endByte": 34,
+        "originalLineBytes": 34
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 2636,
+        "endLine": 2636
+      },
+      "matchStartByte": 3,
+      "matchEndByte": 9,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1832,
+      "lineSlice": {
+        "content": "A router is valid middleware.",
+        "startByte": 0,
+        "endByte": 29,
+        "originalLineBytes": 29
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1832,
+        "endLine": 1832
+      },
+      "matchStartByte": 2,
+      "matchEndByte": 8,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 2663,
+      "lineSlice": {
+        "content": " * router: wrap encodeURIComponent in a try/catch #1735 (@lxe)",
+        "startByte": 0,
+        "endByte": 62,
+        "originalLineBytes": 62
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 2663,
+        "endLine": 2663
+      },
+      "matchStartByte": 3,
+      "matchEndByte": 9,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1837,
+      "lineSlice": {
+        "content": "var router = express.Router();",
+        "startByte": 0,
+        "endByte": 30,
+        "originalLineBytes": 30
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1837,
+        "endLine": 1837
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 2933,
+      "lineSlice": {
+        "content": "  * Revert \"Added + support to the router\"",
+        "startByte": 0,
+        "endByte": 42,
+        "originalLineBytes": 42
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 2933,
+        "endLine": 2933
+      },
+      "matchStartByte": 35,
+      "matchEndByte": 41,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1838,
+      "lineSlice": {
+        "content": "router.get('/', function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 43,
+        "originalLineBytes": 43
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1838,
+        "endLine": 1838
+      },
+      "matchStartByte": 0,
+      "matchEndByte": 6,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 2948,
+      "lineSlice": {
+        "content": "  * Added `+` support to the router",
+        "startByte": 0,
+        "endByte": 35,
+        "originalLineBytes": 35
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 2948,
+        "endLine": 2948
+      },
+      "matchStartByte": 29,
+      "matchEndByte": 35,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1841,
+      "lineSlice": {
+        "content": "app.use(router);",
+        "startByte": 0,
+        "endByte": 16,
+        "originalLineBytes": 16
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1841,
+        "endLine": 1841
+      },
+      "matchStartByte": 8,
+      "matchEndByte": 14,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 2984,
+      "lineSlice": {
+        "content": "  * Changed: moved `static()` in generated apps below router",
+        "startByte": 0,
+        "endByte": 60,
+        "originalLineBytes": 60
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 2984,
+        "endLine": 2984
+      },
+      "matchStartByte": 54,
+      "matchEndByte": 60,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1847,
+      "lineSlice": {
+        "content": "const router = express.Router();",
+        "startByte": 0,
+        "endByte": 32,
+        "originalLineBytes": 32
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1847,
+        "endLine": 1847
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 3227,
+      "lineSlice": {
+        "content": "  * Refactored router. Closes #639",
+        "startByte": 0,
+        "endByte": 34,
+        "originalLineBytes": 34
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 3227,
+        "endLine": 3227
+      },
+      "matchStartByte": 15,
+      "matchEndByte": 21,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1848,
+      "lineSlice": {
+        "content": "router.get('/', function (req: Request, res: Response, next: NextFunction) {",
+        "startByte": 0,
+        "endByte": 76,
+        "originalLineBytes": 76
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1848,
+        "endLine": 1848
+      },
+      "matchStartByte": 0,
+      "matchEndByte": 6,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 3268,
+      "lineSlice": {
+        "content": "  * Moved router over from connect and started refactor",
+        "startByte": 0,
+        "endByte": 55,
+        "originalLineBytes": 55
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 3268,
+        "endLine": 3268
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 1851,
+      "lineSlice": {
+        "content": "app.use(router);",
+        "startByte": 0,
+        "endByte": 16,
+        "originalLineBytes": 16
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/application/",
+        "path": null,
+        "startLine": 1851,
+        "endLine": 1851
+      },
+      "matchStartByte": 8,
+      "matchEndByte": 14,
+      "pageUrl": "https://expressjs.com/en/4x/api/application/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 3453,
+      "lineSlice": {
+        "content": "  * Removed nested require, using `connect.router`",
+        "startByte": 0,
+        "endByte": 50,
+        "originalLineBytes": 50
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 3453,
+        "endLine": 3453
+      },
+      "matchStartByte": 43,
+      "matchEndByte": 49,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 238,
+      "lineSlice": {
+        "content": "Preserve the `req.params` values from the parent router. If the parent and the child have",
+        "startByte": 0,
+        "endByte": 89,
+        "originalLineBytes": 89
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/express/",
+        "path": null,
+        "startLine": 238,
+        "endLine": 238
+      },
+      "matchStartByte": 49,
+      "matchEndByte": 55,
+      "pageUrl": "https://expressjs.com/en/4x/api/express/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 3561,
+      "lineSlice": {
+        "content": "  * Fixed middleware/router precedence issue. Closes #366",
+        "startByte": 0,
+        "endByte": 57,
+        "originalLineBytes": 57
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "History.md",
+        "startLine": 3561,
+        "endLine": 3561
+      },
+      "matchStartByte": 21,
+      "matchEndByte": 27,
+      "filePath": "History.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 243,
+      "lineSlice": {
+        "content": "router.",
+        "startByte": 0,
+        "endByte": 7,
+        "originalLineBytes": 7
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/express/",
+        "path": null,
+        "startLine": 243,
+        "endLine": 243
+      },
+      "matchStartByte": 0,
+      "matchEndByte": 6,
+      "pageUrl": "https://expressjs.com/en/4x/api/express/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 15,
+      "lineSlice": {
+        "content": "- [multi-router](./multi-router) - Working with multiple Express routers",
+        "startByte": 0,
+        "endByte": 72,
+        "originalLineBytes": 72
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "examples/README.md",
+        "startLine": 15,
+        "endLine": 15
+      },
+      "matchStartByte": 9,
+      "matchEndByte": 15,
+      "filePath": "examples/README.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 245,
+      "lineSlice": {
+        "content": "Creates a new [router](/en/4x/api/router/) object.",
+        "startByte": 0,
+        "endByte": 50,
+        "originalLineBytes": 50
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/express/",
+        "path": null,
+        "startLine": 245,
+        "endLine": 245
+      },
+      "matchStartByte": 15,
+      "matchEndByte": 21,
+      "pageUrl": "https://expressjs.com/en/4x/api/express/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 15,
+      "lineSlice": {
+        "content": "- [multi-router](./multi-router) - Working with multiple Express routers",
+        "startByte": 0,
+        "endByte": 72,
+        "originalLineBytes": 72
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "examples/README.md",
+        "startLine": 15,
+        "endLine": 15
+      },
+      "matchStartByte": 25,
+      "matchEndByte": 31,
+      "filePath": "examples/README.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 245,
+      "lineSlice": {
+        "content": "Creates a new [router](/en/4x/api/router/) object.",
+        "startByte": 0,
+        "endByte": 50,
+        "originalLineBytes": 50
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/express/",
+        "path": null,
+        "startLine": 245,
+        "endLine": 245
+      },
+      "matchStartByte": 34,
+      "matchEndByte": 40,
+      "pageUrl": "https://expressjs.com/en/4x/api/express/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 15,
+      "lineSlice": {
+        "content": "- [multi-router](./multi-router) - Working with multiple Express routers",
+        "startByte": 0,
+        "endByte": 72,
+        "originalLineBytes": 72
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "examples/README.md",
+        "startLine": 15,
+        "endLine": 15
+      },
+      "matchStartByte": 65,
+      "matchEndByte": 71,
+      "filePath": "examples/README.md",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 248,
+      "lineSlice": {
+        "content": "var router = express.Router([options]);",
+        "startByte": 0,
+        "endByte": 39,
+        "originalLineBytes": 39
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/express/",
+        "path": null,
+        "startLine": 248,
+        "endLine": 248
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "pageUrl": "https://expressjs.com/en/4x/api/express/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 26,
+      "lineSlice": {
+        "content": "var Router = require('router');",
+        "startByte": 0,
+        "endByte": 31,
+        "originalLineBytes": 31
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 26,
+        "endLine": 26
+      },
+      "matchStartByte": 22,
+      "matchEndByte": 28,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 252,
+      "lineSlice": {
+        "content": "so on) to `router` just like an application.",
+        "startByte": 0,
+        "endByte": 44,
+        "originalLineBytes": 44
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/express/",
+        "path": null,
+        "startLine": 252,
+        "endLine": 252
+      },
+      "matchStartByte": 11,
+      "matchEndByte": 17,
+      "pageUrl": "https://expressjs.com/en/4x/api/express/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 60,
+      "lineSlice": {
+        "content": "  var router = null;",
+        "startByte": 0,
+        "endByte": 20,
+        "originalLineBytes": 20
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 60,
+        "endLine": 60
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 254,
+      "lineSlice": {
+        "content": "For more information, see [Router](/en/4x/api/router/).",
+        "startByte": 0,
+        "endByte": 55,
+        "originalLineBytes": 55
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/express/",
+        "path": null,
+        "startLine": 254,
+        "endLine": 254
+      },
+      "matchStartByte": 46,
+      "matchEndByte": 52,
+      "pageUrl": "https://expressjs.com/en/4x/api/express/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 68,
+      "lineSlice": {
+        "content": "  // Setup getting to lazily add base router",
+        "startByte": 0,
+        "endByte": 44,
+        "originalLineBytes": 44
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 68,
+        "endLine": 68
+      },
+      "matchStartByte": 38,
+      "matchEndByte": 44,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 109,
+      "lineSlice": {
+        "content": "The URL path on which a router instance was mounted.",
+        "startByte": 0,
+        "endByte": 52,
+        "originalLineBytes": 52
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/request/",
+        "path": null,
+        "startLine": 109,
+        "endLine": 109
+      },
+      "matchStartByte": 24,
+      "matchEndByte": 30,
+      "pageUrl": "https://expressjs.com/en/4x/api/request/",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 69,
+      "lineSlice": {
+        "content": "  Object.defineProperty(this, 'router', {",
+        "startByte": 0,
+        "endByte": 41,
+        "originalLineBytes": 41
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 69,
+        "endLine": 69
+      },
+      "matchStartByte": 31,
+      "matchEndByte": 37,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepSiteHit",
+      "targetIndex": 1,
+      "line": 126,
+      "lineSlice": {
+        "content": "app.use('/greet', greet); // load the router on '/greet'",
+        "startByte": 0,
+        "endByte": 56,
+        "originalLineBytes": 56
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://expressjs.com/en/4x/api/request/",
+        "path": null,
+        "startLine": 126,
+        "endLine": 126
+      },
+      "matchStartByte": 38,
+      "matchEndByte": 44,
+      "pageUrl": "https://expressjs.com/en/4x/api/request/",
+      "contentSafety": {
+        "filtered": false
+      }
+    }
+  ],
+  "targets": [
+    {
+      "targetIndex": 0,
+      "requestedInputIndices": [0],
+      "kind": "REPOSITORY",
+      "target": "npm:express",
+      "traversal": "RESUMABLE_LIMIT",
+      "readiness": "CURRENT",
+      "errorCode": null,
+      "retryable": false,
+      "publicMessage": null,
+      "requestedRef": "dbac741a49a5a64336b70c06e85c2e2706e36336",
+      "commitSha": "dbac741a49a5a64336b70c06e85c2e2706e36336",
+      "corpus": "ALL",
+      "filesScanned": 23,
+      "filesInScope": 206,
+      "binaryFilesSkipped": 0,
+      "filesTooLargeSkipped": 0,
+      "fileIssues": [],
+      "fileIssuesOmitted": 0
+    },
+    {
+      "targetIndex": 1,
+      "requestedInputIndices": [0],
+      "kind": "SITE",
+      "target": "npm:express",
+      "traversal": "RESUMABLE_LIMIT",
+      "readiness": "CURRENT",
+      "errorCode": null,
+      "retryable": false,
+      "publicMessage": null,
+      "requestedRef": null,
+      "commitSha": null,
+      "corpus": null,
+      "filesScanned": null,
+      "filesInScope": null,
+      "binaryFilesSkipped": null,
+      "filesTooLargeSkipped": null,
+      "fileIssues": null,
+      "fileIssuesOmitted": null
+    }
+  ]
+}

@@ -51,28 +51,66 @@ core wire schema rather than maintaining another allowlist. The root command
 owns Commander syntax, auth gating, spinners, diagnostics and exits. Shared
 helpers remain workspace-internal in Phase 1; no public MCP tool/service is added.
 
-Compact text selects complete line/context slices, exact reads, scope
-provenance/statuses, scan/skip counts, issue summaries, omissions, page count,
-traversal and cursor. JSON additionally selects duplicate `lineContent`, hit
-repository identities, display/physical byte coordinates, safety modifications,
-issue byte details and full scope identities. Those fields use conditional
+Compact text selects complete line/context slices, native UTF-8 display match
+offsets, exact reads, scope provenance/statuses, scan/skip counts, issue summaries,
+omissions, page count, traversal and cursor. Display offsets are required in
+both modes and validated for ordered, in-bounds UTF-8 character boundaries in
+the returned slice. JSON additionally selects duplicate `lineContent`, hit
+repository identities, physical source byte coordinates, safety modifications,
+issue byte details and full scope identities. Those extra fields use conditional
 `@include(if: $includeDetailedFields)` selections. Missing selected fields or
 unknown hit branches fail. Selected nulls stay null; excluded details stay
 absent. JSON keeps camelCase fields without `hasMore` or an invented global total.
 
 ## Results and recovery
 
-`totalMatches` counts this page. Physical scope `targetIndex` differs from
-caller attribution in `requestedInputIndices`; producer order is retained.
-Only consecutive compatible hits group together. Overlapping context merges,
-match/context lines are numbered, and omitted line bytes are marked. Prose
-wraps to caller width; source and executable actions remain intact. Terminal
-controls and locator backslashes are escaped; backend Unicode is preserved.
+`totalMatches` counts occurrences on this page. The text headline also counts
+distinct matching physical lines and files/pages; multiple occurrences on one
+line still count as multiple matches. JSON retains producer order. Text groups
+the whole page by physical scope, hit kind and exact read target/path, in first
+scope/file appearance order, then sorts rows by line and slice position. Display
+paths alone never establish file identity. Physical scope `targetIndex` differs
+from caller attribution in `requestedInputIndices`; text shows input attribution
+when explaining coverage gaps.
+
+Identical `(line, startByte, endByte, content)` windows share one numbered row,
+with every native match span retained. Match rows use `:`, context uses `-`, and
+match role wins over identical context. Conflicting context and distinct windows
+on a long line remain separate. Zero-context output has no gap separators;
+disjoint blocks with context use `--`. Omitted native line bytes use `[...]`.
+No client clipping, match-text annotation or extra read request is added.
+ANSI-capable CLI output highlights the native spans without re-running the
+pattern. Splitting raw UTF-8 bytes precedes escaping and color; zero-width
+matches count without fabricated highlight text. Removing ANSI leaves the same
+content. Native source/context tabs, backslashes and Unicode remain intact;
+other C0/C1/DEL controls are escaped. Locator backslashes and controls are escaped.
+Free prose wraps to caller width; source rows and read recipes remain intact.
 
 Read actions are backend-authored. Display paths can be package-relative while
 read paths are repository-root paths at an exact commit. Hosted actions use
 persisted URLs and read latest active content, which can change after search.
-The client never hydrates hits or guesses paths.
+The client never hydrates hits or guesses paths. Repository actions require a
+string path; hosted actions require a null path. Core types and validation
+express these hit-specific contracts. Each file/page locator appears once; a
+differing repository read path is labeled `Read path`. A shared footer
+prints each exact snapshot/page read target once with clearly marked placeholders
+for read path and line bounds. Replace the placeholders before executing, for
+example:
+
+```sh
+githits read --lines '<start>-<end>' -- 'https://github.com/expressjs/express@<full-commit>' '<read-path>'
+```
+
+The actual output supplies the full backend target. Real operands use exact
+shell quoting and `--`; JSON retains each original action and its exact bounds.
+Private MCP formatter callers use `read target=... path=... start_line=...
+end_line=...` argument syntax. This does not register a new MCP tool.
+
+Healthy CURRENT readiness, retryable false, equal requested/served refs and
+routine input indices stay quiet in text. Repository and hosted-doc evidence
+have separate headings. A normal page limit says more is available and prints
+one opaque cursor instruction with the identical ordered operands/controls rule.
+It is not presented as target failure.
 
 `UNSPECIFIED` readiness means this page stopped before visiting that scope.
 The scope stays in `targets`, retains its input attribution, and reports
@@ -110,3 +148,20 @@ source repro, mixed two-page CLI continuation and compact/detailed service
 pages: both scopes and input attribution are retained, with a source hit on
 page one and a hosted-doc hit on page two. Unknown readiness values and other
 malformed output still fail validation.
+
+The fixed public formatter cases live in `shared/fixtures/grep-text` beside
+their source/license attribution. Measure the built Node formatter at width 80,
+without color, including all native windows and the continuation cursor:
+
+```sh
+bun build scripts/grep-text-size-benchmark.ts --target node --outfile /tmp/grep-text-bench.mjs
+node /tmp/grep-text-bench.mjs --output-dir /tmp/grep-text-output
+```
+
+The script compares the two 100-occurrence pages against their captured byte
+baselines and requires at least 65% reduction per case. On 2026-09-29, mixed
+output fell from 23,509 to 7,243 bytes and repository output from 19,487 to
+5,604. Separate temporary tiktoken `o200k_base` measurement gave 8,038 to 2,156
+and 7,506 to 1,618 tokens respectively. No tokenizer dependency or runtime
+performance claim is added. JSON equality, Unicode/color parity and coverage
+regressions establish evidence retention independently of the size budget.

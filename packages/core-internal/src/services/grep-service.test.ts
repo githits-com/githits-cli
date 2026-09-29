@@ -77,6 +77,8 @@ function mixed(): GrepResult {
           endLine: 2,
         },
         contentSafety: safety,
+        matchStartByte: 0,
+        matchEndByte: 6,
       },
       {
         __typename: "GrepSiteHit",
@@ -93,6 +95,8 @@ function mixed(): GrepResult {
           endLine: 3,
         },
         contentSafety: safety,
+        matchStartByte: 0,
+        matchEndByte: 6,
       },
     ],
     targets: [0, 1].map((targetIndex) => ({
@@ -147,6 +151,20 @@ function detailedMixed(): GrepResult {
 
 describe("unified grep service", () => {
   for (const detailed of [false, true]) {
+    it(`rejects read paths incompatible with the hit kind in ${detailed ? "detailed" : "compact"} mode`, () => {
+      const data = detailed ? detailedMixed() : mixed();
+      expect(parseGrepResult(data, detailed)).toEqual(data);
+      for (const kind of ["GrepRepositoryHit", "GrepSiteHit"]) {
+        const malformed = structuredClone(data);
+        const hit = malformed.hits.find((hit) => hit.__typename === kind)!;
+        Object.assign(hit.read, {
+          path: kind === "GrepRepositoryHit" ? null : "unexpected.ts",
+        });
+        expect(() => parseGrepResult(malformed, detailed)).toThrow(
+          MalformedGrepResponseError,
+        );
+      }
+    });
     it(`preserves an unvisited scope on a ${detailed ? "detailed" : "compact"} one-match page and its visited continuation`, () => {
       const first = detailed ? detailedMixed() : mixed();
       first.hits = [first.hits[0]!];
@@ -210,6 +228,17 @@ describe("unified grep service", () => {
           );
         expect(body.query).toContain("read { target path startLine endLine }");
         expect(body.query).toContain("fragment LineSlice on GrepRepoLineSlice");
+        for (const fragment of ["RepositoryMatch", "SiteMatch"]) {
+          const selection = body.query
+            .split(`fragment ${fragment} on `)[1]
+            .split("\n}")[0];
+          expect(selection).toContain("matchStartByte matchEndByte");
+          expect(selection).not.toContain("matchStartByte @include");
+          expect(selection).not.toContain("matchEndByte @include");
+          expect(selection).toContain(
+            "sourceMatchStartByte @include(if: $includeDetailedFields)",
+          );
+        }
         return response({ data: { grep: mixed() } });
       },
     );
@@ -266,6 +295,62 @@ describe("unified grep service", () => {
       service(async () => new Response("invalid json")).grep(params),
     ).rejects.toBeInstanceOf(MalformedGrepResponseError);
   });
+  for (const detailed of [false, true]) {
+    for (const kind of ["GrepRepositoryHit", "GrepSiteHit"]) {
+      it(`validates native UTF-8 display coordinates for ${kind} in ${detailed ? "detailed" : "compact"} mode`, () => {
+        const data = detailed ? detailedMixed() : mixed();
+        const matchingHit = data.hits.find((hit) => hit.__typename === kind)!;
+        Object.assign(matchingHit, {
+          lineSlice: {
+            content: "界router",
+            startByte: 0,
+            endByte: 9,
+            originalLineBytes: 9,
+          },
+          matchStartByte: 3,
+          matchEndByte: 9,
+          ...(detailed ? { lineContent: "界router" } : {}),
+        });
+        expect(parseGrepResult(data, detailed)).toEqual(data);
+        for (const [start, end] of [
+          [1, 9],
+          [0, 1],
+          [3, 10],
+          [9, 3],
+          [3, 4],
+        ]) {
+          const malformed = structuredClone(data);
+          const hit = malformed.hits.find((hit) => hit.__typename === kind)!;
+          // Last pair is valid: ASCII ends need not be grapheme boundaries.
+          Object.assign(hit, { matchStartByte: start, matchEndByte: end });
+          if (start === 3 && end === 4)
+            expect(parseGrepResult(malformed, detailed)).toEqual(malformed);
+          else
+            expect(() => parseGrepResult(malformed, detailed)).toThrow(
+              MalformedGrepResponseError,
+            );
+        }
+        for (const field of ["matchStartByte", "matchEndByte"]) {
+          const malformed = structuredClone(data);
+          const hit = malformed.hits.find((hit) => hit.__typename === kind)!;
+          Reflect.deleteProperty(hit, field);
+          expect(() => parseGrepResult(malformed, detailed)).toThrow(
+            MalformedGrepResponseError,
+          );
+        }
+        const zeroWidth = structuredClone(data);
+        Object.assign(zeroWidth.hits.find((hit) => hit.__typename === kind)!, {
+          matchEndByte: 3,
+        });
+        expect(parseGrepResult(zeroWidth, detailed)).toEqual(zeroWidth);
+        matchingHit.contentSafety.filtered = true;
+        matchingHit.matchEndByte = 99;
+        expect(() => parseGrepResult(data, detailed)).toThrow(
+          MalformedGrepResponseError,
+        );
+      });
+    }
+  }
   it("returns cursor-expired and partial pages with sibling hits and omissions unchanged", async () => {
     const data = {
       ...mixed(),

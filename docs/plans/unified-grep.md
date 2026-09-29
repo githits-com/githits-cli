@@ -2,9 +2,10 @@
 
 ## Status and outcome
 
-**Status: IN PROGRESS.** Phase 1 implementation is authorized via `$orchestrate`.
-The requested sequence is two increments: introduce the top-level
-CLI command first, then replace the advertised MCP `code_grep` tool.
+**Status: OUTPUT IMPLEMENTED; CODE REVIEW IN PROGRESS.** Phase 1 is merged. Its CLI output
+refinement is implemented and being reviewed; MCP replacement waits for its merge.
+The sequence is CLI introduction, useful and compact CLI text, then replacement
+of the advertised MCP `code_grep` tool.
 
 When complete, `githits grep` and MCP `grep` execute one backend `Query.grep`
 page over ordered package, repository, and explicit site targets. Their shared
@@ -30,7 +31,7 @@ order and whole-target convenience below are design proposals, not previously
 user-confirmed preferences. Production grep conformance is verified below;
 that does not change backend deployment or publication authorization.
 Dependencies: the checked-in backend contract, existing auth/transport helpers,
-and Phase 1 before Phase 2. Completion criteria: both phases merged, their
+and CLI output refinement before Phase 2. Completion criteria: all increments merged, their
 surface-specific validation passing, and durable docs updated. Hosted adoption
 is tracked separately from package/client completion.
 
@@ -102,9 +103,9 @@ contextLinesAfter:, maxMatches:, cursor:, waitTimeoutMs:)` returns `GrepResult`.
 
 A hit's `targetIndex` indexes a dispatched physical scope, not the caller's
 target list. Backend expansion and deduplication can map one input to several
-scopes and several inputs to one scope. Preserve `requestedInputIndices` and
-producer order; do not expand, deduplicate, sort, or merge target identities in
-the client.
+scopes and several inputs to one scope. The service and JSON preserve
+`requestedInputIndices` and producer order; they do not expand, deduplicate,
+sort, or merge target identities. Text groups evidence for presentation only.
 
 Repository read actions contain the exact snapshot target, repository-root
 `path`, and line bounds. A displayed package-relative `filePath` is not that
@@ -233,7 +234,7 @@ Document `--` before a leading-dash pattern, for example
 | Results per page | 100 by default, 1–1000; `--limit`, resumable cursor | Remote response bound; `-m` would falsely imply a per-file limit |
 | Context ceiling | 10 lines per side | Backend contract; larger windows use exact `read` actions |
 | Readiness wait | Zero; explicit `--wait` | Existing index/preparation boundary; no hidden retry or polling |
-| Output | Numbered source/context lines with coverage summary and exact read actions | Remote provenance and partial coverage must remain visible |
+| Output | Grouped numbered match/context rows, concise coverage and shared read recipes; exact per-hit actions in JSON | Remote provenance and partial coverage must remain visible |
 | Search scope | Supplied indexed targets, with selected package docs | Backend target/authority contract; no local file, unindexed, hidden-file or ignore-policy parity claim |
 
 The CLI's source flags apply uniformly to every package/repository operand.
@@ -310,16 +311,29 @@ statuses, file issues, omitted issue counts, omissions and cursor. Do not copy
 legacy `hasMore`, filter echoes, unique-file counts, or a global-total fiction.
 
 Text leads with page match count and traversal, then concise scope status and
-match blocks. Group only consecutive compatible hits by physical scope and
-locator, preserving producer order. Reuse numbered `line: content` matches,
-`line- content` context, and visible slice omission markers. Escape terminal
-controls and locator backslashes; preserve backend Unicode. Keep prose wrapped
+match blocks. Group text across the complete returned page by physical scope and exact
+file/page read identity. Preserve scope/file first-appearance order, then
+show numbered lines in source order. Backend occurrence order remains in JSON. Reuse numbered `line: content` matches,
+`line- content` context, and visible slice omission markers. Preserve tabs in
+source/context content; escape other C0/C1/DEL controls and locator backslashes.
+Preserve backend Unicode. Keep prose wrapped
 to caller width, source lines intact, formatter punctuation ASCII, and meaning
 independent of color. CLI and MCP use the same formatter with color/width inputs.
-No new highlight-offset processing is needed in compact text.
+Compact text uses backend-authored display offsets relative to normalized slice
+content for highlighting; it never reruns the search regex locally. Split raw
+UTF-8 content at native match boundaries, escape each resulting segment, then
+add formatter ANSI. Core validates `0 <= start <= end <= byteLength(content)`
+and UTF-8 boundaries; malformed coordinates are protocol errors, not render
+fallbacks. Identical per-line slices coalesce, with match rows taking precedence
+over context rows. Zero-context results have no gap separators; when context
+rows are rendered, `--` separates non-contiguous blocks.
 
-Each block carries its backend-authored read target/path and line action(s);
-identical actions may be printed once. Show warnings for stale/failed/unready
+Text carries exact backend read targets and repository-root paths, with
+numbered source/context rows and shared read recipes. Repeat snapshot targets
+once per distinct read identity rather than one executable command per
+occurrence. JSON retains every original read action and its exact bounds.
+Recipes visibly use placeholders for the chosen path/window; they are not new
+read aliases or a promise that disjoint hits form one continuous read range. Show warnings for stale/failed/unready
 scopes, skipped/issue-bearing files, safety normalization, and unavailable docs
 even when hits are empty. Say “No matches” with exhaustive meaning only for
 complete traversal and no omissions, scope failures, skipped or issue-bearing
@@ -336,7 +350,8 @@ Minimal fetching is part of this contract:
 | Result traversal, cursor, page count; scope indexing, input mapping, readiness/traversal/errors/retryability; omissions including progress/suggested scopes | Required | Required |
 | Hit kind, scope index, repository display path or page URL, line, complete line/context slice fields, exact read action; safety `filtered` | Required | Required |
 | Scope target/requested ref/served commit/corpus; scan/skip counts; file issue path/code/line, issue safety `filtered`, and omitted count | Required for provenance and coverage notes | Required |
-| Duplicate hit `lineContent`, hit repo URL/commit/repository path; display/physical match offsets; hit/issue safety modifications; issue `lineBytes` and match byte coordinates; scope repo URL/canonical site/URL prefixes | Omitted | Required |
+| Display match byte offsets relative to normalized slice content | Required for native match highlighting | Required |
+| Duplicate hit `lineContent`, hit repo URL/commit/repository path; physical match offsets; hit/issue safety modifications; issue `lineBytes` and match byte coordinates; scope repo URL/canonical site/URL prefixes | Omitted | Required |
 
 Use one document with `includeDetailedFields` directives (or equivalent
 separate selections if simpler), model excluded fields as absent and selected
@@ -360,7 +375,17 @@ the existing CLI's successful-empty-result convention.
 
 ## Ordered phases
 
-### Phase 1 — top-level CLI mixed grep (COMPLETE; PENDING MERGE)
+### Phase 1 — top-level CLI mixed grep (MERGED)
+
+[PR #429](https://github.com/githits-com/githits-cli/pull/429) merged on
+2026-09-29 at `9f96f74319eeb718abef2969785a005ef4bef182`. Freshly fetched
+`origin/main` is that same commit. Its [Main CI](https://github.com/githits-com/githits-cli/actions/runs/36549214105)
+and [Agent Evals workflow](https://github.com/githits-com/githits-cli/actions/runs/36549213730)
+completed successfully. The observed pre-merge validation remains recorded
+below: 5,098 tests, dev and production acceptance, and 154 CLI / 65 MCP smoke
+steps against production. No implementation tests were rerun for this
+bookkeeping. The Phase 1 Claude reviewer was released after merge confirmation;
+Orca confirmed `processAction: closed_agent_terminal`.
 
 Implementation checkpoint after the backend small-page correction and production verification (2026-09-29):
 
@@ -413,26 +438,7 @@ and publication remain outside this increment's authorization.
 Product decisions: none blocking implementation of this proposal.
 Dependencies: backend `Query.grep` and dev v6 access for mixed-source validation.
 
-Implementation order:
-
-1. Add core grep interfaces/implementation and tests; export them internally
-   from `packages/core-internal/src/index.ts`. Follow narrow list-service
-   transport/error ownership, retaining structured preparation issues.
-2. Add shared request/error/projector/formatter helpers and tests, with a
-   private workspace export in `packages/mcp/src/internal.ts`. Separate union
-   payloads from the legacy `GrepRepoResult`/`LeanGrepRepoEnvelope`.
-3. Wire `grepService` in both root container paths and add a service mock
-   factory following `test-helpers.ts`. Add `src/commands/grep.ts`, its tests,
-   command-index export and `src/cli.ts` registration. Network config remains
-   lazy on help/local-only paths; cover malformed env regressions.
-4. Add CLI smoke assertions in `scripts/cli-smoke.ts`; preserve existing MCP
-   catalog assertions. Update CLI reference/help and create
-   `docs/implementation/unified-grep.md` with architecture, coverage semantics,
-   action replay and compatibility limits. Add a fragment declaring
-   `githits: minor`, `@githits/mcp: none` because the public MCP API/catalog is
-   unchanged. Reassess if implementation actually alters a public export.
-
-Acceptance and evidence:
+Completed Phase 1 acceptance contract:
 
 - Pure request tests cover ordered multi-target inputs, global CLI source
   controls, per-target selectors, sites, empty arrays/strings, whitespace
@@ -483,14 +489,348 @@ Acceptance and evidence:
   package-boundary isolation remain unit/fixture cases unless fresh live
   evidence is available. Record live outcomes and endpoint readiness accurately.
 
-No optimization is proposed and no latency claim is made. There is no existing
-unified-grep runtime baseline to compare. If implementation begins optimizing
-formatting, add a narrow reproducible built-output size fixture first: 100
-repository hits at one served commit and 100 mixed repository/site hits with
-one omission and cursor, before/after the same cases. Do not benchmark the
-whole search/navigation suite or report debug-build timings.
+Phase 1 made no optimization or latency claim. Its output-size follow-up now
+has the two fixed production captures below, including continuation cursors.
+They cover default zero-context pages without omissions; omission and other
+coverage shapes are regression cases, not additional budget benchmarks. No
+search-suite benchmark or debug-build timing is needed.
 
-### Phase 2 — MCP `grep` replaces `code_grep` (PENDING Phase 1)
+### Phase 1 follow-up — useful, compact grep text (IMPLEMENTED; CODE REVIEW IN PROGRESS)
+
+Problem: the merged output treats backend occurrences as independent display
+blocks and repeats read commands and routine protocol fields. User-provided
+production output and the legacy `code grep` screenshot make the regression
+concrete. Wire correctness and a passing smoke suite did not establish text
+quality. The earlier plan's requirement to preserve producer interleaving in
+text was misplaced; backend/JSON ordering belongs to the data contract, and
+the formatter owns a layout useful to people and agents.
+
+Expected outcome: readers can scan one file/page heading and numbered matching
+lines, identify repository versus hosted docs, and reopen or continue the evidence
+without wading through per-occurrence scaffolding. Repeated occurrences on one
+physical line/window occupy one display row; the page summary distinguishes
+occurrences from matching lines. Full machine evidence remains lossless JSON.
+
+Evidence collected on 2026-09-29 from `bun run build` followed by Node
+`dist/cli.js` against explicit production URLs, with `GITHITS_API_TOKEN` unset:
+
+| Fixed captured case | Pre-refinement bytes / lines / o200k_base tokens | Grouped full-window prototype | Grouped bounded-preview prototype |
+| --- | --- | --- | --- |
+| `router npm:express`, default 100 | 23,509 / 413 / 8,038 | 7,175 / 112 / 2,144 | 6,687 / 112 / 2,031 |
+| `router` in pinned Express repository, source corpus, limit 100 | 19,487 / 297 / 7,506 | 5,550 / 114 / 1,607 | same as full-window |
+
+The mixed case has 100 occurrence records, 81 distinct physical lines/windows
+and eight files/pages; it prints 100 read commands. Nineteen extra records
+share identical rendered windows, with distinct match offsets. The pinned
+repository case has 100 occurrences and seven files. The prototypes are
+layout studies, not production implementations or complete coverage-warning
+formatters. Numbers include real continuation cursors; no latency or model
+quality claim is made. Token counts use tiktoken's `o200k_base`, not a claim
+about Claude's tokenizer. The earlier package-path capture named
+`source-100` still includes hosted package docs and is not the source-only
+benchmark; it is preserved as evidence, not discarded.
+
+Proof: `/tmp/nuckelavee-grep-ux-{mixed-100,repository-100}.{txt,json}`,
+`/tmp/nuckelavee-grep-ux-prototype-v2.py`, the `-draft-v2-full.txt` /
+`-draft-v2-bounded.txt` outputs, and
+`/tmp/nuckelavee-grep-ux-size-comparison-v2.json`. The original prototype, outputs
+and comparison are preserved. V2 removes occurrence annotations from source
+content, labels repository corpus correctly and quotes recipe operands. No grep formatter
+benchmark existed; `scripts/list-text-size-benchmark.ts` is a size-measurement
+convention only, not a grep baseline.
+
+Proposed decisions and assumptions:
+
+- Follow the supplied legacy screenshot: grouped file/page headings, aligned
+  line gutters, standard `:` match / `-` context markers, and optional match
+  highlighting. Scope grouping and identical-window coalescing affect text
+  only, not page membership, budgets, JSON or backend cursor semantics.
+- Retain complete backend-provided windows in this increment. Extra client
+  clipping saved only 113 tokens on the mixed prototype and none on the
+  repository case; it complicates evidence presentation for little measured
+  gain. Existing native slice omissions stay visible. This is a draft choice
+  informed by the screenshot and measurements; incorporate any user steering
+  about long-line previews before implementation.
+- No default executable command per occurrence. A reusable read recipe states
+  the actual full snapshot/page target; file headers retain the actual read
+  path when it differs from the package display path. Row line numbers support
+  a chosen read window. All original backend read actions remain in JSON.
+- No new verbose flag in this increment. Default text is the useful evidence
+  view; existing `--json` carries full raw status/provenance/action detail.
+- Keep matching controls, package-selected doc expansion, limits, default
+  corpus and pagination unchanged. This increment introduces no suppression
+  of hosted docs, relevance ranking, source filtering, retries or hydration.
+
+Unknowns/product decisions: none blocking the proposed grouped full-window
+layout. The two optional layout/long-line questions remain open for user
+steering; these documented defaults apply if no preference is supplied.
+Dependencies: merged Phase 1 service and shared helpers, its verified native
+read/match coordinate contract, and production/dev access for live acceptance.
+
+Architecture and ownership:
+
+- `grep-text.ts` owns presentation grouping, exact-window coalescing, gutters,
+  highlights, read recipes and meaningful coverage prose. Keep it one shared
+  pure formatter with color/width/syntax inputs; avoid CLI-specific duplication
+  or a general output framework. A small adjacent pure helper is justified
+  only if grouping/window logic makes the formatter harder to read and test.
+- Core owns native match coordinates and GraphQL selection. Compact text now
+  selects and validates `matchStartByte`/`matchEndByte` for both hit kinds for
+  highlighting. Backend code confirms
+  they are UTF-8 byte offsets relative to returned normalized slice content;
+  physical source offsets remain JSON-only. Require both display offsets and
+  validate their slice bounds and UTF-8 boundaries in the core parser. Do not rerun a JavaScript regex
+  against results: RE2 and Unicode behavior belong to the backend.
+- CLI owns color detection, width and output. MCP later passes its syntax and
+  color policy to the same formatter. No service-provider or public MCP
+  catalog/schema migration occurs in this follow-up.
+- Recheck every compact selection against the final formatter, empty-result
+  and warning paths. Remove or condition fields used only by JSON; retain
+  fields consumed by real provenance/coverage decisions. Detailed JSON remains
+  strictly selected and validated; unknown malformed output stays rejected.
+
+Orchestration sequence (one Luna worker, serial dispatches):
+
+1. Freeze exact compact projections of the two captured pages; prove equality
+   against the captured public inputs and the fixture size cap.
+2. Add the deterministic size script for those fixed fixture pages; prove both
+   named outputs and byte/line counts using the built Node script.
+3. Add one regression for page-wide grouping of alternating scopes and duplicate
+   occurrences; prove grouping without changing JSON order.
+4. Record fixture source/license/transformation attribution beside the corpus.
+5. Coordinator updates final CLI/output documentation and the independent
+   release fragment from the verified implementation contract; interpreting
+   the final presentation and selection boundary stays with its owner.
+
+Coordinator retains grouping/coverage/read-recipe design, native highlighting,
+core selection/validation, other regressions, smoke assertions, live verification,
+benchmarks, review and delivery. Workers return uncommitted checkpoints. The
+live permission mode is full access; ownership lists constrain authorized edits.
+A fresh code-review loop is armed for this increment; the clean plan reviewer
+was released and is not reused.
+
+Implementation order:
+
+1. Freeze the two captured public cases as formatter-consumed field projections,
+   including native display offsets, read identities, provenance and coverage;
+   omit duplicate detailed hit text and unused JSON-only fields. Cap each fixture
+   at 80 KiB of minified JSON. Add a small grep output-size script following the
+   list convention that reports UTF-8 bytes and lines, with no tokenizer
+   dependency. Bundle this one script for Node with the final formatter before
+   measuring; compare the same fixture pages, color disabled, width 80, including
+   cursors. Measure tokens separately with temporary tiktoken `o200k_base`.
+   Record public source URLs, capture date and verified upstream license notices
+   alongside the frozen fixture projections: Express repository excerpts are
+   [MIT licensed](https://github.com/expressjs/express/blob/master/LICENSE);
+   hosted documentation is [CC BY 4.0](https://github.com/expressjs/expressjs.com/blob/main/LICENSE.md).
+   Attribute the Express contributors and identify backend safety normalization
+   and fixture projection as transformations of the captured excerpts. Preserve baseline output/counts.
+   Do not run a search-suite benchmark.
+2. Replace consecutive-only blocks with page-wide groups keyed by physical
+   scope, hit kind, exact read target and path; do not group by display path
+   alone. Coalesce per-line rows only when `(line, startByte, endByte, content)`
+   is identical; match role wins over context role and all native match spans
+   are retained. Distinct long-line windows survive even on the same physical
+   line; conflicting context windows must not overwrite each other. Source ordering uses physical
+   line and slice position within each group, with stable identity ordering.
+   Do not insert gap separators in zero-context results. If the group renders
+   context, use `--` only between non-contiguous line blocks.
+3. Render compact repository/hosted-doc headings and numbered rows. Keep match occurrence
+   and distinct-line counts truthful in the summary; never append occurrence
+   annotations to source content. Highlights show all native matching spans,
+   including multiple occurrences on a coalesced row. Split raw UTF-8 content
+   first, then escape each segment, then add formatter ANSI. Preserve tabs,
+   Unicode and source backslashes; escape other C0/C1/DEL controls. Empty/zero-width
+   matches still count, with no fabricated text. Native matching and context
+   projection already remove trailing CR (verified in the backend implementation);
+   add CRLF-derived rows to client regression coverage, without client trimming.
+4. Show full exact read identities once in read recipes and retain monorepo
+   read-path differences. Keep `shellQuoteExact` for real CLI targets/paths and
+   existing `--` handling for leading-dash operands; placeholders are visibly
+   quoted and require substitution. MCP recipes use its actual argument syntax.
+   Retain actual hosted read targets, including when they differ from display
+   URLs; do not rely on shell-unsafe URL copying. Avoid invented aliases, merged
+   disjoint read bounds or guessed package targets. Emit one useful continuation instruction with
+   the opaque cursor and identical-operands/controls rule.
+5. Quiet normal CURRENT, retryable-false, equal requested/served refs and routine
+   input indices. Label repository versus hosted-doc groups clearly. Keep
+   actionable stale, failed, unvisited, omission, skip, safety and file-issue
+   information visible once in concise prose. Page-limit continuation is not a
+   target failure. Complete no-hit pages say no matches; partial no-hit pages
+   disclose incomplete coverage. Hosted read mutability remains explicit.
+6. Update CLI help only where needed, smoke structural assertions and durable
+   grep/CLI docs. Add an independent output-UX fragment with `githits: patch`,
+   `@githits/mcp: none` if final changes remain confined to private shared code
+   and CLI text. Reassess if a public MCP surface actually changes. Do not
+   change versions, historical changelog or published agent guidance here.
+   Describe the useful grouped evidence, not a claim that the verbose output
+   was released. The independent fragment is required by AGENTS.md and
+   changes/README.md even while the original feature fragment is pending.
+
+Acceptance and evidence:
+
+- A captured mixed page has one heading per exact file/page identity, every
+  distinct backend window once, truthful occurrence/line counts, one full
+  snapshot per read recipe, no per-hit read commands, and no protocol-status
+  dump. The legacy screenshot's readable line gutters and highlighting remain.
+- Every supplied physical window and required warning survives presentation.
+  JSON deep equality proves all hits, order, offsets, attribution, statuses,
+  reads, omissions and cursor remain unchanged. Grouped text is explicitly
+  presentation order and is never used to construct continuation operands.
+- Regression cases cover alternating source/site hits, same-window multiple
+  occurrences, distinct windows on one long line, overlapping/incompatible
+  context and context-to-match promotion, zero-context gaps, tab indentation,
+  CRLF-derived rows, monorepo display/read path differences, shell quoting and
+  leading-dash read operands, multiple revisions sharing a display path,
+  Unicode byte offsets and malformed bounds/boundaries, terminal controls before
+  a match, no-color rendering,
+  zero-width matches, no hits, unvisited scopes, terminal omissions, skipped
+  files, source safety normalization, expired cursors and partial pages.
+- Query/validation tests prove compact mode fetches only needed display offsets
+  in addition to its real consumers; redundant lineContent, physical offsets,
+  modification detail and JSON-only provenance remain excluded as appropriate.
+  Detailed JSON strictness and field/enum rejection remain covered.
+- Re-render the exact two frozen fixture cases with the built Node formatter.
+  The checked-in script measures bytes and lines; temporary external tiktoken
+  measures tokens with no project dependency. Target at least 65% fewer
+  o200k_base tokens and UTF-8 bytes per case than the
+  observed baseline, with no loss of distinct windows, canonical locators or
+  meaningful coverage. Targets are an acceptance budget, not permission to
+  delete evidence; explain any miss before changing scope or thresholds.
+- Run focused formatter/service/CLI tests, required full `bun test`, typecheck,
+  build and package validation. Run CLI and local MCP smoke; run built smoke
+  if smoke product validation changes. Capture the actual built default
+  `grep router npm:express` output and a source-only repository output against
+  production, plus mixed limit-1 continuation/zero-hit coverage. Inspect normal
+  terminal and no-color width-80 output, not just smoke success. Do not claim
+  the current MCP catalog has adopted unified grep.
+- Review one normal mixed page, one source-only page and one partial/no-hit
+  page as user-facing text before signoff. A passing parser/test suite cannot
+  substitute for assessing readable, usable output. Future MCP descriptor/agent
+  evals remain in Phase 2; this increment changes no current tool discovery.
+
+Plan review closure (2026-09-29; external round 1):
+
+- Accepted normal tab-indentation defect and highlight-order ambiguity. Root
+  cause: treating every source control as unsafe, and leaving coordinate use
+  unstated. Scanned shared renderSlice/escapeControls, both core hit branches,
+  GraphQL selections, backend normalization/rebasing, and native matcher/context
+  projections. Plan now preserves source TAB, escapes other controls after
+  splitting raw UTF-8, and validates required display offsets in core. Native
+  CRLF stripping is verified; no client trim/fallback is proposed.
+- Accepted grouping-role/gap and count-placement gaps. Root cause: consecutive
+  blocks had no page-wide row contract. Scanned shared output paragraphs,
+  follow-up steps/acceptance and prototype. Plan defines per-line slice identity,
+  match-over-context promotion, preserved conflicting slices and no separators
+  at zero context. V2 drops per-row counts without changing source content.
+- Accepted explicit projected fixture cap and external-only token measurement.
+  The script reports bytes/lines without a tokenizer dependency. Keep one Node
+  bundle before measurement: it is a small command, matches the user's built
+  benchmark requirement, and avoids reporting source-run results as built
+  validation. No runtime performance claim or benchmark framework is added.
+- Rejected omitting the independent release fragment while the feature remains
+  unreleased: AGENTS.md and changes/README.md explicitly require a fresh fragment
+  per notable change and prohibit editing another change's fragment. Wording
+  describes grouped evidence without claiming the rejected output was released;
+  the highest impact across pending fragments determines the eventual bump.
+- Accepted all wording/recipe notes. Bounded sibling scan covered the overall
+  dependencies/completion, backend producer-order paragraph, CLI convention
+  table, shared text/selection contract, completed-phase benchmark note,
+  follow-up acceptance, Phase 2 dependency and V2 prototype. Repository vs hosted
+  docs, safe CLI quoting/leading-dash operands and MCP recipe syntax are explicit.
+  Retain exact page-target recipes rather than add a second generic conditional
+  recipe format; the projected budget already passes with those identities.
+
+Plan review closure (2026-09-29; external round 2):
+
+- Rejected skipping bounds validation and highlighting for every filtered hit.
+  The reproduction normalized raw comment/image syntax at response time but
+  omitted the mandatory pre-index full-document normalization. Grep admits only
+  the hosted-document format with this export step. Running the actual normalizer
+  on the cited examples shows comment/image-URL matches absent from indexed text;
+  image-alt text retains a valid span in the normalized placeholder. The same
+  example text is unchanged at response normalization. This does not establish
+  a normally occurring invalid span and does not justify a client workaround or
+  backend handoff. Required display-coordinate validation remains strict.
+  Related areas checked: export format mapping, complete-page export normalization
+  and its regression, both package-selected and explicit-site admission, hosted
+  match projection, field-safety aggregation and actual normalization examples.
+  Internal proof: `/tmp/nuckelavee-grep-ux-normalization-proof.exs`.
+- Removed unnecessary native source-path detail from the CRLF implementation
+  step, keeping verified behavior and internal proof references.
+- Accepted fixture attribution: record canonical source URLs, capture date and
+  verified upstream license notices alongside the projected evidence fixtures.
+  Verified the official Express repository license and website README/license
+  links; the plan records MIT for repository excerpts and CC BY 4.0 for hosted
+  documentation rather than assuming one license covers both.
+
+Review result: the internal code reviewer found no remaining findings after
+both closure passes. External round 3 is clean, including its one fresh-context
+final code-reviewer check. The reviewer verified and accepted the round-2
+pipeline-based rejection. Its final wording note was applied; no product
+question or valid in-scope finding remained open in that plan round. The
+implementation and its code-review record follow below.
+
+Implementation checkpoint, 2026-09-29:
+
+- One Luna worker returned five serial checkpoints: exact compact fixtures,
+  built size script, mixed-page grouping regression, attribution and a small
+  attribution correction. The initial provenance brief omitted the literal
+  capture commands; its checker was strengthened and the worker corrected two
+  examples. Coordinator owns formatter/coverage, core native offsets, other
+  regressions, live evidence and final docs. No worker implementation was
+  silently rewritten.
+- Both frozen fixtures retain all 100 occurrences, full windows, exact reads,
+  scope attribution/status and cursor. Their minified sizes are 51,684 and
+  49,250 bytes, below the 80 KiB cap. Four full detailed captured pagination
+  responses deep-equal the parsed/projected JSON after text formatting.
+- Final built, width-80, plain output measures:
+
+  | Case | Bytes before -> after | Lines before -> after | o200k_base tokens before -> after |
+  | --- | --- | --- | --- |
+  | Mixed 100 | 23,509 -> 7,243 (-69.2%) | 413 -> 114 | 8,038 -> 2,156 (-73.2%) |
+  | Repository 100 | 19,487 -> 5,604 (-71.2%) | 297 -> 118 | 7,506 -> 1,618 (-78.4%) |
+
+- Fresh built Node production output exactly matches these byte/row counts:
+  mixed 81 rows/eight groups, repository 99 rows/seven groups. Original source
+  repro and mixed two-page compact/detailed continuation retain both scopes,
+  source then site hits, UNSPECIFIED then CURRENT and site attribution `[0,1]`.
+  Complete no-hit production output is exactly `No matches.` with both scopes
+  retained in JSON. TTY source output highlights the native router span.
+  Built partial/no-hit fixture review retains stale provenance, scanned counts,
+  skips, issues/omitted counts, unvisited scopes, omissions and cursor; scope
+  warnings share one label instead of repeating it on each row.
+- Final full `bun test`: 5,112 pass, zero fail; `bun run typecheck` passes.
+  Build and public-package validation passed. Authenticated CLI smoke passes
+  stable and experimental cohorts; built CLI/MCP secret-free smoke passes;
+  source MCP unauthenticated validation passes. Stable authenticated MCP smoke
+  passes, but the full authenticated MCP run fails in unrelated experimental
+  research, twice. Narrow diagnosis proves production research returns
+  `sources[].name = read` with `target`/`path` and optional bounds, while the
+  unchanged client research parser accepts only `code_read`/`docs_read`.
+  Fresh origin/main now contains the separate correction in merged PR #431
+  (`eba509e`); this branch is being synchronized to it before repeating that
+  smoke. No research fix is added to this output delta, and no retry, schema
+  weakening or backend edit was introduced. The earlier failed runs remain
+  evidence, not passing smoke results.
+- Luna preflight found no plan/documentation/interface mismatch. Its missing
+  partial/no-hit review evidence is now supplied above; full authenticated
+  MCP smoke is being repeated against the corrected main base. Internal code
+  review accepted one Unicode finding: default TextDecoder consumed U+FEFF at
+  segment starts. One decoder option now preserves it for all three decode
+  paths; a three-case color/plain regression passes. Internal closure is clean.
+  Fresh Claude code review is next.
+
+Proof artifacts: `/tmp/nuckelavee-grep-ux-{benchmark-results,token-results}.json`,
+`-rendered/*.txt`, `-live-{mixed,repository,nohit}.{txt,json}`,
+`-prod-replay{.log,-results.json}`, `-partial-output.txt`, `-live-colored.txt`,
+`-tests-final.log`, and the separately named smoke logs. Research diagnosis is
+`-research-protocol.log`; prior captures and `/tmp/unified-grep-*` remain intact.
+
+Phase boundary: after this follow-up merges, run next-steps against refreshed
+main before MCP. Keep the same useful formatter as the MCP output contract.
+
+### Phase 2 — MCP `grep` replaces `code_grep` (WAITING FOR OUTPUT REFINEMENT)
 
 Expected outcome: the advertised MCP catalog has one mixed-source `grep` tool;
 agents receive the same reads, pagination and truthful coverage as CLI users.
@@ -498,12 +838,15 @@ Legacy source-only flags disappear from MCP, with migration documented.
 
 Assumptions: Phase 1 semantics and shared helpers prove sufficient; required
 provider service additions follow the existing read-service precedent.
-Unknowns: current main's list consolidation status must be rechecked at this
-boundary. Production grep v6 conformance passed on 2026-09-29; recheck the
-deployed contract when Phase 2 starts. Resolve routing against whatever
-inventory tool is actually advertised, without taking ownership of list work.
-Product decisions: none; MCP removal is requested. Dependencies: Phase 1 merged,
-public package compatibility validation, and dev access for MCP conformance.
+Boundary verification on 2026-09-29: the stable MCP catalog still advertises
+`code_grep` and `code_files`; unified MCP `list` has not replaced the inventory
+tool. Grep guidance must route inventory to `code_files`, without adopting
+list work. Production grep v6 conformance passed on 2026-09-29, and the local
+backend schema still documents retained UNSPECIFIED scopes and continuation.
+Unknowns: none blocking this increment.
+Product decisions: none; MCP removal is requested. Dependencies: Phase 1 and
+its output refinement merged, public package compatibility validation, and
+dev access for MCP conformance.
 
 Implementation order:
 
@@ -583,11 +926,21 @@ unified cursors into the legacy root.
 
 ## Phase boundary and completion
 
-After Phase 1 merges, reorient against current `origin/main`: record actual
-validation, confirm backend schema/deployment, reconcile read/list changes,
-reassess Phase 2 public compatibility and instruction dependencies, and adjust
-detail before implementation. Use the next-step readiness workflow if available;
-do not proceed from stale assumptions or treat package release as deployment.
+Phase 1 boundary reorientation is complete at refreshed `origin/main`
+`9f96f74319eeb718abef2969785a005ef4bef182`. The initial next-steps verdict was
+PROCEED with Phase 2. On 2026-09-29 the user rejected the default text output
+and required output quality before MCP. That requirement supersedes the
+earlier readiness verdict; output refinement must merge before Phase 2. The merged core grep service and shared
+request/result/error/text helpers match this plan. MCP still uses the legacy
+adapter; `McpToolServices` and the public client entrypoint do not yet expose
+grep, exactly as Phase 2 expects. Existing MCP caller-abort errors are rethrown
+through `throwIfCallerCancellation`; the adapter preserves that convention,
+without assuming the current core grep service accepts a transport signal.
+The stable-guide parity exception and descriptor-only Claude/Codex eval
+commands remain supported. Public MCP is still pre-1.0 (`0.23.0`), consistent
+with the planned minor migration fragment. No other lane or hosted-server work
+was adopted, and no production implementation was started by this readiness
+check. Do not treat package release as hosted deployment.
 
 After Phase 2 merges, move lasting decisions and migration/operational facts to
 `docs/implementation/unified-grep.md`, transfer any actual major deferred work
@@ -598,7 +951,7 @@ do not absorb a general code-navigation refactor.
 
 ## Design review
 
-Phase 1 execution sequence (one Luna worker, sequential dispatches):
+Completed Phase 1 execution sequence (one Luna worker, sequential dispatches):
 
 1. Coordinator: core service/types/query/validation and transport tests.
 2. Luna: shared request normalization plus its isolated behavioral tests.

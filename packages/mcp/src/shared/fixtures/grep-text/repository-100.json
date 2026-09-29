@@ -1,0 +1,2530 @@
+{
+  "traversal": "RESUMABLE_LIMIT",
+  "nextCursor": "TUdSUAKW_xQN7o9Xb708KubQPUzUWIQwl9Drl5Y-eCSTrQjkPgABAABAAAEBZAAAAAAABAAAAAAAAAAAAAEgfKalBjGIr_089cv89Ti326x0GkmlpkM2twwG6FwuJwbjYzYAAAAQAD8egBfC0rKREwAAAE8AAAAAAA",
+  "totalMatches": 100,
+  "unavailableTargets": [],
+  "hits": [
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 26,
+      "lineSlice": {
+        "content": "var Router = require('router');",
+        "startByte": 0,
+        "endByte": 31,
+        "originalLineBytes": 31
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 26,
+        "endLine": 26
+      },
+      "matchStartByte": 22,
+      "matchEndByte": 28,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 60,
+      "lineSlice": {
+        "content": "  var router = null;",
+        "startByte": 0,
+        "endByte": 20,
+        "originalLineBytes": 20
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 60,
+        "endLine": 60
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 68,
+      "lineSlice": {
+        "content": "  // Setup getting to lazily add base router",
+        "startByte": 0,
+        "endByte": 44,
+        "originalLineBytes": 44
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 68,
+        "endLine": 68
+      },
+      "matchStartByte": 38,
+      "matchEndByte": 44,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 69,
+      "lineSlice": {
+        "content": "  Object.defineProperty(this, 'router', {",
+        "startByte": 0,
+        "endByte": 41,
+        "originalLineBytes": 41
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 69,
+        "endLine": 69
+      },
+      "matchStartByte": 31,
+      "matchEndByte": 37,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 72,
+      "lineSlice": {
+        "content": "    get: function getrouter() {",
+        "startByte": 0,
+        "endByte": 31,
+        "originalLineBytes": 31
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 72,
+        "endLine": 72
+      },
+      "matchStartByte": 21,
+      "matchEndByte": 27,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 73,
+      "lineSlice": {
+        "content": "      if (router === null) {",
+        "startByte": 0,
+        "endByte": 28,
+        "originalLineBytes": 28
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 73,
+        "endLine": 73
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 74,
+      "lineSlice": {
+        "content": "        router = new Router({",
+        "startByte": 0,
+        "endByte": 29,
+        "originalLineBytes": 29
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 74,
+        "endLine": 74
+      },
+      "matchStartByte": 8,
+      "matchEndByte": 14,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 80,
+      "lineSlice": {
+        "content": "      return router;",
+        "startByte": 0,
+        "endByte": 20,
+        "originalLineBytes": 20
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 80,
+        "endLine": 80
+      },
+      "matchStartByte": 13,
+      "matchEndByte": 19,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 177,
+      "lineSlice": {
+        "content": "  this.router.handle(req, res, done);",
+        "startByte": 0,
+        "endByte": 37,
+        "originalLineBytes": 37
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 177,
+        "endLine": 177
+      },
+      "matchStartByte": 7,
+      "matchEndByte": 13,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 181,
+      "lineSlice": {
+        "content": " * Proxy `Router#use()` to add middleware to the app router.",
+        "startByte": 0,
+        "endByte": 60,
+        "originalLineBytes": 60
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 181,
+        "endLine": 181
+      },
+      "matchStartByte": 53,
+      "matchEndByte": 59,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 216,
+      "lineSlice": {
+        "content": "  // get router",
+        "startByte": 0,
+        "endByte": 15,
+        "originalLineBytes": 15
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 216,
+        "endLine": 216
+      },
+      "matchStartByte": 9,
+      "matchEndByte": 15,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 217,
+      "lineSlice": {
+        "content": "  var router = this.router;",
+        "startByte": 0,
+        "endByte": 27,
+        "originalLineBytes": 27
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 217,
+        "endLine": 217
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 217,
+      "lineSlice": {
+        "content": "  var router = this.router;",
+        "startByte": 0,
+        "endByte": 27,
+        "originalLineBytes": 27
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 217,
+        "endLine": 217
+      },
+      "matchStartByte": 20,
+      "matchEndByte": 26,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 222,
+      "lineSlice": {
+        "content": "      return router.use(path, fn);",
+        "startByte": 0,
+        "endByte": 34,
+        "originalLineBytes": 34
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 222,
+        "endLine": 222
+      },
+      "matchStartByte": 13,
+      "matchEndByte": 19,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 230,
+      "lineSlice": {
+        "content": "    router.use(path, function mounted_app(req, res, next) {",
+        "startByte": 0,
+        "endByte": 59,
+        "originalLineBytes": 59
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 230,
+        "endLine": 230
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 257,
+      "lineSlice": {
+        "content": "  return this.router.route(path);",
+        "startByte": 0,
+        "endByte": 33,
+        "originalLineBytes": 33
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 257,
+        "endLine": 257
+      },
+      "matchStartByte": 14,
+      "matchEndByte": 20,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 331,
+      "lineSlice": {
+        "content": "  this.router.param(name, fn);",
+        "startByte": 0,
+        "endByte": 30,
+        "originalLineBytes": 30
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 331,
+        "endLine": 331
+      },
+      "matchStartByte": 7,
+      "matchEndByte": 13,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 468,
+      "lineSlice": {
+        "content": " * Delegate `.VERB(...)` calls to `router.VERB(...)`.",
+        "startByte": 0,
+        "endByte": 53,
+        "originalLineBytes": 53
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/application.js",
+        "startLine": 468,
+        "endLine": 468
+      },
+      "matchStartByte": 35,
+      "matchEndByte": 41,
+      "filePath": "lib/application.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 19,
+      "lineSlice": {
+        "content": "var Router = require('router');",
+        "startByte": 0,
+        "endByte": 31,
+        "originalLineBytes": 31
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "lib/express.js",
+        "startLine": 19,
+        "endLine": 19
+      },
+      "matchStartByte": 22,
+      "matchEndByte": 28,
+      "filePath": "lib/express.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 30,
+      "lineSlice": {
+        "content": "    \"router\",",
+        "startByte": 0,
+        "endByte": 13,
+        "originalLineBytes": 13
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "package.json",
+        "startLine": 30,
+        "endLine": 30
+      },
+      "matchStartByte": 5,
+      "matchEndByte": 11,
+      "filePath": "package.json",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 57,
+      "lineSlice": {
+        "content": "    \"router\": \"^2.2.0\",",
+        "startByte": 0,
+        "endByte": 23,
+        "originalLineBytes": 23
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "package.json",
+        "startLine": 57,
+        "endLine": 57
+      },
+      "matchStartByte": 5,
+      "matchEndByte": 11,
+      "filePath": "package.json",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 10,
+      "lineSlice": {
+        "content": "  it('should return a function with router methods', function () {",
+        "startByte": 0,
+        "endByte": 66,
+        "originalLineBytes": 66
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 10,
+        "endLine": 10
+      },
+      "matchStartByte": 36,
+      "matchEndByte": 42,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 11,
+      "lineSlice": {
+        "content": "    var router = new Router();",
+        "startByte": 0,
+        "endByte": 30,
+        "originalLineBytes": 30
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 11,
+        "endLine": 11
+      },
+      "matchStartByte": 8,
+      "matchEndByte": 14,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 12,
+      "lineSlice": {
+        "content": "    assert(typeof router === 'function')",
+        "startByte": 0,
+        "endByte": 40,
+        "originalLineBytes": 40
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 12,
+        "endLine": 12
+      },
+      "matchStartByte": 18,
+      "matchEndByte": 24,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 14,
+      "lineSlice": {
+        "content": "    assert(typeof router.get === 'function')",
+        "startByte": 0,
+        "endByte": 44,
+        "originalLineBytes": 44
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 14,
+        "endLine": 14
+      },
+      "matchStartByte": 18,
+      "matchEndByte": 24,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 15,
+      "lineSlice": {
+        "content": "    assert(typeof router.handle === 'function')",
+        "startByte": 0,
+        "endByte": 47,
+        "originalLineBytes": 47
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 15,
+        "endLine": 15
+      },
+      "matchStartByte": 18,
+      "matchEndByte": 24,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 16,
+      "lineSlice": {
+        "content": "    assert(typeof router.use === 'function')",
+        "startByte": 0,
+        "endByte": 44,
+        "originalLineBytes": 44
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 16,
+        "endLine": 16
+      },
+      "matchStartByte": 18,
+      "matchEndByte": 24,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 19,
+      "lineSlice": {
+        "content": "  it('should support .use of other routers', function (done) {",
+        "startByte": 0,
+        "endByte": 62,
+        "originalLineBytes": 62
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 19,
+        "endLine": 19
+      },
+      "matchStartByte": 35,
+      "matchEndByte": 41,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 20,
+      "lineSlice": {
+        "content": "    var router = new Router();",
+        "startByte": 0,
+        "endByte": 30,
+        "originalLineBytes": 30
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 20,
+        "endLine": 20
+      },
+      "matchStartByte": 8,
+      "matchEndByte": 14,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 26,
+      "lineSlice": {
+        "content": "    router.use('/foo', another);",
+        "startByte": 0,
+        "endByte": 32,
+        "originalLineBytes": 32
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 26,
+        "endLine": 26
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 28,
+      "lineSlice": {
+        "content": "    router.handle({ url: '/foo/bar', method: 'GET' }, { end: done }, function () { });",
+        "startByte": 0,
+        "endByte": 86,
+        "originalLineBytes": 86
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 28,
+        "endLine": 28
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 32,
+      "lineSlice": {
+        "content": "    var router = new Router();",
+        "startByte": 0,
+        "endByte": 30,
+        "originalLineBytes": 30
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 32,
+        "endLine": 32
+      },
+      "matchStartByte": 8,
+      "matchEndByte": 14,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 39,
+      "lineSlice": {
+        "content": "    router.use('/:foo', another);",
+        "startByte": 0,
+        "endByte": 33,
+        "originalLineBytes": 33
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 39,
+        "endLine": 39
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 41,
+      "lineSlice": {
+        "content": "    router.handle({ url: '/test/route', method: 'GET' }, { end: done }, function () { });",
+        "startByte": 0,
+        "endByte": 89,
+        "originalLineBytes": 89
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 41,
+        "endLine": 41
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 45,
+      "lineSlice": {
+        "content": "    var router = new Router();",
+        "startByte": 0,
+        "endByte": 30,
+        "originalLineBytes": 30
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 45,
+        "endLine": 45
+      },
+      "matchStartByte": 8,
+      "matchEndByte": 14,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 47,
+      "lineSlice": {
+        "content": "    router.use(function (req, res) {",
+        "startByte": 0,
+        "endByte": 36,
+        "originalLineBytes": 36
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 47,
+        "endLine": 47
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 51,
+      "lineSlice": {
+        "content": "    router.handle({ url: '', method: 'GET' }, {}, done);",
+        "startByte": 0,
+        "endByte": 56,
+        "originalLineBytes": 56
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 51,
+        "endLine": 51
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 55,
+      "lineSlice": {
+        "content": "    var router = new Router()",
+        "startByte": 0,
+        "endByte": 29,
+        "originalLineBytes": 29
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 55,
+        "endLine": 55
+      },
+      "matchStartByte": 8,
+      "matchEndByte": 14,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 57,
+      "lineSlice": {
+        "content": "    router.use(function (req, res) {",
+        "startByte": 0,
+        "endByte": 36,
+        "originalLineBytes": 36
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 57,
+        "endLine": 57
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 61,
+      "lineSlice": {
+        "content": "    router.handle({ method: 'GET' }, {}, done)",
+        "startByte": 0,
+        "endByte": 46,
+        "originalLineBytes": 46
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 61,
+        "endLine": 61
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 66,
+      "lineSlice": {
+        "content": "    var router = new Router()",
+        "startByte": 0,
+        "endByte": 29,
+        "originalLineBytes": 29
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 66,
+        "endLine": 66
+      },
+      "matchStartByte": 8,
+      "matchEndByte": 14,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 67,
+      "lineSlice": {
+        "content": "    var route = router.route('/foo')",
+        "startByte": 0,
+        "endByte": 36,
+        "originalLineBytes": 36
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 67,
+        "endLine": 67
+      },
+      "matchStartByte": 16,
+      "matchEndByte": 22,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 77,
+      "lineSlice": {
+        "content": "    router.get('/foo', function (req, res, next) { next(new Error('should not run')) })",
+        "startByte": 0,
+        "endByte": 87,
+        "originalLineBytes": 87
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 77,
+        "endLine": 77
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 78,
+      "lineSlice": {
+        "content": "    router.use(function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 42,
+        "originalLineBytes": 42
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 78,
+        "endLine": 78
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 83,
+      "lineSlice": {
+        "content": "    router.handle({ url: '/foo' }, {}, function (err) {",
+        "startByte": 0,
+        "endByte": 55,
+        "originalLineBytes": 55
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 83,
+        "endLine": 83
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 95,
+      "lineSlice": {
+        "content": "    var router = new Router();",
+        "startByte": 0,
+        "endByte": 30,
+        "originalLineBytes": 30
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 95,
+        "endLine": 95
+      },
+      "matchStartByte": 8,
+      "matchEndByte": 14,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 98,
+      "lineSlice": {
+        "content": "      router.get('/thing' + i, handler)",
+        "startByte": 0,
+        "endByte": 39,
+        "originalLineBytes": 39
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 98,
+        "endLine": 98
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 101,
+      "lineSlice": {
+        "content": "    router.get('/', function (req, res) {",
+        "startByte": 0,
+        "endByte": 41,
+        "originalLineBytes": 41
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 101,
+        "endLine": 101
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 105,
+      "lineSlice": {
+        "content": "    router.handle({ url: '/', method: 'GET' }, { end: done }, function () { });",
+        "startByte": 0,
+        "endByte": 79,
+        "originalLineBytes": 79
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 105,
+        "endLine": 105
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 111,
+      "lineSlice": {
+        "content": "    var router = new Router()",
+        "startByte": 0,
+        "endByte": 29,
+        "originalLineBytes": 29
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 111,
+        "endLine": 111
+      },
+      "matchStartByte": 8,
+      "matchEndByte": 14,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 113,
+      "lineSlice": {
+        "content": "    router.get('/foo', function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 50,
+        "originalLineBytes": 50
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 113,
+        "endLine": 113
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 119,
+      "lineSlice": {
+        "content": "      router.get('/foo', function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 52,
+        "originalLineBytes": 52
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 119,
+        "endLine": 119
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 125,
+      "lineSlice": {
+        "content": "    router.get('/foo', function (req, res) {",
+        "startByte": 0,
+        "endByte": 44,
+        "originalLineBytes": 44
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 125,
+        "endLine": 125
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 130,
+      "lineSlice": {
+        "content": "    router.handle({ url: '/foo', method: 'GET' }, { end: done }, function (err) {",
+        "startByte": 0,
+        "endByte": 81,
+        "originalLineBytes": 81
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 130,
+        "endLine": 130
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 138,
+      "lineSlice": {
+        "content": "    var router = new Router()",
+        "startByte": 0,
+        "endByte": 29,
+        "originalLineBytes": 29
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 138,
+        "endLine": 138
+      },
+      "matchStartByte": 8,
+      "matchEndByte": 14,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 140,
+      "lineSlice": {
+        "content": "    router.use(function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 42,
+        "originalLineBytes": 42
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 140,
+        "endLine": 140
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 146,
+      "lineSlice": {
+        "content": "      router.use(function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 44,
+        "originalLineBytes": 44
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 146,
+        "endLine": 146
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 152,
+      "lineSlice": {
+        "content": "    router.use(function (req, res) {",
+        "startByte": 0,
+        "endByte": 36,
+        "originalLineBytes": 36
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 152,
+        "endLine": 152
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 157,
+      "lineSlice": {
+        "content": "    router.handle({ url: '/', method: 'GET' }, { end: done }, function (err) {",
+        "startByte": 0,
+        "endByte": 78,
+        "originalLineBytes": 78
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 157,
+        "endLine": 157
+      },
+      "matchStartByte": 4,
+      "matchEndByte": 10,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 164,
+      "lineSlice": {
+        "content": "      var router = new Router();",
+        "startByte": 0,
+        "endByte": 32,
+        "originalLineBytes": 32
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 164,
+        "endLine": 164
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 166,
+      "lineSlice": {
+        "content": "      router.route('/foo').get(function (req, res) {",
+        "startByte": 0,
+        "endByte": 52,
+        "originalLineBytes": 52
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 166,
+        "endLine": 166
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 176,
+      "lineSlice": {
+        "content": "      router.handle({ url: '/foo', method: 'GET' }, res, function () { });",
+        "startByte": 0,
+        "endByte": 74,
+        "originalLineBytes": 74
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 176,
+        "endLine": 176
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 183,
+      "lineSlice": {
+        "content": "        var router = new Router();",
+        "startByte": 0,
+        "endByte": 34,
+        "originalLineBytes": 34
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 183,
+        "endLine": 183
+      },
+      "matchStartByte": 12,
+      "matchEndByte": 18,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 184,
+      "lineSlice": {
+        "content": "        router.route('/foo').all(null);",
+        "startByte": 0,
+        "endByte": 39,
+        "originalLineBytes": 39
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 184,
+        "endLine": 184
+      },
+      "matchStartByte": 8,
+      "matchEndByte": 14,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 190,
+      "lineSlice": {
+        "content": "        var router = new Router();",
+        "startByte": 0,
+        "endByte": 34,
+        "originalLineBytes": 34
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 190,
+        "endLine": 190
+      },
+      "matchStartByte": 12,
+      "matchEndByte": 18,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 191,
+      "lineSlice": {
+        "content": "        router.route('/foo').all(undefined);",
+        "startByte": 0,
+        "endByte": 44,
+        "originalLineBytes": 44
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 191,
+        "endLine": 191
+      },
+      "matchStartByte": 8,
+      "matchEndByte": 14,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 197,
+      "lineSlice": {
+        "content": "        var router = new Router();",
+        "startByte": 0,
+        "endByte": 34,
+        "originalLineBytes": 34
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 197,
+        "endLine": 197
+      },
+      "matchStartByte": 12,
+      "matchEndByte": 18,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 198,
+      "lineSlice": {
+        "content": "        router.route('/foo').all('not a function');",
+        "startByte": 0,
+        "endByte": 51,
+        "originalLineBytes": 51
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 198,
+        "endLine": 198
+      },
+      "matchStartByte": 8,
+      "matchEndByte": 14,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 203,
+      "lineSlice": {
+        "content": "      var router = new Router();",
+        "startByte": 0,
+        "endByte": 32,
+        "originalLineBytes": 32
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 203,
+        "endLine": 203
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 204,
+      "lineSlice": {
+        "content": "      router.route('/foo').all(function () { }).all(function () { });",
+        "startByte": 0,
+        "endByte": 69,
+        "originalLineBytes": 69
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 204,
+        "endLine": 204
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 210,
+      "lineSlice": {
+        "content": "      var router = new Router();",
+        "startByte": 0,
+        "endByte": 32,
+        "originalLineBytes": 32
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 210,
+        "endLine": 210
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 212,
+      "lineSlice": {
+        "content": "      router.get('/foo', function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 52,
+        "originalLineBytes": 52
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 212,
+        "endLine": 212
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 216,
+      "lineSlice": {
+        "content": "      router.get('/bar', function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 52,
+        "originalLineBytes": 52
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 216,
+        "endLine": 216
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 220,
+      "lineSlice": {
+        "content": "      router.use(function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 44,
+        "originalLineBytes": 44
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 220,
+        "endLine": 220
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 224,
+      "lineSlice": {
+        "content": "      router.use(function (err, req, res, next) {",
+        "startByte": 0,
+        "endByte": 49,
+        "originalLineBytes": 49
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 224,
+        "endLine": 224
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 229,
+      "lineSlice": {
+        "content": "      router.handle({ url: '/foo', method: 'GET' }, {}, done);",
+        "startByte": 0,
+        "endByte": 62,
+        "originalLineBytes": 62
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 229,
+        "endLine": 229
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 233,
+      "lineSlice": {
+        "content": "      var router = new Router();",
+        "startByte": 0,
+        "endByte": 32,
+        "originalLineBytes": 32
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 233,
+        "endLine": 233
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 235,
+      "lineSlice": {
+        "content": "      router.get('/foo/:id', function () {",
+        "startByte": 0,
+        "endByte": 42,
+        "originalLineBytes": 42
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 235,
+        "endLine": 235
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 239,
+      "lineSlice": {
+        "content": "      router.use(function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 44,
+        "originalLineBytes": 44
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 239,
+        "endLine": 239
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 243,
+      "lineSlice": {
+        "content": "      router.use(function (err, req, res, next) {",
+        "startByte": 0,
+        "endByte": 49,
+        "originalLineBytes": 49
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 243,
+        "endLine": 243
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 248,
+      "lineSlice": {
+        "content": "      router.handle({ url: '/foo/2', method: 'GET' }, {}, function () { });",
+        "startByte": 0,
+        "endByte": 75,
+        "originalLineBytes": 75
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 248,
+        "endLine": 248
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 252,
+      "lineSlice": {
+        "content": "      var router = new Router();",
+        "startByte": 0,
+        "endByte": 32,
+        "originalLineBytes": 32
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 252,
+        "endLine": 252
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 254,
+      "lineSlice": {
+        "content": "      router.param('user', function (req, res, next, val) {",
+        "startByte": 0,
+        "endByte": 59,
+        "originalLineBytes": 59
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 254,
+        "endLine": 254
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 261,
+      "lineSlice": {
+        "content": "      router.use('/:user', function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 54,
+        "originalLineBytes": 54
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 261,
+        "endLine": 261
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 265,
+      "lineSlice": {
+        "content": "      router.use(function (err, req, res, next) {",
+        "startByte": 0,
+        "endByte": 49,
+        "originalLineBytes": 49
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 265,
+        "endLine": 265
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 270,
+      "lineSlice": {
+        "content": "      router.handle({ url: '/bob', method: 'GET' }, {}, function () { });",
+        "startByte": 0,
+        "endByte": 73,
+        "originalLineBytes": 73
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 270,
+        "endLine": 270
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 274,
+      "lineSlice": {
+        "content": "      var router = new Router();",
+        "startByte": 0,
+        "endByte": 32,
+        "originalLineBytes": 32
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 274,
+        "endLine": 274
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 276,
+      "lineSlice": {
+        "content": "      router.use(function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 44,
+        "originalLineBytes": 44
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 276,
+        "endLine": 276
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 280,
+      "lineSlice": {
+        "content": "      router.use(function (err, req, res, next) {",
+        "startByte": 0,
+        "endByte": 49,
+        "originalLineBytes": 49
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 280,
+        "endLine": 280
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 284,
+      "lineSlice": {
+        "content": "      router.use(function (err, req, res, next) {",
+        "startByte": 0,
+        "endByte": 49,
+        "originalLineBytes": 49
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 284,
+        "endLine": 284
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 289,
+      "lineSlice": {
+        "content": "      router.handle({ url: '/', method: 'GET' }, {}, done);",
+        "startByte": 0,
+        "endByte": 59,
+        "originalLineBytes": 59
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 289,
+        "endLine": 289
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 296,
+      "lineSlice": {
+        "content": "      var router = new Router();",
+        "startByte": 0,
+        "endByte": 32,
+        "originalLineBytes": 32
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 296,
+        "endLine": 296
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 298,
+      "lineSlice": {
+        "content": "      router.use(function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 44,
+        "originalLineBytes": 44
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 298,
+        "endLine": 298
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 304,
+      "lineSlice": {
+        "content": "      router.handle(request, {}, function (err) {",
+        "startByte": 0,
+        "endByte": 49,
+        "originalLineBytes": 49
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 304,
+        "endLine": 304
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 313,
+      "lineSlice": {
+        "content": "      var router = new Router();",
+        "startByte": 0,
+        "endByte": 32,
+        "originalLineBytes": 32
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 313,
+        "endLine": 313
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 315,
+      "lineSlice": {
+        "content": "      router.use('/proxy', function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 54,
+        "originalLineBytes": 54
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 315,
+        "endLine": 315
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 321,
+      "lineSlice": {
+        "content": "      router.handle(request, {}, function (err) {",
+        "startByte": 0,
+        "endByte": 49,
+        "originalLineBytes": 49
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 321,
+        "endLine": 321
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 330,
+      "lineSlice": {
+        "content": "      var router = new Router();",
+        "startByte": 0,
+        "endByte": 32,
+        "originalLineBytes": 32
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 330,
+        "endLine": 330
+      },
+      "matchStartByte": 10,
+      "matchEndByte": 16,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 332,
+      "lineSlice": {
+        "content": "      router.use('/proxy', function (req, res, next) {",
+        "startByte": 0,
+        "endByte": 54,
+        "originalLineBytes": 54
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 332,
+        "endLine": 332
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    },
+    {
+      "__typename": "GrepRepositoryHit",
+      "targetIndex": 0,
+      "line": 338,
+      "lineSlice": {
+        "content": "      router.handle(request, {}, function (err) {",
+        "startByte": 0,
+        "endByte": 49,
+        "originalLineBytes": 49
+      },
+      "contextBeforeSlices": [],
+      "contextAfterSlices": [],
+      "read": {
+        "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+        "path": "test/Router.js",
+        "startLine": 338,
+        "endLine": 338
+      },
+      "matchStartByte": 6,
+      "matchEndByte": 12,
+      "filePath": "test/Router.js",
+      "contentSafety": {
+        "filtered": false
+      }
+    }
+  ],
+  "targets": [
+    {
+      "targetIndex": 0,
+      "requestedInputIndices": [0],
+      "kind": "REPOSITORY",
+      "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+      "traversal": "RESUMABLE_LIMIT",
+      "readiness": "CURRENT",
+      "errorCode": null,
+      "retryable": false,
+      "publicMessage": null,
+      "requestedRef": "dbac741a49a5a64336b70c06e85c2e2706e36336",
+      "commitSha": "dbac741a49a5a64336b70c06e85c2e2706e36336",
+      "corpus": "SOURCE",
+      "filesScanned": 20,
+      "filesInScope": 188,
+      "binaryFilesSkipped": 0,
+      "filesTooLargeSkipped": 0,
+      "fileIssues": [],
+      "fileIssuesOmitted": 0
+    }
+  ]
+}

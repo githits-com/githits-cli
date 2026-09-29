@@ -42,6 +42,8 @@ const hit: GrepHit = {
   contextBeforeSlices: [],
   contextAfterSlices: [],
   contentSafety: { filtered: false },
+  matchStartByte: 0,
+  matchEndByte: 6,
   read: {
     target: "github:o/r@abc",
     path: "packages/x/lib/a.ts",
@@ -82,8 +84,8 @@ describe("unified grep result and text", () => {
     });
     expect(projectGrepResult(page)).toEqual(page);
     const output = formatGrepText(page);
-    expect(output).toContain("inputs 0, 1 | UNSPECIFIED / RESUMABLE_LIMIT");
-    expect(output).toContain("Coverage: not visited in this page");
+    expect(output).toContain("inputs 0, 1): not visited in this page");
+    expect(output).not.toContain("UNSPECIFIED / RESUMABLE_LIMIT");
     expect(output).toContain("--cursor 'opaque'");
     expect(output).not.toContain("Unavailable input");
     expect(output).toContain("2: router");
@@ -142,7 +144,7 @@ describe("unified grep result and text", () => {
     );
     expect(output).toContain("first router [...]");
     expect(output).toContain("[...] second router [...]");
-    expect(output.match(/\[7\] lib\/a.ts/g)).toHaveLength(2);
+    expect(output.match(/^lib\/a.ts$/gm)).toHaveLength(1);
   });
   it("allowlists fields, preserves selected nulls, details and independent arrays", () => {
     const data = result({
@@ -174,7 +176,7 @@ describe("unified grep result and text", () => {
     expect(compact.hits[0]).not.toHaveProperty("lineContent");
     expect(compact).not.toHaveProperty("hasMore");
   });
-  it("preserves producer ordering and uses server reads rather than display paths", () => {
+  it("preserves JSON producer ordering and groups text by exact read identity", () => {
     const site: GrepHit = {
       ...hit,
       __typename: "GrepSiteHit",
@@ -190,6 +192,7 @@ describe("unified grep result and text", () => {
     const output = formatGrepText(
       result({
         hits: [hit, site, hit],
+        totalMatches: 3,
         targets: [
           target,
           {
@@ -202,16 +205,19 @@ describe("unified grep result and text", () => {
         ],
       }),
     );
-    expect(output.match(/\[7\] lib\/a.ts/g)).toHaveLength(2);
-    expect(output.indexOf("[7] lib/a.ts")).toBeLessThan(
-      output.indexOf("[4] https://docs.test/p"),
+    expect(output.match(/^lib\/a.ts$/gm)).toHaveLength(1);
+    expect(output.indexOf("lib/a.ts")).toBeLessThan(
+      output.indexOf("https://docs.test/p"),
     );
     expect(output).toContain(
-      "githits read 'github:o/r@abc' 'packages/x/lib/a.ts' --lines 2-2",
+      "githits read --lines '<start>-<end>' -- 'github:o/r@abc' '<read-path>'",
     );
-    expect(output).toContain("githits read 'https://docs.test/p' --lines 2-2");
-    expect(output).toContain("inputs 1, 0");
-    expect(output).toContain("latest active content");
+    expect(output).toContain(
+      "githits read --lines '<start>-<end>' -- 'https://docs.test/p'",
+    );
+    expect(output).toContain("Read path: packages/x/lib/a.ts");
+    expect(output).not.toContain("inputs 1, 0");
+    expect(output).toContain("current content");
   });
   it("merges overlapping context while keeping match markers and slice omissions", () => {
     const output = formatGrepText(
@@ -235,7 +241,7 @@ describe("unified grep result and text", () => {
     expect(output).toContain("1- before");
     expect(output).toContain("2: [...] router [...]");
     expect(output).toContain("3: router");
-    expect(output).not.toContain("3- after");
+    expect(output).toContain("3- after");
   });
   it("keeps all coverage warnings visible on zero-hit complete or partial pages", () => {
     const scopes = [
@@ -273,7 +279,7 @@ describe("unified grep result and text", () => {
     );
     expect(output).toContain("(aggregate)");
     expect(output).toContain("2 additional file issue");
-    expect(output).toContain("safety normalization");
+    expect(output.replace(/\s+/g, " ")).toContain("safety normalization");
     expect(formatGrepText(result({ hits: [], totalMatches: 0 }))).toContain(
       "No matches.",
     );
@@ -307,7 +313,7 @@ describe("unified grep result and text", () => {
           nextCursor: "opaque",
         }),
       ),
-    ).toContain("Coverage: RESUMABLE_LIMIT");
+    ).toContain("more available");
     expect(
       formatGrepText(
         result({ traversal: "CURSOR_EXPIRED", unavailableTargets: [omission] }),

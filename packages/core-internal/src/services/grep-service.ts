@@ -94,13 +94,14 @@ interface GrepHitBase {
   read: GrepReadAction;
   contentSafety: GrepContentSafety;
   lineContent?: string;
-  matchStartByte?: number;
-  matchEndByte?: number;
+  matchStartByte: number;
+  matchEndByte: number;
   sourceMatchStartByte?: number;
   sourceMatchEndByte?: number;
 }
 export interface GrepRepositoryHit extends GrepHitBase {
   __typename: "GrepRepositoryHit";
+  read: GrepReadAction & { path: string };
   filePath: string;
   repoUrl?: string;
   commitSha?: string;
@@ -108,6 +109,7 @@ export interface GrepRepositoryHit extends GrepHitBase {
 }
 export interface GrepSiteHit extends GrepHitBase {
   __typename: "GrepSiteHit";
+  read: GrepReadAction & { path: null };
   pageUrl: string;
 }
 export type GrepHit = GrepRepositoryHit | GrepSiteHit;
@@ -257,8 +259,8 @@ function resultSchema(detailed: boolean): z.ZodType<GrepResult> {
     read: readAction,
     contentSafety: safety,
     lineContent: selected(z.string()),
-    matchStartByte: selected(nonnegativeInt),
-    matchEndByte: selected(nonnegativeInt),
+    matchStartByte: nonnegativeInt,
+    matchEndByte: nonnegativeInt,
     sourceMatchStartByte: selected(nonnegativeInt),
     sourceMatchEndByte: selected(nonnegativeInt),
   };
@@ -268,6 +270,7 @@ function resultSchema(detailed: boolean): z.ZodType<GrepResult> {
         z.object({
           ...common,
           __typename: z.literal("GrepRepositoryHit"),
+          read: readAction.extend({ path: z.string() }),
           filePath: z.string(),
           repoUrl: selected(z.string()),
           commitSha: selected(z.string()),
@@ -276,6 +279,7 @@ function resultSchema(detailed: boolean): z.ZodType<GrepResult> {
         z.object({
           ...common,
           __typename: z.literal("GrepSiteHit"),
+          read: readAction.extend({ path: z.null() }),
           pageUrl: z.string(),
         }),
       ]),
@@ -352,11 +356,24 @@ export function parseGrepResult(value: unknown, detailed = false): GrepResult {
   const indices = new Set(result.targets.map((target) => target.targetIndex));
   if (
     indices.size !== result.targets.length ||
-    result.hits.some((hit) => !indices.has(hit.targetIndex)) ||
+    result.hits.some(
+      (hit) => !indices.has(hit.targetIndex) || !validMatchCoordinates(hit),
+    ) ||
     (result.traversal === "RESUMABLE_LIMIT" && !result.nextCursor)
   )
     throw new MalformedGrepResponseError();
   return result;
+}
+
+/** Display offsets index normalized UTF-8 slice bytes, never escaped text. */
+function validMatchCoordinates(hit: GrepHit): boolean {
+  const bytes = new TextEncoder().encode(hit.lineSlice.content);
+  const { matchStartByte: start, matchEndByte: end } = hit;
+  const boundary = (offset: number): boolean =>
+    offset === bytes.length || ((bytes[offset] ?? 0) & 0xc0) !== 0x80;
+  return (
+    start <= end && end <= bytes.length && boundary(start) && boundary(end)
+  );
 }
 
 const GRAPHQL_QUERY = `query Grep(
@@ -400,14 +417,14 @@ fragment RepositoryMatch on GrepRepositoryHit {
   targetIndex line lineSlice { ...LineSlice } contextBeforeSlices { ...LineSlice } contextAfterSlices { ...LineSlice }
   read { target path startLine endLine } contentSafety { filtered modifications @include(if: $includeDetailedFields) }
   lineContent @include(if: $includeDetailedFields)
-  matchStartByte @include(if: $includeDetailedFields) matchEndByte @include(if: $includeDetailedFields)
+  matchStartByte matchEndByte
   sourceMatchStartByte @include(if: $includeDetailedFields) sourceMatchEndByte @include(if: $includeDetailedFields)
 }
 fragment SiteMatch on GrepSiteHit {
   targetIndex line lineSlice { ...LineSlice } contextBeforeSlices { ...LineSlice } contextAfterSlices { ...LineSlice }
   read { target path startLine endLine } contentSafety { filtered modifications @include(if: $includeDetailedFields) }
   lineContent @include(if: $includeDetailedFields)
-  matchStartByte @include(if: $includeDetailedFields) matchEndByte @include(if: $includeDetailedFields)
+  matchStartByte matchEndByte
   sourceMatchStartByte @include(if: $includeDetailedFields) sourceMatchEndByte @include(if: $includeDetailedFields)
 }
 fragment LineSlice on GrepRepoLineSlice { content startByte endByte originalLineBytes }`;
