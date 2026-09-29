@@ -109,10 +109,7 @@ export function formatGrepText(
     prose("Traversal is incomplete and has no continuation cursor.");
   for (const [index, group] of groups.entries()) {
     const first = group.first;
-    const target =
-      first.__typename === "GrepRepositoryHit"
-        ? formatReadTarget(first.read.target)
-        : first.read.target;
+    const target = first.read.target;
     const path =
       first.read.path !== null
         ? ` ${quoteLocator(first.read.path, options.syntax)}`
@@ -273,14 +270,6 @@ function formatSources(scopes: GrepTargetStatus[]): string {
       return `${target}${identities.length ? ` - ${identities.join(", ")}` : ""}`;
     })
     .join("; ");
-}
-
-/** Abbreviate the repository URL while preserving the backend's exact ref suffix. */
-function formatReadTarget(target: string): string {
-  const delimiter = target.lastIndexOf("@");
-  return delimiter < 0
-    ? target
-    : `${formatRepositoryTarget(target.slice(0, delimiter))}${target.slice(delimiter)}`;
 }
 
 /** Keep ordinary locators readable and unsafe operands copyable without shell expansion. */

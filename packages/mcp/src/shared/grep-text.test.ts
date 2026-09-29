@@ -51,13 +51,13 @@ describe("grep text formatting", () => {
 
     const lines = rendered.split("\n");
     const expectedHeaders = [
-      "[1] github:expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336 History.md",
+      "[1] https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336 History.md",
       "[2] https://expressjs.com/en/3x/api/application/",
       "[3] https://expressjs.com/en/4x/api/",
       "[4] https://expressjs.com/en/4x/api/application/",
       "[5] https://expressjs.com/en/4x/api/express/",
-      "[6] github:expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336 examples/README.md",
-      "[7] github:expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336 lib/application.js",
+      "[6] https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336 examples/README.md",
+      "[7] https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336 lib/application.js",
       "[8] https://expressjs.com/en/4x/api/request/",
     ] as const;
     expect(lines.filter((line) => /^\[\d+\] /.test(line))).toEqual([

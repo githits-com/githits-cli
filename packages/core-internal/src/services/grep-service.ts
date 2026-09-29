@@ -414,14 +414,14 @@ const GRAPHQL_QUERY = `query Grep(
 }
 fragment RepositoryMatch on GrepRepositoryHit {
   targetIndex line lineSlice { ...LineSlice } contextBeforeSlices { ...LineSlice } contextAfterSlices { ...LineSlice }
-  read { target path startLine endLine } contentSafety { filtered modifications @include(if: $includeDetailedFields) }
+  read: readTarget { target path startLine endLine } contentSafety { filtered modifications @include(if: $includeDetailedFields) }
   lineContent @include(if: $includeDetailedFields)
   matchStartByte matchEndByte
   sourceMatchStartByte @include(if: $includeDetailedFields) sourceMatchEndByte @include(if: $includeDetailedFields)
 }
 fragment SiteMatch on GrepSiteHit {
   targetIndex line lineSlice { ...LineSlice } contextBeforeSlices { ...LineSlice } contextAfterSlices { ...LineSlice }
-  read { target path startLine endLine } contentSafety { filtered modifications @include(if: $includeDetailedFields) }
+  read: readTarget { target path startLine endLine } contentSafety { filtered modifications @include(if: $includeDetailedFields) }
   lineContent @include(if: $includeDetailedFields)
   matchStartByte matchEndByte
   sourceMatchStartByte @include(if: $includeDetailedFields) sourceMatchEndByte @include(if: $includeDetailedFields)

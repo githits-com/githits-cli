@@ -246,7 +246,14 @@ describe("unified grep service", () => {
           expect(body.query).toContain(
             `${field} @include(if: $includeDetailedFields)`,
           );
-        expect(body.query).toContain("read { target path startLine endLine }");
+        expect(
+          body.query.match(
+            /read: readTarget \{ target path startLine endLine \}/g,
+          ),
+        ).toHaveLength(2);
+        expect(body.query).not.toContain(
+          "read { target path startLine endLine }",
+        );
         const scopeSelection = body.query
           .split("targets {")[1]
           .split("fileIssues {")[0];
