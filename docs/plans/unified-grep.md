@@ -521,7 +521,7 @@ Evidence collected on 2026-09-29 from `bun run build` followed by Node
 The mixed case has 100 occurrence records, 81 distinct physical lines/windows
 and eight files/pages; it prints 100 read commands. Nineteen extra records
 share identical rendered windows, with distinct match offsets. The pinned
-repository case has 100 occurrences and seven files. The prototypes are
+repository case has 100 occurrences and four files. The prototypes are
 layout studies, not production implementations or complete coverage-warning
 formatters. Numbers include real continuation cursors; no latency or model
 quality claim is made. Token counts use tiktoken's `o200k_base`, not a claim
@@ -720,7 +720,7 @@ Implementation checkpoint, 2026-09-29:
   | Repository 100 | 19,487 -> 5,604 (-71.2%) | 297 -> 118 | 7,506 -> 1,618 (-78.4%) |
 
 - Fresh built Node production output exactly matches these byte/row counts:
-  mixed 81 rows/eight groups, repository 99 rows/seven groups. Original source
+  mixed 81 rows/eight groups, repository 99 rows/four groups. Original source
   repro and mixed two-page compact/detailed continuation retain both scopes,
   source then site hits, UNSPECIFIED then CURRENT and site attribution `[0,1]`.
   Complete no-hit production output is exactly `No matches.` with both scopes
