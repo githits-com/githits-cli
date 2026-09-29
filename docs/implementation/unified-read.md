@@ -17,7 +17,9 @@ public MCP server.
 validation and recognizes the explicit lowercase `site:` target whose path
 selects hosted documentation. Other nonempty paths scope code to one exact
 target-relative file; without `selector`, that path reads the file. A site path
-is host-relative, preserves query and encoded bytes, and uses `/` for the root.
+is relative to the supplied site's target, preserves emitted query and encoded
+bytes, and uses `/` for the site's landing page. Do not repeat a scoped target's
+prefix in its page path; replay emitted action values exactly.
 Pathless targets, including
 compact package/repository fragments and emitted documentation locators, go to
 the backend's unified `read` resolver. The returned union type determines

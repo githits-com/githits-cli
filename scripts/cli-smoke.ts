@@ -2187,6 +2187,43 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "list site read action returned no content",
   );
 
+  const descendantSiteTarget =
+    "site:reference.langchain.com/python/langchain/agents";
+  const descendantSiteJson = assertJsonOutput(
+    await runCli(["list", descendantSiteTarget, "--json"]),
+    "list descendant site json",
+  );
+  assertRecord(descendantSiteJson, "list descendant site json");
+  assert(
+    Array.isArray(descendantSiteJson.entries),
+    "descendant site missing entries",
+  );
+  const descendantDirectories = descendantSiteJson.entries.filter(
+    (entry) =>
+      typeof entry === "object" && entry !== null && entry.kind === "DIRECTORY",
+  );
+  assert(
+    descendantDirectories.length > 0,
+    "descendant site missing directories",
+  );
+  const descendantSiteText = assertTerminalOutput(
+    await runCli(["list", descendantSiteTarget]),
+    "list descendant site terminal",
+  );
+  const descendantLines = descendantSiteText.trimEnd().split("\n");
+  assert(
+    descendantLines[0]?.startsWith(`# source ${descendantSiteTarget}`),
+    "descendant site header must use the requested path base",
+  );
+  for (const directory of descendantDirectories) {
+    assertRecord(directory, "descendant site directory");
+    assert(
+      typeof directory.path === "string" &&
+        descendantLines.slice(1).includes(directory.path),
+      "descendant site text must preserve the JSON directory path",
+    );
+  }
+
   const docsJson = assertJsonOutput(
     await runCli([
       "docs",

@@ -44,15 +44,19 @@ response. The backend's opaque cursor is otherwise preserved exactly.
   nested values, and adds no total, filter echo, or reconstructed action.
 - `list-text.ts` defines the one token-efficient format that CLI uses now and
   the Phase 2 MCP tool must reuse: `# source <canonical-target>` followed by one
-  path per line. The requested target is the fallback when canonical identity
-  is unavailable, and ` | more results available` means another page exists.
+  path per line. SOURCE headers use the canonical target, falling back to the
+  requested target. SITE headers use the shared PAGE action target or the
+  requested target, preserving the base of emitted relative paths; a broader
+  canonical site owner remains JSON metadata. ` | more results available`
+  means another page exists.
   CLI dims this line when color is enabled; MCP emits the same plain text
   without ANSI. CLI `--silent` omits the header and emits only path lines for
   piping; an empty inventory then emits no bytes. Source
   inventories add `follow up with "read <canonical-target> $path"`. Site
   inventories use the shared `read.target` from their PAGE actions and render
-  each corresponding `read.path`; `/` denotes the root. Directory rows use
-  their host-relative inventory display path and end in `/`. Exceptional PAGE
+  each corresponding `read.path`; `/` denotes the site's landing page.
+  Directory rows preserve their target-relative inventory path and end in `/`;
+  the formatter never strips a presumed host or scope component. Exceptional PAGE
   actions that cannot use site addressing retain and display their exact URL.
   If returned logical PAGE actions disagree on their target, the formatter
   omits site follow-up guidance rather than reconstructing one.
@@ -71,16 +75,20 @@ workspace-internal boundary; they are not a public MCP client API.
 
 ## Actions and lifecycle
 
-The entry `path` is display identity, not a locator. A non-null `read` action's
-backend-authored `target` and nullable `path`, and a non-null `browse` action's
-`target` and nullable `paths`, are authoritative. JSON preserves these values
+Ordinary site PAGE paths are reusable with their supplied site target.
+A non-null `read` action's backend-authored `target` and nullable `path`, and a
+non-null `browse` action's `target` and nullable `paths`, are authoritative. JSON preserves these values
 exactly. For site text, PAGE actions using a `site:` target render their exact
-host-relative `read.path`, while the header reuses their shared `read.target`.
-Root is `/`. The backend normally removes one non-root trailing slash when the
+target-relative `read.path`, while the header reuses their shared `read.target`.
+Do not repeat the target's scope in the path. `/` reads the site's landing page.
+Omitted or empty list paths select the target root; literal paths and quoted
+globs operate only under the supplied site's literal host/scope.
+The backend normally removes one non-root trailing slash when the
 slashless path is unambiguous; it retains the slash when distinct slashless and
 slash-terminated pages coexist. Exceptional URL-only actions render their
-exact target. DIRECTORY rows remain relative and end in `/`. A site display
-path without an action is not promoted into a read locator.
+exact target. DIRECTORY rows remain relative and end in `/`. Explicit backend
+actions remain authoritative for exceptional URL/query/encoding identities;
+the client formatter does not reconstruct them from display paths.
 
 Continuation uses the returned `nextCursor`; callers do not reuse the previous
 cursor or modify its contents. Lossless JSON exposes the cursor, while the
@@ -151,6 +159,27 @@ regression checks also passed against production. The permanent CLI smoke now
 covers package and site text/JSON listings, paths-only package output, package
 continuation, and replaying a site PAGE action through unified `read`.
 Phase 2 retains MCP/agent and package-to-site discovery validation.
+
+Backend PR #2857 (`2eba44f5478dc6a42185ae3cc60f91a1a3f9dd6d`)
+corrected target-relative site paths. Its [dev deployment](https://github.com/githits-com/pkgseer-backend/actions/runs/36556409287)
+and a fresh external installation of published `githits@0.23.0` verified
+Express `en/resources/community` replay (82 lines, 3324 content characters)
+and scoped `site:reference.langchain.com/python/langchain` paths: `agents/`
+returned 4 immediate entries and 176 recursively, and
+`agents/_subagent_transformer/AsyncSubagentRunStream` read nonempty Markdown
+without repeating `python/langchain`. Relative globs, emitted page literal
+replay, host-qualified compatibility selectors, equivalent-selection cursor
+replay, and PAGE text list/read output also passed. Those checks missed
+directory text: a strict descendant target returned valid relative directory
+JSON but published `0.23.0` stripped each first component and printed `/`.
+The formatter now preserves those paths and their requested base; focused
+formatter/CLI tests and the existing live CLI smoke cover directory text.
+Built CLI dev replay on 2026-09-29 verified all four descendant directories,
+corpus-relative `agents/.../` directories, and Express `en/.../` directories.
+Replaying the descendant's unchanged `_subagent_transformer/` browse action
+then `_subagent_transformer/AsyncSubagentRunStream` read action returned
+nonempty Markdown with that same deeper target. This is dev evidence; it does
+not establish production deployment of the corrected backend contract.
 
 The text inventory preserves backend-authored PAGE read paths exactly. A
 trailing slash normally marks a directory, but a PAGE also retains it when the

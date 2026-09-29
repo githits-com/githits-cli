@@ -27,7 +27,10 @@ function formatHeader(
   siteReadTarget: string | undefined,
   useColors: boolean,
 ): string {
-  const source = result.canonicalTarget ?? result.requestedTarget;
+  const source =
+    result.inventoryKind === "SITE"
+      ? (siteReadTarget ?? result.requestedTarget)
+      : (result.canonicalTarget ?? result.requestedTarget);
   const escapedSource = escapeLineValue(source);
   const followUpTarget =
     result.inventoryKind === "SOURCE" ? source : siteReadTarget;
@@ -68,14 +71,11 @@ function formatSitePath(entry: ListEntry): string {
     return escapePath(entry.read.target);
   }
 
-  const separator = entry.path.indexOf("/");
-  const relative =
-    separator === -1 ? entry.path : entry.path.slice(separator + 1);
   const path =
-    entry.kind === "DIRECTORY" && !relative.endsWith("/")
-      ? `${relative}/`
-      : relative;
-  return escapePath(path.length === 0 ? "./" : path);
+    entry.kind === "DIRECTORY" && !entry.path.endsWith("/")
+      ? `${entry.path}/`
+      : entry.path;
+  return escapePath(path);
 }
 
 function findSharedSiteReadTarget(result: ListResult): string | undefined {
