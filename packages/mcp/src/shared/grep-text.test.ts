@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type {
   GrepHit,
   GrepLineSlice,
+  GrepResult,
   GrepTargetStatus,
 } from "@githits/core-internal";
 import { parseGrepResult } from "../../../core-internal/src/services/grep-service.js";
@@ -123,6 +124,56 @@ describe("grep text formatting", () => {
     expect(matchingRows).toHaveLength(distinctWindowCount);
     expect(distinctWindowCount).toBe(81);
     expect(rendered).not.toMatch(/\(\d+ matches\)/);
+  });
+
+  it("does not repeat a site target as its own source identity", () => {
+    const parsedOriginal = parseGrepResult(mixed100);
+    const originalSiteScope = parsedOriginal.targets.find(
+      (scope) => scope.kind === "SITE",
+    );
+    expect(originalSiteScope).toBeDefined();
+    if (!originalSiteScope) throw new Error("Expected a hosted docs scope");
+
+    const hostedHits = parsedOriginal.hits
+      .filter(
+        (hit) =>
+          hit.__typename === "GrepSiteHit" &&
+          hit.targetIndex === originalSiteScope.targetIndex,
+      )
+      .map((hit) => ({ ...hit, targetIndex: 0 }));
+    expect(hostedHits.length).toBeGreaterThan(0);
+    const requestedInputIndex = originalSiteScope.requestedInputIndices[0];
+    expect(requestedInputIndex).toBeDefined();
+
+    const siteOnlyResult: GrepResult = {
+      ...parsedOriginal,
+      hits: hostedHits,
+      targets: [
+        {
+          ...originalSiteScope,
+          targetIndex: 0,
+          requestedInputIndices: [requestedInputIndex!],
+          target: "site:expressjs.com",
+          traversal: "COMPLETE",
+        },
+      ],
+      totalMatches: hostedHits.length,
+      traversal: "COMPLETE",
+      nextCursor: null,
+    };
+    const rendered = formatGrepText(siteOnlyResult, {
+      useColors: false,
+      width: 80,
+      syntax: "cli",
+    });
+
+    expect(
+      rendered.split("\n").find((line) => line.startsWith("Sources:")),
+    ).toBe("Sources: site:expressjs.com");
+    expect(rendered).not.toContain(
+      "Sources: site:expressjs.com - site:expressjs.com",
+    );
+    expect(rendered.match(/site:expressjs\.com/g) ?? []).toHaveLength(1);
   });
 });
 

@@ -2,11 +2,11 @@
 
 ## Status and outcome
 
-**Status: OUTPUT REVISION IN PROGRESS.** Phase 1 is merged. Output PR #433 is
-open; user steering replaces outer source grouping and the footer with a
-Sources summary and numbered, copyable file/page locator headers. The requested
-main rebase and unified ReadTarget integration are verified; final review and
-delivery remain. MCP replacement waits for its merge.
+**Status: OUTPUT FOLLOW-UP COMPLETE; WAITING FOR MERGE.** Phase 1 is merged.
+Output PR #433 has the approved Sources summary and numbered, copyable file/page
+locator headers. Requested main rebase and unified ReadTarget integration are
+verified. External round 3's sole cosmetic finding is fixed; internal closure
+review and all required checks pass. MCP replacement waits for this PR's merge.
 The sequence is CLI introduction, useful and compact CLI text, then replacement
 of the advertised MCP `code_grep` tool.
 
@@ -497,7 +497,7 @@ They cover default zero-context pages without omissions; omission and other
 coverage shapes are regression cases, not additional budget benchmarks. No
 search-suite benchmark or debug-build timing is needed.
 
-### Phase 1 follow-up — useful, compact grep text (FINAL REVIEW PENDING)
+### Phase 1 follow-up — useful, compact grep text (COMPLETE; WAITING FOR MERGE)
 
 Problem: the merged output treats backend occurrences as independent display
 blocks and repeats read commands and routine protocol fields. User-provided
@@ -864,7 +864,7 @@ Proof artifacts: `/tmp/nuckelavee-grep-locator-{benchmark-results,token-results}
 `-cli-smoke-auth.log`, `-mcp-smoke-auth.log`, `-built-smoke.log`, and
 `-agent-codex/workloads/nuckelavee-grep-locator-read-followup/`.
 
-Requested main integration (2026-09-29; VERIFIED, final review pending):
+Requested main integration (2026-09-29; COMPLETE):
 
 - Rebased the stable checkpoint onto origin/main f89909f, including target-relative
   site path fix PR432 and backend-owned ReadTarget adoption PR434. Rebase completed
@@ -913,20 +913,53 @@ Requested main integration (2026-09-29; VERIFIED, final review pending):
 - The coordinator adapted wire selection/opaque target ownership; one bounded
   Luna return updated only three mixed-fixture expected headers (one focused
   case, 21 assertions). No new helper, fallback, scope/limit change or dependency.
-- Current full-delta internal code review is clean; final external round 3 is
-  pending. No validation was rerun by the reviewer.
+- Rebased complete-delta internal review found no issues. External round 3
+  directly reviewed the whole PR and found one cosmetic duplication: explicit
+  root site targets repeated the same identity after the target label. Backend
+  request normalization assigns `site:<host>` to the scope; Sources attached
+  the equal canonical label without checking equality. Accepted as minor: one
+  redundant label on a documented input, remedied by filtering identical
+  summary identities and one site-only regression. This preserves distinct
+  provenance and every read target. Bounded sibling scan covered both summary
+  branches, target grouping, corpus labels, mixed fixture, rendering tests and
+  search's site-only summary; no additional defect in this class was found.
+  Luna applied the one-line filter and site-only regression: two tests / 27
+  assertions, including unchanged mixed-case evidence. Its first return
+  addressed the stale earlier URL-header slice; the coordinator reissued only
+  this deduplication concern, then verified the actual diff and proof. This
+  cost one correction dispatch; no product reinterpretation was delegated.
+  The full revised-delta internal closure review is clean. External round 3
+  was not clean and did not spawn its final-check subagent; the three-round
+  limit prevents round 4. The sole finding is fixed and verified, with no
+  unresolved product decision or major finding requiring escalation.
+- Post-closure full suite: 5,230 pass / 0 fail, 19,534 assertions / 227 files;
+  focused five files: 48 pass / 330 assertions. Typecheck, Biome and
+  build/public-package validation pass. Both rebuilt fixed output cases are
+  byte-identical to the measured 6,965/5,767-byte results, so the same token
+  measurements apply. Fresh built Node and source Bun explicit site-only
+  production output shows exactly `Sources: site:expressjs.com`.
+  Fresh authenticated production CLI smoke passes all 156 steps, MCP all 65
+  steps, across stable and experimental live cohorts. Both built secret-free
+  smoke suites pass (38 CLI / 9 MCP registration steps).
+- The user dispatched a backend agent to choose canonical repository read
+  locators. CLI continues passing through the backend action, so that format
+  will appear automatically without target substitution. The CLI smoke header
+  assertion compares the exact action from its preceding JSON response rather
+  than requiring an HTTPS spelling; target-format ownership stays in backend.
 - Product decisions: none for grep. Search on main still has the redundant
   commands shown by the user: its header omits the backend selector carried by
-  the separate action. That wider
-  search presentation correction is outside this grep adaptation; the observation
-  is retained for follow-up rather than claimed fixed.
+  the separate action. That wider search presentation correction is outside
+  this grep adaptation; the observation is retained for follow-up rather than
+  claimed fixed.
 
 
-Post-rebase proof: `/tmp/nuckelavee-grep-opaque-{local,local-followup,focused,
-full-tests,typecheck,packages}.log`, `-token-results.json`, `-rendered/*.txt`,
+Post-rebase proof: `/tmp/nuckelavee-grep-opaque-{local,local-followup,focused,full-tests,typecheck,packages}.log`, `-token-results.json`, `-rendered/*.txt`,
 `-live-{mixed,repository,nohit,middleware}.*`, `-prod-replay-results.json`,
 `-replay-auth.log`, `-source-repro-auth.log`, `-partial-output.txt`,
-`-smoke-built.log` and `-agent-codex/`. Original proof artifacts are preserved.
+`-smoke-built.log` and `-agent-codex/`. Post-closure evidence uses the additional
+`/tmp/nuckelavee-grep-opaque-closure-` prefix: full/focused tests, static and package
+checks, size comparison, explicit site source/built output and all four smoke
+logs. Original proof artifacts are preserved.
 
 Phase boundary: after this follow-up merges, run next-steps against refreshed
 main before MCP. Keep the same useful formatter as the MCP output contract.

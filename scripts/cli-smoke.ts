@@ -2066,9 +2066,9 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   assert(
     grepText.includes("1 match in 1 line across 1 file") &&
       grepText.includes("Sources:") &&
-      /^\[1\] https:\/\/github\.com\/expressjs\/express@[a-f0-9]{40} lib\/express.js$/m.test(
-        grepText,
-      ) &&
+      grepText
+        .split("\n")
+        .includes(`[1] ${grepRead.target} ${grepRead.path}`) &&
       grepText.includes("lib/express.js") &&
       /^\s*\d+: .*router/m.test(grepText) &&
       grepText.includes(

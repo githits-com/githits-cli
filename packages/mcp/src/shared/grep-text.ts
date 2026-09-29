@@ -262,9 +262,12 @@ function formatSources(scopes: GrepTargetStatus[]): string {
   }
   return [...targets]
     .map(([target, sources]) => {
-      const identities = [...sources].sort(
-        (a, b) => Number(b.startsWith("site:")) - Number(a.startsWith("site:")),
-      );
+      const identities = [...sources]
+        .filter((identity) => identity !== target)
+        .sort(
+          (a, b) =>
+            Number(b.startsWith("site:")) - Number(a.startsWith("site:")),
+        );
       if (identities.length && formatRepositoryTargetLabel(target))
         return identities.join(", ");
       return `${target}${identities.length ? ` - ${identities.join(", ")}` : ""}`;
