@@ -35,7 +35,9 @@ transport changes, backend edits, publication, or production probes.
 - Verified: this worktree's built CLI preserves the four descendant directories,
   corpus `agents/.../` directories and Express `en/.../` directories, and replays
   unchanged descendant browse/PAGE read actions against dev.
-- Production deployment is reported running; its result is unverified.
+- Separately authorized production validation now verifies the list/read
+  contract on three resolved sites at two descendant depths. Deployment
+  workflow completion was not inspected; the CLI fix remains unpublished.
 - Open product decisions: none. Delivery ends at a draft PR; publication needs
   separate user authorization.
 - Review found the same stale path base in the MCP read parameter descriptor;
@@ -104,6 +106,31 @@ transport changes, backend edits, publication, or production probes.
   that behavior is covered by focused schema tests and built-CLI dev replay.
   No answer-quality claim is made without a grading stage. Artifacts are at
   `/tmp/site-relative-read-eval-codex-intent/`.
+
+## Production verification after draft delivery
+
+The user explicitly authorized production testing using `resolve` and both
+shallow and deep target forms. With `GITHITS_ENV=prod`, keychain authentication,
+and inherited endpoint/token overrides removed, the PR build passed six pairs
+on sites emitted by resolve:
+
+- LangChain Python: `agents/` (4 entries),
+  `agents/_subagent_transformer/` (3 entries).
+- Express: `en/` (11 entries), `en/3x/` (1 entry).
+- React: `reference/` (7 entries), `reference/dev-tools/` (1 entry).
+
+Complete immediate inventories matched between the resolved base plus selector
+and the deeper site target with omitted list paths. Text/silent paths and
+header bases were correct; emitted browse and page literal actions replayed
+unchanged. Paired PAGE reads returned identical nonempty content. All three
+site landing reads passed, including React's exact-URL action.
+
+The installed published `githits@0.23.0` reproduced the four slash-only rows on
+the LangChain deeper target against production, confirming that publication
+of this CLI correction is still needed and separately gated. Artifacts and
+the machine-readable summary are retained under
+`/var/folders/7z/929w0qdn5117mcd0mj63lh_c0000gn/T/site-relative-built-prod.dodmo2sq/`.
+No runtime changes or new repository harness were needed.
 
 ## Review closure
 

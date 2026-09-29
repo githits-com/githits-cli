@@ -185,6 +185,26 @@ Focused schema tests and built-CLI dev replay cover the separate path argument.
 A targeted descriptor intent eval used scoped search followed by an emitted
 exact-URL read; it did not exercise the separate path argument.
 
+Production validation on 2026-09-29 used the built CLI from PR #432 with
+production presets and keychain authentication, removing inherited endpoint
+and token overrides. `resolve` supplied queryable LangChain Python, Express,
+and React site targets. Six equivalent shallow-selector/deep-target pairs
+matched complete immediate inventories, text/silent paths, and header bases:
+
+| Resolved site target | Shallow selectors tested | Entries at each depth |
+| --- | --- | --- |
+| `site:reference.langchain.com/python/langchain` | `agents/`, `agents/_subagent_transformer/` | 4, 3 |
+| `site:expressjs.com` | `en/`, `en/3x/` | 11, 1 |
+| `site:react.dev` | `reference/`, `reference/dev-tools/` | 7, 1 |
+
+For each selector, the deeper form appended that scope to the site target and
+omitted the list path. Emitted browse actions and page literals replayed
+unchanged, and paired shallow/deep reads returned identical nonempty content.
+All three landing reads passed, including React's exceptional exact-URL action.
+The installed published `githits@0.23.0` still reproduced four `/` rows for the
+LangChain `/agents` target against production. These results verify the PR
+build against production; the CLI fix remains unpublished.
+
 The text inventory preserves backend-authored PAGE read paths exactly. A
 trailing slash normally marks a directory, but a PAGE also retains it when the
 backend reports distinct slashless and slashful pages. In that exceptional
