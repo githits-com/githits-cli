@@ -35,6 +35,8 @@ export type MappedErrorCode =
   | "UNKNOWN";
 
 export interface MappedErrorDetails {
+  /** Bounded public unified-grep preparation issues, retaining backend keys. */
+  targetIssues?: Record<string, unknown>[];
   action?: string;
   hint?: string;
   availableVersions?: AvailableVersion[];

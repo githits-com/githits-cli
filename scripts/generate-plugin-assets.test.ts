@@ -129,6 +129,12 @@ describe("plugin asset generation", () => {
       JSON.parse(assets.get(".claude-plugin/plugin.json") ?? "{}"),
     ).toEqual(
       expect.objectContaining({
+        displayName: "GitHits",
+        author: {
+          name: "GitHits",
+          email: "support@githits.com",
+          url: "https://githits.com",
+        },
         icon: "githits-icon.svg",
         privacyPolicyUrl: "https://githits.com/legal/privacy-policy/",
       }),

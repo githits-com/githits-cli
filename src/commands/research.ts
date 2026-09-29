@@ -9,7 +9,6 @@ import {
   AuthRequiredError,
   buildAuthRequiredErrorPayload,
   formatAgenticAskClarification,
-  formatRepositoryTargetLabel,
   isRepositoryTargetSpec,
   LegacyRepositoryRefError,
   mapAgenticAskError,
@@ -41,10 +40,6 @@ export interface ResearchCommandDependencies {
   signal?: AbortSignal;
   createSpinner?: () => Spinner;
 }
-
-// Positions are fixed by core-internal's cliSourceArgumentsSchema code tuple.
-const CLI_CODE_SOURCE_KIND_INDEX = 1;
-const CLI_CODE_SOURCE_TARGET_INDEX = 6;
 
 export async function researchAction(
   target: string | undefined,
@@ -79,11 +74,10 @@ export async function researchAction(
             requestOptions,
           );
     spinner.stop();
-    const projected = projectAgenticAskCliSources(result);
     if (options.json) {
-      console.log(JSON.stringify(projected));
+      console.log(JSON.stringify(result));
     } else {
-      process.stdout.write(formatAgenticAskHumanResponse(projected));
+      process.stdout.write(formatAgenticAskHumanResponse(result));
     }
   } catch (error) {
     spinner.stop();
@@ -151,33 +145,6 @@ export function formatAgenticAskSourceCommand(
   return [source.command, ...source.arguments]
     .map((argument) => quoteShellArgument(sanitizeTerminalText(argument)))
     .join(" ");
-}
-
-/** Canonicalize typed code source targets while preserving docs and URL locators. */
-export function projectAgenticAskCliSources(
-  response:
-    | AgenticAskCliResponse
-    | AgenticAskUrlResponse
-    | AgenticAskNeedsTargetResponse,
-):
-  | AgenticAskCliResponse
-  | AgenticAskUrlResponse
-  | AgenticAskNeedsTargetResponse {
-  if ("outcome" in response || response.source_format === "url")
-    return response;
-  return {
-    ...response,
-    sources: response.sources.map((source) => {
-      if (source.arguments[CLI_CODE_SOURCE_KIND_INDEX] === "code") {
-        const args = [...source.arguments] as typeof source.arguments;
-        args[CLI_CODE_SOURCE_TARGET_INDEX] =
-          formatRepositoryTargetLabel(args[CLI_CODE_SOURCE_TARGET_INDEX]) ??
-          args[CLI_CODE_SOURCE_TARGET_INDEX];
-        return { ...source, arguments: args };
-      }
-      return source;
-    }),
-  };
 }
 
 function sanitizeTerminalMarkdown(value: string): string {

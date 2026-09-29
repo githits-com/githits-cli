@@ -81,6 +81,7 @@ export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
   "settings",
   "read",
   "list",
+  "grep",
   "search",
   "search-status",
   "code",
@@ -1175,6 +1176,22 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "unauthenticated list JSON must keep stdout clean",
     );
     assertJsonErrorCode(listJson, "unauthenticated list JSON", "AUTH_REQUIRED");
+    const grepJson = await runCliWithEnv(
+      ["grep", "router", SMOKE_PACKAGE_SPEC, "--json"],
+      env,
+    );
+    assert(
+      grepJson.exitCode !== 0 && grepJson.stdout.trim() === "",
+      "unauthenticated grep JSON must keep stdout clean",
+    );
+    assertJsonErrorCode(grepJson, "unauthenticated grep JSON", "AUTH_REQUIRED");
+    const grepHelp = await runCliWithEnv(["grep", "--help"], env);
+    assert(
+      grepHelp.exitCode === 0 &&
+        grepHelp.stdout.includes("--fixed-strings") &&
+        grepHelp.stdout.includes("global page cap"),
+      "grep help must expose matching defaults and page limits",
+    );
     for (const group of ["code", "docs"]) {
       const help = await runCliWithEnv([group, "read", "--help"], env);
       assert(
@@ -1966,6 +1983,93 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     );
   }
 
+  const grepPage = assertJsonOutput(
+    await runCli([
+      "grep",
+      "router",
+      SMOKE_PACKAGE_SPEC,
+      "--path",
+      "lib/express.js",
+      "--limit",
+      "1",
+      "--json",
+    ]),
+    "unified grep source JSON",
+  );
+  assertRecord(grepPage, "unified grep source JSON");
+  assert(
+    Array.isArray(grepPage.hits) &&
+      grepPage.hits.length === 1 &&
+      Array.isArray(grepPage.targets),
+    "unified grep must return a bounded source match and statuses",
+  );
+  const selectedSite = (grepPage.targets as unknown[]).find(
+    (target) =>
+      typeof target === "object" &&
+      target !== null &&
+      "kind" in target &&
+      target.kind === "SITE",
+  );
+  assertRecord(selectedSite, "unified grep retained selected site");
+  assert(
+    Array.isArray(selectedSite.requestedInputIndices) &&
+      selectedSite.requestedInputIndices.includes(0),
+    "unified grep must retain selected-site input attribution",
+  );
+  if (selectedSite.readiness === "UNSPECIFIED")
+    assert(
+      selectedSite.traversal === "RESUMABLE_LIMIT" &&
+        selectedSite.errorCode === null &&
+        typeof grepPage.nextCursor === "string",
+      "unvisited grep scope must retain resumable traversal without failure",
+    );
+  const grepHit = grepPage.hits[0] as unknown;
+  assertRecord(grepHit, "unified grep source hit");
+  assert(
+    grepHit.__typename === "GrepRepositoryHit" &&
+      grepHit.filePath === "lib/express.js" &&
+      typeof grepHit.sourceMatchStartByte === "number",
+    "unified grep must retain source identities and physical coordinates",
+  );
+  assertRecord(grepHit.read, "unified grep exact read");
+  const grepRead = grepHit.read;
+  assert(
+    typeof grepRead.target === "string" &&
+      typeof grepRead.path === "string" &&
+      typeof grepRead.startLine === "number" &&
+      typeof grepRead.endLine === "number",
+    "unified grep read action must be complete",
+  );
+  assertJsonOutput(
+    await runCli([
+      "read",
+      grepRead.target,
+      grepRead.path,
+      "--lines",
+      `${grepRead.startLine}-${grepRead.endLine}`,
+      "--json",
+    ]),
+    "unified grep exact read replay",
+  );
+  const grepText = assertTerminalOutput(
+    await runCli([
+      "grep",
+      "router",
+      SMOKE_PACKAGE_SPEC,
+      "--path",
+      "lib/express.js",
+      "--limit",
+      "1",
+    ]),
+    "unified grep source text",
+  );
+  assert(
+    grepText.includes("match in this page") &&
+      grepText.includes("lib/express.js") &&
+      grepText.includes("Read: githits read"),
+    "unified grep text must retain result, locator and read action",
+  );
+
   const packageListText = assertTerminalOutput(
     await runCli(["list", SMOKE_PACKAGE_SPEC, "--limit", "2"]),
     "list package terminal",
@@ -2082,6 +2186,49 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
       listedSiteRead.content.length > 0,
     "list site read action returned no content",
   );
+
+  const descendantSiteTarget =
+    "site:reference.langchain.com/python/langchain/agents";
+  const descendantSiteJson = assertJsonOutput(
+    await runCli(["list", descendantSiteTarget, "--json"]),
+    "list descendant site json",
+  );
+  assertRecord(descendantSiteJson, "list descendant site json");
+  assert(
+    Array.isArray(descendantSiteJson.entries),
+    "descendant site missing entries",
+  );
+  const descendantDirectories = descendantSiteJson.entries.filter(
+    (entry) =>
+      typeof entry === "object" && entry !== null && entry.kind === "DIRECTORY",
+  );
+  assert(
+    descendantDirectories.length > 0,
+    "descendant site missing directories",
+  );
+  const descendantSiteText = assertTerminalOutput(
+    await runCli(["list", descendantSiteTarget]),
+    "list descendant site terminal",
+  );
+  const descendantLines = descendantSiteText.trimEnd().split("\n");
+  assert(
+    descendantLines[0]?.startsWith(`# source ${descendantSiteTarget}`),
+    "descendant site header must use the requested path base",
+  );
+  for (const directory of descendantDirectories) {
+    assertRecord(directory, "descendant site directory");
+    assert(
+      typeof directory.path === "string",
+      "descendant site directory missing path",
+    );
+    const renderedPath = directory.path.endsWith("/")
+      ? directory.path
+      : `${directory.path}/`;
+    assert(
+      descendantLines.slice(1).includes(renderedPath),
+      "descendant site text must preserve the JSON directory path",
+    );
+  }
 
   const docsJson = assertJsonOutput(
     await runCli([

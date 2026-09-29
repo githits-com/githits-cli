@@ -80,7 +80,9 @@ describe("unified read contract", () => {
     const schema = z.toJSONSchema(z.object(tool.schema), { io: "input" });
     expect(schema.properties?.target).toMatchObject({ type: "string" });
     expect(schema.properties?.path).toMatchObject({
-      description: expect.stringContaining("site: target"),
+      description: expect.stringContaining(
+        "relative to the supplied site: target; do not repeat its scope",
+      ),
     });
     expect(schema.required).toEqual(["target"]);
     expect(tool.annotations).toEqual({

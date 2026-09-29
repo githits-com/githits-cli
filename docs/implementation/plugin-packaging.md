@@ -50,8 +50,10 @@ contents without running npm lifecycle scripts. `prepack` validates committed
 outputs instead of creating or deleting them.
 
 The Claude manifest points to the root SVG icon and the public GitHits privacy
-policy. The icon is the Pulse monogram avatar from the GitHits product-context
-brand assets. Keep both manifest fields in the generator so regenerated manifests
+policy. It also declares `displayName: "GitHits"`, the publisher contact
+`support@githits.com`, and an author URL derived from the package homepage.
+The icon is the Pulse monogram avatar from the GitHits product-context
+brand assets. Keep these manifest fields in the generator so regenerated manifests
 retain them. The root npm `files` allow-list includes `githits-icon.svg`;
 public-package validation checks the packed tarball contains it.
 
@@ -179,6 +181,37 @@ The obsolete standalone Claude and Gemini repositories are migration-only. They
 must be archived after legacy installation migration is verified.
 
 ## Validation
+
+### Claude directory review (2026-09-29)
+
+Keep the existing repository-root submission and release structure. Do not add
+a dedicated plugin folder or distribution branch. The hosted GitHits connector
+is already live in the directory (publisher-confirmed); this plugin review does
+not require another connector submission.
+
+The [Claude plugin reference](https://code.claude.com/docs/en/plugins-reference)
+audit found no missing required manifest fields. The current manifest passes
+`claude plugin validate .claude-plugin/plugin.json --strict` with Claude Code
+2.1.284. Target the manifest explicitly: `claude plugin validate .` selects
+the marketplace manifest in this repository.
+
+`skills/` and `.mcp.json` are default discovery locations. Hooks, agents,
+commands, LSP servers, and user configuration are optional components; add them
+only for an intended product behavior. Root `CLAUDE.md` is not loaded as plugin
+context, and `AGENTS.md` is not a documented plugin instruction entrypoint.
+Runtime instructions belong in skills. The shared public tree includes the MCP
+skill plus CLI code, package, and onboarding skills; the latter require shell
+access and are not hosted-MCP-only workflows.
+
+The directory reviews the repository-root payload, including dependency files,
+development documentation, and other hosts' assets. The reported lockfile,
+unread-asset, and binary-inspection holds require reviewer clearance for the
+held version; passing local manifest validation does not clear them. The
+[directory checklist](https://claude.com/docs/plugins/pre-submission-checklist)
+distinguishes these holds from blocking findings. Keep the existing submission
+path and use the portal's validation and review results to assess each version.
+
+### Repository checks
 
 Unit tests cover pure rendering, version parity, canonical skill discovery,
 transport selection, stale outputs, symlink targets, and removal of legacy

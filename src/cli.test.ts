@@ -4,6 +4,7 @@ import {
   registerCodeCommandGroup,
   registerDocsCommandGroup,
   registerExampleCommand,
+  registerGrepCommand,
   registerListCommand,
   registerPkgCommandGroup,
   registerUnifiedSearchCommands,
@@ -109,6 +110,7 @@ async function createProgramForHelpSurface(): Promise<Command> {
 
   registerExampleCommand(program);
   registerListCommand(program);
+  registerGrepCommand(program);
   await registerUnifiedSearchCommands(program);
   await registerCodeCommandGroup(program, { experimentalTools: true });
   await registerDocsCommandGroup(program);
@@ -451,6 +453,7 @@ describe("CLI help surface", () => {
     expect(help).toMatch(/^\s{2}example\b/m);
     expect(help).not.toMatch(/^\s{2}languages\b/m);
     expect(help).toMatch(/^\s{2}list\b/m);
+    expect(help).toMatch(/^\s{2}grep\b/m);
     expect(help).not.toMatch(/^\s{2}feedback\b/m);
     expect(help).toMatch(/^\s{2}search\b/m);
     expect(help).toMatch(/^\s{2}code\b/m);

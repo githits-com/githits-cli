@@ -1,5 +1,6 @@
 import {
   type AgenticAskMcpResponse,
+  type AgenticAskMcpSourceCall,
   type AgenticAskNeedsTargetResponse,
   type AgenticAskService,
   type AgenticAskUrlResponse,
@@ -9,12 +10,10 @@ import { z } from "zod";
 import { mapAgenticAskError } from "../shared/agentic-ask-error-map.js";
 import { formatAgenticAskClarification } from "../shared/agentic-ask-response.js";
 import {
-  formatRepositoryTargetLabel,
   isRepositoryTargetSpec,
   LegacyRepositoryRefError,
   parseRepositoryTargetSpec,
 } from "../shared/repository-target.js";
-import type { ReadArgs } from "../tools/read.js";
 import {
   buildMcpErrorPayload,
   throwIfCallerCancellation,
@@ -114,11 +113,10 @@ export function createLocalResearchTool(
                 },
                 requestOptions,
               );
-        const projected = projectAskReadSources(response);
         return textResult(
           isTextFormat(args.format)
-            ? formatResearchMcpText(projected)
-            : JSON.stringify(projected),
+            ? formatResearchMcpText(response)
+            : JSON.stringify(response),
         );
       } catch (error) {
         throwIfCallerCancellation(error, context?.signal);
@@ -135,59 +133,10 @@ export function createLocalResearchTool(
   };
 }
 
-interface AskReadSource {
-  name: "read";
-  arguments: ReadArgs;
-}
-
-export interface ProjectedAskMcpResponse
-  extends Omit<AgenticAskMcpResponse, "sources"> {
-  sources: AskReadSource[];
-}
-
-type ProjectedAskResponse =
-  | ProjectedAskMcpResponse
-  | AgenticAskUrlResponse
-  | AgenticAskNeedsTargetResponse;
-
-/** Adapt backend-owned source pointers to this package's callable catalog. */
-export function projectAskReadSources(
-  response:
-    | AgenticAskMcpResponse
-    | AgenticAskUrlResponse
-    | AgenticAskNeedsTargetResponse,
-): ProjectedAskResponse {
-  if ("outcome" in response || response.source_format === "url")
-    return response;
-  return {
-    ...response,
-    sources: response.sources.map(
-      (source): AskReadSource => ({
-        name: "read",
-        arguments:
-          source.name === "read"
-            ? source.arguments
-            : source.name === "code_read"
-              ? {
-                  ...source.arguments,
-                  target:
-                    formatRepositoryTargetLabel(source.arguments.target) ??
-                    source.arguments.target,
-                }
-              : {
-                  target: source.arguments.page_id,
-                  start_line: source.arguments.start_line,
-                  end_line: source.arguments.end_line,
-                },
-      }),
-    ),
-  };
-}
-
 /** Render the validated answer, selected source pointers, and identifiers. */
 export function formatResearchMcpText(
   response:
-    | ProjectedAskMcpResponse
+    | AgenticAskMcpResponse
     | AgenticAskUrlResponse
     | AgenticAskNeedsTargetResponse,
 ): string {
@@ -212,7 +161,7 @@ export function formatResearchMcpText(
   return `${sections.join("\n\n")}\n`;
 }
 
-function formatMcpSourceCall(source: AskReadSource): string {
+function formatMcpSourceCall(source: AgenticAskMcpSourceCall): string {
   return `${source.name}(${JSON.stringify(source.arguments)})`;
 }
 

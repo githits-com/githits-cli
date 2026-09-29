@@ -81,28 +81,18 @@ describe("formatListText", () => {
     const result = siteResult({
       requestedTarget: "site:legacy.example.test/api",
       entries: [
-        entry(
-          "PAGE",
-          "docs.example.test/",
-          "site:legacy.example.test/api",
-          "/",
-        ),
-        entry(
-          "PAGE",
-          "docs.example.test/api/client/",
-          "site:legacy.example.test/api",
-          "api/client",
-        ),
-        entry("DIRECTORY", "docs.example.test/api/reference"),
+        entry("PAGE", "/", "site:legacy.example.test/api", "/"),
+        entry("PAGE", "client/", "site:legacy.example.test/api", "client"),
+        entry("DIRECTORY", "reference"),
       ],
     });
 
     expect(formatListText(result)).toBe(
       [
-        '# source site:docs.example.test/api | follow up with "read site:legacy.example.test/api $path"',
+        '# source site:legacy.example.test/api | follow up with "read site:legacy.example.test/api $path"',
         "/",
-        "api/client",
-        "api/reference/",
+        "client",
+        "reference/",
       ].join("\n"),
     );
   });
@@ -110,21 +100,16 @@ describe("formatListText", () => {
   it("preserves a meaningful trailing slash in an exact site page action", () => {
     const result = siteResult({
       entries: [
-        entry(
-          "PAGE",
-          "docs.example.test/api/pair/",
-          "site:docs.example.test/api",
-          "api/pair/",
-        ),
-        entry("DIRECTORY", "docs.example.test/api/reference"),
+        entry("PAGE", "pair/", "site:docs.example.test/api", "pair/"),
+        entry("DIRECTORY", "reference"),
       ],
     });
 
     expect(formatListText(result)).toBe(
       [
         '# source site:docs.example.test/api | follow up with "read site:docs.example.test/api $path"',
-        "api/pair/",
-        "api/reference/",
+        "pair/",
+        "reference/",
       ].join("\n"),
     );
   });
@@ -132,15 +117,10 @@ describe("formatListText", () => {
   it("renders exceptional URL actions as-is beside logical site paths", () => {
     const result = siteResult({
       entries: [
+        entry("PAGE", "guide", "site:docs.example.test/api", "guide"),
         entry(
           "PAGE",
-          "docs.example.test/guide",
-          "site:docs.example.test/api",
-          "guide",
-        ),
-        entry(
-          "PAGE",
-          "legacy.example.test/guide",
+          "guide?version=1",
           "http://legacy.example.test/guide?version=1",
           null,
         ),
@@ -159,13 +139,88 @@ describe("formatListText", () => {
   it("omits site follow-up guidance when page actions have different targets", () => {
     const result = siteResult({
       entries: [
-        entry("PAGE", "docs.example.test/a", "site:docs.example.test", "a"),
-        entry("PAGE", "docs.example.test/b", "site:legacy.example.test", "b"),
+        entry("PAGE", "a", "site:docs.example.test", "a"),
+        entry("PAGE", "b", "site:legacy.example.test", "b"),
       ],
     });
 
     expect(formatListText(result)).toBe(
       ["# source site:docs.example.test/api", "a", "b"].join("\n"),
+    );
+  });
+
+  it.each([
+    {
+      target: "site:reference.langchain.com/python/langchain/agents",
+      canonicalTarget: "site:reference.langchain.com/python/langchain",
+      paths: [
+        "_subagent_transformer/",
+        "factory/",
+        "middleware/",
+        "structured_output/",
+      ],
+    },
+    {
+      target: "site:reference.langchain.com/python/langchain",
+      canonicalTarget: "site:reference.langchain.com/python/langchain",
+      paths: ["agents/_subagent_transformer/", "agents/factory/"],
+    },
+    {
+      target: "site:expressjs.com",
+      canonicalTarget: "site:expressjs.com",
+      paths: ["en/resources/"],
+    },
+  ])(
+    "preserves directory paths relative to $target",
+    ({ target, canonicalTarget, paths }) => {
+      const result = siteResult({
+        requestedTarget: target,
+        canonicalTarget,
+        entries: paths.map((path) => ({
+          kind: "DIRECTORY",
+          path,
+          read: null,
+          browse: { target, paths: [path] },
+        })),
+      });
+      expect(formatListText(result)).toBe(
+        [`# source ${target}`, ...paths].join("\n"),
+      );
+      expect(formatListText(result, { includeHeader: false })).toBe(
+        paths.join("\n"),
+      );
+    },
+  );
+
+  it("uses the requested site base when an empty inventory has a broader owner", () => {
+    expect(
+      formatListText(
+        siteResult({
+          requestedTarget: "site:docs.example.test/api/nested",
+          canonicalTarget: "site:docs.example.test/api",
+        }),
+      ),
+    ).toBe("# source site:docs.example.test/api/nested");
+  });
+
+  it("pairs descendant PAGE paths with their emitted target instead of the owner", () => {
+    const target = "site:docs.example.test/api/nested";
+    expect(
+      formatListText(
+        siteResult({
+          requestedTarget: target,
+          entries: [
+            entry("PAGE", "client", target, "client"),
+            { kind: "DIRECTORY", path: "reference/", read: null },
+          ],
+        }),
+      ),
+    ).toBe(
+      [
+        `# source ${target} | follow up with "read ${target} $path"`,
+        "client",
+        "reference/",
+      ].join("\n"),
     );
   });
 

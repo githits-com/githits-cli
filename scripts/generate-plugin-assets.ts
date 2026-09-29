@@ -266,6 +266,12 @@ export function renderPluginAssets(
       path: ".claude-plugin/plugin.json",
       content: json({
         ...sharedManifest,
+        displayName: "GitHits",
+        author: {
+          ...sharedManifest.author,
+          email: "support@githits.com",
+          url: inputs.homepage,
+        },
         icon: "githits-icon.svg",
         privacyPolicyUrl: "https://githits.com/legal/privacy-policy/",
       }),

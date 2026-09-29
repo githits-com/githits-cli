@@ -483,12 +483,12 @@ describe("unified list CLI", () => {
       entries: [
         {
           kind: "PAGE",
-          path: "expressjs.com/en/resources/",
+          path: "en/resources/",
           read: { target: "site:expressjs.com", path: "en/resources" },
         },
         {
           kind: "DIRECTORY",
-          path: "expressjs.com/en/guide/",
+          path: "en/guide/",
           read: null,
         },
       ],
@@ -520,6 +520,61 @@ describe("unified list CLI", () => {
       );
     } finally {
       write.mockRestore();
+    }
+  });
+
+  it("preserves descendant-site directories and their request base in text and JSON", async () => {
+    const target = "site:reference.langchain.com/python/langchain/agents";
+    const paths = [
+      "_subagent_transformer/",
+      "factory/",
+      "middleware/",
+      "structured_output/",
+    ];
+    const result = listResult({
+      inventoryKind: "SITE",
+      requestedTarget: target,
+      canonicalTarget: "site:reference.langchain.com/python/langchain",
+      entries: paths.map((path) => ({
+        kind: "DIRECTORY",
+        path,
+        read: null,
+        browse: { target, paths: [path] },
+      })),
+    });
+    const list = mock(() => Promise.resolve(result));
+    const deps = createDeps({
+      listService: createMockListService({ list }),
+      createSpinner: () => ({ stop: mock(() => {}) }),
+    });
+    const writes: string[] = [];
+    const write = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await listAction(target, undefined, {}, deps);
+      expect(writes.join("")).toBe(
+        [`# source ${target}`, ...paths, ""].join("\n"),
+      );
+      writes.length = 0;
+      await listAction(target, undefined, { silent: true }, deps);
+      expect(writes.join("")).toBe([...paths, ""].join("\n"));
+      await listAction(target, undefined, { json: true }, deps);
+      expect(JSON.parse(log.mock.calls[0]?.[0] as string)).toMatchObject({
+        requestedTarget: target,
+        canonicalTarget: "site:reference.langchain.com/python/langchain",
+        entries: result.entries,
+      });
+      expect(list.mock.calls).toHaveLength(3);
+    } finally {
+      write.mockRestore();
+      log.mockRestore();
     }
   });
 

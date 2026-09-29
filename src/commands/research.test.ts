@@ -16,7 +16,6 @@ import { formatResearchMcpText } from "../../packages/mcp/src/mcp/local-research
 import {
   formatAgenticAskHumanResponse,
   formatAgenticAskSourceCommand,
-  projectAgenticAskCliSources,
   type ResearchCommandDependencies,
   registerResearchCommand,
   researchAction,
@@ -40,7 +39,6 @@ function result(
         command: "npx",
         arguments: [
           "githits@latest",
-          "code",
           "read",
           "--lines",
           "10-20",
@@ -53,7 +51,6 @@ function result(
         command: "npx",
         arguments: [
           "githits@latest",
-          "docs",
           "read",
           "--lines",
           "3-8",
@@ -186,10 +183,10 @@ describe("researchAction", () => {
     );
     expect(write.mock.calls[0]?.[0]).toContain("Use the public factory.");
     expect(write.mock.calls[0]?.[0]).toContain(
-      "npx githits@latest code read --lines 10-20 -- npm:example src/index.ts",
+      "npx githits@latest read --lines 10-20 -- npm:example src/index.ts",
     );
     expect(write.mock.calls[0]?.[0]).toContain(
-      "npx githits@latest docs read --lines 3-8 -- docs:example:guide",
+      "npx githits@latest read --lines 3-8 -- docs:example:guide",
     );
     expect(write.mock.calls[0]?.[0]).toContain(
       `Research run ID: ${TOOL_CALL_ID}`,
@@ -566,66 +563,61 @@ describe("researchAction", () => {
 });
 
 describe("Research human formatting", () => {
-  it("canonicalizes legacy code source targets without mutating docs locators", () => {
+  it("preserves backend read argv in text and JSON without rewriting locators", async () => {
     const wire = result({
       sources: [
         {
           command: "npx",
           arguments: [
             "githits@latest",
-            "code",
             "read",
             "--lines",
             "10-20",
             "--",
-            "github:owner/repo#release@stable",
-            "src/index.ts",
+            `https://github.com/owner/repo@${"a".repeat(40)}`,
+            "packages/a b/%file.ts",
           ],
         },
         {
           command: "npx",
           arguments: [
             "githits@latest",
-            "docs",
             "read",
-            "--lines",
-            "3-8",
+            "--selector",
+            "configuration",
             "--",
-            "github:owner/repo@abc123/guide.md#configuration",
+            "site:docs.example",
+            "guide/a%2Fb",
+          ],
+        },
+        {
+          command: "npx",
+          arguments: [
+            "githits@latest",
+            "read",
+            "--",
+            "https://docs.example/page?q=a%20b",
           ],
         },
       ],
     });
     const original = structuredClone(wire);
-    const projected = projectAgenticAskCliSources(wire);
-
-    expect(projected).toMatchObject({
-      sources: [
-        {
-          arguments: [
-            "githits@latest",
-            "code",
-            "read",
-            "--lines",
-            "10-20",
-            "--",
-            "github:owner/repo@release@stable",
-            "src/index.ts",
-          ],
-        },
-        {
-          arguments: [
-            "githits@latest",
-            "docs",
-            "read",
-            "--lines",
-            "3-8",
-            "--",
-            "github:owner/repo@abc123/guide.md#configuration",
-          ],
-        },
-      ],
-    });
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    await researchAction(
+      undefined,
+      "How?",
+      { json: true },
+      createDeps(async () => wire),
+    );
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual(original);
+    const formatted = formatAgenticAskHumanResponse(wire);
+    expect(formatted).toContain(
+      `https://github.com/owner/repo@${"a".repeat(40)} 'packages/a b/%file.ts'`,
+    );
+    expect(formatted).toContain(
+      "read --selector configuration -- site:docs.example guide/a%2Fb",
+    );
+    expect(formatted).toContain("read -- 'https://docs.example/page?q=a%20b'");
     expect(wire).toEqual(original);
   });
 
@@ -646,7 +638,6 @@ describe("Research human formatting", () => {
               command: "npx",
               arguments: [
                 "githits@latest",
-                "docs",
                 "read",
                 "--lines",
                 "3-8",
@@ -659,7 +650,7 @@ describe("Research human formatting", () => {
       );
 
       expect(formatted).toContain(
-        `Sources:\n  1. npx githits@latest docs read --lines 3-8 -- ${argument}\n`,
+        `Sources:\n  1. npx githits@latest read --lines 3-8 -- ${argument}\n`,
       );
     },
   );
@@ -681,7 +672,6 @@ describe("Research human formatting", () => {
         command: "npx",
         arguments: [
           "githits@latest",
-          "code",
           "read",
           "--lines",
           "1-2",
@@ -691,7 +681,7 @@ describe("Research human formatting", () => {
         ],
       }),
     ).toBe(
-      `npx githits@latest code read --lines 1-2 -- github:owner/repo 'path with '"'"'quote'"'"'and control.ts'`,
+      `npx githits@latest read --lines 1-2 -- github:owner/repo 'path with '"'"'quote'"'"'and control.ts'`,
     );
   });
 });

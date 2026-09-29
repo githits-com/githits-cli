@@ -17,7 +17,9 @@ public MCP server.
 validation and recognizes the explicit lowercase `site:` target whose path
 selects hosted documentation. Other nonempty paths scope code to one exact
 target-relative file; without `selector`, that path reads the file. A site path
-is host-relative, preserves query and encoded bytes, and uses `/` for the root.
+is relative to the supplied site's target, preserves emitted query and encoded
+bytes, and uses `/` for the site's landing page. Do not repeat a scoped target's
+prefix in its page path; replay emitted action values exactly.
 Pathless targets, including
 compact package/repository fragments and emitted documentation locators, go to
 the backend's unified `read` resolver. The returned union type determines
@@ -205,24 +207,26 @@ as the MCP wait parameter.
 
 ## Ask compatibility
 
-The backend Ask MCP contract returns canonical `read` source calls with optional
-path, selector and bounds. Core validates these arguments without changing opaque
-strings or adding omitted bounds. `projectAskReadSources()` beside the local MCP
-`research` adapter passes canonical calls unchanged into text and JSON output.
-The verified older `code_read` and `docs_read` source shapes remain accepted:
-the adapter translates only those legacy pointers into callable `read` sources.
-Legacy code targets are normalized from backend-authored repository labels to
-`provider:path@ref`; legacy docs map `page_id` to `target` without parsing it.
-Canonical targets never pass through that legacy repository formatter. All other
-response metadata is preserved and the original backend response is not mutated.
-URL and clarification responses pass through unchanged.
+Research responses contain final source actions. The shared service validates
+unified `read` sources;
+CLI `research` (including its `ask` alias) and MCP render those actions without
+translating tool names or normalizing targets and paths. Full served commit hashes,
+selectors, URL query strings, and exact path bytes survive in JSON. CLI text applies
+the existing terminal sanitization and shell quoting. URL and clarification
+responses retain their existing contracts.
 
-Core service consumers still see the backend contract. CLI `research` (including
-its `ask` alias) recognizes only the validated `githits code read` argv tuple
-and normalizes that tuple's target before
-text or JSON rendering. It never parses documentation argv, URLs, answer prose, or
-other opaque command shapes. Core owns accepted Ask wire shapes; the MCP adapter
-owns translation of legacy source names into its callable catalog.
+CLI source argv starts with `githits@latest read`, followed by optional
+`--selector <value>`, optional `--lines <start>-<end>`, then `-- <target> [path]`.
+Either line bound may be omitted; whole reads omit the option entirely. The
+parser rejects unknown commands/options, malformed or reversed ranges, missing
+operands, and extra operands. It never executes the source command.
+
+MCP sources use `{name: "read", arguments: {target, path?, selector?, start_line?,
+end_line?}}`. Missing optional fields stay absent. The parser rejects unknown
+argument fields rather than silently dropping selection data. There is no legacy
+`code_read`/`docs_read` or CLI command fallback. Coordinate the client release with
+the API's unified source contract. Hosted MCP consumers must update their
+`@githits/mcp` package before accepting these responses.
 
 ## Migration and future extension
 

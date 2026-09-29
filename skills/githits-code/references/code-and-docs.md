@@ -31,7 +31,19 @@ If a missing or ambiguous site returns suggested site targets, retry one of thos
 
 Useful flags: repeatable `--file-type`, `--language`, `--intent`, `--limit` (1-500), `--after`, `--wait` (milliseconds, 0-300000), `--silent`, `--json`. Text lists paths with direct read guidance; `--silent` emits paths only. JSON retains read/browse actions, lifecycle metadata, and `nextCursor`. Continue by replaying the same selection with the returned opaque cursor. Prefer exact emitted read actions to reconstructed locators.
 
-`githits read <site-target> <host-relative-page-path>` reads an emitted site PAGE action, including `/` for the root. A site display path alone is not a read locator.
+Site paths are relative to the supplied `site:<host[/scope]>` target. Omitted or empty list paths select its root; directory paths retain their trailing `/`. Literal paths and quoted globs operate only under that target's literal host/scope.
+
+`githits read <site-target> <target-relative-page-path>` reuses an ordinary PAGE path with its supplied target; `/` reads the site's landing page. Preserve emitted read/browse action values exactly. Explicit backend actions remain authoritative for exceptional URL/query/encoding identities; do not reconstruct those locators from display paths.
+
+For example, a scoped inventory emits `agents/` and the page below relative to `site:reference.langchain.com/python/langchain`; do not repeat `python/langchain` in the path:
+
+```bash
+githits list site:reference.langchain.com/python/langchain agents/
+githits list site:reference.langchain.com/python/langchain 'agents/*/*'
+githits read site:reference.langchain.com/python/langchain agents/_subagent_transformer/AsyncSubagentRunStream
+# A deeper target changes the path base: factory/ is relative to agents.
+githits list site:reference.langchain.com/python/langchain/agents factory/
+```
 
 ## Legacy Code Files
 
@@ -75,7 +87,7 @@ Partial and capped documentation coverage are usable published evidence. Report 
 - `githits read '<target>#<symbol>'` maps to MCP `read` with the fragment in `target`, optionally with `path` for code.
 - `githits docs list` maps to MCP `docs_list`.
 - `githits read <docs-target>` maps to MCP `read` with `target` alone.
-- `githits read <site-target> <host-relative-page-path>` maps to MCP `read` with `target` and `path`.
+- `githits read <site-target> <target-relative-page-path>` maps to MCP `read` with `target` and `path`.
 
 Direct repository targets accept approved full HTTPS URLs on github.com, codeberg.org, and gitlab.com. Codeberg requires exactly owner/repo; GitLab allows nested namespaces. Only GitHub supports host shorthand and HTTP compatibility. Never infer a provider from bare owner/repo. Repository refs use an @ suffix and may themselves contain / and @; # is reserved for semantic fragments. Empty refs and mixed suffixes are invalid. Credentials, queries, provider web subpaths, and unsupported/self-hosted hosts are rejected. Package targets keep registry-native coordinates, including `zig:cb/owner/repo` and `swift:gitlab.com/group/project`.
 

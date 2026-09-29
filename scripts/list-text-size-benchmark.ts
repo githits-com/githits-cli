@@ -21,19 +21,25 @@ function sourceEntry(index: number): ListEntry {
 }
 
 function siteEntry(index: number): ListEntry {
-  const path = `docs.example.test/reference/topic-${String(index).padStart(3, "0")}`;
+  const path = `reference/topic-${String(index).padStart(3, "0")}`;
   return {
     kind: index % 10 === 0 ? "DIRECTORY" : "PAGE",
     path,
     title: `Reference topic ${index}`,
-    read: {
-      target: "site:docs.example.test",
-      path: `reference/topic-${index}`,
-    },
-    browse: {
-      target: "site:docs.example.test",
-      paths: [path],
-    },
+    read:
+      index % 10 === 0
+        ? null
+        : {
+            target: "site:docs.example.test",
+            path,
+          },
+    browse:
+      index % 10 === 0
+        ? {
+            target: "site:docs.example.test",
+            paths: [path],
+          }
+        : null,
   };
 }
 

@@ -77,6 +77,7 @@ broader open-source ecosystem, not just model memory or local repo context:
 | Code navigation | `search`, `search_status`, `code_files`, `code_grep` | `githits search`, `githits search-status`, `githits code ...` |
 | Documentation discovery | `docs_list` | `githits docs list` |
 | Read source files or documentation sections | `read` | `githits read <target> [path]` |
+| Grep source and hosted documentation together | CLI only (MCP migration pending) | `githits grep <pattern> <targets...>` |
 | Package inspection | `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review` | `githits pkg ...` |
 
 Use GitHits when your agent needs to:

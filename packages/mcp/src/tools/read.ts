@@ -57,7 +57,7 @@ export const readSchema: ReadSchema = {
     .string()
     .optional()
     .describe(
-      "Host-relative page path for an explicit site: target, or exact package/repo-relative file path from search, code_files or code_grep. Omit for other documentation targets; empty means omitted.",
+      "Page path relative to the supplied site: target; do not repeat its scope. For code, use an exact package/repo-relative file path from search, code_files or code_grep. Preserve emitted paths unchanged. Omit for other documentation targets; empty means omitted.",
     ),
   selector: z
     .string()

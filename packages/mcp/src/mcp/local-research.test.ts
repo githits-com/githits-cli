@@ -16,7 +16,6 @@ import {
   DESCRIPTION,
   formatResearchMcpText,
   type LocalResearchMcpArgs,
-  projectAskReadSources,
 } from "./local-research.js";
 
 const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
@@ -30,7 +29,7 @@ function response(): AgenticAskMcpResponse {
     answer_markdown: "Use the documented API.",
     sources: [
       {
-        name: "code_read",
+        name: "read",
         arguments: {
           target: "npm:example",
           path: "src/index.ts",
@@ -39,9 +38,9 @@ function response(): AgenticAskMcpResponse {
         },
       },
       {
-        name: "docs_read",
+        name: "read",
         arguments: {
-          page_id: "docs:example:guide",
+          target: "docs:example:guide",
           start_line: 3,
           end_line: 8,
         },
@@ -165,7 +164,7 @@ describe("local research MCP adapter", () => {
       content: [
         {
           type: "text",
-          text: formatResearchMcpText(projectAskReadSources(response())),
+          text: formatResearchMcpText(response()),
         },
       ],
     });
@@ -269,9 +268,7 @@ describe("local research MCP adapter", () => {
         { signal },
       );
       expect(result.isError).toBeUndefined();
-      expect(result.content[0]?.text).toBe(
-        formatResearchMcpText(projectAskReadSources(answer)),
-      );
+      expect(result.content[0]?.text).toBe(formatResearchMcpText(answer));
     },
   );
 
@@ -321,9 +318,7 @@ describe("local research MCP adapter", () => {
       format: "json",
     });
 
-    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual(
-      projectAskReadSources(response()),
-    );
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual(response());
     expect(result.content[0]?.text).not.toContain("usage");
   });
 
@@ -509,115 +504,50 @@ describe("local research MCP adapter", () => {
   });
 });
 
-describe("Ask read source projection", () => {
-  it("passes canonical read actions unchanged through text and JSON", async () => {
-    const wire = {
-      ...response(),
-      sources: [
-        {
-          name: "read",
-          arguments: {
-            target: "github:owner/repo#release@stable",
-            path: "src/O'Reilly file.ts",
-            selector: "-Heading%2FName",
-            start_line: 10,
-            end_line: 20,
+describe("Ask read sources", () => {
+  it.each(["text", "json"] as const)(
+    "preserves complete backend actions in %s output",
+    async (format) => {
+      const wire: AgenticAskMcpResponse = {
+        ...response(),
+        sources: [
+          {
+            name: "read",
+            arguments: {
+              target: `https://github.com/owner/repo@${"a".repeat(40)}`,
+              path: "packages/a b/%file.ts",
+              start_line: 34,
+              end_line: 44,
+            },
           },
-        },
-        {
-          name: "read",
-          arguments: { target: "https://docs.test/guide", selector: "router" },
-        },
-        {
-          name: "read",
-          arguments: { target: "npm:example", path: "lib/index.js" },
-        },
-      ],
-    } satisfies AgenticAskMcpResponse;
-    const original = structuredClone(wire);
-    const projected = projectAskReadSources(wire);
-    expect(projected).toEqual(original);
-    expect(wire).toEqual(original);
-
-    const tool = createLocalResearchTool(
-      createService(() => Promise.resolve(wire)),
-    );
-    const text = await invoke(tool, {
-      target: "npm:example",
-      question: "How?",
-    });
-    const json = await invoke(tool, {
-      target: "npm:example",
-      question: "How?",
-      format: "json",
-    });
-    expect(text.isError).not.toBe(true);
-    for (const source of wire.sources) {
-      expect(text.content[0]?.text).toContain(
-        `read(${JSON.stringify(source.arguments)})`,
+          {
+            name: "read",
+            arguments: {
+              target: "site:docs.example",
+              path: "guide/a%2Fb",
+              selector: "configuration",
+            },
+          },
+          {
+            name: "read",
+            arguments: { target: "https://docs.example/page?q=a%20b" },
+          },
+        ],
+      };
+      const original = structuredClone(wire);
+      const result = await invoke(
+        createLocalResearchTool(createService(async () => wire)),
+        { question: "How?", format },
       );
-    }
-    expect(JSON.parse(json.content[0]?.text ?? "{}")).toEqual(original);
-  });
-
-  it("projects both typed pointers without mutating backend data or losing metadata", () => {
-    const wire = response();
-    const original = structuredClone(wire);
-    const projected = projectAskReadSources(wire);
-    expect(projected).toEqual({
-      ...original,
-      sources: [
-        {
-          name: "read",
-          arguments: {
-            target: "npm:example",
-            path: "src/index.ts",
-            start_line: 10,
-            end_line: 20,
-          },
-        },
-        {
-          name: "read",
-          arguments: {
-            target: "docs:example:guide",
-            start_line: 3,
-            end_line: 8,
-          },
-        },
-      ],
-    });
-    expect(wire).toEqual(original);
-    const text = formatResearchMcpText(projected);
-    expect(text).toContain('read({"target":"docs:example:guide"');
-    expect(text).not.toMatch(/code_read|docs_read|page_id/);
-  });
-
-  it("canonicalizes legacy typed code targets and preserves docs fragments", () => {
-    const wire = response();
-    const codeSource = wire.sources[0];
-    const docsSource = wire.sources[1];
-    if (codeSource?.name !== "code_read" || docsSource?.name !== "docs_read") {
-      throw new Error("expected typed Ask source fixtures");
-    }
-    codeSource.arguments.target = "github:owner/repo#release@stable";
-    docsSource.arguments.page_id =
-      "github:owner/repo@abc123/guide.md#configuration";
-
-    expect(projectAskReadSources(wire)).toMatchObject({
-      sources: [
-        {
-          arguments: { target: "github:owner/repo@release@stable" },
-        },
-        {
-          arguments: {
-            target: "github:owner/repo@abc123/guide.md#configuration",
-          },
-        },
-      ],
-    });
-  });
-  it("leaves URL responses unchanged", () => {
-    const wire = urlResponse();
-    expect(projectAskReadSources(wire)).toBe(wire);
-  });
+      expect(result.isError).not.toBe(true);
+      const text = result.content[0]?.text ?? "";
+      if (format === "json") expect(JSON.parse(text)).toEqual(original);
+      else {
+        for (const source of original.sources)
+          expect(text).toContain(`read(${JSON.stringify(source.arguments)})`);
+        expect(text).not.toMatch(/code_read|docs_read|page_id/);
+      }
+      expect(wire).toEqual(original);
+    },
+  );
 });

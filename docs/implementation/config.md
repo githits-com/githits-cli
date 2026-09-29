@@ -74,7 +74,7 @@ The container (`src/container.ts`) resolves authentication in priority order:
 | `/search` | Full access | Full access | Blocked |
 | `/functions/v1/settings/me` | Full access | Full access | Blocked |
 
-Package/source access uses the OSS service URL selected by `GITHITS_ENV` unless `GITHITS_CODE_NAV_URL` overrides it. MCP registration for `search`, `search_status`, `docs_*`, `pkg_*`, `code_files`, `read`, and `code_grep` is always on; CLI registration for top-level `search` / `search-status` / `read` / `list` plus the `githits code`, `githits pkg`, and `githits docs` groups is also always on.
+Package/source access uses the OSS service URL selected by `GITHITS_ENV` unless `GITHITS_CODE_NAV_URL` overrides it. MCP registration for `search`, `search_status`, `docs_*`, `pkg_*`, `code_files`, `read`, and `code_grep` is always on; CLI registration for top-level `search` / `search-status` / `read` / `list` / `grep` plus the `githits code`, `githits pkg`, and `githits docs` groups is also always on.
 
 ## Environment Variables
 

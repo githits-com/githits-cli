@@ -10,6 +10,8 @@ import {
   createStaticTokenProvider,
   type GitHitsService,
   GitHitsServiceImpl,
+  type GrepService,
+  GrepServiceImpl,
   getApiUrl,
   getCodeNavigationUrl,
   getEnvApiToken,
@@ -304,6 +306,8 @@ export interface Dependencies {
   packageIntelligenceService: PackageIntelligenceService;
   /** Unified source/site inventory service used by `githits list`. */
   listService: ListService;
+  /** Unified source/site grep service used by `githits grep`. */
+  grepService: GrepService;
   /** Unified compact code/documentation read service. */
   readService: ReadService;
   /** Resolves fuzzy package/repository names for the CLI dogfood surface. */
@@ -392,6 +396,12 @@ export async function createContainer(
         fetchFn,
         serviceRuntime,
       );
+      const grepService = new GrepServiceImpl(
+        codeNavigationUrl,
+        tokenProvider,
+        fetchFn,
+        serviceRuntime,
+      );
       const resolveTargetService = new ResolveTargetServiceImpl(
         codeNavigationUrl,
         tokenProvider,
@@ -420,6 +430,7 @@ export async function createContainer(
         packageIntelligenceService,
         readService,
         listService,
+        grepService,
         resolveTargetService,
         agenticAskService,
         githitsService: new GitHitsServiceImpl(
@@ -476,6 +487,12 @@ export async function createContainer(
       fetchFn,
       serviceRuntime,
     );
+    const grepService = new GrepServiceImpl(
+      codeNavigationUrl,
+      tokenManager,
+      fetchFn,
+      serviceRuntime,
+    );
     const resolveTargetService = new ResolveTargetServiceImpl(
       codeNavigationUrl,
       tokenManager,
@@ -504,6 +521,7 @@ export async function createContainer(
       packageIntelligenceService,
       readService,
       listService,
+      grepService,
       resolveTargetService,
       agenticAskService,
       githitsService: new RefreshingGitHitsService(
