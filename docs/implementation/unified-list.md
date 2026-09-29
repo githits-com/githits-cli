@@ -43,7 +43,7 @@ response. The backend's opaque cursor is otherwise preserved exactly.
   It preserves meaningful `null`s and omitted conditional details, clones
   nested values, and adds no total, filter echo, or reconstructed action.
 - `list-text.ts` defines the one token-efficient format that CLI uses now and
-  the Phase 2 MCP tool must reuse: `# source <canonical-target>` followed by one
+  the Phase 2 MCP tool must reuse: `# source <target>` followed by one
   path per line. SOURCE headers use the canonical target, falling back to the
   requested target. SITE headers use the shared PAGE action target or the
   requested target, preserving the base of emitted relative paths; a broader
@@ -180,6 +180,11 @@ Replaying the descendant's unchanged `_subagent_transformer/` browse action
 then `_subagent_transformer/AsyncSubagentRunStream` read action returned
 nonempty Markdown with that same deeper target. This is dev evidence; it does
 not establish production deployment of the corrected backend contract.
+
+The MCP read-path parameter now states the same target-relative contract.
+Focused schema tests and built-CLI dev replay cover the separate path argument.
+A targeted descriptor intent eval used scoped search followed by an emitted
+exact-URL read; it did not exercise the separate path argument.
 
 The text inventory preserves backend-authored PAGE read paths exactly. A
 trailing slash normally marks a directory, but a PAGE also retains it when the

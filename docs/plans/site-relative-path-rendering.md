@@ -19,8 +19,9 @@ actions. `packages/mcp/src/shared/list-text.ts` owns faithful text rendering;
 the CLI delegates to it. Remove its obsolete first-component stripping and
 use the shared site PAGE action target or requested target in site headers.
 Keep SOURCE canonical-target behavior and exceptional exact URL actions.
-Update the CLI skill, its reference, directly related implementation docs, and
-one release fragment. No adapters, compatibility guesses, dependencies,
+Update the CLI skill, its reference, directly related implementation docs,
+the MCP read-path descriptor, and one release fragment. No adapters,
+compatibility guesses, dependencies,
 transport changes, backend edits, publication, or production probes.
 
 ## Assumptions and unknowns
@@ -34,6 +35,9 @@ transport changes, backend edits, publication, or production probes.
 - Production deployment is reported running; its result is unverified.
 - Open product decisions: none. Delivery ends at a draft PR; publication needs
   separate user authorization.
+- Review found the same stale path base in the MCP read parameter descriptor;
+  its one-string correction is included and the fragment now declares a pending
+  patch for both public packages. No MCP runtime behavior changes.
 
 ## Acceptance and validation
 
@@ -44,7 +48,7 @@ transport changes, backend edits, publication, or production probes.
 3. Extend the existing authenticated CLI smoke's site coverage to compare
    descendant-directory JSON paths with text; add no harness.
 4. Run focused list, smoke-script, skill/plugin, and fragment tests; plugin
-   generation/check, formatting/type/lint checks, and build. Run CLI/MCP smoke
+   generation/check, formatting/type/lint checks, and CLI/MCP builds. Run CLI/MCP smoke
    in secret-free modes rather than unrelated authenticated package workloads.
 5. With `GITHITS_ENV=dev`, dev keychain, and the documented explicit dev URL
    overrides, replay a deeper-target browse action and its PAGE read unchanged
@@ -52,6 +56,9 @@ transport changes, backend edits, publication, or production probes.
 6. Internal pre-flight, one external Claude review per round, stable commit,
    push, draft PR to main. Keep this plan through review and merge; transfer
    durable evidence into implementation docs before deleting it after merge.
+7. Validate the corrected MCP path parameter descriptor with its existing
+   schema/catalog tests and the existing `agent:e2e` harness using a temporary
+   scoped-page workload on dev. No new harness or permanent workload is added.
 
 ## Verification record
 
@@ -65,9 +72,9 @@ transport changes, backend edits, publication, or production probes.
   format check, lint, and build passed. Lint has 9 preexisting warnings and one
   informational finding in unchanged files; changed-file Biome check is clean.
 - CLI unauthenticated and MCP registration smoke passed for source and built
-  launch modes. Full authenticated smoke and agent evals were not run: their
-  package/search workloads are unrelated to this increment. The existing live
-  CLI smoke now checks descendant directory JSON/text consistency.
+  launch modes. Full authenticated smoke was not run: its package/search
+  workloads are unrelated to this increment. The existing live CLI smoke now
+  checks descendant directory JSON/text consistency.
 - `node dist/cli.js list site:reference.langchain.com/python/langchain/agents`
   (text, JSON, silent), emitted browse action replay, and emitted PAGE read replay
   all passed against dev with explicit MCP/API/code-nav overrides and keychain.
@@ -77,3 +84,35 @@ transport changes, backend edits, publication, or production probes.
 - The existing list-text size fixture was corrected to use backend-relative
   paths/actions. `bun run bench:list-text` succeeds; no performance claim or
   optimization is part of this change.
+- After review fixes, focused read schema/catalog, list, smoke-script, and
+  release-fragment tests passed: 192 tests, 828 assertions. Typecheck and plugin
+  check passed; both public package builds and source/built MCP registration
+  smoke passed after the descriptor change.
+- Targeted Claude MCP/skill eval attempts stopped before tool calls because
+  isolated Claude runs were not logged in. Failed artifacts are retained at
+  `/tmp/site-relative-read-eval-{mcp,skills}/`. Targeted Codex evals use the
+  existing authenticated `/Users/jpl/.codex-eval` home without reading, printing,
+  or copying credentials. MCP discovery and skill runs completed, but their
+  traces used web browsing and made zero GitHits calls. They do not establish
+  descriptor/CLI guidance conformance. A single MCP run with the harness's
+  existing GitHits intent setting completed successfully: `quick_start`, scoped
+  documentation `search`, then `read` of its emitted exact URL. The answer
+  reports high confidence. It did not exercise the separate `path` argument;
+  that behavior is covered by focused schema tests and built-CLI dev replay.
+  No answer-quality claim is made without a grading stage. Artifacts are at
+  `/tmp/site-relative-read-eval-codex-intent/`.
+
+## Review closure
+
+- Internal pre-flight: no code findings; a stale pending-verification bullet
+  was corrected before external review.
+- External round 1: renderer correct. Accepted the same stale path-base wording
+  in the MCP read descriptor; bounded scan covered skills, current implementation
+  docs, and the active unified-list plan. Corrected all current instructions,
+  retained explicitly historical PR #2817 descriptions, and declared both
+  packages' pending patch impacts.
+- Accepted minor active-plan/header wording corrections. The plan now records
+  published CLI 0.23.0 and later dev verification accurately.
+- Accepted the smoke assertion correction: expected DIRECTORY text includes its
+  trailing slash even when the backend path omits it. Existing formatter tests
+  cover that rendering behavior. No normalization was added to the client.

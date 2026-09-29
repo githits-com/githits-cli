@@ -2218,8 +2218,14 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   for (const directory of descendantDirectories) {
     assertRecord(directory, "descendant site directory");
     assert(
-      typeof directory.path === "string" &&
-        descendantLines.slice(1).includes(directory.path),
+      typeof directory.path === "string",
+      "descendant site directory missing path",
+    );
+    const renderedPath = directory.path.endsWith("/")
+      ? directory.path
+      : `${directory.path}/`;
+    assert(
+      descendantLines.slice(1).includes(renderedPath),
       "descendant site text must preserve the JSON directory path",
     );
   }

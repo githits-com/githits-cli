@@ -12,12 +12,15 @@ The rebased Phase 1 branch passed 5,044 tests, typecheck, formatting, build,
 9-step built MCP registration smoke against production. Authenticated
 package, repository, and site list/read follow-ups passed. Backend
 PR #2817 merged as `518e45d301d0ba3f451ff56034551addc2bfc7fe` and its
-`site:` target plus host-relative page path shape is deployed to production.
+earlier `site:` target plus host-relative page path shape deployed to production.
 Live CLI replay passes for the Express site root, a normal page with and
 without its trailing slash, and the same page through a nested site scope. The
-client work is on `main`; package publication remains pending. The 0.23.0
-release preparation includes Phase 1 CLI listing and shared site-page reads.
-It does not claim Phase 2 MCP catalog consolidation or Phase 3 hosted adoption.
+Phase 1 CLI listing and shared site-page reads shipped in `githits@0.23.0`.
+Those checks preceded backend PR #2857's target-relative contract verified on
+dev and the reproduced CLI directory-rendering defect. The corrective
+[site-relative rendering increment](site-relative-path-rendering.md) records
+the current contract and dev evidence; newer production deployment is unverified.
+This does not claim Phase 2 MCP catalog consolidation or Phase 3 hosted adoption.
 
 Replace the advertised MCP `code_files` and `docs_list` tools with one `list`
 tool, and add the matching top-level `githits list` command. The new surface
@@ -91,9 +94,9 @@ The permanent backend documentation establishes these semantics:
   repository-relative path. Package directory browsing stays package-scoped
   and version-pinned; it is unavailable when the backend cannot form a
   versioned package target. Hosted PAGE actions use the requested `site:`
-  target plus a host-relative path when that pair resolves the stored URL.
-  `/` addresses the root. A single non-root trailing slash is omitted when no
-  active slashless counterpart exists; distinct slash variants remain exact.
+  target plus a target-relative path when that pair resolves the stored URL.
+  `/` addresses the site's landing page. A single non-root trailing slash is
+  omitted when no active slashless counterpart exists; distinct slash variants remain exact.
   Exceptional origins retain exact-URL actions.
 - An unprepared source at zero wait returns its typed indexing error. Positive
   wait can return an `INDEXING` result with empty entries. Sites return active
@@ -232,10 +235,12 @@ and indexing fields, and site inventory/crawl/coverage/preparation fields.
 Nullable fields stay nullable where absence is meaningful; no synthetic total
 or reconstructed action is added.
 
-Text output starts with `# source <canonical-target>` followed by one unquoted
+Text output starts with `# source <target>` followed by one unquoted
 path per line. When the backend has another page, the header adds
 ` | more results available`.
-If no canonical target is available, the header uses the requested target.
+SOURCE headers use the canonical target when available, otherwise the requested
+target. SITE headers preserve the emitted path base using the shared PAGE action
+target or requested target; a broader canonical owner remains JSON metadata.
 CLI dims the header when color is enabled; MCP uses the same text without ANSI.
 CLI `-s, --silent` omits the header and progress display so stdout contains
 only path lines for piping; an empty inventory emits no bytes. JSON is
@@ -248,8 +253,10 @@ spaces, and ordinary Unicode remain literal. The text surface omits titles,
 entry kinds, counts, per-entry commands, lifecycle diagnostics, and continuation
 commands. For sites, compact projection includes exact `read.target` and
 `read.path` values. The header reuses a shared site action target, and PAGE
-rows render the corresponding host-relative path; `/` is the root. DIRECTORY
-rows remain relative and end in `/`. A meaningful PAGE trailing slash is
+rows render the corresponding target-relative path; `/` is the site's landing
+page. DIRECTORY rows preserve their target-relative paths and end in `/`. Directory-only SITE
+headers use the requested target, retaining a deeper request's path base while
+the canonical owner remains metadata. A meaningful PAGE trailing slash is
 preserved when the backend must distinguish coexisting slash variants.
 Exceptional URL-only PAGE actions render their exact target. If logical PAGE
 actions disagree on the site target, the header omits follow-up guidance.
@@ -466,7 +473,7 @@ increments pass their acceptance checks and merge.
 - Package, repository, and site response fixtures prove projection of exact
   read/browse actions, nullable canonical/browse values, and simultaneous
   landing-page actions. Text fixtures prove path-only rendering of
-  package-relative source paths, backend-authored host-relative site read
+  package-relative source paths, backend-authored target-relative site read
   paths, exceptional URL actions, and relative site directories. They do not
   claim to prove backend scope or hierarchy.
 - Pagination projection requires a nonempty cursor with `hasMore: true`, never
