@@ -78,9 +78,6 @@ describe("grep text formatting", () => {
     expect(
       lines.filter((line) => line.startsWith("# Read pages:")),
     ).toHaveLength(1);
-    expect(lines.findIndex((line) => line.includes("--cursor"))).toBeLessThan(
-      lines.indexOf(expectedHeaders[0]),
-    );
     expect(rendered).not.toContain("Read recipes");
     expect(rendered).not.toContain("Hosted page reads");
     const expectedRows = new Map<string, number>();
@@ -118,6 +115,13 @@ describe("grep text formatting", () => {
     expect(distinctWindowCount).toBeLessThan(parsedOriginal.hits.length);
 
     const matchingRows = lines.filter((line) => /^\s*\d+: /.test(line));
+    const finalMatchingRowIndex = lines.reduce(
+      (lastIndex, line, index) => (/^\s*\d+: /.test(line) ? index : lastIndex),
+      -1,
+    );
+    expect(
+      lines.findIndex((line) => line.startsWith("  --cursor ")),
+    ).toBeGreaterThan(finalMatchingRowIndex);
     expect(sortedCounts(countValues(matchingRows))).toEqual(
       sortedCounts(expectedRows),
     );

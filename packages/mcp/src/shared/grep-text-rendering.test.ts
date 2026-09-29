@@ -273,4 +273,74 @@ describe("grep evidence rendering", () => {
     expect(text.match(/Repository npm:x \(inputs 0\)/g)).toHaveLength(1);
     expect(text).not.toContain("retryable false");
   });
+
+  it("places exact dim continuation instructions after evidence for CLI and MCP", () => {
+    const cursor = "opaque cursor";
+    const data = page([hit()], {
+      traversal: "RESUMABLE_LIMIT",
+      nextCursor: cursor,
+      targets: [scope({ traversal: "RESUMABLE_LIMIT" })],
+    });
+    const intro =
+      "More matches: reuse the same ordered targets and controls with:";
+    const cases = [
+      {
+        syntax: "cli" as const,
+        cursorLine: "  --cursor 'opaque cursor'",
+        header: "# Read files: read --lines $start-$end -- $target $path",
+      },
+      {
+        syntax: "mcp" as const,
+        cursorLine: `  cursor=${JSON.stringify(cursor)}`,
+        header:
+          "# Read files: read target=$target path=$path start_line=$start end_line=$end",
+      },
+    ] as const;
+
+    for (const { syntax, cursorLine, header } of cases) {
+      const plain = formatGrepText(data, { syntax, useColors: false });
+      const colored = formatGrepText(data, { syntax, useColors: true });
+      expect(plain.endsWith(`\n${intro}\n${cursorLine}`)).toBe(true);
+      const coloredLines = colored.split("\n");
+      expect(coloredLines).toContain(`${colors.dim}${header}${colors.reset}`);
+      expect(coloredLines.slice(-2)).toEqual([
+        `${colors.dim}${intro}${colors.reset}`,
+        `${colors.dim}${cursorLine}${colors.reset}`,
+      ]);
+      expect(stripAnsi(colored)).toBe(plain);
+    }
+
+    const narrowIntro = [
+      "More matches: reuse the",
+      "same ordered targets and",
+      "controls with:",
+    ];
+    const narrowPlain = formatGrepText(data, {
+      syntax: "cli",
+      useColors: false,
+      width: 24,
+    });
+    const narrowColored = formatGrepText(data, {
+      syntax: "cli",
+      useColors: true,
+      width: 24,
+    });
+    expect(narrowPlain.split("\n").slice(-4)).toEqual([
+      ...narrowIntro,
+      cases[0].cursorLine,
+    ]);
+    expect(narrowColored.split("\n").slice(-4)).toEqual([
+      ...narrowIntro.map((line) => `${colors.dim}${line}${colors.reset}`),
+      `${colors.dim}${cases[0].cursorLine}${colors.reset}`,
+    ]);
+    expect(stripAnsi(narrowColored)).toBe(narrowPlain);
+
+    for (const syntax of ["cli", "mcp"] as const) {
+      const noCursor = formatGrepText(page([hit()]), { syntax });
+      expect(noCursor).not.toContain("More matches:");
+      expect(noCursor).not.toContain("--cursor");
+      expect(noCursor).not.toContain("cursor=");
+    }
+    expect(formatGrepText(page([]))).toBe("No matches.");
+  });
 });

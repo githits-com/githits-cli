@@ -67,7 +67,11 @@ which forces the local tools on without reading host
 experimental policy. Scoped temporary roots preserve inherited environment
 credentials but do not copy host file-auth state; authenticated live
 validation is conditional and skips with `AUTH_REQUIRED` when unavailable.
-Public/remote smoke remains stable-only.
+Public/remote smoke remains stable-only. The local experimental `research`
+smoke calls give the MCP SDK the existing 210-second agentic-ask service budget.
+The SDK's 60-second default can otherwise cancel a valid long-running research
+reply before the service's own deadline. This allowance applies only to those
+smoke calls; other calls and production service budgets are unchanged.
 
 ### Phase 3 evaluation record
 

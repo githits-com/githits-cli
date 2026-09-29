@@ -1,3 +1,4 @@
+import { AGENTIC_ASK_REQUEST_TIMEOUT_MS } from "@githits/core-internal";
 import {
   assertCleanErrorEnvelope,
   assertDefaultText,
@@ -283,13 +284,17 @@ async function runExperimentalRegistrationSmoke(
           const researchResult = (await trackSmokeStep(
             `mcp research ${JSON.stringify(subject)} registration`,
             () =>
-              client.callTool({
-                name: "research",
-                arguments: {
-                  ...subject,
-                  question: "Where is Express router dispatch implemented?",
+              client.callTool(
+                {
+                  name: "research",
+                  arguments: {
+                    ...subject,
+                    question: "Where is Express router dispatch implemented?",
+                  },
                 },
-              }),
+                undefined,
+                { timeout: AGENTIC_ASK_REQUEST_TIMEOUT_MS },
+              ),
           )) as McpSmokeToolResult;
           assert(
             assertCleanErrorEnvelope(researchResult, "research registration")
@@ -411,13 +416,17 @@ async function runExperimentalLiveSmoke(
         const researchText = (await trackSmokeStep(
           "mcp research default text experimental live",
           () =>
-            client.callTool({
-              name: "research",
-              arguments: {
-                target: "npm:express",
-                question: "Where is router dispatch implemented?",
+            client.callTool(
+              {
+                name: "research",
+                arguments: {
+                  target: "npm:express",
+                  question: "Where is router dispatch implemented?",
+                },
               },
-            }),
+              undefined,
+              { timeout: AGENTIC_ASK_REQUEST_TIMEOUT_MS },
+            ),
         )) as McpSmokeToolResult;
         const researchTextBody = assertDefaultText(
           researchText,
@@ -439,16 +448,20 @@ async function runExperimentalLiveSmoke(
         const researchUrlJson = (await trackSmokeStep(
           "mcp research URL JSON experimental live",
           () =>
-            client.callTool({
-              name: "research",
-              arguments: {
-                thread_id: researchThreadMatch[1],
-                question:
-                  "How is the matched route handler invoked after dispatch?",
-                source_format: "url",
-                format: "json",
+            client.callTool(
+              {
+                name: "research",
+                arguments: {
+                  thread_id: researchThreadMatch[1],
+                  question:
+                    "How is the matched route handler invoked after dispatch?",
+                  source_format: "url",
+                  format: "json",
+                },
               },
-            }),
+              undefined,
+              { timeout: AGENTIC_ASK_REQUEST_TIMEOUT_MS },
+            ),
         )) as McpSmokeToolResult;
         const researchUrlPayload = assertJsonResult(
           researchUrlJson,

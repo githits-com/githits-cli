@@ -92,15 +92,6 @@ export function formatGrepText(
         ),
       );
   }
-  if (result.nextCursor) {
-    lines.push("");
-    prose("More matches: reuse the same ordered targets and controls with:");
-    lines.push(
-      options.syntax === "mcp"
-        ? `  cursor=${JSON.stringify(result.nextCursor)}`
-        : `  --cursor ${shellQuoteExact(result.nextCursor)}`,
-    );
-  }
   if (result.traversal === "CURSOR_EXPIRED")
     prose(
       "Cursor expired. Restart explicitly without the cursor; retained matches and omissions are included.",
@@ -138,6 +129,23 @@ export function formatGrepText(
       prose(
         "Safety normalization applied; physical source coordinates remain in JSON.",
       );
+  }
+  if (result.nextCursor) {
+    const footerLines = [
+      ...wrap(
+        escapeText(
+          "More matches: reuse the same ordered targets and controls with:",
+        ),
+        options.width ?? 80,
+      ),
+      options.syntax === "mcp"
+        ? `  cursor=${JSON.stringify(result.nextCursor)}`
+        : `  --cursor ${shellQuoteExact(result.nextCursor)}`,
+    ];
+    lines.push(
+      "",
+      ...footerLines.map((line) => dim(line, options.useColors === true)),
+    );
   }
   return lines.join("\n");
 }

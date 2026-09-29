@@ -6,7 +6,8 @@
 Output PR #433 has the approved Sources summary and numbered, copyable file/page
 locator headers. Requested main rebase and unified ReadTarget integration are
 verified. External round 3's sole cosmetic finding is fixed; internal closure
-review and all required checks pass. MCP replacement waits for this PR's merge.
+review and required checks passed. The user-requested dim continuation footer is
+verified. MCP replacement waits for this PR's merge.
 The sequence is CLI introduction, useful and compact CLI text, then replacement
 of the advertised MCP `code_grep` tool.
 
@@ -960,6 +961,73 @@ Post-rebase proof: `/tmp/nuckelavee-grep-opaque-{local,local-followup,focused,fu
 `/tmp/nuckelavee-grep-opaque-closure-` prefix: full/focused tests, static and package
 checks, size comparison, explicit site source/built output and all four smoke
 logs. Original proof artifacts are preserved.
+
+Final continuation placement (2026-09-29; VERIFIED):
+
+- The user explicitly supersedes the earlier cursor-above-evidence choice:
+  move only the More matches guidance and opaque cursor option below every
+  file/page match, using the same dim styling as the header read templates.
+  Keep coverage, unavailable-target and expiry/incomplete warnings above evidence.
+- Shared grep presentation owns placement and styling. Reuse existing wrapping,
+  quoting and dim helpers, wrapping prose before adding ANSI and leaving the
+  cursor option intact. CLI and private MCP syntax both retain exact cursors;
+  plain and NO_COLOR output have the same readable text. JSON is unchanged.
+- Prior exact built baseline: mixed 6,965 bytes / 105 lines / 2,115 o200k_base
+  tokens; repository 5,767 / 114 / 1,699. Rebuild those two fixed Node width-80
+  no-color cases and compare sizes against both this baseline and the original
+  captured 23,509/19,487-byte and 8,038/7,506-token output. No clipping or new data.
+- One bounded Luna slice owns formatter relocation/dimming and its ordering/color
+  regressions. Coordinator owns docs, measurements, live/smoke acceptance, internal
+  review and routine PR delivery. Full-access permission mode, no backend edits.
+- Acceptance: cursor footer after final evidence row, exact CLI/MCP quoted cursor,
+  dimmed wrapped guidance and cursor when colors enabled, ANSI-stripped parity,
+  unchanged complete-empty/coverage/expiry/read actions/JSON and existing evidence.
+  Run focused grep tests, required build/type/package checks, affected source and
+  built CLI/MCP smoke; inspect actual source/built output and one targeted agent
+  read-follow-up. External round limit is already reached for this PR; no fourth
+  external round is dispatched. Verify the new delta internally and report that
+  review limit explicitly, retaining the existing Claude reviewer.
+- Implementation: one Luna return relocated/styled continuation and updated its
+  regressions. Focused worker proof: 13 tests / 95 assertions. The test table
+  repeated the earlier unchecked-index typing issue; parent typecheck verified
+  two TS2532 failures. Coordinator explicitly took the bounded correction inline
+  (`cases` as a readonly tuple), re-read sibling table uses and verified typecheck.
+  This was a worker typing error, not a reopened product decision or new scope.
+- Current checks: full suite 5,231 pass / 0 fail, 19,552 assertions / 227 files;
+  focused grep/CLI five files 49 pass / 348 assertions. Typecheck, Biome,
+  build/public-package validation and both built smoke suites pass. Two built
+  size cases retain the exact byte/line/token counts above; token savings remain
+  73.7% / 77.4% against originals. No evidence is clipped or dropped.
+- Production built mixed/repository/no-hit output passes, including cursor after
+  final match and exact footer option. Literal file/page headers reopen correct
+  content. Source Bun TTY confirms dim intro and dim intact cursor below matches.
+  Package/mixed continuation and compact/detailed parsing replay pass; built
+  partial/no-hit rendering retains every warning. Authenticated production
+  source CLI smoke passes 156 steps and MCP smoke passes 65 steps after the
+  research caller budget correction; built CLI/MCP smoke passes again.
+- The targeted Codex read-follow-up inspected tool-calls/final/metrics/isolation:
+  one normalized command batch containing two actual successful CLI reads, exact
+  pinned repository path (20-35) and hosted page (101-115). The agent chose the
+  equivalent github: repository alias; emitted HTTPS locator replay independently
+  passed. No isolation-violation file was emitted; no grading claim.
+- Full revised-delta internal review is clean. Existing external three-round
+  result/limit remains as recorded; this footer revision has no additional
+  external clean round. Current proof uses `/tmp/nuckelavee-grep-footer-`: tests,
+  static/build/package/size/token logs and results, live plain/TTY output,
+  replay, partial coverage, source/built smoke and agent eval artifacts. Prior
+  proof files are preserved.
+- Required authenticated MCP smoke's stable cohort passed, but its experimental
+  research URL JSON follow-up once hit the SDK's 60-second request timeout.
+  The same two-call research flow then completed in 29.1s and 43.3s in a
+  bounded diagnostic, and the core service permits 210s. Root cause: the
+  local smoke client's default request deadline was shorter than the service
+  contract. `scripts/mcp-smoke.ts` now passes the existing exported service
+  budget to its three research calls only. No product timeout, retry, polling,
+  fallback or infrastructure changed. Full revised-delta internal review found
+  no issue; typecheck, full tests and public-package validation pass again.
+  Authenticated MCP smoke rerun passes all 65 steps, with the research URL
+  JSON follow-up completing in 24.6s; both built smoke reruns pass. The
+  original failed 60s request log is retained as root-cause evidence.
 
 Phase boundary: after this follow-up merges, run next-steps against refreshed
 main before MCP. Keep the same useful formatter as the MCP output contract.

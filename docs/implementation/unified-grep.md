@@ -136,8 +136,12 @@ register a new MCP tool.
 Healthy CURRENT readiness, retryable false, equal requested/served refs and
 routine input indices stay quiet in text. Repository files and hosted pages
 have their own numbered locator headers. A normal page limit says more is
-available and prints one opaque cursor instruction above the evidence, with the identical ordered
-operands/controls rule. `--cursor` help explains that hosted pages can change
+available and prints one opaque cursor instruction below all evidence, with the
+identical ordered operands/controls rule. The continuation guidance and cursor
+option use the same dim styling as the header read templates when colors are
+enabled; wrapping happens before ANSI styling and the cursor stays on one line.
+Plain and NO_COLOR output retain the same text. Coverage and expiry warnings
+remain above evidence. `--cursor` help explains that hosted pages can change
 between grep and read; result text does not repeat that caveat.
 It is not presented as target failure.
 
