@@ -229,7 +229,7 @@ const nullableInt = z.number().int().nullable();
 const optionalNullableInt = nullableInt.optional();
 
 const listReadActionSchema = z
-  .object({ target: z.string(), path: nullableString })
+  .object({ target: z.string().min(1), path: nullableString })
   .nullable();
 const listBrowseActionSchema = z
   .object({ target: z.string(), paths: z.array(z.string()).nullable() })
@@ -378,7 +378,7 @@ query List(
       byteSize @include(if: $includeDetailedFields)
       lineCount @include(if: $includeDetailedFields)
       contentHash @include(if: $includeDetailedFields)
-      read @include(if: $includeReadActions) {
+      read: readTarget @include(if: $includeReadActions) {
         target
         path
       }
@@ -537,6 +537,12 @@ export class ListServiceImpl implements ListService {
     const resultParsed = listResultSchema.safeParse(parsed.data.data?.list);
     if (!resultParsed.success) throw new MalformedListResponseError();
     const result: ListResult = resultParsed.data;
+    if (
+      (params.includeDetailedFields || params.includeReadActions === true) &&
+      result.entries.some((entry) => entry.read === undefined)
+    ) {
+      throw new MalformedListResponseError();
+    }
     if (result.hasMore && !result.nextCursor) {
       throw new MalformedListResponseError(
         "Malformed response from the list service: a continuation cursor is missing.",

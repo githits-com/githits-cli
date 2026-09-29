@@ -1,7 +1,7 @@
 import { projectUnifiedSearchPresentation } from "./unified-search-presentation.js";
 import type {
-  UnifiedSearchStatusCompletedPayload,
-  UnifiedSearchStatusIncompletePayload,
+  UnifiedSearchStatusCompletedPresentation,
+  UnifiedSearchStatusIncompletePresentation,
 } from "./unified-search-response.js";
 import {
   renderUnifiedSearchPresentationText,
@@ -9,8 +9,8 @@ import {
 } from "./unified-search-text.js";
 
 type StatusPayload =
-  | UnifiedSearchStatusCompletedPayload
-  | UnifiedSearchStatusIncompletePayload;
+  | UnifiedSearchStatusCompletedPresentation
+  | UnifiedSearchStatusIncompletePresentation;
 
 export function renderUnifiedSearchStatusText(
   payload: StatusPayload,

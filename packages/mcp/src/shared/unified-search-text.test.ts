@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import { projectUnifiedSearchPresentation } from "./unified-search-presentation.js";
 import type {
-  UnifiedSearchCompletedPayload,
+  UnifiedSearchCompletedPresentation,
   UnifiedSearchErrorPayload,
-  UnifiedSearchHitPayload,
-  UnifiedSearchIncompletePayload,
+  UnifiedSearchHitPresentation,
+  UnifiedSearchIncompletePresentation,
   UnifiedSearchSourceStatusPayload,
 } from "./unified-search-response.js";
 import {
@@ -14,12 +14,18 @@ import {
 } from "./unified-search-text.js";
 
 function codeHit(
-  overrides: Partial<UnifiedSearchHitPayload> = {},
-): UnifiedSearchHitPayload {
+  overrides: Partial<UnifiedSearchHitPresentation> = {},
+): UnifiedSearchHitPresentation {
   return {
     type: "repository_code",
     target: "cline/cline@v3.4.2",
     title: "applyEdit",
+    readTarget: {
+      target: "github:cline/cline@v3.4.2",
+      path: "src/integrations/diff/strategies/multi-search-replace.ts",
+      startLine: 142,
+      endLine: 156,
+    },
     locator: {
       registry: "npm",
       packageName: "cline",
@@ -37,7 +43,7 @@ function matchedEvidence(
   startLine: number,
   endLine: number,
   text: string,
-): UnifiedSearchHitPayload["repositoryEvidence"] {
+): UnifiedSearchHitPresentation["repositoryEvidence"] {
   return {
     semanticContext: null,
     bm25MatchFields: ["SOURCE_IDENTIFIER"],
@@ -61,12 +67,16 @@ function matchedEvidence(
 }
 
 function docsHit(
-  overrides: Partial<UnifiedSearchHitPayload> = {},
-): UnifiedSearchHitPayload {
+  overrides: Partial<UnifiedSearchHitPresentation> = {},
+): UnifiedSearchHitPresentation {
   return {
     type: "documentation_page",
     target: "aider-AI/aider@v0.55.0",
     title: "Edit Formats",
+    readTarget: {
+      target: "https://aider.chat/docs/more/edit-formats.html",
+      selector: "Edit Formats",
+    },
     documentationPreview: {
       text: "Compares whole-file, diff-fenced, udiff, and editblock formats.",
       highlights: [],
@@ -81,9 +91,9 @@ function docsHit(
 }
 
 function completed(
-  results: UnifiedSearchHitPayload[],
-  overrides: Partial<UnifiedSearchCompletedPayload> = {},
-): UnifiedSearchCompletedPayload {
+  results: UnifiedSearchHitPresentation[],
+  overrides: Partial<UnifiedSearchCompletedPresentation> = {},
+): UnifiedSearchCompletedPresentation {
   return {
     query: { raw: "diff myers" },
     completed: true,
@@ -95,8 +105,8 @@ function completed(
 }
 
 function incomplete(
-  overrides: Partial<UnifiedSearchIncompletePayload> = {},
-): UnifiedSearchIncompletePayload {
+  overrides: Partial<UnifiedSearchIncompletePresentation> = {},
+): UnifiedSearchIncompletePresentation {
   return {
     query: { raw: "router" },
     completed: false,
@@ -123,7 +133,7 @@ function source(
   };
 }
 
-function n8nActiveEmpty(): UnifiedSearchIncompletePayload {
+function n8nActiveEmpty(): UnifiedSearchIncompletePresentation {
   return incomplete({
     query: { raw: "human review approval node output" },
     searchRef: "fabUr1S3MEVeSgD93pMoSQ",
@@ -213,13 +223,20 @@ describe("renderUnifiedSearchSuccess", () => {
       "    - Remove Express 3.x middleware error stubs\n" +
       "  * deps: router@~1.3.0\n" +
       '    - Add `next("router")` to exit from router';
-    const results: UnifiedSearchHitPayload[] = [
+    const results: UnifiedSearchHitPresentation[] = [
       ...Array.from({ length: 5 }, (_, index) =>
         index === 0
           ? {
               type: "repository_doc",
               target: "npm:express@5.2.1",
               title: "5.0.0-alpha.4 / 2017-03-01",
+              readTarget: {
+                target:
+                  "github:expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+                path: "History.md",
+                startLine: 169,
+                endLine: 179,
+              },
               repositoryEvidence: matchedEvidence(169, 179, repoSummary),
               locator: {
                 registry: "npm",
@@ -234,6 +251,13 @@ describe("renderUnifiedSearchSuccess", () => {
               type: "repository_doc",
               target: "npm:express@5.2.1",
               title: `History entry ${index}`,
+              readTarget: {
+                target:
+                  "github:expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+                path: "History.md",
+                startLine: 180 + index,
+                endLine: 185 + index,
+              },
               locator: {
                 filePath: "History.md",
                 startLine: 180 + index,
@@ -245,6 +269,10 @@ describe("renderUnifiedSearchSuccess", () => {
         type: "documentation_page",
         target: "npm:express@5.2.1",
         title: index === 0 ? "router.use()" : `Router docs ${index}`,
+        readTarget: {
+          target: `https://expressjs.com/en/api/router/${index}`,
+          selector: index === 0 ? "router.use()" : `Router docs ${index}`,
+        },
         documentationPreview: {
           text:
             index === 0 ? "### router.use()" : `Router docs ${index} details`,
@@ -295,7 +323,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01",
     );
     expect(text).toContain(
-      "[6] opaque-page-0 [docs page] npm:express - expressjs.com/en/api/router/0 -\n  router.use()",
+      "[6] https://expressjs.com/en/api/router/0 [docs page] npm:express - router.use()",
     );
     expect(text).toContain("171 |   * remove:");
     expect(text).toContain(
@@ -303,7 +331,12 @@ describe("renderUnifiedSearchSuccess", () => {
     );
     expect(text).not.toContain("githits docs read");
     expect(text).not.toContain("docs_read");
-    expect(text).toContain("opaque-page-0 [docs page]");
+    expect(text).toContain(
+      '  read target="https://expressjs.com/en/api/router/0" selector="router.use()"',
+    );
+    expect(
+      text.split("\n").filter((line) => line.startsWith("  read target=")),
+    ).toHaveLength(10);
     expect(text).not.toContain("### router.use()");
     expect(text.match(/next_offset=10/g)).toHaveLength(1);
     expect(text.length).toBeLessThan(3459);
@@ -448,7 +481,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(render()).toContain(
       "src/auth.ts:17-27 [repo code, candidate; visible terms: auth, session, store] - interface AuthSessionStore",
     );
-    expect(render().split("\n")).toHaveLength(3);
+    expect(render().split("\n")).toHaveLength(4);
     hit.locator.symbolContext!.definitionRange!.filePath = "src/other.ts";
     hit.locator.symbolContext!.definitionRange!.repositoryFilePath =
       "src/other.ts";
@@ -717,7 +750,7 @@ describe("renderUnifiedSearchSuccess", () => {
 
   it("uses package addressing for the reported repository docs in CLI and MCP", () => {
     const commitSha = "3ed7535d66dbf08d7d793a6a985e999eb0276243";
-    const hits: UnifiedSearchHitPayload[] = [
+    const hits: UnifiedSearchHitPresentation[] = [
       {
         path: "docs/implementation/auth.md",
         title: "Token Lifecycle",
@@ -734,6 +767,12 @@ describe("renderUnifiedSearchSuccess", () => {
       type: "repository_doc",
       target: "npm:githits@0.22.1",
       title,
+      readTarget: {
+        target: `github:githits-com/githits-cli@${commitSha}`,
+        path,
+        startLine: start,
+        endLine: end,
+      },
       locator: {
         registry: "npm",
         packageName: "githits",
@@ -760,8 +799,25 @@ describe("renderUnifiedSearchSuccess", () => {
       expect(text).toContain(
         "[2] npm:githits@0.22.1 docs/implementation/config.md:69-79 [repo doc, candidate] - Local Storage",
       );
-      expect(text).not.toContain("github:githits-com/githits-cli@");
-      expect(text).not.toContain("start_line=");
+      const authAction =
+        actionSyntax === "cli"
+          ? `  githits read 'github:githits-com/githits-cli@${commitSha}' 'docs/implementation/auth.md' --lines 42-52`
+          : `  read target="github:githits-com/githits-cli@${commitSha}" path="docs/implementation/auth.md" start_line=42 end_line=52`;
+      const configAction =
+        actionSyntax === "cli"
+          ? `  githits read 'github:githits-com/githits-cli@${commitSha}' 'docs/implementation/config.md' --lines 69-79`
+          : `  read target="github:githits-com/githits-cli@${commitSha}" path="docs/implementation/config.md" start_line=69 end_line=79`;
+      expect(text).toContain(authAction);
+      expect(text).toContain(configAction);
+      expect(
+        text
+          .split("\n")
+          .filter((line) =>
+            actionSyntax === "cli"
+              ? line.startsWith("  githits read ")
+              : line.startsWith("  read target="),
+          ),
+      ).toHaveLength(2);
     }
   });
 
@@ -782,14 +838,22 @@ describe("renderUnifiedSearchSuccess", () => {
             startLine: 42,
             endLine: 52,
           },
+          readTarget: {
+            target: "github:owner/monorepo@commit",
+            path: "packages/pkg/docs/auth.md",
+            startLine: 42,
+            endLine: 52,
+          },
         },
       ]),
     );
     expect(text).toContain("[1] npm:pkg@1.2.3 docs/auth.md:42-52 [repo doc]");
-    expect(text).not.toContain("packages/pkg/docs/auth.md");
+    expect(text).toContain(
+      '  read target="github:owner/monorepo@commit" path="packages/pkg/docs/auth.md" start_line=42 end_line=52',
+    );
   });
 
-  it("exposes a legacy repo-doc locator with separate read bounds", () => {
+  it("separates repo-doc producer evidence from its backend action", () => {
     const target =
       "github:pallets/flask@22d924701a6ae2e4cd01e9a15bbaf3946094af65/docs/design.rst";
     const text = renderUnifiedSearchSuccess(
@@ -805,14 +869,22 @@ describe("renderUnifiedSearchSuccess", () => {
             startLine: 83,
             endLine: 93,
           },
+          readTarget: {
+            target:
+              "github:pallets/flask@22d924701a6ae2e4cd01e9a15bbaf3946094af65",
+            path: "docs/design.rst",
+            startLine: 83,
+            endLine: 93,
+          },
         },
       ]),
     );
     expect(text).toContain(
-      `[1] ${target} start_line=83 end_line=93 [repo doc]`,
+      "[1] pypi:flask@3.1.3 docs/design.rst:83-93 [repo doc] - design.rst",
     );
-    expect(text).not.toContain("pypi:flask@3.1.3 docs/design.rst:83-93");
-    expect(text).not.toContain(`${target}:83-93`);
+    expect(text).toContain(
+      '  read target="github:pallets/flask@22d924701a6ae2e4cd01e9a15bbaf3946094af65" path="docs/design.rst" start_line=83 end_line=93',
+    );
   });
 
   it("does not promote repository documentation with associated symbol metadata", () => {
@@ -822,6 +894,7 @@ describe("renderUnifiedSearchSuccess", () => {
           type: "repository_doc",
           target: "npm:express@5.2.1",
           title: "5.0.0-alpha.4 / 2017-03-01",
+          readTarget: null,
           locator: {
             pageId: "history-release",
             filePath: "History.md",
@@ -844,8 +917,9 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "[1] history-release start_line=169 end_line=179 [repo doc]",
+      "[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01",
     );
+    expect(text).toContain("  follow-up unavailable: missing read target");
     expect(text).not.toContain("defined at");
   });
 
@@ -1043,7 +1117,8 @@ describe("renderUnifiedSearchSuccess", () => {
       "1 result | 1 repo code hit\n\n" +
         "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n" +
         "  applyEdit\n" +
-        "  Snippet unavailable",
+        "  Snippet unavailable\n" +
+        '  read target="github:cline/cline@v3.4.2" path="src/integrations/diff/strategies/multi-search-replace.ts" start_line=142 end_line=156',
     );
     expect(text.endsWith("\n")).toBe(false);
   });
@@ -1056,6 +1131,12 @@ describe("renderUnifiedSearchSuccess", () => {
           target: "npm:express@5.2.1",
           title: "History.md",
           locator: { filePath: "History.md", startLine: 169, endLine: 179 },
+          readTarget: {
+            target: "github:expressjs/express@v5.2.1",
+            path: "History.md",
+            startLine: 169,
+            endLine: 179,
+          },
         },
       ]),
     );
@@ -1086,6 +1167,11 @@ describe("renderUnifiedSearchSuccess", () => {
           target: "npm:express@5.2.1",
           title: "Résumé",
           locator: { filePath: "History.md", startLine: 1 },
+          readTarget: {
+            target: "github:expressjs/express@v5.2.1",
+            path: "History.md",
+            startLine: 1,
+          },
         },
         docsHit({
           title: "Документация | API - section",
@@ -1104,7 +1190,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "[2] npm:express@5.2.1 History.md:1 [repo doc] - Résumé",
     );
     expect(text).toContain(
-      "[3] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -\n  Документация | API - section",
+      "[3] https://aider.chat/docs/more/edit-formats.html [docs page] aider-AI/aider -\n  Документация | API - section",
     );
     expect(text).toContain("Café — маршрутизация");
     expect(text).toContain("Résumé");
@@ -1113,7 +1199,7 @@ describe("renderUnifiedSearchSuccess", () => {
   it("keeps documentation targets compact unless multiple targets need attribution", () => {
     const single = renderUnifiedSearchSuccess(completed([docsHit()]));
     expect(single).toContain(
-      "[1] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -\n  Edit Formats",
+      "[1] https://aider.chat/docs/more/edit-formats.html [docs page] aider-AI/aider -\n  Edit Formats",
     );
 
     const multiple = renderUnifiedSearchSuccess(
@@ -1122,6 +1208,10 @@ describe("renderUnifiedSearchSuccess", () => {
         docsHit({
           target: "npm:express@5.2.1",
           title: "Routing",
+          readTarget: {
+            target: "https://expressjs.com/en/guide/routing",
+            selector: "Routing",
+          },
           locator: {
             pageId: "express/routing",
             sourceUrl: "https://expressjs.com/en/guide/routing",
@@ -1130,24 +1220,30 @@ describe("renderUnifiedSearchSuccess", () => {
       ]),
     );
     expect(multiple).toContain(
-      "[1] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -\n  Edit Formats",
+      "[1] https://aider.chat/docs/more/edit-formats.html [docs page] aider-AI/aider -\n  Edit Formats",
     );
     expect(multiple).toContain(
-      "[2] express/routing [docs page] npm:express - expressjs.com/en/guide/routing -\n  Routing",
+      "[2] https://expressjs.com/en/guide/routing [docs page] npm:express - Routing",
     );
   });
 
-  it("retains a documentation page ID when its source URL is unavailable", () => {
+  it("reports unavailable action metadata without promoting a legacy page ID", () => {
     const text = renderUnifiedSearchSuccess(
-      completed([docsHit({ locator: { pageId: "internal-page-id" } })]),
+      completed([
+        docsHit({
+          readTarget: null,
+          locator: { pageId: "internal-page-id" },
+        }),
+      ]),
     );
 
     expect(text).toContain(
-      "[1] internal-page-id [docs page] aider-AI/aider - source URL unavailable -\n  Edit Formats",
+      "[1] documentation target unavailable [docs page] aider-AI/aider - source URL unavailable -\n  Edit Formats",
     );
+    expect(text).toContain("  follow-up unavailable: missing read target");
   });
 
-  it("renders docsReadTarget as the documentation follow-up locator", () => {
+  it("renders the backend docs action as the documentation follow-up locator", () => {
     const docsReadTarget =
       "https://aider.chat/docs/more/edit-formats.html?publisher=aider";
     const text = renderUnifiedSearchSuccess(
@@ -1158,6 +1254,10 @@ describe("renderUnifiedSearchSuccess", () => {
             docsReadTarget,
             sourceUrl: "https://aider.chat/docs/more/edit-formats.html",
           },
+          readTarget: {
+            target: docsReadTarget,
+            selector: "Edit Formats",
+          },
         }),
       ]),
     );
@@ -1166,9 +1266,12 @@ describe("renderUnifiedSearchSuccess", () => {
       `[1] ${docsReadTarget} [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -`,
     );
     expect(text).not.toContain("[1] aider/edit-formats [docs page]");
+    expect(text).toContain(
+      `  read target=${JSON.stringify(docsReadTarget)} selector="Edit Formats"`,
+    );
   });
 
-  it("promotes a source fragment to the exact docs read target", () => {
+  it("keeps a hosted source fragment as provenance and selects the heading explicitly", () => {
     const docsReadTarget = "https://expressjs.com/en/5x/guide/routing/";
     const text = renderUnifiedSearchSuccess(
       completed([
@@ -1179,14 +1282,22 @@ describe("renderUnifiedSearchSuccess", () => {
             docsReadTarget,
             sourceUrl: `${docsReadTarget}#route-handlers`,
           },
+          readTarget: {
+            target: docsReadTarget,
+            selector: "route-handlers",
+          },
         }),
       ]),
     );
 
     expect(text).toContain(
-      `[1] ${docsReadTarget}#route-handlers [docs page] npm:express -`,
+      `[1] ${docsReadTarget} [docs page] npm:express - #route-handlers -`,
     );
-    expect(text.match(/expressjs\.com/g)).toHaveLength(1);
+    expect(text).toContain(
+      `  read target=${JSON.stringify(docsReadTarget)} selector="route-handlers"`,
+    );
+    expect(text).not.toContain("start_line=");
+    expect(text).not.toContain("end_line=");
   });
 
   it("keeps docs follow-up locators before a free-form title tail", () => {
@@ -1202,12 +1313,16 @@ describe("renderUnifiedSearchSuccess", () => {
             version: "5.2.1",
             sourceUrl: "https://expressjs.com/en/4x/api/router/#routerroute",
           },
+          readTarget: {
+            target: "https://expressjs.com/en/4x/api/router/",
+            selector: "router.route()",
+          },
         }),
       ]),
     );
 
     expect(text).toContain(
-      "[1] 386050 [docs page] npm:express - expressjs.com/en/4x/api/router/#routerroute -\n  router.route() | API - section",
+      "[1] https://expressjs.com/en/4x/api/router/ [docs page] npm:express - #routerroute -\n  router.route() | API - section",
     );
   });
 
@@ -1242,7 +1357,7 @@ describe("renderUnifiedSearchSuccess", () => {
     const repoPrefix =
       "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo symbol] -";
     const docsPrefix =
-      "[2] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -";
+      "[2] https://aider.chat/docs/more/edit-formats.html [docs page] aider-AI/aider -";
 
     for (const width of [40, 80]) {
       const text = renderUnifiedSearchSuccess(payload, {
@@ -1263,7 +1378,10 @@ describe("renderUnifiedSearchSuccess", () => {
       const normalizedTitle = (start: number, end: number) =>
         lines
           .slice(start + 1, end)
-          .filter((line) => line.startsWith("  "))
+          .filter(
+            (line) =>
+              line.startsWith("  ") && !line.startsWith("  read target="),
+          )
           .map((line) => line.slice(2))
           .join(" ")
           .replace(/\s+/g, " ")
@@ -1273,7 +1391,10 @@ describe("renderUnifiedSearchSuccess", () => {
       expect(
         lines
           .slice(repoPrefixIndex + 1)
-          .filter((line) => line.startsWith("  "))
+          .filter(
+            (line) =>
+              line.startsWith("  ") && !line.startsWith("  read target="),
+          )
           .every((line) => line.length <= width),
       ).toBe(true);
     }
@@ -1319,7 +1440,7 @@ describe("renderUnifiedSearchSuccess", () => {
       `[1] ${locator}cline/cline@v3.4.2${reset} ${locator}src/integrations/diff/strategies/multi-search-replace.ts:142-156${reset} ${secondary}[repo code]${reset} - ${matched}apply${reset}Edit`,
     );
     expect(text).toContain(
-      `[2] ${locator}aider/edit-formats${reset} ${secondary}[docs page]${reset} ${secondary}aider-AI/aider${reset} - ${secondary}aider.chat/docs/more/edit-formats.html${reset} - ${matched}Edit${reset} Formats`,
+      `[2] ${locator}https://aider.chat/docs/more/edit-formats.html${reset} ${secondary}[docs page]${reset} ${secondary}aider-AI/aider${reset} - ${matched}Edit${reset} Formats`,
     );
     expect(text.replace(ANSI_SGR_PATTERN, "")).toBe(
       renderUnifiedSearchSuccess(
@@ -1629,6 +1750,22 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(code).toContain(
       "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n  applyEdit",
     );
+    const cliCodeAction =
+      "  githits read 'github:cline/cline@v3.4.2' 'src/integrations/diff/strategies/multi-search-replace.ts' --lines 142-156";
+    const mcpCode = renderUnifiedSearchSuccess(completed([codeHit()]));
+    const mcpCodeAction =
+      '  read target="github:cline/cline@v3.4.2" path="src/integrations/diff/strategies/multi-search-replace.ts" start_line=142 end_line=156';
+    expect(code).toContain(cliCodeAction);
+    expect(mcpCode).toContain(mcpCodeAction);
+    const narrowCode = renderUnifiedSearchSuccess(completed([codeHit()]), {
+      actionSyntax: "cli",
+      width: 40,
+    });
+    const narrowActions = narrowCode
+      .split("\n")
+      .filter((line) => line.startsWith("  githits read "));
+    expect(narrowActions).toEqual([cliCodeAction]);
+    expect(narrowActions[0]!.length).toBeGreaterThan(40);
 
     const repositoryCode = renderUnifiedSearchSuccess(
       completed([
@@ -1641,6 +1778,12 @@ describe("renderUnifiedSearchSuccess", () => {
             startLine: 10,
             endLine: 20,
           },
+          readTarget: {
+            target: "github:cline/cline@main",
+            path: "src/index.ts",
+            startLine: 10,
+            endLine: 20,
+          },
         }),
       ]),
       { actionSyntax: "cli" },
@@ -1648,13 +1791,26 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(repositoryCode).toContain(
       "[1] github:cline/cline@main src/index.ts:10-20 [repo code] - applyEdit",
     );
+    expect(repositoryCode).toContain(
+      "  githits read 'github:cline/cline@main' 'src/index.ts' --lines 10-20",
+    );
 
     const docs = renderUnifiedSearchSuccess(completed([docsHit()]), {
       actionSyntax: "cli",
     });
     expect(docs).toContain(
-      "[1] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -\n  Edit Formats",
+      "[1] https://aider.chat/docs/more/edit-formats.html [docs page] aider-AI/aider -\n  Edit Formats",
     );
+    expect(docs).toContain(
+      "  githits read 'https://aider.chat/docs/more/edit-formats.html' --selector 'Edit Formats'",
+    );
+    expect(docs).not.toContain("--lines");
+    const mcpDocs = renderUnifiedSearchSuccess(completed([docsHit()]));
+    expect(mcpDocs).toContain(
+      '  read target="https://aider.chat/docs/more/edit-formats.html" selector="Edit Formats"',
+    );
+    expect(mcpDocs).not.toContain("start_line=");
+    expect(mcpDocs).not.toContain("end_line=");
 
     const empty = renderUnifiedSearchSuccess(
       completed([], {
@@ -2632,7 +2788,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n  applyEdit",
     );
     expect(text).toContain(
-      "[2] aider/edit-formats [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -\n  Edit Formats",
+      "[2] https://aider.chat/docs/more/edit-formats.html [docs page] aider-AI/aider -\n  Edit Formats",
     );
     expect(text).toContain(
       "indexed: versions 5.2.1, 5.2.0, 5.1.0 +1, refs HEAD, main,",
@@ -2796,7 +2952,9 @@ describe("renderUnifiedSearchSuccess", () => {
       ]),
     );
     for (const line of text.split("\n")) {
-      if (!line.startsWith("[")) expect(line.length).toBeLessThanOrEqual(82);
+      if (!line.startsWith("[") && !line.startsWith("  read target=")) {
+        expect(line.length).toBeLessThanOrEqual(82);
+      }
     }
   });
 

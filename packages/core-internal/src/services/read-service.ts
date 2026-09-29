@@ -28,6 +28,10 @@ import {
   parsePackageDocResult,
 } from "./package-intelligence-service.js";
 import {
+  READ_TARGET_SELECTION,
+  selectedReadTargetSchema,
+} from "./read-target.js";
+import {
   type ServiceDiagnostics,
   withServiceDiagnostics,
 } from "./runtime-diagnostics.js";
@@ -180,6 +184,7 @@ query Read(
   ) {
     __typename
     ... on CodeContextResult {
+      codeAction: readTarget { ${READ_TARGET_SELECTION} }
       content
       filePath
       language
@@ -194,6 +199,7 @@ query Read(
       ${TARGET_RESOLUTION_SELECTION}
     }
     ... on GetDocPageResult {
+      docAction: readTarget { ${READ_TARGET_SELECTION} }
       registry
       packageName
       version
@@ -335,15 +341,29 @@ export class ReadServiceImpl implements ReadService {
       return { source: "symbol_resolution", result: resolution.data };
     }
     if (resultType.data.__typename === "CodeContextResult") {
+      const action = z
+        .object({ codeAction: selectedReadTargetSchema.nullable() })
+        .safeParse(data);
+      if (!action.success) throw malformedReadResponse();
       return {
         source: "code",
-        result: parseReadBranch(parseCodeContextResult, data),
+        result: {
+          ...parseReadBranch(parseCodeContextResult, data),
+          readTarget: action.data.codeAction,
+        },
       };
     }
     if (resultType.data.__typename === "GetDocPageResult") {
+      const action = z
+        .object({ docAction: selectedReadTargetSchema })
+        .safeParse(data);
+      if (!action.success) throw malformedReadResponse();
       return {
         source: "docs",
-        result: parseReadBranch(parsePackageDocResult, data),
+        result: {
+          ...parseReadBranch(parsePackageDocResult, data),
+          readTarget: action.data.docAction,
+        },
       };
     }
     throw malformedReadResponse();

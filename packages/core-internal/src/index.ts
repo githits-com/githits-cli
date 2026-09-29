@@ -9,6 +9,7 @@ export * from "./services/list-service.js";
 export * from "./services/package-intelligence-service.js";
 export * from "./services/promote-version-not-found.js";
 export * from "./services/read-service.js";
+export * from "./services/read-target.js";
 export * from "./services/refreshing-githits-service.js";
 export * from "./services/resolve-target-service.js";
 export * from "./services/runtime-diagnostics.js";

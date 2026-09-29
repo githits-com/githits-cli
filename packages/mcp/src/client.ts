@@ -39,6 +39,7 @@ export type {
   ReadResult,
   ReadService,
   ReadSymbolResolutionResult,
+  ReadTarget,
   ServiceDiagnostics,
   TokenProvider,
 } from "@githits/core-internal";

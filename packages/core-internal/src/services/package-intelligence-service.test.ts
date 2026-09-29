@@ -2779,9 +2779,13 @@ describe("PackageIntelligenceServiceImpl — package docs targets", () => {
               pages: [
                 {
                   id: "legacy-crawled-id",
-                  docsReadTarget: "https://expressjs.com/en/guide/routing.html",
+                  readTarget: {
+                    target: "https://expressjs.com/en/guide/routing.html",
+                  },
                   sourceKind: "CRAWLED",
-                  sourceUrl: "https://expressjs.com/en/guide/routing.html",
+                  sourceUrl: "https://expressjs.com/source/routing.html",
+                  repoUrl: "https://github.com/expressjs/express",
+                  gitRef: "release/5.x",
                 },
               ],
               pageInfo: { hasNextPage: false },
@@ -2802,7 +2806,8 @@ describe("PackageIntelligenceServiceImpl — package docs targets", () => {
     });
 
     const request = JSON.parse(capturedBody) as { query: string };
-    expect(request.query).toContain("docsReadTarget");
+    expect(request.query).toContain("readTarget { target }");
+    expect(request.query).not.toContain("docsReadTarget");
     expect(request.query).toContain("codeIndexState");
     expect(request.query).not.toContain("indexingStatus");
     expect(request.query).not.toContain("indexingRef");
@@ -2812,8 +2817,41 @@ describe("PackageIntelligenceServiceImpl — package docs targets", () => {
     expect(result.pages[0]).toMatchObject({
       id: "legacy-crawled-id",
       docsReadTarget: "https://expressjs.com/en/guide/routing.html",
-      sourceUrl: "https://expressjs.com/en/guide/routing.html",
+      sourceUrl: "https://expressjs.com/source/routing.html",
+      repoUrl: "https://github.com/expressjs/express",
+      gitRef: "release/5.x",
     });
+  });
+
+  it.each([
+    { name: "missing action object", page: {} },
+    { name: "null action object", page: { readTarget: null } },
+    { name: "missing target", page: { readTarget: {} } },
+    { name: "null target", page: { readTarget: { target: null } } },
+    { name: "non-string target", page: { readTarget: { target: 42 } } },
+    { name: "empty target", page: { readTarget: { target: "" } } },
+  ])("rejects $name in docs inventory responses", async ({ page }) => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          data: {
+            listPackageDocs: {
+              pages: [page],
+            },
+          },
+        }),
+      ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.listPackageDocs({ registry: "NPM", packageName: "express" }),
+    ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
   it("passes URL targets through getDocPage and retains all read locators", async () => {

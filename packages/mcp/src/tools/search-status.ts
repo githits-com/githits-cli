@@ -7,6 +7,7 @@ import {
 import {
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchStatusPayload,
+  projectUnifiedSearchStatusPayload,
 } from "../shared/unified-search-response.js";
 import { renderUnifiedSearchStatusText } from "../shared/unified-search-status-text.js";
 import { addLocalMcpAuthAction, throwIfCallerCancellation } from "./shared.js";
@@ -73,7 +74,9 @@ export function createSearchStatusTool(
         if (isTextFormat(args.format)) {
           return textResult(renderUnifiedSearchStatusText(payload));
         }
-        return textResult(JSON.stringify(payload));
+        return textResult(
+          JSON.stringify(projectUnifiedSearchStatusPayload(payload)),
+        );
       } catch (error) {
         throwIfCallerCancellation(error, context?.signal);
         return errorResult(

@@ -2,8 +2,8 @@ import type { PackageDocsList } from "@githits/core-internal";
 import { MalformedPackageIntelligenceResponseError } from "@githits/core-internal";
 import { colorize, dim } from "./colors.js";
 import { lowerDocSourceKind } from "./docs-follow-up.js";
-import { buildCliDocsReadCommand } from "./follow-up-command-text.js";
 import { toIsoDate } from "./format-date.js";
+import { renderReadTarget } from "./read-target-text.js";
 import { shellQuote } from "./shell-quote.js";
 
 export interface LeanPackageDocListEntry {
@@ -156,7 +156,7 @@ export function formatListPackageDocsTerminal(
       options.verbose ?? false,
     );
     if (meta.length > 0) lines.push(...meta);
-    lines.push(`  ${buildCliDocsReadCommand(page.docsReadTarget)}`);
+    lines.push(`  ${renderReadTarget({ target: page.docsReadTarget }, "cli")}`);
     lines.push("");
   }
 

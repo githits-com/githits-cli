@@ -826,10 +826,23 @@ void publicErrors;
   await writeFile(
     join(appDirectory, "read-service-check.ts"),
     `import type { McpToolServices } from "@githits/mcp";
-import { ReadServiceImpl, createStaticTokenProvider, getCodeNavigationUrl, type ReadService } from "@githits/mcp/client";
+import { ReadServiceImpl, createStaticTokenProvider, getCodeNavigationUrl, type ReadService, type ReadResult, type CodeNavigationService, type ReadTarget } from "@githits/mcp/client";
 const readService: ReadService = new ReadServiceImpl(getCodeNavigationUrl(), createStaticTokenProvider("token"));
 const services = { readService } satisfies Pick<McpToolServices, "readService">;
 void services;
+// Old custom providers need no descriptor; consumers can opt into ReadTarget.
+const oldCodeResult: ReadResult = { source: "code", result: { filePath: "a.ts", content: "x", totalLines: 1, startLine: 1, endLine: 1, isBinary: false, language: "typescript" } };
+const oldDocResult: ReadResult = { source: "docs", result: { contentRange: { totalLines: 1 } } };
+const oldSearch: Awaited<ReturnType<CodeNavigationService["search"]>> = { state: "completed", completed: true, result: { query: "x", queryWarnings: [], sources: ["CODE"], results: [{ id: "hit", resultType: "REPOSITORY_CODE", targetLabel: "owner/repo", locator: { filePath: "a.ts" } }], sourceStatus: [], page: { offset: 0, limit: 1, returned: 1, hasMore: false }, partialResults: false } };
+const action: ReadTarget = { target: "opaque", selector: "Symbol", startLine: 1, endLine: 3 };
+const oldReadProvider: ReadService = { read: async (params) => params.path ? oldCodeResult : oldDocResult };
+const oldSearchProvider: Pick<CodeNavigationService, "search"> = { search: async () => oldSearch };
+void oldReadProvider;
+void oldSearchProvider;
+void oldCodeResult;
+void oldDocResult;
+void oldSearch;
+void action;
 `,
   );
   await writeFile(

@@ -1,6 +1,7 @@
 import type {
   DiscoveryIndexingEstimate,
   DocCoverage,
+  ReadTarget,
   UnifiedSearchCompleted,
   UnifiedSearchDocumentationPreview,
   UnifiedSearchEvidenceRange,
@@ -275,12 +276,160 @@ export interface UnifiedSearchStatusIncompletePayload {
   warnings?: string[];
 }
 
+/** Internal text model; descriptors must pass through public JSON projection. */
+export interface UnifiedSearchHitPresentation extends UnifiedSearchHitPayload {
+  readTarget?: ReadTarget | null;
+}
+
+export interface UnifiedSearchCompletedPresentation
+  extends Omit<UnifiedSearchCompletedPayload, "results"> {
+  results: UnifiedSearchHitPresentation[];
+}
+export interface UnifiedSearchIncompletePresentation
+  extends Omit<UnifiedSearchIncompletePayload, "results"> {
+  results: UnifiedSearchHitPresentation[];
+}
+export interface UnifiedSearchStatusResultPresentation
+  extends Omit<UnifiedSearchStatusResultPayload, "results"> {
+  results: UnifiedSearchHitPresentation[];
+}
+export interface UnifiedSearchStatusCompletedPresentation
+  extends Omit<UnifiedSearchStatusCompletedPayload, "result"> {
+  result: UnifiedSearchStatusResultPresentation;
+}
+export interface UnifiedSearchStatusIncompletePresentation
+  extends Omit<UnifiedSearchStatusIncompletePayload, "result"> {
+  result?: UnifiedSearchStatusResultPresentation;
+}
+
+/** Allowlist the existing public hit contract, including producer evidence. */
+function projectHitPayload(
+  hit: UnifiedSearchHitPresentation,
+): UnifiedSearchHitPayload {
+  return {
+    type: hit.type,
+    target: hit.target,
+    locator: hit.locator,
+    ...(hit.requestedTarget !== undefined
+      ? { requestedTarget: hit.requestedTarget }
+      : {}),
+    ...(hit.freshTarget !== undefined ? { freshTarget: hit.freshTarget } : {}),
+    ...(hit.servedTarget !== undefined
+      ? { servedTarget: hit.servedTarget }
+      : {}),
+    ...(hit.freshness !== undefined ? { freshness: hit.freshness } : {}),
+    ...(hit.title !== undefined ? { title: hit.title } : {}),
+    ...(hit.highlights !== undefined ? { highlights: hit.highlights } : {}),
+    ...(hit.repositoryEvidence !== undefined
+      ? { repositoryEvidence: hit.repositoryEvidence }
+      : {}),
+    ...(hit.documentationPreview !== undefined
+      ? { documentationPreview: hit.documentationPreview }
+      : {}),
+    ...(hit.followUp !== undefined ? { followUp: hit.followUp } : {}),
+  };
+}
+
+/** Strip internal descriptors before either surface serializes search success. */
+export function projectUnifiedSearchSuccessPayload(
+  payload:
+    | UnifiedSearchCompletedPresentation
+    | UnifiedSearchIncompletePresentation,
+): UnifiedSearchCompletedPayload | UnifiedSearchIncompletePayload {
+  const common = {
+    query: payload.query,
+    hasMore: payload.hasMore,
+    results: payload.results.map(projectHitPayload),
+    ...(payload.nextOffset !== undefined
+      ? { nextOffset: payload.nextOffset }
+      : {}),
+    ...(payload.warnings !== undefined ? { warnings: payload.warnings } : {}),
+    ...(payload.sourceStatus !== undefined
+      ? { sourceStatus: payload.sourceStatus }
+      : {}),
+    ...(payload.evidenceNotice !== undefined
+      ? { evidenceNotice: payload.evidenceNotice }
+      : {}),
+  };
+  return payload.completed
+    ? {
+        ...common,
+        completed: true,
+        partialResults: payload.partialResults,
+        ...(payload.searchRef !== undefined
+          ? { searchRef: payload.searchRef }
+          : {}),
+      }
+    : {
+        ...common,
+        completed: false,
+        searchRef: payload.searchRef,
+        ...(payload.partialResults !== undefined
+          ? { partialResults: payload.partialResults }
+          : {}),
+        ...(payload.progress !== undefined
+          ? { progress: payload.progress }
+          : {}),
+      };
+}
+
+function projectStatusResultPayload(
+  payload: UnifiedSearchStatusResultPresentation,
+): UnifiedSearchStatusResultPayload {
+  return {
+    partialResults: payload.partialResults,
+    hasMore: payload.hasMore,
+    results: payload.results.map(projectHitPayload),
+    ...(payload.query !== undefined ? { query: payload.query } : {}),
+    ...(payload.warnings !== undefined ? { warnings: payload.warnings } : {}),
+    ...(payload.sources !== undefined ? { sources: payload.sources } : {}),
+    ...(payload.nextOffset !== undefined
+      ? { nextOffset: payload.nextOffset }
+      : {}),
+    ...(payload.sourceStatus !== undefined
+      ? { sourceStatus: payload.sourceStatus }
+      : {}),
+    ...(payload.evidenceNotice !== undefined
+      ? { evidenceNotice: payload.evidenceNotice }
+      : {}),
+  };
+}
+
+/** Apply the same hit whitelist to completed and retained status snapshots. */
+export function projectUnifiedSearchStatusPayload(
+  payload:
+    | UnifiedSearchStatusCompletedPresentation
+    | UnifiedSearchStatusIncompletePresentation,
+): UnifiedSearchStatusCompletedPayload | UnifiedSearchStatusIncompletePayload {
+  return payload.completed
+    ? {
+        completed: true,
+        result: projectStatusResultPayload(payload.result),
+        ...(payload.searchRef !== undefined
+          ? { searchRef: payload.searchRef }
+          : {}),
+      }
+    : {
+        completed: false,
+        searchRef: payload.searchRef,
+        ...(payload.result !== undefined
+          ? { result: projectStatusResultPayload(payload.result) }
+          : {}),
+        ...(payload.progress !== undefined
+          ? { progress: payload.progress }
+          : {}),
+        ...(payload.warnings !== undefined
+          ? { warnings: payload.warnings }
+          : {}),
+      };
+}
+
 export function buildUnifiedSearchSuccessPayload(
   params: UnifiedSearchParams,
   rawQuery: string,
   compiledQuery: string,
   outcome: UnifiedSearchOutcome,
-): UnifiedSearchCompletedPayload | UnifiedSearchIncompletePayload {
+): UnifiedSearchCompletedPresentation | UnifiedSearchIncompletePresentation {
   const warnings =
     outcome.state === "completed"
       ? outcome.result.queryWarnings
@@ -292,7 +441,7 @@ export function buildUnifiedSearchSuccessPayload(
 
   if (outcome.state === "incomplete") {
     const result = outcome.result;
-    const payload: UnifiedSearchIncompletePayload = {
+    const payload: UnifiedSearchIncompletePresentation = {
       query,
       completed: false,
       hasMore: result?.page.hasMore ?? false,
@@ -322,7 +471,7 @@ export function buildUnifiedSearchSuccessPayload(
     return payload;
   }
 
-  const completed: UnifiedSearchCompletedPayload = {
+  const completed: UnifiedSearchCompletedPresentation = {
     query,
     completed: true,
     partialResults: outcome.result.partialResults,
@@ -404,9 +553,11 @@ export function buildUnifiedSearchErrorPayload(
 
 export function buildUnifiedSearchStatusPayload(
   outcome: UnifiedSearchOutcome,
-): UnifiedSearchStatusCompletedPayload | UnifiedSearchStatusIncompletePayload {
+):
+  | UnifiedSearchStatusCompletedPresentation
+  | UnifiedSearchStatusIncompletePresentation {
   if (outcome.state === "incomplete") {
-    const payload: UnifiedSearchStatusIncompletePayload = {
+    const payload: UnifiedSearchStatusIncompletePresentation = {
       completed: false,
       searchRef: outcome.searchRef,
     };
@@ -422,7 +573,7 @@ export function buildUnifiedSearchStatusPayload(
     return payload;
   }
 
-  const payload: UnifiedSearchStatusCompletedPayload = {
+  const payload: UnifiedSearchStatusCompletedPresentation = {
     completed: true,
     result: buildUnifiedSearchStatusResultPayload(outcome.result, {
       completed: true,
@@ -435,8 +586,8 @@ export function buildUnifiedSearchStatusPayload(
 function buildUnifiedSearchStatusResultPayload(
   result: UnifiedSearchCompleted["result"],
   options: { completed: boolean },
-): UnifiedSearchStatusResultPayload {
-  const payload: UnifiedSearchStatusResultPayload = {
+): UnifiedSearchStatusResultPresentation {
+  const payload: UnifiedSearchStatusResultPresentation = {
     query: buildStatusQueryEcho(result),
     partialResults: result.partialResults,
     hasMore: result.page.hasMore,
@@ -533,13 +684,14 @@ function buildQueryEcho(
   return echo;
 }
 
-function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPayload {
+function buildHitPayload(hit: UnifiedSearchHit): UnifiedSearchHitPresentation {
   assertSearchFollowUpInvariant(hit);
-  const payload: UnifiedSearchHitPayload = {
+  const payload: UnifiedSearchHitPresentation = {
     type: hit.resultType.toLowerCase(),
     target: formatTargetLabel(hit.targetLabel, hit.locator.repoUrl),
     locator: buildLocatorPayload(hit),
   };
+  if (hit.readTarget !== undefined) payload.readTarget = hit.readTarget;
   appendFreshness(
     payload,
     {

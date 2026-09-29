@@ -104,6 +104,15 @@ function parseListSelection(query: string): SelectionTree {
       }
       cursor += 1;
 
+      if (tokens[cursor] === ":") {
+        cursor += 1;
+        const sourceField = tokens[cursor];
+        if (!sourceField || sourceField.startsWith("@")) {
+          throw new Error("Expected aliased source field");
+        }
+        cursor += 1;
+      }
+
       let directive: string | undefined;
       if (tokens[cursor]?.startsWith("@")) {
         const directiveName = tokens[cursor];
@@ -234,11 +243,14 @@ describe("ListServiceImpl", () => {
       kind: "FILE",
       path: "src/index.ts",
     });
+    expect(result.entries[0]?.read).toBeUndefined();
     expect(result.canonicalTarget).toBe("npm:express@5.2.1");
     expect(result.entries[1]).toEqual({ kind: "DIRECTORY", path: "src" });
   });
 
   it("compact site projection selects logical read actions without other details", async () => {
+    const actionTarget = 'site:docs.example.test/guide?q=%2F&title="API"';
+    const actionPath = 'api/路径%2Fguide?lang=é&title="routing"';
     const fetchFn = mock((_url: string, _init?: RequestInit) =>
       Promise.resolve(
         jsonResponse(
@@ -251,8 +263,8 @@ describe("ListServiceImpl", () => {
                 kind: "PAGE",
                 path: "docs.example.test/guide/",
                 read: {
-                  target: "site:docs.example.test",
-                  path: "guide",
+                  target: actionTarget,
+                  path: actionPath,
                 },
               },
             ],
@@ -272,19 +284,118 @@ describe("ListServiceImpl", () => {
       includeReadActions: true,
     });
 
-    expect(readRequest(fetchFn).variables).toEqual({
+    const request = readRequest(fetchFn);
+    expect(request.variables).toEqual({
       target: "site:docs.example.test",
       includeDetailedFields: false,
       includeReadActions: true,
     });
+    expect(request.query).toContain(
+      "read: readTarget @include(if: $includeReadActions)",
+    );
+    expect(parseListSelection(request.query)).toEqual(expectedListSelection());
     expect(result.entries[0]).toEqual({
       kind: "PAGE",
       path: "docs.example.test/guide/",
       read: {
-        target: "site:docs.example.test",
-        path: "guide",
+        target: actionTarget,
+        path: actionPath,
       },
     });
+  });
+
+  it("accepts an explicit null selected read action", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse(
+          successBody({
+            entries: [
+              { kind: "PAGE", path: "docs.example.test/guide/", read: null },
+            ],
+          }),
+        ),
+      ),
+    );
+    const service = new ListServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.list({
+      target: "site:docs.example.test",
+      includeDetailedFields: false,
+      includeReadActions: true,
+    });
+
+    expect(result.entries[0]?.read).toBeNull();
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    {
+      name: "compact read-action projection",
+      options: { includeDetailedFields: false, includeReadActions: true },
+    },
+    {
+      name: "detailed projection",
+      options: { includeDetailedFields: true },
+    },
+  ])("rejects a missing read action in the $name", async ({ options }) => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse(
+          successBody({
+            entries: [{ kind: "PAGE", path: "docs.example.test/guide/" }],
+          }),
+        ),
+      ),
+    );
+    const service = new ListServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.list({ target: "site:docs.example.test", ...options }),
+    ).rejects.toBeInstanceOf(MalformedListResponseError);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    {
+      name: "empty target",
+      read: { target: "", path: null },
+    },
+    {
+      name: "missing path",
+      read: { target: "site:docs.example.test/guide" },
+    },
+  ])("rejects selected read actions with $name", async ({ read }) => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse(
+          successBody({
+            entries: [{ kind: "PAGE", path: "docs.example.test/guide/", read }],
+          }),
+        ),
+      ),
+    );
+    const service = new ListServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    await expect(
+      service.list({
+        target: "site:docs.example.test",
+        includeDetailedFields: false,
+        includeReadActions: true,
+      }),
+    ).rejects.toBeInstanceOf(MalformedListResponseError);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
   it("wire projection parses detailed resolution and site lifecycle fields", async () => {

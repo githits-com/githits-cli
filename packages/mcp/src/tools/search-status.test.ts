@@ -234,6 +234,11 @@ describe("searchStatusTool", () => {
     expect(payload.searchRef).toBe(defaultUnifiedSearchOutcome.searchRef);
     expect(payload.result.results).toHaveLength(1);
     expect(payload.result.partialResults).toBe(false);
+    expect(payload.result.results[0].followUp).toContain(
+      'read target="npm:express@4.18.2"',
+    );
+    for (const key of ["readTarget", "codeAction", "docAction"])
+      expect(JSON.stringify(payload)).not.toContain(`"${key}":`);
     expect(payload).not.toHaveProperty("query");
   });
 

@@ -14,6 +14,8 @@ import {
   MAX_DISCOVERY_WAIT_TIMEOUT_MS,
   type MappedError,
   parseUnifiedSearchTargetSpec,
+  projectUnifiedSearchStatusPayload,
+  projectUnifiedSearchSuccessPayload,
   renderUnifiedSearchStatusText,
   renderUnifiedSearchSuccess,
   requireAuth,
@@ -110,7 +112,7 @@ export async function searchAction(
     );
 
     if (options.json) {
-      console.log(JSON.stringify(payload));
+      console.log(JSON.stringify(projectUnifiedSearchSuccessPayload(payload)));
       return;
     }
 
@@ -141,7 +143,7 @@ export async function searchStatusAction(
     const payload = buildUnifiedSearchStatusPayload(outcome);
 
     if (options.json) {
-      console.log(JSON.stringify(payload));
+      console.log(JSON.stringify(projectUnifiedSearchStatusPayload(payload)));
       return;
     }
 

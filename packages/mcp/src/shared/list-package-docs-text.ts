@@ -1,13 +1,10 @@
 import {
-  buildCodeReadCommand,
-  buildDocsReadCommand,
-} from "./follow-up-command-text.js";
-import {
   isPackageDocsActive,
   type LeanPackageDocsEnvelope,
   packageDocsLifecycleLabel,
   packageDocsProgressDescription,
 } from "./list-package-docs-response.js";
+import { renderReadTarget } from "./read-target-text.js";
 
 const SEP = " | ";
 
@@ -41,18 +38,7 @@ export function renderListPackageDocsText(
         page.sourceUrl ?? "",
       ].join(SEP),
     );
-    lines.push(`  ${buildDocsReadCommand(page.docsReadTarget)}`);
-    if (page.sourceKind === "repo" && page.repoUrl && page.filePath) {
-      lines.push(
-        `  ${buildCodeReadCommand({
-          repoUrl: page.repoUrl,
-          gitRef: page.gitRef,
-          filePath: page.filePath,
-          startLine: 1,
-          endLine: 150,
-        })}`,
-      );
-    }
+    lines.push(`  ${renderReadTarget({ target: page.docsReadTarget })}`);
   }
 
   if (envelope.nextCursor) {

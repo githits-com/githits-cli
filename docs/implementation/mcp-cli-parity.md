@@ -189,8 +189,11 @@ BM25 fields, independent matched source, and crawled documentation previews;
 unknown/null evidence is never coerced to an empty list or inferred source proof.
 
 CLI and MCP text render the same enclosing declarations, inclusive ranges, and
-literal numbered source lines. The header carries the target/path locator and
-matched source range, with no repeated per-hit read command or authority caption.
+literal numbered source lines. The header keeps producer target attribution,
+target-relative paths and matched source range,
+followed by exactly one unwrapped descriptor read action. There is no authority
+caption. CLI commands keep complete selected bounds; MCP commands keep current
+path-only action caps. Both carry an opaque selector separately when present.
 Hits with repository evidence but no matched source show a single `candidate`
 header with the backend's inspection window. For bare identifier queries, the
 header shows literal query fragments visible in contributing indexed fields;
@@ -208,11 +211,15 @@ retains meaning in plain text. Source grapheme highlights, whole-line omissions,
 inline crops, missing source, and truncated scope chains have the same semantics
 on both surfaces.
 
-The single structured `followUp` remains MCP syntax in both JSON outputs. It
-prefers semantic `preferredRead`, with package-relative paths for package
-attribution or repository-root paths pinned to the exact commit for repository
-attribution. Its 300-line MCP cap never changes true structured range bounds.
-Without semantic evidence, existing relation-aware follow-ups remain unchanged.
+The single structured `followUp` remains MCP syntax and cap policy in both JSON
+outputs. Backend `readTarget` chooses identity/path/selector/bounds; presentation
+only quotes and narrows explicit path ranges around existing evidence. The
+300-line cap never changes true structured metadata, and pathless docs bounds
+remain uncapped. Search success and nested status/interim JSON use explicit
+projections, excluding all internal descriptor keys. Old custom providers may
+omit new search/read metadata; their actions become unavailable rather than
+reconstructed. Docs inventory still uses its required opaque string, and unified
+list retains its existing structured action and null/omission behavior.
 
 ## Rule IDs
 
@@ -394,13 +401,13 @@ CLI. ANSI-stripped CLI output shares the same hierarchy and wording as no-color
 MCP text apart from those supplied command dialects; line breaks can differ
 because CLI uses the terminal width while MCP uses the 80-column default.
 
-Documentation discovery and list envelopes retain three distinct locator roles:
-preferred `docsReadTarget`, compatible `pageId`, and provenance `sourceUrl`.
-Text and generated read follow-ups prefer `docsReadTarget` and fall back to
-`pageId` only for discovery results where the target is absent. The compatible
-MCP argument is `target`; both MCP and CLI pass URL or ID values through
-unchanged and return the same ranged content. Hosted HTTP(S) locators address
-mutable current content; repository locators remain snapshot-addressed.
+Documentation JSON retains `docsReadTarget`, compatible `pageId`, and provenance
+`sourceUrl`. Search/status text and generated follow-ups consume the backend
+`ReadTarget` directly; an absent descriptor reports unavailable guidance. Docs
+inventory maps target-only descriptors into its existing required `docsReadTarget`
+string. MCP and CLI preserve URL or ID bytes and separate selectors. Hosted
+HTTP(S) locators address mutable current content; repository locators remain
+snapshot-addressed.
 
 CLI `--json` output and MCP `format: "json"` output remain the structured parity
 boundary: every
@@ -409,8 +416,9 @@ backend's exact `partialResults: boolean`, including both `false` and `true`;
 payloads with no result snapshot omit that field. Full `warnings[]`, source
 diagnostics, evidence notices, reason codes, references, and alternative lists
 remain available in JSON even when MCP text classifies or bounds them for
-readability. The shared JSON parity tests compare these envelopes deeply; only
-surface-native follow-up and pagination syntax plus ANSI differ.
+readability. The shared JSON parity tests compare these envelopes deeply.
+Search JSON `followUp` retains MCP syntax/caps on both surfaces; text uses
+surface-native read and pagination syntax and optional ANSI.
 
 ### `PARITY-ERROR-ENVELOPE`
 

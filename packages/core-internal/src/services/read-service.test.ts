@@ -20,7 +20,32 @@ interface SelectionTree {
   [field: string]: SelectionTree | null;
 }
 
+const READ_TARGET_SELECTION: SelectionTree = {
+  target: null,
+  path: null,
+  selector: null,
+  startLine: null,
+  endLine: null,
+};
+
+const CODE_ACTION = {
+  target: 'github:owner/repo@served-sha?quote="read action"',
+  path: 'src/目录/served file.ts?raw=%25&quote="value"',
+  selector: "O'Reilly “router”?x=%2F",
+  startLine: 42,
+  endLine: 48,
+};
+
+const DOCS_ACTION = {
+  target: 'https://served.example.test/guide?q=%2F&quote="router guide"',
+  path: null,
+  selector: 'Heading: "O\'Reilly" / café',
+  startLine: null,
+  endLine: null,
+};
+
 const CODE_READ_SELECTION: SelectionTree = {
+  codeAction: READ_TARGET_SELECTION,
   content: null,
   filePath: null,
   language: null,
@@ -88,6 +113,7 @@ const CODE_READ_SELECTION: SelectionTree = {
 };
 
 const DOCS_READ_SELECTION: SelectionTree = {
+  docAction: READ_TARGET_SELECTION,
   registry: null,
   packageName: null,
   version: null,
@@ -128,7 +154,7 @@ function parseFragmentSelection(
   if (markerIndex < 0) throw new Error(`Missing ${fragmentName} fragment`);
   const tokens = query
     .slice(markerIndex + marker.length - 1)
-    .match(/[A-Za-z_][A-Za-z0-9_]*|[{}]/g);
+    .match(/[A-Za-z_][A-Za-z0-9_]*|[{}:]/g);
   if (!tokens) throw new Error(`Empty ${fragmentName} fragment`);
 
   let cursor = 0;
@@ -144,6 +170,14 @@ function parseFragmentSelection(
         throw new Error(`Expected field in ${fragmentName} fragment`);
       }
       cursor += 1;
+      if (tokens?.[cursor] === ":") {
+        cursor += 1;
+        const aliasedField = tokens?.[cursor];
+        if (!aliasedField || aliasedField === "{" || aliasedField === "}") {
+          throw new Error(`Expected aliased field in ${fragmentName} fragment`);
+        }
+        cursor += 1;
+      }
       selection[field] = tokens?.[cursor] === "{" ? parseBlock() : null;
     }
     cursor += 1;
@@ -160,6 +194,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 function codeResult(overrides: Record<string, unknown> = {}): unknown {
   return {
     __typename: "CodeContextResult",
+    codeAction: null,
     content: "export const value = 1;\n",
     filePath: "src/index.ts",
     language: "TypeScript",
@@ -175,6 +210,7 @@ function codeResult(overrides: Record<string, unknown> = {}): unknown {
 function docsResult(overrides: Record<string, unknown> = {}): unknown {
   return {
     __typename: "GetDocPageResult",
+    docAction: DOCS_ACTION,
     registry: "NPM",
     packageName: "express",
     version: "5.1.0",
@@ -234,6 +270,10 @@ describe("ReadServiceImpl", () => {
       const target = "npm:express@5.2.1#create%41pplication";
       const response = await service.read({ target, path, waitTimeoutMs: 0 });
       expect(response.source).toBe("code");
+      if (response.source !== "code") {
+        throw new Error("expected code result");
+      }
+      expect(response.result.readTarget).toBeNull();
       expect(readRequest(fetchFn).variables).toEqual({
         target,
         ...(path ? { path: "index.js" } : {}),
@@ -313,6 +353,7 @@ describe("ReadServiceImpl", () => {
         candidates: [{ filePath: "eval/run.ts" }],
       },
     });
+    expect(result.result).not.toHaveProperty("readTarget");
     const request = readRequest(fetchFn);
     expect(request.variables).toEqual({
       target: "github:githits-com/githits-cli@abc",
@@ -333,11 +374,22 @@ describe("ReadServiceImpl", () => {
       createMockTokenProvider(),
       fetchFn as unknown as typeof fetch,
     );
-    await service.read({
+    const result = await service.read({
       target: "https://expressjs.com/llms/api-5x.txt",
       selector: "expressjson",
       waitTimeoutMs: 0,
     });
+    expect(result.source).toBe("docs");
+    if (result.source !== "docs") throw new Error("expected docs result");
+    expect(result.result.readTarget).toEqual({
+      target: DOCS_ACTION.target,
+      selector: DOCS_ACTION.selector,
+    });
+    expect(Object.keys(result.result.readTarget ?? {})).toEqual([
+      "target",
+      "selector",
+    ]);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(readRequest(fetchFn).variables).toEqual({
       target: "https://expressjs.com/llms/api-5x.txt",
       selector: "expressjson",
@@ -374,7 +426,11 @@ describe("ReadServiceImpl", () => {
   );
   it("sends one compact code read with the exact effective variables and fields", async () => {
     const fetchFn = mock(() =>
-      Promise.resolve(jsonResponse({ data: { read: codeResult() } })),
+      Promise.resolve(
+        jsonResponse({
+          data: { read: codeResult({ codeAction: CODE_ACTION }) },
+        }),
+      ),
     );
     const service = new ReadServiceImpl(
       ENDPOINT,
@@ -404,6 +460,13 @@ describe("ReadServiceImpl", () => {
     expect(request.query).toContain("__typename");
     expect(request.query).toContain("... on CodeContextResult");
     expect(request.query).toContain("... on GetDocPageResult");
+    expect(request.query).toContain(
+      "codeAction: readTarget { target path selector startLine endLine }",
+    );
+    expect(request.query).toContain(
+      "docAction: readTarget { target path selector startLine endLine }",
+    );
+    expect(request.query).not.toContain("page { readTarget");
     expect(parseFragmentSelection(request.query, "CodeContextResult")).toEqual(
       CODE_READ_SELECTION,
     );
@@ -414,6 +477,13 @@ describe("ReadServiceImpl", () => {
     expect(result).toEqual({
       source: "code",
       result: {
+        readTarget: {
+          target: CODE_ACTION.target,
+          path: CODE_ACTION.path,
+          selector: CODE_ACTION.selector,
+          startLine: CODE_ACTION.startLine,
+          endLine: CODE_ACTION.endLine,
+        },
         filePath: "src/index.ts",
         language: "TypeScript",
         totalLines: 1,
@@ -496,6 +566,85 @@ describe("ReadServiceImpl", () => {
     expect(
       (await docsService.read({ target: "npm:express@5.2.1#heading" })).source,
     ).toBe("docs");
+  });
+
+  it.each([
+    { name: "missing selected object", action: undefined },
+    {
+      name: "malformed selected object",
+      action: {
+        target: 42,
+        path: null,
+        selector: null,
+        startLine: null,
+        endLine: null,
+      },
+    },
+    {
+      name: "missing selected scalar",
+      action: {
+        target: "opaque-code-target",
+        path: null,
+        selector: null,
+        startLine: null,
+      },
+    },
+  ])("rejects $name for nullable code actions", async ({ action }) => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({ data: { read: codeResult({ codeAction: action }) } }),
+      ),
+    );
+    const service = new ReadServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      fetchFn as unknown as typeof fetch,
+    );
+
+    await expect(
+      service.read({ target: "npm:express@5.2.1", path: "index.js" }),
+    ).rejects.toBeInstanceOf(MalformedCodeNavigationResponseError);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { name: "missing selected object", action: undefined },
+    { name: "null action", action: null },
+    {
+      name: "malformed selected object",
+      action: {
+        target: 42,
+        path: null,
+        selector: null,
+        startLine: null,
+        endLine: null,
+      },
+    },
+    {
+      name: "missing selected scalar",
+      action: {
+        target: "opaque-docs-target",
+        path: null,
+        selector: null,
+        startLine: null,
+      },
+    },
+  ])("rejects $name for non-null docs actions", async ({ action }) => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({ data: { read: docsResult({ docAction: action }) } }),
+      ),
+    );
+    const service = new ReadServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      fetchFn as unknown as typeof fetch,
+    );
+
+    await expect(
+      service.read({ target: "https://example.test/guide" }),
+    ).rejects.toBeInstanceOf(MalformedCodeNavigationResponseError);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
   it.each([

@@ -1,24 +1,25 @@
 import { describe, expect, it } from "bun:test";
 import type {
-  UnifiedSearchHitPayload,
-  UnifiedSearchStatusCompletedPayload,
-  UnifiedSearchStatusIncompletePayload,
-  UnifiedSearchStatusResultPayload,
+  UnifiedSearchHitPresentation,
+  UnifiedSearchStatusCompletedPresentation,
+  UnifiedSearchStatusIncompletePresentation,
+  UnifiedSearchStatusResultPresentation,
 } from "./unified-search-response.js";
 import { renderUnifiedSearchStatusText } from "./unified-search-status-text.js";
 
-function hit(): UnifiedSearchHitPayload {
+function hit(): UnifiedSearchHitPresentation {
   return {
     type: "documentation_page",
     target: "npm:express@5.2.1",
     title: "Routing",
     locator: { pageId: "express/routing" },
+    readTarget: { target: "express/routing" },
   };
 }
 
 function result(
-  overrides: Partial<UnifiedSearchStatusResultPayload> = {},
-): UnifiedSearchStatusResultPayload {
+  overrides: Partial<UnifiedSearchStatusResultPresentation> = {},
+): UnifiedSearchStatusResultPresentation {
   return {
     query: { raw: "router" },
     partialResults: false,
@@ -29,8 +30,8 @@ function result(
 }
 
 function active(
-  overrides: Partial<UnifiedSearchStatusIncompletePayload> = {},
-): UnifiedSearchStatusIncompletePayload {
+  overrides: Partial<UnifiedSearchStatusIncompletePresentation> = {},
+): UnifiedSearchStatusIncompletePresentation {
   return {
     completed: false,
     searchRef: "search-ref-status",
@@ -50,7 +51,7 @@ function firstLine(text: string): string {
 
 describe("renderUnifiedSearchStatusText", () => {
   it("uses the same outcome and exact Next action as initial search", () => {
-    const payload: UnifiedSearchStatusIncompletePayload = active({
+    const payload: UnifiedSearchStatusIncompletePresentation = active({
       result: result({ results: [hit()] }),
     });
     const text = renderUnifiedSearchStatusText(payload);
@@ -88,6 +89,150 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(text).not.toContain("1 interim result");
   });
 
+  it.each([false, true])(
+    "renders backend selectors in stored results (completed=%s)",
+    (completed) => {
+      const actionHit: UnifiedSearchHitPresentation = {
+        ...hit(),
+        readTarget: { target: "opaque-page", selector: "Routing heading" },
+      };
+      const payload = completed
+        ? {
+            completed: true as const,
+            searchRef: "stored",
+            result: result({
+              results: [actionHit],
+              hasMore: true,
+              nextOffset: 5,
+            }),
+          }
+        : active({
+            result: result({
+              results: [actionHit],
+              hasMore: true,
+              nextOffset: 5,
+            }),
+          });
+      const mcp = renderUnifiedSearchStatusText(payload);
+      const cli = renderUnifiedSearchStatusText(payload, {
+        actionSyntax: "cli",
+      });
+      expect(mcp).toContain(
+        'read target="opaque-page" selector="Routing heading"',
+      );
+      expect(cli).toContain(
+        "githits read 'opaque-page' --selector 'Routing heading'",
+      );
+      expect(mcp.match(/read target=/g)).toHaveLength(1);
+      expect(cli.match(/githits read /g)).toHaveLength(1);
+      expect(mcp).toContain("next_offset=5");
+      expect(cli).toContain("next_offset=5");
+      if (!completed) {
+        expect(mcp).toContain("Next: search_status");
+        expect(cli).toContain("Next: githits search-status");
+      }
+    },
+  );
+
+  it("keeps full CLI selections and caps MCP file actions in retained status", () => {
+    const actionHit: UnifiedSearchHitPresentation = {
+      ...hit(),
+      type: "repository_code",
+      readTarget: {
+        target: "served-revision",
+        path: "actual.ts",
+        startLine: 1,
+        endLine: 900,
+      },
+    };
+    const payload = active({ result: result({ results: [actionHit] }) });
+    expect(renderUnifiedSearchStatusText(payload)).toContain(
+      'read target="served-revision" path="actual.ts" start_line=1 end_line=300',
+    );
+    expect(
+      renderUnifiedSearchStatusText(payload, { actionSyntax: "cli" }),
+    ).toContain("githits read 'served-revision' 'actual.ts' --lines 1-900");
+  });
+
+  it("keeps pathless docs preview ranges separate from its full action", () => {
+    const actionHit: UnifiedSearchHitPresentation = {
+      ...hit(),
+      type: "repository_doc",
+      locator: {
+        ...hit().locator,
+        filePath: "guide.md",
+        startLine: 42,
+        endLine: 48,
+      },
+      readTarget: {
+        target: "opaque-page",
+        selector: "chapter",
+        startLine: 1,
+        endLine: 900,
+      },
+    };
+    const text = renderUnifiedSearchStatusText(
+      active({ result: result({ results: [actionHit] }) }),
+    );
+    expect(text).toContain("npm:express@5.2.1 guide.md:42-48 [repo doc]");
+    expect(text).toContain(
+      'read target="opaque-page" selector="chapter" start_line=1 end_line=900',
+    );
+  });
+
+  it("retains package attribution and producer preview despite a different canonical action", () => {
+    const actionHit: UnifiedSearchHitPresentation = {
+      type: "repository_code",
+      target: "npm:package@1.2.3",
+      locator: {
+        registry: "npm",
+        packageName: "package",
+        filePath: "src/view.ts",
+        repositoryFilePath: "packages/package/src/view.ts",
+        startLine: 90,
+        endLine: 95,
+      },
+      repositoryEvidence: {
+        semanticContext: null,
+        matchedSource: {
+          startLine: 90,
+          endLine: 95,
+          matchLine: 90,
+          rangeKind: "syntax_context",
+          matchSpansTruncated: false,
+          lines: [
+            {
+              lineNumber: 90,
+              text: "export const view = 1",
+              highlights: [[0, 6]],
+              prefixTruncated: false,
+              suffixTruncated: false,
+            },
+          ],
+          linesOmittedBefore: false,
+          linesOmittedAfter: false,
+        },
+      },
+      readTarget: {
+        target: "github:owner/monorepo@served-sha",
+        path: "packages/package/src/view.ts",
+        startLine: 1,
+        endLine: 500,
+      },
+    };
+    const text = renderUnifiedSearchStatusText(
+      active({ result: result({ results: [actionHit] }) }),
+      { actionSyntax: "cli" },
+    );
+    expect(text).toContain(
+      "[1] npm:package@1.2.3 src/view.ts:90-95 [repo code]",
+    );
+    expect(text).toContain("> 90 | export const view = 1");
+    expect(text).toContain(
+      "githits read 'github:owner/monorepo@served-sha' 'packages/package/src/view.ts' --lines 1-500",
+    );
+  });
+
   it("renders progress-only status without inventing sources or a no-hits claim", () => {
     const text = renderUnifiedSearchStatusText(
       active({
@@ -112,7 +257,7 @@ describe("renderUnifiedSearchStatusText", () => {
   });
 
   it("renders a completed empty stored result with one applicable action", () => {
-    const payload: UnifiedSearchStatusCompletedPayload = {
+    const payload: UnifiedSearchStatusCompletedPresentation = {
       completed: true,
       searchRef: "search-ref-empty",
       result: result({
@@ -135,7 +280,7 @@ describe("renderUnifiedSearchStatusText", () => {
   });
 
   it("terminal target recovery renders typed guidance for stored results", () => {
-    const payload: UnifiedSearchStatusCompletedPayload = {
+    const payload: UnifiedSearchStatusCompletedPresentation = {
       completed: true,
       searchRef: "search-ref-terminal",
       result: result({
@@ -184,7 +329,7 @@ describe("renderUnifiedSearchStatusText", () => {
   });
 
   it("continues completed mutable evidence through one status action", () => {
-    const payload: UnifiedSearchStatusCompletedPayload = {
+    const payload: UnifiedSearchStatusCompletedPresentation = {
       completed: true,
       searchRef: "search-ref-evidence",
       result: result({

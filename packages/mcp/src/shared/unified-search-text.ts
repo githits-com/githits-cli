@@ -16,10 +16,7 @@
  */
 
 import { colors, dim, highlight, highlightRanges } from "./colors.js";
-import {
-  documentationReadLocator,
-  semanticReadLocation,
-} from "./follow-up-command-text.js";
+import { buildSearchHitFollowUpCommand } from "./follow-up-command-text.js";
 import {
   formatRepositoryTarget,
   parseRepositoryTargetSpec,
@@ -40,18 +37,18 @@ import {
   type UnifiedSearchWarning,
 } from "./unified-search-presentation.js";
 import type {
-  UnifiedSearchCompletedPayload,
+  UnifiedSearchCompletedPresentation,
   UnifiedSearchErrorPayload,
-  UnifiedSearchHitPayload,
-  UnifiedSearchIncompletePayload,
+  UnifiedSearchHitPresentation,
+  UnifiedSearchIncompletePresentation,
 } from "./unified-search-response.js";
 
 const DEFAULT_TEXT_WIDTH = 80;
 const SEP = " | ";
 
 type SearchSuccessPayload =
-  | UnifiedSearchCompletedPayload
-  | UnifiedSearchIncompletePayload;
+  | UnifiedSearchCompletedPresentation
+  | UnifiedSearchIncompletePresentation;
 
 /** Render a successful unified-search payload as line-oriented text. */
 export function renderUnifiedSearchSuccess(
@@ -68,14 +65,14 @@ export function renderUnifiedSearchSuccess(
 export interface UnifiedSearchTextOptions {
   /** Apply terminal emphasis; false keeps the MCP/CLI wording plain. */
   useColors?: boolean;
-  /** Surface-native syntax for the continuation action. */
+  /** Surface-native syntax for read and search continuation actions. */
   actionSyntax?: "mcp" | "cli";
   /** Full output width, including indentation. Defaults to 80 columns. */
   width?: number;
 }
 
 export interface UnifiedSearchTextResult {
-  results: UnifiedSearchHitPayload[];
+  results: UnifiedSearchHitPresentation[];
   nextOffset?: number;
 }
 
@@ -131,7 +128,7 @@ function normalizeTextOptions(
 
 function formatPresentationOutcome(
   presentation: UnifiedSearchPresentation,
-  results: UnifiedSearchHitPayload[],
+  results: UnifiedSearchHitPresentation[],
   nextOffset: number | undefined,
   options: NormalizedTextOptions,
 ): string {
@@ -201,7 +198,7 @@ function formatPresentationOutcome(
 }
 
 function formatCompletedResultsHeadline(
-  results: UnifiedSearchHitPayload[],
+  results: UnifiedSearchHitPresentation[],
   countLabel: string,
 ): string {
   const parts = [countLabel];
@@ -223,7 +220,9 @@ function appendPagination(
   return `${value}${SEP}${field}`;
 }
 
-function formatResultBreakdown(results: UnifiedSearchHitPayload[]): string {
+function formatResultBreakdown(
+  results: UnifiedSearchHitPresentation[],
+): string {
   const counts = new Map<string, number>();
   for (const result of results) {
     const label = resultBreakdownLabel(result.type);
@@ -935,7 +934,7 @@ export function renderUnifiedSearchError(
 
 function appendUnifiedSearchHits(
   lines: string[],
-  hits: UnifiedSearchHitPayload[],
+  hits: UnifiedSearchHitPresentation[],
   queryFragments: string[],
   options: NormalizedTextOptions,
 ): void {
@@ -948,7 +947,7 @@ function appendUnifiedSearchHits(
 function appendHit(
   lines: string[],
   index: number,
-  hit: UnifiedSearchHitPayload,
+  hit: UnifiedSearchHitPresentation,
   queryFragments: string[],
   options: NormalizedTextOptions,
 ): void {
@@ -978,6 +977,7 @@ function appendHit(
 
   if (hit.type === "repository_code" || hit.type === "repository_doc") {
     appendStructuralEvidence(lines, hit, options);
+    lines.push(`  ${buildSearchHitFollowUpCommand(hit, options.actionSyntax)}`);
     return;
   }
   const preview =
@@ -996,12 +996,13 @@ function appendHit(
       ).map((line) => (line.length === 0 ? "" : `  ${line}`)),
     );
   }
+  lines.push(`  ${buildSearchHitFollowUpCommand(hit, options.actionSyntax)}`);
 }
 
 /** Render scope facts only alongside source-exact numbered lines. */
 function appendStructuralEvidence(
   lines: string[],
-  hit: UnifiedSearchHitPayload,
+  hit: UnifiedSearchHitPresentation,
   options: NormalizedTextOptions,
 ): void {
   const evidence = hit.repositoryEvidence;
@@ -1171,14 +1172,13 @@ interface FormattedHitHeader {
 }
 
 function formatHitHeader(
-  hit: UnifiedSearchHitPayload,
+  hit: UnifiedSearchHitPresentation,
   queryFragments: string[],
 ): FormattedHitHeader {
   const loc = hit.locator;
   if (hit.type === "documentation_page") {
     const docsReadTarget =
-      documentationReadLocator(hit).target ||
-      "documentation target unavailable";
+      hit.readTarget?.target || "documentation target unavailable";
     const type = "[docs page]";
     const target = formatDocumentationTarget(hit);
     const sourceUrl = formatDocumentationSourceUrl(
@@ -1206,26 +1206,9 @@ function formatHitHeader(
     };
   }
   const evidence = formatRepositoryEvidence(hit);
-  const preferredRead = hit.repositoryEvidence?.semanticContext?.preferredRead;
-  // Package-attributed repo docs use target-relative paths like code hits.
-  // Other docs retain their emitted page locator and separate read bounds.
-  const docsRead =
-    hit.type === "repository_doc" && !preferredRead
-      ? documentationReadLocator(hit)
-      : undefined;
-  const location =
-    docsRead?.target && !docsRead.path
-      ? [
-          docsRead.startLine === undefined
-            ? ""
-            : `start_line=${docsRead.startLine}`,
-          docsRead.endLine === undefined ? "" : `end_line=${docsRead.endLine}`,
-        ]
-          .filter(Boolean)
-          .join(" ")
-      : evidence.filePath
-        ? `${evidence.filePath}${formatLineRange(evidence.startLine, evidence.endLine)}`
-        : "location unavailable";
+  const location = evidence.filePath
+    ? `${evidence.filePath}${formatLineRange(evidence.startLine, evidence.endLine)}`
+    : "location unavailable";
   const sourceStatus = candidateHeaderStatus(
     hit,
     queryFragments,
@@ -1234,9 +1217,7 @@ function formatHitHeader(
   const type = `[${shortType(hit.type)}${sourceStatus}]`;
   const candidateSymbol = candidateSymbolLabel(hit, evidence);
   const symbolSuffix = candidateSymbol ? ` - ${candidateSymbol}` : "";
-  const target = preferredRead
-    ? semanticReadLocation(preferredRead).target
-    : docsRead?.target || hit.target;
+  const target = hit.target;
   const title = formatRepositoryHitTitle(
     hit,
     evidence.startLine,
@@ -1270,7 +1251,7 @@ function formatHitHeader(
 }
 
 /** Field provenance never overrides independently proven source. */
-function isPathOnlyHit(hit: UnifiedSearchHitPayload): boolean {
+function isPathOnlyHit(hit: UnifiedSearchHitPresentation): boolean {
   const evidence = hit.repositoryEvidence;
   return (
     (hit.type === "repository_code" || hit.type === "repository_doc") &&
@@ -1304,7 +1285,7 @@ const INDEXED_FIELD_SHORT_NAMES = {
 
 /** Visible fragments are literal preview facts, not producer-proven BM25 terms. */
 function candidateHeaderStatus(
-  hit: UnifiedSearchHitPayload,
+  hit: UnifiedSearchHitPresentation,
   queryFragments: string[],
   displayedPath: string | undefined,
 ): string {
@@ -1338,7 +1319,7 @@ interface RepositoryEvidence {
 }
 
 function formatRepositoryEvidence(
-  hit: UnifiedSearchHitPayload,
+  hit: UnifiedSearchHitPresentation,
 ): RepositoryEvidence {
   const loc = hit.locator;
   const source = hit.repositoryEvidence?.matchedSource;
@@ -1349,9 +1330,7 @@ function formatRepositoryEvidence(
       : undefined;
   // Without producer-proven source, locator bounds can be fallback read windows.
   return {
-    filePath: preferredRead
-      ? semanticReadLocation(preferredRead).path
-      : loc.filePath,
+    filePath: loc.filePath,
     startLine:
       source?.startLine ??
       candidateRead?.startLine ??
@@ -1367,7 +1346,7 @@ function formatRepositoryEvidence(
 
 /** A candidate may name its declaration when the displayed window fits it. */
 function candidateSymbolLabel(
-  hit: UnifiedSearchHitPayload,
+  hit: UnifiedSearchHitPresentation,
   location: RepositoryEvidence,
 ): string | undefined {
   if (
@@ -1400,7 +1379,7 @@ interface RepositoryHitTitle {
 }
 
 function formatRepositoryHitTitle(
-  hit: UnifiedSearchHitPayload,
+  hit: UnifiedSearchHitPresentation,
   evidenceStartLine: number | undefined,
   evidenceEndLine: number | undefined,
 ): RepositoryHitTitle {
@@ -1469,7 +1448,7 @@ interface RepositorySymbolIdentity {
 }
 
 function formatRepositorySymbolIdentity(
-  hit: UnifiedSearchHitPayload,
+  hit: UnifiedSearchHitPresentation,
 ): RepositorySymbolIdentity {
   const title = hit.title || undefined;
   const context = hit.locator.symbolContext;
@@ -1551,7 +1530,7 @@ function renderHitHeaderPrefix(
     .join("");
 }
 
-function formatDocumentationTarget(hit: UnifiedSearchHitPayload): string {
+function formatDocumentationTarget(hit: UnifiedSearchHitPresentation): string {
   const { registry, packageName } = hit.locator;
   if (registry && packageName) {
     return `${registry.toLowerCase()}:${packageName}`;

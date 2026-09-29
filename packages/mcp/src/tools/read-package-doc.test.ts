@@ -52,6 +52,12 @@ function docResult(options: {
 }): PackageDocResult {
   const docsReadTarget = options.docsReadTarget ?? "doc-target";
   return {
+    readTarget: {
+      target: "served-document",
+      selector: options.anchor,
+      startLine: options.startLine,
+      endLine: options.endLine,
+    },
     contentRange: {
       startLine: options.startLine,
       endLine: options.endLine,
@@ -219,7 +225,7 @@ describe("createDocsReadTool", () => {
     });
     expect(output).toContain("lines 1-300/400");
     expect(output).toContain(
-      'Continue with read target="stable-page-id" start_line=301 end_line=400.',
+      'Continue with read target="served-document" start_line=301 end_line=400.',
     );
     expect(output).toContain("line 300");
     expect(output).not.toContain("line 301\n");
@@ -247,7 +253,7 @@ describe("createDocsReadTool", () => {
     expect(readPackageDoc).toHaveBeenCalledWith({ pageId: "doc-target" });
     expect(output).toContain("lines 81-230/400");
     expect(output).toContain(
-      'Continue with read target="stable-page-id" start_line=231 end_line=280.',
+      'Continue with read target="served-document" start_line=231 end_line=280.',
     );
   });
 

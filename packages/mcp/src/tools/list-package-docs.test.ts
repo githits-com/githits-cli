@@ -260,7 +260,7 @@ describe("createListPackageDocsTool", () => {
     });
   });
 
-  it("uses served gitRef for repo-backed docs text follow-ups", async () => {
+  it("uses the canonical docs target despite conflicting repo provenance", async () => {
     const tool = createListPackageDocsTool(
       createMockPackageIntelligenceService({
         listPackageDocs: mock(() =>
@@ -289,7 +289,9 @@ describe("createListPackageDocsTool", () => {
 
     const result = await tool.handler({ target: "npm:ms" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain('read target="github:vercel/ms@served-sha"');
+    expect(text).toContain('read target="github:vercel/ms@sha/readme.md"');
+    expect(text.match(/read target=/g)).toHaveLength(1);
+    expect(text).not.toContain('read target="github:vercel/ms@served-sha"');
     expect(text).not.toContain("#main");
   });
 

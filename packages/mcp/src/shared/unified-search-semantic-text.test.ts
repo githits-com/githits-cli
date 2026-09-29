@@ -1,17 +1,23 @@
 import { describe, expect, it } from "bun:test";
 import { colors } from "./colors.js";
-import type { UnifiedSearchHitPayload } from "./unified-search-response.js";
+import type { UnifiedSearchHitPresentation } from "./unified-search-response.js";
 import { renderUnifiedSearchSuccess } from "./unified-search-text.js";
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
 
-function semanticHit(): UnifiedSearchHitPayload {
+function semanticHit(): UnifiedSearchHitPresentation {
   return {
     type: "repository_code",
-    target: "github:owner/monorepo@main",
+    target: "npm:pkg@1.2.3",
+    readTarget: {
+      target: "npm:pkg@1.2.3",
+      path: "src/client.ts",
+      startLine: 120,
+      endLine: 165,
+    },
     title: "send",
     followUp: "DO NOT PRINT THIS COMMAND",
-    locator: { filePath: "wrong-relative-path.ts", startLine: 1, endLine: 9 },
+    locator: { filePath: "src/client.ts", startLine: 1, endLine: 9 },
     repositoryEvidence: {
       semanticContext: {
         scopeChainTruncated: false,
@@ -91,7 +97,7 @@ function semanticHit(): UnifiedSearchHitPayload {
 }
 
 function render(
-  hit: UnifiedSearchHitPayload,
+  hit: UnifiedSearchHitPresentation,
   useColors = false,
   rawQuery = "response",
 ): string {
@@ -127,7 +133,7 @@ describe("semantic search text", () => {
     expect(render(hit)).toContain("Session storage");
   });
 
-  it("renders readable scopes and literal numbered source without a redundant command", () => {
+  it("renders readable scopes and literal numbered source with one backend-selected action", () => {
     const text = render(semanticHit());
     expect(text).toContain(
       "[1] npm:pkg@1.2.3 src/client.ts:142-145 [repo code]",
@@ -155,28 +161,49 @@ describe("semantic search text", () => {
     expect(render(hit)).toContain("  - class Client | lines 20-620");
   });
 
-  it("uses a repository-root path with its exact commit when package attribution is absent", () => {
+  it("preserves repository producer attribution independently of its served action", () => {
     const hit = semanticHit();
     const read = hit.repositoryEvidence!.semanticContext!.preferredRead;
+    hit.readTarget = {
+      target: `github:owner/monorepo@${sha}`,
+      path: "packages/pkg/src/client.ts",
+      startLine: 120,
+      endLine: 165,
+    };
+    hit.target = "github:owner/monorepo@main";
+    hit.locator.filePath = "packages/pkg/src/client.ts";
     read.registry = null;
     read.packageName = null;
     read.version = null;
     expect(render(hit)).toContain(
-      `github:owner/monorepo@${sha} packages/pkg/src/client.ts:142-145`,
+      "github:owner/monorepo@main packages/pkg/src/client.ts:142-145",
     );
-    expect(render(hit)).not.toContain("#main");
+    expect(render(hit)).toContain(
+      `read target="github:owner/monorepo@${sha}" path="packages/pkg/src/client.ts" start_line=120 end_line=165`,
+    );
   });
 
   it.each(["github:owner/monorepo@main", "owner/monorepo@main"])(
-    "keeps header %s pinned when package metadata contains a synthetic version",
+    "preserves producer header %s while the action uses its served revision",
     (targetLabel) => {
       const hit = semanticHit();
       const read = hit.repositoryEvidence!.semanticContext!.preferredRead;
+      hit.readTarget = {
+        target: `github:owner/monorepo@${sha}`,
+        path: "packages/pkg/src/client.ts",
+        startLine: 120,
+        endLine: 165,
+      };
+      hit.target = targetLabel;
+      hit.locator.filePath = "packages/pkg/src/client.ts";
       read.targetLabel = targetLabel;
       read.version = sha;
       const text = render(hit);
       expect(text).toContain(
-        `github:owner/monorepo@${sha} packages/pkg/src/client.ts:142-145`,
+        `${targetLabel} packages/pkg/src/client.ts:142-145`,
+      );
+      expect(text).toContain(
+        `read target="github:owner/monorepo@${sha}" path="packages/pkg/src/client.ts" start_line=120 end_line=165`,
       );
       expect(text).not.toContain("npm:pkg");
       expect(text).not.toContain("#main");
@@ -267,7 +294,7 @@ describe("v31 search presentation", () => {
     expect(text).not.toContain("send");
     expect(text).not.toContain("return response");
     expect(text).not.toContain("Snippet unavailable");
-    expect(text.split("\n")).toHaveLength(3);
+    expect(text.split("\n")).toHaveLength(4);
     hit.type = "repository_doc";
     hit.title = "Arbitrary heading";
     expect(render(hit)).toContain(
@@ -349,10 +376,11 @@ describe("v31 search presentation", () => {
     expect(text).not.toContain("visible terms");
   });
 
-  it("checks the displayed read path when an associated locator uses another file", () => {
+  it("checks the producer preview path independently of an associated action", () => {
     const hit = semanticHit();
     hit.repositoryEvidence!.matchedSource = null;
     hit.repositoryEvidence!.bm25MatchFields = ["FILE_PATH"];
+    hit.readTarget = { ...hit.readTarget!, path: "wrong-relative-path.ts" };
     const text = render(hit, false, "wrongRelative");
     expect(text).toContain(
       "src/client.ts:120-165 [repo code, candidate; indexed: path]",

@@ -657,6 +657,12 @@ describe("searchTool", () => {
           {
             ...baseHit,
             resultType: "REPOSITORY_DOC" as const,
+            readTarget: {
+              target: "backend-doc",
+              selector: "Heading",
+              startLine: 42,
+              endLine: 52,
+            },
             locator: {
               ...baseHit.locator,
               pageId: "github:expressjs/express@abc123/README.md",
@@ -695,7 +701,11 @@ describe("searchTool", () => {
       gitRef: "abc123",
       filePath: "README.md",
     });
-    expect(payload.results[0].followUp).toContain("read target=");
+    expect(payload.results[0].followUp).toBe(
+      'read target="backend-doc" selector="Heading" start_line=42 end_line=52',
+    );
+    for (const key of ["readTarget", "codeAction", "docAction"])
+      expect(JSON.stringify(payload)).not.toContain(`"${key}":`);
     expect(payload.results[0]).not.toHaveProperty("alternateFollowUps");
   });
 

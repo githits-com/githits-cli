@@ -25,6 +25,11 @@ import {
   isTokenRefreshableError,
   SERVER_AUTHENTICATION_REJECTED_MESSAGE,
 } from "./githits-service.js";
+import {
+  READ_TARGET_SELECTION,
+  type ReadTarget,
+  selectedReadTargetSchema,
+} from "./read-target.js";
 import type { ServiceDiagnostics } from "./runtime-diagnostics.js";
 import type { TokenProvider } from "./token-provider.js";
 
@@ -398,6 +403,8 @@ export interface UnifiedSearchLocator {
 }
 
 export interface UnifiedSearchHit {
+  /** Backend-selected action; absent only for older custom providers. */
+  readTarget?: ReadTarget | null;
   id: string;
   resultType: UnifiedSearchResultType;
   targetLabel: string;
@@ -626,6 +633,8 @@ export interface ReadFileParams {
 }
 
 export interface ReadFileResult {
+  /** Served action selected by unified read; legacy readers may omit it. */
+  readTarget?: ReadTarget | null;
   filePath?: string;
   language?: string;
   totalLines?: number;
@@ -1405,6 +1414,7 @@ query UnifiedSearch(
       queryWarnings
       sources
       results {
+        readTarget { ${READ_TARGET_SELECTION} }
         id
         resultType
         targetLabel
@@ -1550,6 +1560,7 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!, $waitT
       queryWarnings
       sources
       results {
+        readTarget { ${READ_TARGET_SELECTION} }
         id
         resultType
         targetLabel
@@ -1899,6 +1910,7 @@ const contentSafetySchema = z.object({
 });
 
 const unifiedSearchHitSchema = z.object({
+  readTarget: selectedReadTargetSchema.nullable(),
   id: z.string(),
   resultType: unifiedSearchResultTypeSchema,
   targetLabel: z.string(),
@@ -3108,6 +3120,7 @@ export class CodeNavigationServiceImpl
       queryWarnings: result.queryWarnings,
       sources: result.sources,
       results: result.results.map((entry) => ({
+        readTarget: entry.readTarget,
         id: entry.id,
         resultType: entry.resultType,
         targetLabel: entry.targetLabel,

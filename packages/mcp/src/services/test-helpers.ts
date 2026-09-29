@@ -31,6 +31,12 @@ export const defaultUnifiedSearchOutcome: UnifiedSearchOutcome = {
       {
         id: "hit-1",
         resultType: "REPOSITORY_CODE",
+        readTarget: {
+          target: "npm:express@4.18.2",
+          path: "lib/router/index.js",
+          startLine: 42,
+          endLine: 57,
+        },
         targetLabel: "npm:express@4.18.2",
         title: "router middleware",
         summary: "function router(req, res, next) { ... }",

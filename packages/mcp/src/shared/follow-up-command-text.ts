@@ -1,360 +1,44 @@
-import type { UnifiedSearchSemanticPreferredRead } from "@githits/core-internal";
-import { MCP_READ_MAX_SPAN } from "./code-navigation-defaults.js";
-import { formatRepositoryTarget } from "./repository-target.js";
-import { shellQuote } from "./shell-quote.js";
-import type { UnifiedSearchHitPayload } from "./unified-search-response.js";
+import { capSearchReadTarget } from "./read-target-range.js";
+import { renderReadTarget } from "./read-target-text.js";
+import type { UnifiedSearchHitPresentation } from "./unified-search-response.js";
 
-interface CodeReadCommandInput {
-  registry?: string;
-  packageName?: string;
-  version?: string;
-  repoUrl?: string;
-  gitRef?: string;
-  filePath?: string;
-  startLine?: number;
-  endLine?: number;
-  preferPackageTarget?: boolean;
+/** Target-only command used by the CLI docs-inventory smoke assertion. */
+export function buildCliDocsReadCommand(target: string): string {
+  return renderReadTarget({ target }, "cli");
 }
-
+/** Render the backend action; locator metadata only explains unavailable actions. */
 export function buildSearchHitFollowUpCommand(
-  hit: UnifiedSearchHitPayload,
+  hit: UnifiedSearchHitPresentation,
   syntax: "mcp" | "cli" = "mcp",
 ): string {
-  const preferredRead = hit.repositoryEvidence?.semanticContext?.preferredRead;
-  if (preferredRead) {
-    const location = semanticReadLocation(preferredRead);
-    const source = hit.repositoryEvidence?.matchedSource;
-    const range =
-      syntax === "mcp" &&
-      preferredRead.endLine - preferredRead.startLine + 1 > MCP_READ_MAX_SPAN
-        ? boundLargeReadRange(
-            preferredRead,
-            source
-              ? {
-                  startLine: source.startLine,
-                  endLine: source.endLine,
-                  matchLine: source.matchLine ?? undefined,
-                }
-              : undefined,
-          )
-        : preferredRead;
-    const parts =
-      syntax === "cli"
-        ? [
-            `githits read ${shellQuote(location.target)} ${shellQuote(location.path)}`,
-          ]
-        : [
-            `read target=${quote(location.target)} path=${quote(location.path)}`,
-          ];
-    if (syntax === "cli") appendCliRange(parts, range.startLine, range.endLine);
-    else appendRange(parts, range.startLine, range.endLine);
-    return parts.join(" ");
-  }
-  const loc = hit.locator;
-  const docsRead = documentationReadLocator(hit);
-  if (docsRead.target) {
-    const range =
-      docsRead.path &&
-      syntax === "mcp" &&
-      docsRead.startLine !== undefined &&
-      docsRead.endLine !== undefined &&
-      docsRead.endLine - docsRead.startLine + 1 > MCP_READ_MAX_SPAN
-        ? boundLargeReadRange(
-            { startLine: docsRead.startLine, endLine: docsRead.endLine },
-            loc.evidenceRange,
-          )
-        : docsRead;
-    return syntax === "cli"
-      ? buildCliDocsReadCommand(
-          docsRead.target,
-          range.startLine,
-          range.endLine,
-          docsRead.path,
-        )
-      : buildDocsReadCommand(
-          docsRead.target,
-          range.startLine,
-          range.endLine,
-          docsRead.path,
-        );
-  }
-  if (
-    (hit.type === "repository_code" || hit.type === "repository_symbol") &&
-    loc.repoUrl &&
-    !loc.commitSha &&
-    !loc.gitRef &&
-    !isPackageTarget(hit)
-  ) {
-    return "follow-up unavailable: missing exact revision";
-  }
-  const input = buildSearchHitCodeReadInput(hit, syntax);
-  if (input) {
-    return syntax === "cli"
-      ? buildCliCodeReadCommand(input)
-      : buildCodeReadCommand(input);
-  }
-  if (hit.type === "repository_code" || hit.type === "repository_symbol") {
-    return "follow-up unavailable: missing filePath";
-  }
-  if (loc.sourceUrl) return loc.sourceUrl;
-  return "";
-}
-
-interface DocumentationReadLocator {
-  target: string;
-  path?: string;
-  startLine?: number;
-  endLine?: number;
-}
-
-/** Prefer complete package-attributed repo docs; preserve other emitted docs targets. */
-export function documentationReadLocator(
-  hit: UnifiedSearchHitPayload,
-): DocumentationReadLocator {
-  const loc = hit.locator;
-  if (
-    hit.type === "repository_doc" &&
-    isPackageTarget(hit) &&
-    loc.version &&
-    loc.filePath
-  ) {
-    return {
-      target: `${loc.registry}:${loc.packageName}@${loc.version}`,
-      path: loc.filePath,
-      startLine: loc.startLine,
-      endLine: loc.endLine,
-    };
-  }
-  const target = loc.docsReadTarget ?? loc.pageId ?? "";
-  if (hit.type === "documentation_page" && isHttpUrl(target)) {
-    if (hasHttpFragment(target)) return { target };
-
-    const fragmentPrefix = `${target}#`;
-    if (
-      loc.sourceUrl?.startsWith(fragmentPrefix) &&
-      loc.sourceUrl.length > fragmentPrefix.length
-    ) {
-      return { target: loc.sourceUrl };
-    }
-    return { target };
-  }
-
-  return {
-    target,
-    startLine: loc.startLine,
-    endLine: loc.endLine,
-  };
-}
-
-function isHttpUrl(value: string): boolean {
-  return /^https?:\/\//i.test(value);
-}
-
-function hasHttpFragment(value: string): boolean {
-  if (!isHttpUrl(value)) return false;
-  const fragmentIndex = value.indexOf("#");
-  return fragmentIndex >= 0 && fragmentIndex < value.length - 1;
-}
-
-interface SemanticReadLocation {
-  target: string;
-  path: string;
-}
-
-/** Keep display and read actions paired to the backend's attributed snapshot. */
-export function semanticReadLocation(
-  read: UnifiedSearchSemanticPreferredRead,
-): SemanticReadLocation {
-  // Repository-attributed hits can also carry synthetic package metadata.
-  if (
-    read.registry &&
-    read.packageName &&
-    read.version &&
-    read.targetLabel
-      .toLowerCase()
-      .startsWith(`${read.registry}:${read.packageName}`.toLowerCase())
-  ) {
-    return {
-      target: `${read.registry.toLowerCase()}:${read.packageName}@${read.version}`,
-      path: read.filePath,
-    };
-  }
-  return {
-    target: formatRepositoryTarget(read.repoUrl, read.commitSha),
-    path: read.repositoryFilePath,
-  };
-}
-
-function buildSearchHitCodeReadInput(
-  hit: UnifiedSearchHitPayload,
-  syntax: "mcp" | "cli",
-): CodeReadCommandInput | undefined {
-  const loc = hit.locator;
-  const definition =
-    loc.symbolContext?.relation === "encloses_match"
-      ? loc.symbolContext.definitionRange
-      : undefined;
-  const evidence = loc.evidenceRange;
-  const targetFilePath = definition?.filePath ?? loc.filePath;
-  const repositoryFilePath =
-    definition?.repositoryFilePath ?? loc.repositoryFilePath;
-  let startLine = definition?.startLine ?? evidence?.startLine ?? loc.startLine;
-  const trueEndLine = definition?.endLine ?? evidence?.endLine ?? loc.endLine;
-  let endLine = trueEndLine;
-  if (
-    syntax === "mcp" &&
-    typeof startLine === "number" &&
-    typeof trueEndLine === "number" &&
-    trueEndLine - startLine + 1 > MCP_READ_MAX_SPAN
-  ) {
-    if (definition) {
-      ({ startLine, endLine } = boundLargeReadRange(definition, evidence));
-    } else if (evidence) {
-      ({ startLine, endLine } = boundLargeReadRange(evidence, evidence));
-    } else {
-      endLine = startLine + MCP_READ_MAX_SPAN - 1;
-    }
-  }
-  const exactRef = loc.commitSha ?? loc.gitRef;
-
-  if (loc.repoUrl && exactRef && repositoryFilePath) {
-    return {
-      repoUrl: loc.repoUrl,
-      gitRef: exactRef,
-      filePath: repositoryFilePath,
-      startLine,
-      endLine,
-    };
-  }
-
-  const filePath =
-    !isPackageTarget(hit) && repositoryFilePath
-      ? repositoryFilePath
-      : targetFilePath;
-  if (!filePath) return undefined;
-  return {
-    registry: loc.registry,
-    packageName: loc.packageName,
-    version: loc.version,
-    repoUrl: loc.repoUrl,
-    gitRef: exactRef,
-    filePath,
-    startLine,
-    endLine,
-    preferPackageTarget: isPackageTarget(hit),
-  };
-}
-
-function boundLargeReadRange(
-  bounds: { startLine: number; endLine: number },
-  evidence:
-    | { startLine: number; endLine: number; matchLine?: number }
-    | undefined,
-): { startLine: number; endLine: number } {
-  const latestStart = bounds.endLine - MCP_READ_MAX_SPAN + 1;
-  const evidenceSpan = evidence
-    ? evidence.endLine - evidence.startLine + 1
-    : undefined;
-  if (
-    evidence &&
-    typeof evidenceSpan === "number" &&
-    evidenceSpan <= MCP_READ_MAX_SPAN
-  ) {
-    const leadingContext = Math.floor((MCP_READ_MAX_SPAN - evidenceSpan) / 2);
-    const startLine = Math.min(
-      Math.max(bounds.startLine, evidence.startLine - leadingContext),
-      latestStart,
+  const action = hit.readTarget;
+  if (action) {
+    const matched = hit.repositoryEvidence?.matchedSource;
+    const evidence = hit.repositoryEvidence?.semanticContext
+      ? matched
+        ? {
+            startLine: matched.startLine,
+            endLine: matched.endLine,
+            matchLine: matched.matchLine ?? undefined,
+          }
+        : undefined
+      : hit.locator.evidenceRange;
+    return renderReadTarget(
+      syntax === "mcp" ? capSearchReadTarget(action, evidence) : action,
+      syntax,
     );
-    return { startLine, endLine: startLine + MCP_READ_MAX_SPAN - 1 };
   }
-
-  const focusedLine = evidence?.matchLine ?? evidence?.startLine;
-  const leadingContext = Math.floor((MCP_READ_MAX_SPAN - 1) / 2);
-  const startLine = Math.min(
-    Math.max(
-      bounds.startLine,
-      focusedLine === undefined
-        ? bounds.startLine
-        : focusedLine - leadingContext,
-    ),
-    latestStart,
-  );
-  return {
-    startLine,
-    endLine: startLine + MCP_READ_MAX_SPAN - 1,
-  };
+  const loc = hit.locator;
+  const code =
+    hit.type === "repository_code" || hit.type === "repository_symbol";
+  if (code && loc.repoUrl && !loc.commitSha && !isPackageTarget(hit))
+    return "follow-up unavailable: missing exact revision";
+  if (code && !loc.filePath && !loc.repositoryFilePath)
+    return "follow-up unavailable: missing filePath";
+  return "follow-up unavailable: missing read target";
 }
 
-export function buildCliDocsReadCommand(
-  target: string,
-  startLine?: number,
-  endLine?: number,
-  path?: string,
-): string {
-  const parts = [`githits read ${shellQuote(target)}`];
-  if (path) parts.push(shellQuote(path));
-  appendCliRange(parts, startLine, endLine);
-  return parts.join(" ");
-}
-
-function buildCliCodeReadCommand(input: CodeReadCommandInput): string {
-  if (!input.filePath) return "follow-up unavailable: missing filePath";
-  const target = buildTargetSpec(input);
-  if (!target) return "follow-up unavailable: missing target";
-
-  const parts: string[] = ["githits read"];
-  if (
-    input.repoUrl &&
-    !(input.preferPackageTarget && input.registry && input.packageName)
-  ) {
-    parts.push("--repo-url", shellQuote(input.repoUrl));
-    if (input.gitRef) parts.push("--git-ref", shellQuote(input.gitRef));
-  } else {
-    parts.push(shellQuote(target));
-  }
-  parts.push(shellQuote(input.filePath));
-  appendCliRange(parts, input.startLine, input.endLine);
-  return parts.join(" ");
-}
-
-export function buildDocsReadCommand(
-  target: string,
-  startLine?: number,
-  endLine?: number,
-  path?: string,
-): string {
-  const parts = [`read target=${quote(target)}`];
-  if (path) parts.push(`path=${quote(path)}`);
-  appendRange(parts, startLine, endLine);
-  return parts.join(" ");
-}
-
-export function buildCodeReadCommand(input: CodeReadCommandInput): string {
-  if (!input.filePath) return "follow-up unavailable: missing filePath";
-  const target = buildTargetSpec(input);
-  if (!target) return "follow-up unavailable: missing target";
-  const parts = [
-    `read target=${quote(target)}`,
-    `path=${quote(input.filePath)}`,
-  ];
-  appendRange(parts, input.startLine, input.endLine);
-  return parts.join(" ");
-}
-
-function buildTargetSpec(input: CodeReadCommandInput): string | undefined {
-  if (input.preferPackageTarget && input.registry && input.packageName) {
-    return `${input.registry}:${input.packageName}${input.version ? `@${input.version}` : ""}`;
-  }
-  if (input.repoUrl) {
-    return formatRepositoryTarget(input.repoUrl, input.gitRef);
-  }
-  if (input.registry && input.packageName) {
-    return `${input.registry}:${input.packageName}${input.version ? `@${input.version}` : ""}`;
-  }
-  return undefined;
-}
-
-function isPackageTarget(hit: UnifiedSearchHitPayload): boolean {
+function isPackageTarget(hit: UnifiedSearchHitPresentation): boolean {
   const registry = hit.locator.registry;
   const packageName = hit.locator.packageName;
   return Boolean(
@@ -362,29 +46,4 @@ function isPackageTarget(hit: UnifiedSearchHitPayload): boolean {
       packageName &&
       hit.target.startsWith(`${registry}:${packageName}`),
   );
-}
-
-function appendRange(
-  parts: string[],
-  startLine: number | undefined,
-  endLine: number | undefined,
-): void {
-  if (typeof startLine === "number") parts.push(`start_line=${startLine}`);
-  if (typeof endLine === "number") parts.push(`end_line=${endLine}`);
-}
-
-function appendCliRange(
-  parts: string[],
-  startLine: number | undefined,
-  endLine: number | undefined,
-): void {
-  if (typeof startLine !== "number" && typeof endLine !== "number") return;
-  parts.push(
-    "--lines",
-    `${typeof startLine === "number" ? startLine : ""}-${typeof endLine === "number" ? endLine : ""}`,
-  );
-}
-
-function quote(value: string): string {
-  return JSON.stringify(value);
 }

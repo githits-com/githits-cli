@@ -129,4 +129,67 @@ describe("package docs list lifecycle output", () => {
       formatListPackageDocsTerminal(envelope, { useColors: false }),
     ).toContain("No documentation pages found.");
   });
+
+  it("renders one canonical action per hosted and repo page on both surfaces", () => {
+    const hostedTarget = "https://docs.example.test/guide";
+    const repoTarget = "github:owner/repo@immutable-sha/README.md";
+    const envelope = buildEnvelope({
+      pages: [
+        {
+          id: "hosted-guide",
+          docsReadTarget: hostedTarget,
+          title: "Hosted guide",
+          sourceKind: "CRAWLED",
+          sourceUrl: "https://docs.example.test/source/guide",
+        },
+        {
+          id: "repo-guide",
+          docsReadTarget: repoTarget,
+          title: "Repo guide",
+          sourceKind: "REPOSITORY",
+          sourceUrl: "https://github.com/owner/repo/blob/main/README.md",
+          repoUrl: "https://github.com/owner/repo",
+          gitRef: "immutable-sha",
+          requestedRef: "main",
+          filePath: "README.md",
+        },
+      ],
+      pageInfo: { hasNextPage: false, totalCount: 2 },
+    });
+    const mcp = renderListPackageDocsText(envelope);
+    const cli = formatListPackageDocsTerminal(envelope, { useColors: false });
+
+    expect(
+      mcp.split("\n").filter((line) => line.startsWith("  read target=")),
+    ).toEqual([
+      `  read target=${JSON.stringify(hostedTarget)}`,
+      `  read target=${JSON.stringify(repoTarget)}`,
+    ]);
+    expect(
+      cli.split("\n").filter((line) => line.startsWith("  githits read ")),
+    ).toEqual([
+      `  githits read '${hostedTarget}'`,
+      `  githits read '${repoTarget}'`,
+    ]);
+    expect(envelope.pages).toEqual([
+      {
+        pageId: "hosted-guide",
+        docsReadTarget: hostedTarget,
+        title: "Hosted guide",
+        sourceKind: "crawled",
+        sourceUrl: "https://docs.example.test/source/guide",
+      },
+      {
+        pageId: "repo-guide",
+        docsReadTarget: repoTarget,
+        title: "Repo guide",
+        sourceKind: "repo",
+        sourceUrl: "https://github.com/owner/repo/blob/main/README.md",
+        repoUrl: "https://github.com/owner/repo",
+        gitRef: "immutable-sha",
+        requestedRef: "main",
+        filePath: "README.md",
+      },
+    ]);
+  });
 });

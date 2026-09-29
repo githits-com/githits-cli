@@ -125,6 +125,12 @@ function evidenceOutcome(): UnifiedSearchOutcome {
       results: [
         {
           ...hit,
+          readTarget: {
+            target: "backend-feature",
+            path: "packages/pkg/src/feature.ts",
+            startLine: 20,
+            endLine: 50,
+          },
           locator: {
             ...hit.locator,
             repoUrl: "https://github.com/owner/monorepo",
@@ -265,6 +271,12 @@ function structuralEvidenceOutcome(): UnifiedSearchOutcome {
         {
           ...hit,
           title: "send",
+          readTarget: {
+            target: "npm:express@4.18.2",
+            path: "lib/client.ts",
+            startLine: 120,
+            endLine: 165,
+          },
           summary: "legacy summary must remain in JSON",
           repositoryEvidence,
           contentSafety: { filtered: false, modifications: [] },
@@ -309,6 +321,13 @@ function structuralEvidenceOutcome(): UnifiedSearchOutcome {
   };
 }
 
+function withoutReadActions(text: string): string {
+  return text
+    .split("\n")
+    .filter((line) => !/^ {2}(?:githits read |read target=)/.test(line))
+    .join("\n");
+}
+
 describe("search parity", () => {
   it("PARITY-PACKAGE-DOCS: headers and JSON follow-ups use package-relative addressing", async () => {
     const outcome = outcomeWithPartial(false);
@@ -332,6 +351,12 @@ describe("search parity", () => {
       {
         ...original,
         resultType: "REPOSITORY_DOC",
+        readTarget: {
+          target: "npm:express@4.18.2",
+          path: "docs/routing.md",
+          startLine: 42,
+          endLine: 52,
+        },
         targetLabel: "npm:express@4.18.2",
         title: "Routing",
         locator,
@@ -341,6 +366,8 @@ describe("search parity", () => {
     const cli = await cliJsonForOutcome(outcome);
     const mcp = await mcpJsonForOutcome(outcome);
     expect(cli).toEqual(mcp);
+    for (const key of ["readTarget", "codeAction", "docAction"])
+      expect(JSON.stringify(cli)).not.toContain(`"${key}":`);
     expect(cli).toMatchObject({
       results: [
         {
@@ -373,6 +400,7 @@ describe("search parity", () => {
     outcome.result.results.push({
       id: "crawled",
       resultType: "DOCUMENTATION_PAGE",
+      readTarget: { target: "https://example.com/router" },
       targetLabel: "site:example.com",
       title: "Router",
       summary: "legacy preview stays in JSON",
@@ -407,7 +435,10 @@ describe("search parity", () => {
     expect(results[0]?.repositoryEvidence).not.toHaveProperty("focusedSource");
     expect(results[1]).not.toHaveProperty("summary");
     const text = await cliTextForOutcome(outcome);
-    expect(text).toBe(await mcpTextForOutcome(outcome));
+    const mcpText = await mcpTextForOutcome(outcome);
+    expect(withoutReadActions(text)).toBe(withoutReadActions(mcpText));
+    expect(text).toContain("githits read ");
+    expect(mcpText).toContain("read target=");
     expect(text).toContain(
       "lib/client.ts:120-165 [repo code, candidate; indexed: path]",
     );
@@ -432,6 +463,8 @@ describe("search parity", () => {
     const mcp = await mcpJsonForOutcome(outcome);
 
     expect(cli).toEqual(mcp);
+    for (const key of ["readTarget", "codeAction", "docAction"])
+      expect(JSON.stringify(cli)).not.toContain(`"${key}":`);
     expect(cli).toMatchObject({
       results: [
         {
@@ -450,11 +483,13 @@ describe("search parity", () => {
     });
   });
 
-  it("PARITY-TEXT-FORMATTER: CLI === MCP for evidence and definition ranges", async () => {
+  it("PARITY-TEXT-FORMATTER: shared evidence with native read action syntax", async () => {
     const outcome = evidenceOutcome();
-    expect(await cliTextForOutcome(outcome)).toBe(
-      await mcpTextForOutcome(outcome),
-    );
+    const cli = await cliTextForOutcome(outcome);
+    const mcp = await mcpTextForOutcome(outcome);
+    expect(withoutReadActions(cli)).toBe(withoutReadActions(mcp));
+    expect(cli).toContain("githits read ");
+    expect(mcp).toContain("read target=");
   });
 
   it("PARITY-STRUCTURAL-JSON: CLI === MCP and preserves structural evidence", async () => {
@@ -466,6 +501,8 @@ describe("search parity", () => {
     const mcp = await mcpJsonForOutcome(outcome);
 
     expect(cli).toEqual(mcp);
+    for (const key of ["readTarget", "codeAction", "docAction"])
+      expect(JSON.stringify(cli)).not.toContain(`"${key}":`);
     const cliResult = cli as {
       results: Array<{
         repositoryEvidence?: unknown;
@@ -502,7 +539,13 @@ describe("search parity", () => {
     const cli = await cliTextForOutcome(outcome);
     const mcp = await mcpTextForOutcome(outcome);
 
-    expect(cli).toBe(mcp);
+    expect(withoutReadActions(cli)).toBe(withoutReadActions(mcp));
+    expect(cli).toContain(
+      "githits read 'npm:express@4.18.2' 'lib/client.ts' --lines 120-165",
+    );
+    expect(mcp).toContain(
+      'read target="npm:express@4.18.2" path="lib/client.ts" start_line=120 end_line=165',
+    );
     expect(cli).toContain(
       "[1] npm:express@4.18.2 lib/client.ts:142-145 [repo code]",
     );

@@ -23,6 +23,12 @@ authentication refresh, diagnostics, and list-specific transport and GraphQL
 errors. Its compact query selects inventory identity, entry kinds and paths,
 continuation, and lifecycle fields. Compact site text also selects exact entry
 read actions so it can replay backend-authored site targets and page paths.
+The existing directive now selects `read: readTarget { target path }`, keeping
+its response alias and structured DTO. Both values are backend-owned and equal
+to the previous `read` action; no inventory variant or projection option is added.
+Selected actions must be present (explicit null is valid); unselected actions
+remain omitted. DIRECTORY entries stay browse-only/null, and SOURCE text retains
+its generic path template without a concrete read descriptor.
 `includeDetailedFields` conditionally selects entry titles, browse
 actions, file metadata, source resolution, available refs and versions, and
 indexing estimates. It does not request content or snippets.

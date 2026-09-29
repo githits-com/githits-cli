@@ -14,8 +14,6 @@ export {
   AuthRequiredError,
   type BuildGrepRepoPayloadOptions,
   buildAuthRequiredErrorPayload,
-  buildCodeReadCommand,
-  buildDocsReadCommand,
   buildGrepRepoParams,
   buildGrepRepoSuccessPayload,
   buildListPackageDocsParams,

@@ -292,11 +292,19 @@ function buildStructuralSearchFixture() {
     scopesOnlyEvidence,
     null,
   ];
+  const readTarget = {
+    target: 'https://例え.test/guide?q=O\'Reilly%2F&note="two words"',
+    path: 'src/目录/file name.ts?raw="yes"&value=%25',
+    selector: "Heading: “it's quoted” / symbol%2Fname?x=a b",
+    startLine: null,
+    endLine: null,
+  };
   const searchResult = {
     query: "café",
     queryWarnings: [],
     sources: ["CODE"],
     results: evidence.map((repositoryEvidence, index) => ({
+      readTarget: index === 0 ? readTarget : null,
       id: `structural-${index}`,
       resultType: "REPOSITORY_CODE",
       targetLabel: "owner/repo@v1.2.3",
@@ -320,7 +328,7 @@ function buildStructuralSearchFixture() {
     sourceStatus: [],
   };
 
-  return { searchResult, evidence, safety };
+  return { searchResult, evidence, safety, readTarget };
 }
 
 function buildStructuralSearchResponse(
@@ -406,6 +414,19 @@ async function assertStructuralSearchRoundTrip(
     expect(hit.contentSafety).toBeUndefined();
     expect(hit.highlights).toEqual({ title: [[0, 6]] });
   }
+  expect(outcome.result.results[0]?.readTarget).toEqual({
+    target: fixture.readTarget.target,
+    path: fixture.readTarget.path,
+    selector: fixture.readTarget.selector,
+  });
+  expect(Object.keys(outcome.result.results[0]?.readTarget ?? {})).toEqual([
+    "target",
+    "path",
+    "selector",
+  ]);
+  expect(
+    outcome.result.results.slice(1).map(({ readTarget }) => readTarget),
+  ).toEqual([null, null, null]);
   expect(fn).toHaveBeenCalledTimes(1);
 
   const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
@@ -482,6 +503,7 @@ function buildV31EvidenceSearchResult(): V31EvidenceSearchResultFixture {
     results: [
       {
         id: "v31-proven-source",
+        readTarget: null,
         resultType: "REPOSITORY_CODE",
         targetLabel: "owner/repo@v1.2.3",
         title: "render",
@@ -495,6 +517,7 @@ function buildV31EvidenceSearchResult(): V31EvidenceSearchResultFixture {
       },
       {
         id: "v31-null-provenance",
+        readTarget: null,
         resultType: "REPOSITORY_CODE",
         targetLabel: "owner/repo@v1.2.3",
         title: "render",
@@ -507,6 +530,7 @@ function buildV31EvidenceSearchResult(): V31EvidenceSearchResultFixture {
       },
       {
         id: "v31-named-without-source",
+        readTarget: null,
         resultType: "REPOSITORY_DOC",
         targetLabel: "owner/repo@v1.2.3",
         title: "Documentation",
@@ -519,6 +543,7 @@ function buildV31EvidenceSearchResult(): V31EvidenceSearchResultFixture {
       },
       {
         id: "v31-documentation-preview",
+        readTarget: null,
         resultType: "DOCUMENTATION_PAGE",
         targetLabel: "site:example.com",
         title: "Rendering",
@@ -534,6 +559,7 @@ function buildV31EvidenceSearchResult(): V31EvidenceSearchResultFixture {
       },
       {
         id: "v31-empty-documentation-highlights",
+        readTarget: null,
         resultType: "DOCUMENTATION_PAGE",
         targetLabel: "site:example.com",
         title: "Overview",
@@ -637,11 +663,22 @@ async function assertV31EvidenceRoundTrip(
       }),
     ),
   ).toEqual(expectedResults);
+  expect(outcome.result.results.map(({ readTarget }) => readTarget)).toEqual([
+    null,
+    null,
+    null,
+    null,
+    null,
+  ]);
 
   expect(fn).toHaveBeenCalledTimes(1);
   const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
   const query = JSON.parse(init.body as string).query as string;
   const normalizedQuery = query.replace(/\s+/g, " ").trim();
+  expect(normalizedQuery.match(/\breadTarget\s*\{/g)).toHaveLength(1);
+  expect(normalizedQuery).toContain(
+    "readTarget { target path selector startLine endLine }",
+  );
   expect(normalizedQuery).toContain("documentationPreview { text highlights }");
   expect(normalizedQuery).toContain("bm25MatchFields");
   expect(normalizedQuery).not.toContain("focusedSource");
@@ -1538,6 +1575,7 @@ describe("CodeNavigationServiceImpl", () => {
                   sources: ["CODE"],
                   results: [
                     {
+                      readTarget: null,
                       id: "hit-1",
                       resultType: "REPOSITORY_CODE",
                       targetLabel: "npm:express@4.18.2",
@@ -1722,6 +1760,79 @@ describe("CodeNavigationServiceImpl", () => {
     }
   });
 
+  describe("unified search readTarget selection", () => {
+    for (const operation of ["search", "searchStatus"] as const) {
+      it(`rejects missing and malformed selected actions from ${operation}`, async () => {
+        const result = buildV31EvidenceSearchResult();
+        const firstHit = result.results[0];
+        if (!firstHit) throw new Error("expected v31 evidence fixture hit");
+
+        const missingAction = { ...firstHit };
+        delete missingAction.readTarget;
+        const malformedCases = [
+          { name: "missing readTarget", hit: missingAction },
+          {
+            name: "malformed readTarget object",
+            hit: {
+              ...firstHit,
+              readTarget: {
+                target: 42,
+                path: null,
+                selector: null,
+                startLine: null,
+                endLine: null,
+              },
+            },
+          },
+          {
+            name: "missing selected scalar",
+            hit: {
+              ...firstHit,
+              readTarget: {
+                target: "opaque-target",
+                path: null,
+                selector: null,
+                startLine: null,
+              },
+            },
+          },
+        ];
+
+        for (const malformed of malformedCases) {
+          const malformedResult = {
+            ...result,
+            results: [malformed.hit, ...result.results.slice(1)],
+          };
+          const fn = mockFetch(() =>
+            Promise.resolve(
+              new Response(
+                JSON.stringify(
+                  buildV31EvidenceSearchResponse(operation, malformedResult),
+                ),
+                { headers: { "Content-Type": "application/json" } },
+              ),
+            ),
+          );
+          const service = new CodeNavigationServiceImpl(
+            BASE_URL,
+            createMockTokenProvider(),
+            globalThis.fetch,
+          );
+
+          await expect(
+            operation === "search"
+              ? service.search({
+                  targets: [{ repoUrl: "https://github.com/owner/repo" }],
+                  query: "render",
+                })
+              : service.searchStatus("v31-evidence-search-ref"),
+          ).rejects.toBeInstanceOf(MalformedCodeNavigationResponseError);
+          expect(fn).toHaveBeenCalledTimes(1);
+        }
+      });
+    }
+  });
+
   it("rejects malformed structural search ranges", async () => {
     const fixture = buildStructuralSearchFixture();
     const firstHit = fixture.searchResult.results[0];
@@ -1798,6 +1909,7 @@ describe("CodeNavigationServiceImpl", () => {
         sources: ["CODE"],
         results: [
           {
+            readTarget: null,
             id: "pi-mono-compact",
             resultType: "REPOSITORY_CODE",
             targetLabel: "badlogic/pi-mono@main",
@@ -1968,6 +2080,7 @@ describe("CodeNavigationServiceImpl", () => {
                   sources: ["CODE"],
                   results: [
                     {
+                      readTarget: null,
                       id: "bad-symbol-context",
                       resultType: "REPOSITORY_CODE",
                       targetLabel: "badlogic/pi-mono@main",
@@ -2019,6 +2132,7 @@ describe("CodeNavigationServiceImpl", () => {
                   sources: ["CODE"],
                   results: [
                     {
+                      readTarget: null,
                       id: "identity-only",
                       resultType: "REPOSITORY_CODE",
                       targetLabel: "badlogic/pi-mono@main",
@@ -2041,6 +2155,7 @@ describe("CodeNavigationServiceImpl", () => {
                       },
                     },
                     {
+                      readTarget: null,
                       id: "absent-symbol",
                       resultType: "REPOSITORY_CODE",
                       targetLabel: "badlogic/pi-mono@main",
@@ -2403,6 +2518,7 @@ describe("CodeNavigationServiceImpl", () => {
         sources: ["DOCS"],
         results: [
           {
+            readTarget: null,
             id: "express-routing",
             resultType: "DOCUMENTATION_PAGE",
             targetLabel: "npm:express@5.1.0",

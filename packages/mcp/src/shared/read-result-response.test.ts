@@ -75,6 +75,13 @@ describe("unified read presentation", () => {
     const response: ReadResult = {
       source: "code",
       result: {
+        readTarget: {
+          target: "github:owner/repo@served-sha",
+          path: "root/eval/run.ts",
+          selector: "main",
+          startLine: 57,
+          endLine: 241,
+        },
         filePath: "eval/run.ts",
         startLine: 57,
         endLine: 241,
@@ -96,7 +103,9 @@ describe("unified read presentation", () => {
     const mcp = JSON.parse(formatReadResult(response, request, "mcp-json"));
     expect(mcp.endLine).toBe(206);
     expect(mcp.content).not.toContain("line 151");
-    expect(mcp.hint).toContain('path="eval/run.ts" start_line=207');
+    expect(mcp.hint).toContain(
+      'path="root/eval/run.ts" start_line=207 end_line=241',
+    );
     const fragmentContinuation = JSON.parse(
       formatReadResult(
         response,
@@ -107,9 +116,11 @@ describe("unified read presentation", () => {
       ),
     );
     expect(fragmentContinuation.hint).toContain(
-      'target="github:owner/repo@abc" path="eval/run.ts"',
+      'target="github:owner/repo@served-sha" path="root/eval/run.ts"',
     );
     expect(fragmentContinuation.hint).not.toContain("#main");
+    expect(fragmentContinuation.hint).not.toContain("selector");
+    expect(mcp).not.toHaveProperty("readTarget");
     expect(formatReadResult(response, request, "cli-text")).toContain(
       "line 185",
     );
@@ -135,5 +146,193 @@ describe("unified read presentation", () => {
         "cli-text",
       ),
     ).toContain("line 185");
+  });
+});
+
+describe("served read action cap matrix", () => {
+  const content = Array.from(
+    { length: 401 },
+    (_, index) => `line ${700 + index}`,
+  ).join("\n");
+
+  it.each([undefined, 1200])(
+    "caps code with end request %s and keeps served identity/absolute EOF bounds",
+    (endLine) => {
+      const response: ReadResult = {
+        source: "code",
+        result: {
+          readTarget: {
+            target: "github:owner/repo@served-sha",
+            path: "exact.ts",
+            selector: "logical symbol",
+            startLine: 700,
+            endLine: 1100,
+          },
+          filePath: "display.ts",
+          startLine: 700,
+          endLine: 1100,
+          totalLines: 2000,
+          content,
+        },
+      };
+      const request = {
+        target: "github:wrong/repo@main",
+        selector: "requested",
+        endLine,
+      };
+      const limit = endLine === undefined ? 150 : 300;
+      const payload = JSON.parse(
+        formatReadResult(response, request, "mcp-json"),
+      );
+      expect(payload.content.split("\n")).toHaveLength(limit);
+      expect(payload.endLine).toBe(699 + limit);
+      expect(payload.hint).toBe(
+        `Continue with read target="github:owner/repo@served-sha" path="exact.ts" start_line=${700 + limit} end_line=${Math.min(1100, 699 + 2 * limit)}.`,
+      );
+      expect(payload.hint).not.toContain("selector");
+      for (const format of ["cli-json", "cli-text"] as const)
+        expect(formatReadResult(response, request, format)).toContain(
+          "line 1100",
+        );
+      expect(payload).not.toHaveProperty("readTarget");
+    },
+  );
+
+  it.each([undefined, 1200])(
+    "caps only docs text with end request %s and preserves full JSON",
+    (endLine) => {
+      const response: ReadResult = {
+        source: "docs",
+        result: {
+          readTarget: {
+            target: "https://docs.test/served?x=%25",
+            path: "/exact/page",
+            selector: "logical heading",
+            startLine: 700,
+            endLine: 1100,
+          },
+          contentRange: {
+            startLine: 700,
+            endLine: 1100,
+            totalLines: 2000,
+            anchor: "logical heading",
+          },
+          page: { id: "wrong-page", docsReadTarget: "wrong-target", content },
+        },
+      };
+      const request = {
+        target: "requested-page",
+        selector: "requested",
+        endLine,
+      };
+      const limit = endLine === undefined ? 150 : 300;
+      const text = formatReadResult(response, request, "mcp-text");
+      expect(text).toContain(
+        `Continue with read target="https://docs.test/served?x=%25" path="/exact/page" start_line=${700 + limit} end_line=${Math.min(1100, 699 + 2 * limit)}.`,
+      );
+      expect(text).not.toContain(`line ${700 + limit}`);
+      for (const format of ["mcp-json", "cli-json"] as const) {
+        const json = JSON.parse(formatReadResult(response, request, format));
+        expect(json.content).toBe(content);
+        expect(json.endLine).toBe(1100);
+        expect(json).not.toHaveProperty("readTarget");
+        expect(json).not.toHaveProperty("hint");
+      }
+    },
+  );
+
+  it("uses returned content coordinates when a custom provider omits endLine", () => {
+    const response: ReadResult = {
+      source: "code",
+      result: {
+        readTarget: {
+          target: "github:owner/repo@served-sha",
+          path: "exact.ts",
+          selector: "x",
+        },
+        filePath: "display.ts",
+        startLine: 700,
+        totalLines: 2000,
+        content: content + "\n",
+      },
+    };
+    const payload = JSON.parse(
+      formatReadResult(
+        response,
+        { target: "github:wrong/repo@main", selector: "x" },
+        "mcp-json",
+      ),
+    );
+    expect(payload.hint).toBe(
+      'Continue with read target="github:owner/repo@served-sha" path="exact.ts" start_line=850 end_line=999.',
+    );
+    expect(payload.content.split("\n")).toHaveLength(150);
+  });
+
+  it.each([undefined, null])(
+    "does not reconstruct old/null provider code metadata: %s",
+    (readTarget) => {
+      const response: ReadResult = {
+        source: "code",
+        result: {
+          readTarget,
+          filePath: "file.ts",
+          startLine: 700,
+          endLine: 1100,
+          totalLines: 2000,
+          content,
+        },
+      };
+      const payload = JSON.parse(
+        formatReadResult(
+          response,
+          { target: "github:owner/repo@main", selector: "x" },
+          "mcp-json",
+        ),
+      );
+      expect(payload.hint).toBe(
+        "Continuation unavailable: missing read target.",
+      );
+    },
+  );
+
+  it("keeps an old docs provider body and explains unavailable continuation", () => {
+    const response: ReadResult = {
+      source: "docs",
+      result: {
+        contentRange: { startLine: 700, endLine: 1100, totalLines: 2000 },
+        page: { id: "page", docsReadTarget: "target", content },
+      },
+    };
+    expect(
+      formatReadResult(response, { target: "request" }, "mcp-text"),
+    ).toContain("Continuation unavailable: missing read target.");
+    expect(
+      JSON.parse(formatReadResult(response, { target: "request" }, "mcp-json"))
+        .content,
+    ).toBe(content);
+  });
+
+  it("does not fabricate empty or binary continuations", () => {
+    for (const result of [
+      {
+        isBinary: true,
+        content,
+        startLine: 700,
+        endLine: 1100,
+        totalLines: 2000,
+      },
+      { content: "", startLine: 1, endLine: 0, totalLines: 0 },
+    ]) {
+      const response: ReadResult = {
+        source: "code",
+        result: { ...result, filePath: "file.ts", readTarget: null },
+      };
+      expect(
+        JSON.parse(
+          formatReadResult(response, { target: "request" }, "mcp-json"),
+        ),
+      ).not.toHaveProperty("hint");
+    }
   });
 });

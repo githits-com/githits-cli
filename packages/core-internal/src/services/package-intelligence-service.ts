@@ -42,6 +42,7 @@ import {
   SERVER_AUTHENTICATION_REJECTED_MESSAGE,
 } from "./githits-service.js";
 import { promoteGenericVersionNotFound } from "./promote-version-not-found.js";
+import { type ReadTarget, readTargetSchema } from "./read-target.js";
 import {
   type ServiceDiagnostics,
   withServiceDiagnostics,
@@ -776,6 +777,8 @@ export interface PackageDocContentRange {
 }
 
 export interface PackageDocResult {
+  /** Enclosing served selection; legacy readers may omit it. */
+  readTarget?: ReadTarget;
   registry?: string;
   packageName?: string;
   version?: string;
@@ -2413,7 +2416,7 @@ const packageDocSourceKindSchema = z.enum(["CRAWLED", "REPOSITORY"]);
 
 const packageDocPageSummarySchema = z.object({
   id: z.string().nullable().optional(),
-  docsReadTarget: z.string(),
+  readTarget: readTargetSchema,
   title: z.string().nullable().optional(),
   slug: z.string().nullable().optional(),
   order: z.number().int().nullable().optional(),
@@ -2557,7 +2560,7 @@ query ListPackageDocs(
     codeIndexState
     pages {
       id
-      docsReadTarget
+      readTarget { target }
       title
       slug
       order
@@ -4021,7 +4024,7 @@ export class PackageIntelligenceServiceImpl
       pages:
         data.pages?.map((page) => ({
           id: page.id ?? undefined,
-          docsReadTarget: page.docsReadTarget,
+          docsReadTarget: page.readTarget.target,
           title: page.title ?? undefined,
           slug: page.slug ?? undefined,
           order: page.order ?? undefined,

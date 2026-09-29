@@ -12,6 +12,7 @@ import { buildUnifiedSearchParams } from "../shared/unified-search-request.js";
 import {
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchSuccessPayload,
+  projectUnifiedSearchSuccessPayload,
 } from "../shared/unified-search-response.js";
 import { parseUnifiedSearchTargetSpec } from "../shared/unified-search-target.js";
 import {
@@ -198,7 +199,9 @@ export function createSearchTool(
         if (isTextFormat(args.format)) {
           return textResult(renderUnifiedSearchSuccess(payload));
         }
-        return textResult(JSON.stringify(payload));
+        return textResult(
+          JSON.stringify(projectUnifiedSearchSuccessPayload(payload)),
+        );
       } catch (error) {
         throwIfCallerCancellation(error, context?.signal);
         const payload = addLocalMcpAuthAction(

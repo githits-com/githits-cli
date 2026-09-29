@@ -698,12 +698,13 @@ describe("searchAction", () => {
     consoleSpy.mockRestore();
   });
 
-  it("renders healthy documentation as references only", async () => {
+  it("renders healthy documentation with one backend action", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const result = createDocumentationSearchResult();
     result.results = [
       {
         id: "docs-express-routing",
+        readTarget: { target: "express/routing" },
         resultType: "DOCUMENTATION_PAGE",
         targetLabel: "npm:express@5.1.0",
         title: "Routing",
@@ -1801,6 +1802,7 @@ describe("searchAction", () => {
           {
             ...defaultUnifiedSearchOutcome.result.results[0]!,
             resultType: "DOCUMENTATION_PAGE",
+            readTarget: { target: "https://example.com/guide" },
             documentationPreview: {
               text: "line 1\r\nline 2",
               highlights: [[7, 13]],
@@ -1866,6 +1868,9 @@ describe("searchAction", () => {
             ...defaultUnifiedSearchOutcome.result.results[0]!,
             resultType: "DOCUMENTATION_PAGE",
             title: "Using Express middleware",
+            readTarget: {
+              target: "https://hexdocs.pm/express/getting-started.html",
+            },
             highlights: undefined,
             locator: {
               registry: "npm",
@@ -1922,6 +1927,7 @@ describe("searchAction", () => {
             ...defaultUnifiedSearchOutcome.result.results[0]!,
             resultType: "DOCUMENTATION_PAGE",
             targetLabel: "docs.example@stable",
+            readTarget: { target: "docs-routing" },
             title: "Routing",
             highlights: undefined,
             locator: {
