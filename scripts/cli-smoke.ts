@@ -2065,11 +2065,16 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   );
   assert(
     grepText.includes("1 match in 1 line across 1 file") &&
-      grepText.includes("Repository:") &&
+      grepText.includes("Sources:") &&
+      /^\[1\] \S+ lib\/express.js$/m.test(grepText) &&
       grepText.includes("lib/express.js") &&
       /^\s*\d+: .*router/m.test(grepText) &&
-      grepText.includes("Read recipes (replace placeholders):") &&
-      grepText.includes("githits read --lines") &&
+      grepText.includes(
+        "# Read files: read --lines $start-$end -- $target $path",
+      ) &&
+      !grepText.includes("# source [") &&
+      !grepText.includes("Read recipes") &&
+      !grepText.includes("Hosted page reads") &&
       !grepText.includes("CURRENT / RESUMABLE_LIMIT") &&
       !grepText.includes("retryable false"),
     "unified grep text must show grouped evidence and read guidance without a protocol dump",

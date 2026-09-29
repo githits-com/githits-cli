@@ -50,37 +50,41 @@ describe("grep text formatting", () => {
     expect(lastRepositoryHit).toBeGreaterThan(firstHostedHit);
 
     const lines = rendered.split("\n");
-    const repositoryHeading = lines.findIndex((line) =>
-      line.startsWith("Repository: "),
+    const expectedHeaders = [
+      "[1] github:expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336 History.md",
+      "[2] https://expressjs.com/en/3x/api/application/",
+      "[3] https://expressjs.com/en/4x/api/",
+      "[4] https://expressjs.com/en/4x/api/application/",
+      "[5] https://expressjs.com/en/4x/api/express/",
+      "[6] github:expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336 examples/README.md",
+      "[7] github:expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336 lib/application.js",
+      "[8] https://expressjs.com/en/4x/api/request/",
+    ] as const;
+    expect(lines.filter((line) => /^\[\d+\] /.test(line))).toEqual([
+      ...expectedHeaders,
+    ]);
+    expect(lines.filter((line) => line.startsWith("# source ["))).toHaveLength(
+      0,
     );
-    const hostedHeading = lines.findIndex((line) =>
-      line.startsWith("Hosted docs: "),
+    const normalizedText = rendered.replace(/\s+/g, " ");
+    expect(normalizedText).toContain(
+      "Sources: npm:express - site:expressjs.com, github:expressjs/express@dbac741a",
     );
+    expect(normalizedText.match(/site:expressjs\.com/g) ?? []).toHaveLength(1);
     expect(
-      lines.filter((line) => line.startsWith("Repository: ")),
+      lines.filter((line) => line.startsWith("# Read files:")),
     ).toHaveLength(1);
     expect(
-      lines.filter((line) => line.startsWith("Hosted docs: ")),
+      lines.filter((line) => line.startsWith("# Read pages:")),
     ).toHaveLength(1);
-    expect(repositoryHeading).toBeGreaterThanOrEqual(0);
-    expect(hostedHeading).toBeGreaterThan(repositoryHeading);
-
-    const repositoryLines = lines.slice(repositoryHeading + 1, hostedHeading);
-    const hostedLines = lines.slice(hostedHeading + 1);
-    const expectedLocators = new Map<
-      GrepTargetStatus["kind"],
-      Map<string, number>
-    >();
-    const expectedRows = new Map<
-      GrepTargetStatus["kind"],
-      Map<string, number>
-    >();
+    expect(lines.findIndex((line) => line.includes("--cursor"))).toBeLessThan(
+      lines.indexOf(expectedHeaders[0]),
+    );
+    expect(rendered).not.toContain("Read recipes");
+    expect(rendered).not.toContain("Hosted page reads");
+    const expectedRows = new Map<string, number>();
     let distinctWindowCount = 0;
     for (const group of groups.values()) {
-      const first = group.hits[0]!;
-      const kind = scopes.get(first.targetIndex)!.kind;
-      increment(expectedLocators, kind, locator(first));
-
       const windows = new Map<string, GrepHit>();
       for (const hit of group.hits)
         windows.set(
@@ -107,32 +111,17 @@ describe("grep text formatting", () => {
       for (const hit of windows.values())
         increment(
           expectedRows,
-          kind,
           `${String(hit.line).padStart(gutterWidth)}: ${renderedSlice(hit.lineSlice)}`,
         );
     }
     expect(distinctWindowCount).toBeLessThan(parsedOriginal.hits.length);
 
-    const sectionByKind = new Map<GrepTargetStatus["kind"], string[]>([
-      ["REPOSITORY", repositoryLines],
-      ["SITE", hostedLines],
-    ]);
-    let renderedWindowCount = 0;
-    for (const kind of ["REPOSITORY", "SITE"] as const) {
-      const section = sectionByKind.get(kind)!;
-      const locatorCounts = expectedLocators.get(kind)!;
-      for (const [heading, count] of locatorCounts)
-        expect(section.filter((line) => line === heading)).toHaveLength(count);
-
-      const matchingRows = section.filter((line) => /^\s*\d+: /.test(line));
-      const actualRowCounts = countValues(matchingRows);
-      const expectedRowCounts = expectedRows.get(kind)!;
-      expect(sortedCounts(actualRowCounts)).toEqual(
-        sortedCounts(expectedRowCounts),
-      );
-      renderedWindowCount += matchingRows.length;
-    }
-    expect(renderedWindowCount).toBe(distinctWindowCount);
+    const matchingRows = lines.filter((line) => /^\s*\d+: /.test(line));
+    expect(sortedCounts(countValues(matchingRows))).toEqual(
+      sortedCounts(expectedRows),
+    );
+    expect(matchingRows).toHaveLength(distinctWindowCount);
+    expect(distinctWindowCount).toBe(81);
     expect(rendered).not.toMatch(/\(\d+ matches\)/);
   });
 });
@@ -144,10 +133,6 @@ function fileIdentity(hit: GrepHit): string {
     hit.read.target,
     hit.read.path,
   ]);
-}
-
-function locator(hit: GrepHit): string {
-  return hit.__typename === "GrepRepositoryHit" ? hit.filePath : hit.pageUrl;
 }
 
 function renderedSlice(slice: GrepLineSlice): string {
@@ -168,14 +153,8 @@ function escapeSource(value: string): string {
     .join("");
 }
 
-function increment<K>(
-  counts: Map<K, Map<string, number>>,
-  key: K,
-  value: string,
-): void {
-  const values = counts.get(key) ?? new Map<string, number>();
-  values.set(value, (values.get(value) ?? 0) + 1);
-  counts.set(key, values);
+function increment(counts: Map<string, number>, value: string): void {
+  counts.set(value, (counts.get(value) ?? 0) + 1);
 }
 
 function countValues(values: string[]): Map<string, number> {

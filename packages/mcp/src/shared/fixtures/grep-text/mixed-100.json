@@ -2524,7 +2524,9 @@
       "binaryFilesSkipped": 0,
       "filesTooLargeSkipped": 0,
       "fileIssues": [],
-      "fileIssuesOmitted": 0
+      "fileIssuesOmitted": 0,
+      "repoUrl": "https://github.com/expressjs/express",
+      "canonicalSite": null
     },
     {
       "targetIndex": 1,
@@ -2544,7 +2546,9 @@
       "binaryFilesSkipped": null,
       "filesTooLargeSkipped": null,
       "fileIssues": null,
-      "fileIssuesOmitted": null
+      "fileIssuesOmitted": null,
+      "repoUrl": null,
+      "canonicalSite": "https://expressjs.com"
     }
   ]
 }

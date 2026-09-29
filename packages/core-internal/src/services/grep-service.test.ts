@@ -118,6 +118,8 @@ function mixed(): GrepResult {
       filesTooLargeSkipped: null,
       fileIssues: null,
       fileIssuesOmitted: null,
+      repoUrl: targetIndex === 0 ? "https://github.com/o/r" : null,
+      canonicalSite: targetIndex === 0 ? null : "https://docs.test",
     })),
   };
 }
@@ -142,8 +144,6 @@ function detailedMixed(): GrepResult {
   }
   for (const target of data.targets)
     Object.assign(target, {
-      repoUrl: null,
-      canonicalSite: null,
       urlPrefixes: [],
     });
   return data;
@@ -151,6 +151,26 @@ function detailedMixed(): GrepResult {
 
 describe("unified grep service", () => {
   for (const detailed of [false, true]) {
+    it(`requires selected source identities in ${detailed ? "detailed" : "compact"} mode`, () => {
+      const data = detailed ? detailedMixed() : mixed();
+      const parsed = parseGrepResult(data, detailed);
+      expect(parsed).toEqual(data);
+      expect(parsed.targets[0]?.canonicalSite).toBeNull();
+      expect(parsed.targets[1]?.repoUrl).toBeNull();
+      expect(parsed.targets[1]?.canonicalSite).toBe("https://docs.test");
+      for (const field of ["repoUrl", "canonicalSite"] as const) {
+        const missing = structuredClone(data);
+        Reflect.deleteProperty(missing.targets[0]!, field);
+        expect(() => parseGrepResult(missing, detailed)).toThrow(
+          MalformedGrepResponseError,
+        );
+        const malformed = structuredClone(data);
+        Object.assign(malformed.targets[0]!, { [field]: 42 });
+        expect(() => parseGrepResult(malformed, detailed)).toThrow(
+          MalformedGrepResponseError,
+        );
+      }
+    });
     it(`rejects read paths incompatible with the hit kind in ${detailed ? "detailed" : "compact"} mode`, () => {
       const data = detailed ? detailedMixed() : mixed();
       expect(parseGrepResult(data, detailed)).toEqual(data);
@@ -227,6 +247,15 @@ describe("unified grep service", () => {
             `${field} @include(if: $includeDetailedFields)`,
           );
         expect(body.query).toContain("read { target path startLine endLine }");
+        const scopeSelection = body.query
+          .split("targets {")[1]
+          .split("fileIssues {")[0];
+        expect(scopeSelection).toContain("repoUrl canonicalSite");
+        expect(scopeSelection).not.toContain("repoUrl @include");
+        expect(scopeSelection).not.toContain("canonicalSite @include");
+        expect(scopeSelection).toContain(
+          "urlPrefixes @include(if: $includeDetailedFields)",
+        );
         expect(body.query).toContain("fragment LineSlice on GrepRepoLineSlice");
         for (const fragment of ["RepositoryMatch", "SiteMatch"]) {
           const selection = body.query

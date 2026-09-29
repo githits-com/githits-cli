@@ -57,6 +57,8 @@ function scope(overrides: Partial<GrepTargetStatus> = {}): GrepTargetStatus {
     filesTooLargeSkipped: 0,
     fileIssues: [],
     fileIssuesOmitted: 0,
+    repoUrl: "https://github.com/o/r",
+    canonicalSite: null,
     ...overrides,
   };
 }
@@ -175,9 +177,8 @@ describe("grep evidence rendering", () => {
     const first = hit();
     const second = hit({ read: { ...first.read, target: "github:o/r@other" } });
     const text = formatGrepText(page([first, second]));
-    expect(text.match(/^a.ts$/gm)).toHaveLength(2);
-    expect(text).toContain("'github:o/r@sha'");
-    expect(text).toContain("'github:o/r@other'");
+    expect(text).toContain("[1] github:o/r@sha a.ts");
+    expect(text).toContain("[2] github:o/r@other a.ts");
   });
   it("retains different hosted display/read URLs and quotes unsafe shell and leading-dash operands", () => {
     const source = hit({
@@ -214,15 +215,17 @@ describe("grep evidence rendering", () => {
       ],
     });
     const cli = formatGrepText(data);
-    expect(cli).toContain("Read path: -root path.ts");
-    expect(cli).toContain("-- '-target'\"'\"'with space' '<read-path>'");
-    expect(cli).toContain("-- 'https://docs.test/p?a=1&b=2'");
+    expect(cli).toContain("[1] '-target'\"'\"'with space' '-root path.ts'");
+    expect(cli).not.toContain("display.ts");
+    expect(cli).toContain("read --lines $start-$end -- $target $path");
+    expect(cli).toContain(
+      "[2] 'https://docs.test/p?a=1&b=2' [page: https://docs.test/display]",
+    );
     expect(cli).toContain("https://docs.test/display");
     const mcp = formatGrepText(data, { syntax: "mcp" });
-    expect(mcp).toContain(
-      'read target="-target\'with space" path="<read-path>" start_line=<start> end_line=<end>',
-    );
-    expect(mcp).toContain('read target="https://docs.test/p?a=1&b=2"');
+    expect(mcp).toContain('[1] "-target\'with space" "-root path.ts"');
+    expect(mcp).toContain("read target=$url start_line=$start end_line=$end");
+    expect(mcp).toContain('[2] "https://docs.test/p?a=1&b=2"');
   });
   it("counts zero-width matches without fabricated highlight text or empty ANSI spans", () => {
     const data = page([hit({ matchStartByte: 3, matchEndByte: 3 })]);
@@ -230,6 +233,17 @@ describe("grep evidence rendering", () => {
     expect(text).toContain("1 match in 1 line across 1 file");
     expect(text).toContain("3: router");
     expect(text).not.toContain(colors.yellow);
+  });
+  it("quotes shell comment paths and literal backslashes while leaving ordinary locators readable", () => {
+    for (const path of ["#notes.md", String.raw`a\b.ts`]) {
+      const data = page([hit({ read: { ...hit().read, path } })]);
+      const cli = formatGrepText(data);
+      expect(cli).toContain(`[1] github:o/r@sha '${path}'`);
+      expect(formatGrepText(data, { syntax: "mcp" })).toContain(
+        `[1] github:o/r@sha ${JSON.stringify(path)}`,
+      );
+    }
+    expect(formatGrepText(page([hit()]))).toContain("[1] github:o/r@sha a.ts");
   });
   it("leads complete empty pages with only the outcome and makes partial scope coverage readable", () => {
     expect(formatGrepText(page([]))).toBe("No matches.");

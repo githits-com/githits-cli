@@ -2,8 +2,9 @@
 
 ## Status and outcome
 
-**Status: OUTPUT REFINEMENT COMPLETE; PENDING MERGE.** Phase 1 is merged. Its CLI
-output refinement is implemented and verified; MCP replacement waits for its merge.
+**Status: OUTPUT REVISION IN PROGRESS.** Phase 1 is merged. Output PR #433 is
+open; user steering replaces outer source grouping and the footer with a
+Sources summary and numbered, copyable file/page locator headers. MCP replacement waits for its merge.
 The sequence is CLI introduction, useful and compact CLI text, then replacement
 of the advertised MCP `code_grep` tool.
 
@@ -311,10 +312,11 @@ legacy `hasMore`, filter echoes, unique-file counts, or a global-total fiction.
 
 Text leads with page match count and traversal, then concise scope status and
 match blocks. Group text across the complete returned page by physical scope and exact
-file/page read identity. Preserve scope/file first-appearance order, then
+file/page read identity. Preserve file/page first-appearance order, then
 show numbered lines in source order. Backend occurrence order remains in JSON. Reuse numbered `line: content` matches,
 `line- content` context, and visible slice omission markers. Preserve tabs in
-source/context content; escape other C0/C1/DEL controls and locator backslashes.
+source/context content; escape other C0/C1/DEL controls. Quote copyable locator
+operands exactly, preserving literal backslashes.
 Preserve backend Unicode. Keep prose wrapped
 to caller width, source lines intact, formatter punctuation ASCII, and meaning
 independent of color. CLI and MCP use the same formatter with color/width inputs.
@@ -328,10 +330,9 @@ over context rows. Zero-context results have no gap separators; when context
 rows are rendered, `--` separates non-contiguous blocks.
 
 Text carries exact backend read targets and repository-root paths, with
-numbered source/context rows and shared read recipes. Repeat snapshot targets
-once per distinct read identity rather than one executable command per
-occurrence. JSON retains every original read action and its exact bounds.
-Recipes visibly use placeholders for the chosen path/window; they are not new
+numbered file/page headers and source/context rows. Use generic read templates
+at the top; retain the full snapshot in each file locator. JSON retains every original read action and its exact bounds.
+Templates visibly use placeholders for the chosen path/window; they are not new
 read aliases or a promise that disjoint hits form one continuous read range. Show warnings for stale/failed/unready
 scopes, skipped/issue-bearing files, safety normalization, and unavailable docs
 even when hits are empty. Say “No matches” with exhaustive meaning only for
@@ -494,7 +495,7 @@ They cover default zero-context pages without omissions; omission and other
 coverage shapes are regression cases, not additional budget benchmarks. No
 search-suite benchmark or debug-build timing is needed.
 
-### Phase 1 follow-up — useful, compact grep text (COMPLETE; PENDING MERGE)
+### Phase 1 follow-up — useful, compact grep text (SOURCE HEADER REVISION IN PROGRESS)
 
 Problem: the merged output treats backend occurrences as independent display
 blocks and repeats read commands and routine protocol fields. User-provided
@@ -505,8 +506,8 @@ text was misplaced; backend/JSON ordering belongs to the data contract, and
 the formatter owns a layout useful to people and agents.
 
 Expected outcome: readers can scan one file/page heading and numbered matching
-lines, identify repository versus hosted docs, and reopen or continue the evidence
-without wading through per-occurrence scaffolding. Repeated occurrences on one
+lines, copy exact read locators from file/page headers, and reopen or continue the
+evidence without per-occurrence scaffolding or a read footer. Repeated occurrences on one
 physical line/window occupy one display row; the page summary distinguishes
 occurrences from matching lines. Full machine evidence remains lossless JSON.
 
@@ -542,7 +543,7 @@ Implemented decisions and assumptions:
 
 - Follow the supplied legacy screenshot: grouped file/page headings, aligned
   line gutters, standard `:` match / `-` context markers, and optional match
-  highlighting. Scope grouping and identical-window coalescing affect text
+  highlighting. File grouping and identical-window coalescing affect text
   only, not page membership, budgets, JSON or backend cursor semantics.
 - Retain complete backend-provided windows in this increment. Extra client
   clipping saved only 113 tokens on the mixed prototype and none on the
@@ -551,8 +552,9 @@ Implemented decisions and assumptions:
   full windows and does not introduce a long-line preview control.
 - No default executable command per occurrence. A reusable read recipe states
   the actual full snapshot/page target; file headers retain the actual read
-  path when it differs from the package display path. Row line numbers support
-  a chosen read window. All original backend read actions remain in JSON.
+  path. Row line numbers support a chosen read window. All original backend
+  read actions remain in JSON. The locator-header revision below supersedes the
+  original read-recipe footer and outer source grouping.
 - No new verbose flag in this increment. Default text is the useful evidence
   view; existing `--json` carries full raw status/provenance/action detail.
 - Keep matching controls, package-selected doc expansion, limits, default
@@ -586,7 +588,7 @@ Architecture and ownership:
   fields used by text remain selected. Detailed JSON remains
   strictly selected and validated; unknown malformed output stays rejected.
 
-Implementation is complete. The permanent grouping, selection, escaping,
+The initial implementation is complete. The permanent grouping, selection, escaping,
 read-action and coverage contracts are in `docs/implementation/unified-grep.md`.
 The exact fixture corpus, built byte/line measurement script and attribution are
 checked in; token measurement stays external. One serial Luna worker owned the
@@ -598,9 +600,9 @@ mode; no public MCP migration, new infrastructure, release or backend edit occur
 Acceptance and evidence:
 
 - A captured mixed page has one heading per exact file/page identity, every
-  distinct backend window once, truthful occurrence/line counts, one full
-  snapshot per read recipe, no per-hit read commands, and no protocol-status
-  dump. The legacy screenshot's readable line gutters and highlighting remain.
+  distinct backend window once, truthful occurrence/line counts, the full
+  snapshot in each repository file locator, no per-hit read commands or read footer, and no
+  protocol-status dump. The legacy screenshot's readable line gutters and highlighting remain.
 - Every supplied physical window and required warning survives presentation.
   JSON deep equality proves all hits, order, offsets, attribution, statuses,
   reads, omissions and cursor remain unchanged. Grouped text is explicitly
@@ -616,7 +618,7 @@ Acceptance and evidence:
   files, source safety normalization, expired cursors and partial pages.
 - Query/validation tests prove compact mode fetches only needed display offsets
   in addition to its real consumers; redundant lineContent, physical offsets,
-  modification detail and JSON-only provenance remain excluded as appropriate.
+  modification detail and JSON-only hit provenance remain excluded as appropriate.
   Detailed JSON strictness and field/enum rejection remain covered.
 - Re-render the exact two frozen fixture cases with the built Node formatter.
   The checked-in script measures bytes and lines; temporary external tiktoken
@@ -759,6 +761,106 @@ Proof artifacts: `/tmp/nuckelavee-grep-ux-{benchmark-results,token-results}.json
 `-prod-replay{.log,-results.json}`, `-partial-output.txt`, `-live-colored.txt`,
 `-tests-final.log`, and the separately named smoke logs. Research diagnosis is
 `-research-protocol.log`; prior captures and `/tmp/unified-grep-*` remain intact.
+
+User-directed locator-header revision (2026-09-29; IMPLEMENTATION READY):
+
+- User confirmed numbered file/page headers. `[1]`, `[2]` identify displayed
+  evidence groups, following search's result numbering; source aliases are removed.
+  Keep first-file/page appearance order, exact identity grouping, every native
+  window/span and identical-window coalescing. No outer grouping by source.
+- One search-style `Sources:` summary groups physical repository/site identities
+  beneath their attributed target. A hosted website appears once per resolved
+  scope, never once per page. Backend `canonicalSite` owns the site identity;
+  backend `repoUrl`/`commitSha` own repository provenance. Select and require
+  nullable scope `repoUrl` and `canonicalSite` in compact and detailed responses.
+  This is the smallest added wire data needed by the summary; hit identities,
+  physical coordinates and other JSON-only fields remain conditional.
+- Repository file headers begin with the backend read target (canonical provider
+  spelling where supported), full served SHA and exact repository-root read path.
+  Page headers begin with the exact backend read URL, retaining a differing display
+  URL as secondary metadata. Numbering is presentation-only; never reuse it as
+  targetIndex, requested input attribution or a continuation operand.
+- At the top, print one generic file read structure and one page read structure
+  when those hit kinds occur: `read --lines $start-$end -- $target $path` and
+  `read --lines $start-$end -- $url`. MCP uses its native argument names.
+  Safe ordinary locator words remain bare; quote unsafe shell operands exactly.
+  Preserve line numbers for chosen windows. No per-hit command or read footer.
+- Cursor/restart/incomplete guidance stays above evidence. Preserve all warnings,
+  omissions and opaque cursors. Hosted mutability belongs in `--cursor` help;
+  result text omits the repeated notice. Complete empty output stays concise.
+- Verified schema/live grep lacks resolved package version and target-relative
+  read paths. Do not invent npm:express@5.2.1 from an unversioned request or
+  substitute package-relative paths for supplied repository-root read paths.
+- Search cleanup is already present in this worktree: a built production
+  `search route --in npm:express` gives a copyable docs URL with `#route` /
+  `#reqroute` fragments and no executable per-hit read commands. Source Bun
+  resolution points at the same formatter; no search change is required.
+- Frozen two-case prototype: mixed 6,929 bytes / 2,106 tokens, repository 5,719
+  bytes / 1,687 tokens, including
+  all 81/99 distinct windows and the actual cursor. These are layout-study
+  numbers; remeasure the exact built formatter before claiming final savings.
+  Both copied prototype locators were replayed against production: pinned
+  `lib/application.js` lines 24-28 and hosted 3.x application lines 106-110 pass.
+- Acceptance: sequential numbered copyable headers, one website summary despite
+  multiple pages, first-appearance file ordering, exact full-SHA/root-path reads,
+  safe shell operands, unchanged JSON, complete/partial empty coverage and all
+  native span/context/color invariants. Add compact/detail selection/strictness
+  regressions and verify exact captured fixture projection with the added fields.
+  Re-run both built size cases and >=65% byte/token reduction against originals,
+  focused and full tests, typecheck/build/package checks, affected live CLI/MCP
+  and built smoke, exact source repro/mixed two-page compact+detailed continuation,
+  real printed-header reads, and one narrow agent follow-up workload.
+- Mechanical dispatch sequence (serial, one concern each): existing Luna worker
+  updates only the two frozen compact fixtures plus provenance README to include
+  original scope identity fields, proved by exact raw projection; then updates
+  the existing 100-hit mixed regression to prove numbered locator headers and
+  retained rows. One correction dispatch makes its fixed header array a typed
+  tuple after project typecheck caught an optional array index. Coordinator owns core selections, formatter, other regressions,
+  docs, measurements, live acceptance, review and delivery. Earlier cursor-help
+  dispatch remains accepted. Full-access sandbox; no backend edits or releases.
+
+
+Locator-revision stable checkpoint (2026-09-29; final review pending):
+
+- User-approved layout implemented. Fixed built width-80 cases: mixed 6,929
+  bytes / 105 lines / 2,106 o200k_base tokens; repository 5,719 / 114 / 1,687.
+  Reductions against original output: 70.5% / 73.8% and 70.7% / 77.5%
+  bytes/tokens. All 100 occurrences and 81/99 distinct windows are retained.
+- Exact compact projection checks pass for both fixtures after selecting source
+  identities; all four captured detailed pages retain deep-equal JSON.
+  Focused tests: 47 pass / 323 assertions. Full suite: 5,160 pass / 18,743
+  assertions / 225 files. Typecheck, Biome, build and package validation pass.
+- Production exact source repro passes through both source Bun and built Node.
+  Mixed CLI/service compact+detailed two-page continuation retains two scopes,
+  distinct repository/site hits, UNSPECIFIED then CURRENT, input indices [0,1]
+  and distinct cursors. Built mixed/repository/no-hit pages and copied-header
+  reads pass. User middleware repro has 13 file/page headers and one website
+  identity. Partial/no-hit rendering retains every coverage fact.
+- Authenticated CLI smoke: 154 steps, both cohorts; MCP: 65 steps, both cohorts.
+  Built secret-free CLI/MCP smoke pass. Initial live built check overlapped
+  package validation's dist rebuild and was invalidated; repeated after the
+  rebuild, all live cases pass. Failed capture/log is retained separately.
+- Targeted Codex skills-surface agent eval of the actual new layout made exactly
+  two successful read calls, reopened the exact pinned file and hosted URL and
+  reported returned ranges 22-32 and 103-113. No isolation violations were
+  emitted. Tool calls/final/metrics inspected; no grading or broad model-quality
+  claim is made. Prior source-alias eval is historical evidence only.
+- Internal current full-delta review is clean. Existing retained external
+  reviewer will inspect the updated delta after requested main rebase; round 3
+  remains pending. The user explicitly requested rebase on origin/main and
+  adaptation to updated unified read targets at this checkpoint.
+- Coordinator owns core/formatter/read preservation; the same Luna worker made
+  two accepted mechanical returns (fixture identities and mixed regression),
+  plus one tuple-typing correction after typecheck. Earlier cursor-help return
+  remains accepted. No backend/MCP migration/release scope added.
+
+Proof artifacts: `/tmp/nuckelavee-grep-locator-{benchmark-results,token-results}.json`,
+`-rendered/*.txt`, `-live-{mixed,repository,nohit,middleware}.*`,
+`-prod-replay-results.json`, `-replay-auth.log`, `-source-repro-auth.log`,
+`-json-replay.log`, `-partial-output.txt`, `-focused.log`, `-full-tests.log`,
+`-cli-smoke-auth.log`, `-mcp-smoke-auth.log`, `-built-smoke.log`, and
+`-agent-codex/workloads/nuckelavee-grep-locator-read-followup/`.
+
 
 Phase boundary: after this follow-up merges, run next-steps against refreshed
 main before MCP. Keep the same useful formatter as the MCP output contract.

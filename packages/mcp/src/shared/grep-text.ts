@@ -1,11 +1,14 @@
 import type {
   GrepHit,
   GrepLineSlice,
-  GrepReadAction,
   GrepResult,
   GrepTargetStatus,
 } from "@githits/core-internal";
-import { colors, highlightMatch } from "./colors.js";
+import { colors, dim, highlightMatch } from "./colors.js";
+import {
+  formatRepositoryTarget,
+  formatRepositoryTargetLabel,
+} from "./repository-target.js";
 import { shellQuoteExact } from "./shell-quote.js";
 import { terminalWidth } from "./terminal-width.js";
 
@@ -67,62 +70,27 @@ export function formatGrepText(
       prose(`  Suggested site: ${target}`);
   }
 
-  const scopes = new Map(
-    result.targets.map((scope) => [scope.targetIndex, scope]),
-  );
-  const groupedScopes = new Map<number, FileGroup[]>();
-  for (const group of groups) {
-    const scopeGroups = groupedScopes.get(group.first.targetIndex) ?? [];
-    scopeGroups.push(group);
-    groupedScopes.set(group.first.targetIndex, scopeGroups);
-  }
-  const recipes = new Map<string, GrepReadAction>();
-  for (const [index, files] of groupedScopes) {
-    // biome-ignore lint/style/noNonNullAssertion: Core validates every hit's physical scope.
-    const scope = scopes.get(index)!;
-    const corpus =
-      scope.corpus === "SOURCE"
-        ? " (source files)"
-        : scope.corpus === "DOCUMENTATION"
-          ? " (repository docs)"
-          : "";
+  if (groups.length) {
     lines.push("");
-    prose(
-      `${scope.kind === "REPOSITORY" ? "Repository" : "Hosted docs"}: ${scope.target}${corpus}`,
-    );
-    for (const group of files) {
-      const first = group.first;
-      lines.push("", escapeText(locator(first)));
-      if (
-        first.__typename === "GrepRepositoryHit" &&
-        first.filePath !== first.read.path
-      )
-        lines.push(`Read path: ${escapeText(first.read.path)}`);
-      const rows = groupRows(group.hits);
-      const gutter = Math.max(...rows.map((row) => String(row.number).length));
-      const hasContext = rows.some((row) => !row.match);
-      let previous: number | undefined;
-      for (const row of rows) {
-        if (hasContext && previous !== undefined && row.number > previous + 1)
-          lines.push("--");
-        lines.push(
-          `${String(row.number).padStart(gutter)}${row.match ? ":" : "-"} ${renderSlice(row, options.useColors ?? false)}`,
-        );
-        previous = row.number;
-      }
-      const key = JSON.stringify([first.read.target, first.read.path !== null]);
-      recipes.set(key, first.read);
-      if (group.hits.some((hit) => hit.contentSafety.filtered))
-        prose(
-          "Safety normalization applied; physical source coordinates remain in JSON.",
-        );
-    }
-  }
-  if (recipes.size) {
-    lines.push("");
-    prose("Read recipes (replace placeholders):");
-    for (const action of recipes.values())
-      lines.push(`  ${formatReadRecipe(action, options.syntax ?? "cli")}`);
+    prose(`Sources: ${formatSources(result.targets)}`);
+    if (kinds.has("GrepRepositoryHit"))
+      lines.push(
+        dim(
+          options.syntax === "mcp"
+            ? "# Read files: read target=$target path=$path start_line=$start end_line=$end"
+            : "# Read files: read --lines $start-$end -- $target $path",
+          options.useColors === true,
+        ),
+      );
+    if (kinds.has("GrepSiteHit"))
+      lines.push(
+        dim(
+          options.syntax === "mcp"
+            ? "# Read pages: read target=$url start_line=$start end_line=$end"
+            : "# Read pages: read --lines $start-$end -- $url",
+          options.useColors === true,
+        ),
+      );
   }
   if (result.nextCursor) {
     lines.push("");
@@ -135,14 +103,45 @@ export function formatGrepText(
   }
   if (result.traversal === "CURSOR_EXPIRED")
     prose(
-      "Cursor expired. Restart explicitly without the cursor; retained matches and omissions are shown above.",
+      "Cursor expired. Restart explicitly without the cursor; retained matches and omissions are included.",
     );
   else if (result.traversal !== "COMPLETE" && !result.nextCursor)
     prose("Traversal is incomplete and has no continuation cursor.");
-  if (result.hits.some((hit) => hit.__typename === "GrepSiteHit"))
-    prose(
-      "Hosted page reads use current content; pages can change after this search.",
+  for (const [index, group] of groups.entries()) {
+    const first = group.first;
+    const target =
+      first.__typename === "GrepRepositoryHit"
+        ? formatReadTarget(first.read.target)
+        : first.read.target;
+    const path =
+      first.read.path !== null
+        ? ` ${quoteLocator(first.read.path, options.syntax)}`
+        : "";
+    const display =
+      first.__typename === "GrepSiteHit" && first.pageUrl !== first.read.target
+        ? ` [page: ${escapeText(first.pageUrl)}]`
+        : "";
+    lines.push(
+      "",
+      `[${index + 1}] ${quoteLocator(target, options.syntax)}${path}${display}`,
     );
+    const rows = groupRows(group.hits);
+    const gutter = Math.max(...rows.map((row) => String(row.number).length));
+    const hasContext = rows.some((row) => !row.match);
+    let previous: number | undefined;
+    for (const row of rows) {
+      if (hasContext && previous !== undefined && row.number > previous + 1)
+        lines.push("--");
+      lines.push(
+        `${String(row.number).padStart(gutter)}${row.match ? ":" : "-"} ${renderSlice(row, options.useColors ?? false)}`,
+      );
+      previous = row.number;
+    }
+    if (group.hits.some((hit) => hit.contentSafety.filtered))
+      prose(
+        "Safety normalization applied; physical source coordinates remain in JSON.",
+      );
+  }
   return lines.join("\n");
 }
 
@@ -243,8 +242,54 @@ function hasCoverageGap(scope: GrepTargetStatus): boolean {
     )
   );
 }
-function locator(hit: GrepHit): string {
-  return hit.__typename === "GrepRepositoryHit" ? hit.filePath : hit.pageUrl;
+function formatSources(scopes: GrepTargetStatus[]): string {
+  const targets = new Map<string, Set<string>>();
+  for (const scope of scopes) {
+    const sources = targets.get(scope.target) ?? new Set<string>();
+    if (scope.kind === "SITE" && scope.canonicalSite)
+      sources.add(
+        `site:${scope.canonicalSite.replace(/^https?:\/\//i, "").replace(/\/$/, "")}`,
+      );
+    if (scope.kind === "REPOSITORY" && scope.repoUrl && scope.commitSha) {
+      const corpus =
+        scope.corpus === "SOURCE"
+          ? " (source files)"
+          : scope.corpus === "DOCUMENTATION"
+            ? " (repository docs)"
+            : "";
+      sources.add(
+        `${formatRepositoryTarget(scope.repoUrl, scope.commitSha.slice(0, 8))}${corpus}`,
+      );
+    }
+    targets.set(scope.target, sources);
+  }
+  return [...targets]
+    .map(([target, sources]) => {
+      const identities = [...sources].sort(
+        (a, b) => Number(b.startsWith("site:")) - Number(a.startsWith("site:")),
+      );
+      if (identities.length && formatRepositoryTargetLabel(target))
+        return identities.join(", ");
+      return `${target}${identities.length ? ` - ${identities.join(", ")}` : ""}`;
+    })
+    .join("; ");
+}
+
+/** Abbreviate the repository URL while preserving the backend's exact ref suffix. */
+function formatReadTarget(target: string): string {
+  const delimiter = target.lastIndexOf("@");
+  return delimiter < 0
+    ? target
+    : `${formatRepositoryTarget(target.slice(0, delimiter))}${target.slice(delimiter)}`;
+}
+
+/** Keep ordinary locators readable and unsafe operands copyable without shell expansion. */
+function quoteLocator(
+  value: string,
+  syntax: GrepTextOptions["syntax"],
+): string {
+  if (/^[A-Za-z0-9_./:@%+=-][A-Za-z0-9_./:@%#+=-]*$/.test(value)) return value;
+  return syntax === "mcp" ? JSON.stringify(value) : shellQuoteExact(value);
 }
 function fileIdentity(hit: GrepHit): (string | number | null)[] {
   return [hit.targetIndex, hit.__typename, hit.read.target, hit.read.path];
@@ -337,14 +382,6 @@ function renderSlice(row: RenderLine, useColors: boolean): string {
     content += escapeSource(decoder.decode(bytes.subarray(cursor)));
   }
   return `${slice.startByte > 0 ? "[...] " : ""}${content}${slice.endByte < slice.originalLineBytes ? " [...]" : ""}`;
-}
-function formatReadRecipe(
-  action: GrepReadAction,
-  syntax: "cli" | "mcp",
-): string {
-  if (syntax === "mcp")
-    return `read target=${JSON.stringify(action.target)}${action.path !== null ? ' path="<read-path>"' : ""} start_line=<start> end_line=<end>`;
-  return `githits read --lines '<start>-<end>' -- ${shellQuoteExact(action.target)}${action.path !== null ? " '<read-path>'" : ""}`;
 }
 function escapeText(value: string): string {
   return escapeControls(value.replace(/\\/g, "\\\\"));

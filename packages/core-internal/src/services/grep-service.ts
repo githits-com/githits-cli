@@ -141,8 +141,8 @@ export interface GrepTargetStatus {
   filesTooLargeSkipped: number | null;
   fileIssues: GrepFileIssue[] | null;
   fileIssuesOmitted: number | null;
-  repoUrl?: string | null;
-  canonicalSite?: string | null;
+  repoUrl: string | null;
+  canonicalSite: string | null;
   urlPrefixes?: string[];
 }
 export interface GrepUnavailableTarget {
@@ -327,8 +327,8 @@ function resultSchema(detailed: boolean): z.ZodType<GrepResult> {
             }),
           )
           .nullable(),
-        repoUrl: selected(nullableString),
-        canonicalSite: selected(nullableString),
+        repoUrl: nullableString,
+        canonicalSite: nullableString,
         urlPrefixes: selected(z.array(z.string())),
       }),
     ),
@@ -400,8 +400,7 @@ const GRAPHQL_QUERY = `query Grep(
     targets {
       targetIndex requestedInputIndices kind target traversal readiness errorCode retryable publicMessage
       requestedRef commitSha corpus filesScanned filesInScope binaryFilesSkipped filesTooLargeSkipped fileIssuesOmitted
-      repoUrl @include(if: $includeDetailedFields)
-      canonicalSite @include(if: $includeDetailedFields)
+      repoUrl canonicalSite
       urlPrefixes @include(if: $includeDetailedFields)
       fileIssues {
         filePath code line contentSafety { filtered modifications @include(if: $includeDetailedFields) }

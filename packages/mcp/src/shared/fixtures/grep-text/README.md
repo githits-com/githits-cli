@@ -4,7 +4,9 @@ These fixtures preserve two public production grep pages captured on
 2026-09-29. `mixed-100.json` covers a package search whose selected evidence
 includes both Express source and hosted documentation. `repository-100.json`
 covers source-only results from a pinned Express repository snapshot. Each file
-is the compact formatter-input projection of its captured response.
+is the compact formatter-input projection of its captured response and includes
+the original nullable `repoUrl` and `canonicalSite` scope identities for the
+shared source summary.
 
 The exact public requests were:
 
