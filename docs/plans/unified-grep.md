@@ -2,7 +2,7 @@
 
 ## Status and outcome
 
-**Status: IN PROGRESS.** Phase 1 implementation is authorized via `$orchestrate`.
+**Status: IN PROGRESS.** Phase 1 is merged; Phase 2 is ready and not started.
 The requested sequence is two increments: introduce the top-level
 CLI command first, then replace the advertised MCP `code_grep` tool.
 
@@ -360,7 +360,17 @@ the existing CLI's successful-empty-result convention.
 
 ## Ordered phases
 
-### Phase 1 — top-level CLI mixed grep (COMPLETE; PENDING MERGE)
+### Phase 1 — top-level CLI mixed grep (MERGED)
+
+[PR #429](https://github.com/githits-com/githits-cli/pull/429) merged on
+2026-09-29 at `9f96f74319eeb718abef2969785a005ef4bef182`. Freshly fetched
+`origin/main` is that same commit. Its [Main CI](https://github.com/githits-com/githits-cli/actions/runs/36549214105)
+and [Agent Evals workflow](https://github.com/githits-com/githits-cli/actions/runs/36549213730)
+completed successfully. The observed pre-merge validation remains recorded
+below: 5,098 tests, dev and production acceptance, and 154 CLI / 65 MCP smoke
+steps against production. No implementation tests were rerun for this
+bookkeeping. The Phase 1 Claude reviewer was released after merge confirmation;
+Orca confirmed `processAction: closed_agent_terminal`.
 
 Implementation checkpoint after the backend small-page correction and production verification (2026-09-29):
 
@@ -413,26 +423,7 @@ and publication remain outside this increment's authorization.
 Product decisions: none blocking implementation of this proposal.
 Dependencies: backend `Query.grep` and dev v6 access for mixed-source validation.
 
-Implementation order:
-
-1. Add core grep interfaces/implementation and tests; export them internally
-   from `packages/core-internal/src/index.ts`. Follow narrow list-service
-   transport/error ownership, retaining structured preparation issues.
-2. Add shared request/error/projector/formatter helpers and tests, with a
-   private workspace export in `packages/mcp/src/internal.ts`. Separate union
-   payloads from the legacy `GrepRepoResult`/`LeanGrepRepoEnvelope`.
-3. Wire `grepService` in both root container paths and add a service mock
-   factory following `test-helpers.ts`. Add `src/commands/grep.ts`, its tests,
-   command-index export and `src/cli.ts` registration. Network config remains
-   lazy on help/local-only paths; cover malformed env regressions.
-4. Add CLI smoke assertions in `scripts/cli-smoke.ts`; preserve existing MCP
-   catalog assertions. Update CLI reference/help and create
-   `docs/implementation/unified-grep.md` with architecture, coverage semantics,
-   action replay and compatibility limits. Add a fragment declaring
-   `githits: minor`, `@githits/mcp: none` because the public MCP API/catalog is
-   unchanged. Reassess if implementation actually alters a public export.
-
-Acceptance and evidence:
+Completed Phase 1 acceptance contract:
 
 - Pure request tests cover ordered multi-target inputs, global CLI source
   controls, per-target selectors, sites, empty arrays/strings, whitespace
@@ -490,7 +481,7 @@ repository hits at one served commit and 100 mixed repository/site hits with
 one omission and cursor, before/after the same cases. Do not benchmark the
 whole search/navigation suite or report debug-build timings.
 
-### Phase 2 — MCP `grep` replaces `code_grep` (PENDING Phase 1)
+### Phase 2 — MCP `grep` replaces `code_grep` (READY; NOT STARTED)
 
 Expected outcome: the advertised MCP catalog has one mixed-source `grep` tool;
 agents receive the same reads, pagination and truthful coverage as CLI users.
@@ -498,10 +489,12 @@ Legacy source-only flags disappear from MCP, with migration documented.
 
 Assumptions: Phase 1 semantics and shared helpers prove sufficient; required
 provider service additions follow the existing read-service precedent.
-Unknowns: current main's list consolidation status must be rechecked at this
-boundary. Production grep v6 conformance passed on 2026-09-29; recheck the
-deployed contract when Phase 2 starts. Resolve routing against whatever
-inventory tool is actually advertised, without taking ownership of list work.
+Boundary verification on 2026-09-29: the stable MCP catalog still advertises
+`code_grep` and `code_files`; unified MCP `list` has not replaced the inventory
+tool. Grep guidance must route inventory to `code_files`, without adopting
+list work. Production grep v6 conformance passed on 2026-09-29, and the local
+backend schema still documents retained UNSPECIFIED scopes and continuation.
+Unknowns: none blocking this increment.
 Product decisions: none; MCP removal is requested. Dependencies: Phase 1 merged,
 public package compatibility validation, and dev access for MCP conformance.
 
@@ -583,11 +576,20 @@ unified cursors into the legacy root.
 
 ## Phase boundary and completion
 
-After Phase 1 merges, reorient against current `origin/main`: record actual
-validation, confirm backend schema/deployment, reconcile read/list changes,
-reassess Phase 2 public compatibility and instruction dependencies, and adjust
-detail before implementation. Use the next-step readiness workflow if available;
-do not proceed from stale assumptions or treat package release as deployment.
+Phase 1 boundary reorientation is complete at refreshed `origin/main`
+`9f96f74319eeb718abef2969785a005ef4bef182`. Verdict: PROCEED with Phase 2;
+no structural drift, changed scope, missing blocking implementation detail or
+unresolved product decision was found. The merged core grep service and shared
+request/result/error/text helpers match this plan. MCP still uses the legacy
+adapter; `McpToolServices` and the public client entrypoint do not yet expose
+grep, exactly as Phase 2 expects. Existing MCP caller-abort errors are rethrown
+through `throwIfCallerCancellation`; the adapter preserves that convention,
+without assuming the current core grep service accepts a transport signal.
+The stable-guide parity exception and descriptor-only Claude/Codex eval
+commands remain supported. Public MCP is still pre-1.0 (`0.23.0`), consistent
+with the planned minor migration fragment. No other lane or hosted-server work
+was adopted, and no production implementation was started by this readiness
+check. Do not treat package release as hosted deployment.
 
 After Phase 2 merges, move lasting decisions and migration/operational facts to
 `docs/implementation/unified-grep.md`, transfer any actual major deferred work
@@ -598,7 +600,7 @@ do not absorb a general code-navigation refactor.
 
 ## Design review
 
-Phase 1 execution sequence (one Luna worker, sequential dispatches):
+Completed Phase 1 execution sequence (one Luna worker, sequential dispatches):
 
 1. Coordinator: core service/types/query/validation and transport tests.
 2. Luna: shared request normalization plus its isolated behavioral tests.
