@@ -258,6 +258,30 @@ describe("createListTool", () => {
     });
   });
 
+  it("normalizes display-cased language and classification filters", async () => {
+    const list = mock(async (_params: ListParams) => listResult());
+    const tool = createListTool({ list });
+
+    await tool.handler(
+      {
+        target: "npm:express",
+        paths: ["lib/**/*.js"],
+        languages: ["JavaScript"],
+        file_types: ["SOURCE"],
+      },
+      {},
+    );
+
+    expect(list).toHaveBeenCalledWith({
+      target: "npm:express",
+      paths: ["lib/**/*.js"],
+      languages: ["javascript"],
+      fileTypes: ["source"],
+      includeDetailedFields: false,
+      includeReadActions: false,
+    });
+  });
+
   it("uses compact source projection and the shared path-only formatter by default", async () => {
     const response = listResult({
       entries: [

@@ -31,6 +31,8 @@ If a missing or ambiguous site returns suggested site targets, retry one of thos
 
 Useful flags: repeatable `--file-type`, `--language`, `--intent`, `--limit` (1-500), `--after`, `--wait` (milliseconds, 0-300000), `--silent`, `--json`. Text lists paths with direct read guidance; `--silent` emits paths only. JSON retains read/browse actions, lifecycle metadata, and `nextCursor`. Continue by replaying the same selection with the returned opaque cursor. Prefer exact emitted read actions to reconstructed locators.
 
+`--file-type` selects classifications such as `source` or `doc`; select file extensions with a quoted path glob such as `'lib/**/*.js'`. File-type and language names are case-insensitive, so `--language JavaScript` and `--language javascript` select the same source language.
+
 Site list paths resolve within the required `site:<host[/scope]>` target. One leading `/` is accepted and stays within that scope; `/` alone selects its root. Omitted or empty list paths also select the root. In text output, a site path without a trailing `/` is a page even when its source URL ended in `/`; directory paths retain their trailing `/`. Literal paths and quoted globs operate only under the supplied target.
 
 `githits read <site-target> <target-relative-page-path>` reuses an ordinary PAGE path with its supplied target; `/` reads the site's landing page. Preserve emitted read/browse action values exactly. Explicit backend actions remain authoritative for exceptional URL/query/encoding identities; do not reconstruct those locators from display paths.

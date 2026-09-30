@@ -177,12 +177,12 @@ export function registerListCommand(
     .option("-R, --recursive", "Traverse matched directories recursively")
     .option(
       "--file-type <type>",
-      "Filter by file type (repeatable)",
+      "Filter by classification, such as source or doc (case-insensitive, repeatable)",
       collectOption,
     )
     .option(
       "--language <language>",
-      "Filter by language (repeatable)",
+      "Filter by language, such as javascript (case-insensitive, repeatable)",
       collectOption,
     )
     .option(

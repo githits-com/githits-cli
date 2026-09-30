@@ -51,7 +51,7 @@ export const readSchema: ReadSchema = {
   target: z
     .string()
     .describe(
-      "With path: explicit site: target for a hosted page, or compact package/repo target for a file; target#symbol narrows a symbol read to that file. Without path: pass a docs target/page ID or compact target#symbol unchanged. The resolved result determines code or docs. Preserve emitted targets unchanged.",
+      "Pass a returned HTTP(S) page URL unchanged to read it directly. A site: target requires a separate exact page path, including / for its root. With path: use a compact package/repo target for a file; target#symbol narrows a symbol read to that file. Without path: use a docs target/page ID or compact target#symbol unchanged. Preserve emitted targets unchanged.",
     ),
   path: z
     .string()

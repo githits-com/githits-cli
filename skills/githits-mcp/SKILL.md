@@ -48,9 +48,10 @@ while a repository target covers the whole snapshot; both include source and
 documentation. Hosted docs use a separate explicit `site:` inventory that
 `list` does not discover. For hosted package docs, search the package with
 `source:"docs"`, then pass the explicit `site:` target from a `[docs page]`
-search header to `list`. Use snippets when sufficient; otherwise read the
-target in that header. For an exact section or bounds, request search JSON and
-replay its `followUp` unchanged, including supplied `selector` and bounds.
+search header to `list`. Use snippets when sufficient; otherwise pass the
+returned HTTP(S) page target unchanged to `read`. A `site:` read requires a
+separate exact page `path`. For an exact section or bounds, request search JSON
+and replay its `followUp` unchanged, including supplied `selector` and bounds.
 For `list` text, pair a listed path with the shared read target in its header
 when present; a full URL row is its own read target. A site row without a
 trailing `/` is a page path even if its source URL ended in `/`; `/` itself

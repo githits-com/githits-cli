@@ -174,7 +174,7 @@ function normalizeStringList(
     if (trimmed.length === 0) {
       throw invalid(field, `${field} entries cannot be blank.`);
     }
-    return trimmed;
+    return trimmed.toLowerCase();
   });
 }
 

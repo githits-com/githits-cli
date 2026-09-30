@@ -63,12 +63,16 @@ const schema: ZodRawShape = {
     .array(z.string())
     .max(64)
     .optional()
-    .describe("Source inventories only; filter by file type."),
+    .describe(
+      "Source inventories only; classifications such as `source` or `doc`, case-insensitive. Select file extensions with a `paths` glob such as `lib/**/*.js`.",
+    ),
   languages: z
     .array(z.string())
     .max(64)
     .optional()
-    .describe("Source inventories only; filter by language."),
+    .describe(
+      "Source inventories only; language names such as `javascript`, `typescript`, or `rust`, case-insensitive.",
+    ),
   intents: z
     .array(z.enum(LIST_INTENTS))
     .max(64)
@@ -100,7 +104,7 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit `format` to use token-efficient text when the model reads the result or follows read and continuation guidance. Set `json` only when code consumes the raw response instead of the model by parsing or filtering it programmatically.",
+      "Omit `format` to use token-efficient text when the model reads the result or follows read and continuation guidance. Set `json` for exact entry kinds or actions, or when code consumes the raw response instead of the model by parsing or filtering it programmatically.",
     ),
 };
 

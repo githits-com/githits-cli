@@ -62,8 +62,8 @@ describe("buildListParams", () => {
       target: "  npm:Express@5.2.1  ",
       paths: [" src/ ", "docs/**/*.md", "lib/a%2Fb.ts"],
       recursive: false,
-      fileTypes: ["source", "DOC"],
-      languages: ["TypeScript", "Rust"],
+      fileTypes: ["source", "doc"],
+      languages: ["typescript", "rust"],
       intents: [
         "PRODUCTION",
         "TEST",

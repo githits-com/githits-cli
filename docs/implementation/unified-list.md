@@ -46,8 +46,10 @@ response. The backend's opaque cursor is otherwise preserved exactly.
 - `list-request.ts` validates and normalizes CLI/MCP inputs into `ListParams`.
   It preserves targets, source selectors, and nonblank cursors, while accepting
   one leading `/` on site selectors and removing it before `Query.list`. It
+  lowercases language and file-type classifications for the backend contract,
   keeps explicit `false`, omits empty filters, and does not invent page or wait
-  defaults.
+  defaults. File types are classifications such as `source` or `doc`; extension
+  selection uses path globs such as `lib/**/*.js`.
 - `list-error-map.ts` maps list-owned and shared service errors into the
   existing `MappedError` envelope without interpreting backend message text.
 - `list-response.ts` copies only the selected camelCase `ListResult` fields.

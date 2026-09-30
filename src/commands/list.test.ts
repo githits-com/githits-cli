@@ -93,7 +93,7 @@ describe("unified list CLI", () => {
         paths: ["src/", "lib/", "**/*.md", "docs/"],
         recursive: true,
         fileTypes: ["source", "doc"],
-        languages: ["TypeScript", "Rust"],
+        languages: ["typescript", "rust"],
         includeDetailedFields: true,
         includeReadActions: true,
       });
@@ -229,7 +229,7 @@ describe("unified list CLI", () => {
         paths: ["dir/", "**/*.md"],
         recursive: false,
         fileTypes: ["source", "doc"],
-        languages: ["TypeScript", "rust"],
+        languages: ["typescript", "rust"],
         intents: ["TEST", "PRODUCTION"],
         limit: 500,
         after: " cursor/%2F ",
