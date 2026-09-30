@@ -14,6 +14,62 @@ daily, temporary per-main-push, or explicitly authorized pull-request
 execution, and normalized per-workload history are implemented here;
 answer-quality scoring remains a later phase.
 
+## Unified MCP grep versus release 0.24.0 — 2026-09-30
+
+[PR #439 run 36717422684](https://github.com/githits-com/githits-cli/actions/runs/36717422684)
+evaluated `ba5d4411f69c4f120d2ba9c96a88a39020fa4199`. Its
+[Braintrust experiment](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-439-r36717422684-a1)
+(ID `37616400-1048-4b73-ad4d-1238ec5b8194`) links to the exact
+[v0.24.0 release baseline](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/main-r36699628336-a1)
+(ID `ac4ca688-105b-4b68-9c7c-079992661dea`) at
+`8ae11a466345d082ec1b14afa863e286286dd126`.
+
+All 64 PR cells succeeded, with 237 logical MCP calls and five recovered tool
+failures. Readback matched all 62 release cells by `metadata.cellId` and
+identical stable `input`, including prompt hashes. Codex 0.159.2, GPT-6 Luna,
+low reasoning, JSON-schema reporting, metrics schema, reporting contract, and
+result schema match. No isolation/validation violations were recorded. The two
+new mixed-docs cells have no release counterparts and are excluded below.
+
+| Metric, matched 62 cells | Release | PR | Change |
+| --- | ---: | ---: | ---: |
+| Total tokens | 6,534,467 | 6,362,483 | -2.6% |
+| Logical MCP calls | 239 | 229 | -4.2% |
+| Rate-based estimated cost | $0.268584 | $0.258816 | -3.6% |
+| Cumulative agent duration | 839.032 s | 877.207 s | +4.6% |
+| Recovered tool failures | 4 | 5 | +1 |
+
+Full-guidance matched cells used 9.3% fewer tokens and 13.5% fewer MCP calls;
+intent cells used 3.1% more tokens and 3.0% more calls. These aggregates include
+unrelated workloads and one execution per cell; they do not isolate copywriting
+effects or establish repeatability, billing, latency, or graded answer quality.
+
+Source grep was less efficient in this sample:
+
+| `code-grep-investigation` scenario | Release calls | PR calls | Release tokens | PR tokens |
+| --- | ---: | ---: | ---: | ---: |
+| Intent | 4 | 8 | 108,705 | 161,467 |
+| Full guidance | 2 | 4 | 83,920 | 93,732 |
+
+Both answers identify the same import sites in `lib/application.js:26` and
+`lib/express.js:19`. The PR's first regex precisely found the two imports; it
+then read nearby windows and grepped `Router` to locate uses. Release's broader
+case-insensitive literal `router` search surfaced those uses earlier. The extra
+calls are visible agent query/follow-up choices, not malformed grep output or
+failed grep calls; they are not evidence of an overall source-grep efficiency
+improvement. Intent also read an unrelated later application window before
+locating the router getter. No instruction or default is changed from this one
+sample.
+
+Both new `grep-mixed-docs` cells succeeded with four calls each. Intent used
+quick-start, one mixed grep, and two exact reads. Full guidance first searched
+for docs, then used mixed grep and two exact reads. Both preserved canonical
+repository targets and hosted page URLs, reported the bounded page and more
+available, and stopped without unnecessary continuation. The full-guidance
+answer selected an Express 3.x page from the broad site scope and made no claim
+that its hosted content was pinned to package 5.2.1. These are observed usage
+and answer facts, not quality scores.
+
 ## Release 0.23 review — 2026-09-28
 
 The initial [52-cell PR run](https://github.com/githits-com/githits-cli/actions/runs/36414741106)

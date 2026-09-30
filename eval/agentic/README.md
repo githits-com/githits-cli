@@ -174,8 +174,9 @@ See [the retained compatibility findings](../../docs/implementation/agentic-eval
 
 For a trusted same-repository PR, commit the filled
 `eval/agentic/openrouter.toml` on the trial branch and add `agent-eval-openrouter`
-to run the standard 52-cell matrix: two discovery cells, 25 intent cells, and
-25 full-guidance cells, followed by one aggregate Braintrust export. Keep the
+to run the standard matrix: `canary` discovery plus `stable-full` intent and
+full-guidance cells, followed by one aggregate Braintrust export. Cell counts
+come from `eval/agentic/suites.json`. Keep the
 active trial config out of `main`: leave the trial PR unmerged or remove the
 config before merging; only the blank example belongs in the permanent setup.
 The shared `.github/workflows/agent-evals.yml` owns this coverage. It requires
@@ -737,7 +738,7 @@ for 14 days.
 
 The final summary job always runs for an authorized workflow, downloads all three
 scenario artifacts without flattening them, appends the concise report to
-`GITHUB_STEP_SUMMARY`, and then exports the normalized 52-cell result to
+`GITHUB_STEP_SUMMARY`, and then exports the normalized matrix result to
 Braintrust. The local equivalent report command is:
 
 ```bash
