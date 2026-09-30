@@ -5,7 +5,8 @@
 **Status: IN PROGRESS.** Phases 1-2 are complete. PR #421 merged to `main` as
 `5e541604935f1d7bb030742e2602356b9ef1e88c` on 2026-09-28. PR #428 merged as
 `2f3d4fdc7c008623e89aa91558a690b23f0eb309` on 2026-09-30. Phase 3 remains;
-the next-steps check requires `$do-plan` to detail its remaining adoption work.
+its adoption steps are detailed below and require a published artifact containing
+Phase 2 before implementation starts.
 
 The merged Phase 1 head passed 5,044 tests, typecheck, formatting, build,
 149-step live CLI smoke, 65-step live MCP smoke, 36-step built CLI smoke, and
@@ -176,10 +177,9 @@ are the remaining release-dependent guidance updates for Phase 3.
 
 Both package manifests and npm latest remain 0.23.0. The unified MCP change
 fragment is still pending. Release PR #436 is open in another lane; this check
-does not adopt its work. Remote MCP dependency/composition and deployment
-state could not be verified: read-only requests to the assumed GitHub
-`githits-com/remote-mcp` repository returned 404. The correct repository identity
-or access must be established before treating hosted adoption as ready.
+does not adopt its work. The earlier remote lookup used the wrong repository
+name. The verified repository is `githits-com/githits-remote-mcp`; its current
+main and adoption contract are recorded in Phase 3 below.
 
 ## Scope and non-goals
 
@@ -420,8 +420,8 @@ neither fetches bodies, snippets, or section trees.
 
 Overall assumptions:
 
-- Backend PR #2817's committed SDL and permanent list/read documentation are
-  the client contract for site actions.
+- Backend PR #2817 plus the target-relative correction in #2857 and permanent
+  list/read documentation define the site-action contract.
 - `Query.read` continues to accept the exact list actions preserved in JSON.
 - Hosted MCP continues to consume the published `@githits/mcp` package and
   compose services per request.
@@ -447,7 +447,7 @@ PR #2817 resolves site addressing, including `/` for the root.
 | --- | --- | --- |
 | 1. Add the shared contract and CLI | **COMPLETE; merged as `5e54160`** | `githits list` browses the backend contract through a tested transport-neutral service and shared formatter. Backend #2817 production conformance and live site action replay pass. |
 | 2. Consolidate the MCP surface | **COMPLETE; merged as `2f3d4fd`** | The callable catalog contains `list` instead of `code_files` and `docs_list`; the replacement description retains both legacy names, and current guidance routes package/repository/site browsing and follow-up actions correctly. Deterministic, live, and Codex agent verification pass. |
-| 3. Release and hosted adoption | **PLANNED; authorization/deployment dependent** | Published CLI and hosted MCP expose the same unified list contract, and live list-to-read/list-to-list paths pass against the deployed backend. |
+| 3. Release and hosted adoption | **DETAILED; publication prerequisite pending** | Published CLI and hosted MCP expose the same unified list contract, and live list-to-read/list-to-list paths pass against the deployed backend. |
 
 ## Phase 1 completion record — shared contract and CLI
 
@@ -629,41 +629,199 @@ split public service/provider wiring from catalog/guidance adoption.
 
 ## Phase 3 — release and hosted adoption
 
-**Status:** PLANNED; requires phase-boundary reorientation and separate
-release/deployment authorization.
+**Status:** DETAILED; implementation waits for a published artifact containing
+Phase 2. This lane owns the adoption outcome, not the already-open release
+PR #436. No production changes or cross-lane messages are authorized by this
+planning task.
 
-**Expected outcome:** published `githits` and `@githits/mcp`, then `remote-mcp`,
-serve the same unified list contract against the hosted backend.
+**Expected outcome:** installed CLI and hosted MCP callers browse the same
+package, repository, and site inventories and continue from default text.
+Hosted callers discover `list` from stale tool names, then read emitted paths
+without reconstructing URLs or repeating the site's scope.
 
-**Assumptions:** remote MCP still composes the published public client API per
-request; the backend deploy contains the verified SDL or a compatible
-successor; the `list` compatibility wording remains present throughout this
-phase.
+**Ownership:** `@githits/mcp` owns descriptors, tool semantics, shared output,
+and backend queries. `githits-remote-mcp` owns its published dependency,
+request-scoped service construction, auth/session attribution, transport tests,
+and deployment. Canonical CLI skills belong here under `skills/`. Reimplementing
+list in the host or using private/workspace imports would duplicate ownership;
+the existing published client constructor is sufficient.
 
-**Unknowns or product decisions:** exact package versions, deployment order/date,
-and whether endpoint evidence requires a compatible client adjustment. Resolve
-these after Phase 2 merges and before release preparation. No product behavior
-is intentionally deferred.
+### Evidence and prerequisites
 
-**Dependencies:** Phases 1-2 merged; `Query.list` deployed; explicit
-authorization for release, remote dependency update, and deployment at each
-protected step.
+Verified on 2026-09-30:
 
-The canonical `skills/githits-code` guidance and reference already prefer
-top-level `githits list` and retain legacy grouped commands, including in the
-published 0.23.0 release. Remaining release-gated guidance must reflect text
-continuation and the unified MCP mapping once the matching artifacts publish.
-Those updates were deliberately excluded from Phase 2.
+- CLI main is `2f3d4fd`; both npm latest artifacts are still 0.23.0 from
+  `1739290`, before MCP consolidation and default-text continuation.
+- Release PR #436 proposes 0.24.0 at `d1147b6`, but that head diverges from main
+  at `4a0eb1d`. Its `packages/mcp/src/mcp/server.ts` still registers the legacy
+  factories, and its list formatter lacks the continuation footer. The proposed
+  version alone is therefore insufficient evidence of delivery. This is an
+  observation for the release owner; do not alter that lane here.
+- Remote main is `1b8437624da56401518b2c29500d50a51fe09e1f`, independently
+  verified through GitHub and the cached `origin/main` snapshot. Its manifest
+  consumes `@githits/mcp:^0.23.0`. The local checkout is older and has an
+  unrelated untracked configuration file; it is evidence only and must not be
+  edited or cleaned by this lane.
+- `src/services/request-services.ts` constructs the published code-navigation,
+  read, package-intelligence, and example clients per request, sharing a static
+  inbound token provider, injected fetch, and session/client headers. It has
+  no `listService`. `ListServiceImpl` has the same constructor shape as the read
+  service: endpoint, token provider, injected fetch, and service runtime.
+- Remote transport tests and `scripts/mcp-agent-session.ts` still assert 13
+  tools, including both old lists; the smoke prompt calls `code_files`.
+  The new package catalog has 12 tools including `quick_start`, eleven with
+  output formats. `quick_start` remains closed-world; the eleven evidence
+  tools remain open-world and every tool remains read-only/non-destructive.
+- Remote `Main CI` at `1b84376` succeeded. Its workflow builds one image,
+  deploys dev, then production. Both `/health` endpoints return status `ok`;
+  these responses contain no version and prove neither deployed package
+  identity nor the current authenticated catalog.
+- The canonical CLI skill already teaches top-level list. Its cursor guidance
+  still requires JSON, and its reference maps grouped commands to retired MCP
+  tools and says unified list has no MCP counterpart. The release branch still
+  contains that guidance; this lane's release-gated parity work remains.
+- External plan review live checks confirmed root/normal and scoped Express
+  site paths against production. Express `lib/` returned six files and no
+  subdirectories; `examples/` returned directory rows and recursive leaves.
+  The directory probe below therefore uses `examples/` to exercise both cases.
 
-**Acceptance criteria:** outside-workspace packed CLI and public MCP imports
-construct `ListService`; published CLI and hosted MCP catalogs expose `list`;
-the hosted `list` description still names `code_files` and `docs_list` in its
-compatibility sentence while neither legacy tool is callable;
-live package, repository, and site list calls continue and follow emitted
-read/browse actions; source indexing and site lifecycle behavior match the
-documented contract; no hosted fallback reaches deprecated roots; and release
-and permanent implementation documentation record actual versions and rollout
-evidence. Tactical steps are added after Phase 2 reorientation.
+**Dependencies:** Phases 1-2 merged; deployed backend list/read contract;
+published CLI and MCP artifacts that demonstrably contain #428's behavior;
+execution assigned to a fresh owned remote worktree before making host changes.
+No other lane's existing worktree is an implementation target.
+
+**Assumptions:** package exports and service constructor remain compatible with
+the merged source. Confirm this from the exact published tarball before editing
+the host. The existing remote auth/session transport remains adequate; no new
+flag, transport, cache, queue, or fallback is needed. Keep both retired names in
+list's compatibility sentence throughout adoption.
+
+**Unknowns or product decisions:** product decisions **none**. Final package
+version, publication time, remote merge/deploy SHA, and authenticated endpoint
+results do not yet exist for this change. The release owner supplies publication
+provenance; resolve package identity before starting the adoption patch and
+resolve deployment provenance before endpoint acceptance. 0.24.0 is a candidate,
+not an instruction to release or a guarantee that its contents include #428.
+Authentication availability is checked using the existing isolated smoke
+launcher; inability to authenticate remains unverified evidence, never success.
+
+### Ordered implementation after publication
+
+1. Verify exact npm versions and provenance against the merged implementation.
+   Inspect the packed public client for `ListService`/`ListServiceImpl`, required
+   host `listService`, the twelve-tool catalog, the compatibility sentence, and
+   default-text cursor guidance. Exercise the published CLI outside workspace
+   aliases: package root with limit 1, one continuation, and the site read case
+   below. Do not proceed with a same-number artifact missing any of these facts.
+   Package release preparation itself stays with PR #436's owner.
+2. In this repository, update only `skills/githits-code/SKILL.md` and
+   `skills/githits-code/references/code-and-docs.md` for the released behavior:
+   replay `--after` from text using the same selection; reserve list JSON for
+   programmatic consumers; map top-level list to MCP `list`; describe grouped
+   lists as CLI compatibility commands without callable MCP aliases. Preserve
+   target-relative sites, `/` root, directory slashes, backend-authored exceptional
+   read actions, and the distinction between inventory browsing and topic search.
+   Update `src/skills-packaging.test.ts` contracts and a pending root-package
+   fragment for the packaged skill change; MCP impact is `none` for this
+   CLI-skill-only delta. Do not change search or diff JSON exceptions.
+3. In a newly assigned remote worktree, follow that repository's
+   `.agents/skills/bump-githits-mcp/SKILL.md`. Update the manifest and Bun lockfile
+   to the exact released dependency. Add `ListServiceImpl` to constructor
+   injection/defaults and return `listService` from `buildRequestServices`, using
+   `config.codeNavigationUrl` and the same token provider/fetch/runtime as read.
+   No package-owned query or formatter code is copied into the host.
+4. Extend request-service tests with a fake list constructor and assert endpoint,
+   shared token provider, fetch, session/client headers, and per-request identity.
+   In `src/mcp/transport.test.ts`, replace retired inventory/schema assertions
+   with the twelve-tool contract and canonical list calls. Adapt only directly
+   affected auth/session tests; preserve their original attribution invariant.
+   Use the existing injected fetch seam to show list reaches `Query.list` and
+   never the deprecated roots. Reconcile other verified changes in the exact
+   published package range under the existing bump skill, rather than freezing
+   outdated grep/search expectations.
+5. Update the remote smoke prompt/tests: 12 total tools, eleven evidence tools,
+   no callable old lists, default text, and the bounded list probes below.
+   Preserve raw annotation checks and report them unverified if the client
+   cannot observe them. Keep existing auth isolation and unrelated smoke coverage.
+   Update permanent docs here and remote
+   `docs/implementation/remote-mcp-architecture.md` with version, migration, and
+   observed evidence. The two repository changes use separate reviewed PRs.
+   Prepare the CLI guidance PR after publication, but keep it unmerged until
+   hosted production acceptance provides the rollout evidence for
+   `docs/implementation/unified-list.md`. The remote PR records implementation
+   and pre-deploy evidence; its later deployment results feed the held CLI PR.
+6. Stop each PR at its merge gate. Remote main's existing workflow automatically
+   deploys dev and production in order, so approval must explicitly cover that
+   rollout before triggering the merge; do not imply a dev-only merge. Verify
+   workflow/image commit provenance and both environments' results. Do not add
+   a deployment gate or alter the pipeline in this increment. Run dev smoke
+   once dev is available and production smoke once production is available;
+   these are acceptance checks, not a newly promised production gating mechanism.
+
+### Focused acceptance probes and verification
+
+Run the existing deterministic checks appropriate to each patch:
+
+- CLI guidance: `bun test src/skills-packaging.test.ts`, then `bun test`,
+  `bun run plugins:generate`, inspect generated diffs, `bun run plugins:check`,
+  `bun run format:check`, and `bun run build`. Run the repository-required
+  source CLI/MCP smoke for the agent-facing change. Run
+  `bun run agent:e2e --agent codex --surface skills --server local --workload
+  eval/agentic/workloads/list-continuation.md`; confirm `tool-calls.json` follows
+  text without requesting list JSON, inspect `final.json`/`metrics.json`, and
+  require no isolation violations. Run Claude as well when its isolated auth
+  is available; unavailable auth is reported explicitly. The workload itself
+  requests text, so this proves guidance and text continuation agree; it does
+  not isolate the skill's effect on spontaneous format choice.
+- Remote: `bun test src/services/request-services.test.ts
+  src/mcp/transport.test.ts scripts/mcp-agent-session.test.ts`, then `bun test`,
+  `bun run typecheck`, `bun run lint`, and `bun run format:check`.
+- Deployed remote: `bun run mcp:session:dev -- --smoke` and
+  `bun run mcp:session:prod -- --smoke`; add `--login` only if that environment's
+  OAuth has not been configured. Never export credentials into prompts, files,
+  output, or command arguments. Use an isolated session prompt for list probes
+  if the standard smoke cannot express all cases; no new launcher is needed.
+
+The exact live probes, in default text unless code consumes JSON:
+
+1. `list` package `npm:express@5.2.1`, `paths:["package.json"]`: one package-local
+   file; read the emitted target/path and require nonempty content.
+2. `list` repository `github:expressjs/express`, `limit:3`: take the rendered
+   `after`, make exactly one continuation with the same selection, and require
+   a distinct next batch. JSON is not needed to retrieve the cursor.
+3. `list` repository `github:expressjs/express`, `paths:["examples/"]`: directory
+   rows have `/`; `recursive:true` yields descendant leaves. This checks the
+   host calls the shared semantics, not a second implementation of glob rules.
+4. `list` site `site:expressjs.com`, `paths:["en/resources/"]`: reuse a returned
+   page with its supplied target/path. Read must succeed without adding the
+   host to the path or constructing an HTTPS URL.
+5. `list` scoped site `site:expressjs.com/en/resources`: reuse a returned page
+   and read; the path must not repeat `en/resources`. Read `/` for the site's
+   landing page when that action is emitted.
+
+**Acceptance criteria:** the exact published package is identified and usable
+outside workspace aliases; canonical CLI guidance follows default-text paging
+and maps to callable MCP `list`; both deployed catalogs expose the twelve-tool
+inventory with correct annotations and the compatibility sentence naming
+`code_files` and `docs_list`, while neither legacy list is callable;
+package/repository/site probes pass with unchanged
+opaque cursors and emitted read/browse action values; host unit evidence shows
+request identity isolation and no deprecated-root fallback; release, merge,
+image, endpoint, and validation evidence are recorded in permanent docs.
+Existing indexing/site lifecycle and error behavior must remain package-owned;
+retain the existing package smoke coverage rather than inventing backend states
+or claiming observed lifecycle transitions from a successful empty inventory.
+An unrelated smoke timeout is recorded by failing tool and does not erase the
+focused list evidence, but it cannot be reported as a full-suite pass.
+
+**Rollback:** no data migration. If adoption fails, prepare a remote adoption
+revert PR; an explicitly approved merge rebuilds and redeploys dev then prod
+through the existing push-to-main workflow. No manual old-image deployment
+entrypoint or smoke-based promotion gate is verified. Revert the CLI skill PR
+if its guidance needs rollback. Every revert merge and resulting deployment
+requires the corresponding authorization; no legacy GraphQL fallback is added.
+No performance optimization is proposed, so existing bounded projection and
+formatter measurements from Phase 2 suffice; no benchmark sweep is required.
 
 ## Phase boundaries and completion
 
@@ -677,6 +835,11 @@ documentation contains the final contract, architecture, compatibility policy,
 and rollout evidence. Keep this plan through the last implementation review;
 then transfer any remaining durable facts to `docs/implementation/` and delete
 the plan after the final increment merges.
+
+For Phase 3, the held CLI guidance/documentation PR is the final implementation
+increment: it includes the remote production evidence before merging. After
+that merge, `$next-steps` records completion and deletes this plan in a
+documentation-only cleanup commit. There is no extra implementation phase.
 
 ## Review history
 
@@ -722,3 +885,16 @@ minor shared-guidance mismatch: a blanket JSON sentence conflicted with
 guide retained its existing required-field exception, while the `list`
 descriptor keeps the stricter programmatic-consumer rule. This keeps ownership
 with each tool's formatter and resolved the only finding.
+
+Phase 3 planning review on 2026-09-30: internal `code_reviewer` reported no
+findings. Claude Opus 5.5 found three small documentation gaps and two wording
+issues, all accepted and closed: the directory probe now uses verified
+`examples/` instead of directory-free `lib/`; rollback names the existing
+revert-and-redeploy workflow; the CLI guidance PR waits for hosted evidence
+before its merge and plan cleanup follows that final merge; compatibility
+wording names the retired tools explicitly; and the prompted eval is described
+as agreement evidence rather than proof of spontaneous format selection.
+Closure checked the Phase 3 probes, workflow/rollback language, PR sequence,
+completion criteria, and verification claims for sibling contradictions.
+The external round counts as clean after these minor documentation corrections;
+no product code or infrastructure changed and no second round was required.
