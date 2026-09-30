@@ -12,7 +12,7 @@ export function withReadFileRecovery(
   requestedPath: string,
 ): MappedError {
   if (isExactPathAuthorityError(mapped)) {
-    return withExactPathAuthorityRecovery(mapped, "read");
+    return withExactPathAuthorityRecovery(mapped);
   }
 
   if (

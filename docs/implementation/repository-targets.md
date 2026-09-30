@@ -236,12 +236,13 @@ exact code follow-ups, and same-commit CodeDiff on both environments at HEAD
 and Express upgrade-review fixtures above. The Swift source regression is
 complete and requires no user-supplied fixture coordinate.
 
-To repeat the live direct-target checks with the unpublished build, use
+This historical direct-target replay used the then-unpublished build. To repeat
+the provider checks with the current build, use
 `node dist/cli.js` for CLI commands and a Node stdio MCP client launching
 `node dist/cli.js mcp start --experimental-tools`. Exercise each compact
-fixture through `code files`, `code grep`, `code read`, CODE/DOCS `search`,
+fixture through `list`, `grep`, `read`, CODE/DOCS `search`,
 emitted documentation locators, and `code diff <target> <sha>..<sha>
---name-status`; current MCP counterparts are `list`, `code_grep`, `read`,
-`search`, and `code_diff`. `pkg changelog` is package-only; do not pass repository
+--name-status`; current MCP counterparts are `list`, `grep`, `read`, `search`,
+and `code_diff`. `pkg changelog` is package-only; do not pass repository
 targets to it. Set `GITHITS_CODE_NAV_URL` to the verified dev endpoint
 for its replay; never print authentication state or credential values.

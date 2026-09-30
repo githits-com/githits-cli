@@ -39,7 +39,7 @@ Next: githits search-status smoke-ref --wait 20`;
 - npm:express@4.18.2
   searched: repository docs
 
-Next: shorten or broaden query; use githits code grep.`;
+Next: shorten or broaden query; use githits grep.`;
   const completed = `1 result | 1 repo code hit | next_offset=10
 
 [1] npm:express@5.2.1 lib/application.js [repo code]`;
@@ -56,7 +56,7 @@ Next: shorten or broaden query; use githits code grep.`;
     expect(() => assertSearchTerminalText(valid, "search")).not.toThrow();
     expect(() =>
       assertSearchTerminalText(
-        "No results\nNext: shorten or broaden query; use githits code grep.",
+        "No results\nNext: shorten or broaden query; use githits grep.",
         "search",
       ),
     ).not.toThrow();

@@ -51,7 +51,7 @@ export const EXPECTED_MCP_TOOLS = [
   "search_status",
   "list",
   "read",
-  "code_grep",
+  "grep",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -259,6 +259,139 @@ function listTextContinuation(text: string, context: string): string {
     `${context}: invalid after continuation`,
   );
   return parsed;
+}
+
+function assertGrepResult(
+  value: unknown,
+  context: string,
+): Record<string, unknown> {
+  assertRecord(value, context);
+  assert(Array.isArray(value.hits), `${context}: hits must be an array`);
+  assert(Array.isArray(value.targets), `${context}: targets must be an array`);
+  assert(
+    Array.isArray(value.unavailableTargets),
+    `${context}: unavailableTargets must be an array`,
+  );
+  assert(
+    [
+      "COMPLETE",
+      "RESUMABLE_LIMIT",
+      "NON_RESUMABLE_PARTIAL",
+      "FAILED",
+      "CURSOR_EXPIRED",
+    ].includes(value.traversal as string),
+    `${context}: unknown traversal state`,
+  );
+  assert(
+    value.nextCursor === null ||
+      (typeof value.nextCursor === "string" && value.nextCursor.length > 0),
+    `${context}: invalid nextCursor`,
+  );
+  assert(
+    Number.isSafeInteger(value.totalMatches) &&
+      (value.totalMatches as number) >= 0,
+    `${context}: invalid totalMatches`,
+  );
+  if (value.traversal === "RESUMABLE_LIMIT") {
+    assert(
+      typeof value.nextCursor === "string" && value.nextCursor.length > 0,
+      `${context}: resumable page missing nextCursor`,
+    );
+  }
+
+  const targetByIndex = new Map<number, Record<string, unknown>>();
+  for (const [index, target] of value.targets.entries()) {
+    assertRecord(target, `${context}.targets[${index}]`);
+    assert(
+      Number.isSafeInteger(target.targetIndex),
+      `${context}.targets[${index}]: invalid targetIndex`,
+    );
+    assert(
+      Array.isArray(target.requestedInputIndices) &&
+        target.requestedInputIndices.every(Number.isSafeInteger),
+      `${context}.targets[${index}]: invalid requestedInputIndices`,
+    );
+    assert(
+      target.kind === "REPOSITORY" || target.kind === "SITE",
+      `${context}.targets[${index}]: invalid kind`,
+    );
+    assert(
+      [
+        "UNSPECIFIED",
+        "CURRENT",
+        "STALE",
+        "NOT_AVAILABLE",
+        "MISSING_REF",
+        "READER_OPEN_FAILED",
+        "INCOMPLETE",
+        "RESOURCE_LIMIT",
+        "VERSION_UNSUPPORTED",
+        "READ_FAILED",
+      ].includes(target.readiness as string) &&
+        [
+          "COMPLETE",
+          "RESUMABLE_LIMIT",
+          "NON_RESUMABLE_PARTIAL",
+          "FAILED",
+          "CURSOR_EXPIRED",
+        ].includes(target.traversal as string),
+      `${context}.targets[${index}]: missing readiness or traversal`,
+    );
+    targetByIndex.set(target.targetIndex as number, target);
+  }
+
+  for (const [index, hit] of value.hits.entries()) {
+    const hitContext = `${context}.hits[${index}]`;
+    assertRecord(hit, hitContext);
+    const scope = targetByIndex.get(hit.targetIndex as number);
+    assert(scope, `${hitContext}: no matching target status`);
+    assertRecord(hit.read, `${hitContext}.read`);
+    assert(
+      typeof hit.read.target === "string" &&
+        Number.isSafeInteger(hit.read.startLine) &&
+        Number.isSafeInteger(hit.read.endLine),
+      `${hitContext}: incomplete read action`,
+    );
+    assertRecord(hit.lineSlice, `${hitContext}.lineSlice`);
+    assert(
+      typeof hit.lineSlice.content === "string" &&
+        Number.isSafeInteger(hit.matchStartByte) &&
+        Number.isSafeInteger(hit.matchEndByte),
+      `${hitContext}: incomplete match evidence`,
+    );
+    if (hit.__typename === "GrepRepositoryHit") {
+      assert(
+        scope.kind === "REPOSITORY" &&
+          typeof hit.read.path === "string" &&
+          typeof hit.filePath === "string",
+        `${hitContext}: invalid repository hit or read action`,
+      );
+    } else if (hit.__typename === "GrepSiteHit") {
+      assert(
+        scope.kind === "SITE" &&
+          hit.read.path === null &&
+          typeof hit.pageUrl === "string",
+        `${hitContext}: invalid hosted documentation hit or read action`,
+      );
+    } else {
+      throw new Error(`${hitContext}: unknown hit type`);
+    }
+  }
+  return value;
+}
+
+function grepReadArgs(
+  hit: Record<string, unknown>,
+  format?: "json",
+): Record<string, unknown> {
+  const read = hit.read as Record<string, unknown>;
+  return {
+    target: read.target,
+    ...(typeof read.path === "string" ? { path: read.path } : {}),
+    start_line: read.startLine,
+    end_line: read.endLine,
+    ...(format ? { format } : {}),
+  };
 }
 
 function assertSearchDefaultText(text: string, context: string): void {
@@ -1320,48 +1453,127 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "NOT_FOUND",
   );
 
-  const codeGrepText = assertDefaultText(
-    await callTool(caller, "code_grep", {
-      target: SMOKE_PACKAGE_TARGET,
-      pattern: "express",
-      path: "package.json",
-      max_matches: 1,
-      context_lines_after: 12,
-    }),
-    "code_grep default",
+  const grepArgs = {
+    targets: [{ target: SMOKE_PACKAGE_TARGET }],
+    pattern: "router",
+    max_matches: 2,
+    wait_timeout_ms: 60_000,
+  };
+  const grepText = assertDefaultText(
+    await callTool(caller, "grep", grepArgs),
+    "grep default",
+  );
+  const grepJson = assertGrepResult(
+    assertJsonResult(
+      await callTool(caller, "grep", { ...grepArgs, format: "json" }),
+      "grep json",
+    ),
+    "grep json",
   );
   assert(
-    codeGrepText.includes("package.json"),
-    "code_grep default missing package.json",
+    grepJson.traversal === "RESUMABLE_LIMIT" &&
+      typeof grepJson.nextCursor === "string",
+    "grep first page must expose resumable coverage and a cursor",
+  );
+  const grepHits = grepJson.hits as Array<Record<string, unknown>>;
+  const repositoryHit = grepHits.find(
+    (hit) => hit.__typename === "GrepRepositoryHit",
+  );
+  const hostedDocsHit = grepHits.find(
+    (hit) => hit.__typename === "GrepSiteHit",
+  );
+  assert(repositoryHit, "grep json missing repository source evidence");
+  assert(hostedDocsHit, "grep json missing hosted documentation evidence");
+  const grepScopes = grepJson.targets as Array<Record<string, unknown>>;
+  for (const kind of ["REPOSITORY", "SITE"]) {
+    const scope = grepScopes.find((target) => target.kind === kind);
+    assert(scope, `grep json missing ${kind.toLowerCase()} scope status`);
+    assert(
+      (scope.requestedInputIndices as unknown[]).includes(0) &&
+        typeof scope.readiness === "string" &&
+        typeof scope.traversal === "string",
+      `grep json ${kind.toLowerCase()} scope is missing input or readiness status`,
+    );
+  }
+  assert(
+    grepText.includes("Sources:") &&
+      grepText.includes("# Read files: read target=$target path=$path") &&
+      grepText.includes("# Read pages: read target=$url") &&
+      grepText.includes("More matches") &&
+      grepText.includes(`cursor=${JSON.stringify(grepJson.nextCursor)}`),
+    "grep default missing mixed-source, exact-read, or continuation guidance",
   );
 
+  const grepCursor = grepJson.nextCursor as string;
+  const grepSecondPage = assertGrepResult(
+    assertJsonResult(
+      await callTool(caller, "grep", {
+        ...grepArgs,
+        cursor: grepCursor,
+        format: "json",
+      }),
+      "grep continuation json",
+    ),
+    "grep continuation json",
+  );
   assert(
-    codeGrepText.includes("requested 0 / 12"),
-    "code_grep missing context clamping notice",
+    (grepSecondPage.hits as unknown[]).length > 0 &&
+      (grepSecondPage.targets as unknown[]).length > 0,
+    "grep continuation must return page evidence and target readiness",
+  );
+  assert(
+    (grepSecondPage.targets as Array<Record<string, unknown>>).every(
+      (target) =>
+        (target.requestedInputIndices as number[]).includes(0) &&
+        typeof target.readiness === "string",
+    ),
+    "grep continuation lost input attribution or target readiness",
   );
 
-  const codeGrepJson = assertJsonResult(
-    await callTool(caller, "code_grep", {
-      target: SMOKE_PACKAGE_TARGET,
-      pattern: "express",
-      path: "package.json",
-      max_matches: 1,
-      context_lines_after: 12,
-      format: "json",
-    }),
-    "code_grep json",
+  const repositoryReadArgs = grepReadArgs(repositoryHit, "json");
+  const repositoryReadJson = assertJsonResult(
+    await callTool(caller, "read", repositoryReadArgs),
+    "read grep repository action json",
   );
-  assertRecord(codeGrepJson, "code_grep json");
+  assertRecord(repositoryReadJson, "read grep repository action json");
+  const repositoryAction = repositoryHit.read as Record<string, unknown>;
   assert(
-    "matches" in codeGrepJson || "totalMatches" in codeGrepJson,
-    "code_grep json missing matches",
+    repositoryReadJson.path === repositoryAction.path &&
+      repositoryReadJson.startLine === repositoryAction.startLine &&
+      repositoryReadJson.endLine === repositoryAction.endLine,
+    "read grep repository action changed its path or line range",
+  );
+  const repositoryReadText = assertDefaultText(
+    await callTool(caller, "read", grepReadArgs(repositoryHit)),
+    "read grep repository action text",
+  );
+  assert(
+    repositoryReadText.includes(`${repositoryAction.startLine} `),
+    "read grep repository action text omitted the returned line",
   );
 
-  assertRecord(codeGrepJson.contextClamping, "code_grep context clamping");
+  const hostedReadArgs = grepReadArgs(hostedDocsHit, "json");
+  const hostedReadJson = assertJsonResult(
+    await callTool(caller, "read", hostedReadArgs),
+    "read grep hosted documentation action json",
+  );
+  assertRecord(hostedReadJson, "read grep hosted documentation action json");
+  const hostedAction = hostedDocsHit.read as Record<string, unknown>;
   assert(
-    codeGrepJson.contextClamping.requestedAfter === 12 &&
-      codeGrepJson.contextClamping.effectiveAfter === 10,
-    "code_grep context clamping mismatch",
+    hostedReadJson.docsReadTarget === hostedAction.target &&
+      hostedReadJson.startLine === hostedAction.startLine &&
+      hostedReadJson.endLine === hostedAction.endLine,
+    "read grep hosted documentation action changed its page or line range",
+  );
+  const hostedReadText = assertDefaultText(
+    await callTool(caller, "read", grepReadArgs(hostedDocsHit)),
+    "read grep hosted documentation action text",
+  );
+  assert(
+    typeof hostedReadJson.content === "string" &&
+      hostedReadJson.content.length > 0 &&
+      hostedReadText.includes(hostedReadJson.content),
+    "read grep hosted documentation action text omitted the returned content",
   );
 
   const inlineSearchJson = assertJsonResult(
@@ -1518,6 +1730,10 @@ export async function runMcpSmoke(
     !toolNames.has("feedback"),
     "listTools advertises removed feedback tool",
   );
+  assert(
+    !toolNames.has("code_grep"),
+    "listTools advertises retired code_grep instead of grep",
+  );
   for (const expected of EXPECTED_MCP_TOOLS) {
     assert(toolNames.has(expected), `listTools missing ${expected}`);
   }
@@ -1541,12 +1757,22 @@ export async function runMcpSmoke(
     await callTool(caller, "quick_start", {}),
     "quick_start default",
   );
-  for (const expected of ["GitHits routing guide", "`search`", "`code_grep`"]) {
+  for (const expected of [
+    "GitHits routing guide",
+    "`search`",
+    "`list`",
+    "`grep`",
+    "`read`",
+  ]) {
     assert(
       quickStart.includes(expected),
       `quick_start default missing ${expected}`,
     );
   }
+  assert(
+    !quickStart.includes("code_grep"),
+    "quick_start still routes matching to retired code_grep",
+  );
 
   if (!includeLiveTools) return;
   if (await assertLiveOrAuthRequired(caller, logger)) {

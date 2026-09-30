@@ -98,11 +98,9 @@ describe("context replay", () => {
     expect(current.blocks["skill.file"]?.replace(/\r\n/g, "\n")).toContain(
       current.blocks["bootstrap.stable"] ?? "missing",
     );
-    const grep = JSON.parse(
-      current.blocks["tool.code_grep.definition"] ?? "{}",
-    );
-    expect(grep.inputSchema.properties.target).toBeDefined();
-    expect(current.blocks["catalog.prefix80"]).toContain("code_grep:");
+    const grep = JSON.parse(current.blocks["tool.grep.definition"] ?? "{}");
+    expect(grep.inputSchema.properties.targets).toBeDefined();
+    expect(current.blocks["catalog.prefix80"]).toContain("grep:");
   });
 });
 

@@ -171,7 +171,7 @@ async function assertStableMcpSession(
     `${context}: quick_start`,
   );
   assert(
-    quickStart.includes("`search`") && quickStart.includes("`code_grep`"),
+    quickStart.includes("`search`") && quickStart.includes("`grep`"),
     `${context}: quick_start missing stable routing guidance`,
   );
 }

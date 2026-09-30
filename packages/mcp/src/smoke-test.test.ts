@@ -1,4 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import { type GrepResult, parseGrepResult } from "@githits/core-internal";
+import mixedGrepPageFixture from "./shared/fixtures/grep-text/mixed-100.json";
+import { formatGrepText } from "./shared/grep-text.js";
 import {
   assertCleanErrorEnvelope,
   assertDefaultText,
@@ -102,6 +105,33 @@ describe("MCP smoke-test helpers", () => {
 });
 
 describe("runMcpSmoke", () => {
+  it("requires unified grep and rejects the retired code_grep catalog entry", async () => {
+    expect(EXPECTED_MCP_TOOLS).toContain("grep");
+    expect(EXPECTED_MCP_TOOLS).not.toContain("code_grep");
+
+    const caller = createCaller(async () => {
+      throw new Error("tools must not execute");
+    });
+    const { tools } = await caller.listTools();
+    caller.listTools = async () => ({
+      tools: [
+        ...tools,
+        {
+          name: "code_grep",
+          annotations: {
+            readOnlyHint: true,
+            openWorldHint: true,
+            destructiveHint: false,
+          },
+        },
+      ],
+    });
+
+    await expect(
+      runMcpSmoke(caller, { includeLiveTools: false }),
+    ).rejects.toThrow("listTools advertises retired code_grep instead of grep");
+  });
+
   it.each([
     ["get_example", false],
     ["search_status", undefined],
@@ -356,6 +386,67 @@ describe("runMcpSmoke", () => {
         end_line: 5,
       },
     });
+    const firstGrepPage = smokeGrepResult({});
+    const grepRepositoryHit = firstGrepPage.hits.find(
+      (hit) => hit.__typename === "GrepRepositoryHit",
+    );
+    const grepHostedDocsHit = firstGrepPage.hits.find(
+      (hit) => hit.__typename === "GrepSiteHit",
+    );
+    expect(grepRepositoryHit).toBeDefined();
+    expect(grepHostedDocsHit).toBeDefined();
+    expect(calls).toContainEqual({
+      name: "grep",
+      args: {
+        targets: [{ target: SMOKE_PACKAGE_TARGET }],
+        pattern: "router",
+        max_matches: 2,
+        wait_timeout_ms: 60_000,
+      },
+    });
+    expect(calls).toContainEqual({
+      name: "grep",
+      args: {
+        targets: [{ target: SMOKE_PACKAGE_TARGET }],
+        pattern: "router",
+        max_matches: 2,
+        wait_timeout_ms: 60_000,
+        format: "json",
+      },
+    });
+    expect(calls).toContainEqual({
+      name: "grep",
+      args: {
+        targets: [{ target: SMOKE_PACKAGE_TARGET }],
+        pattern: "router",
+        max_matches: 2,
+        wait_timeout_ms: 60_000,
+        cursor: SMOKE_GREP_CURSOR,
+        format: "json",
+      },
+    });
+    for (const hit of [grepRepositoryHit!, grepHostedDocsHit!]) {
+      const read = hit.read;
+      expect(calls).toContainEqual({
+        name: "read",
+        args: {
+          target: read.target,
+          ...(read.path === null ? {} : { path: read.path }),
+          start_line: read.startLine,
+          end_line: read.endLine,
+          format: "json",
+        },
+      });
+      expect(calls).toContainEqual({
+        name: "read",
+        args: {
+          target: read.target,
+          ...(read.path === null ? {} : { path: read.path }),
+          start_line: read.startLine,
+          end_line: read.endLine,
+        },
+      });
+    }
     expect(calls).toContainEqual({
       name: "pkg_deps",
       args: {
@@ -966,6 +1057,33 @@ const SMOKE_SITE_PAGE_URL = "https://expressjs.com/en/resources/";
 const SMOKE_PACKAGE_TARGET = "npm:express@5.2.1";
 const SMOKE_PACKAGE_VERSION = "5.2.1";
 const SMOKE_LIST_CURSOR = "smoke-list-cursor";
+const SMOKE_GREP_CURSOR = "c21va2UtZ3JlcC1jdXJzb3I";
+const MIXED_GREP_FIXTURE = parseGrepResult(mixedGrepPageFixture);
+
+function smokeGrepResult(args: Record<string, unknown>): GrepResult {
+  const continuation = args.cursor === SMOKE_GREP_CURSOR;
+  if (args.cursor !== undefined && !continuation) {
+    throw new Error("grep smoke received an unexpected cursor");
+  }
+  const continuationHit = MIXED_GREP_FIXTURE.hits[2];
+  if (!continuationHit)
+    throw new Error("grep smoke fixture has no next-page hit");
+  const result = {
+    ...MIXED_GREP_FIXTURE,
+    hits: continuation
+      ? [continuationHit]
+      : MIXED_GREP_FIXTURE.hits.slice(0, 2),
+    targets: MIXED_GREP_FIXTURE.targets.map((target) => ({
+      ...target,
+      target: SMOKE_PACKAGE_TARGET,
+      traversal: continuation ? "COMPLETE" : "RESUMABLE_LIMIT",
+    })),
+    traversal: continuation ? "COMPLETE" : "RESUMABLE_LIMIT",
+    nextCursor: continuation ? null : SMOKE_GREP_CURSOR,
+    totalMatches: continuation ? 1 : 2,
+  };
+  return parseGrepResult(result);
+}
 
 function smokeListResult(
   args: Record<string, unknown>,
@@ -1054,7 +1172,9 @@ function smokeResponse(
 
   switch (name) {
     case "quick_start":
-      return textResult("GitHits routing guide for `search` and `code_grep`");
+      return textResult(
+        "GitHits routing guide: use `search` to discover, `list` to browse files, `grep` to match code and docs, and `read` to open results.",
+      );
     case "get_example":
       return textResult("example\nsolution_id: smoke");
     case "pkg_info":
@@ -1116,12 +1236,25 @@ function smokeResponse(
     case "list":
       return textResult(smokeListText(args));
     case "read":
+      if (
+        typeof args.target === "string" &&
+        (args.target.startsWith("site:") ||
+          (args.target.startsWith("http") && args.path === undefined))
+      ) {
+        return textResult("router documentation");
+      }
+      if (args.path === "package.json") {
+        return textResult('1  {"name":"express"}');
+      }
+      if (typeof args.path === "string") {
+        return textResult(
+          `${String(args.start_line ?? 1)}  var Router = require('router');`,
+        );
+      }
+      return textResult("documentation content");
+    case "grep":
       return textResult(
-        args.path ? '1  {"name":"express"}' : "documentation content",
-      );
-    case "code_grep":
-      return textResult(
-        "package.json: express\nContext limited (requested 0 / 12)",
+        formatGrepText(smokeGrepResult(args), { syntax: "mcp" }),
       );
     case "search":
       return textResult(
@@ -1231,42 +1364,62 @@ function smokeJsonResponse(
           args.path === SMOKE_SITE_PAGE_PATH) ||
         args.target === SMOKE_SITE_PAGE_URL
       ) {
+        const startLine =
+          typeof args.start_line === "number" ? args.start_line : 1;
+        const endLine =
+          typeof args.end_line === "number" ? args.end_line : startLine;
         return jsonResult({
           docsReadTarget: SMOKE_SITE_PAGE_URL,
           pageId: "express-resources",
           sourceUrl: SMOKE_SITE_PAGE_URL,
-          content: "documentation content",
-          startLine: 1,
-          endLine: 1,
-          totalLines: 1,
+          content: "router documentation",
+          startLine,
+          endLine,
+          totalLines: endLine,
         });
       }
-      if (args.path) return jsonResult({ path: "package.json" });
       if (
         args.target === "https://docs.example.invalid/githits-smoke-unknown"
       ) {
         return errorResult("NOT_FOUND");
       }
+      const startLine =
+        typeof args.start_line === "number" ? args.start_line : 1;
+      const endLine =
+        typeof args.end_line === "number" ? args.end_line : startLine;
+      if (
+        typeof args.path === "string" &&
+        typeof args.target === "string" &&
+        !args.target.startsWith("site:")
+      ) {
+        return jsonResult({
+          target: args.target,
+          path: args.path,
+          content:
+            args.path === "package.json"
+              ? '{"name":"express"}'
+              : "var Router = require('router');",
+          startLine,
+          endLine,
+          totalLines: endLine,
+        });
+      }
+      const docsReadTarget =
+        args.target === SMOKE_SITE_TARGET && args.path === SMOKE_SITE_PAGE_PATH
+          ? SMOKE_SITE_PAGE_URL
+          : args.target;
       return jsonResult({
-        docsReadTarget: SMOKE_SITE_PAGE_URL,
-        pageId: "express-resources",
-        sourceUrl: SMOKE_SITE_PAGE_URL,
-        content: "documentation content",
-        startLine: 1,
-        endLine: 1,
-        totalLines: 1,
+        docsReadTarget,
+        pageId: "express-smoke-page",
+        sourceUrl: docsReadTarget,
+        content: "router documentation",
+        startLine,
+        endLine,
+        totalLines: endLine,
       });
     }
-    case "code_grep":
-      return jsonResult({
-        matches: [],
-        contextClamping: {
-          requestedBefore: 0,
-          requestedAfter: 12,
-          effectiveBefore: 0,
-          effectiveAfter: 10,
-        },
-      });
+    case "grep":
+      return jsonResult(smokeGrepResult(args));
     case "search": {
       const query = typeof args.query === "string" ? args.query : "";
       const invalidQualifier =

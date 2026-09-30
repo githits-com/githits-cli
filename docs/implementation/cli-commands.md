@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes setup/auth commands, `doctor`, `example`, top-level indexed `search` / `search-status`, `read`, `list`, `grep`, and the `code`, `docs`, and `pkg` command groups by default. `resolve` and `code diff` are experimental, host-config-gated commands. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities. Unified search shares its presentation model and text formatter with MCP; `list` uses the same request, result, error, and path-only text helpers on both surfaces.
+The CLI exposes setup/auth commands, `doctor`, `example`, top-level indexed `search` / `search-status`, `read`, `list`, `grep`, and the `code`, `docs`, and `pkg` command groups by default. `resolve` and `code diff` are experimental, host-config-gated commands. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities. Unified search shares its presentation model and text formatter with MCP; `list` and unified `grep` use the same request, result, error, and text helpers on both surfaces. Legacy `githits code grep` retains its separate source-only contract.
 
 ## Experimental CLI commands
 
@@ -64,7 +64,7 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `code diff <target> <from>..<to>` *(experimental; config-gated)* | unversioned package/repository target and exact range, or `--repo-url` and range | `--patch`, `--stat`, `--name-only`, `--name-status`, `--max-files`, `--max-patch-bytes`, `--verbose`, `--json`, one glob after `--` | Silently dogfood bounded repository-wide tree diffs resolved from package versions or repository refs; local-only MCP `code_diff` is available when experimental tools are enabled, while public/remote MCP and shared Agent Skill guidance remain unchanged |
 | `code files [spec] [path-prefix]` *(legacy compatibility)* | package spec OR `--repo-url` with optional `--git-ref`; optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, repeatable `--file-type`, repeatable `--language`, repeatable `--file-intent`, repeatable `--exclude-intent`, `--exclude-docs`, `--exclude-tests`, `--hidden`, `--limit`, `--wait`, `--verbose`, `--json` | Help points to `githits list`; existing execution behavior remains unchanged. |
 | `code read <spec?> <path>` (deprecated alias) | package spec OR `--repo-url` with optional `--git-ref`; plus `<path>` | `--lines`, `--start`, `--end`, `--wait`, `--verbose`, `--json` | Read a file's contents. Plain output is the raw file bytes (pipe-friendly); `--verbose` adds a header and a line-number gutter. `--lines 10-40` concise form; `--start`/`--end` equivalent. Binary files show a sentinel line. |
-| `code grep [spec] <pattern> [path-prefix]` | package spec OR `--repo-url` with optional `--git-ref`; plus `<pattern>` and optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, `--regex`, `--case-sensitive`, `-C/-A/-B`, `--exclude-docs`, `--exclude-tests`, `--limit`, `--per-file-limit`, `--cursor`, `--symbol-field`, `--wait`, `--verbose`, `--json` | Deterministic text grep over indexed dependency or repository source. Defaults to whole-target, literal, ASCII case-insensitive matching; `--per-file-limit` defaults to `--limit`. Narrow with `[path-prefix]`, `--path`, `--glob`, or `--ext`. Plain output is `file:line:text`; `--verbose` groups matches by file. |
+| `code grep [spec] <pattern> [path-prefix]` | package spec OR `--repo-url` with optional `--git-ref`; plus `<pattern>` and optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, `--regex`, `--case-sensitive`, `-C/-A/-B`, `--exclude-docs`, `--exclude-tests`, `--limit`, `--per-file-limit`, `--cursor`, `--symbol-field`, `--wait`, `--verbose`, `--json` | Deterministic text grep over indexed dependency or repository source. Defaults to whole-target, literal, Unicode-aware case-insensitive matching; `--per-file-limit` defaults to `--limit`. Narrow with `[path-prefix]`, `--path`, `--glob`, or `--ext`. Plain output is `file:line:text`; `--verbose` groups matches by file. |
 
 ### `githits init`
 
@@ -960,7 +960,7 @@ This is still the standard `grep(1)` contract even though the output includes fi
 For exact `--path` errors, terminal output distinguishes missing, excluded, and source-inventory-unverifiable paths and directs users to `code files`. With `--json`, `details.action` names `githits code files`, the applicable positional path-prefix narrowing (or its omission at repository root), and `githits code grep --path`.
 Client-side `INVALID_ARGUMENT` errors use CLI positionals/options and name `githits code files` when file listing is the recovery.
 
-**Pattern note.** The `GREP_REPO_PATTERN_NOTE` string is shared verbatim across the CLI help text, the MCP tool description, and the MCP `pattern` argument's `describe` so the three surfaces never disagree about literal-vs-regex semantics.
+**Pattern note.** `GREP_REPO_PATTERN_NOTE` supplies the legacy `githits code grep` help text. MCP `grep` has its own schema and defaults to regex; see [Unified grep](unified-grep.md).
 
 ## Architecture
 
@@ -976,6 +976,11 @@ CLI command (src/commands/read.ts, compact target)
        ├─ validate and apply the existing source-specific range policy
        └─ deps.readService.read(params)
             └─ ReadServiceImpl makes one package/source Query.read call
+
+CLI command (src/commands/grep.ts)
+  └─ grepAction(pattern, targets, options, deps)
+       └─ deps.grepService.grep(params)
+            └─ GrepServiceImpl makes one mixed-source Query.grep page
 
 ```
 
@@ -996,9 +1001,10 @@ Each command follows this pattern:
 | Shared Module | Used By |
 |---|---|
 | `GitHitsService` (via container) | `example` and always-on MCP tools |
-| `CodeNavigationService` (via container) | top-level unified `search` / `search-status`, MCP indexed-search tools (`search`, `search_status`, `code_grep`), and the `githits code` command group |
+| `CodeNavigationService` (via container) | top-level unified `search` / `search-status`, MCP indexed-search tools (`search`, `search_status`), and the legacy `githits code` command group |
 | `ListService` (via container) | top-level CLI and MCP `list` against package, repository, or explicit site inventories |
 | `ReadService` (via container) | compact top-level `read` and advertised MCP `read`, backed by one `Query.read` request |
+| `GrepService` (via container) | top-level CLI and advertised MCP `grep`, each using one mixed-source `Query.grep` page |
 | `requireAuth()` from `packages/mcp/src/shared/require-auth.ts` | all CLI commands and auth-required MCP tool handlers |
 
 ## Adding a New CLI Command

@@ -92,7 +92,7 @@ custom inventory providers keep their required opaque string actions.
 
 The MCP tool accepts `target`, optional `path`, `selector`, `start_line`, `end_line`,
 `wait_timeout_ms`, and `format`. Targets for code are compact package/repository
-strings, matching `code_files` and `code_grep`. An explicit `site:` target plus
+strings, matching `list` and `grep`. An explicit `site:` target plus
 path addresses hosted documentation through the backend's authorized inventory;
 the target and path emitted by `list` are replayed unchanged. Existing target
 parsers still own package/provider syntax and exact Git revision handling.

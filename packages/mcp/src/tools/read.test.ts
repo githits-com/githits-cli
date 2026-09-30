@@ -85,7 +85,7 @@ describe("unified read contract", () => {
       ),
     });
     expect(tool.schema.path?.description).toContain(
-      "from search, list, or code_grep",
+      "from search, list, or grep",
     );
     expect(schema.required).toEqual(["target"]);
     expect(tool.annotations).toEqual({

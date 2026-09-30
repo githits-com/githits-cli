@@ -32,7 +32,7 @@ const EXPECTED_STABLE_NAMES = [
   "search_status",
   "list",
   "read",
-  "code_grep",
+  "grep",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -72,6 +72,7 @@ function createServices(
     packageIntelligenceService: createMockPackageIntelligenceService(),
     listService: createMockListService(),
     readService: createMockReadService(),
+    grepService: { grep: mock(() => Promise.reject(new Error("unused"))) },
     agenticAskService: {
       ask: mock(() =>
         Promise.reject(new Error("unused")),
@@ -259,7 +260,7 @@ describe("createLocalMcpServer", () => {
     });
     const tools = registeredTools(server);
 
-    for (const name of ["list", "code_grep", "code_diff"] as const) {
+    for (const name of ["list", "code_diff"] as const) {
       const schema = z.toJSONSchema(tools[name]?.inputSchema as z.ZodObject);
       const targetSchema = schema.properties?.target as
         | { properties?: unknown; type?: string }
@@ -267,6 +268,8 @@ describe("createLocalMcpServer", () => {
       expect(targetSchema, name).toMatchObject({ type: "string" });
       expect(targetSchema?.properties, name).toBeUndefined();
     }
+    const grepSchema = z.toJSONSchema(tools.grep?.inputSchema as z.ZodObject);
+    expect(grepSchema.properties?.targets).toMatchObject({ type: "array" });
   });
 
   it("omits server instructions without changing stable tool registrations", () => {

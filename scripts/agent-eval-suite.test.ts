@@ -393,10 +393,10 @@ describe("agent eval suites", () => {
   it("loads the checked-in manifest with the exact workload inventory", () => {
     const manifest = loadSuiteManifest();
     expect(manifest.schemaVersion).toBe(1);
-    expect(manifest.workloads).toHaveLength(36);
+    expect(manifest.workloads).toHaveLength(37);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stable"),
-    ).toHaveLength(30);
+    ).toHaveLength(31);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stateful"),
     ).toHaveLength(1);
@@ -432,6 +432,7 @@ describe("agent eval suites", () => {
       "docs-search-noise",
       "express-router",
       "global-example",
+      "grep-mixed-docs",
       "list-continuation",
       "list-package-docs-site",
       "list-package-repository",

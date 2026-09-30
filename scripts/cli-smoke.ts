@@ -310,26 +310,27 @@ export const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     },
   },
   {
-    name: "code_grep",
+    name: "grep",
     cliArgs: [
-      "code",
       "grep",
-      SMOKE_PACKAGE_SPEC,
       "express",
+      SMOKE_PACKAGE_SPEC,
+      "--path",
       "package.json",
       "--limit",
       "1",
-      "--after-context",
-      "12",
       "--json",
     ],
-    mcpTool: "code_grep",
+    mcpTool: "grep",
     mcpArgs: {
-      target: SMOKE_PACKAGE_SPEC,
+      targets: [
+        {
+          target: SMOKE_PACKAGE_SPEC,
+          path_selectors: [{ kind: "exact", value: "package.json" }],
+        },
+      ],
       pattern: "express",
-      path_prefix: "package.json",
       max_matches: 1,
-      context_lines_after: 12,
       format: "json",
     },
   },
@@ -2588,6 +2589,8 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
       "package.json",
       "--limit",
       "1",
+      "--after-context",
+      "12",
       "--json",
     ]),
     "code grep json",
@@ -2596,6 +2599,15 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   assert(
     "matches" in codeGrepJson || "totalMatches" in codeGrepJson,
     "code grep json missing matches",
+  );
+  assertRecord(
+    codeGrepJson.contextClamping,
+    "legacy code grep context clamping",
+  );
+  assert(
+    codeGrepJson.contextClamping.requestedAfter === 12 &&
+      codeGrepJson.contextClamping.effectiveAfter === 10,
+    "legacy code grep context clamping changed",
   );
 
   const codeGrepInvalid = await runCli([

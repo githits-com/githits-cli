@@ -70,10 +70,14 @@ export function createContextFixtureServer(
           };
         }
         if (
-          tool.name === "code_grep" &&
-          isCodexRepository(args.target) &&
+          tool.name === "grep" &&
+          Array.isArray(args.targets) &&
+          args.targets.length === 1 &&
+          isCodexRepository(args.targets[0]?.target) &&
           args.pattern === "tool_search" &&
-          (args.pattern_type === undefined || args.pattern_type === "literal")
+          (args.pattern_type === undefined ||
+            args.pattern_type === "literal" ||
+            args.pattern_type === "regex")
         ) {
           return {
             content: [{ type: "text" as const, text: GREP_FIXTURE }],
@@ -156,21 +160,16 @@ export function createContextFixtureServer(
   return server;
 }
 
-const GREP_FIXTURE = `code_grep | 3 matches in 2 files | pattern="tool_search"
+const GREP_FIXTURE = `3 matches in 3 lines across 2 files
+Sources: github:openai/codex@HEAD
+# Read files: read target=$target path=$path start_line=$start end_line=$end
 
-codex-rs/app-server-protocol/schema/json/ClientRequest.json (2)
-  3125-               "enum": [
-  3126:                 "tool_search_call"
-  3127-               ],
-  --
-  3331-               "enum": [
-  3332:                 "tool_search_output"
-  3333-               ],
+[1] github:openai/codex@HEAD codex-rs/app-server-protocol/schema/json/ClientRequest.json
+3126:                 "tool_search_call"
+3332:                 "tool_search_output"
 
-codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.schemas.json (1)
-  18471-                 "enum": [
-  18472:                   "tool_search_call"
-  18473-                 ],
+[2] github:openai/codex@HEAD codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.schemas.json
+18472:                   "tool_search_call"
 
 Evidence: fixed context-loading fixture derived from a prior public-source response; not live repository coverage. Only this three-match workload is supported.`;
 

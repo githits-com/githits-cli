@@ -12,8 +12,9 @@ import { resolveCliCodeNavTarget } from "../commands/code/code-nav-cli-helpers.j
 import { searchAction } from "../commands/search.js";
 import {
   createMockCodeNavigationService,
+  createMockGrepService,
   createMockReadService,
-  defaultGrepRepoResult,
+  defaultGrepResult,
   defaultReadFileResult,
   defaultUnifiedSearchOutcome,
 } from "../services/test-helpers.js";
@@ -60,23 +61,21 @@ describe("provider target consumer parity", () => {
     });
 
     it(`${compact} routes grep and read through their target boundaries`, async () => {
-      const grepRepo = mock(() => Promise.resolve(defaultGrepRepoResult));
+      const grep = mock(() => Promise.resolve(defaultGrepResult));
       const read = mock(
         (): Promise<ReadResult> =>
           Promise.resolve({ source: "code", result: defaultReadFileResult }),
       );
       const deps = {
-        codeNavigationService: createMockCodeNavigationService({
-          grepRepo,
-        }),
+        grepService: createMockGrepService({ grep }),
         readService: createMockReadService({ read }),
       };
 
-      const codeGrepResult = await createParityMcpTool(
-        "code_grep",
-        deps,
-      ).handler(
-        { target: `${compact}@release/v1@stable`, pattern: "export" },
+      const grepResult = await createParityMcpTool("grep", deps).handler(
+        {
+          targets: [{ target: `${compact}@release/v1@stable` }],
+          pattern: "export",
+        },
         {},
       );
       const readResult = await createParityMcpTool("read", deps).handler(
@@ -91,12 +90,18 @@ describe("provider target consumer parity", () => {
         {},
       );
 
-      expect(codeGrepResult.isError).toBeUndefined();
+      expect(grepResult.isError).toBeUndefined();
       expect(readResult.isError).toBeUndefined();
-      expect(grepRepo).toHaveBeenCalledTimes(1);
-      expect(grepRepo).toHaveBeenCalledWith(
+      expect(grep).toHaveBeenCalledTimes(1);
+      expect(grep).toHaveBeenCalledWith(
         expect.objectContaining({
-          target: { repoUrl, gitRef: "release/v1@stable" },
+          targets: [
+            {
+              target: `${compact}@release/v1@stable`,
+              corpus: "ALL",
+              allowUnscoped: true,
+            },
+          ],
         }),
       );
       expect(read).toHaveBeenCalledTimes(1);

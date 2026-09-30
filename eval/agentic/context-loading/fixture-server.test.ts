@@ -177,14 +177,19 @@ describe("context fixture MCP contract", () => {
         expect(tool?.inputSchema.required).toEqual(schema.required);
       }
       const result = await client.callTool({
-        name: "code_grep",
-        arguments: { target: "github:openai/codex", pattern: "tool_search" },
+        name: "grep",
+        arguments: {
+          targets: [{ target: "github:openai/codex" }],
+          pattern: "tool_search",
+        },
       });
       expect(result.isError).not.toBe(true);
       const objectTarget = await client.callTool({
-        name: "code_grep",
+        name: "grep",
         arguments: {
-          target: { repo_url: "https://github.com/openai/codex" },
+          targets: [
+            { target: { repo_url: "https://github.com/openai/codex" } },
+          ],
           pattern: "tool_search",
         },
       });
@@ -199,8 +204,11 @@ describe("context fixture MCP contract", () => {
         "fixed context-loading fixture",
       );
       const unsupported = await client.callTool({
-        name: "code_grep",
-        arguments: { target: "github:openai/codex", pattern: "different" },
+        name: "grep",
+        arguments: {
+          targets: [{ target: "github:openai/codex" }],
+          pattern: "different",
+        },
       });
       expect(unsupported.isError).toBe(true);
     } finally {

@@ -1,7 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
 import {
   AuthenticationError,
-  CodeNavigationFileNotFoundError,
   TermsAcceptanceRequiredError,
 } from "@githits/core-internal";
 import * as publicMcp from "@githits/mcp";
@@ -26,6 +25,7 @@ import * as publicMcpClient from "../packages/mcp/src/client.js";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
+  createMockGrepService,
   createMockListService,
   createMockPackageIntelligenceService,
   createMockReadService,
@@ -51,6 +51,7 @@ function createServices(
     packageIntelligenceService: createMockPackageIntelligenceService(),
     listService: createMockListService(),
     readService: createMockReadService(),
+    grepService: createMockGrepService(),
     ...overrides,
   };
 }
@@ -70,7 +71,7 @@ const EXPECTED_DESCRIPTOR_NAMES = [
   "search_status",
   "list",
   "read",
-  "code_grep",
+  "grep",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -85,7 +86,7 @@ const EXPECTED_SMOKE_NAMES = [
   "search_status",
   "list",
   "read",
-  "code_grep",
+  "grep",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -350,27 +351,29 @@ describe("public MCP package surface", () => {
     expect(traceTool).toHaveBeenCalledTimes(1);
   });
 
-  it("applies MCP-native file recovery through the remote server API", async () => {
-    const grepRepo = mock(() =>
-      Promise.reject(
-        new CodeNavigationFileNotFoundError(
-          "Path not found in the index: docs/missing.md.",
-          "docs/missing.md",
-        ),
-      ),
+  it("routes unified grep through the remote server API", async () => {
+    const grep = mock(() =>
+      Promise.resolve({
+        hits: [],
+        targets: [],
+        unavailableTargets: [],
+        traversal: "COMPLETE" as const,
+        nextCursor: null,
+        totalMatches: 0,
+      }),
     );
     const server = createMcpServer({
       metadata: { name: "remote-githits", version: "0.0.0" },
       services: createServices({
-        codeNavigationService: createMockCodeNavigationService({ grepRepo }),
+        grepService: createMockGrepService({ grep }),
       }),
     });
 
-    const result = await registeredTool(server, "code_grep").handler(
+    const result = await registeredTool(server, "grep").handler(
       {
-        target: "npm:express",
+        targets: [{ target: "npm:express" }],
         pattern: "pagination",
-        path: "docs/missing.md",
+        format: "json",
       },
       undefined as unknown as RequestHandlerExtra<
         ServerRequest,
@@ -378,14 +381,21 @@ describe("public MCP package surface", () => {
       >,
     );
 
-    expect(result.isError).toBe(true);
-    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
-      details?: { action?: string };
-    };
-    expect(payload.details?.action).toContain('`list` with `paths: ["docs/"]`');
-    expect(payload.details?.action).not.toContain("code_files");
-    expect(payload.details?.action).not.toContain("path_prefix");
-    expect(payload.details?.action).toContain("`code_grep`");
-    expect(payload.details?.action).not.toContain("githits code");
+    expect(result.isError).toBeUndefined();
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toMatchObject({
+      hits: [],
+      traversal: "COMPLETE",
+      totalMatches: 0,
+    });
+    expect(grep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targets: [
+          { target: "npm:express", corpus: "ALL", allowUnscoped: true },
+        ],
+        pattern: "pagination",
+        patternType: "REGEX",
+        caseSensitive: true,
+      }),
+    );
   });
 });

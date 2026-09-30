@@ -49,7 +49,7 @@ The dual-surface tools today are:
 - `search_status` ↔ `githits search-status`
 - `list` ↔ `githits list`
 - `read` with a path ↔ `githits read <target> <path>` (legacy `code read` retained)
-- `code_grep` ↔ `githits code grep`
+- `grep` ↔ `githits grep`
 - `pkg_info` ↔ `githits pkg info`
 - `pkg_vulns` ↔ `githits pkg vulns`
 - `pkg_deps` ↔ `githits pkg deps`
@@ -58,6 +58,9 @@ The dual-surface tools today are:
 - `read` without a path ↔ `githits read <target>` (legacy `docs read` retained)
 - `resolve_target` ↔ `githits resolve` *(config-gated, local-only)*
 - `code_diff` ↔ `githits code diff` *(config-gated, local-only)*
+
+The retained `githits code grep` command is a CLI-only compatibility surface;
+it has no exact MCP alias and keeps its legacy source-only controls.
 
 The local smoke runners execute these cohorts independently in source and
 built modes. CLI experimental runs use a temporary opt-in config. MCP
@@ -245,16 +248,12 @@ test suite anchors the doc.
 
 ### `PARITY-DEFAULTS`
 
-- Both surfaces import defaults from
-  `packages/mcp/src/shared/code-navigation-defaults.ts`. They never diverge
-  silently.
-- Cross-tool defaults (e.g. `DEFAULT_WAIT_TIMEOUT_MS`) live without a
-  prefix. Tool-local sentinels live there too so both surfaces translate
-  them the same way.
-- When a surface fills in a default for the caller, that default value
-  is applied at the shared request builder — not at the surface — so
-  both surfaces apply defaults at the same point and under the same
-  conditions.
+- Cross-tool defaults such as `DEFAULT_WAIT_TIMEOUT_MS` live in
+  `packages/mcp/src/shared/code-navigation-defaults.ts`. Tool-local defaults
+  may live in that module or in the tool's shared request builder; both
+  surfaces must use the same definition.
+- Keep defaulting in the shared request builder rather than either surface, so
+  both surfaces apply defaults under the same conditions.
 - The local experimental pair is a deliberate explicit-default exception:
   CLI `githits code diff` defaults to patch output while MCP `code_diff`
   defaults to `name-status` inventory. Parity tests select the same explicit
@@ -465,18 +464,18 @@ surface-native read and pagination syntax and optional ANSI.
   CLI-only instructions like `--verbose` or `--lifecycle all`.
 - Default MCP success output should be compact `text`; programmatic
   parity tests must pass `format: "json"` explicitly.
-- Empty `code_grep` decision guidance is shared between MCP text and CLI
-  terminal stderr, with surface-native cursor syntax. Incomplete empty pages
-  render truncation/pagination guidance instead of completed-result pivots.
-  CLI stdout remains empty for grep-compatible zero-match behavior; JSON
-  remains the shared structured envelope.
+- Unified `grep` uses the same request builder, result projection, and text
+  formatter in MCP and top-level CLI. The shared text keeps exact read actions,
+  coverage, and continuation visible; JSON preserves the backend result shape.
+  The legacy `githits code grep` command retains its own empty-result recovery,
+  terminal stderr, JSON envelope, and grep-compatible empty stdout behavior.
 
 ## Checklist for adding a new dual-surface tool
 
 When a new tool lands with both MCP and CLI surfaces:
 
-- [ ] Tool-specific defaults added to
-  `packages/mcp/src/shared/code-navigation-defaults.ts` with a `TOOLNAME_` prefix.
+- [ ] Shared defaults added to `code-navigation-defaults.ts` when reused across
+  tools; tool-local defaults may live in the shared request builder.
 - [ ] Request builder at `packages/mcp/src/shared/<tool>-request.ts`. Both surfaces
   import it.
 - [ ] Error classifier reused (`mapCodeNavigationError` /
@@ -512,7 +511,7 @@ When a new tool lands with both MCP and CLI surfaces:
 
 | File | Role |
 |---|---|
-| `packages/mcp/src/shared/code-navigation-defaults.ts` | Canonical cross-surface defaults and sentinels. |
+| `packages/mcp/src/shared/code-navigation-defaults.ts` | Shared code-navigation defaults and cross-tool wait constants. |
 | `packages/mcp/src/shared/code-navigation-error-map.ts` | `mapCodeNavigationError` classifier and code-navigation taxonomy. |
 | `packages/mcp/src/shared/mapped-error.ts` | Transport-neutral `MappedError`, `MappedErrorCode`, and `MappedErrorDetails` contracts shared by all error mappers. |
 | `packages/core-internal/src/shared/pkgseer-graphql.ts` | Low-level authenticated package/source POST helper shared by the service clients. |
@@ -532,15 +531,21 @@ When a new tool lands with both MCP and CLI surfaces:
 | `packages/mcp/src/shared/list-text.ts` | Shared token-efficient CLI/MCP path formatter. |
 | `packages/mcp/src/shared/read-file-request.ts` | Shared request builder for `read`. |
 | `packages/mcp/src/shared/read-file-response.ts` | JSON envelope builder for `read`. Normalises envelope key to `path` (not `filePath`) for exact-file follow-ups. |
-| `packages/mcp/src/shared/grep-repo-request.ts` | Shared request builder for `code_grep`. Exports `GREP_REPO_PATTERN_NOTE` referenced by MCP description, MCP `pattern` describe, and CLI help. |
-| `packages/mcp/src/shared/grep-repo-response.ts` | JSON envelope builder for `code_grep`. |
+| `packages/mcp/src/shared/grep-request.ts` | Shared request builder for unified `grep`, used by MCP and top-level CLI. |
+| `packages/mcp/src/shared/grep-response.ts` | Schema-validating result projection for unified `grep`. |
+| `packages/mcp/src/shared/grep-error-map.ts` | Error classification for the unified `grep` tool and CLI command. |
+| `packages/mcp/src/shared/grep-text.ts` | Shared mixed-source text formatter for unified `grep`. |
+| `packages/core-internal/src/services/grep-service.ts` | Transport-neutral `GrepService` implementation for one `Query.grep` page. |
+| `packages/mcp/src/tools/tool-services.ts` | Required service boundary for the stable MCP tool provider, including `grepService`. |
+| `packages/mcp/src/shared/grep-repo-request.ts` | Legacy CLI `githits code grep` request builder; `GREP_REPO_PATTERN_NOTE` feeds that command's help only. |
+| `packages/mcp/src/shared/grep-repo-response.ts` / `grep-repo-text.ts` | Legacy CLI `githits code grep` result envelope and formatter. |
 | `packages/mcp/src/shared/list-files-request.ts` / `list-files-response.ts` | Legacy grouped CLI file-list compatibility helpers. |
 | `packages/mcp/src/shared/list-package-docs-request.ts` / `list-package-docs-response.ts` | Legacy grouped CLI documentation-list compatibility helpers. |
 | `packages/mcp/src/shared/read-package-doc-request.ts` / `read-package-doc-response.ts` | Shared request and envelope for `read`. |
-| `packages/mcp/src/shared/code-navigation-error-map.ts` | Owns the `INDEXING`, target/file-not-found, and exact-path authority codes shared across all code-nav tools. |
+| `packages/mcp/src/shared/code-navigation-error-map.ts` | Maps errors for search, read, CodeDiff, and legacy code-navigation commands; its update-required helper is also reused by grep, list, and package mappers. |
 | `packages/mcp/src/shared/package-intelligence-error-map.ts` | `mapPackageIntelligenceError` classifier using the shared `MappedError` contract. |
 | `packages/core-internal/src/services/promote-version-not-found.ts` | Shared helper that promotes generic backend errors with "no matching version" messages into typed `VERSION_NOT_FOUND`. |
-| `packages/mcp/src/tools/code-navigation-shared.ts` | Compact-string target parsing retained by `code_grep` and legacy code navigation; `search`, `list`, and `read` use their transport-neutral request boundaries. |
+| `packages/mcp/src/tools/code-navigation-shared.ts` | Compact-string target parsing retained by the MCP `read` code branch and legacy code navigation; `search`, `list`, and `grep` use transport-neutral request boundaries. |
 | `packages/mcp/src/tools/search.ts` | MCP tool definition for unified `search`. |
 | `packages/mcp/src/tools/search-status.ts` | MCP tool definition for `search_status`. |
 | `packages/mcp/src/tools/package-summary.ts` | MCP tool definition for `pkg_info`. |
@@ -549,13 +554,14 @@ When a new tool lands with both MCP and CLI surfaces:
 | `packages/mcp/src/tools/package-changelog.ts` | MCP tool definition for `pkg_changelog`. |
 | `packages/mcp/src/tools/list.ts` | Stable MCP tool definition for unified `list`. |
 | `packages/mcp/src/tools/read-file.ts` | Code branch of unified `read`; `tools/read.ts` owns the advertised definition. |
-| `packages/mcp/src/tools/grep-repo.ts` | MCP tool definition for `code_grep`. |
+| `packages/mcp/src/tools/grep.ts` | Stable MCP tool definition for unified `grep`. |
 | `src/commands/search.ts` | Top-level CLI commands for unified `search` and `search-status`. |
 | `src/commands/list.ts` | Top-level CLI `list` command sharing its contract and formatter with MCP. |
+| `src/commands/grep.ts` | Top-level CLI `grep` command sharing its contract and formatter with MCP. |
 | `src/commands/pkg/info.ts` / `vulns.ts` / `deps.ts` / `changelog.ts` | CLI commands for the `pkg` group. |
-| `src/commands/code/files.ts` / `read.ts` / `grep.ts` | CLI commands for the `code` group. |
+| `src/commands/code/files.ts` / `read.ts` / `grep.ts` | Legacy CLI commands for the `code` group. |
 | `src/commands/docs/list.ts` / `read.ts` | CLI commands for the `docs` group. |
-| `scripts/cli-smoke.ts` | Live CLI/MCP JSON-shape parity fixtures, including package and site `list`. |
+| `scripts/cli-smoke.ts` | Live CLI/MCP JSON-shape parity fixtures for unified `grep`, including package and site `list`. |
 
 ## Per-tool notes
 
@@ -747,12 +753,14 @@ section labels remain plain; only the matched keyword and excerpt marker are
 yellow. Evidence detail and locators remain plain. Words remain sufficient
 without color, authored punctuation is ASCII, and backend Unicode is preserved.
 
-### `list` / `read` / `code_grep` (inventory and file-exploration bundle)
+### `list` / `read` / `grep` (inventory and file-exploration bundle)
 
 `list` uses the transport-neutral `ListService` and shared request, response,
-error, and text helpers. `read` uses `ReadService`; `code_grep` retains compact
-target parsing through the code-navigation service. Live parity fixtures cover
-package and explicit-site list JSON shapes, while focused tests cover request
+error, and text helpers. `read` uses `ReadService`; `grep` uses `GrepService`
+and the shared mixed-source request, result, error, and text helpers. The
+retained CLI `githits code grep` continues to use the legacy code-navigation
+service and `grep-repo-*` helpers. Live parity fixtures cover package and
+explicit-site list JSON shapes, while focused tests cover request
 normalization, pagination, actions, errors, and text output.
 
 - **`list`**: literal paths and globs form a union. Selected directories expose
@@ -767,25 +775,17 @@ normalization, pagination, actions, errors, and text output.
   candidates are present instead of assuming every tool has all fields.
   Missing exact paths preserve `details.filePath` across surfaces while
   `details.action` renders the matching MCP or CLI recovery syntax.
-- **`code_grep`**: `GREP_REPO_PATTERN_NOTE` (exported from
-  `grep-repo-request.ts`) keeps the literal-vs-regex disclosure
-  identical across MCP description, MCP `pattern` describe, and
-  CLI help. The shared request builder compiles `path`,
-  `path_prefix`, and `globs` into backend `pathSelectors`, defaults
-  grep to whole-target literal ASCII case-insensitive matching;
-  whole-target regexes must include at least one literal substring.
-  `symbol_fields` / `--symbol-field` passes backend symbol
-  hydration through to `symbolFields`. Supported fields are
-  `symbol_ref`, `name`, `qualified_path`, `kind`, `category`, `arity`,
-  `is_public`, `file_path`, `start_line`, `end_line`, `content_hash`, and
-  `parent_path`; the response envelope
-  carries `matches[].symbol` when the backend hydrates it. Empty text uses
-  shared scan/scope/served-target context and branches recovery on whether
-  `filesInScope` is zero. Completed scans reject an unchanged repeat;
-  incomplete empty pages preserve truncation/pagination continuation instead.
-  Exact-path `FILE_NOT_FOUND`, `FILE_PATH_EXCLUDED`, and
-  `SOURCE_FILE_INVENTORY_UNKNOWN` errors follow the same shared-data,
-  surface-native-action contract as `read`.
+- **`grep`**: Both surfaces build the same one-page `GrepParams`, preserve the
+  validated `GrepResult`, and render through `formatGrepText`; the MCP schema
+  maps snake_case arguments to the shared request builder. Regex, case-sensitive
+  matching, zero context, `ALL` repository corpus, 100 matches, and zero
+  preparation wait are the unified defaults. Page text keeps scope readiness,
+  traversal, omissions, exact backend read actions, and cursor guidance; JSON
+  keeps backend occurrence order. See [Unified grep](unified-grep.md) for its
+  full schema and result contract. The legacy CLI `githits code grep` retains
+  its literal matching and Unicode-aware case folding by default, source-only
+  filters, symbol hydration,
+  per-file limit, and separate error/output behavior; it is not an MCP pair.
 
 See [Repository target grammar](repository-targets.md) for the shared GitHub, Codeberg, and GitLab addressing contract and provider-preserving response identity.
 

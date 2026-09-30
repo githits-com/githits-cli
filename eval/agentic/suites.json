@@ -98,6 +98,12 @@
       "suites": ["smoke", "stable-full"]
     },
     {
+      "id": "grep-mixed-docs",
+      "path": "eval/agentic/workloads/grep-mixed-docs.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
       "id": "list-continuation",
       "path": "eval/agentic/workloads/list-continuation.md",
       "safety": "stable",

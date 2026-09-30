@@ -1,5 +1,5 @@
 /**
- * Line-oriented text renderer for `code_grep` MCP responses.
+ * Line-oriented text renderer for legacy `githits code grep` responses.
  *
  * Designed for agent context efficiency: matches grouped by file,
  * `<line>: <content>` for matches and `<line>- <content>` for context
@@ -209,7 +209,7 @@ function formatGrepServedTarget(
 
 function buildHeader(envelope: LeanGrepRepoEnvelope): string {
   const parts = [
-    `code_grep${SEP}${envelope.totalMatches} match${
+    `code grep${SEP}${envelope.totalMatches} match${
       envelope.totalMatches === 1 ? "" : "es"
     } in ${envelope.uniqueFilesMatched} file${
       envelope.uniqueFilesMatched === 1 ? "" : "s"

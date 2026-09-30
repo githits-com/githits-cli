@@ -26,7 +26,7 @@ Use GitHits for evidence from real open-source code instead of guessing from mod
 - Inspecting a known dependency or public repository: start with `githits search` scoped by `--in`.
 - Searching an exact standalone documentation site: use `githits search "<topic>" --source docs --in site:<host[/path]>`. If the result reports suggested site targets, retry one explicitly; suggestions are advisory targets, not aliases.
 - Need file/path enumeration: use `githits list <target> [paths...]`; add `--recursive` to traverse directories. Do not probe directories with `githits read`.
-- Know the exact text to match: use `githits code grep` (literal by default). Pass `--regex` for RE2 syntax; lookaround and backreferences are unsupported. Use `githits search` for discovery.
+- Know the exact pattern to match: use `githits grep` (RE2 regex by default). Pass `-F` for literal text; lookaround and backreferences are unsupported. Use `githits search` for discovery.
 - Need documentation pages: use `githits search "<topic>" --source docs --in <target>` for topic search, or `githits list site:<host[/path]>` to browse a hosted site. Package/repository `list` targets include their local documentation files. Read emitted targets and paths with `githits read`; `githits docs list` remains a legacy package-page browser.
 
 ## Core Commands
@@ -45,8 +45,8 @@ githits list npm:express@5.2.1 lib/ --recursive --limit 100
 githits read npm:express@5.2.1 lib/express.js --lines 1-90
 githits read 'npm:express@5.2.1#Router'
 githits read npm:express@5.2.1 --selector Router
-githits code grep npm:express@5.2.1 "require('router')" lib/ -C 3
-githits code grep --repo-url https://github.com/expressjs/express --git-ref v5.2.1 "require('router')" lib/
+githits grep -F "require('router')" npm:express@5.2.1 --path-prefix lib/ -C 3
+githits grep -F "require('router')" github:expressjs/express@v5.2.1 --path-prefix lib/
 
 githits list site:expressjs.com --limit 20
 githits docs list npm:express --limit 20
@@ -65,7 +65,7 @@ githits read <docsReadTarget> --selector <heading-id>
 - For a site inventory, pass the emitted `site:` target and target-relative page path separately to `githits read`; preserve emitted read/browse action values exactly and do not repeat the target's scope in the path. Ordinary PAGE paths are reusable with their supplied target; explicit actions remain authoritative for exceptional URL/query/encoding identities. For list pagination, use `--json` to obtain `nextCursor`, then replay the same target and filters with `--after <nextCursor>`; do not edit the cursor. `list --wait` uses milliseconds.
 - Partial and capped documentation coverage are usable published evidence. Report the disclosed limit, but infer neither indexing progress nor retryability from coverage; follow only `searchRef` and the evidence notice.
 - Follow rendered continuation/recovery actions. Use `search-status <searchRef>` only when search explicitly supplies that follow-up; never repeat search to poll or poll a stopped reference. See `references/code-and-docs.md` for status/wait details.
-- If discovery search returns no useful hits, do not repeat it unchanged. Follow the rendered pivots; when the query is now an exact identifier or string, switch to `githits code grep` and read the focused match because symbol discovery may not include re-exports or generated aliases.
+- If discovery search returns no useful hits, do not repeat it unchanged. Follow the rendered pivots; when the query is now an exact identifier or string, switch to `githits grep` and read the focused match because symbol discovery may not include re-exports or generated aliases.
 - If grep returns no matches, do not repeat it unchanged. Follow the returned guidance by changing the pattern, broadening the file scope, or switching to `githits search` for conceptual discovery.
 - For indexing/freshness, use the displayed estimate to choose a longer `--wait`, or select a listed queryable version/ref; suggested refs may still need indexing. Site suggestions are advisory, not aliases: retry one explicitly and report omitted candidates.
 

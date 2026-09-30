@@ -122,10 +122,11 @@ Use the tools in these roles:
 - **Known-target discovery:** Start with `search` for relevance-ranked,
   open-ended investigation across documentation, specifications, source,
   symbols, tests, and examples. Omit `source` for broad discovery.
-- **Exact source matching:** Use `code_grep` when the literal, regex,
-  identifier, or call-site pattern is already known. It returns deterministic,
-  paginated matches. Use `search` for conceptual discovery, `read` for a
-  focused matched-file window, and `list` for path enumeration.
+- **Exact source matching:** Use `grep` when the literal or regex pattern is
+  already known. It returns one deterministic page across ordered package,
+  repository, and site targets. Use `search` for conceptual discovery, `read`
+  for an exact returned locator, and `list` for path enumeration. The retained
+  `githits code grep` command is a CLI-only compatibility surface.
 - **Navigation and documentation:** Use `list` to browse files or documentation
   pages in a package, repository, or explicit site inventory, then `read` an
   exact returned file or page. Package and repository targets include their own
@@ -135,7 +136,8 @@ Use the tools in these roles:
   retain callable follow-up mapping.
   `get_example` is for canonical
   cross-project examples and unknown-target/global patterns; for a known
-  package or repository, use `search`, `docs_*`, or `code_*` instead.
+  package or repository, use `search`, `list`, `read`, or `grep` according to
+  the task.
 - **Conditional search continuation:** Call `search_status` only when the
   preceding `search` response explicitly supplies both a `searchRef` and a
   `search_status` action. The initial `search` call can complete directly; never
@@ -176,10 +178,10 @@ callable.
 | `pkg_changelog` | `target`, `limit?`, `omit_bodies?`, `verbose?`, `body_lines?`, `format?` | Find release notes and changelog history for a package. Latest mode caps entries; pin `target` for one selected release; `@from..to` covers a closed interval. Empty selections succeed with no entries. |
 | `pkg_upgrade_review` | `registry?`, `package_name?`, `current_version?`, `target_version?`, `packages?`, `skip_transitive_security?`, `include_dependency_issues?`, `min_severity?`, `verbose?`, `format?` | Review a package upgrade: vulnerabilities, releases, peers, dependency changes. Reports facts, not upgrade risk or acceptance. Supports a single package or at most 30 batch upgrades. |
 | `read` | `target` (string), `path?`, `selector?`, `start_line?`, `end_line?`, `wait_timeout_ms?`, `format?` | Pass a code file target + path, an explicit `site:` target + target-relative page path, a compact `target#symbol` or selector, or another emitted docs target to unified backend read; the returned type determines code/docs presentation. Preserve emitted site action values exactly; do not repeat the target's scope in the path. `/` reads the site's landing page. HTTP(S) docs fragments select sections unless explicit bounds override them. Text displays 150/300 lines; exact-file code caps before fetching, while docs JSON keeps the backend selection. The backend applies wait where relevant. See [unified read](unified-read.md). |
-| `code_grep` | `target` (compact string), `pattern`, `path?`, `path_prefix?`, `globs?`, `extensions?`, `pattern_type?`, `case_sensitive?`, `exclude_doc_files?`, `exclude_test_files?`, `context_lines?`, `context_lines_before?`, `context_lines_after?`, `max_matches?`, `max_matches_per_file?`, `cursor?`, `symbol_fields?`, `wait_timeout_ms?`, `format?` | Find text, regex, or identifier matches in a public repo or package. Results are deterministic and paginated; `max_matches_per_file` defaults to `max_matches`. |
+| `grep` | `targets` (ordered `{target, corpus?, path_selectors?}` objects), `pattern`, `pattern_type?`, `ignore_case?`, `context_lines_before?`, `context_lines_after?`, `max_matches?`, `cursor?`, `wait_timeout_ms?`, `format?` | Search known regex or literal matches across package, repository, and explicit site targets. Regex, case-sensitive matching, zero context, all indexed repository files, 100 matches, and zero preparation wait are the defaults. Package targets also include selected hosted docs. Follow exact read locators and replay partial pages with the same targets and controls. Legacy source-only filters remain on CLI `githits code grep`. See [unified grep](unified-grep.md). |
 
 `quick_start`, `get_example`, `search`, `search_status`, `list`, `read`,
-`code_grep`, `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, and
+`grep`, `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, and
 `pkg_upgrade_review` are registered by default. The package/source service URL
 defaults to the GitHits-managed endpoint and can be overridden via
 `GITHITS_CODE_NAV_URL` for local development.
@@ -576,7 +578,7 @@ expansion remain unchanged except
 that dependency-issue locators are capped at five rows per category in default
 text with an explicit remainder; `verbose` expands them fully.
 
-### `list` / `read` / `code_grep` response shapes
+### `list` / `read` / `grep` response shapes
 
 These indexed tools share compact target strings and structured resolution
 metadata while projecting purpose-specific envelopes. `list` also accepts
@@ -586,10 +588,14 @@ The advertised MCP `read` tool uses the required `McpToolServices.readService`
 dependency. Its compact code and docs branches call `ReadService.read` once,
 which sends one `Query.read` request and returns the matching semantic union
 member. The tool keeps the existing validation, code cap, docs presentation
-cap, formatting, and source-specific error mapping. Deprecated CLI command
-surfaces remain separate compatibility paths: `githits code read` calls the
-legacy `fetchCodeContext` root and `githits docs read` calls legacy
-`getDocPage`; they are not fallback implementations for the compact MCP tool.
+cap, formatting, and source-specific error mapping. Advertised MCP `grep` uses
+the separate required `McpToolServices.grepService` dependency and one
+`GrepService.grep` page. Its shared request builder, result projection, and
+text formatter are used by top-level CLI `githits grep` as well. Deprecated CLI
+command surfaces remain separate compatibility paths: `githits code read`
+calls the legacy `fetchCodeContext` root, `githits docs read` calls legacy
+`getDocPage`, and `githits code grep` calls legacy `grepRepo`; none is a
+fallback for the compact MCP tools.
 
 **`list` envelope**: `{inventoryKind, requestedTarget, canonicalTarget,
 entries: [{kind, path, title?, read?, browse?, language?, fileType?, intent?,
@@ -604,18 +610,21 @@ The legacy `githits code files` command retains its older
 `{registry?|repoUrl?+gitRef?, total, hasMore, ... files}` envelope for CLI
 compatibility. It is not an advertised MCP tool.
 
-**`read` code envelope**: `{registry?|repoUrl?+gitRef?, path, language?, totalLines?, startLine?, endLine?, content?, isBinary?, hint?, targetResolution?}`. `path` (not `filePath`) matches `list.entries[].read.path` and `code_grep.filter.path` when exact-file grep is used. Binary files set `isBinary: true` and **omit** `content` (not `null`); agents branch on the flag. `hint` is emitted only when the MCP span cap actually truncated the response — see "read span cap" below.
+**`read` code envelope**: `{registry?|repoUrl?+gitRef?, path, language?, totalLines?, startLine?, endLine?, content?, isBinary?, hint?, targetResolution?}`. `path` (not `filePath`) matches `list.entries[].read.path` and the repository `grep.hits[].read.path` action. Binary files set `isBinary: true` and **omit** `content` (not `null`); agents branch on the flag. `hint` is emitted only when the MCP span cap actually truncated the response — see "read span cap" below.
 
-**`code_grep` envelope**: `{registry?|name?|repoUrl?+gitRef?, pattern, patternType?, caseSensitive?, matches: [{filePath, line, matchStartByte, matchEndByte, lineContent, contextBefore?, contextAfter?, fileContentHash?, fileIntent?, symbol?}], nextCursor?, hasMore, truncatedReason?, filesScanned, filesInScope, binaryFilesSkipped?, filesTooLargeSkipped?, totalMatches, uniqueFilesMatched, indexedVersion?, resolution?, targetResolution?, filter?}`. Default-valued fields (`patternType: literal`, `caseSensitive: false`, zero skipped counters, `truncatedReason: none`) are omitted. `filter` echoes only explicit caller filters. Match entries carry `filePath` so grep output chains directly into `read`.
+**`grep` result**: `GrepResult` is the validated backend result: `{hits, targets, unavailableTargets, traversal, nextCursor, totalMatches}`. `hits` is a repository/site union; each hit retains its physical scope index, line slices and match offsets, safety metadata, and exact backend-authored `read` action. Detailed JSON selection also carries source byte coordinates, line content, and site URL-prefix detail where selected by the query. The MCP `format: "text"` formatter groups this page for reading and prints read templates plus opaque continuation guidance; JSON preserves producer hit order and action values. See [Unified grep](unified-grep.md) for the public controls, coverage semantics, and text contract. The retired MCP `code_grep` envelope and its source-only filters are not aliases; those controls remain on the legacy CLI `githits code grep` command.
 
-`targetResolution` is additive provenance. It explains requested, resolved-requested, and served artifacts plus `freshness` (`current`, `fallback_recent`, `indexing`, `provisional`, or `unavailable`), `freshnessReason`, `indexingRef`, `availableVersions`, `availableRefs`, and `suggestedRefs`. A `provisional` / `exact_provisional` Discovery result is queryable while indexing continues; code-navigation text uses the exact served identity and `indexingRef` and does not substitute a requested ref. Unified search text-v1 instead keeps internal `indexingRef` and reason codes out of default text while retaining the user-meaningful served identity and bounded alternatives. `availableVersions` and `availableRefs` are already-indexed artifacts that can be queried immediately. `suggestedRefs` are fuzzy upstream candidates and may require indexing before use. Existing `indexedVersion`, `resolution`, and locator fields remain served-identity compatibility fields. Text mode renders actionable notes such as `Using recent indexed snapshot`, `Serving an older indexed snapshot; current target is still being indexed`, `Requested ref is being indexed`, `provisional (still indexing)`, `Fresh target is being indexed`, `Target unavailable`, `queryable now`, or `suggested refs`; a code-navigation indexing note includes the exact `served=` identity whenever results came from a queryable snapshot. JSON mode carries the structured object. A `current` resolution is authoritative on every code-navigation surface and suppresses alternative-target remediation; waited search completion is one case where earlier candidates can remain in structured provenance without becoming warnings.
+Where present, `targetResolution` is additive provenance. It explains requested, resolved-requested, and served artifacts plus `freshness` (`current`, `fallback_recent`, `indexing`, `provisional`, or `unavailable`), `freshnessReason`, `indexingRef`, `availableVersions`, `availableRefs`, and `suggestedRefs`. A `provisional` / `exact_provisional` Discovery result is queryable while indexing continues; code-navigation text uses the exact served identity and `indexingRef` and does not substitute a requested ref. Unified search text-v1 instead keeps internal `indexingRef` and reason codes out of default text while retaining the user-meaningful served identity and bounded alternatives. `availableVersions` and `availableRefs` are already-indexed artifacts that can be queried immediately. `suggestedRefs` are fuzzy upstream candidates and may require indexing before use. Existing `indexedVersion`, `resolution`, and locator fields remain served-identity compatibility fields. Text mode renders actionable notes such as `Using recent indexed snapshot`, `Serving an older indexed snapshot; current target is still being indexed`, `Requested ref is being indexed`, `provisional (still indexing)`, `Fresh target is being indexed`, `Target unavailable`, `queryable now`, or `suggested refs`; legacy code-navigation indexing text includes the exact `served=` identity whenever results came from a queryable snapshot. JSON mode carries the structured object. A `current` resolution is authoritative on responses that expose it and suppresses alternative-target remediation; waited search completion is one case where earlier candidates can remain in structured provenance without becoming warnings. Unified `grep` instead returns its own per-scope readiness and traversal fields.
 
 ### Indexing and inventory lifecycle
 
-`read` and `code_grep` share the code-navigation indexing-retry contract. The
-state can arrive through either an error response or a success sentinel
-(`codeIndexState: "INDEXING"`), and that service layer collapses both to the
-same typed `CodeNavigationIndexingError` before the envelope builder runs.
+`read` and legacy CLI `githits code grep` share the code-navigation
+indexing-retry contract. The state can arrive through either an error response
+or a success sentinel (`codeIndexState: "INDEXING"`), and that service layer
+collapses both to the same typed `CodeNavigationIndexingError` before the
+envelope builder runs. Unified MCP/CLI `grep` uses `GrepService` and its own
+typed error mapper; `GREP_TARGET_PREPARATION_REQUIRED` maps to `INDEXING`, and
+preparation wait defaults to zero unless the caller supplies a wait value.
 `list` has its own typed error family and preserves selected source/site
 lifecycle fields in JSON. Discovery `search` / `search_status` may additionally
 expose `codeIndexState: "PROVISIONAL"` with queryable hits and a `searchRef`.
@@ -642,11 +651,11 @@ expose `codeIndexState: "PROVISIONAL"` with queryable hits and a `searchRef`.
 }
 ```
 
-Backend GraphQL errors preserve the backend message verbatim and carry its `hint`, `indexingEstimate`, and available artifacts in `details`; client prose does not replace them. CLI terminal errors render a preserved backend hint beneath the message, and human `search` / `search-status` indexing errors use the same detail formatter as `code files` / `code read` / `code grep`. A `PACKAGE_INDEXING` error receives appended CLI `--wait` / MCP `wait_timeout_ms` fallback guidance only when neither the backend message nor hint names a wait argument; the backend text remains intact. Data-path indexing sentinels have no backend message or hint, so the client supplies the same wait guidance while structured detail lines carry the indexing ref and estimate. For code-navigation target and indexing errors, `details.availableVersions` and `details.availableRefs` are already indexed and immediately queryable. CodeDiff `VERSION_NOT_FOUND` is the documented exception: its `availableVersions` are backend-ranked source-ref alternatives, not code-index state. `details.suggestedRefs` appears on `REF_NOT_FOUND` and inside `details.targetResolution`; these are fuzzy suggestions and may require indexing. The client never fabricates candidates.
+Backend GraphQL errors preserve the backend message verbatim and carry its `hint`, `indexingEstimate`, and available artifacts in `details`; client prose does not replace them. CLI terminal errors render a preserved backend hint beneath the message, and human `search` / `search-status` indexing errors use the same detail formatter as legacy `githits code files`, `githits code read`, and `githits code grep`. A `PACKAGE_INDEXING` error receives appended CLI `--wait` / MCP `wait_timeout_ms` fallback guidance only when neither the backend message nor hint names a wait argument; the backend text remains intact. Data-path indexing sentinels have no backend message or hint, so the client supplies the same wait guidance while structured detail lines carry the indexing ref and estimate. For code-navigation target and indexing errors, `details.availableVersions` and `details.availableRefs` are already indexed and immediately queryable. CodeDiff `VERSION_NOT_FOUND` is the documented exception: its `availableVersions` are backend-ranked source-ref alternatives, not code-index state. `details.suggestedRefs` appears on `REF_NOT_FOUND` and inside `details.targetResolution`; these are fuzzy suggestions and may require indexing. The client never fabricates candidates.
 
 **Follow-up — error metadata carrier consolidation.** Target, version, and ref errors currently carry available artifacts both as legacy constructor fields and in common error metadata; `CodeNavigationIndexingError` also carries `hint` as a standalone constructor field. Consolidate those carriers in a dedicated refactor; changing the internal error API is outside this response-formatting slice and has no user-visible anti-looping benefit.
 
-**Retry default**: `DEFAULT_WAIT_TIMEOUT_MS = 30_000` (shared, defined in `packages/mcp/src/shared/code-navigation-defaults.ts`). Applied inside each request builder so both CLI and MCP surfaces get the same default by construction. CLI search/search-status use `--wait <seconds>`; code files/read/grep use `--wait <ms>`. MCP uses `wait_timeout_ms`.
+**Retry defaults**: `DEFAULT_WAIT_TIMEOUT_MS = 30_000` (defined in `packages/mcp/src/shared/code-navigation-defaults.ts`) remains the default for unified `search`, compact `read`, and the legacy CLI `githits code` group, including `githits code grep`. Unified `grep` instead defaults preparation wait to zero. CLI search/search-status use `--wait <seconds>`; read and legacy code-group commands use `--wait <ms>`. MCP wait arguments use `wait_timeout_ms`.
 
 **Discovery indexing estimates and continuation**: Both initial `search` progress
 and `search_status` progress retain `indexingEstimates` in CLI/MCP JSON. Entries
@@ -705,7 +714,7 @@ dependency, and deploying it. External MCP callers must allow the requested wait
 plus response headroom; the SDK's default 60-second caller timeout is insufficient
 for the longest calls. Dev direct-Fly checks do not establish production routing.
 
-**Exact-path authority errors**: `read` / `code_grep` distinguish a missing path (`FILE_NOT_FOUND`) from a path deliberately omitted from the index (`FILE_PATH_EXCLUDED`) and an index whose source-file inventory cannot authoritatively answer the path query (`SOURCE_FILE_INVENTORY_UNKNOWN`). The latter two become stable top-level CLI/MCP codes and preserve `filePath`, optional `exclusionReason`, retryability, and target-resolution metadata. All three preserve the backend message and add surface-native `details.action` guidance for inspecting indexed paths. MCP recovery uses `list` with a directory path selector; compact CLI recovery uses `githits list <target> <directory>/`. Legacy grouped CLI commands retain their own surface-native wording. `read` still supports generic `NOT_FOUND` from older/backend paths, and its structured recovery is likewise rendered without classifying unrelated target misses as file errors.
+**Exact-path authority errors**: compact `read` distinguishes a missing path (`FILE_NOT_FOUND`) from a path deliberately omitted from the index (`FILE_PATH_EXCLUDED`) and an index whose source-file inventory cannot authoritatively answer the path query (`SOURCE_FILE_INVENTORY_UNKNOWN`). These preserve `filePath`, optional `exclusionReason`, retryability, and target-resolution metadata, and add surface-native `details.action` guidance for inspecting indexed paths. MCP recovery uses `list` with a directory path selector; compact CLI recovery uses `githits list <target> <directory>/`. Legacy `githits code grep` keeps its source-only path behavior. Unified `grep` carries backend file issues in each scope status and uses its own error map for request/service failures. `read` still supports generic `NOT_FOUND` from older/backend paths, and its structured recovery is likewise rendered without classifying unrelated target misses as file errors.
 
 **`read` code span bounds (MCP-only)**: real session traces showed agents requesting 300-600 line windows (and occasional unbounded full-file reads) which dominated context cost, while a later Claude Desktop session showed that a fixed 150-line ceiling can waste context by forcing pagination for a known 248-line file. Calls without `end_line` therefore remain bounded to `MCP_READ_DEFAULT_SPAN` (150 lines), while deliberate explicit ranges may request up to `MCP_READ_MAX_SPAN` (300 lines). Both are defined in `packages/mcp/src/shared/code-navigation-defaults.ts` and enforced before the backend call.
 
@@ -786,8 +795,9 @@ generic rerun/query rewrite. Stopped terminal references are not polled.
 `evidenceNotice` stays exact in JSON and is not rendered in default text. JSON is
 the lossless stable boundary for source statuses, target resolution, warnings,
 evidence notices, and hit metadata; text remains a compact decision surface.
-Surface-native pivots name `source="symbol"` / `code_grep` in MCP and
-`--source symbol` / `githits code grep` in CLI.
+Surface-native pivots name `source="symbol"` / `grep` in MCP and
+`--source symbol` / `githits grep` in the top-level CLI. The legacy CLI
+`githits code grep` retains its own routing and controls.
 
 The representative CLI n8n example is maintained in
 `docs/implementation/cli-commands.md` as the output source of truth.
@@ -849,7 +859,7 @@ Completed-empty action selection is target-aware: exact terminal lanes with no
 searched/indexing peer get local recovery, while searched-empty evidence can get
 a query rewrite. Indexing or trust-only evidence gets a single rerun action when
 no target-local recovery exists; standalone-site output uses its site-specific
-rewrite only when applicable. Filter removal and symbol/code-grep pivots appear
+rewrite only when applicable. Filter removal and symbol/grep pivots appear
 only when requested constraints make them useful. Terminal `DEFERRED`, `FAILED`,
 and `TIMEOUT` preserve disclosed evidence and lifecycle; unknown statuses stay
 conservative and do not poll. Promoted lifecycle/freshness prose, opaque evidence
@@ -870,32 +880,20 @@ More files available. Pass limit=N or refine the filter.
 
 `<identity>` is `<registry>:<name>@<version>` for spec addressing or `<repoUrl>@<gitRef>` for repo addressing. Filter echoes appear in the header only when the caller supplied them explicitly (defaults never echo).
 
-**Grep anatomy** (`code_grep` text-v1):
+**Unified grep text response** (MCP `grep` and CLI `githits grep`): the shared
+`formatGrepText` groups the returned page by exact file/page identity while JSON
+retains backend occurrence order. Match rows use `:`, context rows use `-`, and
+disjoint blocks with context use `--`. Numbered headers carry the exact backend
+read locator; the page headline, scope rows, and continuation guidance preserve
+coverage and traversal state. See [Unified grep](unified-grep.md) for the full
+output, request, and recovery contract.
 
-```
-code_grep | <N> matches in <M> files | pattern="..." [regex,case-sensitive]
-[blank]
-<filePath> (<count>)
-  142: matching line content
-  287: another match
-[blank]
-<filePath2> (<count>)
-  140- context-before line
-  141- context-before line
-  142: matching line
-  143- context-after line
-[blank]
-[Truncated: time limit reached. Pass narrower path/path_prefix/globs or increase max_matches.]
-[More matches available. Pass cursor=<token> for the next page.]
-```
-
-Standard grep -A/-B notation: `:` separator on match lines, `-` on context lines. Non-adjacent blocks within the same file are separated by `--`. The `(<count>)` after the file path is the per-file match count; the header sums across files. Header flags (`regex`, `case-sensitive`) appear only when the request used them. Scope filters are not echoed in text mode; agents already have the tool call arguments in context, and `format: "json"` preserves exact request/filter metadata for programmatic use. Match-line offsets, file content hashes, file intent, and symbol metadata are dropped in text mode — agents that need them can request `format: "json"`.
-
-Empty grep adds scanned/in-scope counts, served target/ref context when known, and `Do not repeat this grep unchanged.` Positive equal counts collapse to `files scanned: N (full scope)`; zero scope says `no files in scope`. When the content index prunes candidates before verification, unequal counts explicitly identify the smaller value as `content-scanned after index pruning`, so it cannot be mistaken for an incomplete whole-target scan. Zero in-scope files direct the caller to loosen selectors; a nonzero scope directs it to change the pattern or switch to conceptual `search`. A case-sensitive request also suggests disabling case sensitivity. MCP guidance uses structured argument names while CLI guidance uses positional/flag syntax. The same decision text is shared with CLI terminal stderr while plain CLI stdout remains grep-compatible and empty. Backend truncation enums are normalized to lowercase in JSON and rendered as `match limit reached`, `per-file match limit reached`, or `time limit reached` in text.
-
-`max_matches_per_file` defaults to the resolved `max_matches` value, replacing the backend's smaller hidden per-file default on both default and explicitly widened requests. This can let one match-heavy file consume the page; callers can set a lower per-file limit when result diversity matters. Truncation guidance names `max_matches`, `max_matches_per_file`, `--limit`, or `--per-file-limit` according to the actual producer reason; deadline truncation only recommends narrowing scope.
-
-`context_lines`, `context_lines_before`, and `context_lines_after` accept integers from 0 through 10. The MCP JSON Schema advertises the range so agent clients reject invalid calls before dispatch; direct CLI/internal callers retain the same request-builder validation. The asymmetric fields override the corresponding side of `context_lines`.
+The retained CLI `githits code grep` continues to use legacy `grepRepo`
+request/response helpers, including literal matching and Unicode-aware case
+folding by default, source-only filters, per-file limits, and symbol hydration.
+It has no corresponding MCP tool; see
+[CLI commands](cli-commands.md#githits-code-grep) for that compatibility
+surface's controls and output.
 
 **Docs branch read bounds.** The `Query.read` docs branch owns inclusive,
 one-based, page-relative selection through `contentRange`. Either explicit
@@ -954,7 +952,7 @@ not expose that unused backend field. Client diagnostics and result metadata kee
 only locators, explicit bounds, range coordinates, and existing provenance; they
 never store documentation content or credentials as usage details.
 
-**Errors in text mode.** `search` errors render as text in `text-v1` mode: `search | ERROR | code=<CODE> [| retryable]\n<message>` followed by an indented `details:` block when present. `code_grep` keeps errors JSON-formatted in either mode for now; `list` uses the shared mapped error envelope.
+**Errors in text mode.** `search` errors render as text in `text-v1` mode: `search | ERROR | code=<CODE> [| retryable]\n<message>` followed by an indented `details:` block when present. `grep` and `list` return their mapped JSON error envelopes in either success-format mode. The legacy CLI `githits code grep` keeps its surface-native terminal and JSON errors.
 
 ## Quick-start guide
 
@@ -1177,8 +1175,11 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 | `packages/mcp/src/mcp/instructions.ts` | Stable guide builder returned by `quick_start` and copied into the loaded `githits-mcp` skill |
 | `src/commands/mcp.ts` | CLI stdio startup, request-header mode setup, and TTY setup instructions |
 | `packages/core-internal/src/services/githits-service.ts` | REST API client for example search |
-| `packages/core-internal/src/services/code-navigation-service.ts` | Package/source service client for unified `search`, `search_status`, and legacy/grep navigation |
+| `packages/core-internal/src/services/code-navigation-service.ts` | Package/source service client for unified `search`, `search_status`, and legacy code-navigation operations |
 | `packages/core-internal/src/services/list-service.ts` | Transport-neutral unified `list` client for package, repository, and site inventories |
+| `packages/core-internal/src/services/grep-service.ts` | Transport-neutral unified `grep` client for one mixed-source `Query.grep` page |
+| `packages/mcp/src/tools/grep.ts` | Stable MCP `grep` schema and adapter |
+| `packages/mcp/src/shared/grep-request.ts` / `grep-response.ts` / `grep-error-map.ts` / `grep-text.ts` | Shared unified `grep` request, result, error, and text boundaries used by MCP and CLI |
 
 ## Related Documentation
 

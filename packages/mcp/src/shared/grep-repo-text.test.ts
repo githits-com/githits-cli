@@ -35,7 +35,7 @@ function match(overrides: Partial<LeanGrepRepoMatch> = {}): LeanGrepRepoMatch {
 describe("renderGrepRepoText", () => {
   it("renders scoped zero-match context and pattern pivots", () => {
     const text = renderGrepRepoText(envelope());
-    expect(text).toContain("code_grep | 0 matches in 0 files");
+    expect(text).toContain("code grep | 0 matches in 0 files");
     expect(text).toContain('pattern="applyEdit"');
     expect(text).toContain("No matches.");
     expect(text).toContain("files scanned: 120 (full scope)");
@@ -236,7 +236,7 @@ describe("renderGrepRepoText", () => {
       }),
     );
     const header = text.split("\n")[0] ?? "";
-    expect(header).toBe('code_grep | 1 match in 1 file | pattern="applyEdit"');
+    expect(header).toBe('code grep | 1 match in 1 file | pattern="applyEdit"');
   });
 
   it("keeps symbol metadata out of text output", () => {

@@ -89,6 +89,8 @@ describe("security eval skills surface", () => {
     expect(detectFixtureTool(["search-status", "ref-123"])).toBe(
       "search_status",
     );
+    expect(detectFixtureTool(["list", "npm:express"])).toBe("list");
+    expect(detectFixtureTool(["grep", "router", "npm:express"])).toBe("grep");
     expect(detectFixtureTool(["code", "files", "npm:express"])).toBe(
       "code_files",
     );
@@ -118,6 +120,22 @@ describe("security eval skills surface", () => {
       formatFixtureOutput(
         ["docs", "list", "npm:@example/widget-kit"],
         "docs_list",
+        "docs_read",
+        "fixture text",
+      ),
+    ).toContain("githits read readme");
+    expect(
+      formatFixtureOutput(
+        ["grep", "widget", "npm:@example/widget-kit"],
+        "grep",
+        "code_read",
+        "fixture text",
+      ),
+    ).toContain("githits read npm:@example/widget-kit src/index.ts");
+    expect(
+      formatFixtureOutput(
+        ["list", "npm:@example/widget-kit"],
+        "list",
         "docs_read",
         "fixture text",
       ),

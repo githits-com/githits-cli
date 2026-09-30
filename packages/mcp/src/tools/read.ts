@@ -57,7 +57,7 @@ export const readSchema: ReadSchema = {
     .string()
     .optional()
     .describe(
-      "Page path relative to the supplied site: target; do not repeat its scope. For code, use an exact package/repo-relative file path from search, list, or code_grep. Preserve emitted paths unchanged. Omit for other documentation targets; empty means omitted.",
+      "Page path relative to the supplied site: target; do not repeat its scope. For code, use an exact package/repo-relative file path from search, list, or grep. Preserve emitted paths unchanged. Omit for other documentation targets; empty means omitted.",
     ),
   selector: z
     .string()
@@ -99,7 +99,7 @@ export const DESCRIPTION_BASE: string =
   "Hosted/crawled HTTP(S) docs targets read mutable current content; repository-doc targets address snapshots. " +
   "A docs URL fragment needs no bounds and returns its heading with the full subtree through the next equal-or-higher heading; either bound replaces it with a page-relative range. " +
   "Use emitted locators to preserve exact revisions. It does not list directories: use list. " +
-  "Read focused windows from search/code_grep; follow returned continuation and error actions. " +
+  "Read focused windows from search/grep; follow returned continuation and error actions. " +
   "On INDEXING retry the same target/path with wait_timeout_ms; no content is available yet.";
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${CODE_READ_GUARDRAIL}`;
 

@@ -17,7 +17,7 @@ the routing decision; the selected tool supplies its argument details.
 
 | Question | Tool to discover |
 | --- | --- |
-| Find a known literal or regex in a public repository/package | code_grep |
+| Find a known regex or literal in public source or documentation | grep |
 | Find relevant source, symbols, tests, or documentation for a topic | search |
 | List files or documentation pages in a package, repository, or explicit site | list |
 | Read an exact source file or documentation page returned by search or list | read |

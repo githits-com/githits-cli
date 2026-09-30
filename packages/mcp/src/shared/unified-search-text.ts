@@ -898,7 +898,7 @@ function formatRewrite(
     case "symbol":
       return syntax === "cli" ? "use --source symbol" : 'use source="symbol"';
     case "code_grep":
-      return syntax === "cli" ? "use githits code grep" : "use code_grep";
+      return syntax === "cli" ? "use githits grep" : "use grep";
     case "site_shorter_or_broader":
       return "shorten or broaden site query";
   }

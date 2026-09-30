@@ -20,8 +20,9 @@ continues. Treat the displayed served target as exact provenance and follow a
 
 If discovery returns no useful hits, follow its rendered pivots instead of
 repeating it unchanged. Once the query is an exact identifier or string, use
-`code grep` and then read the focused match; symbol discovery may not include
-re-exports or generated aliases.
+`githits grep` and then read the focused match; symbol discovery may not include
+re-exports or generated aliases. The retained `githits code grep` command is a
+source-only compatibility workflow.
 
 If a missing or ambiguous site returns suggested site targets, retry one of those exact labels explicitly. They are advisory, not aliases, and GitHits does not select or retry one automatically. A truncation notice means more valid candidates were omitted.
 
@@ -61,9 +62,14 @@ Useful filters: `--path`, repeatable `--glob`, repeatable `--ext`, repeatable `-
 
 ## Code Grep
 
+Prefer the top-level `githits grep` command for known patterns across source
+and documentation. The retained `githits code grep` command remains a
+source-only compatibility workflow with its own options.
+
 `githits code grep <spec> <pattern> [path-prefix]` runs deterministic text grep. Use `--regex` for RE2 regex, `--case-sensitive`, `-C`, `-A`, `-B`, `--path`, repeatable `--glob`, repeatable `--ext`, `--exclude-docs`, `--exclude-tests`, `--limit`, `--per-file-limit`, `--cursor`, `--symbol-field`, `--wait`, `--verbose`, `--json`.
 
-Use `search` for discovery and `code grep` only when you know the pattern.
+Use `githits search` for discovery and `githits grep` when you know the
+pattern. The legacy `githits code grep` searches source files only.
 When grep returns no matches, do not repeat it unchanged. Change or shorten the pattern, broaden the path/filter scope, or switch to `search` for conceptual intent.
 
 ## Docs
@@ -78,12 +84,16 @@ Partial and capped documentation coverage are usable published evidence. Report 
 
 ## Command Name Mapping
 
+These workflow mappings do not promise one-to-one flag compatibility. Use each
+MCP tool with its own schema and documented capabilities.
+
 - `githits example` maps to MCP `get_example`.
 - `githits search` maps to MCP `search`.
 - `githits search-status` maps to MCP `search_status`.
 - `githits code files` is a legacy CLI browser; use MCP `list` for package or repository inventories.
 - `githits list` maps to MCP `list` with the same target, path selection, and opaque cursor.
-- `githits code grep` maps to MCP `code_grep`.
+- `githits grep` maps to MCP `grep` with the same ordered targets and matching controls.
+- `githits code grep` has no exact MCP alias; use MCP `grep` with its own schema and mixed-source capabilities.
 - `githits read <target> <path>` maps to MCP `read` with `target` and `path`.
 - `githits read <target> --selector <name>` maps to MCP `read` with `target` and `selector`, optionally with `path` for code.
 - `githits read '<target>#<symbol>'` maps to MCP `read` with the fragment in `target`, optionally with `path` for code.

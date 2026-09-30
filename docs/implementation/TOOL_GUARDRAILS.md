@@ -55,7 +55,7 @@ One layer, with a second held in reserve:
    dispute claims remain reportable with provenance but do not alter those
    boundaries.
 
-2. **Per-tool addenda** are normally empty. `read` and `code_grep` carry
+2. **Per-tool addenda** are normally empty. `read` and MCP `grep` carry
    one focused source-specific addendum because a Claude Desktop session was
    observed skipping `quick_start` before reading source. The other tools rely
    on the shared block; restore another focused addendum only when evidence
@@ -94,7 +94,7 @@ the harness does not establish complete hidden-guidance absence or causality.
 Luna-low descriptor-only and full-guidance canaries called `quick_start`
 exactly once in every workload,
 but a Claude Desktop source-reading session later than those canaries skipped
-it. `read` and `code_grep` therefore now carry focused local posture as a
+it. `read` and MCP `grep` therefore now carry focused local posture as a
 fallback. This is not evidence that other content tools are protected when
 neither the skill nor the bootstrap supplies the shared block.
 
@@ -130,7 +130,7 @@ maintainer-controlled content:
 - `pkg_changelog` — release-notes body
 - `pkg_upgrade_review` — release-note excerpts and package deprecation text
 - `list` and `read` — repository documentation paths and crawled docs pages
-- `read` and `code_grep` — repo source code (comments + strings)
+- `read` and `grep` — repo source code (comments + strings)
 - `search` — multi-source search snippets
 - `get_example` — backend-synthesized examples
 
@@ -149,7 +149,9 @@ in that skill and do not create a second bootstrap path.
     `DOCS_GUARDRAIL`, `CODE_READ_GUARDRAIL`,
     `CODE_GREP_GUARDRAIL`, `SEARCH_GUARDRAIL`, `GET_EXAMPLE_GUARDRAIL`
     — `CODE_READ_GUARDRAIL` and `CODE_GREP_GUARDRAIL` carry the focused
-    source fallback; the others remain reserved for evidence-driven restoration.
+    source fallback. `CODE_GREP_GUARDRAIL` is attached to the current MCP
+    `grep` descriptor; the other constants remain reserved for evidence-driven
+    restoration.
 - Shared-block wiring: `packages/mcp/src/mcp/instructions.ts` — appended
   to the stable routing guide and embedded identically in the public MCP skill.
 - Per-tool wiring: each fixture tool registered by the eval mock exports a guardrail-free

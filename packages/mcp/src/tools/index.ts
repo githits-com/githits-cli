@@ -1,5 +1,5 @@
 export { createGetExampleTool } from "./get-example.js";
-export { createGrepRepoTool } from "./grep-repo.js";
+export { createGrepTool } from "./grep.js";
 export * from "./guardrails.js";
 export { createListTool } from "./list.js";
 export {

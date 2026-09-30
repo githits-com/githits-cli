@@ -6,11 +6,11 @@ result storage, caching, background preparation, and research-thread state.
 It does not assert that the backend performs no database writes.
 
 The canonical factories in `@githits/mcp` own these annotations. The stable
-catalog contains 13 tools; local experimental mode adds `research`, `resolve_target`,
+catalog contains 12 tools; local experimental mode adds `research`, `resolve_target`,
 and `code_diff`. All tools remain non-destructive and omit `idempotentHint`.
 
 `openWorldHint` describes the domain of interaction independently of writes,
-authentication, and evidence quality. Twelve stable public-evidence tools and
+authentication, and evidence quality. Eleven stable public-evidence tools and
 all three experimental tools advertise `openWorldHint: true`. This includes
 `search_status`: retrieving an existing search still returns public evidence.
 Only `quick_start` advertises `openWorldHint: false`, since it returns bundled
@@ -26,7 +26,7 @@ These annotation choices do not change request or response behavior.
 | `quick_start` | Return GitHits usage guidance. |
 | `get_example` | Find canonical examples. |
 | `search`, `search_status` | Discover indexed evidence and retrieve search progress/results. |
-| `list`, `code_grep`, `read` | Browse, search, and read public source or documentation inventories. |
+| `list`, `grep`, `read` | Browse, search, and read public source or documentation inventories. |
 | `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review` | Retrieve and compute package facts and upgrade evidence. |
 | Local experimental `research`, `resolve_target`, `code_diff` | Generate cited answers, resolve targets, and compare source versions. |
 

@@ -1178,8 +1178,11 @@ Acceptance and evidence:
 - Run `bun run agent:e2e --agent codex --server local --guidance-profile
   descriptors --workload eval/agentic/workloads/code-grep-investigation.md`
   and the matching Claude run. Add one focused mixed-docs workload: find the
-  known `middleware` literal in Plug source and hosted docs, then reopen the
-  returned evidence. Run both descriptor-only agents for it; use the full
+  known `middleware` literal in Express source and hosted docs, then reopen the
+  returned evidence. Production `hex:plug` returned `site_v6_required` even
+  with the allowed preparation wait on 2026-09-30, so the original Plug
+  fixture cannot exercise this workflow; `npm:express@5.2.1` returned both
+  repository and hosted-doc hits for the literal in one capped page. Run both descriptor-only agents for it; use the full
   guidance profile if broad instruction changes warrant it. Inspect
   `tool-calls.json`, `final.json`, `metrics.json`, and
   `isolation-violations.json`; report tool use, confidence and measured cost,

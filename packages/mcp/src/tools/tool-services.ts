@@ -1,6 +1,7 @@
 import type {
   CodeNavigationService,
   GitHitsService,
+  GrepService,
   ListService,
   PackageIntelligenceService,
   ReadService,
@@ -18,4 +19,5 @@ export interface McpToolServices {
   packageIntelligenceService: PackageIntelligenceService;
   listService: ListService;
   readService: ReadService;
+  grepService: GrepService;
 }

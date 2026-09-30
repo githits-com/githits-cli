@@ -8,7 +8,7 @@ This guide owns shared policy; selected tools own call syntax and exceptions.
 
 | Question | Tool to discover |
 | --- | --- |
-| Find a known literal or regex in a public repository/package | \`code_grep\` |
+| Find a known regex or literal in public source or documentation | \`grep\` |
 | Find relevant source, symbols, tests, or documentation for a topic | \`search\` |
 | Browse files or documentation pages in a known package, repository, or site | \`list\` |
 | Read a source file, code symbol, or documentation section | \`read\` |

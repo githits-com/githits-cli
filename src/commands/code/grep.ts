@@ -334,7 +334,7 @@ export function registerCodeGrepCommand(pkgCommand: Command): Command {
       [] as string[],
     )
     .option("--regex", "Interpret the pattern as RE2 regex")
-    .option("--case-sensitive", "Enable ASCII case-sensitive matching")
+    .option("--case-sensitive", "Enable exact case-sensitive matching")
     .option(
       "-C, --context <n>",
       "Context lines before and after each match (nonnegative integer; capped at 10)",

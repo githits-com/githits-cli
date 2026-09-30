@@ -194,6 +194,10 @@ describe("GREP_REPO_PATTERN_NOTE", () => {
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/RE2/i);
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/200/i);
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/literal substring/i);
+    expect(GREP_REPO_PATTERN_NOTE).toContain(
+      "Matching uses Unicode-aware case folding by default; pass case_sensitive: true for exact casing.",
+    );
+    expect(GREP_REPO_PATTERN_NOTE).not.toContain("ASCII");
   });
 });
 

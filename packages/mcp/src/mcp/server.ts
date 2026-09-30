@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   type CompleteToolAnnotations,
   createGetExampleTool,
-  createGrepRepoTool,
+  createGrepTool,
   createListTool,
   createPackageChangelogTool,
   createPackageDependenciesTool,
@@ -90,8 +90,7 @@ const STABLE_MCP_OPERATION_FACTORIES: readonly McpToolFactory[] = [
     eraseMcpTool(createSearchStatusTool(services.codeNavigationService)),
   (services) => eraseMcpTool(createListTool(services.listService)),
   (services) => eraseMcpTool(createReadTool(services)),
-  (services) =>
-    eraseMcpTool(createGrepRepoTool(services.codeNavigationService)),
+  (services) => eraseMcpTool(createGrepTool(services.grepService)),
   (services) =>
     eraseMcpTool(createPackageSummaryTool(services.packageIntelligenceService)),
   (services) =>
@@ -338,6 +337,9 @@ export function createDescriptorServices(): McpToolServices {
     },
     readService: {
       read: fail,
+    },
+    grepService: {
+      grep: fail,
     },
   };
 }

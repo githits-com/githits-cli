@@ -265,7 +265,7 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(firstLine(text)).toBe("No results");
     expect(text).toContain("- npm:express@5.2.1\n  searched: code");
     expect(text).toContain(
-      'Next: shorten or broaden query; use source="symbol"; use code_grep.',
+      'Next: shorten or broaden query; use source="symbol"; use grep.',
     );
     expect(text).not.toContain("Search search-ref-empty | completed");
   });

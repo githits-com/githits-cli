@@ -1,34 +1,5 @@
 import type { MappedError } from "./mapped-error.js";
 
-/** Add MCP-native path discovery guidance for an exact-path grep miss. */
-export function withGrepFileRecovery(mapped: MappedError): MappedError {
-  if (isExactPathAuthorityError(mapped)) {
-    return withExactPathAuthorityRecovery(mapped, "grep");
-  }
-
-  if (
-    mapped.code !== "FILE_NOT_FOUND" ||
-    mapped.details?.filePath === undefined
-  ) {
-    return mapped;
-  }
-
-  const prefix = buildContainingPathPrefix(mapped.details.filePath);
-  const listing =
-    prefix === ""
-      ? "Use `list` without `paths`"
-      : `Use \`list\` with \`paths: ${JSON.stringify([prefix])}\``;
-  return {
-    ...mapped,
-    details: {
-      ...mapped.details,
-      action:
-        `${listing} to list valid indexed paths, then pass an emitted \`path\` ` +
-        "back to `code_grep`.",
-    },
-  };
-}
-
 /** Whether the backend gave an authoritative reason an exact path is unavailable. */
 export function isExactPathAuthorityError(mapped: MappedError): boolean {
   return (
@@ -40,7 +11,6 @@ export function isExactPathAuthorityError(mapped: MappedError): boolean {
 /** Add MCP-native path discovery guidance for exact-path authority errors. */
 export function withExactPathAuthorityRecovery(
   mapped: MappedError,
-  command: "read" | "grep",
 ): MappedError {
   if (
     !isExactPathAuthorityError(mapped) ||
@@ -62,9 +32,7 @@ export function withExactPathAuthorityRecovery(
     ...mapped,
     details: {
       ...mapped.details,
-      action:
-        `${reason} ${listing} to list indexed paths available to ` +
-        `\`${command === "read" ? "read" : "code_grep"}\`.`,
+      action: `${reason} ${listing} to list indexed paths available to \`read\`.`,
     },
   };
 }

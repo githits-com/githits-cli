@@ -1,8 +1,9 @@
 # Unified grep
 
-`githits grep <pattern> <targets...>` searches ordered package, repository and
-`site:<host[/path]>` operands through `Query.grep`. MCP still exposes `code_grep`;
-replacing it is Phase 2. Legacy `githits code grep` keeps its existing behavior.
+`githits grep <pattern> <targets...>` and MCP `grep` search ordered package,
+repository, and `site:<host[/path]>` operands through `Query.grep`. The stable
+MCP catalog exposes `grep` in place of `code_grep`. Legacy `githits code grep`
+keeps its existing source-only behavior and controls.
 
 ```sh
 githits grep 'router' npm:express --path lib/express.js
@@ -42,14 +43,22 @@ remain eight repositories and eight sites.
 
 ## Ownership and selection
 
-Core `services/grep-service.ts` owns transport-neutral types, the query,
-allowlisting/validation and typed failures, reusing shared HTTP, headers,
-diagnostics and token refresh. Root composition owns configuration discovery.
-MCP `shared/grep-{request,response,error-map,text}.ts` owns frontend normalization,
-projection, failure classification and presentation. Projection reuses the
-core wire schema rather than maintaining another allowlist. The root command
-owns Commander syntax, auth gating, spinners, diagnostics and exits. Shared
-helpers remain workspace-internal in Phase 1; no public MCP tool/service is added.
+`packages/core-internal/src/services/grep-service.ts` owns transport-neutral
+types, the query, allowlisting/validation and typed failures, reusing shared
+HTTP, headers, diagnostics and token refresh. Root composition owns
+configuration discovery. `packages/mcp/src/shared/grep-{request,response,error-map,text}.ts`
+owns frontend normalization, projection, failure classification and
+presentation. Projection reuses the core wire schema rather than maintaining
+another allowlist. `packages/mcp/src/tools/grep.ts` owns the MCP schema,
+invocation, cancellation and result envelope;
+`packages/mcp/src/tools/tool-services.ts` requires `GrepService`.
+`packages/mcp/src/client.ts` exports `GrepService`, its types, and
+`GrepServiceImpl` for host composition. `packages/mcp/src/index.ts` exports
+the provider-facing `McpToolServices` contract, whose `grepService` field uses
+that service. `src/commands/grep.ts` owns Commander syntax, auth gating,
+spinners, diagnostics and exits. The CLI reuses shared helpers through the
+workspace-only `@githits/mcp/internal` entry point; the MCP tool imports those
+helpers inside the package.
 
 Compact text selects complete line/context slices, native UTF-8 display match
 offsets, exact reads, scope provenance/statuses, scan/skip counts, issue summaries,
@@ -130,8 +139,9 @@ row range and copy the target/path or page URL from its header. CLI uses
 source alias or read footer. JSON retains original display paths and every
 backend action with its exact bounds. Unversioned package grep does not expose
 the resolved package version, so text uses the supplied pinned repository read
-target rather than inventing a version. These private formatter changes do not
-register a new MCP tool.
+target rather than inventing a version. The stable MCP catalog registers
+`grep`; its handler and the top-level CLI use the same request builder, result
+projection, and formatter.
 
 Healthy CURRENT readiness, retryable false, equal requested/served refs and
 routine input indices stay quiet in text. Repository files and hosted pages

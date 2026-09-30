@@ -75,9 +75,8 @@ broader open-source ecosystem, not just model memory or local repo context:
 | Tool orientation | `quick_start` | — |
 | Code examples | `get_example` | `githits example` |
 | Inventory browsing | `list` | `githits list` |
-| Code and documentation search | `search`, `search_status`, `code_grep` | `githits search`, `githits search-status`, `githits code grep` |
+| Code and documentation search | `search`, `search_status`, `grep` | `githits search`, `githits search-status`, `githits grep` |
 | Read source files or documentation sections | `read` | `githits read <target> [path]` |
-| Grep source and hosted documentation together | CLI only (MCP migration pending) | `githits grep <pattern> <targets...>` |
 | Package inspection | `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, `pkg_upgrade_review` | `githits pkg ...` |
 
 Use GitHits when your agent needs to:
@@ -111,7 +110,7 @@ Read and grep dependency source without cloning:
 ```sh
 npx githits@latest code files npm:express lib
 npx githits@latest code read npm:express lib/router/index.js --lines 120-200
-npx githits@latest code grep npm:express "router.use" lib --regex
+npx githits@latest grep 'router\.use' npm:express --path-prefix lib/
 ```
 
 Inspect package health and upgrade evidence:

@@ -203,7 +203,7 @@ function buildCappedHint(
     `Returned lines ${payload.startLine}-${payload.endLine}/${payload.totalLines} ` +
     `(${originalEnd === undefined ? "default span" : "explicit-range ceiling"}: ${spanLimit} lines; you requested ${requested}).` +
     `${continuation} ` +
-    `Use start_line/end_line to read only the lines needed around a search/code_grep match. ` +
+    `Use start_line/end_line to read only the lines needed around a search/grep match. ` +
     `Each retry also costs context, so aim for one well-sized read.`
   );
 }

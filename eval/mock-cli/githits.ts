@@ -8,6 +8,8 @@ type MockCliTool =
   | "get_example"
   | "search"
   | "search_status"
+  | "list"
+  | "grep"
   | "code_files"
   | "code_grep"
   | "docs_list";
@@ -47,6 +49,8 @@ export function detectFixtureTool(
   if (first === "example") return "get_example";
   if (first === "search") return "search";
   if (first === "search-status") return "search_status";
+  if (first === "list") return "list";
+  if (first === "grep") return "grep";
   if (first === "pkg") {
     if (second === "vulns") return "pkg_vulns";
     if (second === "changelog") return "pkg_changelog";
@@ -83,13 +87,13 @@ function fixtureSupportOutput(
   expectedTool: FixtureTool,
 ): string {
   if (expectedTool === "code_read") {
-    if (tool === "search" || tool === "code_grep") {
+    if (tool === "search" || tool === "code_grep" || tool === "grep") {
       return "src/index.ts:1 source hit for @example/widget-kit. Use `githits read npm:@example/widget-kit src/index.ts`.";
     }
-    if (tool === "code_files") return "src/index.ts";
+    if (tool === "code_files" || tool === "list") return "src/index.ts";
   }
   if (expectedTool === "docs_read") {
-    if (tool === "search" || tool === "docs_list") {
+    if (tool === "search" || tool === "docs_list" || tool === "list") {
       return "readme\tdocs/README.md\tWidget Kit documentation page. Use `githits read readme`.";
     }
   }

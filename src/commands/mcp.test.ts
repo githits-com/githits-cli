@@ -28,6 +28,7 @@ import { Command } from "commander";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
+  createMockGrepService,
   createMockListService,
   createMockPackageIntelligenceService,
   createMockReadService,
@@ -82,6 +83,7 @@ function createTestServices(
     githitsService: createMockGitHitsService(),
     listService: createMockListService(),
     readService: createMockReadService(),
+    grepService: createMockGrepService(),
     resolveTargetService: createMockResolveTargetService(),
     ...overrides,
   };
@@ -94,7 +96,7 @@ const EXPECTED_TOOL_NAMES = [
   "search_status",
   "list",
   "read",
-  "code_grep",
+  "grep",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -375,7 +377,7 @@ describe("createMcpServer", () => {
       "search_status",
       "list",
       "read",
-      "code_grep",
+      "grep",
     ]) {
       expect(names).toContain(name);
     }

@@ -1459,7 +1459,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(firstLine(text)).toBe("No results");
     expect(text).toContain("\n- npm:express@5.2.1\n  searched: code");
     expect(text).toContain(
-      'Next: shorten or broaden query; remove restrictive filters; use source="symbol"; use code_grep.',
+      'Next: shorten or broaden query; remove restrictive filters; use source="symbol"; use grep.',
     );
     expect(text).not.toContain('query="');
     expect(text).not.toContain("Do not repeat");
@@ -1776,7 +1776,7 @@ describe("renderUnifiedSearchSuccess", () => {
       { actionSyntax: "cli" },
     );
     expect(empty).toContain("use --source symbol");
-    expect(empty).toContain("use githits code grep");
+    expect(empty).toContain("use githits grep");
     expect(empty).not.toContain('source="symbol"');
     expect(empty).not.toContain("code_grep");
   });
@@ -2187,7 +2187,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("searched: code; not found: symbols");
     expect(text).not.toContain("Fix:");
     expect(text).toContain(
-      'Next: shorten or broaden query; use source="symbol"; use code_grep.',
+      'Next: shorten or broaden query; use source="symbol"; use grep.',
     );
   });
 
@@ -2695,7 +2695,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain("code_grep");
   });
 
-  it("only includes applicable filter and symbol/code_grep pivots", () => {
+  it("only includes applicable filter and symbol/grep pivots", () => {
     const filtered = renderUnifiedSearchSuccess(
       completed([], {
         query: { raw: "router", filters: { kind: "function" } },
@@ -2703,13 +2703,13 @@ describe("renderUnifiedSearchSuccess", () => {
     );
     expect(filtered).toContain("remove restrictive filters");
     expect(filtered).toContain('source="symbol"');
-    expect(filtered).toContain("code_grep");
+    expect(filtered).toContain("use grep");
 
     const symbol = renderUnifiedSearchSuccess(
       completed([], { query: { raw: "Router", sources: ["symbol"] } }),
     );
     expect(symbol).not.toContain('source="symbol"');
-    expect(symbol).toContain("code_grep");
+    expect(symbol).toContain("use grep");
   });
 
   it("bounds alternatives and preserves pagination and result ordering", () => {

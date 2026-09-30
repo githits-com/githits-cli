@@ -24,6 +24,11 @@ describe("code grep help", () => {
     expect(help).toContain(
       "Valid values: symbol_ref, name, qualified_path, kind, category, arity, is_public, file_path, start_line, end_line, content_hash, parent_path.",
     );
+    expect(help).toContain(
+      "Matching uses Unicode-aware case folding by default; pass --case-sensitive for exact casing.",
+    );
+    expect(help).toContain("Enable exact case-sensitive matching");
+    expect(help).not.toContain("ASCII");
     expect(help).not.toContain("code, caller_count");
     expect(help).not.toContain("parent_symbol_ref");
   });
