@@ -207,26 +207,22 @@ as the MCP wait parameter.
 
 ## Ask compatibility
 
-Research responses contain final source actions. The shared service validates
-unified `read` sources;
-CLI `research` (including its `ask` alias) and MCP render those actions without
-translating tool names or normalizing targets and paths. Full served commit hashes,
-selectors, URL query strings, and exact path bytes survive in JSON. CLI text applies
-the existing terminal sanitization and shell quoting. URL and clarification
-responses retain their existing contracts.
+Research receives a minimal backend-owned display envelope. CLI and local MCP print
+`display_markdown`; JSON preserves the envelope unchanged. The backend renders final
+`read` citations from exact upstream `readTarget` values, preserving served commits,
+paths, selectors, and line bounds. Clients neither parse nor validate these sources.
 
-CLI source argv starts with `githits@latest read`, followed by optional
-`--selector <value>`, optional `--lines <start>-<end>`, then `-- <target> [path]`.
-Either line bound may be omitted; whole reads omit the option entirely. The
-parser rejects unknown commands/options, malformed or reversed ranges, missing
-operands, and extra operands. It never executes the source command.
+The request's `source_format` selects CLI commands, MCP calls, or upstream URLs inside
+the Markdown. CLI commands use `npx githits@latest read`, with optional `--selector`
+and `--lines` before `-- <target> [path]`. MCP citations use `read({...})`. The backend
+owns quoting; CLI retains terminal sanitization, and neither client executes calls.
+New source capabilities still need to work against supported installed catalogs.
 
-MCP sources use `{name: "read", arguments: {target, path?, selector?, start_line?,
-end_line?}}`. Missing optional fields stay absent. The parser rejects unknown
-argument fields rather than silently dropping selection data. There is no legacy
-`code_read`/`docs_read` or CLI command fallback. Coordinate the client release with
-the API's unified source contract. Hosted MCP consumers must update their
-`@githits/mcp` package before accepting these responses.
+This is an experimental compatibility reset. Older structured-response clients are
+not supported at cutover. Afterward, keep `display_markdown` and request/thread
+semantics stable while presentation evolves. See
+[Ask display and clarification](ask-target-clarification.md) for the wire contract,
+JSON tolerance, and coordinated rollout. No hosted MCP package change is required.
 
 ## Migration and future extension
 

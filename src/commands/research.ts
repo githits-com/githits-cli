@@ -1,21 +1,17 @@
 import {
-  type AgenticAskCliResponse,
-  type AgenticAskNeedsTargetResponse,
   type AgenticAskService,
-  type AgenticAskUrlResponse,
   normalizeAgenticAskThreadId,
 } from "@githits/core-internal";
 import {
   AuthRequiredError,
   buildAuthRequiredErrorPayload,
-  formatAgenticAskClarification,
+  extractAgenticAskDisplay,
   isRepositoryTargetSpec,
   LegacyRepositoryRefError,
   mapAgenticAskError,
   parseRepositoryTargetSpec,
   requireAuth,
   sanitizeTerminalText,
-  shellQuote,
 } from "@githits/mcp/internal";
 import { type Command, InvalidArgumentError, Option } from "commander";
 import { createContainer } from "../container.js";
@@ -95,12 +91,20 @@ export async function researchAction(
       const diagnostic = formatMappedErrorForTerminal({
         ...failure.mapped,
         message: sanitizeTerminalText(failure.mapped.message),
+        details: {
+          ...failure.mapped.details,
+          ...(failure.mapped.details?.hint
+            ? { hint: sanitizeTerminalText(failure.mapped.details.hint) }
+            : {}),
+        },
       });
       const identifiers = [
         ...(failure.toolCallId
-          ? [`Research run ID: ${failure.toolCallId}`]
+          ? [`Research run ID: ${sanitizeTerminalText(failure.toolCallId)}`]
           : []),
-        ...(failure.threadId ? [`Thread ID: ${failure.threadId}`] : []),
+        ...(failure.threadId
+          ? [`Thread ID: ${sanitizeTerminalText(failure.threadId)}`]
+          : []),
       ];
       console.error([diagnostic, ...identifiers].join("\n"));
     }
@@ -108,43 +112,9 @@ export async function researchAction(
   }
 }
 
-/** Render the research answer, selected source pointers, and identifiers. */
-export function formatAgenticAskHumanResponse(
-  response:
-    | AgenticAskCliResponse
-    | AgenticAskUrlResponse
-    | AgenticAskNeedsTargetResponse,
-): string {
-  if ("outcome" in response) {
-    return formatAgenticAskClarification(response);
-  }
-  const sections = [sanitizeTerminalMarkdown(response.answer_markdown).trim()];
-  if (response.sources.length > 0) {
-    const sourceLines =
-      response.source_format === "url"
-        ? response.sources.map(
-            (source, index) =>
-              `  ${index + 1}. ${sanitizeTerminalText(source.url)}`,
-          )
-        : response.sources.map(
-            (source, index) =>
-              `  ${index + 1}. ${formatAgenticAskSourceCommand(source)}`,
-          );
-    sections.push(["Sources:", ...sourceLines].join("\n"));
-  }
-  sections.push(
-    `Research run ID: ${response.tool_call_id}\nThread ID: ${response.thread_id}\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.`,
-  );
-  return `${sections.join("\n\n")}\n`;
-}
-
-/** Format backend-provided argv without evaluating or locally translating it. */
-export function formatAgenticAskSourceCommand(
-  source: AgenticAskCliResponse["sources"][number],
-): string {
-  return [source.command, ...source.arguments]
-    .map((argument) => quoteShellArgument(sanitizeTerminalText(argument)))
-    .join(" ");
+/** Print backend-owned Markdown through the terminal safety boundary. */
+export function formatAgenticAskHumanResponse(response: unknown): string {
+  return sanitizeTerminalMarkdown(extractAgenticAskDisplay(response));
 }
 
 function sanitizeTerminalMarkdown(value: string): string {
@@ -157,10 +127,6 @@ function sanitizeTerminalMarkdown(value: string): string {
         .join("\t"),
     )
     .join("\n");
-}
-
-function quoteShellArgument(value: string): string {
-  return /^[A-Za-z0-9_@%+=:,./-]+$/.test(value) ? value : shellQuote(value);
 }
 
 function isCallerCancellation(

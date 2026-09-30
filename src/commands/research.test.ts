@@ -1,21 +1,17 @@
 import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import {
-  type AgenticAskCliResponse,
   AgenticAskHttpError,
-  type AgenticAskNeedsTargetResponse,
   AgenticAskRequestTimeoutError,
+  type AgenticAskResponse,
   type AgenticAskService,
-  type AgenticAskUrlResponse,
-  parseCompactResolveTargetResult,
 } from "@githits/core-internal";
 import { TermsAcceptanceRequiredError } from "@githits/core-internal/browser";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import { Command } from "commander";
-import { ASK_NEEDS_TARGET_WIRE } from "../../packages/core-internal/src/services/ask-needs-target.fixture.js";
+import displayContract from "../../packages/core-internal/src/services/fixtures/ask-display-contract.json";
 import { formatResearchMcpText } from "../../packages/mcp/src/mcp/local-research.js";
 import {
   formatAgenticAskHumanResponse,
-  formatAgenticAskSourceCommand,
   type ResearchCommandDependencies,
   registerResearchCommand,
   researchAction,
@@ -27,55 +23,13 @@ const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
 const THREAD_ID = "018f47a6-7b32-7b1e-8f45-6a2d39c81720";
 
 function result(
-  overrides: Partial<AgenticAskCliResponse> = {},
-): AgenticAskCliResponse {
-  return {
-    source_format: "cli",
-    tool_call_id: TOOL_CALL_ID,
-    thread_id: THREAD_ID,
-    answer_markdown: "Use the public factory.",
-    sources: [
-      {
-        command: "npx",
-        arguments: [
-          "githits@latest",
-          "read",
-          "--lines",
-          "10-20",
-          "--",
-          "npm:example",
-          "src/index.ts",
-        ],
-      },
-      {
-        command: "npx",
-        arguments: [
-          "githits@latest",
-          "read",
-          "--lines",
-          "3-8",
-          "--",
-          "docs:example:guide",
-        ],
-      },
-    ],
-    ...overrides,
-  };
+  overrides: Partial<AgenticAskResponse> = {},
+): AgenticAskResponse {
+  return { ...displayContract.cli, ...overrides };
 }
 
-function urlResult(): AgenticAskUrlResponse {
-  return {
-    source_format: "url",
-    tool_call_id: TOOL_CALL_ID,
-    thread_id: THREAD_ID,
-    answer_markdown: "Use the public factory.",
-    sources: [
-      {
-        url: "https://github.com/example/project/blob/main/src/index.ts#L10-L20",
-      },
-      { url: "https://example.com/docs/guide#L3-L8" },
-    ],
-  };
+function urlResult(): AgenticAskResponse {
+  return displayContract.url;
 }
 
 type CliAsk = (
@@ -84,20 +38,10 @@ type CliAsk = (
     sourceFormat?: "cli" | "url";
   },
   options?: { signal?: AbortSignal },
-) => Promise<
-  AgenticAskCliResponse | AgenticAskUrlResponse | AgenticAskNeedsTargetResponse
->;
+) => Promise<AgenticAskResponse>;
 
-function clarification(): AgenticAskNeedsTargetResponse {
-  const resolution = parseCompactResolveTargetResult(
-    ASK_NEEDS_TARGET_WIRE.resolution,
-  );
-  if (!resolution) throw new Error("Invalid backend fixture");
-  return {
-    outcome: "needs_target",
-    message: ASK_NEEDS_TARGET_WIRE.message,
-    resolution,
-  };
+function clarification(): AgenticAskResponse {
+  return structuredClone(displayContract.clarification);
 }
 
 describe("Ask target clarification", () => {
@@ -117,8 +61,7 @@ describe("Ask target clarification", () => {
 
   it("shows candidates even when the resolver supplies no best reference", () => {
     const result = clarification();
-    result.resolution.best = undefined;
-    result.resolution.targets[0]!.description = "description\u001b[2J";
+    result.display_markdown += "description\u001b[2J";
     const text = formatAgenticAskHumanResponse(result);
     expect(text).toContain("github:openai/codex");
     expect(text).not.toContain("\u001b");
@@ -138,7 +81,7 @@ describe("Ask target clarification", () => {
     );
     expect(ask).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
-      outcome: "needs_target",
+      display_markdown: clarification().display_markdown,
     });
     expect(exit).not.toHaveBeenCalled();
   });
@@ -181,17 +124,7 @@ describe("researchAction", () => {
       },
       undefined,
     );
-    expect(write.mock.calls[0]?.[0]).toContain("Use the public factory.");
-    expect(write.mock.calls[0]?.[0]).toContain(
-      "npx githits@latest read --lines 10-20 -- npm:example src/index.ts",
-    );
-    expect(write.mock.calls[0]?.[0]).toContain(
-      "npx githits@latest read --lines 3-8 -- docs:example:guide",
-    );
-    expect(write.mock.calls[0]?.[0]).toContain(
-      `Research run ID: ${TOOL_CALL_ID}`,
-    );
-    expect(write.mock.calls[0]?.[0]).toContain(`Thread ID: ${THREAD_ID}`);
+    expect(write.mock.calls[0]?.[0]).toBe(displayContract.cli.display_markdown);
   });
 
   it("continues a thread without a target", async () => {
@@ -290,8 +223,12 @@ describe("researchAction", () => {
     },
   );
 
-  it("emits only the validated response on JSON stdout", async () => {
-    const response = result();
+  it("preserves the complete API response on JSON stdout", async () => {
+    const response = {
+      ...result(),
+      usage: { input_tokens: 1 },
+      future_field: true,
+    };
     const log = spyOn(console, "log").mockImplementation(() => undefined);
     const write = spyOn(process.stdout, "write").mockImplementation(() => true);
 
@@ -327,9 +264,7 @@ describe("researchAction", () => {
       },
       undefined,
     );
-    expect(write.mock.calls[0]?.[0]).toBe(
-      "Use the public factory.\n\nSources:\n  1. https://github.com/example/project/blob/main/src/index.ts#L10-L20\n  2. https://example.com/docs/guide#L3-L8\n\nResearch run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n",
-    );
+    expect(write.mock.calls[0]?.[0]).toBe(displayContract.url.display_markdown);
   });
 
   it("returns only the URL envelope when URL sources and JSON are selected", async () => {
@@ -404,7 +339,7 @@ describe("researchAction", () => {
     expect(exit).toHaveBeenCalledWith(1);
   });
 
-  it("prints retry guidance and a validated failure run ID", async () => {
+  it("prints retry guidance and the failure run ID", async () => {
     const error = spyOn(console, "error").mockImplementation(() => undefined);
     spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit");
@@ -483,6 +418,38 @@ describe("researchAction", () => {
     expect(error.mock.calls[0]?.[0]).toBe("Access denied.");
   });
 
+  it("sanitizes opaque error IDs and backend hints only for terminal output", async () => {
+    const error = spyOn(console, "error").mockImplementation(() => undefined);
+    spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const failure = new AgenticAskHttpError(
+      "INVALID_TARGET",
+      "Use an exact target. Retry\u001b[31m here.",
+      400,
+      "run\u001b[31m-V2",
+      undefined,
+      false,
+      "thread\u0007-V2",
+      {
+        code: "future code",
+        message: "Use an exact target.",
+        hint: "Retry\u001b[31m here.",
+      },
+    );
+    await expect(
+      researchAction(
+        "npm:example",
+        "How?",
+        {},
+        createDeps(mock(() => Promise.reject(failure))),
+      ),
+    ).rejects.toThrow("process.exit");
+    expect(error.mock.calls[0]?.[0]).toBe(
+      "Use an exact target. Retry here.\nResearch run ID: run-V2\nThread ID: thread-V2",
+    );
+  });
+
   it("preserves structured timeout data without exposing usage", async () => {
     const error = spyOn(console, "error").mockImplementation(() => undefined);
     spyOn(process, "exit").mockImplementation(() => {
@@ -510,7 +477,7 @@ describe("researchAction", () => {
     });
   });
 
-  it("omits a failure run ID when the service did not validate one", async () => {
+  it("omits a failure run ID when the service supplies none", async () => {
     const error = spyOn(console, "error").mockImplementation(() => undefined);
     spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit");
@@ -563,45 +530,20 @@ describe("researchAction", () => {
 });
 
 describe("Research human formatting", () => {
-  it("preserves backend read argv in text and JSON without rewriting locators", async () => {
+  it.each(Object.entries(displayContract))(
+    "prints backend contract case %s",
+    (_name, wire) => {
+      expect(formatAgenticAskHumanResponse(wire)).toBe(wire.display_markdown);
+    },
+  );
+
+  it("preserves new, reordered, or removed sections and opaque metadata", async () => {
     const wire = result({
-      sources: [
-        {
-          command: "npx",
-          arguments: [
-            "githits@latest",
-            "read",
-            "--lines",
-            "10-20",
-            "--",
-            `https://github.com/owner/repo@${"a".repeat(40)}`,
-            "packages/a b/%file.ts",
-          ],
-        },
-        {
-          command: "npx",
-          arguments: [
-            "githits@latest",
-            "read",
-            "--selector",
-            "configuration",
-            "--",
-            "site:docs.example",
-            "guide/a%2Fb",
-          ],
-        },
-        {
-          command: "npx",
-          arguments: [
-            "githits@latest",
-            "read",
-            "--",
-            "https://docs.example/page?q=a%20b",
-          ],
-        },
-      ],
+      display_markdown: "New heading\n\n```sh\nfuture_read --flag 'a b'\n```\n",
+      future: { nested: true },
+      tool_call_id: "opaque-v2",
     });
-    const original = structuredClone(wire);
+    expect(formatAgenticAskHumanResponse(wire)).toBe(wire.display_markdown);
     const log = spyOn(console, "log").mockImplementation(() => {});
     await researchAction(
       undefined,
@@ -609,80 +551,37 @@ describe("Research human formatting", () => {
       { json: true },
       createDeps(async () => wire),
     );
-    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual(original);
-    const formatted = formatAgenticAskHumanResponse(wire);
-    expect(formatted).toContain(
-      `https://github.com/owner/repo@${"a".repeat(40)} 'packages/a b/%file.ts'`,
-    );
-    expect(formatted).toContain(
-      "read --selector configuration -- site:docs.example guide/a%2Fb",
-    );
-    expect(formatted).toContain("read -- 'https://docs.example/page?q=a%20b'");
-    expect(wire).toEqual(original);
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual(wire);
   });
 
-  it.each([
-    {
-      target: "https://docs.example/page?lang=en&view=full#section",
-      argument: "'https://docs.example/page?lang=en&view=full#section'",
-    },
-    { target: "repo-doc:sha:pinned", argument: "repo-doc:sha:pinned" },
-    { target: "docs:example:guide", argument: "docs:example:guide" },
-  ])(
-    "renders documentation read targets unchanged: $target",
-    ({ target, argument }) => {
-      const formatted = formatAgenticAskHumanResponse(
-        result({
-          sources: [
-            {
-              command: "npx",
-              arguments: [
-                "githits@latest",
-                "read",
-                "--lines",
-                "3-8",
-                "--",
-                target,
-              ],
-            },
-          ],
-        }),
-      );
+  it("preserves Markdown whitespace and Unicode while stripping controls", () => {
+    expect(
+      formatAgenticAskHumanResponse({
+        display_markdown:
+          "  First\n\tindented\n\t\tdeep\n\u001b[31mHéllo\u0007\n\n",
+      }),
+    ).toBe("  First\n\tindented\n\t\tdeep\nHéllo\n\n");
+  });
 
-      expect(formatted).toContain(
-        `Sources:\n  1. npx githits@latest read --lines 3-8 -- ${argument}\n`,
+  it.each([null, {}, { display_markdown: 42 }, { answer_markdown: "legacy" }])(
+    "fails text clearly but preserves malformed JSON: %j",
+    async (wire) => {
+      expect(() => formatAgenticAskHumanResponse(wire)).toThrow(
+        "invalid Research response",
       );
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      await researchAction(
+        undefined,
+        "How?",
+        { json: true },
+        createDeps(async () => wire as unknown as AgenticAskResponse),
+      );
+      expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual(wire);
     },
   );
 
-  it("preserves markdown newlines while stripping terminal controls", () => {
-    const formatted = formatAgenticAskHumanResponse(
-      result({
-        answer_markdown: "First\n\tindented\n\t\tdeep\n\u001b[31mSecond\u0007",
-      }),
-    );
-    expect(formatted).toContain("First\n\tindented\n\t\tdeep\nSecond");
-    expect(formatted).not.toContain("\u001b");
-    expect(formatted).not.toContain("\u0007");
-  });
-
-  it("shell-quotes untrusted argv while keeping normal commands direct", () => {
-    expect(
-      formatAgenticAskSourceCommand({
-        command: "npx",
-        arguments: [
-          "githits@latest",
-          "read",
-          "--lines",
-          "1-2",
-          "--",
-          "github:owner/repo",
-          "path with 'quote'\nand control.ts",
-        ],
-      }),
-    ).toBe(
-      `npx githits@latest read --lines 1-2 -- github:owner/repo 'path with '"'"'quote'"'"'and control.ts'`,
-    );
+  it("does not trim or reject an empty display string in the client", () => {
+    expect(formatAgenticAskHumanResponse({ display_markdown: "" })).toBe("");
   });
 });
 

@@ -91,7 +91,9 @@ By default, human output contains the grounded answer, a Research run ID, the
 thread ID, and source commands in the form `npx githits@latest ...` that can be
 executed directly. Pass the returned thread ID to `--thread` for a follow-up.
 Name a new project, version, or topic in the question to change scope; threads
-support up to ten turns. JSON output contains the response.
+support up to ten turns. JSON output contains `display_markdown` and optional
+`tool_call_id`/`thread_id` metadata. The backend supplies all display text, so
+sections can evolve without a client update.
 Treat answer Markdown as untrusted display text even though the CLI strips
 terminal control sequences.
 
@@ -104,11 +106,12 @@ one explicitly, or use `thread_id` for a needed follow-up. Do not combine them.
 It defaults to MCP-native `read` source calls, projected from the backend pointers. Set
 `source_format` to `url` for original upstream HTTP URLs. Answer text includes
 source pointers, the Research run ID, thread ID, and conditional follow-up guidance.
-JSON returns the response for the selected source format.
+JSON returns the same minimal display envelope; the source format controls
+citations inside its Markdown.
 
 When Research cannot confidently select a target, both CLI and local MCP return a
-clarification with resolver candidates instead of an answer or thread. JSON
-identifies this as `outcome: "needs_target"`. Repeat the question with a selected
+clarification with resolver candidates in `display_markdown`, omitting run/thread
+IDs. There is no separate JSON outcome variant. Repeat the question with a selected
 target; do not infer identity from popularity or silently pick an ambiguous hit.
 
 Resolve a noncanonical name before calling another GitHits command:

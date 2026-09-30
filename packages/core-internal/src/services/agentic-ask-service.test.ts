@@ -2,102 +2,29 @@ import { describe, expect, it, mock } from "bun:test";
 import { TermsAcceptanceRequiredError } from "../shared/terms-acceptance.js";
 import {
   AGENTIC_ASK_MAX_RESPONSE_BYTES,
-  type AgenticAskCliResponse,
   AgenticAskConnectionError,
   AgenticAskHttpError,
-  type AgenticAskMcpResponse,
   AgenticAskRequestTimeoutError,
+  type AgenticAskResponse,
   AgenticAskResponseTooLargeError,
   AgenticAskServiceImpl,
-  type AgenticAskUrlResponse,
-  MalformedAgenticAskResponseError,
   normalizeAgenticAskThreadId,
-  parseAgenticAskToolCallId,
+  readAgenticAskResponseId,
 } from "./agentic-ask-service.js";
-import { ASK_NEEDS_TARGET_WIRE } from "./ask-needs-target.fixture.js";
+import displayContract from "./fixtures/ask-display-contract.json";
 import { createMockTokenProvider } from "./test-helpers.js";
 
 const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
 const THREAD_ID = "018f47a6-7b32-7b1e-8f45-6a2d39c81720";
 
 function responseBody(overrides: Record<string, unknown> = {}) {
-  return {
-    source_format: "cli",
-    tool_call_id: TOOL_CALL_ID,
-    thread_id: THREAD_ID,
-    answer_markdown: "Use the documented API.",
-    sources: [
-      {
-        command: "npx",
-        arguments: [
-          "githits@latest",
-          "read",
-          "--lines",
-          "10-20",
-          "--",
-          "npm:example",
-          "src/index.ts",
-        ],
-      },
-      {
-        command: "npx",
-        arguments: [
-          "githits@latest",
-          "read",
-          "--lines",
-          "3-8",
-          "--",
-          "docs:example:guide",
-        ],
-      },
-    ],
-    ...overrides,
-  };
+  return { ...displayContract.cli, ...overrides };
 }
-
 function mcpResponseBody(overrides: Record<string, unknown> = {}) {
-  return {
-    source_format: "mcp",
-    tool_call_id: TOOL_CALL_ID,
-    thread_id: THREAD_ID,
-    answer_markdown: "Use the documented API.",
-    sources: [
-      {
-        name: "read",
-        arguments: {
-          target: "npm:example",
-          path: "src/index.ts",
-          start_line: 10,
-          end_line: 20,
-        },
-      },
-      {
-        name: "read",
-        arguments: {
-          target: "docs:example:guide",
-          start_line: 3,
-          end_line: 8,
-        },
-      },
-    ],
-    ...overrides,
-  };
+  return { ...displayContract.mcp, ...overrides };
 }
-
 function urlResponseBody(overrides: Record<string, unknown> = {}) {
-  return {
-    source_format: "url",
-    tool_call_id: TOOL_CALL_ID,
-    thread_id: THREAD_ID,
-    answer_markdown: "Use the documented API.",
-    sources: [
-      {
-        url: "https://github.com/example/project/blob/main/src/index.ts#L10-L20",
-      },
-      { url: "https://example.com/docs/guide#L3-L8" },
-    ],
-    ...overrides,
-  };
+  return { ...displayContract.url, ...overrides };
 }
 
 function jsonResponse(
@@ -141,68 +68,28 @@ function clarificationFetch(body: unknown): typeof fetch {
 }
 
 describe("AgenticAskServiceImpl", () => {
-  it("accepts a backend target clarification without answer identifiers", async () => {
-    const service = createService(clarificationFetch(ASK_NEEDS_TARGET_WIRE));
-    const result = await service.ask({
-      question: "How does codex handle chat compaction?",
-    });
-    expect("outcome" in result && result.outcome).toBe("needs_target");
-    if (!("outcome" in result)) throw new Error("Expected clarification");
-    expect(
-      result.resolution.targets.map((target) => target.canonicalKey),
-    ).toEqual(["github:openai/codex", "npm:@openai/codex", "npm:codex"]);
-    expect(result.resolution.targets[0]?.match?.confidence).toBe("MEDIUM");
-    expect(result.resolution.targets[0]?.groupKey).toBe("github:openai/codex");
-    expect(result.resolution.protectedMatches[0]?.canonicalKey).toBe(
-      "npm:codex",
-    );
-    expect(result.resolution.targetsTruncated).toBe(true);
-    expect(result).not.toHaveProperty("thread_id");
-    expect(result).not.toHaveProperty("answer_markdown");
-  });
-
-  it("accepts empty candidates without inventing a best target", async () => {
-    const service = createService(
-      clarificationFetch({
-        ...ASK_NEEDS_TARGET_WIRE,
-        resolution: {
-          ...ASK_NEEDS_TARGET_WIRE.resolution,
-          best: null,
-          targets: [],
-        },
-      }),
-    );
-    const result = await service.ask({
-      question: "How does UnknownProject work?",
-    });
-    if (!("outcome" in result)) throw new Error("Expected clarification");
-    expect(result.resolution.best).toBeUndefined();
-    expect(result.resolution.targets).toEqual([]);
-  });
-
-  it.each([{ target: "github:openai/codex" }, { threadId: THREAD_ID }])(
-    "rejects clarification for an already bound request: %j",
-    async (subject) => {
-      const service = createService(clarificationFetch(ASK_NEEDS_TARGET_WIRE));
-      await expect(
-        service.ask({ ...subject, question: "How?" }),
-      ).rejects.toBeInstanceOf(MalformedAgenticAskResponseError);
+  it.each(Object.entries(displayContract))(
+    "preserves backend contract fixture %s",
+    async (_name, wire) => {
+      const result = await createService(clarificationFetch(wire)).ask({
+        question: "How?",
+      });
+      expect(result).toEqual(wire);
     },
   );
 
-  it("rejects malformed resolver candidates in a clarification", async () => {
-    const service = createService(
-      clarificationFetch({
-        ...ASK_NEEDS_TARGET_WIRE,
-        resolution: {
-          ...ASK_NEEDS_TARGET_WIRE.resolution,
-          targets: [{ canonicalKey: "github:openai/codex" }],
-        },
-      }),
-    );
-    await expect(service.ask({ question: "How?" })).rejects.toBeInstanceOf(
-      MalformedAgenticAskResponseError,
-    );
+  it("preserves evolving clarification candidates without validation", async () => {
+    const body = {
+      ...displayContract.clarification,
+      resolution: {
+        ...{},
+        targets: [{ canonicalKey: "github:openai/codex", future_field: true }],
+        future_metadata: { confidence: 0.9 },
+      },
+    };
+    await expect(
+      createService(clarificationFetch(body)).ask({ question: "How?" }),
+    ).resolves.toEqual<unknown>(body);
   });
 
   it.each([
@@ -210,7 +97,7 @@ describe("AgenticAskServiceImpl", () => {
     "repo-doc:sha:pinned",
     "docs:example:guide",
   ])("preserves emitted CLI documentation read targets: %s", async (target) => {
-    const body: AgenticAskCliResponse = {
+    const body: AgenticAskResponse = {
       ...responseBody(),
       source_format: "cli",
       sources: [
@@ -236,7 +123,7 @@ describe("AgenticAskServiceImpl", () => {
     "repo-doc:sha:pinned",
     "docs:example:guide",
   ])("preserves emitted MCP documentation read targets: %s", async (target) => {
-    const body: AgenticAskMcpResponse = {
+    const body: AgenticAskResponse = {
       ...mcpResponseBody(),
       source_format: "mcp",
       sources: [
@@ -338,7 +225,7 @@ describe("AgenticAskServiceImpl", () => {
       question: "How is the client created?",
     });
 
-    expect(result).toEqual(responseBody() as unknown as AgenticAskCliResponse);
+    expect(result).toEqual(responseBody() as unknown as AgenticAskResponse);
     expect(capturedUrl).toBe("https://api.githits.test/ask");
     expect(capturedInit?.method).toBe("POST");
     expect(capturedInit?.signal).toBeInstanceOf(AbortSignal);
@@ -357,7 +244,7 @@ describe("AgenticAskServiceImpl", () => {
     });
   });
 
-  it("requests and validates MCP source calls when selected by the caller", async () => {
+  it("requests MCP citation display and preserves its envelope", async () => {
     let capturedInit: RequestInit | undefined;
     const fetchFn = mock((_url: string | URL | Request, init?: RequestInit) => {
       capturedInit = init;
@@ -370,9 +257,7 @@ describe("AgenticAskServiceImpl", () => {
       sourceFormat: "mcp",
     });
 
-    expect(result).toEqual(
-      mcpResponseBody() as unknown as AgenticAskMcpResponse,
-    );
+    expect(result).toEqual(mcpResponseBody() as unknown as AgenticAskResponse);
     expect(JSON.parse(String(capturedInit?.body))).toEqual({
       target: "npm:example",
       question: "How is the client created?",
@@ -399,7 +284,7 @@ describe("AgenticAskServiceImpl", () => {
     });
   });
 
-  it("requests and validates upstream URLs when selected by the caller", async () => {
+  it("requests and preserves upstream URLs when selected by the caller", async () => {
     let capturedInit: RequestInit | undefined;
     const fetchFn = mock((_url: string | URL | Request, init?: RequestInit) => {
       capturedInit = init;
@@ -419,10 +304,9 @@ describe("AgenticAskServiceImpl", () => {
       sourceFormat: "url",
     });
 
-    expect(result).toEqual(
-      urlResponseBody() as unknown as AgenticAskUrlResponse,
+    expect(result).toEqual<unknown>(
+      urlResponseBody({ usage: { input_tokens: 1 }, future_field: true }),
     );
-    expect(result).not.toHaveProperty("usage");
     expect(JSON.parse(String(capturedInit?.body))).toEqual({
       target: "npm:example",
       question: "How is the client created?",
@@ -430,8 +314,8 @@ describe("AgenticAskServiceImpl", () => {
     });
   });
 
-  it("rejects malformed URL sources and a mismatched response format", async () => {
-    const invalidBodies = [
+  it("passes through URL sources and response formats without validation", async () => {
+    const bodies = [
       responseBody(),
       urlResponseBody({ sources: [{ url: "javascript:alert(1)" }] }),
       urlResponseBody({ sources: [{ url: "not a URL" }] }),
@@ -442,7 +326,7 @@ describe("AgenticAskServiceImpl", () => {
       urlResponseBody({ sources: [{ href: "https://example.com" }] }),
     ];
 
-    for (const body of invalidBodies) {
+    for (const body of bodies) {
       const service = createService(
         mock(() =>
           Promise.resolve(jsonResponse(body)),
@@ -454,12 +338,12 @@ describe("AgenticAskServiceImpl", () => {
           question: "How?",
           sourceFormat: "url",
         }),
-      ).rejects.toBeInstanceOf(MalformedAgenticAskResponseError);
+      ).resolves.toEqual<unknown>(body);
     }
   });
 
-  it("rejects malformed MCP calls and a mismatched response format", async () => {
-    const invalidBodies = [
+  it("passes through MCP calls and response formats without validation", async () => {
+    const bodies = [
       responseBody(),
       mcpResponseBody({
         sources: [
@@ -477,7 +361,7 @@ describe("AgenticAskServiceImpl", () => {
       mcpResponseBody({ sources: [{ name: "shell", arguments: {} }] }),
     ];
 
-    for (const body of invalidBodies) {
+    for (const body of bodies) {
       const service = createService(
         mock(() =>
           Promise.resolve(jsonResponse(body)),
@@ -489,7 +373,7 @@ describe("AgenticAskServiceImpl", () => {
           question: "How?",
           sourceFormat: "mcp",
         }),
-      ).rejects.toBeInstanceOf(MalformedAgenticAskResponseError);
+      ).resolves.toEqual<unknown>(body);
     }
   });
 
@@ -592,8 +476,8 @@ describe("AgenticAskServiceImpl", () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects non-CLI, non-v7, and malformed responses", async () => {
-    const invalidBodies = [
+  it("passes through response shapes and identifiers without validation", async () => {
+    const bodies = [
       responseBody({ source_format: "mcp" }),
       responseBody({ tool_call_id: "018f47a6-7b32-4a1e-8f45-6a2d39c81720" }),
       responseBody({ answer_markdown: "" }),
@@ -609,9 +493,13 @@ describe("AgenticAskServiceImpl", () => {
         ],
       }),
       { answer_markdown: "missing fields" },
+      { outcome: "future_outcome", metadata: { nested: null } },
+      null,
+      [],
+      "plain answer",
     ];
 
-    for (const body of invalidBodies) {
+    for (const body of bodies) {
       const service = createService(
         mock(() =>
           Promise.resolve(jsonResponse(body)),
@@ -619,11 +507,11 @@ describe("AgenticAskServiceImpl", () => {
       );
       await expect(
         service.ask({ target: "npm:example", question: "How?" }),
-      ).rejects.toBeInstanceOf(MalformedAgenticAskResponseError);
+      ).resolves.toEqual<unknown>(body);
     }
   });
 
-  it("strips additive response fields, including usage", async () => {
+  it("preserves additive response fields, including usage", async () => {
     const service = createService(
       mock(() =>
         Promise.resolve(
@@ -642,8 +530,8 @@ describe("AgenticAskServiceImpl", () => {
       question: "How?",
     });
 
-    expect(response).not.toHaveProperty("usage");
-    expect(response).not.toHaveProperty("future_field");
+    expect(response).toHaveProperty("usage", { input_tokens: 1 });
+    expect(response).toHaveProperty("future_field", true);
   });
 
   it("preserves the shared terms-acceptance gate on 403", async () => {
@@ -896,23 +784,17 @@ describe("AgenticAskServiceImpl", () => {
   );
 });
 
-describe("parseAgenticAskToolCallId", () => {
-  it("accepts one UUIDv7 and normalizes case", () => {
-    expect(parseAgenticAskToolCallId(TOOL_CALL_ID.toUpperCase())).toBe(
-      TOOL_CALL_ID,
-    );
+describe("readAgenticAskResponseId", () => {
+  it.each([
+    TOOL_CALL_ID.toUpperCase(),
+    "run:future/version-2",
+    "018f47a6-7b32-4a1e-8f45-6a2d39c81720",
+  ])("preserves opaque response identifier %s", (value) => {
+    expect(readAgenticAskResponseId(value)).toBe(value);
   });
 
-  it.each([
-    null,
-    "",
-    "not-a-uuid",
-    "018f47a6-7b32-4a1e-8f45-6a2d39c81720",
-    `${TOOL_CALL_ID}, ${TOOL_CALL_ID}`,
-    `${TOOL_CALL_ID}\nspoofed`,
-    ` ${TOOL_CALL_ID}`,
-  ])("rejects unsafe or ambiguous value %s", (value) => {
-    expect(parseAgenticAskToolCallId(value)).toBeUndefined();
+  it.each([null, ""])("omits an absent response identifier %s", (value) => {
+    expect(readAgenticAskResponseId(value)).toBeUndefined();
   });
 });
 
@@ -967,7 +849,7 @@ describe("Ask target diagnostics", () => {
   });
 
   it.each(["cli", "mcp", "url"] as const)(
-    "preserves validated target guidance for %s",
+    "preserves target guidance for %s",
     async (sourceFormat) => {
       const fetchFn = mock(() =>
         Promise.resolve(
@@ -1038,7 +920,7 @@ describe("Ask target diagnostics", () => {
       await expect(result).rejects.toMatchObject({
         code: "INVALID_TARGET",
         message: `${diagnostic.message} ${diagnostic.hint}`,
-        targetError: diagnostic,
+        targetError: { ...diagnostic, future_metadata: { ignored: true } },
         status: 400,
         retryable: false,
       });
@@ -1047,35 +929,65 @@ describe("Ask target diagnostics", () => {
   );
 
   it.each([
+    { ...detail, code: "New diagnostic code / v2" },
+    { ...detail, code: "" },
+    { ...detail, code: "A".repeat(129) },
+    { ...detail, reason: "new reason with spaces" },
+    { ...detail, reason: "" },
+    { ...detail, reason: { future: true } },
+    { ...detail, reason: "a".repeat(129) },
+    { ...detail, message: "Guidance\u001b[31m" },
+    { ...detail, hint: "Long guidance ".repeat(100) },
+  ])(
+    "preserves backend diagnostics without format restrictions: %j",
+    async (diagnostic) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(jsonResponse({ detail: diagnostic }, { status: 400 })),
+      ) as unknown as typeof fetch;
+      await expect(
+        createService(fetchFn).ask({ target: "npm:prisma", question: "How?" }),
+      ).rejects.toMatchObject({ targetError: diagnostic });
+    },
+  );
+
+  it.each([
     { detail: "private provider detail" },
-    { detail: { ...detail, code: "private provider detail" } },
-    { detail: { ...detail, code: "" } },
     { detail: { ...detail, code: 400 } },
-    { detail: { ...detail, code: "A".repeat(129) } },
-    { detail: { ...detail, code: "ERROR\u001b[31m" } },
-    { detail: { ...detail, reason: "private provider detail" } },
-    { detail: { ...detail, reason: "" } },
-    { detail: { ...detail, reason: {} } },
-    { detail: { ...detail, reason: "a".repeat(129) } },
-    { detail: { ...detail, reason: "reason\u001b[31m" } },
-    { detail: { ...detail, message: "private provider detail\u001b[31m" } },
-    { detail: { ...detail, hint: "private provider detail".repeat(100) } },
-  ])("does not expose an unrecognized error body: %j", async (body) => {
-    const fetchFn = mock(() =>
-      Promise.resolve(jsonResponse(body, { status: 400 })),
-    ) as unknown as typeof fetch;
-    try {
-      await createService(fetchFn).ask({
-        target: "npm:prisma",
-        question: "How?",
+    { detail: { ...detail, message: null } },
+    { detail: { ...detail, hint: {} } },
+  ])(
+    "uses fallback guidance when an error body has no displayable detail: %j",
+    async (body) => {
+      const fetchFn = mock(() =>
+        Promise.resolve(jsonResponse(body, { status: 400 })),
+      ) as unknown as typeof fetch;
+      await expect(
+        createService(fetchFn).ask({ target: "npm:prisma", question: "How?" }),
+      ).rejects.toMatchObject({
+        code: "INVALID_TARGET",
+        targetError: undefined,
       });
-      throw new Error("Expected rejection");
-    } catch (error) {
-      expect(error).toBeInstanceOf(AgenticAskHttpError);
-      expect((error as Error).message).not.toContain("private provider detail");
-      expect((error as AgenticAskHttpError).targetError).toBeUndefined();
-      expect((error as Error).message).toContain("github:owner/repo@ref");
-    }
+    },
+  );
+
+  it("preserves opaque error response identifiers", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse(
+          { detail },
+          {
+            status: 400,
+            headers: {
+              "X-GitHits-Tool-Call-Id": "run-V2",
+              "X-GitHits-Thread-Id": "thread-V2",
+            },
+          },
+        ),
+      ),
+    ) as unknown as typeof fetch;
+    await expect(
+      createService(fetchFn).ask({ question: "How?" }),
+    ).rejects.toMatchObject({ toolCallId: "run-V2", threadId: "thread-V2" });
   });
 
   it("bounds streamed error bodies and retains 400 recovery guidance", async () => {

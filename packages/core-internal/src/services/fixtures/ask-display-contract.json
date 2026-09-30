@@ -1,0 +1,26 @@
+{
+  "cli": {
+    "display_markdown": "Use the documented helper.\n\nSources:\n  1. npx githits@latest read --lines 100-140 -- pypi:fastapi@0.116.1 --json\n  2. npx githits@latest read --lines 20-45 -- --help\n\nResearch run ID: 01900000-0000-7000-8000-000000000030\nThread ID: 01900000-0000-7000-8000-000000000031\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n",
+    "tool_call_id": "01900000-0000-7000-8000-000000000030",
+    "thread_id": "01900000-0000-7000-8000-000000000031"
+  },
+  "mcp": {
+    "display_markdown": "Use the documented helper.\n\nSources:\n  1. read({\"target\":\"pypi:fastapi@0.116.1\",\"path\":\"--json\",\"start_line\":100,\"end_line\":140})\n  2. read({\"target\":\"--help\",\"start_line\":20,\"end_line\":45})\n\nResearch run ID: 01900000-0000-7000-8000-000000000030\nThread ID: 01900000-0000-7000-8000-000000000031\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n",
+    "tool_call_id": "01900000-0000-7000-8000-000000000030",
+    "thread_id": "01900000-0000-7000-8000-000000000031"
+  },
+  "url": {
+    "display_markdown": "Use the documented helper.\n\nSources:\n  1. https://github.com/fastapi/fastapi/blob/abc123/fastapi/dependencies/utils.py#L100-L140\n  2. https://fastapi.tiangolo.com/tutorial/dependencies/\n\nResearch run ID: 01900000-0000-7000-8000-000000000030\nThread ID: 01900000-0000-7000-8000-000000000031\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n",
+    "tool_call_id": "01900000-0000-7000-8000-000000000030",
+    "thread_id": "01900000-0000-7000-8000-000000000031"
+  },
+  "clarification": {
+    "display_markdown": "GitHits could not determine a target for the question with high enough confidence. Did you mean any of these? Follow up with a specific target.\n\nTargets:\n  1. github:openai/codex [medium] | repository | 122k stars | indexed repository snapshot (7.2k files)\n     Lightweight coding agent that runs in your terminal\n     Related targets:\n       npm:@openai/codex [medium] | package | 76M downloads/mo | license Apache-2.0 | indexed package snapshot\n         Codex CLI is a coding agent from OpenAI.\n  2. npm:codex [medium] | package | protected exact-name match | 46k downloads/mo\n     Static site and code documentation generator.\n\nNote: Additional related targets were omitted; direct matches are complete.\n"
+  },
+  "empty_clarification": {
+    "display_markdown": "GitHits could not determine a target for the question with high enough confidence. Specify a public package or repository target to continue.\n"
+  },
+  "warning_clarification": {
+    "display_markdown": "GitHits could not determine a target for the question with high enough confidence. Did you mean any of these? Follow up with a specific target.\n\nTargets:\n  1. npm:codex [medium] | package | protected exact-name match | 46k downloads/mo\n     Provider text: café\n     Warning: Malicious-content status is uncertain - MAL-1/a (affected range invalid): https://osv.dev/vulnerability/MAL-1%2Fa; +2 more. Verify the advisory details before using this version.\n\nNote: Additional related targets were omitted; direct matches are complete.\n"
+  }
+}

@@ -311,11 +311,9 @@ describe("createLocalMcpServer", () => {
   it("resolves the extended service from the request-scoped local provider", async () => {
     const ask = mock(() =>
       Promise.resolve({
-        source_format: "mcp" as const,
         tool_call_id: "018f47a6-7b32-7a1e-8f45-6a2d39c81720",
         thread_id: "018f47a6-7b32-7b1e-8f45-6a2d39c81720",
-        answer_markdown: "Grounded answer.",
-        sources: [],
+        display_markdown: "Grounded answer.",
       }),
     );
     const resolveTarget = mock(() =>

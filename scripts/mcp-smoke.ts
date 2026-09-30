@@ -413,8 +413,8 @@ async function runExperimentalLiveSmoke(
           return;
         }
 
-        const researchText = (await trackSmokeStep(
-          "mcp research default text experimental live",
+        const researchJson = (await trackSmokeStep(
+          "mcp research JSON experimental live",
           () =>
             client.callTool(
               {
@@ -422,27 +422,22 @@ async function runExperimentalLiveSmoke(
                 arguments: {
                   target: "npm:express",
                   question: "Where is router dispatch implemented?",
+                  format: "json",
                 },
               },
               undefined,
               { timeout: AGENTIC_ASK_REQUEST_TIMEOUT_MS },
             ),
         )) as McpSmokeToolResult;
-        const researchTextBody = assertDefaultText(
-          researchText,
-          "experimental research default text",
-        );
-        const researchThreadMatch = researchTextBody.match(
-          /\nThread ID: ([0-9a-f-]+)\nUse this thread ID for follow-ups; name a new project or version in the question to change scope\./,
-        );
+        const researchRecord = assertJsonResult(
+          researchJson,
+          "experimental research JSON",
+        ) as Record<string, unknown>;
         assert(
-          researchTextBody.includes("\n\nSources:\n") &&
-            /\n\s+\d+\. read\(\{[^\n]+\}\)/.test(researchTextBody) &&
-            /\n\nResearch run ID: [0-9a-f-]+\nThread ID: [0-9a-f-]+\n/.test(
-              researchTextBody,
-            ) &&
-            researchThreadMatch?.[1] !== undefined,
-          "experimental research text should append callable sources, replay IDs, and scope-changing follow-up guidance",
+          typeof researchRecord.display_markdown === "string" &&
+            researchRecord.display_markdown.length > 0 &&
+            typeof researchRecord.thread_id === "string",
+          "experimental research should return display text and thread metadata",
         );
 
         const researchUrlJson = (await trackSmokeStep(
@@ -452,7 +447,7 @@ async function runExperimentalLiveSmoke(
               {
                 name: "research",
                 arguments: {
-                  thread_id: researchThreadMatch[1],
+                  thread_id: researchRecord.thread_id,
                   question:
                     "How is the matched route handler invoked after dispatch?",
                   source_format: "url",
@@ -475,23 +470,31 @@ async function runExperimentalLiveSmoke(
         );
         const researchUrlRecord = researchUrlPayload as Record<string, unknown>;
         assert(
-          researchUrlRecord.source_format === "url" &&
+          typeof researchUrlRecord.display_markdown === "string" &&
+            researchUrlRecord.display_markdown.length > 0 &&
             typeof researchUrlRecord.tool_call_id === "string" &&
-            typeof researchUrlRecord.thread_id === "string" &&
-            typeof researchUrlRecord.answer_markdown === "string" &&
-            Array.isArray(researchUrlRecord.sources) &&
-            researchUrlRecord.sources.every(
-              (source) =>
-                source !== null &&
-                typeof source === "object" &&
-                !Array.isArray(source) &&
-                typeof (source as Record<string, unknown>).url === "string" &&
-                /^https?:\/\//.test(
-                  (source as Record<string, string>).url ?? "",
-                ),
-            ) &&
-            !("usage" in researchUrlRecord),
-          "experimental research URL JSON should contain only validated upstream URLs without usage",
+            researchUrlRecord.thread_id === researchRecord.thread_id,
+          "experimental research URL JSON should preserve the display contract and thread",
+        );
+        const researchText = (await trackSmokeStep(
+          "mcp research text follow-up experimental live",
+          () =>
+            client.callTool(
+              {
+                name: "research",
+                arguments: {
+                  thread_id: researchRecord.thread_id,
+                  question: "Summarize that answer briefly.",
+                },
+              },
+              undefined,
+              { timeout: AGENTIC_ASK_REQUEST_TIMEOUT_MS },
+            ),
+        )) as McpSmokeToolResult;
+        assert(
+          assertDefaultText(researchText, "experimental research text").trim()
+            .length > 0,
+          "experimental research should return nonempty backend display text",
         );
 
         const resolveText = (await trackSmokeStep(

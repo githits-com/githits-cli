@@ -1,14 +1,10 @@
 import {
-  type AgenticAskMcpResponse,
-  type AgenticAskMcpSourceCall,
-  type AgenticAskNeedsTargetResponse,
   type AgenticAskService,
-  type AgenticAskUrlResponse,
   normalizeAgenticAskThreadId,
 } from "@githits/core-internal";
 import { z } from "zod";
 import { mapAgenticAskError } from "../shared/agentic-ask-error-map.js";
-import { formatAgenticAskClarification } from "../shared/agentic-ask-response.js";
+import { extractAgenticAskDisplay } from "../shared/agentic-ask-response.js";
 import {
   isRepositoryTargetSpec,
   LegacyRepositoryRefError,
@@ -133,36 +129,9 @@ export function createLocalResearchTool(
   };
 }
 
-/** Render the validated answer, selected source pointers, and identifiers. */
-export function formatResearchMcpText(
-  response:
-    | AgenticAskMcpResponse
-    | AgenticAskUrlResponse
-    | AgenticAskNeedsTargetResponse,
-): string {
-  if ("outcome" in response) {
-    return formatAgenticAskClarification(response);
-  }
-  const sections = [response.answer_markdown.trim()];
-  if (response.sources.length > 0) {
-    const sourceLines =
-      response.source_format === "url"
-        ? response.sources.map(
-            (source, index) => `  ${index + 1}. ${source.url}`,
-          )
-        : response.sources.map(
-            (source, index) => `  ${index + 1}. ${formatMcpSourceCall(source)}`,
-          );
-    sections.push(["Sources:", ...sourceLines].join("\n"));
-  }
-  sections.push(
-    `Research run ID: ${response.tool_call_id}\nThread ID: ${response.thread_id}\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.`,
-  );
-  return `${sections.join("\n\n")}\n`;
-}
-
-function formatMcpSourceCall(source: AgenticAskMcpSourceCall): string {
-  return `${source.name}(${JSON.stringify(source.arguments)})`;
+/** Return complete backend-owned display text without interpreting sections. */
+export function formatResearchMcpText(response: unknown): string {
+  return extractAgenticAskDisplay(response);
 }
 
 function isTextFormat(format: LocalResearchMcpArgs["format"]): boolean {

@@ -1,16 +1,13 @@
 import { describe, expect, it, mock } from "bun:test";
 import {
   AgenticAskHttpError,
-  type AgenticAskMcpResponse,
-  type AgenticAskNeedsTargetResponse,
+  type AgenticAskResponse,
   type AgenticAskService,
-  type AgenticAskUrlResponse,
   AuthenticationError,
-  parseCompactResolveTargetResult,
 } from "@githits/core-internal";
 import { TermsAcceptanceRequiredError } from "@githits/core-internal/browser";
 import { z } from "zod";
-import { ASK_NEEDS_TARGET_WIRE } from "../../../core-internal/src/services/ask-needs-target.fixture.js";
+import displayContract from "../../../core-internal/src/services/fixtures/ask-display-contract.json";
 import {
   createLocalResearchTool,
   DESCRIPTION,
@@ -21,47 +18,11 @@ import {
 const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
 const THREAD_ID = "018f47a6-7b32-7b1e-8f45-6a2d39c81720";
 
-function response(): AgenticAskMcpResponse {
-  return {
-    source_format: "mcp",
-    tool_call_id: TOOL_CALL_ID,
-    thread_id: THREAD_ID,
-    answer_markdown: "Use the documented API.",
-    sources: [
-      {
-        name: "read",
-        arguments: {
-          target: "npm:example",
-          path: "src/index.ts",
-          start_line: 10,
-          end_line: 20,
-        },
-      },
-      {
-        name: "read",
-        arguments: {
-          target: "docs:example:guide",
-          start_line: 3,
-          end_line: 8,
-        },
-      },
-    ],
-  };
+function response(): AgenticAskResponse {
+  return displayContract.mcp;
 }
-
-function urlResponse(): AgenticAskUrlResponse {
-  return {
-    source_format: "url",
-    tool_call_id: TOOL_CALL_ID,
-    thread_id: THREAD_ID,
-    answer_markdown: "Use the documented API.",
-    sources: [
-      {
-        url: "https://github.com/example/project/blob/main/src/index.ts#L10-L20",
-      },
-      { url: "https://example.com/docs/guide#L3-L8" },
-    ],
-  };
+function urlResponse(): AgenticAskResponse {
+  return displayContract.url;
 }
 
 type McpAsk = (
@@ -70,9 +31,7 @@ type McpAsk = (
     sourceFormat: "mcp" | "url";
   },
   options?: { signal?: AbortSignal },
-) => Promise<
-  AgenticAskMcpResponse | AgenticAskUrlResponse | AgenticAskNeedsTargetResponse
->;
+) => Promise<AgenticAskResponse>;
 
 function createService(
   ask: McpAsk = mock(() => Promise.resolve(response())),
@@ -168,9 +127,7 @@ describe("local research MCP adapter", () => {
         },
       ],
     });
-    expect(result.content[0]?.text).toBe(
-      'Use the documented API.\n\nSources:\n  1. read({"target":"npm:example","path":"src/index.ts","start_line":10,"end_line":20})\n  2. read({"target":"docs:example:guide","start_line":3,"end_line":8})\n\nResearch run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n',
-    );
+    expect(result.content[0]?.text).toBe(displayContract.mcp.display_markdown);
   });
 
   it("continues a thread without resending a target", async () => {
@@ -275,15 +232,7 @@ describe("local research MCP adapter", () => {
   it.each(["text", "json"] as const)(
     "returns question-only clarification as successful %s without retrying",
     async (format) => {
-      const resolution = parseCompactResolveTargetResult(
-        ASK_NEEDS_TARGET_WIRE.resolution,
-      );
-      if (!resolution) throw new Error("Invalid clarification fixture");
-      const clarification: AgenticAskNeedsTargetResponse = {
-        outcome: "needs_target",
-        message: ASK_NEEDS_TARGET_WIRE.message,
-        resolution,
-      };
+      const clarification = displayContract.clarification;
       const ask = mock(() => Promise.resolve(clarification));
       const result = await invoke(createLocalResearchTool(createService(ask)), {
         question: "How does codex handle chat compaction?",
@@ -311,15 +260,24 @@ describe("local research MCP adapter", () => {
     },
   );
 
-  it("returns only the validated MCP envelope for JSON", async () => {
-    const result = await invoke(createLocalResearchTool(createService()), {
-      target: "npm:example",
-      question: "How?",
-      format: "json",
-    });
+  it("preserves the complete API response for JSON", async () => {
+    const answer = {
+      ...response(),
+      usage: { input_tokens: 1 },
+      future_field: true,
+    };
+    const result = await invoke(
+      createLocalResearchTool(
+        createService(mock(() => Promise.resolve(answer))),
+      ),
+      {
+        target: "npm:example",
+        question: "How?",
+        format: "json",
+      },
+    );
 
-    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual(response());
-    expect(result.content[0]?.text).not.toContain("usage");
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual(answer);
   });
 
   it("requests and renders original upstream URLs when selected", async () => {
@@ -339,9 +297,7 @@ describe("local research MCP adapter", () => {
       },
       undefined,
     );
-    expect(result.content[0]?.text).toBe(
-      "Use the documented API.\n\nSources:\n  1. https://github.com/example/project/blob/main/src/index.ts#L10-L20\n  2. https://example.com/docs/guide#L3-L8\n\nResearch run ID: 018f47a6-7b32-7a1e-8f45-6a2d39c81720\nThread ID: 018f47a6-7b32-7b1e-8f45-6a2d39c81720\nUse this thread ID for follow-ups; name a new project or version in the question to change scope.\n",
-    );
+    expect(result.content[0]?.text).toBe(displayContract.url.display_markdown);
   });
 
   it("returns only the URL envelope for JSON when selected", async () => {
@@ -362,7 +318,7 @@ describe("local research MCP adapter", () => {
     expect(result.content[0]?.text).not.toContain("usage");
   });
 
-  it("includes a validated failure run ID in the standard MCP error", async () => {
+  it("includes the failure run ID in the standard MCP error", async () => {
     const error = new AgenticAskHttpError(
       "RATE_LIMITED",
       "Research is rate limited.",
@@ -504,50 +460,42 @@ describe("local research MCP adapter", () => {
   });
 });
 
-describe("Ask read sources", () => {
-  it.each(["text", "json"] as const)(
-    "preserves complete backend actions in %s output",
-    async (format) => {
-      const wire: AgenticAskMcpResponse = {
-        ...response(),
-        sources: [
-          {
-            name: "read",
-            arguments: {
-              target: `https://github.com/owner/repo@${"a".repeat(40)}`,
-              path: "packages/a b/%file.ts",
-              start_line: 34,
-              end_line: 44,
-            },
-          },
-          {
-            name: "read",
-            arguments: {
-              target: "site:docs.example",
-              path: "guide/a%2Fb",
-              selector: "configuration",
-            },
-          },
-          {
-            name: "read",
-            arguments: { target: "https://docs.example/page?q=a%20b" },
-          },
-        ],
-      };
-      const original = structuredClone(wire);
+describe("Backend-owned Research display", () => {
+  it.each(Object.entries(displayContract))(
+    "passes through contract case %s",
+    async (_name, wire) => {
       const result = await invoke(
         createLocalResearchTool(createService(async () => wire)),
-        { question: "How?", format },
+        { question: "How?" },
       );
-      expect(result.isError).not.toBe(true);
-      const text = result.content[0]?.text ?? "";
-      if (format === "json") expect(JSON.parse(text)).toEqual(original);
-      else {
-        for (const source of original.sources)
-          expect(text).toContain(`read(${JSON.stringify(source.arguments)})`);
-        expect(text).not.toMatch(/code_read|docs_read|page_id/);
-      }
-      expect(wire).toEqual(original);
+      expect(result).toEqual({
+        content: [{ type: "text", text: wire.display_markdown }],
+      });
     },
   );
+
+  it("passes new display sections and Unicode verbatim without interpreting them", () => {
+    const wire = {
+      display_markdown: "New section\n\n```ts\n\tconst x = 'é';\n```\n",
+      future_metadata: { version: 2 },
+    };
+    expect(formatResearchMcpText(wire)).toBe(wire.display_markdown);
+  });
+
+  it.each([
+    null,
+    {},
+    { display_markdown: false },
+    { answer_markdown: "legacy" },
+  ])("maps a missing display primitive only in text mode: %j", async (wire) => {
+    const tool = createLocalResearchTool(
+      createService(async () => wire as unknown as AgenticAskResponse),
+    );
+    const text = await invoke(tool, { question: "How?" });
+    expect(text.isError).toBe(true);
+    expect(text.content[0]?.text).toContain("invalid Research response");
+    const json = await invoke(tool, { question: "How?", format: "json" });
+    expect(json.isError).toBeUndefined();
+    expect(JSON.parse(json.content[0]?.text ?? "")).toEqual(wire);
+  });
 });

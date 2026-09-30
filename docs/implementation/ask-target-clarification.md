@@ -1,50 +1,69 @@
-# Ask target clarification
+# Ask display and target clarification
 
-A targetless Ask lookup that cannot choose confidently returns HTTP 200 with
-`outcome: "needs_target"`, `message`, and the compact resolver result in `resolution`.
-The response describes a completed lookup requiring caller input. It has no `answer_markdown`, source
-pointers, run ID, or thread ID. Empty results use the same shape with no candidates.
+Every successful `/ask` response uses a minimal envelope:
 
-The service validates resolver output with the existing compact resolver schema and
-normalizes nullable metadata the same way as `resolve`. It rejects clarification for
-an explicit target or existing thread. Response size and cancellation limits are shared
-with answered responses.
+```json
+{
+  "display_markdown": "Complete answer, citations, and follow-up guidance.\n",
+  "tool_call_id": "01900000-0000-7000-8000-000000000030",
+  "thread_id": "01900000-0000-7000-8000-000000000031"
+}
+```
 
-HTTP 400 target errors may provide structured `detail` with `code`, `message`,
-`hint`, and optional `reason`. Codes and reasons are open-ended identifiers, so
-new server diagnostics do not require a client release. Each identifier is 1–128
-ASCII letters, digits, underscores, periods, colons, or hyphens, starting with a
-letter or digit. The shared service validates this shape, bounds its body to
-16 KiB, and preserves its message and hint (each 1–1024 characters without control
-characters). Unknown extra fields are ignored. CLI/MCP error envelopes keep
-`INVALID_ARGUMENT` and add `targetErrorCode`, `hint`, and optional bounded `reason`
-to `details`. A missing resolver reason stays absent; tool-call and
-thread IDs remain available. Malformed/legacy bodies use safe correction
-guidance rather than displaying unstructured response content. Other HTTP errors retain their
-existing safe mappings. Detailed guidance requires the matching backend update;
-older clients continue working but discard those diagnostics.
+The backend owns the entire Markdown, including source commands, candidate lists,
+run/thread footers, and guidance. Text clients read only `display_markdown`; they
+never interpret sections or reconstruct citations. Backend section additions,
+removals, or reordering require no client update. Keep the display field's name/type,
+accepted requests, and thread semantics backward compatible from this baseline.
 
-CLI text and the local MCP text formatter reuse the candidate section of the resolve
-formatter, preserving provider order, confidence, related groups, protected matches,
-malicious-status evidence, and truncation notes. They do not choose or promote a target.
-CLI JSON preserves the typed resolution and `needs_target` outcome, and the command
-completes successfully. Retry the question with a selected canonical target:
+A targetless lookup that needs a choice uses the same HTTP 200 shape, omitting both
+IDs. The backend formats provider order, confidence, related groups, protected
+matches, malicious-status evidence, and truncation notes. Empty candidates explain
+how to retry. Clients do not select a target. Repeat the question with an explicit
+canonical target, without a thread ID:
 
 ```sh
 githits research github:openai/codex 'How does codex handle chat compaction?'
 ```
 
-Local MCP `research` accepts the same question-only lookup: omit both `target` and
-`thread_id`. Text and JSON return the same clarification and candidates as the CLI.
-Repeat the original question with a selected `target` to continue. Explicit targets
-and thread follow-ups remain supported, but cannot be supplied together.
+CLI `--json` and local MCP `format: "json"` preserve the parsed API envelope and any
+future metadata unchanged. There are no response schema, source, variant, or ID
+validators. Only text extraction checks that `display_markdown` is a string; missing
+or non-string display becomes the existing protocol error. JSON mode intentionally
+still exposes that parsed response. Invalid JSON, transport errors, cancellation,
+timeouts, and the 4 MiB response cap retain their existing behavior.
 
-Deploy clients supporting this response before enabling the backend change: older
-clients expect every HTTP 200 response to contain an answer and identifiers. The new
-client still accepts the existing answer contract and older backend errors. Reverting
-the backend restores the earlier targetless rejection behavior without a migration.
+CLI strips terminal control sequences while retaining Markdown newlines, tabs,
+indentation, and Unicode. Local MCP returns the display string verbatim. Neither
+surface executes source commands. `source_format` remains a request-only citation
+presentation choice (CLI/MCP commands or upstream URLs); old structured answer/source
+fields and the clarification outcome discriminator are no longer in the envelope.
 
-Follow-ups may change project, exact version/ref, or topic by naming the new scope
-in the question while retaining the thread ID. For comparisons, name each project
-and version to investigate. If a follow-up fails, keep the thread ID when clarifying
-the question.
+HTTP 400 target errors may provide structured `detail` with `code`, `message`,
+`hint`, and optional `reason`. Codes and reasons are open-ended identifiers, so
+new server diagnostics do not require a client release. The shared service extracts
+string `code`, `message`, and `hint` fields without format or length restrictions,
+preserves extra diagnostic fields, and bounds the error body to 16 KiB.
+CLI/MCP error envelopes keep
+`INVALID_ARGUMENT` and add `targetErrorCode`, `hint`, and optional `reason`
+to `details`. A missing resolver reason stays absent; tool-call and
+thread IDs remain available as opaque response header values. CLI text sanitizes
+these identifiers before displaying them. Malformed/legacy bodies use safe correction
+guidance rather than displaying unstructured response content. Other HTTP errors retain their
+existing safe mappings. Detailed guidance requires the matching backend update;
+older clients continue working but discard those diagnostics.
+
+Local MCP `research` accepts a question alone, or mutually exclusive `target` and
+`thread_id` selectors. Follow-ups may change project, exact version/ref, or topic by
+naming the new scope while retaining the thread ID. If a follow-up fails, keep the
+thread ID when clarifying the question.
+
+This experimental cutover requires coordinated backend and root CLI changes.
+Prepare both, verify together, then deploy backend and release the client in the
+same window. No legacy response fallback or client-version negotiation is included.
+After the new baseline is available, preserve the display envelope during rollbacks.
+Research is local-only; hosted MCP and the public `@githits/mcp` entrypoints do not
+register it.
+
+The shared fixture is `packages/core-internal/src/services/fixtures/ask-display-contract.json`;
+service, CLI, and local MCP tests verify text and JSON against these examples.

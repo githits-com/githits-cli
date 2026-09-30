@@ -1,15 +1,14 @@
-import type { AgenticAskNeedsTargetResponse } from "@githits/core-internal";
-import { formatResolveTargetCandidates } from "./resolve-target-response.js";
-import { sanitizeTerminalText } from "./terminal-text.js";
+import { MalformedAgenticAskResponseError } from "@githits/core-internal";
 
-/** Display a clarification consistently in CLI and MCP without implying an answer. */
-export function formatAgenticAskClarification(
-  response: AgenticAskNeedsTargetResponse,
-): string {
-  return `${[
-    sanitizeTerminalText(response.message).trim(),
-    formatResolveTargetCandidates(response.resolution).trimEnd(),
-  ]
-    .filter(Boolean)
-    .join("\n\n")}\n`;
+/** Read the sole text primitive; JSON callers bypass display extraction entirely. */
+export function extractAgenticAskDisplay(response: unknown): string {
+  if (
+    typeof response !== "object" ||
+    response === null ||
+    !("display_markdown" in response) ||
+    typeof response.display_markdown !== "string"
+  ) {
+    throw new MalformedAgenticAskResponseError();
+  }
+  return response.display_markdown;
 }

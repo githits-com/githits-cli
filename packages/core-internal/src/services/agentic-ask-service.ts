@@ -1,4 +1,3 @@
-import { z } from "zod";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import { throwIfTermsAcceptanceRequired } from "../shared/terms-acceptance.js";
 import { validateServiceUrl } from "./config.js";
@@ -7,10 +6,6 @@ import {
   isTokenRefreshableError,
   parseRetryAfterSeconds,
 } from "./githits-service.js";
-import {
-  parseCompactResolveTargetResult,
-  type ResolveTargetResult,
-} from "./resolve-target-service.js";
 import {
   type ServiceDiagnostics,
   withServiceDiagnostics,
@@ -23,132 +18,12 @@ export const AGENTIC_ASK_MAX_RESPONSE_BYTES: number = 4 * 1024 * 1024;
 const UUID_V7_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const sourceLineRangeSchema = z
-  .string()
-  .regex(/^(?:[1-9]\d*-(?:[1-9]\d*)?|-[1-9]\d*)$/)
-  .refine((range) => {
-    const [first, last] = range.split("-");
-    const start = first ? Number(first) : undefined;
-    const end = last ? Number(last) : undefined;
-    return (
-      (start === undefined || Number.isSafeInteger(start)) &&
-      (end === undefined || Number.isSafeInteger(end)) &&
-      (start === undefined || end === undefined || start <= end)
-    );
-  });
-
-/** Accept only the backend's unified read argv, without normalizing locators. */
-function isReadSourceArguments(args: readonly string[]): boolean {
-  let index = 2;
-  if (args[index] === "--selector") {
-    if (!args[index + 1]) return false;
-    index += 2;
-  }
-  if (args[index] === "--lines") {
-    if (!sourceLineRangeSchema.safeParse(args[index + 1]).success) return false;
-    index += 2;
-  }
-  return (
-    args[index] === "--" &&
-    (args.length === index + 2 || args.length === index + 3) &&
-    args.slice(index + 1).every((value) => value.length > 0)
-  );
-}
-
-const cliSourceArgumentsSchema = z
-  .tuple([z.literal("githits@latest"), z.literal("read")])
-  .rest(z.string())
-  .refine(isReadSourceArguments);
-
-const cliSourceCallSchema = z.object({
-  command: z.literal("npx"),
-  arguments: cliSourceArgumentsSchema,
-});
-
-const cliResponseSchema = z.object({
-  source_format: z.literal("cli"),
-  tool_call_id: z.string().regex(UUID_V7_PATTERN),
-  thread_id: z.string().regex(UUID_V7_PATTERN),
-  answer_markdown: z.string().min(1),
-  sources: z.array(cliSourceCallSchema),
-});
-
-const needsTargetResponseSchema = z.object({
-  outcome: z.literal("needs_target"),
-  message: z.string().min(1),
-  resolution: z.unknown(),
-});
-
-const targetErrorTextSchema = z
-  .string()
-  .min(1)
-  .max(1024)
-  .refine((value) => !hasControlCharacters(value));
-// Diagnostic identifiers may grow independently of client releases.
-const targetErrorIdentifierSchema = z
-  .string()
-  .min(1)
-  .max(128)
-  .regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/);
-const targetErrorSchema = z.object({
-  detail: z.object({
-    code: targetErrorIdentifierSchema,
-    message: targetErrorTextSchema,
-    hint: targetErrorTextSchema,
-    reason: targetErrorIdentifierSchema.optional(),
-  }),
-});
-
 interface TargetErrorDetail {
   code: string;
   message: string;
   hint: string;
   reason?: string;
 }
-
-const mcpReadSourceCallSchema = z.strictObject({
-  name: z.literal("read"),
-  arguments: z
-    .strictObject({
-      target: z.string().min(1),
-      path: z.string().min(1).optional(),
-      selector: z.string().min(1).optional(),
-      start_line: z.number().int().min(1).optional(),
-      end_line: z.number().int().min(1).optional(),
-    })
-    .refine(
-      ({ start_line, end_line }) =>
-        start_line === undefined ||
-        end_line === undefined ||
-        start_line <= end_line,
-    ),
-});
-
-const mcpResponseSchema = z.object({
-  source_format: z.literal("mcp"),
-  tool_call_id: z.string().regex(UUID_V7_PATTERN),
-  thread_id: z.string().regex(UUID_V7_PATTERN),
-  answer_markdown: z.string().min(1),
-  sources: z.array(mcpReadSourceCallSchema),
-});
-
-const upstreamUrlSchema = z
-  .string()
-  .refine((value) => value === value.trim() && !hasControlCharacters(value))
-  .pipe(z.string().url())
-  .refine((value) => {
-    if (!URL.canParse(value)) return false;
-    const protocol = new URL(value).protocol;
-    return protocol === "http:" || protocol === "https:";
-  });
-
-const urlResponseSchema = z.object({
-  source_format: z.literal("url"),
-  tool_call_id: z.string().regex(UUID_V7_PATTERN),
-  thread_id: z.string().regex(UUID_V7_PATTERN),
-  answer_markdown: z.string().min(1),
-  sources: z.array(z.object({ url: upstreamUrlSchema })),
-});
 
 interface AgenticAskQuestion {
   question: string;
@@ -158,94 +33,28 @@ type AgenticAskSubject =
   | { target?: string; threadId?: never }
   | { target?: never; threadId: string };
 
-export type AgenticAskCliRequest = AgenticAskQuestion &
-  AgenticAskSubject & { sourceFormat?: "cli" };
-
-export type AgenticAskMcpRequest = AgenticAskQuestion &
-  AgenticAskSubject & { sourceFormat: "mcp" };
-
-export type AgenticAskUrlRequest = AgenticAskQuestion &
-  AgenticAskSubject & { sourceFormat: "url" };
-
-export type AgenticAskRequest =
-  | AgenticAskCliRequest
-  | AgenticAskMcpRequest
-  | AgenticAskUrlRequest;
+export type AgenticAskRequest = AgenticAskQuestion &
+  AgenticAskSubject & {
+    sourceFormat?: "cli" | "mcp" | "url";
+  };
 
 export interface AgenticAskRequestOptions {
   signal?: AbortSignal;
 }
 
-export interface AgenticAskCliSourceCall {
-  command: "npx";
-  arguments: ["githits@latest", "read", ...string[]];
+/** Expected backend envelope; successful JSON is deliberately not runtime-validated. */
+export interface AgenticAskResponse {
+  display_markdown: string;
+  tool_call_id?: string;
+  thread_id?: string;
+  [key: string]: unknown;
 }
-
-export interface AgenticAskCliResponse {
-  source_format: "cli";
-  tool_call_id: string;
-  thread_id: string;
-  answer_markdown: string;
-  sources: AgenticAskCliSourceCall[];
-}
-
-export interface AgenticAskMcpSourceCall {
-  name: "read";
-  arguments: {
-    target: string;
-    path?: string;
-    selector?: string;
-    start_line?: number;
-    end_line?: number;
-  };
-}
-
-export interface AgenticAskMcpResponse {
-  source_format: "mcp";
-  tool_call_id: string;
-  thread_id: string;
-  answer_markdown: string;
-  sources: AgenticAskMcpSourceCall[];
-}
-
-export interface AgenticAskUrlSource {
-  url: string;
-}
-
-export interface AgenticAskUrlResponse {
-  source_format: "url";
-  tool_call_id: string;
-  thread_id: string;
-  answer_markdown: string;
-  sources: AgenticAskUrlSource[];
-}
-
-/** A completed lookup requiring an explicit target before an answer can run. */
-export interface AgenticAskNeedsTargetResponse {
-  outcome: "needs_target";
-  message: string;
-  resolution: ResolveTargetResult;
-}
-
-export type AgenticAskResponse =
-  | AgenticAskNeedsTargetResponse
-  | AgenticAskCliResponse
-  | AgenticAskMcpResponse
-  | AgenticAskUrlResponse;
 
 export interface AgenticAskService {
   ask(
-    request: AgenticAskMcpRequest,
+    request: AgenticAskRequest,
     options?: AgenticAskRequestOptions,
-  ): Promise<AgenticAskMcpResponse | AgenticAskNeedsTargetResponse>;
-  ask(
-    request: AgenticAskCliRequest,
-    options?: AgenticAskRequestOptions,
-  ): Promise<AgenticAskCliResponse | AgenticAskNeedsTargetResponse>;
-  ask(
-    request: AgenticAskUrlRequest,
-    options?: AgenticAskRequestOptions,
-  ): Promise<AgenticAskUrlResponse | AgenticAskNeedsTargetResponse>;
+  ): Promise<AgenticAskResponse>;
 }
 
 export type AgenticAskHttpErrorCode =
@@ -331,18 +140,6 @@ export class AgenticAskServiceImpl implements AgenticAskService {
   ) {}
 
   async ask(
-    request: AgenticAskMcpRequest,
-    options?: AgenticAskRequestOptions,
-  ): Promise<AgenticAskMcpResponse | AgenticAskNeedsTargetResponse>;
-  async ask(
-    request: AgenticAskCliRequest,
-    options?: AgenticAskRequestOptions,
-  ): Promise<AgenticAskCliResponse | AgenticAskNeedsTargetResponse>;
-  async ask(
-    request: AgenticAskUrlRequest,
-    options?: AgenticAskRequestOptions,
-  ): Promise<AgenticAskUrlResponse | AgenticAskNeedsTargetResponse>;
-  async ask(
     request: AgenticAskRequest,
     options?: AgenticAskRequestOptions,
   ): Promise<AgenticAskResponse> {
@@ -408,10 +205,10 @@ export class AgenticAskServiceImpl implements AgenticAskService {
       throw cause;
     }
 
-    const toolCallId = parseAgenticAskToolCallId(
+    const toolCallId = readAgenticAskResponseId(
       response.headers.get("X-GitHits-Tool-Call-Id"),
     );
-    const threadId = normalizeAgenticAskThreadId(
+    const threadId = readAgenticAskResponseId(
       response.headers.get("X-GitHits-Thread-Id"),
     );
     if (!response.ok) {
@@ -449,51 +246,21 @@ export class AgenticAskServiceImpl implements AgenticAskService {
       }
       throw new AgenticAskConnectionError({ cause });
     }
-    let raw: unknown;
     try {
-      raw = JSON.parse(body);
+      // The API owns the response contract. Preserve its JSON, including new
+      // fields and source shapes, without coupling clients to a schema version.
+      return JSON.parse(body) as AgenticAskResponse;
     } catch (cause) {
       throw new MalformedAgenticAskResponseError({ cause });
     }
-
-    const clarification = needsTargetResponseSchema.safeParse(raw);
-    if (clarification.success) {
-      const resolution = parseCompactResolveTargetResult(
-        clarification.data.resolution,
-      );
-      if (
-        !resolution ||
-        request.target !== undefined ||
-        request.threadId !== undefined
-      ) {
-        throw new MalformedAgenticAskResponseError();
-      }
-      return {
-        outcome: "needs_target",
-        message: clarification.data.message,
-        resolution,
-      };
-    }
-
-    const responseSchema =
-      request.sourceFormat === "mcp"
-        ? mcpResponseSchema
-        : request.sourceFormat === "url"
-          ? urlResponseSchema
-          : cliResponseSchema;
-    const parsed = responseSchema.safeParse(raw);
-    if (!parsed.success) {
-      throw new MalformedAgenticAskResponseError({ cause: parsed.error });
-    }
-    return parsed.data;
   }
 }
 
-/** Accept exactly one UUIDv7 header value; ambiguous or unsafe values are dropped. */
-export function parseAgenticAskToolCallId(
+/** Preserve opaque response identifiers; request IDs are validated separately. */
+export function readAgenticAskResponseId(
   value: string | null,
 ): string | undefined {
-  return normalizeUuidV7(value);
+  return value || undefined;
 }
 
 /** Validate and normalize one UUIDv7 thread reference. */
@@ -555,8 +322,17 @@ function isDeclaredBodyTooLarge(
 
 function parseTargetError(body: string): TargetErrorDetail | undefined {
   try {
-    const parsed = targetErrorSchema.safeParse(JSON.parse(body));
-    return parsed.success ? parsed.data.detail : undefined;
+    const detail = JSON.parse(body)?.detail;
+    // Extract displayable guidance without constraining backend identifiers,
+    // message lengths, or additive fields to a client-side schema.
+    if (
+      !detail ||
+      typeof detail.code !== "string" ||
+      typeof detail.message !== "string" ||
+      typeof detail.hint !== "string"
+    )
+      return undefined;
+    return detail as TargetErrorDetail;
   } catch {
     return undefined;
   }
