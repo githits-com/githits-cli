@@ -30,18 +30,31 @@ describe("buildLocalMcpQuickStart", () => {
       "patterns are `registry:name@version` and `github:owner/repo@ref`",
     );
     expect(quickStart).toContain(
+      "Browse files or documentation pages in a known package, repository, or site | `list`",
+    );
+    expect(quickStart).toContain(
+      "`list` is for a known target when you need its structure or an exact path",
+    );
+    expect(quickStart).toContain("use `search` for content by topic");
+    expect(quickStart).toContain("both include source and\ndocumentation");
+    expect(quickStart).toContain(
+      "explicit `site:` inventory that\n`list` does not discover",
+    );
+    expect(quickStart).not.toContain("`code_files`");
+    expect(quickStart).not.toContain("`docs_list`");
+    expect(quickStart).toContain(
       "suffix for the latest package version or repository default branch",
     );
     expect(quickStart).not.toContain("[@version]");
     expect(quickStart).not.toContain("[@ref]");
     expect(quickStart).toContain(
-      "Use snippets when sufficient; otherwise read the target in a `[docs page]`",
+      "Use snippets when sufficient; otherwise read the\ntarget in that header",
     );
     expect(quickStart).toContain(
       "Hosted/crawled HTTP(S) docs locators address mutable current content",
     );
     expect(quickStart).toContain(
-      "search header. For an exact section or bounds, request search JSON",
+      "target in that header. For an exact section or bounds, request search JSON",
     );
     expect(quickStart).toContain(
       "its `followUp` unchanged, including supplied `selector` and bounds",
@@ -113,7 +126,13 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("documentation-site names");
     expect(instructions).toContain("`site:<host[/path]>`");
     expect(instructions).toContain('`source:"docs"`');
-    expect(instructions).toContain("request JSON only for missing fields");
+    expect(instructions).toContain("pass it to `list` to browse pages");
+    expect(instructions).toContain(
+      'or to `search` with `source:"docs"` for topic search',
+    );
+    expect(instructions).toContain(
+      "keep text unless code consumes the raw response",
+    );
     expect(instructions).toContain(
       "replay the complete emitted read action unchanged, otherwise use its returned target/range",
     );
@@ -128,7 +147,9 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("`pkg_upgrade_review`");
     expect(instructions).toContain("public repository refs repository-wide");
     expect(instructions).toContain("name-status");
-    expect(instructions).toContain("full returned patch");
+    expect(instructions).toContain(
+      "use `json` only for required fields absent from text or the full returned patch",
+    );
     expect(instructions).toContain("diffs do not prove compatibility");
     expect(instructions).toContain("credentials");
     expect(instructions).toContain("private or proprietary content");

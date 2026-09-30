@@ -1,7 +1,6 @@
 /**
- * Response envelope for the `list_files` tool. Shared across CLI
- * `--json` output and MCP `content[0].text`. Terminal formatter is
- * CLI-only; both surfaces read the same envelope shape.
+ * Response envelope for the legacy grouped CLI `githits code files`
+ * command. Its `--json` and terminal output use the same envelope.
  *
  * Design commitments (match the shipped pkg-intel envelope playbook):
  *
@@ -10,7 +9,7 @@
  *   appears when empty results carry a backend diagnostic.
  * - **No indexing metadata in the success envelope.** The service
  *   layer promotes `codeIndexState: INDEXING` to a typed error
- *   before the envelope builder runs, so agents never branch on a
+ *   before the envelope builder runs, so consumers never branch on a
  *   data-path indexing flag.
  * - **`filter.*` echoes only caller-supplied inputs.** The default
  *   limit (200) is not echoed; explicit selectors / filters are.

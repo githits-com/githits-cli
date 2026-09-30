@@ -271,7 +271,7 @@ describe("runMcpSmoke", () => {
     );
     expect(calls.some(({ name }) => name === "feedback")).toBe(false);
     const compactPackageNames = new Set([
-      "docs_list",
+      "list",
       "pkg_info",
       "pkg_vulns",
       "pkg_deps",
@@ -289,6 +289,73 @@ describe("runMcpSmoke", () => {
       expect(args, `${name} package_name`).not.toHaveProperty("package_name");
       expect(args, `${name} version`).not.toHaveProperty("version");
     }
+    expect(calls).toContainEqual({
+      name: "list",
+      args: {
+        target: SMOKE_PACKAGE_TARGET,
+        paths: ["package.json"],
+        limit: 1,
+      },
+    });
+    expect(calls).toContainEqual({
+      name: "list",
+      args: {
+        target: SMOKE_PACKAGE_TARGET,
+        paths: ["package.json"],
+        limit: 1,
+        format: "json",
+      },
+    });
+    expect(calls).toContainEqual({
+      name: "list",
+      args: {
+        target: SMOKE_PACKAGE_TARGET,
+        limit: 1,
+      },
+    });
+    expect(calls).toContainEqual({
+      name: "list",
+      args: {
+        target: SMOKE_PACKAGE_TARGET,
+        limit: 1,
+        after: SMOKE_LIST_CURSOR,
+      },
+    });
+    expect(calls).toContainEqual({
+      name: "list",
+      args: {
+        target: SMOKE_SITE_TARGET,
+        paths: [SMOKE_SITE_PAGE_PATH],
+        limit: 20,
+      },
+    });
+    expect(calls).toContainEqual({
+      name: "list",
+      args: {
+        target: SMOKE_SITE_TARGET,
+        paths: [SMOKE_SITE_PAGE_PATH],
+        limit: 20,
+        format: "json",
+      },
+    });
+    expect(calls).toContainEqual({
+      name: "read",
+      args: {
+        target: SMOKE_PACKAGE_TARGET,
+        path: "package.json",
+        start_line: 1,
+        end_line: 5,
+      },
+    });
+    expect(calls).toContainEqual({
+      name: "read",
+      args: {
+        target: SMOKE_SITE_TARGET,
+        path: SMOKE_SITE_PAGE_PATH,
+        start_line: 1,
+        end_line: 5,
+      },
+    });
     expect(calls).toContainEqual({
       name: "pkg_deps",
       args: {
@@ -331,11 +398,11 @@ describe("runMcpSmoke", () => {
             {
               type: "documentation_page",
               locator: {
-                docsReadTarget: SMOKE_CRAWLED_DOC_TARGET,
+                docsReadTarget: SMOKE_SITE_PAGE_URL,
                 startLine: 81,
                 endLine: 93,
               },
-              followUp: `read target=${JSON.stringify(SMOKE_CRAWLED_DOC_TARGET)} start_line=81 end_line=93`,
+              followUp: `read target=${JSON.stringify(SMOKE_SITE_PAGE_URL)} start_line=81 end_line=93`,
             },
           ],
         });
@@ -366,8 +433,8 @@ describe("runMcpSmoke", () => {
             results: [
               {
                 type: "documentation_page",
-                locator: { docsReadTarget: SMOKE_CRAWLED_DOC_TARGET },
-                followUp: `read target=${JSON.stringify(SMOKE_CRAWLED_DOC_TARGET)}`,
+                locator: { docsReadTarget: SMOKE_SITE_PAGE_URL },
+                followUp: `read target=${JSON.stringify(SMOKE_SITE_PAGE_URL)}`,
               },
             ],
           },
@@ -893,10 +960,77 @@ describe("runMcpSmoke", () => {
   });
 });
 
-const SMOKE_CRAWLED_DOC_TARGET = "https://expressjs.com/en/guide/routing.html";
-const SMOKE_CRAWLED_DOC_ID = "legacy-routing-id";
-const SMOKE_REPO_SHA = "0123456789abcdef0123456789abcdef01234567";
-const SMOKE_REPO_DOC_ID = `github:expressjs/express@${SMOKE_REPO_SHA}/README.md`;
+const SMOKE_SITE_TARGET = "site:expressjs.com";
+const SMOKE_SITE_PAGE_PATH = "en/resources/";
+const SMOKE_SITE_PAGE_URL = "https://expressjs.com/en/resources/";
+const SMOKE_PACKAGE_TARGET = "npm:express@5.2.1";
+const SMOKE_PACKAGE_VERSION = "5.2.1";
+const SMOKE_LIST_CURSOR = "smoke-list-cursor";
+
+function smokeListResult(
+  args: Record<string, unknown>,
+): Record<string, unknown> {
+  const target = args.target;
+  if (typeof target !== "string") {
+    throw new Error("list smoke requires a target");
+  }
+  const isSite = target.startsWith("site:");
+  const isRootPackageQuery = !isSite && args.paths === undefined;
+  const hasMore =
+    isRootPackageQuery && args.limit === 1 && args.after !== SMOKE_LIST_CURSOR;
+  const packagePath = isRootPackageQuery
+    ? args.after === SMOKE_LIST_CURSOR
+      ? "index.js"
+      : "History.md"
+    : "package.json";
+  return {
+    inventoryKind: isSite ? "SITE" : "SOURCE",
+    requestedTarget: target,
+    canonicalTarget: target,
+    entries: isSite
+      ? [
+          {
+            kind: "PAGE",
+            path: SMOKE_SITE_PAGE_PATH,
+            read: { target: SMOKE_SITE_TARGET, path: SMOKE_SITE_PAGE_PATH },
+          },
+        ]
+      : [
+          {
+            kind: "FILE",
+            path: packagePath,
+            read: { target: SMOKE_PACKAGE_TARGET, path: packagePath },
+          },
+        ],
+    hasMore,
+    nextCursor: hasMore ? SMOKE_LIST_CURSOR : null,
+    indexedVersion: isSite ? null : SMOKE_PACKAGE_VERSION,
+    codeIndexState: null,
+    indexingStatus: null,
+    indexingRef: null,
+    inventoryState: "AVAILABLE",
+    crawlStatus: isSite ? "COMPLETE" : null,
+    coverageState: "COMPLETE",
+    coverageReason: null,
+    preparation: null,
+  };
+}
+
+function smokeListText(args: Record<string, unknown>): string {
+  const result = smokeListResult(args);
+  const isSite = result.inventoryKind === "SITE";
+  const source = result.canonicalTarget;
+  const followUp = isSite
+    ? ' | follow up with "read site:expressjs.com $path"'
+    : "";
+  const more = result.hasMore ? " | more results available" : "";
+  const entries = result.entries as Array<Record<string, unknown>>;
+  const path = entries[0]?.path;
+  const continuation = result.nextCursor
+    ? `\n\nMore results: reuse the same target, paths, and options with:\n  after=${JSON.stringify(result.nextCursor)}`
+    : "";
+  return `# source ${String(source)}${followUp}${more}\n${path}${continuation}`;
+}
 
 function smokeResponse(
   name: string,
@@ -979,19 +1113,12 @@ function smokeResponse(
           "Changes\n" +
           "  Repository releases | 1 entry | 1 with release notes",
       );
-    case "docs_list":
-      if (args.after !== "smoke-doc-cursor") {
-        throw new Error("docs_list text smoke missing crawled-page cursor");
-      }
-      return textResult(
-        `read target=${JSON.stringify(SMOKE_CRAWLED_DOC_TARGET)}`,
-      );
+    case "list":
+      return textResult(smokeListText(args));
     case "read":
       return textResult(
         args.path ? '1  {"name":"express"}' : "documentation content",
       );
-    case "code_files":
-      return textResult("package.json");
     case "code_grep":
       return textResult(
         "package.json: express\nContext limited (requested 0 / 12)",
@@ -1096,37 +1223,18 @@ function smokeJsonResponse(
       return jsonResult({ entries: {} });
     case "pkg_upgrade_review":
       return jsonResult({ summary: {}, reviews: [{}] });
-    case "docs_list":
-      return jsonResult({
-        pages: [
-          {
-            docsReadTarget: SMOKE_REPO_DOC_ID,
-            pageId: SMOKE_REPO_DOC_ID,
-            sourceKind: "repo",
-            sourceUrl: `https://github.com/expressjs/express/blob/${SMOKE_REPO_SHA}/README.md`,
-          },
-          ...(args.limit === 1
-            ? []
-            : [
-                {
-                  docsReadTarget: SMOKE_CRAWLED_DOC_TARGET,
-                  pageId: SMOKE_CRAWLED_DOC_ID,
-                  sourceKind: "crawled",
-                  sourceUrl: SMOKE_CRAWLED_DOC_TARGET,
-                },
-              ]),
-        ],
-        ...(args.limit === 1 ? { nextCursor: "smoke-doc-cursor" } : {}),
-      });
+    case "list":
+      return jsonResult(smokeListResult(args));
     case "read": {
       if (
-        args.target === "site:expressjs.com" &&
-        args.path === "en/resources"
+        (args.target === SMOKE_SITE_TARGET &&
+          args.path === SMOKE_SITE_PAGE_PATH) ||
+        args.target === SMOKE_SITE_PAGE_URL
       ) {
         return jsonResult({
-          docsReadTarget: "https://expressjs.com/en/resources/",
+          docsReadTarget: SMOKE_SITE_PAGE_URL,
           pageId: "express-resources",
-          sourceUrl: "https://expressjs.com/en/resources/",
+          sourceUrl: SMOKE_SITE_PAGE_URL,
           content: "documentation content",
           startLine: 1,
           endLine: 1,
@@ -1139,28 +1247,16 @@ function smokeJsonResponse(
       ) {
         return errorResult("NOT_FOUND");
       }
-      if (args.target === SMOKE_REPO_DOC_ID) {
-        return jsonResult({
-          path: "README.md",
-          content: "documentation content",
-          startLine: 1,
-          endLine: 1,
-          totalLines: 1,
-          targetResolution: { served: { commitSha: SMOKE_REPO_SHA } },
-        });
-      }
       return jsonResult({
-        docsReadTarget: SMOKE_CRAWLED_DOC_TARGET,
-        pageId: SMOKE_CRAWLED_DOC_ID,
-        sourceUrl: SMOKE_CRAWLED_DOC_TARGET,
+        docsReadTarget: SMOKE_SITE_PAGE_URL,
+        pageId: "express-resources",
+        sourceUrl: SMOKE_SITE_PAGE_URL,
         content: "documentation content",
         startLine: 1,
         endLine: 1,
         totalLines: 1,
       });
     }
-    case "code_files":
-      return jsonResult({ files: [{ path: "package.json" }] });
     case "code_grep":
       return jsonResult({
         matches: [],
@@ -1205,12 +1301,12 @@ function smokeJsonResponse(
             {
               type: "documentation_page",
               locator: {
-                docsReadTarget: SMOKE_CRAWLED_DOC_TARGET,
-                sourceUrl: SMOKE_CRAWLED_DOC_TARGET,
+                docsReadTarget: SMOKE_SITE_PAGE_URL,
+                sourceUrl: SMOKE_SITE_PAGE_URL,
                 startLine: 81,
                 endLine: 93,
               },
-              followUp: `read target=${JSON.stringify(SMOKE_CRAWLED_DOC_TARGET)}`,
+              followUp: `read target=${JSON.stringify(SMOKE_SITE_PAGE_URL)}`,
             },
           ],
         });

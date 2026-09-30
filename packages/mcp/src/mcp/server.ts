@@ -3,8 +3,7 @@ import {
   type CompleteToolAnnotations,
   createGetExampleTool,
   createGrepRepoTool,
-  createListFilesTool,
-  createListPackageDocsTool,
+  createListTool,
   createPackageChangelogTool,
   createPackageDependenciesTool,
   createPackageSummaryTool,
@@ -89,15 +88,10 @@ const STABLE_MCP_OPERATION_FACTORIES: readonly McpToolFactory[] = [
   (services) => eraseMcpTool(createSearchTool(services.codeNavigationService)),
   (services) =>
     eraseMcpTool(createSearchStatusTool(services.codeNavigationService)),
-  (services) =>
-    eraseMcpTool(createListFilesTool(services.codeNavigationService)),
+  (services) => eraseMcpTool(createListTool(services.listService)),
   (services) => eraseMcpTool(createReadTool(services)),
   (services) =>
     eraseMcpTool(createGrepRepoTool(services.codeNavigationService)),
-  (services) =>
-    eraseMcpTool(
-      createListPackageDocsTool(services.packageIntelligenceService),
-    ),
   (services) =>
     eraseMcpTool(createPackageSummaryTool(services.packageIntelligenceService)),
   (services) =>
@@ -338,6 +332,9 @@ export function createDescriptorServices(): McpToolServices {
       packageChangelog: fail,
       listPackageDocs: fail,
       readPackageDoc: fail,
+    },
+    listService: {
+      list: fail,
     },
     readService: {
       read: fail,

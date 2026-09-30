@@ -14,7 +14,6 @@ import {
   createMockCodeNavigationService,
   createMockReadService,
   defaultGrepRepoResult,
-  defaultListFilesResult,
   defaultReadFileResult,
   defaultUnifiedSearchOutcome,
 } from "../services/test-helpers.js";
@@ -60,8 +59,7 @@ describe("provider target consumer parity", () => {
       expect(cli.params.to).toBe("release/v2@stable");
     });
 
-    it(`${compact} routes code navigation and read through their target boundaries`, async () => {
-      const listFiles = mock(() => Promise.resolve(defaultListFilesResult));
+    it(`${compact} routes grep and read through their target boundaries`, async () => {
       const grepRepo = mock(() => Promise.resolve(defaultGrepRepoResult));
       const read = mock(
         (): Promise<ReadResult> =>
@@ -69,16 +67,11 @@ describe("provider target consumer parity", () => {
       );
       const deps = {
         codeNavigationService: createMockCodeNavigationService({
-          listFiles,
           grepRepo,
         }),
         readService: createMockReadService({ read }),
       };
 
-      const codeFilesResult = await createParityMcpTool(
-        "code_files",
-        deps,
-      ).handler({ target: `${compact}@release/v1@stable` }, {});
       const codeGrepResult = await createParityMcpTool(
         "code_grep",
         deps,
@@ -98,15 +91,8 @@ describe("provider target consumer parity", () => {
         {},
       );
 
-      expect(codeFilesResult.isError).toBeUndefined();
       expect(codeGrepResult.isError).toBeUndefined();
       expect(readResult.isError).toBeUndefined();
-      expect(listFiles).toHaveBeenCalledTimes(1);
-      expect(listFiles).toHaveBeenCalledWith(
-        expect.objectContaining({
-          target: { repoUrl, gitRef: "release/v1@stable" },
-        }),
-      );
       expect(grepRepo).toHaveBeenCalledTimes(1);
       expect(grepRepo).toHaveBeenCalledWith(
         expect.objectContaining({

@@ -1,6 +1,7 @@
 import type {
   CodeNavigationService,
   GitHitsService,
+  ListService,
   PackageIntelligenceService,
   ReadService,
 } from "@githits/core-internal";
@@ -15,5 +16,6 @@ export interface McpToolServices {
   githitsService: GitHitsService;
   codeNavigationService: CodeNavigationService;
   packageIntelligenceService: PackageIntelligenceService;
+  listService: ListService;
   readService: ReadService;
 }

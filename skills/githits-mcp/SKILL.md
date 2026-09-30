@@ -20,9 +20,8 @@ This guide owns shared policy; selected tools own call syntax and exceptions.
 | --- | --- |
 | Find a known literal or regex in a public repository/package | `code_grep` |
 | Find relevant source, symbols, tests, or documentation for a topic | `search` |
-| List paths or browse a source directory | `code_files` |
+| Browse files or documentation pages in a known package, repository, or site | `list` |
 | Read a source file, code symbol, or documentation section | `read` |
-| Browse package documentation pages | `docs_list` |
 | Assess a package's license, adoption, maintenance, or overall health | `pkg_info` |
 | Inspect vulnerabilities in a package or version | `pkg_vulns` |
 | Inspect direct dependencies or transitive footprint | `pkg_deps` |
@@ -43,12 +42,16 @@ Use public repository targets for full repositories or sibling packages:
 A ref may be a branch, tag, or commit and contain later `@`; `#` is for
 semantic fragments, not revisions.
 
-For a package or site docs topic, use `search` with `source:"docs"`.
-`docs_list` browses package pages, not standalone `site:` targets.
-Use snippets when sufficient; otherwise read the target in a `[docs page]`
-search header. For an exact section or bounds, request search JSON and replay
-its `followUp` unchanged, including supplied `selector` and bounds.
-Replay a `docs_list` read action unchanged when browsing package pages.
+`list` is for a known target when you need its structure or an exact path;
+use `search` for content by topic. A package target covers its own source tree,
+while a repository target covers the whole snapshot; both include source and
+documentation. Hosted docs use a separate explicit `site:` inventory that
+`list` does not discover. For hosted package docs, search the package with
+`source:"docs"`, then pass the explicit `site:` target from a `[docs page]`
+search header to `list`. Use snippets when sufficient; otherwise read the
+target in that header. For an exact section or bounds, request search JSON and
+replay its `followUp` unchanged, including supplied `selector` and bounds.
+Replay a `list` read action unchanged when browsing paths.
 Hosted/crawled HTTP(S) docs locators address mutable current content.
 A direct HTTP(S) docs fragment read without explicit bounds returns its heading
 and full subtree through the next equal-or-higher heading.

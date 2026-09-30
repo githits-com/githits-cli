@@ -1,9 +1,11 @@
 import type { ListEntry, ListResult } from "@githits/core-internal";
 import { dim } from "./colors.js";
+import { shellQuoteExact } from "./shell-quote.js";
 
 export interface FormatListTextOptions {
   useColors?: boolean;
   includeHeader?: boolean;
+  syntax?: "cli" | "mcp";
 }
 
 /** Render one token-efficient inventory shared by CLI and MCP text surfaces. */
@@ -16,10 +18,23 @@ export function formatListText(
     formatPath(entry, result.inventoryKind),
   );
   if (options.includeHeader === false) return paths.join("\n");
-  return [
+  const lines = [
     formatHeader(result, siteReadTarget, options.useColors === true),
     ...paths,
-  ].join("\n");
+  ];
+  if (result.nextCursor) {
+    const continuation = [
+      "More results: reuse the same target, paths, and options with:",
+      options.syntax === "mcp"
+        ? `  after=${JSON.stringify(result.nextCursor)}`
+        : `  --after ${shellQuoteExact(result.nextCursor)}`,
+    ];
+    lines.push(
+      "",
+      ...continuation.map((line) => dim(line, options.useColors === true)),
+    );
+  }
+  return lines.join("\n");
 }
 
 function formatHeader(

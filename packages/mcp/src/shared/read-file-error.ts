@@ -48,8 +48,8 @@ function buildReadFileNotFoundAction(
     : "With path, `read` reads files only, not directories. ";
   const listing =
     prefix === ""
-      ? "Use `code_files` without `path_prefix`"
-      : `Use \`code_files\` with \`path_prefix: ${JSON.stringify(prefix)}\``;
+      ? "Use `list` without `paths`"
+      : `Use \`list\` with \`paths: ${JSON.stringify([prefix])}\``;
   return (
     `${preamble}${listing} to list valid indexed paths, then ` +
     "pass an emitted `path` back to `read`."

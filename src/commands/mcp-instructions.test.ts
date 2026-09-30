@@ -5,6 +5,7 @@ import { EXTERNAL_CONTENT_POSTURE } from "../../packages/mcp/src/tools/guardrail
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
+  createMockListService,
   createMockPackageIntelligenceService,
   createMockReadService,
 } from "../services/test-helpers.js";
@@ -16,6 +17,7 @@ function createTestServices(
     codeNavigationService: createMockCodeNavigationService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
     githitsService: createMockGitHitsService(),
+    listService: createMockListService(),
     readService: createMockReadService(),
     ...overrides,
   };
@@ -25,10 +27,9 @@ const KNOWN_TOOLS = [
   "search",
   "get_example",
   "search_status",
-  "code_files",
+  "list",
   "read",
   "code_grep",
-  "docs_list",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -61,8 +62,10 @@ describe("buildMcpQuickStart", () => {
       "Find a known literal or regex in a public repository/package | `code_grep`",
     );
     expect(instructions).toContain(
-      "List paths or browse a source directory | `code_files`",
+      "Browse files or documentation pages in a known package, repository, or site | `list`",
     );
+    expect(instructions).not.toContain("`code_files`");
+    expect(instructions).not.toContain("`docs_list`");
     expect(instructions).toContain(
       "Compare current and target dependency versions for an upgrade | `pkg_upgrade_review`",
     );
@@ -124,20 +127,22 @@ describe("buildMcpQuickStart", () => {
     expect(instructions).toContain(
       "Reuse returned targets, paths, locators, references, and ranges",
     );
-    expect(instructions).toContain(
-      'For a package or site docs topic, use `search` with `source:"docs"`',
+    expect(instructions).toMatch(
+      /For hosted package docs, search the package with\s+`source:"docs"`, then pass the explicit `site:` target from a `\[docs page\]`\s+search header to `list`/,
     );
     expect(instructions).toContain(
-      "`docs_list` browses package pages, not standalone `site:` targets",
+      "`list` is for a known target when you need its structure or an exact path",
     );
+    expect(instructions).not.toContain("`code_files`");
+    expect(instructions).not.toContain("`docs_list`");
     expect(instructions).toContain(
-      "Use snippets when sufficient; otherwise read the target in a `[docs page]`",
+      "Use snippets when sufficient; otherwise read the\ntarget in that header",
     );
     expect(instructions).toContain(
       "its `followUp` unchanged, including supplied `selector` and bounds",
     );
     expect(instructions).toContain(
-      "search header. For an exact section or bounds, request search JSON",
+      "target in that header. For an exact section or bounds, request search JSON",
     );
     expect(instructions).toContain(
       "Hosted/crawled HTTP(S) docs locators address mutable current content",
@@ -179,6 +184,8 @@ describe("buildMcpQuickStart", () => {
     const mentioned = mentionedTools(buildMcpQuickStart());
     const registered = registeredTools(services);
 
+    expect(registered.size).toBe(12);
+    expect(mentioned).toEqual(new Set(KNOWN_TOOLS));
     for (const name of mentioned) {
       expect(registered.has(name)).toBe(true);
     }
@@ -186,10 +193,9 @@ describe("buildMcpQuickStart", () => {
     const packageAndCodeTools = [
       "search",
       "search_status",
-      "code_files",
+      "list",
       "read",
       "code_grep",
-      "docs_list",
       "pkg_info",
       "pkg_vulns",
       "pkg_deps",
@@ -221,6 +227,9 @@ describe("buildMcpQuickStart", () => {
     );
     expect(descriptions.get("search")).toStartWith(
       "Discover relevant docs, code, and symbols in a known public target",
+    );
+    expect(descriptions.get("list")).toStartWith(
+      "List files and documentation paths in a known package, repository, or site.",
     );
     expect(descriptions.get("code_grep")).toStartWith(
       "Find text, regex, or identifier matches in a public repo or package",

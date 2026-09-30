@@ -47,7 +47,7 @@ The dual-surface tools today are:
 - `get_example` ↔ `githits example`
 - `search` ↔ `githits search`
 - `search_status` ↔ `githits search-status`
-- `code_files` ↔ `githits code files`
+- `list` ↔ `githits list`
 - `read` with a path ↔ `githits read <target> <path>` (legacy `code read` retained)
 - `code_grep` ↔ `githits code grep`
 - `pkg_info` ↔ `githits pkg info`
@@ -55,7 +55,6 @@ The dual-surface tools today are:
 - `pkg_deps` ↔ `githits pkg deps`
 - `pkg_changelog` ↔ `githits pkg changelog`
 - `pkg_upgrade_review` ↔ `githits pkg upgrade-review`
-- `docs_list` ↔ `githits docs list`
 - `read` without a path ↔ `githits read <target>` (legacy `docs read` retained)
 - `resolve_target` ↔ `githits resolve` *(config-gated, local-only)*
 - `code_diff` ↔ `githits code diff` *(config-gated, local-only)*
@@ -528,34 +527,35 @@ When a new tool lands with both MCP and CLI surfaces:
 | `packages/mcp/src/shared/package-dependencies-response.ts` | Lean JSON envelope builder and shared text/terminal formatter for `pkg_deps`. |
 | `packages/mcp/src/shared/package-changelog-request.ts` | Shared request builder for `pkg_changelog`. |
 | `packages/mcp/src/shared/package-changelog-response.ts` | JSON envelope builder and shared text/terminal formatter for `pkg_changelog`. |
-| `packages/mcp/src/shared/list-files-request.ts` | Shared request builder for `code_files`. |
-| `packages/mcp/src/shared/list-files-response.ts` | JSON envelope builder for `code_files`. |
+| `packages/mcp/src/shared/list-request.ts` | Shared request builder for unified `list`. |
+| `packages/mcp/src/shared/list-response.ts` | Lossless selected-field JSON projection for unified `list`. |
+| `packages/mcp/src/shared/list-text.ts` | Shared token-efficient CLI/MCP path formatter. |
 | `packages/mcp/src/shared/read-file-request.ts` | Shared request builder for `read`. |
-| `packages/mcp/src/shared/read-file-response.ts` | JSON envelope builder for `read`. Normalises envelope key to `path` (not `filePath`) so `code_files` -> `read` chains without renames. |
+| `packages/mcp/src/shared/read-file-response.ts` | JSON envelope builder for `read`. Normalises envelope key to `path` (not `filePath`) for exact-file follow-ups. |
 | `packages/mcp/src/shared/grep-repo-request.ts` | Shared request builder for `code_grep`. Exports `GREP_REPO_PATTERN_NOTE` referenced by MCP description, MCP `pattern` describe, and CLI help. |
 | `packages/mcp/src/shared/grep-repo-response.ts` | JSON envelope builder for `code_grep`. |
-| `packages/mcp/src/shared/list-package-docs-request.ts` / `list-package-docs-response.ts` | Shared request and envelope for `docs_list`. |
+| `packages/mcp/src/shared/list-files-request.ts` / `list-files-response.ts` | Legacy grouped CLI file-list compatibility helpers. |
+| `packages/mcp/src/shared/list-package-docs-request.ts` / `list-package-docs-response.ts` | Legacy grouped CLI documentation-list compatibility helpers. |
 | `packages/mcp/src/shared/read-package-doc-request.ts` / `read-package-doc-response.ts` | Shared request and envelope for `read`. |
 | `packages/mcp/src/shared/code-navigation-error-map.ts` | Owns the `INDEXING`, target/file-not-found, and exact-path authority codes shared across all code-nav tools. |
 | `packages/mcp/src/shared/package-intelligence-error-map.ts` | `mapPackageIntelligenceError` classifier using the shared `MappedError` contract. |
 | `packages/core-internal/src/services/promote-version-not-found.ts` | Shared helper that promotes generic backend errors with "no matching version" messages into typed `VERSION_NOT_FOUND`. |
-| `packages/mcp/src/tools/code-navigation-shared.ts` | Compact-string `codeTargetSchema` + `resolveCodeTarget` for `code_files`, `code_grep`, and the code branch of `read`; `search` has a related string schema that also accepts exact documentation sites. |
+| `packages/mcp/src/tools/code-navigation-shared.ts` | Compact-string target parsing retained by `code_grep` and legacy code navigation; `search`, `list`, and `read` use their transport-neutral request boundaries. |
 | `packages/mcp/src/tools/search.ts` | MCP tool definition for unified `search`. |
 | `packages/mcp/src/tools/search-status.ts` | MCP tool definition for `search_status`. |
 | `packages/mcp/src/tools/package-summary.ts` | MCP tool definition for `pkg_info`. |
 | `packages/mcp/src/tools/package-vulnerabilities.ts` | MCP tool definition for `pkg_vulns`. |
 | `packages/mcp/src/tools/package-dependencies.ts` | MCP tool definition for `pkg_deps`. |
 | `packages/mcp/src/tools/package-changelog.ts` | MCP tool definition for `pkg_changelog`. |
-| `packages/mcp/src/tools/list-files.ts` | MCP tool definition for `code_files`. |
+| `packages/mcp/src/tools/list.ts` | Stable MCP tool definition for unified `list`. |
 | `packages/mcp/src/tools/read-file.ts` | Code branch of unified `read`; `tools/read.ts` owns the advertised definition. |
 | `packages/mcp/src/tools/grep-repo.ts` | MCP tool definition for `code_grep`. |
-| `packages/mcp/src/tools/list-package-docs.ts` / `read-package-doc.ts` | MCP tool definitions for the docs surface. |
 | `src/commands/search.ts` | Top-level CLI commands for unified `search` and `search-status`. |
-| `src/commands/list.ts` | Top-level CLI `list` command; currently CLI-only until Phase 2 MCP consolidation. |
+| `src/commands/list.ts` | Top-level CLI `list` command sharing its contract and formatter with MCP. |
 | `src/commands/pkg/info.ts` / `vulns.ts` / `deps.ts` / `changelog.ts` | CLI commands for the `pkg` group. |
 | `src/commands/code/files.ts` / `read.ts` / `grep.ts` | CLI commands for the `code` group. |
 | `src/commands/docs/list.ts` / `read.ts` | CLI commands for the `docs` group. |
-| `src/tools/*-parity.test.ts` | Parity tests; each cites the rule IDs it enforces. |
+| `scripts/cli-smoke.ts` | Live CLI/MCP JSON-shape parity fixtures, including package and site `list`. |
 
 ## Per-tool notes
 
@@ -747,22 +747,20 @@ section labels remain plain; only the matched keyword and excerpt marker are
 yellow. Evidence detail and locators remain plain. Words remain sufficient
 without color, authored punctuation is ASCII, and backend Unicode is preserved.
 
-### `code_files` / `read` / `code_grep` (file-exploration bundle)
+### `list` / `read` / `code_grep` (inventory and file-exploration bundle)
 
-`code_files` and `code_grep` reuse `codeTargetSchema` + `resolveCodeTarget` from
-`packages/mcp/src/tools/code-navigation-shared.ts`; the code branch of `read`
-accepts compact strings only and uses the same resolver. The indexing lifecycle is
-shared (see `tools.md` "Indexing lifecycle" section). Parity tests
-cover dual addressing, default + explicit filter echoes, INDEXING
-error envelope, NOT_FOUND envelope, and INVALID_ARGUMENT with full
-envelope shape.
+`list` uses the transport-neutral `ListService` and shared request, response,
+error, and text helpers. `read` uses `ReadService`; `code_grep` retains compact
+target parsing through the code-navigation service. Live parity fixtures cover
+package and explicit-site list JSON shapes, while focused tests cover request
+normalization, pagination, actions, errors, and text output.
 
-- **`code_files`**: `filter.path_prefix` / `filter.limit` echo only
-  when explicit. Default `limit: 200` never round-trips. Backend
-  returns `total` capped at returned count when `hasMore: true`;
-  terminal formatter renders `N+`.
+- **`list`**: literal paths and globs form a union. Selected directories expose
+  immediate children unless `recursive` expands them; glob depth is
+  independent. JSON returns backend-authored read/browse actions and an opaque
+  continuation cursor. Text returns only the source line and paths.
 - **`read` code branch**: envelope uses `path` (not `filePath`) to match
-  `code_files.files[].path`. Binary files: `isBinary: true` +
+  returned list action/path. Binary files: `isBinary: true` +
   `content` omitted (not `null`). INDEXING details may carry
   `indexingRef`, `indexingEstimate`, and any backend-provided
   indexed refs/versions; callers must branch on whichever retry

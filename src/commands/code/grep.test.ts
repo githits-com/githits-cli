@@ -512,8 +512,10 @@ describe("pkgGrepAction", () => {
       };
       expect(payload.code).toBe("INVALID_ARGUMENT");
       expect(payload.error).toContain("`<pattern>` is required");
-      expect(payload.error).toContain("`githits code files`");
+      expect(payload.error).toContain("`githits list <target>`");
       expect(payload.error).not.toContain("code_files");
+      expect(payload.error).not.toContain("path_prefix");
+      expect(payload.error).not.toContain("paths:");
     } finally {
       errorSpy.mockRestore();
       exitSpy.mockRestore();
@@ -822,7 +824,9 @@ describe("pkgGrepAction", () => {
       /* expected */
     }
 
-    expect(errorSpy.mock.calls[0]?.[0]).not.toContain("Use `code files`");
+    expect(errorSpy.mock.calls[0]?.[0]).not.toContain(
+      "Use `githits list <target>`",
+    );
 
     errorSpy.mockReset();
 
@@ -849,7 +853,9 @@ describe("pkgGrepAction", () => {
       /* expected */
     }
 
-    expect(errorSpy.mock.calls[0]?.[0]).toContain("Use `code files`");
+    expect(errorSpy.mock.calls[0]?.[0]).toContain(
+      "Use `githits list <target>`",
+    );
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
@@ -894,7 +900,7 @@ describe("pkgGrepAction", () => {
       try {
         const output = String(errorSpy.mock.calls[0]?.[0]);
         expect(output).toContain(expectedGuidance);
-        expect(output).toContain("`code files`");
+        expect(output).toContain("`githits list <target>");
       } finally {
         errorSpy.mockRestore();
         exitSpy.mockRestore();
@@ -938,12 +944,15 @@ describe("pkgGrepAction", () => {
       };
       expect(payload.code).toBe("FILE_NOT_FOUND");
       expect(payload.details?.filePath).toBe("docs/missing.md");
-      expect(payload.details?.action).toContain("`githits code files`");
-      expect(payload.details?.action).toContain('path prefix "docs/"');
+      expect(payload.details?.action).toContain(
+        '`githits list <target> "docs/"`',
+      );
       expect(payload.details?.action).toContain("`--path <path>`");
       expect(payload.details?.action).toContain("`githits code grep`");
       expect(payload.details?.action).not.toContain("code_files");
       expect(payload.details?.action).not.toContain("code_grep");
+      expect(payload.details?.action).not.toContain("path_prefix");
+      expect(payload.details?.action).not.toContain("paths:");
     } finally {
       errorSpy.mockRestore();
       exitSpy.mockRestore();
@@ -983,8 +992,13 @@ describe("pkgGrepAction", () => {
       const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
         details?: { action?: string };
       };
-      expect(payload.details?.action).toContain('path prefix "benchmarks/"');
+      expect(payload.details?.action).toContain(
+        '`githits list <target> "benchmarks/"`',
+      );
       expect(payload.details?.action).not.toContain("benchmarks/run/");
+      expect(payload.details?.action).not.toContain("code_files");
+      expect(payload.details?.action).not.toContain("path_prefix");
+      expect(payload.details?.action).not.toContain("paths:");
     } finally {
       errorSpy.mockRestore();
       exitSpy.mockRestore();

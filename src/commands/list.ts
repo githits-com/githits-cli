@@ -90,6 +90,7 @@ export async function listAction(
       const output = formatListText(projected, {
         useColors: shouldUseColors(),
         includeHeader: !options.silent,
+        syntax: "cli",
       });
       if (output.length > 0) process.stdout.write(`${output}\n`);
     }
@@ -169,7 +170,7 @@ export function registerListCommand(
     .command("list")
     .summary("List files and documentation in a target")
     .description(
-      "List the files and documentation entries for one package, repository, or hosted site. Package and repository targets stay within their source inventory; use site:<host[/path]> for hosted documentation. Pass paths as literals or globs, and add --recursive to traverse matched directories. Text output is one path per line; use --silent for paths only or --json for actions, cursors, and metadata.",
+      "List files and documentation paths in one package, repository, or hosted site. Paths are target-relative literals or globs for every target. Directories show immediate children; add --recursive to expand them. Text includes read and continuation guidance. Use --silent for paths only and --json only for programmatic processing.",
     )
     .argument("<target>", "Package, repository, or site target")
     .argument("[paths...]", "Literal path selectors or glob patterns")

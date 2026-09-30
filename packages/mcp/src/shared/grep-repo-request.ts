@@ -85,15 +85,15 @@ export interface GrepRepoRequestBuildResult {
   };
 }
 
-// CLI rewrites pattern, code_files, globs, extensions, and symbol_fields from
-// these errors; keep them stable with src/commands/code/grep.ts or update its tests.
+// CLI translates pattern, list, globs, extensions, and symbol_fields from
+// these errors; keep them stable with src/commands/code/grep.ts and its tests.
 export function buildGrepRepoParams(
   input: GrepRepoRequestInput,
 ): GrepRepoRequestBuildResult {
   const pattern = input.pattern ?? "";
   if (pattern.length === 0 || pattern.trim().length === 0) {
     throw new InvalidPackageSpecError(
-      "`pattern` is required — pass the text to search for. If you are trying to list files or count files in scope, use `code_files` instead.",
+      "`pattern` is required — pass the text to search for. If you are trying to list files or count files in scope, use `list` instead.",
     );
   }
   if (Buffer.byteLength(pattern, "utf8") > PATTERN_MAX) {

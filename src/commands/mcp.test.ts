@@ -28,6 +28,7 @@ import { Command } from "commander";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
+  createMockListService,
   createMockPackageIntelligenceService,
   createMockReadService,
   createMockResolveTargetService,
@@ -79,6 +80,7 @@ function createTestServices(
     codeNavigationService: createMockCodeNavigationService(),
     packageIntelligenceService: createMockPackageIntelligenceService(),
     githitsService: createMockGitHitsService(),
+    listService: createMockListService(),
     readService: createMockReadService(),
     resolveTargetService: createMockResolveTargetService(),
     ...overrides,
@@ -90,10 +92,9 @@ const EXPECTED_TOOL_NAMES = [
   "get_example",
   "search",
   "search_status",
-  "code_files",
+  "list",
   "read",
   "code_grep",
-  "docs_list",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -125,8 +126,11 @@ describe("createMcpServer", () => {
     const tools = getMcpToolDefinitions(services);
 
     expect(tools.map((tool) => tool.name)).toEqual([...EXPECTED_TOOL_NAMES]);
-    expect(tools.map((tool) => tool.name)).toHaveLength(13);
+    expect(tools.map((tool) => tool.name)).toHaveLength(12);
     expect(tools.map((tool) => tool.name)).toContain("read");
+    expect(tools.map((tool) => tool.name)).toContain("list");
+    expect(tools.map((tool) => tool.name)).not.toContain("code_files");
+    expect(tools.map((tool) => tool.name)).not.toContain("docs_list");
     expect(tools.map((tool) => tool.name)).not.toContain("code_read");
     expect(tools.map((tool) => tool.name)).not.toContain("docs_read");
   });
@@ -369,7 +373,7 @@ describe("createMcpServer", () => {
       "get_example",
       "search",
       "search_status",
-      "code_files",
+      "list",
       "read",
       "code_grep",
     ]) {
@@ -381,7 +385,9 @@ describe("createMcpServer", () => {
     const services = createTestServices();
 
     const tools = getMcpToolDefinitions(services);
-    expect(tools.map((tool) => tool.name)).toContain("docs_list");
+    expect(tools.map((tool) => tool.name)).toContain("list");
+    expect(tools.map((tool) => tool.name)).not.toContain("code_files");
+    expect(tools.map((tool) => tool.name)).not.toContain("docs_list");
     expect(tools.map((tool) => tool.name)).toContain("read");
     expect(tools.map((tool) => tool.name)).not.toContain("code_read");
     expect(tools.map((tool) => tool.name)).not.toContain("docs_read");

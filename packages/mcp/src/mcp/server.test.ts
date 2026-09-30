@@ -23,10 +23,9 @@ const FORMAT_SELECTABLE_TOOLS = new Set([
   "get_example",
   "search",
   "search_status",
-  "code_files",
+  "list",
   "read",
   "code_grep",
-  "docs_list",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -39,10 +38,9 @@ const STABLE_MCP_TOOL_NAMES = [
   "get_example",
   "search",
   "search_status",
-  "code_files",
+  "list",
   "read",
   "code_grep",
-  "docs_list",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -95,9 +93,24 @@ const DESCRIPTION_ROUTING: Record<
       "`search_status`",
     ],
   },
-  code_files: {
-    prefix: /^List indexed files and paths in a public repo or package\./,
-    body: ["`read`", "`code_grep`"],
+  list: {
+    prefix:
+      /^List files and documentation paths in a known package, repository, or site\./,
+    exactPrefix:
+      "List files and documentation paths in a known package, repository, or site. Use ",
+    body: [
+      "Replaces code_files and docs_list.",
+      "find an exact path before `read`",
+      "use `search` for topics",
+      "one package-owned tree",
+      "whole snapshot",
+      "Both include source and documentation",
+      "explicit `site:` target",
+      "target-relative literals or globs",
+      "glob depth is independent",
+      "read and continuation guidance",
+      "use JSON only when code consumes",
+    ],
   },
   read: {
     prefix:
@@ -105,7 +118,7 @@ const DESCRIPTION_ROUTING: Record<
     exactPrefix:
       "Read an indexed source file, code symbol, or documentation section. Pass target ",
     body: [
-      "use code_files",
+      "use list",
       "search/code_grep",
       "target and path for a file or site page; use compact target#symbol or selector for a code symbol",
       "resolved result determines code or docs",
@@ -124,14 +137,6 @@ const DESCRIPTION_ROUTING: Record<
     prefix:
       /^Find text, regex, or identifier matches in a public repo or package\./,
     body: ["deterministic and paginated", "`read.path`", "`match.line`"],
-  },
-  docs_list: {
-    prefix: /^List package documentation targets for follow-up reads\./,
-    body: [
-      "`read.target`",
-      "`docsReadTarget`",
-      "not standalone `site:` targets",
-    ],
   },
   pkg_info: {
     prefix: /^Assess latest package health and adoption/,
@@ -201,8 +206,11 @@ describe("MCP tool annotations", () => {
     const descriptors = getMcpToolDescriptors();
 
     expect(descriptors.map(({ name }) => name)).not.toContain("feedback");
-    expect(descriptors).toHaveLength(13);
+    expect(descriptors).toHaveLength(12);
     expect(descriptors.map(({ name }) => name)).toContain("read");
+    expect(descriptors.map(({ name }) => name)).toContain("list");
+    expect(descriptors.map(({ name }) => name)).not.toContain("code_files");
+    expect(descriptors.map(({ name }) => name)).not.toContain("docs_list");
     expect(descriptors.map(({ name }) => name)).not.toContain("code_read");
     expect(descriptors.map(({ name }) => name)).not.toContain("docs_read");
 
@@ -223,6 +231,8 @@ describe("MCP tool description catalog", () => {
     expect(descriptors.map(({ name }) => name)).toEqual([
       ...STABLE_MCP_TOOL_NAMES,
     ]);
+    expect(descriptors.map(({ name }) => name)).not.toContain("code_files");
+    expect(descriptors.map(({ name }) => name)).not.toContain("docs_list");
     expect(descriptors.map(({ name }) => name)).not.toContain("code_read");
     expect(descriptors.map(({ name }) => name)).not.toContain("docs_read");
     const catalogPrefixes = descriptors.map(({ description }) =>
@@ -283,6 +293,24 @@ describe("MCP tool description catalog", () => {
           descriptor.description,
           `${descriptor.name}: ${phrase}`,
         ).not.toContain(phrase);
+      }
+
+      if (descriptor.name === "list") {
+        const firstSentence = renderDeferredCatalogSummary(
+          descriptor.description,
+        );
+        expect(firstSentence).toBe(
+          "List files and documentation paths in a known package, repository, or site.",
+        );
+        expect(firstSentence.length).toBeLessThanOrEqual(79);
+        expect(descriptor.description.slice(0, 80)).not.toContain("code_files");
+        expect(descriptor.description.slice(0, 80)).not.toContain("docs_list");
+        expect(descriptor.description).toContain(
+          "Replaces code_files and docs_list.",
+        );
+      } else {
+        expect(descriptor.description).not.toContain("code_files");
+        expect(descriptor.description).not.toContain("docs_list");
       }
 
       if (descriptor.name === "quick_start") {
@@ -374,7 +402,21 @@ describe("MCP code_grep schema", () => {
 
 describe("MCP compact target schemas", () => {
   it.each([
-    ["docs_list", ["after", "format", "limit", "target"]],
+    [
+      "list",
+      [
+        "after",
+        "file_types",
+        "format",
+        "intents",
+        "languages",
+        "limit",
+        "paths",
+        "recursive",
+        "target",
+        "wait_timeout_ms",
+      ],
+    ],
     ["pkg_info", ["format", "target", "verbose"]],
     [
       "pkg_vulns",
@@ -437,7 +479,7 @@ describe("MCP compact target schemas", () => {
 
   it("uses strings for code and discovery targets without nested coordinates", () => {
     const descriptors = getMcpToolDescriptors();
-    for (const name of ["code_files", "code_grep"] as const) {
+    for (const name of ["list", "code_grep"] as const) {
       const descriptor = descriptors.find(
         (candidate) => candidate.name === name,
       );

@@ -362,8 +362,9 @@ Navigation and upgrade-review decisions do not block Phase 2b.
 3. **Phase 3 — one MCP search-filter language (MERGED):** the six backend-supported
    inline qualifiers replace their duplicate MCP fields while CLI flags and
    `public_only` remain.
-4. **Phase 4 — essential navigation controls only (PENDING):** `code_files` and
-   `code_grep` expose one non-overlapping control for each verified caller need.
+4. **Phase 4 — essential grep controls only (PENDING):** `code_grep` retains the
+   smallest set of controls with distinct roles for verified scoping, context,
+   pagination, and result-diversity needs.
 5. **Phase 5 — actionable example-language recovery (MERGED, PR #399):**
    `get_example` keeps language filtering. Unresolved languages fail before
    generation and return up to five canonical retry names. `search_language` and
@@ -1524,19 +1525,17 @@ catalog-size comparison, live smoke cases, and targeted descriptor evals. No pha
 was split, reordered, or redesigned in this bookkeeping pass. The outstanding
 backend name-composition gap and Claude descriptor-auth limitation remain explicit.
 
-### Phase 4: essential navigation controls only
+### Phase 4: essential grep controls only
 
 **Status:** PENDING PRODUCT DISCUSSION
 
-**Expected outcome:** `code_files` and `code_grep` retain the smallest set of controls
-that covers verified enumeration, scoping, context, pagination, and result-diversity
-needs.
+**Expected outcome:** `code_grep` retains the smallest set of controls that covers
+verified scoping, context, pagination, and result-diversity needs.
 
 **Assumptions:** CLI may keep additional expert flags when they do not burden MCP.
 
-**Unknowns or product decisions:** Decide singular/plural intent controls, selector
-overlap, symmetric/asymmetric context, and total/per-file limits using real call-shape
-evidence.
+**Unknowns or product decisions:** Decide symmetric/asymmetric context and total/per-file
+limits using real call-shape evidence.
 
 **Dependencies:** User discussion and call-shape evidence at reorientation.
 

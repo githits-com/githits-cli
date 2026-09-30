@@ -4,7 +4,6 @@ import {
   buildListPackageDocsSuccessPayload,
   formatListPackageDocsTerminal,
 } from "./list-package-docs-response.js";
-import { renderListPackageDocsText } from "./list-package-docs-text.js";
 
 function buildEnvelope(
   overrides: Partial<PackageDocsList>,
@@ -27,35 +26,13 @@ describe("package docs list lifecycle output", () => {
     const envelope = buildEnvelope({ codeIndexState: "PENDING" });
 
     expect(envelope.codeIndexState).toBe("PENDING");
-    const mcp = renderListPackageDocsText(envelope);
     const cli = formatListPackageDocsTerminal(envelope, { useColors: false });
 
-    for (const output of [mcp, cli]) {
-      expect(output).toContain("No documentation pages yet.");
-      expect(output).toContain("preparation is still in progress");
-      expect(output).not.toContain("No documentation pages found.");
-    }
-    expect(mcp).toContain('`docs_list target="npm:express@5.2.1"`');
+    expect(cli).toContain("No documentation pages yet.");
+    expect(cli).toContain("preparation is still in progress");
+    expect(cli).not.toContain("No documentation pages found.");
     expect(cli).toContain("`githits docs list 'npm:express@5.2.1'`");
   });
-
-  it.each([
-    ["express", undefined, "npm:express"],
-    ["@types/node", "22.0.0", "npm:@types/node@22.0.0"],
-  ] as const)(
-    "keeps the %s retry target callable",
-    (packageName, version, target) => {
-      const envelope = buildEnvelope({
-        codeIndexState: "PENDING",
-        packageName,
-        version,
-      });
-
-      expect(renderListPackageDocsText(envelope)).toContain(
-        `\`docs_list target=${JSON.stringify(target)}\``,
-      );
-    },
-  );
 
   it("retains pages while marking a provisional snapshot", () => {
     const envelope = buildEnvelope({
@@ -71,15 +48,11 @@ describe("package docs list lifecycle output", () => {
       pageInfo: { hasNextPage: false, totalCount: 1 },
     });
 
-    const mcp = renderListPackageDocsText(envelope);
     const cli = formatListPackageDocsTerminal(envelope, { useColors: false });
-    expect(mcp.split("\n")[0]).toEndWith("| provisional");
     expect(cli.split("\n")[0]).toEndWith("| provisional");
-    for (const output of [mcp, cli]) {
-      expect(output).toContain("Guide");
-      expect(output).toContain("provisional");
-      expect(output).toContain("indexing is still in progress");
-    }
+    expect(cli).toContain("Guide");
+    expect(cli).toContain("provisional");
+    expect(cli).toContain("indexing is still in progress");
   });
 
   it("marks non-empty indexing results and provides a later retry", () => {
@@ -96,41 +69,30 @@ describe("package docs list lifecycle output", () => {
       pageInfo: { hasNextPage: false, totalCount: 1 },
     });
 
-    for (const output of [
-      renderListPackageDocsText(envelope),
-      formatListPackageDocsTerminal(envelope, { useColors: false }),
-    ]) {
-      expect(output.split("\n")[0]).toEndWith("| indexing");
-      expect(output).toContain("indexing is still in progress");
-      expect(output).toContain("later for a current snapshot");
-    }
+    const cli = formatListPackageDocsTerminal(envelope, { useColors: false });
+    expect(cli.split("\n")[0]).toEndWith("| indexing");
+    expect(cli).toContain("indexing is still in progress");
+    expect(cli).toContain("later for a current snapshot");
   });
 
   it("does not call an empty provisional snapshot not found", () => {
     const envelope = buildEnvelope({ codeIndexState: "PROVISIONAL" });
 
-    for (const output of [
-      renderListPackageDocsText(envelope),
-      formatListPackageDocsTerminal(envelope, { useColors: false }),
-    ]) {
-      expect(output).toContain("No documentation pages yet.");
-      expect(output).toContain("indexing is still in progress");
-      expect(output).not.toContain("No documentation pages found.");
-    }
+    const cli = formatListPackageDocsTerminal(envelope, { useColors: false });
+    expect(cli).toContain("No documentation pages yet.");
+    expect(cli).toContain("indexing is still in progress");
+    expect(cli).not.toContain("No documentation pages found.");
   });
 
   it("keeps completed empty output terminal", () => {
     const envelope = buildEnvelope({ codeIndexState: "CURRENT" });
 
-    expect(renderListPackageDocsText(envelope)).toContain(
-      "No documentation pages found.",
-    );
     expect(
       formatListPackageDocsTerminal(envelope, { useColors: false }),
     ).toContain("No documentation pages found.");
   });
 
-  it("renders one canonical action per hosted and repo page on both surfaces", () => {
+  it("renders one canonical CLI action per hosted and repo page", () => {
     const hostedTarget = "https://docs.example.test/guide";
     const repoTarget = "github:owner/repo@immutable-sha/README.md";
     const envelope = buildEnvelope({
@@ -156,15 +118,8 @@ describe("package docs list lifecycle output", () => {
       ],
       pageInfo: { hasNextPage: false, totalCount: 2 },
     });
-    const mcp = renderListPackageDocsText(envelope);
     const cli = formatListPackageDocsTerminal(envelope, { useColors: false });
 
-    expect(
-      mcp.split("\n").filter((line) => line.startsWith("  read target=")),
-    ).toEqual([
-      `  read target=${JSON.stringify(hostedTarget)}`,
-      `  read target=${JSON.stringify(repoTarget)}`,
-    ]);
     expect(
       cli.split("\n").filter((line) => line.startsWith("  githits read ")),
     ).toEqual([

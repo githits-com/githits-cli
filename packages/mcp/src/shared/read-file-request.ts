@@ -26,8 +26,8 @@ export interface ReadFileRequestBuildResult {
   params: ReadFileParams;
 }
 
-// CLI rewrites MCP identifiers from these errors, including the raw reversed-range
-// labels; keep them stable with src/commands/code/read.ts or update its tests.
+// CLI translates these shared validation errors to native command syntax;
+// keep their stable wording aligned with src/commands/code/read.ts tests.
 export function buildReadFileParams(
   input: ReadFileRequestInput,
 ): ReadFileRequestBuildResult {
@@ -39,7 +39,7 @@ export function buildReadFileParams(
   }
   if (filePath.endsWith("/")) {
     throw new InvalidPackageSpecError(
-      `\`file_path\` must be an exact file path, not a directory prefix. Use \`code_files\` with \`path_prefix: ${JSON.stringify(filePath)}\` to list files, then pass an emitted \`path\` to \`read\`.`,
+      `\`file_path\` must be an exact file path, not a directory prefix. Use \`list\` with \`paths: ${JSON.stringify([filePath])}\` to list files, then pass an emitted \`path\` to \`read\`.`,
     );
   }
 

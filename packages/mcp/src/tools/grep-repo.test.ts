@@ -362,7 +362,8 @@ describe("createGrepRepoTool — validation errors", () => {
     const payload = parseText(result) as { code: string; error: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
     expect(payload.error).toContain("`pattern` is required");
-    expect(payload.error).toContain("use `code_files` instead");
+    expect(payload.error).toContain("use `list` instead");
+    expect(payload.error).not.toContain("code_files");
   });
 
   it("returns INVALID_ARGUMENT for out-of-range numeric arguments", async () => {
@@ -383,7 +384,7 @@ describe("createGrepRepoTool — validation errors", () => {
 });
 
 describe("createGrepRepoTool — service errors", () => {
-  it("adds code_files recovery details for an exact missing path", async () => {
+  it("adds list recovery details for an exact missing path", async () => {
     const service = createMockCodeNavigationService({
       grepRepo: mock(() =>
         Promise.reject(
@@ -411,8 +412,9 @@ describe("createGrepRepoTool — service errors", () => {
     };
     expect(payload.code).toBe("FILE_NOT_FOUND");
     expect(payload.details?.filePath).toBe("docs/missing.md");
-    expect(payload.details?.action).toContain("`code_files`");
-    expect(payload.details?.action).toContain('path_prefix: "docs/"');
+    expect(payload.details?.action).toContain('`list` with `paths: ["docs/"]`');
+    expect(payload.details?.action).not.toContain("code_files");
+    expect(payload.details?.action).not.toContain("path_prefix");
     expect(payload.details?.action).toContain("`code_grep`");
     expect(payload.details?.action).not.toContain("githits code");
   });
@@ -449,8 +451,11 @@ describe("createGrepRepoTool — service errors", () => {
         details?: { action?: string };
       };
       expect(payload.details?.action).toContain(expectedGuidance);
-      expect(payload.details?.action).toContain("`code_files`");
-      expect(payload.details?.action).toContain('path_prefix: "bench/data/"');
+      expect(payload.details?.action).toContain(
+        '`list` with `paths: ["bench/data/"]`',
+      );
+      expect(payload.details?.action).not.toContain("code_files");
+      expect(payload.details?.action).not.toContain("path_prefix");
       expect(payload.details?.action).toContain("`code_grep`");
       expect(payload.details?.action).not.toContain("githits code");
     },
@@ -479,7 +484,9 @@ describe("createGrepRepoTool — service errors", () => {
     const payload = parseText(result) as {
       details?: { action?: string };
     };
-    expect(payload.details?.action).toContain('path_prefix: "benchmarks/"');
+    expect(payload.details?.action).toContain(
+      '`list` with `paths: ["benchmarks/"]`',
+    );
     expect(payload.details?.action).not.toContain("benchmarks/run/");
   });
 
@@ -506,7 +513,9 @@ describe("createGrepRepoTool — service errors", () => {
     const payload = parseText(result) as {
       details?: { action?: string };
     };
-    expect(payload.details?.action).toContain("without `path_prefix`");
+    expect(payload.details?.action).toContain("Use `list` without `paths`");
+    expect(payload.details?.action).not.toContain("code_files");
+    expect(payload.details?.action).not.toContain("path_prefix");
     expect(payload.details?.action).not.toContain("LICENSE/");
   });
 

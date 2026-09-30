@@ -35,7 +35,7 @@ describe("buildReadFileParams — defaults and validation", () => {
 
   it("rejects directory prefixes before they reach the backend", () => {
     expect(() => buildReadFileParams({ target, filePath: "lib/" })).toThrow(
-      /code_files.*path_prefix: "lib\/"/,
+      /`list` with `paths: \["lib\/"\]`/,
     );
   });
 

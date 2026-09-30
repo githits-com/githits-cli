@@ -1,13 +1,16 @@
-# Unified list foundation
+# Unified list
 
 ## Purpose and delivery state
 
 This document records the client implementation for the backend's unified
-`Query.list` inventory. The root CLI now exposes `githits list`; the MCP catalog
-still exposes its existing `code_files` and `docs_list` tools until Phase 2.
-Legacy `githits code files` and `githits docs list` execution remains unchanged
-for compatibility, with help pointing to the new target model. The new service
-does not route through legacy services or fall back to their GraphQL roots.
+`Query.list` inventory. The root CLI exposes `githits list`, and the stable MCP
+catalog exposes one `list` tool in place of the retired callable `code_files`
+and `docs_list` tools. The replacement descriptor names both retired tools
+after its intent-focused first sentence so stale full-description searches can
+discover it. No callable aliases remain. Legacy `githits code files` and
+`githits docs list` execution remains available for CLI compatibility. The
+unified service does not route through legacy services or fall back to their
+GraphQL roots.
 
 ## Contract and ownership
 
@@ -48,13 +51,15 @@ response. The backend's opaque cursor is otherwise preserved exactly.
 - `list-response.ts` copies only the selected camelCase `ListResult` fields.
   It preserves meaningful `null`s and omitted conditional details, clones
   nested values, and adds no total, filter echo, or reconstructed action.
-- `list-text.ts` defines the one token-efficient format that CLI uses now and
-  the Phase 2 MCP tool must reuse: `# source <target>` followed by one
-  path per line. SOURCE headers use the canonical target, falling back to the
-  requested target. SITE headers use the shared PAGE action target or the
-  requested target, preserving the base of emitted relative paths; a broader
-  canonical site owner remains JSON metadata. ` | more results available`
-  means another page exists.
+- `list-text.ts` defines the one token-efficient format shared by CLI and MCP:
+  `# source <target>` followed by one path per line. SOURCE headers use the
+  canonical target, falling back to the requested target. SITE headers use the
+  shared PAGE action target or the requested target, preserving the base of
+  emitted relative paths; a broader canonical site owner remains JSON metadata.
+  ` | more results available` means another page exists. When the backend
+  returns a cursor, a dim footer tells CLI callers to rerun with `--after` and
+  MCP callers to repeat the same list with `after`; both preserve the opaque
+  cursor exactly.
   CLI dims this line when color is enabled; MCP emits the same plain text
   without ANSI. CLI `--silent` omits the header and emits only path lines for
   piping; an empty inventory then emits no bytes. Source
@@ -73,11 +78,13 @@ response. The backend's opaque cursor is otherwise preserved exactly.
 The core service owns the network and backend contract because it is shared by
 both surfaces. The MCP shared modules own input normalization, error and result
 projection, and text because both callers need identical semantics. The root
-CLI owns Commander parsing, authentication entry, and the spinner, while its
-command delegates list semantics to those shared helpers.
-The MCP adapter is a later increment, so current runtime use is CLI-only.
-`packages/mcp/src/internal.ts` exports the helpers only through the
-workspace-internal boundary; they are not a public MCP client API.
+CLI owns Commander parsing, authentication entry, the spinner, and `--silent`.
+`packages/mcp/src/tools/list.ts` owns the ten-argument MCP schema and delegates
+to the same helpers. `McpToolServices.listService` makes the dependency explicit
+for local and request-scoped hosted composition. `@githits/mcp/client` exports
+the public `ListService` types and `ListServiceImpl`; the package root does not
+export the concrete implementation. Workspace callers can also reach the
+shared helpers through `packages/mcp/src/internal.ts`.
 
 ## Actions and lifecycle
 
@@ -97,10 +104,11 @@ actions remain authoritative for exceptional URL/query/encoding identities;
 the client formatter does not reconstruct them from display paths.
 
 Continuation uses the returned `nextCursor`; callers do not reuse the previous
-cursor or modify its contents. Lossless JSON exposes the cursor, while the
-original request supplies the selection that must be replayed. Compact text
-does not add a continuation footer. The service itself does not scan pages or
-reconstruct inventory client-side.
+cursor or modify its contents. Default text exposes it in a surface-native
+continuation footer and tells callers to reuse the same target, paths, and
+options. Lossless JSON also preserves it for programmatic consumers. Silent
+CLI output remains paths-only and therefore omits the footer. The service
+itself does not scan pages or reconstruct inventory client-side.
 
 SOURCE indexing metadata (`codeIndexState`, `indexingStatus`, `indexingRef`,
 and detailed resolution data) remains distinct from an empty result in JSON.
@@ -114,11 +122,13 @@ for unsupported API or pagination errors.
 Core service tests cover exact GraphQL variables and selections, compact versus
 detailed fields, nullable response projection, cursor validation, error
 classification, and authentication refresh. Shared request and error tests
-cover normalization and mapped envelopes. CLI tests cover Commander flags,
-package/repository/site forwarding, pagination, compact versus detailed calls,
-path rendering, diagnostics, authentication, and the absence of a legacy
-service fallback. Response tests cover exact actions, cursors, null fidelity,
-and lifecycle combinations. Text tests cover canonical/requested source
+cover normalization and mapped envelopes. MCP tests cover the exact descriptor
+prefix and compatibility sentence, all ten arguments, text/JSON projection,
+errors, cancellation, and package/site follow-up actions. CLI tests cover
+Commander flags, package/repository/site forwarding, pagination, compact versus
+detailed calls, path rendering, diagnostics, authentication, and the absence of
+a legacy service fallback. Response tests cover exact actions, cursors, null
+fidelity, and lifecycle combinations. Text tests cover canonical/requested source
 identity, pagination, dim CLI presentation, path-only rows, directory
 suffixes, empty results, and control-character escaping. These client tests do
 not claim to validate backend path/glob
@@ -140,7 +150,9 @@ These are UTF-8 output sizes, not tokenizer-specific token counts. The durable
 text sizes without requiring network access. It also compares the prior compact
 entry selection (`kind`, `path`, `title`, `read`, `browse`) with the new
 source `kind`/`path` selection. Compact site text additionally fetches exact
-`read.target` and `read.path` values.
+`read.target` and `read.path` values. Before the text continuation footer, its
+100-entry source/site cases were 3,613/2,119 bytes. The same cases are now
+3,702/2,208 bytes, an 89-byte continuation cost (2.5%/4.2%).
 
 Authenticated live CLI conformance on 2026-09-26 verified that the hosted
 endpoint exposes `Query.list` for package, repository, and site targets. The
@@ -161,12 +173,16 @@ formatter are aligned with its schema hash
 authenticated action replay against its production deployment passed on 2026-09-28
 for the Express root, a normal page with and without a trailing slash, and the
 same page through a nested site scope. Package and repository list-to-read
-regression checks also passed against production. The permanent CLI smoke now
-covers package and site text/JSON listings, paths-only package output, package
-continuation, and replaying a site PAGE action through unified `read`.
-Phase 2 retains MCP/agent and package-to-site discovery validation.
+regression checks also passed against production. The permanent CLI and MCP
+smoke suites cover package and site text/JSON listings, CLI paths-only output,
+default-text continuation, JSON parity, and replaying exact package and site
+actions through unified `read`. Descriptor-only agent workloads cover package/repository
+boundaries, directory recursion versus glob depth, continuation, exact-site
+browse/read, and package documentation search followed by an emitted explicit
+site target.
 
-Backend PR #2857 corrected target-relative site paths. Dev deployment and a
+Backend PR #2857 corrected target-relative site paths and is deployed to
+production. Its earlier dev deployment and a
 fresh external installation of published `githits@0.23.0` verified
 Express `en/resources/community` replay (82 lines, 3324 content characters)
 and scoped `site:reference.langchain.com/python/langchain` paths: `agents/`
@@ -183,8 +199,8 @@ Built CLI dev replay on 2026-09-29 verified all four descendant directories,
 corpus-relative `agents/.../` directories, and Express `en/.../` directories.
 Replaying the descendant's unchanged `_subagent_transformer/` browse action
 then `_subagent_transformer/AsyncSubagentRunStream` read action returned
-nonempty Markdown with that same deeper target. This is dev evidence; it does
-not establish production deployment of the corrected backend contract.
+nonempty Markdown with that same deeper target. The later production checks
+below verify the deployed corrected contract.
 
 The MCP read-path parameter now states the same target-relative contract.
 Focused schema tests and built-CLI dev replay cover the separate path argument.
@@ -226,5 +242,7 @@ page from a directory.
 | `packages/mcp/src/shared/list-error-map.ts` | Mapping list errors into the shared envelope |
 | `packages/mcp/src/shared/list-response.ts` | Allowlisted, null-preserving JSON projection |
 | `packages/mcp/src/shared/list-text.ts` | Shared path-only CLI/MCP text rendering |
+| `packages/mcp/src/tools/list.ts` | Stable MCP descriptor, schema, and adapter |
+| `packages/mcp/src/client.ts` | Public service types and concrete client export |
 | `packages/mcp/src/internal.ts` | Workspace-only exports for shared helpers |
 | `pkgseer-backend/priv/graphql/schema.graphql` | Backend `Query.list` schema source |

@@ -127,8 +127,6 @@ export {
   type ReadPackageDocRequestBuildResult,
   type ReadPackageDocRequestInput,
   renderGrepRepoText,
-  renderListFilesText,
-  renderListPackageDocsText,
   renderReadFileText,
   renderReadPackageDocText,
   renderUnifiedSearchError,

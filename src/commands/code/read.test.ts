@@ -354,14 +354,14 @@ describe("pkgReadAction", () => {
       };
       expect(payload.code).toBe("INVALID_ARGUMENT");
       expect(payload.error).toContain("`<path>` must be an exact file path");
-      expect(payload.error).toContain("`githits code files`");
-      expect(payload.error).toContain('path prefix "lib/"');
+      expect(payload.error).toContain('`githits list <target> "lib/"`');
       expect(payload.error).toContain("`githits read`");
       expect(payload.error).not.toContain("emitted `path`");
       expect(payload.error).not.toContain("`file_path`");
       expect(payload.error).not.toContain("code_files");
       expect(payload.error).not.toContain("code_read");
       expect(payload.error).not.toContain("path_prefix");
+      expect(payload.error).not.toContain("paths:");
     } finally {
       errorSpy.mockRestore();
       exitSpy.mockRestore();
@@ -391,8 +391,8 @@ describe("pkgReadAction", () => {
         error: string;
       };
       expect(payload.code).toBe("INVALID_ARGUMENT");
-      expect(payload.error).toContain('path prefix "li`b/"');
-      expect(payload.error).not.toContain('path prefix "lib/"');
+      expect(payload.error).toContain('`githits list <target> "li`b/"`');
+      expect(payload.error).not.toContain('`githits list <target> "lib/"`');
     } finally {
       errorSpy.mockRestore();
       exitSpy.mockRestore();
@@ -463,7 +463,7 @@ describe("pkgReadAction", () => {
     writeSpy.mockRestore();
   });
 
-  it("routes NOT_FOUND on missing path with a code-files hint (backend currently emits NOT_FOUND, not FILE_NOT_FOUND)", async () => {
+  it("routes NOT_FOUND on missing path with a list hint (backend currently emits NOT_FOUND, not FILE_NOT_FOUND)", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit");
@@ -487,12 +487,12 @@ describe("pkgReadAction", () => {
     }
     const output = errorSpy.mock.calls[0]?.[0] as string;
     expect(output).toContain("File not found");
-    expect(output).toContain("code files");
+    expect(output).toContain("githits list <target>");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
 
-  it("routes FILE_NOT_FOUND with a code-files hint", async () => {
+  it("routes FILE_NOT_FOUND with a list hint", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit");
@@ -519,7 +519,7 @@ describe("pkgReadAction", () => {
     }
     const output = errorSpy.mock.calls[0]?.[0] as string;
     expect(output).toContain("File not found");
-    expect(output).toContain("code files");
+    expect(output).toContain("githits list <target>");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
@@ -556,11 +556,14 @@ describe("pkgReadAction", () => {
       const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
         details?: { action?: string };
       };
-      expect(payload.details?.action).toContain("`githits code files`");
-      expect(payload.details?.action).toContain('path prefix "docs/"');
+      expect(payload.details?.action).toContain(
+        '`githits list <target> "docs/"`',
+      );
       expect(payload.details?.action).toContain("`githits read`");
       expect(payload.details?.action).not.toContain("code_files");
       expect(payload.details?.action).not.toContain("code_read");
+      expect(payload.details?.action).not.toContain("path_prefix");
+      expect(payload.details?.action).not.toContain("paths:");
     } finally {
       errorSpy.mockRestore();
       exitSpy.mockRestore();
@@ -608,10 +611,12 @@ describe("pkgReadAction", () => {
           details?: { action?: string };
         };
         expect(payload.details?.action).toContain(expectedGuidance);
-        expect(payload.details?.action).toContain("`githits code files`");
+        expect(payload.details?.action).toContain("`githits list <target>");
         expect(payload.details?.action).toContain("`githits read`");
         expect(payload.details?.action).not.toContain("code_files");
         expect(payload.details?.action).not.toContain("code_read");
+        expect(payload.details?.action).not.toContain("path_prefix");
+        expect(payload.details?.action).not.toContain("paths:");
       } finally {
         errorSpy.mockRestore();
         exitSpy.mockRestore();
@@ -651,9 +656,14 @@ describe("pkgReadAction", () => {
       const payload = JSON.parse(errorSpy.mock.calls[0]?.[0] as string) as {
         details?: { action?: string };
       };
-      expect(payload.details?.action).toContain('path prefix "lib/"');
+      expect(payload.details?.action).toContain(
+        '`githits list <target> "lib/"`',
+      );
       expect(payload.details?.action).not.toContain("./lib/");
       expect(payload.details?.action).not.toContain("lib/internal/");
+      expect(payload.details?.action).not.toContain("code_files");
+      expect(payload.details?.action).not.toContain("path_prefix");
+      expect(payload.details?.action).not.toContain("paths:");
     } finally {
       errorSpy.mockRestore();
       exitSpy.mockRestore();
@@ -692,8 +702,13 @@ describe("pkgReadAction", () => {
         details?: { action?: string };
       };
       expect(payload.details?.action).toContain("`githits read`");
-      expect(payload.details?.action).toContain('path prefix "lib/"');
+      expect(payload.details?.action).toContain(
+        '`githits list <target> "lib/"`',
+      );
       expect(payload.details?.action).not.toContain("code_read");
+      expect(payload.details?.action).not.toContain("code_files");
+      expect(payload.details?.action).not.toContain("path_prefix");
+      expect(payload.details?.action).not.toContain("paths:");
     } finally {
       errorSpy.mockRestore();
       exitSpy.mockRestore();
@@ -769,7 +784,7 @@ describe("pkgReadAction", () => {
     expect(output).toContain("Git ref not found: HEAD");
     expect(output).toContain("repository URL and git ref");
     expect(output).not.toContain("Narrow the target");
-    expect(output).not.toContain("code files");
+    expect(output).not.toContain("githits list <target>");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });

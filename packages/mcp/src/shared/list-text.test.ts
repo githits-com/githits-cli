@@ -73,7 +73,22 @@ describe("formatListText", () => {
         "docs/",
         "examples/",
         "README.md",
+        "",
+        "More results: reuse the same target, paths, and options with:",
+        "  --after 'opaque-cursor'",
       ].join("\n"),
+    );
+  });
+
+  it("renders an MCP continuation with the opaque cursor", () => {
+    const result = sourceResult({
+      entries: [entry("FILE", "src/index.ts")],
+      hasMore: true,
+      nextCursor: 'opaque "cursor"',
+    });
+
+    expect(formatListText(result, { syntax: "mcp" })).toEndWith(
+      'More results: reuse the same target, paths, and options with:\n  after="opaque \\"cursor\\""',
     );
   });
 

@@ -355,8 +355,13 @@ describe("top-level read", () => {
         readAction("npm:express", "docs/missing.md", { json: true }, services),
       ).rejects.toThrow("exit");
       const payload = JSON.parse(String(error.mock.calls[0]?.[0]));
-      expect(payload.details.action).toContain("`githits code files`");
+      expect(payload.details.action).toContain(
+        '`githits list <target> "docs/"`',
+      );
       expect(payload.details.action).toContain("`githits read`");
+      expect(payload.details.action).not.toContain("code_files");
+      expect(payload.details.action).not.toContain("path_prefix");
+      expect(payload.details.action).not.toContain("paths:");
     } finally {
       error.mockRestore();
       exit.mockRestore();
@@ -382,7 +387,7 @@ describe("top-level read", () => {
         readAction("npm:express", "docs/missing.md", {}, services),
       ).rejects.toThrow("exit");
       expect(String(error.mock.calls[0]?.[0])).toContain(
-        "Use `code files` to list available paths.",
+        "Use `githits list <target>` to list available paths.",
       );
     } finally {
       error.mockRestore();

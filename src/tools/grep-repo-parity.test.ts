@@ -217,10 +217,15 @@ describe("grep_repo parity", () => {
       ...mcp,
       details: mcpDetails,
     });
-    expect(cliAction).toContain("`githits code files`");
+    expect(cliAction).toContain('`githits list <target> "docs/"`');
     expect(cliAction).toContain("`githits code grep`");
-    expect(mcpAction).toContain("`code_files`");
+    expect(mcpAction).toContain('`list` with `paths: ["docs/"]`');
     expect(mcpAction).toContain("`code_grep`");
+    expect(cliAction).not.toContain("paths:");
+    expect(cliAction).not.toContain("code_files");
+    expect(cliAction).not.toContain("path_prefix");
+    expect(mcpAction).not.toContain("code_files");
+    expect(mcpAction).not.toContain("path_prefix");
   });
 
   it.each([
@@ -285,10 +290,15 @@ describe("grep_repo parity", () => {
           graphqlCode: code,
         },
       });
-      expect(cliAction).toContain("`githits code files`");
+      expect(cliAction).toContain('`githits list <target> "bench/data/"`');
       expect(cliAction).toContain("`githits code grep`");
-      expect(mcpAction).toContain("`code_files`");
+      expect(mcpAction).toContain('`list` with `paths: ["bench/data/"]`');
       expect(mcpAction).toContain("`code_grep`");
+      expect(cliAction).not.toContain("paths:");
+      expect(cliAction).not.toContain("code_files");
+      expect(cliAction).not.toContain("path_prefix");
+      expect(mcpAction).not.toContain("code_files");
+      expect(mcpAction).not.toContain("path_prefix");
     },
   );
 
@@ -308,9 +318,14 @@ describe("grep_repo parity", () => {
     expect(cliData).toEqual(mcpData);
     expect(cli.code).toBe("INVALID_ARGUMENT");
     expect(cliError).toContain("`<pattern>`");
-    expect(cliError).toContain("`githits code files`");
+    expect(cliError).toContain("`githits list <target>`");
     expect(mcpError).toContain("`pattern`");
-    expect(mcpError).toContain("`code_files`");
+    expect(mcpError).toContain("`list`");
+    expect(cliError).not.toContain("paths:");
+    expect(cliError).not.toContain("code_files");
+    expect(cliError).not.toContain("path_prefix");
+    expect(mcpError).not.toContain("code_files");
+    expect(mcpError).not.toContain("path_prefix");
   });
 });
 

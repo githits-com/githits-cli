@@ -47,17 +47,16 @@ interface TextContent {
 export const EXPECTED_MCP_TOOLS = [
   "quick_start",
   "get_example",
-  "pkg_info",
-  "pkg_deps",
-  "pkg_vulns",
-  "pkg_changelog",
-  "pkg_upgrade_review",
-  "docs_list",
-  "code_files",
-  "read",
-  "code_grep",
   "search",
   "search_status",
+  "list",
+  "read",
+  "code_grep",
+  "pkg_info",
+  "pkg_vulns",
+  "pkg_deps",
+  "pkg_changelog",
+  "pkg_upgrade_review",
 ] as const;
 
 const DEFAULT_TEXT_LIMIT = 12_000;
@@ -242,6 +241,24 @@ export function assertDefaultText(
   );
   assert(!text.includes("--verbose"), `${context}: leaked CLI verbose flag`);
   return text;
+}
+
+function listTextFirstPath(text: string, context: string): string {
+  const [header, path] = text.split("\n");
+  assert(header?.startsWith("# source "), `${context}: missing source header`);
+  assert(path !== undefined && path.length > 0, `${context}: missing path`);
+  return path;
+}
+
+function listTextContinuation(text: string, context: string): string {
+  const line = text.split("\n").find((value) => value.startsWith("  after="));
+  assert(line !== undefined, `${context}: missing after continuation`);
+  const parsed = parseJson(line.slice("  after=".length), context);
+  assert(
+    typeof parsed === "string" && parsed.length > 0,
+    `${context}: invalid after continuation`,
+  );
+  return parsed;
 }
 
 function assertSearchDefaultText(text: string, context: string): void {
@@ -1074,192 +1091,224 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     );
   }
 
-  const docsJson = assertJsonResult(
-    await callTool(caller, "docs_list", {
-      target: SMOKE_PACKAGE_TARGET,
-      limit: 500,
-      format: "json",
-    }),
-    "docs_list json",
-  );
-  assertRecord(docsJson, "docs_list json");
-  assert(Array.isArray(docsJson.pages), "docs_list json missing pages array");
-  const docsPages = docsJson.pages as unknown[];
-  const crawledPage = docsPages.find(
-    (page) =>
-      typeof page === "object" &&
-      page !== null &&
-      (page as Record<string, unknown>).sourceKind === "crawled" &&
-      typeof (page as Record<string, unknown>).docsReadTarget === "string" &&
-      /^https?:\/\//.test(
-        (page as Record<string, unknown>).docsReadTarget as string,
-      ),
-  ) as Record<string, unknown> | undefined;
-  const repoPage = docsPages.find(
-    (page) =>
-      typeof page === "object" &&
-      page !== null &&
-      (page as Record<string, unknown>).sourceKind === "repo",
-  ) as Record<string, unknown> | undefined;
-  assert(
-    crawledPage &&
-      typeof crawledPage.docsReadTarget === "string" &&
-      typeof crawledPage.pageId === "string" &&
-      typeof crawledPage.sourceUrl === "string",
-    "docs_list json missing crawled URL target, compatible page ID, or source URL",
+  const packageListArgs = {
+    target: SMOKE_PACKAGE_TARGET,
+    paths: ["package.json"],
+    limit: 1,
+  };
+  const packageListText = assertDefaultText(
+    await callTool(caller, "list", packageListArgs),
+    "list package default",
   );
   assert(
-    repoPage &&
-      typeof repoPage.docsReadTarget === "string" &&
-      typeof repoPage.pageId === "string" &&
-      typeof repoPage.sourceUrl === "string",
-    "docs_list json missing repo-backed target, compatible page ID, or source URL",
-  );
-  assert(
-    repoPage.docsReadTarget === repoPage.pageId,
-    "docs_list json repo-backed docsReadTarget should remain snapshot-pinned",
+    packageListText.includes("package.json"),
+    "list package default missing package.json",
   );
 
-  const crawledPageIndex = docsPages.indexOf(crawledPage);
-  let crawledPageAfter: string | undefined;
-  if (crawledPageIndex > 0) {
-    const precedingDocs = assertJsonResult(
-      await callTool(caller, "docs_list", {
-        target: SMOKE_PACKAGE_TARGET,
-        limit: crawledPageIndex,
-        format: "json",
-      }),
-      "docs_list crawled target cursor",
-    );
-    assertRecord(precedingDocs, "docs_list crawled target cursor");
-    assert(
-      typeof precedingDocs.nextCursor === "string",
-      "docs_list crawled target cursor missing nextCursor",
-    );
-    crawledPageAfter = precedingDocs.nextCursor;
+  const packageListJson = assertJsonResult(
+    await callTool(caller, "list", { ...packageListArgs, format: "json" }),
+    "list package json",
+  );
+  assertRecord(packageListJson, "list package json");
+  assert(
+    packageListJson.inventoryKind === "SOURCE" &&
+      packageListJson.requestedTarget === SMOKE_PACKAGE_TARGET &&
+      Array.isArray(packageListJson.entries),
+    "list package json missing source inventory identity or entries",
+  );
+  const packageEntries = packageListJson.entries as unknown[];
+  const packageEntry = packageEntries.find(
+    (entry) =>
+      typeof entry === "object" &&
+      entry !== null &&
+      (entry as Record<string, unknown>).path === "package.json",
+  ) as Record<string, unknown> | undefined;
+  assert(packageEntry, "list package json missing package.json entry");
+  const packageRead = packageEntry.read;
+  assertRecord(packageRead, "list package json read action");
+  const packageReadTarget = packageRead.target;
+  const packageReadPath = packageRead.path;
+  assert(
+    typeof packageReadTarget === "string" &&
+      typeof packageReadPath === "string",
+    "list package json entry missing read target or path",
+  );
+  assert(
+    typeof packageListJson.hasMore === "boolean" &&
+      packageListJson.hasMore ===
+        (typeof packageListJson.nextCursor === "string" &&
+          packageListJson.nextCursor.length > 0) &&
+      (packageListJson.hasMore || packageListJson.nextCursor === null),
+    "list package json hasMore/nextCursor mismatch",
+  );
+  const rootListArgs = { target: SMOKE_PACKAGE_TARGET, limit: 1 };
+  const firstRootPage = assertDefaultText(
+    await callTool(caller, "list", rootListArgs),
+    "list package root first page text",
+  );
+  const firstRootPath = listTextFirstPath(
+    firstRootPage,
+    "list package root first page text",
+  );
+  const nextCursor = listTextContinuation(
+    firstRootPage,
+    "list package root first page text",
+  );
+  assert(
+    firstRootPage.includes("| more results available") &&
+      firstRootPath.length > 0 &&
+      nextCursor.length > 0,
+    "list package root first page must expose one path and a text continuation",
+  );
+
+  const secondRootPage = assertDefaultText(
+    await callTool(caller, "list", {
+      ...rootListArgs,
+      after: nextCursor,
+    }),
+    "list package root continuation text",
+  );
+  const secondRootPath = listTextFirstPath(
+    secondRootPage,
+    "list package root continuation text",
+  );
+  assert(
+    secondRootPath.length > 0 && secondRootPath !== firstRootPath,
+    "list package root continuation repeated its first entry",
+  );
+
+  const packageReadText = assertDefaultText(
+    await callTool(caller, "read", {
+      target: packageReadTarget,
+      path: packageReadPath,
+      start_line: 1,
+      end_line: 5,
+    }),
+    "read package list action default",
+  );
+  assert(
+    /^1\s+/m.test(packageReadText),
+    "read package list action default missing line numbers",
+  );
+  const packageReadJson = assertJsonResult(
+    await callTool(caller, "read", {
+      target: packageReadTarget,
+      path: packageReadPath,
+      start_line: 1,
+      end_line: 5,
+      format: "json",
+    }),
+    "read package list action json",
+  );
+  assertRecord(packageReadJson, "read package list action json");
+  assert(
+    packageReadJson.path === packageReadPath,
+    "read package list action json path mismatch",
+  );
+
+  const siteListArgs = {
+    target: "site:expressjs.com",
+    paths: ["en/resources/"],
+    limit: 20,
+  };
+  const siteListText = assertDefaultText(
+    await callTool(caller, "list", siteListArgs),
+    "list site default",
+  );
+  assert(
+    siteListText.includes(
+      '# source site:expressjs.com | follow up with "read site:expressjs.com $path"',
+    ) && siteListText.includes("en/resources/"),
+    "list site default missing follow-up header or resources path",
+  );
+  const siteListJson = assertJsonResult(
+    await callTool(caller, "list", { ...siteListArgs, format: "json" }),
+    "list site json",
+  );
+  assertRecord(siteListJson, "list site json");
+  assert(
+    siteListJson.inventoryKind === "SITE" &&
+      siteListJson.requestedTarget === siteListArgs.target &&
+      Array.isArray(siteListJson.entries),
+    "list site json missing site inventory identity or entries",
+  );
+  const siteEntries = siteListJson.entries as unknown[];
+  const sitePage = siteEntries.find(
+    (entry) =>
+      typeof entry === "object" &&
+      entry !== null &&
+      (entry as Record<string, unknown>).kind === "PAGE",
+  ) as Record<string, unknown> | undefined;
+  assert(sitePage, "list site json missing PAGE entry");
+  const siteRead = sitePage.read;
+  assertRecord(siteRead, "list site json PAGE read action");
+  const siteReadTarget = siteRead.target;
+  const siteReadPath = siteRead.path;
+  assert(
+    typeof siteReadTarget === "string" && typeof siteReadPath === "string",
+    "list site json PAGE missing read target or path",
+  );
+  for (const [format, label] of [
+    [undefined, "default"],
+    ["json", "json"],
+  ] as const) {
+    const result = await callTool(caller, "read", {
+      target: siteReadTarget,
+      path: siteReadPath,
+      start_line: 1,
+      end_line: 5,
+      ...(format ? { format } : {}),
+    });
+    if (format) {
+      const value = assertJsonResult(result, `read site list action ${label}`);
+      assertRecord(value, `read site list action ${label}`);
+      assert(
+        typeof value.content === "string" &&
+          value.startLine === 1 &&
+          typeof value.endLine === "number" &&
+          value.endLine >= 1 &&
+          value.endLine <= 5 &&
+          typeof value.totalLines === "number" &&
+          value.totalLines >= value.endLine,
+        `read site list action ${label} missing content or backend range`,
+      );
+    } else {
+      const text = assertDefaultText(result, `read site list action ${label}`);
+      assert(text.length > 0, `read site list action ${label} missing content`);
+    }
   }
-  const docsText = assertDefaultText(
-    await callTool(caller, "docs_list", {
-      target: SMOKE_PACKAGE_TARGET,
-      limit: 1,
-      ...(crawledPageAfter ? { after: crawledPageAfter } : {}),
-    }),
-    "docs_list crawled target default",
-  );
-  assert(
-    docsText.includes(
-      `read target=${JSON.stringify(crawledPage.docsReadTarget)}`,
-    ),
-    "docs_list default missing crawled URL follow-up",
-  );
 
-  const docReadText = assertDefaultText(
+  const directUrlReadText = assertDefaultText(
     await callTool(caller, "read", {
-      target: crawledPage.docsReadTarget,
+      target: "https://expressjs.com/en/resources/",
       start_line: 1,
       end_line: 5,
     }),
-    "read crawled URL default",
+    "read exact site URL default",
   );
-  assert(docReadText.length > 0, "read crawled URL default missing content");
-
-  const docReadJson = assertJsonResult(
+  assert(
+    directUrlReadText.length > 0,
+    "read exact site URL default missing content",
+  );
+  const directUrlReadJson = assertJsonResult(
     await callTool(caller, "read", {
-      target: crawledPage.docsReadTarget,
+      target: "https://expressjs.com/en/resources/",
       start_line: 1,
       end_line: 5,
       format: "json",
     }),
-    "read crawled URL json",
+    "read exact site URL json",
   );
-  assertRecord(docReadJson, "read crawled URL json");
+  assertRecord(directUrlReadJson, "read exact site URL json");
   assert(
-    docReadJson.docsReadTarget === crawledPage.docsReadTarget &&
-      docReadJson.pageId === crawledPage.pageId &&
-      docReadJson.sourceUrl === crawledPage.sourceUrl &&
-      typeof docReadJson.content === "string" &&
-      docReadJson.startLine === 1 &&
-      typeof docReadJson.endLine === "number" &&
-      docReadJson.endLine >= 1 &&
-      docReadJson.endLine <= 5 &&
-      typeof docReadJson.totalLines === "number" &&
-      docReadJson.totalLines >= docReadJson.endLine,
-    "read crawled URL json missing locators, content, or backend range",
-  );
-
-  const sitePathReadText = assertDefaultText(
-    await callTool(caller, "read", {
-      target: "site:expressjs.com",
-      path: "en/resources",
-      start_line: 1,
-      end_line: 5,
-    }),
-    "read site path default",
-  );
-  assert(sitePathReadText.length > 0, "read site path default missing content");
-
-  const sitePathReadJson = assertJsonResult(
-    await callTool(caller, "read", {
-      target: "site:expressjs.com",
-      path: "en/resources",
-      start_line: 1,
-      end_line: 5,
-      format: "json",
-    }),
-    "read site path json",
-  );
-  assertRecord(sitePathReadJson, "read site path json");
-  assert(
-    typeof sitePathReadJson.content === "string" &&
-      sitePathReadJson.startLine === 1 &&
-      typeof sitePathReadJson.endLine === "number" &&
-      sitePathReadJson.endLine >= 1 &&
-      sitePathReadJson.endLine <= 5 &&
-      typeof sitePathReadJson.totalLines === "number" &&
-      sitePathReadJson.totalLines >= sitePathReadJson.endLine,
-    "read site path json missing content or backend range",
-  );
-
-  const legacyCrawledRead = assertJsonResult(
-    await callTool(caller, "read", {
-      target: crawledPage.pageId,
-      start_line: 1,
-      end_line: 5,
-      format: "json",
-    }),
-    "read legacy crawled ID json",
-  );
-  assertRecord(legacyCrawledRead, "read legacy crawled ID json");
-  assert(
-    legacyCrawledRead.pageId === docReadJson.pageId &&
-      legacyCrawledRead.content === docReadJson.content,
-    "read URL and legacy crawled ID returned different ranged content",
-  );
-
-  const repoRead = assertJsonResult(
-    await callTool(caller, "read", {
-      target: repoPage.docsReadTarget,
-      format: "json",
-    }),
-    "read repo-backed ID json",
-  );
-  assertRecord(repoRead, "read repo-backed ID json");
-  const snapshotMatch = /@([a-f0-9]{40})\/(.+)$/i.exec(repoPage.docsReadTarget);
-  assert(snapshotMatch, "repo-backed ID must contain a snapshot file path");
-  assertRecord(repoRead.targetResolution, "read repo-backed ID resolution");
-  assertRecord(
-    repoRead.targetResolution.served,
-    "read repo-backed ID served resolution",
-  );
-  assert(
-    repoRead.path === snapshotMatch[2] &&
-      repoRead.targetResolution.served.commitSha === snapshotMatch[1] &&
-      typeof repoRead.content === "string" &&
-      typeof repoRead.totalLines === "number" &&
-      (repoRead.totalLines === 0 ||
-        (typeof repoRead.startLine === "number" &&
-          typeof repoRead.endLine === "number")),
-    "read repo-backed ID json missing indexed file identity, content, or range",
+    typeof directUrlReadJson.content === "string" &&
+      directUrlReadJson.startLine === 1 &&
+      typeof directUrlReadJson.endLine === "number" &&
+      directUrlReadJson.endLine >= 1 &&
+      directUrlReadJson.endLine <= 5 &&
+      typeof directUrlReadJson.totalLines === "number" &&
+      directUrlReadJson.totalLines >= directUrlReadJson.endLine,
+    "read exact site URL json missing content or backend range",
   );
 
   assertErrorCode(
@@ -1270,58 +1319,6 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "read unknown URL",
     "NOT_FOUND",
   );
-
-  const codeFilesText = assertDefaultText(
-    await callTool(caller, "code_files", {
-      target: SMOKE_PACKAGE_TARGET,
-      path_prefix: "package.json",
-      limit: 1,
-    }),
-    "code_files default",
-  );
-  assert(
-    codeFilesText.includes("package.json"),
-    "code_files default missing package.json",
-  );
-
-  const codeFilesJson = assertJsonResult(
-    await callTool(caller, "code_files", {
-      target: SMOKE_PACKAGE_TARGET,
-      path_prefix: "package.json",
-      limit: 1,
-      format: "json",
-    }),
-    "code_files json",
-  );
-  assertRecord(codeFilesJson, "code_files json");
-  assert(
-    Array.isArray(codeFilesJson.files),
-    "code_files json missing files array",
-  );
-
-  const codeReadText = assertDefaultText(
-    await callTool(caller, "read", {
-      target: `npm:express@${SMOKE_PACKAGE_VERSION}`,
-      path: "package.json",
-      start_line: 1,
-      end_line: 5,
-    }),
-    "read default",
-  );
-  assert(/^1\s+/m.test(codeReadText), "read default missing line numbers");
-
-  const codeReadJson = assertJsonResult(
-    await callTool(caller, "read", {
-      target: `npm:express@${SMOKE_PACKAGE_VERSION}`,
-      path: "package.json",
-      start_line: 1,
-      end_line: 5,
-      format: "json",
-    }),
-    "read json",
-  );
-  assertRecord(codeReadJson, "read json");
-  assert(codeReadJson.path === "package.json", "read json path mismatch");
 
   const codeGrepText = assertDefaultText(
     await callTool(caller, "code_grep", {
