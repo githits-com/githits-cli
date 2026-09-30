@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes setup/auth commands, `doctor`, `example`, top-level indexed `search` / `search-status`, `read`, `list`, `grep`, and the `code`, `docs`, and `pkg` command groups by default. `resolve` and `code diff` are experimental, host-config-gated commands. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities. Unified search shares its presentation model and text formatter with MCP; `list` and unified `grep` use the same request, result, error, and text helpers on both surfaces. Legacy `githits code grep` retains its separate source-only contract.
+The CLI exposes setup/auth commands, `doctor`, `example`, top-level indexed `search` / `search-status`, `read`, `list`, `grep`, and the `code`, `docs`, and `pkg` command groups by default. `resolve` and `code diff` are experimental, host-config-gated commands. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities. Unified search shares its presentation model and text formatter with MCP; `list` and unified `grep` use the same request, result, error, and text helpers on both surfaces. Legacy `githits code grep` retains its separate single-target repository-file contract.
 
 ## Experimental CLI commands
 

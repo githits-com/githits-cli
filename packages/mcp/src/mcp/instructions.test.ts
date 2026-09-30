@@ -27,7 +27,7 @@ describe("buildLocalMcpQuickStart", () => {
     expect(quickStart).toContain("public repository");
     expect(quickStart).toContain("full repositories or sibling packages");
     expect(quickStart).toContain(
-      "patterns are `registry:name@version` and `github:owner/repo@ref`",
+      "targets use `registry:name@version` and `github:owner/repo@ref`",
     );
     expect(quickStart).toContain(
       "Browse files or documentation pages in a known package, repository, or site | `list`",
@@ -84,9 +84,7 @@ describe("buildLocalMcpQuickStart", () => {
     expect(quickStart).toContain(
       "a direct `read`, add bounds only to intentionally select a current page range",
     );
-    expect(quickStart).toContain(
-      "This guide owns shared policy; selected tools own call syntax and exceptions",
-    );
+    expect(quickStart).toContain("read its schema for syntax and defaults");
     expect(quickStart).toContain("never probe");
     expect(quickStart).toContain("directories with `read`");
     expect(quickStart).toContain(

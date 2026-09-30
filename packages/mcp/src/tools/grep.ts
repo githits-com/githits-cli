@@ -40,13 +40,13 @@ const targetSchema = z.object({
   target: z
     .string()
     .describe(
-      "Known package such as `npm:express@5.2.1`, repository such as `github:expressjs/express`, or explicit hosted site such as `site:expressjs.com/en/5x`.",
+      "Package `npm:express@5.2.1`, repository `github:expressjs/express@v5.2.1`, or hosted docs `site:expressjs.com/en/5x`.",
     ),
   corpus: z
     .enum(["source", "documentation", "all"])
     .optional()
     .describe(
-      "Repository files to search: all (default), source, or documentation. Package-selected hosted docs are included independently. Omit for a site target.",
+      "Filters repository files (default all); selected hosted docs are unaffected. Omit for sites.",
     ),
   path_selectors: z
     .array(
@@ -57,7 +57,7 @@ const targetSchema = z.object({
     )
     .optional()
     .describe(
-      "OR-ed package/repository-relative file scopes. Empty means the whole target. Omit for a site target; a site's path scope belongs in its `site:` target.",
+      "OR-ed file scopes relative to the package/repository root. Empty applies no path filter; corpus still applies. Hosted docs are unaffected; omit for sites.",
     ),
 });
 
@@ -66,13 +66,11 @@ const schema: ZodRawShape = {
     .array(targetSchema)
     .min(1)
     .max(20)
-    .describe(
-      "One to 20 ordered package, repository, or explicit site targets. Package targets also expand to selected hosted docs. Replay the identical ordered targets and controls with a cursor.",
-    ),
+    .describe("One to 20 ordered package, repository, or site targets."),
   pattern: z
     .string()
     .describe(
-      "Known string or RE2 regex, 1-200 UTF-8 bytes. Regex is the default; use pattern_type literal for metacharacters as text. Multi-file regex needs a usable literal anchor.",
+      "RE2 regex (default), or text with pattern_type literal (1-200 UTF-8 bytes). No lookaround or backreferences; multi-file regex needs a literal anchor.",
     ),
   pattern_type: z
     .enum(["regex", "literal"])
@@ -82,7 +80,7 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe(
-      "Omit or pass false for case-sensitive matching (default); true uses Unicode-aware case folding.",
+      "true ignores case with Unicode folding; false (default) is case-sensitive.",
     ),
   context_lines_before: z
     .number()
@@ -90,26 +88,28 @@ const schema: ZodRawShape = {
     .min(0)
     .max(10)
     .optional()
-    .describe("Leading context lines, 0 by default and at most 10."),
+    .describe("Lines before each match (0-10; default 0)."),
   context_lines_after: z
     .number()
     .int()
     .min(0)
     .max(10)
     .optional()
-    .describe("Trailing context lines, 0 by default and at most 10."),
+    .describe("Lines after each match (0-10; default 0)."),
   max_matches: z
     .number()
     .int()
     .min(1)
     .max(1000)
     .optional()
-    .describe("Global match cap per page, 100 by default (1-1000)."),
+    .describe(
+      "Maximum occurrences across all scopes on this page (default 100).",
+    ),
   cursor: z
     .string()
     .optional()
     .describe(
-      "Opaque continuation from the previous grep page. Replay the same ordered targets, pattern, and controls; empty means page one.",
+      "Continue with the same ordered targets, pattern, and matching controls. Empty starts page one. Hosted pages can change between grep and read.",
     ),
   wait_timeout_ms: z
     .number()
@@ -118,24 +118,23 @@ const schema: ZodRawShape = {
     .max(300_000)
     .optional()
     .describe(
-      "Target-preparation wait in milliseconds, 0 by default. Continuation does not wait for preparation.",
+      "First-page preparation wait in milliseconds (default 0). Continuation never waits.",
     ),
   format: z
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit for compact readable evidence, exact read guidance, coverage, and continuation. Use json only when code consumes the full result programmatically.",
+      "Omit for text: grouped matches, read locators, and coverage. Use json only when code consumes raw hit and scope fields.",
     ),
 };
 
 const DESCRIPTION =
   "Find regex or literal matches across source and documentation. " +
-  "Search ordered package, repository, and explicit site targets with exact read actions and continuation. " +
-  "Replaces code_grep. Defaults to RE2 regex, case-sensitive matching, zero context, and all indexed repository files; package targets also include selected hosted documentation. " +
-  "Use `list` to browse paths, `search` to discover topics, and `read` to open returned locators. " +
-  "Results may be partial; follow the returned cursor with identical targets and controls. " +
-  "Literal, case-insensitive, source-corpus, file-scope, context, page-size, and preparation-wait controls are explicit. " +
-  "Legacy source-only filters are unavailable; `githits code grep` retains them in the CLI." +
+  "Search ordered package, repository, and site targets; packages include selected hosted docs. " +
+  "Replaces code_grep. Defaults: RE2 regex, case-sensitive, zero context. " +
+  "Use `list` for paths, `search` for topics, and `read` for more context. " +
+  "Text groups matches by file/page with read locators. " +
+  "Indexed matches may be partial; coverage limits and a continuation cursor remain visible." +
   `\n\n${CODE_GREP_GUARDRAIL}`;
 
 /** One mixed-source MCP page using the same semantics as the top-level CLI. */

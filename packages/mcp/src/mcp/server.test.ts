@@ -389,10 +389,10 @@ describe("MCP output format", () => {
       });
       if (descriptor.name === "grep") {
         expect(JSON.stringify(formatSchema), descriptor.name).toContain(
-          "Omit for compact readable evidence, exact read guidance, coverage, and continuation",
+          "Omit for text: grouped matches, read locators, and coverage",
         );
         expect(JSON.stringify(formatSchema), descriptor.name).toContain(
-          "Use json only when code consumes the full result programmatically",
+          "Use json only when code consumes raw hit and scope fields",
         );
       } else {
         expect(JSON.stringify(formatSchema), descriptor.name).toContain(

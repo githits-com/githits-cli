@@ -3,8 +3,7 @@ import { EXTERNAL_CONTENT_POSTURE } from "../tools/guardrails.js";
 /** Shared routing guide; selected descriptions and schemas own call mechanics. */
 const ROUTING_GUIDE = `# GitHits routing guide
 
-Choose the route below, then discover the tool and read its arguments.
-This guide owns shared policy; selected tools own call syntax and exceptions.
+Choose a route, discover that tool, and read its schema for syntax and defaults.
 
 | Question | Tool to discover |
 | --- | --- |
@@ -23,7 +22,7 @@ This guide owns shared policy; selected tools own call syntax and exceptions.
 For comparisons, combine relevant package/source evidence with examples as needed.
 
 Public OSS only; never send local/private/proprietary source. Package/repository
-patterns are \`registry:name@version\` and \`github:owner/repo@ref\`. Omit the
+targets use \`registry:name@version\` and \`github:owner/repo@ref\`. Omit the
 suffix for the latest package version or repository default branch. Package
 targets scope to the package subpath, including in monorepos. Swift uses
 \`swift:github.com/<owner>/<repo>\`, Zig \`zig:gh/<owner>/<repo>\`.
@@ -31,6 +30,10 @@ Use public repository targets for full repositories or sibling packages:
 \`github:\`, \`codeberg:\`, \`gitlab:\`, or a supported full URL. Never infer a provider.
 A ref may be a branch, tag, or commit and contain later \`@\`; \`#\` is for
 semantic fragments, not revisions.
+
+For \`grep\`, copy a file/page header's read locator and use its matched line
+numbers when more context is needed. Counts cover one page; follow continuation
+only as needed.
 
 \`list\` is for a known target when you need its structure or an exact path;
 use \`search\` for content by topic. A package target covers its own source tree,

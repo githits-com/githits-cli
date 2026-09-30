@@ -58,7 +58,7 @@ describe("buildMcpQuickStart", () => {
     const instructions = buildMcpQuickStart();
     expect(instructions).toStartWith("# GitHits routing guide");
     expect(instructions).toContain(
-      "Choose the route below, then discover the tool and read its arguments",
+      "Choose a route, discover that tool, and read its schema for syntax and defaults",
     );
     expect(instructions).toContain(
       "Find a known regex or literal in public source or documentation | `grep`",
@@ -71,9 +71,8 @@ describe("buildMcpQuickStart", () => {
     expect(instructions).toContain(
       "Compare current and target dependency versions for an upgrade | `pkg_upgrade_review`",
     );
-    expect(instructions).toContain(
-      "selected tools own call syntax and exceptions",
-    );
+    expect(instructions).toContain("Counts cover one page");
+    expect(instructions).toContain("only as needed");
   });
 
   it("preserves output, scope, provenance and evidence limits", () => {

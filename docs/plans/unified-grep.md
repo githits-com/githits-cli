@@ -1038,8 +1038,9 @@ built smoke suites. The fixed mixed/repository captures measured 2,115/1,699
 `o200k_base` tokens, 73.7%/77.4% below the original output; these are size
 measurements, not agent-quality or latency claims. Main CI and agent-eval
 workflows passed for the merge commit. No new CLI or MCP package release is
-recorded: main remains at version 0.23.0 and the newest tags predate this
-merge. No hosted MCP adoption or deployment is recorded for this increment.
+recorded at that merge: main was at version 0.23.0 and the newest tags predated
+it. The later 0.24.0 release consumed its fragments. No hosted MCP adoption or
+deployment is recorded for that output increment.
 Keep the same useful formatter as the MCP output contract.
 
 ### Phase 2 — MCP `grep` replaces `code_grep` (IN REVIEW)
@@ -1242,6 +1243,41 @@ corrections were applied. Draft PR #439 is open with passing PR CI. The
 experimental research smoke failure remains a verification limit, not deferred
 grep implementation.
 
+Copywriting follow-up requested on 2026-09-30: scope is the grep descriptor,
+its field descriptions, affected quick-start/CLI guidance, and stale active
+grep documentation; schemas, defaults, queries, runtime behavior, and unrelated
+tool contracts stay unchanged. Unknowns and product decisions: none. The tool
+schema owns call mechanics; the shared guide owns routing, evidence reuse, and
+limits. Corrected stale package-artifact wording to indexed package source
+trees, distinguished legacy repository-file grep from hosted docs, documented
+the missing top-level CLI controls, and marked superseded checkpoints as
+historical. Active canonical guides remain aligned; archived captures and
+historical eval records remain evidence of their original runs.
+The actual MCP listTools grep descriptor measures 4,105 to 3,522 UTF-8 bytes
+and 887 to 781 `o200k_base` tokens. The quick-start guide measures 1,307 to
+1,333 tokens; their combined count falls from 2,194 to 2,114. These are static
+copy-size measurements, not model billing, latency, or graded answer quality.
+Baseline/after messages and counts are ephemeral, uncommitted local files
+under `/tmp/unified-grep-copy-`.
+Acceptance is preserved first-sentence/first-80 discovery, strict schema and
+guide parity tests, required smoke/build/package checks, targeted Claude/Codex
+source and mixed-docs evals, and one external copywriting review.
+Copy follow-up verification: full unit suite passed (5,134 tests); closure
+checks passed (51 tests). Typecheck, build, plugin generation/check, and public
+package validation passed. Live CLI smoke passed all stable/experimental
+cohorts; MCP stable smoke passed including grep, while unchanged experimental
+research text failed its success assertion. Both agents completed descriptor-only
+MCP source/mixed runs with no isolation violations and inspected answers;
+Claude source skipped quick-start and used two grep calls, while its mixed run
+and both Codex runs used quick-start. CLI-skill runs were attempted but their
+isolated homes lacked GitHits credentials: mixed answers were inconclusive,
+and source answers used npm tarballs. Those runs are not authenticated GitHits
+UX proof, regardless of harness success. No answer-quality grading was run.
+External copy review had no code findings; minor pattern/corpus/cursor wording,
+concrete target examples, and temporary-artifact wording were corrected.
+Current live MCP output confirmed canonical `github:` read headers; historical
+HTTPS response fixtures remain unchanged as evidence of their capture date.
+
 After Phase 2 merges, move lasting decisions and migration/operational facts to
 `docs/implementation/unified-grep.md`, transfer any actual major deferred work
 to the repository backlog, then delete this plan. No deferred development or
@@ -1260,7 +1296,7 @@ Completed Phase 1 execution sequence (one Luna worker, sequential dispatches):
 5. Coordinator: CLI adapter and flag/action tests; live conformance and smoke.
 6. Luna: root command registration against the tested command factory.
 7. Coordinator: docs, release fragment, verification, review, stable commits
-   and draft PR. Phase 2 remains pending. Worker returns verified uncommitted
+   and draft PR. At that Phase 1 delivery, Phase 2 had not started. Worker returns verified uncommitted
    slices; coordinator owns commits. The previously untracked plan is included
    with Phase 1 delivery and remains through Phase 2 review.
 
@@ -1413,8 +1449,9 @@ as valid. The reviewer is retained for follow-up through merge approval.
 The initial delivery was blocked on backend small-page protocol validation.
 Backend PR #2832 resolved that failure; the resulting unvisited-scope enum
 requires the client correction recorded in the current checkpoint above.
-Phase 2 remains pending Phase 1 merge. No backend worktree is changed by this
-client correction, and no limits, scopes or acceptance requirements are reduced.
+At that correction checkpoint, Phase 2 was pending the Phase 1 merge. No
+backend worktree was changed by that client correction, and no limits, scopes
+or acceptance requirements were reduced.
 
 Orchestration delivery: eight sequential Luna dispatches covered request
 normalization, DI/mock wiring, registration and bounded follow-up exports or

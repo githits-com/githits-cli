@@ -3,7 +3,7 @@
 `githits grep <pattern> <targets...>` and MCP `grep` search ordered package,
 repository, and `site:<host[/path]>` operands through `Query.grep`. The stable
 MCP catalog exposes `grep` in place of `code_grep`. Legacy `githits code grep`
-keeps its existing source-only behavior and controls.
+keeps its single-target repository-file behavior and controls.
 
 ```sh
 githits grep 'router' npm:express --path lib/express.js
@@ -125,7 +125,7 @@ Sources: npm:express - site:expressjs.com, github:expressjs/express@dbac741a
 # Read files: read --lines $start-$end -- $target $path
 # Read pages: read --lines $start-$end -- $url
 
-[1] https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336 lib/express.js
+[1] github:expressjs/express@dbac741a lib/express.js
 19: var Router = require('router');
 
 [2] https://expressjs.com/en/4x/api/
@@ -153,7 +153,6 @@ enabled; wrapping happens before ANSI styling and the cursor stays on one line.
 Plain and NO_COLOR output retain the same text. Coverage and expiry warnings
 remain above evidence. `--cursor` help explains that hosted pages can change
 between grep and read; result text does not repeat that caveat.
-It is not presented as target failure.
 
 `UNSPECIFIED` readiness means this page stopped before visiting that scope.
 The scope stays in `targets`, retains its input attribution, and reports
@@ -173,17 +172,17 @@ sibling hits and omissions remain visible.
 Complete/partial pages exit zero, including zero hits. Failures exit nonzero;
 JSON errors go to stderr with clean stdout. Preparation errors map to `INDEXING`
 and preserve up to 20 public `targetIssues` with backend keys and per-input
-recovery data. Retryable preparation errors include CLI `--wait <ms>` recovery
-guidance. Invalid cursors map to `INVALID_ARGUMENT` with distinct
+recovery data. Retryable preparation errors include CLI `--wait <ms>` or MCP
+`wait_timeout_ms` recovery guidance. Invalid cursors map to `INVALID_ARGUMENT` with distinct
 `graphqlCode`. Protocol, transport, auth, terms, update, deadline and HTTP
 failures retain mapped categories. There is no legacy fallback or automatic
 preparation retry/cursor restart.
 
 Focused tests cover query variables/selections, union validation, ordered
 mixed hits, exact reads, coverage, context precedence, case flags, errors and
-refresh. CLI smoke covers registration, unauthenticated errors and source
-grep. Fresh mixed-site, pagination, read replay, case and corpus conformance
-is checked against dev before Phase 1 signoff.
+refresh. CLI/MCP smoke covers registration, unauthenticated errors, mixed grep,
+pagination, and exact reads. Focused production and dev replays verify retained
+unvisited scopes and two-page repository/hosted-doc continuation.
 
 Dev and production support package/mixed `--limit 1` pages, including retained
 unvisited scopes. Production client replay on 2026-09-29 verified the exact
