@@ -652,11 +652,12 @@ Verified on 2026-09-30:
 
 - CLI main is `2f3d4fd`; both npm latest artifacts are still 0.23.0 from
   `1739290`, before MCP consolidation and default-text continuation.
-- Release PR #436 proposes 0.24.0 at `d1147b6`, but that head diverges from main
-  at `4a0eb1d`. Its `packages/mcp/src/mcp/server.ts` still registers the legacy
-  factories, and its list formatter lacks the continuation footer. The proposed
-  version alone is therefore insufficient evidence of delivery. This is an
-  observation for the release owner; do not alter that lane here.
+- The initial release PR #436 head `d1147b6` excluded #428. At the subsequent
+  `$orchestrate` readiness check, its refreshed head `a7ec4b6` was three commits
+  ahead of current main with none behind, registered `createListTool`, and
+  included the default-text continuation footer. That content gap is resolved.
+  The PR remains open and proposes 0.24.0; npm latest is still 0.23.0, so the
+  publication prerequisite remains unmet. Do not alter the release lane here.
 - Remote main is `1b8437624da56401518b2c29500d50a51fe09e1f`, independently
   verified through GitHub and the cached `origin/main` snapshot. Its manifest
   consumes `@githits/mcp:^0.23.0`. The local checkout is older and has an
