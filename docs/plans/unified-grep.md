@@ -2,11 +2,11 @@
 
 ## Status and outcome
 
-**Status: CLI AND OUTPUT FOLLOW-UP MERGED; PHASE 2 READY.** Phase 1 and
+**Status: CLI AND OUTPUT FOLLOW-UP MERGED; PHASE 2 IN REVIEW.** Phase 1 and
 output PR #433 merged as `45b72120d1ae2810a3370da1ecd838259ac5b576`
 on 2026-09-29. The approved Sources summary, numbered copyable file/page
-locators, and dim continuation footer are present. Refreshed `origin/main`
-`2f3d4fdc7c008623e89aa91558a690b23f0eb309` also contains unified MCP
+locators, and dim continuation footer are present. Current `origin/main`
+`8ae11a4` also contains unified MCP
 `list` from PR #428. Phase 2 now routes inventory through `list` and replaces
 only the remaining advertised legacy grep tool.
 The sequence is CLI introduction, useful and compact CLI text, then replacement
@@ -1131,8 +1131,8 @@ Implementation order:
    opt-in, all other changed matching/output defaults, and zero replacing the
    legacy 30-second preparation wait. It must also mention the retired
    `code_grep` catalog name and the public smoke-helper migration used by
-   `remote-mcp`. The existing unreleased CLI and MCP-list
-   fragments remain separate; do not rewrite their already-merged changes.
+   `remote-mcp`. The CLI and MCP-list fragments were consumed by the 0.24.0
+   release; do not rewrite those already-released changes.
    Update durable docs with the actual final public schema and API migration.
 
 Acceptance and evidence:
