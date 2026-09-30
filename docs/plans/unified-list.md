@@ -2,10 +2,10 @@
 
 ## Status and expected outcome
 
-**Status: IN PROGRESS.** Phase 1 is complete. PR #421 merged to `main` as
-`5e541604935f1d7bb030742e2602356b9ef1e88c` on 2026-09-28. Phase 2 is
-implemented, verified, and review-clean on `jlitola/unified-list-mcp` after its
-rebase. Deterministic, live, and Codex agent verification pass.
+**Status: IN PROGRESS.** Phases 1-2 are complete. PR #421 merged to `main` as
+`5e541604935f1d7bb030742e2602356b9ef1e88c` on 2026-09-28. PR #428 merged as
+`2f3d4fdc7c008623e89aa91558a690b23f0eb309` on 2026-09-30. Phase 3 remains;
+the next-steps check requires `$do-plan` to detail its remaining adoption work.
 
 The merged Phase 1 head passed 5,044 tests, typecheck, formatting, build,
 149-step live CLI smoke, 65-step live MCP smoke, 36-step built CLI smoke, and
@@ -16,9 +16,12 @@ PR #2857 subsequently corrected site actions to target-relative paths and is
 deployed to production.
 Live CLI replay passes for the Express site root, a normal page with and
 without its trailing slash, and the same page through a nested site scope. The
-client work is on `main`; package publication remains pending. The 0.23.0
-release preparation includes Phase 1 CLI listing and shared site-page reads.
-It does not claim Phase 2 MCP catalog consolidation or Phase 3 hosted adoption.
+client work is on `main`. Both `githits@0.23.0` and `@githits/mcp@0.23.0`
+are published from `1739290b03ebcb8dee920f536c30f9ac1e0145e8`, verified via
+npm metadata and both release tags on 2026-09-30. That release includes Phase 1
+CLI listing and shared site-page reads, but predates Phase 2 MCP consolidation
+and the text continuation footer. Publication of those later changes and
+hosted adoption remain unverified.
 
 Replace the callable MCP `code_files` and `docs_list` tools with one `list`
 tool, and add the matching top-level `githits list` command. The `list`
@@ -124,7 +127,7 @@ Phase 2 cases are recorded in `docs/implementation/unified-list.md`. On
 accepted their `site:` target plus host-relative path for root, normal,
 trailing-slash, and nested-scope reads.
 
-### Current GitHits client surface
+### Original GitHits client surface (before Phases 1-2)
 
 `code_files` calls `CodeNavigationService.listFiles` / `Query.listRepoFiles`.
 It has sixteen MCP arguments, offset-like bounded results without a continuation
@@ -150,6 +153,33 @@ The pre-change descriptor measurement at `175c15c` is 3,659 UTF-8 bytes for
 `code_files`, 1,526 for `docs_list`, and 5,188 for their serialized pair
 (`name`, description, input schema). This is a payload baseline, not a runtime
 or token-latency claim.
+
+### Merged state verified on 2026-09-30
+
+Fresh `origin/main` is `2f3d4fdc7c008623e89aa91558a690b23f0eb309`.
+The stable catalog now registers `list`, not `code_files` or `docs_list`;
+the public client exports `ListService` and `ListServiceImpl`, and hosts must
+provide `McpToolServices.listService`. Main retains unified grep, target-relative
+site paths, and the new search page-locator behavior.
+
+PR #428's final checks passed for build, public MCP package validation,
+Ubuntu/Windows tests, and Bun/Node 20/22/24/26 compatibility. Its pre-rebase
+live CLI/MCP smoke and Codex workload evidence is recorded below. The final
+rebase preserved main's search-locator wording; two instruction assertions
+were updated and their 13-test suite passed. Claude eval remained unavailable
+because the local CLI was logged out.
+
+The canonical CLI skill already prefers top-level `githits list`, including
+the released 0.23.0 copy. Its pagination advice still obtains the cursor through
+JSON, and its reference still says MCP has no unified list counterpart. These
+are the remaining release-dependent guidance updates for Phase 3.
+
+Both package manifests and npm latest remain 0.23.0. The unified MCP change
+fragment is still pending. Release PR #436 is open in another lane; this check
+does not adopt its work. Remote MCP dependency/composition and deployment
+state could not be verified: read-only requests to the assumed GitHub
+`githits-com/remote-mcp` repository returned 404. The correct repository identity
+or access must be established before treating hosted adoption as ready.
 
 ## Scope and non-goals
 
@@ -416,7 +446,7 @@ PR #2817 resolves site addressing, including `/` for the root.
 | Phase | Status | Outcome |
 | --- | --- | --- |
 | 1. Add the shared contract and CLI | **COMPLETE; merged as `5e54160`** | `githits list` browses the backend contract through a tested transport-neutral service and shared formatter. Backend #2817 production conformance and live site action replay pass. |
-| 2. Consolidate the MCP surface | **IN PROGRESS; REVIEW-CLEAN** | The callable catalog contains `list` instead of `code_files` and `docs_list`; the replacement description retains both legacy names, and current guidance routes package/repository/site browsing and follow-up actions correctly. Deterministic, live, and Codex agent verification pass. |
+| 2. Consolidate the MCP surface | **COMPLETE; merged as `2f3d4fd`** | The callable catalog contains `list` instead of `code_files` and `docs_list`; the replacement description retains both legacy names, and current guidance routes package/repository/site browsing and follow-up actions correctly. Deterministic, live, and Codex agent verification pass. |
 | 3. Release and hosted adoption | **PLANNED; authorization/deployment dependent** | Published CLI and hosted MCP expose the same unified list contract, and live list-to-read/list-to-list paths pass against the deployed backend. |
 
 ## Phase 1 completion record — shared contract and CLI
@@ -439,13 +469,13 @@ list/read follow-ups, package continuation, paths-only output, root and normal
 site pages, trailing-slash handling, and nested site scope. PR checks passed on
 Ubuntu, Windows, Bun, Node 20, 22, 24, and 26, including public MCP package
 validation. Backend PR #2817 is deployed to production; the CLI and MCP package
-versions are prepared at 0.23.0, and publication remains pending.
+versions were published at 0.23.0 from `1739290`.
 
 ## Phase 2 detailed plan — consolidate the MCP surface
 
-**Status:** IN PROGRESS; implementation, verification, and review complete.
-PR #421 is present on `origin/main` at `5e54160`; no further product decision
-is required.
+**Status:** COMPLETE. PR #428 merged to `main` as
+`2f3d4fdc7c008623e89aa91558a690b23f0eb309` on 2026-09-30. Implementation,
+verification, and review are complete; all final PR checks passed.
 
 The 2026-09-28 readiness check confirmed that `origin/main` still registers
 `code_files` and `docs_list`, while the public MCP client does not export
@@ -619,11 +649,11 @@ is intentionally deferred.
 authorization for release, remote dependency update, and deployment at each
 protected step.
 
-After the matching CLI package is published, update the canonical
-`skills/githits-code` guidance and generated reference to prefer top-level
-`githits list`, while retaining the documented legacy grouped commands through
-their grace period. This release-gated skill change is deliberately excluded
-from Phase 2.
+The canonical `skills/githits-code` guidance and reference already prefer
+top-level `githits list` and retain legacy grouped commands, including in the
+published 0.23.0 release. Remaining release-gated guidance must reflect text
+continuation and the unified MCP mapping once the matching artifacts publish.
+Those updates were deliberately excluded from Phase 2.
 
 **Acceptance criteria:** outside-workspace packed CLI and public MCP imports
 construct `ListService`; published CLI and hosted MCP catalogs expose `list`;
