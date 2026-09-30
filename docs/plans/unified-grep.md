@@ -2,14 +2,13 @@
 
 ## Status and outcome
 
-**Status: CLI AND OUTPUT FOLLOW-UP MERGED; PHASE 2 NEEDS REPLAN.** Phase 1 and
+**Status: CLI AND OUTPUT FOLLOW-UP MERGED; PHASE 2 READY.** Phase 1 and
 output PR #433 merged as `45b72120d1ae2810a3370da1ecd838259ac5b576`
 on 2026-09-29. The approved Sources summary, numbered copyable file/page
 locators, and dim continuation footer are present. Refreshed `origin/main`
 `2f3d4fdc7c008623e89aa91558a690b23f0eb309` also contains unified MCP
-`list` from PR #428; the remaining Phase 2 inventory-guidance assumption still
-names retired `code_files`. Replan that remaining guidance and its acceptance
-checks before MCP implementation.
+`list` from PR #428. Phase 2 now routes inventory through `list` and replaces
+only the remaining advertised legacy grep tool.
 The sequence is CLI introduction, useful and compact CLI text, then replacement
 of the advertised MCP `code_grep` tool.
 
@@ -1043,44 +1042,81 @@ recorded: main remains at version 0.23.0 and the newest tags predate this
 merge. No hosted MCP adoption or deployment is recorded for this increment.
 Keep the same useful formatter as the MCP output contract.
 
-### Phase 2 — MCP `grep` replaces `code_grep` (PENDING REPLAN)
+### Phase 2 — MCP `grep` replaces `code_grep` (READY)
 
 Expected outcome: the advertised MCP catalog has one mixed-source `grep` tool;
 agents receive the same reads, pagination and truthful coverage as CLI users.
 Legacy source-only flags disappear from MCP, with migration documented.
 
-Assumptions: Phase 1 semantics and shared helpers prove sufficient; required
-provider service additions follow the existing read-service precedent.
-Boundary verification on 2026-09-29: the stable MCP catalog still advertises
-`code_grep` and `code_files`; unified MCP `list` has not replaced the inventory
-tool. Grep guidance must route inventory to `code_files`, without adopting
-list work. Production grep v6 conformance passed on 2026-09-29, and the local
-backend schema still documents retained UNSPECIFIED scopes and continuation.
-Unknowns: none blocking this increment.
-Product decisions: none; MCP removal is requested. Dependencies: Phase 1 and
-its output refinement merged, public package compatibility validation, and
-dev access for MCP conformance.
+Assumptions: Phase 1 semantics and shared helpers suffice for one MCP adapter;
+required provider service additions follow the existing read/list-service
+precedent. Verified on refreshed `origin/main` at
+`2f3d4fdc7c008623e89aa91558a690b23f0eb309`: stable MCP has `list`,
+`read`, and `code_grep`, but no unified `grep`; `code_files` and `docs_list`
+are retired. The active quick-start guide already routes inventory to `list`.
+The public code reference still incorrectly maps CLI inventory commands to the
+retired tools; update those adjacent mapping lines while changing its grep
+mapping. Existing search text and read descriptions also route agents to
+`code_grep`. Production unified grep conformance passed on 2026-09-29; the
+backend schema documents retained `UNSPECIFIED` scopes and continuation.
+The unchanged `code_grep` descriptor still serializes to 7,161 UTF-8 bytes
+from `getMcpToolDescriptors()` on this main. This is a descriptor-size baseline,
+not a latency or agent-quality benchmark.
+Unknowns: none blocking this increment. Product decisions: none; MCP removal
+and CLI legacy retention are requested. Dependencies: Phase 1 and output PR
+#433 merged, the current `list`/`read` catalog, authenticated live service
+access for acceptance, and public-package compatibility validation.
+
+Ownership: MCP registration and agent guidance own tool routing; the existing
+shared grep helpers own request, result, error, and text semantics; `list` owns
+inventory. Keep routing changes in those existing owners rather than adding an
+inventory adapter or changing the unified `list` contract.
 
 Implementation order:
 
 1. Add `packages/mcp/src/tools/grep.ts` with the proposed schema,
    `readOnlyHint: true` and existing open-world annotations. Inject
    `GrepService`, delegate to the Phase 1 helpers, and preserve caller
-   cancellation. Required `grepService` joins `McpToolServices`; update
+   cancellation. Append the existing `CODE_GREP_GUARDRAIL` to the new tool
+   description because results still expose source comments and strings;
+   update `docs/implementation/TOOL_GUARDRAILS.md` to name the replacement.
+   Required `grepService` joins `McpToolServices`; update
    providers, local server composition, descriptor-only service stubs and
    mock factories. Export stable grep service types/implementation via
    `client.ts` and necessary provider types via `index.ts`.
 2. Replace `createGrepRepoTool` in the stable MCP catalog, not merely its name.
    Remove obsolete MCP-only registration/exports/tests; retain the legacy CLI
-   service/request/output dependencies. Add root CLI/MCP parity tests for
-   structured inputs and JSON results.
+   service/request/output dependencies and its behavior assertions. Convert
+   `src/tools/grep-repo-parity.test.ts` cases that currently depend on the
+   retired MCP tool into focused legacy CLI checks instead of deleting their
+   coverage. Replace the old paired `code_grep` case in
+   `scripts/cli-smoke.ts` with a unified CLI/MCP `grep` parity case and keep
+   the legacy CLI clamp/default case as a CLI-only smoke assertion. Update
+   public `@githits/mcp/smoke-test` catalog, guide, text/JSON and read-follow-up
+   assertions for the new tool; `remote-mcp` consumes this helper after its
+   separate package adoption. Add root CLI/MCP parity tests for structured
+   inputs and JSON results.
 3. Update active grep-specific instructions, tool descriptions, error/recovery
    actions, quick-start guide, public skills, README/CLI and implementation
    references, smoke catalog assertions, eval expectations and current tool
-   counts. Keep unrelated and historical descriptions/results intact. Where
-   `code_grep` actions currently carry legacy flags, construct valid unified
-   target entries or remove the unsupported action with truthful guidance;
-   never mechanically rename incompatible payloads.
+   counts. Route known-pattern matching to `grep`, inventory/path discovery
+   to the existing `list`, and exact windows to `read`; preserve the distinct
+   `search` discovery route. In
+   `skills/githits-code/references/code-and-docs.md`, map new CLI `list` to
+   MCP `list` and new CLI `grep` to MCP `grep`. State that the retained legacy
+   CLI `code files`, `docs list`, and `code grep` commands have no exact MCP
+   aliases; use the relevant new tool with its own schema and documented
+   capability differences. This also corrects the adjacent stale
+   `code_files`/`docs_list` mappings without changing list behavior. Update
+   MCP branches of shared search pivots and read/recovery
+   descriptions while preserving the legacy CLI command and its own routing
+   where applicable. Keep historical eval results and migration mentions
+   intact. Where `code_grep` actions currently carry legacy flags, construct
+   valid unified target entries or remove the unsupported action with truthful
+   guidance; never mechanically rename incompatible payloads. Correct the
+   retained legacy CLI's ASCII-only case-folding claim in
+   `GREP_REPO_PATTERN_NOTE` and its `--case-sensitive` help; the current backend
+   `grepRepo.caseSensitive` schema explicitly documents Unicode-aware folding.
 4. Keep `buildMcpQuickStart()` and the public skill's terminal guide in exact
    parity. Follow the documented stable-guide lifecycle exception: backing
    behavior, builder and terminal guide change in the same Phase 2 PR, accepting
@@ -1093,14 +1129,22 @@ Implementation order:
    provider/catalog change); confirm versions and release policy at execution.
    The fragment must call out regex replacing literal as the default, literal
    opt-in, all other changed matching/output defaults, and zero replacing the
-   legacy 30-second preparation wait.
+   legacy 30-second preparation wait. It must also mention the retired
+   `code_grep` catalog name and the public smoke-helper migration used by
+   `remote-mcp`. The existing unreleased CLI and MCP-list
+   fragments remain separate; do not rewrite their already-merged changes.
    Update durable docs with the actual final public schema and API migration.
 
 Acceptance and evidence:
 
 - Catalog tests advertise `grep` and exclude `code_grep` in stable descriptors
-  and local server registration; all information tools remain read-only.
-  First sentence: “Find regex or literal matches across source and documentation.”
+  and local server registration; `list` and `read` remain advertised, and
+  `code_files`/`docs_list` remain absent. All information tools remain read-only.
+  The `grep` descriptor retains the existing source-comment/string guardrail.
+  Its description says `Replaces code_grep.` after the first 80 characters so
+  old-name tool searches can find the replacement without sacrificing its
+  standalone selection sentence. First sentence: “Find regex or literal
+  matches across source and documentation.”
   (under 79 characters, no internal periods). First-80 tests and field
   descriptions must independently explain package hosted-doc inclusion,
   all-corpus default, per-target scopes, regex/case/context defaults and opt-ins, exact
@@ -1110,13 +1154,27 @@ Acceptance and evidence:
   regex/case-sensitive/zero-context/all-corpus defaults and explicit opt-ins,
   read-action fidelity and no
   legacy service execution.
+- Active quick-start, public skill, search recovery, and read guidance send
+  known patterns to `grep`, inventories to `list`, and exact locators to
+  `read`. No callable action uses retired `code_files` or `docs_list`, and no
+  MCP action suggests `code_grep`; the descriptor's `Replaces code_grep.`
+  migration note is not an action. CLI-to-MCP guidance maps the new commands
+  and does not claim exact equivalence for retained legacy commands. The
+  retained `githits code grep` command still works; historical result records
+  are not rewritten. Legacy CLI help no longer claims ASCII-only case folding,
+  with a focused help assertion.
 - Run required unit tests, typecheck, build, plugin parity/generation checks
   and CLI/MCP smoke; run built smoke if launch/CI validation changes.
+  Legacy CLI behavior tests and smoke checks remain after the paired
+  `code_grep` parity fixture is removed. The exported `runMcpSmoke()` helper
+  exercises the new catalog and request/result contract.
   Validate the packed public MCP package from outside root path aliases,
   including an external request-scoped provider supplying `grepService`.
 - Authenticated MCP smoke repeats the Phase 1 package/mixed/two-page/read
-  cases against dev and checks truthful partial/omission handling. Production
-  smoke expectations must respect v5/v6 readiness rather than assume sites work.
+  cases against the deployed production backend and checks truthful partial,
+  unvisited-scope, omission, exact-read and continuation handling. Run the
+  corresponding dev cases when dev access is available; do not treat dev-only
+  results as production proof.
 - Run `bun run agent:e2e --agent codex --server local --guidance-profile
   descriptors --workload eval/agentic/workloads/code-grep-investigation.md`
   and the matching Claude run. Add one focused mixed-docs workload: find the
@@ -1144,9 +1202,10 @@ Phase 1 boundary reorientation was completed at `origin/main`
 PROCEED with Phase 2. On 2026-09-29 the user required output quality before
 MCP; output PR #433 fulfilled that requirement and merged. On 2026-09-30,
 refreshed `origin/main` was `2f3d4fdc7c008623e89aa91558a690b23f0eb309`.
-PR #428 merged unified MCP `list`, retiring `code_files` and `docs_list`;
-Phase 2's inventory-guidance assumption and related acceptance scope now need
-replanning. The merged core grep service and shared
+PR #428 merged unified MCP `list`, retiring `code_files` and `docs_list`.
+Phase 2 has been revised to keep inventory on `list` and to correct the stale
+public code-reference mappings as part of the grep routing update. The merged
+core grep service and shared
 request/result/error/text helpers match this plan. MCP still uses the legacy
 adapter; `McpToolServices` and the public client entrypoint do not yet expose
 grep, exactly as Phase 2 expects. Existing MCP caller-abort errors are rethrown
