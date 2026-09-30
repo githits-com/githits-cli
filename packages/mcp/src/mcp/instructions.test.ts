@@ -40,6 +40,19 @@ describe("buildLocalMcpQuickStart", () => {
     expect(quickStart).toContain(
       "explicit `site:` inventory that\n`list` does not discover",
     );
+    expect(quickStart).toContain(
+      "pair a listed path with the shared read target in its header",
+    );
+    expect(quickStart).toContain("a full URL row is its own read target");
+    expect(quickStart).toContain(
+      "A site row without a\ntrailing `/` is a page path even if its source URL ended in `/`",
+    );
+    expect(quickStart).toContain(
+      "Use JSON for exact entry kinds and per-entry\n`read` actions",
+    );
+    expect(quickStart).toContain(
+      "the required target sets the site scope; selectors with\nor without one leading `/` stay within it",
+    );
     expect(quickStart).not.toContain("`code_files`");
     expect(quickStart).not.toContain("`docs_list`");
     expect(quickStart).toContain(

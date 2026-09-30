@@ -176,6 +176,29 @@ describe("unified list CLI", () => {
     },
   );
 
+  it("accepts a leading slash in a site selector", async () => {
+    const list = mock((_params: ListParams) =>
+      Promise.resolve(defaultListResult),
+    );
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await listAction(
+        "site:expressjs.com",
+        ["/en/resources/"],
+        { json: true },
+        createDeps({ listService: createMockListService({ list }) }),
+      );
+      expect(list).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target: "site:expressjs.com",
+          paths: ["en/resources/"],
+        }),
+      );
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   it("preserves explicit false, zero, repeated filters, and pagination inputs", async () => {
     const list = mock((_params: ListParams) =>
       Promise.resolve(defaultListResult),

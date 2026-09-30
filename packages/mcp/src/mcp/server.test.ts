@@ -109,7 +109,7 @@ const DESCRIPTION_ROUTING: Record<
       "target-relative literals or globs",
       "glob depth is independent",
       "read and continuation guidance",
-      "use JSON only when code consumes",
+      "use JSON for exact entry kinds or actions",
     ],
   },
   read: {

@@ -44,8 +44,10 @@ response. The backend's opaque cursor is otherwise preserved exactly.
 `packages/mcp/src/shared/` owns the surface-neutral caller and output helpers:
 
 - `list-request.ts` validates and normalizes CLI/MCP inputs into `ListParams`.
-  It preserves target and path selector bytes, keeps explicit `false`, omits
-  empty filters, and does not invent page or wait defaults.
+  It preserves targets, source selectors, and nonblank cursors, while accepting
+  one leading `/` on site selectors and removing it before `Query.list`. It
+  keeps explicit `false`, omits empty filters, and does not invent page or wait
+  defaults.
 - `list-error-map.ts` maps list-owned and shared service errors into the
   existing `MappedError` envelope without interpreting backend message text.
 - `list-response.ts` copies only the selected camelCase `ListResult` fields.
@@ -93,9 +95,14 @@ A non-null `read` action's backend-authored `target` and nullable `path`, and a
 non-null `browse` action's `target` and nullable `paths`, are authoritative. JSON preserves these values
 exactly. For site text, PAGE actions using a `site:` target render their exact
 target-relative `read.path`, while the header reuses their shared `read.target`.
-Do not repeat the target's scope in the path. `/` reads the site's landing page.
-Omitted or empty list paths select the target root; literal paths and quoted
-globs operate only under the supplied site's literal host/scope.
+Do not repeat the target's scope in the path. A site text row without a trailing
+`/` is a PAGE, even when its source URL ended in `/`; `/` reads the site's
+landing page. JSON exposes exact entry kinds and per-entry actions.
+Omitted or empty list paths select the target root. A site selector with one
+leading `/` stays relative to the supplied target; `/` alone selects its root.
+Literal paths and quoted globs operate only under the supplied site's literal
+host/scope. A root `/` selector cannot be combined with other site paths; use
+separate calls when both views are needed.
 The backend normally removes one non-root trailing slash when the
 slashless path is unambiguous; it retains the slash when distinct slashless and
 slash-terminated pages coexist. Exceptional URL-only actions render their

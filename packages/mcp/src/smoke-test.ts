@@ -1208,7 +1208,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
 
   const siteListArgs = {
     target: "site:expressjs.com",
-    paths: ["en/resources/"],
+    paths: ["/en/resources/"],
     limit: 20,
   };
   const siteListText = assertDefaultText(

@@ -31,7 +31,7 @@ If a missing or ambiguous site returns suggested site targets, retry one of thos
 
 Useful flags: repeatable `--file-type`, `--language`, `--intent`, `--limit` (1-500), `--after`, `--wait` (milliseconds, 0-300000), `--silent`, `--json`. Text lists paths with direct read guidance; `--silent` emits paths only. JSON retains read/browse actions, lifecycle metadata, and `nextCursor`. Continue by replaying the same selection with the returned opaque cursor. Prefer exact emitted read actions to reconstructed locators.
 
-Site paths are relative to the supplied `site:<host[/scope]>` target. Omitted or empty list paths select its root; directory paths retain their trailing `/`. Literal paths and quoted globs operate only under that target's literal host/scope.
+Site list paths resolve within the required `site:<host[/scope]>` target. One leading `/` is accepted and stays within that scope; `/` alone selects its root. Omitted or empty list paths also select the root. In text output, a site path without a trailing `/` is a page even when its source URL ended in `/`; directory paths retain their trailing `/`. Literal paths and quoted globs operate only under the supplied target.
 
 `githits read <site-target> <target-relative-page-path>` reuses an ordinary PAGE path with its supplied target; `/` reads the site's landing page. Preserve emitted read/browse action values exactly. Explicit backend actions remain authoritative for exceptional URL/query/encoding identities; do not reconstruct those locators from display paths.
 
@@ -79,13 +79,13 @@ Partial and capped documentation coverage are usable published evidence. Report 
 - `githits example` maps to MCP `get_example`.
 - `githits search` maps to MCP `search`.
 - `githits search-status` maps to MCP `search_status`.
-- `githits code files` maps to MCP `code_files`.
-- `githits list` has no unified MCP counterpart yet; MCP retains `code_files` and `docs_list`.
+- `githits code files` is a legacy CLI browser; use MCP `list` for package or repository inventories.
+- `githits list` maps to MCP `list` with the same target, path selection, and opaque cursor.
 - `githits code grep` maps to MCP `code_grep`.
 - `githits read <target> <path>` maps to MCP `read` with `target` and `path`.
 - `githits read <target> --selector <name>` maps to MCP `read` with `target` and `selector`, optionally with `path` for code.
 - `githits read '<target>#<symbol>'` maps to MCP `read` with the fragment in `target`, optionally with `path` for code.
-- `githits docs list` maps to MCP `docs_list`.
+- `githits docs list` is a legacy mixed package-page browser. In MCP, use `search` to discover hosted pages, then `list` with an emitted `site:` target to browse that site.
 - `githits read <docs-target>` maps to MCP `read` with `target` alone.
 - `githits read <site-target> <target-relative-page-path>` maps to MCP `read` with `target` and `path`.
 

@@ -24,6 +24,7 @@ follow-ups across search, listing, and research results.
 
 ### Fixed
 
+- **Leading-slash site selectors** - CLI and local MCP `list` accept one leading `/` in a site path and keep it within the required target's scope; `/` alone browses that target's root. Source paths and backend-authored read actions remain unchanged.
 - **Research source parsing** - Accept unified `read` sources with optional selectors and line bounds, preserving exact targets and paths in CLI and MCP output. Requires the matching Research API response contract; legacy source commands are rejected.
 - **Site directory paths** - Fix CLI list text losing the first directory component or printing repeated `/` entries, and keep descendant-site headers compatible with emitted relative paths. Correct CLI and MCP read-path guidance while preserving exact read/browse actions.
 
@@ -42,6 +43,7 @@ Minor release: unifies MCP inventory browsing and improves exact read follow-ups
 
 ### Fixed
 
+- **Leading-slash site selectors** - MCP `list` accepts one leading `/` in a site path and keeps it within the required target's scope; `/` alone browses that target's root. Backend-authored read actions remain unchanged.
 - **Research source parsing** - Accept unified `read` sources with optional selectors and line bounds, preserving exact targets and paths in MCP output. Requires the matching Research API response contract; legacy source commands are rejected.
 - **Site directory paths** - Correct MCP read-path guidance for descendant sites while preserving exact read/browse actions.
 

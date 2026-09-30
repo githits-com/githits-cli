@@ -58,8 +58,9 @@ export interface ListRequestInput {
 
 /**
  * Validate raw CLI or MCP list fields and normalize them into core parameters.
- * Targets, path selectors, and nonblank cursors retain their exact input text;
- * this builder never supplies backend defaults for page size or wait time.
+ * Targets, source path selectors, and nonblank cursors retain their exact input
+ * text. Site selectors accept one leading slash before the backend-relative
+ * path; this builder never supplies backend defaults for page size or wait time.
  */
 export function buildListParams(input: ListRequestInput): ListParams {
   if (typeof input.target !== "string" || input.target.trim().length === 0) {
@@ -75,7 +76,8 @@ export function buildListParams(input: ListRequestInput): ListParams {
     );
   }
 
-  const paths = normalizePaths(input.paths);
+  const isSiteTarget = input.target.trim().startsWith("site:");
+  const paths = normalizePaths(input.paths, isSiteTarget);
   const fileTypes = normalizeStringList(input.fileTypes, "fileTypes");
   const languages = normalizeStringList(input.languages, "languages");
   const intents = normalizeIntents(input.intents);
@@ -89,7 +91,7 @@ export function buildListParams(input: ListRequestInput): ListParams {
   const after = normalizeAfter(input.after);
 
   if (
-    input.target.trim().startsWith("site:") &&
+    isSiteTarget &&
     (fileTypes.length > 0 || languages.length > 0 || intents.length > 0)
   ) {
     const field =
@@ -112,17 +114,20 @@ export function buildListParams(input: ListRequestInput): ListParams {
     ...(after !== undefined ? { after } : {}),
     ...(waitTimeoutMs !== undefined ? { waitTimeoutMs } : {}),
     includeDetailedFields: input.includeDetailedFields,
-    includeReadActions:
-      input.includeDetailedFields || input.target.trim().startsWith("site:"),
+    includeReadActions: input.includeDetailedFields || isSiteTarget,
   };
 }
 
-function normalizePaths(paths: readonly string[] | undefined): string[] {
+function normalizePaths(
+  paths: readonly string[] | undefined,
+  isSiteTarget: boolean,
+): string[] {
   if (paths === undefined || paths.length === 0) return [];
   if (paths.length > MAX_PATHS) {
     throw invalid("paths", `paths may contain at most ${MAX_PATHS} entries.`);
   }
 
+  const normalized: string[] = [];
   for (const path of paths) {
     if (path.trim().length === 0) {
       throw invalid("paths", "`paths` entries cannot be blank.");
@@ -136,8 +141,17 @@ function normalizePaths(paths: readonly string[] | undefined): string[] {
         `paths entries must be at most ${MAX_PATH_BYTES} UTF-8 bytes.`,
       );
     }
+    normalized.push(
+      isSiteTarget && path.startsWith("/") ? path.slice(1) : path,
+    );
   }
-  return [...paths];
+  if (isSiteTarget && normalized.includes("")) {
+    if (normalized.length > 1) {
+      throw invalid("paths", "`/` cannot be combined with other site paths.");
+    }
+    return [];
+  }
+  return normalized;
 }
 
 function normalizeStringList(

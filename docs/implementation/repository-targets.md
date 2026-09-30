@@ -241,7 +241,7 @@ To repeat the live direct-target checks with the unpublished build, use
 `node dist/cli.js mcp start --experimental-tools`. Exercise each compact
 fixture through `code files`, `code grep`, `code read`, CODE/DOCS `search`,
 emitted documentation locators, and `code diff <target> <sha>..<sha>
---name-status`; MCP counterparts are `code_files`, `code_grep`, `read`, `search`,
-and `code_diff`. `pkg changelog` is package-only; do not pass repository
+--name-status`; current MCP counterparts are `list`, `code_grep`, `read`,
+`search`, and `code_diff`. `pkg changelog` is package-only; do not pass repository
 targets to it. Set `GITHITS_CODE_NAV_URL` to the verified dev endpoint
 for its replay; never print authentication state or credential values.

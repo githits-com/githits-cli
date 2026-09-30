@@ -2179,7 +2179,14 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   );
 
   const siteListJson = assertJsonOutput(
-    await runCli(["list", "site:expressjs.com", "--limit", "20", "--json"]),
+    await runCli([
+      "list",
+      "site:expressjs.com",
+      "/en/resources/",
+      "--limit",
+      "20",
+      "--json",
+    ]),
     "list site json",
   );
   assertRecord(siteListJson, "list site json");

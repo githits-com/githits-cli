@@ -325,7 +325,7 @@ describe("runMcpSmoke", () => {
       name: "list",
       args: {
         target: SMOKE_SITE_TARGET,
-        paths: [SMOKE_SITE_PAGE_PATH],
+        paths: [`/${SMOKE_SITE_PAGE_PATH}`],
         limit: 20,
       },
     });
@@ -333,7 +333,7 @@ describe("runMcpSmoke", () => {
       name: "list",
       args: {
         target: SMOKE_SITE_TARGET,
-        paths: [SMOKE_SITE_PAGE_PATH],
+        paths: [`/${SMOKE_SITE_PAGE_PATH}`],
         limit: 20,
         format: "json",
       },

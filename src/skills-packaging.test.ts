@@ -350,6 +350,19 @@ describe("agent skills packaging", () => {
     ]);
   });
 
+  it("maps CLI inventories to the current MCP list tool", async () => {
+    const reference = await read(
+      join(root, "skills", "githits-code", "references", "code-and-docs.md"),
+    );
+
+    expect(reference).toContain("`githits list` maps to MCP `list`");
+    expect(reference).toContain(
+      "use MCP `list` for package or repository inventories",
+    );
+    expect(reference).not.toContain("MCP retains `code_files` and `docs_list`");
+    expect(reference).not.toContain("maps to MCP `docs_list`");
+  });
+
   it("keeps CLI model-read output in text", async () => {
     const [codeContent, packageContent, packageReference] = await Promise.all([
       read(githitsCodeSkillPath),

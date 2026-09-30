@@ -71,6 +71,9 @@ describe("createListTool", () => {
     expect(tool.description).toContain("whole snapshot");
     expect(tool.description).toContain("Both include source and documentation");
     expect(tool.description).toContain("explicit `site:` target");
+    expect(tool.description).toContain(
+      "supplied by the user or a docs search result",
+    );
     expect(tool.description).toContain("target-relative literals or globs");
     expect(tool.description).toContain(
       "Directories show immediate children unless `recursive`",
@@ -80,7 +83,10 @@ describe("createListTool", () => {
     );
     expect(tool.description).toContain("read and continuation guidance");
     expect(tool.description).toContain(
-      "use JSON only when code consumes the raw response programmatically",
+      "a path without trailing `/` is a page even when its source URL ended in `/`",
+    );
+    expect(tool.description).toContain(
+      "use JSON for exact entry kinds or actions",
     );
     expect(tool.schema.format!.description).toContain(
       "parsing or filtering it programmatically",
@@ -115,6 +121,9 @@ describe("createListTool", () => {
     expect(tool.schema.target!.description).toContain("site:expressjs.com");
     expect(tool.schema.paths!.description).toContain(
       "Target-relative literal paths and globs",
+    );
+    expect(tool.schema.paths!.description).toContain(
+      "Site paths with one leading `/` stay within the supplied target",
     );
     expect(tool.schema.recursive!.description).toContain(
       "independent of recursion",
@@ -229,6 +238,23 @@ describe("createListTool", () => {
       recursive: false,
       includeDetailedFields: false,
       includeReadActions: false,
+    });
+  });
+
+  it("accepts a leading slash in a site selector", async () => {
+    const list = mock(async (_params: ListParams) => listResult());
+    const tool = createListTool({ list });
+
+    await tool.handler(
+      { target: "site:expressjs.com", paths: ["/en/resources/"] },
+      {},
+    );
+
+    expect(list).toHaveBeenCalledWith({
+      target: "site:expressjs.com",
+      paths: ["en/resources/"],
+      includeDetailedFields: false,
+      includeReadActions: true,
     });
   });
 
