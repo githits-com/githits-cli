@@ -136,13 +136,13 @@ describe("buildMcpQuickStart", () => {
     expect(instructions).not.toContain("`code_files`");
     expect(instructions).not.toContain("`docs_list`");
     expect(instructions).toContain(
-      "Use snippets when sufficient; otherwise read the\ntarget in that header",
+      "returned HTTP(S) page target unchanged to `read`",
     );
     expect(instructions).toContain(
       "its `followUp` unchanged, including supplied `selector` and bounds",
     );
     expect(instructions).toContain(
-      "target in that header. For an exact section or bounds, request search JSON",
+      "A `site:` read requires a\nseparate exact page `path`",
     );
     expect(instructions).toContain(
       "Hosted/crawled HTTP(S) docs locators address mutable current content",

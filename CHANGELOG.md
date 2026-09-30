@@ -26,7 +26,7 @@ follow-ups across search, listing, and research results.
 
 - **Source listing filters** - CLI and MCP `list` accept language and file-type names regardless of casing. Clarify classification filters and extension globs, and distinguish full page URLs from site target/path reads in agent guidance.
 - **Leading-slash site selectors** - CLI and local MCP `list` accept one leading `/` in a site path and keep it within the required target's scope; `/` alone browses that target's root. Source paths and backend-authored read actions remain unchanged.
-- **Research source parsing** - Accept unified `read` sources with optional selectors and line bounds, preserving exact targets and paths in CLI and MCP output. Requires the matching Research API response contract; legacy source commands are rejected.
+- **Backend-owned Research display** - Experimental CLI and local MCP Research display the API's complete Markdown, allowing answer sections and citations to evolve without client releases. JSON preserves the minimal `display_markdown` envelope and optional IDs. Requires the coordinated backend update; replaces the old structured answer/source JSON contract. Transport limits, error handling, and terminal sanitization remain intact.
 - **Site directory paths** - Fix CLI list text losing the first directory component or printing repeated `/` entries, and keep descendant-site headers compatible with emitted relative paths. Correct CLI and MCP read-path guidance while preserving exact read/browse actions.
 
 Hosted clients receive MCP changes after `@githits/mcp@0.24.0` adoption and
@@ -46,7 +46,6 @@ Minor release: unifies MCP inventory browsing and improves exact read follow-ups
 
 - **Source listing filters** - MCP `list` accepts language and file-type names regardless of casing. Clarify classification filters and extension globs, and distinguish full page URLs from site target/path reads in agent guidance.
 - **Leading-slash site selectors** - MCP `list` accepts one leading `/` in a site path and keeps it within the required target's scope; `/` alone browses that target's root. Backend-authored read actions remain unchanged.
-- **Research source parsing** - Accept unified `read` sources with optional selectors and line bounds, preserving exact targets and paths in MCP output. Requires the matching Research API response contract; legacy source commands are rejected.
 - **Site directory paths** - Correct MCP read-path guidance for descendant sites while preserving exact read/browse actions.
 
 Hosted clients receive these changes after adoption and deployment by
