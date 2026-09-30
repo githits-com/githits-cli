@@ -8,7 +8,6 @@
   path_selectors? }]` and a required `pattern` instead of one `target` and an
   optional `pattern`. Per-target `exact`/`prefix`/`glob` selectors replace
   legacy `path`, `path_prefix`, `globs`, and `extensions` arguments.
-
   Defaults change from literal to RE2 regex, case-insensitive to case-sensitive
   (`ignore_case: true` opts in), and 50 to 100 matches per page. Replace
   `case_sensitive` with inverse `ignore_case`; `pattern_type: "literal"` opts
@@ -19,7 +18,6 @@
   `wait_timeout_ms` remains available for explicit preparation waits. MCP no
   longer accepts per-file limits, documentation/test exclusions, or symbol
   fields. The legacy `githits code grep` CLI remains available.
-
   The public smoke helper now exercises `grep`, and request-scoped MCP providers
   must supply `grepService`; `remote-mcp` must migrate its provider and helper
   use before adopting this package version.

@@ -1042,7 +1042,7 @@ recorded: main remains at version 0.23.0 and the newest tags predate this
 merge. No hosted MCP adoption or deployment is recorded for this increment.
 Keep the same useful formatter as the MCP output contract.
 
-### Phase 2 — MCP `grep` replaces `code_grep` (READY)
+### Phase 2 — MCP `grep` replaces `code_grep` (IN REVIEW)
 
 Expected outcome: the advertised MCP catalog has one mixed-source `grep` tool;
 agents receive the same reads, pagination and truthful coverage as CLI users.
@@ -1206,19 +1206,31 @@ PROCEED with Phase 2. On 2026-09-29 the user required output quality before
 MCP; output PR #433 fulfilled that requirement and merged. On 2026-09-30,
 refreshed `origin/main` was `2f3d4fdc7c008623e89aa91558a690b23f0eb309`.
 PR #428 merged unified MCP `list`, retiring `code_files` and `docs_list`.
-Phase 2 has been revised to keep inventory on `list` and to correct the stale
-public code-reference mappings as part of the grep routing update. The merged
-core grep service and shared
-request/result/error/text helpers match this plan. MCP still uses the legacy
-adapter; `McpToolServices` and the public client entrypoint do not yet expose
-grep, exactly as Phase 2 expects. Existing MCP caller-abort errors are rethrown
-through `throwIfCallerCancellation`; the adapter preserves that convention,
-without assuming the current core grep service accepts a transport signal.
-The stable-guide parity exception and descriptor-only Claude/Codex eval
-commands remain supported. Public MCP is still pre-1.0 (`0.23.0`), consistent
-with the planned minor migration fragment. No other lane or hosted-server work
-was adopted, and no production implementation was started by this readiness
-check. Do not treat package release as hosted deployment.
+Phase 2 keeps inventory on `list` and corrects the stale public code-reference
+mappings. The MCP adapter now uses the merged core grep service and shared
+request/result/error/text helpers, requires `grepService` from providers, and
+exports its implementation through the public client entrypoint. It preserves
+caller cancellation without assuming the core service accepts a transport
+signal. The current released root and MCP versions are 0.24.0; the independent
+Phase 2 fragment requests minor impact for both artifacts. No hosted-server
+code, package release, or deployment is included.
+
+The Phase 2 branch was rebased onto `origin/main` at `8ae11a4` on 2026-09-30.
+Rebase conflicts in repository-target documentation and the public code
+reference kept newer list/read wording while updating grep to the new MCP
+tool. The first external review found missing INDEXING wait guidance, a root
+CLI/MCP request-and-JSON parity test, eval mock routing, and minor
+documentation errors; those are fixed. The rebased tree passes 5,134 unit
+tests, typecheck, build, plugin checks, public-package validation, CLI live
+smoke, and both built smoke suites. Production MCP smoke passed all unified
+grep calls, but the unrelated experimental research cohort later returned
+`PROTOCOL_ERROR`; a narrow replay reproduced that research error. Two prior
+full MCP smoke runs failed at a different experimental research step after
+the grep cohort passed. Focused production and dev two-page grep/read
+acceptance passed. Codex descriptor-only source and mixed-docs evals used
+grep then exact reads with high confidence; the Claude eval stopped before
+tool use with `authentication_failed`. These are verification limits, not
+deferred grep implementation. A clean external review and draft PR remain.
 
 After Phase 2 merges, move lasting decisions and migration/operational facts to
 `docs/implementation/unified-grep.md`, transfer any actual major deferred work
