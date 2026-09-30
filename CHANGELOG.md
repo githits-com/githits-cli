@@ -5,10 +5,10 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
-## [githits 0.24.0] - 2026-09-29
+## [githits 0.24.0] - 2026-09-30
 
-Minor release: adds unified CLI grep and improves exact read follow-ups across
-search, listing, and research results.
+Minor release: adds unified CLI grep and MCP listing, and improves exact read
+follow-ups across search, listing, and research results.
 
 ### Added
 
@@ -16,8 +16,9 @@ search, listing, and research results.
 
 ### Changed
 
+- **Unified MCP inventory browsing** - Replace the callable `code_files` and `docs_list` tools with one `list` tool for package, repository, and explicit site inventories. Its description retains both retired names for stale tool searches; legacy grouped CLI commands remain available. MCP hosts must provide `McpToolServices.listService`, and custom endpoints must implement `Query.list`. Default text includes the opaque `after` continuation when more entries are available.
 - **Claude plugin metadata** - Add the GitHits display name, publisher contact email, and publisher website to the generated Claude plugin manifest.
-- **Backend-owned read actions** - Search/status and docs lists emit canonical read commands using backend-selected targets, paths, selectors and bounds, preserving producer attribution and existing JSON shapes and caps. CLI commands safely handle dash-leading filenames; capped MCP continuations retain the whole remaining selection and served revision. Additive SDK metadata preserves custom-provider compatibility, and agent guidance tells callers to replay complete actions. Production descriptor support gates publication; the stable MCP guide and exact public skill copy ship in this release.
+- **Backend-owned read actions** - Search/status and inventory listings emit canonical read commands using backend-selected targets, paths, selectors and bounds, preserving producer attribution and existing JSON shapes and caps. CLI commands safely handle dash-leading filenames; capped MCP continuations retain the whole remaining selection and served revision. Additive SDK metadata preserves custom-provider compatibility, and agent guidance tells callers to replay complete actions. Production descriptor support gates publication; the stable MCP guide and exact public skill copy ship in this release.
 - **Grouped grep output** - Group unified CLI grep matches by file or page with aligned line numbers, native match highlighting and numbered copyable file/page locators and one source summary. Remove repeated rows, read footers and routine status scaffolding while retaining coverage warnings, every distinct evidence window and lossless JSON.
 - **Compact search results** - Omit repeated per-hit read commands from CLI and MCP search text; headers remain usable for reads and JSON retains exact follow-up actions.
 
@@ -29,13 +30,14 @@ search, listing, and research results.
 Hosted clients receive MCP changes after `@githits/mcp@0.24.0` adoption and
 deployment by `remote-mcp`.
 
-## [@githits/mcp 0.24.0] - 2026-09-29
+## [@githits/mcp 0.24.0] - 2026-09-30
 
-Coordinated release: improves exact read follow-ups and compact search text.
+Minor release: unifies MCP inventory browsing and improves exact read follow-ups.
 
 ### Changed
 
-- **Backend-owned read actions** - MCP search/status and docs lists emit backend-selected read targets, paths, selectors and bounds. Capped continuations retain the whole remaining selection and served revision; JSON shapes and caps remain stable. Additive SDK metadata preserves custom-provider compatibility, and the stable MCP guide tells agents to replay complete actions. Production descriptor support gates publication.
+- **Unified MCP inventory browsing** - Replace the callable `code_files` and `docs_list` tools with one `list` tool for package, repository, and explicit site inventories. Its description retains both retired names for stale tool searches. Hosts must provide `McpToolServices.listService`; `ListService` and `ListServiceImpl` are exported from `@githits/mcp/client`. Custom endpoints must implement `Query.list`. Default text includes the opaque `after` continuation when more entries are available.
+- **Backend-owned read actions** - MCP search/status and `list` emit backend-selected read targets, paths, selectors and bounds. Capped continuations retain the whole remaining selection and served revision; JSON shapes and caps remain stable. Additive SDK metadata preserves custom-provider compatibility, and the stable MCP guide tells agents to replay complete actions. Production descriptor support gates publication.
 - **Compact search results** - Omit repeated per-hit read commands from MCP search text; headers remain usable for reads and JSON retains exact follow-up actions.
 
 ### Fixed
