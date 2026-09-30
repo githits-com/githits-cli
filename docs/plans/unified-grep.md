@@ -1228,9 +1228,19 @@ grep calls, but the unrelated experimental research cohort later returned
 full MCP smoke runs failed at a different experimental research step after
 the grep cohort passed. Focused production and dev two-page grep/read
 acceptance passed. Codex descriptor-only source and mixed-docs evals used
-grep then exact reads with high confidence; the Claude eval stopped before
-tool use with `authentication_failed`. These are verification limits, not
-deferred grep implementation. A clean external review and draft PR remain.
+grep then exact reads with high confidence. The initial Claude eval lacked an
+injected credential and stopped before tool use with `authentication_failed`;
+this was not evidence of token expiry. The authenticated Keychain-backed
+rerun passed both workloads: source in 19.2 seconds with three MCP calls
+(quick_start and two grep calls), mixed docs in 13.4 seconds with four MCP
+calls (quick_start, grep, and repository/hosted-page reads). Both reported
+high confidence and no isolation violations; Claude token/cost telemetry is
+unavailable, and no graded answer-quality claim is made. Proof is retained at
+`/tmp/unified-grep-phase2-eval-claude-authenticated`.
+External review round 2 had no code findings; its two minor documentation
+corrections were applied. Draft PR #439 is open with passing PR CI. The
+experimental research smoke failure remains a verification limit, not deferred
+grep implementation.
 
 After Phase 2 merges, move lasting decisions and migration/operational facts to
 `docs/implementation/unified-grep.md`, transfer any actual major deferred work
