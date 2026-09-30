@@ -2,12 +2,14 @@
 
 ## Status and outcome
 
-**Status: OUTPUT FOLLOW-UP COMPLETE; WAITING FOR MERGE.** Phase 1 is merged.
-Output PR #433 has the approved Sources summary and numbered, copyable file/page
-locator headers. Requested main rebase and unified ReadTarget integration are
-verified. External round 3's sole cosmetic finding is fixed; internal closure
-review and required checks passed. The user-requested dim continuation footer is
-verified. MCP replacement waits for this PR's merge.
+**Status: CLI AND OUTPUT FOLLOW-UP MERGED; PHASE 2 NEEDS REPLAN.** Phase 1 and
+output PR #433 merged as `45b72120d1ae2810a3370da1ecd838259ac5b576`
+on 2026-09-29. The approved Sources summary, numbered copyable file/page
+locators, and dim continuation footer are present. Refreshed `origin/main`
+`2f3d4fdc7c008623e89aa91558a690b23f0eb309` also contains unified MCP
+`list` from PR #428; the remaining Phase 2 inventory-guidance assumption still
+names retired `code_files`. Replan that remaining guidance and its acceptance
+checks before MCP implementation.
 The sequence is CLI introduction, useful and compact CLI text, then replacement
 of the advertised MCP `code_grep` tool.
 
@@ -59,9 +61,9 @@ Canonical local evidence:
   backend evidence, not a fresh client-side production probe.
 - Client `docs/implementation/unified-read.md`,
   `docs/implementation/unified-list.md`, and `docs/plans/unified-list.md`
-  establish the CLI-first service/shared-helper/MCP migration pattern. MCP
-  `list` adoption remains a separate pending increment; grep must not assume it
-  has merged or migrate list in this work.
+  established the CLI-first service/shared-helper/MCP migration pattern at the
+  original 2026-09-28 inspection. MCP `list` subsequently merged in PR #428;
+  the historical pending-list assumption below no longer describes main.
 - `src/commands/code/grep.ts`, `packages/mcp/src/tools/grep-repo.ts`, and
   `packages/mcp/src/shared/grep-repo-{request,response,text}.ts` own legacy grep.
   It calls `CodeNavigationService.grepRepo`, not unified `Query.grep`.
@@ -498,7 +500,7 @@ They cover default zero-context pages without omissions; omission and other
 coverage shapes are regression cases, not additional budget benchmarks. No
 search-suite benchmark or debug-build timing is needed.
 
-### Phase 1 follow-up — useful, compact grep text (COMPLETE; WAITING FOR MERGE)
+### Phase 1 follow-up — useful, compact grep text (MERGED)
 
 Problem: the merged output treats backend occurrences as independent display
 blocks and repeats read commands and routine protocol fields. User-provided
@@ -1029,10 +1031,19 @@ Final continuation placement (2026-09-29; VERIFIED):
   JSON follow-up completing in 24.6s; both built smoke reruns pass. The
   original failed 60s request log is retained as root-cause evidence.
 
-Phase boundary: after this follow-up merges, run next-steps against refreshed
-main before MCP. Keep the same useful formatter as the MCP output contract.
+Phase boundary: output PR #433 merged at
+`45b72120d1ae2810a3370da1ecd838259ac5b576`. Its final verification
+passed 5,231 tests / 19,552 assertions across 227 files, authenticated
+production CLI smoke (156 steps), authenticated MCP smoke (65 steps), and the
+built smoke suites. The fixed mixed/repository captures measured 2,115/1,699
+`o200k_base` tokens, 73.7%/77.4% below the original output; these are size
+measurements, not agent-quality or latency claims. Main CI and agent-eval
+workflows passed for the merge commit. No new CLI or MCP package release is
+recorded: main remains at version 0.23.0 and the newest tags predate this
+merge. No hosted MCP adoption or deployment is recorded for this increment.
+Keep the same useful formatter as the MCP output contract.
 
-### Phase 2 — MCP `grep` replaces `code_grep` (WAITING FOR OUTPUT REFINEMENT MERGE)
+### Phase 2 — MCP `grep` replaces `code_grep` (PENDING REPLAN)
 
 Expected outcome: the advertised MCP catalog has one mixed-source `grep` tool;
 agents receive the same reads, pagination and truthful coverage as CLI users.
@@ -1128,11 +1139,14 @@ unified cursors into the legacy root.
 
 ## Phase boundary and completion
 
-Phase 1 boundary reorientation is complete at refreshed `origin/main`
+Phase 1 boundary reorientation was completed at `origin/main`
 `9f96f74319eeb718abef2969785a005ef4bef182`. The initial next-steps verdict was
-PROCEED with Phase 2. On 2026-09-29 the user rejected the default text output
-and required output quality before MCP. That requirement supersedes the
-earlier readiness verdict; output refinement must merge before Phase 2. The merged core grep service and shared
+PROCEED with Phase 2. On 2026-09-29 the user required output quality before
+MCP; output PR #433 fulfilled that requirement and merged. On 2026-09-30,
+refreshed `origin/main` was `2f3d4fdc7c008623e89aa91558a690b23f0eb309`.
+PR #428 merged unified MCP `list`, retiring `code_files` and `docs_list`;
+Phase 2's inventory-guidance assumption and related acceptance scope now need
+replanning. The merged core grep service and shared
 request/result/error/text helpers match this plan. MCP still uses the legacy
 adapter; `McpToolServices` and the public client entrypoint do not yet expose
 grep, exactly as Phase 2 expects. Existing MCP caller-abort errors are rethrown
