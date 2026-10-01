@@ -143,11 +143,9 @@ for (const operation of ["search", "search_status"] as const) {
 
     it("uses CLI seconds and MCP milliseconds while retaining interim hits", async () => {
       const { cli, mcp } = await responses(outcome("INDEXING"), false);
-      expect(cli).toContain(
-        "Next: githits search-status estimate-ref --wait 50",
-      );
+      expect(cli).toContain("githits search-status estimate-ref --wait 50");
       expect(mcp).toContain(
-        'Next: search_status search_ref="estimate-ref" wait_timeout_ms=50000',
+        'search_status search_ref="estimate-ref" wait_timeout_ms=50000',
       );
       expect(cli).toContain("[1]");
       expect(mcp).toContain("[1]");
@@ -186,15 +184,17 @@ for (const operation of ["search", "search_status"] as const) {
       // Passing undefined explicitly models an existing injected service provider.
       if (entries === undefined) delete value.progress!.indexingEstimates;
       const { cli, mcp } = await responses(value, false);
-      expect(cli).toContain("--wait 30");
-      expect(mcp).toContain("wait_timeout_ms=30000");
+      expect(cli).toContain("For updated results, run a new search.");
+      expect(mcp).toContain("For updated results, run a new search.");
+      expect(cli).not.toContain("githits search-status");
+      expect(mcp).not.toContain("search_status");
       const json = JSON.parse((await responses(value, true)).cli);
       if (entries === undefined)
         expect(json.progress).not.toHaveProperty("indexingEstimates");
       else expect(json.progress.indexingEstimates).toEqual(entries);
     });
 
-    it("keeps completed evidence retrieval at the default wait", async () => {
+    it("uses completed evidence now and requires a new search for updates", async () => {
       const pending = outcome("INDEXING");
       if (!pending.result) throw new Error("expected result fixture");
       const completed: UnifiedSearchOutcome = {
@@ -209,8 +209,10 @@ for (const operation of ["search", "search_status"] as const) {
         },
       };
       const { cli, mcp } = await responses(completed, false);
-      expect(cli).toContain("--wait 30");
-      expect(mcp).toContain("wait_timeout_ms=30000");
+      expect(cli).toContain("For updated results, run a new search.");
+      expect(mcp).toContain("For updated results, run a new search.");
+      expect(cli).not.toContain("githits search-status");
+      expect(mcp).not.toContain("search_status");
       const final = {
         ...completed,
         result: { ...completed.result, evidenceNotice: undefined },

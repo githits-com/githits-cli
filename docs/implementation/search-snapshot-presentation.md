@@ -65,8 +65,8 @@ searched a PyPI artifact, so it is not a controlled speed/token comparison.
   packages/mcp/src/shared/unified-search-snapshot-text.test.ts
   packages/mcp/src/shared/unified-search-response.test.ts
   packages/mcp/src/tools/search.test.ts packages/mcp/src/tools/search-status.test.ts
-  src/commands/search.test.ts src/tools/search-parity.test.ts`: 442 pass,
-  0 fail, 1,705 expectations. Tests render both initial and status text, exercise
+  src/commands/search.test.ts src/tools/search-parity.test.ts`: 447 pass,
+  0 fail, 1,744 expectations. Tests render both initial and status text, exercise
   the actual CLI/MCP adapters, preserve JSON follow-up capping, and prove text
   retains the backend-selected pinned read arguments unchanged.
 - Changed TypeScript files pass Biome; `bun run typecheck`, `bun run build`, and
@@ -94,3 +94,10 @@ searched a PyPI artifact, so it is not a controlled speed/token comparison.
   The workload specified initial code lookup, so this is follow-up behavior
   evidence, not free tool-discovery evidence or an independently graded quality
   result. No before/after speed or token claim is made.
+
+The public `githits-code` reference also corrects continuation advice using the
+existing released read/wait contract: visible hits may be used now, an active
+wait depends on needing updates, and completed references are stored. It does
+not describe the new formatter wording or introduce unreleased commands/fields.
+No public quick-start builder or embedded guide changes, transport changes, or
+release/version changes are involved.
