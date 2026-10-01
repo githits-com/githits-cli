@@ -5,6 +5,29 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.25.1] - 2026-10-01
+
+### Added
+
+- **Explicit request session identifiers** - Set `GITHITS_SESSION_ID` to an
+  identifier matching `[A-Za-z0-9_-]{1,64}` to override terminal detection in
+  CLI and local MCP request headers. Valid identifiers are forwarded unchanged
+  without hashing; invalid values fail local MCP startup and CLI requests with
+  a configuration error. Unset the variable to retain hashed automatic detection.
+
+## [@githits/mcp 0.25.1] - 2026-10-01
+
+### Added
+
+- **Explicit request session identifiers** - The `@githits/mcp/client` header
+  builder honors `GITHITS_SESSION_ID` matching `[A-Za-z0-9_-]{1,64}`, forwarding
+  valid identifiers unchanged without hashing. Exports `getEnvSessionId` and
+  `SessionIdConfigError`; invalid overrides produce non-retryable configuration
+  errors. Unset the variable to retain hashed automatic detection.
+
+Hosted clients receive these changes after adoption and deployment by
+`remote-mcp`; local environment variables do not configure hosted connections.
+
 ## [githits 0.25.0] - 2026-10-01
 
 Minor release: replaces local MCP `code_grep` with unified source and
