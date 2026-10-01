@@ -45,7 +45,7 @@ describe("registerUnifiedSearchCommands", () => {
       statusCommand?.helpInformation().replace(/\s+/g, " ") ?? "";
     expect(statusHelp).toContain("usable hits while background work continues");
     expect(statusHelp).toContain("serveable subset");
-    expect(statusHelp).toContain("when updated results");
+    expect(statusHelp).toContain("and updated results matter");
     expect(statusHelp).not.toContain(
       "completed result with an evidence notice",
     );

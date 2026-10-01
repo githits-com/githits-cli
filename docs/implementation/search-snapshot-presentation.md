@@ -42,6 +42,10 @@ different commits are disclosed independently from indexing state. Only
 kind `repo_default_branch` or `repo_head` establish prior HEAD evidence. Same-SHA
 artifact refreshes and explicit branch/tag/commit intents do not qualify.
 `freshnessReason=requested_ref_indexing` supplies the requested-ref indexing fact.
+A searched source with `resultCount=0` also discloses its known served commit,
+so an empty lookup is not presented as evidence about requested HEAD. That
+source's own provenance needs no borrowed hit; it does not qualify for prior-HEAD
+use/read advice. A withheld/unsearched source does not establish searched evidence.
 Backend notice prose is not parsed as state or duplicated in the text.
 
 `completed=false` means the search is still active, not that visible hits are
@@ -118,3 +122,21 @@ its sole CLI search failed at unavailable keychain access in the isolated home;
 no snapshot output was observed. Final answers, tool traces, and metrics were
 inspected for both, and neither emitted an isolation-violations artifact. No
 independent answer-quality grading or comparative performance claim is made.
+
+External round 1 closure: the zero-hit provenance omission was valid. The shared
+projection had coupled evidence disclosure to hit-based action proof; it now
+retains a searched pair's own served commit when its count is explicitly zero,
+without qualifying it for prior-HEAD read advice. The bounded scan covered source
+readiness, actual-hit attribution, withholding, initial/status rendering, terminal
+continuation, adapter normalization, and related docs. Empty active and all four
+terminal states retain commit disclosure; withheld sources and counts that cannot
+prove an empty searched pair do not. Bare request labels with historical HEAD
+served aliases are exercised through actual CLI/MCP initial/status adapters,
+including JSON parity. CLI help and continuation docs were also rewrapped and the
+repeated condition removed. No infrastructure, new state, or product change was
+needed.
+
+Round 2 closure validation: the ten-file focused command above plus
+`src/commands/search-registration.test.ts` passes 459 tests with 1,880 expectations.
+`bun run typecheck`, both root/MCP builds, and both required dev smoke commands
+also pass after the fixes; the smoke authentication limitations remain as stated.

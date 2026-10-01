@@ -240,6 +240,57 @@ describe("snapshot search text received by agents", () => {
     expect(both(payload)[0]).not.toContain("using commit:");
   });
 
+  it.each(["INDEXING", "COMPLETED", "DEFERRED", "TIMEOUT", "FAILED"])(
+    "discloses the searched commit for zero-hit %s pairs without use advice",
+    (status) => {
+      const payload = snapshot();
+      payload.results = [];
+      payload.sourceStatus![0]!.resultCount = 0;
+      payload.progress!.status = status;
+      for (const text of both(payload)) {
+        expect(text).toContain(
+          "using commit: github:anomalyco/opencode@bbd72fb8",
+        );
+        expect(text).toContain("requested HEAD resolves to a different commit");
+        expect(text).toContain("HEAD is indexing");
+        expect(text).not.toContain("Next: use these hits");
+        expect(text).not.toContain("read target=");
+        expect(text).not.toContain("If fresh HEAD matters");
+        if (status === "INDEXING")
+          expect(text).toContain("Next: search_status");
+        else {
+          expect(text).toContain("rerun search later");
+          expect(text).not.toContain("search_status");
+        }
+      }
+    },
+  );
+
+  it("does not disclose served evidence for a withheld zero-hit pair", () => {
+    const payload = snapshot();
+    payload.results = [];
+    payload.sourceStatus![0]!.resultCount = 0;
+    payload.sourceStatus![0]!.codeIndexState = "PENDING";
+    // Withheld pairs clear served provenance; do not manufacture it.
+    resolution(payload).served = undefined;
+    for (const text of both(payload))
+      expect(text).not.toContain("using commit:");
+  });
+
+  it("attributes bare request labels alongside a historical served HEAD alias", () => {
+    const payload = snapshot();
+    const bareTarget = "github:anomalyco/opencode";
+    payload.sourceStatus![0]!.targetLabel = bareTarget;
+    payload.results[0]!.target = bareTarget;
+    payload.results[0]!.servedTarget = target;
+    for (const text of both(payload)) {
+      expect(text).toContain(
+        "using commit: github:anomalyco/opencode@bbd72fb8",
+      );
+      expect(text).toContain("If fresh HEAD matters");
+    }
+  });
+
   it.each([0, undefined, 1])(
     "does not borrow another target's same-repo/commit hits (source count=%s)",
     (resultCount) => {
@@ -267,10 +318,17 @@ describe("snapshot search text received by agents", () => {
         },
       });
       for (const text of both(payload)) {
-        expect(text).not.toContain("using commit:");
-        expect(text).not.toContain(
-          "requested HEAD resolves to a different commit",
-        );
+        if (resultCount === 0) {
+          expect(text).toContain("using commit:"); // Its own zero-hit search provenance.
+          expect(text).toContain(
+            "requested HEAD resolves to a different commit",
+          );
+        } else {
+          expect(text).not.toContain("using commit:");
+          expect(text).not.toContain(
+            "requested HEAD resolves to a different commit",
+          );
+        }
         expect(text).not.toContain("If fresh HEAD matters");
         expect(text).toContain("Next: use these hits");
         expect(text).toContain(explicitTarget);

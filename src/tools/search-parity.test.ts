@@ -677,148 +677,152 @@ describe("S2b readiness", () => {
 });
 
 describe("usable snapshot presentation parity", () => {
-  it("CLI/MCP initial and status prioritize a pinned read and preserve JSON", async () => {
-    if (defaultUnifiedSearchOutcome.state !== "completed")
-      throw new Error("expected completed fixture");
-    const original = defaultUnifiedSearchOutcome.result;
-    const repoUrl = "https://github.com/anomalyco/opencode";
-    const servedSha = "bbd72fb8b0bb6de580d2041a0150016227c63ac0";
-    const requestedSha = "0112a92c416f5ad833d96e7a8308441f0a875d94";
-    const target = "github:anomalyco/opencode@HEAD";
-    const path = "packages/tui/src/routes/session/index.tsx";
-    const outcome: UnifiedSearchOutcome = {
-      state: "incomplete",
-      completed: false,
-      searchRef: "snapshot-ref",
-      progress: {
-        ...defaultUnifiedSearchOutcome.progress!,
-        status: "INDEXING",
-        indexingEstimates: [
+  it.each(["github:anomalyco/opencode@HEAD", "github:anomalyco/opencode"])(
+    "CLI/MCP initial and status prioritize a pinned read and preserve JSON: %s",
+    async (target) => {
+      if (defaultUnifiedSearchOutcome.state !== "completed")
+        throw new Error("expected completed fixture");
+      const original = defaultUnifiedSearchOutcome.result;
+      const repoUrl = "https://github.com/anomalyco/opencode";
+      const servedSha = "bbd72fb8b0bb6de580d2041a0150016227c63ac0";
+      const requestedSha = "0112a92c416f5ad833d96e7a8308441f0a875d94";
+      const servedTarget = "github:anomalyco/opencode@HEAD";
+      const path = "packages/tui/src/routes/session/index.tsx";
+      const outcome: UnifiedSearchOutcome = {
+        state: "incomplete",
+        completed: false,
+        searchRef: "snapshot-ref",
+        progress: {
+          ...defaultUnifiedSearchOutcome.progress!,
+          status: "INDEXING",
+          indexingEstimates: [
+            {
+              kind: "REPOSITORY",
+              targets: [target],
+              repositoryUrl: repoUrl,
+              estimate: { upperSeconds: 120 },
+            },
+          ],
+        },
+        result: {
+          ...original,
+          partialResults: false,
+          evidenceNotice: "Snapshot evidence may change.",
+          results: [
+            {
+              id: "snapshot",
+              resultType: "REPOSITORY_CODE",
+              targetLabel: target,
+              servedTargetLabel: servedTarget,
+              locator: {
+                repoUrl,
+                commitSha: servedSha,
+                gitRef: servedSha,
+                filePath: path,
+                startLine: 177,
+                endLine: 187,
+              },
+              readTarget: {
+                target: "github:anomalyco/opencode@bbd72fb8",
+                path,
+                startLine: 177,
+                endLine: 1362,
+              },
+            },
+          ],
+          sourceStatus: [
+            {
+              ...original.sourceStatus[0]!,
+              targetLabel: target,
+              servedTargetLabel: servedTarget,
+              codeIndexState: "STALE",
+              targetResolution: {
+                requested: { kind: "repo_default_branch" },
+                resolvedRequested: { gitRef: "HEAD", commitSha: requestedSha },
+                served: { repoUrl, gitRef: "HEAD", commitSha: servedSha },
+                freshness: "fallback_recent",
+                freshnessReason: "requested_ref_indexing",
+                availableVersions: [],
+                availableRefs: [],
+              },
+            },
+          ],
+        },
+      };
+      const service = createMockCodeNavigationService({
+        search: mock(() => Promise.resolve(outcome)),
+        searchStatus: mock(() => Promise.resolve(outcome)),
+      });
+      const cli = await cliTextForOutcome(outcome);
+      const mcp = await mcpTextForOutcome(outcome);
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      let cliStatus: string;
+      try {
+        await searchStatusAction(
+          "snapshot-ref",
+          { wait: "0" },
           {
-            kind: "REPOSITORY",
-            targets: [target],
-            repositoryUrl: repoUrl,
-            estimate: { upperSeconds: 120 },
+            codeNavigationService: service,
+            codeNavigationUrl: "https://nav.example.com",
+            hasValidToken: true,
+            mcpUrl: "https://mcp.example.com",
           },
-        ],
-      },
-      result: {
-        ...original,
+        );
+        cliStatus = String(log.mock.calls[0]?.[0]);
+      } finally {
+        log.mockRestore();
+      }
+      const statusTool = createParityMcpTool("search_status", {
+        codeNavigationService: service,
+      });
+      const mcpStatus = await statusTool.handler(
+        { search_ref: "snapshot-ref", wait_timeout_ms: 0 },
+        {},
+      );
+      expect(cliStatus).toBe(cli);
+      expect(mcpStatus.content[0]?.text).toBe(mcp);
+      for (const text of [
+        cli,
+        mcp,
+        cliStatus,
+        mcpStatus.content[0]?.text ?? "",
+      ]) {
+        expect(text).toContain(
+          "using commit: github:anomalyco/opencode@bbd72fb8",
+        );
+        expect(text).toContain("Next: use these hits");
+        expect(text).not.toContain("Next: search_status");
+        expect(text).not.toContain("Next: githits search-status");
+        expect(text).toContain("If fresh HEAD matters");
+      }
+      expect(mcp).toContain(
+        `read target="github:anomalyco/opencode@bbd72fb8" path="${path}" start_line=177 end_line=1362`,
+      );
+      expect(cli).toContain(
+        `githits read 'github:anomalyco/opencode@bbd72fb8' '${path}' --lines 177-1362`,
+      );
+      const json = await cliJsonForOutcome(outcome);
+      expect(json).toEqual(await mcpJsonForOutcome(outcome));
+      expect(json).toMatchObject({
+        completed: false,
         partialResults: false,
-        evidenceNotice: "Snapshot evidence may change.",
         results: [
           {
-            id: "snapshot",
-            resultType: "REPOSITORY_CODE",
-            targetLabel: target,
-            locator: {
-              repoUrl,
-              commitSha: servedSha,
-              gitRef: servedSha,
-              filePath: path,
-              startLine: 177,
-              endLine: 187,
-            },
-            readTarget: {
-              target: "github:anomalyco/opencode@bbd72fb8",
-              path,
-              startLine: 177,
-              endLine: 1362,
-            },
+            locator: { commitSha: servedSha },
+            followUp: `read target="github:anomalyco/opencode@bbd72fb8" path="${path}" start_line=177 end_line=476`,
           },
         ],
         sourceStatus: [
           {
-            ...original.sourceStatus[0]!,
-            targetLabel: target,
-            servedTargetLabel: target,
-            codeIndexState: "STALE",
             targetResolution: {
-              requested: { kind: "repo_default_branch" },
-              resolvedRequested: { gitRef: "HEAD", commitSha: requestedSha },
-              served: { repoUrl, gitRef: "HEAD", commitSha: servedSha },
-              freshness: "fallback_recent",
-              freshnessReason: "requested_ref_indexing",
-              availableVersions: [],
-              availableRefs: [],
+              served: { commitSha: servedSha },
+              resolvedRequested: { commitSha: requestedSha },
             },
           },
         ],
-      },
-    };
-    const service = createMockCodeNavigationService({
-      search: mock(() => Promise.resolve(outcome)),
-      searchStatus: mock(() => Promise.resolve(outcome)),
-    });
-    const cli = await cliTextForOutcome(outcome);
-    const mcp = await mcpTextForOutcome(outcome);
-    const log = spyOn(console, "log").mockImplementation(() => {});
-    let cliStatus: string;
-    try {
-      await searchStatusAction(
-        "snapshot-ref",
-        { wait: "0" },
-        {
-          codeNavigationService: service,
-          codeNavigationUrl: "https://nav.example.com",
-          hasValidToken: true,
-          mcpUrl: "https://mcp.example.com",
-        },
-      );
-      cliStatus = String(log.mock.calls[0]?.[0]);
-    } finally {
-      log.mockRestore();
-    }
-    const statusTool = createParityMcpTool("search_status", {
-      codeNavigationService: service,
-    });
-    const mcpStatus = await statusTool.handler(
-      { search_ref: "snapshot-ref", wait_timeout_ms: 0 },
-      {},
-    );
-    expect(cliStatus).toBe(cli);
-    expect(mcpStatus.content[0]?.text).toBe(mcp);
-    for (const text of [
-      cli,
-      mcp,
-      cliStatus,
-      mcpStatus.content[0]?.text ?? "",
-    ]) {
-      expect(text).toContain(
-        "using commit: github:anomalyco/opencode@bbd72fb8",
-      );
-      expect(text).toContain("Next: use these hits");
-      expect(text).not.toContain("Next: search_status");
-      expect(text).not.toContain("Next: githits search-status");
-      expect(text).toContain("If fresh HEAD matters");
-    }
-    expect(mcp).toContain(
-      `read target="github:anomalyco/opencode@bbd72fb8" path="${path}" start_line=177 end_line=1362`,
-    );
-    expect(cli).toContain(
-      `githits read 'github:anomalyco/opencode@bbd72fb8' '${path}' --lines 177-1362`,
-    );
-    const json = await cliJsonForOutcome(outcome);
-    expect(json).toEqual(await mcpJsonForOutcome(outcome));
-    expect(json).toMatchObject({
-      completed: false,
-      partialResults: false,
-      results: [
-        {
-          locator: { commitSha: servedSha },
-          followUp: `read target="github:anomalyco/opencode@bbd72fb8" path="${path}" start_line=177 end_line=476`,
-        },
-      ],
-      sourceStatus: [
-        {
-          targetResolution: {
-            served: { commitSha: servedSha },
-            resolvedRequested: { commitSha: requestedSha },
-          },
-        },
-      ],
-    });
-    // JSON keeps the existing capped follow-up contract; the text's practical
-    // example uses the backend selection unchanged.
-  });
+      });
+      // JSON keeps the existing capped follow-up contract; the text's practical
+      // example uses the backend selection unchanged.
+    },
+  );
 });

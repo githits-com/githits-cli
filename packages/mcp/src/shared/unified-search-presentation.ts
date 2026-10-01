@@ -698,8 +698,13 @@ function projectTrustLimits(
             sourceTargets.includes(hit.requestedTarget ?? hit.target),
         ),
     );
+    // A searched zero-hit pair still discloses what commit was searched.
+    // Returned hits are required separately for prior-HEAD use/read advice.
+    const searchedRepositorySnapshot =
+      hasRepositoryHits ||
+      (entry.resultCount === 0 && sourceState(entry) === "searched");
     if (
-      hasRepositoryHits &&
+      searchedRepositorySnapshot &&
       servedSha &&
       served?.repoUrl &&
       (freshness !== "current" ||
@@ -731,6 +736,7 @@ function projectTrustLimits(
         requestedRef,
         requestedCommitDiffers,
         priorHead:
+          hasRepositoryHits &&
           headIntent &&
           freshness === "fallback_recent" &&
           requestedCommitDiffers,
