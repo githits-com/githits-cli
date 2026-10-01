@@ -33,16 +33,22 @@ describe("registerUnifiedSearchCommands", () => {
     );
     expect(searchHelp).toContain("stale-but-serveable evidence");
     expect(searchHelp).toContain("serveable subset");
-    expect(searchHelp).toContain("completed result with an evidence notice");
+    expect(searchHelp).toContain("only when updated results matter");
+    expect(searchHelp).not.toContain(
+      "completed result with an evidence notice",
+    );
 
     const statusCommand = program.commands.find(
       (command) => command.name() === "search-status",
     );
     const statusHelp =
       statusCommand?.helpInformation().replace(/\s+/g, " ") ?? "";
-    expect(statusHelp).toContain("interim hits");
+    expect(statusHelp).toContain("usable hits while background work continues");
     expect(statusHelp).toContain("serveable subset");
-    expect(statusHelp).toContain("completed result with an evidence notice");
+    expect(statusHelp).toContain("when updated results");
+    expect(statusHelp).not.toContain(
+      "completed result with an evidence notice",
+    );
     expect(statusHelp).toContain("unrecognized statuses are not polled");
   });
 

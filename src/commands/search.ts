@@ -167,11 +167,12 @@ GitHub also accepts github.com/org/repo and HTTP.
 Exact documentation sites use site:<host[/path]>. Missing or
 ambiguous sites may return advisory site targets to retry explicitly.
 Output uses canonical provider:path@ref formatting. Structured flags are
-AND-combined with the query. Complete by default. Active PENDING, INDEXING, or
+AND-combined with the query. Search all runnable target/source pairs by default.
+Active PENDING, INDEXING, or
 SEARCHING progress returns a searchRef. Active progress may include
 stale-but-serveable evidence. Follow an explicit \`githits search-status\`
-action emitted for that active reference or for a completed result with an
-evidence notice. DEFERRED, TIMEOUT, and FAILED are terminal; unrecognized
+action emitted for that active reference only when updated results matter.
+Use visible hits for lookup now. COMPLETED, DEFERRED, TIMEOUT, and FAILED are terminal; unrecognized
 statuses are not polled. Preserve any disclosed evidence and follow the rendered
 new-search action. Missing or ambiguous sites instead provide
 terminal recovery guidance without a searchRef. Use \`githits example\` for
@@ -199,8 +200,8 @@ const SEARCH_STATUS_DESCRIPTION = `Check the status of a unified search started 
 
 Pass the searchRef only when githits search explicitly supplies this follow-up,
 only for active PENDING, INDEXING, or SEARCHING progress when updated results
-matter. Visible hits can be used for lookup now. This can return progress, hits covering
-every runnable target/source pair while refresh continues, partial hits from a
+matter. Visible hits can be used for lookup now. This can return progress,
+usable hits while background work continues, partial hits from a
 serveable subset when the original request used --allow-partial, or final
 results. COMPLETED, DEFERRED, TIMEOUT, and FAILED are terminal; unrecognized statuses are
 not polled; follow the rendered new-search action instead. By default the command
