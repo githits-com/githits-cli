@@ -1724,8 +1724,8 @@ describe("skill setup", () => {
     const source = "---\nname: githits-mcp\n---\nGuide\n";
     for (const installed of [
       source,
-      source + "User edit\n",
-      renderManagedSkillContent(source + "Other guide\n", "99.0.0"),
+      `${source}User edit\n`,
+      renderManagedSkillContent(`${source}Other guide\n`, "99.0.0"),
     ]) {
       const fs = createMockFileSystemService({
         readFile: mock(async (path: string) =>
