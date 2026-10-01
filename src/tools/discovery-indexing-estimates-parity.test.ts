@@ -184,10 +184,8 @@ for (const operation of ["search", "search_status"] as const) {
       // Passing undefined explicitly models an existing injected service provider.
       if (entries === undefined) delete value.progress!.indexingEstimates;
       const { cli, mcp } = await responses(value, false);
-      expect(cli).toContain("For updated results, run a new search.");
-      expect(mcp).toContain("For updated results, run a new search.");
-      expect(cli).not.toContain("githits search-status");
-      expect(mcp).not.toContain("search_status");
+      expect(cli).toContain("--wait 30");
+      expect(mcp).toContain("wait_timeout_ms=30000");
       const json = JSON.parse((await responses(value, true)).cli);
       if (entries === undefined)
         expect(json.progress).not.toHaveProperty("indexingEstimates");
