@@ -1,5 +1,5 @@
-import { describe, expect, it, mock } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { describe, expect, it, mock, spyOn } from "bun:test";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -25,6 +25,11 @@ import type {
   ServerRequest,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Command } from "commander";
+import history from "../services/fixtures/mcp-skill-history.json";
+import {
+  inspectSkillContent,
+  renderManagedSkillContent,
+} from "../services/mcp-skill-content.js";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
@@ -33,6 +38,7 @@ import {
   createMockPackageIntelligenceService,
   createMockReadService,
   createMockResolveTargetService,
+  withTestEnvVar,
 } from "../services/test-helpers.js";
 import {
   flushTelemetry,
@@ -56,11 +62,22 @@ async function withConfigHome<T>(
     configHomeEnvKey === "APPDATA" ? "XDG_CONFIG_HOME" : "APPDATA";
   const previous = process.env[configHomeEnvKey];
   const previousAlternate = process.env[alternateConfigHomeEnvKey];
+  const previousHome = process.env.HOME;
+  const previousProfile = process.env.USERPROFILE;
+  const previousCwd = process.cwd();
+  process.env.HOME = configHome;
+  process.env.USERPROFILE = configHome;
+  process.chdir(configHome);
   process.env[configHomeEnvKey] = configHome;
   delete process.env[alternateConfigHomeEnvKey];
   try {
     return await fn();
   } finally {
+    process.chdir(previousCwd);
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
+    if (previousProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = previousProfile;
     if (previous === undefined) delete process.env[configHomeEnvKey];
     else process.env[configHomeEnvKey] = previous;
     if (previousAlternate === undefined)
@@ -493,6 +510,264 @@ describe("startMcpServer", () => {
 });
 
 describe("createMcpCommandStartup", () => {
+  it("refreshes an unchanged existing skill before returning startup services", async () => {
+    const isolated = await mkdtemp(join(tmpdir(), "githits-mcp-skill-start-"));
+    const skillDir = join(isolated, ".agents", "skills", "githits-mcp");
+    await mkdir(skillDir, { recursive: true });
+    const target = join(skillDir, "SKILL.md");
+    await writeFile(target, history[0]?.content ?? "");
+    try {
+      await withTestEnvVar("GITHITS_API_TOKEN", "test-startup-token", () =>
+        withTestEnvVar("GITHITS_DISABLE_SKILL_UPDATE", undefined, () =>
+          withConfigHome(isolated, async () => {
+            const startup = await createMcpCommandStartup();
+            expect(startup.services).toBeDefined();
+            expect(
+              inspectSkillContent(await readFile(target, "utf8")),
+            ).toMatchObject({ kind: "managed" });
+          }),
+        ),
+      );
+    } finally {
+      await rm(isolated, { recursive: true, force: true });
+    }
+  });
+
+  it.each(["environment", "config"])(
+    "%s opt-out preserves a legacy installed skill during startup",
+    async (policy) => {
+      const isolated = await mkdtemp(join(tmpdir(), "githits-mcp-opt-out-"));
+      const skillDir = join(isolated, ".agents", "skills", "githits-mcp");
+      await mkdir(skillDir, { recursive: true });
+      const target = join(skillDir, "SKILL.md");
+      const original = history[0]?.content ?? "";
+      await writeFile(target, original);
+      await mkdir(join(isolated, "githits"));
+      await writeFile(
+        join(isolated, "githits", "config.toml"),
+        `[skills]\nauto_update = ${policy === "config" ? "false" : "true"}\n`,
+      );
+      const warnings: string[] = [];
+      try {
+        await withTestEnvVar("GITHITS_API_TOKEN", "test-startup-token", () =>
+          withTestEnvVar(
+            "GITHITS_DISABLE_SKILL_UPDATE",
+            policy === "environment" ? "1" : undefined,
+            () =>
+              withConfigHome(isolated, async () => {
+                await createMcpCommandStartup(
+                  {},
+                  { warn: (message) => warnings.push(message) },
+                );
+                expect(await readFile(target, "utf8")).toBe(original);
+                expect(warnings).toEqual([]);
+              }),
+          ),
+        );
+      } finally {
+        await rm(isolated, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("a maintenance policy parse failure never breaks env-token experimental startup", async () => {
+    const isolated = await mkdtemp(join(tmpdir(), "githits-mcp-skill-policy-"));
+    await mkdir(join(isolated, "githits"));
+    await writeFile(join(isolated, "githits", "config.toml"), "[skills\n");
+    const warnings: string[] = [];
+    try {
+      await withTestEnvVar("GITHITS_API_TOKEN", "test-startup-token", () =>
+        withTestEnvVar("GITHITS_DISABLE_SKILL_UPDATE", undefined, () =>
+          withConfigHome(isolated, async () => {
+            const startup = await createMcpCommandStartup(
+              { experimentalTools: true },
+              { warn: (message) => warnings.push(message) },
+            );
+            expect(startup.experimentalPolicy.tools).toBe(true);
+            expect(warnings).toEqual([
+              "GitHits MCP skill maintenance skipped: cannot read skill update policy.",
+            ]);
+          }),
+        ),
+      );
+    } finally {
+      await rm(isolated, { recursive: true, force: true });
+    }
+  });
+
+  it("warns on newer different guidance and stays silent on identical newer guidance", async () => {
+    const isolated = await mkdtemp(join(tmpdir(), "githits-mcp-newer-"));
+    const skillDir = join(isolated, ".agents", "skills", "githits-mcp");
+    await mkdir(skillDir, { recursive: true });
+    const target = join(skillDir, "SKILL.md");
+    const source = await readFile(
+      new URL("../../skills/githits-mcp/SKILL.md", import.meta.url),
+      "utf8",
+    );
+    const warnings: string[] = [];
+    try {
+      await withTestEnvVar("GITHITS_API_TOKEN", "test-startup-token", () =>
+        withTestEnvVar("GITHITS_DISABLE_SKILL_UPDATE", undefined, () =>
+          withConfigHome(isolated, async () => {
+            for (const payload of [history[0]?.content ?? "", source]) {
+              const installed = renderManagedSkillContent(payload, "99.0.0");
+              await writeFile(target, installed);
+              await createMcpCommandStartup(
+                {},
+                { warn: (message) => warnings.push(message) },
+              );
+              expect(await readFile(target, "utf8")).toBe(installed);
+            }
+            expect(warnings).toHaveLength(1);
+            expect(warnings[0]).toContain("99.0.0");
+            expect(warnings[0]).toContain("preserving the newer shared skill");
+          }),
+        ),
+      );
+    } finally {
+      await rm(isolated, { recursive: true, force: true });
+    }
+  });
+
+  it("validates ordinary startup before attempting skill maintenance", async () => {
+    const isolated = await mkdtemp(
+      join(tmpdir(), "githits-mcp-before-update-"),
+    );
+    await mkdir(join(isolated, "githits"));
+    await writeFile(
+      join(isolated, "githits", "config.toml"),
+      "[experimental\n",
+    );
+    const updateSkill = mock(async () => {});
+    try {
+      await withConfigHome(isolated, async () => {
+        await expect(
+          createMcpCommandStartup({}, { updateSkill }),
+        ).rejects.toThrow("Cannot parse GitHits config");
+        expect(updateSkill).not.toHaveBeenCalled();
+      });
+    } finally {
+      await rm(isolated, { recursive: true, force: true });
+    }
+  });
+
+  it("both startup routes finish maintenance before connection", async () => {
+    const isolated = await mkdtemp(join(tmpdir(), "githits-mcp-routes-"));
+    const stdoutTTY = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
+    const events: string[] = [];
+    try {
+      Object.defineProperty(process.stdout, "isTTY", {
+        configurable: true,
+        value: false,
+      });
+      await withTestEnvVar("GITHITS_API_TOKEN", "test-startup-token", () =>
+        withConfigHome(isolated, async () => {
+          for (const args of [["mcp", "start"], ["mcp"]]) {
+            const program = new Command();
+            registerMcpCommand(program, {
+              createStartup: (options) =>
+                createMcpCommandStartup(options, {
+                  updateSkill: async () => {
+                    events.push("maintenance");
+                  },
+                }),
+              startServer: async () => {
+                events.push("connect");
+              },
+            });
+            await program.parseAsync(["node", "test", ...args]);
+          }
+        }),
+      );
+      expect(events).toEqual([
+        "maintenance",
+        "connect",
+        "maintenance",
+        "connect",
+      ]);
+    } finally {
+      if (stdoutTTY) Object.defineProperty(process.stdout, "isTTY", stdoutTTY);
+      else delete (process.stdout as { isTTY?: boolean }).isTTY;
+      await rm(isolated, { recursive: true, force: true });
+    }
+  });
+
+  it("help and TTY instructions create no startup or maintenance", async () => {
+    const stdoutTTY = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
+    const stdinTTY = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
+    const createStartup = mock(async () => {
+      throw new Error("startup must not run");
+    });
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      Object.defineProperty(process.stdout, "isTTY", {
+        configurable: true,
+        value: true,
+      });
+      Object.defineProperty(process.stdin, "isTTY", {
+        configurable: true,
+        value: true,
+      });
+      for (const args of [
+        ["mcp"],
+        ["mcp", "--help"],
+        ["mcp", "start", "--help"],
+      ]) {
+        const program = new Command()
+          .exitOverride()
+          .configureOutput({ writeOut: () => {}, writeErr: () => {} });
+        registerMcpCommand(program, { createStartup });
+        if (args.includes("--help"))
+          await expect(
+            program.parseAsync(["node", "test", ...args]),
+          ).rejects.toMatchObject({ code: "commander.helpDisplayed" });
+        else await program.parseAsync(["node", "test", ...args]);
+      }
+      expect(createStartup).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+      for (const [stream, descriptor] of [
+        [process.stdout, stdoutTTY],
+        [process.stdin, stdinTTY],
+      ] as const) {
+        if (descriptor) Object.defineProperty(stream, "isTTY", descriptor);
+        else delete (stream as { isTTY?: boolean }).isTTY;
+      }
+    }
+  });
+
+  it("policy warnings use stderr and still allow connection", async () => {
+    const isolated = await mkdtemp(join(tmpdir(), "githits-mcp-warn-"));
+    await mkdir(join(isolated, "githits"));
+    await writeFile(
+      join(isolated, "githits", "config.toml"),
+      '[skills]\nauto_update = "private-value"\n',
+    );
+    const stderr = spyOn(console, "error").mockImplementation(() => {});
+    const stdout = spyOn(console, "log").mockImplementation(() => {});
+    const startServer = mock(async () => {});
+    try {
+      await withTestEnvVar("GITHITS_API_TOKEN", "test-startup-token", () =>
+        withTestEnvVar("GITHITS_DISABLE_SKILL_UPDATE", undefined, () =>
+          withConfigHome(isolated, async () => {
+            const program = new Command();
+            registerMcpCommand(program, { startServer });
+            await program.parseAsync(["node", "test", "mcp", "start"]);
+          }),
+        ),
+      );
+      expect(startServer).toHaveBeenCalledTimes(1);
+      expect(stderr).toHaveBeenCalledWith(
+        "GitHits MCP skill maintenance skipped: cannot read skill update policy.",
+      );
+      expect(stdout).not.toHaveBeenCalled();
+    } finally {
+      stderr.mockRestore();
+      stdout.mockRestore();
+      await rm(isolated, { recursive: true, force: true });
+    }
+  });
+
   it("maps strict host settings into the neutral local policy", async () => {
     const xdgConfigHome = await mkdtemp(join(tmpdir(), "githits-mcp-policy-"));
     const configDir = join(xdgConfigHome, "githits");

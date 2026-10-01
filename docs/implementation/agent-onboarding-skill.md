@@ -107,6 +107,10 @@ Hermes project scope is not supported. A shared root may be discovered by every
 compatible agent that reads it, but agent-specific instruction files are
 changed only for selected agents.
 
+Local MCP startup can refresh eligible installed `githits-mcp` guidance; see the
+[installed MCP skill lifecycle](init-guidance-and-expanded-agent-support.md#installed-mcp-skill-lifecycle)
+for the byte contract, scope, policy, and preservation rules.
+
 ## Codex Execution Guardrails
 
 Codex has been observed delegating onboarding shell commands to subagents or background tasks. The skill requires inline execution because setup commands need sequential user approval and visible failure handling.

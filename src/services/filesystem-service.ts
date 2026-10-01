@@ -4,6 +4,7 @@ import {
   mkdtemp,
   readdir,
   readFile,
+  realpath as realpathPath,
   rename as renamePath,
   rmdir,
   stat,
@@ -64,8 +65,14 @@ export interface FileSystemService {
   /** List directory contents */
   readdir(path: string): Promise<string[]>;
 
+  /** Resolve a path to its canonical path, following symbolic links. */
+  realpath(path: string): Promise<string>;
+
   /** Check if path is a directory */
   isDirectory(path: string): Promise<boolean>;
+
+  /** Check if the followed path is a regular file; return false when missing. */
+  isFile(path: string): Promise<boolean>;
 
   /**
    * Write file atomically by writing to a temp file then renaming.
@@ -173,12 +180,25 @@ export class FileSystemServiceImpl implements FileSystemService {
     return readdir(path);
   }
 
+  async realpath(path: string): Promise<string> {
+    return realpathPath(path);
+  }
+
   async isDirectory(path: string): Promise<boolean> {
     try {
       const stats = await stat(path);
       return stats.isDirectory();
     } catch {
       return false;
+    }
+  }
+
+  async isFile(path: string): Promise<boolean> {
+    try {
+      return (await stat(path)).isFile();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+      throw error;
     }
   }
 

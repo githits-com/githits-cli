@@ -210,6 +210,7 @@ const MCP_CONFIG_ENV_KEYS = [
   "GITHITS_CODE_NAV_URL",
   "GITHITS_ENV",
   "GITHITS_AUTH_STORAGE",
+  "GITHITS_DISABLE_SKILL_UPDATE",
   "HOME",
   "USERPROFILE",
   "XDG_CONFIG_HOME",
@@ -731,6 +732,7 @@ function buildMcpServerEnv(
     if (value !== undefined) env[key] = value;
   }
   Object.assign(env, effectiveMcpConfigRoots(baseEnv));
+  env.GITHITS_DISABLE_SKILL_UPDATE = "1";
   return Object.keys(env).length > 0 ? env : undefined;
 }
 

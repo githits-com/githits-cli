@@ -226,6 +226,7 @@ describe("agent eval harness", () => {
     expect(config.mcpServers.githits).toEqual({
       command: "bun",
       args: ["run", "--cwd", "/repo/githits-cli", "dev", "mcp", "start"],
+      env: { GITHITS_DISABLE_SKILL_UPDATE: "1" },
     });
   });
 
@@ -839,6 +840,7 @@ describe("agent eval harness", () => {
     expect(config.mcpServers.githits).toEqual({
       command: "npx",
       args: ["-y", "githits@0.4.2", "mcp", "start"],
+      env: { GITHITS_DISABLE_SKILL_UPDATE: "1" },
     });
   });
 
@@ -852,7 +854,7 @@ describe("agent eval harness", () => {
       {},
     );
     expect(config).toBe(
-      '[mcp_servers.githits]\nrequired = true\ncommand = "bun"\nargs = ["run","--cwd","/repo/githits-cli","dev","mcp","start"]\n',
+      '[mcp_servers.githits]\nrequired = true\ncommand = "bun"\nargs = ["run","--cwd","/repo/githits-cli","dev","mcp","start"]\n\n[mcp_servers.githits.env]\nGITHITS_DISABLE_SKILL_UPDATE = "1"\n',
     );
     expect(config).not.toContain("env_vars");
   });
@@ -873,6 +875,8 @@ describe("agent eval harness", () => {
       'mcp_servers.githits.command="npx"',
       "-c",
       'mcp_servers.githits.args=["-y","githits@0.4.2","mcp","start"]',
+      "-c",
+      'mcp_servers.githits.env.GITHITS_DISABLE_SKILL_UPDATE="1"',
     ]);
     expect(args).not.toContain("mcp_servers.githits.env_vars");
   });
@@ -903,6 +907,7 @@ describe("agent eval harness", () => {
             "mcp",
             "start",
           ],
+          environment: { GITHITS_DISABLE_SKILL_UPDATE: "1" },
           enabled: true,
           timeout: 90_000,
         },
@@ -961,6 +966,48 @@ describe("agent eval harness", () => {
     ).toEqual(["-y", "githits@0.4.2", "mcp", "start"]);
   });
 
+  it("forces the skill-update opt-out for local and published MCP configs", () => {
+    const servers = [
+      localOptions,
+      {
+        server: "published" as const,
+        repoRoot: "/repo/githits-cli",
+        publishedPackage: "githits@latest",
+      },
+    ];
+    const callerValues: Array<string | undefined> = [
+      undefined,
+      "",
+      "0",
+      "caller-value",
+    ];
+
+    for (const serverOptions of servers) {
+      for (const callerValue of callerValues) {
+        const baseEnv =
+          callerValue === undefined
+            ? {}
+            : { GITHITS_DISABLE_SKILL_UPDATE: callerValue };
+        const config = buildMcpConfig(serverOptions, baseEnv);
+
+        expect(
+          config.mcpServers.githits.env?.GITHITS_DISABLE_SKILL_UPDATE,
+        ).toBe("1");
+      }
+    }
+  });
+
+  it("renders the forced skill-update opt-out in Codex MCP config", () => {
+    const options = localOptions;
+
+    expect(buildCodexConfig(options, {})).toContain(
+      'GITHITS_DISABLE_SKILL_UPDATE = "1"',
+    );
+    expect(buildCodexConfigArgs(options, {})).toContain(
+      'mcp_servers.githits.env.GITHITS_DISABLE_SKILL_UPDATE="1"',
+    );
+  });
+
   it("propagates backend selector across eval launch surfaces", () => {
     const baseEnv = {
       GITHITS_ENV: "dev",
@@ -981,6 +1028,7 @@ describe("agent eval harness", () => {
     expect(mcpConfig.mcpServers.githits.env).toEqual({
       GITHITS_ENV: "dev",
       GITHITS_CODE_NAV_URL: "http://localhost:7070",
+      GITHITS_DISABLE_SKILL_UPDATE: "1",
     });
     expect(JSON.stringify(mcpConfig)).not.toContain(
       "fake-githits-token-for-eval-test",
@@ -1029,6 +1077,7 @@ describe("agent eval harness", () => {
     expect(mcpConfig.mcpServers.githits.env).toEqual({
       GITHITS_API_URL: "https://api-dev.githits.com",
       GITHITS_CODE_NAV_URL: "https://oss-dev.githits.dev",
+      GITHITS_DISABLE_SKILL_UPDATE: "1",
     });
 
     expect(
@@ -1099,6 +1148,7 @@ describe("agent eval harness", () => {
 
     expect(descriptor.mcpServers.githits.env).toEqual({
       GITHITS_AUTH_STORAGE: "keychain",
+      GITHITS_DISABLE_SKILL_UPDATE: "1",
       HOME: "/host/home",
       USERPROFILE: "/host/profile",
       XDG_CONFIG_HOME: "/host/config",
@@ -3463,6 +3513,7 @@ describe("agent eval harness", () => {
       };
       expect(mcp.mcpServers.githits.env).toEqual({
         GITHITS_AUTH_STORAGE: "keychain",
+        GITHITS_DISABLE_SKILL_UPDATE: "1",
         HOME: "<redacted>",
         USERPROFILE: "<redacted>",
         XDG_CONFIG_HOME: "<redacted>",
@@ -3582,6 +3633,7 @@ describe("agent eval harness", () => {
       };
       expect(mcp.mcpServers.githits.env).toEqual({
         GITHITS_AUTH_STORAGE: "keychain",
+        GITHITS_DISABLE_SKILL_UPDATE: "1",
         HOME: "<redacted>",
         USERPROFILE: "<redacted>",
         XDG_CONFIG_HOME: "<redacted>",

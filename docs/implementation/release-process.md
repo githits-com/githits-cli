@@ -97,6 +97,16 @@ two-PR flow. The local `buildLocalMcpQuickStart()` appendices are runtime-only
 and stay out of the public copy. This exception does not change the separate
 release-branch rule above for `githits-onboarding`.
 
+The CLI's local install marker is outside the canonical public
+`skills/githits-mcp/SKILL.md`; managed direct-init installs carry their writing
+CLI version and payload checksum. Later packaged skill bytes need no new
+historical hash entry to refresh those managed installs. Generic/plugin copies
+remain unmarked, and unrecognized unmarked payloads are preserved. If a new
+unmarked CLI release ships before this lifecycle reaches users, verify its
+tarball content and add that hash to the one-time legacy bridge before
+delivery. See the
+[installed MCP skill lifecycle](init-guidance-and-expanded-agent-support.md#installed-mcp-skill-lifecycle).
+
 Before assigning `none`, compare the delta against every public consumer and
 package export. A fragment's impact records the conclusion; it does not replace
 that review.

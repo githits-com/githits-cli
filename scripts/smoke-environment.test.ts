@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { existsSync } from "node:fs";
+import { join } from "node:path";
 import {
   createIsolatedSmokeEnvironment,
   createScopedSmokeEnvironment,
@@ -7,7 +8,7 @@ import {
 } from "./smoke-environment.ts";
 
 describe("createIsolatedSmokeEnvironment", () => {
-  it("strips credentials and isolates platform config roots", () => {
+  it("sets HOME, USERPROFILE, and config roots under the temporary root, removes both opt-out casings, and leaves input unchanged", () => {
     const baseEnv = {
       PATH: "/test/bin",
       GITHITS_API_TOKEN: "secret",
@@ -17,7 +18,10 @@ describe("createIsolatedSmokeEnvironment", () => {
       githits_env: "invalid",
       githits_auth_storage: "keychain",
       xdg_config_home: "/real/config",
+      GITHITS_DISABLE_SKILL_UPDATE: "1",
+      githits_disable_skill_update: "true",
     };
+    const originalBaseEnv = { ...baseEnv };
     const isolated = createIsolatedSmokeEnvironment(
       "githits-smoke-environment-",
       baseEnv,
@@ -31,15 +35,21 @@ describe("createIsolatedSmokeEnvironment", () => {
       expect(isolated.env.githits_env).toBeUndefined();
       expect(isolated.env.githits_auth_storage).toBeUndefined();
       expect(isolated.env.xdg_config_home).toBeUndefined();
+      expect(isolated.env.GITHITS_DISABLE_SKILL_UPDATE).toBeUndefined();
+      expect(isolated.env.githits_disable_skill_update).toBeUndefined();
       expect(isolated.env.GITHITS_API_URL).toBe(
         "https://api-smoke-unauth.githits.invalid",
       );
       expect(isolated.env.GITHITS_AUTH_STORAGE).toBe("file");
       expect(isolated.env.GITHITS_DISABLE_UPDATE_CHECK).toBe("1");
-      for (const key of ["HOME", "USERPROFILE", "XDG_CONFIG_HOME", "APPDATA"]) {
-        expect(isolated.env[key]?.startsWith(isolated.root)).toBe(true);
-      }
+      expect(isolated.env.HOME).toBe(isolated.root);
+      expect(isolated.env.USERPROFILE).toBe(isolated.root);
+      expect(isolated.env.XDG_CONFIG_HOME).toBe(join(isolated.root, ".config"));
+      expect(isolated.env.APPDATA).toBe(
+        join(isolated.root, "AppData", "Roaming"),
+      );
       expect(baseEnv.GITHITS_API_TOKEN).toBe("secret");
+      expect(baseEnv).toEqual(originalBaseEnv);
       expect(existsSync(isolated.root)).toBe(true);
     } finally {
       isolated.cleanup();
@@ -49,28 +59,57 @@ describe("createIsolatedSmokeEnvironment", () => {
 });
 
 describe("createScopedSmokeEnvironment", () => {
-  it("preserves inherited env credentials while isolating config", () => {
-    const scoped = createScopedSmokeEnvironment("githits-scoped-smoke-", {
+  it("sets HOME, USERPROFILE, and config roots under the temporary root while preserving env-token/dev overrides, removing both opt-out casings, and leaving input unchanged", () => {
+    const baseEnv = {
       GITHITS_API_TOKEN: "secret",
       GITHITS_AUTH_STORAGE: "file",
       HOME: "/real-home",
       XDG_CONFIG_HOME: "/real-config",
-    });
+      USERPROFILE: "C:\\real-home",
+      APPDATA: "C:\\real-config",
+      home: "/lowercase-home",
+      userprofile: "C:\\lowercase-home",
+      xdg_config_home: "/lowercase-config",
+      appdata: "C:\\lowercase-config",
+      GITHITS_DISABLE_SKILL_UPDATE: "1",
+      githits_disable_skill_update: "true",
+      GITHITS_ENV: "dev",
+      GITHITS_API_URL: "https://dev-api.example.com",
+      GITHITS_MCP_URL: "https://dev-mcp.example.com",
+    };
+    const originalBaseEnv = { ...baseEnv };
+    const scoped = createScopedSmokeEnvironment(
+      "githits-scoped-smoke-",
+      baseEnv,
+    );
     try {
       expect(scoped.env.GITHITS_API_TOKEN).toBe("secret");
       expect(scoped.env.GITHITS_AUTH_STORAGE).toBe("file");
-      expect(scoped.env.HOME).toBe("/real-home");
-      expect(scoped.env.XDG_CONFIG_HOME).not.toBe("/real-config");
-      expect(scoped.env.APPDATA?.startsWith(scoped.root)).toBe(true);
+      expect(scoped.env.GITHITS_ENV).toBe("dev");
+      expect(scoped.env.GITHITS_API_URL).toBe("https://dev-api.example.com");
+      expect(scoped.env.GITHITS_MCP_URL).toBe("https://dev-mcp.example.com");
+      expect(scoped.env.GITHITS_DISABLE_SKILL_UPDATE).toBeUndefined();
+      expect(scoped.env.githits_disable_skill_update).toBeUndefined();
+      expect(scoped.env.HOME).toBe(scoped.root);
+      expect(scoped.env.USERPROFILE).toBe(scoped.root);
+      expect(scoped.env.home).toBeUndefined();
+      expect(scoped.env.userprofile).toBeUndefined();
+      expect(scoped.env.XDG_CONFIG_HOME).toBe(join(scoped.root, ".config"));
+      expect(scoped.env.APPDATA).toBe(join(scoped.root, "AppData", "Roaming"));
+      expect(scoped.env.xdg_config_home).toBeUndefined();
+      expect(scoped.env.appdata).toBeUndefined();
       const configPath = writeSmokeConfig(
         scoped.env,
         "[experimental]\ntools = true\n",
       );
-      expect(configPath).toContain(
+      const configHome =
         process.platform === "win32"
           ? scoped.env.APPDATA!
-          : scoped.env.XDG_CONFIG_HOME!,
-      );
+          : scoped.env.XDG_CONFIG_HOME!;
+      expect(configPath).toBe(join(configHome, "githits", "config.toml"));
+      expect(baseEnv).toEqual(originalBaseEnv);
+      expect(existsSync(scoped.root)).toBe(true);
+      expect(scoped.env.GITHITS_DISABLE_UPDATE_CHECK).toBe("1");
     } finally {
       scoped.cleanup();
     }

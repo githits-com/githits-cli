@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { EXPECTED_MCP_TOOLS } from "@githits/mcp/smoke-test";
 import {
   assertExperimentalCliResolveText,
@@ -512,7 +513,7 @@ describe("smoke script options", () => {
     });
   });
 
-  it("forwards the absolute built target through CLI parity and mcp-call", () => {
+  it("uses an absolute parity script and forwards the absolute built target", () => {
     const entry = createEntry("path with spaces/cli.js");
     const target = parseCliSmokeArgs(["--cli-entry", entry]).target;
     const command = buildMcpParityCommand(target, "pkg_info", {
@@ -523,7 +524,7 @@ describe("smoke script options", () => {
     expect(command).toEqual([
       "bun",
       "run",
-      "scripts/mcp-call.ts",
+      fileURLToPath(new URL("./mcp-call.ts", import.meta.url)),
       "--cli-entry",
       entry,
       "pkg_info",
@@ -659,12 +660,17 @@ describe("smoke script options", () => {
     });
   });
 
-  it("parses the default mcp-call source target", () => {
+  it("parses the default mcp-call target with an absolute source CLI entry", () => {
     const options = parseMcpCallArgs(["get_example", '{"query":"go"}']);
 
     expect(toStdioLaunch(options.target, ["mcp", "start"])).toEqual({
       command: "bun",
-      args: ["run", "dev", "mcp", "start"],
+      args: [
+        "run",
+        fileURLToPath(new URL("../src/cli.ts", import.meta.url)),
+        "mcp",
+        "start",
+      ],
     });
     expect(options.args).toEqual({ query: "go" });
   });

@@ -72,12 +72,17 @@ directories:
 plugin generation validates both sides so generic skill installers cannot
 surface maintenance or operations skills.
 
-Generated plugin assets package these root skills directly. Direct `githits
-init` setup places the same files at each selected host's verified active root;
-shared hosts use `.agents/skills`, while Claude Code, Kiro, Factory Droid,
-Antigravity user scope, and Hermes user scope use their native roots. Cline and
-Junie use the shared root; their historical native `githits-mcp/SKILL.md` files
-are migration-only targets.
+Generated plugin assets package the canonical root skill bytes without local
+installation markers. Direct `githits init` places those payloads at each
+selected host's verified active root and adds a version/checksum marker to the
+installed `githits-mcp/SKILL.md` only. The authored skill and packaged plugin
+assets remain unmarked. Shared hosts use `.agents/skills`, while Claude Code,
+Kiro, Factory Droid, Antigravity user scope, and Hermes user scope use their
+native roots. Cline and Junie use the shared root; their historical native
+`githits-mcp/SKILL.md` files are migration-only targets. Local CLI MCP startup
+maintains eligible existing direct-install targets; hosted-only MCP launches
+do not run this updater. See the
+[installed MCP skill lifecycle](init-guidance-and-expanded-agent-support.md#installed-mcp-skill-lifecycle).
 
 The public `githits-mcp` skill is self-contained for the stable path: its
 terminal `## Quick-start guide` section is an exact copy of

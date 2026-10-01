@@ -1,3 +1,5 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { AGENTIC_ASK_REQUEST_TIMEOUT_MS } from "@githits/core-internal";
 import {
   assertCleanErrorEnvelope,
@@ -11,6 +13,9 @@ import {
 } from "@githits/mcp/smoke-test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { version } from "../package.json";
+import history from "../src/services/fixtures/mcp-skill-history.json";
+import { inspectSkillContent } from "../src/services/mcp-skill-content.js";
 import { isResolveDirectTargetUnwarned } from "./resolve-smoke-guidance.ts";
 import {
   createIsolatedSmokeEnvironment,
@@ -91,7 +96,7 @@ function createSmokeCaller(client: Client): McpSmokeCaller {
 
 async function withMcpClient<T>(
   target: CliLaunchTarget,
-  env: Record<string, string> | undefined,
+  env: Record<string, string>,
   extraMcpArgs: readonly string[] = [],
   fn: (client: Client) => Promise<T>,
 ): Promise<T> {
@@ -100,6 +105,7 @@ async function withMcpClient<T>(
     command: launch.command,
     args: launch.args,
     env,
+    cwd: env.HOME,
   });
   const client = new Client({ name: "githits-mcp-smoke", version: "0.1.0" });
   try {
@@ -232,13 +238,58 @@ async function assertStableAuthProbe(
   );
 }
 
+/** Exercise real startup maintenance inside disposable smoke roots. */
+async function prepareSkillUpdateProbe(root: string): Promise<void> {
+  const legacy = history[0]?.content;
+  assert(
+    legacy !== undefined,
+    "skill maintenance requires a verified legacy fixture",
+  );
+  for (const [host, payload] of [
+    [".agents", legacy],
+    [".claude", `${legacy}User edit\n`],
+  ] as const) {
+    const dir = join(root, host, "skills", "githits-mcp");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "SKILL.md"), payload);
+  }
+}
+
+async function assertSkillUpdateProbe(root: string): Promise<void> {
+  const installed = inspectSkillContent(
+    await readFile(
+      join(root, ".agents", "skills", "githits-mcp", "SKILL.md"),
+      "utf8",
+    ),
+  );
+  const bundled = await readFile(
+    new URL("../skills/githits-mcp/SKILL.md", import.meta.url),
+    "utf8",
+  );
+  assert(
+    installed.kind === "managed" &&
+      installed.content === bundled &&
+      installed.version === version,
+    "MCP startup must upgrade unchanged legacy guidance to its exact bundled payload",
+  );
+  assert(
+    (await readFile(
+      join(root, ".claude", "skills", "githits-mcp", "SKILL.md"),
+      "utf8",
+    )) === `${history[0]?.content}User edit\n`,
+    "MCP startup must preserve edited guidance",
+  );
+}
+
 async function assertUnauthenticatedBehavior(
   target: CliLaunchTarget,
 ): Promise<void> {
   const isolated = createIsolatedSmokeEnvironment("githits-mcp-smoke-home-");
   try {
     writeSmokeConfig(isolated.env, STABLE_MCP_SMOKE_CONFIG);
+    await prepareSkillUpdateProbe(isolated.root);
     await withMcpClient(target, isolated.env, [], async (client) => {
+      await assertSkillUpdateProbe(isolated.root);
       await assertStableMcpSession(client, "stable unauthenticated");
       await assertStableAuthProbe(client, "unauthenticated");
     });
@@ -253,7 +304,9 @@ async function runRegistrationSmoke(target: CliLaunchTarget): Promise<void> {
   );
   try {
     writeSmokeConfig(isolated.env, STABLE_MCP_SMOKE_CONFIG);
+    await prepareSkillUpdateProbe(isolated.root);
     await withMcpClient(target, isolated.env, [], async (client) => {
+      await assertSkillUpdateProbe(isolated.root);
       await assertStableMcpSession(client, "stable registration");
       await assertStableAuthProbe(client, "registration");
       await runMcpSmoke(createSmokeCaller(client), {

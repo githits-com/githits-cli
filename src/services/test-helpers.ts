@@ -275,7 +275,13 @@ export function createMockFileSystemService(
       (path: string) => path.split("/").slice(0, -1).join("/") || "/",
     ),
     readdir: mock(() => Promise.resolve([])),
+    realpath: mock(() => {
+      const error = new Error("Path not found") as NodeJS.ErrnoException;
+      error.code = "ENOENT";
+      return Promise.reject(error);
+    }),
     isDirectory: mock(() => Promise.resolve(false)),
+    isFile: mock(() => Promise.resolve(false)),
     atomicWriteFile: mock(
       (_path: string, _contents: string, _maximumMode?: number) =>
         Promise.resolve(),

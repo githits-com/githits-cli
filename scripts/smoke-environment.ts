@@ -2,11 +2,20 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const MANAGED_ENV_KEYS = new Set([
+const SMOKE_ROOT_ENV_KEYS = new Set([
   "HOME",
   "USERPROFILE",
   "XDG_CONFIG_HOME",
   "APPDATA",
+]);
+
+const SCOPED_MANAGED_ENV_KEYS = new Set([
+  ...SMOKE_ROOT_ENV_KEYS,
+  "GITHITS_DISABLE_SKILL_UPDATE",
+]);
+
+const MANAGED_ENV_KEYS = new Set([
+  ...SCOPED_MANAGED_ENV_KEYS,
   "GITHITS_API_TOKEN",
   "GITHITS_TOKEN",
   "GITHITS_AUTH_STORAGE",
@@ -24,8 +33,9 @@ export interface IsolatedSmokeEnvironment {
 }
 
 /**
- * Creates a temporary config root while preserving inherited environment
- * credentials such as an env token. Host file-auth state is not copied.
+ * Creates temporary config and skill roots while preserving inherited
+ * environment credentials such as an env token. Host file-auth state is not
+ * copied, and inherited skill-update opt-outs are removed.
  */
 export function createScopedSmokeEnvironment(
   prefix: string,
@@ -34,8 +44,15 @@ export function createScopedSmokeEnvironment(
   const root = mkdtempSync(join(tmpdir(), prefix));
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(baseEnv)) {
-    if (value !== undefined) env[key] = value;
+    if (
+      value !== undefined &&
+      !SCOPED_MANAGED_ENV_KEYS.has(key.toUpperCase())
+    ) {
+      env[key] = value;
+    }
   }
+  env.HOME = root;
+  env.USERPROFILE = root;
   env.XDG_CONFIG_HOME = join(root, ".config");
   env.APPDATA = join(root, "AppData", "Roaming");
   env.GITHITS_DISABLE_UPDATE_CHECK = "1";
@@ -61,7 +78,10 @@ export function writeSmokeConfig(
   return configPath;
 }
 
-/** Creates a credential-free config root without mutating the inherited environment. */
+/**
+ * Creates a credential-free smoke environment with isolated config and skill
+ * roots, leaving skill updates enabled.
+ */
 export function createIsolatedSmokeEnvironment(
   prefix: string,
   baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,

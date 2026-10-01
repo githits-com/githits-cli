@@ -1,6 +1,11 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
+import { version } from "../../../package.json";
+import {
+  inspectSkillContent,
+  renderManagedSkillContent,
+} from "../../services/mcp-skill-content.js";
 import {
   createMockExecService,
   createMockFileSystemService,
@@ -1680,7 +1685,11 @@ describe("skill setup", () => {
 
     const installed = await executeSkillSetup(setup, fs);
     expect(installed.status).toBe("success");
-    expect(String(content)).toBe("---\nname: githits-mcp\n---\n");
+    expect(inspectSkillContent(String(content))).toEqual({
+      kind: "managed",
+      version,
+      content: "---\nname: githits-mcp\n---\n",
+    });
 
     const alreadyInstalled = await executeSkillSetup(setup, fs);
     expect(alreadyInstalled.status).toBe("already_configured");
@@ -1691,6 +1700,60 @@ describe("skill setup", () => {
     expect(fs.deleteDirIfEmpty).toHaveBeenCalledWith(
       "/home/test/.agents/skills/githits-mcp",
     );
+  });
+
+  it("recognizes a checksum-valid identical payload regardless of writing version", async () => {
+    const source = "---\nname: githits-mcp\n---\nGuide\n";
+    const fs = createMockFileSystemService({
+      readFile: mock(async (path: string) =>
+        path === setup.sourcePath
+          ? source
+          : renderManagedSkillContent(source, "99.0.0"),
+      ),
+    });
+    expect(
+      await isSetupAlreadyConfigured(setup, fs, createMockExecService()),
+    ).toBe(true);
+    expect((await executeSkillSetup(setup, fs)).status).toBe(
+      "already_configured",
+    );
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("explicit init enrolls current unmarked content and overwrites edited guidance", async () => {
+    const source = "---\nname: githits-mcp\n---\nGuide\n";
+    for (const installed of [
+      source,
+      source + "User edit\n",
+      renderManagedSkillContent(source + "Other guide\n", "99.0.0"),
+    ]) {
+      const fs = createMockFileSystemService({
+        readFile: mock(async (path: string) =>
+          path === setup.sourcePath ? source : installed,
+        ),
+      });
+      expect(
+        await isSetupAlreadyConfigured(setup, fs, createMockExecService()),
+      ).toBe(false);
+      expect((await executeSkillSetup(setup, fs)).status).toBe("success");
+      expect(fs.atomicWriteFile).toHaveBeenCalledWith(
+        setup.targetPath,
+        renderManagedSkillContent(source, version),
+      );
+    }
+  });
+
+  it("keeps other skill installation bytes unchanged", async () => {
+    const other = { ...setup, skillName: "githits-code" };
+    const source = "---\nname: githits-code\n---\nGuide\n";
+    const fs = createMockFileSystemService({
+      readFile: mock(async (path: string) => {
+        if (path === other.sourcePath) return source;
+        throw Object.assign(new Error("missing"), { code: "ENOENT" });
+      }),
+    });
+    expect((await executeSkillSetup(other, fs)).status).toBe("success");
+    expect(fs.atomicWriteFile).toHaveBeenCalledWith(other.targetPath, source);
   });
 });
 

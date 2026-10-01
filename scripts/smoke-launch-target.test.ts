@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   appendCliArgs,
   forwardedCliEntryArgs,
   parseCliLaunchTarget,
+  SOURCE_CLI_LAUNCH_TARGET,
   toStdioLaunch,
 } from "./smoke-launch-target.ts";
 
@@ -18,18 +20,23 @@ describe("smoke CLI launch targets", () => {
     }
   });
 
-  it("uses the source CLI by default", () => {
+  it("uses an absolute source CLI entry by default", () => {
     const parsed = parseCliLaunchTarget(["--mode", "unauthenticated"]);
+    const sourceEntry = fileURLToPath(
+      new URL("../src/cli.ts", import.meta.url),
+    );
 
     expect(parsed.target).toEqual({
       kind: "source",
-      argv: ["bun", "run", "dev"],
+      argv: ["bun", "run", sourceEntry],
     });
+    expect(SOURCE_CLI_LAUNCH_TARGET.argv[2]).toBe(sourceEntry);
+    expect(isAbsolute(sourceEntry)).toBe(true);
     expect(parsed.remainingArgs).toEqual(["--mode", "unauthenticated"]);
     expect(forwardedCliEntryArgs(parsed.target)).toEqual([]);
   });
 
-  it("resolves a relative built entry once", () => {
+  it("keeps built targets on Node with a resolved absolute entry", () => {
     const { dir, entry } = createEntry("dist/cli.js");
 
     const parsed = parseCliLaunchTarget(["--cli-entry", "dist/cli.js"], dir);
@@ -62,8 +69,45 @@ describe("smoke CLI launch targets", () => {
 
     expect(toStdioLaunch(target, ["mcp", "start"])).toEqual({
       command: "bun",
-      args: ["run", "dev", "mcp", "start"],
+      args: [
+        "run",
+        fileURLToPath(new URL("../src/cli.ts", import.meta.url)),
+        "mcp",
+        "start",
+      ],
     });
+  });
+
+  it("runs the source CLI from a temporary cwd outside the repository", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "githits-smoke-source-cwd-"));
+    tempDirs.push(cwd);
+    expect(relative(process.cwd(), cwd).startsWith("..")).toBe(true);
+
+    const proc = Bun.spawn(
+      appendCliArgs(SOURCE_CLI_LAUNCH_TARGET, ["--version"]),
+      {
+        cwd,
+        env: {
+          PATH: process.env.PATH ?? "",
+          HOME: cwd,
+          USERPROFILE: cwd,
+          XDG_CONFIG_HOME: join(cwd, ".config"),
+          APPDATA: join(cwd, "AppData", "Roaming"),
+          NO_COLOR: "1",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+
+    expect(exitCode).toBe(0);
+    expect(stdout.trim()).not.toBe("");
+    expect(stderr).toBe("");
   });
 
   it("rejects a missing entry value", () => {

@@ -1,5 +1,6 @@
 import { statSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export interface CliLaunchTarget {
   kind: "source" | "built";
@@ -14,7 +15,11 @@ export interface ParsedCliLaunchTarget {
 
 export const SOURCE_CLI_LAUNCH_TARGET: CliLaunchTarget = {
   kind: "source",
-  argv: ["bun", "run", "dev"],
+  argv: [
+    "bun",
+    "run",
+    fileURLToPath(new URL("../src/cli.ts", import.meta.url)),
+  ],
 };
 
 /** Extracts and validates the shared --cli-entry option without consuming script options. */

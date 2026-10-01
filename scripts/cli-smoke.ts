@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import {
   buildCliDocsReadCommand,
   shellQuoteExact,
@@ -376,7 +377,7 @@ export function buildMcpParityCommand(
   return [
     "bun",
     "run",
-    "scripts/mcp-call.ts",
+    fileURLToPath(new URL("./mcp-call.ts", import.meta.url)),
     ...forwardedCliEntryArgs(target),
     toolName,
     JSON.stringify(args),
@@ -881,6 +882,7 @@ async function runCliWithEnv(
     const proc = Bun.spawn(appendCliArgs(cliLaunchTarget, args), {
       stdout: "pipe",
       stderr: "pipe",
+      cwd: baseEnv.HOME,
       env: {
         ...baseEnv,
         NO_COLOR: "1",
@@ -898,6 +900,7 @@ async function runCliWithEnv(
 async function runMcpJson(
   toolName: string,
   args: Record<string, unknown>,
+  env: Record<string, string>,
 ): Promise<unknown> {
   return trackSmokeStep(`mcp parity ${toolName}`, async () => {
     const proc = Bun.spawn(
@@ -905,7 +908,8 @@ async function runMcpJson(
       {
         stdout: "pipe",
         stderr: "pipe",
-        env: process.env,
+        cwd: env.HOME,
+        env,
       },
     );
     const [stdout, stderr, exitCode] = await Promise.all([
@@ -971,7 +975,7 @@ async function assertJsonParity(
           runCli(fixture.cliArgs).then((result) =>
             assertJsonOutput(result, `${fixture.name} CLI parity`),
           ),
-          runMcpJson(fixture.mcpTool, fixture.mcpArgs),
+          runMcpJson(fixture.mcpTool, fixture.mcpArgs, env),
         ]);
         // Dev endpoints may return stale cached data first and refresh in the
         // background, so concurrent CLI/MCP calls can legitimately see different

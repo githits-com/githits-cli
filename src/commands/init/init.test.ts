@@ -12,11 +12,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ExitPromptError } from "@inquirer/core";
 import { Command } from "commander";
+import { version } from "../../../package.json";
 import type {
   ExecOptions,
   ExecResult,
   ExecService,
 } from "../../services/exec-service.js";
+import { renderManagedSkillContent } from "../../services/mcp-skill-content.js";
 import type {
   ConfirmChoice,
   PromptService,
@@ -136,7 +138,12 @@ function readCanonicalSkillFiles(skillRoot: string): Record<string, string> {
   return Object.fromEntries(
     GITHITS_SKILL_CATALOG.map((skill) => [
       `${skillRoot}/${skill.name}/SKILL.md`,
-      readFileSync(join(process.cwd(), ...skill.relativePath), "utf8"),
+      skill.name === "githits-mcp"
+        ? renderManagedSkillContent(
+            readFileSync(join(process.cwd(), ...skill.relativePath), "utf8"),
+            version,
+          )
+        : readFileSync(join(process.cwd(), ...skill.relativePath), "utf8"),
     ]),
   );
 }

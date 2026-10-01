@@ -13,6 +13,18 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FileSystemServiceImpl } from "./filesystem-service.js";
+import { createMockFileSystemService } from "./test-helpers.js";
+
+async function withTempDirectory<T>(
+  fn: (directory: string) => Promise<T>,
+): Promise<T> {
+  const directory = await mkdtemp(join(tmpdir(), "githits-filesystem-"));
+  try {
+    return await fn(directory);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
 
 describe("FileSystemServiceImpl.atomicWriteFile", () => {
   const tempDirs: string[] = [];
@@ -101,6 +113,80 @@ describe("FileSystemServiceImpl.createTempDir", () => {
         rm(second, { recursive: true, force: true }),
       ]);
     }
+  });
+});
+
+describe("FileSystemServiceImpl.realpath", () => {
+  it("resolves a symlinked directory to its canonical path", async () => {
+    if (process.platform === "win32") return;
+
+    await withTempDirectory(async (root) => {
+      const canonicalPath = join(root, "canonical");
+      const aliasPath = join(root, "alias");
+      await mkdir(canonicalPath);
+      await symlink(canonicalPath, aliasPath, "dir");
+
+      const service = new FileSystemServiceImpl();
+      const resolvedTarget = await service.realpath(canonicalPath);
+      await expect(service.realpath(aliasPath)).resolves.toBe(resolvedTarget);
+    });
+  });
+
+  it("rejects when the target path is missing", async () => {
+    await withTempDirectory(async (root) => {
+      await expect(
+        new FileSystemServiceImpl().realpath(join(root, "missing")),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    });
+  });
+});
+
+describe("FileSystemServiceImpl.isFile", () => {
+  it("recognizes regular files and returns false for directories", async () => {
+    await withTempDirectory(async (root) => {
+      const filePath = join(root, "skill.md");
+      const directoryPath = join(root, "directory");
+      await writeFile(filePath, "skill");
+      await mkdir(directoryPath);
+
+      const service = new FileSystemServiceImpl();
+      await expect(service.isFile(filePath)).resolves.toBe(true);
+      await expect(service.isFile(directoryPath)).resolves.toBe(false);
+    });
+  });
+
+  it("returns false when the path is missing", async () => {
+    await withTempDirectory(async (root) => {
+      await expect(
+        new FileSystemServiceImpl().isFile(join(root, "missing")),
+      ).resolves.toBe(false);
+    });
+  });
+
+  it("follows file symlinks", async () => {
+    if (process.platform === "win32") return;
+
+    await withTempDirectory(async (root) => {
+      const filePath = join(root, "skill.md");
+      const aliasPath = join(root, "alias.md");
+      await writeFile(filePath, "skill");
+      await symlink(filePath, aliasPath, "file");
+
+      await expect(new FileSystemServiceImpl().isFile(aliasPath)).resolves.toBe(
+        true,
+      );
+    });
+  });
+});
+
+describe("createMockFileSystemService path checks", () => {
+  it("defaults realpath to ENOENT and isFile to false", async () => {
+    const fs = createMockFileSystemService();
+
+    await expect(fs.realpath("/missing")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(fs.isFile("/missing")).resolves.toBe(false);
   });
 });
 

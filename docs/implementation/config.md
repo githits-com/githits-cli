@@ -87,6 +87,7 @@ Package/source access uses the OSS service URL selected by `GITHITS_ENV` unless 
 | `GITHITS_ACCOUNTS_URL` | Override account settings origin | `https://accounts.example.test` |
 | `GITHITS_API_TOKEN` | API token for authentication | `ghi-abc123...` |
 | `GITHITS_AUTH_STORAGE` | Override OAuth credential storage for the current process (`keychain` or `file`) | `file` |
+| `GITHITS_DISABLE_SKILL_UPDATE` | Disable local MCP skill maintenance when non-empty | `1` |
 | `GITHITS_TELEMETRY` | Emit end-of-run timing spans to stderr for local profiling | `1` |
 | `GITHITS_DISABLE_UPDATE_CHECK` | Disable npm latest-version update notices | `1` |
 
@@ -164,6 +165,26 @@ writing or inheriting the host experimental policy; valid
 host auth settings still apply, and malformed shared TOML can still prevent
 auth startup.
 
+## Local MCP Skill Update Policy
+
+The shared config also controls automatic maintenance of the installed
+`githits-mcp` skill by local CLI MCP startup:
+
+```toml
+[skills]
+auto_update = false
+```
+
+`skills.auto_update` is a strict boolean and defaults to `true` when absent.
+`GITHITS_DISABLE_SKILL_UPDATE` takes precedence: any non-empty value disables
+maintenance, while an empty or unset value defers to config. An invalid setting
+or policy-read failure skips maintenance with a sanitized stderr warning; it
+does not add a startup failure to paths that previously bypassed TOML parsing.
+Existing auth and experimental TOML errors keep their prior startup behavior.
+Explicit `githits init` remains available regardless of this startup-only
+policy. See the [MCP skill lifecycle](init-guidance-and-expanded-agent-support.md#installed-mcp-skill-lifecycle)
+for the installed marker and update eligibility rules.
+
 Non-secret update-check state uses the XDG config location:
 
 ```
@@ -183,7 +204,8 @@ Environment variables + config.toml
   ├─ src/services/settings-service.ts (CLI accounts URL selection)
   ├─ src/services/app-config.ts (shared TOML discovery/parsing)
   │    ├─ src/services/auth-config.ts → auth storage mode
-  │    └─ src/services/experimental-config.ts → local tools policy
+  │    ├─ src/services/experimental-config.ts → local tools policy
+  │    └─ src/services/skill-config.ts → local MCP skill update policy
   └─ src/container.ts (createContainer)
        ├─ mcpUrl → selected preset or override, passed to auth commands and used as storage key
        ├─ apiUrl → passed to GitHitsServiceImpl constructor
@@ -228,6 +250,8 @@ remains a compatibility alias for `githits uninstall`.
 | `src/services/auth-config.ts` | `config.toml` and `GITHITS_AUTH_STORAGE` auth storage mode parsing |
 | `src/services/app-config.ts` | Shared canonical/legacy TOML discovery and parsing |
 | `src/services/experimental-config.ts` | Typed local experimental tools policy |
+| `src/services/skill-config.ts` | Typed local MCP skill update policy |
+| `src/services/mcp-skill-update.ts` | Non-fatal installed skill maintenance at local MCP startup |
 | `src/services/app-config-paths.ts` | Platform config path resolution |
 | `src/container.ts` | Auth priority logic and dependency wiring |
 | `src/services/auth-storage.ts` | File-based token storage with secure permissions |

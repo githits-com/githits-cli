@@ -1,4 +1,3 @@
-import { fileURLToPath } from "node:url";
 import {
   colorize,
   colorizeBrand,
@@ -56,6 +55,10 @@ import {
   GITHITS_GUIDANCE_MARKER,
   GITHITS_MCP_SKILL_NAME,
   GITHITS_SKILL_CATALOG,
+  GITHITS_SKILL_SOURCE_PATHS,
+  GUIDANCE_SKILL_TARGETS,
+  HISTORICAL_GUIDANCE_SKILL_TARGETS,
+  SHARED_AGENTS_SKILL_ROOT,
 } from "./guidance-assets.js";
 import {
   CHANGE_VERB_WIDTH,
@@ -311,32 +314,6 @@ interface ScanProgressReporter {
 interface InstallTaskReporter {
   start(label: string): () => void;
 }
-
-type GithitsSkillName = (typeof GITHITS_SKILL_CATALOG)[number]["name"];
-
-const GITHITS_SKILL_SOURCE_PATHS: Record<
-  GithitsSkillName,
-  { sourcePath: string; sourcePathCandidates: string[] }
-> = Object.fromEntries(
-  GITHITS_SKILL_CATALOG.map((skill) => {
-    const packagePath = skill.relativePath.join("/");
-    return [
-      skill.name,
-      {
-        sourcePath: fileURLToPath(
-          new URL(`../../../${packagePath}`, import.meta.url),
-        ),
-        sourcePathCandidates: [
-          fileURLToPath(new URL(`../${packagePath}`, import.meta.url)),
-          fileURLToPath(new URL(`../../${packagePath}`, import.meta.url)),
-        ],
-      },
-    ];
-  }),
-) as Record<
-  GithitsSkillName,
-  { sourcePath: string; sourcePathCandidates: string[] }
->;
 
 function createInitLoginOutput(): LoginOutput {
   return {
@@ -963,106 +940,11 @@ function printSkillsInstructions(useColors: boolean): void {
   console.log();
 }
 
-const SHARED_AGENTS_SKILL_ROOT = [".agents", "skills"] as const;
-
 const GITHITS_VSCODE_INSTRUCTIONS_HEADER = `---
 name: GitHits
 description: Prefer GitHits MCP and the installed githits-mcp skill for OSS and package context.
 applyTo: "**"
 ---`;
-
-const GUIDANCE_SKILL_TARGETS: Record<
-  string,
-  {
-    user?: readonly (readonly string[])[];
-    project?: readonly (readonly string[])[];
-  }
-> = {
-  "claude-code": {
-    user: [[".claude", "skills"]],
-    project: [[".claude", "skills"]],
-  },
-  cursor: {
-    user: [SHARED_AGENTS_SKILL_ROOT],
-    project: [SHARED_AGENTS_SKILL_ROOT],
-  },
-  windsurf: {
-    user: [SHARED_AGENTS_SKILL_ROOT],
-    project: [SHARED_AGENTS_SKILL_ROOT],
-  },
-  vscode: {
-    user: [SHARED_AGENTS_SKILL_ROOT],
-    project: [SHARED_AGENTS_SKILL_ROOT],
-  },
-  cline: {
-    user: [SHARED_AGENTS_SKILL_ROOT],
-    project: [SHARED_AGENTS_SKILL_ROOT],
-  },
-  "codex-cli": {
-    user: [SHARED_AGENTS_SKILL_ROOT],
-    project: [SHARED_AGENTS_SKILL_ROOT],
-  },
-  pi: {
-    user: [SHARED_AGENTS_SKILL_ROOT],
-    project: [SHARED_AGENTS_SKILL_ROOT],
-  },
-  "gemini-cli": {
-    user: [SHARED_AGENTS_SKILL_ROOT],
-    project: [SHARED_AGENTS_SKILL_ROOT],
-  },
-  "google-antigravity": {
-    user: [[".gemini", "config", "skills"]],
-    project: [SHARED_AGENTS_SKILL_ROOT],
-  },
-  opencode: {
-    user: [SHARED_AGENTS_SKILL_ROOT],
-    project: [SHARED_AGENTS_SKILL_ROOT],
-  },
-  "hermes-agent": {
-    user: [[".hermes", "skills"]],
-  },
-  zed: {
-    user: [SHARED_AGENTS_SKILL_ROOT],
-    project: [SHARED_AGENTS_SKILL_ROOT],
-  },
-  junie: {
-    user: [SHARED_AGENTS_SKILL_ROOT],
-    project: [SHARED_AGENTS_SKILL_ROOT],
-  },
-  "qwen-code": {
-    user: [SHARED_AGENTS_SKILL_ROOT],
-    project: [SHARED_AGENTS_SKILL_ROOT],
-  },
-  kiro: {
-    user: [[".kiro", "skills"]],
-    project: [[".kiro", "skills"]],
-  },
-  "kilo-code": {
-    user: [SHARED_AGENTS_SKILL_ROOT],
-    project: [SHARED_AGENTS_SKILL_ROOT],
-  },
-  "factory-droid": {
-    user: [[".factory", "skills"]],
-    project: [[".factory", "skills"]],
-  },
-};
-
-const HISTORICAL_GUIDANCE_SKILL_TARGETS: Record<
-  string,
-  {
-    user?: readonly (readonly string[])[];
-    project?: readonly (readonly string[])[];
-  }
-> = {
-  cline: {
-    user: [[".cline", "skills"]],
-    project: [[".cline", "skills"]],
-  },
-  junie: {
-    user: [[".junie", "skills"]],
-    project: [[".junie", "skills"]],
-  },
-};
 
 function getGuidanceSkillSetups(
   agents: AgentDefinition[],

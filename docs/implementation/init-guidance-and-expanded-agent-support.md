@@ -75,8 +75,9 @@ Guided setup requires exactly these four packaged skills:
 
 The runtime catalog is defined in `src/commands/init/guidance-assets.ts` and
 is checked for parity with plugin packaging. Missing files are repaired;
-complete files are unchanged. Shared roots are deduplicated when multiple
-selected agents use the same directory.
+only installed `githits-mcp` receives local metadata outside its canonical
+payload. The other skill files use the existing unmarked installer path. Shared
+roots are deduplicated when multiple selected agents use the same directory.
 
 | Agent group | User scope | Project scope |
 |---|---|---|
@@ -86,6 +87,79 @@ selected agents use the same directory.
 | Factory Droid | `~/.factory/skills/` | `.factory/skills/` |
 | Google Antigravity | `~/.gemini/config/skills/` | `.agents/skills/` |
 | Hermes Agent | `~/.hermes/skills/` | not supported |
+
+## Installed MCP Skill Lifecycle
+
+The root `skills/githits-mcp/SKILL.md` and packaged plugin copies remain
+canonical and unmarked. Direct `githits init` adds one
+`githits-managed-skill` comment immediately after the YAML frontmatter closing
+delimiter in the installed `githits-mcp/SKILL.md` only. The comment records the
+writing CLI version and a SHA-256 checksum. Its format is:
+
+```text
+<!-- githits-managed-skill v1 version=0.26.0 sha256=<64 lowercase hex characters> -->
+```
+
+The version is illustrative, not a proposed release version. The checksum
+covers the exact canonical UTF-8 file, including frontmatter, whitespace, and
+its final newline, excluding only the inserted marker line and its newline.
+Removing one valid marker recovers the original bytes; the other three skill
+files are not marked. The checksum detects edits, not authenticity: it is not a
+signature or authorization boundary.
+
+Init's configured check and setup early return accept a single correctly placed
+marker when its checksum verifies and the stripped payload matches the bundled
+skill. Equality ignores the marker's writing version, so identical managed
+content remains configured across CLI upgrades without a marker-only rewrite.
+Explicit init enrolls an unchanged unmarked installation and keeps its existing
+overwrite policy for differing content.
+
+The root CLI's local MCP startup updater inspects only existing
+`githits-mcp/SKILL.md` targets beneath existing active user roots and project
+roots derived from the startup working directory (`cwd`) in the shared init
+map. It does not walk parent directories or discover Git roots, create roots,
+parent directories, or missing files; inspect historical Cline/Junie migration
+paths or plugin caches; or update other skills.
+Symlinked homes and active roots are allowed, including intentionally owned
+dotfiles roots. A directory or file alias is accepted only when its resolved
+skill file equals an expected destination under an active root. Resolved
+destinations are deduplicated and updates target the resolved file, preserving
+the alias links. Escaping aliases and non-regular files are skipped. Hosted or
+plugin-only MCP launches do not invoke the local updater.
+
+An unmarked exact current payload is left byte-identical. A fixed set of 25
+verified pre-feature SHA-256 hashes bridges known older unmarked installs;
+unknown unmarked content is preserved. A marked payload identical to the
+bundled skill is silent regardless of writing version. A different payload is
+refreshed only when its writing CLI version is older than the running CLI. A
+different same-version payload is preserved silently; a different
+newer-version payload is preserved with a short warning. Malformed, duplicate,
+misplaced, unsupported, or checksum-mismatched markers are preserved.
+
+Maintenance runs after ordinary startup dependency validation and before the
+local MCP server connects. Policy and IO failures produce sanitized stderr
+warnings and do not block startup; stdout remains reserved for MCP protocol
+output. Before replacement, the updater rereads the file and requires it to
+match the inspected bytes, then uses the existing atomic replacement helper.
+That final check narrows but cannot eliminate a manual-edit or competing-launch
+race before rename; the lifecycle makes no stronger concurrency guarantee.
+Startup changes the file on disk only: agents that loaded it earlier in the
+session do not hot-reload and need a new session to see refreshed content.
+
+See [configuration](config.md#local-mcp-skill-update-policy) for the opt-out
+and persistent `skills.auto_update` setting.
+
+Implementation references:
+
+- `src/commands/init/guidance-assets.ts` owns the canonical skill and active-root map.
+- `src/services/mcp-skill-content.ts` owns marker parsing, checksums, and version decisions.
+- `src/services/mcp-skill-update.ts` owns startup scope, alias checks, reread, and replacement.
+- `src/services/mcp-skill-history.ts` and
+  `src/services/fixtures/mcp-skill-history.json` hold the fixed hashes and
+  verified payloads.
+- `src/services/mcp-skill-content.test.ts` checks that the 25 fixture hashes
+  match the unique legacy array.
+- `src/services/skill-config.ts` owns the local update policy reader.
 
 The shared root is intentionally visible to every compatible agent that reads
 it. The Ready/Next Steps output says this explicitly for successful or already

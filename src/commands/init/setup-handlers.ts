@@ -13,8 +13,13 @@ import {
   stringify as stringifyYaml,
   type YAMLMap,
 } from "yaml";
+import { version } from "../../../package.json";
 import type { ExecResult, ExecService } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/filesystem-service.js";
+import {
+  isManagedSkillCurrent,
+  renderManagedSkillContent,
+} from "../../services/mcp-skill-content.js";
 import type {
   CliCommand,
   CliSetup,
@@ -28,6 +33,10 @@ import type {
   SkillSetup,
   UninstallStep,
 } from "./agent-definitions.js";
+import {
+  GITHITS_MCP_SKILL_NAME,
+  readSkillSourceContent,
+} from "./guidance-assets.js";
 import { traceProbeEnd, traceProbeStart } from "./init-trace.js";
 import {
   describeConfigAsUnchanged,
@@ -1165,7 +1174,9 @@ async function isSkillAlreadyConfigured(
   try {
     const source = await readSkillSourceContent(setup, fs);
     const target = await fs.readFile(setup.targetPath);
-    return source === target;
+    return setup.skillName === GITHITS_MCP_SKILL_NAME
+      ? isManagedSkillCurrent(target, source)
+      : source === target;
   } catch {
     return false;
   }
@@ -1805,19 +1816,27 @@ export async function executeConfigFileSetup(
   }
 }
 
-/** Execute an Agent Skill install by copying a packaged SKILL.md. */
+/** Install packaged guidance, adding managed metadata only to the MCP skill. */
 export async function executeSkillSetup(
   setup: SkillSetup,
   fs: FileSystemService,
 ): Promise<SetupResult> {
   try {
     const sourceContent = await readSkillSourceContent(setup, fs);
+    const managed = setup.skillName === GITHITS_MCP_SKILL_NAME;
+    const installedContent = managed
+      ? renderManagedSkillContent(sourceContent, version)
+      : sourceContent;
     await fs.ensureDir(fs.getDirname(setup.targetPath));
 
     let fileExisted = true;
     try {
       const existingContent = await fs.readFile(setup.targetPath);
-      if (existingContent === sourceContent) {
+      if (
+        managed
+          ? isManagedSkillCurrent(existingContent, sourceContent)
+          : existingContent === sourceContent
+      ) {
         return {
           status: "already_configured",
           message: `${setup.skillName} skill already installed`,
@@ -1840,7 +1859,7 @@ export async function executeSkillSetup(
       fileExisted = false;
     }
 
-    await fs.atomicWriteFile(setup.targetPath, sourceContent);
+    await fs.atomicWriteFile(setup.targetPath, installedContent);
     return {
       status: "success",
       message: "Skill installed successfully",
@@ -1858,30 +1877,6 @@ export async function executeSkillSetup(
       message: `Failed to install ${setup.skillName} skill: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
-}
-
-async function readSkillSourceContent(
-  setup: SkillSetup,
-  fs: FileSystemService,
-): Promise<string> {
-  const paths = Array.from(
-    new Set([setup.sourcePath, ...(setup.sourcePathCandidates ?? [])]),
-  );
-  let lastError: unknown;
-  for (const path of paths) {
-    try {
-      return await fs.readFile(path);
-    } catch (err) {
-      lastError = err;
-    }
-  }
-
-  const suffix = paths.length > 1 ? ` from ${paths.join(", ")}` : "";
-  const detail =
-    lastError instanceof Error ? lastError.message : String(lastError);
-  throw new Error(
-    `Cannot read ${setup.skillName} skill source${suffix}: ${detail}`,
-  );
 }
 
 /** Execute a managed instruction-block install. */

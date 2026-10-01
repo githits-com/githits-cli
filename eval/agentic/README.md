@@ -247,7 +247,13 @@ overrides so keychain- or file-backed GitHits authentication can resolve in the
 trusted child. Descriptors and full guidance use the same child authentication
 environment. When an optional config root is unset, the harness uses the
 platform default: `HOME/.config` on POSIX or `USERPROFILE/AppData/Roaming` on
-Windows.
+Windows. Eval MCP child configs force `GITHITS_DISABLE_SKILL_UPDATE=1` for
+local and published servers, regardless of caller value. This keeps eval
+startup from refreshing caller-owned skills while retaining the caller's auth
+roots and `HOME/.githits` lock namespace. The MCP smoke suite instead uses
+disposable home and config roots with the updater enabled, and launches its
+children from that disposable working directory so upgrade fixtures never
+touch installed guidance.
 
 The CI workflow creates a clean `CODEX_HOME` and authenticates Codex with
 `OPENAI_API_KEY`. It sets `GITHITS_API_TOKEN` for deterministic GitHits
