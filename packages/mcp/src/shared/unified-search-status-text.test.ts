@@ -50,7 +50,7 @@ function firstLine(text: string): string {
 }
 
 describe("renderUnifiedSearchStatusText", () => {
-  it("uses the same outcome and exact Next action as initial search", () => {
+  it("uses the same lookup-first outcome as initial search", () => {
     const payload: UnifiedSearchStatusIncompletePresentation = active({
       result: result({ results: [hit()] }),
     });
@@ -63,7 +63,7 @@ describe("renderUnifiedSearchStatusText", () => {
       "express/routing [docs page] npm:express - source URL unavailable - Routing",
     );
     expect(text).toContain(
-      'Next: search_status search_ref="search-ref-status" wait_timeout_ms=30000',
+      'search_status search_ref="search-ref-status" wait_timeout_ms=30000',
     );
     expect(text).not.toContain("search_status |");
     expect(text).not.toContain("searchRef=");
@@ -90,7 +90,7 @@ describe("renderUnifiedSearchStatusText", () => {
   });
 
   it.each([false, true])(
-    "omits read commands from stored results (completed=%s)",
+    "offers one read from active stored results (completed=%s)",
     (completed) => {
       const actionHit: UnifiedSearchHitPresentation = {
         ...hit(),
@@ -118,18 +118,18 @@ describe("renderUnifiedSearchStatusText", () => {
         actionSyntax: "cli",
       });
       expect(mcp).toContain("[1] opaque-page [docs page]");
-      expect(mcp).not.toContain("read target=");
-      expect(cli).not.toContain("githits read ");
+      expect(mcp.includes("read target=")).toBe(!completed);
+      expect(cli.includes("githits read ")).toBe(!completed);
       expect(mcp).toContain("next_offset=5");
       expect(cli).toContain("next_offset=5");
       if (!completed) {
-        expect(mcp).toContain("Next: search_status");
-        expect(cli).toContain("Next: githits search-status");
+        expect(mcp).toContain("Next: use these hits");
+        expect(cli).toContain("Next: use these hits");
       }
     },
   );
 
-  it("omits backend read selections in retained status text", () => {
+  it("preserves backend read selections in the active status next action", () => {
     const actionHit: UnifiedSearchHitPresentation = {
       ...hit(),
       type: "repository_code",
@@ -141,15 +141,13 @@ describe("renderUnifiedSearchStatusText", () => {
       },
     };
     const payload = active({ result: result({ results: [actionHit] }) });
-    expect(renderUnifiedSearchStatusText(payload)).not.toContain(
-      "read target=",
-    );
+    expect(renderUnifiedSearchStatusText(payload)).toContain("read target=");
     expect(
       renderUnifiedSearchStatusText(payload, { actionSyntax: "cli" }),
-    ).not.toContain("githits read ");
+    ).toContain("githits read ");
   });
 
-  it("keeps pathless docs preview ranges without a read action", () => {
+  it("keeps pathless docs preview ranges distinct from the read action", () => {
     const actionHit: UnifiedSearchHitPresentation = {
       ...hit(),
       type: "repository_doc",
@@ -170,7 +168,9 @@ describe("renderUnifiedSearchStatusText", () => {
       active({ result: result({ results: [actionHit] }) }),
     );
     expect(text).toContain("npm:express@5.2.1 guide.md:42-48 [repo doc]");
-    expect(text).not.toContain("read target=");
+    expect(text).toContain(
+      'read target="opaque-page" selector="chapter" start_line=1 end_line=900',
+    );
   });
 
   it("retains package attribution and producer preview despite a different canonical action", () => {
@@ -221,7 +221,7 @@ describe("renderUnifiedSearchStatusText", () => {
       "[1] npm:package@1.2.3 src/view.ts:90-95 [repo code]",
     );
     expect(text).toContain("> 90 | export const view = 1");
-    expect(text).not.toContain("githits read ");
+    expect(text).toContain("githits read ");
   });
 
   it("renders progress-only status without inventing sources or a no-hits claim", () => {
@@ -243,7 +243,7 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(text).not.toContain("No hits");
     expect(text).toContain("- npm:express");
     expect(text).toContain(
-      'Next: search_status search_ref="search-ref-status" wait_timeout_ms=30000',
+      'search_status search_ref="search-ref-status" wait_timeout_ms=30000',
     );
   });
 
@@ -319,7 +319,7 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(text).not.toContain("searchRef=");
   });
 
-  it("continues completed mutable evidence through one status action", () => {
+  it("uses completed mutable evidence now and searches again for updates", () => {
     const payload: UnifiedSearchStatusCompletedPresentation = {
       completed: true,
       searchRef: "search-ref-evidence",
@@ -331,9 +331,7 @@ describe("renderUnifiedSearchStatusText", () => {
     const text = renderUnifiedSearchStatusText(payload);
     expect(firstLine(text)).toContain("1 result");
     expect(text).not.toContain("Search search-ref-evidence | completed");
-    expect(text).toContain(
-      'Next: search_status search_ref="search-ref-evidence" wait_timeout_ms=30000',
-    );
+    expect(text).toContain("For updated results, run a new search.");
     expect(text).not.toContain("opaque backend notice");
     expect(text).not.toContain("Evidence may change.");
     expect(text).not.toContain("Do not repeat");

@@ -2588,7 +2588,7 @@ describe("renderUnifiedSearchSuccess", () => {
     },
   );
 
-  it("turns an evidence notice into one concise mutable-evidence action", () => {
+  it("requires a new search after completed mutable evidence", () => {
     const text = renderUnifiedSearchSuccess(
       completed([], {
         searchRef: "search-ref-evidence",
@@ -2596,15 +2596,13 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
     expect(firstLine(text)).toBe("No results");
-    expect(text).toContain(
-      'Next: search_status search_ref="search-ref-evidence" wait_timeout_ms=30000',
-    );
+    expect(text).toContain("Next: rerun search later.");
     expect(text).not.toContain("Opaque backend prose");
     expect(text).not.toContain("Evidence may change.");
     expect(text).not.toContain("Do not repeat");
   });
 
-  it("continues completed mutable evidence with hits through the exact reference", () => {
+  it("uses completed mutable hits now and requires a new search for updates", () => {
     const text = renderUnifiedSearchSuccess(
       completed([codeHit()], {
         searchRef: "search-ref-results",
@@ -2612,9 +2610,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
     expect(firstLine(text)).toContain("1 result");
-    expect(text).toContain(
-      'Next: search_status search_ref="search-ref-results" wait_timeout_ms=30000',
-    );
+    expect(text).toContain("For updated results, run a new search.");
     const lines = text.split("\n");
     const actionLine = lines.findIndex((line) => line.startsWith("Next: "));
     expect(actionLine).toBeGreaterThan(0);

@@ -573,9 +573,7 @@ describe("searchAction", () => {
     expect(output).not.toContain("Try a shorter or broader query");
     expect(output).not.toContain("Run again with a larger --wait");
     expect(output).not.toContain("Evidence may change.");
-    expect(output).toContain(
-      "Next: githits search-status search-ref-docs --wait 30",
-    );
+    expect(output).toContain("Next: rerun search later.");
     consoleSpy.mockRestore();
   });
 
@@ -1237,7 +1235,7 @@ describe("searchAction", () => {
       "[1] npm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware",
     );
     expect(output).not.toContain("Search ref-deferred");
-    expect(output).toContain("Next: rerun search later.");
+    expect(output).toContain("For updated results, run a new search.");
     expect(output).not.toContain("githits search-status");
     expect(output).not.toContain("re-run with the searchRef");
     expect(output).not.toContain("still indexing");
@@ -1276,7 +1274,7 @@ describe("searchAction", () => {
       "[1] npm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware",
     );
     expect(output).not.toContain("Search ref-future");
-    expect(output).toContain("Next: rerun search later.");
+    expect(output).toContain("For updated results, run a new search.");
     expect(output).not.toContain("githits search-status");
     expect(output).not.toContain("re-run with the searchRef");
     expect(output).not.toContain("still indexing");
@@ -1591,9 +1589,7 @@ describe("searchAction", () => {
     );
     expect(output).not.toContain("Evidence may change.");
     expect(output).not.toContain("Evidence:");
-    expect(output).toContain(
-      "Next: githits search-status search-ref-123 --wait 30",
-    );
+    expect(output).toContain("For updated results, run a new search.");
     consoleSpy.mockRestore();
   });
 
@@ -1649,7 +1645,7 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain("- github:expressjs/express@refs/heads/master");
-    expect(output).toContain("using: refs/heads/master (older snapshot)");
+    expect(output).not.toContain("older snapshot");
     expect(output).toMatch(/indexed:\s+refs\s+master/);
     expect(output).not.toContain("Evidence:");
     expect(output).not.toContain("Indexed alternatives:");
@@ -2370,7 +2366,7 @@ describe("searchStatusAction", () => {
       "[1] npm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware",
     );
     expect(output).not.toContain("Search ref-deferred |");
-    expect(output).toContain("Next: rerun search later.");
+    expect(output).toContain("For updated results, run a new search.");
     expect(output).not.toContain("githits search-status");
     expect(output).not.toContain("No results");
     expect(output).not.toContain("Indexing/search still in progress");
@@ -2409,7 +2405,7 @@ describe("searchStatusAction", () => {
       "[1] npm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware",
     );
     expect(output).not.toContain("Search ref-future |");
-    expect(output).toContain("Next: rerun search later.");
+    expect(output).toContain("For updated results, run a new search.");
     expect(output).not.toContain("githits search-status");
     expect(output).not.toContain("No results");
     expect(output).not.toContain("Indexing/search still in progress");
@@ -2546,9 +2542,8 @@ describe("searchStatusAction", () => {
       /available: expressjs\.com\/en\/guide docs \(120 pages; partial\)/,
     );
     expect(output).not.toContain("Evidence may change.");
-    expect(
-      output.match(/githits search-status search-ref-docs --wait 30/g),
-    ).toHaveLength(1);
+    expect(output).toContain("Next: rerun search later.");
+    expect(output).not.toContain("githits search-status");
     expect(output).not.toContain("Search completed");
     expect(output).not.toContain("re-run with the searchRef");
     consoleSpy.mockRestore();

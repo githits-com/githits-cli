@@ -1,4 +1,3 @@
-import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { discoveryIndexingWaitMs } from "./discovery-indexing-wait.js";
 import { isKnownRegistry, parsePackageSpec } from "./package-spec.js";
 import {
@@ -212,6 +211,17 @@ export type UnifiedSearchTrustLimit =
       target?: string;
       values: string[];
     }
+  | {
+      kind: "repository_snapshot";
+      target: string;
+      requestedTarget?: string;
+      commitTarget: string;
+      indexedRef?: string;
+      requestedRef?: string;
+      requestedCommitDiffers: boolean;
+      priorHead: boolean;
+      indexingRequestedRef?: string;
+    }
   | { kind: "mutable_evidence" };
 
 export type UnifiedSearchWarning =
@@ -224,9 +234,13 @@ export type UnifiedSearchWarning =
     };
 
 export type UnifiedSearchAction =
-  | { kind: "poll"; searchRef: string; waitTimeoutMs: number }
-  | { kind: "status"; searchRef: string; waitTimeoutMs: number }
-  | { kind: "new_search" }
+  | {
+      kind: "poll";
+      searchRef: string;
+      waitTimeoutMs: number;
+      useResults?: true;
+    }
+  | { kind: "new_search"; useResults?: true }
   | {
       kind: "query_rewrite";
       rewrites: UnifiedSearchRewriteKind[];
@@ -660,8 +674,83 @@ function projectTrustLimits(
 
   for (const entry of sourceStatus ?? []) {
     const target = sourceTarget(entry);
-    const freshness = entry.targetResolution?.freshness;
-    if (entry.codeIndexState === "STALE" || freshness === "fallback_recent") {
+    const resolution = entry.targetResolution;
+    const freshness = resolution?.freshness;
+    const served = resolution?.served;
+    const requestedSha = resolution?.resolvedRequested?.commitSha;
+    const servedSha = served?.commitSha;
+    const hasRepositoryHits = Boolean(
+      servedSha &&
+        served?.repoUrl &&
+        snapshot?.results.some(
+          (hit) =>
+            hit.locator.commitSha === servedSha &&
+            hit.type ===
+              (entry.source.toLowerCase() === "symbol"
+                ? "repository_symbol"
+                : entry.source.toLowerCase() === "code"
+                  ? "repository_code"
+                  : "repository_doc") &&
+            (hit.locator.repoUrl === served.repoUrl ||
+              [hit.target, hit.servedTarget, hit.requestedTarget].some(
+                (label) =>
+                  label !== undefined &&
+                  [
+                    entry.targetLabel,
+                    entry.servedTarget,
+                    entry.requestedTarget,
+                  ].includes(label),
+              )),
+        ),
+    );
+    if (
+      hasRepositoryHits &&
+      servedSha &&
+      served?.repoUrl &&
+      (freshness !== "current" ||
+        ["INDEXING", "STALE", "PROVISIONAL"].includes(
+          entry.codeIndexState ?? "",
+        ))
+    ) {
+      const requestedRef =
+        resolution?.requested?.gitRef ?? resolution?.resolvedRequested?.gitRef;
+      const requestedCommitDiffers = Boolean(
+        requestedSha && requestedSha !== servedSha,
+      );
+      const headIntent = ["repo_default_branch", "repo_head"].includes(
+        resolution?.requested?.kind ?? "",
+      );
+      add({
+        kind: "repository_snapshot",
+        target,
+        requestedTarget: entry.requestedTarget,
+        commitTarget: formatRepositoryTarget(
+          served.repoUrl,
+          servedSha.slice(0, 8),
+        ),
+        ...(served.gitRef && !/^[0-9a-f]{7,40}$/i.test(served.gitRef)
+          ? { indexedRef: served.gitRef }
+          : {}),
+        requestedRef: headIntent ? "HEAD" : requestedRef,
+        requestedCommitDiffers,
+        priorHead:
+          headIntent &&
+          freshness === "fallback_recent" &&
+          requestedCommitDiffers,
+        ...(resolution?.freshnessReason === "requested_ref_indexing" &&
+        requestedRef
+          ? { indexingRequestedRef: headIntent ? "HEAD" : requestedRef }
+          : {}),
+      });
+    }
+    const repositoryResolution = Boolean(
+      served?.repoUrl || resolution?.requested?.kind?.startsWith("repo_"),
+    );
+    if (
+      (entry.codeIndexState === "STALE" || freshness === "fallback_recent") &&
+      !(servedSha && requestedSha === servedSha) &&
+      (!repositoryResolution || hasRepositoryHits)
+    ) {
       add({
         kind: "stale",
         target,
@@ -1238,18 +1327,19 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
           kind: "poll",
           searchRef: input.searchRef,
           waitTimeoutMs: discoveryIndexingWaitMs(input.indexingEstimates),
+          ...(input.availability.resultCount > 0
+            ? { useResults: true as const }
+            : {}),
         }
       : { kind: "none" };
   }
   if (
     input.lifecycle.kind === "completed" &&
-    input.snapshot?.evidenceNotice !== undefined &&
-    input.searchRef
+    input.snapshot?.evidenceNotice !== undefined
   ) {
     return {
-      kind: "status",
-      searchRef: input.searchRef,
-      waitTimeoutMs: DEFAULT_WAIT_TIMEOUT_MS,
+      kind: "new_search",
+      ...(input.availability.resultCount > 0 ? { useResults: true } : {}),
     };
   }
 
@@ -1270,7 +1360,10 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
     input.lifecycle.kind === "terminal" ||
     input.lifecycle.kind === "unknown"
   ) {
-    return { kind: "new_search" };
+    return {
+      kind: "new_search",
+      ...(input.availability.resultCount > 0 ? { useResults: true } : {}),
+    };
   }
   if (!input.snapshot || input.availability.kind !== "empty") {
     return { kind: "none" };

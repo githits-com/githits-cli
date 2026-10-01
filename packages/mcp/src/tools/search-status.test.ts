@@ -129,7 +129,7 @@ describe("searchStatusTool", () => {
       "using: provisional snapshot; searched: code (provisional)",
     );
     expect(text.content[0]?.text).toContain(
-      'Next: search_status search_ref="search-ref-provisional" wait_timeout_ms=30000',
+      'search_status search_ref="search-ref-provisional" wait_timeout_ms=30000',
     );
     expect(text.content[0]?.text).not.toContain("indexingRef");
   });
@@ -433,7 +433,7 @@ describe("searchStatusTool", () => {
     const textResult = await tool.handler({ search_ref: "ref-deferred" }, {});
     const text = textResult.content[0]?.text ?? "";
     expect(text).toContain("1 result | 1 repo code hit | deferred | 1/2 ready");
-    expect(text).toContain("Next: rerun search later.");
+    expect(text).toContain("For updated results, run a new search.");
     expect(text).not.toContain("search_ref=");
     expect(text).not.toContain("No hits");
     expect(text).not.toContain("Indexing in progress");
@@ -494,7 +494,7 @@ describe("searchStatusTool", () => {
     expect(text).toContain(
       "1 result | 1 repo code hit | status unknown | 0/1 ready",
     );
-    expect(text).toContain("Next: rerun search later.");
+    expect(text).toContain("For updated results, run a new search.");
     expect(text).not.toContain("search_ref=");
     expect(text).not.toContain("No hits");
     expect(text).not.toContain("Indexing in progress");

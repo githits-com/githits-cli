@@ -16,6 +16,7 @@
  */
 
 import { colors, dim, highlight, highlightRanges } from "./colors.js";
+import { renderReadTarget } from "./read-target-text.js";
 import {
   formatRepositoryTarget,
   parseRepositoryTargetSpec,
@@ -102,7 +103,7 @@ export function renderUnifiedSearchPresentationText(
     );
   }
 
-  appendPresentationAction(lines, presentation, settings);
+  appendPresentationAction(lines, presentation, result.results, settings);
   return lines.join("\n");
 }
 
@@ -447,6 +448,18 @@ function appendPresentationTargetGroup(
   const details: string[] = [];
   const using = formatUsingSegment(group);
   if (using) details.push(using);
+  const snapshots = group.trustLimits.filter(
+    (limit) => limit.kind === "repository_snapshot",
+  );
+  for (const snapshot of snapshots) {
+    if (snapshot.requestedCommitDiffers && snapshot.requestedRef) {
+      details.push(
+        `requested ${snapshot.requestedRef} resolves to a different commit`,
+      );
+    }
+    if (snapshot.indexingRequestedRef)
+      details.push(`${snapshot.indexingRequestedRef} is indexing`);
+  }
 
   const searched = formatSourceStateSegment(group, "searched");
   if (searched) details.push(`searched: ${searched}`);
@@ -504,6 +517,19 @@ function formatTargetStatus(
 function formatUsingSegment(
   group: UnifiedSearchTargetGroup,
 ): string | undefined {
+  const snapshots = group.trustLimits.filter(
+    (limit) => limit.kind === "repository_snapshot",
+  );
+  if (snapshots.length > 0) {
+    return [
+      ...new Set(
+        snapshots.map(
+          (snapshot) =>
+            `using commit: ${snapshot.commitTarget}${snapshot.indexedRef ? ` (indexed from ref ${snapshot.indexedRef})` : ""}`,
+        ),
+      ),
+    ].join("; ");
+  }
   const stale = group.trustLimits
     .filter(
       (limit): limit is Extract<UnifiedSearchTrustLimit, { kind: "stale" }> =>
@@ -856,6 +882,7 @@ function formatRemaining(count: number): string {
 function appendPresentationAction(
   lines: string[],
   presentation: UnifiedSearchPresentation,
+  results: UnifiedSearchHitPresentation[],
   options: NormalizedTextOptions,
 ): void {
   const action = presentation.action;
@@ -863,16 +890,66 @@ function appendPresentationAction(
   if (lines[lines.length - 1] !== "") {
     lines.push("");
   }
-  if (action.kind === "poll" || action.kind === "status") {
+  const useResults = "useResults" in action && action.useResults;
+  if (useResults) {
+    lines.push(
+      ...wrapText(
+        "Next: use these hits for lookup, or read a linked file now.",
+        options.width,
+      ),
+    );
+    const hit = results.find((hit) => hit.readTarget);
+    if (hit?.readTarget)
+      lines.push(renderReadTarget(hit.readTarget, options.actionSyntax));
+    if (
+      presentation.targetGroups.some((group) =>
+        group.trustLimits.some(
+          (limit) => limit.kind === "repository_snapshot" && limit.priorHead,
+        ),
+      )
+    ) {
+      lines.push(
+        ...wrapText(
+          "For an exact version or ref, include it in the search target.",
+          options.width,
+        ),
+      );
+    }
+  }
+  if (action.kind === "poll") {
     const next =
       options.actionSyntax === "cli"
         ? `Next: githits search-status ${action.searchRef} --wait ${action.waitTimeoutMs / 1000}`
         : `Next: search_status search_ref=${JSON.stringify(action.searchRef)} wait_timeout_ms=${action.waitTimeoutMs}`;
-    lines.push(highlight(next, options.useColors));
+    if (useResults) {
+      const priorHead = presentation.targetGroups.some((group) =>
+        group.trustLimits.some(
+          (limit) => limit.kind === "repository_snapshot" && limit.priorHead,
+        ),
+      );
+      lines.push(
+        ...wrapText(
+          priorHead
+            ? "If fresh HEAD matters, wait for updated results (hits and order may change):"
+            : "If updated results matter, wait (hits and order may change):",
+          options.width,
+        ),
+      );
+    }
+    lines.push(
+      highlight(
+        useResults ? next.replace("Next: ", "") : next,
+        options.useColors,
+      ),
+    );
     return;
   }
   if (action.kind === "new_search") {
-    lines.push("Next: rerun search later.");
+    lines.push(
+      useResults
+        ? "For updated results, run a new search."
+        : "Next: rerun search later.",
+    );
     return;
   }
   if (action.kind === "query_rewrite") {

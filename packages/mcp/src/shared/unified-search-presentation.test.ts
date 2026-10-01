@@ -204,7 +204,7 @@ describe("projectUnifiedSearchPresentation", () => {
     expect(presentation.action).toEqual({ kind: "none" });
   });
 
-  it("continues completed mutable evidence through the exact initial reference", () => {
+  it("requires a fresh search after completed mutable initial evidence", () => {
     const presentation = projectUnifiedSearchPresentation(
       completed({
         searchRef: "search-ref-initial",
@@ -213,13 +213,12 @@ describe("projectUnifiedSearchPresentation", () => {
     );
 
     expect(presentation.action).toEqual({
-      kind: "status",
-      waitTimeoutMs: 30_000,
-      searchRef: "search-ref-initial",
+      kind: "new_search",
+      useResults: true,
     });
   });
 
-  it("continues completed mutable evidence through the exact status reference", () => {
+  it("requires a fresh search after completed mutable status evidence", () => {
     const presentation = projectUnifiedSearchPresentation(
       statusCompleted(
         statusResult({
@@ -230,9 +229,8 @@ describe("projectUnifiedSearchPresentation", () => {
     );
 
     expect(presentation.action).toEqual({
-      kind: "status",
-      waitTimeoutMs: 30_000,
-      searchRef: "search-ref-1",
+      kind: "new_search",
+      useResults: true,
     });
   });
 
@@ -2141,14 +2139,11 @@ describe("projectUnifiedSearchPresentation", () => {
     expect(presentation.action).toEqual({ kind: "new_search" });
   });
 
-  it("uses query rewrite for completed-empty evidence without a reference", () => {
+  it("requires a new search for completed-empty mutable evidence without a reference", () => {
     const presentation = projectUnifiedSearchPresentation(
       completed({ results: [], evidenceNotice: "mutable evidence" }),
     );
 
-    expect(presentation.action).toEqual({
-      kind: "query_rewrite",
-      rewrites: ["shorter_or_broader", "symbol", "code_grep"],
-    });
+    expect(presentation.action).toEqual({ kind: "new_search" });
   });
 });
