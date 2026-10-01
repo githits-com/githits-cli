@@ -21,16 +21,23 @@ export interface McpSkillUpdateDependencies {
 }
 
 /** Existing init roots are the only destinations owned by startup maintenance. */
-export function getMcpSkillRoots(fs: FileSystemService): string[] {
+export function getMcpSkillRoots(
+  fs: FileSystemService,
+  warn: (message: string) => void,
+): string[] {
   const roots = new Set<string>();
-  for (const targets of Object.values(GUIDANCE_SKILL_TARGETS)) {
-    for (const [scope, base] of [
-      ["user", fs.getHomeDir()],
-      ["project", fs.getCwd()],
-    ] as const) {
-      for (const segments of targets[scope] ?? []) {
-        roots.add(fs.joinPath(base, ...segments));
+  for (const scope of ["user", "project"] as const) {
+    try {
+      const base = scope === "user" ? fs.getHomeDir() : fs.getCwd();
+      for (const targets of Object.values(GUIDANCE_SKILL_TARGETS)) {
+        for (const segments of targets[scope] ?? []) {
+          roots.add(fs.joinPath(base, ...segments));
+        }
       }
+    } catch {
+      warn(
+        `GitHits MCP skill maintenance skipped an unreadable ${scope} skill scope.`,
+      );
     }
   }
   return [...roots];
@@ -80,7 +87,7 @@ export async function updateInstalledMcpSkill(
   }
 
   const destinations = new Set<string>();
-  for (const root of getMcpSkillRoots(fs)) {
+  for (const root of getMcpSkillRoots(fs, warn)) {
     try {
       destinations.add(
         fs.joinPath(

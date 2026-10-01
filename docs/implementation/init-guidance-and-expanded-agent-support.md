@@ -129,18 +129,25 @@ plugin-only MCP launches do not invoke the local updater.
 
 An unmarked exact current payload is left byte-identical. A fixed set of 25
 verified pre-feature SHA-256 hashes bridges known older unmarked installs;
-unknown unmarked content is preserved. A marked payload identical to the
-bundled skill is silent regardless of writing version. A different payload is
-refreshed only when its writing CLI version is older than the running CLI. A
-different same-version payload is preserved silently; a different
-newer-version payload is preserved with a short warning. Malformed, duplicate,
-misplaced, unsupported, or checksum-mismatched markers are preserved.
+unknown unmarked content is preserved. The hashes and fixture payloads were
+verified on 2026-10-01 against all 43 published npm releases from 0.6.0 through
+0.25.0 and the available release tags; [npm registry provenance](https://registry.npmjs.org/githits)
+is retained here. The fixture keeps per-version payload bytes and hashes. A
+marked payload identical to the bundled skill is silent regardless of writing
+version. A different payload is refreshed only when its writing CLI version is
+older than the running CLI. A different same-version payload is preserved
+silently; a different newer-version payload is preserved with a short warning.
+Malformed, duplicate, misplaced, unsupported, or checksum-mismatched markers
+are preserved.
 
 Maintenance runs after ordinary startup dependency validation and before the
-local MCP server connects. Policy and IO failures produce sanitized stderr
-warnings and do not block startup; stdout remains reserved for MCP protocol
-output. Before replacement, the updater rereads the file and requires it to
-match the inspected bytes, then uses the existing atomic replacement helper.
+local MCP server connects. Failure to discover a user or project base emits a
+sanitized warning while discovery of the other scope continues; a deleted cwd
+can skip project-root maintenance without blocking user-root maintenance or
+startup. Other policy and IO failures also produce sanitized stderr warnings
+and do not block startup; stdout remains reserved for MCP protocol output.
+Before replacement, the updater rereads the file and requires it to match the
+inspected bytes, then uses the existing atomic replacement helper.
 That final check narrows but cannot eliminate a manual-edit or competing-launch
 race before rename; the lifecycle makes no stronger concurrency guarantee.
 Startup changes the file on disk only: agents that loaded it earlier in the

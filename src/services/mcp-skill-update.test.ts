@@ -241,13 +241,49 @@ describe("installed MCP skill maintenance", () => {
     expect(state.warnings).toEqual([]);
   });
 
+  it("a deleted cwd does not fail maintenance or prevent a user skill update", async () => {
+    const state = setup(old, {
+      getCwd: mock(() => {
+        throw missing();
+      }),
+    });
+    await expect(state.update()).resolves.toBeUndefined();
+    expect(state.fs.atomicWriteFile).toHaveBeenCalledWith(
+      destination,
+      renderManagedSkillContent(bundled, "0.26.0"),
+    );
+    expect(state.warnings).toHaveLength(1);
+    expect(state.warnings[0]).not.toContain("sensitive");
+    expect(state.fs.getCwd).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["user", "project"] as const)(
+    "a failed %s base preserves root discovery for the other scope",
+    (scope) => {
+      const fs = createMockFileSystemService({
+        [scope === "user" ? "getHomeDir" : "getCwd"]: () => {
+          throw missing();
+        },
+      });
+      const warnings: string[] = [];
+      const roots = getMcpSkillRoots(fs, (message) => warnings.push(message));
+      expect(roots).toHaveLength(scope === "user" ? 4 : 6);
+      expect(roots).toContain(
+        `${scope === "user" ? "/current/dir" : "/home/test"}/.agents/skills`,
+      );
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).not.toContain("sensitive");
+    },
+  );
+
   it("uses Windows path semantics for user and project root enumeration", () => {
     const fs = createMockFileSystemService({
       getHomeDir: () => "C:\\Users\\me",
       getCwd: () => "D:\\project",
       joinPath: win32.join,
     });
-    const roots = getMcpSkillRoots(fs);
+    const warn = mock();
+    const roots = getMcpSkillRoots(fs, warn);
     expect(roots).toHaveLength(10);
     expect(roots).toContain("C:\\Users\\me\\.agents\\skills");
     expect(roots).toContain("D:\\project\\.claude\\skills");
@@ -255,6 +291,7 @@ describe("installed MCP skill maintenance", () => {
     expect(
       roots.some((path) => path.includes(".cline") || path.includes(".junie")),
     ).toBe(false);
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it("updates shared aliases once, supports symlinked roots, and skips escaping aliases", async () => {
