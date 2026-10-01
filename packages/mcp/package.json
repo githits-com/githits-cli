@@ -1,6 +1,6 @@
 {
   "name": "@githits/mcp",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "description": "Reusable MCP server APIs and tools for GitHits",
   "type": "module",
   "files": [
