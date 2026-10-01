@@ -125,14 +125,25 @@ export async function createMcpCommandStartup(
     clientName: "githits-cli/mcp",
     agentProvider: () => readMcpClientVersion(server),
   });
-  await (dependencies.updateSkill ?? updateInstalledMcpSkill)({
-    fs,
-    version,
-    env: {
-      GITHITS_DISABLE_SKILL_UPDATE: process.env.GITHITS_DISABLE_SKILL_UPDATE,
-    },
-    warn: dependencies.warn ?? ((message: string) => console.error(message)),
-  });
+  const warn = (message: string): void => {
+    try {
+      (dependencies.warn ?? console.error)(message);
+    } catch {
+      // Best-effort maintenance diagnostics must not prevent server startup.
+    }
+  };
+  try {
+    await (dependencies.updateSkill ?? updateInstalledMcpSkill)({
+      fs,
+      version,
+      env: {
+        GITHITS_DISABLE_SKILL_UPDATE: process.env.GITHITS_DISABLE_SKILL_UPDATE,
+      },
+      warn,
+    });
+  } catch {
+    warn("GitHits MCP skill maintenance failed; continuing startup.");
+  }
   return {
     services,
     experimentalPolicy,

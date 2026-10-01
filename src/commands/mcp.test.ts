@@ -30,6 +30,7 @@ import {
   inspectSkillContent,
   renderManagedSkillContent,
 } from "../services/mcp-skill-content.js";
+import type { McpSkillUpdateDependencies } from "../services/mcp-skill-update.js";
 import {
   createMockCodeNavigationService,
   createMockGitHitsService,
@@ -672,46 +673,68 @@ describe("createMcpCommandStartup", () => {
     }
   });
 
-  it("both startup routes finish maintenance before connection", async () => {
-    const isolated = await mkdtemp(join(tmpdir(), "githits-mcp-routes-"));
-    const stdoutTTY = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
-    const events: string[] = [];
-    try {
-      Object.defineProperty(process.stdout, "isTTY", {
-        configurable: true,
-        value: false,
-      });
-      await withTestEnvVar("GITHITS_API_TOKEN", "test-startup-token", () =>
-        withConfigHome(isolated, async () => {
-          for (const args of [["mcp", "start"], ["mcp"]]) {
-            const program = new Command();
-            registerMcpCommand(program, {
-              createStartup: (options) =>
-                createMcpCommandStartup(options, {
-                  updateSkill: async () => {
-                    events.push("maintenance");
-                  },
-                }),
-              startServer: async () => {
-                events.push("connect");
-              },
-            });
-            await program.parseAsync(["node", "test", ...args]);
-          }
-        }),
+  it.each(["success", "throw", "reject", "warning-failure"])(
+    "both startup routes connect after maintenance outcome %s",
+    async (outcome) => {
+      const isolated = await mkdtemp(join(tmpdir(), "githits-mcp-routes-"));
+      const stdoutTTY = Object.getOwnPropertyDescriptor(
+        process.stdout,
+        "isTTY",
       );
-      expect(events).toEqual([
-        "maintenance",
-        "connect",
-        "maintenance",
-        "connect",
-      ]);
-    } finally {
-      if (stdoutTTY) Object.defineProperty(process.stdout, "isTTY", stdoutTTY);
-      else delete (process.stdout as { isTTY?: boolean }).isTTY;
-      await rm(isolated, { recursive: true, force: true });
-    }
-  });
+      const events: string[] = [];
+      const warnings: string[] = [];
+      const warn = mock((message: string) => {
+        warnings.push(message);
+        if (outcome === "warning-failure") throw new Error("warning failed");
+      });
+      try {
+        Object.defineProperty(process.stdout, "isTTY", {
+          configurable: true,
+          value: false,
+        });
+        await withTestEnvVar("GITHITS_API_TOKEN", "test-startup-token", () =>
+          withConfigHome(isolated, async () => {
+            for (const args of [["mcp", "start"], ["mcp"]]) {
+              const program = new Command();
+              registerMcpCommand(program, {
+                createStartup: (options) =>
+                  createMcpCommandStartup(options, {
+                    updateSkill: (dependencies: McpSkillUpdateDependencies) => {
+                      events.push("maintenance");
+                      if (outcome === "throw")
+                        throw new Error("private failure");
+                      if (outcome === "reject")
+                        return Promise.reject(new Error("private failure"));
+                      if (outcome === "warning-failure")
+                        dependencies.warn("Maintenance warning");
+                      return Promise.resolve();
+                    },
+                    warn,
+                  }),
+                startServer: async () => {
+                  events.push("connect");
+                },
+              });
+              await program.parseAsync(["node", "test", ...args]);
+            }
+          }),
+        );
+        expect(events).toEqual([
+          "maintenance",
+          "connect",
+          "maintenance",
+          "connect",
+        ]);
+        expect(warn).toHaveBeenCalledTimes(outcome === "success" ? 0 : 2);
+        expect(warnings.join(" ")).not.toContain("private failure");
+      } finally {
+        if (stdoutTTY)
+          Object.defineProperty(process.stdout, "isTTY", stdoutTTY);
+        else delete (process.stdout as { isTTY?: boolean }).isTTY;
+        await rm(isolated, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("help and TTY instructions create no startup or maintenance", async () => {
     const stdoutTTY = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");

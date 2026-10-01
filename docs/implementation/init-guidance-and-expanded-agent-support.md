@@ -146,6 +146,8 @@ sanitized warning while discovery of the other scope continues; a deleted cwd
 can skip project-root maintenance without blocking user-root maintenance or
 startup. Other policy and IO failures also produce sanitized stderr warnings
 and do not block startup; stdout remains reserved for MCP protocol output.
+The startup factory also catches unexpected maintenance failures; even a
+maintenance warning failure cannot prevent the server from connecting.
 Before replacement, the updater rereads the file and requires it to match the
 inspected bytes, then uses the existing atomic replacement helper.
 That final check narrows but cannot eliminate a manual-edit or competing-launch
