@@ -174,7 +174,10 @@ describe("snapshot search text received by agents", () => {
         kind,
         gitRef: kind === "repo_head" ? "HEAD" : undefined,
       };
-      expect(both(payload)[0]).toContain("If fresh HEAD matters");
+      resolution(payload).resolvedRequested!.gitRef = undefined;
+      const text = both(payload)[0]!;
+      expect(text).toContain("If fresh HEAD matters");
+      expect(text.replace(/\s+/g, " ")).toContain("HEAD is indexing");
     },
   );
 

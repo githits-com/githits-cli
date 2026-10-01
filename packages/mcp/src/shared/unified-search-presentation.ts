@@ -712,13 +712,15 @@ function projectTrustLimits(
           entry.codeIndexState ?? "",
         ))
     ) {
-      const requestedRef =
-        resolution?.requested?.gitRef ?? resolution?.resolvedRequested?.gitRef;
-      const requestedCommitDiffers = Boolean(
-        requestedSha && requestedSha !== servedSha,
-      );
       const headIntent = ["repo_default_branch", "repo_head"].includes(
         resolution?.requested?.kind ?? "",
+      );
+      const requestedRef = headIntent
+        ? "HEAD"
+        : (resolution?.requested?.gitRef ??
+          resolution?.resolvedRequested?.gitRef);
+      const requestedCommitDiffers = Boolean(
+        requestedSha && requestedSha !== servedSha,
       );
       add({
         kind: "repository_snapshot",
@@ -731,7 +733,7 @@ function projectTrustLimits(
         ...(served.gitRef && !/^[0-9a-f]{7,40}$/i.test(served.gitRef)
           ? { indexedRef: served.gitRef }
           : {}),
-        requestedRef: headIntent ? "HEAD" : requestedRef,
+        requestedRef,
         requestedCommitDiffers,
         priorHead:
           headIntent &&
@@ -739,7 +741,7 @@ function projectTrustLimits(
           requestedCommitDiffers,
         ...(resolution?.freshnessReason === "requested_ref_indexing" &&
         requestedRef
-          ? { indexingRequestedRef: headIntent ? "HEAD" : requestedRef }
+          ? { indexingRequestedRef: requestedRef }
           : {}),
       });
     }
