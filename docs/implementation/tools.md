@@ -138,11 +138,12 @@ Use the tools in these roles:
   cross-project examples and unknown-target/global patterns; for a known
   package or repository, use `search`, `list`, `read`, or `grep` according to
   the task.
-- **Conditional search continuation:** Call `search_status` only when the
-  preceding `search` response explicitly supplies both a `searchRef` and a
+- **Conditional search continuation:** Use visible hits for lookup now. Call `search_status` only when updated
+  results matter and the preceding `search` response explicitly supplies both a `searchRef` and a
   `search_status` action. The initial `search` call can complete directly; never
   repeat it to poll. A
-  terminal or unrecognized status ends that reference; start a later search
+  completed or terminal reference is stored; do not poll it or an unrecognized
+  status. Start a later search
   when a fresh session is needed.
 - **Package intelligence:** Use `pkg_info` for a latest-version health and
   adoption overview, `pkg_vulns` for CVEs/advisories and affected or fixed

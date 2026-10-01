@@ -240,6 +240,44 @@ describe("snapshot search text received by agents", () => {
     expect(both(payload)[0]).not.toContain("using commit:");
   });
 
+  it.each([0, undefined, 1])(
+    "does not borrow another target's same-repo/commit hits (source count=%s)",
+    (resultCount) => {
+      const payload = snapshot();
+      payload.sourceStatus![0]!.resultCount = resultCount;
+      const explicitTarget = `github:anomalyco/opencode@${servedSha}`;
+      payload.results[0]!.target = explicitTarget;
+      payload.results[0]!.servedTarget = target; // Historical alias is not attribution.
+      payload.sourceStatus!.push({
+        source: "code",
+        targetLabel: explicitTarget,
+        resultCount: 1,
+        codeIndexState: "CURRENT",
+        targetResolution: {
+          requested: { kind: "repo_commit", gitRef: servedSha },
+          resolvedRequested: {
+            repoUrl,
+            gitRef: servedSha,
+            commitSha: servedSha,
+          },
+          served: { repoUrl, gitRef: "HEAD", commitSha: servedSha },
+          freshness: "current",
+          availableVersions: [],
+          availableRefs: [],
+        },
+      });
+      for (const text of both(payload)) {
+        expect(text).not.toContain("using commit:");
+        expect(text).not.toContain(
+          "requested HEAD resolves to a different commit",
+        );
+        expect(text).not.toContain("If fresh HEAD matters");
+        expect(text).toContain("Next: use these hits");
+        expect(text).toContain(explicitTarget);
+      }
+    },
+  );
+
   it("preserves withheld pairs and mixed docs readiness alongside usable hits", () => {
     const payload = snapshot();
     payload.partialResults = true;

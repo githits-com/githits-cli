@@ -4,7 +4,9 @@ Initial `search` and `search_status` use the same semantic projection and text
 formatter in `packages/mcp/src/shared/unified-search-presentation.ts` and
 `unified-search-text.ts`. The former owns evidence and continuation decisions;
 the latter owns wording and surface-native read/status commands. CLI/MCP adapters,
-GraphQL selections, JSON, and explicit user wait options are unchanged.
+GraphQL selections, JSON, and explicit user wait options are unchanged. Search
+descriptions retain their selection sentences and make continuation conditional
+on needing updated results; completed references are stored, not poll targets.
 
 Previously the projection discarded `evidenceNotice` wording and chose a status
 wait whenever the search was active. An agent following the next action literally

@@ -679,9 +679,13 @@ function projectTrustLimits(
     const served = resolution?.served;
     const requestedSha = resolution?.resolvedRequested?.commitSha;
     const servedSha = served?.commitSha;
+    const sourceTargets = entry.requestedTarget
+      ? [entry.requestedTarget]
+      : [entry.targetLabel, entry.servedTarget];
     const hasRepositoryHits = Boolean(
       servedSha &&
         served?.repoUrl &&
+        entry.resultCount !== 0 &&
         snapshot?.results.some(
           (hit) =>
             hit.locator.commitSha === servedSha &&
@@ -691,16 +695,7 @@ function projectTrustLimits(
                 : entry.source.toLowerCase() === "code"
                   ? "repository_code"
                   : "repository_doc") &&
-            (hit.locator.repoUrl === served.repoUrl ||
-              [hit.target, hit.servedTarget, hit.requestedTarget].some(
-                (label) =>
-                  label !== undefined &&
-                  [
-                    entry.targetLabel,
-                    entry.servedTarget,
-                    entry.requestedTarget,
-                  ].includes(label),
-              )),
+            sourceTargets.includes(hit.requestedTarget ?? hit.target),
         ),
     );
     if (

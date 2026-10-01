@@ -144,12 +144,23 @@ describe("searchStatusTool", () => {
     expect(tool.description).toContain("serveable subset");
     expect(tool.description).toContain("allow_partial_results");
     expect(tool.description).toContain("`PENDING`, `INDEXING`, or `SEARCHING`");
-    expect(tool.description).toContain(
+    expect(tool.description).not.toContain(
       "a completed result with an evidence notice",
     );
     expect(tool.description).toContain("`DEFERRED`, `TIMEOUT`, and `FAILED`");
     expect(tool.description).toContain("unrecognized statuses are not polled");
     expect(tool.description).toContain("rendered new-search action");
+  });
+
+  it("keeps completed evidence out of continuation guidance", () => {
+    const tool = createSearchStatusTool(createMockCodeNavigationService());
+    expect(tool.description).toContain("when updated results matter");
+    expect(tool.description).toContain(
+      "`COMPLETED`, `DEFERRED`, `TIMEOUT`, and `FAILED` are terminal",
+    );
+    expect(tool.description).not.toContain(
+      "completed result with an evidence notice",
+    );
   });
 
   it("waits up to the shared default and forwards explicit wait windows", async () => {

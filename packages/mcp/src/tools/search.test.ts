@@ -68,7 +68,7 @@ describe("searchTool", () => {
       "A `search` call can return complete results directly",
     );
     expect(tool.description).toContain(
-      "Only when its response supplies both a `searchRef` and a `search_status` action",
+      "the response supplies both a `searchRef` and a `search_status` action",
     );
     expect(tool.description).toContain("never repeat `search` to poll");
     expect(tool.description).toContain("`search_status`");
@@ -84,6 +84,13 @@ describe("searchTool", () => {
     expect(tool.description).not.toContain("Stale-but-serveable");
     expect(tool.description).not.toContain(
       "`DEFERRED`, `TIMEOUT`, and `FAILED`",
+    );
+  });
+
+  it("makes status continuation conditional on needing updated results", () => {
+    const tool = createSearchTool(createMockCodeNavigationService());
+    expect(tool.description).toContain(
+      "Follow `search_status` only if you need updated results",
     );
   });
 

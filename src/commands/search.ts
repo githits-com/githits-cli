@@ -198,11 +198,11 @@ Examples:
 const SEARCH_STATUS_DESCRIPTION = `Check the status of a unified search started earlier.
 
 Pass the searchRef only when githits search explicitly supplies this follow-up,
-including for active PENDING, INDEXING, or SEARCHING progress or a completed
-result with an evidence notice. This can return progress, interim hits covering
+only for active PENDING, INDEXING, or SEARCHING progress when updated results
+matter. Visible hits can be used for lookup now. This can return progress, hits covering
 every runnable target/source pair while refresh continues, partial hits from a
 serveable subset when the original request used --allow-partial, or final
-results. DEFERRED, TIMEOUT, and FAILED are terminal; unrecognized statuses are
+results. COMPLETED, DEFERRED, TIMEOUT, and FAILED are terminal; unrecognized statuses are
 not polled; follow the rendered new-search action instead. By default the command
 waits up to 30 seconds for progress before returning the latest status.`;
 
