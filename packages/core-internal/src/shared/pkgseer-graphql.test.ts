@@ -5,7 +5,10 @@ import {
   PkgseerTransportError,
   postPkgseerGraphql,
 } from "./pkgseer-graphql.js";
-import { createClientHeaderBuilder } from "./request-headers.js";
+import {
+  createClientHeaderBuilder,
+  SessionIdConfigError,
+} from "./request-headers.js";
 import { TermsAcceptanceRequiredError } from "./terms-acceptance.js";
 
 function makeResponse(
@@ -36,6 +39,24 @@ const VALID_JSON = JSON.stringify({
 describe("postPkgseerGraphql", () => {
   const ENDPOINT = "https://pkgseer.dev";
   const TOKEN = "test-token";
+
+  it("propagates invalid session configuration without fetching", async () => {
+    const fetchFn = mock(() => Promise.resolve(makeResponse(VALID_JSON)));
+    await expect(
+      postPkgseerGraphql({
+        endpointUrl: ENDPOINT,
+        token: TOKEN,
+        query: "query { x }",
+        variables: {},
+        fetchFn: asFetchFn(fetchFn),
+        clientHeaders: createClientHeaderBuilder({
+          clientName: "test-client",
+          env: { GITHITS_SESSION_ID: "bad/value" },
+        }),
+      }),
+    ).rejects.toThrow(SessionIdConfigError);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
 
   it("returns structured response for 200 + valid JSON", async () => {
     const fetchFn = mock(() => Promise.resolve(makeResponse(VALID_JSON)));

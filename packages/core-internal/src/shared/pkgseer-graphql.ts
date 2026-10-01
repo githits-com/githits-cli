@@ -99,6 +99,7 @@ export async function postPkgseerGraphql(
     request.endpointUrl,
     "package/source service URL",
   );
+  const clientHeaders = request.clientHeaders?.();
 
   let response: Response;
   try {
@@ -108,7 +109,7 @@ export async function postPkgseerGraphql(
         method: "POST",
         signal: request.signal,
         headers: {
-          ...request.clientHeaders?.(),
+          ...clientHeaders,
           Authorization: `Bearer ${request.token}`,
           "Content-Type": "application/json",
           "User-Agent": userAgent,

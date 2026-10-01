@@ -493,6 +493,23 @@ describe("startMcpServer", () => {
 });
 
 describe("createMcpCommandStartup", () => {
+  it.each(["", "Bad/value", " value ", "x".repeat(65), "value\n"])(
+    "rejects an invalid session before dependency creation (%j)",
+    async (value) => {
+      const previousSession = process.env.GITHITS_SESSION_ID;
+      try {
+        process.env.GITHITS_SESSION_ID = value;
+        await expect(createMcpCommandStartup()).rejects.toThrow(
+          "Invalid GITHITS_SESSION_ID: expected [A-Za-z0-9_-]{1,64}.",
+        );
+      } finally {
+        if (previousSession === undefined)
+          delete process.env.GITHITS_SESSION_ID;
+        else process.env.GITHITS_SESSION_ID = previousSession;
+      }
+    },
+  );
+
   it("maps strict host settings into the neutral local policy", async () => {
     const xdgConfigHome = await mkdtemp(join(tmpdir(), "githits-mcp-policy-"));
     const configDir = join(xdgConfigHome, "githits");
@@ -765,4 +782,63 @@ describe("createMcpCommandStartup", () => {
       await rm(xdgConfigHome, { recursive: true, force: true });
     }
   });
+});
+
+describe("MCP session validation in a real CLI process", () => {
+  it.each([
+    { args: ["mcp"], startsServer: true },
+    { args: ["mcp", "start"], startsServer: true },
+    { args: ["--help"], startsServer: false },
+    { args: ["mcp", "start", "--help"], startsServer: false },
+  ])(
+    "validates configuration only when starting MCP (%j)",
+    async ({ args, startsServer }) => {
+      const configHome = await mkdtemp(
+        join(tmpdir(), "githits-session-start-"),
+      );
+      const configHomeKey =
+        process.platform === "win32" ? "APPDATA" : "XDG_CONFIG_HOME";
+      const env: NodeJS.ProcessEnv = {
+        ...process.env,
+        [configHomeKey]: configHome,
+        GITHITS_SESSION_ID: "ShouldNeverBeEchoed/bad",
+        GITHITS_ENV: "invalid-selector",
+        GITHITS_AUTH_STORAGE: "file",
+        GITHITS_DISABLE_UPDATE_CHECK: "1",
+        GITHITS_DEBUG: "",
+        NO_COLOR: "1",
+      };
+      delete env.GITHITS_API_TOKEN;
+      const child = Bun.spawn(
+        [process.execPath, "run", "src/cli.ts", ...args],
+        {
+          cwd: process.cwd(),
+          env,
+          stdin: "ignore",
+          stdout: "pipe",
+          stderr: "pipe",
+        },
+      );
+      try {
+        const [stdout, stderr, exitCode] = await Promise.all([
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+          child.exited,
+        ]);
+        if (startsServer) {
+          expect(exitCode).toBe(1);
+          expect(stdout).toBe("");
+          expect(stderr.trim()).toBe(
+            "Invalid GITHITS_SESSION_ID: expected [A-Za-z0-9_-]{1,64}.",
+          );
+        } else {
+          expect(exitCode).toBe(0);
+          expect(stdout).toContain("Usage:");
+          expect(stderr).toBe("");
+        }
+      } finally {
+        await rm(configHome, { recursive: true, force: true });
+      }
+    },
+  );
 });

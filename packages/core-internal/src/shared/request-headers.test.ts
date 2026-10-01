@@ -3,11 +3,13 @@ import { createHash } from "node:crypto";
 import {
   buildClientHeaders,
   createClientHeaderBuilder,
+  getEnvSessionId,
   getSessionId,
   parseAgentString,
   resetRequestHeadersState,
   resolveAgentInfo,
   resolveRawSessionId,
+  SessionIdConfigError,
   sanitizeHeaderValue,
   setAgentInfo,
   setClientMode,
@@ -24,11 +26,77 @@ afterEach(() => {
   resetRequestHeadersState();
 });
 
+describe("getEnvSessionId", () => {
+  it("returns undefined only when the override is unset", () => {
+    expect(getEnvSessionId({})).toBeUndefined();
+  });
+
+  it.each(["A", "z", "0", "_", "-", "User_Project-run_42", "x".repeat(64)])(
+    "preserves a valid identifier unchanged (%j)",
+    (value) => {
+      expect(getEnvSessionId({ GITHITS_SESSION_ID: value })).toBe(value);
+    },
+  );
+
+  it.each([
+    "",
+    " ",
+    "\t",
+    " leading",
+    "trailing ",
+    "two words",
+    "user/project",
+    "run:42",
+    "a.b",
+    "工場",
+    "🐦",
+    "x".repeat(65),
+    "line\n",
+    `${"x".repeat(63)}\n`,
+    "line\r\n",
+    "a\0b",
+    "a\u007fb",
+  ])("rejects invalid identifiers without echoing them (%j)", (value) => {
+    expect(() => getEnvSessionId({ GITHITS_SESSION_ID: value })).toThrow(
+      new SessionIdConfigError(),
+    );
+  });
+});
+
 // ---------------------------------------------------------------------------
 // resolveRawSessionId
 // ---------------------------------------------------------------------------
 
 describe("resolveRawSessionId", () => {
+  it("prefers GITHITS_SESSION_ID over terminal detection", () => {
+    const env = {
+      GITHITS_SESSION_ID: "Factory_run-42_agent-a",
+      TERM_SESSION_ID: "terminal-session",
+      ITERM_SESSION_ID: "iterm-session",
+    };
+    expect(resolveRawSessionId(env, 999)).toBe("Factory_run-42_agent-a");
+  });
+
+  it("uses an explicit session ID without terminal env variables", () => {
+    const env = { GITHITS_SESSION_ID: "Factory_run-42_agent-a" };
+    expect(resolveRawSessionId(env, 999)).toBe("Factory_run-42_agent-a");
+  });
+
+  it.each(["", " \t\n "])(
+    "rejects a blank override instead of falling back (%j)",
+    (value) => {
+      expect(() =>
+        resolveRawSessionId(
+          { GITHITS_SESSION_ID: value, TERM_SESSION_ID: "terminal-session" },
+          999,
+        ),
+      ).toThrow(SessionIdConfigError);
+      expect(() =>
+        resolveRawSessionId({ GITHITS_SESSION_ID: value }, 999),
+      ).toThrow(SessionIdConfigError);
+    },
+  );
+
   it("returns TERM_SESSION_ID when set", () => {
     const env = { TERM_SESSION_ID: "abc-123" };
     expect(resolveRawSessionId(env, 999)).toBe("abc-123");
@@ -118,6 +186,42 @@ describe("resolveRawSessionId", () => {
 // ---------------------------------------------------------------------------
 
 describe("getSessionId", () => {
+  it("rejects invalid process configuration even after caching a session", () => {
+    const previous = process.env.GITHITS_SESSION_ID;
+    try {
+      process.env.GITHITS_SESSION_ID = "Valid_cached-session";
+      expect(getSessionId()).toBe("Valid_cached-session");
+      process.env.GITHITS_SESSION_ID = "invalid/session";
+      expect(() => getSessionId()).toThrow(SessionIdConfigError);
+    } finally {
+      if (previous === undefined) delete process.env.GITHITS_SESSION_ID;
+      else process.env.GITHITS_SESSION_ID = previous;
+    }
+  });
+
+  it("preserves an explicit session identifier instead of hashing it", () => {
+    const env = {
+      GITHITS_SESSION_ID: "User_project_run-42_agent-a",
+      TERM_SESSION_ID: "terminal-session",
+    };
+    expect(getSessionId(env, 999)).toBe("User_project_run-42_agent-a");
+  });
+
+  it.each(["", " \t\n "])(
+    "rejects a blank explicit session instead of hashing a fallback (%j)",
+    (value) => {
+      expect(() =>
+        getSessionId(
+          { GITHITS_SESSION_ID: value, TERM_SESSION_ID: "terminal-session" },
+          999,
+        ),
+      ).toThrow(SessionIdConfigError);
+      expect(() => getSessionId({ GITHITS_SESSION_ID: value }, 999)).toThrow(
+        SessionIdConfigError,
+      );
+    },
+  );
+
   it("returns a 16-char hex string", () => {
     const id = getSessionId({}, 42);
     expect(id).toMatch(/^[0-9a-f]{16}$/);
@@ -442,6 +546,49 @@ describe("buildClientHeaders", () => {
 });
 
 describe("createClientHeaderBuilder", () => {
+  it("preserves a session ID at the 64-character limit", () => {
+    const sessionId = "x".repeat(64);
+    const build = createClientHeaderBuilder({
+      clientName: "githits-cli/mcp",
+      env: { GITHITS_SESSION_ID: sessionId },
+    });
+    expect(build()["x-githits-session-id"]).toBe(sessionId);
+  });
+
+  it.each(["x".repeat(65), "invalid/value", "", "value\n"])(
+    "rejects invalid session configuration when building headers (%j)",
+    (sessionId) => {
+      const build = createClientHeaderBuilder({
+        clientName: "githits-cli/mcp",
+        env: { GITHITS_SESSION_ID: sessionId },
+      });
+      expect(build).toThrow(SessionIdConfigError);
+      expect(() =>
+        buildClientHeaders({ GITHITS_SESSION_ID: sessionId }, 42),
+      ).toThrow(SessionIdConfigError);
+    },
+  );
+
+  it("preserves an explicit override across parent processes", () => {
+    const raw = "User_project_run-42_agent-a";
+    const env = {
+      GITHITS_SESSION_ID: raw,
+      TERM_SESSION_ID: "terminal-session",
+    };
+    const build = createClientHeaderBuilder({
+      clientName: "githits-cli/mcp",
+      env,
+      ppid: 42,
+    });
+    const headers = build();
+    expect(headers["x-githits-session-id"]).toBe(raw);
+    expect(headers["x-githits-session-id"]).toBe(
+      buildClientHeaders({ GITHITS_SESSION_ID: raw }, 999)[
+        "x-githits-session-id"
+      ],
+    );
+  });
+
   it("builds isolated headers from explicit runtime metadata", () => {
     const build = createClientHeaderBuilder({
       clientName: "githits-cli/mcp",

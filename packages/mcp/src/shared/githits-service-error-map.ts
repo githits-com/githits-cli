@@ -4,6 +4,7 @@ import {
   FetchTimeoutError,
 } from "@githits/core-internal/browser";
 import type { MappedError } from "./mapped-error.js";
+import { mapSessionIdError } from "./session-id-error-map.js";
 import { mapTermsAcceptanceError } from "./terms-acceptance-error-map.js";
 
 /**
@@ -14,6 +15,8 @@ export function mapGitHitsServiceError(
   operation: string,
   error: unknown,
 ): MappedError {
+  const sessionError = mapSessionIdError(error);
+  if (sessionError) return sessionError;
   const termsError = mapTermsAcceptanceError(error);
   if (termsError) return termsError;
   if (error instanceof AuthenticationError) {

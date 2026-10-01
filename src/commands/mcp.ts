@@ -1,4 +1,4 @@
-import type { AgentInfo } from "@githits/core-internal";
+import { type AgentInfo, getEnvSessionId } from "@githits/core-internal";
 import {
   createLocalMcpServer,
   dim,
@@ -103,6 +103,7 @@ export interface McpCommandStartup {
 export async function createMcpCommandStartup(
   options: CreateMcpCommandStartupOptions = {},
 ): Promise<McpCommandStartup> {
+  getEnvSessionId();
   const experimentalPolicy = options.experimentalTools
     ? OVERRIDE_LOCAL_MCP_POLICY
     : await loadExperimentalSettings(new FileSystemServiceImpl()).then(

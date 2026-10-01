@@ -87,8 +87,48 @@ Package/source access uses the OSS service URL selected by `GITHITS_ENV` unless 
 | `GITHITS_ACCOUNTS_URL` | Override account settings origin | `https://accounts.example.test` |
 | `GITHITS_API_TOKEN` | API token for authentication | `ghi-abc123...` |
 | `GITHITS_AUTH_STORAGE` | Override OAuth credential storage for the current process (`keychain` or `file`) | `file` |
+| `GITHITS_SESSION_ID` | Override automatic session detection (`[A-Za-z0-9_-]{1,64}`) | `factory_run-42_agent-a` |
 | `GITHITS_TELEMETRY` | Emit end-of-run timing spans to stderr for local profiling | `1` |
 | `GITHITS_DISABLE_UPDATE_CHECK` | Disable npm latest-version update notices | `1` |
+
+### Request session identifiers
+
+`packages/core-internal/src/shared/request-headers.ts` owns session resolution
+for the CLI, local stdio MCP, and the public `@githits/mcp/client` header builder.
+`GITHITS_SESSION_ID` takes precedence over detected terminal, IDE, shell, and SSH
+identifiers. If provided, its entire value must match `[A-Za-z0-9_-]{1,64}`:
+1-64 ASCII letters, digits, underscores, or hyphens. Empty values, whitespace,
+other punctuation, Unicode, and longer values are invalid. Values are never
+trimmed or repaired. Unset the variable to retain automatic detection, followed
+by the parent PID and then a random UUID when no valid parent PID is available.
+
+A valid explicit identifier is sent unchanged as `x-githits-session-id`, without
+hashing, so factories can query analytics by their own session labels.
+Automatically detected identifiers continue to be hashed with SHA-256 and
+truncated to 16 hex characters, rather than sending terminal details verbatim.
+`getEnvSessionId()` owns validation and throws `SessionIdConfigError` without
+including the supplied value in the message. Both helpers are also exported
+through `@githits/mcp/client` for runtime hosts.
+
+Local MCP command startup validates the override before constructing dependencies
+or connecting stdio; invalid values cause `githits mcp start` and noninteractive
+`githits mcp` to exit with status 1. CLI help and local-only commands do not
+eagerly validate this request configuration. Header builders validate on use;
+CLI requests propagate the configuration error (JSON code `INVALID_ARGUMENT`)
+instead of silently dropping the session ID or reporting a network failure.
+Other unexpected metadata errors retain the existing best-effort handling.
+
+The default process session is cached after its first resolution, so set the
+variable before starting the CLI or local MCP server. A factory can reuse one
+identifier across related invocations to group them, even across parent
+processes, and choose a different identifier for each independent session:
+
+```bash
+GITHITS_SESSION_ID='factory_run-42_agent-a' githits pkg info npm:express
+```
+
+Local environment variables do not configure an already hosted remote MCP
+connection; a remote server controls its own request-header environment.
 
 ## Local Storage
 
