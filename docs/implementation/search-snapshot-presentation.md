@@ -101,3 +101,20 @@ wait depends on needing updates, and completed references are stored. It does
 not describe the new formatter wording or introduce unreleased commands/fields.
 No public quick-start builder or embedded guide changes, transport changes, or
 release/version changes are involved.
+
+Final closure validation: `bun test` passes 5,313 tests with 20,141 expectations
+across 230 files. The bounded attribution scan also covers two requests for the
+same repository/SHA, including a zero-hit HEAD source and hits belonging only to
+an explicit commit. A historical served alias cannot attribute those hits to HEAD.
+`bun run plugins:generate` / `bun run plugins:check` pass; all ten generated assets
+remain unchanged.
+
+After descriptor/reference edits, descriptor-only Luna run
+`2026-10-01T11-35-25-139Z` reported success/high confidence with thirteen completed
+MCP calls: three search, five read, two grep, two list, one quick_start, no
+search_status. It received current snapshot evidence. The matching skills run
+`2026-10-01T11-35-25-140Z` is **inconclusive**, despite the harness success exit:
+its sole CLI search failed at unavailable keychain access in the isolated home;
+no snapshot output was observed. Final answers, tool traces, and metrics were
+inspected for both, and neither emitted an isolation-violations artifact. No
+independent answer-quality grading or comparative performance claim is made.
