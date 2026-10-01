@@ -1285,6 +1285,12 @@ new infrastructure is proposed. The maintenance opportunity is to retire the
 MCP-only legacy adapter after migration while preserving shared CLI helpers;
 do not absorb a general code-navigation refactor.
 
+User direction on 2026-10-01: merge the reviewed unified-grep increment and
+handle overall instruction optimization separately. That follow-up, including
+the unresolved search-versus-grep identifier-usage comparison, is recorded in
+[open-backlog.md](open-backlog.md). Unified-grep implementation has no remaining
+code or copy findings.
+
 ## Design review
 
 Completed Phase 1 execution sequence (one Luna worker, sequential dispatches):
