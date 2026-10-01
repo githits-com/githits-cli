@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   appendCliArgs,
@@ -81,7 +81,12 @@ describe("smoke CLI launch targets", () => {
   it("runs the source CLI from a temporary cwd outside the repository", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "githits-smoke-source-cwd-"));
     tempDirs.push(cwd);
-    expect(relative(process.cwd(), cwd).startsWith("..")).toBe(true);
+    const relativeFromRepo = relative(process.cwd(), cwd);
+    expect(
+      isAbsolute(relativeFromRepo) ||
+        relativeFromRepo === ".." ||
+        relativeFromRepo.startsWith(`..${sep}`),
+    ).toBe(true);
 
     const proc = Bun.spawn(
       appendCliArgs(SOURCE_CLI_LAUNCH_TARGET, ["--version"]),

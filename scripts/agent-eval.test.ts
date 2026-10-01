@@ -2919,6 +2919,7 @@ describe("agent eval harness", () => {
     );
   });
 
+  // Windows fixture I/O can exceed Bun's default timeout for this integration case.
   it("runs workloads within the selected bound, preserves input order, and continues after ordinary failures", async () => {
     const fixtureRoot = mkdtempSync(join(tmpdir(), "agent-eval-concurrency-"));
     const outDir = join(fixtureRoot, "run");
@@ -2997,7 +2998,7 @@ describe("agent eval harness", () => {
     } finally {
       rmSync(fixtureRoot, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
 
   it("keeps rejecting when a workload executor unexpectedly throws", async () => {
     const outDir = mkdtempSync(join(tmpdir(), "agent-eval-concurrency-error-"));
