@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { SessionIdConfigError } from "@githits/core-internal";
 import { AuthRequiredError } from "@githits/mcp/internal";
 import { InvalidArgumentError } from "commander";
 import { AuthConfigError } from "../services/auth-config.js";
@@ -155,6 +156,18 @@ describe("handleCliError", () => {
     });
   });
 
+  it("renders invalid session configuration as clean text and JSON", () => {
+    const error = new SessionIdConfigError();
+    const text = captureCliError(error);
+    expect(text.output.trim()).toBe(error.message);
+    const json = captureCliError(error, true);
+    expect(JSON.parse(json.output)).toEqual({
+      error: error.message,
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    });
+  });
+
   it("renders action argument errors without the unexpected-error footer", () => {
     const result = captureCliError(
       new InvalidArgumentError("Provide a question to continue the thread."),
@@ -282,6 +295,61 @@ describe("handleCliError", () => {
       expect(stderr).not.toContain("\n    at ");
     } finally {
       rmSync(xdgConfigHome, { recursive: true, force: true });
+    }
+  });
+
+  it("renders invalid session configuration from a CLI request as INVALID_ARGUMENT", async () => {
+    const configHome = mkdtempSync(
+      join(tmpdir(), "githits-cli-session-error-"),
+    );
+    const proc = Bun.spawn(
+      [
+        process.execPath,
+        "run",
+        "src/cli.ts",
+        "pkg",
+        "info",
+        "npm:express",
+        "--json",
+      ],
+      {
+        cwd: process.cwd(),
+        stdout: "pipe",
+        stderr: "pipe",
+        env: withConfigHomeEnv(
+          {
+            ...process.env,
+            GITHITS_SESSION_ID: "ShouldNeverBeEchoed/bad",
+            GITHITS_ENV: "prod",
+            GITHITS_API_TOKEN: "test-token",
+            GITHITS_API_URL: "https://api.invalid",
+            GITHITS_MCP_URL: "https://mcp.invalid",
+            GITHITS_CODE_NAV_URL: "https://pkgseer.invalid",
+            GITHITS_ACCOUNTS_URL: "https://accounts.invalid",
+            GITHITS_AUTH_STORAGE: "file",
+            GITHITS_DISABLE_UPDATE_CHECK: "1",
+            GITHITS_DEBUG: "",
+            NO_COLOR: "1",
+          },
+          configHome,
+        ),
+      },
+    );
+    try {
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
+      expect(exitCode).toBe(1);
+      expect(stdout).toBe("");
+      expect(JSON.parse(stderr)).toEqual({
+        error: "Invalid GITHITS_SESSION_ID: expected [A-Za-z0-9_-]{1,64}.",
+        code: "INVALID_ARGUMENT",
+        retryable: false,
+      });
+    } finally {
+      rmSync(configHome, { recursive: true, force: true });
     }
   });
 

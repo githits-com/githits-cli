@@ -130,8 +130,8 @@ plugin-only MCP launches do not invoke the local updater.
 An unmarked exact current payload is left byte-identical. A fixed set of 25
 verified pre-feature SHA-256 hashes bridges known older unmarked installs;
 unknown unmarked content is preserved. The hashes and fixture payloads were
-verified on 2026-10-01 against all 43 published npm releases from 0.6.0 through
-0.25.0 and the available release tags; [npm registry provenance](https://registry.npmjs.org/githits)
+verified on 2026-10-01 against all 44 published npm releases from 0.6.0 through
+0.25.1 and the available release tags; [npm registry provenance](https://registry.npmjs.org/githits)
 is retained here. The fixture keeps per-version payload bytes and hashes. A
 marked payload identical to the bundled skill is silent regardless of writing
 version. A different payload is refreshed only when its writing CLI version is

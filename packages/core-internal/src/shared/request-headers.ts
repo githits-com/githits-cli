@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { z } from "zod";
 
 /**
  * Maximum byte length for a header value.
@@ -11,8 +12,11 @@ const MAX_HEADER_BYTES = 256;
 // ---------------------------------------------------------------------------
 
 /**
- * Environment variables to probe for a terminal session identifier,
- * ordered from most-specific to least-specific.
+ * Automatic session variables, ordered from most-specific to least-specific.
+ * Resolution checks the explicit override separately before probing these.
+ *
+ * Explicit override:
+ * - GITHITS_SESSION_ID: caller-supplied identifier matching [A-Za-z0-9_-]{1,64}
  *
  * Terminal-specific:
  * - TERM_SESSION_ID: macOS Terminal.app
@@ -50,10 +54,34 @@ const SESSION_ENV_VARS = [
 /** Cached session ID — computed once per process. */
 let cachedSessionId: string | undefined;
 
+const SESSION_ID_SCHEMA: z.ZodType<string> = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{1,64}$/);
+
+/** Invalid explicit session configuration; never includes the supplied value. */
+export class SessionIdConfigError extends Error {
+  constructor() {
+    super("Invalid GITHITS_SESSION_ID: expected [A-Za-z0-9_-]{1,64}.");
+    this.name = "SessionIdConfigError";
+  }
+}
+
+/** Validate an explicit identifier without trimming, hashing, or caching it. */
+export function getEnvSessionId(
+  env: Record<string, string | undefined> = process.env,
+): string | undefined {
+  const value = env.GITHITS_SESSION_ID;
+  if (value === undefined) return undefined;
+  const parsed = SESSION_ID_SCHEMA.safeParse(value);
+  if (!parsed.success) throw new SessionIdConfigError();
+  return parsed.data;
+}
+
 /**
- * Resolve a raw terminal session identifier from environment variables.
- * Falls back to parent PID (stable across CLI invocations from the same
- * shell), then process PID, then a random UUID.
+ * Resolve a raw session identifier from environment variables.
+ * A validated GITHITS_SESSION_ID overrides terminal detection unchanged.
+ * Falls back to parent PID (stable across CLI invocations
+ * from the same shell), then a random UUID.
  *
  * Exposed for testing — callers should use {@link getSessionId} instead.
  */
@@ -61,6 +89,8 @@ export function resolveRawSessionId(
   env: Record<string, string | undefined> = process.env,
   ppid: number = process.ppid,
 ): string {
+  const explicit = getEnvSessionId(env);
+  if (explicit !== undefined) return explicit;
   for (const key of SESSION_ENV_VARS) {
     const value = env[key];
     if (value && value.trim().length > 0) {
@@ -76,9 +106,10 @@ export function resolveRawSessionId(
 }
 
 /**
- * Return a stable, privacy-safe session identifier.
+ * Return a stable session identifier.
  *
- * Hashes the raw session value with SHA-256 and truncates to 16 hex chars
+ * Preserves a validated explicit GITHITS_SESSION_ID unchanged.
+ * Hashes automatically detected values with SHA-256 and truncates to 16 hex chars
  * (64 bits — sufficient for grouping, collision-safe at our scale).
  * Result is cached for the lifetime of the process.
  */
@@ -86,6 +117,7 @@ export function getSessionId(
   env?: Record<string, string | undefined>,
   ppid?: number,
 ): string {
+  const explicit = getEnvSessionId(env);
   if (
     cachedSessionId !== undefined &&
     env === undefined &&
@@ -93,13 +125,12 @@ export function getSessionId(
   ) {
     return cachedSessionId;
   }
-  const raw = resolveRawSessionId(env, ppid);
-  const hashed = hashValue(raw);
+  const sessionId = explicit ?? hashValue(resolveRawSessionId(env, ppid));
   // Only cache when called with default (process) values
   if (env === undefined && ppid === undefined) {
-    cachedSessionId = hashed;
+    cachedSessionId = sessionId;
   }
-  return hashed;
+  return sessionId;
 }
 
 /**
@@ -375,8 +406,8 @@ export function createClientHeaderBuilder(
  * Called per-request so that agent info set after client creation
  * (e.g., from MCP clientInfo) is included.
  *
- * Never throws — returns `{}` on unexpected errors so that API
- * requests proceed without client headers rather than failing.
+ * Throws SessionIdConfigError for invalid explicit session configuration.
+ * Returns `{}` on unexpected errors so requests can proceed without metadata.
  */
 export function buildClientHeaders(
   env?: Record<string, string | undefined>,
@@ -403,6 +434,7 @@ function buildClientHeadersWithContext(
   context: BuildClientHeadersContext,
 ): Record<string, string> {
   try {
+    const sessionId = getSessionId(context.env, context.ppid);
     const headers: Record<string, string> = {};
 
     const name = sanitizeHeaderValue(context.clientName);
@@ -424,16 +456,12 @@ function buildClientHeadersWithContext(
       }
     }
 
-    const sessionId = sanitizeHeaderValue(
-      getSessionId(context.env, context.ppid),
-    );
-    if (sessionId) {
-      headers["x-githits-session-id"] = sessionId;
-    }
+    headers["x-githits-session-id"] = sessionId;
 
     return headers;
-  } catch {
-    // Header generation must never break API requests.
+  } catch (error) {
+    if (error instanceof SessionIdConfigError) throw error;
+    // Unexpected metadata failures must not break API requests.
     return {};
   }
 }

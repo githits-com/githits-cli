@@ -15,10 +15,13 @@ import type {
   MappedErrorDetails,
 } from "./mapped-error.js";
 import { AuthRequiredError } from "./require-auth.js";
+import { mapSessionIdError } from "./session-id-error-map.js";
 import { mapTermsAcceptanceError } from "./terms-acceptance-error-map.js";
 
 /** Classify failures without interpreting backend prose or retrying requests. */
 export function mapGrepError(error: unknown): MappedError {
+  const sessionError = mapSessionIdError(error);
+  if (sessionError) return sessionError;
   const terms = mapTermsAcceptanceError(error);
   if (terms) return terms;
   if (error instanceof ClientUpdateRequiredError)

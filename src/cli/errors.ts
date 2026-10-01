@@ -1,4 +1,7 @@
-import { normalizeSingleLineText } from "@githits/core-internal";
+import {
+  normalizeSingleLineText,
+  SessionIdConfigError,
+} from "@githits/core-internal";
 import {
   AuthRequiredError,
   formatAuthRequiredForTerminal,
@@ -70,6 +73,7 @@ export function handleCliError(
 function isUserFacingError(error: unknown): error is Error {
   return (
     error instanceof AuthConfigError ||
+    error instanceof SessionIdConfigError ||
     error instanceof ExperimentalConfigError ||
     error instanceof ExperimentalToolsDisabledError ||
     error instanceof AuthStorageLockTimeoutError ||
@@ -81,6 +85,7 @@ function isUserFacingError(error: unknown): error is Error {
 function isJsonUserFacingError(error: unknown): error is Error {
   return (
     error instanceof AuthConfigError ||
+    error instanceof SessionIdConfigError ||
     error instanceof ExperimentalConfigError ||
     error instanceof ExperimentalToolsDisabledError ||
     error instanceof InvalidArgumentError

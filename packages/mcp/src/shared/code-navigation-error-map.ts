@@ -25,6 +25,7 @@ import type {
   MappedErrorDetails,
 } from "./mapped-error.js";
 import { AuthRequiredError } from "./require-auth.js";
+import { mapSessionIdError } from "./session-id-error-map.js";
 import { mapTermsAcceptanceError } from "./terms-acceptance-error-map.js";
 
 export type {
@@ -49,6 +50,8 @@ export function mapCodeNavigationError(error: unknown): MappedError {
 }
 
 function classify(error: unknown): MappedError {
+  const sessionError = mapSessionIdError(error);
+  if (sessionError) return sessionError;
   const termsError = mapTermsAcceptanceError(error);
   if (termsError) return termsError;
   if (error instanceof ClientUpdateRequiredError) {

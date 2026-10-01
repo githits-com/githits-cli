@@ -97,6 +97,7 @@ export {
   getApiUrl,
   getCodeNavigationUrl,
   getEnvApiToken,
+  getEnvSessionId,
   getMcpUrl,
   ListAccessError,
   ListBackendError,
@@ -109,6 +110,7 @@ export {
   PKGSEER_REGISTRY_LIST,
   ReadServiceImpl,
   RefreshingGitHitsService,
+  SessionIdConfigError,
   toPkgseerRegistry,
   toPkgseerRegistryLowercase,
 } from "@githits/core-internal";

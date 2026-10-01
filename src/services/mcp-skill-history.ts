@@ -48,6 +48,6 @@ export const LEGACY_MCP_SKILL_HASHES: readonly string[] = [
   "ec14d75d897fd629cc011d6196c868c2833f25b95eebb5238d47bd0ccaf26040",
   // Published githits 0.24.0
   "32aa1e29c35bd7a1fc1cc25b2e004f78cadbffd2c0e6b0c7d2d0768ea674944f",
-  // Published githits 0.25.0
+  // Published githits 0.25.0, 0.25.1
   "9888ccd1409e48ef60198024f11ded61ec756296eff59a99097901573ec875fd",
 ];
