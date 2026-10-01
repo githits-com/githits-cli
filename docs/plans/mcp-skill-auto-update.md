@@ -450,13 +450,13 @@ content fingerprints, not secrets or authentication tokens.
 - Luna filesystem slice: 12 named tests passed; canonical aliases, file kind, missing paths and mock defaults verified. Coordinator inspected the diff.
 - Coordinator core/integration: 526 tests across marker/history/updater/config/filesystem/init/startup/packaging passed. Added startup opt-out/newer-warning cases subsequently: startup plus smoke environment tests 42 passed.
 - Luna smoke environment slice: 3 named cases passed, 49 assertions; disposable HOME/USERPROFILE, enabled maintenance, env-token/dev preservation and unchanged caller environment verified.
-- Initial typecheck found an overly narrow literal tuple in the hash-list test matcher. The fixed historical array now has the explicit public type `readonly string[]`; no behavior changed. Final typecheck remains pending.
+- Initial typecheck found an overly narrow literal tuple in the hash-list test matcher. The fixed historical array now has the explicit public type `readonly string[]`; no behavior changed. Subsequent typecheck passed.
 
 No benchmark: this increment changes lifecycle correctness and makes no optimization claim.
 
 - Luna source/cwd slice: 89 launch/smoke cases passed, including a real absolute-source `--version` child outside the repo. Coordinator reran launch/smoke/updater: 107 passed. Final typecheck caught unchecked tuple indexing in its test; one bounded correction dispatch used the proven local string, then typecheck passed.
 - Luna eval slice: 29 selected configuration cases passed, proving forced opt-out across local/published and Codex config wiring. Coordinator inspected actual two-file diff and ran complete eval/harness coverage: 237 passed; typecheck passed.
-- Coordinator smoke integration adds real historical upgrade and edited-preservation fixtures to disposable MCP unauthenticated/registration launches, for both source and built runtime checks. Verification pending final documentation slice.
+- Coordinator smoke integration adds real historical upgrade and edited-preservation fixtures to disposable MCP unauthenticated/registration launches, for both source and built runtime checks. Source and built smoke verification subsequently passed.
 
 - Luna durable docs slice: contract-presence and scoped diff checks passed; the root CLI init doc owns detailed lifecycle while onboarding/packaging/config/release/eval docs link or state their local contracts. Documentation required a continuation after worker compaction.
 - Final repository unit suite: `bun test` passed 5,222 tests, 19,745 assertions across 228 files. Typecheck and format check passed; plugin generation/check passed with no generated changes. `bun run validate:packages` passed (includes root `bun run build`, MCP build, packed artifact scans and outside-workspace consumers).
@@ -464,7 +464,9 @@ No benchmark: this increment changes lifecycle correctness and makes no optimiza
 
 - Final minor cleanup: extraction type import removed by Luna; new template-literal style infos fixed mechanically. Narrow content/updater/assets rerun passed 58 tests. Full lint exited zero with 9 existing warnings and 3 infos; the expanded output revealed two new template-literal infos in init tests, corrected before review. Final scoped lint has no diagnostics.
 - `bun run smoke:cli` and `bun run smoke:mcp` passed with dev endpoints and disposable file-auth roots; live queries correctly skipped with AUTH_REQUIRED. Built CLI and MCP smoke modes passed under Node; both MCP paths prove exact legacy update and edited preservation from a temporary consumer cwd. No developer skill roots were inspected or changed by verification.
-- Targeted full-guidance local MCP Express router workloads launched for Codex and Claude against dev; results pending. Final implementation review and draft PR remain pending.
+- Targeted full-guidance local MCP Express router workloads launched for Codex and Claude against dev; Codex succeeded and Claude failed authentication before tools, as recorded below. Final implementation review and draft PR remain pending.
 
 - Codex targeted eval: success/high final confidence, 6 completed logical MCP calls (search/list/read), 0 failed calls and no quick_start; full guidance was installed. Metrics and final answer inspected; no grading/quality claim. No isolation-violations artifact was emitted, indicating no recorded violations in this runner.
 - Claude attempted the same workload: harness process exit 0 is not workload success. Workload exit 1 before tools/final, with authentication_failed from the CLI; cannot supply qualitative Claude evidence. No credentials inspected or printed.
+
+- Fresh Luna preflight: plan conformance, runtime acceptance, durable lifecycle documentation and interfaces accepted. Three stale checkpoint-status sentences in this temporary plan were corrected; Claude qualitative evidence remains unavailable and accurately reported.
