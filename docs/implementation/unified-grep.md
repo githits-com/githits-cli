@@ -207,3 +207,32 @@ output fell from 23,509 to 6,965 bytes and repository output from 19,487 to
 and 7,506 to 1,699 tokens respectively. No tokenizer dependency or runtime
 performance claim is added. JSON equality, Unicode/color parity and coverage
 regressions establish evidence retention independently of the size budget.
+
+## Adoption and validation record
+
+CLI/output adoption merged in PR #433 on 2026-09-29. MCP adoption merged in
+[PR #439](https://github.com/githits-com/githits-cli/pull/439) on 2026-10-01 as
+`78b181a2119ae25d1bc0e4b37180cbec39664f03`. This completes client adoption.
+Hosted MCP adoption requires a subsequent `@githits/mcp` release, provider
+composition supplying `grepService`, and the separate hosted server updating
+its dependency. Tool behavior remains owned by this package.
+
+The 2026-09-30 copy pass preserved discovery prefixes, strict request/output
+validation, guardrails, and exact public quick-start/skill parity. The actual
+MCP `listTools` descriptor fell from 4,105 to 3,522 UTF-8 bytes and from 887 to
+781 `o200k_base` tokens; descriptor plus guide fell from 2,194 to 2,114 tokens.
+These are static message-size measurements, not billing or runtime performance.
+
+Acceptance included 5,134 passing unit tests, 51 final focused copy/guide tests,
+clean internal and external reviews, typecheck, build, plugin checks, public
+package validation, and green PR CI. Live CLI stable/experimental smoke and the
+stable MCP cohort passed. The full live MCP suite failed at the unchanged
+experimental `research` text success assertion; this remains a verification
+limit for that separate surface. Isolated CLI-skill evals without GitHits
+credentials are not authenticated UX proof.
+
+[The release comparison](agentic-eval-metrics.md#unified-mcp-grep-versus-release-0240--2026-09-30)
+records the successful 64-cell Braintrust run, exact release baseline, matched
+inputs, inspected grep/read traces, and source-investigation overhead. Broader
+instruction optimization, including the unresolved search-versus-grep usage
+comparison, is recorded in [the backlog](../plans/open-backlog.md).
