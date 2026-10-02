@@ -196,7 +196,7 @@ platform path above, including the existing macOS legacy fallback, but validate
 their own subsections independently. Unknown keys remain accepted. With the
 host policy enabled, local `resolve`/`code diff` and MCP `resolve_target`/
 `code_diff` become available; the public/remote `@githits/mcp` surface remains
-the stable 15-tool inventory and does not acquire experimental service
+the stable tool inventory and does not acquire experimental service
 requirements.
 
 The hidden `githits mcp start --experimental-tools` option is for isolated

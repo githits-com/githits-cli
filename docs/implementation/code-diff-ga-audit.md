@@ -161,6 +161,8 @@ The first full unit run exposed two audit-edit integration omissions: manifest
 count expectations and explicit workload filenames in README. Both were fixed;
 the complete suite then passed. The prior README also understated the existing
 stable inventory as 25 rather than the manifest's 31; this was corrected.
+The config policy doc's stale 15-tool count was removed; the current public
+descriptor inventory is 12, and its exact inventory belongs to catalog tests.
 Authenticated validation was deliberately the diff-only matrix. Unrelated
 live Research and package-tool suites were not run. No Windows runtime,
 published GA package, hosted GA server, or graded answer-quality claim is made.
