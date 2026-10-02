@@ -20,8 +20,9 @@ platforms and `%APPDATA%\githits\config.toml` on Windows. Existing macOS
 installations may also be read from the legacy Application Support path when
 the canonical file is absent.
 
-Without the setting, or with `tools = false`, root and `code` help omit
-`resolve` and `diff`. Direct invocations fail before authentication or network
+Without the setting, or with `tools = false`, help omits experimental
+`resolve`, `research`, and `ask`; `code diff` remains available. Direct
+experimental invocations fail before authentication or network
 startup with the resolved config path and the snippet above. Terminal failures
 retain that exact path/snippet; `--json` failures write only the structured
 `INVALID_ARGUMENT` envelope to stderr and keep stdout empty. Malformed config

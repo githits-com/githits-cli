@@ -1,18 +1,19 @@
 # Code diff graduation audit
 
 Audit date: 2026-10-02. Target: production presets, checkout
-`896a76555145449cdaeacba7d07918ba96137e60`, with the audit-only changes in this
-PR. No production command, tool, schema, or guidance was promoted by this audit.
+`896a76555145449cdaeacba7d07918ba96137e60`. The baseline results below were
+produced before promotion; the GA implementation follows in the same product
+PR. They are historical evidence, not results for default-enabled registration.
 
 ## Decision and instructions
 
 The existing exact-tree architecture is suitable for graduation. CLI and MCP
 already share request normalization, service queries, projection, and error
 mapping; their intentionally different text formats need no redesign.
-Graduation still requires default CLI registration, public MCP composition,
+At the baseline, graduation still required default CLI registration, public MCP composition,
 stable routing guidance, smoke inventory updates, and release delivery.
 
-The current stable guide says package targets scope to package subpaths. That
+The baseline stable guide said package targets scope to package subpaths. That
 is correct for indexed navigation and wrong for raw diffs. The diff descriptor
 and local appendix explain the repository-wide exception. Promotion must add
 that exception to the stable guide and its exact public skill copy together.
@@ -34,8 +35,9 @@ bun run scripts/code-diff-audit.ts .agent-eval/code-diff-ga/live
 ```
 
 The script uses real source CLI subprocesses and a real local stdio MCP server,
-production endpoint presets, an isolated experimental CLI config, and the
-MCP experimental override. It does not modify the user's config. It writes
+production endpoint presets and isolated CLI/MCP config. The baseline runs
+used experimental opt-in; the current script explicitly sets `tools = false`
+for both surfaces and passes no MCP experimental override. It does not modify the user's config. It writes
 public response artifacts and a per-cell result matrix to the specified local
 directory; it does not write credentials or request headers. The verified
 local authentication source was macOS Keychain. This is a local Bun audit,
@@ -150,8 +152,8 @@ raw started events with Codex's logical counts.
 Raw evidence is local and ignored under
 `.agent-eval/code-diff-ga/{claude,codex}-{discovery,intent,full}`. Workload prompts
 and the direct matrix remain committed for reproducibility. CLI-only agent
-and published/hosted stable-surface evaluations require the later promoted
-surface; the current experimental eval override supports only local MCP.
+and published/hosted evaluations belong to release preparation and delivery.
+The baseline experimental eval override supported only local MCP.
 
 ## Deterministic and runtime validation
 
@@ -174,7 +176,8 @@ count expectations and explicit workload filenames in README. Both were fixed;
 the complete suite then passed. The prior README also understated the existing
 stable inventory as 25 rather than the manifest's 31; this was corrected.
 The config policy doc's stale 15-tool count was removed; the current public
-descriptor inventory is 12, and its exact inventory belongs to catalog tests.
+descriptor inventory was 12 at the baseline; GA promotion changes it to 13.
+Its exact inventory belongs to catalog tests.
 Authenticated validation was deliberately the diff-only matrix. Unrelated
 live Research and package-tool suites were not run. No Windows runtime,
 published GA package, hosted GA server, or graded answer-quality claim is made.
@@ -190,3 +193,26 @@ then passed. Claude round 1 found only minor plan/doc corrections: specify the
 audit script's stable-config migration and lifecycle, record the final matrix,
 and classify the future public service-contract release impact in Phase 1.
 All were accepted and applied; the doc-only round counts as clean.
+
+## Default-enabled implementation validation
+
+The GA implementation makes CLI and public MCP diff available by default,
+renames all five workloads to stable `code-diff*` names, and adds the base
+comparison to smoke. The manifest now has 41 workloads: 36 stable, one
+stateful, and four experimental; smoke selects seven. Guidance and its public
+MCP skill copy preserve exact parity and explain repository-wide raw scope.
+
+Implementation checks passed: 5,327 unit tests across 230 files; 353 focused
+MCP/catalog/guide/smoke/parity tests across 12 files; typecheck; build;
+plugin generation/check; public-package validation including outside-root
+typed provider and real packed SDK diff invocation; source unauthenticated CLI
+and registration MCP smoke; and both built smoke modes under Node. The 353
+focused tests made 2,082 assertions. Local logs are retained under
+`.agent-eval/code-diff-ga/stable-*.log`.
+
+The default-enabled 125-cell production matrix and 14 agent cells are pending.
+The first CLI call was sampled waiting inside macOS Keychain before network
+activity; one Claude discovery cell timed out during the same access block.
+These incomplete runs are not acceptance evidence. The prior completed matrix
+and eval results above remain retained. Publication and hosted adoption have
+not occurred.

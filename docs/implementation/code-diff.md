@@ -207,6 +207,6 @@ repository/latest outcomes and unknown actions must remain unchanged.
 | `packages/mcp/src/client.ts` | Public client type/value re-exports |
 | `packages/mcp/src/shared/code-diff-{request,response,text,mcp-text}.ts` | CLI normalization, lean projection, Git-like rendering, and MCP text |
 | `src/commands/code/diff.ts` | Commander syntax, service call, stream routing, and CLI errors |
-| `packages/mcp/src/tools/code-diff.ts` | Local-only MCP schema, handler, and structured error mapping |
+| `packages/mcp/src/tools/code-diff.ts` | Stable MCP schema, handler, and structured error mapping |
 | `scripts/validate-public-packages.ts` | Packed-package runtime and no-network TypeScript consumer checks |
-| `docs/implementation/cli-commands.md` | Config-gated CLI surface and local-only MCP rollout status |
+| `docs/implementation/cli-commands.md` | Stable CLI surface and hosted MCP delivery status |
