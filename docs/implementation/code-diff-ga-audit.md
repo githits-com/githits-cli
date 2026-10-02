@@ -1,9 +1,9 @@
 # Code diff graduation audit
 
 Audit date: 2026-10-02. Target: production presets, checkout
-`896a76555145449cdaeacba7d07918ba96137e60`. The baseline results below were
-produced before promotion; the GA implementation follows in the same product
-PR. They are historical evidence, not results for default-enabled registration.
+`896a76555145449cdaeacba7d07918ba96137e60`. Except for the final default-enabled validation section, the results below
+were produced before promotion; the GA implementation follows in the same
+product PR. The earlier sections are historical baseline evidence.
 
 ## Decision and instructions
 
