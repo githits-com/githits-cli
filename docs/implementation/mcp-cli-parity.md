@@ -254,19 +254,20 @@ test suite anchors the doc.
   surfaces must use the same definition.
 - Keep defaulting in the shared request builder rather than either surface, so
   both surfaces apply defaults under the same conditions.
-- The local experimental pair is a deliberate explicit-default exception:
+- The `code_diff` pair is a deliberate explicit-default exception:
   CLI `githits code diff` defaults to patch output while MCP `code_diff`
   defaults to `name-status` inventory. Parity tests select the same explicit
   view and request JSON on both surfaces before comparing service params or
   success envelopes. `resolve_target` keeps its shared limit and detailed
   selection defaults.
 
-### `PARITY-EXPERIMENTAL-LOCAL`
+### `PARITY-EXPLICIT-CALLS`
 
-- `resolve_target` is a config-gated local CLI/MCP pair; `code_diff` is stable. They
-  are absent from the public/remote tool definitions, descriptors, smoke
-  inventory, package exports, and Agent Skill surfaces until promotion is
-  separately approved.
+- `resolve_target` is a config-gated local CLI/MCP pair, absent from public
+  tool definitions, descriptors, smoke inventory, package exports, and Agent
+  Skill surfaces until separately approved promotion. `code_diff` is stable
+  in CLI and public MCP composition; hosted availability follows release,
+  dependency adoption and deployment.
 - Equivalent explicit calls must normalize to identical service params. CLI
   comma-separated registries and MCP registry arrays, CLI repeated intent
   hints and MCP hint arrays, CLI target/range syntax and MCP target/endpoints,

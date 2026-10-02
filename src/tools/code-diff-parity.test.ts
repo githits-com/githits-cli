@@ -1,4 +1,4 @@
-// PARITY TEST — enforces PARITY-EXPERIMENTAL-LOCAL, PARITY-JSON-KEYS, and
+// PARITY TEST — enforces PARITY-EXPLICIT-CALLS, PARITY-JSON-KEYS, and
 // PARITY-ERROR-ENVELOPE from docs/implementation/mcp-cli-parity.md.
 // CLI and MCP use surface-native defaults, so every fixture selects an
 // explicit view and JSON output before comparing the two local surfaces.
@@ -71,7 +71,7 @@ async function cliJson(
 }
 
 describe("code_diff parity", () => {
-  it("PARITY-EXPERIMENTAL-LOCAL: explicit package requests share service params", async () => {
+  it("PARITY-EXPLICIT-CALLS: explicit package requests share service params", async () => {
     const cliCodeDiff = mock((_params: CodeDiffParams) =>
       Promise.resolve(defaultCodeDiffResult),
     );
@@ -127,7 +127,7 @@ describe("code_diff parity", () => {
     "https://codeberg.org/zigil/decimal",
     "https://gitlab.com/group/subgroup/project",
   ])(
-    "PARITY-EXPERIMENTAL-LOCAL: explicit repository refs share normalized params %s",
+    "PARITY-EXPLICIT-CALLS: explicit repository refs share normalized params %s",
     async (repoUrl) => {
       const cliCodeDiff = mock((_params: CodeDiffParams) =>
         Promise.resolve(defaultCodeDiffResult),

@@ -1,6 +1,7 @@
 # Graduate code diff for CLI and public MCP
 
-Status: READY for Phase 1 implementation; technical plan review complete.
+Status: Phase 1 implemented; deterministic checks passed; code review and
+default-enabled production acceptance remain in progress.
 
 ## Goal and verified current state
 
@@ -15,12 +16,13 @@ already-authored regression script and workloads accompany the product change;
 recorded live results support the implementation plan rather than constituting
 the deliverable. Draft audit PR #447 was closed at the user's direction.
 
-The CLI command is gated in `src/services/experimental-cli-policy.ts` and
+At the plan baseline, the CLI command was gated in `src/services/experimental-cli-policy.ts` and
 `src/commands/code/index.ts`. `packages/mcp/src/mcp/local-server.ts` alone
-registers the experimental tool. Public descriptors currently contain 12
-stable tools and omit `code_diff`. The concrete client implementation already
+registered the experimental tool. Public descriptors contained 12 stable tools
+and omitted `code_diff`. Phase 1 now registers CLI and public MCP diff by
+default, with 13 public descriptors. The concrete client implementation already
 implements `CodeDiffService`, which is exported by `@githits/mcp/client`;
-public `McpToolServices.codeNavigationService` does not require it yet.
+public `McpToolServices.codeNavigationService` now requires the intersection.
 
 The shared request builders, projector, formatters, query selection, and
 error mapping are already implemented and tested. The durable audit and
@@ -92,7 +94,7 @@ by this audit; its observed limitations remain recorded in the durable audit.
 
 ## Phase map
 
-1. **Stable CLI/public MCP exposure (READY after plan review).** Default
+1. **Stable CLI/public MCP exposure (implemented; acceptance pending).** Default
    composition, guidance, smoke contracts and eval policy agree on diff's
    availability. Depends on the completed audit; no unresolved behavioral
    product decision.
@@ -120,7 +122,9 @@ Workers return uncommitted verified deltas; the coordinator owns acceptance,
 commits, integration, and all network-dependent evidence. Effective sandbox
 is full access with approval policy never; briefs impose file ownership.
 
-Status: READY after review. Expected outcome: an unconfigured CLI user sees
+Status: implemented; deterministic acceptance passed. Production matrix and
+agent traces await macOS Keychain access, and code review is in progress.
+Expected outcome: an unconfigured CLI user sees
 and can invoke diff; a normal public MCP server advertises and executes it;
 agents receive correct routing and repository-scope guidance without enabling
 experimental tools. Assumptions: current production service behavior and
@@ -249,3 +253,29 @@ and applied; the doc-only round counts as clean under repository review rules.
 The subsequent delivery clarification closes the audit-only PR and makes the
 single implementation PR explicit. It changes no scope, architecture, phase
 boundary, or acceptance criterion; no new review round is required for it.
+
+## Phase 1 execution checkpoint
+
+Product implementation: `4bdc221`; durable guidance reconciliation: `799ad4f`.
+CLI/eval work was delegated in four sequential returns. The extra CLI fixture
+return followed an ownership omission in the coordinator brief; an ambiguous
+trailing period in a verification brief caused an unintended full unit run.
+Both were coordinator briefing costs, not a recurring worker design failure.
+The complete suite passed 5,327 tests, zero failures across 230 files.
+Focused catalog, public service invocation, guide parity, smoke and eval
+contracts passed 353 tests with 2,082 assertions. Build, typecheck, plugin
+checks, outside-root packed consumer validation, source CLI/MCP smoke and
+both built smoke modes passed.
+
+Luna preflight confirmed plan, interface and documentation conformance after
+minor stale gated/local-only prose was corrected. It correctly marks current
+production acceptance UNPROVEN: the 125-cell default-enabled matrix blocked
+inside macOS Keychain before networking, and agent cells timed out during the
+same access block. The agent queue was stopped with artifacts preserved.
+User input to unlock/approve local Keychain access is pending. No credentials
+were displayed, no retries or timer workarounds were added, and earlier
+completed baseline results were not counted as current acceptance.
+
+Remaining Phase 1 steps: finish code review, obtain default-enabled production
+proof after the local access block is resolved, update evidence, then open the
+product draft PR and inspect CI. Keep this plan while acceptance is pending.
