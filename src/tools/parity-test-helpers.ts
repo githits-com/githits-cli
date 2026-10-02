@@ -51,7 +51,7 @@ export function createParityMcpTool<TArgs = unknown>(
 export function createParityExperimentalMcpTool<
   TArgs extends ResolveTargetMcpArgs = ResolveTargetMcpArgs,
 >(
-  name: ExperimentalParityToolName,
+  _name: ExperimentalParityToolName,
   overrides: Partial<ExperimentalParityServices> = {},
 ): ToolDefinition<TArgs> {
   const services: ExperimentalParityServices = {
@@ -64,9 +64,6 @@ export function createParityExperimentalMcpTool<
     resolveTargetService: createMockResolveTargetService(),
     ...overrides,
   };
-  if (name !== "resolve_target") {
-    throw new Error(`Missing experimental parity tool: ${name}`);
-  }
   const tool = createResolveTargetTool(services.resolveTargetService);
   return tool as unknown as ToolDefinition<TArgs>;
 }

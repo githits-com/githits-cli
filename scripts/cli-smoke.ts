@@ -1313,7 +1313,7 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
     const codeHelp = await runCliWithEnv(["code", "--help"], env);
     assert(
       codeHelp.exitCode === 0 && codeHelp.stdout.includes("diff"),
-      "experimental code help should expose diff",
+      "stable diff should remain in code help with experimental tools enabled",
     );
     const resolveHelp = await runCliWithEnv(["resolve", "--help"], env);
     assert(
@@ -1327,7 +1327,7 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
       codeDiffHelp.exitCode === 0 &&
         codeDiffHelp.stdout.includes("<from>..<to>") &&
         codeDiffHelp.stdout.includes("--name-status"),
-      "experimental code diff help should expose the bounded contract",
+      "stable diff help should expose the bounded contract with experimental tools enabled",
     );
 
     const resolveJson = await runCliWithEnv(
@@ -1363,7 +1363,7 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
     );
     assertJsonErrorCode(
       codeDiffJson,
-      "experimental unauthenticated code diff",
+      "stable unauthenticated code diff with experimental tools enabled",
       "AUTH_REQUIRED",
     );
   } finally {
