@@ -385,7 +385,7 @@ describe("searchStatusTool", () => {
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("No result snapshot | timeout | 0/1 ready");
     expect(text).not.toContain("search_status |");
-    expect(text).toContain("Next: rerun search later.");
+    expect(text).toContain("Next: search again later.");
     expect(text).not.toContain("search_ref=");
   });
 
@@ -401,7 +401,7 @@ describe("searchStatusTool", () => {
     const result = await tool.handler({ search_ref: "ref-failed" }, {});
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("No result snapshot | failed | 0/1 ready");
-    expect(text).toContain("Next: rerun search later.");
+    expect(text).toContain("Next: search again later.");
     expect(text).not.toContain("search_ref=");
   });
 
@@ -444,7 +444,7 @@ describe("searchStatusTool", () => {
     const textResult = await tool.handler({ search_ref: "ref-deferred" }, {});
     const text = textResult.content[0]?.text ?? "";
     expect(text).toContain("1 result | 1 repo code hit | deferred | 1/2 ready");
-    expect(text).toContain("For updated results, run a new search.");
+    expect(text).toContain("For updated results, search again.");
     expect(text).not.toContain("search_ref=");
     expect(text).not.toContain("No hits");
     expect(text).not.toContain("Indexing in progress");
@@ -464,7 +464,7 @@ describe("searchStatusTool", () => {
     const result = await tool.handler({ search_ref: "ref-deferred-empty" }, {});
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("No result snapshot | deferred | 0/1 ready");
-    expect(text).toContain("Next: rerun search later.");
+    expect(text).toContain("Next: search again later.");
     expect(text).not.toContain("No hits");
     expect(text).not.toContain("Indexing in progress");
     expect(text).not.toContain("search_ref=");
@@ -505,7 +505,7 @@ describe("searchStatusTool", () => {
     expect(text).toContain(
       "1 result | 1 repo code hit | status unknown | 0/1 ready",
     );
-    expect(text).toContain("For updated results, run a new search.");
+    expect(text).toContain("For updated results, search again.");
     expect(text).not.toContain("search_ref=");
     expect(text).not.toContain("No hits");
     expect(text).not.toContain("Indexing in progress");

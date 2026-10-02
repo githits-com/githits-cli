@@ -156,15 +156,12 @@ function formatPresentationOutcome(
         ["No results yet", label, readiness].filter(Boolean).join(SEP),
       );
     }
-    const resultKind =
-      presentation.availability.kind === "partial" ? "partial" : "interim";
+    const resultLabel =
+      presentation.availability.kind === "partial"
+        ? countLabel.replace("result", "partial result")
+        : countLabel;
     return finish(
-      [
-        countLabel.replace("result", `${resultKind} result`),
-        formatResultBreakdown(results),
-        label,
-        readiness,
-      ]
+      [resultLabel, formatResultBreakdown(results), label, readiness]
         .filter(Boolean)
         .join(SEP),
     );
@@ -454,10 +451,16 @@ function appendPresentationTargetGroup(
   for (const snapshot of snapshots) {
     if (snapshot.requestedCommitDiffers && snapshot.requestedRef) {
       details.push(
-        `requested ${snapshot.requestedRef} resolves to a different commit`,
+        `requested ${snapshot.requestedRef} resolves to a different commit${snapshot.indexingRequestedRef === snapshot.requestedRef ? " and is indexing" : ""}`,
       );
     }
-    if (snapshot.indexingRequestedRef)
+    if (
+      snapshot.indexingRequestedRef &&
+      !(
+        snapshot.requestedCommitDiffers &&
+        snapshot.indexingRequestedRef === snapshot.requestedRef
+      )
+    )
       details.push(`${snapshot.indexingRequestedRef} is indexing`);
   }
 
@@ -525,7 +528,7 @@ function formatUsingSegment(
       ...new Set(
         snapshots.map(
           (snapshot) =>
-            `using commit: ${snapshot.commitTarget}${snapshot.indexedRef ? ` (indexed from ref ${snapshot.indexedRef})` : ""}`,
+            `searched commit: ${snapshot.commitTarget}${snapshot.indexedRef ? ` (indexed from ref ${snapshot.indexedRef})` : ""}`,
         ),
       ),
     ].join("; ");
@@ -892,13 +895,15 @@ function appendPresentationAction(
   }
   const useResults = "useResults" in action && action.useResults;
   if (useResults) {
+    const hit = results.find((hit) => hit.readTarget);
     lines.push(
       ...wrapText(
-        "Next: use these hits for lookup, or read a linked file now.",
+        hit
+          ? "Next: use these hits now; read for details:"
+          : "Next: use these hits now.",
         options.width,
       ),
     );
-    const hit = results.find((hit) => hit.readTarget);
     if (hit?.readTarget)
       lines.push(renderReadTarget(hit.readTarget, options.actionSyntax));
     if (
@@ -910,7 +915,7 @@ function appendPresentationAction(
     ) {
       lines.push(
         ...wrapText(
-          "For an exact version or ref, include it in the search target.",
+          "For a specific version or ref, search target@version or target@ref.",
           options.width,
         ),
       );
@@ -930,8 +935,8 @@ function appendPresentationAction(
       lines.push(
         ...wrapText(
           priorHead
-            ? "If fresh HEAD matters, wait for updated results (hits and order may change):"
-            : "If updated results matter, wait (hits and order may change):",
+            ? "If you need current HEAD, wait (hits and order may change):"
+            : "If you need updated results, wait (hits and order may change):",
           options.width,
         ),
       );
@@ -947,8 +952,8 @@ function appendPresentationAction(
   if (action.kind === "new_search") {
     lines.push(
       useResults
-        ? "For updated results, run a new search."
-        : "Next: rerun search later.",
+        ? "For updated results, search again."
+        : "Next: search again later.",
     );
     return;
   }

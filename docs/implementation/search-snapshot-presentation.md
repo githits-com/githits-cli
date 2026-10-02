@@ -17,10 +17,10 @@ stored and could not obtain later evidence.
 With returned hits, an active search now leads with:
 
 ```text
-Next: use these hits for lookup, or read a linked file now.
+Next: use these hits now; read for details:
 read target="github:anomalyco/opencode@bbd72fb8" path="..." start_line=480 end_line=490
-For an exact version or ref, include it in the search target.
-If fresh HEAD matters, wait for updated results (hits and order may change):
+For a specific version or ref, search target@version or target@ref.
+If you need current HEAD, wait (hits and order may change):
 search_status search_ref="..." wait_timeout_ms=120000
 ```
 
@@ -33,7 +33,7 @@ Completed current searches keep their compact output. With no hits, active
 searches retain their status next action. Ended searches needing updated evidence
 require a new search; their stored reference is never offered as a poll target.
 
-Per-target copy discloses `using commit: github:owner/repo@<sha>` and, when known,
+Per-target copy discloses `searched commit: github:owner/repo@<sha>` and, when known,
 `indexed from ref <ref>`. A historical named branch or HEAD alias is never a claim
 about its current pointer. Missing or SHA-valued historical refs omit that clause.
 The resolved requested commit is compared with the served commit using full SHAs;
@@ -147,3 +147,26 @@ a completed zero-hit bare-label fallback case (one scratch test passed, removed
 afterwards) and verified changed help lines fit 80 columns. No valid finding or
 major deferral remains. The completed working plan was removed after this clean
 review; the contract, evidence, and limitations are retained here.
+
+Copy pass after the draft PR: visible active hits are labeled `results`; the
+adjacent lifecycle still says `indexing`/`searching`, while `partial` continues to
+mean omitted runnable pairs. `searched commit` identifies what the query covered,
+including zero-hit sources. Requested-commit difference and indexing share one
+clause when they describe the same ref. The next action points directly to the
+emitted read command (`use these hits now; read for details`) and omits the read
+invitation when there is no emitted read target. The conditional wait names the
+reader's need (`If you need current HEAD`); specific version/ref advice shows
+`target@version`/`target@ref`. No freshness proof, hit attribution, wait timeout,
+pagination, emitted read arguments, JSON, schemas, or descriptions change.
+
+Copy-pass focused verification:
+`bun test packages/mcp/src/shared/unified-search-text.test.ts
+packages/mcp/src/shared/unified-search-status-text.test.ts
+packages/mcp/src/shared/unified-search-snapshot-text.test.ts
+packages/mcp/src/tools/search.test.ts packages/mcp/src/tools/search-status.test.ts
+src/commands/search.test.ts src/tools/search-parity.test.ts
+src/tools/discovery-indexing-estimates-parity.test.ts`: 328 pass, 0 fail, 1,589
+expectations across eight files. Root typecheck/build, MCP build and both required
+dev smoke commands pass with the same isolated-auth limitations. Copy preflight
+is clean. A recorded one-hit rendered example is 824 characters versus 860 before
+this pass; this is output length, not tokenizer or comparative agent performance.

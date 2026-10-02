@@ -207,8 +207,8 @@ for (const operation of ["search", "search_status"] as const) {
         },
       };
       const { cli, mcp } = await responses(completed, false);
-      expect(cli).toContain("For updated results, run a new search.");
-      expect(mcp).toContain("For updated results, run a new search.");
+      expect(cli).toContain("For updated results, search again.");
+      expect(mcp).toContain("For updated results, search again.");
       expect(cli).not.toContain("githits search-status");
       expect(mcp).not.toContain("search_status");
       const final = {

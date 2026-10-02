@@ -1563,7 +1563,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("Fix: verify public repository/ref.");
     expect(text).toContain("Fix: verify site host/path.");
     expect(text).toContain("Fix: verify or replace target.");
-    expect(text).not.toContain("rerun search later");
+    expect(text).not.toContain("search again later");
     expect(text).not.toContain("searchRef");
     expect(text.match(/Fix:/g)).toHaveLength(4);
 
@@ -2220,7 +2220,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "No results | failed | 0/1 ready\n\n" +
         "- npm:express@4.18.2\n" +
         "  searched: code; not found: symbols\n\n" +
-        "Next: rerun search later.",
+        "Next: search again later.",
     );
   });
 
@@ -2256,7 +2256,7 @@ describe("renderUnifiedSearchSuccess", () => {
         "  searched: code; unresolved: symbols\n\n" +
         "- npm:two@2.0.0\n" +
         "  indexing: code\n\n" +
-        "Next: rerun search later.",
+        "Next: search again later.",
     );
   });
 
@@ -2293,7 +2293,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "No results | failed | 0/1 ready\n\n" +
         "- npm:express@4.18.2\n" +
         "  searched: code; unresolved: symbols; indexed: versions 4.17.0\n\n" +
-        "Next: rerun search later.",
+        "Next: search again later.",
     );
   });
 
@@ -2333,10 +2333,10 @@ describe("renderUnifiedSearchSuccess", () => {
   );
 
   it.each([
-    [false, "interim"],
-    [true, "partial"],
+    [false, "1 result"],
+    [true, "1 partial result"],
   ] as const)(
-    "distinguishes atomic interim from %s results",
+    "labels visible results independently of active indexing: %s",
     (partial, label) => {
       const text = renderUnifiedSearchSuccess(
         incomplete({
@@ -2350,7 +2350,7 @@ describe("renderUnifiedSearchSuccess", () => {
           },
         }),
       );
-      expect(firstLine(text)).toContain(`1 ${label} result`);
+      expect(firstLine(text)).toContain(label);
       expect(firstLine(text)).not.toContain("final");
     },
   );
@@ -2371,7 +2371,7 @@ describe("renderUnifiedSearchSuccess", () => {
       expect(firstLine(text)).toBe(
         `No result snapshot | ${status.toLowerCase()} | 0/1 ready`,
       );
-      expect(text).toContain("Next: rerun search later.");
+      expect(text).toContain("Next: search again later.");
       expect(text).not.toContain("Do not poll");
       expect(text).not.toContain("Next: search_status");
     },
@@ -2391,7 +2391,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(firstLine(text)).toBe(
       "No result snapshot | status unknown | 1/2 ready",
     );
-    expect(text).toContain("Next: rerun search later.");
+    expect(text).toContain("Next: search again later.");
     expect(text).not.toContain("Do not poll");
     expect(text).not.toContain("Next: search_status");
     expect(text).not.toContain("FUTURE_SESSION_STATE");
@@ -2596,7 +2596,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
     expect(firstLine(text)).toBe("No results");
-    expect(text).toContain("Next: rerun search later.");
+    expect(text).toContain("Next: search again later.");
     expect(text).not.toContain("Opaque backend prose");
     expect(text).not.toContain("Evidence may change.");
     expect(text).not.toContain("Do not repeat");
@@ -2610,7 +2610,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
     expect(firstLine(text)).toContain("1 result");
-    expect(text).toContain("For updated results, run a new search.");
+    expect(text).toContain("For updated results, search again.");
     const lines = text.split("\n");
     const actionLine = lines.findIndex((line) => line.startsWith("Next: "));
     expect(actionLine).toBeGreaterThan(0);

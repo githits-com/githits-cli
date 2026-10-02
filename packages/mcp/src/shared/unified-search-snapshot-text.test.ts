@@ -114,24 +114,24 @@ describe("snapshot search text received by agents", () => {
     (syntax) => {
       for (const text of both(snapshot(), syntax)) {
         expect(text).toContain(
-          "using commit: github:anomalyco/opencode@bbd72fb8",
+          "searched commit: github:anomalyco/opencode@bbd72fb8",
         );
         expect(text).toContain("indexed from ref HEAD");
         expect(text).toContain("requested HEAD resolves to a different commit");
-        expect(text).toContain("HEAD is indexing");
-        expect(text).toContain("next_offset=3");
-        expect(text).toContain("1 interim result");
-        expect(text).not.toContain("partial result");
-        expect(text).toContain(
-          "Next: use these hits for lookup, or read a linked file now.",
+        expect(text.replace(/\s+/g, " ")).toContain(
+          "different commit and is indexing",
         );
+        expect(text).toContain("next_offset=3");
+        expect(text).toContain("1 result");
+        expect(text).not.toContain("partial result");
+        expect(text).toContain("Next: use these hits now; read for details:");
         const read =
           syntax === "mcp"
             ? `read target="github:anomalyco/opencode@bbd72fb8" path="${path}" start_line=480 end_line=490`
             : `githits read 'github:anomalyco/opencode@bbd72fb8' '${path}' --lines 480-490`;
         expect(text).toContain(read);
         expect(text.indexOf(read)).toBeLessThan(
-          text.indexOf("If fresh HEAD matters"),
+          text.indexOf("If you need current HEAD"),
         );
         expect(text).toContain(
           syntax === "mcp"
@@ -141,13 +141,24 @@ describe("snapshot search text received by agents", () => {
         expect(text).not.toContain("Next: search_status");
         expect(text).not.toContain("Next: githits search-status");
         expect(text).toContain(
-          "For an exact version or ref, include it in the search target.",
+          "For a specific version or ref, search target@version or target@ref.",
         );
         expect(text).not.toContain("Results from commit:"); // No duplicated backend notice.
         expect(text).not.toContain("older snapshot");
       }
     },
   );
+
+  it("does not offer a read when no hit supplies a read target", () => {
+    const payload = snapshot();
+    payload.results[0]!.readTarget = undefined;
+    for (const text of both(payload)) {
+      expect(text).toContain("Next: use these hits now.");
+      expect(text).not.toContain("read for details:");
+      expect(text).not.toContain("read target=");
+      expect(text).toContain("If you need current HEAD");
+    }
+  });
 
   it.each(["main", "other-branch", "HEAD", undefined, servedSha] as const)(
     "labels the historical indexing ref accurately: %s",
@@ -176,8 +187,10 @@ describe("snapshot search text received by agents", () => {
       };
       resolution(payload).resolvedRequested!.gitRef = undefined;
       const text = both(payload)[0]!;
-      expect(text).toContain("If fresh HEAD matters");
-      expect(text.replace(/\s+/g, " ")).toContain("HEAD is indexing");
+      expect(text).toContain("If you need current HEAD");
+      expect(text.replace(/\s+/g, " ")).toContain(
+        "different commit and is indexing",
+      );
     },
   );
 
@@ -189,12 +202,12 @@ describe("snapshot search text received by agents", () => {
       resolution(payload).requested = { kind, gitRef: ref };
       resolution(payload).resolvedRequested!.gitRef = ref;
       for (const text of both(payload)) {
-        expect(text).not.toContain("If fresh HEAD matters");
+        expect(text).not.toContain("If you need current HEAD");
         expect(text).not.toContain("HEAD is indexing");
         expect(text.replace(/\s+/g, " ")).toContain(
           `requested ${ref} resolves to a different commit`,
         );
-        expect(text).toContain("If updated results matter");
+        expect(text).toContain("If you need updated results");
       }
     },
   );
@@ -207,10 +220,10 @@ describe("snapshot search text received by agents", () => {
       resolution(payload).freshness = freshness;
       payload.sourceStatus![0]!.codeIndexState = "PROVISIONAL";
       for (const text of both(payload)) {
-        expect(text).toContain("using commit:");
+        expect(text).toContain("searched commit:");
         expect(text).not.toContain("different commit");
         expect(text).not.toContain("older snapshot");
-        expect(text).not.toContain("If fresh HEAD matters");
+        expect(text).not.toContain("If you need current HEAD");
       }
     },
   );
@@ -219,7 +232,7 @@ describe("snapshot search text received by agents", () => {
     for (const missing of ["served", "resolvedRequested"] as const) {
       const payload = snapshot();
       resolution(payload)[missing]!.commitSha = undefined;
-      expect(both(payload)[0]).not.toContain("If fresh HEAD matters");
+      expect(both(payload)[0]).not.toContain("If you need current HEAD");
     }
   });
 
@@ -232,12 +245,12 @@ describe("snapshot search text received by agents", () => {
         'Next: search_status search_ref="recorded-search" wait_timeout_ms=120000',
       );
       expect(text).not.toContain("read target=");
-      expect(text).not.toContain("using commit:");
+      expect(text).not.toContain("searched commit:");
       expect(text).not.toContain("older snapshot");
     }
     resolution(payload).served = undefined;
     resolution(payload).freshness = "indexing";
-    expect(both(payload)[0]).not.toContain("using commit:");
+    expect(both(payload)[0]).not.toContain("searched commit:");
   });
 
   it.each(["INDEXING", "COMPLETED", "DEFERRED", "TIMEOUT", "FAILED"])(
@@ -249,17 +262,19 @@ describe("snapshot search text received by agents", () => {
       payload.progress!.status = status;
       for (const text of both(payload)) {
         expect(text).toContain(
-          "using commit: github:anomalyco/opencode@bbd72fb8",
+          "searched commit: github:anomalyco/opencode@bbd72fb8",
         );
         expect(text).toContain("requested HEAD resolves to a different commit");
-        expect(text).toContain("HEAD is indexing");
+        expect(text.replace(/\s+/g, " ")).toContain(
+          "different commit and is indexing",
+        );
         expect(text).not.toContain("Next: use these hits");
         expect(text).not.toContain("read target=");
-        expect(text).not.toContain("If fresh HEAD matters");
+        expect(text).not.toContain("If you need current HEAD");
         if (status === "INDEXING")
           expect(text).toContain("Next: search_status");
         else {
-          expect(text).toContain("rerun search later");
+          expect(text).toContain("search again later");
           expect(text).not.toContain("search_status");
         }
       }
@@ -274,7 +289,7 @@ describe("snapshot search text received by agents", () => {
     // Withheld pairs clear served provenance; do not manufacture it.
     resolution(payload).served = undefined;
     for (const text of both(payload))
-      expect(text).not.toContain("using commit:");
+      expect(text).not.toContain("searched commit:");
   });
 
   it("attributes bare request labels alongside a historical served HEAD alias", () => {
@@ -285,9 +300,9 @@ describe("snapshot search text received by agents", () => {
     payload.results[0]!.servedTarget = target;
     for (const text of both(payload)) {
       expect(text).toContain(
-        "using commit: github:anomalyco/opencode@bbd72fb8",
+        "searched commit: github:anomalyco/opencode@bbd72fb8",
       );
-      expect(text).toContain("If fresh HEAD matters");
+      expect(text).toContain("If you need current HEAD");
     }
   });
 
@@ -319,17 +334,17 @@ describe("snapshot search text received by agents", () => {
       });
       for (const text of both(payload)) {
         if (resultCount === 0) {
-          expect(text).toContain("using commit:"); // Its own zero-hit search provenance.
+          expect(text).toContain("searched commit:"); // Its own zero-hit search provenance.
           expect(text).toContain(
             "requested HEAD resolves to a different commit",
           );
         } else {
-          expect(text).not.toContain("using commit:");
+          expect(text).not.toContain("searched commit:");
           expect(text).not.toContain(
             "requested HEAD resolves to a different commit",
           );
         }
-        expect(text).not.toContain("If fresh HEAD matters");
+        expect(text).not.toContain("If you need current HEAD");
         expect(text).toContain("Next: use these hits");
         expect(text).toContain(explicitTarget);
       }
@@ -362,7 +377,7 @@ describe("snapshot search text received by agents", () => {
       payload.progress!.status = status;
       for (const text of both(payload)) {
         expect(text).toContain("Next: use these hits");
-        expect(text).toContain("run a new search");
+        expect(text).toContain("search again");
         expect(text).not.toContain("search_status");
       }
       const text = renderUnifiedSearchStatusText({

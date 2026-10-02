@@ -57,7 +57,7 @@ describe("renderUnifiedSearchStatusText", () => {
     const text = renderUnifiedSearchStatusText(payload);
 
     expect(firstLine(text)).toBe(
-      "1 interim result | 1 docs page | indexing | 0/1 ready",
+      "1 result | 1 docs page | indexing | 0/1 ready",
     );
     expect(text).toContain(
       "express/routing [docs page] npm:express - source URL unavailable - Routing",
@@ -315,7 +315,7 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(text).toContain("Fix: verify public repository/ref.");
     expect(text).toContain("Fix: verify site host/path.");
     expect(text).toContain("Fix: verify or replace target.");
-    expect(text).not.toContain("rerun search later");
+    expect(text).not.toContain("search again later");
     expect(text).not.toContain("searchRef=");
   });
 
@@ -331,7 +331,7 @@ describe("renderUnifiedSearchStatusText", () => {
     const text = renderUnifiedSearchStatusText(payload);
     expect(firstLine(text)).toContain("1 result");
     expect(text).not.toContain("Search search-ref-evidence | completed");
-    expect(text).toContain("For updated results, run a new search.");
+    expect(text).toContain("For updated results, search again.");
     expect(text).not.toContain("opaque backend notice");
     expect(text).not.toContain("Evidence may change.");
     expect(text).not.toContain("Do not repeat");
@@ -353,7 +353,7 @@ describe("renderUnifiedSearchStatusText", () => {
       expect(firstLine(text)).toBe(
         `No result snapshot | ${status.toLowerCase()} | 0/1 ready`,
       );
-      expect(text).toContain("Next: rerun search later.");
+      expect(text).toContain("Next: search again later.");
       expect(text).not.toContain("Do not poll");
       expect(text).not.toContain("Next: search_status");
     },
@@ -373,7 +373,7 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(firstLine(text)).toBe(
       "No result snapshot | status unknown | 0/1 ready",
     );
-    expect(text).toContain("Next: rerun search later.");
+    expect(text).toContain("Next: search again later.");
     expect(text).not.toContain("Do not poll");
     expect(text).not.toContain("Next: search_status");
   });

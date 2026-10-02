@@ -788,12 +788,12 @@ describe("usable snapshot presentation parity", () => {
         mcpStatus.content[0]?.text ?? "",
       ]) {
         expect(text).toContain(
-          "using commit: github:anomalyco/opencode@bbd72fb8",
+          "searched commit: github:anomalyco/opencode@bbd72fb8",
         );
         expect(text).toContain("Next: use these hits");
         expect(text).not.toContain("Next: search_status");
         expect(text).not.toContain("Next: githits search-status");
-        expect(text).toContain("If fresh HEAD matters");
+        expect(text).toContain("If you need current HEAD");
       }
       expect(mcp).toContain(
         `read target="github:anomalyco/opencode@bbd72fb8" path="${path}" start_line=177 end_line=1362`,
