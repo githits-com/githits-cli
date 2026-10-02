@@ -81,10 +81,22 @@ not every patch, binary file, or metadata transition.
   A separate `8.1.7..8.1.8` comparison selected from those alternatives
   succeeds. This is not evidence that the historical version was never
   published upstream; it establishes the production service's limitation.
-- Zig `gh/ziglang/zig` is not registered in the production package data.
-  `gh/ziglibs/known-folders` is registered, with one reported version `0.7.0`.
-  Its self-comparison succeeds. Changed-version Zig coverage remains absent;
-  do not claim it from this audit.
+- The original Zig matrix fixture `gh/ziglibs/known-folders` reports one
+  version `0.7.0`; its self-comparison succeeds. Follow-up verification found
+  that `gh/ziglang/zig` was an unsuitable package fixture: the compiler's
+  [0.14.0 manifest](https://github.com/ziglang/zig/blob/0.14.0/build.zig.zon)
+  explicitly says it is not intended to be consumed as a package. Its
+  NOT_FOUND response is not evidence of broken indexing on access.
+  A valid library, `zig:gh/hejsil/zig-clap`, succeeds for
+  `0.11.0..0.12.0` with 12 changed files, exact distinct tag SHAs, and
+  identical bounded CLI/MCP name-status JSON. Both upstream manifests
+  declare the requested package versions. Evidence is retained in
+  `.agent-eval/code-diff-ga/zig-clap-check.json` and
+  `zig-clap-mcp-check.json`. This additional comparison closes changed-version
+  Zig coverage; it is separate from the original 123-cell matrix. It does
+  not verify indexing on access for a previously unseen valid package.
+  Valid packages are expected to index on access; absence from existing
+  package data must not by itself be accepted as a product limitation.
 - React `19.0.0..19.1.0` reports 2,530 repository-wide changed files; the first
   three ranked files are outside `packages/react/`. A `packages/react/**`
   filter reports 45 changed files. This directly exercises the scope caveat.

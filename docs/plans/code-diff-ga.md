@@ -58,8 +58,13 @@ Verified assumptions:
 - Custom public MCP service providers will need a `codeDiff` implementation
   after the public service requirement changes. The built-in client already
   has one. This is a source-compatibility change, not a transparent addition.
-- Current production limitations remain disclosed: unsupported SCM providers,
-  unavailable historical package data, and unregistered package targets.
+- Current production limitations remain disclosed: unsupported SCM providers
+  and unavailable historical package data. Valid packages are expected to
+  index on access; an unregistered target alone does not establish a valid
+  product limitation. The original missing Zig compiler target was an
+  unsuitable package fixture, and a follow-up valid Zig library comparison
+  succeeds across distinct versions through CLI and MCP. Indexing on access
+  for a previously unseen valid package remains unverified by this audit.
   No evidence warrants manufacturing repository or version substitutions.
 
 Open overall product decisions: none about CLI/public MCP scope or diff
