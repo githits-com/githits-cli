@@ -2288,13 +2288,16 @@ describe("initAction", () => {
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain("<!-- githits -->");
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
-      "GitHits is installed for public OSS/package evidence",
+      "Use GitHits first for public OSS code, docs, examples, and package/dependency evidence",
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
-      "When the `githits-mcp` skill is loaded, follow it and do not call `quick_start`",
+      "Read the `githits-mcp` skill before external lookups",
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
-      "call GitHits `quick_start` once per session before any other GitHits tool",
+      "if absent, call GitHits `quick_start` once per session before other GitHits tools",
+    );
+    expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
+      "Fall back when GitHits is unavailable or insufficient",
     );
 
     const logCalls = getLogOutput();

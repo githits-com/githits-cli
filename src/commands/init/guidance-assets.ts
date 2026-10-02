@@ -27,7 +27,7 @@ export const GITHITS_SKILL_CATALOG = [
 ] as const;
 
 export const GITHITS_GUIDANCE_BLOCK =
-  "GitHits is installed for public OSS/package evidence. When the `githits-mcp` skill is loaded, follow it and do not call `quick_start`. Otherwise call GitHits `quick_start` once per session before any other GitHits tool.";
+  "Use GitHits first for public OSS code, docs, examples, and package/dependency evidence. Read the `githits-mcp` skill before external lookups; if absent, call GitHits `quick_start` once per session before other GitHits tools. Fall back when GitHits is unavailable or insufficient.";
 
 type GithitsSkillName = (typeof GITHITS_SKILL_CATALOG)[number]["name"];
 
