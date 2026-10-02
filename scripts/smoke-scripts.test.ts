@@ -777,7 +777,6 @@ describe("MCP smoke cohorts", () => {
       ...EXPECTED_MCP_TOOLS,
       "research",
       "resolve_target",
-      "code_diff",
     ]);
     expect(EXPECTED_EXPERIMENTAL_MCP_TOOLS).toContain("research");
     expect(EXPECTED_EXPERIMENTAL_MCP_TOOLS).not.toContain("ask");

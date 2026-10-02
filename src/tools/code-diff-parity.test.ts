@@ -14,7 +14,7 @@ import {
   defaultCodeDiffResult,
 } from "../services/test-helpers.js";
 import {
-  createParityExperimentalMcpTool,
+  createParityMcpTool,
   isProcessExitSentinel,
 } from "./parity-test-helpers.js";
 
@@ -90,7 +90,7 @@ describe("code_diff parity", () => {
       }),
       true,
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff", {
+    const mcpTool = createParityMcpTool("code_diff", {
       codeNavigationService: createMockCodeNavigationService({
         codeDiff: mcpCodeDiff,
       }),
@@ -147,7 +147,7 @@ describe("code_diff parity", () => {
         }),
         true,
       );
-      const mcpTool = createParityExperimentalMcpTool("code_diff", {
+      const mcpTool = createParityMcpTool("code_diff", {
         codeNavigationService: createMockCodeNavigationService({
           codeDiff: mcpCodeDiff,
         }),
@@ -190,7 +190,7 @@ describe("code_diff parity", () => {
         }),
       }),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff", {
+    const mcpTool = createParityMcpTool("code_diff", {
       codeNavigationService: createMockCodeNavigationService({
         codeDiff: mock(() => Promise.resolve(result)),
       }),
@@ -230,7 +230,7 @@ describe("code_diff parity", () => {
         }),
       }),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff", {
+    const mcpTool = createParityMcpTool("code_diff", {
       codeNavigationService: createMockCodeNavigationService({
         codeDiff: mock(() => Promise.reject(error)),
       }),
@@ -287,7 +287,7 @@ describe("code_diff parity", () => {
         }),
       }),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff", {
+    const mcpTool = createParityMcpTool("code_diff", {
       codeNavigationService: createMockCodeNavigationService({
         codeDiff: mock(() => Promise.reject(error)),
       }),
@@ -322,7 +322,7 @@ describe("code_diff parity", () => {
       { nameStatus: true, maxPatchBytes: "4096" },
       cliDeps(),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff");
+    const mcpTool = createParityMcpTool("code_diff");
     const mcpResult = await mcpTool.handler(
       {
         target: "npm:express",
@@ -362,7 +362,7 @@ describe("code_diff parity", () => {
       { nameStatus: true },
       cliDeps(),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff");
+    const mcpTool = createParityMcpTool("code_diff");
     const mcpResult = await mcpTool.handler(
       {
         target: "npm:express@1.0.0",
@@ -401,7 +401,7 @@ describe("code_diff parity", () => {
       { nameStatus: true },
       cliDeps(),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff");
+    const mcpTool = createParityMcpTool("code_diff");
     const mcpResult = await mcpTool.handler(
       {
         target: "github:expressjs/express@main",
@@ -437,7 +437,7 @@ describe("code_diff parity", () => {
       { nameStatus: true },
       cliDeps(),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff");
+    const mcpTool = createParityMcpTool("code_diff");
     const mcpResult = await mcpTool.handler(
       {
         target,
@@ -469,7 +469,7 @@ describe("code_diff parity", () => {
       { nameStatus: true },
       cliDeps(),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff");
+    const mcpTool = createParityMcpTool("code_diff");
     const mcpResult = await mcpTool.handler(
       {
         target: "npm:express",

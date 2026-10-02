@@ -57,7 +57,7 @@ The dual-surface tools today are:
 - `pkg_upgrade_review` ↔ `githits pkg upgrade-review`
 - `read` without a path ↔ `githits read <target>` (legacy `docs read` retained)
 - `resolve_target` ↔ `githits resolve` *(config-gated, local-only)*
-- `code_diff` ↔ `githits code diff` *(config-gated, local-only)*
+- `code_diff` ↔ `githits code diff` *(stable public MCP and CLI)*
 
 The retained `githits code grep` command is a CLI-only compatibility surface;
 it has no exact MCP alias and keeps its legacy source-only controls.
@@ -263,7 +263,7 @@ test suite anchors the doc.
 
 ### `PARITY-EXPERIMENTAL-LOCAL`
 
-- `resolve_target` and `code_diff` are config-gated local CLI/MCP pairs. They
+- `resolve_target` is a config-gated local CLI/MCP pair; `code_diff` is stable. They
   are absent from the public/remote tool definitions, descriptors, smoke
   inventory, package exports, and Agent Skill surfaces until promotion is
   separately approved.

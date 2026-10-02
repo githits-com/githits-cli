@@ -121,6 +121,13 @@ const INVENTORIES: readonly Comparison[] = [
     maxFiles: 3,
   },
   {
+    id: "zig-changed",
+    target: "zig:gh/hejsil/zig-clap",
+    from: "0.11.0",
+    to: "0.12.0",
+    maxFiles: 3,
+  },
+  {
     id: "zig-identical",
     target: "zig:gh/ziglibs/known-folders",
     from: "0.7.0",
@@ -193,7 +200,7 @@ const FAILURES: readonly Comparison[] = [
     error: "VERSION_NOT_FOUND",
   },
   {
-    id: "unregistered-zig-package",
+    id: "invalid-zig-compiler-target",
     target: "zig:gh/ziglang/zig",
     from: "0.13.0",
     to: "0.14.0",
@@ -276,7 +283,7 @@ async function main(): Promise<void> {
   mkdirSync(join(config, "githits"));
   writeFileSync(
     join(config, "githits/config.toml"),
-    "[experimental]\ntools = true\n",
+    "[experimental]\ntools = false\n",
   );
   const env = Object.fromEntries(
     Object.entries(process.env).filter(
@@ -286,6 +293,8 @@ async function main(): Promise<void> {
   env.GITHITS_ENV = "prod";
   env.GITHITS_DISABLE_SKILL_UPDATE = "1";
   env.GITHITS_DEBUG = "0";
+  env.XDG_CONFIG_HOME = config;
+  env.APPDATA = config;
   // This audit targets production presets, independent of caller endpoint overrides.
   for (const key of [
     "GITHITS_MCP_URL",
@@ -297,7 +306,7 @@ async function main(): Promise<void> {
   const client = new Client({ name: "code-diff-ga-audit", version: "1" });
   const transport = new StdioClientTransport({
     command: "bun",
-    args: ["run", "src/cli.ts", "mcp", "start", "--experimental-tools"],
+    args: ["run", "src/cli.ts", "mcp", "start"],
     env,
     stderr: "pipe",
   });
@@ -395,6 +404,11 @@ async function main(): Promise<void> {
     );
     if (c.id === "repository-shas") {
       ok(p.from.commitSha === c.from && p.to.commitSha === c.to);
+    }
+    if (c.id === "zig-changed") {
+      ok(p.from.commitSha === "5289e0753cd274d65344bef1c114284c633536ea");
+      ok(p.to.commitSha === "8d97efa1ee1e575443c7888d5c38e1c3fc145cf5");
+      ok(p.summary.filesChanged === 12 && p.hasMoreFiles);
     }
     const knownExpressCommits: Record<string, string> = {
       "5.2.0": "4007ad103ba29f6426b2ec9eccfb1ceb792682a8",

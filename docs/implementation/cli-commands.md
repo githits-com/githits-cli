@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes setup/auth commands, `doctor`, `example`, top-level indexed `search` / `search-status`, `read`, `list`, `grep`, and the `code`, `docs`, and `pkg` command groups by default. `resolve` and `code diff` are experimental, host-config-gated commands. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities. Unified search shares its presentation model and text formatter with MCP; `list` and unified `grep` use the same request, result, error, and text helpers on both surfaces. Legacy `githits code grep` retains its separate single-target repository-file contract.
+The CLI exposes setup/auth commands, `doctor`, `example`, top-level indexed `search` / `search-status`, `read`, `list`, `grep`, and the `code`, `docs`, and `pkg` command groups by default. `code diff` is available by default; `resolve` is an experimental, host-config-gated command. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities. Unified search shares its presentation model and text formatter with MCP; `list` and unified `grep` use the same request, result, error, and text helpers on both surfaces. Legacy `githits code grep` retains its separate single-target repository-file contract.
 
 ## Experimental CLI commands
 
@@ -61,7 +61,7 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `grep <pattern> <targets...>` | ordered package, repository and `site:` operands | `-F/--fixed-strings`, `-i/--ignore-case`, `-s/--case-sensitive`, `-A`, `-B`, `-C`, repeatable `--path`, `--path-prefix`, `--glob`, `--corpus`, `--limit`, `--cursor`, `--wait`, `--json` | Regex, case-sensitive and zero-context defaults; all repository files plus independently selected hosted package docs. Text groups matching rows beneath numbered copyable file/page locators, with native highlighting, one Sources summary and reusable read templates; coverage gaps and continuation stay visible. JSON preserves all selected fields and backend occurrence order. See [unified grep](unified-grep.md). Legacy `code grep` remains unchanged. |
 | `read <target> [path]` | docs target/page ID, explicit `site:` target with page path, compact `target#symbol`, or package/repo target with exact path or selector | `--selector`, `--lines`, `--start`, `--end`, `--wait`, `--verbose`, `--json`; `--repo-url` and `--git-ref` retain legacy repo addressing | Compact unified read passes the locator unchanged to the backend and presents the returned code, docs, or symbol-resolution type. A `site:` path selects hosted documentation; other exact paths narrow code selection. `--selector` selects a docs heading or indexed code symbol. HTTP(S) URL fragments and emitted repository docs page IDs retain their backend-resolved documentation behavior. The compact path calls `ReadService`/`Query.read` once. `--repo-url` remains the legacy compatibility path without selector. See [unified read](unified-read.md). |
 | `docs read <target>` (deprecated alias) | emitted `docsReadTarget` or historical page ID | `--lines`, `--verbose`, `--json` | Read a documentation page by preferred target or compatible page ID. Default output is content-only; `--lines` fetches a bounded range for long pages. |
-| `code diff <target> <from>..<to>` *(experimental; config-gated)* | unversioned package/repository target and exact range, or `--repo-url` and range | `--patch`, `--stat`, `--name-only`, `--name-status`, `--max-files`, `--max-patch-bytes`, `--verbose`, `--json`, one glob after `--` | Silently dogfood bounded repository-wide tree diffs resolved from package versions or repository refs; local-only MCP `code_diff` is available when experimental tools are enabled, while public/remote MCP and shared Agent Skill guidance remain unchanged |
+| `code diff <target> <from>..<to>` | unversioned package/repository target and exact range, or `--repo-url` and range | `--patch`, `--stat`, `--name-only`, `--name-status`, `--max-files`, `--max-patch-bytes`, `--verbose`, `--json`, one glob after `--` | Compare bounded repository-wide source trees resolved from package versions or repository refs; stable public and local MCP expose `code_diff`, with hosted availability following package adoption and deployment |
 | `code files [spec] [path-prefix]` *(legacy compatibility)* | package spec OR `--repo-url` with optional `--git-ref`; optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, repeatable `--file-type`, repeatable `--language`, repeatable `--file-intent`, repeatable `--exclude-intent`, `--exclude-docs`, `--exclude-tests`, `--hidden`, `--limit`, `--wait`, `--verbose`, `--json` | Help points to `githits list`; existing execution behavior remains unchanged. |
 | `code read <spec?> <path>` (deprecated alias) | package spec OR `--repo-url` with optional `--git-ref`; plus `<path>` | `--lines`, `--start`, `--end`, `--wait`, `--verbose`, `--json` | Read a file's contents. Plain output is the raw file bytes (pipe-friendly); `--verbose` adds a header and a line-number gutter. `--lines 10-40` concise form; `--start`/`--end` equivalent. Binary files show a sentinel line. |
 | `code grep [spec] <pattern> [path-prefix]` | package spec OR `--repo-url` with optional `--git-ref`; plus `<pattern>` and optional `[path-prefix]` | `--path`, repeatable `--glob`, repeatable `--ext`, `--regex`, `--case-sensitive`, `-C/-A/-B`, `--exclude-docs`, `--exclude-tests`, `--limit`, `--per-file-limit`, `--cursor`, `--symbol-field`, `--wait`, `--verbose`, `--json` | Deterministic text grep over indexed dependency or repository source. Defaults to whole-target, literal, Unicode-aware case-insensitive matching; `--per-file-limit` defaults to `--limit`. Narrow with `[path-prefix]`, `--path`, `--glob`, or `--ext`. Plain output is `file:line:text`; `--verbose` groups matches by file. |
@@ -530,7 +530,7 @@ corpus. Those findings do not block landing the CLI dogfood surface. The earlier
 
 The command is part of the config-gated experimental CLI surface. When
 `[experimental] tools = true` is enabled in the canonical host config,
-`resolve` and `code diff` are available; otherwise they remain hidden and
+`resolve` is available; otherwise it remains hidden and
 explicit calls are rejected with the config path and enable snippet. The same
 opt-in exposes the local-only MCP `resolve_target` adapter. Its compact text,
 JSON contract, privacy guidance, and structured error mapping reuse the shared
@@ -876,10 +876,11 @@ metadata-only causes and direct terminal users to stat/name views. Patch output
 is applicable unified-diff content but may omit Git metadata such as index and
 mode headers. Request, auth, resolution, and backend errors also exit 1.
 
-This is a config-gated experimental CLI dogfood surface. The matching
-`code_diff` MCP adapter is local-only and requires the same opt-in; it is not
-promoted through remote/public MCP `quick_start`, Agent Skills, or plugin
-guidance yet.
+This command and the public MCP `code_diff` tool are stable and available
+without experimental configuration. MCP defaults to name-status inventory;
+CLI defaults to patches. The public guide documents their repository-wide
+scope. Hosted MCP availability follows adoption and deployment of the released
+MCP package; see [source diff](code-diff.md).
 
 ### `githits code files`
 

@@ -1,10 +1,5 @@
-import type {
-  CodeDiffService,
-  ResolveTargetService,
-} from "@githits/core-internal";
+import type { ResolveTargetService } from "@githits/core-internal";
 import {
-  type CodeDiffMcpArgs,
-  createCodeDiffTool,
   createResolveTargetTool,
   getMcpToolDefinitions,
   type McpToolServices,
@@ -21,11 +16,9 @@ import {
   createMockResolveTargetService,
 } from "../services/test-helpers.js";
 
-export type ExperimentalParityToolName = "resolve_target" | "code_diff";
+export type ExperimentalParityToolName = "resolve_target";
 
 interface ExperimentalParityServices extends McpToolServices {
-  codeNavigationService: McpToolServices["codeNavigationService"] &
-    CodeDiffService;
   resolveTargetService: ResolveTargetService;
 }
 
@@ -56,9 +49,7 @@ export function createParityMcpTool<TArgs = unknown>(
 }
 
 export function createParityExperimentalMcpTool<
-  TArgs extends ResolveTargetMcpArgs | CodeDiffMcpArgs =
-    | ResolveTargetMcpArgs
-    | CodeDiffMcpArgs,
+  TArgs extends ResolveTargetMcpArgs = ResolveTargetMcpArgs,
 >(
   name: ExperimentalParityToolName,
   overrides: Partial<ExperimentalParityServices> = {},
@@ -73,9 +64,9 @@ export function createParityExperimentalMcpTool<
     resolveTargetService: createMockResolveTargetService(),
     ...overrides,
   };
-  const tool =
-    name === "resolve_target"
-      ? createResolveTargetTool(services.resolveTargetService)
-      : createCodeDiffTool(services.codeNavigationService);
+  if (name !== "resolve_target") {
+    throw new Error(`Missing experimental parity tool: ${name}`);
+  }
+  const tool = createResolveTargetTool(services.resolveTargetService);
   return tool as unknown as ToolDefinition<TArgs>;
 }

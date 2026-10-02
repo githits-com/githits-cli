@@ -25,6 +25,7 @@ Choose a route, discover that tool, and read its schema for syntax and defaults.
 | Inspect vulnerabilities in a package or version | `pkg_vulns` |
 | Inspect direct dependencies or transitive footprint | `pkg_deps` |
 | Find release notes and changelog history for a package | `pkg_changelog` |
+| Compare raw source across package versions or repository refs | `code_diff` |
 | Compare current and target dependency versions for an upgrade | `pkg_upgrade_review` |
 | Find canonical implementation examples across projects | `get_example` |
 | Check progress of an earlier search reference | `search_status` |
@@ -34,12 +35,21 @@ For comparisons, combine relevant package/source evidence with examples as neede
 Public OSS only; never send local/private/proprietary source. Package/repository
 targets use `registry:name@version` and `github:owner/repo@ref`. Omit the
 suffix for the latest package version or repository default branch. Package
-targets scope to the package subpath, including in monorepos. Swift uses
+targets scope to the package subpath, including in monorepos, except for raw
+`code_diff` comparisons, which are repository-wide. Swift uses
 `swift:github.com/<owner>/<repo>`, Zig `zig:gh/<owner>/<repo>`.
 Use public repository targets for full repositories or sibling packages:
 `github:`, `codeberg:`, `gitlab:`, or a supported full URL. Never infer a provider.
 A ref may be a branch, tag, or commit and contain later `@`; `#` is for
 semantic fragments, not revisions.
+
+For `code_diff`, pass an unversioned target and separate `from`/`to`
+versions or refs. Start with default `name-status`; use `stat` for magnitude
+or a scoped `patch` for content. Keep text unless required fields or the full
+returned patch are needed. Package diffs include sibling paths; a bounded
+result with no package paths does not prove the package unchanged. Treat
+truncation, coverage, and safety warnings as evidence limits. Raw diffs do not
+prove compatibility; use `pkg_upgrade_review` for upgrade assessment.
 
 For `grep`, copy a file/page header's read locator and use its matched line
 numbers when more context is needed. Counts cover one page; follow continuation

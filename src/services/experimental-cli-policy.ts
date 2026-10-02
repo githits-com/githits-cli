@@ -11,7 +11,6 @@ export const EXPERIMENTAL_CLI_COMMANDS = [
   "research",
   "ask",
   "resolve",
-  "code diff",
 ] as const;
 export type ExperimentalCliCommand = (typeof EXPERIMENTAL_CLI_COMMANDS)[number];
 

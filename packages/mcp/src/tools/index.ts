@@ -1,3 +1,7 @@
+export {
+  createCodeDiffTool,
+  DESCRIPTION as CODE_DIFF_DESCRIPTION,
+} from "./code-diff.js";
 export { createGetExampleTool } from "./get-example.js";
 export { createGrepTool } from "./grep.js";
 export * from "./guardrails.js";

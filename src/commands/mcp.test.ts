@@ -115,6 +115,7 @@ const EXPECTED_TOOL_NAMES = [
   "list",
   "read",
   "grep",
+  "code_diff",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -146,7 +147,7 @@ describe("createMcpServer", () => {
     const tools = getMcpToolDefinitions(services);
 
     expect(tools.map((tool) => tool.name)).toEqual([...EXPECTED_TOOL_NAMES]);
-    expect(tools.map((tool) => tool.name)).toHaveLength(12);
+    expect(tools.map((tool) => tool.name)).toHaveLength(13);
     expect(tools.map((tool) => tool.name)).toContain("read");
     expect(tools.map((tool) => tool.name)).toContain("list");
     expect(tools.map((tool) => tool.name)).not.toContain("code_files");
@@ -396,6 +397,7 @@ describe("createMcpServer", () => {
       "list",
       "read",
       "grep",
+      "code_diff",
     ]) {
       expect(names).toContain(name);
     }

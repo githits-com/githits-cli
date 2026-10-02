@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   type CompleteToolAnnotations,
+  createCodeDiffTool,
   createGetExampleTool,
   createGrepTool,
   createListTool,
@@ -91,6 +92,8 @@ const STABLE_MCP_OPERATION_FACTORIES: readonly McpToolFactory[] = [
   (services) => eraseMcpTool(createListTool(services.listService)),
   (services) => eraseMcpTool(createReadTool(services)),
   (services) => eraseMcpTool(createGrepTool(services.grepService)),
+  (services) =>
+    eraseMcpTool(createCodeDiffTool(services.codeNavigationService)),
   (services) =>
     eraseMcpTool(createPackageSummaryTool(services.packageIntelligenceService)),
   (services) =>
@@ -321,6 +324,7 @@ export function createDescriptorServices(): McpToolServices {
       listFiles: fail,
       readFile: fail,
       grepRepo: fail,
+      codeDiff: fail,
     },
     packageIntelligenceService: {
       packageSummary: fail,

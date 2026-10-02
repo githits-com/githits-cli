@@ -15,6 +15,7 @@ Choose a route, discover that tool, and read its schema for syntax and defaults.
 | Inspect vulnerabilities in a package or version | \`pkg_vulns\` |
 | Inspect direct dependencies or transitive footprint | \`pkg_deps\` |
 | Find release notes and changelog history for a package | \`pkg_changelog\` |
+| Compare raw source across package versions or repository refs | \`code_diff\` |
 | Compare current and target dependency versions for an upgrade | \`pkg_upgrade_review\` |
 | Find canonical implementation examples across projects | \`get_example\` |
 | Check progress of an earlier search reference | \`search_status\` |
@@ -24,12 +25,21 @@ For comparisons, combine relevant package/source evidence with examples as neede
 Public OSS only; never send local/private/proprietary source. Package/repository
 targets use \`registry:name@version\` and \`github:owner/repo@ref\`. Omit the
 suffix for the latest package version or repository default branch. Package
-targets scope to the package subpath, including in monorepos. Swift uses
+targets scope to the package subpath, including in monorepos, except for raw
+\`code_diff\` comparisons, which are repository-wide. Swift uses
 \`swift:github.com/<owner>/<repo>\`, Zig \`zig:gh/<owner>/<repo>\`.
 Use public repository targets for full repositories or sibling packages:
 \`github:\`, \`codeberg:\`, \`gitlab:\`, or a supported full URL. Never infer a provider.
 A ref may be a branch, tag, or commit and contain later \`@\`; \`#\` is for
 semantic fragments, not revisions.
+
+For \`code_diff\`, pass an unversioned target and separate \`from\`/\`to\`
+versions or refs. Start with default \`name-status\`; use \`stat\` for magnitude
+or a scoped \`patch\` for content. Keep text unless required fields or the full
+returned patch are needed. Package diffs include sibling paths; a bounded
+result with no package paths does not prove the package unchanged. Treat
+truncation, coverage, and safety warnings as evidence limits. Raw diffs do not
+prove compatibility; use \`pkg_upgrade_review\` for upgrade assessment.
 
 For \`grep\`, copy a file/page header's read locator and use its matched line
 numbers when more context is needed. Counts cover one page; follow continuation
@@ -115,10 +125,7 @@ export function buildMcpInstructions(
   return buildMcpQuickStart(options);
 }
 
-export type LocalExperimentalToolName =
-  | "research"
-  | "resolve_target"
-  | "code_diff";
+export type LocalExperimentalToolName = "research" | "resolve_target";
 
 export interface BuildLocalMcpQuickStartOptions {
   enabledExperimentalTools: readonly LocalExperimentalToolName[];
@@ -142,9 +149,6 @@ const LOCAL_RESEARCH_GUIDANCE_END =
 const LOCAL_RESOLVE_TARGET_GUIDANCE =
   '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, `codeberg:owner/repo`, `gitlab:group/subgroup/project`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` is docs-only: pass it to `list` to browse pages or to `search` with `source:"docs"` for topic search; keep text unless code consumes the raw response; replay the complete emitted read action unchanged, otherwise use its returned target/range.';
 
-const LOCAL_CODE_DIFF_GUIDANCE =
-  "- `code_diff` — compare exact package versions or public repository refs repository-wide after canonicalization. Prefer `pkg_changelog` or `pkg_upgrade_review` for upgrade summaries. Start with default `name-status`; use `stat` for magnitude or a scoped `patch` for content. Keep `text`; use `json` only for required fields absent from text or the full returned patch. Treat truncation, coverage, and safety warnings as evidence limits; diffs do not prove compatibility.";
-
 /**
  * Compose local-only experimental guidance without changing the public
  * `buildMcpQuickStart()` output or public package surface.
@@ -167,9 +171,6 @@ export function buildLocalMcpQuickStart(
   }
   if (enabled.has("resolve_target")) {
     toolGuidance.push(LOCAL_RESOLVE_TARGET_GUIDANCE);
-  }
-  if (enabled.has("code_diff")) {
-    toolGuidance.push(LOCAL_CODE_DIFF_GUIDANCE);
   }
   guidance.push(toolGuidance.join("\n"));
 

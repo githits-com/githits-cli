@@ -422,16 +422,15 @@ bun run agent:e2e:suite compare \
 
 Canary has `express-router` and
 `package-overview-vulnerabilities`; smoke adds `global-example`,
-`unified-search-investigation`, `docs-search-followup`, and
-`package-upgrade-safety`; stable-full contains all 31 stable workloads.
+`unified-search-investigation`, `docs-search-followup`,
+`package-upgrade-safety`, and the `code-diff` comparison; stable-full contains
+all 36 stable workloads.
 `stateful-manual` contains only `githits-onboarding` and is dry-run-only in
 this phase. `experimental` contains only
-`ask-version-followup`, `experimental-code-diff`,
-`experimental-code-diff-bounded`, `experimental-code-diff-monorepo`,
-`experimental-code-diff-recovery`, `experimental-code-diff-repository`,
-`experimental-question-only-ask`, `experimental-resolution-follow-up`, and
+`ask-version-followup`, `experimental-question-only-ask`,
+`experimental-resolution-follow-up`, and
 `experimental-site-resolution-follow-up`. The manifest therefore classifies
-41 workloads: 31 stable, one stateful, and nine experimental. Canary is a
+41 workloads: 36 stable, one stateful, and four experimental. Canary is a
 subset of smoke, smoke is a subset of stable-full, and stateful or experimental
 workloads never enter those stable suites.
 
@@ -957,12 +956,13 @@ use at least one agent for quick iteration.
 | Deterministic source and hosted-documentation matching UX, `grep` | `code-grep-investigation.md`, `grep-mixed-docs.md` |
 | Multi-tool code navigation strategy and MCP/skill guidance         | `express-router.md`; `opencode-compaction.md` is the remote-MCP routing regression derived from the connector transcript                                                                                                                                                              |
 | Experimental target resolution                                     | `experimental-resolution-follow-up.md`; use `experimental-site-resolution-follow-up.md` for site resolution into documentation search or inventory browsing                                                                                                                                                          |
-| Experimental exact source diff | `experimental-code-diff.md` (package changes), `experimental-code-diff-repository.md` (tags and identical refs), `experimental-code-diff-monorepo.md` (repository scope), `experimental-code-diff-recovery.md` (unavailable endpoint), and `experimental-code-diff-bounded.md` (file, content, and display limits) |
+| Stable exact source diff | `code-diff.md` (package changes), `code-diff-repository.md` (tags and identical refs), `code-diff-monorepo.md` (repository scope), `code-diff-recovery.md` (unavailable endpoint), and `code-diff-bounded.md` (file, content, and display limits) |
 
 For direct source-diff graduation checks, run
 `bun run scripts/code-diff-audit.ts` with existing production authentication.
-This scoped live CLI/MCP matrix writes ignored local artifacts under
-`.agent-eval/code-diff-ga/live` and keeps the command experimental. See
+The script applies an isolated `tools=false` config to both CLI and MCP so the
+matrix verifies default registration. It writes ignored local artifacts under
+`.agent-eval/code-diff-ga/live`. See
 [`code-diff-ga-audit.md`](../../docs/implementation/code-diff-ga-audit.md) for
 the executed matrix, agent cells, fixture limitations, and acceptance evidence.
 
@@ -1037,6 +1037,14 @@ For question-only `research` parity, use `experimental-question-only-ask.md` wit
 both selectors and whether returned candidates remain choices for the user;
 do not count authentication failures as behavioral evidence.
 
+For stable source-diff behavior, run the base workload without enabling
+experimental tools:
+
+```bash
+bun run agent:e2e --agent claude --server local --workload eval/agentic/workloads/code-diff.md
+bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/code-diff.md
+```
+
 For local experimental tool changes, run the relevant workloads and the
 `express-router.md` regression cohort with Claude and Codex:
 
@@ -1045,8 +1053,6 @@ bun run agent:e2e --agent claude --server local --experimental-tools --workload 
 bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/experimental-resolution-follow-up.md
 bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/experimental-site-resolution-follow-up.md
 bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/experimental-site-resolution-follow-up.md
-bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/experimental-code-diff.md
-bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/experimental-code-diff.md
 bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/express-router.md
 bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/express-router.md
 ```

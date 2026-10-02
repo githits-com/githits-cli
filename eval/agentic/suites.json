@@ -8,6 +8,36 @@
       "suites": ["experimental"]
     },
     {
+      "id": "code-diff",
+      "path": "eval/agentic/workloads/code-diff.md",
+      "safety": "stable",
+      "suites": ["smoke", "stable-full"]
+    },
+    {
+      "id": "code-diff-bounded",
+      "path": "eval/agentic/workloads/code-diff-bounded.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "code-diff-monorepo",
+      "path": "eval/agentic/workloads/code-diff-monorepo.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "code-diff-recovery",
+      "path": "eval/agentic/workloads/code-diff-recovery.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "code-diff-repository",
+      "path": "eval/agentic/workloads/code-diff-repository.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
       "id": "code-file-navigation",
       "path": "eval/agentic/workloads/code-file-navigation.md",
       "safety": "stable",
@@ -54,36 +84,6 @@
       "path": "eval/agentic/workloads/docs-search-noise.md",
       "safety": "stable",
       "suites": ["stable-full"]
-    },
-    {
-      "id": "experimental-code-diff",
-      "path": "eval/agentic/workloads/experimental-code-diff.md",
-      "safety": "experimental",
-      "suites": ["experimental"]
-    },
-    {
-      "id": "experimental-code-diff-bounded",
-      "path": "eval/agentic/workloads/experimental-code-diff-bounded.md",
-      "safety": "experimental",
-      "suites": ["experimental"]
-    },
-    {
-      "id": "experimental-code-diff-monorepo",
-      "path": "eval/agentic/workloads/experimental-code-diff-monorepo.md",
-      "safety": "experimental",
-      "suites": ["experimental"]
-    },
-    {
-      "id": "experimental-code-diff-recovery",
-      "path": "eval/agentic/workloads/experimental-code-diff-recovery.md",
-      "safety": "experimental",
-      "suites": ["experimental"]
-    },
-    {
-      "id": "experimental-code-diff-repository",
-      "path": "eval/agentic/workloads/experimental-code-diff-repository.md",
-      "safety": "experimental",
-      "suites": ["experimental"]
     },
     {
       "id": "experimental-question-only-ask",

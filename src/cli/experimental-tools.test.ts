@@ -51,6 +51,16 @@ async function runCli(
   return { stdout, stderr, exitCode };
 }
 
+function expectDiffHelp(result: CliResult): void {
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toContain("Usage: githits code diff");
+  expect(result.stdout).toContain("<from>..<to>");
+  expect(result.stderr).not.toContain("Invalid GITHITS_API_URL");
+  expect(result.stderr).not.toContain("Invalid GITHITS_MCP_URL");
+  expect(result.stderr).not.toContain("Invalid GITHITS_ACCOUNTS_URL");
+  expect(result.stderr).not.toContain("Invalid GITHITS_CODE_NAV_URL");
+}
+
 async function withConfig<T>(
   contents: string | undefined,
   fn: (configHome: string) => Promise<T>,
@@ -86,7 +96,7 @@ async function withMissingConfig<T>(
 }
 
 describe("experimental CLI process policy", () => {
-  it("hides experimental commands when canonical and legacy config are absent", async () => {
+  it("keeps diff help available when canonical and legacy config are absent", async () => {
     await withMissingConfig(async (xdgConfigHome, isolatedHome) => {
       const root = await runCli(xdgConfigHome, ["--help"], isolatedHome);
       expect(root.exitCode).toBe(0);
@@ -100,11 +110,16 @@ describe("experimental CLI process policy", () => {
         isolatedHome,
       );
       expect(code.exitCode).toBe(0);
-      expect(code.stdout).not.toContain("diff");
+      expect(code.stdout).toContain("diff");
+      expect(code.stdout).toContain("compare exact trees");
+
+      expectDiffHelp(
+        await runCli(xdgConfigHome, ["code", "diff", "--help"], isolatedHome),
+      );
     });
   }, 30_000);
 
-  it("hides experimental commands from empty and false config help", async () => {
+  it("keeps diff help available with empty and false experimental config", async () => {
     for (const contents of ["", "[experimental]\ntools = false\n"]) {
       await withConfig(contents, async (xdgConfigHome) => {
         const root = await runCli(xdgConfigHome, ["--help"]);
@@ -118,8 +133,9 @@ describe("experimental CLI process policy", () => {
         expect(code.stdout).toContain("files");
         expect(code.stdout).toContain("read");
         expect(code.stdout).toContain("grep");
-        expect(code.stdout).not.toContain("diff");
-        expect(code.stdout).not.toContain("compare exact trees");
+        expect(code.stdout).toContain("diff");
+        expect(code.stdout).toContain("compare exact trees");
+        expectDiffHelp(await runCli(xdgConfigHome, ["code", "diff", "--help"]));
       });
     }
   }, 30_000);
@@ -147,6 +163,7 @@ describe("experimental CLI process policy", () => {
         expect(code.exitCode).toBe(0);
         expect(code.stdout).toContain("diff");
         expect(code.stdout).toContain("compare exact trees");
+        expectDiffHelp(await runCli(xdgConfigHome, ["code", "diff", "--help"]));
       },
     );
   }, 30_000);
@@ -159,11 +176,9 @@ describe("experimental CLI process policy", () => {
           ["research", "--help"],
           ["ask", "--help"],
           ["resolve", "--help"],
-          ["code", "diff", "--help"],
           ["help", "resolve"],
           ["help", "research"],
           ["help", "ask"],
-          ["help", "code", "diff"],
         ]) {
           const result = await runCli(xdgConfigHome, args);
           expect(result.exitCode).toBe(1);
@@ -206,11 +221,12 @@ describe("experimental CLI process policy", () => {
       ]) {
         const result = await runCli(xdgConfigHome, args);
         expect(result.exitCode).toBe(0);
-        expect(result.stdout).not.toContain("resolve");
-        expect(result.stdout).not.toContain("research");
-        expect(result.stdout).not.toContain("ask");
-        expect(result.stdout).not.toContain("diff");
+        expect(result.stdout).not.toMatch(/^\s+resolve\b/m);
+        expect(result.stdout).not.toMatch(/^\s+research\b/m);
+        expect(result.stdout).not.toMatch(/^\s+ask\b/m);
       }
+
+      expectDiffHelp(await runCli(xdgConfigHome, ["code", "diff", "--help"]));
 
       const direct = await runCli(xdgConfigHome, ["resolve", "express"]);
       expect(direct.exitCode).toBe(1);
@@ -218,14 +234,6 @@ describe("experimental CLI process policy", () => {
         join(xdgConfigHome, "githits", "config.toml"),
       );
       expect(direct.stderr).toContain("Cannot parse GitHits config");
-
-      const directDiff = await runCli(xdgConfigHome, [
-        "code",
-        "diff",
-        "--help",
-      ]);
-      expect(directDiff.exitCode).toBe(1);
-      expect(directDiff.stderr).toContain("Cannot parse GitHits config");
 
       for (const command of ["research", "ask"]) {
         const malformed = await runCli(xdgConfigHome, [command, "--help"]);

@@ -396,7 +396,7 @@ describe("agent eval suites", () => {
     expect(manifest.workloads).toHaveLength(41);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stable"),
-    ).toHaveLength(31);
+    ).toHaveLength(36);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stateful"),
     ).toHaveLength(1);
@@ -404,7 +404,56 @@ describe("agent eval suites", () => {
       manifest.workloads.filter(
         (workload) => workload.safety === "experimental",
       ),
-    ).toHaveLength(9);
+    ).toHaveLength(4);
+
+    expect(
+      manifest.workloads
+        .filter((workload) => workload.id.startsWith("code-diff"))
+        .map(({ id, safety, suites }) => ({ id, safety, suites })),
+    ).toEqual([
+      {
+        id: "code-diff",
+        safety: "stable",
+        suites: ["smoke", "stable-full"],
+      },
+      {
+        id: "code-diff-bounded",
+        safety: "stable",
+        suites: ["stable-full"],
+      },
+      {
+        id: "code-diff-monorepo",
+        safety: "stable",
+        suites: ["stable-full"],
+      },
+      {
+        id: "code-diff-recovery",
+        safety: "stable",
+        suites: ["stable-full"],
+      },
+      {
+        id: "code-diff-repository",
+        safety: "stable",
+        suites: ["stable-full"],
+      },
+    ]);
+    const readme = readFileSync(
+      join(process.cwd(), "eval/agentic/README.md"),
+      "utf8",
+    );
+    for (const workloadFile of [
+      "code-diff.md",
+      "code-diff-bounded.md",
+      "code-diff-monorepo.md",
+      "code-diff-recovery.md",
+      "code-diff-repository.md",
+    ]) {
+      expect(readme).toContain(`\`${workloadFile}\``);
+    }
+    expect(readme).not.toContain("experimental-code-diff");
+    expect(readme).toContain(
+      "bun run agent:e2e --agent claude --server local --workload eval/agentic/workloads/code-diff.md",
+    );
 
     expect(
       selectSuiteWorkloads(manifest, "canary").map((item) => item.id),
@@ -412,6 +461,7 @@ describe("agent eval suites", () => {
     expect(
       selectSuiteWorkloads(manifest, "smoke").map((item) => item.id),
     ).toEqual([
+      "code-diff",
       "docs-search-followup",
       "express-router",
       "global-example",
@@ -422,6 +472,11 @@ describe("agent eval suites", () => {
     expect(
       selectSuiteWorkloads(manifest, "stable-full").map((item) => item.id),
     ).toEqual([
+      "code-diff",
+      "code-diff-bounded",
+      "code-diff-monorepo",
+      "code-diff-recovery",
+      "code-diff-repository",
       "code-file-navigation",
       "code-files-listing",
       "code-grep-investigation",
@@ -461,11 +516,6 @@ describe("agent eval suites", () => {
       selectSuiteWorkloads(manifest, "experimental").map((item) => item.id),
     ).toEqual([
       "ask-version-followup",
-      "experimental-code-diff",
-      "experimental-code-diff-bounded",
-      "experimental-code-diff-monorepo",
-      "experimental-code-diff-recovery",
-      "experimental-code-diff-repository",
       "experimental-question-only-ask",
       "experimental-resolution-follow-up",
       "experimental-site-resolution-follow-up",

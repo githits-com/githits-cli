@@ -104,6 +104,22 @@ by this audit; its observed limitations remain recorded in the durable audit.
 
 ## Phase 1 implementation detail
 
+Orchestration sequence (one Luna worker, dispatched sequentially):
+
+1. Worker: make CLI diff registration independent of experimental policy,
+   with focused policy, command-group, and real-process help regressions.
+2. Coordinator: promote public MCP capability/registration, stable guidance,
+   public consumers, smoke checks, and durable documentation.
+3. Worker: rename the five diff workloads and move their manifest entries to
+   stable-full (the base package comparison also joins smoke), updating exact
+   inventory contracts and eval documentation.
+4. Coordinator: verify the full delta and live default-enabled surfaces,
+   perform Luna pre-flight/internal/Claude review, and open the product PR.
+
+Workers return uncommitted verified deltas; the coordinator owns acceptance,
+commits, integration, and all network-dependent evidence. Effective sandbox
+is full access with approval policy never; briefs impose file ownership.
+
 Status: READY after review. Expected outcome: an unconfigured CLI user sees
 and can invoke diff; a normal public MCP server advertises and executes it;
 agents receive correct routing and repository-scope guidance without enabling
