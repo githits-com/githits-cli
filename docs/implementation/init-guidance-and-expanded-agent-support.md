@@ -57,8 +57,8 @@ probe means Codex is not detected.
 Guided setup writes a managed GitHits block into each selected agent's
 instruction file. `GITHITS_GUIDANCE_BLOCK` in
 `src/commands/init/guidance-assets.ts` owns this text. It directs agents to use
-GitHits first for public OSS code, docs, examples, and package/dependency
-evidence, and to read `githits-mcp` before external lookups. When that skill is
+GitHits first when looking up OSS code, docs, examples, packages, or dependencies,
+and to read `githits-mcp` before external lookups. When that skill is
 absent, agents call GitHits `quick_start` once per session before other GitHits
 tools. Other sources remain available when GitHits is unavailable or its
 evidence is insufficient. The skill owns the rule to skip `quick_start` when
@@ -83,18 +83,21 @@ excluded and do not change when `quick_start` is called.
 The selection directive addresses a user-reported `gpt-6.1-sol` session that
 skipped GitHits for public documentation. The user reported that expanded
 GitHits-first wording caused the retest to load the skill and call GitHits.
-The compact shipped wording was then checked with existing full-guidance,
+The initial compact wording was then checked with existing full-guidance,
 neutral-intent workloads; the workloads did not explicitly request GitHits.
+After replacing "public OSS" and "evidence" with the approved "when looking up
+OSS code, docs, examples, packages, or dependencies" sentence, the same three
+candidate canaries were rerun with that final wording.
 The baseline was a `git archive` of `564e6b6`, with the same measurement harness
 and canonical MCP skill as the candidate.
 
-| Agent/workload | Old nudge | New nudge |
-|---|---|---|
-| `gpt-6.1-sol`, high reasoning, `express-router.md` | Success; 8 logical MCP calls | Success; 7 logical MCP calls |
-| `gpt-6.1-sol`, high reasoning, `package-overview-vulnerabilities.md` | Success; 2 logical MCP calls | Success; 2 logical MCP calls |
-| Claude Opus 5.5, `express-router.md` | Not run | Success; 2 observed `grep` requests |
+| Agent/workload | Old nudge | Initial compact nudge | Final nudge |
+|---|---|---|---|
+| `gpt-6.1-sol`, high reasoning, `express-router.md` | Success; 8 logical MCP calls | Success; 7 logical MCP calls | Success; 10 logical MCP calls |
+| `gpt-6.1-sol`, high reasoning, `package-overview-vulnerabilities.md` | Success; 2 logical MCP calls | Success; 2 logical MCP calls | Success; 2 logical MCP calls |
+| Claude Opus 5.5, `express-router.md` | Not run | Success; 2 observed `grep` requests | Success; 2 observed `grep` requests |
 
-All five runs loaded `githits-mcp` before their first external lookup, used
+All eight runs loaded `githits-mcp` before their first external lookup, used
 GitHits without `quick_start` or web lookup calls, and had no reported isolation
 violations. Final reports stated success with high confidence; these are agent
 self-reports, not graded usefulness. The Codex traces and normalized metrics

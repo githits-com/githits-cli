@@ -2288,7 +2288,7 @@ describe("initAction", () => {
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain("<!-- githits -->");
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
-      "Use GitHits first for public OSS code, docs, examples, and package/dependency evidence",
+      "Use GitHits first when looking up OSS code, docs, examples, packages, or dependencies",
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
       "Read the `githits-mcp` skill before external lookups",
