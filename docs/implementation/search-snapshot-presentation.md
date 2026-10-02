@@ -140,3 +140,10 @@ Round 2 closure validation: the ten-file focused command above plus
 `src/commands/search-registration.test.ts` passes 459 tests with 1,880 expectations.
 `bun run typecheck`, both root/MCP builds, and both required dev smoke commands
 also pass after the fixes; the smoke authentication limitations remain as stated.
+
+External Opus 5.5 round 2 is clean at `2db186b`, including one fresh-context
+final check. Both round 1 findings are closed. The reviewer independently rendered
+a completed zero-hit bare-label fallback case (one scratch test passed, removed
+afterwards) and verified changed help lines fit 80 columns. No valid finding or
+major deferral remains. The completed working plan was removed after this clean
+review; the contract, evidence, and limitations are retained here.
