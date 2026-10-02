@@ -1,6 +1,6 @@
 # Graduate code diff for CLI and public MCP
 
-Status: READY for Phase 1; audit and plan review complete.
+Status: READY for Phase 1 implementation; technical plan review complete.
 
 ## Goal and verified current state
 
@@ -8,6 +8,12 @@ Make `githits code diff` and public `code_diff` available by default with their
 existing exact-tree, repository-wide, bounded-evidence contracts. The user
 confirmed production validation and both CLI and public MCP scope on
 2026-10-02. Publication and hosted deployment remain separate authorized steps.
+
+Delivery is one GA implementation PR in this repository, followed by release
+preparation. There is no separate audit PR or audit-merge dependency. The
+already-authored regression script and workloads accompany the product change;
+recorded live results support the implementation plan rather than constituting
+the deliverable. Draft audit PR #447 was closed at the user's direction.
 
 The CLI command is gated in `src/services/experimental-cli-policy.ts` and
 `src/commands/code/index.ts`. `packages/mcp/src/mcp/local-server.ts` alone
@@ -22,6 +28,9 @@ its exact commands are in
 [code-diff-ga-audit.md](../implementation/code-diff-ga-audit.md).
 This plan relies on that evidence, including the neutral Codex discovery
 limitation and the verified live data/repository-provider limitations.
+The follow-up `zig:gh/hejsil/zig-clap` `0.11.0..0.12.0` comparison also verifies
+distinct Zig versions through CLI and MCP; the original compiler fixture does
+not establish a defect in indexing valid packages on access.
 
 ## Boundaries and architecture
 
@@ -132,7 +141,11 @@ Steps:
    and state the diff exception to package-subpath scoping. Preserve first
    sentence/first-80 discovery tests, privacy/trust and completeness facts.
    Follow the internal plugin-maintenance skill; regenerate/check canonical
-   plugin assets rather than editing generated files.
+   plugin assets rather than editing generated files. The `githits-mcp` guide
+   copy follows the bounded same-PR parity exception. Updates to the public
+   CLI code/package skills belong to the release branch after the behavior
+   is included there, or follow publication; do not advertise unreleased CLI
+   behavior from those skills on main.
 3. Rename/reclassify all five neutral diff workloads as stable-full; include
    the small Express comparison in smoke, retaining canary selection. Update
    manifest contract tests and documented counts. Other experimental workload
@@ -146,8 +159,8 @@ Steps:
    without experimental config/override. Run the same 14 local MCP agent cells
    without the experimental flag: both agents × five descriptor-intent
    workloads, original neutral discovery, and full-guidance monorepo. Run
-   focused CLI skills evals for Express and monorepo when CLI guidance is
-   included at the permitted lifecycle boundary. Inspect actual calls, finals,
+   focused CLI skills evals for Express and monorepo in release preparation
+   when the CLI skill changes are included. Inspect actual calls, finals,
    metrics and isolation artifacts, not merely harness success.
 
 Acceptance:
@@ -188,6 +201,13 @@ the stable docs; generated metadata is consistent; hosted availability is
 reported only after verified dependency adoption/deployment. Ordinary commit,
 push, PR and CI delivery need no additional approval.
 
+The release preparation updates public CLI skills at their permitted lifecycle
+boundary, validates the exported/packed packages, consumes the GA change
+fragment, and opens the release PR. Publishing the packages makes CLI/public
+MCP GA deliverable to consumers. Hosted availability requires a separate
+`remote-mcp` worktree to adopt that released MCP version and validate/deploy
+its transport and composition; it is not achieved by merging this repo's PR.
+
 ## Completion and cleanup
 
 Retain the direct audit script as a manual CLI/MCP regression reproducer owned
@@ -210,3 +230,6 @@ audit gaps were fixed. Claude round 1 found only minor plan/doc corrections:
 spell out the audit script's stable config and lifecycle, record the final
 123-cell result, and classify public release impact in Phase 1. All accepted
 and applied; the doc-only round counts as clean under repository review rules.
+The subsequent delivery clarification closes the audit-only PR and makes the
+single implementation PR explicit. It changes no scope, architecture, phase
+boundary, or acceptance criterion; no new review round is required for it.
