@@ -1,7 +1,7 @@
 # Graduate code diff for CLI and public MCP
 
 Status: Phase 1 implemented; deterministic checks passed; code review and
-default-enabled production acceptance remain in progress.
+default-enabled production acceptance remains pending; code review is clean.
 
 ## Goal and verified current state
 
@@ -123,7 +123,7 @@ commits, integration, and all network-dependent evidence. Effective sandbox
 is full access with approval policy never; briefs impose file ownership.
 
 Status: implemented; deterministic acceptance passed. Production matrix and
-agent traces await macOS Keychain access, and code review is in progress.
+agent traces await macOS Keychain access. Code review is clean after round 2.
 Expected outcome: an unconfigured CLI user sees
 and can invoke diff; a normal public MCP server advertises and executes it;
 agents receive correct routing and repository-scope guidance without enabling
@@ -276,6 +276,17 @@ User input to unlock/approve local Keychain access is pending. No credentials
 were displayed, no retries or timer workarounds were added, and earlier
 completed baseline results were not counted as current acceptance.
 
-Remaining Phase 1 steps: finish code review, obtain default-enabled production
-proof after the local access block is resolved, update evidence, then open the
-product draft PR and inspect CI. Keep this plan while acceptance is pending.
+Remaining Phase 1 steps: open the product draft PR and inspect CI while the
+local access block is pending; obtain default-enabled production proof after
+it is resolved and update evidence before declaring GA acceptance. Keep this
+plan while acceptance is pending.
+
+Implementation review: internal pass clean after three minor documentation
+corrections. Claude round 1 accepted the direction and found two minor test
+issues: a dead single-member-union guard and stale smoke assertion wording.
+Both were fixed, including a third sibling auth-probe label. The affected
+Resolve parity suite passed 31 tests with 639 assertions; unauthenticated CLI
+smoke passed. Fresh internal round 2 and Claude round 2 were clean, including
+Claude's one fresh-context final check over the complete delta. Product
+behavior did not change during these fixes. Reviewer retained in Orca terminal
+`term_b3224af7-ce9b-4ab3-8c4e-b53ba465adb0`, run `run_70b114b47c62`.
