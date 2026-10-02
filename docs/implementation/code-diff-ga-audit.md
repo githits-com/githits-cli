@@ -210,14 +210,53 @@ and registration MCP smoke; and both built smoke modes under Node. The 353
 focused tests made 2,082 assertions. Local logs are retained under
 `.agent-eval/code-diff-ga/stable-*.log`.
 
-The default-enabled 125-cell production matrix and 14 agent cells are pending.
-The first CLI call was sampled waiting inside macOS Keychain before network
-activity; one Claude discovery cell timed out during the same access block.
-These incomplete runs are not acceptance evidence. The prior completed matrix
-and eval results above remain retained. Publication and hosted adoption have
-not occurred.
+The default-enabled production matrix passed **125 cells, zero failures** at
+`27019e28f0ea45e2d016e94ffd5948d6e89e35f0`. Both CLI and local stdio MCP
+used an isolated `experimental.tools = false` config, with no MCP override.
+This includes the distinct-version valid Zig library comparison and its
+identical-version control. Exact command:
+
+```sh
+bun run scripts/code-diff-audit.ts .agent-eval/code-diff-ga/resumed-live
+```
+
+All **14 default-enabled agent cells** produced successful final reports,
+with zero isolation violations. Both agents used `code_diff` in all ten
+descriptor-intent cells and both full-guidance monorepo cells. Claude also
+used it in neutral discovery. Codex neutral discovery used public npm/GitHub
+evidence and made zero GitHits calls; that cell is not tool acceptance
+evidence. Actual calls, answers/confidence, derived metrics and isolation
+artifacts were inspected. Answers retained repository scope, unavailable
+endpoint distinctions, incomplete patch evidence and compatibility caveats.
+Claude's bounded run raised a separate focused budget to obtain a complete
+returned patch; Codex retained the original 1024-byte cap and correctly
+reported that the source service omitted all requested patches. Codex's
+monorepo intent run explicitly distinguished complete backend coverage from
+client display truncation. These are trace observations, not graded answer
+quality or a discovery/performance rate. Claude logical-call/token/cost
+metrics remain unavailable; Codex metrics must not be compared with Claude
+raw event counts.
+
+The cells use `--surface mcp --server local`, with no experimental flag and
+an isolated false config. For each of Claude and Codex, reproduce the three
+profiles using existing secure local agent authentication:
+
+```sh
+bun run agent:e2e --agent <claude|codex> --surface mcp --server local --guidance-profile descriptors --intent-profile githits --concurrency 2 --out <intent-output> --workload eval/agentic/workloads/code-diff.md --workload eval/agentic/workloads/code-diff-repository.md --workload eval/agentic/workloads/code-diff-monorepo.md --workload eval/agentic/workloads/code-diff-recovery.md --workload eval/agentic/workloads/code-diff-bounded.md
+bun run agent:e2e --agent <claude|codex> --surface mcp --server local --guidance-profile descriptors --intent-profile neutral --concurrency 2 --out <discovery-output> --workload eval/agentic/workloads/code-diff.md
+bun run agent:e2e --agent <claude|codex> --surface mcp --server local --guidance-profile full --intent-profile neutral --concurrency 2 --out <full-output> --workload eval/agentic/workloads/code-diff-monorepo.md
+```
+
+Artifacts remain local in `.agent-eval/code-diff-ga/resumed-evals/`, including
+`acceptance-inspection.json`; every metrics record reports
+`experimentalTools: false`. Earlier Keychain-blocked runs and diagnostic
+evidence remain preserved. After the user returned, local access succeeded;
+no credential, production data, timeout, or retry mechanism was changed.
 
 Implementation review completed cleanly after minor documentation/test-helper
 corrections, with a fresh-context final check. The affected Resolve parity
-suite passed 31 tests, and unauthenticated CLI smoke passed again. Current
-authenticated production acceptance remains pending local Keychain access.
+suite passed 31 tests, and unauthenticated CLI smoke passed again.
+[CI at the validated commit](https://github.com/githits-com/githits-cli/actions/runs/37012649846)
+passed build/checks, Linux/Windows unit suites, MCP package validation, and
+compatibility checks for Bun and Node 20/22/24/26. Publication was skipped.
+Published and hosted GA delivery remain separate release/adoption steps.

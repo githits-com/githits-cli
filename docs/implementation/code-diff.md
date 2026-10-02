@@ -191,6 +191,23 @@ code/package Agent Skills are updated in release preparation or after
 publication. The `githits-mcp` guide follows the repository's bounded same-PR
 parity exception. Research and Resolve remain experimental.
 
+Remaining distribution steps:
+
+1. Merge the product PR only after explicit approval. Prepare package-scoped
+   release versions against current main: the pending change is CLI minor
+   and MCP major because custom MCP providers now require `codeDiff`.
+   Reconcile exact versions with the coordinated minor-alignment policy.
+2. Update public CLI code/package Agent Skills at the release-preparation
+   boundary. Run targeted CLI skills evals for the Express and monorepo
+   workloads with both agents, validate packed exports and generated
+   metadata, consume the change fragments, and open the release PR.
+3. Obtain separate approval for release merge, tagging or publication as
+   applicable. Package publication delivers CLI/public MCP GA to consumers.
+4. In a separately assigned `remote-mcp` lane, adopt the released MCP package,
+   update custom providers if needed, and validate the public transport and
+   composition. Deploy only with explicit approval; claim hosted GA only
+   after verified deployment.
+
 Typed changelog steering is a separate later stage, blocked on both a stable
 public CodeDiff invocation and a committed/deployed backend changelog-action
 contract. Its discriminator, field names, result placement, and fallback

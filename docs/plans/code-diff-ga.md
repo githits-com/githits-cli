@@ -1,7 +1,8 @@
 # Graduate code diff for CLI and public MCP
 
-Status: Phase 1 implemented; deterministic checks and code review passed.
-Default-enabled production acceptance remains pending macOS Keychain access.
+Status: Phase 1 complete: deterministic, production and agent acceptance
+passed; implementation review is clean. Plan retirement pending final
+documentation verification in the product PR.
 
 ## Goal and verified current state
 
@@ -94,7 +95,7 @@ by this audit; its observed limitations remain recorded in the durable audit.
 
 ## Phase map
 
-1. **Stable CLI/public MCP exposure (implemented; acceptance pending).** Default
+1. **Stable CLI/public MCP exposure (complete).** Default
    composition, guidance, smoke contracts and eval policy agree on diff's
    availability. Depends on the completed audit; no unresolved behavioral
    product decision.
@@ -122,8 +123,8 @@ Workers return uncommitted verified deltas; the coordinator owns acceptance,
 commits, integration, and all network-dependent evidence. Effective sandbox
 is full access with approval policy never; briefs impose file ownership.
 
-Status: implemented; deterministic acceptance passed. Production matrix and
-agent traces await macOS Keychain access. Code review is clean after round 2.
+Status: complete; deterministic, production and agent acceptance passed.
+Code review is clean after round 2.
 Expected outcome: an unconfigured CLI user sees
 and can invoke diff; a normal public MCP server advertises and executes it;
 agents receive correct routing and repository-scope guidance without enabling
@@ -268,18 +269,17 @@ checks, outside-root packed consumer validation, source CLI/MCP smoke and
 both built smoke modes passed.
 
 Luna preflight confirmed plan, interface and documentation conformance after
-minor stale gated/local-only prose was corrected. It correctly marks current
+minor stale gated/local-only prose was corrected. At the blocked checkpoint it correctly marked
 production acceptance UNPROVEN: the 125-cell default-enabled matrix blocked
 inside macOS Keychain before networking, and agent cells timed out during the
 same access block. The agent queue was stopped with artifacts preserved.
-User input to unlock/approve local Keychain access is pending. No credentials
+The user returned and requested another attempt; Keychain access then succeeded. No credentials
 were displayed, no retries or timer workarounds were added, and earlier
 completed baseline results were not counted as current acceptance.
 
-Remaining Phase 1 steps: open the product draft PR and inspect CI while the
-local access block is pending; obtain default-enabled production proof after
-it is resolved and update evidence before declaring GA acceptance. Keep this
-plan while acceptance is pending.
+Phase 1 product and validation steps are complete. Remaining local work is
+final evidence/documentation verification and retirement of this plan in the
+product PR; distribution steps have been transferred to durable docs.
 
 Implementation review: internal pass clean after three minor documentation
 corrections. Claude round 1 accepted the direction and found two minor test
@@ -292,7 +292,28 @@ behavior did not change during these fixes. Reviewer retained in Orca terminal
 `term_b3224af7-ce9b-4ab3-8c4e-b53ba465adb0`, run `run_70b114b47c62`.
 
 Product draft PR: https://github.com/githits-com/githits-cli/pull/448. The
-branch is committed and pushed; CI is running. The PR remains a draft until
-the current authenticated acceptance gap is closed. This plan remains needed
-for that work and will be retired after final acceptance and clean review,
+branch is committed and pushed; CI passed at the validated commit. The PR
+remains a draft, with authenticated acceptance now complete. This plan will
+be retired after final documentation verification and clean review,
 with release/host operational steps kept in durable documentation.
+
+## Completed default-enabled acceptance
+
+After the user returned, local Keychain access succeeded. The matrix passed
+125 cells, zero failures, at `27019e2`; all 14 agent cells completed with
+successful final reports and zero isolation violations. Both agents used
+`code_diff` in all ten intent and both full-guidance cells; Claude also used
+it in neutral discovery. Codex neutral discovery made zero GitHits calls and
+is not tool acceptance evidence. Calls, final answers/confidence, metrics and
+isolation artifacts were inspected. Every metrics record reports
+`experimentalTools: false`, and both runs used isolated false config.
+The earlier blocked runs remain retained, not counted.
+
+Exact commands, observations and limitations are transferred to
+`docs/implementation/code-diff-ga-audit.md`. Remaining release, public CLI
+skill evaluation and hosted-adoption steps are transferred to
+`docs/implementation/code-diff.md`; these are operational follow-through,
+not another implementation increment. No major engineering finding is
+deferred. Phase 1 is the last implementation increment of this plan; retire
+it as the final commit after final documentation verification, before merge.
+Product PR #448 remains a draft. Publication and deployment are not approved.
