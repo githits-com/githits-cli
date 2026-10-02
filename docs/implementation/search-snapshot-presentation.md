@@ -106,7 +106,7 @@ not describe the new formatter wording or introduce unreleased commands/fields.
 No public quick-start builder or embedded guide changes, transport changes, or
 release/version changes are involved.
 
-Final closure validation: `bun test` passes 5,313 tests with 20,141 expectations
+Before the external round 1 fix, full-suite validation: `bun test` passed 5,313 tests with 20,141 expectations
 across 230 files. The bounded attribution scan also covers two requests for the
 same repository/SHA, including a zero-hit HEAD source and hits belonging only to
 an explicit commit. A historical served alias cannot attribute those hits to HEAD.
