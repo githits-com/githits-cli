@@ -1,7 +1,7 @@
 # Graduate code diff for CLI and public MCP
 
-Status: Phase 1 implemented; deterministic checks passed; code review and
-default-enabled production acceptance remains pending; code review is clean.
+Status: Phase 1 implemented; deterministic checks and code review passed.
+Default-enabled production acceptance remains pending macOS Keychain access.
 
 ## Goal and verified current state
 
@@ -290,3 +290,9 @@ smoke passed. Fresh internal round 2 and Claude round 2 were clean, including
 Claude's one fresh-context final check over the complete delta. Product
 behavior did not change during these fixes. Reviewer retained in Orca terminal
 `term_b3224af7-ce9b-4ab3-8c4e-b53ba465adb0`, run `run_70b114b47c62`.
+
+Product draft PR: https://github.com/githits-com/githits-cli/pull/448. The
+branch is committed and pushed; CI is running. The PR remains a draft until
+the current authenticated acceptance gap is closed. This plan remains needed
+for that work and will be retired after final acceptance and clean review,
+with release/host operational steps kept in durable documentation.
