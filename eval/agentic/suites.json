@@ -56,14 +56,32 @@
       "suites": ["stable-full"]
     },
     {
-      "id": "express-router",
-      "path": "eval/agentic/workloads/express-router.md",
-      "safety": "stable",
-      "suites": ["canary", "smoke", "stable-full"]
-    },
-    {
       "id": "experimental-code-diff",
       "path": "eval/agentic/workloads/experimental-code-diff.md",
+      "safety": "experimental",
+      "suites": ["experimental"]
+    },
+    {
+      "id": "experimental-code-diff-bounded",
+      "path": "eval/agentic/workloads/experimental-code-diff-bounded.md",
+      "safety": "experimental",
+      "suites": ["experimental"]
+    },
+    {
+      "id": "experimental-code-diff-monorepo",
+      "path": "eval/agentic/workloads/experimental-code-diff-monorepo.md",
+      "safety": "experimental",
+      "suites": ["experimental"]
+    },
+    {
+      "id": "experimental-code-diff-recovery",
+      "path": "eval/agentic/workloads/experimental-code-diff-recovery.md",
+      "safety": "experimental",
+      "suites": ["experimental"]
+    },
+    {
+      "id": "experimental-code-diff-repository",
+      "path": "eval/agentic/workloads/experimental-code-diff-repository.md",
       "safety": "experimental",
       "suites": ["experimental"]
     },
@@ -84,6 +102,12 @@
       "path": "eval/agentic/workloads/experimental-site-resolution-follow-up.md",
       "safety": "experimental",
       "suites": ["experimental"]
+    },
+    {
+      "id": "express-router",
+      "path": "eval/agentic/workloads/express-router.md",
+      "safety": "stable",
+      "suites": ["canary", "smoke", "stable-full"]
     },
     {
       "id": "githits-onboarding",
@@ -188,14 +212,14 @@
       "suites": ["stable-full"]
     },
     {
-      "id": "package-vulnerability-transitive",
-      "path": "eval/agentic/workloads/package-vulnerability-transitive.md",
+      "id": "package-vulnerability-rubygems",
+      "path": "eval/agentic/workloads/package-vulnerability-rubygems.md",
       "safety": "stable",
       "suites": ["stable-full"]
     },
     {
-      "id": "package-vulnerability-rubygems",
-      "path": "eval/agentic/workloads/package-vulnerability-rubygems.md",
+      "id": "package-vulnerability-transitive",
+      "path": "eval/agentic/workloads/package-vulnerability-transitive.md",
       "safety": "stable",
       "suites": ["stable-full"]
     },

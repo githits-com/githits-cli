@@ -393,7 +393,7 @@ describe("agent eval suites", () => {
   it("loads the checked-in manifest with the exact workload inventory", () => {
     const manifest = loadSuiteManifest();
     expect(manifest.schemaVersion).toBe(1);
-    expect(manifest.workloads).toHaveLength(37);
+    expect(manifest.workloads).toHaveLength(41);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stable"),
     ).toHaveLength(31);
@@ -404,7 +404,7 @@ describe("agent eval suites", () => {
       manifest.workloads.filter(
         (workload) => workload.safety === "experimental",
       ),
-    ).toHaveLength(5);
+    ).toHaveLength(9);
 
     expect(
       selectSuiteWorkloads(manifest, "canary").map((item) => item.id),
@@ -462,6 +462,10 @@ describe("agent eval suites", () => {
     ).toEqual([
       "ask-version-followup",
       "experimental-code-diff",
+      "experimental-code-diff-bounded",
+      "experimental-code-diff-monorepo",
+      "experimental-code-diff-recovery",
+      "experimental-code-diff-repository",
       "experimental-question-only-ask",
       "experimental-resolution-follow-up",
       "experimental-site-resolution-follow-up",
