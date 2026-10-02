@@ -254,7 +254,7 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Unified `search` query syntax.** The `search.query` field is the backend discovery query syntax, not a raw pass-through to a per-source search engine. It supports implicit `AND`, uppercase `OR`, parentheses, unary `-`, quoted phrases, semantic qualifiers (`kind:`, `category:`, `path:`, `lang:`, `name:`, `intent:`), and routing qualifiers (`registry:`, `package:`, `version:`, `repo:`). MCP callers put these constraints directly in `query`; the backend owns parsing, current enum validation, recovery warnings, and per-source compilation. Per-source support, ignored features, and incompatibilities are reported in `sourceStatus`. CLI users retain `--kind`, `--category`, `--path-prefix`, `--intent`, `--name`, and `--lang`; the shared request builder adapts those human-facing flags to the same backend operation.
 
-**Partial-result truth.** Every result-bearing initial `search` payload and stored `search_status.result` carries the backend's exact `partialResults: boolean`, including `false` for an atomic serveable interim snapshot and `true` for a subset of requested evidence. A progress-only response with no result snapshot omits the field. This additive field is retained unchanged in CLI `--json` and MCP `format: "json"`; text-v1 uses it only to label active results as interim or partial.
+**Partial-result truth.** Every result-bearing initial `search` payload and stored `search_status.result` carries the backend's exact `partialResults: boolean`, including `false` for an atomic serveable interim snapshot and `true` for a subset of requested evidence. A progress-only response with no result snapshot omits the field. This additive field is retained unchanged in CLI `--json` and MCP `format: "json"`; text-v1 labels active results as `partial` only when it is true; otherwise the adjacent lifecycle identifies background work.
 
 **Repository search evidence locators.** Repository code and symbol hits keep the legacy target-relative `locator.filePath` and evidence `startLine` / `endLine` while also exposing the repository-root `repositoryFilePath`, exact served `commitSha`, explicit `evidenceRange`, original `indexedRange`, and optional `symbolContext`. Evidence includes `matchLine`, backend `rangeKind`, and `matchSpansTruncated`; symbol context keeps backend identity/kind plus the fixed lowercase relation `encloses_match` or `associated_with_indexed_chunk`. A proven enclosing relation always has one complete `definitionRange` containing both target-relative and repository-root paths. Associated or identity-only context may omit that range. Malformed partial definition locators invalidate the search response instead of being repaired or dropped.
 
@@ -765,14 +765,14 @@ anatomy, and ordering. The order is:
 
 Active empty headlines are `No results yet | indexing | 0/1 ready` and
 `No result snapshot yet | indexing | 0/1 ready` (with `preparing` or `searching`
-for the other active states). Active results say `partial` when
-`partialResults` is true and `interim` when it is false. Terminal or unknown
+for the other active states). Active results say `partial` only when
+`partialResults` is true; otherwise they say `results` beside the lifecycle. Terminal or unknown
 progress retains its lower-case lifecycle and readiness; completed output omits
 those fields. Progress-only responses show only derivable target identity and
 lane-free freshness; they never invent source or contributor facts.
 
 Detailed target rows keep one identity and deterministic segment order:
-`using`, `searched`, `indexing`, terminal/unavailable, `available`, `indexed`,
+`commit`/`using`, `searched`, `indexing`, terminal/unavailable, `available`, `indexed`,
 then target-scoped constraints. Lanes are `code`, `symbols`, `repository docs`,
 concrete site docs, and docs. Exact terminal states use readable client-owned
 reasons (`package not found`, `version unavailable`, or `repository ref

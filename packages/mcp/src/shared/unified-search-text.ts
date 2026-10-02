@@ -528,7 +528,7 @@ function formatUsingSegment(
       ...new Set(
         snapshots.map(
           (snapshot) =>
-            `searched commit: ${snapshot.commitTarget}${snapshot.indexedRef ? ` (indexed from ref ${snapshot.indexedRef})` : ""}`,
+            `commit: ${snapshot.commitTarget}${snapshot.indexedRef ? ` (indexed from ref ${snapshot.indexedRef})` : ""}`,
         ),
       ),
     ].join("; ");
@@ -894,6 +894,11 @@ function appendPresentationAction(
     lines.push("");
   }
   const useResults = "useResults" in action && action.useResults;
+  const priorHead = presentation.targetGroups
+    .flatMap((group) =>
+      group.trustLimits.filter((limit) => limit.kind === "repository_snapshot"),
+    )
+    .find((snapshot) => snapshot.priorHead);
   if (useResults) {
     const hit = results.find((hit) => hit.readTarget);
     lines.push(
@@ -906,16 +911,10 @@ function appendPresentationAction(
     );
     if (hit?.readTarget)
       lines.push(renderReadTarget(hit.readTarget, options.actionSyntax));
-    if (
-      presentation.targetGroups.some((group) =>
-        group.trustLimits.some(
-          (limit) => limit.kind === "repository_snapshot" && limit.priorHead,
-        ),
-      )
-    ) {
+    if (priorHead) {
       lines.push(
         ...wrapText(
-          "For a specific version or ref, search target@version or target@ref.",
+          `For a specific ref, search ${priorHead.commitTarget.replace(/@[^@]+$/, "@<ref>")}.`,
           options.width,
         ),
       );
@@ -927,11 +926,6 @@ function appendPresentationAction(
         ? `Next: githits search-status ${action.searchRef} --wait ${action.waitTimeoutMs / 1000}`
         : `Next: search_status search_ref=${JSON.stringify(action.searchRef)} wait_timeout_ms=${action.waitTimeoutMs}`;
     if (useResults) {
-      const priorHead = presentation.targetGroups.some((group) =>
-        group.trustLimits.some(
-          (limit) => limit.kind === "repository_snapshot" && limit.priorHead,
-        ),
-      );
       lines.push(
         ...wrapText(
           priorHead

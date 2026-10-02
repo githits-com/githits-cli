@@ -113,11 +113,11 @@ describe("snapshot search text received by agents", () => {
     "reads the served snapshot before optional HEAD waiting: %s",
     (syntax) => {
       for (const text of both(snapshot(), syntax)) {
-        expect(text).toContain(
-          "searched commit: github:anomalyco/opencode@bbd72fb8",
-        );
+        expect(text).toContain("commit: github:anomalyco/opencode@bbd72fb8");
         expect(text).toContain("indexed from ref HEAD");
-        expect(text).toContain("requested HEAD resolves to a different commit");
+        expect(text.replace(/\s+/g, " ")).toContain(
+          "requested HEAD resolves to a different commit",
+        );
         expect(text.replace(/\s+/g, " ")).toContain(
           "different commit and is indexing",
         );
@@ -141,10 +141,37 @@ describe("snapshot search text received by agents", () => {
         expect(text).not.toContain("Next: search_status");
         expect(text).not.toContain("Next: githits search-status");
         expect(text).toContain(
-          "For a specific version or ref, search target@version or target@ref.",
+          "For a specific ref, search github:anomalyco/opencode@<ref>.",
         );
         expect(text).not.toContain("Results from commit:"); // No duplicated backend notice.
         expect(text).not.toContain("older snapshot");
+      }
+    },
+  );
+
+  it.each([
+    ["https://github.com/anomalyco/opencode", "github:anomalyco/opencode"],
+    ["https://codeberg.org/owner/project", "codeberg:owner/project"],
+    [
+      "https://gitlab.com/group/subgroup/project",
+      "gitlab:group/subgroup/project",
+    ],
+  ])(
+    "uses the repository's own name in specific-ref advice: %s",
+    (url, base) => {
+      const payload = snapshot();
+      const label = `${base}@HEAD`;
+      payload.sourceStatus![0]!.targetLabel = label;
+      payload.sourceStatus![0]!.servedTarget = label;
+      resolution(payload).served!.repoUrl = url;
+      payload.results[0]!.target = label;
+      payload.results[0]!.locator.repoUrl = url;
+      for (const text of both(payload)) {
+        expect(text.replace(/\s+/g, " ")).toContain(
+          `For a specific ref, search ${base}@<ref>.`,
+        );
+        expect(text).not.toContain("target@ref");
+        expect(text).not.toContain("target@version");
       }
     },
   );
@@ -220,7 +247,7 @@ describe("snapshot search text received by agents", () => {
       resolution(payload).freshness = freshness;
       payload.sourceStatus![0]!.codeIndexState = "PROVISIONAL";
       for (const text of both(payload)) {
-        expect(text).toContain("searched commit:");
+        expect(text).toContain("commit:");
         expect(text).not.toContain("different commit");
         expect(text).not.toContain("older snapshot");
         expect(text).not.toContain("If you need current HEAD");
@@ -245,12 +272,12 @@ describe("snapshot search text received by agents", () => {
         'Next: search_status search_ref="recorded-search" wait_timeout_ms=120000',
       );
       expect(text).not.toContain("read target=");
-      expect(text).not.toContain("searched commit:");
+      expect(text).not.toContain("commit:");
       expect(text).not.toContain("older snapshot");
     }
     resolution(payload).served = undefined;
     resolution(payload).freshness = "indexing";
-    expect(both(payload)[0]).not.toContain("searched commit:");
+    expect(both(payload)[0]).not.toContain("commit:");
   });
 
   it.each(["INDEXING", "COMPLETED", "DEFERRED", "TIMEOUT", "FAILED"])(
@@ -261,10 +288,10 @@ describe("snapshot search text received by agents", () => {
       payload.sourceStatus![0]!.resultCount = 0;
       payload.progress!.status = status;
       for (const text of both(payload)) {
-        expect(text).toContain(
-          "searched commit: github:anomalyco/opencode@bbd72fb8",
+        expect(text).toContain("commit: github:anomalyco/opencode@bbd72fb8");
+        expect(text.replace(/\s+/g, " ")).toContain(
+          "requested HEAD resolves to a different commit",
         );
-        expect(text).toContain("requested HEAD resolves to a different commit");
         expect(text.replace(/\s+/g, " ")).toContain(
           "different commit and is indexing",
         );
@@ -288,8 +315,7 @@ describe("snapshot search text received by agents", () => {
     payload.sourceStatus![0]!.codeIndexState = "PENDING";
     // Withheld pairs clear served provenance; do not manufacture it.
     resolution(payload).served = undefined;
-    for (const text of both(payload))
-      expect(text).not.toContain("searched commit:");
+    for (const text of both(payload)) expect(text).not.toContain("commit:");
   });
 
   it("attributes bare request labels alongside a historical served HEAD alias", () => {
@@ -299,9 +325,7 @@ describe("snapshot search text received by agents", () => {
     payload.results[0]!.target = bareTarget;
     payload.results[0]!.servedTarget = target;
     for (const text of both(payload)) {
-      expect(text).toContain(
-        "searched commit: github:anomalyco/opencode@bbd72fb8",
-      );
+      expect(text).toContain("commit: github:anomalyco/opencode@bbd72fb8");
       expect(text).toContain("If you need current HEAD");
     }
   });
@@ -334,13 +358,13 @@ describe("snapshot search text received by agents", () => {
       });
       for (const text of both(payload)) {
         if (resultCount === 0) {
-          expect(text).toContain("searched commit:"); // Its own zero-hit search provenance.
-          expect(text).toContain(
+          expect(text).toContain("commit:"); // Its own zero-hit search provenance.
+          expect(text.replace(/\s+/g, " ")).toContain(
             "requested HEAD resolves to a different commit",
           );
         } else {
-          expect(text).not.toContain("searched commit:");
-          expect(text).not.toContain(
+          expect(text).not.toContain("commit:");
+          expect(text.replace(/\s+/g, " ")).not.toContain(
             "requested HEAD resolves to a different commit",
           );
         }

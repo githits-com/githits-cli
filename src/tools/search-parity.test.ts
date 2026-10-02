@@ -787,9 +787,7 @@ describe("usable snapshot presentation parity", () => {
         cliStatus,
         mcpStatus.content[0]?.text ?? "",
       ]) {
-        expect(text).toContain(
-          "searched commit: github:anomalyco/opencode@bbd72fb8",
-        );
+        expect(text).toContain("commit: github:anomalyco/opencode@bbd72fb8");
         expect(text).toContain("Next: use these hits");
         expect(text).not.toContain("Next: search_status");
         expect(text).not.toContain("Next: githits search-status");

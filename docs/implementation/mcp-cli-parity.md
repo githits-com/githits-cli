@@ -376,9 +376,10 @@ list; and at most one final `Next:` action.
 `No results yet | indexing | 0/1 ready`; an active response without a snapshot
 uses `No result snapshot yet | indexing | 0/1 ready`, with corresponding
 lower-case lifecycle labels for other active states. Active result counts use
-`interim` when `partialResults` is false and `partial` when it is true. Terminal
+`partial` only when `partialResults` is true; otherwise they say `results`
+beside the lifecycle. Terminal
 or unknown progress retains lifecycle/readiness in the headline, while completed
-output omits them. Target rows keep deterministic `using`, `searched`,
+output omits them. Target rows keep deterministic `commit`/`using`, `searched`,
 `indexing`, terminal/unavailable, `available`, `indexed`, and constraint segments;
 exact terminal reasons remain lane-readable, and a target gets at most one
 inline `Fix:` or replayable `Try:` line. Site suggestions and indexed alternatives

@@ -19,12 +19,12 @@ With returned hits, an active search now leads with:
 ```text
 Next: use these hits now; read for details:
 read target="github:anomalyco/opencode@bbd72fb8" path="..." start_line=480 end_line=490
-For a specific version or ref, search target@version or target@ref.
+For a specific ref, search github:anomalyco/opencode@<ref>.
 If you need current HEAD, wait (hits and order may change):
 search_status search_ref="..." wait_timeout_ms=120000
 ```
 
-The exact-version advice and HEAD-specific conditional appear only for proved
+The specific-ref advice and HEAD-specific conditional appear only for proved
 prior HEAD evidence. Other active results offer an optional wait for updated
 results. The single read example preserves the emitted `readTarget` arguments,
 including target, path, selector and bounds, rather than replacing its pinned
@@ -33,7 +33,7 @@ Completed current searches keep their compact output. With no hits, active
 searches retain their status next action. Ended searches needing updated evidence
 require a new search; their stored reference is never offered as a poll target.
 
-Per-target copy discloses `searched commit: github:owner/repo@<sha>` and, when known,
+Per-target copy discloses `commit: github:owner/repo@<sha>` and, when known,
 `indexed from ref <ref>`. A historical named branch or HEAD alias is never a claim
 about its current pointer. Missing or SHA-valued historical refs omit that clause.
 The resolved requested commit is compared with the served commit using full SHAs;
@@ -150,13 +150,13 @@ review; the contract, evidence, and limitations are retained here.
 
 Copy pass after the draft PR: visible active hits are labeled `results`; the
 adjacent lifecycle still says `indexing`/`searching`, while `partial` continues to
-mean omitted runnable pairs. `searched commit` identifies what the query covered,
+mean omitted runnable pairs. `commit` beside `searched: code` identifies what the query covered,
 including zero-hit sources. Requested-commit difference and indexing share one
 clause when they describe the same ref. The next action points directly to the
 emitted read command (`use these hits now; read for details`) and omits the read
 invitation when there is no emitted read target. The conditional wait names the
-reader's need (`If you need current HEAD`); specific version/ref advice shows
-`target@version`/`target@ref`. No freshness proof, hit attribution, wait timeout,
+reader's need (`If you need current HEAD`); specific-ref advice uses the actual
+repository name with `@<ref>`. No freshness proof, hit attribution, wait timeout,
 pagination, emitted read arguments, JSON, schemas, or descriptions change.
 
 Copy-pass focused verification:
@@ -165,8 +165,31 @@ packages/mcp/src/shared/unified-search-status-text.test.ts
 packages/mcp/src/shared/unified-search-snapshot-text.test.ts
 packages/mcp/src/tools/search.test.ts packages/mcp/src/tools/search-status.test.ts
 src/commands/search.test.ts src/tools/search-parity.test.ts
-src/tools/discovery-indexing-estimates-parity.test.ts`: 328 pass, 0 fail, 1,589
+src/tools/discovery-indexing-estimates-parity.test.ts`: 331 pass, 0 fail, 1,610
 expectations across eight files. Root typecheck/build, MCP build and both required
 dev smoke commands pass with the same isolated-auth limitations. Copy preflight
-is clean. A recorded one-hit rendered example is 824 characters versus 860 before
+is clean. A recorded one-hit rendered example is 807 characters versus 860 before
 this pass; this is output length, not tokenizer or comparative agent performance.
+
+External copy round 3 raised only minor wording/documentation findings and counts
+as clean after applying them: three stale display-label claims in `tools.md` and
+`mcp-cli-parity.md` now distinguish visible `results` from genuine `partial`;
+specific-ref advice uses the proved snapshot's own repository name instead of
+abstract parameter/version placeholders. The optional repeated `searched` label
+was shortened to `commit`. The bounded closure scan covers active header claims,
+repo-only ref wording, provider examples, source rows, initial/status output and
+actions. GitHub, Codeberg and nested GitLab examples pass; prose assertions retain
+normal wrapping. Internal closure review is clean. The reviewer independently
+rendered MCP/CLI active prior-HEAD and terminal cases (one scratch test passed,
+removed afterwards). No code finding remains; the full final check from round 2
+and copy review from round 3 are recorded separately.
+
+Targeted copy-pass Luna eval `2026-10-02T07-02-12-436Z` reported success/high
+confidence: one search, four reads and one quick_start, no status wait. Final,
+tool calls and metrics were inspected; no isolation-violations artifact was
+emitted. Reads used the default repository target, so this does not prove emitted
+pinned-target usage. The saved trace does not expose rendered search text;
+fixtures/adapters establish prior-snapshot output. No free-discovery, independent
+quality grade or performance comparison is claimed. The eval preceded the final
+minor ref-example/label wording fixes; final focused checks and builds/smokes
+above cover those changes.
