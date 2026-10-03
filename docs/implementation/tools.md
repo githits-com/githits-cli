@@ -723,8 +723,8 @@ The `hint` field is emitted only when the cap *actually truncated* the response 
 ## Text response format (`format: "text"`)
 
 Every format-selectable MCP tool accepts only `text` and `json`, with `text` as
-the default. This includes stable tools and the local experimental `research`,
-`resolve_target`, and `code_diff` tools. The format parameter recommends:
+the default. This includes stable tools including `code_diff`, and the local experimental `research` and
+`resolve_target` tools. The format parameter recommends:
 "Use `text` (default) for reading and tool follow-ups; it is token-efficient.
 Use `json` only to parse responses in code or obtain fields absent from text." Tool-specific JSON-only details remain documented. The shared quick-start guide
 and its skill copy explicitly allow passing returned paths, IDs, and line ranges

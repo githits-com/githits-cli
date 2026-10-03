@@ -181,9 +181,7 @@ async function main(): Promise<void> {
       }
       if (shouldEagerLoadCommandGroup(registrationArgv, "code")) {
         await withTelemetrySpan("cli.register.code-group", () =>
-          registerCodeCommandGroup(program, {
-            experimentalTools: experimentalCliPolicy.tools,
-          }),
+          registerCodeCommandGroup(program),
         );
       }
       if (shouldEagerLoadCommandGroup(registrationArgv, "pkg")) {

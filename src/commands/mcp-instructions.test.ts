@@ -32,6 +32,7 @@ const KNOWN_TOOLS = [
   "list",
   "read",
   "grep",
+  "code_diff",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -185,7 +186,7 @@ describe("buildMcpQuickStart", () => {
     const mentioned = mentionedTools(buildMcpQuickStart());
     const registered = registeredTools(services);
 
-    expect(registered.size).toBe(12);
+    expect(registered.size).toBe(13);
     expect(mentioned).toEqual(new Set(KNOWN_TOOLS));
     for (const name of mentioned) {
       expect(registered.has(name)).toBe(true);
@@ -197,6 +198,7 @@ describe("buildMcpQuickStart", () => {
       "list",
       "read",
       "grep",
+      "code_diff",
       "pkg_info",
       "pkg_vulns",
       "pkg_deps",

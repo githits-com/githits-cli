@@ -1,4 +1,4 @@
-// PARITY TEST — enforces PARITY-EXPERIMENTAL-LOCAL, PARITY-JSON-KEYS, and
+// PARITY TEST — enforces PARITY-EXPLICIT-CALLS, PARITY-JSON-KEYS, and
 // PARITY-ERROR-ENVELOPE from docs/implementation/mcp-cli-parity.md.
 // CLI and MCP use surface-native defaults, so every fixture selects an
 // explicit view and JSON output before comparing the two local surfaces.
@@ -14,7 +14,7 @@ import {
   defaultCodeDiffResult,
 } from "../services/test-helpers.js";
 import {
-  createParityExperimentalMcpTool,
+  createParityMcpTool,
   isProcessExitSentinel,
 } from "./parity-test-helpers.js";
 
@@ -71,7 +71,7 @@ async function cliJson(
 }
 
 describe("code_diff parity", () => {
-  it("PARITY-EXPERIMENTAL-LOCAL: explicit package requests share service params", async () => {
+  it("PARITY-EXPLICIT-CALLS: explicit package requests share service params", async () => {
     const cliCodeDiff = mock((_params: CodeDiffParams) =>
       Promise.resolve(defaultCodeDiffResult),
     );
@@ -90,7 +90,7 @@ describe("code_diff parity", () => {
       }),
       true,
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff", {
+    const mcpTool = createParityMcpTool("code_diff", {
       codeNavigationService: createMockCodeNavigationService({
         codeDiff: mcpCodeDiff,
       }),
@@ -127,7 +127,7 @@ describe("code_diff parity", () => {
     "https://codeberg.org/zigil/decimal",
     "https://gitlab.com/group/subgroup/project",
   ])(
-    "PARITY-EXPERIMENTAL-LOCAL: explicit repository refs share normalized params %s",
+    "PARITY-EXPLICIT-CALLS: explicit repository refs share normalized params %s",
     async (repoUrl) => {
       const cliCodeDiff = mock((_params: CodeDiffParams) =>
         Promise.resolve(defaultCodeDiffResult),
@@ -147,7 +147,7 @@ describe("code_diff parity", () => {
         }),
         true,
       );
-      const mcpTool = createParityExperimentalMcpTool("code_diff", {
+      const mcpTool = createParityMcpTool("code_diff", {
         codeNavigationService: createMockCodeNavigationService({
           codeDiff: mcpCodeDiff,
         }),
@@ -190,7 +190,7 @@ describe("code_diff parity", () => {
         }),
       }),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff", {
+    const mcpTool = createParityMcpTool("code_diff", {
       codeNavigationService: createMockCodeNavigationService({
         codeDiff: mock(() => Promise.resolve(result)),
       }),
@@ -230,7 +230,7 @@ describe("code_diff parity", () => {
         }),
       }),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff", {
+    const mcpTool = createParityMcpTool("code_diff", {
       codeNavigationService: createMockCodeNavigationService({
         codeDiff: mock(() => Promise.reject(error)),
       }),
@@ -287,7 +287,7 @@ describe("code_diff parity", () => {
         }),
       }),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff", {
+    const mcpTool = createParityMcpTool("code_diff", {
       codeNavigationService: createMockCodeNavigationService({
         codeDiff: mock(() => Promise.reject(error)),
       }),
@@ -322,7 +322,7 @@ describe("code_diff parity", () => {
       { nameStatus: true, maxPatchBytes: "4096" },
       cliDeps(),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff");
+    const mcpTool = createParityMcpTool("code_diff");
     const mcpResult = await mcpTool.handler(
       {
         target: "npm:express",
@@ -362,7 +362,7 @@ describe("code_diff parity", () => {
       { nameStatus: true },
       cliDeps(),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff");
+    const mcpTool = createParityMcpTool("code_diff");
     const mcpResult = await mcpTool.handler(
       {
         target: "npm:express@1.0.0",
@@ -401,7 +401,7 @@ describe("code_diff parity", () => {
       { nameStatus: true },
       cliDeps(),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff");
+    const mcpTool = createParityMcpTool("code_diff");
     const mcpResult = await mcpTool.handler(
       {
         target: "github:expressjs/express@main",
@@ -437,7 +437,7 @@ describe("code_diff parity", () => {
       { nameStatus: true },
       cliDeps(),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff");
+    const mcpTool = createParityMcpTool("code_diff");
     const mcpResult = await mcpTool.handler(
       {
         target,
@@ -469,7 +469,7 @@ describe("code_diff parity", () => {
       { nameStatus: true },
       cliDeps(),
     );
-    const mcpTool = createParityExperimentalMcpTool("code_diff");
+    const mcpTool = createParityMcpTool("code_diff");
     const mcpResult = await mcpTool.handler(
       {
         target: "npm:express",

@@ -18,6 +18,23 @@ update and deployment rather than through a parallel implementation.
 > filesystem access, authentication implementation or storage, configuration
 > discovery, or any other host behavior.
 
+## Stable Source Diff
+
+The public tool inventory includes `code_diff` by default. It compares raw
+repository trees across exact package versions or public repository refs;
+package addressing does not filter to a package subdirectory. Defaults are
+bounded name-status inventory and text, with scoped stats/patches available.
+Truncation and content-safety limits remain evidence limits; a diff does not
+establish upgrade compatibility.
+
+Custom service providers must supply `codeNavigationService` implementing both
+`CodeNavigationService` and `CodeDiffService`. Import those contracts from
+`@githits/mcp/client`; the built-in `CodeNavigationServiceImpl` already
+implements both. Providers implementing only navigation must add `codeDiff`
+before adopting this package version. The standalone `CodeNavigationService`
+interface remains unchanged. The separate hosted server must adopt and deploy
+the released package before hosted clients receive the tool.
+
 ## API
 
 - `createMcpServer(options)` creates an MCP server with GitHits tools registered.

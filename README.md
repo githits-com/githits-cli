@@ -130,15 +130,30 @@ npx githits@latest docs list npm:express
 npx githits@latest docs read <docs-read-target> --lines 20-80
 ```
 
+## Source Diffs
+
+`githits code diff` and the public MCP `code_diff` tool are available by default.
+Compare exact package versions or public repository refs, for example:
+
+```sh
+githits code diff npm:express 5.2.0..5.2.1 --stat
+githits code diff npm:express 5.2.0..5.2.1 --patch -- 'lib/**/*.js'
+```
+
+Package diffs are repository-wide unless narrowed by an explicit path glob.
+Raw diffs do not prove upgrade safety. See [source diff](docs/implementation/code-diff.md)
+for bounds, patch safety, and supported addressing. Hosted MCP availability
+requires adoption of the released `@githits/mcp` package and deployment.
+
 ## Experimental Tools
 
-GitHits 0.10 adds two opt-in local tools for early dogfooding:
+GitHits includes two opt-in local tools for early dogfooding:
+
+- `research` / `githits research` answers grounded questions with sources.
 
 - `resolve_target` / `githits resolve` turns a fuzzy or ambiguous package,
   repository, or documentation-site name into grouped canonical targets with
   related project identities kept together.
-- `code_diff` / `githits code diff` compares repository trees resolved from
-  exact package versions or public GitHub refs.
 
 They are hidden and disabled by default. They are available only through the
 local `githits` CLI and local stdio MCP server; the hosted MCP and plugin or
@@ -392,7 +407,7 @@ githits resolve          Experimental: resolve a fuzzy name to canonical targets
 githits settings         View and update preferences, privacy, and terms
 githits search           Explore repository code, dependencies, docs, and symbols
 githits search-status    Check the status of a previous indexed search
-githits code             List, read, grep, or experimentally diff indexed source
+githits code             List, read, grep, or diff source
 githits pkg              Inspect package metadata, vulnerabilities, deps, and changelogs
 githits docs             Browse and read package documentation
 githits auth             Manage authentication

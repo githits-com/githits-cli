@@ -52,7 +52,7 @@ interface RootCommandWithRawArgs extends Command {
   rawArgs?: string[];
 }
 
-/** Execute the silent-dogfood CodeDiff CLI adapter. */
+/** Execute the CodeDiff CLI adapter. */
 export async function codeDiffAction(
   arg1: string | undefined,
   arg2: string | undefined,

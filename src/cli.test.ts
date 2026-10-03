@@ -112,7 +112,7 @@ async function createProgramForHelpSurface(): Promise<Command> {
   registerListCommand(program);
   registerGrepCommand(program);
   await registerUnifiedSearchCommands(program);
-  await registerCodeCommandGroup(program, { experimentalTools: true });
+  await registerCodeCommandGroup(program);
   await registerDocsCommandGroup(program);
   await registerPkgCommandGroup(program);
 

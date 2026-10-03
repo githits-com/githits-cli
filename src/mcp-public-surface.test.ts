@@ -29,6 +29,7 @@ import {
   createMockListService,
   createMockPackageIntelligenceService,
   createMockReadService,
+  defaultCodeDiffResult,
 } from "./services/test-helpers.js";
 
 interface RegisteredTool {
@@ -72,6 +73,7 @@ const EXPECTED_DESCRIPTOR_NAMES = [
   "list",
   "read",
   "grep",
+  "code_diff",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -87,6 +89,7 @@ const EXPECTED_SMOKE_NAMES = [
   "list",
   "read",
   "grep",
+  "code_diff",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -95,6 +98,38 @@ const EXPECTED_SMOKE_NAMES = [
 ] as const;
 
 describe("public MCP package surface", () => {
+  it("executes stable diff with request-scoped services and the inventory default", async () => {
+    const codeDiff = mock(() => Promise.resolve(defaultCodeDiffResult));
+    const provider = mock(() =>
+      createServices({
+        codeNavigationService: createMockCodeNavigationService({ codeDiff }),
+      }),
+    );
+    const server = createMcpServer({
+      metadata: { name: "public-diff", version: "0.0.0" },
+      services: provider,
+    });
+    const result = await registeredTool(server, "code_diff").handler(
+      { target: "npm:express", from: "4.18.1", to: "4.18.2", format: "json" },
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+    expect(provider).toHaveBeenCalledWith({ extra: undefined });
+    expect(result.isError).toBeUndefined();
+    expect(JSON.parse(result.content[0]?.text ?? "{}").view).toBe(
+      "name-status",
+    );
+    expect(codeDiff).toHaveBeenCalledTimes(1);
+    expect(codeDiff).toHaveBeenCalledWith({
+      target: { registry: "NPM", packageName: "express" },
+      from: "4.18.1",
+      to: "4.18.2",
+      mode: "inventory",
+    });
+  });
+
   it("keeps the public and smoke inventories stable and non-experimental", () => {
     const names = getMcpToolDescriptors().map((tool) => tool.name);
     const definitions = getMcpToolDefinitions(createServices()).map(
@@ -113,7 +148,7 @@ describe("public MCP package surface", () => {
     );
 
     expect(names).toEqual([...EXPECTED_DESCRIPTOR_NAMES]);
-    expect(names).toHaveLength(12);
+    expect(names).toHaveLength(13);
     expect(names).toContain("list");
     expect(names).toContain("read");
     expect(names).not.toContain("code_read");
@@ -132,7 +167,8 @@ describe("public MCP package surface", () => {
       [...EXPECTED_MCP_TOOLS],
     ]) {
       expect(inventory).not.toContain("resolve_target");
-      expect(inventory).not.toContain("code_diff");
+      expect(inventory).toContain("code_diff");
+      expect(inventory.filter((name) => name === "code_diff")).toHaveLength(1);
       expect(inventory).not.toContain("ask");
       expect(inventory).not.toContain("code_read");
       expect(inventory).not.toContain("docs_read");

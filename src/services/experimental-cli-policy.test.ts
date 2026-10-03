@@ -19,21 +19,16 @@ function configFile(contents: string) {
 
 describe("experimental CLI policy", () => {
   it("keeps experimental CLI membership in one data list", () => {
-    expect(EXPERIMENTAL_CLI_COMMANDS).toEqual([
-      "research",
-      "ask",
-      "resolve",
-      "code diff",
-    ]);
+    expect(EXPERIMENTAL_CLI_COMMANDS).toEqual(["research", "ask", "resolve"]);
     expect(isExperimentalCliCommand("research")).toBe(true);
     expect(isExperimentalCliCommand("ask")).toBe(true);
     expect(isExperimentalCliCommand("resolve")).toBe(true);
-    expect(isExperimentalCliCommand("code diff")).toBe(true);
+    expect(isExperimentalCliCommand("code diff")).toBe(false);
     expect(isExperimentalCliCommand("code files")).toBe(false);
     expect(shouldRegisterCliCommand("resolve", false)).toBe(false);
     expect(shouldRegisterCliCommand("research", false)).toBe(false);
     expect(shouldRegisterCliCommand("ask", false)).toBe(false);
-    expect(shouldRegisterCliCommand("code diff", false)).toBe(false);
+    expect(shouldRegisterCliCommand("code diff", false)).toBe(true);
     expect(shouldRegisterCliCommand("resolve", true)).toBe(true);
     expect(shouldRegisterCliCommand("research", true)).toBe(true);
     expect(shouldRegisterCliCommand("code diff", true)).toBe(true);
@@ -51,12 +46,10 @@ describe("experimental CLI policy", () => {
     expect(getExperimentalCliCommand(["help", "ask"])).toBe("ask");
     expect(getExperimentalCliCommand(["resolve", "express"])).toBe("resolve");
     expect(getExperimentalCliCommand(["resolve", "--help"])).toBe("resolve");
-    expect(getExperimentalCliCommand(["help", "code", "diff"])).toBe(
-      "code diff",
-    );
+    expect(getExperimentalCliCommand(["help", "code", "diff"])).toBe(undefined);
     expect(
       getExperimentalCliCommand(["--no-color", "code", "diff", "--help"]),
-    ).toBe("code diff");
+    ).toBe(undefined);
     expect(getExperimentalCliCommand(["code", "files", "--help"])).toBe(
       undefined,
     );
@@ -81,12 +74,6 @@ describe("experimental CLI policy", () => {
   });
 
   it("returns enabled settings for experimental invocations", async () => {
-    await expect(
-      resolveExperimentalCliPolicy(
-        configFile("[experimental]\ntools = true\n"),
-        ["code", "diff", "--help"],
-      ),
-    ).resolves.toMatchObject({ tools: true });
     await expect(
       resolveExperimentalCliPolicy(
         configFile("[experimental]\ntools = true\n"),
