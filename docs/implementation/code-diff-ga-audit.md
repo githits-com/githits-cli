@@ -198,8 +198,8 @@ All were accepted and applied; the doc-only round counts as clean.
 
 The GA implementation makes CLI and public MCP diff available by default,
 renames all five workloads to stable `code-diff*` names, and adds the base
-comparison to smoke. The manifest now has 41 workloads: 36 stable, one
-stateful, and four experimental; smoke selects seven. Guidance and its public
+comparison to smoke. At GA validation, the manifest had 41 workloads: 36 stable,
+one stateful, and four experimental; smoke selects seven. Guidance and its public
 MCP skill copy preserve exact parity and explain repository-wide raw scope.
 
 Implementation checks passed: 5,327 unit tests across 230 files; 353 focused
@@ -260,3 +260,69 @@ suite passed 31 tests, and unauthenticated CLI smoke passed again.
 passed build/checks, Linux/Windows unit suites, MCP package validation, and
 compatibility checks for Bun and Node 20/22/24/26. Publication was skipped.
 Published and hosted GA delivery remain separate release/adoption steps.
+
+## Poor-changelog upgrade routing baseline
+
+On 2026-10-03, `package-upgrade-poor-changelog.md` was added to `stable-full`
+to test source evidence as a supplement to upgrade assessment. It asks about
+the fixed npm Lodash `4.17.20` to `4.17.21` upgrade without naming tools or a
+source-comparison method. The manifest now has 42 workloads, including 37
+stable workloads; canary and smoke membership are unchanged.
+
+Production fixture probes verified that upgrade review returns
+`fallback: package_versions`, `hasReleaseNoteBodies: false`, and zero entries
+with bodies. Source comparison resolves commits
+`f2e7063ee409ff40a60b14370c58dceee1a2efd4` and
+`c6e281b878b315c7a10d90f9c2af4cdb112d9625`, with 14 changed files. This is a
+gap in the available package evidence, not proof that upstream has no
+changelog. Recheck that condition before interpreting future runs.
+
+Six baseline cells ran configured for production local MCP against unchanged runtime
+instructions at `e3d0e9a3911188540d6e8041dd50c20ad44aaa27`, with the workload
+and inventory edits uncommitted and experimental tools explicitly disabled.
+All produced successful final reports; no isolation violations were reported.
+Calls, final answers/confidence, derived metrics, and provider traces were
+inspected. Descriptor profiles exposed full descriptions and allowed
+`quick_start`; these are not first-80-only discovery tests.
+
+| Agent | Guidance / intent | Observed routing | Duration |
+| --- | --- | --- | --- |
+| Claude | descriptors / neutral | `quick_start`, upgrade review, advisories, source inventory and two focused patches | 22.9 s |
+| Claude | descriptors / GitHits | Same evidence tools, including source inventory and two focused patches | 26.0 s |
+| Claude | full / neutral | Upgrade review, advisories, source inventory and two focused patches | 19.8 s |
+| Codex | descriptors / neutral | No GitHits calls; used web search and opened GitHub tag comparison, citing upstream commits, changelog and advisories | 85.9 s |
+| Codex | descriptors / GitHits | Upgrade review, changelog, advisories, seven source comparisons and two exact helper reads | 65.8 s |
+| Codex | full / neutral | Upgrade review, changelog, advisories, source inventory and JavaScript patch | 67.1 s |
+
+Five cells combined `pkg_upgrade_review` with `code_diff` on the requested
+endpoints. Answers described template-variable validation and whitespace
+trimming changes, retained outstanding target-version advisories, and kept
+newer remediation versions separate. Codex full guidance explicitly reported
+partial patch coverage. Claude neutral discovery overclaimed that there were
+no official release notes; the verified fact was missing returned bodies.
+Codex neutral discovery found upstream changelog evidence and is not GitHits
+tool acceptance evidence. Provider advisory records and upstream records also
+differed in their coverage/aliases; these runs do not independently grade their
+accuracy or answer quality. No service call sites or runtime tests were
+available to establish application compatibility.
+
+These observations support retaining the workload for guidance comparisons;
+one fixture and one run per cell do not establish a discovery success rate.
+Claude token/cost and logical-call metrics remain unavailable. Codex logical
+calls were 14 in descriptor intent, seven with full guidance, and zero GitHits
+calls in neutral discovery. Do not compare those counts to Claude raw events.
+
+Reproduce each agent with the same workload and separate output directories:
+
+```sh
+GITHITS_ENV=prod bun run agent:e2e --agent <claude|codex> --surface mcp --server local --guidance-profile descriptors --intent-profile neutral --workload eval/agentic/workloads/package-upgrade-poor-changelog.md --out <discovery-output>
+GITHITS_ENV=prod bun run agent:e2e --agent <claude|codex> --surface mcp --server local --guidance-profile descriptors --intent-profile githits --workload eval/agentic/workloads/package-upgrade-poor-changelog.md --out <intent-output>
+GITHITS_ENV=prod bun run agent:e2e --agent <claude|codex> --surface mcp --server local --guidance-profile full --intent-profile neutral --workload eval/agentic/workloads/package-upgrade-poor-changelog.md --out <full-output>
+```
+
+Secure local agent authentication and an isolated false experimental config
+were used without printing credentials. Artifacts remain in
+`.agent-eval/code-diff-upgrade/baseline/`; fixture probes are alongside it.
+`bun test scripts/agent-eval-suite.test.ts` passed 49 tests with 320 assertions.
+No runtime, descriptor, quick-start, or public skill changes were made in
+this workload increment.

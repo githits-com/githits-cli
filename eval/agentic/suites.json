@@ -194,6 +194,12 @@
       "suites": ["canary", "smoke", "stable-full"]
     },
     {
+      "id": "package-upgrade-poor-changelog",
+      "path": "eval/agentic/workloads/package-upgrade-poor-changelog.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
       "id": "package-upgrade-safety",
       "path": "eval/agentic/workloads/package-upgrade-safety.md",
       "safety": "stable",
