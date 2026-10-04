@@ -55,7 +55,9 @@ export type ListSiteWaitOutcome =
   | "COMPLETED"
   | "DISCARDED"
   | "CANCELLED"
-  | "TIMEOUT";
+  | "TIMEOUT"
+  | "FAILED"
+  | "SUPERSEDED";
 
 export interface ListReadAction {
   target: string;
@@ -299,7 +301,14 @@ const sitePreparationSchema = z
     awaited: z.array(
       z.object({
         mode: nullableString,
-        outcome: z.enum(["COMPLETED", "DISCARDED", "CANCELLED", "TIMEOUT"]),
+        outcome: z.enum([
+          "COMPLETED",
+          "DISCARDED",
+          "CANCELLED",
+          "TIMEOUT",
+          "FAILED",
+          "SUPERSEDED",
+        ]),
       }),
     ),
   })
@@ -467,7 +476,7 @@ query List(
       }
       awaited {
         mode
-        outcome
+        outcome: status
       }
     }
   }

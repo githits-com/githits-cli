@@ -126,6 +126,33 @@ SITE `inventoryState`, `crawlStatus`, `coverageState`, `coverageReason`, and
 inventory with its zero-entry header alone. No legacy-root fallback is used
 for unsupported API or pagination errors.
 
+## Exact site wait outcomes and rollout
+
+The core query selects `awaited { mode outcome: status }`. This GraphQL alias
+keeps the client, CLI JSON, and MCP JSON key named `outcome` while consuming the
+backend's exact nonnull `ListSiteWait.status` field and its separate
+`ListSiteWaitStatus` enum. The closed client type and parser accept exactly
+`COMPLETED`, `DISCARDED`, `CANCELLED`, `TIMEOUT`, `FAILED`, and `SUPERSEDED`.
+Unknown values fail response validation. The shared projector preserves `mode`
+and each exact outcome; compact text continues to show inventory paths and
+keeps lifecycle detail in JSON.
+
+The backend permanently retains its original four-value `ListSiteWait.outcome`
+field and `ListSiteWaitOutcome` enum for older CLIs and the public API. Internal
+`FAILED` projects to legacy `DISCARDED`, and `SUPERSEDED` to legacy `CANCELLED`;
+neither becomes `COMPLETED`. Both fields resolve from the same internal outcome.
+Existing clients can keep selecting the legacy field without a forced upgrade,
+retirement deadline, or version negotiation. The client does not fall back to
+that field when the exact field is unavailable.
+
+Deploy the additive backend `status` field to dev and production before
+publishing either updated `githits` or `@githits/mcp` artifact. Client and backend
+PRs can be reviewed in parallel; client tests do not prove backend deployment.
+This companion records pending patch impacts for both artifacts and leaves
+package versions unchanged until separately authorized release preparation.
+Hosted MCP adoption additionally requires its consumer to update the published
+`@githits/mcp` dependency and deploy, as described in the package boundaries.
+
 ## Testing boundaries
 
 Core service tests cover exact GraphQL variables and selections, compact versus
