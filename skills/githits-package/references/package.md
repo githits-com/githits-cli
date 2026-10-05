@@ -49,6 +49,15 @@ Flags: `--package <spec>`, `--to <version>`, `--no-transitive-security`, `--depe
 
 Use `pkg upgrade-review` for dependency update assessment instead of inferring safety from semver alone. Use `pkg changelog` directly only when you need release notes without a current-to-target comparison.
 
+When release-note evidence is missing or uninformative, supplement it with exact
+source changes through the `githits-code` skill:
+`githits code diff <registry:name> <current>..<target> --name-status`, followed
+by a scoped patch when needed. Diff resolves exact commits and compares the
+whole repository even for package targets; it does not discover a package
+subpath. Narrow only to verified repository-relative paths, report coverage and
+content limits, and keep advisory assessment separate. Neither a bounded diff
+nor a patch version establishes compatibility.
+
 ## Command Name Mapping
 
 - `githits pkg info` maps to MCP `pkg_info`.

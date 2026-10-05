@@ -5,6 +5,96 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.26.0] - 2026-10-05
+
+### Added
+
+- **Stable source diff** - Make `githits code diff` and public MCP `code_diff`
+  available by default, with repository-wide scope guidance, stable smoke/eval
+  coverage, and bounded patch evidence. Custom MCP service providers must
+  implement `codeDiff` on `codeNavigationService`; the built-in client already
+  does. Hosted availability follows adoption and deployment of the released MCP
+  package.
+
+- **Refresh installed MCP guidance** - Local CLI MCP startup refreshes eligible
+  older `githits-mcp` installations automatically; `skills.auto_update` and
+  `GITHITS_DISABLE_SKILL_UPDATE` can disable it, while unrecognized and newer
+  managed content is preserved.
+
+- **Upgrade evidence routing workload** - Add a neutral Lodash upgrade workload
+  with uninformative release notes to observe whether agents supplement upgrade
+  assessment with exact source changes.
+
+### Changed
+
+- **Source diff graduation evidence** - Add a production CLI/MCP audit matrix
+  and four neutral agent workloads covering repository refs, monorepo scope,
+  unavailable-version recovery, and bounded patch evidence; the recorded
+  baseline predates default-enabled graduation.
+
+- **Documentation homepage** - Point the `githits` npm package and generated
+  plugin homepage metadata to `https://docs.githits.com`.
+
+- **Source diff CLI guidance** - Code and package Agent Skills route exact
+  source comparisons to stable `githits code diff`, disclose repository-wide
+  package comparisons and bounded evidence, and supplement upgrade review when
+  release notes are uninformative. Onboarding guidance explains automatic local
+  MCP skill refresh and its opt-outs.
+
+### Fixed
+
+- **Exact site wait outcomes** - CLI and MCP list JSON preserve `FAILED` and
+  `SUPERSEDED` alongside the four existing outcomes by selecting the additive
+  backend `status` field as `outcome`; deploy that field to dev and production
+  before publishing either client artifact, while older clients remain
+  supported without a forced upgrade.
+
+- **Use repository snapshots while HEAD indexes** - CLI and MCP search text
+  shows the served commit and historical indexing ref, offers a pinned read
+  before optional waiting for updated results, and directs ended searches to a
+  new search instead of polling a stored reference. JSON and explicit wait
+  options are unchanged.
+
+- **GitHits-first agent guidance** - Guided `githits init` now explicitly
+  directs agents to use GitHits first when looking up OSS code, docs, examples,
+  packages, or dependencies, read the routing skill before external lookups,
+  and use other sources when GitHits is unavailable or insufficient. Rerun
+  guided setup for the intended agents to update an existing managed
+  instruction block.
+
+## [@githits/mcp 0.26.0] - 2026-10-05
+
+Pre-1.0 minor release with a breaking provider API change: custom MCP service
+providers must implement `codeDiff` on `codeNavigationService`. The built-in
+client already implements it.
+
+### Added
+
+- **Stable source diff** - Make `githits code diff` and public MCP `code_diff`
+  available by default, with repository-wide scope guidance, stable smoke/eval
+  coverage, and bounded patch evidence. Custom MCP service providers must
+  implement `codeDiff` on `codeNavigationService`; the built-in client already
+  does. Hosted availability follows adoption and deployment of the released MCP
+  package.
+
+### Fixed
+
+- **Exact site wait outcomes** - CLI and MCP list JSON preserve `FAILED` and
+  `SUPERSEDED` alongside the four existing outcomes by selecting the additive
+  backend `status` field as `outcome`; deploy that field to dev and production
+  before publishing either client artifact, while older clients remain
+  supported without a forced upgrade.
+
+- **Use repository snapshots while HEAD indexes** - CLI and MCP search text
+  shows the served commit and historical indexing ref, offers a pinned read
+  before optional waiting for updated results, and directs ended searches to a
+  new search instead of polling a stored reference. JSON and explicit wait
+  options are unchanged.
+
+Before publishing either package, deploy the additive site-wait `status` field
+to dev and production. Hosted clients receive these changes after adoption and
+deployment of `@githits/mcp@0.26.0` by `remote-mcp`.
+
 ## [githits 0.25.1] - 2026-10-01
 
 ### Added

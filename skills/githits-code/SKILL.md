@@ -26,6 +26,7 @@ Use GitHits for evidence from real open-source code instead of guessing from mod
 - Exploring a topic in a known dependency or public repository: use `githits search` scoped by `--in`.
 - Searching an exact standalone documentation site: use `githits search "<topic>" --source docs --in site:<host[/path]>`. If the result reports suggested site targets, retry one explicitly; suggestions are advisory targets, not aliases.
 - Need file/path enumeration: use `githits list <target> [paths...]`; add `--recursive` to traverse directories. Do not probe directories with `githits read`.
+- Need exact source changes between versions or refs: use `githits code diff <unversioned-target> <from>..<to>`. This is repository-wide even for package targets; use a repository-relative glob after `--` to narrow known paths.
 - Know the pattern: `githits grep <pattern> <targets...>` uses RE2 regex, case-sensitive matching, and zero context. Use `-F` for literal text and `-i` to ignore case. Lookaround and backreferences are unsupported; multi-file regex needs a literal anchor.
 - Need documentation pages: use `githits search "<topic>" --source docs --in <target>` for topic search, or `githits list site:<host[/path]>` to browse a hosted site. Package/repository `list` targets include their local documentation files. Read emitted targets and paths with `githits read`; `githits docs list` remains a legacy package-page browser.
 
@@ -46,6 +47,8 @@ githits read npm:express@5.2.1 lib/express.js --lines 1-90
 githits read 'npm:express@5.2.1#Router'
 githits grep -F "require('router')" npm:express@5.2.1 --path-prefix lib/ -C 3
 githits grep -F "require('router')" github:expressjs/express@v5.2.1 --path-prefix lib/
+githits code diff npm:express 4.18.1..4.18.2 --name-status
+githits code diff --repo-url https://github.com/expressjs/express v4.18.1..v4.18.2 -- 'lib/**/*.js'
 
 githits list site:expressjs.com --limit 20
 githits read <docsReadTarget>
@@ -56,6 +59,7 @@ githits read <docsReadTarget> --selector <heading-id>
 
 - For behavioral claims, prefer source, symbols, tests, and call sites over docs prose.
 - Package targets scope indexed source to the package subpath; omitted versions resolve to the latest release. Repository targets cover the full indexed snapshot. Pin versions/refs for source-layout questions and report the served identity.
+- Source diff compares exact trees without requiring indexed navigation. Its package target resolves versions but does not filter to a package subpath. Report resolved commits, scope, and coverage limits; capped or sibling-only results do not prove a package is unchanged, and a patch does not establish compatibility.
 - For source work, locate symbols or matches first, then read a focused window with explicit `--lines`. Use `target#symbol` or `--selector <name>` when the exact indexed symbol is known; add an exact path to narrow ambiguous symbols. The backend decides whether a repository fragment identifies a code symbol or a documentation heading.
 - For docs reads, use the search snippet when sufficient; otherwise read the page target in its header. Use search `--json` when an exact selector or range is required, then replay its `followUp` with every supplied argument unchanged. From `docs list`, pass `docsReadTarget`. Hosted/crawled HTTP(S) targets address mutable current content. A direct HTTP(S) fragment read without explicit bounds returns its heading and full subtree through the next equal-or-higher heading. Use `--selector <heading-id>` for a known logical heading ID without a URL fragment. Repository docs remain snapshot-addressed and keep returned ranges. When composing a direct read, add `--lines` only to intentionally select a current page range; either bound replaces heading selection. Historical `pageId` works. Use `--json` only for required range/source metadata or an exact search follow-up.
 - For multi-step code/docs investigations, keep raw CLI output out of the final answer unless it is the evidence the user needs.
