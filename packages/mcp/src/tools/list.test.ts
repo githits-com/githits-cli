@@ -533,7 +533,7 @@ describe("list indexing errors", () => {
             indexingEstimate,
             indexingRef: "opaque-progress",
             action:
-              "Retry this list with wait_timeout_ms=100000. Leave out after.",
+              "Retry this list with wait_timeout_ms=100000. Leave out the after argument.",
           },
         });
       else {
@@ -544,7 +544,7 @@ describe("list indexing errors", () => {
         expect(text).toContain("Indexed versions/refs: 1.0.1");
         expect(text).toContain("Backend preparation hint.");
         expect(text).toEndWith(
-          "Retry this list with wait_timeout_ms=100000. Leave out after.",
+          "Retry this list with wait_timeout_ms=100000. Leave out the after argument.",
         );
         expect(text).not.toContain("opaque-progress");
       }

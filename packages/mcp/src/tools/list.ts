@@ -4,6 +4,7 @@ import type {
   ListService,
 } from "@githits/core-internal";
 import { z } from "zod";
+import { MAX_DISCOVERY_WAIT_TIMEOUT_MS } from "../shared/code-navigation-defaults.js";
 import { mapListError } from "../shared/list-error-map.js";
 import { buildListParams } from "../shared/list-request.js";
 import { projectListResult } from "../shared/list-response.js";
@@ -164,13 +165,10 @@ export function createListTool(
           hasAfter: builtParams?.after !== undefined,
         });
         return mcpMappedErrorResult(
-          withIndexingRetryAction(
-            mapped,
-            "list",
-            "mcp",
-            120000,
-            builtParams?.after !== undefined,
-          ),
+          withIndexingRetryAction(mapped, "list", "mcp", {
+            maxWaitMs: MAX_DISCOVERY_WAIT_TIMEOUT_MS,
+            hasAfter: builtParams?.after !== undefined,
+          }),
           context,
           args.format,
           {

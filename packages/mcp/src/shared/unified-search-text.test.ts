@@ -2988,3 +2988,51 @@ describe("renderUnifiedSearchError", () => {
     );
   });
 });
+
+describe("search preparation sections", () => {
+  it.each(["PENDING", "INDEXING", "SEARCHING"] as const)(
+    "retains %s lifecycle and readable snapshot beside multiple pending scopes",
+    (status) => {
+      const estimates = [
+        {
+          kind: "REPOSITORY" as const,
+          targets: ["npm:express@1.0.3"],
+          estimate: { lowerSeconds: 33, upperSeconds: 85, elapsedSeconds: 4 },
+        },
+        {
+          kind: "DOCUMENTATION" as const,
+          targets: ["site:expressjs.com"],
+          unavailableReason: "UNSUPPORTED_WORK" as const,
+        },
+      ];
+      const text = renderUnifiedSearchSuccess(
+        incomplete({
+          partialResults: false,
+          progress: {
+            status,
+            targetsReady: 1,
+            targetsTotal: 2,
+            elapsedMs: 20,
+            indexingEstimates: estimates,
+          },
+          results: [codeHit()],
+        }),
+        { width: 60 },
+      );
+      expect(text.split("\n")[0]).toContain(
+        status.toLowerCase() === "pending" ? "preparing" : status.toLowerCase(),
+      );
+      expect(text).toContain("\n\nPreparing:\n  - ");
+      const section = text.split("Preparing:\n")[1]!.split("\n\n")[0]!;
+      const lines = section.split("\n");
+      expect(lines.filter((line) => line.startsWith("  - "))).toHaveLength(2);
+      expect(lines.some((line) => line.startsWith("    "))).toBe(true);
+      expect(lines.every((line) => line.length <= 60)).toBe(true);
+      expect(section).toContain("preparing source");
+      expect(section).toContain("preparing documentation");
+      expect(text).toContain("1 result");
+      expect(text).toContain("search_status");
+      expect(text).not.toContain("remaining ETA");
+    },
+  );
+});

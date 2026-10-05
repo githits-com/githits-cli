@@ -7,7 +7,10 @@ import { indexingEstimatesSchema } from "../../../core-internal/src/services/ind
 import { projectGrepResult } from "./grep-response.js";
 import { formatGrepText } from "./grep-text.js";
 import { projectIndexingEstimates } from "./indexing-estimates.js";
-import { renderIndexingEstimates } from "./indexing-estimates-text.js";
+import {
+  renderIndexingEstimates,
+  renderPreparationSection,
+} from "./indexing-estimates-text.js";
 import { indexingWaitMs } from "./indexing-wait.js";
 
 const repository: DiscoveryIndexingEstimate = {
@@ -269,5 +272,19 @@ describe("uniform indexing wire decoding", () => {
     [{ ...repository, estimate: { upperSeconds: "57" } }],
   ])("rejects malformed result metadata %j", (wire) => {
     expect(indexingEstimatesSchema.safeParse(wire).success).toBe(false);
+  });
+});
+
+describe("shared preparation section", () => {
+  it("separates annotations and hangs wrapped continuation lines", () => {
+    const lines = renderPreparationSection([repository, documentation], {
+      width: 60,
+    });
+    expect(lines.slice(0, 2)).toEqual(["", "Preparing:"]);
+    expect(lines.filter((line) => line.startsWith("  - "))).toHaveLength(2);
+    expect(lines.some((line) => line.startsWith("    "))).toBe(true);
+    expect(lines.every((line) => line.length <= 60)).toBe(true);
+    expect(lines.join("\n")).toContain("preparing documentation");
+    expect(renderPreparationSection([])).toEqual([]);
   });
 });

@@ -1,6 +1,9 @@
 import type { ListEntry, ListResult } from "@githits/core-internal";
 import { dim } from "./colors.js";
-import { renderPreparationEstimates } from "./indexing-estimates-text.js";
+import {
+  formatPreparationRetry,
+  renderPreparationSection,
+} from "./indexing-estimates-text.js";
 import { indexingWaitMs } from "./indexing-wait.js";
 import { shellQuoteExact } from "./shell-quote.js";
 
@@ -33,11 +36,12 @@ export function formatListText(
     ...paths,
   ];
   if (pending) {
-    lines.push("", "Preparing:");
     lines.push(
       ...(result.indexingEstimates?.length
-        ? renderPreparationEstimates(result.indexingEstimates)
+        ? renderPreparationSection(result.indexingEstimates)
         : [
+            "",
+            "Preparing:",
             `  - ${escapeLineValue(result.requestedTarget)} (indexing, no estimate available)`,
           ]),
     );
@@ -57,13 +61,15 @@ export function formatListText(
     );
   }
   if (pending) {
-    const wait = indexingWaitMs(result.indexingEstimates);
-    const argument =
-      options.syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`;
-    const cursor = options.hasAfter
-      ? ` Leave out ${options.syntax === "mcp" ? "after" : "--after"}.`
-      : "";
-    lines.push("", `Retry this list with ${argument}.${cursor}`);
+    lines.push(
+      "",
+      formatPreparationRetry({
+        operation: "list",
+        syntax: options.syntax ?? "cli",
+        waitMs: indexingWaitMs(result.indexingEstimates),
+        hasAfter: options.hasAfter,
+      }),
+    );
   }
   return lines.join("\n");
 }

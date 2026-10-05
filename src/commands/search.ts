@@ -389,9 +389,7 @@ function handleSearchError(
     toMappedError(basePayload),
     "search",
     "cli",
-    MAX_DISCOVERY_WAIT_TIMEOUT_MS,
-    false,
-    "seconds",
+    { maxWaitMs: MAX_DISCOVERY_WAIT_TIMEOUT_MS, cliUnit: "seconds" },
   );
   const payload = {
     ...basePayload,

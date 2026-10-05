@@ -305,3 +305,33 @@ describe("formatReadFileTerminal", () => {
     expect(output).not.toContain("1  ");
   });
 });
+
+describe("read refresh metadata", () => {
+  it("separates pending preparation from readable content and keeps raw CLI content unchanged", () => {
+    const envelope = buildReadFileSuccessPayload(
+      {
+        ...baseResult,
+        indexingEstimates: [
+          {
+            kind: "REPOSITORY",
+            targets: ["npm:express@1.0.3"],
+            estimate: { lowerSeconds: 33, upperSeconds: 85 },
+          },
+        ],
+      },
+      baseOptions,
+    );
+    const mcp = renderReadFileText(envelope);
+    const verbose = formatReadFileTerminal(envelope, {
+      useColors: false,
+      verbose: true,
+    });
+    for (const text of [mcp, verbose]) {
+      expect(text).toContain("\n\nPreparing:\n  - npm:express@1.0.3");
+      expect(text).toContain("module.exports");
+    }
+    expect(formatReadFileTerminal(envelope, { useColors: false })).toBe(
+      baseResult.content!,
+    );
+  });
+});

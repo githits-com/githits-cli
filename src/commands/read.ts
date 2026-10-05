@@ -222,7 +222,7 @@ export async function readAction(
               withCliReadFileRecovery(mapped, requestedFilePath),
               "read",
               "cli",
-              60000,
+              { maxWaitMs: MAX_WAIT_TIMEOUT_MS },
             ),
         );
       }
@@ -233,7 +233,7 @@ export async function readAction(
           : mapCodeNavigationError(error),
         "read",
         "cli",
-        60000,
+        { maxWaitMs: MAX_WAIT_TIMEOUT_MS },
       );
       recordCliErrorClassification(
         docsError.code !== "UNKNOWN" ? "pkg-intel" : "code-nav",

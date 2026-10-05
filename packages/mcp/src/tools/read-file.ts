@@ -1,6 +1,7 @@
 import type { CodeNavigationService } from "@githits/core-internal";
 import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import {
+  MAX_WAIT_TIMEOUT_MS,
   MCP_READ_DEFAULT_SPAN,
   MCP_READ_MAX_SPAN,
 } from "../shared/code-navigation-defaults.js";
@@ -146,7 +147,9 @@ export async function readSourceFile(
       args.path,
     );
     return mcpMappedErrorResult(
-      withIndexingRetryAction(mapped, "read", "mcp", 60000),
+      withIndexingRetryAction(mapped, "read", "mcp", {
+        maxWaitMs: MAX_WAIT_TIMEOUT_MS,
+      }),
       context,
       args.format,
       {

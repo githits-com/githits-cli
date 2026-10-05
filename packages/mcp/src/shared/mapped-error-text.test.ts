@@ -52,7 +52,9 @@ describe("readable mapped error content", () => {
     });
   });
   it("keeps pending evidence on one row, hides progress scaffolding and does not subtract elapsed", () => {
-    const mapped = withIndexingRetryAction(pending, "read", "mcp", 60000);
+    const mapped = withIndexingRetryAction(pending, "read", "mcp", {
+      maxWaitMs: 60000,
+    });
     const output = formatMappedErrorText(mapped, {
       width: 160,
       indexingOutcome: "This content is not available yet.",
@@ -80,24 +82,19 @@ describe("readable mapped error content", () => {
       withIndexingRetryAction(singular, "list", "cli").details?.action,
     ).toBe("Retry this list with --wait 100000.");
     expect(
-      withIndexingRetryAction(
-        singular,
-        "search",
-        "cli",
-        120000,
-        false,
-        "seconds",
-      ).details?.action,
+      withIndexingRetryAction(singular, "search", "cli", {
+        maxWaitMs: 120000,
+        cliUnit: "seconds",
+      }).details?.action,
     ).toBe("Retry this search with --wait 100.");
     const empty = withIndexingRetryAction(
       { code: "INDEXING", message: "Indexing" },
       "list",
       "mcp",
-      120000,
-      true,
+      { maxWaitMs: 120000, hasAfter: true },
     );
     expect(empty.details?.action).toBe(
-      "Retry this list with wait_timeout_ms=30000. Leave out after.",
+      "Retry this list with wait_timeout_ms=30000. Leave out the after argument.",
     );
     expect(empty.details?.indexingEstimates).toBeUndefined();
     expect(formatMappedErrorText(empty)).toContain("no estimate available");
@@ -150,5 +147,40 @@ describe("readable non-indexing recovery", () => {
         mcpMappedErrorResult(mapped, undefined, "json").content[0]!.text,
       ).details.retryAfterMs,
     ).toBe(12001);
+  });
+});
+
+describe("retryable text errors", () => {
+  it.each(["NETWORK", "TIMEOUT", "BACKEND_ERROR"] as const)(
+    "retains actionable retryability for %s",
+    (code) => {
+      const mapped: MappedError = {
+        code,
+        message: "Request failed.",
+        retryable: true,
+      };
+      expect(formatMappedErrorText(mapped)).toEndWith("Try again.");
+      expect(
+        formatMappedErrorText({ ...mapped, retryable: false }),
+      ).not.toContain("Try again.");
+      expect(
+        formatMappedErrorText({
+          ...mapped,
+          details: { action: "Use the host recovery action." },
+        }),
+      ).toEndWith("Use the host recovery action.");
+    },
+  );
+  it("keeps unlabelled preparation a consistent bullet rather than a stray sentence", () => {
+    const text = formatMappedErrorText(
+      withIndexingRetryAction(
+        { code: "INDEXING", message: "Indexing" },
+        "read",
+        "mcp",
+      ),
+    );
+    expect(text).toContain(
+      "Preparing:\n  - Source (indexing, no estimate available)",
+    );
   });
 });

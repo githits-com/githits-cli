@@ -181,7 +181,7 @@ export function createReadTool(
                 : mapCodeNavigationError(error),
               "read",
               "mcp",
-              60000,
+              { maxWaitMs: MAX_WAIT_TIMEOUT_MS },
             ),
             context,
             args.format,

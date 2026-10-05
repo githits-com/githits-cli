@@ -5,6 +5,7 @@ import {
   formatMappedErrorText,
   InvalidListRequestError,
   type ListRequestField,
+  MAX_DISCOVERY_WAIT_TIMEOUT_MS,
   projectListResult,
   requireAuth,
   sanitizeTerminalText,
@@ -135,8 +136,7 @@ function handleListError(
       : sharedMapped,
     "list",
     "cli",
-    120000,
-    hasAfter,
+    { maxWaitMs: MAX_DISCOVERY_WAIT_TIMEOUT_MS, hasAfter },
   );
   if (json) {
     console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));

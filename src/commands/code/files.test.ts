@@ -566,6 +566,57 @@ describe("pkgFilesAction", () => {
     exitSpy.mockRestore();
   });
 
+  it.each([
+    {
+      name: "package spec",
+      spec: "npm:express",
+      options: {},
+      requestedTarget: "npm:express",
+    },
+    {
+      name: "repository URL",
+      spec: undefined,
+      options: { repoUrl: "https://github.com/acme/repo" },
+      requestedTarget: "https://github.com/acme/repo",
+    },
+  ])(
+    "includes the requested $name in no-metadata indexing errors",
+    async ({ spec, options, requestedTarget }) => {
+      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+        throw new Error("process.exit");
+      });
+      const listFiles = mock(() =>
+        Promise.reject(
+          new CodeNavigationIndexingError(
+            "Target is indexing.",
+            "opaque_progress_id",
+          ),
+        ),
+      );
+      try {
+        await pkgFilesAction(
+          spec,
+          undefined,
+          options,
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({
+              listFiles,
+            }),
+          }),
+        );
+      } catch {
+        /* expected */
+      }
+      const output = errorSpy.mock.calls[0]?.[0] as string;
+      expect(listFiles).toHaveBeenCalledTimes(1);
+      expect(output).toContain(requestedTarget);
+      expect(output).not.toContain("opaque_progress_id");
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    },
+  );
+
   it("enriches INDEXING error with indexing ref + indexed refs/versions", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {
@@ -602,7 +653,6 @@ describe("pkgFilesAction", () => {
     const output = errorSpy.mock.calls[0]?.[0] as string;
     expect(output).toContain("Source is being indexed.");
     expect(output).not.toContain("ref_xyz");
-    expect(output).toContain("Source is being indexed.");
     expect(output.match(/Backend says this ref is queued\./g)).toHaveLength(1);
     expect(output).toContain("estimated total: 7-19s, time spent indexing: 3s");
     expect(output).toContain("Indexed versions/refs: 4.21.0, 4.20.1");

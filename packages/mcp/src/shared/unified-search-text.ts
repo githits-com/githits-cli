@@ -1,5 +1,3 @@
-import type { MappedError } from "./mapped-error.js";
-import { formatMappedErrorText } from "./mapped-error-text.js";
 /**
  * Line-oriented text renderer for unified `search` MCP responses.
  *
@@ -18,7 +16,9 @@ import { formatMappedErrorText } from "./mapped-error-text.js";
  */
 
 import { colors, dim, highlight, highlightRanges } from "./colors.js";
-import { renderPreparationEstimates } from "./indexing-estimates-text.js";
+import { renderPreparationSection } from "./indexing-estimates-text.js";
+import type { MappedError } from "./mapped-error.js";
+import { formatMappedErrorText } from "./mapped-error-text.js";
 import { renderReadTarget } from "./read-target-text.js";
 import {
   formatRepositoryTarget,
@@ -307,11 +307,12 @@ function appendPresentationContext(
       appendPresentationTargetGroup(lines, group, options);
     });
   }
-  for (const line of renderPreparationEstimates(
-    presentation.indexingEstimates,
-    "preparing source",
-  ))
-    lines.push(...wrapText(line, options.width));
+  lines.push(
+    ...renderPreparationSection(presentation.indexingEstimates, {
+      repositoryState: "preparing source",
+      width: options.width,
+    }),
+  );
   appendPresentationWarnings(lines, presentation.warnings, options);
 }
 

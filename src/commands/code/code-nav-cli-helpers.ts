@@ -19,6 +19,8 @@ import {
   InvalidPackageSpecError,
   isExactPathAuthorityError,
   looksLikeMissingFileMessage,
+  MAX_DISCOVERY_WAIT_TIMEOUT_MS,
+  MAX_WAIT_TIMEOUT_MS,
   type MappedError,
   parseCodeNavigationTargetSpec,
   withIndexingRetryAction,
@@ -97,14 +99,13 @@ export function formatIndexingError(
 ): string {
   if (mapped.code !== "INDEXING") return formatMappedErrorForTerminal(mapped);
   return formatMappedErrorText(
-    withIndexingRetryAction(
-      mapped,
-      options.operation ?? "request",
-      "cli",
-      options.cliUnit === "seconds" ? 120000 : 60000,
-      false,
-      options.cliUnit,
-    ),
+    withIndexingRetryAction(mapped, options.operation ?? "request", "cli", {
+      maxWaitMs:
+        options.cliUnit === "seconds"
+          ? MAX_DISCOVERY_WAIT_TIMEOUT_MS
+          : MAX_WAIT_TIMEOUT_MS,
+      cliUnit: options.cliUnit,
+    }),
     {
       indexingTarget: options.target,
       indexingOutcome:
@@ -304,7 +305,7 @@ export function handleCodeNavCommandError(
     mapMappedError(mapCodeNavigationErrorForCli(error)),
     "request",
     "cli",
-    60000,
+    { maxWaitMs: MAX_WAIT_TIMEOUT_MS },
   );
   if (json) {
     // eslint-disable-next-line no-console
