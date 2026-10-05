@@ -1253,7 +1253,7 @@ function smokeResponse(
       return textResult("express vulnerabilities");
     case "pkg_changelog":
       return textResult(
-        args.body_lines === 3
+        args.body_lines === 3 && args.verbose !== true
           ? 'truncated; pass verbose=true, body_lines=<n>, or format="json"'
           : "compact changelog timeline",
       );

@@ -34,6 +34,9 @@ describe("createPackageChangelogTool — metadata", () => {
     expect(tool.schema.format?.description).toContain(
       "Set `json` only when code consumes",
     );
+    expect(tool.schema.verbose?.description).toContain(
+      "overriding body_lines and omit_bodies:true",
+    );
     expect(Object.keys(tool.schema).sort()).toEqual([
       "body_lines",
       "format",
@@ -171,65 +174,82 @@ describe("createPackageChangelogTool — happy path", () => {
     expect(text).toContain("... (+5 more lines");
   });
 
-  it("verbose=true renders full MCP text bodies", async () => {
-    const tool = createPackageChangelogTool(
-      createMockPackageIntelligenceService({
-        packageChangelog: mock(() =>
-          Promise.resolve({
-            ...defaultChangelogReport,
-            entries: [
-              {
-                ...defaultChangelogReport.entries[0]!,
-                body: Array.from(
-                  { length: 12 },
-                  (_, i) => `line ${i + 1}`,
-                ).join("\n"),
-              },
-            ],
-          }),
-        ),
-      }),
-    );
+  it.each([undefined, 3, 0, 51, 1.5])(
+    "verbose=true renders full MCP text bodies with body_lines=%s",
+    async (body_lines) => {
+      const packageChangelog = mock(() =>
+        Promise.resolve({
+          ...defaultChangelogReport,
+          entries: [
+            {
+              ...defaultChangelogReport.entries[0]!,
+              body: Array.from({ length: 12 }, (_, i) => `line ${i + 1}`).join(
+                "\n",
+              ),
+            },
+          ],
+        }),
+      );
+      const tool = createPackageChangelogTool(
+        createMockPackageIntelligenceService({ packageChangelog }),
+      );
+      for (const omit_bodies of [undefined, false, true]) {
+        const result = await tool.handler(
+          { target: "npm:express", verbose: true, body_lines, omit_bodies },
+          {},
+        );
+        expect(result.isError).toBeUndefined();
+        const text = result.content[0]?.text ?? "";
+        expect(text).toContain("line 12");
+        expect(text).not.toContain("more line");
+      }
+      for (const [params] of packageChangelog.mock.calls as unknown as Array<
+        [{ includeBodies: boolean }]
+      >) {
+        expect(params.includeBodies).toBe(true);
+      }
+    },
+  );
 
-    const result = await tool.handler(
-      { target: "npm:express", verbose: true },
-      {},
-    );
-    const text = result.content[0]?.text ?? "";
-    expect(text).toContain("line 12");
-    expect(text).not.toContain("more line");
-  });
+  it.each([0, 51, 1.5])(
+    "rejects invalid active body_lines=%s before service access",
+    async (body_lines) => {
+      const packageChangelog = mock(() =>
+        Promise.resolve(defaultChangelogReport),
+      );
+      const tool = createPackageChangelogTool(
+        createMockPackageIntelligenceService({ packageChangelog }),
+      );
+      const invalid = await tool.handler(
+        { target: "npm:express", verbose: false, body_lines },
+        {},
+      );
+      expect(invalid.isError).toBe(true);
+      expect((parseText(invalid) as { code: string }).code).toBe(
+        "INVALID_ARGUMENT",
+      );
+      expect(packageChangelog).not.toHaveBeenCalled();
+    },
+  );
 
-  it("returns INVALID_ARGUMENT for conflicting or invalid text controls", async () => {
+  it("ignores body_lines when bodies are omitted", async () => {
     const packageChangelog = mock(() =>
       Promise.resolve(defaultChangelogReport),
     );
     const tool = createPackageChangelogTool(
       createMockPackageIntelligenceService({ packageChangelog }),
     );
-
-    const conflict = await tool.handler(
-      {
-        target: "npm:express",
-        omit_bodies: true,
-        verbose: true,
-      },
+    const result = await tool.handler(
+      { target: "npm:express", omit_bodies: true, body_lines: 0 },
       {},
     );
-    expect(conflict.isError).toBe(true);
-    expect((parseText(conflict) as { code: string }).code).toBe(
-      "INVALID_ARGUMENT",
+    expect(result.isError).toBeUndefined();
+    expect(packageChangelog).toHaveBeenCalledWith(
+      expect.objectContaining({ includeBodies: false }),
     );
-
-    const invalid = await tool.handler(
-      { target: "npm:express", body_lines: 0 },
-      {},
+    expect(result.content[0]?.text).not.toContain(
+      defaultChangelogReport.entries[0]!.body!,
     );
-    expect(invalid.isError).toBe(true);
-    expect((parseText(invalid) as { code: string }).code).toBe(
-      "INVALID_ARGUMENT",
-    );
-    expect(packageChangelog).not.toHaveBeenCalled();
   });
 
   it("emits the JSON envelope with entries.count computed client-side when format=json", async () => {
@@ -333,25 +353,36 @@ describe("createPackageChangelogTool — happy path", () => {
     expect(payload.filter?.toVersion).toBe("5.2.1");
   });
 
-  it("drops body fields when omit_bodies is true", async () => {
-    const tool = createPackageChangelogTool(
-      createMockPackageIntelligenceService(),
-    );
-    const result = await tool.handler(
-      {
-        target: "npm:express",
-        omit_bodies: true,
-        format: "json",
-      },
-      {},
-    );
-    const payload = parseText(result) as {
-      entries: { items: Array<{ body?: string }> };
-    };
-    for (const item of payload.entries.items) {
-      expect(item.body).toBeUndefined();
-    }
-  });
+  it.each([undefined, false, true])(
+    "JSON omission is preserved with verbose=%s",
+    async (verbose) => {
+      const packageChangelog = mock(() =>
+        Promise.resolve(defaultChangelogReport),
+      );
+      const tool = createPackageChangelogTool(
+        createMockPackageIntelligenceService({ packageChangelog }),
+      );
+      const result = await tool.handler(
+        {
+          target: "npm:express",
+          omit_bodies: true,
+          verbose,
+          body_lines: 0,
+          format: "json",
+        },
+        {},
+      );
+      const payload = parseText(result) as {
+        entries: { items: Array<{ body?: string }> };
+      };
+      expect(packageChangelog).toHaveBeenCalledWith(
+        expect.objectContaining({ includeBodies: false }),
+      );
+      for (const item of payload.entries.items) {
+        expect(item.body).toBeUndefined();
+      }
+    },
+  );
 
   it("ignores text-only controls for JSON output shape", async () => {
     const tool = createPackageChangelogTool(
