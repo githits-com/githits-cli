@@ -1,10 +1,12 @@
 import { describe, expect, it } from "bun:test";
+import { projectUnifiedSearchPresentation } from "./unified-search-presentation.js";
 import type { UnifiedSearchIncompletePresentation } from "./unified-search-response.js";
 import { renderUnifiedSearchStatusText } from "./unified-search-status-text.js";
 import { renderUnifiedSearchSuccess } from "./unified-search-text.js";
 
 // Recorded dev provenance and first read action from anomalyco/opencode,
-// 2026-10-01. No timestamps or commit-distance information was supplied.
+// 2026-10-01. No timestamps or commit-distance information was supplied;
+// date cases add independent timestamps without changing that baseline identity.
 const servedSha = "bbd72fb8b0bb6de580d2041a0150016227c63ac0";
 const headSha = "0112a92c416f5ad833d96e7a8308441f0a875d94";
 const repoUrl = "https://github.com/anomalyco/opencode";
@@ -109,6 +111,102 @@ function resolution(payload: UnifiedSearchIncompletePresentation) {
 }
 
 describe("snapshot search text received by agents", () => {
+  it.each([
+    ["2026-09-01T23:59:59Z", "2026-10-05T00:00:01Z"],
+    ["2026-09-01T23:59:59Z", null],
+    [null, "2026-10-05T00:00:01Z"],
+    [null, null],
+    [undefined, undefined],
+    ["2099-12-31T23:59:59Z", "2000-01-01T00:00:00Z"],
+  ])(
+    "attributes independent UTC dates (%s / %s) without changing actions",
+    (servedDate, requestedDate) => {
+      const payload = snapshot();
+      const baseline = projectUnifiedSearchPresentation(payload);
+      const readTarget = structuredClone(payload.results[0]!.readTarget);
+      resolution(payload).served!.committedAt = servedDate ?? undefined;
+      resolution(payload).resolvedRequested!.committedAt =
+        requestedDate ?? undefined;
+      const dated = projectUnifiedSearchPresentation(payload);
+      expect(dated.action).toEqual(baseline.action);
+      expect(dated.lifecycle).toEqual(baseline.lifecycle);
+      expect(dated.availability).toEqual(baseline.availability);
+      expect(payload.results[0]!.readTarget).toEqual(readTarget);
+      for (const syntax of ["mcp", "cli"] as const) {
+        const text = both(payload, syntax)[0]!.replace(/\s+/g, " ");
+        expect(text).toContain(
+          `commit: github:anomalyco/opencode@bbd72fb8 (${servedDate ? `committed ${servedDate.slice(0, 10)}, ` : ""}indexed from ref HEAD)`,
+        );
+        expect(text).toContain(
+          `requested HEAD resolves to a different commit${requestedDate ? ` (committed ${requestedDate.slice(0, 10)})` : ""} and is indexing`,
+        );
+        expect(text.match(/committed \d{4}-\d{2}-\d{2}/g) ?? []).toHaveLength(
+          Number(Boolean(servedDate)) + Number(Boolean(requestedDate)),
+        );
+        expect(text).toContain("Next: use these hits now; read for details:");
+        expect(text).toContain("If you need current HEAD");
+        expect(text).not.toContain("T23:");
+        expect(text).not.toContain("unknown date");
+        expect(text).not.toContain("days ago");
+      }
+    },
+  );
+
+  it("keeps date punctuation clean without a historical ref", () => {
+    const payload = snapshot();
+    resolution(payload).served!.gitRef = undefined;
+    resolution(payload).served!.committedAt = "2026-09-01T12:00:00Z";
+    expect(both(payload)[0]).toContain(
+      "commit: github:anomalyco/opencode@bbd72fb8 (committed 2026-09-01)",
+    );
+  });
+
+  it.each([null, "2026-09-01T00:00:00Z"])(
+    "does not borrow requested date for same-SHA provisional evidence (%s)",
+    (servedDate) => {
+      const payload = snapshot();
+      resolution(payload).resolvedRequested!.commitSha = servedSha;
+      resolution(payload).resolvedRequested!.committedAt =
+        "2026-10-05T00:00:00Z";
+      resolution(payload).served!.committedAt = servedDate ?? undefined;
+      resolution(payload).freshness = "provisional";
+      payload.sourceStatus![0]!.codeIndexState = "PROVISIONAL";
+      for (const text of both(payload)) {
+        expect(text).not.toContain("2026-10-05");
+        expect(text).not.toContain("different commit");
+        expect(text).not.toContain("If you need current HEAD");
+        expect(text).toContain("Next: use these hits now");
+        if (servedDate) expect(text).toContain("committed 2026-09-01");
+        else expect(text).not.toContain("committed");
+      }
+    },
+  );
+
+  it.each(["2000-01-01T00:00:00Z", "2099-12-31T00:00:00Z"])(
+    "keeps healthy current evidence compact and wait-free despite date %s",
+    (date) => {
+      const payload = snapshot();
+      payload.evidenceNotice = undefined;
+      payload.progress!.status = "COMPLETED";
+      payload.sourceStatus![0]!.codeIndexState = "CURRENT";
+      resolution(payload).freshness = "current";
+      resolution(payload).freshnessReason = "exact_current";
+      resolution(payload).resolvedRequested!.commitSha = servedSha;
+      const completed = {
+        ...payload,
+        completed: true as const,
+        partialResults: false,
+      };
+      const baseline = renderUnifiedSearchSuccess(completed);
+      resolution(payload).served!.committedAt = date;
+      resolution(payload).resolvedRequested!.committedAt = date;
+      const text = renderUnifiedSearchSuccess(completed);
+      expect(text).toBe(baseline);
+      expect(text).not.toContain("wait");
+      expect(text).not.toContain("committed");
+    },
+  );
+
   it.each(["mcp", "cli"] as const)(
     "reads the served snapshot before optional HEAD waiting: %s",
     (syntax) => {
@@ -259,6 +357,9 @@ describe("snapshot search text received by agents", () => {
     for (const missing of ["served", "resolvedRequested"] as const) {
       const payload = snapshot();
       resolution(payload)[missing]!.commitSha = undefined;
+      resolution(payload).resolvedRequested!.committedAt =
+        "2026-10-05T00:00:00Z";
+      expect(both(payload)[0]).not.toContain("2026-10-05");
       expect(both(payload)[0]).not.toContain("If you need current HEAD");
     }
   });
@@ -266,6 +367,7 @@ describe("snapshot search text received by agents", () => {
   it("waits when no hits are returned, without treating source counts as evidence", () => {
     const payload = snapshot();
     payload.results = [];
+    resolution(payload).served!.committedAt = "2026-09-01T00:00:00Z";
     for (const text of both(payload)) {
       expect(text).toContain("No results yet");
       expect(text).toContain(
@@ -286,7 +388,9 @@ describe("snapshot search text received by agents", () => {
       const payload = snapshot();
       payload.results = [];
       payload.sourceStatus![0]!.resultCount = 0;
+      resolution(payload).served!.committedAt = "2026-09-01T00:00:00Z";
       payload.progress!.status = status;
+      resolution(payload).served!.committedAt = "2026-09-01T00:00:00Z";
       for (const text of both(payload)) {
         expect(text).toContain("commit: github:anomalyco/opencode@bbd72fb8");
         expect(text.replace(/\s+/g, " ")).toContain(
@@ -295,6 +399,7 @@ describe("snapshot search text received by agents", () => {
         expect(text.replace(/\s+/g, " ")).toContain(
           "different commit and is indexing",
         );
+        expect(text).toContain("committed 2026-09-01");
         expect(text).not.toContain("Next: use these hits");
         expect(text).not.toContain("read target=");
         expect(text).not.toContain("If you need current HEAD");
@@ -315,7 +420,11 @@ describe("snapshot search text received by agents", () => {
     payload.sourceStatus![0]!.codeIndexState = "PENDING";
     // Withheld pairs clear served provenance; do not manufacture it.
     resolution(payload).served = undefined;
-    for (const text of both(payload)) expect(text).not.toContain("commit:");
+    resolution(payload).resolvedRequested!.committedAt = "2026-10-05T00:00:00Z";
+    for (const text of both(payload)) {
+      expect(text).not.toContain("commit:");
+      expect(text).not.toContain("committed");
+    }
   });
 
   it("attributes bare request labels alongside a historical served HEAD alias", () => {
@@ -399,8 +508,10 @@ describe("snapshot search text received by agents", () => {
     (status) => {
       const payload = snapshot();
       payload.progress!.status = status;
+      resolution(payload).served!.committedAt = "2026-09-01T00:00:00Z";
       for (const text of both(payload)) {
         expect(text).toContain("Next: use these hits");
+        expect(text).toContain("committed 2026-09-01");
         expect(text).toContain("search again");
         expect(text).not.toContain("search_status");
       }

@@ -8,6 +8,41 @@ import {
 } from "./target-resolution.js";
 
 describe("target-resolution helpers", () => {
+  it.each([
+    ["2026-09-01T12:00:00Z", "2026-10-05T00:00:00Z"],
+    [null, "2026-10-05T00:00:00Z"],
+    ["2026-09-01T12:00:00Z", null],
+    [undefined, undefined],
+  ])(
+    "preserves independent nullable dates in lean JSON (%s / %s)",
+    (servedDate, requestedDate) => {
+      const projected = projectTargetResolution({
+        requested: { kind: "repo_default_branch" },
+        served: {
+          commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          committedAt: servedDate ?? undefined,
+        },
+        resolvedRequested: {
+          commitSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          committedAt: requestedDate ?? undefined,
+        },
+        freshness: "fallback_recent",
+        availableVersions: [],
+        availableRefs: [],
+      });
+      const json = JSON.parse(JSON.stringify(projected));
+      expect(json.served).toEqual({
+        commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ...(servedDate != null ? { committedAt: servedDate } : {}),
+      });
+      expect(json.resolvedRequested).toEqual({
+        commitSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        ...(requestedDate != null ? { committedAt: requestedDate } : {}),
+      });
+      expect(json.requested).not.toHaveProperty("committedAt");
+    },
+  );
+
   it("projects undefined targetResolution as absent", () => {
     expect(projectTargetResolution(undefined)).toBeUndefined();
   });

@@ -216,6 +216,8 @@ export type UnifiedSearchTrustLimit =
       target: string;
       requestedTarget?: string;
       commitTarget: string;
+      servedCommitDate?: string;
+      requestedCommitDate?: string;
       indexedRef?: string;
       requestedRef?: string;
       requestedCommitDiffers: boolean;
@@ -732,6 +734,16 @@ function projectTrustLimits(
           served.repoUrl,
           servedSha.slice(0, 8),
         ),
+        // Backend DateTime is UTC; disclose its calendar date without age math.
+        ...(served.committedAt
+          ? { servedCommitDate: served.committedAt.slice(0, 10) }
+          : {}),
+        ...(requestedCommitDiffers && resolution?.resolvedRequested?.committedAt
+          ? {
+              requestedCommitDate:
+                resolution.resolvedRequested.committedAt.slice(0, 10),
+            }
+          : {}),
         ...(served.gitRef && !/^[0-9a-f]{7,40}$/i.test(served.gitRef)
           ? { indexedRef: served.gitRef }
           : {}),

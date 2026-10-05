@@ -149,6 +149,8 @@ export interface TargetResolutionIdentity {
   repoUrl?: string;
   gitRef?: string;
   commitSha?: string;
+  /** Verified UTC committer time for this exact repository commit, not freshness. */
+  committedAt?: string;
   site?: string;
 }
 
@@ -1232,6 +1234,7 @@ targetResolution {
     repoUrl
     gitRef
     commitSha
+    committedAt
   }
   served {
     kind
@@ -1241,6 +1244,7 @@ targetResolution {
     repoUrl
     gitRef
     commitSha
+    committedAt
   }
   freshness
   freshnessReason
@@ -1685,6 +1689,7 @@ const targetResolutionIdentitySchema = z
     repoUrl: z.string().nullable().optional(),
     gitRef: z.string().nullable().optional(),
     commitSha: z.string().nullable().optional(),
+    committedAt: z.string().nullable().optional(),
     site: z.string().nullable().optional(),
   })
   .nullable()
@@ -4527,6 +4532,7 @@ function normaliseTargetResolutionIdentity(
   if (identity.repoUrl) out.repoUrl = identity.repoUrl;
   if (identity.gitRef) out.gitRef = identity.gitRef;
   if (identity.commitSha) out.commitSha = identity.commitSha;
+  if (identity.committedAt) out.committedAt = identity.committedAt;
   if (identity.site) out.site = identity.site;
   return Object.keys(out).length > 0 ? out : undefined;
 }

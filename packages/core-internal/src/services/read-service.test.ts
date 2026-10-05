@@ -98,6 +98,7 @@ const CODE_READ_SELECTION: SelectionTree = {
       repoUrl: null,
       gitRef: null,
       commitSha: null,
+      committedAt: null,
     },
     served: {
       kind: null,
@@ -107,6 +108,7 @@ const CODE_READ_SELECTION: SelectionTree = {
       repoUrl: null,
       gitRef: null,
       commitSha: null,
+      committedAt: null,
     },
     freshness: null,
     freshnessReason: null,
@@ -511,6 +513,48 @@ describe("ReadServiceImpl", () => {
         availableVersions: undefined,
       },
     });
+  });
+
+  it("preserves exact commit dates through the shared code read identity", async () => {
+    const targetResolution = {
+      requested: { kind: "repo_commit" },
+      resolvedRequested: {
+        commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        committedAt: "2026-09-01T23:59:59Z",
+      },
+      served: {
+        commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        committedAt: "2026-09-01T23:59:59Z",
+      },
+      freshness: "current",
+      availableVersions: [],
+      availableRefs: [],
+      suggestedRefs: [],
+    };
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          data: {
+            read: codeResult({ targetResolution, codeAction: CODE_ACTION }),
+          },
+        }),
+      ),
+    );
+    const service = new ReadServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      fetchFn as unknown as typeof fetch,
+    );
+    const result = await service.read({
+      target: "github:owner/repo@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      path: "src/index.ts",
+      waitTimeoutMs: 0,
+    });
+    expect(result.source).toBe("code");
+    if (result.source !== "code") throw new Error("expected code result");
+    expect(result.result.targetResolution).toMatchObject(targetResolution);
+    expect(result.result.readTarget?.target).toBe(CODE_ACTION.target);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
   it("preserves an opaque docs target and omits an empty path", async () => {

@@ -460,7 +460,7 @@ function appendPresentationTargetGroup(
   for (const snapshot of snapshots) {
     if (snapshot.requestedCommitDiffers && snapshot.requestedRef) {
       details.push(
-        `requested ${snapshot.requestedRef} resolves to a different commit${snapshot.indexingRequestedRef === snapshot.requestedRef ? " and is indexing" : ""}`,
+        `requested ${snapshot.requestedRef} resolves to a different commit${snapshot.requestedCommitDate ? ` (committed ${snapshot.requestedCommitDate})` : ""}${snapshot.indexingRequestedRef === snapshot.requestedRef ? " and is indexing" : ""}`,
       );
     }
     if (
@@ -535,10 +535,17 @@ function formatUsingSegment(
   if (snapshots.length > 0) {
     return [
       ...new Set(
-        snapshots.map(
-          (snapshot) =>
-            `commit: ${snapshot.commitTarget}${snapshot.indexedRef ? ` (indexed from ref ${snapshot.indexedRef})` : ""}`,
-        ),
+        snapshots.map((snapshot) => {
+          const provenance = [
+            ...(snapshot.servedCommitDate
+              ? [`committed ${snapshot.servedCommitDate}`]
+              : []),
+            ...(snapshot.indexedRef
+              ? [`indexed from ref ${snapshot.indexedRef}`]
+              : []),
+          ];
+          return `commit: ${snapshot.commitTarget}${provenance.length ? ` (${provenance.join(", ")})` : ""}`;
+        }),
       ),
     ].join("; ");
   }

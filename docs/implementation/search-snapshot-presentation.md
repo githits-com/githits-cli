@@ -4,7 +4,7 @@ Initial `search` and `search_status` use the same semantic projection and text
 formatter in `packages/mcp/src/shared/unified-search-presentation.ts` and
 `unified-search-text.ts`. The former owns evidence and continuation decisions;
 the latter owns wording and surface-native read/status commands. CLI/MCP adapters,
-GraphQL selections, JSON, and explicit user wait options are unchanged. Search
+Explicit user wait options are unchanged; commit-date metadata is described below. Search
 descriptions retain their selection sentences and make continuation conditional
 on needing updated results; completed references are stored, not poll targets.
 
@@ -60,6 +60,93 @@ requested HEAD resolved to `0112a92c416f5ad833d96e7a8308441f0a875d94`.
 Backend #2909 supplied this contract on dev. Production rollout is not established.
 The Q04 Transformers observation motivated the advice fix; its old comparison
 searched a PyPI artifact, so it is not a controlled speed/token comparison.
+
+## Known commit dates
+
+`TargetResolutionIdentity.committedAt` is the backend-verified nullable UTC
+committer timestamp for the exact `repoUrl` and full `commitSha`. It is not push
+or indexing time, elapsed freshness, current branch membership, distance behind
+HEAD, or ancestry proof. Dates can be future-dated or non-monotonic. Unknown
+historical dates are expected; this client performs no enrichment or backfill.
+
+The shared `TARGET_RESOLUTION_SELECTION` selects `committedAt` on `served` and
+`resolvedRequested`, leaving original `requested` undated. The nullable transport
+schema accepts the returned field; the service normalizer and lean projection
+retain known timestamp strings and omit null, matching sibling identity fields.
+That selection also supplies existing read, list, symbol and code-context
+responses, so their structured provenance gains known dates without new calls.
+Grep's lean projection preserves already supplied dates. No mode-specific fetch
+is needed: both compact text and JSON consume these two timestamps.
+
+The root cause of missing dates was omission at every existing shared boundary:
+the GraphQL selection did not request the field; schema parsing, service
+normalization and lean whitelisting discarded it; the snapshot projection/text
+had no date clause. The fix extends those owners rather than adding a lookup.
+The semantic presentation slices the verified UTC timestamp's first ten
+characters into a calendar date, gated by the existing served/full-SHA evidence
+and requested-commit difference checks. JSON retains the full timestamp.
+
+Example of the shared compact target details, before normal width wrapping:
+
+```text
+commit: github:owner/repo@aaaaaaaa (committed 2026-09-01, indexed from ref HEAD); requested HEAD resolves to a different commit (committed 2026-10-05) and is indexing; searched: code
+```
+
+With only the requested date known:
+
+```text
+commit: github:owner/repo@aaaaaaaa (indexed from ref HEAD); requested HEAD resolves to a different commit (committed 2026-10-05) and is indexing; searched: code
+```
+
+With no historical ref, a known served date stands alone as
+`(committed 2026-09-01)`. Unknown date clauses disappear without a placeholder.
+Same-SHA snapshots show only their independently known served date; requested
+metadata is never borrowed for it. Healthy current results keep their compact
+text and full dates in JSON. An old current HEAD date does not make it stale.
+The existing exact readTarget, use-hits-now action, conditional wait, lifecycle,
+partial/completeness signals, attribution and zero-hit/withheld rules are unchanged.
+
+**Rollout prerequisite:** confirm production backend schema deployment before
+client release or hosted MCP adoption. This increment was verified against the
+supplied backend dev records, not production. If deployed too early, the existing
+schema fallback retries retain the unsupported field until the last candidate
+drops all `targetResolution`, losing served provenance and prior-HEAD advice.
+No new fallback is added. The user owns release; hosted clients additionally need
+`@githits/mcp` release, remote-mcp dependency adoption and deployment.
+
+Commit-date verification:
+
+- Focused 14-file checks: 668 tests pass, zero failures, 3,258 expectations. Covered shared core
+  search/status transport and progress, exact read transport and JSON, lean
+  projection, search presentation/text/status/response, tools, CLI commands,
+  timing parity and actual CLI/MCP adapter parity. Retained status JSON timestamps are also verified through both adapters.
+- Date cases include both/served/requested/neither known, null/absent wire data,
+  same/different SHA, future and reversed chronology, current, provisional,
+  searched zero-hit, withheld and terminal retained results. Tests compare
+  date-free/date-bearing actions, lifecycle, availability and emitted read pointers.
+- `bun run typecheck`, `bun run build`, `bun run --cwd packages/mcp build`, and
+  scoped `bunx biome check`, `git diff --check` and `bun run validate:packages` pass. A scratch rendered preview confirmed grammatical
+  copy at the normal width, date attribution and the unchanged read-before-wait order.
+- Required `GITHITS_ENV=dev GITHITS_AUTH_STORAGE=file bun run smoke:cli` and
+  `bun run smoke:mcp` pass with endpoint/token overrides unset. Authenticated
+  cohorts skip with `AUTH_REQUIRED` in isolated homes. A direct dev CLI file-auth
+  search also returned `AUTH_REQUIRED`; the normal auth probe blocked on macOS
+  keychain access and was stopped. No successful live CLI/MCP business response
+  is claimed for this worktree.
+- The supplied 2026-10-05 backend dev search/status/read verification has usable
+  Transformers hits at served SHA `2112ec4e74fdb1225f78e676d4a8b6d28a00378d`
+  with unknown date, independently dated requested SHA
+  `f5ab85619d989359ef47b5efed8a91a15045627b` at `2026-10-05T15:28:19Z`, and
+  byte-identical retained provenance. Its exact served read immediately returned
+  the missing return line. Jason's old current HEAD date `2026-05-05T14:33:58Z`
+  remained current. These are upstream evidence, not a new client live run.
+- Targeted `GITHITS_ENV=dev GITHITS_AUTH_STORAGE=file bun run agent:e2e --agent
+  claude --server local --intent-profile githits --workload
+  eval/agentic/workloads/unified-search-investigation.md --timeout 180` failed
+  before tool use: Claude reported `Not logged in · Please run /login`.
+  Run `2026-10-05T17-25-30-431Z` has zero raw tool calls, no final.json and no
+  isolation-violations artifact. Raw stdout/tool calls and metrics were inspected.
+  This is unavailable qualitative evidence, not a UX pass or quality/performance claim.
 
 ## Verification for this increment
 

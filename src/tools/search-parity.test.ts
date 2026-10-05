@@ -735,8 +735,17 @@ describe("usable snapshot presentation parity", () => {
               codeIndexState: "STALE",
               targetResolution: {
                 requested: { kind: "repo_default_branch" },
-                resolvedRequested: { gitRef: "HEAD", commitSha: requestedSha },
-                served: { repoUrl, gitRef: "HEAD", commitSha: servedSha },
+                resolvedRequested: {
+                  gitRef: "HEAD",
+                  commitSha: requestedSha,
+                  committedAt: "2026-10-05T00:00:01Z",
+                },
+                served: {
+                  repoUrl,
+                  gitRef: "HEAD",
+                  commitSha: servedSha,
+                  committedAt: "2026-09-01T23:59:59Z",
+                },
                 freshness: "fallback_recent",
                 freshnessReason: "requested_ref_indexing",
                 availableVersions: [],
@@ -785,6 +794,12 @@ describe("usable snapshot presentation parity", () => {
         mcpStatus.content[0]?.text ?? "",
       ]) {
         expect(text).toContain("commit: github:anomalyco/opencode@bbd72fb8");
+        expect(text.replace(/\s+/g, " ")).toContain(
+          "committed 2026-09-01, indexed from ref HEAD",
+        );
+        expect(text.replace(/\s+/g, " ")).toContain(
+          "different commit (committed 2026-10-05) and is indexing",
+        );
         expect(text).toContain("Next: use these hits");
         expect(text).not.toContain("Next: search_status");
         expect(text).not.toContain("Next: githits search-status");
@@ -810,12 +825,44 @@ describe("usable snapshot presentation parity", () => {
         sourceStatus: [
           {
             targetResolution: {
-              served: { commitSha: servedSha },
-              resolvedRequested: { commitSha: requestedSha },
+              served: {
+                commitSha: servedSha,
+                committedAt: "2026-09-01T23:59:59Z",
+              },
+              resolvedRequested: {
+                commitSha: requestedSha,
+                committedAt: "2026-10-05T00:00:01Z",
+              },
             },
           },
         ],
       });
+      const statusJson = await statusTool.handler(
+        { search_ref: "snapshot-ref", wait_timeout_ms: 0, format: "json" },
+        {},
+      );
+      const cliLog = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await searchStatusAction(
+          "snapshot-ref",
+          { wait: "0", json: true },
+          {
+            codeNavigationService: service,
+            codeNavigationUrl: "https://nav.example.com",
+            hasValidToken: true,
+            mcpUrl: "https://mcp.example.com",
+          },
+        );
+        const cliStatusJson = JSON.parse(String(cliLog.mock.calls[0]?.[0]));
+        const mcpStatusJson = JSON.parse(statusJson.content[0]?.text ?? "");
+        expect(cliStatusJson).toEqual(mcpStatusJson);
+        expect(mcpStatusJson.result.sourceStatus[0].targetResolution).toEqual(
+          (json as { sourceStatus: Array<{ targetResolution: unknown }> })
+            .sourceStatus[0]!.targetResolution,
+        );
+      } finally {
+        cliLog.mockRestore();
+      }
       // JSON keeps the existing capped follow-up contract; the text's practical
       // example uses the backend selection unchanged.
     },

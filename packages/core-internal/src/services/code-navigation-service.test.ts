@@ -1855,6 +1855,143 @@ describe("CodeNavigationServiceImpl", () => {
     }
   });
 
+  describe("search commit dates", () => {
+    for (const operation of ["search", "searchStatus"] as const) {
+      it.each([
+        ["2026-09-01T23:59:59Z", "2026-10-05T00:00:01Z"],
+        [null, "2026-10-05T00:00:01Z"],
+        ["2026-09-01T23:59:59Z", null],
+        [null, null],
+        [undefined, undefined],
+      ])(
+        `selects and preserves independent dates in ${operation} result and progress (%s / %s)`,
+        async (servedDate, requestedDate) => {
+          const targetResolution = {
+            requested: { kind: "repo_default_branch" },
+            resolvedRequested: {
+              repoUrl: "https://github.com/owner/repo",
+              commitSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              committedAt: requestedDate,
+            },
+            served: {
+              repoUrl: "https://github.com/owner/repo",
+              commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              committedAt: servedDate,
+            },
+            freshness: "fallback_recent",
+            availableVersions: [],
+            availableRefs: [],
+          };
+          const result = buildV31EvidenceSearchResult();
+          result.sourceStatus = [
+            {
+              source: "CODE",
+              targetLabel: "github:owner/repo",
+              resultCount: 1,
+              targetResolution,
+              appliedFilters: [],
+              ignoredFilters: [],
+              incompatibleFilters: [],
+              appliedQueryFeatures: [],
+              ignoredQueryFeatures: [],
+              incompatibleQueryFeatures: [],
+              suggestedSiteTargets: [],
+              suggestedSiteTargetsTruncated: false,
+              contributors: [],
+            },
+          ];
+          const progress = {
+            searchRef: "v31-evidence-search-ref",
+            status: "INDEXING",
+            targetsTotal: 1,
+            targetsReady: 1,
+            indexingEstimates: [],
+            elapsedMs: 12,
+            query: result.query,
+            queryWarnings: [],
+            sources: ["CODE"],
+            targets: [{ targetResolution }],
+          };
+          const response =
+            operation === "search"
+              ? {
+                  data: {
+                    search: {
+                      completed: false,
+                      searchRef: progress.searchRef,
+                      result,
+                      progress,
+                    },
+                  },
+                }
+              : {
+                  data: {
+                    discoverySearchProgress: { ...progress, results: result },
+                  },
+                };
+          const fn = mockFetch(() =>
+            Promise.resolve(
+              new Response(JSON.stringify(response), {
+                headers: { "Content-Type": "application/json" },
+              }),
+            ),
+          );
+          const service = new CodeNavigationServiceImpl(
+            BASE_URL,
+            createMockTokenProvider(),
+            globalThis.fetch,
+          );
+          const outcome =
+            operation === "search"
+              ? await service.search({
+                  targets: [{ repoUrl: "https://github.com/owner/repo" }],
+                  query: result.query,
+                  waitTimeoutMs: 0,
+                })
+              : await service.searchStatus(progress.searchRef, 0);
+          expect(outcome.state).toBe("incomplete");
+          if (outcome.state !== "incomplete")
+            throw new Error("expected incomplete result");
+          for (const resolution of [
+            outcome.result?.sourceStatus[0]?.targetResolution,
+            outcome.progress?.targets?.[0]?.targetResolution,
+          ]) {
+            expect(resolution?.served?.committedAt).toBe(
+              servedDate ?? undefined,
+            );
+            expect(resolution?.resolvedRequested?.committedAt).toBe(
+              requestedDate ?? undefined,
+            );
+            expect(resolution?.requested).not.toHaveProperty("committedAt");
+          }
+          expect<unknown>(
+            outcome.result?.results.map(({ readTarget }) => readTarget),
+          ).toEqual(result.results.map(({ readTarget }) => readTarget));
+          expect(fn).toHaveBeenCalledTimes(1);
+          const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+          const { query, variables } = JSON.parse(init.body as string) as {
+            query: string;
+            variables: Record<string, unknown>;
+          };
+          const selections = [
+            ...query.matchAll(
+              /targetResolution\s*\{\s*requested\s*\{([^}]+)\}\s*resolvedRequested\s*\{([^}]+)\}\s*served\s*\{([^}]+)\}/g,
+            ),
+          ];
+          expect(selections).toHaveLength(2); // Source status and progress use the same identity selection.
+          for (const [, requested, resolved, served] of selections) {
+            expect(requested).not.toContain("committedAt");
+            expect(resolved).toContain("committedAt");
+            expect(served).toContain("committedAt");
+          }
+          expect(variables.waitTimeoutMs).toBe(0);
+          if (operation === "searchStatus")
+            expect(variables.includeResults).toBe(true);
+        },
+      );
+    }
+  });
+
   describe("v31 evidence selection", () => {
     for (const operation of ["search", "searchStatus"] as const) {
       it(`omits legacy selections in ${operation}`, async () => {
