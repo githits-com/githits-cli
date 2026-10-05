@@ -536,6 +536,90 @@ describe("ListServiceImpl", () => {
     expect(result.preparation?.awaited[0]?.mode).toBeNull();
   });
 
+  it.each([
+    "COMPLETED",
+    "DISCARDED",
+    "CANCELLED",
+    "TIMEOUT",
+    "FAILED",
+    "SUPERSEDED",
+  ])(
+    "preserves exact awaited %s in compact and detailed results",
+    async (outcome) => {
+      for (const includeDetailedFields of [false, true]) {
+        let capturedQuery = "";
+        const awaited = [
+          { mode: null, outcome },
+          { mode: "incremental_recrawl", outcome },
+        ];
+        const fetchFn = mock((_url: string, init?: RequestInit) => {
+          capturedQuery = (JSON.parse(String(init?.body)) as { query: string })
+            .query;
+          return Promise.resolve(
+            jsonResponse(
+              successBody({
+                inventoryKind: "SITE",
+                preparation: {
+                  selected: 2,
+                  enqueued: 0,
+                  activeJobs: [],
+                  awaited,
+                },
+              }),
+            ),
+          );
+        });
+        const service = new ListServiceImpl(
+          ENDPOINT,
+          createMockTokenProvider(),
+          asFetchFn(fetchFn),
+        );
+        const result = await service.list({
+          target: "site:docs.example.test",
+          includeDetailedFields,
+        });
+
+        expect(capturedQuery).toMatch(
+          /awaited\s*\{\s*mode\s+outcome:\s*status\s*\}/,
+        );
+        expect(parseListSelection(capturedQuery)).toEqual(
+          expectedListSelection(),
+        );
+        expect(result.preparation?.awaited).toEqual(awaited);
+        expect(fetchFn).toHaveBeenCalledTimes(1);
+      }
+    },
+  );
+
+  it("rejects an unknown exact awaited outcome without retry", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse(
+          successBody({
+            preparation: {
+              selected: 1,
+              enqueued: 0,
+              activeJobs: [],
+              awaited: [{ mode: null, outcome: "UNKNOWN" }],
+            },
+          }),
+        ),
+      ),
+    );
+    const service = new ListServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+    await expect(
+      service.list({
+        target: "site:docs.example.test",
+        includeDetailedFields: false,
+      }),
+    ).rejects.toBeInstanceOf(MalformedListResponseError);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
   it("wire projection rejects hasMore without a nonempty cursor", async () => {
     const fetchFn = mock(() =>
       Promise.resolve(

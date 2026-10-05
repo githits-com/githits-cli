@@ -3,6 +3,7 @@ import type {
   ListParams,
   ListResult,
   ListService,
+  ListSiteWaitOutcome,
 } from "@githits/core-internal";
 import { ListGraphQLError } from "@githits/core-internal";
 import { z } from "zod";
@@ -344,6 +345,35 @@ describe("createListTool", () => {
     expect(result.content[0]?.text).toBe(
       '# source site:expressjs.com | follow up with "read site:expressjs.com $path"\nen/resources/\nen/resources/guide/',
     );
+  });
+
+  it.each<ListSiteWaitOutcome>([
+    "COMPLETED",
+    "DISCARDED",
+    "CANCELLED",
+    "TIMEOUT",
+    "FAILED",
+    "SUPERSEDED",
+  ])("preserves awaited %s in JSON and keeps compact text", async (outcome) => {
+    const response = listResult({
+      inventoryKind: "SITE",
+      requestedTarget: "site:docs.example.test",
+      canonicalTarget: null,
+      preparation: {
+        selected: 1,
+        enqueued: 0,
+        activeJobs: [],
+        awaited: [{ mode: null, outcome }],
+      },
+    });
+    const tool = createListTool(createService(async () => response));
+    const json = await tool.handler(
+      { target: response.requestedTarget, format: "json" },
+      {},
+    );
+    expect(JSON.parse(json.content[0]?.text ?? "{}")).toEqual(response);
+    const text = await tool.handler({ target: response.requestedTarget }, {});
+    expect(text.content[0]?.text).toBe("# source site:docs.example.test");
   });
 
   it("returns detailed JSON with exact actions and the continuation cursor", async () => {

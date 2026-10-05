@@ -1,5 +1,9 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
-import type { ListParams, ListResult } from "@githits/core-internal";
+import type {
+  ListParams,
+  ListResult,
+  ListSiteWaitOutcome,
+} from "@githits/core-internal";
 import { ListGraphQLError } from "@githits/core-internal";
 import { Command } from "commander";
 import {
@@ -408,6 +412,51 @@ describe("unified list CLI", () => {
       expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual(result);
     } finally {
       log.mockRestore();
+    }
+  });
+
+  it.each<ListSiteWaitOutcome>([
+    "COMPLETED",
+    "DISCARDED",
+    "CANCELLED",
+    "TIMEOUT",
+    "FAILED",
+    "SUPERSEDED",
+  ])("preserves awaited %s in JSON and keeps compact text", async (outcome) => {
+    const response = listResult({
+      inventoryKind: "SITE",
+      requestedTarget: "site:docs.example.test",
+      canonicalTarget: null,
+      preparation: {
+        selected: 1,
+        enqueued: 0,
+        activeJobs: [],
+        awaited: [{ mode: null, outcome }],
+      },
+    });
+    const service = createMockListService({ list: mock(async () => response) });
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    const write = spyOn(process.stdout, "write").mockImplementation(() => true);
+    try {
+      await listAction(
+        response.requestedTarget,
+        undefined,
+        { json: true },
+        createDeps({ listService: service }),
+      );
+      expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual(response);
+      await listAction(
+        response.requestedTarget,
+        undefined,
+        {},
+        createDeps({ listService: service }),
+      );
+      expect(write.mock.calls[0]?.[0]).toBe(
+        "# source site:docs.example.test\n",
+      );
+    } finally {
+      log.mockRestore();
+      write.mockRestore();
     }
   });
 
