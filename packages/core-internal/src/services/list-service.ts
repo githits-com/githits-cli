@@ -209,7 +209,9 @@ export class ListGraphQLError extends Error {
     public readonly commitSha?: string,
     public readonly indexingRef?: string,
     public readonly hint?: string,
-    public readonly indexingMetadata?: ListIndexingErrorMetadata,
+    public readonly indexingMetadata:
+      | ListIndexingErrorMetadata
+      | undefined = undefined,
   ) {
     super(message);
     this.name = "ListGraphQLError";

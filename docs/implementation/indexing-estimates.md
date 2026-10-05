@@ -136,3 +136,5 @@ The final full unit suite passed 5,477 tests in 233 files after the alternative-
 New authenticated dev checks were blocked in macOS Keychain credential access. The neutral list agent workload used external web evidence without GitHits calls; an explicit GitHits run completed quick_start and started list, then timed out. Neither establishes pending-state agent UX or a quality claim. Pending states are covered by fixtures; the prior backend-owner dev verification and production release prerequisite above remain unchanged.
 
 Internal review and three external Claude rounds completed with no remaining material findings. The final fresh-context check confirmed format propagation, native wait units/caps, preserved raw output and zero-wait list metadata. Prose spacing normalization was retained as intentional presentation behavior; no source-content formatting or structured evidence changed.
+
+CI declaration builds use Bun 1.4.2. The optional list-error metadata constructor parameter explicitly includes `undefined`; the matching declaration build and packed-package validator passed with that version, alongside 70 focused list tests.
