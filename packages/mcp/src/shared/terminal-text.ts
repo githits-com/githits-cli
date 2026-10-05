@@ -15,7 +15,7 @@ export function sanitizeTerminalText(value: string): string {
 }
 
 /** Wrap human prose while retaining bullet and continuation indentation. */
-export function wrapTerminalProse(text: string, width = 80): string[] {
+export function wrapTerminalProse(text: string, width: number = 80): string[] {
   return text.split("\n").flatMap((line) => {
     const safe = sanitizeTerminalText(line);
     if (!safe) return [""];

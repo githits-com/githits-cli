@@ -81,7 +81,7 @@ export function renderIndexingEstimates(
 /** Compact preparation evidence; the caller retains lifecycle and next-action ownership. */
 export function renderPreparationEstimates(
   entries: readonly DiscoveryIndexingEstimate[] | undefined,
-  repositoryState = "indexing",
+  repositoryState: string = "indexing",
 ): string[] {
   return (entries ?? []).map((entry) => {
     const state =
