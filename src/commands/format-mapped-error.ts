@@ -66,10 +66,11 @@ export function formatMappedErrorForTerminal(mapped: MappedError): string {
   return [mapped.message, "", "Update with:", `  ${updateCommand}`].join("\n");
 }
 
-function appendBackendHint(mapped: MappedError, text: string): string {
+/** Append a backend hint consistently for generic and code-navigation CLI errors. */
+export function appendBackendHint(mapped: MappedError, text: string): string {
   const hint = mapped.details?.hint;
   if (!hint || text.includes(hint)) return text;
-  return `${text}\n  hint: ${hint}`;
+  return `${text}\n  hint: ${hint.replaceAll("\n", "\n    ")}`;
 }
 
 function hasRetryGuidance(message: string): boolean {

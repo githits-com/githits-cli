@@ -24,6 +24,7 @@ import {
 } from "@githits/mcp/internal";
 import { mapCodeNavigationErrorForCli } from "../../shared/cli-error-diagnostics.js";
 import {
+  appendBackendHint,
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,
 } from "../format-mapped-error.js";
@@ -97,10 +98,7 @@ export function formatIndexingError(mapped: MappedError): string {
   }
   if (mapped.code !== "INDEXING") return formatMappedErrorForTerminal(mapped);
   const detail = mapped.details ?? {};
-  const lines = [mapped.message];
-  if (detail.hint && !mapped.message.includes(detail.hint)) {
-    lines.push(`  hint: ${detail.hint.replaceAll("\n", "\n    ")}`);
-  }
+  const lines = [appendBackendHint(mapped, mapped.message)];
   if (detail.indexingRef) lines.push(`  indexing ref: ${detail.indexingRef}`);
   if (!detail.indexingEstimates?.length) {
     const timing = formatIndexingDuration(detail.indexingEstimate);

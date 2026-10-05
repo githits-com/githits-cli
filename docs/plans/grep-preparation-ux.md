@@ -369,3 +369,18 @@ inventory returned root read URL https://expressjs.com/ rather than a shared
 site/path action. The formatter correctly preserves backend URL actions; smoke
 now accepts either root representation rather than requiring an unavailable
 shared read target. Production schema deployment remains unverified.
+
+External round2 closed all round1 findings and accepted user-requested plain copy;
+one cosmetic code finding remained in generic read CLI multiline hints. Fixed
+at the existing CLI appendBackendHint helper and reused it from legacy navigation,
+eliminating duplicated hint rendering rather than applying two independent patches.
+The generic formatter regression covers preserved content/indentation. Round3
+review will check this correction and perform the final fresh-context check.
+
+Final authenticated dev CLI source smoke passed both stable and experimental
+live cohorts with corrected structural assertions. Latest focused core/shared/
+grep/parity/smoke/files/search suite:2302passed,0failed,8141assertions87files.
+Latest public package validation passed. Built CLI unauthenticated and MCP
+stable/experimental registration passed after copy/smoke corrections. Full MCP
+stable live passed; experimental Research URL thread follow-up failure remains
+an explicitly recorded backend investigation limitation.

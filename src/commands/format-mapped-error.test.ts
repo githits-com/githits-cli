@@ -5,6 +5,20 @@ import {
 } from "./format-mapped-error.js";
 
 describe("formatMappedErrorForTerminal", () => {
+  it("indents multiline pending read hints without changing their content", () => {
+    expect(
+      formatMappedErrorForTerminal({
+        code: "INDEXING",
+        message: "Target is indexing.",
+        retryable: true,
+        details: {
+          hint: "npm:express: Time spent indexing: 5s.\nNot enough history to estimate indexing time.\nRetry with --wait 30000.",
+        },
+      }),
+    ).toBe(
+      "Target is indexing.\n  hint: npm:express: Time spent indexing: 5s.\n    Not enough history to estimate indexing time.\n    Retry with --wait 30000.",
+    );
+  });
   it("reconstructs CLI terms remediation in terminal output", () => {
     expect(
       formatMappedErrorForTerminal({
