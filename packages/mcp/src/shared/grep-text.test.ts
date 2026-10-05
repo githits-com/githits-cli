@@ -69,7 +69,7 @@ describe("grep text formatting", () => {
     );
     const normalizedText = rendered.replace(/\s+/g, " ");
     expect(normalizedText).toContain(
-      "Sources: npm:express - site:expressjs.com, github:expressjs/express@dbac741a",
+      "Sources: site:expressjs.com (hosted documentation), github:expressjs/express@dbac741a (requested: npm:express)",
     );
     expect(normalizedText.match(/site:expressjs\.com/g) ?? []).toHaveLength(1);
     expect(
@@ -174,11 +174,109 @@ describe("grep text formatting", () => {
 
     expect(
       rendered.split("\n").find((line) => line.startsWith("Sources:")),
-    ).toBe("Sources: site:expressjs.com");
+    ).toBe("Sources: site:expressjs.com (hosted documentation)");
     expect(rendered).not.toContain(
       "Sources: site:expressjs.com - site:expressjs.com",
     );
     expect(rendered.match(/site:expressjs\.com/g) ?? []).toHaveLength(1);
+  });
+
+  it("separates pending package source from served hosted docs and keeps retry guidance at the end", () => {
+    const original = parseGrepResult(mixed100);
+    const site = original.targets.find((scope) => scope.kind === "SITE")!;
+    const hits = original.hits.filter(
+      (hit) => hit.targetIndex === site.targetIndex,
+    );
+    const target = "npm:express@1.0.2";
+    const result: GrepResult = {
+      ...original,
+      targets: [{ ...site, target }],
+      hits,
+      totalMatches: hits.length,
+      unavailableTargets: [
+        {
+          inputIndex: 0,
+          target,
+          reason: "repository_indexing",
+          retryable: true,
+          progressRef: "opaque-indexing-id",
+          suggestedSiteTargets: null,
+        },
+      ],
+      indexingEstimates: [
+        {
+          kind: "REPOSITORY",
+          targets: [target],
+          estimate: { lowerSeconds: 37, upperSeconds: 85 },
+        },
+      ],
+    };
+    const before = structuredClone(result);
+    for (const syntax of ["cli", "mcp"] as const) {
+      const text = formatGrepText(result, { syntax, width: 160 });
+      const lines = text.split("\n");
+      expect(lines.filter((line) => line.startsWith(`${target}:`))).toEqual([
+        `${target}: indexing. Estimated indexing time: 37-85s total.`,
+      ]);
+      expect(text).toContain("Serving partial data.");
+      expect(text).toContain(
+        `Sources: site:expressjs.com (hosted documentation) (requested: ${target})`,
+      );
+      expect(text).not.toContain(`Sources: ${target}`);
+      expect(text).not.toContain("github:expressjs/express");
+      expect(text).not.toContain("Run grep again");
+      expect(text).not.toContain("Use the cursor below");
+      expect(lines.at(-1)).toBe(
+        `Some sources were unavailable. Rerun the original query with ${syntax === "cli" ? "--wait 100000" : "wait_timeout_ms=100000"} if needed.`,
+      );
+      const cursor = syntax === "cli" ? "  --cursor " : "  cursor=";
+      expect(
+        lines.findIndex((line) => line.startsWith(cursor)),
+      ).toBeGreaterThan(lines.findLastIndex((line) => /^\s*\d+: /.test(line)));
+    }
+    expect(result).toEqual(before);
+  });
+
+  it("lists only sources that returned matches, even when other scopes were dispatched", () => {
+    const original = parseGrepResult(mixed100);
+    const site = original.targets.find((scope) => scope.kind === "SITE")!;
+    const hits = original.hits.filter(
+      (hit) => hit.targetIndex === site.targetIndex,
+    );
+    const text = formatGrepText(
+      { ...original, hits, totalMatches: hits.length },
+      { width: 160 },
+    );
+    expect(text).toContain(
+      "Sources: site:expressjs.com (hosted documentation)",
+    );
+    expect(text).not.toContain("github:expressjs/express");
+  });
+
+  it("keeps repository requests concise beside their served commit", () => {
+    const original = parseGrepResult(mixed100);
+    const repository = original.targets.find(
+      (scope) => scope.kind === "REPOSITORY",
+    )!;
+    const hits = original.hits.filter(
+      (hit) => hit.targetIndex === repository.targetIndex,
+    );
+    for (const target of [
+      "github:expressjs/express",
+      "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+    ]) {
+      const text = formatGrepText(
+        {
+          ...original,
+          targets: [{ ...repository, target }],
+          hits,
+          totalMatches: hits.length,
+        },
+        { width: 160 },
+      );
+      expect(text).toContain("Sources: github:expressjs/express@dbac741a");
+      expect(text).not.toContain("(requested:");
+    }
   });
 });
 

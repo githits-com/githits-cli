@@ -55,12 +55,10 @@ describe("uniform indexing evidence presentation", () => {
       const before = structuredClone(result);
       const output = formatGrepText(result, { syntax, width: 160 });
       expect(output).toContain("No matches yet.");
-      expect(output).toContain("repository is being indexed");
+      expect(output).toContain(": indexing.");
       expect(output).toContain("Estimated indexing time: 38-57s total");
       expect(output).toContain("Time spent indexing: 90s");
-      expect(output).toContain(
-        syntax === "cli" ? "leave out --cursor" : "leave out cursor",
-      );
+      expect(output).toContain("Rerun the original query");
       expect(output).toContain(
         syntax === "cli" ? "--wait 70000" : "wait_timeout_ms=70000",
       );

@@ -123,17 +123,21 @@ structured JSON shape and selected nulls without fetching an unused selector.
 Missing or malformed selected fields remain protocol errors; no legacy query
 fallback is added.
 
-Like search, one `Sources:` summary identifies the resolved scopes and each
+One `Sources:` summary identifies sources that returned matches and each
 numbered evidence header begins with a copyable read locator. `[1]`, `[2]` number
 file/page groups in first-appearance order, never sources or backend scopes.
-Multiple pages share one canonical website in the summary. Its short repository
+Multiple pages share one canonical website in the summary. Hosted documentation
+is labeled separately from repository evidence; the queried package appears as
+`requested`, not as a claim that website pages belong to that package version.
+Dispatched scopes without matches are omitted from the source summary, while
+their coverage status remains visible. The short repository
 SHA is provenance shorthand; each file locator retains the exact opaque
 backend target and repository-root path. The formatter does not canonicalize
 or substitute any read target, path or ref. A differing hosted display URL is
 secondary `[page: ...]` metadata after the actual read locator.
 
 ```text
-Sources: npm:express - site:expressjs.com, github:expressjs/express@dbac741a
+Sources: site:expressjs.com (hosted documentation), github:expressjs/express@dbac741a (requested: npm:express)
 # Read files: read --lines $start-$end -- $target $path
 # Read pages: read --lines $start-$end -- $url
 

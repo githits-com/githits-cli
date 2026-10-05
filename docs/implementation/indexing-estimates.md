@@ -40,8 +40,12 @@ defaults do not change, and there is no automatic retry, polling or new status A
 
 Annotated text displays total duration and active elapsed evidence; JSON preserves
 provenance and work identity. Pipe-friendly raw paths and source content remain
-raw. Grep translates verified pending reasons and offers a fresh first-page
-request with the same ordered targets and matching controls, without a cursor.
+raw. Grep combines a pending target's indexing status and estimate in one paragraph,
+labels results as partial when sources were omitted, and identifies only sources
+that returned matches. Hosted-site matches do not establish package-version
+provenance. The existing cursor instructions stay at the end; a short final note
+suggests rerunning the original query with the recommended wait. That retry is a
+fresh first-page request with the same ordered targets and matching controls.
 The cursor retrieves more matches from searched targets and cannot retry omitted
 targets.
 
@@ -93,3 +97,13 @@ The single final fresh-context check found no material issues. An optional missi
 entry wait-floor guard was rejected: the verified backend contract emits entries
 for all pending work, including hosted docs and coalesced targets, so the suggested
 trigger lacks evidence. No speculative fallback or new duration model was added.
+
+The user's subsequent Express 1.0.2 reproduction exposed misleading attribution:
+the matches came from the documentation site while package source was indexing.
+The correction combines target status and timing, marks partial data, shows only
+matched sources, and moves the short wait suggestion to the end. The shared/grep
+regression suite passed 1,587 tests; build, CLI stable/experimental unauthenticated
+smoke and MCP stable/experimental registration smoke passed. Repository request
+label duplication found in review was removed and covered by a regression. The
+repeated targeted agent eval completed with zero tool calls, so it supplies no
+evidence for the corrected tool output.

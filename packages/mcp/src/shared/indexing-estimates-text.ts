@@ -27,18 +27,28 @@ export function formatIndexingDuration(
 }
 
 /** Timing evidence stays advisory; entries never replace a tool's lifecycle/action. */
+export function formatIndexingEstimate(
+  entry: DiscoveryIndexingEstimate,
+): string {
+  const timing = formatIndexingDuration(entry.estimate);
+  const missing =
+    entry.unavailableReason === "NO_HISTORY"
+      ? "Not enough history to estimate indexing time."
+      : entry.unavailableReason === "UNSUPPORTED_WORK"
+        ? "No time estimate is available for preparing documentation."
+        : undefined;
+  return (
+    [timing, missing].filter(Boolean).join(" ") ||
+    "Indexing time estimate unavailable."
+  );
+}
+
+/** Add requested target labels to shared timing evidence. */
 export function renderIndexingEstimates(
   entries: readonly DiscoveryIndexingEstimate[] | undefined,
 ): string[] {
   return (entries ?? []).map((entry) => {
     const label = entry.targets.map(safe).join(", ");
-    const timing = formatIndexingDuration(entry.estimate);
-    const missing =
-      entry.unavailableReason === "NO_HISTORY"
-        ? "Not enough history to estimate indexing time."
-        : entry.unavailableReason === "UNSUPPORTED_WORK"
-          ? "No time estimate is available for preparing documentation."
-          : undefined;
-    return `${label}: ${[timing, missing].filter(Boolean).join(" ") || "Indexing time estimate unavailable."}`;
+    return `${label}: ${formatIndexingEstimate(entry)}`;
   });
 }

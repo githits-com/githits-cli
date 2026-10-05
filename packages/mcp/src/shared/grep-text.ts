@@ -1,4 +1,5 @@
 import type {
+  DiscoveryIndexingEstimate,
   GrepHit,
   GrepLineSlice,
   GrepResult,
@@ -6,7 +7,10 @@ import type {
 } from "@githits/core-internal";
 import { colors, dim, highlightMatch } from "./colors.js";
 import { grepPreparationReason } from "./grep-preparation-text.js";
-import { renderIndexingEstimates } from "./indexing-estimates-text.js";
+import {
+  formatIndexingEstimate,
+  renderIndexingEstimates,
+} from "./indexing-estimates-text.js";
 import { indexingWaitMs } from "./indexing-wait.js";
 import {
   formatRepositoryTarget,
@@ -72,29 +76,36 @@ export function formatGrepText(
   );
   if (options.useColors) lines[0] = `${colors.bold}${lines[0]}${colors.reset}`;
   for (const scope of result.targets) renderCoverage(scope, prose);
+  const combinedEstimates = new Set<DiscoveryIndexingEstimate>();
   for (const omitted of result.unavailableTargets) {
+    const kind =
+      omitted.reason === "repository_indexing"
+        ? "REPOSITORY"
+        : omitted.reason === "documentation_publishing"
+          ? "DOCUMENTATION"
+          : undefined;
+    const estimates = (result.indexingEstimates ?? []).filter(
+      (entry) => entry.kind === kind && entry.targets.includes(omitted.target),
+    );
+    for (const entry of estimates) combinedEstimates.add(entry);
     prose(
-      `${omitted.target}${result.unavailableTargets.filter((target) => target.target === omitted.target).length > 1 ? ` (input ${omitted.inputIndex})` : ""}: ${grepPreparationReason(omitted.reason)}.`,
+      `${omitted.target}${result.unavailableTargets.filter((target) => target.target === omitted.target).length > 1 ? ` (input ${omitted.inputIndex})` : ""}: ${kind === "REPOSITORY" ? "indexing" : grepPreparationReason(omitted.reason)}.${estimates.length ? ` ${estimates.map(formatIndexingEstimate).join(" ")}` : ""}`,
     );
     for (const target of omitted.suggestedSiteTargets ?? [])
       prose(`  Suggested site: ${target}`);
   }
-  for (const estimate of renderIndexingEstimates(result.indexingEstimates))
+  for (const estimate of renderIndexingEstimates(
+    result.indexingEstimates?.filter((entry) => !combinedEstimates.has(entry)),
+  ))
     prose(estimate);
-  if (result.unavailableTargets.some((target) => target.retryable)) {
-    const wait = indexingWaitMs(result.indexingEstimates);
-    prose(
-      `Run grep again with the same targets, pattern and options. Keep the targets in the same order, leave out ${options.syntax === "mcp" ? "cursor" : "--cursor"}, and use ${options.syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`}.`,
-    );
-    if (result.nextCursor)
-      prose(
-        "Use the cursor below for more matches from the targets that were searched. Run grep without a cursor to include the targets that were unavailable.",
-      );
-  }
 
   if (groups.length) {
     lines.push("");
-    prose(`Sources: ${formatSources(result.targets)}`);
+    if (result.unavailableTargets.length) prose("Serving partial data.");
+    const matchedScopes = new Set(result.hits.map((hit) => hit.targetIndex));
+    prose(
+      `Sources: ${formatSources(result.targets.filter((scope) => matchedScopes.has(scope.targetIndex)))}`,
+    );
     if (kinds.has("GrepRepositoryHit"))
       lines.push(
         dim(
@@ -169,6 +180,13 @@ export function formatGrepText(
     lines.push(
       "",
       ...footerLines.map((line) => dim(line, options.useColors === true)),
+    );
+  }
+  if (result.unavailableTargets.some((target) => target.retryable)) {
+    const wait = indexingWaitMs(result.indexingEstimates);
+    lines.push("");
+    prose(
+      `Some sources were unavailable. Rerun the original query with ${options.syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`} if needed.`,
     );
   }
   return lines.join("\n");
@@ -294,15 +312,21 @@ function formatSources(scopes: GrepTargetStatus[]): string {
   }
   return [...targets]
     .map(([target, sources]) => {
-      const identities = [...sources]
-        .filter((identity) => identity !== target)
-        .sort(
-          (a, b) =>
-            Number(b.startsWith("site:")) - Number(a.startsWith("site:")),
-        );
-      if (identities.length && formatRepositoryTargetLabel(target))
-        return identities.join(", ");
-      return `${target}${identities.length ? ` - ${identities.join(", ")}` : ""}`;
+      const identities = [...sources].sort(
+        (a, b) => Number(b.startsWith("site:")) - Number(a.startsWith("site:")),
+      );
+      const requested =
+        sources.has(target) || formatRepositoryTargetLabel(target)
+          ? ""
+          : ` (requested: ${target})`;
+      const serving = identities
+        .map((identity) =>
+          identity.startsWith("site:")
+            ? `${identity} (hosted documentation)`
+            : identity,
+        )
+        .join(", ");
+      return identities.length ? `${serving}${requested}` : target;
     })
     .join("; ");
 }
