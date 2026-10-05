@@ -57,3 +57,33 @@ Production field support is unverified. Verify production schema deployment
 before releasing/adopting these client selections. Dev or local tests do not
 establish production support; no compatibility flag or missing-field fallback
 is provided.
+
+## Client verification (2026-10-05)
+
+The client increment passed 2,302 focused core/service/shared/grep parity/smoke/
+files/search tests, plus 95 formatter/read/files tests for the final shared hint
+correction. Positive responses exercise every distinct waiting service normalizer,
+including multiple work entries and pending read with null singular timing.
+Regression cases cover unknown history, unsupported documentation, caps, elapsed
+time beyond estimated bounds, partial evidence, native retries and pagination.
+
+Typecheck, format/lint, builds, packed public-package validation and built CLI/MCP
+smoke passed. Authenticated source CLI dev smoke passed both stable and experimental
+cohorts. Source MCP stable dev smoke passed; its experimental Research URL-source
+thread follow-up failed after 200 seconds and remains a separate backend
+investigation in the backlog. Smoke assertions were corrected for verified short
+changelog bodies and URL-based site root read actions.
+
+The first full local unit run had 5,354 passes and nine failures: one optional
+provider projection defect, corrected here, and subprocess timeouts. All failed
+files passed isolated rechecks (104 tests). CI supplies final full-suite validation.
+The targeted local-dev grep agent eval completed six calls successfully, with no
+failed calls or isolation violations. It used warm data and did not exercise
+pending indexing; no grading or quality claim is inferred from its final confidence.
+
+Internal review and three external rounds completed clean after fixing conflicting
+fixed/evidence-based wait instructions and sharing multiline CLI hint formatting.
+The single final fresh-context check found no material issues. An optional missing
+entry wait-floor guard was rejected: the verified backend contract emits entries
+for all pending work, including hosted docs and coalesced targets, so the suggested
+trigger lacks evidence. No speculative fallback or new duration model was added.
