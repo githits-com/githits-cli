@@ -390,7 +390,6 @@ describe("snapshot search text received by agents", () => {
       payload.sourceStatus![0]!.resultCount = 0;
       resolution(payload).served!.committedAt = "2026-09-01T00:00:00Z";
       payload.progress!.status = status;
-      resolution(payload).served!.committedAt = "2026-09-01T00:00:00Z";
       for (const text of both(payload)) {
         expect(text).toContain("commit: github:anomalyco/opencode@bbd72fb8");
         expect(text.replace(/\s+/g, " ")).toContain(

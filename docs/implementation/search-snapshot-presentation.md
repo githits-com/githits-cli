@@ -73,9 +73,10 @@ The shared `TARGET_RESOLUTION_SELECTION` selects `committedAt` on `served` and
 `resolvedRequested`, leaving original `requested` undated. The nullable transport
 schema accepts the returned field; the service normalizer and lean projection
 retain known timestamp strings and omit null, matching sibling identity fields.
-That selection also supplies existing read, list, symbol and code-context
-responses, so their structured provenance gains known dates without new calls.
-Grep's lean projection preserves already supplied dates. No mode-specific fetch
+That selection also supplies existing `read`, code-context and legacy CLI
+`code files` / `code grep` responses, so their structured provenance gains known
+dates without new calls. The separate public `list` and `grep` services have their
+own queries and do not gain dates in this increment. No mode-specific fetch
 is needed: both compact text and JSON consume these two timestamps.
 
 The root cause of missing dates was omission at every existing shared boundary:
@@ -108,9 +109,11 @@ partial/completeness signals, attribution and zero-hit/withheld rules are unchan
 
 **Rollout prerequisite:** confirm production backend schema deployment before
 client release or hosted MCP adoption. This increment was verified against the
-supplied backend dev records, not production. If deployed too early, the existing
-schema fallback retries retain the unsupported field until the last candidate
-drops all `targetResolution`, losing served provenance and prior-HEAD advice.
+supplied backend dev records, not production. If deployed too early, all `read` requests fail GraphQL validation because
+`ReadService` has no schema fallback and its document includes the field for code
+and docs reads alike. Search/status and legacy navigation instead make sequential
+fallback retries before dropping all `targetResolution`, losing served provenance
+and prior-HEAD advice.
 No new fallback is added. The user owns release; hosted clients additionally need
 `@githits/mcp` release, remote-mcp dependency adoption and deployment.
 
@@ -138,7 +141,7 @@ Commit-date verification:
   with unknown date, independently dated requested SHA
   `f5ab85619d989359ef47b5efed8a91a15045627b` at `2026-10-05T15:28:19Z`, and
   byte-identical retained provenance. Its exact served read immediately returned
-  the missing return line. Jason's old current HEAD date `2026-05-05T14:33:58Z`
+  the missing return line. The Jason repository's current HEAD date `2026-05-05T14:33:58Z`
   remained current. These are upstream evidence, not a new client live run.
 - Targeted `GITHITS_ENV=dev GITHITS_AUTH_STORAGE=file bun run agent:e2e --agent
   claude --server local --intent-profile githits --workload
@@ -280,3 +283,12 @@ fixtures/adapters establish prior-snapshot output. No free-discovery, independen
 quality grade or performance comparison is claimed. The eval preceded the final
 minor ref-example/label wording fixes; final focused checks and builds/smokes
 above cover those changes.
+
+Commit-date code review round 1: direction sound and implementation correct.
+Accepted documentation corrections name the no-fallback `read` failure on an
+early rollout and distinguish legacy shared-query navigation from public
+`list`/`grep`; the duplicate test date assignment was removed. The bounded closure
+scan covered every TARGET_RESOLUTION_SELECTION use, direct/fallback GraphQL
+clients, the separate list/grep queries and projections, rollout wording in the
+plan/change fragment/PR brief, and all added test date assignments. No runtime
+change, new machinery or major deferred finding was needed.
