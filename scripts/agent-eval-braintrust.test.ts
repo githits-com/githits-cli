@@ -700,7 +700,7 @@ describe("Braintrust eval row mapping", () => {
     ]);
   });
 
-  it("rejects incomplete, invalid, reverse, and outside-parent tool intervals", async () => {
+  describe("invalid tool intervals", () => {
     const cases: ReadonlyArray<{
       name: string;
       toolCalls: AgentEvalRecordInput["toolCalls"];
@@ -813,24 +813,31 @@ describe("Braintrust eval row mapping", () => {
       },
     ];
 
+    // Each filesystem-backed suite gets its own test lifetime and timeout budget.
     for (const testCase of cases) {
-      const fixture = await createSuite({ toolCalls: testCase.toolCalls });
-      const map = () =>
-        preflightAndMapBraintrustRows([
-          suiteInput(testCase.name, fixture.suitePath),
-        ]);
-      expect(map).toThrow("Braintrust preflight: discovery/workload-a:");
-      expect(map).toThrow(testCase.message);
+      it(`rejects ${testCase.name}`, async () => {
+        const fixture = await createSuite({ toolCalls: testCase.toolCalls });
+        const map = () =>
+          preflightAndMapBraintrustRows([
+            suiteInput(testCase.name, fixture.suitePath),
+          ]);
+        expect(map).toThrow("Braintrust preflight: discovery/workload-a:");
+        expect(map).toThrow(testCase.message);
+      });
     }
 
-    const invalid = await createSuite();
-    mutateMetrics(invalid, (metrics) => {
-      const sequence = firstMetricsRecord(metrics).tools.sequence;
-      sequence[0]!.startedAt = "not-a-timestamp";
+    it("rejects invalid observed timestamps", async () => {
+      const invalid = await createSuite();
+      mutateMetrics(invalid, (metrics) => {
+        const sequence = firstMetricsRecord(metrics).tools.sequence;
+        sequence[0]!.startedAt = "not-a-timestamp";
+      });
+      expect(() =>
+        preflightAndMapBraintrustRows([
+          suiteInput("invalid", invalid.suitePath),
+        ]),
+      ).toThrow();
     });
-    expect(() =>
-      preflightAndMapBraintrustRows([suiteInput("invalid", invalid.suitePath)]),
-    ).toThrow();
   });
 
   it("accepts legacy zero-tool suites and rejects legacy tool timing gaps", async () => {
