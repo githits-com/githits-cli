@@ -44,7 +44,7 @@ raw. Grep identifies only sources that returned matches, followed by `Omitted`
 entries that combine each unavailable requested target's reason and compact
 advisory total estimate. There is no separate partial-data or indexing paragraph.
 Hosted-site matches do not establish package-version
-provenance. The existing cursor instructions stay at the end; a short final note
+provenance. The existing cursor instructions follow the matches; a short final note
 suggests rerunning the original query with the recommended wait. That retry is a
 fresh first-page request with the same ordered targets and matching controls.
 The cursor retrieves more matches from searched targets and cannot retry omitted
@@ -98,18 +98,3 @@ The single final fresh-context check found no material issues. An optional missi
 entry wait-floor guard was rejected: the verified backend contract emits entries
 for all pending work, including hosted docs and coalesced targets, so the suggested
 trigger lacks evidence. No speculative fallback or new duration model was added.
-
-The user's subsequent Express 1.0.2 reproduction exposed misleading attribution:
-the matches came from the documentation site while package source was indexing.
-The finalized correction shows matched sources followed by omitted requested
-targets and their reason/timing, with the short wait suggestion at the end. A
-requested-ref label is reserved for a backend-reported full requested commit
-that differs from the served commit. A named ref needs resolved identity evidence
-before it can establish a mismatch; freshness alone cannot establish one. The shared/grep
-regression suite passed 1,590 tests, plus 34 focused tests after the final identity
-comparison correction; build, CLI stable/experimental unauthenticated
-smoke and MCP stable/experimental registration smoke passed. Repository request
-label duplication and a vacuous nonretryable assertion found in review were fixed
-and covered by regressions. The
-repeated targeted agent eval completed with zero tool calls, so it supplies no
-evidence for the corrected tool output.

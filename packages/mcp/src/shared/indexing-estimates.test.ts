@@ -115,6 +115,29 @@ describe("uniform indexing evidence presentation", () => {
       ),
     ).toHaveLength(1);
   });
+  it("keeps documentation preparation and its unavailable estimate with the omitted site", () => {
+    const text = formatGrepText(
+      pending({
+        unavailableTargets: [
+          {
+            inputIndex: 0,
+            target: "site:docs.test",
+            reason: "documentation_publishing",
+            retryable: true,
+            progressRef: null,
+            suggestedSiteTargets: null,
+          },
+        ],
+        indexingEstimates: [documentation],
+      }),
+      { syntax: "mcp", width: 160 },
+    );
+    expect(
+      text.split("\n").filter((line) => line.startsWith("Omitted:")),
+    ).toEqual([
+      "Omitted: site:docs.test (documentation is being prepared, no estimate available for documentation)",
+    ]);
+  });
   it("renders unknown history and unsupported docs without fabricated durations", () => {
     const entries: DiscoveryIndexingEstimate[] = [
       {
