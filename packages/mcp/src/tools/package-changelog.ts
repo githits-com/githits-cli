@@ -49,19 +49,19 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe(
-      "Omit each entry body (default false). Use for version/date/URL timelines; large notes drop 10 KB+ per entry.",
+      "Omit each entry body (default false). Use for version/date/URL timelines; large notes drop 10 KB+ per entry. Text verbose:true overrides omission.",
     ),
   verbose: z
     .boolean()
     .optional()
     .describe(
-      "Text output only. Show full body previews. Mutually exclusive with omit_bodies:true and body_lines.",
+      "Text output only. Show full bodies, overriding body_lines and omit_bodies:true.",
     ),
   body_lines: z
     .number()
     .optional()
     .describe(
-      "Text output only. Number of body lines to preview per entry (1-50, default 10). Ignored for format=json and omit_bodies:true. Mutually exclusive with verbose:true.",
+      "Text output only. Number of body lines to preview per entry (1-50, default 10). Ignored for format=json, omit_bodies:true, and verbose:true.",
     ),
   format: z
     .enum(["text", "json"])
@@ -93,6 +93,8 @@ export function createPackageChangelogTool(
     handler: async (args, context) => {
       try {
         const textFormat = isTextFormat(args.format);
+        const includeBodies =
+          args.omit_bodies !== true || (textFormat && args.verbose === true);
         const bodyPreviewLines = textFormat
           ? validateTextOptions(args)
           : undefined;
@@ -100,7 +102,7 @@ export function createPackageChangelogTool(
           buildPackageChangelogParams({
             target: args.target,
             limit: args.limit,
-            includeBodies: args.omit_bodies !== true,
+            includeBodies,
           });
         const report = await service.packageChangelog(params);
         const payload = buildPackageChangelogSuccessPayload(report, {
@@ -108,7 +110,7 @@ export function createPackageChangelogTool(
           name: params.packageName,
           mode,
           explicitFilterFields,
-          includeBodies: args.omit_bodies !== true,
+          includeBodies,
           fromVersion: params.fromVersion,
           toVersion: params.toVersion,
           limit: params.limit,
@@ -136,16 +138,7 @@ export function createPackageChangelogTool(
 }
 
 function validateTextOptions(args: PackageChangelogArgs): number | undefined {
-  if (args.omit_bodies === true && args.verbose === true) {
-    throw new InvalidPackageSpecError(
-      "verbose:true conflicts with omit_bodies:true because bodies are omitted. Drop one of the two options.",
-    );
-  }
-  if (args.verbose === true && args.body_lines !== undefined) {
-    throw new InvalidPackageSpecError(
-      "body_lines conflicts with verbose:true because verbose already shows full bodies. Drop one of the two options.",
-    );
-  }
+  if (args.verbose === true || args.omit_bodies === true) return undefined;
   if (args.body_lines === undefined) return undefined;
   if (
     !Number.isInteger(args.body_lines) ||

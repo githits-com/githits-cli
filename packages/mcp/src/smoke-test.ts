@@ -1168,6 +1168,23 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_changelog body_lines leaked CLI verbose flag",
   );
 
+  const changelogFullBodiesText = assertDefaultText(
+    await callTool(caller, "pkg_changelog", {
+      target: "npm:express",
+      limit: 2,
+      body_lines: 3,
+      verbose: true,
+      omit_bodies: true,
+    }),
+    "pkg_changelog verbose overrides preview controls",
+  );
+  assert(
+    !changelogFullBodiesText.includes(
+      'pass verbose=true, body_lines=<n>, or format="json"',
+    ),
+    "pkg_changelog verbose still truncated body previews",
+  );
+
   const changelogJson = assertJsonResult(
     await callTool(caller, "pkg_changelog", {
       target: "npm:express",
