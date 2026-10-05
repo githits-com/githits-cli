@@ -1,4 +1,4 @@
-import type { MappedError } from "@githits/mcp/internal";
+import { hasRetryGuidance, type MappedError } from "@githits/mcp/internal";
 
 const CLI_AUTH_ERROR_MESSAGE =
   "Authentication required. Run `githits login` to authenticate.";
@@ -71,10 +71,6 @@ export function appendBackendHint(mapped: MappedError, text: string): string {
   const hint = mapped.details?.hint;
   if (!hint || text.includes(hint)) return text;
   return `${text}\n  hint: ${hint.replaceAll("\n", "\n    ")}`;
-}
-
-function hasRetryGuidance(message: string): boolean {
-  return /\b(?:retry|try again)\b/i.test(message);
 }
 
 function authRemediation(mapped: MappedError): string {

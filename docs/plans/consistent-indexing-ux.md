@@ -502,3 +502,7 @@ Direction sound. Accepted findings: (1) refresh annotations lacked a separating 
 Bounded sibling scan covered all renderPreparationEstimates consumers, mapped error retry paths, native retry helper calls and legacy command targets. Supplied host actions, rate-limit timing, uniform/singular evidence, cursor and raw bodies remain distinct and preserved. Validation and full revised-delta review follow after the mechanical worker returns.
 
 Round 2 verification: full bun test 5,474 pass / 0 fail, 21,171 assertions in 233 files; internal complete revised-delta review clean. Focused formatter/tool315 and legacy93 tests pass, typecheck and changed30TS lint pass.
+
+External round2 confirmed all round1 findings closed and introduced one minor duplicate retry instruction. Root cause: new retryability prose appended even when existing messages/hints already advised retrying. Moved/reused the CLI's existing hasRetryGuidance check in the shared formatter, preserving CLI behavior and backend hints. Bounded scan checked shared no-action, rate-limit, supplied action and CLI existing guidance paths; targeted tests and internal/external full-delta recheck follow.
+
+Round3 closure verification: 83 focused tests, 5,477 full-suite tests / 0 failures (21,174 assertions in 233 files), typecheck, lint and diffcheck pass; internal complete-delta recheck clean. Final external round3 follows.

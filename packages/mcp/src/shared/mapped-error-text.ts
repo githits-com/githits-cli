@@ -139,7 +139,11 @@ export function formatMappedErrorText(
   // Keep callable/copyable action operands intact, and avoid repeating host remediation.
   if (details.action && !lines.join("\n").includes(details.action))
     output.push("", ...details.action.split("\n").map(sanitizeTerminalText));
-  if (!details.action && mapped.retryable)
+  if (
+    !details.action &&
+    mapped.retryable &&
+    !hasRetryGuidance(lines.join("\n"))
+  )
     output.push(
       "",
       rateLimitAdvice
@@ -147,4 +151,9 @@ export function formatMappedErrorText(
         : "Try again.",
     );
   return output.join("\n");
+}
+
+/** Preserve existing retry advice instead of appending a second instruction. */
+export function hasRetryGuidance(message: string): boolean {
+  return /\b(?:retry|try again)\b/i.test(message);
 }

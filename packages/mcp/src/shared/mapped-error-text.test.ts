@@ -184,3 +184,23 @@ describe("retryable text errors", () => {
     );
   });
 });
+
+describe("existing retry advice", () => {
+  it.each([
+    ["TIMEOUT", "Request to GitHits timed out. Try again."],
+    ["BACKEND_ERROR", "Server error (503). Try again shortly."],
+  ] as const)("does not repeat %s retry prose", (code, message) => {
+    expect(formatMappedErrorText({ code, message, retryable: true })).toBe(
+      message,
+    );
+  });
+  it("retains a backend retry hint without adding generic advice", () => {
+    const text = formatMappedErrorText({
+      code: "NETWORK",
+      message: "Request failed.",
+      retryable: true,
+      details: { hint: "Retry after reconnecting." },
+    });
+    expect(text).toBe("Request failed.\n\nRetry after reconnecting.");
+  });
+});

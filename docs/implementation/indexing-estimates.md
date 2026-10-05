@@ -70,7 +70,7 @@ appending mixed CLI/MCP syntax. Default/text MCP errors are readable `isError`
 results; only explicit JSON serializes the existing error envelope. Progress IDs
 remain in JSON; actionable backend hints and ref/version alternatives remain
 visible. Non-indexing errors describe alternatives as available rather than indexed; code-diff alternatives retain their version and ref identity. Rate-limit retry durations render in seconds while JSON retains the supplied timing fields. Core preserves supplied hints even when embedded in the raw message;
-only presentation deduplicates visible prose. Host auth/terms remediation and cancellation retain their contracts. Retryable failures without a supplied action end with readable retry advice; JSON retains the retryability field.
+only presentation deduplicates visible prose. Host auth/terms remediation and cancellation retain their contracts. Retryable failures without a supplied action or existing retry wording end with readable retry advice; JSON retains the retryability field.
 
 Zero-wait list GraphQL errors supply `estimated_indexing_duration` separately
 from successful uniform arrays. Core shares the existing error-duration decoder
@@ -131,6 +131,6 @@ trigger lacks evidence. No speculative fallback or new duration model was added.
 
 ## Shared error and preparation UX verification (2026-10-05)
 
-The final full unit suite passed 5,474 tests in 233 files after the alternative-label, retry-unit, hosted preparation, annotation-separation and wrapping corrections. Typecheck, both builds, packed public-package validation, source unauthenticated CLI/MCP smoke and built CLI/MCP smoke passed. Tests cover default/text/JSON errors, host-provided authentication actions, compact preparation rows, native wait units/caps, pending empty inventory, readable content with refresh, and preservation of raw CLI output.
+The final full unit suite passed 5,477 tests in 233 files after the alternative-label, retry-unit, hosted preparation, annotation-separation and wrapping corrections. Typecheck, both builds, packed public-package validation, source unauthenticated CLI/MCP smoke and built CLI/MCP smoke passed. Tests cover default/text/JSON errors, host-provided authentication actions, compact preparation rows, native wait units/caps, pending empty inventory, readable content with refresh, and preservation of raw CLI output.
 
 New authenticated dev checks were blocked in macOS Keychain credential access. The neutral list agent workload used external web evidence without GitHits calls; an explicit GitHits run completed quick_start and started list, then timed out. Neither establishes pending-state agent UX or a quality claim. Pending states are covered by fixtures; the prior backend-owner dev verification and production release prerequisite above remain unchanged.
