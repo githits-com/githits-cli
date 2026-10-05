@@ -118,6 +118,40 @@ describe("readable mapped error content", () => {
       true,
     );
   });
+  it("lists overlapping repository refs once while retaining package versions and JSON evidence", () => {
+    const mapped: MappedError = {
+      code: "INDEXING",
+      message: "Indexing",
+      details: {
+        availableVersions: [
+          { ref: "rel_2_0_0" },
+          { ref: "rel_2_0_1" },
+          { version: "2.0.0", ref: "rel_2_0_0" },
+        ],
+        availableRefs: [{ ref: "rel_2_0_0" }],
+      },
+    };
+    const text = formatMappedErrorText(mapped);
+    expect(text).toContain("Indexed versions/refs: rel_2_0_1, 2.0.0");
+    expect(text).toContain("Indexed refs: rel_2_0_0");
+    expect(text.match(/rel_2_0_0/g)).toHaveLength(1);
+    const json = JSON.parse(
+      mcpMappedErrorResult(mapped, undefined, "json").content[0]!.text,
+    );
+    expect(json.details.availableVersions).toEqual(
+      mapped.details!.availableVersions,
+    );
+    expect(json.details.availableRefs).toEqual(mapped.details!.availableRefs);
+    const refsOnly = formatMappedErrorText({
+      ...mapped,
+      details: {
+        availableVersions: [{ ref: "rel_2_0_0" }],
+        availableRefs: [{ ref: "rel_2_0_0" }],
+      },
+    });
+    expect(refsOnly).not.toContain("versions/refs:");
+    expect(refsOnly).toContain("Indexed refs: rel_2_0_0");
+  });
 });
 
 describe("readable non-indexing recovery", () => {

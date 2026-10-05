@@ -85,13 +85,21 @@ export function formatMappedErrorText(
       );
     }
   }
-  const versions = details.availableVersions?.map((entry) =>
-    mapped.code === "INDEXING"
-      ? (entry.version ?? entry.ref)
-      : entry.version
-        ? `${entry.version} (ref: ${entry.ref})`
-        : entry.ref,
-  );
+  const versions = details.availableVersions
+    ?.filter(
+      (entry) =>
+        entry.version !== undefined ||
+        !details.availableRefs?.some(
+          (candidate) => candidate.ref === entry.ref,
+        ),
+    )
+    .map((entry) =>
+      mapped.code === "INDEXING"
+        ? (entry.version ?? entry.ref)
+        : entry.version
+          ? `${entry.version} (ref: ${entry.ref})`
+          : entry.ref,
+    );
   const refs = details.availableRefs?.map((entry) => entry.ref);
   if (
     versions?.length ||
