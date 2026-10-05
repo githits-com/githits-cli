@@ -255,6 +255,7 @@ export type UnifiedSearchRewriteKind =
   | "site_shorter_or_broader";
 
 export interface UnifiedSearchPresentation {
+  indexingEstimates?: UnifiedSearchProgressPayload["indexingEstimates"];
   availability: UnifiedSearchAvailability;
   lifecycle: UnifiedSearchLifecycle;
   query?: UnifiedSearchQueryEcho;
@@ -318,6 +319,7 @@ export function projectUnifiedSearchPresentation(
     lifecycle,
     query,
     progress: projectProgress(progress),
+    indexingEstimates: progress?.indexingEstimates,
     targetGroups,
     hasMore: snapshot?.hasMore ?? false,
     warnings,

@@ -3,12 +3,15 @@ import {
   AuthenticationError,
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
+  parseCodeContextResult,
 } from "@githits/core-internal";
+import { mapCodeNavigationError } from "@githits/mcp/internal";
 import { Command } from "commander";
 import {
   createMockCodeNavigationService,
   defaultListFilesResult,
 } from "../../services/test-helpers.js";
+import { formatIndexingError } from "./code-nav-cli-helpers.js";
 import {
   type PkgFilesCommandDependencies,
   pkgFilesAction,
@@ -16,6 +19,52 @@ import {
 } from "./files.js";
 
 describe("pkgFilesAction", () => {
+  it.each([
+    {
+      estimate: { elapsedSeconds: 5 },
+      unavailableReason: "NO_HISTORY" as const,
+      wait: 30000,
+    },
+    {
+      estimate: { lowerSeconds: 7, upperSeconds: 10 },
+      unavailableReason: undefined,
+      wait: 20000,
+    },
+  ])(
+    "renders one evidence-based wait for pending handoff %j",
+    ({ estimate, unavailableReason, wait }) => {
+      let caught: unknown;
+      try {
+        parseCodeContextResult({
+          codeIndexState: "INDEXING",
+          indexingEstimate: null,
+          indexingEstimates: [
+            {
+              kind: "REPOSITORY",
+              targets: ["npm:express"],
+              estimate,
+              unavailableReason,
+            },
+          ],
+        });
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(CodeNavigationIndexingError);
+      const mapped = mapCodeNavigationError(caught);
+      const output = formatIndexingError(mapped);
+      expect(mapped.message).toBe("Target is indexing.");
+      expect(output).toContain(`--wait ${wait}`);
+      expect(output).toContain(`wait_timeout_ms=${wait}`);
+      expect(output).not.toContain("60000");
+      expect(output.match(/Retry the same request/g)).toHaveLength(1);
+      expect(
+        output
+          .split("\n")
+          .filter((line) => line.includes("Retry the same request"))[0],
+      ).toStartWith("    ");
+    },
+  );
   const mcpUrl = "https://mcp.githits.com";
 
   it("points legacy help to the unified list command", () => {
@@ -558,7 +607,9 @@ describe("pkgFilesAction", () => {
     expect(output).toContain("indexing");
     expect(output).toContain("indexing ref: ref_xyz");
     expect(output.match(/Backend says this ref is queued\./g)).toHaveLength(1);
-    expect(output).toContain("indexing estimate: 7-19s, 3s elapsed");
+    expect(output).toContain(
+      "Estimated indexing time: 7-19s total. Time spent indexing: 3s.",
+    );
     expect(output).toContain("indexed refs/versions: 4.21.0, 4.20.1");
     errorSpy.mockRestore();
     exitSpy.mockRestore();

@@ -8,13 +8,28 @@ import {
 import { mapGrepError } from "./grep-error-map.js";
 
 describe("unified grep errors", () => {
+  it("describes a no-scopes issue without fabricated input attribution", () => {
+    const mapped = mapGrepError(
+      new GrepGraphQLError("No searchable scopes.", {
+        code: "GREP_TARGET_PREPARATION_REQUIRED",
+        retryable: false,
+        target_issues: [{ reason: "no_grep_scopes", retryable: false }],
+      }),
+    );
+    expect(mapped.message).toBe("No searchable scopes.");
+    expect(mapped.details?.hint).toBe(
+      "no searchable source or documentation is available",
+    );
+    expect(mapped.details?.targetIssues).toEqual([
+      { reason: "no_grep_scopes", retryable: false },
+    ]);
+  });
   it("retains bounded public per-input preparation details and explicit retryability", () => {
     const issue = {
       input_index: 1,
       target: "npm:x",
-      reason: "repository_indexing",
+      reason: "package_source_unavailable",
       retryable: true,
-      progress_ref: "index:1",
       suggested_refs: ["v1"],
       private_debug: "drop",
     };
@@ -31,9 +46,7 @@ describe("unified grep errors", () => {
     expect(error.details?.targetIssues?.[0]).not.toHaveProperty(
       "private_debug",
     );
-    expect(error.details?.hint).toContain(
-      "Input 1: repository_indexing; progress index:1",
-    );
+    expect(error.details?.hint).toContain("npm:x: package_source_unavailable");
   });
   it("keeps cursor invalid, protocol, transport, deadline and HTTP failures distinct", () => {
     expect(

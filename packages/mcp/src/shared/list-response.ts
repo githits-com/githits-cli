@@ -9,6 +9,7 @@ import type {
   ListTargetIdentity,
   ListTargetResolution,
 } from "@githits/core-internal";
+import { projectIndexingEstimates } from "./indexing-estimates.js";
 
 /** The selected backend fields, projected as one camelCase success payload. */
 export type ListResponse = ListResult;
@@ -17,6 +18,11 @@ export type ListResponse = ListResult;
 export function projectListResult(result: ListResult): ListResponse {
   const projected: ListResponse = {
     inventoryKind: result.inventoryKind,
+    ...(result.indexingEstimates !== undefined
+      ? {
+          indexingEstimates: projectIndexingEstimates(result.indexingEstimates),
+        }
+      : {}),
     requestedTarget: result.requestedTarget,
     canonicalTarget: result.canonicalTarget,
     entries: result.entries.map((entry) => ({

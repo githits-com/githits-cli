@@ -55,6 +55,7 @@ const hit: GrepHit = {
 };
 function result(overrides: Partial<GrepResult> = {}): GrepResult {
   return {
+    indexingEstimates: [],
     hits: [hit],
     targets: [target],
     unavailableTargets: [],
@@ -66,6 +67,12 @@ function result(overrides: Partial<GrepResult> = {}): GrepResult {
 }
 
 describe("unified grep result and text", () => {
+  it("accepts a pre-metadata injected provider while preserving absent metadata", () => {
+    const provider = result();
+    delete provider.indexingEstimates;
+    expect(projectGrepResult(provider)).toEqual(provider);
+    expect(projectGrepResult(provider)).not.toHaveProperty("indexingEstimates");
+  });
   it("retains an unvisited selected site and explains its continuation", () => {
     const page = result({
       targets: [
@@ -86,7 +93,9 @@ describe("unified grep result and text", () => {
     });
     expect(projectGrepResult(page)).toEqual(page);
     const output = formatGrepText(page);
-    expect(output).toContain("inputs 0, 1): not visited in this page");
+    expect(output).toContain("  - site:docs.test (no results on this page)");
+    expect(output).not.toContain("not visited in this page");
+    expect(output).not.toContain("inputs 0, 1");
     expect(output).not.toContain("UNSPECIFIED / RESUMABLE_LIMIT");
     expect(output).toContain("--cursor 'opaque'");
     expect(output).not.toContain("Unavailable input");
@@ -97,6 +106,7 @@ describe("unified grep result and text", () => {
     const context = String.raw`const path = "C:\src\file.ts"`;
     const output = formatGrepText(
       result({
+        indexingEstimates: [],
         hits: [
           {
             ...hit,
@@ -152,6 +162,7 @@ describe("unified grep result and text", () => {
   });
   it("allowlists fields, preserves selected nulls, details and independent arrays", () => {
     const data = result({
+      indexingEstimates: [],
       hits: [
         {
           ...hit,
@@ -195,6 +206,7 @@ describe("unified grep result and text", () => {
     };
     const output = formatGrepText(
       result({
+        indexingEstimates: [],
         hits: [hit, site, hit],
         totalMatches: 3,
         targets: [
@@ -227,6 +239,7 @@ describe("unified grep result and text", () => {
   it("merges overlapping context while keeping match markers and slice omissions", () => {
     const output = formatGrepText(
       result({
+        indexingEstimates: [],
         hits: [
           {
             ...hit,
@@ -306,10 +319,14 @@ describe("unified grep result and text", () => {
       }),
     );
     expect(output).toContain("docs_not_ready");
-    expect(output).toContain("crawl:1");
+    expect(output).not.toContain("crawl:1");
+    expect(
+      projectGrepResult(result({ unavailableTargets: [omission] }))
+        .unavailableTargets[0]?.progressRef,
+    ).toBe("crawl:1");
     expect(output).toContain("Suggested site");
     expect(output).toContain("--cursor 'opaque'");
-    expect(output).toContain("same ordered targets and controls");
+    expect(output).toContain("repeat this grep");
     expect(
       formatGrepText(
         result({
@@ -329,6 +346,7 @@ describe("unified grep result and text", () => {
     const content = `${"界".repeat(100)}\x1b[31m`;
     const output = formatGrepText(
       result({
+        indexingEstimates: [],
         hits: [
           {
             ...hit,
@@ -359,6 +377,7 @@ describe("unified grep result and text", () => {
     expect(
       formatGrepText(
         result({
+          indexingEstimates: [],
           hits: [{ ...hit, read: { ...hit.read, target: "github:o/r@abc\n" } }],
         }),
       ),

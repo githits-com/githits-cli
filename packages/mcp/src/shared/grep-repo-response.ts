@@ -1,4 +1,5 @@
 import type {
+  DiscoveryIndexingEstimate,
   GrepRepoMatch,
   GrepRepoResult,
   GrepRepoSymbolField,
@@ -9,6 +10,7 @@ import {
   buildEmptyGrepGuidance,
   buildGrepContextClampingNotice,
 } from "./grep-repo-text.js";
+import { projectIndexingEstimates } from "./indexing-estimates.js";
 import { shellQuote } from "./shell-quote.js";
 import {
   buildTargetResolutionNotes,
@@ -70,6 +72,7 @@ export interface LeanGrepRepoFilter {
 }
 
 export interface LeanGrepRepoEnvelope {
+  indexingEstimates?: DiscoveryIndexingEstimate[];
   contextClamping?: GrepContextClamping;
   registry?: string;
   name?: string;
@@ -166,6 +169,10 @@ export function buildGrepRepoSuccessPayload(
     envelope.truncatedReason = result.truncatedReason.toLowerCase();
   }
 
+  if (result.indexingEstimates !== undefined)
+    envelope.indexingEstimates = projectIndexingEstimates(
+      result.indexingEstimates,
+    );
   if (options.registry) envelope.registry = options.registry;
   if (options.name) envelope.name = options.name;
   if (options.repoUrl) envelope.repoUrl = options.repoUrl;

@@ -2773,6 +2773,22 @@ describe("PackageIntelligenceServiceImpl — package docs targets", () => {
         jsonResponse({
           data: {
             listPackageDocs: {
+              indexingEstimates: [
+                {
+                  kind: "REPOSITORY",
+                  targets: ["npm:express"],
+                  repositoryUrl: null,
+                  commitSha: null,
+                  unavailableReason: null,
+                  estimate: {
+                    lowerSeconds: 38,
+                    upperSeconds: 57,
+                    elapsedSeconds: 4,
+                    sampleCount: 9,
+                    source: "same_repository_refs",
+                  },
+                },
+              ],
               registry: "NPM",
               packageName: "express",
               codeIndexState: "PROVISIONAL",
@@ -2809,10 +2825,27 @@ describe("PackageIntelligenceServiceImpl — package docs targets", () => {
     expect(request.query).toContain("readTarget { target }");
     expect(request.query).not.toContain("docsReadTarget");
     expect(request.query).toContain("codeIndexState");
+    expect(request.query).toContain("indexingEstimates");
     expect(request.query).not.toContain("indexingStatus");
     expect(request.query).not.toContain("indexingRef");
     expect(request.query).not.toContain("targetResolution");
     expect(request.query).not.toContain("availableVersions");
+    expect(result.indexingEstimates).toEqual([
+      {
+        kind: "REPOSITORY",
+        targets: ["npm:express"],
+        repositoryUrl: undefined,
+        commitSha: undefined,
+        unavailableReason: undefined,
+        estimate: {
+          lowerSeconds: 38,
+          upperSeconds: 57,
+          elapsedSeconds: 4,
+          sampleCount: 9,
+          source: "same_repository_refs",
+        },
+      },
+    ]);
     expect(result.codeIndexState).toBe("PROVISIONAL");
     expect(result.pages[0]).toMatchObject({
       id: "legacy-crawled-id",
@@ -2836,6 +2869,7 @@ describe("PackageIntelligenceServiceImpl — package docs targets", () => {
         jsonResponse({
           data: {
             listPackageDocs: {
+              indexingEstimates: [],
               pages: [page],
             },
           },

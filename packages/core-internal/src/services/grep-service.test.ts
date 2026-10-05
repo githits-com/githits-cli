@@ -27,6 +27,7 @@ const params: GrepParams = {
 };
 function result(): GrepResult {
   return {
+    indexingEstimates: [],
     hits: [],
     targets: [],
     unavailableTargets: [],
@@ -61,6 +62,7 @@ function mixed(): GrepResult {
   return {
     ...result(),
     totalMatches: 2,
+    indexingEstimates: [],
     hits: [
       {
         __typename: "GrepRepositoryHit",
@@ -148,6 +150,71 @@ function detailedMixed(): GrepResult {
     });
   return data;
 }
+
+describe("uniform grep metadata", () => {
+  it("retains all pending work through the service", async () => {
+    let query = "";
+    const entries = [
+      {
+        kind: "REPOSITORY" as const,
+        targets: ["npm:express"],
+        repositoryUrl: null,
+        commitSha: null,
+        unavailableReason: null,
+        estimate: {
+          lowerSeconds: 38,
+          upperSeconds: 57,
+          elapsedSeconds: 4,
+          sampleCount: 9,
+          source: "same_repository_refs",
+        },
+      },
+    ];
+    const backend = {
+      ...result(),
+      indexingEstimates: [
+        ...entries,
+        {
+          kind: "DOCUMENTATION",
+          targets: ["site:docs.test"],
+          repositoryUrl: null,
+          commitSha: null,
+          estimate: null,
+          unavailableReason: "UNSUPPORTED_WORK",
+        },
+      ],
+    };
+    const client = service(async (_url, init) => {
+      query = JSON.parse(String(init?.body)).query;
+      return response({ data: { grep: backend } });
+    });
+    const parsed = await client.grep(params);
+    expect(parsed.indexingEstimates).toHaveLength(2);
+    expect(parsed.indexingEstimates?.[0]).toEqual(
+      [
+        {
+          kind: "REPOSITORY" as const,
+          targets: ["npm:express"],
+          repositoryUrl: undefined,
+          commitSha: undefined,
+          unavailableReason: undefined,
+          estimate: {
+            lowerSeconds: 38,
+            upperSeconds: 57,
+            elapsedSeconds: 4,
+            sampleCount: 9,
+            source: "same_repository_refs",
+          },
+        },
+      ][0],
+    );
+    expect(parsed.indexingEstimates?.[1]?.unavailableReason).toBe(
+      "UNSUPPORTED_WORK",
+    );
+    expect(query).toContain("indexingEstimates");
+    expect(query).toContain("sampleCount");
+  });
+});
 
 describe("unified grep service", () => {
   for (const detailed of [false, true]) {

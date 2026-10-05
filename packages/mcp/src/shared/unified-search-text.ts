@@ -16,6 +16,7 @@
  */
 
 import { colors, dim, highlight, highlightRanges } from "./colors.js";
+import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 import { renderReadTarget } from "./read-target-text.js";
 import {
   formatRepositoryTarget,
@@ -304,6 +305,8 @@ function appendPresentationContext(
       appendPresentationTargetGroup(lines, group, options);
     });
   }
+  for (const line of renderIndexingEstimates(presentation.indexingEstimates))
+    lines.push(...wrapText(line, options.width));
   appendPresentationWarnings(lines, presentation.warnings, options);
 }
 

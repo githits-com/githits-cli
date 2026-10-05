@@ -4,6 +4,7 @@ import type {
   AvailableVersion,
   CodeDiffPackageInfo,
   CodeDiffRefResolution,
+  DiscoveryIndexingEstimate,
   IndexingDurationEstimate,
   SuggestedRef,
   TargetResolution,
@@ -45,6 +46,7 @@ export interface MappedErrorDetails {
   targetResolution?: TargetResolution;
   indexingRef?: string;
   indexingEstimate?: IndexingDurationEstimate;
+  indexingEstimates?: DiscoveryIndexingEstimate[];
   status?: number;
   retryAfterSeconds?: number;
   timeoutMs?: number;

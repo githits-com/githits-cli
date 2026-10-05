@@ -15,6 +15,7 @@ import type {
 import {
   buildContainingPathPrefix,
   buildPathPrefixSuggestion,
+  formatIndexingDuration,
   InvalidPackageSpecError,
   isExactPathAuthorityError,
   looksLikeMissingFileMessage,
@@ -23,6 +24,7 @@ import {
 } from "@githits/mcp/internal";
 import { mapCodeNavigationErrorForCli } from "../../shared/cli-error-diagnostics.js";
 import {
+  appendBackendHint,
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,
 } from "../format-mapped-error.js";
@@ -96,24 +98,11 @@ export function formatIndexingError(mapped: MappedError): string {
   }
   if (mapped.code !== "INDEXING") return formatMappedErrorForTerminal(mapped);
   const detail = mapped.details ?? {};
-  const lines = [mapped.message];
-  if (detail.hint && !mapped.message.includes(detail.hint)) {
-    lines.push(`  hint: ${detail.hint}`);
-  }
+  const lines = [appendBackendHint(mapped, mapped.message)];
   if (detail.indexingRef) lines.push(`  indexing ref: ${detail.indexingRef}`);
-  const estimate = detail.indexingEstimate;
-  if (estimate) {
-    const bounds =
-      typeof estimate.lowerSeconds === "number" &&
-      typeof estimate.upperSeconds === "number"
-        ? `${estimate.lowerSeconds}-${estimate.upperSeconds}s`
-        : undefined;
-    const elapsed =
-      typeof estimate.elapsedSeconds === "number"
-        ? `${estimate.elapsedSeconds}s elapsed`
-        : undefined;
-    const summary = [bounds, elapsed].filter(Boolean).join(", ");
-    if (summary) lines.push(`  indexing estimate: ${summary}`);
+  if (!detail.indexingEstimates?.length) {
+    const timing = formatIndexingDuration(detail.indexingEstimate);
+    if (timing) lines.push(`  ${timing}`);
   }
   const versions = detail.availableVersions;
   if (versions && versions.length > 0) {

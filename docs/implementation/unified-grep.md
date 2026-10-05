@@ -14,6 +14,18 @@ githits grep -F -- '--foo' github:example/repository
 
 ## Matching and scope
 
+Pending repository and documentation preparation is described in plain language,
+with advisory total indexing duration when available and a fresh-request retry
+action. Opaque progress IDs stay in JSON. An empty page says "No matches yet"
+only when retryable unavailable targets account for every coverage gap; independent
+failures, cursor expiry and skipped evidence retain their warnings. Partial hits
+and real continuation cursors remain usable. Retry with the same ordered targets,
+pattern and matching controls without a cursor; only first-page preparation honors
+the wait budget. Unknown reasons are not relabeled as indexing.
+
+See [uniform indexing estimates](indexing-estimates.md) for shared field placement,
+duration semantics, wait recommendations and the production deployment prerequisite.
+
 The client explicitly sends RE2 regex mode, case-sensitive matching, zero
 context on each side and `ALL` repository corpus. Backend defaults differ.
 `-F/--fixed-strings` opts into literal matching; `-i/--ignore-case` uses backend
@@ -111,17 +123,34 @@ structured JSON shape and selected nulls without fetching an unused selector.
 Missing or malformed selected fields remain protocol errors; no legacy query
 fallback is added.
 
-Like search, one `Sources:` summary identifies the resolved scopes and each
+One `Sources:` list identifies resolved sources, one per line, and each
 numbered evidence header begins with a copyable read locator. `[1]`, `[2]` number
 file/page groups in first-appearance order, never sources or backend scopes.
-Multiple pages share one canonical website in the summary. Its short repository
+Scopes sharing a served source combine their page-result status in one entry.
+Multiple pages share one canonical website in the summary. Hosted documentation
+is labeled separately from repository evidence. A `requested` label appears only
+when a backend-reported full requested commit differs from the served commit;
+index freshness alone and a named ref compared to a SHA do not prove that a
+different snapshot was served. Named-ref mismatch needs resolved requested
+identity metadata that grep does not currently expose. Ordinary and hosted
+documentation results carry no requested label.
+Unavailable requested targets appear below the sources under `Omitted:`, one
+per line with their reason and compact advisory total indexing estimate when
+available.
+Sources without matches on an incomplete search are marked `(no results on
+this page)`, including scopes not yet visited because a page limit was reached.
+Completed searches use `(no results)`. This
+does not claim that the source has no matches overall. Independent coverage
+failures remain visible. The short repository
 SHA is provenance shorthand; each file locator retains the exact opaque
 backend target and repository-root path. The formatter does not canonicalize
 or substitute any read target, path or ref. A differing hosted display URL is
 secondary `[page: ...]` metadata after the actual read locator.
 
 ```text
-Sources: npm:express - site:expressjs.com, github:expressjs/express@dbac741a
+Sources:
+  - github:expressjs/express@dbac741a
+  - site:expressjs.com (hosted documentation)
 # Read files: read --lines $start-$end -- $target $path
 # Read pages: read --lines $start-$end -- $url
 
@@ -158,8 +187,9 @@ between grep and read; result text does not repeat that caveat.
 The scope stays in `targets`, retains its input attribution, and reports
 `RESUMABLE_LIMIT` traversal. Continue with `nextCursor` and identical ordered
 operands/controls to inspect it. Readiness has not yet been observed; this
-status does not indicate target failure or unavailable content. Text explains
-the unvisited scope, while JSON preserves the backend enum and full status.
+status does not indicate target failure or unavailable content. Text lists
+the source with `(no results on this page)` instead of a separate unvisited-scope
+message. JSON preserves the backend enum and full status.
 
 Stale/failed scopes, skips, issues, omitted issue counts, safety normalization
 and unavailable targets stay visible on zero-hit pages. `No matches.` is

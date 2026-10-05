@@ -21,6 +21,7 @@ import {
 } from "./code-navigation-service.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import { isTokenRefreshableError } from "./githits-service.js";
+import { INDEXING_ESTIMATES_SELECTION } from "./indexing-estimates.js";
 import {
   createPackageIntelligenceGraphQLError,
   MalformedPackageIntelligenceResponseError,
@@ -196,6 +197,7 @@ query Read(
       indexingRef
       ${CODE_CONTEXT_AVAILABLE_VERSIONS_SELECTION}
       ${INDEXING_DURATION_ESTIMATE_SELECTION}
+      ${INDEXING_ESTIMATES_SELECTION}
       ${TARGET_RESOLUTION_SELECTION}
     }
     ... on GetDocPageResult {

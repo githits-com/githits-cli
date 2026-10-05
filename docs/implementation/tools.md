@@ -657,7 +657,9 @@ Backend GraphQL errors preserve the backend message verbatim and carry its `hint
 
 **Retry defaults**: `DEFAULT_WAIT_TIMEOUT_MS = 30_000` (defined in `packages/mcp/src/shared/code-navigation-defaults.ts`) remains the default for unified `search`, compact `read`, and the legacy CLI `githits code` group, including `githits code grep`. Unified `grep` instead defaults preparation wait to zero. CLI search/search-status use `--wait <seconds>`; read and legacy code-group commands use `--wait <ms>`. MCP wait arguments use `wait_timeout_ms`.
 
-**Discovery indexing estimates and continuation**: Both initial `search` progress
+**Uniform indexing estimates and continuation**: See [the shared contract](indexing-estimates.md) for all waiting consumers, null-singular read handoffs and the production schema prerequisite. Human annotated output also displays total duration and active elapsed evidence.
+
+Discovery behavior: Both initial `search` progress
 and `search_status` progress retain `indexingEstimates` in CLI/MCP JSON. Entries
 identify `kind` (`REPOSITORY` or `DOCUMENTATION`), shared requested `targets`,
 repository URL and commit when known, timing evidence and `unavailableReason`.

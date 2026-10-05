@@ -8,8 +8,13 @@
  * checking a null content field.
  */
 
-import type { ReadFileResult } from "@githits/core-internal";
+import type {
+  DiscoveryIndexingEstimate,
+  ReadFileResult,
+} from "@githits/core-internal";
 import { colorize, dim } from "./colors.js";
+import { projectIndexingEstimates } from "./indexing-estimates.js";
+import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 import {
   buildTargetResolutionNotes,
   type LeanTargetResolution,
@@ -17,6 +22,7 @@ import {
 } from "./target-resolution.js";
 
 export interface LeanReadFileEnvelope {
+  indexingEstimates?: DiscoveryIndexingEstimate[];
   registry?: string;
   name?: string;
   repoUrl?: string;
@@ -62,6 +68,11 @@ export function buildReadFileSuccessPayload(
 ): LeanReadFileEnvelope {
   const envelope: LeanReadFileEnvelope = {
     path: result.filePath ?? options.requestedFilePath,
+    ...(result.indexingEstimates !== undefined
+      ? {
+          indexingEstimates: projectIndexingEstimates(result.indexingEstimates),
+        }
+      : {}),
   };
   if (options.registry) envelope.registry = options.registry;
   if (options.name) envelope.name = options.name;
@@ -177,6 +188,7 @@ function formatVerboseBody(
     lines.push("");
     lines.push(dim(envelope.hint, options.useColors));
   }
+  lines.push(...renderIndexingEstimates(envelope.indexingEstimates));
   appendTargetResolutionNotes(lines, envelope, options);
   lines.push("");
   return lines.join("\n");

@@ -346,7 +346,9 @@ describe("searchAction", () => {
     const output = String(errorSpy.mock.calls[0]?.[0]);
     expect(output).toContain("--wait 60000");
     expect(output).toContain("indexing ref: idx-search");
-    expect(output).toContain("indexing estimate: 7-19s, 3s elapsed");
+    expect(output).toContain(
+      "Estimated indexing time: 7-19s total. Time spent indexing: 3s.",
+    );
     expect(output).toContain("indexed refs/versions: 5.2.1");
     errorSpy.mockRestore();
     exitSpy.mockRestore();

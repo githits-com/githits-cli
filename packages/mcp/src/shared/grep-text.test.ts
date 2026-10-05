@@ -69,7 +69,7 @@ describe("grep text formatting", () => {
     );
     const normalizedText = rendered.replace(/\s+/g, " ");
     expect(normalizedText).toContain(
-      "Sources: npm:express - site:expressjs.com, github:expressjs/express@dbac741a",
+      "Sources: - github:expressjs/express@dbac741a - site:expressjs.com (hosted documentation)",
     );
     expect(normalizedText.match(/site:expressjs\.com/g) ?? []).toHaveLength(1);
     expect(
@@ -151,6 +151,7 @@ describe("grep text formatting", () => {
 
     const siteOnlyResult: GrepResult = {
       ...parsedOriginal,
+      indexingEstimates: [],
       hits: hostedHits,
       targets: [
         {
@@ -172,12 +173,346 @@ describe("grep text formatting", () => {
     });
 
     expect(
-      rendered.split("\n").find((line) => line.startsWith("Sources:")),
-    ).toBe("Sources: site:expressjs.com");
+      rendered.split("\n").filter((line) => line.startsWith("  - ")),
+    ).toEqual(["  - site:expressjs.com (hosted documentation)"]);
     expect(rendered).not.toContain(
       "Sources: site:expressjs.com - site:expressjs.com",
     );
     expect(rendered.match(/site:expressjs\.com/g) ?? []).toHaveLength(1);
+  });
+
+  it("separates pending package source from served hosted docs and keeps retry guidance at the end", () => {
+    const original = parseGrepResult(mixed100);
+    const site = original.targets.find((scope) => scope.kind === "SITE")!;
+    const hits = original.hits.filter(
+      (hit) => hit.targetIndex === site.targetIndex,
+    );
+    const target = "npm:express@1.0.2";
+    const result: GrepResult = {
+      ...original,
+      targets: [{ ...site, target }],
+      hits,
+      totalMatches: hits.length,
+      unavailableTargets: [
+        {
+          inputIndex: 0,
+          target,
+          reason: "repository_indexing",
+          retryable: true,
+          progressRef: "opaque-indexing-id",
+          suggestedSiteTargets: null,
+        },
+      ],
+      indexingEstimates: [
+        {
+          kind: "REPOSITORY",
+          targets: [target],
+          estimate: { lowerSeconds: 37, upperSeconds: 85 },
+        },
+      ],
+    };
+    const before = structuredClone(result);
+    for (const syntax of ["cli", "mcp"] as const) {
+      const text = formatGrepText(result, { syntax, width: 160 });
+      const lines = text.split("\n");
+      const summary = `Sources:\n  - site:expressjs.com (hosted documentation)\nOmitted:\n  - ${target} (indexing, estimated total: 37-85s)`;
+      expect(text).toContain(summary);
+      expect(formatGrepText(result, { syntax, width: 80 })).toContain(summary);
+      expect(text).not.toContain("Serving partial data.");
+      expect(text).not.toContain("(requested:");
+      expect(text).not.toContain("github:expressjs/express");
+      expect(text).not.toContain("Run grep again");
+      expect(text).not.toContain("Use the cursor below");
+      expect(lines.at(-1)).toBe(
+        `To retry omitted targets, rerun the original query with ${syntax === "cli" ? "--wait 100000" : "wait_timeout_ms=100000"}.`,
+      );
+      const cursor = syntax === "cli" ? "  --cursor " : "  cursor=";
+      expect(
+        lines.findIndex((line) => line.startsWith(cursor)),
+      ).toBeGreaterThan(lines.findLastIndex((line) => /^\s*\d+: /.test(line)));
+    }
+    expect(result).toEqual(before);
+  });
+
+  it("lists resolved sources without matches with a page-specific explanation", () => {
+    const original = parseGrepResult(mixed100);
+    const site = original.targets.find((scope) => scope.kind === "SITE")!;
+    const hits = original.hits.filter(
+      (hit) => hit.targetIndex === site.targetIndex,
+    );
+    const text = formatGrepText(
+      { ...original, hits, totalMatches: hits.length },
+      { width: 160 },
+    );
+    expect(text).toContain("  - site:expressjs.com (hosted documentation)");
+    expect(text).toContain(
+      "  - github:expressjs/express@dbac741a (no results on this page)",
+    );
+  });
+
+  it("lists unvisited scopes beside the matched source without duplicating coverage internals", () => {
+    const original = parseGrepResult(mixed100);
+    const repository = original.targets.find(
+      (scope) => scope.kind === "REPOSITORY",
+    )!;
+    const site = original.targets.find((scope) => scope.kind === "SITE")!;
+    const hit = original.hits.find(
+      (hit) => hit.targetIndex === repository.targetIndex,
+    )!;
+    const result: GrepResult = {
+      ...original,
+      hits: [hit],
+      totalMatches: 1,
+      targets: [
+        repository,
+        {
+          ...site,
+          target: "npm:express@1.0.3",
+          readiness: "UNSPECIFIED",
+          traversal: "RESUMABLE_LIMIT",
+        },
+      ],
+    };
+    const before = structuredClone(result);
+    for (const syntax of ["cli", "mcp"] as const) {
+      const text = formatGrepText(result, { syntax, width: 80 });
+      expect(text).toContain(
+        "Sources:\n  - github:expressjs/express@dbac741a\n  - site:expressjs.com (no results on this page)",
+      );
+      expect(text).not.toContain("Hosted docs npm:");
+      expect(text).not.toContain("not visited");
+      expect(text).not.toContain("Omitted:");
+      expect(text).not.toContain("To retry omitted targets");
+      expect(text).toContain("More matches: repeat this grep, adding:");
+      expect(text).toContain(syntax === "cli" ? "  --cursor " : "  cursor=");
+    }
+    expect(result).toEqual(before);
+    const failed = formatGrepText({
+      ...result,
+      targets: [
+        repository,
+        {
+          ...result.targets[1]!,
+          traversal: "FAILED",
+          errorCode: "docs_failed",
+          publicMessage: "Could not search pages.",
+        },
+      ],
+    });
+    expect(failed).toContain("search failed");
+    expect(failed).toContain("docs_failed");
+    expect(failed.replace(/\s+/g, " ")).toContain("Could not search pages.");
+    expect(failed).not.toContain("pages..");
+  });
+
+  it("combines page-result status for scopes sharing a resolved source", () => {
+    const original = parseGrepResult(mixed100);
+    for (const kind of ["SITE", "REPOSITORY"] as const) {
+      const scope = original.targets.find((scope) => scope.kind === kind)!;
+      const duplicate = {
+        ...scope,
+        targetIndex: 99,
+        target: "npm:second-request",
+        readiness: "UNSPECIFIED" as const,
+      };
+      const hits = original.hits.filter(
+        (hit) => hit.targetIndex === scope.targetIndex,
+      );
+      for (const targets of [
+        [scope, duplicate],
+        [duplicate, scope],
+      ]) {
+        for (const pageHits of [hits, []]) {
+          const result: GrepResult = {
+            ...original,
+            targets,
+            hits: pageHits,
+            totalMatches: pageHits.length,
+          };
+          // The documented wire shape permits repeated resolved identities.
+          expect(parseGrepResult(result).targets).toHaveLength(2);
+          const bullets = formatGrepText(result, { width: 160 })
+            .split("\n")
+            .filter((line) => line.startsWith("  - "));
+          expect(bullets).toHaveLength(1);
+          expect(bullets[0]!.includes("no results on this page")).toBe(
+            pageHits.length === 0,
+          );
+        }
+      }
+    }
+  });
+
+  it("keeps differing requested refs with one served source and combines their page results", () => {
+    const original = parseGrepResult(mixed100);
+    const repository = original.targets.find(
+      (scope) => scope.kind === "REPOSITORY",
+    )!;
+    const fallback = {
+      ...repository,
+      targetIndex: 99,
+      target: "npm:older-version",
+      requestedRef: "a".repeat(40),
+    };
+    const hits = original.hits.filter(
+      (hit) => hit.targetIndex === repository.targetIndex,
+    );
+    for (const targets of [
+      [repository, fallback],
+      [fallback, repository],
+    ]) {
+      for (const pageHits of [hits, []]) {
+        const text = formatGrepText(
+          {
+            ...original,
+            targets,
+            hits: pageHits,
+            totalMatches: pageHits.length,
+          },
+          { width: 160 },
+        );
+        const bullets = text
+          .split("\n")
+          .filter((line) => line.startsWith("  - "));
+        expect(bullets).toHaveLength(1);
+        expect(bullets[0]).toContain(
+          "github:expressjs/express@dbac741a (requested: npm:older-version)",
+        );
+        expect(bullets[0]!.includes("no results on this page")).toBe(
+          pageHits.length === 0,
+        );
+      }
+    }
+  });
+
+  it("wraps source and omission bullets under their text and distinguishes completed searches", () => {
+    const original = parseGrepResult(mixed100);
+    const site = original.targets.find((scope) => scope.kind === "SITE")!;
+    const target = "npm:express@1.0.3";
+    const result: GrepResult = {
+      ...original,
+      hits: [],
+      totalMatches: 0,
+      targets: [
+        {
+          ...site,
+          canonicalSite: `https://${"a".repeat(64)}.test`,
+          readiness: "UNSPECIFIED",
+        },
+      ],
+      unavailableTargets: [
+        {
+          inputIndex: 0,
+          target,
+          reason: "repository_indexing",
+          retryable: true,
+          progressRef: null,
+          suggestedSiteTargets: null,
+        },
+      ],
+      indexingEstimates: [
+        {
+          kind: "REPOSITORY",
+          targets: [target],
+          estimate: { lowerSeconds: 33, upperSeconds: 85, elapsedSeconds: 90 },
+        },
+      ],
+    };
+    for (const syntax of ["cli", "mcp"] as const) {
+      const text = formatGrepText(result, { syntax, width: 80 });
+      expect(text).toContain(
+        `  - site:${"a".repeat(64)}.test\n    (no results on this page)`,
+      );
+      expect(text).toContain(
+        `  - ${target} (indexing, estimated total: 33-85s, time spent indexing:\n    90s)`,
+      );
+      expect(
+        text
+          .split("\n")
+          .every((line) => line.length <= 80 || line.includes("cursor")),
+      ).toBe(true);
+      const complete: GrepResult = {
+        ...result,
+        targets: [{ ...site, readiness: "CURRENT", traversal: "COMPLETE" }],
+        traversal: "COMPLETE",
+        nextCursor: null,
+        unavailableTargets: [],
+        indexingEstimates: [],
+      };
+      expect(formatGrepText(complete, { syntax })).toContain(
+        "No matches.\n\nSources:\n  - site:expressjs.com (no results)",
+      );
+      expect(formatGrepText({ ...complete, targets: [] }, { syntax })).toBe(
+        "No matches.",
+      );
+    }
+  });
+
+  it("keeps repository requests concise beside their served commit", () => {
+    const original = parseGrepResult(mixed100);
+    const repository = original.targets.find(
+      (scope) => scope.kind === "REPOSITORY",
+    )!;
+    const hits = original.hits.filter(
+      (hit) => hit.targetIndex === repository.targetIndex,
+    );
+    for (const target of [
+      "github:expressjs/express",
+      "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+    ]) {
+      const text = formatGrepText(
+        {
+          ...original,
+          targets: [{ ...repository, target }],
+          hits,
+          totalMatches: hits.length,
+        },
+        { width: 160 },
+      );
+      expect(text).toContain("  - github:expressjs/express@dbac741a");
+      expect(text).not.toContain("(requested:");
+    }
+  });
+  it("shows the requested repository target only when a different snapshot was served", () => {
+    const original = parseGrepResult(mixed100);
+    const repository = original.targets.find(
+      (scope) => scope.kind === "REPOSITORY",
+    )!;
+    const hits = original.hits.filter(
+      (hit) => hit.targetIndex === repository.targetIndex,
+    );
+    const target = "github:expressjs/express@v2";
+    for (const { readiness, requestedRef, showRequested } of [
+      { readiness: "CURRENT", requestedRef: "v2", showRequested: false },
+      { readiness: "STALE", requestedRef: "v2", showRequested: false },
+      {
+        readiness: "STALE",
+        requestedRef: repository.commitSha!,
+        showRequested: false,
+      },
+      {
+        readiness: "CURRENT",
+        requestedRef: "a".repeat(40),
+        showRequested: true,
+      },
+      { readiness: "STALE", requestedRef: "a".repeat(40), showRequested: true },
+    ] as const) {
+      const text = formatGrepText(
+        {
+          ...original,
+          targets: [{ ...repository, target, requestedRef, readiness }],
+          hits,
+          totalMatches: hits.length,
+        },
+        { width: 160 },
+      );
+      const sources = text.split("\n").find((line) => line.startsWith("  - "));
+      if (showRequested) {
+        expect(sources).toContain(`(requested: ${target})`);
+      } else {
+        expect(sources).not.toContain("(requested:");
+      }
+    }
   });
 });
 

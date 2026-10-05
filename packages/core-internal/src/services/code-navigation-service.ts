@@ -26,12 +26,27 @@ import {
   SERVER_AUTHENTICATION_REJECTED_MESSAGE,
 } from "./githits-service.js";
 import {
+  type DiscoveryIndexingEstimate,
+  INDEXING_DURATION_ESTIMATE_SELECTION,
+  INDEXING_ESTIMATES_SELECTION,
+  type IndexingDurationEstimate,
+  indexingDurationEstimateSchema,
+  indexingEstimatesSchema,
+  normaliseIndexingDurationEstimate,
+} from "./indexing-estimates.js";
+import {
   READ_TARGET_SELECTION,
   type ReadTarget,
   selectedReadTargetSchema,
 } from "./read-target.js";
 import type { ServiceDiagnostics } from "./runtime-diagnostics.js";
 import type { TokenProvider } from "./token-provider.js";
+
+export type {
+  DiscoveryIndexingEstimate,
+  IndexingDurationEstimate,
+} from "./indexing-estimates.js";
+export { INDEXING_DURATION_ESTIMATE_SELECTION } from "./indexing-estimates.js";
 
 const INDEXING_WAIT_HINT =
   "Wait until ready with CLI `--wait 60000` or MCP `wait_timeout_ms: 60000`.";
@@ -520,16 +535,6 @@ export interface UnifiedSearchResult {
   evidenceNotice?: string;
 }
 
-/** Pending preparation evidence; total execution seconds, never a search ETA. */
-export interface DiscoveryIndexingEstimate {
-  kind: "REPOSITORY" | "DOCUMENTATION";
-  targets: string[];
-  repositoryUrl?: string;
-  commitSha?: string;
-  estimate?: IndexingDurationEstimate;
-  unavailableReason?: "NO_HISTORY" | "UNSUPPORTED_WORK";
-}
-
 export interface UnifiedSearchProgress {
   searchRef: string;
   status: UnifiedSearchSessionStatus;
@@ -575,14 +580,6 @@ export interface AvailableVersion {
   ref: string;
 }
 
-export interface IndexingDurationEstimate {
-  lowerSeconds?: number;
-  upperSeconds?: number;
-  elapsedSeconds?: number;
-  sampleCount?: number;
-  source?: string;
-}
-
 /**
  * Input for {@link CodeNavigationService.listFiles}.
  */
@@ -612,6 +609,7 @@ export interface RepoFileEntry {
 }
 
 export interface ListFilesResult {
+  indexingEstimates?: DiscoveryIndexingEstimate[];
   files: RepoFileEntry[];
   total: number;
   hasMore: boolean;
@@ -633,6 +631,7 @@ export interface ReadFileParams {
 }
 
 export interface ReadFileResult {
+  indexingEstimates?: DiscoveryIndexingEstimate[];
   /** Served action selected by unified read; legacy readers may omit it. */
   readTarget?: ReadTarget | null;
   filePath?: string;
@@ -925,6 +924,7 @@ export type GrepTruncatedReason =
   | "DEADLINE";
 
 export interface GrepRepoResult {
+  indexingEstimates?: DiscoveryIndexingEstimate[];
   matches: GrepRepoMatch[];
   nextCursor?: string;
   hasMore: boolean;
@@ -989,6 +989,10 @@ export class CodeNavigationIndexingError extends Error {
       | IndexingDurationEstimate
       | undefined = undefined,
     public readonly hint: string | undefined = undefined,
+    public readonly indexingEstimates:
+      | DiscoveryIndexingEstimate[]
+      | undefined = undefined,
+    public readonly repoUrl: string | undefined = undefined,
   ) {
     super(message);
     this.name = "CodeNavigationIndexingError";
@@ -1267,30 +1271,6 @@ availableRefs {
 }
 ${DISCOVERY_TARGET_PROGRESS_SUGGESTED_REFS_SELECTION}`;
 
-const INDEXING_DURATION_ESTIMATE_FIELDS = `
-  lowerSeconds
-  upperSeconds
-  elapsedSeconds
-  sampleCount
-  source`;
-
-export const INDEXING_DURATION_ESTIMATE_SELECTION: string = `
-indexingEstimate {
-  ${INDEXING_DURATION_ESTIMATE_FIELDS}
-}`;
-
-const DISCOVERY_INDEXING_ESTIMATES_SELECTION = `
-indexingEstimates {
-  kind
-  targets
-  repositoryUrl
-  commitSha
-  estimate {
-    ${INDEXING_DURATION_ESTIMATE_FIELDS}
-  }
-  unavailableReason
-}`;
-
 const UNIFIED_SEARCH_LOCATOR_SELECTION = `
 registry
 packageName
@@ -1473,7 +1453,7 @@ query UnifiedSearch(
       targetsTotal
       targetsReady
       elapsedMs
-      ${DISCOVERY_INDEXING_ESTIMATES_SELECTION}
+      ${INDEXING_ESTIMATES_SELECTION}
       query
       queryWarnings
       sources
@@ -1520,7 +1500,7 @@ query UnifiedSearchStatus($searchRef: String!, $includeResults: Boolean!, $waitT
     targetsTotal
     targetsReady
     elapsedMs
-    ${DISCOVERY_INDEXING_ESTIMATES_SELECTION}
+    ${INDEXING_ESTIMATES_SELECTION}
     query
     queryWarnings
     sources
@@ -1696,17 +1676,6 @@ const availableVersionSchema = z.object({
   version: z.string().nullable().optional(),
   ref: z.string(),
 });
-
-const indexingDurationEstimateSchema = z
-  .object({
-    lowerSeconds: z.number().int().nullable().optional(),
-    upperSeconds: z.number().int().nullable().optional(),
-    elapsedSeconds: z.number().int().nullable().optional(),
-    sampleCount: z.number().int().nullable().optional(),
-    source: z.string().nullable().optional(),
-  })
-  .nullable()
-  .optional();
 
 const targetResolutionIdentitySchema = z
   .object({
@@ -2041,15 +2010,6 @@ const unifiedSearchRequestedTargetSchema = z.object({
   site: z.string().nullable().optional(),
 });
 
-const discoveryIndexingEstimateSchema = z.object({
-  kind: z.enum(["REPOSITORY", "DOCUMENTATION"]),
-  targets: z.array(z.string()),
-  repositoryUrl: z.string().nullable(),
-  commitSha: z.string().nullable(),
-  estimate: indexingDurationEstimateSchema,
-  unavailableReason: z.enum(["NO_HISTORY", "UNSUPPORTED_WORK"]).nullable(),
-});
-
 const unifiedSearchProgressSchema = z.object({
   searchRef: z.string(),
   status: unifiedSearchSessionStatusSchema,
@@ -2069,7 +2029,7 @@ const unifiedSearchProgressSchema = z.object({
   limit: z.number().int().nullable().optional(),
   offset: z.number().int().nullable().optional(),
   targets: z.array(unifiedSearchProgressTargetSchema).nullable().optional(),
-  indexingEstimates: z.array(discoveryIndexingEstimateSchema),
+  indexingEstimates: indexingEstimatesSchema,
   expiresAt: z.string().nullable().optional(),
   results: unifiedSearchResultSchema.nullable().optional(),
 });
@@ -2340,6 +2300,7 @@ const listRepoFilesResponseSchema = z.object({
   indexingRef: z.string().nullable().optional(),
   availableVersions: z.array(availableVersionSchema).nullable().optional(),
   indexingEstimate: indexingDurationEstimateSchema,
+  indexingEstimates: indexingEstimatesSchema,
 });
 
 const listRepoFilesGraphQLResponseSchema = z.object({
@@ -2420,6 +2381,7 @@ query ListRepoFiles(
       ref
     }
     ${INDEXING_DURATION_ESTIMATE_SELECTION}
+    ${INDEXING_ESTIMATES_SELECTION}
   }
 }`;
 
@@ -2441,6 +2403,7 @@ const codeContextResponseSchema = z.object({
   indexingRef: z.string().nullable().optional(),
   availableVersions: z.array(availableVersionSchema).nullable().optional(),
   indexingEstimate: indexingDurationEstimateSchema,
+  indexingEstimates: indexingEstimatesSchema,
   targetResolution: targetResolutionSchema,
 });
 
@@ -2490,6 +2453,7 @@ query FetchCodeContext(
     indexingRef
     ${CODE_CONTEXT_AVAILABLE_VERSIONS_SELECTION}
     ${INDEXING_DURATION_ESTIMATE_SELECTION}
+    ${INDEXING_ESTIMATES_SELECTION}
     ${TARGET_RESOLUTION_SELECTION}
   }
 }`;
@@ -2550,6 +2514,7 @@ const grepRepoResponseSchema = z.object({
   indexingRef: z.string().nullable().optional(),
   availableVersions: z.array(availableVersionSchema).nullable().optional(),
   indexingEstimate: indexingDurationEstimateSchema,
+  indexingEstimates: indexingEstimatesSchema,
 });
 
 const grepRepoGraphQLResponseSchema = z.object({
@@ -2672,6 +2637,7 @@ query GrepRepo(
       ref
     }
     ${INDEXING_DURATION_ESTIMATE_SELECTION}
+    ${INDEXING_ESTIMATES_SELECTION}
   }
 }`;
 }
@@ -3224,14 +3190,7 @@ export class CodeNavigationServiceImpl
         suggestedRefs: normaliseAvailableVersions(target.suggestedRefs),
         coverage: normaliseDocCoverage(target.coverage),
       })),
-      indexingEstimates: progress.indexingEstimates.map((entry) => ({
-        kind: entry.kind,
-        targets: entry.targets,
-        repositoryUrl: entry.repositoryUrl ?? undefined,
-        commitSha: entry.commitSha ?? undefined,
-        estimate: normaliseIndexingDurationEstimate(entry.estimate),
-        unavailableReason: entry.unavailableReason ?? undefined,
-      })),
+      indexingEstimates: progress.indexingEstimates,
       expiresAt: progress.expiresAt ?? undefined,
     };
   }
@@ -3248,6 +3207,7 @@ export class CodeNavigationServiceImpl
     availableVersions?: Array<{ version?: string | null; ref: string }> | null;
     targetResolution?: z.infer<typeof targetResolutionSchema>;
     indexingEstimate?: z.infer<typeof indexingDurationEstimateSchema>;
+    indexingEstimates?: DiscoveryIndexingEstimate[];
   }): void {
     throwIfCodeContextIndexing(data);
   }
@@ -3352,6 +3312,7 @@ export class CodeNavigationServiceImpl
         : undefined,
       targetResolution: normaliseTargetResolution(data.targetResolution),
       hint: data.diagnostics?.hint ?? undefined,
+      indexingEstimates: data.indexingEstimates,
     };
   }
 
@@ -3553,6 +3514,7 @@ export class CodeNavigationServiceImpl
           }
         : undefined,
       targetResolution: normaliseTargetResolution(data.targetResolution),
+      indexingEstimates: data.indexingEstimates,
     };
   }
 }
@@ -4125,6 +4087,8 @@ export function createCodeNavigationGraphQLError(
           message,
           typeof extensions?.hint === "string" ? extensions.hint : undefined,
         ),
+        undefined,
+        parseGraphQLRepoUrl(extensions),
       );
 
     case "GREP_PATTERN_TOO_SHORT":
@@ -4475,6 +4439,7 @@ function normaliseCodeContextResult(
     isBinary: data.isBinary ?? undefined,
     targetResolution: normaliseTargetResolution(data.targetResolution),
     availableVersions: normaliseAvailableVersions(data.availableVersions),
+    indexingEstimates: data.indexingEstimates,
   };
 }
 
@@ -4484,6 +4449,7 @@ function throwIfCodeContextIndexing(data: {
   availableVersions?: Array<{ version?: string | null; ref: string }> | null;
   targetResolution?: z.infer<typeof targetResolutionSchema>;
   indexingEstimate?: z.infer<typeof indexingDurationEstimateSchema>;
+  indexingEstimates?: DiscoveryIndexingEstimate[];
 }): void {
   if (data.codeIndexState !== "INDEXING") return;
 
@@ -4492,13 +4458,17 @@ function throwIfCodeContextIndexing(data: {
     data.indexingEstimate,
   );
   throw new CodeNavigationIndexingError(
-    `Target is indexing. ${INDEXING_WAIT_HINT}`,
+    data.indexingEstimates?.length
+      ? "Target is indexing."
+      : `Target is indexing. ${INDEXING_WAIT_HINT}`,
     data.indexingRef ?? targetResolution?.indexingRef,
     normaliseAvailableVersions(data.availableVersions) ??
       targetResolution?.availableVersions,
     targetResolution?.availableRefs,
     targetResolution,
     indexingEstimate,
+    undefined,
+    data.indexingEstimates,
   );
 }
 
@@ -4512,27 +4482,6 @@ export function parseCodeContextResult(data: unknown): ReadFileResult {
   }
   throwIfCodeContextIndexing(parsed.data);
   return normaliseCodeContextResult(parsed.data);
-}
-
-function normaliseIndexingDurationEstimate(
-  estimate: z.infer<typeof indexingDurationEstimateSchema>,
-): IndexingDurationEstimate | undefined {
-  if (!estimate) return undefined;
-  const out: IndexingDurationEstimate = {};
-  if (typeof estimate.lowerSeconds === "number") {
-    out.lowerSeconds = estimate.lowerSeconds;
-  }
-  if (typeof estimate.upperSeconds === "number") {
-    out.upperSeconds = estimate.upperSeconds;
-  }
-  if (typeof estimate.elapsedSeconds === "number") {
-    out.elapsedSeconds = estimate.elapsedSeconds;
-  }
-  if (typeof estimate.sampleCount === "number") {
-    out.sampleCount = estimate.sampleCount;
-  }
-  if (typeof estimate.source === "string") out.source = estimate.source;
-  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function appendIndexingWaitHint(

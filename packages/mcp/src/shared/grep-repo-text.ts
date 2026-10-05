@@ -15,6 +15,7 @@ import type {
   LeanGrepRepoEnvelope,
   LeanGrepRepoMatch,
 } from "./grep-repo-response.js";
+import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 import { shellQuote } from "./shell-quote.js";
 import {
   buildTargetResolutionNotes,
@@ -37,6 +38,7 @@ interface RenderBlock {
 export function renderGrepRepoText(envelope: LeanGrepRepoEnvelope): string {
   const lines: string[] = [];
   lines.push(buildHeader(envelope));
+  lines.push(...renderIndexingEstimates(envelope.indexingEstimates));
   lines.push("");
 
   if (envelope.matches.length === 0) {

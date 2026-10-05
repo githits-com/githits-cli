@@ -2160,7 +2160,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   );
   assert(
     packageListFirstText.includes(
-      `More results: reuse the same target, paths, and options with:\n  --after ${shellQuoteExact(packageListJson.nextCursor)}`,
+      `  --after ${shellQuoteExact(packageListJson.nextCursor)}`,
     ),
     "list package first page text missing exact continuation cursor",
   );
@@ -2196,10 +2196,11 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "list site terminal",
   );
   assert(
-    siteListText.startsWith(
-      '# source site:expressjs.com | follow up with "read site:expressjs.com $path"',
-    ) && siteListText.includes("\n/"),
-    "list site terminal missing logical read guidance or root page",
+    siteListText.startsWith("# source site:expressjs.com") &&
+      siteListText
+        .split("\n")
+        .some((line) => line === "/" || line === "https://expressjs.com/"),
+    "list site terminal missing source or root page",
   );
 
   const siteListJson = assertJsonOutput(

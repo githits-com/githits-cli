@@ -329,9 +329,8 @@ describe("unified grep CLI", () => {
                   target_issues: [
                     {
                       input_index: 0,
-                      reason: "indexing",
+                      reason: "package_source_unavailable",
                       retryable: true,
-                      progress_ref: "index:1",
                     },
                   ],
                 });
@@ -342,8 +341,8 @@ describe("unified grep CLI", () => {
       ).rejects.toThrow("exit");
       expect(
         JSON.parse(String(error.mock.calls.at(-1)?.[0])).details.targetIssues[0]
-          .progress_ref,
-      ).toBe("index:1");
+          .reason,
+      ).toBe("package_source_unavailable");
       expect(
         JSON.parse(String(error.mock.calls.at(-1)?.[0])).details.hint,
       ).toContain("--wait <ms>");
