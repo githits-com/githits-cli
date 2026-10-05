@@ -48,7 +48,7 @@ export function formatIndexingEstimate(
       entry.unavailableReason === "NO_HISTORY"
         ? "not enough history for an estimate"
         : entry.unavailableReason === "UNSUPPORTED_WORK"
-          ? "no estimate available for documentation"
+          ? "no estimate available"
           : undefined;
     return (
       [timing, missing].filter(Boolean).join(", ") || "estimate unavailable"

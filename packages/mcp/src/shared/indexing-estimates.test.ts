@@ -57,7 +57,7 @@ describe("uniform indexing evidence presentation", () => {
       expect(output).toContain("No matches yet.");
       expect(output).toContain("(indexing, estimated total: 38-57s");
       expect(output).toContain("time spent indexing: 90s");
-      expect(output).toContain("Rerun the original query");
+      expect(output).toContain("To retry omitted targets");
       expect(output).toContain(
         syntax === "cli" ? "--wait 70000" : "wait_timeout_ms=70000",
       );
@@ -97,7 +97,7 @@ describe("uniform indexing evidence presentation", () => {
     expect(output).toContain("coverage is incomplete");
     expect(output).toContain("Cursor expired");
     expect(output).toContain("unknown_reason");
-    expect(output).not.toContain("Rerun the original query");
+    expect(output).not.toContain("To retry omitted targets");
     expect(output).not.toContain("being indexed");
   });
   it("retains unmatched estimate kinds once without assigning them to an omitted repository", () => {
@@ -135,8 +135,36 @@ describe("uniform indexing evidence presentation", () => {
     expect(
       text.split("\n").filter((line) => line.startsWith("Omitted:")),
     ).toEqual([
-      "Omitted: site:docs.test (documentation is being prepared, no estimate available for documentation)",
+      "Omitted: site:docs.test (documentation is being prepared, no estimate available)",
     ]);
+  });
+  it("does not repeat traversal jargon for terminal omissions, while retaining independent failure warnings", () => {
+    const result = pending({
+      unavailableTargets: [
+        {
+          inputIndex: 0,
+          target: "npm:x",
+          reason: "no_grep_scopes",
+          retryable: false,
+          progressRef: null,
+          suggestedSiteTargets: null,
+        },
+      ],
+      indexingEstimates: [],
+    });
+    const text = formatGrepText(result);
+    expect(text).toContain("coverage is incomplete");
+    expect(text).toContain("Omitted: npm:x");
+    expect(text).not.toContain("Traversal is incomplete");
+    expect(text).not.toContain("No matches yet");
+    expect(text).not.toContain("To retry omitted targets");
+    expect(formatGrepText({ ...result, traversal: "FAILED" })).toContain(
+      "Traversal is incomplete",
+    );
+    expect(formatGrepText({ ...result, unavailableTargets: [] })).toContain(
+      "Traversal is incomplete",
+    );
+    expect(projectGrepResult(result).traversal).toBe("NON_RESUMABLE_PARTIAL");
   });
   it("renders unknown history and unsupported docs without fabricated durations", () => {
     const entries: DiscoveryIndexingEstimate[] = [

@@ -46,12 +46,14 @@ export function formatGrepText(
     lines.push(...wrap(escapeText(value), options.width ?? 80));
   };
   const groups = groupFiles(result.hits);
-  const retryableOmissionsOnly =
+  const omissionsOnly =
     result.unavailableTargets.length > 0 &&
-    result.unavailableTargets.every((target) => target.retryable) &&
     result.targets.every((scope) => !hasCoverageGap(scope)) &&
     result.traversal !== "FAILED" &&
     result.traversal !== "CURSOR_EXPIRED";
+  const retryableOmissionsOnly =
+    omissionsOnly &&
+    result.unavailableTargets.every((target) => target.retryable);
   const matchingLines = new Set(
     result.hits.map((hit) => JSON.stringify([...fileIdentity(hit), hit.line])),
   ).size;
@@ -130,7 +132,7 @@ export function formatGrepText(
   else if (
     result.traversal !== "COMPLETE" &&
     !result.nextCursor &&
-    !retryableOmissionsOnly
+    !omissionsOnly
   )
     prose("Traversal is incomplete and has no continuation cursor.");
   for (const [index, group] of groups.entries()) {
@@ -184,7 +186,7 @@ export function formatGrepText(
     const wait = indexingWaitMs(result.indexingEstimates);
     lines.push("");
     prose(
-      `Some sources were unavailable. Rerun the original query with ${options.syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`} if needed.`,
+      `To retry omitted targets, rerun the original query with ${options.syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`}.`,
     );
   }
   return lines.join("\n");
