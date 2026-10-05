@@ -54,6 +54,32 @@ function entry(
 }
 
 describe("formatListText", () => {
+  it("distinguishes pending preparation retry from available continuation", () => {
+    const result = sourceResult({
+      indexingEstimates: [
+        {
+          kind: "REPOSITORY",
+          targets: ["github:example/repo@main"],
+          estimate: { lowerSeconds: 38, upperSeconds: 57 },
+        },
+      ],
+      entries: [entry("FILE", "src/index.ts")],
+      hasMore: true,
+      nextCursor: "available-page",
+    });
+    for (const syntax of ["cli", "mcp"] as const) {
+      const text = formatListText(result, { syntax });
+      expect(text).toContain(
+        syntax === "cli" ? "Leave out --after" : "Leave out after",
+      );
+      expect(text).toContain("More results available now");
+      expect(text).toContain("To wait for indexing, run list again");
+      expect(text).toContain("available-page");
+    }
+    expect(formatListText(result, { includeHeader: false })).toBe(
+      "src/index.ts",
+    );
+  });
   it("renders source entries as paths and marks directories with a slash", () => {
     const result = sourceResult({
       entries: [
@@ -74,7 +100,7 @@ describe("formatListText", () => {
         "examples/",
         "README.md",
         "",
-        "More results: reuse the same target, paths, and options with:",
+        "More results: repeat this list, adding:",
         "  --after 'opaque-cursor'",
       ].join("\n"),
     );
@@ -88,7 +114,7 @@ describe("formatListText", () => {
     });
 
     expect(formatListText(result, { syntax: "mcp" })).toEndWith(
-      'More results: reuse the same target, paths, and options with:\n  after="opaque \\"cursor\\""',
+      'More results: repeat this list, adding:\n  after="opaque \\"cursor\\""',
     );
   });
 

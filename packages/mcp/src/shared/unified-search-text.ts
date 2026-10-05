@@ -1,4 +1,3 @@
-import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 /**
  * Line-oriented text renderer for unified `search` MCP responses.
  *
@@ -17,6 +16,7 @@ import { renderIndexingEstimates } from "./indexing-estimates-text.js";
  */
 
 import { colors, dim, highlight, highlightRanges } from "./colors.js";
+import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 import { renderReadTarget } from "./read-target-text.js";
 import {
   formatRepositoryTarget,

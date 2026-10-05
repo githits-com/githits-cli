@@ -26,3 +26,10 @@ timeout workaround is proposed. This requires backend investigation outside
 this CLI worktree. Earlier release validation also stalled in experimental
 Research, so the evidence does not establish a new 0.24.0 regression. Stable
 agent evals exclude this experimental tool.
+
+On 2026-10-05, authenticated dev MCP stable smoke passed; the experimental
+Research initial JSON succeeded in107.1s, then its URL-source thread follow-up
+failed the expected-success assertion after200.4s. The assertion did not expose
+the underlying error code, so this is additional Research investigation evidence,
+not a confirmed diagnosis or regression in indexing metadata. No client timeout
+or retry workaround was added.

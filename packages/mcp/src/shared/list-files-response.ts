@@ -1,6 +1,3 @@
-import type { DiscoveryIndexingEstimate } from "@githits/core-internal";
-import { projectIndexingEstimates } from "./indexing-estimates.js";
-import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 /**
  * Response envelope for the legacy grouped CLI `githits code files`
  * command. Its `--json` and terminal output use the same envelope.
@@ -16,8 +13,14 @@ import { renderIndexingEstimates } from "./indexing-estimates-text.js";
  *   limit (200) is not echoed; explicit selectors / filters are.
  */
 
-import type { ListFilesResult, RepoFileEntry } from "@githits/core-internal";
+import type {
+  DiscoveryIndexingEstimate,
+  ListFilesResult,
+  RepoFileEntry,
+} from "@githits/core-internal";
 import { colorize, dim } from "./colors.js";
+import { projectIndexingEstimates } from "./indexing-estimates.js";
+import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 import { formatRepositoryTarget } from "./repository-target.js";
 import {
   buildTargetResolutionNotes,

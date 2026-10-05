@@ -56,9 +56,11 @@ describe("uniform indexing evidence presentation", () => {
       const output = formatGrepText(result, { syntax, width: 160 });
       expect(output).toContain("No matches yet.");
       expect(output).toContain("repository is being indexed");
-      expect(output).toContain("Estimated total indexing time: 38-57s");
-      expect(output).toContain("Active indexing elapsed: 90s");
-      expect(output).toContain("without a cursor");
+      expect(output).toContain("Estimated indexing time: 38-57s total");
+      expect(output).toContain("Time spent indexing: 90s");
+      expect(output).toContain(
+        syntax === "cli" ? "leave out --cursor" : "leave out cursor",
+      );
       expect(output).toContain(
         syntax === "cli" ? "--wait 70000" : "wait_timeout_ms=70000",
       );
@@ -98,7 +100,7 @@ describe("uniform indexing evidence presentation", () => {
     expect(output).toContain("coverage is incomplete");
     expect(output).toContain("Cursor expired");
     expect(output).toContain("unknown_reason");
-    expect(output).not.toContain("Next: retry");
+    expect(output).not.toContain("Run grep again");
     expect(output).not.toContain("being indexed");
   });
   it("renders unknown history and unsupported docs without fabricated durations", () => {
@@ -112,10 +114,10 @@ describe("uniform indexing evidence presentation", () => {
       { ...repository, estimate: undefined, unavailableReason: "NO_HISTORY" },
     ];
     const text = renderIndexingEstimates(entries).join("\n");
-    expect(text).toContain("Active indexing elapsed: 12s");
-    expect(text).toContain("No indexing duration history");
-    expect(text).toContain("documentation preparation");
-    expect(text).not.toContain("Estimated total");
+    expect(text).toContain("Time spent indexing: 12s");
+    expect(text).toContain("Not enough history");
+    expect(text).toContain("preparing documentation");
+    expect(text).not.toContain("Estimated indexing time");
     expect(indexingWaitMs(entries)).toBe(30000);
     expect(renderIndexingEstimates([])).toEqual([]);
   });

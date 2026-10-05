@@ -26,13 +26,21 @@ export function formatListText(
   ];
   if (result.indexingEstimates?.length) {
     lines.push(...renderIndexingEstimates(result.indexingEstimates));
+    const work = result.indexingEstimates.every(
+      (entry) => entry.kind === "DOCUMENTATION",
+    )
+      ? "documentation"
+      : "indexing";
+    const after = options.syntax === "mcp" ? "after" : "--after";
     lines.push(
-      `Next: retry list with the same target and options, without after, using ${options.syntax === "mcp" ? `wait_timeout_ms=${indexingWaitMs(result.indexingEstimates)}` : `--wait ${indexingWaitMs(result.indexingEstimates)}`}.`,
+      `To wait for ${work}, run list again with ${options.syntax === "mcp" ? `wait_timeout_ms=${indexingWaitMs(result.indexingEstimates)}` : `--wait ${indexingWaitMs(result.indexingEstimates)}`}. Leave out ${after} and keep your other options.`,
     );
   }
   if (result.nextCursor) {
     const continuation = [
-      "More results: reuse the same target, paths, and options with:",
+      result.indexingEstimates?.length
+        ? "More results available now: repeat this list, adding:"
+        : "More results: repeat this list, adding:",
       options.syntax === "mcp"
         ? `  after=${JSON.stringify(result.nextCursor)}`
         : `  --after ${shellQuoteExact(result.nextCursor)}`,

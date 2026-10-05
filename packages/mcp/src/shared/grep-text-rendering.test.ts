@@ -282,8 +282,7 @@ describe("grep evidence rendering", () => {
       nextCursor: cursor,
       targets: [scope({ traversal: "RESUMABLE_LIMIT" })],
     });
-    const intro =
-      "More matches: reuse the same ordered targets and controls with:";
+    const intro = "More matches: repeat this grep, adding:";
     const cases = [
       {
         syntax: "cli" as const,
@@ -311,11 +310,7 @@ describe("grep evidence rendering", () => {
       expect(stripAnsi(colored)).toBe(plain);
     }
 
-    const narrowIntro = [
-      "More matches: reuse the",
-      "same ordered targets and",
-      "controls with:",
-    ];
+    const narrowIntro = ["More matches: repeat", "this grep, adding:"];
     const narrowPlain = formatGrepText(data, {
       syntax: "cli",
       useColors: false,
@@ -326,11 +321,11 @@ describe("grep evidence rendering", () => {
       useColors: true,
       width: 24,
     });
-    expect(narrowPlain.split("\n").slice(-4)).toEqual([
+    expect(narrowPlain.split("\n").slice(-(narrowIntro.length + 1))).toEqual([
       ...narrowIntro,
       cases[0].cursorLine,
     ]);
-    expect(narrowColored.split("\n").slice(-4)).toEqual([
+    expect(narrowColored.split("\n").slice(-(narrowIntro.length + 1))).toEqual([
       ...narrowIntro.map((line) => `${colors.dim}${line}${colors.reset}`),
       `${colors.dim}${cases[0].cursorLine}${colors.reset}`,
     ]);

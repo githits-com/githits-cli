@@ -84,11 +84,11 @@ export function formatGrepText(
   if (result.unavailableTargets.some((target) => target.retryable)) {
     const wait = indexingWaitMs(result.indexingEstimates);
     prose(
-      `Next: retry grep with the same ordered targets, pattern and matching controls, without a cursor, using ${options.syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`}.`,
+      `Run grep again with the same targets, pattern and options. Keep the targets in the same order, leave out ${options.syntax === "mcp" ? "cursor" : "--cursor"}, and use ${options.syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`}.`,
     );
     if (result.nextCursor)
       prose(
-        "The continuation cursor below pages currently available matches; a fresh grep retries unavailable targets.",
+        "Use the cursor below for more matches from the targets that were searched. Run grep without a cursor to include the targets that were unavailable.",
       );
   }
 
@@ -159,9 +159,7 @@ export function formatGrepText(
   if (result.nextCursor) {
     const footerLines = [
       ...wrap(
-        escapeText(
-          "More matches: reuse the same ordered targets and controls with:",
-        ),
+        escapeText("More matches: repeat this grep, adding:"),
         options.width ?? 80,
       ),
       options.syntax === "mcp"

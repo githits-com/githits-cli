@@ -1,8 +1,3 @@
-import {
-  type DiscoveryIndexingEstimate,
-  INDEXING_ESTIMATES_SELECTION,
-  indexingEstimatesSchema,
-} from "./indexing-estimates.js";
 /**
  * Package intelligence service — reads registry metadata, vulnerability
  * reports, dependency reports, and changelogs from the upstream
@@ -46,6 +41,11 @@ import {
   isTokenRefreshableError,
   SERVER_AUTHENTICATION_REJECTED_MESSAGE,
 } from "./githits-service.js";
+import {
+  type DiscoveryIndexingEstimate,
+  INDEXING_ESTIMATES_SELECTION,
+  indexingEstimatesSchema,
+} from "./indexing-estimates.js";
 import { promoteGenericVersionNotFound } from "./promote-version-not-found.js";
 import { type ReadTarget, readTargetSchema } from "./read-target.js";
 import {

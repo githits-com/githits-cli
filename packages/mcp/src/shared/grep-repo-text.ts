@@ -1,4 +1,3 @@
-import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 /**
  * Line-oriented text renderer for legacy `githits code grep` responses.
  *
@@ -16,6 +15,7 @@ import type {
   LeanGrepRepoEnvelope,
   LeanGrepRepoMatch,
 } from "./grep-repo-response.js";
+import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 import { shellQuote } from "./shell-quote.js";
 import {
   buildTargetResolutionNotes,

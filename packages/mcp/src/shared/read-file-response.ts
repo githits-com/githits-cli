@@ -1,6 +1,3 @@
-import type { DiscoveryIndexingEstimate } from "@githits/core-internal";
-import { projectIndexingEstimates } from "./indexing-estimates.js";
-import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 /**
  * Response envelope for `read_file`. Shared across CLI `--json` and
  * MCP `content[0].text`; terminal formatter is CLI-only.
@@ -11,8 +8,13 @@ import { renderIndexingEstimates } from "./indexing-estimates-text.js";
  * checking a null content field.
  */
 
-import type { ReadFileResult } from "@githits/core-internal";
+import type {
+  DiscoveryIndexingEstimate,
+  ReadFileResult,
+} from "@githits/core-internal";
 import { colorize, dim } from "./colors.js";
+import { projectIndexingEstimates } from "./indexing-estimates.js";
+import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 import {
   buildTargetResolutionNotes,
   type LeanTargetResolution,

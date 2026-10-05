@@ -342,3 +342,30 @@ complete before estimates supplied by the backend are consumed and displayed.
   positive coverage gap. Round 2 clean after the tests and smoke correction.
 - Production schema support remains unverified and recorded in docs/backlog.md.
   No backend edits, release, merge, publish or deployment performed.
+
+User correction during implementation review: presentation must make sense without
+GitHits/pkgseer internals. Accepted: replaced "continuation pages ... fresh list
+retries pending preparation" and equivalent grep wording with direct commands.
+Timing now says "Estimated indexing time: ... total" and "Time spent indexing";
+unknown history says there is not enough history for an estimate. List explains
+how to wait separately from "More results available now"; documentation waits
+are named documentation. No new lifecycle model or retry behavior is introduced.
+
+External round 1: direction sound. Accepted medium contradictory fixed60s versus
+metadata20/30s advice by removing fixed wait text only for nonempty uniform
+sentinels. Regression covers both20s range and30s NO_HISTORY paths through core
+parse, mapping and CLI text with one action. Accepted minor indentation, module
+header/import organization and list retry/pagination explanation. No direction
+conflict or infrastructure required. Internal review of this correction returned
+clean; user-requested plain copy is being included in round2.
+
+Authenticated full dev MCP smoke passed the stable cohort (including grep/list/
+read/search) and failed experimental Research URL JSON after200.4s. Initial
+Research JSON succeeded after107.1s; underlying follow-up failure reason was not
+exposed by the smoke assertion. Existing Research-backend investigation backlog
+retains this limitation. Authenticated dev CLI smoke passed through source grep/
+list pagination and stopped on another verified brittle smoke assertion: site
+inventory returned root read URL https://expressjs.com/ rather than a shared
+site/path action. The formatter correctly preserves backend URL actions; smoke
+now accepts either root representation rather than requiring an unavailable
+shared read target. Production schema deployment remains unverified.

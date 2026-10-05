@@ -63,7 +63,7 @@ describe("mapCodeNavigationError", () => {
     );
     expect(mapped.details?.hint).toContain("Backend guidance.");
     expect(mapped.details?.hint).toContain(
-      "Estimated total indexing time: 38-57s",
+      "Estimated indexing time: 38-57s total",
     );
     expect(mapped.details?.action).toContain("wait_timeout_ms=60000");
   });

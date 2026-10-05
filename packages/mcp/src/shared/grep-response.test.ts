@@ -324,7 +324,7 @@ describe("unified grep result and text", () => {
     ).toBe("crawl:1");
     expect(output).toContain("Suggested site");
     expect(output).toContain("--cursor 'opaque'");
-    expect(output).toContain("same ordered targets and controls");
+    expect(output).toContain("repeat this grep");
     expect(
       formatGrepText(
         result({

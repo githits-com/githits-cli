@@ -19,10 +19,10 @@ export function formatIndexingDuration(
     estimate.upperSeconds !== undefined
   )
     parts.push(
-      `Estimated total indexing time: ${estimate.lowerSeconds}-${estimate.upperSeconds}s`,
+      `Estimated indexing time: ${estimate.lowerSeconds}-${estimate.upperSeconds}s total`,
     );
   if (estimate.elapsedSeconds !== undefined)
-    parts.push(`Active indexing elapsed: ${estimate.elapsedSeconds}s`);
+    parts.push(`Time spent indexing: ${estimate.elapsedSeconds}s`);
   return parts.length ? `${parts.join(". ")}.` : undefined;
 }
 
@@ -35,10 +35,10 @@ export function renderIndexingEstimates(
     const timing = formatIndexingDuration(entry.estimate);
     const missing =
       entry.unavailableReason === "NO_HISTORY"
-        ? "No indexing duration history is available."
+        ? "Not enough history to estimate indexing time."
         : entry.unavailableReason === "UNSUPPORTED_WORK"
-          ? "No duration estimate is available for documentation preparation."
+          ? "No time estimate is available for preparing documentation."
           : undefined;
-    return `${label}: ${[timing, missing].filter(Boolean).join(" ") || "No indexing duration estimate is available."}`;
+    return `${label}: ${[timing, missing].filter(Boolean).join(" ") || "Indexing time estimate unavailable."}`;
   });
 }

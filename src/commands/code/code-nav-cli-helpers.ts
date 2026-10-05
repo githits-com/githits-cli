@@ -1,4 +1,3 @@
-import { formatIndexingDuration } from "@githits/mcp/internal";
 /**
  * Shared CLI helpers for the indexed `code files` / `code read`
  * / `code grep` commands. Each command parses its own positionals
@@ -16,6 +15,7 @@ import type {
 import {
   buildContainingPathPrefix,
   buildPathPrefixSuggestion,
+  formatIndexingDuration,
   InvalidPackageSpecError,
   isExactPathAuthorityError,
   looksLikeMissingFileMessage,
@@ -99,7 +99,7 @@ export function formatIndexingError(mapped: MappedError): string {
   const detail = mapped.details ?? {};
   const lines = [mapped.message];
   if (detail.hint && !mapped.message.includes(detail.hint)) {
-    lines.push(`  hint: ${detail.hint}`);
+    lines.push(`  hint: ${detail.hint.replaceAll("\n", "\n    ")}`);
   }
   if (detail.indexingRef) lines.push(`  indexing ref: ${detail.indexingRef}`);
   if (!detail.indexingEstimates?.length) {

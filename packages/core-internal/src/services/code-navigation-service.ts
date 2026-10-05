@@ -1,19 +1,3 @@
-import {
-  type DiscoveryIndexingEstimate,
-  INDEXING_DURATION_ESTIMATE_SELECTION,
-  INDEXING_ESTIMATES_SELECTION,
-  type IndexingDurationEstimate,
-  indexingDurationEstimateSchema,
-  indexingEstimatesSchema,
-  normaliseIndexingDurationEstimate,
-} from "./indexing-estimates.js";
-
-export type {
-  DiscoveryIndexingEstimate,
-  IndexingDurationEstimate,
-} from "./indexing-estimates.js";
-export { INDEXING_DURATION_ESTIMATE_SELECTION } from "./indexing-estimates.js";
-
 import { z } from "zod";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
@@ -42,12 +26,27 @@ import {
   SERVER_AUTHENTICATION_REJECTED_MESSAGE,
 } from "./githits-service.js";
 import {
+  type DiscoveryIndexingEstimate,
+  INDEXING_DURATION_ESTIMATE_SELECTION,
+  INDEXING_ESTIMATES_SELECTION,
+  type IndexingDurationEstimate,
+  indexingDurationEstimateSchema,
+  indexingEstimatesSchema,
+  normaliseIndexingDurationEstimate,
+} from "./indexing-estimates.js";
+import {
   READ_TARGET_SELECTION,
   type ReadTarget,
   selectedReadTargetSchema,
 } from "./read-target.js";
 import type { ServiceDiagnostics } from "./runtime-diagnostics.js";
 import type { TokenProvider } from "./token-provider.js";
+
+export type {
+  DiscoveryIndexingEstimate,
+  IndexingDurationEstimate,
+} from "./indexing-estimates.js";
+export { INDEXING_DURATION_ESTIMATE_SELECTION } from "./indexing-estimates.js";
 
 const INDEXING_WAIT_HINT =
   "Wait until ready with CLI `--wait 60000` or MCP `wait_timeout_ms: 60000`.";
@@ -4459,7 +4458,9 @@ function throwIfCodeContextIndexing(data: {
     data.indexingEstimate,
   );
   throw new CodeNavigationIndexingError(
-    `Target is indexing. ${INDEXING_WAIT_HINT}`,
+    data.indexingEstimates?.length
+      ? "Target is indexing."
+      : `Target is indexing. ${INDEXING_WAIT_HINT}`,
     data.indexingRef ?? targetResolution?.indexingRef,
     normaliseAvailableVersions(data.availableVersions) ??
       targetResolution?.availableVersions,

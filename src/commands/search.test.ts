@@ -347,7 +347,7 @@ describe("searchAction", () => {
     expect(output).toContain("--wait 60000");
     expect(output).toContain("indexing ref: idx-search");
     expect(output).toContain(
-      "Estimated total indexing time: 7-19s. Active indexing elapsed: 3s.",
+      "Estimated indexing time: 7-19s total. Time spent indexing: 3s.",
     );
     expect(output).toContain("indexed refs/versions: 5.2.1");
     errorSpy.mockRestore();

@@ -3080,6 +3080,7 @@ describe("CodeNavigationServiceImpl", () => {
                 extensions: {
                   code: "PACKAGE_INDEXING",
                   indexing_ref: "idx-error",
+                  repo_url: "https://github.com/expressjs/express",
                   hint: "Backend says this ref is queued for indexing.",
                   indexingEstimate: {
                     lower_seconds: 1,
@@ -3103,12 +3104,16 @@ describe("CodeNavigationServiceImpl", () => {
 
     try {
       await service.listFiles({
-        target: { registry: "NPM", packageName: "express" },
+        target: {
+          repoUrl: "https://github.com/expressjs/express",
+          gitRef: "v5.2.1",
+        },
       });
       throw new Error("expected listFiles to throw");
     } catch (error) {
       expect(error).toBeInstanceOf(CodeNavigationIndexingError);
       const typed = error as CodeNavigationIndexingError;
+      expect(typed.repoUrl).toBe("https://github.com/expressjs/express");
       expect(typed.message).toBe("Target is indexing");
       expect(typed.hint).toContain(
         "Backend says this ref is queued for indexing.",
