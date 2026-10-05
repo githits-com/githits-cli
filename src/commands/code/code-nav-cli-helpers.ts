@@ -1,3 +1,4 @@
+import { formatIndexingDuration } from "@githits/mcp/internal";
 /**
  * Shared CLI helpers for the indexed `code files` / `code read`
  * / `code grep` commands. Each command parses its own positionals
@@ -101,19 +102,9 @@ export function formatIndexingError(mapped: MappedError): string {
     lines.push(`  hint: ${detail.hint}`);
   }
   if (detail.indexingRef) lines.push(`  indexing ref: ${detail.indexingRef}`);
-  const estimate = detail.indexingEstimate;
-  if (estimate) {
-    const bounds =
-      typeof estimate.lowerSeconds === "number" &&
-      typeof estimate.upperSeconds === "number"
-        ? `${estimate.lowerSeconds}-${estimate.upperSeconds}s`
-        : undefined;
-    const elapsed =
-      typeof estimate.elapsedSeconds === "number"
-        ? `${estimate.elapsedSeconds}s elapsed`
-        : undefined;
-    const summary = [bounds, elapsed].filter(Boolean).join(", ");
-    if (summary) lines.push(`  indexing estimate: ${summary}`);
+  if (!detail.indexingEstimates?.length) {
+    const timing = formatIndexingDuration(detail.indexingEstimate);
+    if (timing) lines.push(`  ${timing}`);
   }
   const versions = detail.availableVersions;
   if (versions && versions.length > 0) {

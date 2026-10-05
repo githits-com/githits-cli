@@ -33,6 +33,7 @@ function successBody(
   return {
     data: {
       list: {
+        indexingEstimates: [],
         inventoryKind: "SOURCE",
         requestedTarget: "npm:express@5.2.1",
         canonicalTarget: "npm:express@5.2.1",
@@ -177,6 +178,58 @@ function diagnosticRuntime(area: string): ServiceDiagnostics {
 }
 
 describe("ListServiceImpl", () => {
+  it("retains nonempty uniform timing through compact list decoding", async () => {
+    const service = new ListServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(
+        mock(() =>
+          Promise.resolve(
+            jsonResponse(
+              successBody({
+                indexingEstimates: [
+                  {
+                    kind: "REPOSITORY",
+                    targets: ["npm:express"],
+                    repositoryUrl: null,
+                    commitSha: null,
+                    unavailableReason: null,
+                    estimate: {
+                      lowerSeconds: 38,
+                      upperSeconds: 57,
+                      elapsedSeconds: 4,
+                      sampleCount: 9,
+                      source: "same_repository_refs",
+                    },
+                  },
+                ],
+              }),
+            ),
+          ),
+        ),
+      ),
+    );
+    const parsed = await service.list({
+      target: "npm:express",
+      includeDetailedFields: false,
+    });
+    expect(parsed.indexingEstimates).toEqual([
+      {
+        kind: "REPOSITORY",
+        targets: ["npm:express"],
+        repositoryUrl: undefined,
+        commitSha: undefined,
+        unavailableReason: undefined,
+        estimate: {
+          lowerSeconds: 38,
+          upperSeconds: 57,
+          elapsedSeconds: 4,
+          sampleCount: 9,
+          source: "same_repository_refs",
+        },
+      },
+    ]);
+  });
   it("compact wire projection omits detailed entry fields", async () => {
     const fetchFn = mock((_url: string, _init?: RequestInit) =>
       Promise.resolve(
@@ -1050,6 +1103,20 @@ function expectedListSelection(): SelectionTree {
     commitSha: null,
   };
   return {
+    indexingEstimates: {
+      kind: null,
+      targets: null,
+      repositoryUrl: null,
+      commitSha: null,
+      unavailableReason: null,
+      estimate: {
+        lowerSeconds: null,
+        upperSeconds: null,
+        elapsedSeconds: null,
+        sampleCount: null,
+        source: null,
+      },
+    },
     inventoryKind: null,
     requestedTarget: null,
     canonicalTarget: null,

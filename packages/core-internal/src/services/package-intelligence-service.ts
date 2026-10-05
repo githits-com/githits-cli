@@ -1,3 +1,8 @@
+import {
+  type DiscoveryIndexingEstimate,
+  INDEXING_ESTIMATES_SELECTION,
+  indexingEstimatesSchema,
+} from "./indexing-estimates.js";
 /**
  * Package intelligence service — reads registry metadata, vulnerability
  * reports, dependency reports, and changelogs from the upstream
@@ -731,6 +736,7 @@ export interface PackageDocsPageInfo {
 }
 
 export interface PackageDocsList {
+  indexingEstimates?: DiscoveryIndexingEstimate[];
   registry?: string;
   packageName?: string;
   version?: string;
@@ -2440,6 +2446,7 @@ const packageDocsPageInfoSchema = z
   .optional();
 
 const packageDocsListResponseSchema = z.object({
+  indexingEstimates: indexingEstimatesSchema,
   registry: z.string().nullable().optional(),
   packageName: z.string().nullable().optional(),
   version: z.string().nullable().optional(),
@@ -2558,6 +2565,7 @@ query ListPackageDocs(
     version
     stale
     codeIndexState
+    ${INDEXING_ESTIMATES_SELECTION}
     pages {
       id
       readTarget { target }
@@ -4021,6 +4029,7 @@ export class PackageIntelligenceServiceImpl
       version: data.version ?? undefined,
       stale: data.stale ?? undefined,
       codeIndexState: data.codeIndexState ?? undefined,
+      indexingEstimates: data.indexingEstimates,
       pages:
         data.pages?.map((page) => ({
           id: page.id ?? undefined,

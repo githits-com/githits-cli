@@ -23,6 +23,11 @@ import {
   SERVER_AUTHENTICATION_REJECTED_MESSAGE,
 } from "./githits-service.js";
 import {
+  type DiscoveryIndexingEstimate,
+  INDEXING_ESTIMATES_SELECTION,
+  indexingEstimatesSchema,
+} from "./indexing-estimates.js";
+import {
   type ServiceDiagnostics,
   withServiceDiagnostics,
 } from "./runtime-diagnostics.js";
@@ -154,6 +159,7 @@ export interface GrepUnavailableTarget {
   suggestedSiteTargets: string[] | null;
 }
 export interface GrepResult {
+  indexingEstimates?: DiscoveryIndexingEstimate[];
   hits: GrepHit[];
   targets: GrepTargetStatus[];
   unavailableTargets: GrepUnavailableTarget[];
@@ -265,6 +271,7 @@ function resultSchema(detailed: boolean): z.ZodType<GrepResult> {
     sourceMatchEndByte: selected(nonnegativeInt),
   };
   return z.object({
+    indexingEstimates: indexingEstimatesSchema,
     hits: z.array(
       z.discriminatedUnion("__typename", [
         z.object({
@@ -386,6 +393,7 @@ const GRAPHQL_QUERY = `query Grep(
     contextLinesAfter: $contextLinesAfter, maxMatches: $maxMatches,
     cursor: $cursor, waitTimeoutMs: $waitTimeoutMs) {
     traversal nextCursor totalMatches
+    ${INDEXING_ESTIMATES_SELECTION}
     hits {
       __typename
       ... on GrepRepositoryHit {

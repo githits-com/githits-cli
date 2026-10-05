@@ -19,6 +19,11 @@ import {
   SERVER_AUTHENTICATION_REJECTED_MESSAGE,
 } from "./githits-service.js";
 import {
+  type DiscoveryIndexingEstimate,
+  INDEXING_ESTIMATES_SELECTION,
+  indexingEstimatesSchema,
+} from "./indexing-estimates.js";
+import {
   type ServiceDiagnostics,
   withServiceDiagnostics,
 } from "./runtime-diagnostics.js";
@@ -145,6 +150,7 @@ export interface ListSitePreparation {
 }
 
 export interface ListResult {
+  indexingEstimates?: DiscoveryIndexingEstimate[];
   inventoryKind: ListInventoryKind;
   requestedTarget: string;
   canonicalTarget: string | null;
@@ -315,6 +321,7 @@ const sitePreparationSchema = z
   .nullable();
 
 const listResultSchema = z.object({
+  indexingEstimates: indexingEstimatesSchema,
   inventoryKind: z.enum(["SOURCE", "SITE"]),
   requestedTarget: z.string(),
   canonicalTarget: nullableString,
@@ -375,6 +382,7 @@ query List(
     waitTimeoutMs: $waitTimeoutMs
   ) {
     inventoryKind
+    ${INDEXING_ESTIMATES_SELECTION}
     requestedTarget
     canonicalTarget
     entries {

@@ -67,6 +67,7 @@ function page(
   overrides: Partial<GrepResult> = {},
 ): GrepResult {
   return {
+    indexingEstimates: [],
     hits,
     targets: [scope()],
     totalMatches: hits.length,

@@ -1,3 +1,4 @@
+import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 import type { LeanReadFileEnvelope } from "./read-file-response.js";
 import { splitReadFileContentLines } from "./read-file-response.js";
 import { buildTargetResolutionNotes } from "./target-resolution.js";
@@ -26,6 +27,7 @@ export function renderReadFileText(envelope: LeanReadFileEnvelope): string {
     lines.push("");
     lines.push(`hint: ${envelope.hint}`);
   }
+  lines.push(...renderIndexingEstimates(envelope.indexingEstimates));
   const resolutionNotes = buildTargetResolutionNotes(envelope.targetResolution);
   if (resolutionNotes.length > 0) {
     lines.push("");

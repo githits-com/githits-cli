@@ -35,6 +35,38 @@ class UnsupportedRegistryError extends Error {
 }
 
 describe("mapCodeNavigationError", () => {
+  it("uses uniform read handoff timing with a null singular estimate", () => {
+    const entries = [
+      {
+        kind: "REPOSITORY" as const,
+        targets: ["npm:express"],
+        estimate: { lowerSeconds: 38, upperSeconds: 57, elapsedSeconds: 4 },
+      },
+    ];
+    const mapped = mapCodeNavigationError(
+      new CodeNavigationIndexingError(
+        "Repository is indexing.",
+        "ref",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "Backend guidance.",
+        entries,
+        "https://github.com/expressjs/express",
+      ),
+    );
+    expect(mapped.details?.indexingEstimates).toEqual(entries);
+    expect(mapped.details?.indexingEstimate).toBeUndefined();
+    expect(mapped.details?.repoUrl).toBe(
+      "https://github.com/expressjs/express",
+    );
+    expect(mapped.details?.hint).toContain("Backend guidance.");
+    expect(mapped.details?.hint).toContain(
+      "Estimated total indexing time: 38-57s",
+    );
+    expect(mapped.details?.action).toContain("wait_timeout_ms=60000");
+  });
   it("maps terms gating with stable URL remediation", () => {
     expect(
       mapCodeNavigationError(new TermsAcceptanceRequiredError()),

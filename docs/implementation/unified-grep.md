@@ -14,6 +14,18 @@ githits grep -F -- '--foo' github:example/repository
 
 ## Matching and scope
 
+Pending repository and documentation preparation is described in plain language,
+with advisory total indexing duration when available and a fresh-request retry
+action. Opaque progress IDs stay in JSON. An empty page says "No matches yet"
+only when retryable unavailable targets account for every coverage gap; independent
+failures, cursor expiry and skipped evidence retain their warnings. Partial hits
+and real continuation cursors remain usable. Retry with the same ordered targets,
+pattern and matching controls without a cursor; only first-page preparation honors
+the wait budget. Unknown reasons are not relabeled as indexing.
+
+See [uniform indexing estimates](indexing-estimates.md) for shared field placement,
+duration semantics, wait recommendations and the production deployment prerequisite.
+
 The client explicitly sends RE2 regex mode, case-sensitive matching, zero
 context on each side and `ALL` repository corpus. Backend defaults differ.
 `-F/--fixed-strings` opts into literal matching; `-i/--ignore-case` uses backend

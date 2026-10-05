@@ -11,6 +11,7 @@ import { createGrepTool, type GrepArgs } from "./grep.js";
 import { CODE_GREP_GUARDRAIL } from "./guardrails.js";
 
 const emptyPage: GrepResult = {
+  indexingEstimates: [],
   hits: [],
   targets: [],
   unavailableTargets: [],
@@ -201,7 +202,9 @@ describe("unified MCP grep", () => {
         throw new GrepGraphQLError("not ready", {
           code: "GREP_TARGET_PREPARATION_REQUIRED",
           retryable: true,
-          target_issues: [{ input_index: 0, reason: "indexing" }],
+          target_issues: [
+            { input_index: 0, reason: "package_source_unavailable" },
+          ],
         });
       }),
     );
@@ -215,7 +218,9 @@ describe("unified MCP grep", () => {
       code: "INDEXING",
       retryable: true,
       details: {
-        targetIssues: [{ input_index: 0, reason: "indexing" }],
+        targetIssues: [
+          { input_index: 0, reason: "package_source_unavailable" },
+        ],
         action: expect.stringContaining("wait_timeout_ms"),
       },
     });

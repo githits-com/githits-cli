@@ -1,3 +1,6 @@
+import type { DiscoveryIndexingEstimate } from "@githits/core-internal";
+import { projectIndexingEstimates } from "./indexing-estimates.js";
+import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 /**
  * Response envelope for the legacy grouped CLI `githits code files`
  * command. Its `--json` and terminal output use the same envelope.
@@ -7,10 +10,8 @@
  * - **Data-first.** `files` is always present (possibly empty);
  *   `resolution` appears whenever the backend returned one; `hint`
  *   appears when empty results carry a backend diagnostic.
- * - **No indexing metadata in the success envelope.** The service
- *   layer promotes `codeIndexState: INDEXING` to a typed error
- *   before the envelope builder runs, so consumers never branch on a
- *   data-path indexing flag.
+ * - **Uniform indexing evidence.** Pending sentinels become typed errors;
+ *   usable results can retain timing for a pending refresh.
  * - **`filter.*` echoes only caller-supplied inputs.** The default
  *   limit (200) is not echoed; explicit selectors / filters are.
  */
@@ -57,6 +58,7 @@ export interface LeanListFilesFilter {
 }
 
 export interface LeanListFilesEnvelope {
+  indexingEstimates?: DiscoveryIndexingEstimate[];
   /** Present for spec addressing. */
   registry?: string;
   /** Present for spec addressing. */
@@ -130,6 +132,10 @@ export function buildListFilesSuccessPayload(
     files,
   };
 
+  if (result.indexingEstimates !== undefined)
+    envelope.indexingEstimates = projectIndexingEstimates(
+      result.indexingEstimates,
+    );
   if (options.registry) envelope.registry = options.registry;
   if (options.name) envelope.name = options.name;
   if (options.repoUrl) envelope.repoUrl = options.repoUrl;
@@ -307,6 +313,7 @@ function formatVerbose(
     lines.push(buildResolutionLine(envelope, options));
   }
   appendTargetResolutionNotes(lines, envelope, options);
+  lines.push(...renderIndexingEstimates(envelope.indexingEstimates));
   lines.push("");
 
   const pathWidth = longestPathLength(envelope.files);
@@ -351,6 +358,7 @@ function formatEmpty(
     lines.push(buildResolutionLine(envelope, options));
   }
   appendTargetResolutionNotes(lines, envelope, options);
+  lines.push(...renderIndexingEstimates(envelope.indexingEstimates));
   lines.push("");
   lines.push(dim(hint, options.useColors));
   lines.push("");

@@ -8,6 +8,7 @@ import {
   MalformedGrepResponseError,
 } from "@githits/core-internal";
 import { buildUpdateRequiredError } from "./code-navigation-error-map.js";
+import { grepPreparationReason } from "./grep-preparation-text.js";
 import { InvalidGrepRequestError } from "./grep-request.js";
 import type {
   MappedError,
@@ -100,10 +101,19 @@ export function mapGrepError(error: unknown): MappedError {
           ),
         );
       details.hint = details.targetIssues
-        .map(
-          (issue) =>
-            `Input ${issue.input_index}: ${issue.reason}${typeof issue.progress_ref === "string" ? `; progress ${issue.progress_ref}` : ""}${typeof issue.file_path === "string" ? `; path ${issue.file_path}` : ""}`,
-        )
+        .map((issue) => {
+          const target =
+            typeof issue.target === "string"
+              ? issue.target
+              : typeof issue.input_index === "number"
+                ? `Input ${issue.input_index}`
+                : undefined;
+          const reason =
+            typeof issue.reason === "string"
+              ? grepPreparationReason(issue.reason)
+              : "target is unavailable";
+          return `${target ? `${target}: ` : ""}${reason}${typeof issue.file_path === "string" ? `; path ${issue.file_path}` : ""}`;
+        })
         .join("\n");
     }
     if (graphqlCode === "GREP_CURSOR_INVALID")

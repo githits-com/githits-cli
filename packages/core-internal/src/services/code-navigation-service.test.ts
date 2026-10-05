@@ -821,6 +821,22 @@ describe("CodeNavigationServiceImpl", () => {
           JSON.stringify({
             data: {
               listRepoFiles: {
+                indexingEstimates: [
+                  {
+                    kind: "REPOSITORY",
+                    targets: ["npm:express"],
+                    repositoryUrl: null,
+                    commitSha: null,
+                    unavailableReason: null,
+                    estimate: {
+                      lowerSeconds: 38,
+                      upperSeconds: 57,
+                      elapsedSeconds: 4,
+                      sampleCount: 9,
+                      source: "same_repository_refs",
+                    },
+                  },
+                ],
                 files: [
                   {
                     path: "src/index.js",
@@ -856,6 +872,22 @@ describe("CodeNavigationServiceImpl", () => {
       target: { registry: "NPM", packageName: "express" },
     });
 
+    expect(result.indexingEstimates).toEqual([
+      {
+        kind: "REPOSITORY",
+        targets: ["npm:express"],
+        repositoryUrl: undefined,
+        commitSha: undefined,
+        unavailableReason: undefined,
+        estimate: {
+          lowerSeconds: 38,
+          upperSeconds: 57,
+          elapsedSeconds: 4,
+          sampleCount: 9,
+          source: "same_repository_refs",
+        },
+      },
+    ]);
     expect(result.files.length).toBe(2);
     expect(result.files[0]).toEqual({
       path: "src/index.js",
@@ -881,6 +913,7 @@ describe("CodeNavigationServiceImpl", () => {
           JSON.stringify({
             data: {
               listRepoFiles: {
+                indexingEstimates: [],
                 files: [],
                 total: 0,
                 hasMore: false,
@@ -1027,6 +1060,7 @@ describe("CodeNavigationServiceImpl", () => {
           JSON.stringify({
             data: {
               listRepoFiles: {
+                indexingEstimates: [],
                 files: [],
                 total: 0,
                 hasMore: false,
@@ -1127,6 +1161,7 @@ describe("CodeNavigationServiceImpl", () => {
           JSON.stringify({
             data: {
               listRepoFiles: {
+                indexingEstimates: [],
                 files: [],
                 total: 0,
                 hasMore: false,
@@ -1187,6 +1222,7 @@ describe("CodeNavigationServiceImpl", () => {
           JSON.stringify({
             data: {
               listRepoFiles: {
+                indexingEstimates: [],
                 files: [],
                 total: 0,
                 hasMore: false,
@@ -1227,6 +1263,7 @@ describe("CodeNavigationServiceImpl", () => {
           JSON.stringify({
             data: {
               listRepoFiles: {
+                indexingEstimates: [],
                 files: [],
                 total: 0,
                 hasMore: false,
@@ -1266,6 +1303,22 @@ describe("CodeNavigationServiceImpl", () => {
           JSON.stringify({
             data: {
               fetchCodeContext: {
+                indexingEstimates: [
+                  {
+                    kind: "REPOSITORY",
+                    targets: ["npm:express"],
+                    repositoryUrl: null,
+                    commitSha: null,
+                    unavailableReason: null,
+                    estimate: {
+                      lowerSeconds: 38,
+                      upperSeconds: 57,
+                      elapsedSeconds: 4,
+                      sampleCount: 9,
+                      source: "same_repository_refs",
+                    },
+                  },
+                ],
                 content: "// hello\nconsole.log('hi');\n",
                 filePath: "src/hello.js",
                 language: "javascript",
@@ -1289,6 +1342,22 @@ describe("CodeNavigationServiceImpl", () => {
       target: { registry: "NPM", packageName: "express" },
       filePath: "src/hello.js",
     });
+    expect(result.indexingEstimates).toEqual([
+      {
+        kind: "REPOSITORY",
+        targets: ["npm:express"],
+        repositoryUrl: undefined,
+        commitSha: undefined,
+        unavailableReason: undefined,
+        estimate: {
+          lowerSeconds: 38,
+          upperSeconds: 57,
+          elapsedSeconds: 4,
+          sampleCount: 9,
+          source: "same_repository_refs",
+        },
+      },
+    ]);
     expect(result.filePath).toBe("src/hello.js");
     expect(result.content).toContain("console.log");
     expect(result.isBinary).toBe(false);
@@ -1304,6 +1373,7 @@ describe("CodeNavigationServiceImpl", () => {
           JSON.stringify({
             data: {
               fetchCodeContext: {
+                indexingEstimates: [],
                 content: null,
                 filePath: "assets/logo.png",
                 language: null,
@@ -1338,6 +1408,7 @@ describe("CodeNavigationServiceImpl", () => {
           JSON.stringify({
             data: {
               fetchCodeContext: {
+                indexingEstimates: [],
                 content: null,
                 filePath: null,
                 language: null,
@@ -1496,6 +1567,22 @@ describe("CodeNavigationServiceImpl", () => {
           JSON.stringify({
             data: {
               grepRepo: {
+                indexingEstimates: [
+                  {
+                    kind: "REPOSITORY",
+                    targets: ["npm:express"],
+                    repositoryUrl: null,
+                    commitSha: null,
+                    unavailableReason: null,
+                    estimate: {
+                      lowerSeconds: 38,
+                      upperSeconds: 57,
+                      elapsedSeconds: 4,
+                      sampleCount: 9,
+                      source: "same_repository_refs",
+                    },
+                  },
+                ],
                 matches: [
                   {
                     filePath: "src/index.js",
@@ -1548,6 +1635,22 @@ describe("CodeNavigationServiceImpl", () => {
       pathSelectors: [{ kind: "PREFIX", value: "src/" }],
       symbolFields: ["name", "qualified_path", "kind"],
     });
+    expect(result.indexingEstimates).toEqual([
+      {
+        kind: "REPOSITORY",
+        targets: ["npm:express"],
+        repositoryUrl: undefined,
+        commitSha: undefined,
+        unavailableReason: undefined,
+        estimate: {
+          lowerSeconds: 38,
+          upperSeconds: 57,
+          elapsedSeconds: 4,
+          sampleCount: 9,
+          source: "same_repository_refs",
+        },
+      },
+    ]);
     expect(result.matches.length).toBe(1);
     expect(result.matches[0]?.line).toBe(10);
     expect(result.matches[0]?.symbol).toMatchObject({
@@ -2926,6 +3029,7 @@ describe("CodeNavigationServiceImpl", () => {
           JSON.stringify({
             data: {
               grepRepo: {
+                indexingEstimates: [],
                 matches: [],
                 nextCursor: null,
                 totalMatches: 0,
@@ -3504,6 +3608,7 @@ describe("CodeNavigationServiceImpl", () => {
           JSON.stringify({
             data: {
               grepRepo: {
+                indexingEstimates: [],
                 matches: [],
                 nextCursor: null,
                 totalMatches: 0,
@@ -3595,6 +3700,7 @@ describe("CodeNavigationServiceImpl", () => {
           JSON.stringify({
             data: {
               grepRepo: {
+                indexingEstimates: [],
                 matches: [],
                 nextCursor: null,
                 totalMatches: 0,
@@ -3640,6 +3746,7 @@ describe("CodeNavigationServiceImpl", () => {
           JSON.stringify({
             data: {
               listRepoFiles: {
+                indexingEstimates: [],
                 files: [],
                 total: 0,
                 hasMore: false,

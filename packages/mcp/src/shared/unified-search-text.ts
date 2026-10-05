@@ -1,3 +1,4 @@
+import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 /**
  * Line-oriented text renderer for unified `search` MCP responses.
  *
@@ -304,6 +305,8 @@ function appendPresentationContext(
       appendPresentationTargetGroup(lines, group, options);
     });
   }
+  for (const line of renderIndexingEstimates(presentation.indexingEstimates))
+    lines.push(...wrapText(line, options.width));
   appendPresentationWarnings(lines, presentation.warnings, options);
 }
 

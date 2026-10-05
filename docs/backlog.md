@@ -1,5 +1,15 @@
 # Backlog
 
+## Production schema gate for uniform indexing estimates
+
+Before releasing the uniform indexing preparation client change, verify production
+deployment of backend PR #2980 and support for every selected result-level array.
+Dev deployment and authenticated pending/ready checks passed; production support
+has not been verified. See [the contract](implementation/indexing-estimates.md).
+Hosted adoption also requires the released MCP package and remote-mcp dependency
+update/deployment. Each merge, release, publish and deployment needs separate
+direct user approval.
+
 ## Investigate production Research timeouts
 
 Observed during 0.24.0 release validation on 2026-09-30. The live local MCP

@@ -135,6 +135,20 @@ describe("MCP smoke-test helpers", () => {
 });
 
 describe("runMcpSmoke", () => {
+  it("accepts untruncated short changelog bodies with an explicit line budget", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (
+        name === "pkg_changelog" &&
+        args.body_lines === 3 &&
+        args.format !== "json"
+      )
+        return textResult(
+          "express | npm | 2 entries\n5.2.1\n  * Short release note.\n5.2.0\n  * Another short note.",
+        );
+      return smokeResponse(name, args);
+    });
+    await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+  });
   it("requires unified grep and rejects the retired code_grep catalog entry", async () => {
     expect(EXPECTED_MCP_TOOLS).toContain("grep");
     expect(EXPECTED_MCP_TOOLS).not.toContain("code_grep");

@@ -5,6 +5,9 @@ import type {
   GrepTargetStatus,
 } from "@githits/core-internal";
 import { colors, dim, highlightMatch } from "./colors.js";
+import { grepPreparationReason } from "./grep-preparation-text.js";
+import { renderIndexingEstimates } from "./indexing-estimates-text.js";
+import { indexingWaitMs } from "./indexing-wait.js";
 import {
   formatRepositoryTarget,
   formatRepositoryTargetLabel,
@@ -42,6 +45,12 @@ export function formatGrepText(
     lines.push(...wrap(escapeText(value), options.width ?? 80));
   };
   const groups = groupFiles(result.hits);
+  const retryableOmissionsOnly =
+    result.unavailableTargets.length > 0 &&
+    result.unavailableTargets.every((target) => target.retryable) &&
+    result.targets.every((scope) => !hasCoverageGap(scope)) &&
+    result.traversal !== "FAILED" &&
+    result.traversal !== "CURSOR_EXPIRED";
   const matchingLines = new Set(
     result.hits.map((hit) => JSON.stringify([...fileIdentity(hit), hit.line])),
   ).size;
@@ -56,18 +65,31 @@ export function formatGrepText(
     result.hits.length === 0
       ? isExhaustive(result)
         ? "No matches."
-        : "Zero returned matches; coverage is incomplete."
+        : retryableOmissionsOnly
+          ? "No matches yet."
+          : "Zero returned matches; coverage is incomplete."
       : `${result.totalMatches} match${result.totalMatches === 1 ? "" : "es"} in ${matchingLines} line${matchingLines === 1 ? "" : "s"} across ${groups.length} ${noun}${result.nextCursor ? "; more available" : ""}`,
   );
   if (options.useColors) lines[0] = `${colors.bold}${lines[0]}${colors.reset}`;
   for (const scope of result.targets) renderCoverage(scope, prose);
   for (const omitted of result.unavailableTargets) {
     prose(
-      `Unavailable input ${omitted.inputIndex}: ${omitted.target}; ${omitted.reason}${omitted.retryable ? "; retryable" : ""}`,
+      `${omitted.target}${result.unavailableTargets.filter((target) => target.target === omitted.target).length > 1 ? ` (input ${omitted.inputIndex})` : ""}: ${grepPreparationReason(omitted.reason)}.`,
     );
-    if (omitted.progressRef) prose(`  Progress: ${omitted.progressRef}`);
     for (const target of omitted.suggestedSiteTargets ?? [])
       prose(`  Suggested site: ${target}`);
+  }
+  for (const estimate of renderIndexingEstimates(result.indexingEstimates))
+    prose(estimate);
+  if (result.unavailableTargets.some((target) => target.retryable)) {
+    const wait = indexingWaitMs(result.indexingEstimates);
+    prose(
+      `Next: retry grep with the same ordered targets, pattern and matching controls, without a cursor, using ${options.syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`}.`,
+    );
+    if (result.nextCursor)
+      prose(
+        "The continuation cursor below pages currently available matches; a fresh grep retries unavailable targets.",
+      );
   }
 
   if (groups.length) {
@@ -96,7 +118,11 @@ export function formatGrepText(
     prose(
       "Cursor expired. Restart explicitly without the cursor; retained matches and omissions are included.",
     );
-  else if (result.traversal !== "COMPLETE" && !result.nextCursor)
+  else if (
+    result.traversal !== "COMPLETE" &&
+    !result.nextCursor &&
+    !retryableOmissionsOnly
+  )
     prose("Traversal is incomplete and has no continuation cursor.");
   for (const [index, group] of groups.entries()) {
     const first = group.first;

@@ -31,6 +31,10 @@ export * from "./shared/grep-repo-text.js";
 export * from "./shared/grep-request.js";
 export * from "./shared/grep-response.js";
 export * from "./shared/grep-text.js";
+export {
+  formatIndexingDuration,
+  renderIndexingEstimates,
+} from "./shared/indexing-estimates-text.js";
 export * from "./shared/list-error-map.js";
 export * from "./shared/list-files-request.js";
 export * from "./shared/list-files-response.js";

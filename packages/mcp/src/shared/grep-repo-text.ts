@@ -1,3 +1,4 @@
+import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 /**
  * Line-oriented text renderer for legacy `githits code grep` responses.
  *
@@ -37,6 +38,7 @@ interface RenderBlock {
 export function renderGrepRepoText(envelope: LeanGrepRepoEnvelope): string {
   const lines: string[] = [];
   lines.push(buildHeader(envelope));
+  lines.push(...renderIndexingEstimates(envelope.indexingEstimates));
   lines.push("");
 
   if (envelope.matches.length === 0) {

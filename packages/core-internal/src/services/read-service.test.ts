@@ -45,6 +45,20 @@ const DOCS_ACTION = {
 };
 
 const CODE_READ_SELECTION: SelectionTree = {
+  indexingEstimates: {
+    kind: null,
+    targets: null,
+    repositoryUrl: null,
+    commitSha: null,
+    unavailableReason: null,
+    estimate: {
+      lowerSeconds: null,
+      upperSeconds: null,
+      elapsedSeconds: null,
+      sampleCount: null,
+      source: null,
+    },
+  },
   codeAction: READ_TARGET_SELECTION,
   content: null,
   filePath: null,
@@ -194,6 +208,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 function codeResult(overrides: Record<string, unknown> = {}): unknown {
   return {
     __typename: "CodeContextResult",
+    indexingEstimates: [],
     codeAction: null,
     content: "export const value = 1;\n",
     filePath: "src/index.ts",
@@ -477,6 +492,7 @@ describe("ReadServiceImpl", () => {
     expect(result).toEqual({
       source: "code",
       result: {
+        indexingEstimates: [],
         readTarget: {
           target: CODE_ACTION.target,
           path: CODE_ACTION.path,
@@ -687,6 +703,23 @@ describe("ReadServiceImpl", () => {
                 content: null,
                 codeIndexState: "INDEXING",
                 indexingRef: "idx-read",
+                indexingEstimate: null,
+                indexingEstimates: [
+                  {
+                    kind: "REPOSITORY",
+                    targets: ["npm:express"],
+                    repositoryUrl: "https://github.com/expressjs/express",
+                    commitSha: null,
+                    unavailableReason: null,
+                    estimate: {
+                      lowerSeconds: 38,
+                      upperSeconds: 57,
+                      elapsedSeconds: 4,
+                      sampleCount: 9,
+                      source: "same_repository_refs",
+                    },
+                  },
+                ],
               }),
             },
           }),
@@ -699,6 +732,25 @@ describe("ReadServiceImpl", () => {
       throw new Error("expected indexing error");
     } catch (error) {
       expect(error).toBeInstanceOf(CodeNavigationIndexingError);
+      expect(
+        (error as CodeNavigationIndexingError).indexingEstimate,
+      ).toBeUndefined();
+      expect((error as CodeNavigationIndexingError).indexingEstimates).toEqual([
+        {
+          kind: "REPOSITORY",
+          targets: ["npm:express"],
+          repositoryUrl: "https://github.com/expressjs/express",
+          commitSha: undefined,
+          unavailableReason: undefined,
+          estimate: {
+            lowerSeconds: 38,
+            upperSeconds: 57,
+            elapsedSeconds: 4,
+            sampleCount: 9,
+            source: "same_repository_refs",
+          },
+        },
+      ]);
       expect((error as CodeNavigationIndexingError).indexingRef).toBe(
         "idx-read",
       );

@@ -151,6 +151,7 @@ describe("grep text formatting", () => {
 
     const siteOnlyResult: GrepResult = {
       ...parsedOriginal,
+      indexingEstimates: [],
       hits: hostedHits,
       targets: [
         {

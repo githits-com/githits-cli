@@ -1,5 +1,7 @@
 import type { ListEntry, ListResult } from "@githits/core-internal";
 import { dim } from "./colors.js";
+import { renderIndexingEstimates } from "./indexing-estimates-text.js";
+import { indexingWaitMs } from "./indexing-wait.js";
 import { shellQuoteExact } from "./shell-quote.js";
 
 export interface FormatListTextOptions {
@@ -22,6 +24,12 @@ export function formatListText(
     formatHeader(result, siteReadTarget, options.useColors === true),
     ...paths,
   ];
+  if (result.indexingEstimates?.length) {
+    lines.push(...renderIndexingEstimates(result.indexingEstimates));
+    lines.push(
+      `Next: retry list with the same target and options, without after, using ${options.syntax === "mcp" ? `wait_timeout_ms=${indexingWaitMs(result.indexingEstimates)}` : `--wait ${indexingWaitMs(result.indexingEstimates)}`}.`,
+    );
+  }
   if (result.nextCursor) {
     const continuation = [
       "More results: reuse the same target, paths, and options with:",

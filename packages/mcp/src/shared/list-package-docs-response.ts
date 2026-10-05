@@ -1,8 +1,13 @@
-import type { PackageDocsList } from "@githits/core-internal";
+import type {
+  DiscoveryIndexingEstimate,
+  PackageDocsList,
+} from "@githits/core-internal";
 import { MalformedPackageIntelligenceResponseError } from "@githits/core-internal";
 import { colorize, dim } from "./colors.js";
 import { lowerDocSourceKind } from "./docs-follow-up.js";
 import { toIsoDate } from "./format-date.js";
+import { projectIndexingEstimates } from "./indexing-estimates.js";
+import { renderIndexingEstimates } from "./indexing-estimates-text.js";
 import { renderReadTarget } from "./read-target-text.js";
 import { shellQuote } from "./shell-quote.js";
 
@@ -25,6 +30,7 @@ export interface LeanPackageDocListFilter {
 }
 
 export interface LeanPackageDocsEnvelope {
+  indexingEstimates?: DiscoveryIndexingEstimate[];
   registry?: string;
   name?: string;
   version?: string;
@@ -51,6 +57,11 @@ export function buildListPackageDocsSuccessPayload(
 ): LeanPackageDocsEnvelope {
   const envelope: LeanPackageDocsEnvelope = {
     hasMore: result.pageInfo?.hasNextPage ?? false,
+    ...(result.indexingEstimates !== undefined
+      ? {
+          indexingEstimates: projectIndexingEstimates(result.indexingEstimates),
+        }
+      : {}),
     pages: result.pages.map((page) => {
       assertDocListEntry(page);
       const pageId = page.id as string;
@@ -125,6 +136,7 @@ export function formatListPackageDocsTerminal(
 ): string {
   const lines: string[] = [];
   lines.push(buildSummaryHeader(envelope, options.useColors));
+  lines.push(...renderIndexingEstimates(envelope.indexingEstimates));
   lines.push("");
 
   if (envelope.pages.length === 0) {
