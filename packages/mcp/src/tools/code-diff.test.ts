@@ -45,6 +45,7 @@ describe("code_diff MCP adapter", () => {
     const schema = z.toJSONSchema(z.object(tool.schema));
 
     expect(tool.name).toBe("code_diff");
+    expect(tool.description).not.toContain("Experimental");
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
       openWorldHint: true,
@@ -96,7 +97,6 @@ describe("code_diff MCP adapter", () => {
     expect(pathGlobSchema.description).toContain("non-empty");
     expect(schema.properties?.target).toMatchObject({ type: "string" });
     for (const phrase of [
-      "Experimental",
       "Compare source across",
       "repository-wide diffs",
       "does not prove the package unchanged",

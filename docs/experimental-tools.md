@@ -1,13 +1,12 @@
 # Experimental Tools
 
-GitHits includes three opt-in local MCP tools with matching CLI commands for
+GitHits includes two opt-in local MCP tools with matching CLI commands for
 dogfooding before they are considered for the stable surface:
 
 | MCP tool | CLI command | Purpose |
 |---|---|---|
 | `research` | `githits research` (`githits ask` alias) | Research a grounded question about one canonical open-source target and return executable source-reading calls or original upstream URLs. |
 | `resolve_target` | `githits resolve` | Rank canonical package, public GitHub repository, or standalone documentation-site targets for a fuzzy, misspelled, or ambiguous name. |
-| `code_diff` | `githits code diff` | Compare repository trees resolved from two exact package versions or public GitHub refs. |
 
 Experimental means the tools are disabled and hidden from CLI help by default,
 their contracts may change based on dogfood evidence, and they may be revised or
@@ -16,8 +15,8 @@ requirements applied to stable GitHits tools.
 
 ## Availability
 
-All three experimental commands are available in the published `githits` CLI
-and all three tools are available in its local stdio MCP server. None are
+Both experimental commands are available in the published `githits` CLI
+and both tools are available in its local stdio MCP server. None are
 registered by:
 
 - the hosted MCP at `https://mcp.githits.com`
@@ -57,11 +56,9 @@ Confirm the CLI opt-in:
 githits --help
 githits research --help
 githits resolve --help
-githits code diff --help
 ```
 
-The first command should list `research|ask` and `resolve`; `githits code --help` should
-list `diff`. If an explicit experimental command is still disabled, its error
+The first command should list `research|ask` and `resolve`. If an explicit experimental command is still disabled, its error
 names the config path GitHits read.
 
 The hidden `githits mcp start --experimental-tools` flag is development and
@@ -143,26 +140,10 @@ identity with `clear` or `not_applicable` status. Other or missing decisions are
 non-actionable and suppress the normal next-tool handoff. `clear` is not a
 vulnerability-free claim.
 
-Compare exact package versions or public repository refs:
-
-```sh
-githits code diff npm:express 4.18.2..5.1.0 --name-status
-githits code diff npm:express 4.18.2..5.1.0 --stat
-githits code diff npm:express 4.18.2..5.1.0 --patch -- 'lib/**/*.js'
-githits code diff --repo-url https://github.com/expressjs/express v4.18.2..v5.1.0 --name-status
-```
-
-Package versions identify repository commits, but the result is always a
-repository-wide diff unless an explicit path glob narrows it. A bounded result
-may contain sibling-package paths or omit package paths. Raw diffs do not prove
-API compatibility or upgrade safety; prefer `pkg_changelog` or
-`pkg_upgrade_review` for an upgrade summary.
-
-For MCP, no separate server flag or host configuration is required after the
-`config.toml` opt-in. A restarted local server registers `research`,
-`resolve_target`, and `code_diff` and adds their usage guidance to
-`quick_start`. The local MCP `ask` name is no longer registered; the hosted MCP
-inventory remains unchanged.
+The local MCP server registers `research` and `resolve_target` after opt-in.
+`code_diff` and `githits code diff` are stable and do not require this setting;
+see [source diff](implementation/code-diff.md). Hosted availability follows
+adoption of the released MCP package, separately from local configuration.
 
 ## Disable the tools
 

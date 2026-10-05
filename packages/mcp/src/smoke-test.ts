@@ -52,6 +52,7 @@ export const EXPECTED_MCP_TOOLS = [
   "list",
   "read",
   "grep",
+  "code_diff",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -758,6 +759,68 @@ async function assertLiveOrAuthRequired(
 }
 
 async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
+  const diffArgs = {
+    target: "npm:express",
+    from: "5.2.0",
+    to: "5.2.1",
+    max_files: 2,
+  };
+  const diffText = assertDefaultText(
+    await callTool(caller, "code_diff", diffArgs),
+    "code_diff default",
+  );
+  assert(
+    diffText.includes("Resolved endpoints:") &&
+      diffText.includes("Scope: repository"),
+    "code_diff default missing exact resolution or scope",
+  );
+  const diffJson = assertJsonResult(
+    await callTool(caller, "code_diff", { ...diffArgs, format: "json" }),
+    "code_diff json",
+  );
+  assertRecord(diffJson, "code_diff json");
+  assertRecord(diffJson.from, "code_diff from");
+  assertRecord(diffJson.to, "code_diff to");
+  assertRecord(diffJson.scope, "code_diff scope");
+  assert(
+    diffJson.view === "name-status" &&
+      diffJson.from.requested === diffArgs.from &&
+      diffJson.to.requested === diffArgs.to &&
+      diffJson.scope.status === "repository",
+    "code_diff default projection or identity mismatch",
+  );
+  assert(
+    Array.isArray(diffJson.files) &&
+      diffJson.files.length > 0 &&
+      diffJson.files.length <= 2 &&
+      diffJson.hasMoreFiles === true,
+    "code_diff file bound or truncation missing",
+  );
+  const diffPatch = assertJsonResult(
+    await callTool(caller, "code_diff", {
+      ...diffArgs,
+      view: "patch",
+      path_glob: "lib/utils.js",
+      format: "json",
+    }),
+    "code_diff scoped patch",
+  );
+  assertRecord(diffPatch, "code_diff scoped patch");
+  assert(
+    diffPatch.view === "patch" &&
+      Array.isArray(diffPatch.files) &&
+      diffPatch.files.length === 1,
+    "code_diff scoped patch missing filtered file",
+  );
+  const diffFile = diffPatch.files[0];
+  assertRecord(diffFile, "code_diff patch file");
+  assert(
+    diffFile.path === "lib/utils.js" &&
+      typeof diffFile.patch === "string" &&
+      diffFile.patch.startsWith("diff --git"),
+    "code_diff scoped patch missing unified content",
+  );
+
   const exampleText = assertDefaultText(
     await callTool(caller, "get_example", {
       query: "express hello world",
@@ -1763,6 +1826,7 @@ export async function runMcpSmoke(
     "`list`",
     "`grep`",
     "`read`",
+    "`code_diff`",
   ]) {
     assert(
       quickStart.includes(expected),

@@ -33,6 +33,7 @@ const EXPECTED_STABLE_NAMES = [
   "list",
   "read",
   "grep",
+  "code_diff",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -44,7 +45,6 @@ const EXPECTED_EXPERIMENTAL_NAMES = [
   ...EXPECTED_STABLE_NAMES,
   "research",
   "resolve_target",
-  "code_diff",
 ] as const;
 
 interface TestRegisteredTool {
@@ -152,7 +152,7 @@ describe("createLocalMcpServer", () => {
       expect(registeredToolNames(server)).toEqual([...EXPECTED_STABLE_NAMES]);
       expect(registeredToolNames(server)).not.toContain("ask");
       expect(registeredToolNames(server)).not.toContain("research");
-      expect(registeredToolNames(server)).toHaveLength(12);
+      expect(registeredToolNames(server)).toHaveLength(13);
       expect(registeredToolNames(server)).toContain("list");
       expect(registeredToolNames(server)).not.toContain("code_files");
       expect(registeredToolNames(server)).not.toContain("docs_list");
@@ -210,7 +210,7 @@ describe("createLocalMcpServer", () => {
     );
     expect(result.content[0]?.text).toBe(
       buildLocalMcpQuickStart({
-        enabledExperimentalTools: ["research", "resolve_target", "code_diff"],
+        enabledExperimentalTools: ["research", "resolve_target"],
       }),
     );
     for (const name of EXPECTED_EXPERIMENTAL_NAMES.filter(
@@ -220,7 +220,7 @@ describe("createLocalMcpServer", () => {
     }
   });
 
-  it("renders complete experimental selection sentences", () => {
+  it("renders complete stable and experimental selection sentences", () => {
     const server = createLocalMcpServer({
       metadata: { name: "local-githits", version: "0.0.0" },
       services: createServices(),

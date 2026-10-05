@@ -1,4 +1,4 @@
-// PARITY TEST — enforces PARITY-EXPERIMENTAL-LOCAL, PARITY-JSON-KEYS, and
+// PARITY TEST — enforces PARITY-EXPLICIT-CALLS, PARITY-JSON-KEYS, and
 // PARITY-ERROR-ENVELOPE from docs/implementation/mcp-cli-parity.md.
 // The CLI/MCP pair is config-gated and local-only; explicit JSON requests
 // must normalize to the same service params and success/error envelopes.
@@ -64,7 +64,7 @@ async function cliJson(
 }
 
 describe("resolve_target parity", () => {
-  it("PARITY-EXPERIMENTAL-LOCAL: explicit CLI/MCP requests share service params", async () => {
+  it("PARITY-EXPLICIT-CALLS: explicit CLI/MCP requests share service params", async () => {
     const cliResolveTarget = mock((_params: ResolveTargetParams) =>
       Promise.resolve(defaultResolveTargetResult),
     );
@@ -293,7 +293,7 @@ describe("resolve_target parity", () => {
   );
 
   it.each(["@scope/package", "react-native", "owner/repository"])(
-    "PARITY-EXPERIMENTAL-LOCAL: human name %s reaches both services",
+    "PARITY-EXPLICIT-CALLS: human name %s reaches both services",
     async (name) => {
       const cliResolveTarget = mock((_params: ResolveTargetParams) =>
         Promise.resolve(defaultResolveTargetResult),

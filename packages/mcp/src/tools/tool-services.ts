@@ -1,4 +1,5 @@
 import type {
+  CodeDiffService,
   CodeNavigationService,
   GitHitsService,
   GrepService,
@@ -15,7 +16,7 @@ import type {
  */
 export interface McpToolServices {
   githitsService: GitHitsService;
-  codeNavigationService: CodeNavigationService;
+  codeNavigationService: CodeNavigationService & CodeDiffService;
   packageIntelligenceService: PackageIntelligenceService;
   listService: ListService;
   readService: ReadService;

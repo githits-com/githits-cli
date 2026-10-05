@@ -1,10 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
-import type {
-  CodeDiffService,
-  ResolveTargetService,
-} from "@githits/core-internal";
+import type { ResolveTargetService } from "@githits/core-internal";
 import { z } from "zod";
-import { createMockCodeNavigationService } from "../services/test-helpers.js";
 import { QUICK_START_PREREQUISITE } from "../tools/quick-start.js";
 import type { McpToolServices } from "../tools/tool-services.js";
 import {
@@ -26,6 +22,7 @@ const FORMAT_SELECTABLE_TOOLS = new Set([
   "list",
   "read",
   "grep",
+  "code_diff",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -41,6 +38,7 @@ const STABLE_MCP_TOOL_NAMES = [
   "list",
   "read",
   "grep",
+  "code_diff",
   "pkg_info",
   "pkg_vulns",
   "pkg_deps",
@@ -57,6 +55,19 @@ const DESCRIPTION_ROUTING: Record<
     absent?: string[];
   }
 > = {
+  code_diff: {
+    prefix:
+      /^Compare source across exact package versions or public repository refs\./,
+    exactPrefix:
+      "Compare source across exact package versions or public repository refs. Pass an ",
+    body: [
+      "repository-wide diffs",
+      "bounded inventory",
+      "320 UTF-8 bytes",
+      "never prove compatibility",
+    ],
+    absent: ["Experimental:"],
+  },
   quick_start: {
     prefix:
       /^Call quick_start first to choose tools and load untrusted-content rules\./,
@@ -210,7 +221,7 @@ describe("MCP tool annotations", () => {
     const descriptors = getMcpToolDescriptors();
 
     expect(descriptors.map(({ name }) => name)).not.toContain("feedback");
-    expect(descriptors).toHaveLength(12);
+    expect(descriptors).toHaveLength(13);
     expect(descriptors.map(({ name }) => name)).toContain("read");
     expect(descriptors.map(({ name }) => name)).toContain("list");
     expect(descriptors.map(({ name }) => name)).toContain("grep");
@@ -631,8 +642,6 @@ describe("MCP search schema", () => {
 
 describe("MCP factory seam", () => {
   interface ExperimentalServices extends McpToolServices {
-    codeNavigationService: ReturnType<typeof createMockCodeNavigationService> &
-      CodeDiffService;
     resolveTargetService: ResolveTargetService;
   }
 
@@ -640,10 +649,6 @@ describe("MCP factory seam", () => {
     const stable = createDescriptorServices();
     const descriptorServices: ExperimentalServices = {
       ...stable,
-      codeNavigationService: {
-        ...stable.codeNavigationService,
-        ...createMockCodeNavigationService(),
-      },
       resolveTargetService: {
         resolveTarget: mock(() => Promise.reject(new Error("unused"))),
       },

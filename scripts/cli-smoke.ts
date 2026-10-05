@@ -1039,8 +1039,8 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
 
     const codeHelp = await runCliWithEnv(["code", "--help"], env);
     assert(
-      codeHelp.exitCode === 0 && !codeHelp.stdout.includes("diff"),
-      "stable code help should omit diff",
+      codeHelp.exitCode === 0 && codeHelp.stdout.includes("diff"),
+      "stable code help should expose diff",
     );
 
     for (const command of ["research", "ask"] as const) {
@@ -1103,37 +1103,24 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "disabled resolve JSON should retain the enable snippet",
     );
 
-    const disabledCodeDiff = await runCliWithEnv(
-      ["code", "diff", "npm:express", "5.2.0..5.2.1"],
-      env,
-    );
+    const stableDiffHelp = await runCliWithEnv(["code", "diff", "--help"], env);
     assert(
-      disabledCodeDiff.exitCode !== 0 &&
-        `${disabledCodeDiff.stderr}\n${disabledCodeDiff.stdout}`.includes(
-          `Experimental CLI command "code diff" is disabled. Enable it in ${configPath} by adding:\n[experimental]\ntools = true`,
-        ),
-      "disabled code diff should expose the exact config path and snippet",
+      stableDiffHelp.exitCode === 0 &&
+        stableDiffHelp.stdout.includes("<from>..<to>"),
+      "stable diff help should explain both endpoints",
     );
-
-    const disabledCodeDiffJson = await runCliWithEnv(
+    const stableDiff = await runCliWithEnv(
       ["code", "diff", "npm:express", "5.2.0..5.2.1", "--json"],
       env,
     );
     assertJsonErrorCode(
-      disabledCodeDiffJson,
-      "disabled code diff JSON",
-      "INVALID_ARGUMENT",
+      stableDiff,
+      "stable unauthenticated code diff",
+      "AUTH_REQUIRED",
     );
     assert(
-      disabledCodeDiffJson.stdout.trim() === "",
-      "disabled code diff JSON should keep stdout empty",
-    );
-    assert(
-      assertCleanErrorEnvelope(
-        disabledCodeDiffJson.stderr,
-        "disabled code diff JSON",
-      ).error.includes(`[experimental]\ntools = true`),
-      "disabled code diff JSON should retain the enable snippet",
+      stableDiff.stdout === "",
+      "stable diff auth failure should keep stdout empty",
     );
 
     for (const command of ["init", "login"] as const) {
@@ -1326,7 +1313,7 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
     const codeHelp = await runCliWithEnv(["code", "--help"], env);
     assert(
       codeHelp.exitCode === 0 && codeHelp.stdout.includes("diff"),
-      "experimental code help should expose diff",
+      "stable diff should remain in code help with experimental tools enabled",
     );
     const resolveHelp = await runCliWithEnv(["resolve", "--help"], env);
     assert(
@@ -1340,7 +1327,7 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
       codeDiffHelp.exitCode === 0 &&
         codeDiffHelp.stdout.includes("<from>..<to>") &&
         codeDiffHelp.stdout.includes("--name-status"),
-      "experimental code diff help should expose the bounded contract",
+      "stable diff help should expose the bounded contract with experimental tools enabled",
     );
 
     const resolveJson = await runCliWithEnv(
@@ -1376,7 +1363,7 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
     );
     assertJsonErrorCode(
       codeDiffJson,
-      "experimental unauthenticated code diff",
+      "stable unauthenticated code diff with experimental tools enabled",
       "AUTH_REQUIRED",
     );
   } finally {
@@ -1582,6 +1569,40 @@ async function runExperimentalLiveSmoke(
       ),
     "experimental fuzzy resolve JSON should preserve numeric name similarity for npm:lodash",
   );
+}
+
+async function runLiveSmoke(env: Record<string, string>): Promise<void> {
+  const scopedDiffArgs = [
+    "code",
+    "diff",
+    "npm:express",
+    "5.2.0..5.2.1",
+    "--max-files",
+    "1",
+  ];
+  const defaultDiff = assertTerminalOutput(
+    await runCliWithEnv([...scopedDiffArgs, "--", "lib/utils.js"], env),
+    "stable diff default patch",
+  );
+  assert(
+    defaultDiff.startsWith("diff --git") &&
+      defaultDiff.includes("lib/utils.js"),
+    "stable CLI diff default should emit the scoped unified patch",
+  );
+  const defaultDiffJson = assertJsonOutput(
+    await runCliWithEnv(
+      [...scopedDiffArgs, "--json", "--", "lib/utils.js"],
+      env,
+    ),
+    "stable diff default JSON",
+  );
+  assertRecord(defaultDiffJson, "stable diff default JSON");
+  assert(
+    defaultDiffJson.view === "patch" &&
+      Array.isArray(defaultDiffJson.files) &&
+      defaultDiffJson.files.length === 1,
+    "stable CLI diff JSON default should be a scoped patch",
+  );
 
   const codeDiffText = assertTerminalOutput(
     await runCliWithEnv(
@@ -1596,11 +1617,11 @@ async function runExperimentalLiveSmoke(
       ],
       env,
     ),
-    "experimental code diff terminal",
+    "stable code diff terminal",
   );
   assert(
     /^[AMDRT?]\t\S.+$/m.test(codeDiffText),
-    "experimental code diff text should include CLI-native status/path evidence",
+    "stable code diff text should include CLI-native status/path evidence",
   );
 
   const codeDiffJson = assertJsonOutput(
@@ -1617,19 +1638,17 @@ async function runExperimentalLiveSmoke(
       ],
       env,
     ),
-    "experimental code diff json",
+    "stable code diff json",
   );
-  assertRecord(codeDiffJson, "experimental code diff json");
+  assertRecord(codeDiffJson, "stable code diff json");
   assert(
     codeDiffJson.view === "name-status" &&
       Array.isArray(codeDiffJson.files) &&
       typeof codeDiffJson.from === "object" &&
       typeof codeDiffJson.to === "object",
-    "experimental code diff JSON missing exact resolutions",
+    "stable code diff JSON missing exact resolutions",
   );
-}
 
-async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   const runCli = (args: string[]): Promise<CommandResult> =>
     runCliWithEnv(args, env);
   const exampleText = assertTerminalOutput(

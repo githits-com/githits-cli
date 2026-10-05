@@ -2,20 +2,18 @@
 
 ## Purpose
 
-The transport-neutral adapter exposes the backend's exact-tree `codeDiff` GraphQL
-operation to the public `@githits/mcp/client` runtime. The root package also
-registers `githits code diff` as an intentionally unpromoted CLI dogfood
-surface. The local MCP composer also exposes a config-gated `code_diff` adapter
-for the same exact-tree evidence, but the public and remote MCP surfaces remain
-stable and do not include it. Neither layer claims that a patch proves
-compatibility.
+The transport-neutral adapter exposes the backend's exact-tree `codeDiff`
+GraphQL operation through `githits code diff`, the stable public MCP
+`code_diff` tool, and the `@githits/mcp/client` runtime. CLI and local stdio
+MCP require no experimental setting. Public MCP composition registers the
+same factory; hosted clients receive it only after the separate `remote-mcp`
+server adopts the released package and deploys.
 
-The local adapter is enabled only when the host experimental-tools policy is
-enabled. Its compact MCP target string, separate endpoints, bounded projections,
-and structured error envelope are internal to local composition; combined MCP
-instructions are composed only for the local server; remote/public exposure
-and Agent Skill guidance remain later rollout steps after dogfood and
-evaluation.
+Both surfaces share request normalization, service errors, and lossless JSON
+projection. CLI defaults to patch output; MCP defaults to bounded name-status
+inventory and compact text. Neither claims a patch proves compatibility.
+The public routing guide and its Agent Skill copy explain raw comparison
+separately from package upgrade review and indexed navigation.
 
 ## Addressing and modes
 
@@ -95,11 +93,12 @@ The additive `CodeDiffService` capability, CodeDiff request/result types, and
 `CodeDiffError` are re-exported from `@githits/mcp/client`.
 `CodeNavigationServiceImpl` implements both `CodeNavigationService` and
 `CodeDiffService`, while custom `CodeNavigationService` implementations remain
-source-compatible and do not need to implement the unpromoted diff capability.
+source-compatible. Public MCP providers additionally require `CodeDiffService`,
+as described in the migration section below.
 The existing test factories provide deterministic default results so current
 tool tests remain focused on their own behavior.
 
-## Silent CLI dogfood contract
+## CLI output contract
 
 The CLI accepts either an unversioned package/repository target followed by an
 explicit `from..to` range, or `--repo-url <url>` followed by that range:
@@ -154,7 +153,7 @@ binary/metadata-only causes and direct humans to stat/name views while JSON
 retains structured partial evidence. The applicable patch stream is unified
 diff content; the backend does not provide Git index or mode headers.
 Validation, authentication, resolution, and raw-field errors exit 1 through
-the shared CLI error envelope. The local `code_diff` MCP adapter maps the same
+the shared CLI error envelope. The `code_diff` MCP adapter maps the same
 classes of failures into the structured MCP error envelope and uses compact
 MCP-native text by default. Its `path_glob` schema requires one non-empty
 repository-relative `*` / `?` / whole-component `**` glob and rejects brace
@@ -166,16 +165,48 @@ returned patch content. That JSON remains subject to backend limits and content
 coverage, and cannot recover content omitted by the backend. `Content: complete`
 describes backend-returned coverage, not that every returned byte was printed
 in the compact preview.
-It is not included in public/remote descriptors or smoke inventories, and its
-guidance is not promoted through the public/remote `quick_start`, Agent Skills,
-or plugin guidance during this phase.
+## Public service migration and delivery
 
-## Deferred rollout boundaries
+Public `McpToolServices.codeNavigationService` now requires
+`CodeNavigationService & CodeDiffService`. `CodeNavigationService` itself
+remains unchanged for standalone navigation consumers. Custom MCP providers
+must implement `codeDiff`; import both interfaces from `@githits/mcp/client`.
+The built-in `CodeNavigationServiceImpl` already implements both. Registration
+and descriptor construction do not call the service; request-scoped provider
+resolution remains inside tool execution. Diff is registered exactly once
+when local experimental Research/Resolve tools are enabled or disabled.
 
-The local `code_diff` adapter and its experimental quick-start guidance remain
-config-gated and workspace-internal. Public/remote MCP descriptors, smoke
-inventories, Agent Skills, and plugin guidance remain stable-only; any future
-promotion requires separate graduation evidence and release review.
+The public smoke helper validates default inventory and a scoped patch when
+live tools are enabled. Secret-free local source/built smoke also validates
+stable registration and authentication handling. The manual production matrix
+runs with `experimental.tools = false` on both CLI and stdio MCP and covers
+views, exact identity, bounds, failures, text/JSON and parity. Five stable agent
+workloads cover package/repository comparisons, monorepo scope, recovery and
+bounded evidence; eval success does not by itself grade answer usefulness.
+See [GA validation evidence](code-diff-ga-audit.md).
+
+Hosted delivery remains a dependency update and deployment in `remote-mcp`;
+this repository owns no hosted transport or deployment changes. CLI
+code/package Agent Skills are updated in release preparation or after
+publication. The `githits-mcp` guide follows the repository's bounded same-PR
+parity exception. Research and Resolve remain experimental.
+
+Remaining distribution steps:
+
+1. Merge the product PR only after explicit approval. Prepare package-scoped
+   release versions against current main: the pending change is CLI minor
+   and MCP major because custom MCP providers now require `codeDiff`.
+   Reconcile exact versions with the coordinated minor-alignment policy.
+2. Update public CLI code/package Agent Skills at the release-preparation
+   boundary. Run targeted CLI skills evals for the Express and monorepo
+   workloads with both agents, validate packed exports and generated
+   metadata, consume the change fragments, and open the release PR.
+3. Obtain separate approval for release merge, tagging or publication as
+   applicable. Package publication delivers CLI/public MCP GA to consumers.
+4. In a separately assigned `remote-mcp` lane, adopt the released MCP package,
+   update custom providers if needed, and validate the public transport and
+   composition. Deploy only with explicit approval; claim hosted GA only
+   after verified deployment.
 
 Typed changelog steering is a separate later stage, blocked on both a stable
 public CodeDiff invocation and a committed/deployed backend changelog-action
@@ -191,8 +222,8 @@ repository/latest outcomes and unknown actions must remain unchanged.
 | `packages/core-internal/src/services/code-navigation-service.ts` | GraphQL query, validation, schemas, normalization, and errors |
 | `packages/core-internal/src/services/code-navigation-service.test.ts` | Wire-selection, variables, normalization, and failure fixtures |
 | `packages/mcp/src/client.ts` | Public client type/value re-exports |
-| `packages/mcp/src/shared/code-diff-{request,response,text,mcp-text}.ts` | CLI normalization, lean projection, Git-like rendering, and local MCP text |
+| `packages/mcp/src/shared/code-diff-{request,response,text,mcp-text}.ts` | CLI normalization, lean projection, Git-like rendering, and MCP text |
 | `src/commands/code/diff.ts` | Commander syntax, service call, stream routing, and CLI errors |
-| `packages/mcp/src/tools/code-diff.ts` | Local-only MCP schema, handler, and structured error mapping |
+| `packages/mcp/src/tools/code-diff.ts` | Stable MCP schema, handler, and structured error mapping |
 | `scripts/validate-public-packages.ts` | Packed-package runtime and no-network TypeScript consumer checks |
-| `docs/implementation/cli-commands.md` | Config-gated CLI surface and local-only MCP rollout status |
+| `docs/implementation/cli-commands.md` | Stable CLI surface and hosted MCP delivery status |

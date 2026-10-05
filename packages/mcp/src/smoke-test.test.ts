@@ -57,6 +57,36 @@ function createCaller(callTool: McpSmokeCaller["callTool"]): McpSmokeCaller {
 }
 
 describe("MCP smoke-test helpers", () => {
+  it("requires stable diff registration", async () => {
+    const caller = createCaller(async (name, args) =>
+      smokeResponse(name, args),
+    );
+    const listTools = caller.listTools;
+    caller.listTools = async () => ({
+      tools: (await listTools()).tools.filter(
+        (tool) => tool.name !== "code_diff",
+      ),
+    });
+    await expect(
+      runMcpSmoke(caller, { includeLiveTools: false }),
+    ).rejects.toThrow("listTools missing code_diff");
+  });
+  it("rejects a diff patch outside the requested file", async () => {
+    const caller = createCaller(async (name, args) =>
+      name === "code_diff" && args.view === "patch"
+        ? jsonResult({
+            view: "patch",
+            files: [
+              { path: "other.js", patch: "diff --git a/other.js b/other.js" },
+            ],
+          })
+        : smokeResponse(name, args),
+    );
+    await expect(runMcpSmoke(caller)).rejects.toThrow(
+      "code_diff scoped patch missing unified content",
+    );
+  });
+
   it("extracts successful tool text and throws MCP error text", async () => {
     const successCaller = createCaller(async () => textResult("ok"));
     await expect(callToolText(successCaller, "get_example", {})).resolves.toBe(
@@ -1171,9 +1201,13 @@ function smokeResponse(
   if (args.format === "json") return smokeJsonResponse(name, args);
 
   switch (name) {
+    case "code_diff":
+      return textResult(
+        "Source changed\nResolved endpoints:\nScope: repository",
+      );
     case "quick_start":
       return textResult(
-        "GitHits routing guide: use `search` to discover, `list` to browse files, `grep` to match code and docs, and `read` to open results.",
+        "GitHits routing guide: use `search` to discover, `list` to browse files, `grep` to match code and docs, and `read` to open results; `code_diff` compares source.",
       );
     case "get_example":
       return textResult("example\nsolution_id: smoke");
@@ -1279,6 +1313,23 @@ function smokeJsonResponse(
   args: Record<string, unknown>,
 ): McpSmokeToolResult {
   switch (name) {
+    case "code_diff":
+      return jsonResult({
+        view: args.view ?? "name-status",
+        from: { requested: args.from },
+        to: { requested: args.to },
+        scope: { status: "repository" },
+        files: [
+          {
+            path: "lib/utils.js",
+            status: "modified",
+            ...(args.view === "patch"
+              ? { patch: "diff --git a/lib/utils.js b/lib/utils.js\n" }
+              : {}),
+          },
+        ],
+        hasMoreFiles: true,
+      });
     case "get_example":
       return jsonResult({ result: "example" });
     case "pkg_info":

@@ -43,7 +43,6 @@ export const EXPECTED_EXPERIMENTAL_MCP_TOOLS = [
   ...EXPECTED_MCP_TOOLS,
   "research",
   "resolve_target",
-  "code_diff",
 ] as const;
 export const STABLE_MCP_SMOKE_CONFIG = "[experimental]\ntools = false\n";
 
@@ -177,7 +176,9 @@ async function assertStableMcpSession(
     `${context}: quick_start`,
   );
   assert(
-    quickStart.includes("`search`") && quickStart.includes("`grep`"),
+    quickStart.includes("`search`") &&
+      quickStart.includes("`grep`") &&
+      quickStart.includes("`code_diff`"),
     `${context}: quick_start missing stable routing guidance`,
   );
 }
@@ -208,7 +209,7 @@ async function assertExperimentalMcpSession(
       quickStart.includes('source:"docs"') &&
       quickStart.includes("`read`") &&
       quickStart.includes("credentials") &&
-      quickStart.includes("diffs do not prove compatibility") &&
+      /Raw diffs do not\s+prove compatibility/.test(quickStart) &&
       quickStart.includes("public OSS") &&
       !quickStart.includes("Issue reporting"),
     `${context}: experimental quick_start missing routing/privacy guidance or contains retired issue-reporting guidance`,
@@ -309,6 +310,15 @@ async function runRegistrationSmoke(target: CliLaunchTarget): Promise<void> {
       await assertSkillUpdateProbe(isolated.root);
       await assertStableMcpSession(client, "stable registration");
       await assertStableAuthProbe(client, "registration");
+      const diffResult = (await client.callTool({
+        name: "code_diff",
+        arguments: { target: "npm:express", from: "5.2.0", to: "5.2.1" },
+      })) as McpSmokeToolResult;
+      assert(
+        assertCleanErrorEnvelope(diffResult, "stable code_diff registration")
+          .code === "AUTH_REQUIRED",
+        "stable code_diff must reach auth without experimental opt-in",
+      );
       await runMcpSmoke(createSmokeCaller(client), {
         includeLiveTools: false,
         logger: console,
@@ -368,26 +378,6 @@ async function runExperimentalRegistrationSmoke(
           assertCleanErrorEnvelope(resolveResult, "resolve_target registration")
             .code === "AUTH_REQUIRED",
           "resolve_target registration should require auth",
-        );
-
-        const diffResult = (await trackSmokeStep(
-          'mcp code_diff {"target":"npm:express"} registration',
-          () =>
-            client.callTool({
-              name: "code_diff",
-              arguments: {
-                target: "npm:express",
-                from: "5.2.0",
-                to: "5.2.1",
-                view: "name-status",
-                format: "json",
-              },
-            }),
-        )) as McpSmokeToolResult;
-        assert(
-          assertCleanErrorEnvelope(diffResult, "code_diff registration")
-            .code === "AUTH_REQUIRED",
-          "code_diff registration should require auth",
         );
       },
     );
@@ -701,53 +691,6 @@ async function runExperimentalLiveSmoke(
                 typeof candidate.nameSimilarity === "number",
             ),
           "experimental fuzzy resolve JSON should preserve numeric name similarity for npm:lodash",
-        );
-
-        const diffText = (await trackSmokeStep(
-          "mcp code_diff name-status default text experimental live",
-          () =>
-            client.callTool({
-              name: "code_diff",
-              arguments: {
-                target: "npm:express",
-                from: "5.2.0",
-                to: "5.2.1",
-                view: "name-status",
-              },
-            }),
-        )) as McpSmokeToolResult;
-        const diffTextBody = assertDefaultText(
-          diffText,
-          "experimental code diff default text",
-        );
-        assert(
-          diffTextBody.length > 0 &&
-            !diffTextBody.includes("githits ") &&
-            !diffTextBody.includes("--"),
-          "experimental code diff text should be MCP-native",
-        );
-
-        const diffJson = (await trackSmokeStep(
-          "mcp code_diff name-status JSON experimental live",
-          () =>
-            client.callTool({
-              name: "code_diff",
-              arguments: {
-                target: "npm:express",
-                from: "5.2.0",
-                to: "5.2.1",
-                view: "name-status",
-                format: "json",
-              },
-            }),
-        )) as McpSmokeToolResult;
-        const diffPayload = assertJsonResult(
-          diffJson,
-          "experimental code diff JSON",
-        );
-        assert(
-          diffPayload !== null && typeof diffPayload === "object",
-          "experimental code diff JSON should be an object",
         );
       },
     );

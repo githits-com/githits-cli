@@ -7,7 +7,7 @@ import {
   type LocalExperimentalToolName,
 } from "./instructions.js";
 
-const EXPERIMENTAL_TOOLS = ["research", "resolve_target", "code_diff"] as const;
+const EXPERIMENTAL_TOOLS = ["research", "resolve_target"] as const;
 
 function buildLocal(
   enabledExperimentalTools: readonly LocalExperimentalToolName[],
@@ -156,19 +156,21 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("MEDIUM/LOW");
     expect(instructions).toContain("never auto-select");
     expect(instructions).toContain("`pkg_upgrade_review`");
-    expect(instructions).toContain("public repository refs repository-wide");
+    expect(instructions).toContain("comparisons, which are repository-wide");
     expect(instructions).toContain("name-status");
     expect(instructions).toContain(
-      "use `json` only for required fields absent from text or the full returned patch",
+      "Keep text unless required fields or the full\nreturned patch are needed",
     );
-    expect(instructions).toContain("diffs do not prove compatibility");
+    expect(instructions).toContain("Raw diffs do not\nprove compatibility");
     expect(instructions).toContain("credentials");
     expect(instructions).toContain("private or proprietary content");
     expect(instructions).toContain("targets.\n\n- `research`");
     expect(instructions).toContain(
       "Do not invent or rewrite sources.\n- `resolve_target`",
     );
-    expect(instructions).toContain("target/range.\n- `code_diff`");
+    expect(instructions.split("Local experimental tools")[1]).not.toContain(
+      "`code_diff`",
+    );
     expect(instructions.length - buildMcpQuickStart().length).toBeLessThan(
       2_000,
     );
@@ -182,20 +184,17 @@ describe("buildLocalMcpQuickStart", () => {
       { enabled: [] as const, absent: EXPERIMENTAL_TOOLS },
       {
         enabled: ["resolve_target"] as const,
-        absent: ["research", "code_diff"] as const,
-      },
-      {
-        enabled: ["code_diff"] as const,
-        absent: ["research", "resolve_target"] as const,
+        absent: ["research"] as const,
       },
       {
         enabled: ["research"] as const,
-        absent: ["resolve_target", "code_diff"] as const,
+        absent: ["resolve_target"] as const,
       },
     ];
 
     for (const { enabled, absent } of cases) {
       const instructions = buildLocal(enabled);
+      expect(instructions).toContain("`code_diff`");
       expect(instructions).not.toContain("feedback");
       expect(instructions).not.toContain("Issue reporting");
       for (const name of enabled) {

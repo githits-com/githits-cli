@@ -109,13 +109,13 @@ describe("handleCliError", () => {
 
   it("renders experimental policy errors as clean JSON when requested", () => {
     const disabled = captureCliError(
-      new ExperimentalToolsDisabledError("code diff", "/tmp/config.toml"),
+      new ExperimentalToolsDisabledError("resolve", "/tmp/config.toml"),
       true,
     );
     expect(disabled.output.trim()).toBe(
       JSON.stringify({
         error:
-          'Experimental CLI command "code diff" is disabled. Enable it in /tmp/config.toml by adding:\n[experimental]\ntools = true',
+          'Experimental CLI command "resolve" is disabled. Enable it in /tmp/config.toml by adding:\n[experimental]\ntools = true',
         code: "INVALID_ARGUMENT",
         retryable: false,
       }),
